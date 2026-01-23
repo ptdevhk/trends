@@ -2,10 +2,24 @@ TrendRadar is a Chinese news hot topic aggregator and analysis tool. It crawls t
 
 ## Common Commands
 
+### Quick Start (Makefile)
+```bash
+make dev       # Development (skips root index.html, keeps git clean)
+make run       # Production (full output including root index.html)
+make mcp       # Start MCP server (STDIO)
+make mcp-http  # Start MCP server (HTTP on port 3333)
+make install   # Install dependencies with uv
+make clean     # Remove generated output files
+make help      # Show all available commands
+```
+
 ### Running the main crawler/analyzer
 ```bash
 # Using uv (recommended)
 uv run python -m trendradar
+
+# Development mode (skips root index.html to avoid git pollution)
+SKIP_ROOT_INDEX=true uv run python -m trendradar
 
 # Using pip
 pip install -r requirements.txt

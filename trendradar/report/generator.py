@@ -7,6 +7,7 @@
 - generate_html_report: 生成 HTML 报告
 """
 
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Callable
 
@@ -229,8 +230,10 @@ def generate_html_report(
         f.write(html_content)
 
     # 根目录 index.html（供 GitHub Pages 访问）
-    root_index = Path("index.html")
-    with open(root_index, "w", encoding="utf-8") as f:
-        f.write(html_content)
+    # 可通过环境变量 SKIP_ROOT_INDEX=true 跳过，用于开发环境避免 git 污染
+    if os.environ.get("SKIP_ROOT_INDEX", "").lower() not in ("true", "1"):
+        root_index = Path("index.html")
+        with open(root_index, "w", encoding="utf-8") as f:
+            f.write(html_content)
 
     return snapshot_file
