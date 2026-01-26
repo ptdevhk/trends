@@ -139,7 +139,6 @@ Key secrets for GitHub Actions or Docker:
 
 ## Code Conventions
 
-- Chinese comments and user-facing messages (target audience is Chinese users)
 - Type hints used throughout
 - Config values accessed via `ctx.config["KEY"]` pattern
 - Async wrappers in MCP server use `asyncio.to_thread()` for sync operations
