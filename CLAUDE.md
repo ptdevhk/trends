@@ -4,7 +4,12 @@ TrendRadar is a Chinese news hot topic aggregator and analysis tool. It crawls t
 
 ### Quick Start (Makefile)
 ```bash
-make dev          # Development (skips root index.html, keeps git clean)
+make dev          # Start all services (MCP + crawler + apps/*)
+make dev-mcp      # Start only MCP server (HTTP on port 3333)
+make dev-crawl    # Run crawler only (no long-running services)
+make dev-web      # Start web frontend only (apps/web - Milestone 3)
+make dev-api      # Start BFF API only (apps/api - Milestone 2)
+make dev-worker   # Start FastAPI worker only (apps/worker - Milestone 1)
 make run          # Production (full output including root index.html)
 make mcp          # Start MCP server (STDIO)
 make mcp-http     # Start MCP server (HTTP on port 3333)
@@ -14,6 +19,13 @@ make docker       # Start Docker containers
 make clean        # Remove generated output files
 make help         # Show all available commands
 ```
+
+Environment variables for development:
+- `ENV_FILE` - Path to .env file (default: .env)
+- `MCP_PORT` - MCP server port (default: 3333)
+- `WORKER_PORT` - FastAPI worker port (default: 8000)
+- `API_PORT` - BFF API port (default: 3000)
+- `WEB_PORT` - Web frontend port (default: 5173)
 
 ### Running the main crawler/analyzer
 ```bash
