@@ -12,6 +12,22 @@ from typing import Dict, Any, Optional
 import yaml
 
 from .config import parse_multi_account_config, validate_paired_configs
+from packages.config import (
+    APP_DEFAULTS,
+    CRAWLER_DEFAULTS,
+    REPORT_DEFAULTS,
+    NOTIFICATION_DEFAULTS,
+    BATCH_SIZE_DEFAULTS,
+    PUSH_WINDOW_DEFAULTS,
+    WEIGHT_DEFAULTS,
+    RSS_DEFAULTS,
+    DISPLAY_DEFAULTS,
+    AI_DEFAULTS,
+    AI_ANALYSIS_DEFAULTS,
+    AI_TRANSLATION_DEFAULTS,
+    STORAGE_DEFAULTS,
+    WEBHOOK_DEFAULTS,
+)
 
 
 def _get_env_bool(key: str, default: bool = False) -> Optional[bool]:
@@ -56,9 +72,9 @@ def _load_app_config(config_data: Dict) -> Dict:
     return {
         "VERSION_CHECK_URL": advanced.get("version_check_url", ""),
         "CONFIGS_VERSION_CHECK_URL": advanced.get("configs_version_check_url", ""),
-        "SHOW_VERSION_UPDATE": app_config.get("show_version_update", True),
-        "TIMEZONE": _get_env_str("TIMEZONE") or app_config.get("timezone", "Asia/Shanghai"),
-        "DEBUG": _get_env_bool("DEBUG") if _get_env_bool("DEBUG") is not None else advanced.get("debug", False),
+        "SHOW_VERSION_UPDATE": app_config.get("show_version_update", APP_DEFAULTS["SHOW_VERSION_UPDATE"]),
+        "TIMEZONE": _get_env_str("TIMEZONE") or app_config.get("timezone", APP_DEFAULTS["TIMEZONE"]),
+        "DEBUG": _get_env_bool("DEBUG") if _get_env_bool("DEBUG") is not None else advanced.get("debug", APP_DEFAULTS["DEBUG"]),
     }
 
 
@@ -68,10 +84,10 @@ def _load_crawler_config(config_data: Dict) -> Dict:
     crawler_config = advanced.get("crawler", {})
     platforms_config = config_data.get("platforms", {})
     return {
-        "REQUEST_INTERVAL": crawler_config.get("request_interval", 100),
-        "USE_PROXY": crawler_config.get("use_proxy", False),
+        "REQUEST_INTERVAL": crawler_config.get("request_interval", CRAWLER_DEFAULTS["REQUEST_INTERVAL"]),
+        "USE_PROXY": crawler_config.get("use_proxy", CRAWLER_DEFAULTS["USE_PROXY"]),
         "DEFAULT_PROXY": crawler_config.get("default_proxy", ""),
-        "ENABLE_CRAWLER": platforms_config.get("enabled", True),
+        "ENABLE_CRAWLER": platforms_config.get("enabled", CRAWLER_DEFAULTS["ENABLE_CRAWLER"]),
     }
 
 
@@ -84,11 +100,11 @@ def _load_report_config(config_data: Dict) -> Dict:
     max_news_env = _get_env_int("MAX_NEWS_PER_KEYWORD")
 
     return {
-        "REPORT_MODE": report_config.get("mode", "daily"),
-        "DISPLAY_MODE": report_config.get("display_mode", "keyword"),
-        "RANK_THRESHOLD": report_config.get("rank_threshold", 10),
-        "SORT_BY_POSITION_FIRST": sort_by_position_env if sort_by_position_env is not None else report_config.get("sort_by_position_first", False),
-        "MAX_NEWS_PER_KEYWORD": max_news_env or report_config.get("max_news_per_keyword", 0),
+        "REPORT_MODE": report_config.get("mode", REPORT_DEFAULTS["MODE"]),
+        "DISPLAY_MODE": report_config.get("display_mode", REPORT_DEFAULTS["DISPLAY_MODE"]),
+        "RANK_THRESHOLD": report_config.get("rank_threshold", REPORT_DEFAULTS["RANK_THRESHOLD"]),
+        "SORT_BY_POSITION_FIRST": sort_by_position_env if sort_by_position_env is not None else report_config.get("sort_by_position_first", REPORT_DEFAULTS["SORT_BY_POSITION_FIRST"]),
+        "MAX_NEWS_PER_KEYWORD": max_news_env or report_config.get("max_news_per_keyword", REPORT_DEFAULTS["MAX_NEWS_PER_KEYWORD"]),
     }
 
 
@@ -99,15 +115,15 @@ def _load_notification_config(config_data: Dict) -> Dict:
     batch_size = advanced.get("batch_size", {})
 
     return {
-        "ENABLE_NOTIFICATION": notification.get("enabled", True),
-        "MESSAGE_BATCH_SIZE": batch_size.get("default", 4000),
-        "DINGTALK_BATCH_SIZE": batch_size.get("dingtalk", 20000),
-        "FEISHU_BATCH_SIZE": batch_size.get("feishu", 29000),
-        "BARK_BATCH_SIZE": batch_size.get("bark", 3600),
-        "SLACK_BATCH_SIZE": batch_size.get("slack", 4000),
-        "BATCH_SEND_INTERVAL": advanced.get("batch_send_interval", 1.0),
-        "FEISHU_MESSAGE_SEPARATOR": advanced.get("feishu_message_separator", "---"),
-        "MAX_ACCOUNTS_PER_CHANNEL": _get_env_int("MAX_ACCOUNTS_PER_CHANNEL") or advanced.get("max_accounts_per_channel", 3),
+        "ENABLE_NOTIFICATION": notification.get("enabled", NOTIFICATION_DEFAULTS["ENABLED"]),
+        "MESSAGE_BATCH_SIZE": batch_size.get("default", BATCH_SIZE_DEFAULTS["DEFAULT"]),
+        "DINGTALK_BATCH_SIZE": batch_size.get("dingtalk", BATCH_SIZE_DEFAULTS["DINGTALK"]),
+        "FEISHU_BATCH_SIZE": batch_size.get("feishu", BATCH_SIZE_DEFAULTS["FEISHU"]),
+        "BARK_BATCH_SIZE": batch_size.get("bark", BATCH_SIZE_DEFAULTS["BARK"]),
+        "SLACK_BATCH_SIZE": batch_size.get("slack", BATCH_SIZE_DEFAULTS["SLACK"]),
+        "BATCH_SEND_INTERVAL": advanced.get("batch_send_interval", NOTIFICATION_DEFAULTS["BATCH_SEND_INTERVAL"]),
+        "FEISHU_MESSAGE_SEPARATOR": advanced.get("feishu_message_separator", NOTIFICATION_DEFAULTS["FEISHU_MESSAGE_SEPARATOR"]),
+        "MAX_ACCOUNTS_PER_CHANNEL": _get_env_int("MAX_ACCOUNTS_PER_CHANNEL") or advanced.get("max_accounts_per_channel", NOTIFICATION_DEFAULTS["MAX_ACCOUNTS_PER_CHANNEL"]),
     }
 
 
@@ -120,12 +136,12 @@ def _load_push_window_config(config_data: Dict) -> Dict:
     once_per_day_env = _get_env_bool("PUSH_WINDOW_ONCE_PER_DAY")
 
     return {
-        "ENABLED": enabled_env if enabled_env is not None else push_window.get("enabled", False),
+        "ENABLED": enabled_env if enabled_env is not None else push_window.get("enabled", PUSH_WINDOW_DEFAULTS["ENABLED"]),
         "TIME_RANGE": {
-            "START": _get_env_str("PUSH_WINDOW_START") or push_window.get("start", "08:00"),
-            "END": _get_env_str("PUSH_WINDOW_END") or push_window.get("end", "22:00"),
+            "START": _get_env_str("PUSH_WINDOW_START") or push_window.get("start", PUSH_WINDOW_DEFAULTS["START"]),
+            "END": _get_env_str("PUSH_WINDOW_END") or push_window.get("end", PUSH_WINDOW_DEFAULTS["END"]),
         },
-        "ONCE_PER_DAY": once_per_day_env if once_per_day_env is not None else push_window.get("once_per_day", True),
+        "ONCE_PER_DAY": once_per_day_env if once_per_day_env is not None else push_window.get("once_per_day", PUSH_WINDOW_DEFAULTS["ONCE_PER_DAY"]),
     }
 
 
@@ -134,9 +150,9 @@ def _load_weight_config(config_data: Dict) -> Dict:
     advanced = config_data.get("advanced", {})
     weight = advanced.get("weight", {})
     return {
-        "RANK_WEIGHT": weight.get("rank", 0.6),
-        "FREQUENCY_WEIGHT": weight.get("frequency", 0.3),
-        "HOTNESS_WEIGHT": weight.get("hotness", 0.1),
+        "RANK_WEIGHT": weight.get("rank", WEIGHT_DEFAULTS["RANK"]),
+        "FREQUENCY_WEIGHT": weight.get("frequency", WEIGHT_DEFAULTS["FREQUENCY"]),
+        "HOTNESS_WEIGHT": weight.get("hotness", WEIGHT_DEFAULTS["HOTNESS"]),
     }
 
 
@@ -152,28 +168,29 @@ def _load_rss_config(config_data: Dict) -> Dict:
 
     # 新鲜度过滤配置
     freshness_filter = rss.get("freshness_filter", {})
+    default_max_age = RSS_DEFAULTS["FRESHNESS_FILTER"]["MAX_AGE_DAYS"]
 
     # 验证并设置 max_age_days 默认值
-    raw_max_age = freshness_filter.get("max_age_days", 3)
+    raw_max_age = freshness_filter.get("max_age_days", default_max_age)
     try:
         max_age_days = int(raw_max_age)
         if max_age_days < 0:
-            print(f"[警告] RSS freshness_filter.max_age_days 为负数 ({max_age_days})，使用默认值 3")
-            max_age_days = 3
+            print(f"[警告] RSS freshness_filter.max_age_days 为负数 ({max_age_days})，使用默认值 {default_max_age}")
+            max_age_days = default_max_age
     except (ValueError, TypeError):
-        print(f"[警告] RSS freshness_filter.max_age_days 格式错误 ({raw_max_age})，使用默认值 3")
-        max_age_days = 3
+        print(f"[警告] RSS freshness_filter.max_age_days 格式错误 ({raw_max_age})，使用默认值 {default_max_age}")
+        max_age_days = default_max_age
 
     # RSS 配置直接从 config.yaml 读取，不再支持环境变量
     return {
-        "ENABLED": rss.get("enabled", False),
-        "REQUEST_INTERVAL": advanced_rss.get("request_interval", 2000),
-        "TIMEOUT": advanced_rss.get("timeout", 15),
-        "USE_PROXY": advanced_rss.get("use_proxy", False),
+        "ENABLED": rss.get("enabled", RSS_DEFAULTS["ENABLED"]),
+        "REQUEST_INTERVAL": advanced_rss.get("request_interval", RSS_DEFAULTS["REQUEST_INTERVAL"]),
+        "TIMEOUT": advanced_rss.get("timeout", RSS_DEFAULTS["TIMEOUT"]),
+        "USE_PROXY": advanced_rss.get("use_proxy", RSS_DEFAULTS["USE_PROXY"]),
         "PROXY_URL": rss_proxy_url,
         "FEEDS": rss.get("feeds", []),
         "FRESHNESS_FILTER": {
-            "ENABLED": freshness_filter.get("enabled", True),  # 默认启用
+            "ENABLED": freshness_filter.get("enabled", RSS_DEFAULTS["FRESHNESS_FILTER"]["ENABLED"]),
             "MAX_AGE_DAYS": max_age_days,
         },
     }
@@ -186,7 +203,7 @@ def _load_display_config(config_data: Dict) -> Dict:
     standalone = display.get("standalone", {})
 
     # 默认区域顺序
-    default_region_order = ["hotlist", "rss", "new_items", "standalone", "ai_analysis"]
+    default_region_order = DISPLAY_DEFAULTS["REGION_ORDER"]
     region_order = display.get("region_order", default_region_order)
 
     # 验证 region_order 中的值是否合法
@@ -202,17 +219,17 @@ def _load_display_config(config_data: Dict) -> Dict:
         "REGION_ORDER": region_order,
         # 区域开关
         "REGIONS": {
-            "HOTLIST": regions.get("hotlist", True),
-            "NEW_ITEMS": regions.get("new_items", True),
-            "RSS": regions.get("rss", True),
-            "STANDALONE": regions.get("standalone", False),
-            "AI_ANALYSIS": regions.get("ai_analysis", True),
+            "HOTLIST": regions.get("hotlist", DISPLAY_DEFAULTS["REGIONS"]["HOTLIST"]),
+            "NEW_ITEMS": regions.get("new_items", DISPLAY_DEFAULTS["REGIONS"]["NEW_ITEMS"]),
+            "RSS": regions.get("rss", DISPLAY_DEFAULTS["REGIONS"]["RSS"]),
+            "STANDALONE": regions.get("standalone", DISPLAY_DEFAULTS["REGIONS"]["STANDALONE"]),
+            "AI_ANALYSIS": regions.get("ai_analysis", DISPLAY_DEFAULTS["REGIONS"]["AI_ANALYSIS"]),
         },
         # 独立展示区配置
         "STANDALONE": {
             "PLATFORMS": standalone.get("platforms", []),
             "RSS_FEEDS": standalone.get("rss_feeds", []),
-            "MAX_ITEMS": standalone.get("max_items", 20),
+            "MAX_ITEMS": standalone.get("max_items", DISPLAY_DEFAULTS["STANDALONE"]["MAX_ITEMS"]),
         },
     }
 
@@ -225,17 +242,17 @@ def _load_ai_config(config_data: Dict) -> Dict:
 
     return {
         # LiteLLM 核心配置
-        "MODEL": _get_env_str("AI_MODEL") or ai_config.get("model", "deepseek/deepseek-chat"),
+        "MODEL": _get_env_str("AI_MODEL") or ai_config.get("model", AI_DEFAULTS["MODEL"]),
         "API_KEY": _get_env_str("AI_API_KEY") or ai_config.get("api_key", ""),
         "API_BASE": _get_env_str("AI_API_BASE") or ai_config.get("api_base", ""),
 
         # 生成参数
-        "TIMEOUT": timeout_env if timeout_env is not None else ai_config.get("timeout", 120),
-        "TEMPERATURE": ai_config.get("temperature", 1.0),
-        "MAX_TOKENS": ai_config.get("max_tokens", 5000),
+        "TIMEOUT": timeout_env if timeout_env is not None else ai_config.get("timeout", AI_DEFAULTS["TIMEOUT"]),
+        "TEMPERATURE": ai_config.get("temperature", AI_DEFAULTS["TEMPERATURE"]),
+        "MAX_TOKENS": ai_config.get("max_tokens", AI_DEFAULTS["MAX_TOKENS"]),
 
         # LiteLLM 高级选项
-        "NUM_RETRIES": ai_config.get("num_retries", 2),
+        "NUM_RETRIES": ai_config.get("num_retries", AI_DEFAULTS["NUM_RETRIES"]),
         "FALLBACK_MODELS": ai_config.get("fallback_models", []),
         "EXTRA_PARAMS": ai_config.get("extra_params", {}),
     }
@@ -251,20 +268,20 @@ def _load_ai_analysis_config(config_data: Dict) -> Dict:
     window_once_per_day_env = _get_env_bool("AI_ANALYSIS_WINDOW_ONCE_PER_DAY")
 
     return {
-        "ENABLED": enabled_env if enabled_env is not None else ai_config.get("enabled", False),
-        "LANGUAGE": ai_config.get("language", "Chinese"),
-        "PROMPT_FILE": ai_config.get("prompt_file", "ai_analysis_prompt.txt"),
-        "MODE": ai_config.get("mode", "follow_report"),
-        "MAX_NEWS_FOR_ANALYSIS": ai_config.get("max_news_for_analysis", 50),
-        "INCLUDE_RSS": ai_config.get("include_rss", True),
-        "INCLUDE_RANK_TIMELINE": ai_config.get("include_rank_timeline", False),
+        "ENABLED": enabled_env if enabled_env is not None else ai_config.get("enabled", AI_ANALYSIS_DEFAULTS["ENABLED"]),
+        "LANGUAGE": ai_config.get("language", AI_ANALYSIS_DEFAULTS["LANGUAGE"]),
+        "PROMPT_FILE": ai_config.get("prompt_file", AI_ANALYSIS_DEFAULTS["PROMPT_FILE"]),
+        "MODE": ai_config.get("mode", AI_ANALYSIS_DEFAULTS["MODE"]),
+        "MAX_NEWS_FOR_ANALYSIS": ai_config.get("max_news_for_analysis", AI_ANALYSIS_DEFAULTS["MAX_NEWS_FOR_ANALYSIS"]),
+        "INCLUDE_RSS": ai_config.get("include_rss", AI_ANALYSIS_DEFAULTS["INCLUDE_RSS"]),
+        "INCLUDE_RANK_TIMELINE": ai_config.get("include_rank_timeline", AI_ANALYSIS_DEFAULTS["INCLUDE_RANK_TIMELINE"]),
         "ANALYSIS_WINDOW": {
-            "ENABLED": window_enabled_env if window_enabled_env is not None else analysis_window.get("enabled", False),
+            "ENABLED": window_enabled_env if window_enabled_env is not None else analysis_window.get("enabled", AI_ANALYSIS_DEFAULTS["ANALYSIS_WINDOW"]["ENABLED"]),
             "TIME_RANGE": {
-                "START": _get_env_str("AI_ANALYSIS_WINDOW_START") or analysis_window.get("start", "09:00"),
-                "END": _get_env_str("AI_ANALYSIS_WINDOW_END") or analysis_window.get("end", "22:00"),
+                "START": _get_env_str("AI_ANALYSIS_WINDOW_START") or analysis_window.get("start", AI_ANALYSIS_DEFAULTS["ANALYSIS_WINDOW"]["START"]),
+                "END": _get_env_str("AI_ANALYSIS_WINDOW_END") or analysis_window.get("end", AI_ANALYSIS_DEFAULTS["ANALYSIS_WINDOW"]["END"]),
             },
-            "ONCE_PER_DAY": window_once_per_day_env if window_once_per_day_env is not None else analysis_window.get("once_per_day", False),
+            "ONCE_PER_DAY": window_once_per_day_env if window_once_per_day_env is not None else analysis_window.get("once_per_day", AI_ANALYSIS_DEFAULTS["ANALYSIS_WINDOW"]["ONCE_PER_DAY"]),
         },
     }
 
@@ -276,9 +293,9 @@ def _load_ai_translation_config(config_data: Dict) -> Dict:
     enabled_env = _get_env_bool("AI_TRANSLATION_ENABLED")
 
     return {
-        "ENABLED": enabled_env if enabled_env is not None else trans_config.get("enabled", False),
-        "LANGUAGE": _get_env_str("AI_TRANSLATION_LANGUAGE") or trans_config.get("language", "English"),
-        "PROMPT_FILE": trans_config.get("prompt_file", "ai_translation_prompt.txt"),
+        "ENABLED": enabled_env if enabled_env is not None else trans_config.get("enabled", AI_TRANSLATION_DEFAULTS["ENABLED"]),
+        "LANGUAGE": _get_env_str("AI_TRANSLATION_LANGUAGE") or trans_config.get("language", AI_TRANSLATION_DEFAULTS["LANGUAGE"]),
+        "PROMPT_FILE": trans_config.get("prompt_file", AI_TRANSLATION_DEFAULTS["PROMPT_FILE"]),
     }
 
 
@@ -295,15 +312,15 @@ def _load_storage_config(config_data: Dict) -> Dict:
     pull_enabled_env = _get_env_bool("PULL_ENABLED")
 
     return {
-        "BACKEND": _get_env_str("STORAGE_BACKEND") or storage.get("backend", "auto"),
+        "BACKEND": _get_env_str("STORAGE_BACKEND") or storage.get("backend", STORAGE_DEFAULTS["BACKEND"]),
         "FORMATS": {
-            "SQLITE": formats.get("sqlite", True),
-            "TXT": txt_enabled_env if txt_enabled_env is not None else formats.get("txt", True),
-            "HTML": html_enabled_env if html_enabled_env is not None else formats.get("html", True),
+            "SQLITE": formats.get("sqlite", STORAGE_DEFAULTS["FORMATS"]["SQLITE"]),
+            "TXT": txt_enabled_env if txt_enabled_env is not None else formats.get("txt", STORAGE_DEFAULTS["FORMATS"]["TXT"]),
+            "HTML": html_enabled_env if html_enabled_env is not None else formats.get("html", STORAGE_DEFAULTS["FORMATS"]["HTML"]),
         },
         "LOCAL": {
-            "DATA_DIR": local.get("data_dir", "output"),
-            "RETENTION_DAYS": _get_env_int("LOCAL_RETENTION_DAYS") or local.get("retention_days", 0),
+            "DATA_DIR": local.get("data_dir", STORAGE_DEFAULTS["LOCAL"]["DATA_DIR"]),
+            "RETENTION_DAYS": _get_env_int("LOCAL_RETENTION_DAYS") or local.get("retention_days", STORAGE_DEFAULTS["LOCAL"]["RETENTION_DAYS"]),
         },
         "REMOTE": {
             "ENDPOINT_URL": _get_env_str("S3_ENDPOINT_URL") or remote.get("endpoint_url", ""),
@@ -311,11 +328,11 @@ def _load_storage_config(config_data: Dict) -> Dict:
             "ACCESS_KEY_ID": _get_env_str("S3_ACCESS_KEY_ID") or remote.get("access_key_id", ""),
             "SECRET_ACCESS_KEY": _get_env_str("S3_SECRET_ACCESS_KEY") or remote.get("secret_access_key", ""),
             "REGION": _get_env_str("S3_REGION") or remote.get("region", ""),
-            "RETENTION_DAYS": _get_env_int("REMOTE_RETENTION_DAYS") or remote.get("retention_days", 0),
+            "RETENTION_DAYS": _get_env_int("REMOTE_RETENTION_DAYS") or remote.get("retention_days", STORAGE_DEFAULTS["REMOTE"]["RETENTION_DAYS"]),
         },
         "PULL": {
-            "ENABLED": pull_enabled_env if pull_enabled_env is not None else pull.get("enabled", False),
-            "DAYS": _get_env_int("PULL_DAYS") or pull.get("days", 7),
+            "ENABLED": pull_enabled_env if pull_enabled_env is not None else pull.get("enabled", STORAGE_DEFAULTS["PULL"]["ENABLED"]),
+            "DAYS": _get_env_int("PULL_DAYS") or pull.get("days", STORAGE_DEFAULTS["PULL"]["DAYS"]),
         },
     }
 
@@ -343,7 +360,7 @@ def _load_webhook_config(config_data: Dict) -> Dict:
         "DINGTALK_WEBHOOK_URL": _get_env_str("DINGTALK_WEBHOOK_URL") or dingtalk.get("webhook_url", ""),
         # 企业微信
         "WEWORK_WEBHOOK_URL": _get_env_str("WEWORK_WEBHOOK_URL") or wework.get("webhook_url", ""),
-        "WEWORK_MSG_TYPE": _get_env_str("WEWORK_MSG_TYPE") or wework.get("msg_type", "markdown"),
+        "WEWORK_MSG_TYPE": _get_env_str("WEWORK_MSG_TYPE") or wework.get("msg_type", WEBHOOK_DEFAULTS["WEWORK_MSG_TYPE"]),
         # Telegram
         "TELEGRAM_BOT_TOKEN": _get_env_str("TELEGRAM_BOT_TOKEN") or telegram.get("bot_token", ""),
         "TELEGRAM_CHAT_ID": _get_env_str("TELEGRAM_CHAT_ID") or telegram.get("chat_id", ""),
@@ -354,7 +371,7 @@ def _load_webhook_config(config_data: Dict) -> Dict:
         "EMAIL_SMTP_SERVER": _get_env_str("EMAIL_SMTP_SERVER") or email.get("smtp_server", ""),
         "EMAIL_SMTP_PORT": _get_env_str("EMAIL_SMTP_PORT") or email.get("smtp_port", ""),
         # ntfy
-        "NTFY_SERVER_URL": _get_env_str("NTFY_SERVER_URL") or ntfy.get("server_url") or "https://ntfy.sh",
+        "NTFY_SERVER_URL": _get_env_str("NTFY_SERVER_URL") or ntfy.get("server_url") or WEBHOOK_DEFAULTS["NTFY_SERVER_URL"],
         "NTFY_TOPIC": _get_env_str("NTFY_TOPIC") or ntfy.get("topic", ""),
         "NTFY_TOKEN": _get_env_str("NTFY_TOKEN") or ntfy.get("token", ""),
         # Bark
