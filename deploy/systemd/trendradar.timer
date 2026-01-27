@@ -1,0 +1,14 @@
+[Unit]
+Description=TrendRadar News Crawler Timer
+Documentation=https://github.com/wantcat/trendradar
+
+[Timer]
+# Run every 30 minutes (matches default CRON_SCHEDULE)
+OnCalendar=*:0/30
+# Run immediately on boot if last run was missed
+Persistent=true
+# Randomize start time by up to 30 seconds to avoid thundering herd
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,32 @@
+[Unit]
+Description=TrendRadar MCP Server
+Documentation=https://github.com/wantcat/trendradar
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trendradar
+Group=trendradar
+WorkingDirectory=/opt/trendradar
+
+# Environment configuration
+EnvironmentFile=-/etc/trendradar/env
+Environment=PYTHONUNBUFFERED=1
+
+# Run MCP server in HTTP mode
+ExecStart=/opt/trendradar/.venv/bin/python -m mcp_server.server --transport http --host 127.0.0.1 --port 3333
+
+# Restart configuration
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trendradar-mcp
+
+[Install]
+WantedBy=multi-user.target

@@ -4,13 +4,15 @@ TrendRadar is a Chinese news hot topic aggregator and analysis tool. It crawls t
 
 ### Quick Start (Makefile)
 ```bash
-make dev       # Development (skips root index.html, keeps git clean)
-make run       # Production (full output including root index.html)
-make mcp       # Start MCP server (STDIO)
-make mcp-http  # Start MCP server (HTTP on port 3333)
-make install   # Install dependencies with uv
-make clean     # Remove generated output files
-make help      # Show all available commands
+make dev          # Development (skips root index.html, keeps git clean)
+make run          # Production (full output including root index.html)
+make mcp          # Start MCP server (STDIO)
+make mcp-http     # Start MCP server (HTTP on port 3333)
+make install-deps # Install development dependencies
+make install      # Install as systemd services (production)
+make docker       # Start Docker containers
+make clean        # Remove generated output files
+make help         # Show all available commands
 ```
 
 ### Running the main crawler/analyzer
@@ -37,9 +39,21 @@ uv run python -m mcp_server.server --transport http --port 3333
 
 ### Docker deployment
 ```bash
-cd docker
+cd deploy/docker
 docker compose up -d trendradar              # Main crawler service
 docker compose up -d trendradar-mcp          # MCP AI analysis service
+
+# Or use make targets from project root
+make docker                                   # Start containers
+make docker-build                             # Build and start containers
+make docker-down                              # Stop containers
+```
+
+### Native systemd deployment
+```bash
+sudo ./scripts/install.sh                    # Install as systemd services
+sudo systemctl start trendradar.timer        # Start crawler timer
+sudo systemctl start trendradar-mcp          # Start MCP server
 ```
 
 ### Manual testing scripts
