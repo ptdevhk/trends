@@ -1,0 +1,121 @@
+{
+  "_meta": {
+    "description": "Translation Memory for TrendRadar i18n",
+    "version": "1.0.0",
+    "source_locale": "zh-Hant",
+    "updated_at": "2025-01-27"
+  },
+  "glossary": {
+    "TrendRadar": "TrendRadar",
+    "熱榜": {
+      "zh-Hans": "热榜",
+      "en": "Hot List"
+    },
+    "熱點": {
+      "zh-Hans": "热点",
+      "en": "Trends"
+    },
+    "推送": {
+      "zh-Hans": "推送",
+      "en": "Push"
+    },
+    "爬取": {
+      "zh-Hans": "爬取",
+      "en": "Crawl"
+    },
+    "關鍵詞": {
+      "zh-Hans": "关键词",
+      "en": "Keyword"
+    },
+    "AI 分析": {
+      "zh-Hans": "AI 分析",
+      "en": "AI Analysis"
+    },
+    "MCP 服務器": {
+      "zh-Hans": "MCP 服务器",
+      "en": "MCP Server"
+    },
+    "配置": {
+      "zh-Hans": "配置",
+      "en": "Configuration"
+    },
+    "存儲": {
+      "zh-Hans": "存储",
+      "en": "Storage"
+    },
+    "通知": {
+      "zh-Hans": "通知",
+      "en": "Notification"
+    },
+    "飛書": {
+      "zh-Hans": "飞书",
+      "en": "Feishu"
+    },
+    "釘釘": {
+      "zh-Hans": "钉钉",
+      "en": "DingTalk"
+    },
+    "企業微信": {
+      "zh-Hans": "企业微信",
+      "en": "WeCom"
+    },
+    "報告": {
+      "zh-Hans": "报告",
+      "en": "Report"
+    },
+    "當日彙總": {
+      "zh-Hans": "当日汇总",
+      "en": "Daily Summary"
+    },
+    "增量監控": {
+      "zh-Hans": "增量监控",
+      "en": "Incremental Monitor"
+    }
+  },
+  "platform_names": {
+    "今日頭條": {
+      "zh-Hans": "今日头条",
+      "en": "Toutiao"
+    },
+    "百度熱搜": {
+      "zh-Hans": "百度热搜",
+      "en": "Baidu Hot Search"
+    },
+    "華爾街見聞": {
+      "zh-Hans": "华尔街见闻",
+      "en": "Wallstreetcn"
+    },
+    "澎湃新聞": {
+      "zh-Hans": "澎湃新闻",
+      "en": "The Paper"
+    },
+    "bilibili 熱搜": {
+      "zh-Hans": "bilibili 热搜",
+      "en": "Bilibili Hot Search"
+    },
+    "財聯社熱門": {
+      "zh-Hans": "财联社热门",
+      "en": "CLS Hot"
+    },
+    "鳳凰網": {
+      "zh-Hans": "凤凰网",
+      "en": "iFeng"
+    },
+    "貼吧": {
+      "zh-Hans": "贴吧",
+      "en": "Tieba"
+    },
+    "微博": {
+      "zh-Hans": "微博",
+      "en": "Weibo"
+    },
+    "抖音": {
+      "zh-Hans": "抖音",
+      "en": "Douyin"
+    },
+    "知乎": {
+      "zh-Hans": "知乎",
+      "en": "Zhihu"
+    }
+  }
+}

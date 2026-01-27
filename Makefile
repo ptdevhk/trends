@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build
+.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build i18n-check i18n-sync i18n-convert i18n-translate i18n-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -62,6 +62,22 @@ clean:
 check:
 	uv run python -c "import trendradar; print(f'trendradar v{trendradar.__version__} OK')"
 
+# i18n (Internationalization)
+i18n-check:
+	uv run python scripts/i18n/sync_keys.py
+
+i18n-sync:
+	uv run python scripts/i18n/sync_keys.py --fix
+
+i18n-convert:
+	uv run python scripts/i18n/convert_opencc.py
+
+i18n-translate:
+	uv run python scripts/i18n/ai_translate.py
+
+i18n-build:
+	uv run python scripts/i18n/build_static.py --clean
+
 # Show help
 help:
 	@echo "TrendRadar Development Commands"
@@ -95,3 +111,10 @@ help:
 	@echo "  clean        Remove generated/cached files"
 	@echo "  check        Run basic checks"
 	@echo "  help         Show this help message"
+	@echo ""
+	@echo "i18n (Internationalization):"
+	@echo "  i18n-check     Check locale files for missing/extra keys"
+	@echo "  i18n-sync      Auto-fix missing keys with placeholders"
+	@echo "  i18n-convert   Convert zh-Hant to zh-Hans (OpenCC)"
+	@echo "  i18n-translate Translate zh-Hant to English (AI)"
+	@echo "  i18n-build     Build static sites for all locales"
