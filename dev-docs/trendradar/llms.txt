@@ -1,0 +1,684 @@
+# TrendRadar
+
+TrendRadar is a powerful hot news aggregation and analysis tool that monitors trending topics across multiple Chinese social media platforms including Zhihu, Weibo, Douyin, and others. It provides real-time tracking of hot topics, keyword-based filtering, and multi-channel notification support. The system supports both scheduled automated crawling and on-demand analysis with customizable keyword matching.
+
+The project includes an MCP (Model Context Protocol) server that exposes news data through a standardized API, enabling AI assistants like Claude to query trending news, search historical data, analyze topic trends, and perform cross-platform comparisons. The MCP server provides intelligent search capabilities including fuzzy matching, entity recognition, and related news discovery.
+
+## Running the News Crawler
+
+Execute the main crawler to fetch and analyze trending news from configured platforms.
+
+```bash
+# Run the main crawler and analyzer
+python -m trendradar
+
+# Or with Docker
+docker run --rm -v $(pwd)/config:/app/config -v $(pwd)/output:/app/output trendradar
+```
+
+## Configuration File Setup
+
+Configure platforms, notification channels, and analysis settings in config/config.yaml.
+
+```yaml
+# config/config.yaml
+# Version: 1.0.0
+
+# Platform configuration
+platforms:
+  enabled: true
+  sources:
+    - id: zhihu
+      name: 知乎热榜
+    - id: weibo
+      name: 微博热搜
+    - id: douyin
+      name: 抖音热榜
+    - id: toutiao
+      name: 今日头条
+
+# Report mode: incremental | current | daily
+report_mode: daily
+
+# Crawler settings
+advanced:
+  crawler:
+    request_interval: 1000  # milliseconds between requests
+    use_proxy: false
+    default_proxy: "http://127.0.0.1:7890"
+
+  # News weight calculation
+  weight:
+    rank: 0.6       # Weight for ranking position
+    frequency: 0.3  # Weight for appearance frequency
+    hotness: 0.1    # Weight for hotness score
+
+# Notification channels
+notification:
+  enabled: true
+  channels:
+    feishu:
+      webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+    dingtalk:
+      webhook_url: ""
+    telegram:
+      bot_token: ""
+      chat_id: ""
+
+# RSS feeds configuration
+rss:
+  enabled: true
+  request_interval: 2000
+  feeds:
+    - id: hacker-news
+      name: Hacker News
+      url: https://hnrss.org/frontpage
+      max_items: 50
+```
+
+## Keyword Configuration
+
+Define keywords to monitor in config/frequency_words.txt with group-based filtering.
+
+```text
+# config/frequency_words.txt
+# Format: Keywords separated by spaces, one group per line
+# Use | for regex patterns, ! prefix for exclusion
+
+# AI and Technology
+人工智能 AI ChatGPT Claude OpenAI
+芯片 半导体 GPU 英伟达 NVIDIA
+自动驾驶 无人驾驶 特斯拉
+
+# Finance
+股市 A股 |美股 比特币 以太坊
+央行 利率 降息
+
+# Filtered terms (excluded from results)
+!广告 !推广 !赞助
+```
+
+## MCP Server Usage
+
+Start the MCP server to enable AI assistants to query news data.
+
+```bash
+# Start the MCP server
+python -m mcp_server
+
+# Or specify a custom project root
+python -m mcp_server --project-root /path/to/trendradar
+```
+
+## get_latest_news - Fetch Latest News
+
+Retrieve the most recent batch of crawled news data from all or specific platforms.
+
+```python
+from mcp_server.tools.data_query import DataQueryTools
+
+tools = DataQueryTools()
+
+# Get latest news from all platforms
+result = tools.get_latest_news(limit=20)
+# Returns: {"success": True, "summary": {...}, "data": [{...}, ...]}
+
+# Get latest news from specific platforms
+result = tools.get_latest_news(
+    platforms=['zhihu', 'weibo'],
+    limit=10,
+    include_url=True
+)
+
+# Example response data item:
+# {
+#     "title": "OpenAI发布GPT-5",
+#     "platform": "zhihu",
+#     "platform_name": "知乎热榜",
+#     "rank": 1,
+#     "timestamp": "2025-01-15 14:30:00",
+#     "url": "https://..."  # Only if include_url=True
+# }
+```
+
+## get_trending_topics - Get Hot Topics Statistics
+
+Analyze and retrieve trending topic statistics with frequency counts.
+
+```python
+from mcp_server.tools.data_query import DataQueryTools
+
+tools = DataQueryTools()
+
+# Get top 10 trending topics using preset keywords
+result = tools.get_trending_topics(
+    top_n=10,
+    mode="current",      # "current" or "daily"
+    extract_mode="keywords"  # "keywords" or "auto_extract"
+)
+
+# Auto-extract high-frequency words from titles
+result = tools.get_trending_topics(
+    top_n=20,
+    mode="daily",
+    extract_mode="auto_extract"
+)
+
+# Example response:
+# {
+#     "success": True,
+#     "topics": [
+#         {"keyword": "人工智能", "frequency": 45, "matched_news": 38, "trend": "stable"},
+#         {"keyword": "特斯拉", "frequency": 32, "matched_news": 28, "trend": "rising"}
+#     ],
+#     "mode": "daily",
+#     "extract_mode": "keywords"
+# }
+```
+
+## search_news_unified - Unified News Search
+
+Search news using multiple modes: keyword, fuzzy matching, or entity recognition.
+
+```python
+from mcp_server.tools.search_tools import SearchTools
+
+tools = SearchTools()
+
+# Exact keyword search
+result = tools.search_news_unified(
+    query="人工智能",
+    search_mode="keyword",
+    limit=50
+)
+
+# Fuzzy content matching with similarity threshold
+result = tools.search_news_unified(
+    query="特斯拉降价",
+    search_mode="fuzzy",
+    threshold=0.4,
+    date_range={"start": "2025-01-01", "end": "2025-01-15"},
+    sort_by="relevance"
+)
+
+# Entity search (person, company, etc.)
+result = tools.search_news_unified(
+    query="马斯克",
+    search_mode="entity",
+    limit=20,
+    include_url=True
+)
+
+# Search both hot lists and RSS feeds
+result = tools.search_news_unified(
+    query="AI",
+    search_mode="keyword",
+    include_rss=True,
+    rss_limit=20
+)
+
+# Example response:
+# {
+#     "success": True,
+#     "summary": {
+#         "total_found": 156,
+#         "returned": 50,
+#         "search_mode": "fuzzy",
+#         "query": "特斯拉降价"
+#     },
+#     "data": [
+#         {
+#             "title": "特斯拉中国宣布降价...",
+#             "platform": "weibo",
+#             "similarity_score": 0.85,
+#             "ranks": [3, 5, 8],
+#             "date": "2025-01-10"
+#         }
+#     ]
+# }
+```
+
+## find_related_news_unified - Find Related News
+
+Find news related to a reference title using similarity analysis.
+
+```python
+from mcp_server.tools.search_tools import SearchTools
+
+tools = SearchTools()
+
+# Find related news for today
+result = tools.find_related_news_unified(
+    reference_title="OpenAI发布GPT-5模型",
+    threshold=0.5,
+    limit=30
+)
+
+# Search across date range
+result = tools.find_related_news_unified(
+    reference_title="苹果发布iPhone新品",
+    date_range="last_week",  # or {"start": "2025-01-01", "end": "2025-01-07"}
+    threshold=0.4,
+    include_url=True
+)
+
+# Example response:
+# {
+#     "success": True,
+#     "summary": {
+#         "total_found": 28,
+#         "reference_title": "OpenAI发布GPT-5模型",
+#         "threshold": 0.5
+#     },
+#     "data": [
+#         {"title": "GPT-5能力全面超越...", "similarity": 0.82, "platform": "zhihu"},
+#         {"title": "OpenAI新模型引发行业震动", "similarity": 0.75, "platform": "weibo"}
+#     ]
+# }
+```
+
+## analyze_topic_trend_unified - Topic Trend Analysis
+
+Analyze topic trends over time with various analysis types.
+
+```python
+from mcp_server.tools.analytics import AnalyticsTools
+
+tools = AnalyticsTools()
+
+# Basic trend analysis over 7 days
+result = tools.analyze_topic_trend_unified(
+    topic="人工智能",
+    analysis_type="trend",
+    date_range={"start": "2025-01-08", "end": "2025-01-15"},
+    granularity="day"
+)
+
+# Topic lifecycle analysis
+result = tools.analyze_topic_trend_unified(
+    topic="比特币",
+    analysis_type="lifecycle"
+)
+
+# Detect viral/abnormally trending topics
+result = tools.analyze_topic_trend_unified(
+    topic="",  # Not required for viral detection
+    analysis_type="viral",
+    threshold=3.0,  # Growth rate threshold
+    time_window=24  # Hours
+)
+
+# Predict upcoming trends
+result = tools.analyze_topic_trend_unified(
+    topic="",
+    analysis_type="predict",
+    lookahead_hours=6,
+    confidence_threshold=0.7
+)
+
+# Example trend response:
+# {
+#     "success": True,
+#     "summary": {
+#         "topic": "人工智能",
+#         "total_mentions": 342,
+#         "peak_count": 78,
+#         "peak_time": "2025-01-12",
+#         "change_rate": 45.2,
+#         "trend_direction": "上升"
+#     },
+#     "data": [
+#         {"date": "2025-01-08", "count": 45, "sample_titles": [...]},
+#         {"date": "2025-01-09", "count": 52, "sample_titles": [...]}
+#     ]
+# }
+```
+
+## analyze_data_insights_unified - Platform and Keyword Analysis
+
+Perform cross-platform comparison and keyword co-occurrence analysis.
+
+```python
+from mcp_server.tools.analytics import AnalyticsTools
+
+tools = AnalyticsTools()
+
+# Compare platform coverage of a topic
+result = tools.analyze_data_insights_unified(
+    insight_type="platform_compare",
+    topic="人工智能",
+    date_range={"start": "2025-01-08", "end": "2025-01-15"}
+)
+
+# Analyze platform activity levels
+result = tools.analyze_data_insights_unified(
+    insight_type="platform_activity",
+    date_range={"start": "2025-01-01", "end": "2025-01-15"}
+)
+
+# Keyword co-occurrence analysis
+result = tools.analyze_data_insights_unified(
+    insight_type="keyword_cooccur",
+    min_frequency=5,
+    top_n=20
+)
+
+# Example platform comparison response:
+# {
+#     "success": True,
+#     "platform_stats": {
+#         "知乎热榜": {
+#             "total_news": 450,
+#             "topic_mentions": 45,
+#             "coverage_rate": 10.0,
+#             "top_keywords": [{"keyword": "AI", "count": 38}]
+#         },
+#         "微博热搜": {
+#             "total_news": 380,
+#             "topic_mentions": 28,
+#             "coverage_rate": 7.4
+#         }
+#     },
+#     "unique_topics": {"知乎热榜": ["算法", "论文"], "微博热搜": ["明星", "综艺"]}
+# }
+```
+
+## aggregate_news - Cross-Platform News Aggregation
+
+Aggregate and deduplicate similar news across platforms.
+
+```python
+from mcp_server.tools.analytics import AnalyticsTools
+
+tools = AnalyticsTools()
+
+# Aggregate news with default settings
+result = tools.aggregate_news(
+    similarity_threshold=0.7,
+    limit=50
+)
+
+# Aggregate specific platforms over date range
+result = tools.aggregate_news(
+    date_range={"start": "2025-01-10", "end": "2025-01-15"},
+    platforms=['zhihu', 'weibo', 'toutiao'],
+    similarity_threshold=0.65,
+    limit=100,
+    include_url=True
+)
+
+# Example response:
+# {
+#     "success": True,
+#     "summary": {
+#         "original_count": 450,
+#         "aggregated_count": 180,
+#         "deduplication_rate": "60.0%"
+#     },
+#     "data": [
+#         {
+#             "representative_title": "OpenAI发布GPT-5...",
+#             "platforms": ["知乎热榜", "微博热搜", "今日头条"],
+#             "platform_count": 3,
+#             "is_cross_platform": True,
+#             "aggregate_weight": 85.5,
+#             "sources": [
+#                 {"platform": "知乎热榜", "rank": 1, "date": "2025-01-15"},
+#                 {"platform": "微博热搜", "rank": 3, "date": "2025-01-15"}
+#             ]
+#         }
+#     ]
+# }
+```
+
+## analyze_sentiment - AI Sentiment Analysis Prompt Generation
+
+Generate structured prompts for AI sentiment analysis of news.
+
+```python
+from mcp_server.tools.analytics import AnalyticsTools
+
+tools = AnalyticsTools()
+
+# Generate sentiment analysis prompt for a topic
+result = tools.analyze_sentiment(
+    topic="特斯拉",
+    limit=30,
+    sort_by_weight=True
+)
+
+# Analyze sentiment across date range
+result = tools.analyze_sentiment(
+    topic="人工智能",
+    date_range={"start": "2025-01-08", "end": "2025-01-15"},
+    platforms=['zhihu', 'weibo'],
+    limit=50,
+    include_url=True
+)
+
+# The ai_prompt field contains a structured prompt for AI analysis
+print(result['ai_prompt'])
+# Output: A formatted prompt with news titles organized by platform,
+# ready to be sent to an AI for sentiment analysis
+
+# Example response:
+# {
+#     "success": True,
+#     "method": "ai_prompt_generation",
+#     "summary": {
+#         "total_found": 45,
+#         "returned": 30,
+#         "topic": "特斯拉",
+#         "platforms": ["知乎热榜", "微博热搜"]
+#     },
+#     "ai_prompt": "请分析以下关于「特斯拉」的新闻标题的情感倾向...",
+#     "data": [...]
+# }
+```
+
+## get_latest_rss - Fetch RSS Feed Data
+
+Retrieve latest RSS feed articles from configured sources.
+
+```python
+from mcp_server.tools.data_query import DataQueryTools
+
+tools = DataQueryTools()
+
+# Get latest RSS articles from all feeds
+result = tools.get_latest_rss(
+    days=1,
+    limit=50
+)
+
+# Get RSS from specific feeds over multiple days
+result = tools.get_latest_rss(
+    feeds=['hacker-news', '36kr'],
+    days=3,
+    limit=100,
+    include_summary=True
+)
+
+# Example response:
+# {
+#     "success": True,
+#     "summary": {
+#         "description": "最近 3 天的 RSS 订阅数据",
+#         "total": 85,
+#         "feeds": ["hacker-news", "36kr"]
+#     },
+#     "data": [
+#         {
+#             "title": "Show HN: A new approach to...",
+#             "feed_id": "hacker-news",
+#             "feed_name": "Hacker News",
+#             "url": "https://...",
+#             "published_at": "2025-01-15T10:30:00Z",
+#             "author": "username",
+#             "summary": "..."  # Only if include_summary=True
+#         }
+#     ]
+# }
+```
+
+## search_rss - Search RSS Content
+
+Search RSS feed articles by keyword across multiple days.
+
+```python
+from mcp_server.tools.data_query import DataQueryTools
+
+tools = DataQueryTools()
+
+# Search RSS feeds by keyword
+result = tools.search_rss(
+    keyword="machine learning",
+    days=7,
+    limit=50,
+    include_summary=True
+)
+
+# Search specific feeds
+result = tools.search_rss(
+    keyword="startup",
+    feeds=['hacker-news'],
+    days=14,
+    limit=30
+)
+
+# Example response:
+# {
+#     "success": True,
+#     "summary": {
+#         "description": "RSS 搜索结果（关键词: machine learning）",
+#         "total": 23,
+#         "keyword": "machine learning",
+#         "days": 7
+#     },
+#     "data": [
+#         {
+#             "title": "New ML framework released",
+#             "feed_name": "Hacker News",
+#             "url": "https://...",
+#             "published_at": "2025-01-14T15:00:00Z"
+#         }
+#     ]
+# }
+```
+
+## generate_summary_report - Generate News Summary Report
+
+Generate daily or weekly Markdown summary reports of trending news.
+
+```python
+from mcp_server.tools.analytics import AnalyticsTools
+
+tools = AnalyticsTools()
+
+# Generate daily summary report
+result = tools.generate_summary_report(
+    report_type="daily"
+)
+
+# Generate weekly summary
+result = tools.generate_summary_report(
+    report_type="weekly",
+    date_range={"start": "2025-01-08", "end": "2025-01-15"}
+)
+
+# Access the Markdown report
+print(result['markdown_report'])
+
+# Example response:
+# {
+#     "success": True,
+#     "report_type": "weekly",
+#     "date_range": {"start": "2025-01-08", "end": "2025-01-15"},
+#     "markdown_report": "# 每周新闻热点摘要\n\n**报告日期**: ...\n\n## TOP 10 热门话题\n...",
+#     "statistics": {
+#         "total_news": 2450,
+#         "platforms_count": 8,
+#         "top_keyword": ("人工智能", 156)
+#     }
+# }
+```
+
+## compare_periods - Time Period Comparison
+
+Compare news data between two time periods for trend analysis.
+
+```python
+from mcp_server.tools.analytics import AnalyticsTools
+
+tools = AnalyticsTools()
+
+# Compare this week vs last week
+result = tools.compare_periods(
+    period1="last_week",
+    period2="this_week",
+    compare_type="overview",
+    top_n=10
+)
+
+# Compare specific date ranges with topic filter
+result = tools.compare_periods(
+    period1={"start": "2025-01-01", "end": "2025-01-07"},
+    period2={"start": "2025-01-08", "end": "2025-01-15"},
+    topic="人工智能",
+    compare_type="topic_shift"
+)
+
+# Compare platform activity between periods
+result = tools.compare_periods(
+    period1="last_month",
+    period2="this_month",
+    compare_type="platform_activity"
+)
+
+# Example response:
+# {
+#     "success": True,
+#     "summary": {
+#         "compare_type": "topic_shift"
+#     },
+#     "data": {
+#         "rising_topics": [
+#             {"keyword": "DeepSeek", "period1_count": 5, "period2_count": 45, "change": 40}
+#         ],
+#         "falling_topics": [...],
+#         "new_topics": [...]
+#     }
+# }
+```
+
+## NewsAnalyzer Class - Main Crawler and Analyzer
+
+The core NewsAnalyzer class that orchestrates crawling, analysis, and notifications.
+
+```python
+from trendradar.__main__ import NewsAnalyzer
+from trendradar.core import load_config
+
+# Initialize with default config
+analyzer = NewsAnalyzer()
+
+# Or with custom config
+config = load_config()
+config['REPORT_MODE'] = 'incremental'  # Options: incremental, current, daily
+analyzer = NewsAnalyzer(config=config)
+
+# Run the complete analysis pipeline
+analyzer.run()
+
+# The run() method executes:
+# 1. Crawls news from all configured platforms
+# 2. Saves data to storage backend
+# 3. Analyzes keyword matches
+# 4. Generates HTML reports
+# 5. Sends notifications (if configured)
+# 6. Opens browser with report (in local environment)
+```
+
+TrendRadar is designed for monitoring hot topics across Chinese social media platforms with flexible keyword filtering and multi-channel notification support. The main use cases include media monitoring, trend tracking, competitive intelligence, and automated news aggregation. The system supports three report modes: incremental (only new items), current (latest snapshot), and daily (full day summary).
+
+The MCP server integration enables AI assistants to query news data programmatically, making it ideal for building intelligent news analysis workflows. Common integration patterns include scheduled crawling with GitHub Actions, Docker deployment for continuous monitoring, and API integration for custom dashboards. The modular architecture allows easy extension with new platforms, notification channels, and analysis tools.

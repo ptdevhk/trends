@@ -1,0 +1,6 @@
+packages:
+  - name: trendradar
+    description: Upstream TrendRadar documentation - API reference and setup guides
+    source: https://context7.com/sansan0/trendradar/llms.txt
+    tokens: 10000
+    output: dev-docs/trendradar/llms.txt
