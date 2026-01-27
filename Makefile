@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build
+.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build dev-worker worker worker-once
 
 # Default target
 .DEFAULT_GOAL := help
@@ -15,6 +15,9 @@ crawl:
 dev-mcp:
 	uv run python -m mcp_server.server --transport http --port 3333
 
+dev-worker:
+	uv run python -m apps.worker --run-now --interval 30 -v
+
 # Production run (default behavior, writes root index.html for GitHub Pages)
 run:
 	uv run python -m trendradar
@@ -26,6 +29,13 @@ mcp:
 # MCP server (HTTP mode)
 mcp-http:
 	uv run python -m mcp_server.server --transport http --port 3333
+
+# Worker scheduler
+worker:
+	uv run python -m apps.worker
+
+worker-once:
+	uv run python -m apps.worker --once
 
 # Dependencies
 install-deps:
@@ -72,11 +82,14 @@ help:
 	@echo "  dev          Run crawler using scripts/dev.sh"
 	@echo "  crawl        Run crawler manually (old workflow)"
 	@echo "  dev-mcp      Start MCP server (HTTP on port 3333)"
+	@echo "  dev-worker   Start worker scheduler (run now + verbose)"
 	@echo ""
 	@echo "Production:"
 	@echo "  run          Run crawler (production mode, full output)"
 	@echo "  mcp          Start MCP server (STDIO)"
 	@echo "  mcp-http     Start MCP server (HTTP on port 3333)"
+	@echo "  worker       Start worker scheduler (default: every 30 min)"
+	@echo "  worker-once  Run worker once and exit"
 	@echo ""
 	@echo "Deployment:"
 	@echo "  install      Install as systemd services (requires sudo)"
