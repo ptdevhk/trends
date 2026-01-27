@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build
+.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build dev-web dev-api dev-worker
 
 # Default target
 .DEFAULT_GOAL := help
@@ -14,6 +14,18 @@ crawl:
 
 dev-mcp:
 	uv run python -m mcp_server.server --transport http --port 3333
+
+# Web frontend development
+dev-web:
+	cd apps/web && npm run dev
+
+# API development (placeholder for future Hono BFF)
+dev-api:
+	@echo "API server not yet implemented. See PR 6: Hono BFF"
+
+# Worker development (placeholder for future FastAPI wrapper)
+dev-worker:
+	@echo "Worker server not yet implemented. See PR 5: FastAPI wrapper"
 
 # Production run (default behavior, writes root index.html for GitHub Pages)
 run:
@@ -72,6 +84,9 @@ help:
 	@echo "  dev          Run crawler using scripts/dev.sh"
 	@echo "  crawl        Run crawler manually (old workflow)"
 	@echo "  dev-mcp      Start MCP server (HTTP on port 3333)"
+	@echo "  dev-web      Start React frontend (Vite on port 5173)"
+	@echo "  dev-api      Start Hono BFF (not yet implemented)"
+	@echo "  dev-worker   Start FastAPI worker (not yet implemented)"
 	@echo ""
 	@echo "Production:"
 	@echo "  run          Run crawler (production mode, full output)"
