@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build
+.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build dev-api
 
 # Default target
 .DEFAULT_GOAL := help
@@ -14,6 +14,9 @@ crawl:
 
 dev-mcp:
 	uv run python -m mcp_server.server --transport http --port 3333
+
+dev-api:
+	cd apps/api && npm run dev
 
 # Production run (default behavior, writes root index.html for GitHub Pages)
 run:
@@ -72,6 +75,7 @@ help:
 	@echo "  dev          Run crawler using scripts/dev.sh"
 	@echo "  crawl        Run crawler manually (old workflow)"
 	@echo "  dev-mcp      Start MCP server (HTTP on port 3333)"
+	@echo "  dev-api      Start Hono BFF API server (HTTP on port 3000)"
 	@echo ""
 	@echo "Production:"
 	@echo "  run          Run crawler (production mode, full output)"
