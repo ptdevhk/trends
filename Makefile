@@ -1,17 +1,19 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run mcp mcp-http install clean help
+.PHONY: dev crawl dev-mcp mcp mcp-http install-deps install clean check fetch-docs help
 
 # Default target
 .DEFAULT_GOAL := help
 
-# Development run (skips root index.html to keep git clean)
+# Development
 dev:
-	SKIP_ROOT_INDEX=true uv run python -m trendradar
+	./scripts/dev.sh
 
-# Production run (default behavior, writes root index.html for GitHub Pages)
-run:
+crawl:
 	uv run python -m trendradar
+
+dev-mcp:
+	uv run python -m mcp_server.server --transport http --port 3333
 
 # MCP server (STDIO mode)
 mcp:
@@ -21,14 +23,26 @@ mcp:
 mcp-http:
 	uv run python -m mcp_server.server --transport http --port 3333
 
-# Install dependencies
+# Dependencies
+install-deps:
+	./scripts/install-deps.sh
+
+# Legacy alias
 install:
 	uv sync
 
-# Clean generated files
+# Documentation
+fetch-docs:
+	./dev-docs/fetch-docs.sh
+
+# Cleanup
 clean:
-	rm -rf output/
-	rm -f index.html
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	rm -rf node_modules .venv build dist
+
+# Checks
+check:
+	uv run python -m trendradar --help
 
 # Show help
 help:
@@ -37,10 +51,14 @@ help:
 	@echo "Usage: make <target>"
 	@echo ""
 	@echo "Targets:"
-	@echo "  dev        Run crawler (dev mode, skips root index.html)"
-	@echo "  run        Run crawler (production mode, full output)"
-	@echo "  mcp        Start MCP server (STDIO)"
-	@echo "  mcp-http   Start MCP server (HTTP on port 3333)"
-	@echo "  install    Install dependencies with uv"
-	@echo "  clean      Remove generated output files"
-	@echo "  help       Show this help message"
+	@echo "  dev          Start development environment (runs trendradar)"
+	@echo "  crawl        Run crawler manually (old workflow)"
+	@echo "  dev-mcp      Start MCP server (HTTP on port 3333)"
+	@echo "  mcp          Start MCP server (STDIO)"
+	@echo "  mcp-http     Start MCP server (HTTP on port 3333)"
+	@echo "  install-deps Install Python/Node dependencies"
+	@echo "  install      Install Python dependencies with uv (legacy)"
+	@echo "  fetch-docs   Fetch latest upstream documentation"
+	@echo "  clean        Remove generated/cached files"
+	@echo "  check        Run checks (verify trendradar works)"
+	@echo "  help         Show this help message"

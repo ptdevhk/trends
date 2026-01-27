@@ -43,3 +43,10 @@ env/
 output/
 # Logs
 *.log
+
+# Production env
+.env.production
+
+# Node.js
+node_modules/
+package-lock.json
