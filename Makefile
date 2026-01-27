@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build
+.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build build-static serve-static
 
 # Default target
 .DEFAULT_GOAL := help
@@ -49,6 +49,17 @@ docker-build:
 docker-down:
 	cd deploy/docker && docker compose down
 
+# Static site build
+build-static:
+	./scripts/build-static.sh
+
+build-static-fresh:
+	./scripts/build-static.sh --fresh
+
+serve-static:
+	@echo "Serving static site at http://localhost:8000"
+	python -m http.server -d dist 8000
+
 # Documentation
 fetch-docs:
 	./dev-docs/fetch-docs.sh
@@ -84,6 +95,11 @@ help:
 	@echo "  docker       Start Docker containers"
 	@echo "  docker-build Build and start Docker containers"
 	@echo "  docker-down  Stop Docker containers"
+	@echo ""
+	@echo "Static Site:"
+	@echo "  build-static       Build static site from existing output"
+	@echo "  build-static-fresh Run crawler first, then build static site"
+	@echo "  serve-static       Serve static site locally (port 8000)"
 	@echo ""
 	@echo "Dependencies:"
 	@echo "  install-deps Install Python/Node deps for development"
