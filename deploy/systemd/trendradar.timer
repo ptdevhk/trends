@@ -1,0 +1,25 @@
+# TrendRadar Crawler Timer (Scheduled Runs)
+# Install: sudo cp trendradar.timer /etc/systemd/system/
+# Enable:  sudo systemctl enable trendradar.timer
+# Start:   sudo systemctl start trendradar.timer
+# Status:  systemctl list-timers --all | grep trendradar
+
+[Unit]
+Description=Run TrendRadar Crawler Hourly
+Documentation=https://github.com/karlorz/TrendRadar
+
+[Timer]
+# Run at 33 minutes past every hour (matches GitHub Actions schedule)
+OnCalendar=*:33:00
+
+# Catch up on missed runs if system was down
+Persistent=true
+
+# Randomize start time slightly to avoid thundering herd
+RandomizedDelaySec=60
+
+# Accuracy of the timer (can be woken up early)
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

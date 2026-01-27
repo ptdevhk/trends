@@ -1,0 +1,39 @@
+# TrendRadar Crawler Service
+# Install: sudo cp trendradar.service /etc/systemd/system/
+# Enable:  sudo systemctl enable trendradar
+# Start:   sudo systemctl start trendradar
+# Logs:    journalctl -u trendradar -f
+
+[Unit]
+Description=TrendRadar News Crawler
+Documentation=https://github.com/karlorz/TrendRadar
+After=network.target
+
+[Service]
+Type=oneshot
+User=trendradar
+Group=trendradar
+WorkingDirectory=/opt/trendradar
+
+# Environment file for secrets
+EnvironmentFile=-/opt/trendradar/.env.production
+
+# Run the crawler
+ExecStart=/usr/bin/uv run python -m trendradar
+
+# Restart policy (oneshot doesn't auto-restart)
+RemainAfterExit=no
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/opt/trendradar/output
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

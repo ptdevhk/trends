@@ -1,0 +1,2 @@
+# Place custom crawler plugins here
+# See ../base.py for the BaseCrawler interface

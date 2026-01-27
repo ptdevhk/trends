@@ -1,0 +1,44 @@
+# TrendRadar MCP Server Service
+# Install: sudo cp trendradar-mcp.service /etc/systemd/system/
+# Enable:  sudo systemctl enable trendradar-mcp
+# Start:   sudo systemctl start trendradar-mcp
+# Logs:    journalctl -u trendradar-mcp -f
+
+[Unit]
+Description=TrendRadar MCP Server
+Documentation=https://github.com/karlorz/TrendRadar
+After=network.target
+
+[Service]
+Type=simple
+User=trendradar
+Group=trendradar
+WorkingDirectory=/opt/trendradar
+
+# Environment file for secrets
+EnvironmentFile=-/opt/trendradar/.env.production
+
+# MCP server configuration
+Environment=MCP_PORT=3333
+Environment=MCP_HOST=0.0.0.0
+
+# Run the MCP server in HTTP mode
+ExecStart=/usr/bin/uv run python -m mcp_server.server --transport http --port 3333
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/opt/trendradar/output
+
+# Resource limits
+MemoryMax=256M
+CPUQuota=25%
+
+[Install]
+WantedBy=multi-user.target

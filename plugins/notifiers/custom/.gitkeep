@@ -1,0 +1,2 @@
+# Place custom notifier plugins here
+# See ../base.py for the BaseNotifier interface

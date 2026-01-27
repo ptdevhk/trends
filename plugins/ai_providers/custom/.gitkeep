@@ -1,0 +1,2 @@
+# Place custom AI provider plugins here
+# See ../base.py for the BaseAIProvider interface

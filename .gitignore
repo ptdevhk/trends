@@ -31,7 +31,16 @@ MANIFEST
 venv/
 .venv/
 env/
+
+# Environment files (keep .env.example, ignore actual secrets)
 .env
+.env.local
+.env.production
+.env.*.local
+
+# Secrets (should be in ~/.secrets/)
+*.secret
+*.secrets
 
 # IDEs
 .idea/
@@ -41,5 +50,22 @@ env/
 
 # Project Specific
 output/
+
 # Logs
 *.log
+
+# Node.js (if web frontend is added)
+node_modules/
+.npm
+.yarn
+*.tsbuildinfo
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.hypothesis/
+
+# Direnv
+.direnv/
