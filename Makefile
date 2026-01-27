@@ -1,13 +1,19 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run mcp mcp-http install clean help
+.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help
 
 # Default target
 .DEFAULT_GOAL := help
 
-# Development run (skips root index.html to keep git clean)
+# Development
 dev:
-	SKIP_ROOT_INDEX=true uv run python -m trendradar
+	./scripts/dev.sh
+
+crawl:
+	uv run python -m trendradar
+
+dev-mcp:
+	uv run python -m mcp_server.server --transport http --port 3333
 
 # Production run (default behavior, writes root index.html for GitHub Pages)
 run:
@@ -21,14 +27,26 @@ mcp:
 mcp-http:
 	uv run python -m mcp_server.server --transport http --port 3333
 
-# Install dependencies
+# Dependencies
+install-deps:
+	./scripts/install-deps.sh
+
+# Legacy install (alias)
 install:
 	uv sync
 
-# Clean generated files
+# Documentation
+fetch-docs:
+	./dev-docs/fetch-docs.sh
+
+# Cleanup
 clean:
-	rm -rf output/
-	rm -f index.html
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	rm -rf node_modules .venv build dist
+
+# Checks
+check:
+	uv run python -c "import trendradar; print(f'trendradar v{trendradar.__version__} OK')"
 
 # Show help
 help:
@@ -36,11 +54,24 @@ help:
 	@echo ""
 	@echo "Usage: make <target>"
 	@echo ""
-	@echo "Targets:"
-	@echo "  dev        Run crawler (dev mode, skips root index.html)"
-	@echo "  run        Run crawler (production mode, full output)"
-	@echo "  mcp        Start MCP server (STDIO)"
-	@echo "  mcp-http   Start MCP server (HTTP on port 3333)"
-	@echo "  install    Install dependencies with uv"
-	@echo "  clean      Remove generated output files"
-	@echo "  help       Show this help message"
+	@echo "Development:"
+	@echo "  dev          Run crawler using scripts/dev.sh"
+	@echo "  crawl        Run crawler manually (old workflow)"
+	@echo "  dev-mcp      Start MCP server (HTTP on port 3333)"
+	@echo ""
+	@echo "Production:"
+	@echo "  run          Run crawler (production mode, full output)"
+	@echo "  mcp          Start MCP server (STDIO)"
+	@echo "  mcp-http     Start MCP server (HTTP on port 3333)"
+	@echo ""
+	@echo "Dependencies:"
+	@echo "  install-deps Install Python/Node deps"
+	@echo "  install      Install Python deps with uv (legacy)"
+	@echo ""
+	@echo "Documentation:"
+	@echo "  fetch-docs   Fetch latest upstream documentation"
+	@echo ""
+	@echo "Utilities:"
+	@echo "  clean        Remove generated/cached files"
+	@echo "  check        Run basic checks"
+	@echo "  help         Show this help message"
