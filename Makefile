@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build
+.PHONY: dev run crawl mcp mcp-http dev-worker install install-deps fetch-docs clean check help docker docker-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -14,6 +14,10 @@ crawl:
 
 dev-mcp:
 	uv run python -m mcp_server.server --transport http --port 3333
+
+# FastAPI Worker (REST API)
+dev-worker:
+	uv run uvicorn apps.worker.main:app --reload --port 8000
 
 # Production run (default behavior, writes root index.html for GitHub Pages)
 run:
@@ -72,6 +76,7 @@ help:
 	@echo "  dev          Run crawler using scripts/dev.sh"
 	@echo "  crawl        Run crawler manually (old workflow)"
 	@echo "  dev-mcp      Start MCP server (HTTP on port 3333)"
+	@echo "  dev-worker   Start FastAPI worker (REST API on port 8000)"
 	@echo ""
 	@echo "Production:"
 	@echo "  run          Run crawler (production mode, full output)"
