@@ -22,7 +22,7 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-docker/.env
+deploy/docker/.env
 
 _image/
 

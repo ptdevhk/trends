@@ -1,0 +1,26 @@
+[Unit]
+Description=TrendRadar News Crawler
+Documentation=https://github.com/wantcat/trendradar
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=trendradar
+Group=trendradar
+WorkingDirectory=/opt/trendradar
+
+# Environment configuration
+EnvironmentFile=-/etc/trendradar/env
+Environment=PYTHONUNBUFFERED=1
+
+# Run the crawler
+ExecStart=/opt/trendradar/.venv/bin/python -m trendradar
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trendradar
+
+[Install]
+WantedBy=multi-user.target

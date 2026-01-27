@@ -1,6 +1,8 @@
 services:
   trendradar:
-    image: wantcat/trendradar:latest
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
     container_name: trendradar
     restart: unless-stopped
 
@@ -8,8 +10,11 @@ services:
       - "127.0.0.1:${WEBSERVER_PORT:-8080}:${WEBSERVER_PORT:-8080}"
 
     volumes:
-      - ../config:/app/config:ro
-      - ../output:/app/output
+      - ../../config/config.yaml:/app/config/config.yaml:ro
+      - ../../config/frequency_words.txt:/app/config/frequency_words.txt:ro
+      - ../../config/ai_analysis_prompt.txt:/app/config/ai_analysis_prompt.txt:ro
+      - ../../config/ai_translation_prompt.txt:/app/config/ai_translation_prompt.txt:ro
+      - ../../output:/app/output
 
     environment:
       - TZ=Asia/Shanghai
@@ -57,7 +62,9 @@ services:
       - IMMEDIATE_RUN=${IMMEDIATE_RUN:-true}
 
   trendradar-mcp:
-    image: wantcat/trendradar-mcp:latest
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.mcp
     container_name: trendradar-mcp
     restart: unless-stopped
 
@@ -65,8 +72,11 @@ services:
       - "127.0.0.1:3333:3333"
 
     volumes:
-      - ../config:/app/config:ro
-      - ../output:/app/output
+      - ../../config/config.yaml:/app/config/config.yaml:ro
+      - ../../config/frequency_words.txt:/app/config/frequency_words.txt:ro
+      - ../../config/ai_analysis_prompt.txt:/app/config/ai_analysis_prompt.txt:ro
+      - ../../config/ai_translation_prompt.txt:/app/config/ai_translation_prompt.txt:ro
+      - ../../output:/app/output
 
     environment:
       - TZ=Asia/Shanghai

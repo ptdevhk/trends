@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help
+.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -31,9 +31,23 @@ mcp-http:
 install-deps:
 	./scripts/install-deps.sh
 
-# Legacy install (alias)
+# Production install (systemd services)
 install:
-	uv sync
+	sudo ./scripts/install.sh
+
+# Uninstall systemd services
+uninstall:
+	sudo ./scripts/install.sh uninstall
+
+# Docker targets
+docker:
+	cd deploy/docker && docker compose up -d
+
+docker-build:
+	cd deploy/docker && docker compose -f docker-compose-build.yml up -d --build
+
+docker-down:
+	cd deploy/docker && docker compose down
 
 # Documentation
 fetch-docs:
@@ -64,9 +78,15 @@ help:
 	@echo "  mcp          Start MCP server (STDIO)"
 	@echo "  mcp-http     Start MCP server (HTTP on port 3333)"
 	@echo ""
+	@echo "Deployment:"
+	@echo "  install      Install as systemd services (requires sudo)"
+	@echo "  uninstall    Remove systemd services (requires sudo)"
+	@echo "  docker       Start Docker containers"
+	@echo "  docker-build Build and start Docker containers"
+	@echo "  docker-down  Stop Docker containers"
+	@echo ""
 	@echo "Dependencies:"
-	@echo "  install-deps Install Python/Node deps"
-	@echo "  install      Install Python deps with uv (legacy)"
+	@echo "  install-deps Install Python/Node deps for development"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  fetch-docs   Fetch latest upstream documentation"

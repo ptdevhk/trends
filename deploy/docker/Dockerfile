@@ -53,11 +53,11 @@ RUN set -ex && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY docker/manage.py .
+COPY deploy/docker/manage.py .
 COPY trendradar/ ./trendradar/
 
 # 复制 entrypoint.sh 并强制转换为 LF 格式
-COPY docker/entrypoint.sh /entrypoint.sh.tmp
+COPY deploy/docker/entrypoint.sh /entrypoint.sh.tmp
 RUN sed -i 's/\r$//' /entrypoint.sh.tmp && \
     mv /entrypoint.sh.tmp /entrypoint.sh && \
     chmod +x /entrypoint.sh && \
