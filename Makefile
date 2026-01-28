@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run crawl mcp mcp-http dev-web dev-api dev-worker install install-deps fetch-docs clean check help docker docker-build
+.PHONY: dev run crawl mcp mcp-http dev-web dev-api dev-worker worker worker-once install install-deps fetch-docs clean check help docker docker-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -19,13 +19,17 @@ dev-mcp:
 dev-web:
 	cd apps/web && npm run dev
 
-# FastAPI Worker (REST API)
-dev-worker:
-	uv run uvicorn apps.worker.main:app --reload --port 8000
+# FastAPI Worker (REST API on port 8000)
+dev-api-worker:
+	uv run uvicorn apps.worker.api:app --reload --port 8000
 
 # Hono BFF API (TypeScript)
 dev-api:
 	cd apps/api && npm run dev
+
+# Worker scheduler (runs crawl immediately + every 30 minutes)
+dev-worker:
+	uv run python -m apps.worker --run-now --interval 30 -v
 
 # Production run (default behavior, writes root index.html for GitHub Pages)
 run:
@@ -38,6 +42,13 @@ mcp:
 # MCP server (HTTP mode)
 mcp-http:
 	uv run python -m mcp_server.server --transport http --port 3333
+
+# Worker scheduler
+worker:
+	uv run python -m apps.worker
+
+worker-once:
+	uv run python -m apps.worker --once
 
 # Dependencies
 install-deps:
@@ -85,13 +96,16 @@ help:
 	@echo "  crawl        Run crawler manually (old workflow)"
 	@echo "  dev-mcp      Start MCP server (HTTP on port 3333)"
 	@echo "  dev-web      Start React frontend (Vite on port 5173)"
-	@echo "  dev-worker   Start FastAPI worker (REST API on port 8000)"
+	@echo "  dev-api-worker Start FastAPI worker REST API (port 8000)"
 	@echo "  dev-api      Start Hono BFF API server (HTTP on port 3000)"
+	@echo "  dev-worker   Start worker scheduler (run now + verbose)"
 	@echo ""
 	@echo "Production:"
 	@echo "  run          Run crawler (production mode, full output)"
 	@echo "  mcp          Start MCP server (STDIO)"
 	@echo "  mcp-http     Start MCP server (HTTP on port 3333)"
+	@echo "  worker       Start worker scheduler (default: every 30 min)"
+	@echo "  worker-once  Run worker once and exit"
 	@echo ""
 	@echo "Deployment:"
 	@echo "  install      Install as systemd services (requires sudo)"

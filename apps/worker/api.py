@@ -1,21 +1,60 @@
 """
-TrendRadar FastAPI Worker - Route Handlers
+TrendRadar FastAPI Worker - REST API
+
+This module provides the FastAPI REST API for TrendRadar data access.
+
+Usage:
+    # Development
+    uv run uvicorn apps.worker.api:app --reload --port 8000
+
+    # Production
+    uv run uvicorn apps.worker.api:app --host 0.0.0.0 --port 8000
 
 Endpoints:
-    GET /health          - Health check
-    GET /trends          - Get trending topics (params: platform, date)
-    GET /trends/{id}     - Get trend details
-    GET /search          - Search news (params: q)
+    GET /              - API info
+    GET /health        - Health check
+    GET /trends        - Get trending topics (params: platform, date)
+    GET /trends/{id}   - Get trend details
+    GET /search        - Search news (params: q)
 """
 
+import sys
 from datetime import datetime
+from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+# Add project root to Python path for imports
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from mcp_server.services.data_service import DataService
 from mcp_server.utils.errors import DataNotFoundError
+
+# ============================================
+# FastAPI App
+# ============================================
+
+app = FastAPI(
+    title="TrendRadar API",
+    description="REST API for TrendRadar - Chinese news hot topic aggregator",
+    version="0.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+# CORS middleware for frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 router = APIRouter()
 
@@ -359,3 +398,28 @@ async def search_news(
         raise HTTPException(status_code=400, detail=f"Invalid date format: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# App Setup
+# ============================================
+
+# Include API routes
+app.include_router(router)
+
+
+@app.get("/")
+async def root():
+    """Root endpoint with API info."""
+    return {
+        "name": "TrendRadar API",
+        "version": "0.1.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
