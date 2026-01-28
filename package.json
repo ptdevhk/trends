@@ -3,7 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "description": "Chinese news hot topic aggregator and analysis tool",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "./scripts/dev.sh",
     "dev:mcp": "./scripts/dev.sh --mcp-only",
@@ -17,5 +20,10 @@
     "type": "git",
     "url": "git+https://github.com/ptdevhk/trends.git"
   },
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
 }

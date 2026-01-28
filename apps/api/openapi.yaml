@@ -1,0 +1,524 @@
+openapi: 3.1.0
+info:
+  title: TrendRadar API
+  description: |
+    BFF (Backend for Frontend) API for TrendRadar - Chinese news hot topic aggregator.
+    Provides access to trending news, search functionality, and system health status.
+  version: 0.1.0
+  contact:
+    name: TrendRadar
+    url: https://github.com/ptdevhk/trends
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: /api
+    description: Production (relative path)
+
+tags:
+  - name: health
+    description: Health check endpoints
+  - name: trends
+    description: Trending news and topics
+  - name: search
+    description: Search functionality
+  - name: rss
+    description: RSS feed data
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      operationId: getHealth
+      summary: Health check
+      description: Returns the health status of the API
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/trends:
+    get:
+      tags: [trends]
+      operationId: getTrends
+      summary: Get trending news
+      description: |
+        Returns the latest trending news items from various platforms.
+        By default returns news from all platforms, sorted by rank.
+      parameters:
+        - name: platform
+          in: query
+          description: Filter by platform ID (e.g., zhihu, weibo, douyin)
+          schema:
+            type: string
+          example: zhihu
+        - name: date
+          in: query
+          description: Date to query (YYYY-MM-DD format, defaults to today)
+          schema:
+            type: string
+            format: date
+          example: '2025-01-27'
+        - name: limit
+          in: query
+          description: Maximum number of items to return (1-100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: include_url
+          in: query
+          description: Include URL links in response
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrendsResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trends/{id}:
+    get:
+      tags: [trends]
+      operationId: getTrendById
+      summary: Get trend details
+      description: Returns detailed information about a specific trend item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Trend item ID (URL-encoded title hash)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrendDetailResponse'
+        '404':
+          description: Trend not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/topics:
+    get:
+      tags: [trends]
+      operationId: getTopics
+      summary: Get trending topics
+      description: |
+        Returns aggregated trending topics based on keyword frequency.
+        Topics are extracted from news titles using configured keyword groups.
+      parameters:
+        - name: top_n
+          in: query
+          description: Number of top topics to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+        - name: mode
+          in: query
+          description: Time mode for aggregation
+          schema:
+            type: string
+            enum: [daily, current]
+            default: current
+        - name: extract_mode
+          in: query
+          description: Topic extraction mode
+          schema:
+            type: string
+            enum: [keywords, auto_extract]
+            default: keywords
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopicsResponse'
+
+  /api/search:
+    get:
+      tags: [search]
+      operationId: searchNews
+      summary: Search news
+      description: Search news items by keyword across platforms and dates
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search keyword
+          schema:
+            type: string
+            minLength: 1
+          example: AI
+        - name: platform
+          in: query
+          description: Filter by platform ID
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          description: Start date for search range (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          description: End date for search range (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          description: Maximum number of results
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Invalid request (e.g., missing query)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/rss:
+    get:
+      tags: [rss]
+      operationId: getRss
+      summary: Get RSS feed items
+      description: Returns the latest RSS feed items
+      parameters:
+        - name: feed
+          in: query
+          description: Filter by feed ID
+          schema:
+            type: string
+        - name: days
+          in: query
+          description: Number of days to look back (1-30)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 30
+            default: 1
+        - name: limit
+          in: query
+          description: Maximum number of items
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: include_summary
+          in: query
+          description: Include article summaries
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: RSS items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RssResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+          example: '0.1.0'
+
+    TrendItem:
+      type: object
+      required: [title, platform, platform_name, rank]
+      properties:
+        title:
+          type: string
+          description: News headline
+          example: OpenAI announces GPT-5
+        platform:
+          type: string
+          description: Platform ID
+          example: zhihu
+        platform_name:
+          type: string
+          description: Platform display name
+          example: Zhihu Hot List
+        rank:
+          type: integer
+          description: Current rank position
+          example: 1
+        avg_rank:
+          type: number
+          description: Average rank over time
+          example: 2.5
+        count:
+          type: integer
+          description: Number of times seen on chart
+          example: 5
+        timestamp:
+          type: string
+          description: When the trend was captured
+        date:
+          type: string
+          format: date
+          description: Date of the trend
+        url:
+          type: string
+          format: uri
+          description: Link to the news item
+        mobileUrl:
+          type: string
+          format: uri
+          description: Mobile-friendly link
+
+    TrendsResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          example: true
+        summary:
+          type: object
+          properties:
+            description:
+              type: string
+            total:
+              type: integer
+            returned:
+              type: integer
+            platforms:
+              oneOf:
+                - type: string
+                - type: array
+                  items:
+                    type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrendItem'
+
+    TrendDetailResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/TrendItem'
+
+    Topic:
+      type: object
+      required: [keyword, frequency]
+      properties:
+        keyword:
+          type: string
+          example: AI
+        frequency:
+          type: integer
+          example: 15
+        matched_news:
+          type: integer
+          description: Number of unique news items matching this topic
+        trend:
+          type: string
+          enum: [rising, stable, falling]
+        weight_score:
+          type: number
+
+    TopicsResponse:
+      type: object
+      required: [success, topics]
+      properties:
+        success:
+          type: boolean
+        topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/Topic'
+        generated_at:
+          type: string
+          format: date-time
+        mode:
+          type: string
+        extract_mode:
+          type: string
+        total_keywords:
+          type: integer
+        description:
+          type: string
+
+    SearchResult:
+      type: object
+      required: [title, platform, platform_name]
+      properties:
+        title:
+          type: string
+        platform:
+          type: string
+        platform_name:
+          type: string
+        ranks:
+          type: array
+          items:
+            type: integer
+        count:
+          type: integer
+        avg_rank:
+          type: number
+        url:
+          type: string
+          format: uri
+        mobileUrl:
+          type: string
+          format: uri
+        date:
+          type: string
+          format: date
+
+    SearchResponse:
+      type: object
+      required: [success, results]
+      properties:
+        success:
+          type: boolean
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+        total:
+          type: integer
+        total_found:
+          type: integer
+        statistics:
+          type: object
+          properties:
+            platform_distribution:
+              type: object
+              additionalProperties:
+                type: integer
+            avg_rank:
+              type: number
+            keyword:
+              type: string
+
+    RssItem:
+      type: object
+      required: [title, feed_id, feed_name]
+      properties:
+        title:
+          type: string
+        feed_id:
+          type: string
+        feed_name:
+          type: string
+        url:
+          type: string
+          format: uri
+        published_at:
+          type: string
+        author:
+          type: string
+        date:
+          type: string
+          format: date
+        fetch_time:
+          type: string
+        summary:
+          type: string
+
+    RssResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+        summary:
+          type: object
+          properties:
+            description:
+              type: string
+            total:
+              type: integer
+            returned:
+              type: integer
+            days:
+              type: integer
+            feeds:
+              oneOf:
+                - type: string
+                - type: array
+                  items:
+                    type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RssItem'
+
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: INVALID_PARAMETER
+            message:
+              type: string
+              example: Invalid platform ID
+            suggestion:
+              type: string
