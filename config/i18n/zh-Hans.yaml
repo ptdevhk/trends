@@ -10,17 +10,17 @@
 
 # 元数据
 meta:
-  locale: "zh-Hans"
-  name: "简体中文"
-  direction: "ltr"
+  locale: zh-Hans
+  name: 简体中文
+  direction: ltr
 
 # ===============================================================
 # 应用程序通用
 # ===============================================================
 app:
-  name: "TrendRadar"
-  tagline: "热点追踪与分析工具"
-  version_update: "发现新版本"
+  name: TrendRadar
+  tagline: 热点追踪与分析工具
+  version_update: 发现新版本
 
 # ===============================================================
 # 报告模式
@@ -28,206 +28,192 @@ app:
 report:
   modes:
     daily:
-      name: "当日汇总"
-      description: "显示当日所有匹配新闻"
+      name: 当日汇总
+      description: 显示当日所有匹配新闻
     current:
-      name: "当前榜单"
-      description: "显示当前榜单匹配新闻"
+      name: 当前榜单
+      description: 显示当前榜单匹配新闻
     incremental:
-      name: "增量监控"
-      description: "仅显示新出现的匹配新闻"
-
+      name: 增量监控
+      description: 仅显示新出现的匹配新闻
   sections:
-    new_items: "新增热点"
-    hotlist: "热榜"
-    rss: "RSS 订阅"
-    standalone: "独立展示区"
-    ai_analysis: "AI 分析"
-
+    new_items: 新增热点
+    hotlist: 热榜
+    rss: RSS 订阅
+    standalone: 独立展示区
+    ai_analysis: AI 分析
   labels:
-    rank: "排名"
-    platform: "平台"
-    keyword: "关键词"
-    news_count: "新闻数量"
-    last_updated: "最后更新"
-    generated_at: "生成时间"
-    no_data: "暂无数据"
-    loading: "加载中..."
+    rank: 排名
+    platform: 平台
+    keyword: 关键词
+    news_count: 新闻数量
+    last_updated: 最后更新
+    generated_at: 生成时间
+    no_data: 暂无数据
+    loading: 载入中...
 
 # ===============================================================
 # 平台名称
 # ===============================================================
 platforms:
-  toutiao: "今日头条"
-  baidu: "百度热搜"
-  wallstreetcn-hot: "华尔街见闻"
-  thepaper: "澎湃新闻"
-  bilibili-hot-search: "bilibili 热搜"
-  cls-hot: "财联社热门"
-  ifeng: "凤凰网"
-  tieba: "贴吧"
-  weibo: "微博"
-  douyin: "抖音"
-  zhihu: "知乎"
+  toutiao: 今日头条
+  baidu: 百度热搜
+  wallstreetcn-hot: 华尔街见闻
+  thepaper: 澎湃新闻
+  bilibili-hot-search: bilibili 热搜
+  cls-hot: 财联社热门
+  ifeng: 凤凰网
+  tieba: 贴吧
+  weibo: 微博
+  douyin: 抖音
+  zhihu: 知乎
 
 # ===============================================================
 # 通知消息
 # ===============================================================
 notification:
-  title: "TrendRadar 热点推送"
-  new_trends: "新增热点"
-  trend_count: "{count} 条热点"
-  push_time: "推送时间"
-
+  title: TrendRadar 热点推送
+  new_trends: 新增热点
+  trend_count: '{count} 条热点'
+  push_time: 推送时间
   status:
-    success: "推送成功"
-    failed: "推送失败"
-    skipped: "已跳过"
-
+    success: 推送成功
+    failed: 推送失败
+    skipped: 已跳过
   channels:
-    feishu: "飞书"
-    dingtalk: "钉钉"
-    wework: "企业微信"
-    telegram: "Telegram"
-    email: "邮件"
-    ntfy: "ntfy"
-    bark: "Bark"
-    slack: "Slack"
-    webhook: "Webhook"
+    feishu: 飞书
+    dingtalk: 钉钉
+    wework: 企业微信
+    telegram: Telegram
+    email: 邮件
+    ntfy: ntfy
+    bark: Bark
+    slack: Slack
+    webhook: Webhook
 
 # ===============================================================
 # AI 分析
 # ===============================================================
 ai:
   analysis:
-    title: "AI 分析报告"
-    generating: "正在生成 AI 分析..."
-    failed: "AI 分析生成失败"
-    news_analyzed: "分析了 {count} 条新闻"
-
+    title: AI 分析报告
+    generating: 正在生成 AI 分析...
+    failed: AI 分析生成失败
+    news_analyzed: 分析了 {count} 条新闻
   translation:
-    title: "翻译"
-    translating: "正在翻译..."
-    failed: "翻译失败"
+    title: 翻译
+    translating: 正在翻译...
+    failed: 翻译失败
 
 # ===============================================================
 # 存储
 # ===============================================================
 storage:
   backends:
-    local: "本地存储"
-    remote: "远端存储"
-    auto: "自动选择"
-
+    local: 本地存储
+    remote: 远端存储
+    auto: 自动选择
   status:
-    syncing: "同步中..."
-    synced: "已同步"
-    sync_failed: "同步失败"
-    pulling: "拉取中..."
-    pulled: "已拉取"
+    syncing: 同步中...
+    synced: 已同步
+    sync_failed: 同步失败
+    pulling: 拉取中...
+    pulled: 已拉取
 
 # ===============================================================
 # 时间相关
 # ===============================================================
 time:
-  today: "今天"
-  yesterday: "昨天"
-  days_ago: "{count} 天前"
-  hours_ago: "{count} 小时前"
-  minutes_ago: "{count} 分钟前"
-  just_now: "刚刚"
-
+  today: 今天
+  yesterday: 昨天
+  days_ago: '{count} 天前'
+  hours_ago: '{count} 小时前'
+  minutes_ago: '{count} 分钟前'
+  just_now: 刚刚
   periods:
-    morning: "上午"
-    afternoon: "下午"
-    evening: "晚上"
-    night: "深夜"
+    morning: 上午
+    afternoon: 下午
+    evening: 晚上
+    night: 深夜
 
 # ===============================================================
 # 错误消息
 # ===============================================================
 errors:
-  generic: "发生错误"
-  network: "网络连接失败"
-  timeout: "请求超时"
-  config_invalid: "配置无效"
-  config_missing: "缺少配置项: {key}"
-  file_not_found: "找不到文件: {path}"
-  permission_denied: "权限不足"
-
+  generic: 发生错误
+  network: 网络连接失败
+  timeout: 请求超时
+  config_invalid: 配置无效
+  config_missing: '缺少配置项: {key}'
+  file_not_found: '找不到文件: {path}'
+  permission_denied: 权限不足
   crawler:
-    failed: "爬取失败: {platform}"
-    rate_limited: "请求过于频繁，请稍后重试"
-
+    failed: '爬取失败: {platform}'
+    rate_limited: 请求过于频繁，请稍后重试
   ai:
-    api_error: "AI API 错误: {message}"
-    quota_exceeded: "API 配额已用完"
-    model_unavailable: "模型暂不可用"
+    api_error: 'AI API 错误: {message}'
+    quota_exceeded: API 配额已用完
+    model_unavailable: 模型暂不可用
 
 # ===============================================================
 # 成功消息
 # ===============================================================
 success:
-  saved: "已保存"
-  deleted: "已删除"
-  updated: "已更新"
-  sync_complete: "同步完成"
+  saved: 已保存
+  deleted: 已删除
+  updated: 已更新
+  sync_complete: 同步完成
 
 # ===============================================================
 # UI 元素 (未来 Web 界面使用)
 # ===============================================================
 ui:
   buttons:
-    save: "保存"
-    cancel: "取消"
-    confirm: "确认"
-    delete: "删除"
-    edit: "编辑"
-    refresh: "刷新"
-    export: "导出"
-    search: "搜索"
-    filter: "筛选"
-    clear: "清除"
-    back: "返回"
-    next: "下一步"
-    previous: "上一步"
-    close: "关闭"
-
+    save: 保存
+    cancel: 取消
+    confirm: 确认
+    delete: 删除
+    edit: 编辑
+    refresh: 刷新
+    export: 导出
+    search: 搜索
+    filter: 筛选
+    clear: 清除
+    back: 返回
+    next: 下一步
+    previous: 上一步
+    close: 关闭
   navigation:
-    home: "首页"
-    trends: "热点"
-    analysis: "分析"
-    settings: "设置"
-    about: "关于"
-
+    home: 首页
+    trends: 热点
+    analysis: 分析
+    settings: 设置
+    about: 关于
   filters:
-    all: "全部"
-    today: "今天"
-    this_week: "本周"
-    this_month: "本月"
-    custom: "自定义"
-
+    all: 全部
+    today: 今天
+    this_week: 本周
+    this_month: 本月
+    custom: 自定义
   placeholders:
-    search: "搜索热点..."
-    select_platform: "选择平台"
-    select_date: "选择日期"
+    search: 搜索热点...
+    select_platform: 选择平台
+    select_date: 选择日期
 
 # ===============================================================
 # MCP Server 相关
 # ===============================================================
 mcp:
   server:
-    started: "MCP 服务器已启动"
-    stopped: "MCP 服务器已停止"
-
+    started: MCP 服务器已启动
+    stopped: MCP 服务器已停止
   tools:
     categories:
-      data_query: "数据查询"
-      analytics: "数据分析"
-      search: "搜索"
-      storage: "存储管理"
-      system: "系统"
-
+      data_query: 数据查询
+      analytics: 数据分析
+      search: 搜索
+      storage: 存储管理
+      system: 系统
   errors:
-    tool_not_found: "找不到工具: {name}"
-    invalid_params: "无效的参数"
+    tool_not_found: '找不到工具: {name}'
+    invalid_params: 无效的参数
