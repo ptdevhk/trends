@@ -1,0 +1,56 @@
+{
+  "app": {
+    "title": "TrendRadar",
+    "subtitle": "Trend Tracker",
+    "description": "Chinese news aggregation and analysis tool"
+  },
+  "nav": {
+    "home": "Home",
+    "trends": "Trends",
+    "search": "Search",
+    "settings": "Settings"
+  },
+  "trends": {
+    "title": "Trending Topics",
+    "latest": "Latest Trends",
+    "today": "Today's Trends",
+    "empty": "No data available",
+    "loading": "Loading...",
+    "error": "Failed to load",
+    "retry": "Retry",
+    "rank": "Rank",
+    "platform": "Platform",
+    "allPlatforms": "All Platforms",
+    "refresh": "Refresh",
+    "lastUpdated": "Last updated"
+  },
+  "search": {
+    "placeholder": "Search keywords...",
+    "button": "Search",
+    "noResults": "No results found",
+    "results": "Search Results",
+    "resultsCount": "Found {{count}} results"
+  },
+  "platforms": {
+    "zhihu": "Zhihu",
+    "weibo": "Weibo",
+    "douyin": "Douyin",
+    "baidu": "Baidu Hot",
+    "toutiao": "Toutiao",
+    "bilibili-hot-search": "Bilibili Hot",
+    "thepaper": "The Paper",
+    "wallstreetcn-hot": "Wall Street CN",
+    "cls-hot": "CLS Hot",
+    "ifeng": "iFeng",
+    "tieba": "Tieba"
+  },
+  "time": {
+    "justNow": "Just now",
+    "minutesAgo": "{{count}} min ago",
+    "hoursAgo": "{{count}} hr ago",
+    "daysAgo": "{{count}} days ago"
+  },
+  "footer": {
+    "poweredBy": "Powered by TrendRadar"
+  }
+}

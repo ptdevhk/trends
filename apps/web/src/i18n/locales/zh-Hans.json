@@ -1,0 +1,56 @@
+{
+  "app": {
+    "title": "TrendRadar",
+    "subtitle": "热点追踪",
+    "description": "中文新闻热点聚合与分析工具"
+  },
+  "nav": {
+    "home": "首页",
+    "trends": "热点",
+    "search": "搜索",
+    "settings": "设置"
+  },
+  "trends": {
+    "title": "热门话题",
+    "latest": "最新热点",
+    "today": "今日热点",
+    "empty": "暂无数据",
+    "loading": "加载中...",
+    "error": "加载失败",
+    "retry": "重试",
+    "rank": "排名",
+    "platform": "平台",
+    "allPlatforms": "全部平台",
+    "refresh": "刷新",
+    "lastUpdated": "最后更新"
+  },
+  "search": {
+    "placeholder": "搜索关键字...",
+    "button": "搜索",
+    "noResults": "未找到相关结果",
+    "results": "搜索结果",
+    "resultsCount": "找到 {{count}} 条结果"
+  },
+  "platforms": {
+    "zhihu": "知乎",
+    "weibo": "微博",
+    "douyin": "抖音",
+    "baidu": "百度热搜",
+    "toutiao": "今日头条",
+    "bilibili-hot-search": "bilibili 热搜",
+    "thepaper": "澎湃新闻",
+    "wallstreetcn-hot": "华尔街见闻",
+    "cls-hot": "财联社热门",
+    "ifeng": "凤凰网",
+    "tieba": "贴吧"
+  },
+  "time": {
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "daysAgo": "{{count}} 天前"
+  },
+  "footer": {
+    "poweredBy": "由 TrendRadar 提供技术支持"
+  }
+}
