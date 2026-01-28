@@ -9,6 +9,11 @@
   ],
   "scripts": {
     "dev": "./scripts/dev.sh",
+    "dev:mcp": "./scripts/dev.sh --mcp-only",
+    "dev:crawl": "./scripts/dev.sh --crawl-only",
+    "dev:web": "cd apps/web && npm run dev",
+    "dev:api": "cd apps/api && npm run dev",
+    "dev:worker": "cd apps/worker && uv run uvicorn main:app --reload --port 8000",
     "check": "echo 'No checks configured yet'"
   },
   "repository": {
