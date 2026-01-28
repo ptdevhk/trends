@@ -2,7 +2,8 @@
 
 .PHONY: dev dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
         worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
-        build-static build-static-fresh serve-static
+        build-static build-static-fresh serve-static \
+        i18n-check i18n-sync i18n-convert i18n-translate i18n-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -129,6 +130,30 @@ serve-static:
 	python -m http.server -d dist 8000
 
 # =============================================================================
+# i18n (Internationalization)
+# =============================================================================
+
+# Check locale files for missing/extra keys
+i18n-check:
+	uv run python scripts/i18n/sync_keys.py
+
+# Auto-fix missing keys with placeholders
+i18n-sync:
+	uv run python scripts/i18n/sync_keys.py --fix
+
+# Convert zh-Hant to zh-Hans using OpenCC
+i18n-convert:
+	uv run python scripts/i18n/convert_opencc.py
+
+# Translate zh-Hant to English using AI
+i18n-translate:
+	uv run python scripts/i18n/ai_translate.py
+
+# Build static sites for all locales
+i18n-build:
+	uv run python scripts/i18n/build_static.py --clean
+
+# =============================================================================
 # Dependencies
 # =============================================================================
 
@@ -194,6 +219,13 @@ help:
 	@echo "  build-static       Build static site from existing output"
 	@echo "  build-static-fresh Run crawler first, then build static site"
 	@echo "  serve-static       Serve static site locally (port 8000)"
+	@echo ""
+	@echo "i18n (Internationalization):"
+	@echo "  i18n-check     Check locale files for missing/extra keys"
+	@echo "  i18n-sync      Auto-fix missing keys with placeholders"
+	@echo "  i18n-convert   Convert zh-Hant to zh-Hans (OpenCC)"
+	@echo "  i18n-translate Translate zh-Hant to English (AI)"
+	@echo "  i18n-build     Build static sites for all locales"
 	@echo ""
 	@echo "Dependencies:"
 	@echo "  install-deps   Install Python/Node deps for development"

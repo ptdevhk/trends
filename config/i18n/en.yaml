@@ -1,0 +1,233 @@
+# ═══════════════════════════════════════════════════════════════
+#                    TrendRadar i18n - English
+#                      Version: 1.0.0
+#
+# This file is generated from zh-Hant.yaml via AI translation
+# Do not edit directly, make changes in zh-Hant.yaml instead
+#
+# Regenerate command: python scripts/i18n/ai_translate.py
+# ═══════════════════════════════════════════════════════════════
+
+# Metadata
+meta:
+  locale: "en"
+  name: "English"
+  direction: "ltr"
+
+# ===============================================================
+# Application General
+# ===============================================================
+app:
+  name: "TrendRadar"
+  tagline: "Trend Tracking and Analysis Tool"
+  version_update: "New version available"
+
+# ===============================================================
+# Report Modes
+# ===============================================================
+report:
+  modes:
+    daily:
+      name: "Daily Summary"
+      description: "Show all matching news for today"
+    current:
+      name: "Current Charts"
+      description: "Show current chart matching news"
+    incremental:
+      name: "Incremental Monitor"
+      description: "Show only newly appeared matching news"
+
+  sections:
+    new_items: "New Trends"
+    hotlist: "Hot List"
+    rss: "RSS Feeds"
+    standalone: "Standalone Section"
+    ai_analysis: "AI Analysis"
+
+  labels:
+    rank: "Rank"
+    platform: "Platform"
+    keyword: "Keyword"
+    news_count: "News Count"
+    last_updated: "Last Updated"
+    generated_at: "Generated At"
+    no_data: "No Data"
+    loading: "Loading..."
+
+# ===============================================================
+# Platform Names
+# ===============================================================
+platforms:
+  toutiao: "Toutiao"
+  baidu: "Baidu Hot Search"
+  wallstreetcn-hot: "Wallstreetcn"
+  thepaper: "The Paper"
+  bilibili-hot-search: "Bilibili Hot Search"
+  cls-hot: "CLS Hot"
+  ifeng: "iFeng"
+  tieba: "Tieba"
+  weibo: "Weibo"
+  douyin: "Douyin"
+  zhihu: "Zhihu"
+
+# ===============================================================
+# Notification Messages
+# ===============================================================
+notification:
+  title: "TrendRadar Hot Trends"
+  new_trends: "New Trends"
+  trend_count: "{count} trends"
+  push_time: "Push Time"
+
+  status:
+    success: "Push Successful"
+    failed: "Push Failed"
+    skipped: "Skipped"
+
+  channels:
+    feishu: "Feishu"
+    dingtalk: "DingTalk"
+    wework: "WeCom"
+    telegram: "Telegram"
+    email: "Email"
+    ntfy: "ntfy"
+    bark: "Bark"
+    slack: "Slack"
+    webhook: "Webhook"
+
+# ===============================================================
+# AI Analysis
+# ===============================================================
+ai:
+  analysis:
+    title: "AI Analysis Report"
+    generating: "Generating AI analysis..."
+    failed: "AI analysis generation failed"
+    news_analyzed: "Analyzed {count} news items"
+
+  translation:
+    title: "Translation"
+    translating: "Translating..."
+    failed: "Translation failed"
+
+# ===============================================================
+# Storage
+# ===============================================================
+storage:
+  backends:
+    local: "Local Storage"
+    remote: "Remote Storage"
+    auto: "Auto Select"
+
+  status:
+    syncing: "Syncing..."
+    synced: "Synced"
+    sync_failed: "Sync Failed"
+    pulling: "Pulling..."
+    pulled: "Pulled"
+
+# ===============================================================
+# Time Related
+# ===============================================================
+time:
+  today: "Today"
+  yesterday: "Yesterday"
+  days_ago: "{count} days ago"
+  hours_ago: "{count} hours ago"
+  minutes_ago: "{count} minutes ago"
+  just_now: "Just now"
+
+  periods:
+    morning: "Morning"
+    afternoon: "Afternoon"
+    evening: "Evening"
+    night: "Night"
+
+# ===============================================================
+# Error Messages
+# ===============================================================
+errors:
+  generic: "An error occurred"
+  network: "Network connection failed"
+  timeout: "Request timed out"
+  config_invalid: "Invalid configuration"
+  config_missing: "Missing configuration: {key}"
+  file_not_found: "File not found: {path}"
+  permission_denied: "Permission denied"
+
+  crawler:
+    failed: "Crawl failed: {platform}"
+    rate_limited: "Too many requests, please try again later"
+
+  ai:
+    api_error: "AI API error: {message}"
+    quota_exceeded: "API quota exceeded"
+    model_unavailable: "Model temporarily unavailable"
+
+# ===============================================================
+# Success Messages
+# ===============================================================
+success:
+  saved: "Saved"
+  deleted: "Deleted"
+  updated: "Updated"
+  sync_complete: "Sync complete"
+
+# ===============================================================
+# UI Elements (for future web interface)
+# ===============================================================
+ui:
+  buttons:
+    save: "Save"
+    cancel: "Cancel"
+    confirm: "Confirm"
+    delete: "Delete"
+    edit: "Edit"
+    refresh: "Refresh"
+    export: "Export"
+    search: "Search"
+    filter: "Filter"
+    clear: "Clear"
+    back: "Back"
+    next: "Next"
+    previous: "Previous"
+    close: "Close"
+
+  navigation:
+    home: "Home"
+    trends: "Trends"
+    analysis: "Analysis"
+    settings: "Settings"
+    about: "About"
+
+  filters:
+    all: "All"
+    today: "Today"
+    this_week: "This Week"
+    this_month: "This Month"
+    custom: "Custom"
+
+  placeholders:
+    search: "Search trends..."
+    select_platform: "Select platform"
+    select_date: "Select date"
+
+# ===============================================================
+# MCP Server Related
+# ===============================================================
+mcp:
+  server:
+    started: "MCP server started"
+    stopped: "MCP server stopped"
+
+  tools:
+    categories:
+      data_query: "Data Query"
+      analytics: "Analytics"
+      search: "Search"
+      storage: "Storage Management"
+      system: "System"
+
+  errors:
+    tool_not_found: "Tool not found: {name}"
+    invalid_params: "Invalid parameters"

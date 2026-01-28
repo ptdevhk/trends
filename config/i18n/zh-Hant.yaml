@@ -1,0 +1,238 @@
+# ═══════════════════════════════════════════════════════════════
+#                    TrendRadar i18n - 繁體中文
+#                      Version: 1.0.0
+#
+# 這是 i18n 的源文件 (source of truth)
+# 其他語言檔案由此檔案生成：
+#   - zh-Hans.yaml: 使用 OpenCC 從 zh-Hant 轉換
+#   - en.yaml: 使用 AI 翻譯從 zh-Hant 生成
+#
+# 新增字串時：
+#   1. 在此檔案添加繁體中文版本
+#   2. 執行 `make i18n-sync` 同步到其他語言
+#   3. 檢查生成的翻譯是否正確
+# ═══════════════════════════════════════════════════════════════
+
+# 元數據
+meta:
+  locale: "zh-Hant"
+  name: "繁體中文"
+  direction: "ltr"
+
+# ===============================================================
+# 應用程式通用
+# ===============================================================
+app:
+  name: "TrendRadar"
+  tagline: "熱點追蹤與分析工具"
+  version_update: "發現新版本"
+
+# ===============================================================
+# 報告模式
+# ===============================================================
+report:
+  modes:
+    daily:
+      name: "當日彙總"
+      description: "顯示當日所有匹配新聞"
+    current:
+      name: "當前榜單"
+      description: "顯示當前榜單匹配新聞"
+    incremental:
+      name: "增量監控"
+      description: "僅顯示新出現的匹配新聞"
+
+  sections:
+    new_items: "新增熱點"
+    hotlist: "熱榜"
+    rss: "RSS 訂閱"
+    standalone: "獨立展示區"
+    ai_analysis: "AI 分析"
+
+  labels:
+    rank: "排名"
+    platform: "平台"
+    keyword: "關鍵詞"
+    news_count: "新聞數量"
+    last_updated: "最後更新"
+    generated_at: "生成時間"
+    no_data: "暫無數據"
+    loading: "載入中..."
+
+# ===============================================================
+# 平台名稱
+# ===============================================================
+platforms:
+  toutiao: "今日頭條"
+  baidu: "百度熱搜"
+  wallstreetcn-hot: "華爾街見聞"
+  thepaper: "澎湃新聞"
+  bilibili-hot-search: "bilibili 熱搜"
+  cls-hot: "財聯社熱門"
+  ifeng: "鳳凰網"
+  tieba: "貼吧"
+  weibo: "微博"
+  douyin: "抖音"
+  zhihu: "知乎"
+
+# ===============================================================
+# 通知消息
+# ===============================================================
+notification:
+  title: "TrendRadar 熱點推送"
+  new_trends: "新增熱點"
+  trend_count: "{count} 條熱點"
+  push_time: "推送時間"
+
+  status:
+    success: "推送成功"
+    failed: "推送失敗"
+    skipped: "已跳過"
+
+  channels:
+    feishu: "飛書"
+    dingtalk: "釘釘"
+    wework: "企業微信"
+    telegram: "Telegram"
+    email: "郵件"
+    ntfy: "ntfy"
+    bark: "Bark"
+    slack: "Slack"
+    webhook: "Webhook"
+
+# ===============================================================
+# AI 分析
+# ===============================================================
+ai:
+  analysis:
+    title: "AI 分析報告"
+    generating: "正在生成 AI 分析..."
+    failed: "AI 分析生成失敗"
+    news_analyzed: "分析了 {count} 條新聞"
+
+  translation:
+    title: "翻譯"
+    translating: "正在翻譯..."
+    failed: "翻譯失敗"
+
+# ===============================================================
+# 存儲
+# ===============================================================
+storage:
+  backends:
+    local: "本地存儲"
+    remote: "遠端存儲"
+    auto: "自動選擇"
+
+  status:
+    syncing: "同步中..."
+    synced: "已同步"
+    sync_failed: "同步失敗"
+    pulling: "拉取中..."
+    pulled: "已拉取"
+
+# ===============================================================
+# 時間相關
+# ===============================================================
+time:
+  today: "今天"
+  yesterday: "昨天"
+  days_ago: "{count} 天前"
+  hours_ago: "{count} 小時前"
+  minutes_ago: "{count} 分鐘前"
+  just_now: "剛剛"
+
+  periods:
+    morning: "上午"
+    afternoon: "下午"
+    evening: "晚上"
+    night: "深夜"
+
+# ===============================================================
+# 錯誤消息
+# ===============================================================
+errors:
+  generic: "發生錯誤"
+  network: "網絡連接失敗"
+  timeout: "請求超時"
+  config_invalid: "配置無效"
+  config_missing: "缺少配置項: {key}"
+  file_not_found: "找不到文件: {path}"
+  permission_denied: "權限不足"
+
+  crawler:
+    failed: "爬取失敗: {platform}"
+    rate_limited: "請求過於頻繁，請稍後重試"
+
+  ai:
+    api_error: "AI API 錯誤: {message}"
+    quota_exceeded: "API 配額已用完"
+    model_unavailable: "模型暫不可用"
+
+# ===============================================================
+# 成功消息
+# ===============================================================
+success:
+  saved: "已保存"
+  deleted: "已刪除"
+  updated: "已更新"
+  sync_complete: "同步完成"
+
+# ===============================================================
+# UI 元素 (未來 Web 介面使用)
+# ===============================================================
+ui:
+  buttons:
+    save: "保存"
+    cancel: "取消"
+    confirm: "確認"
+    delete: "刪除"
+    edit: "編輯"
+    refresh: "刷新"
+    export: "導出"
+    search: "搜索"
+    filter: "篩選"
+    clear: "清除"
+    back: "返回"
+    next: "下一步"
+    previous: "上一步"
+    close: "關閉"
+
+  navigation:
+    home: "首頁"
+    trends: "熱點"
+    analysis: "分析"
+    settings: "設置"
+    about: "關於"
+
+  filters:
+    all: "全部"
+    today: "今天"
+    this_week: "本週"
+    this_month: "本月"
+    custom: "自定義"
+
+  placeholders:
+    search: "搜索熱點..."
+    select_platform: "選擇平台"
+    select_date: "選擇日期"
+
+# ===============================================================
+# MCP Server 相關
+# ===============================================================
+mcp:
+  server:
+    started: "MCP 服務器已啟動"
+    stopped: "MCP 服務器已停止"
+
+  tools:
+    categories:
+      data_query: "數據查詢"
+      analytics: "數據分析"
+      search: "搜索"
+      storage: "存儲管理"
+      system: "系統"
+
+  errors:
+    tool_not_found: "找不到工具: {name}"
+    invalid_params: "無效的參數"
