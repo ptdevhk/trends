@@ -1,0 +1,7 @@
+# FastAPI Worker Dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.0.0
+
+# Scheduler Dependencies
+apscheduler>=3.10.0,<4.0.0
