@@ -1,6 +1,6 @@
 # coding=utf-8
 """
-TrendRadar Worker - Main entry point
+TrendRadar Worker - Scheduler Entry Point
 
 This module provides the CLI interface for running the worker scheduler.
 

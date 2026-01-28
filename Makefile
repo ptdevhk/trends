@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev run crawl mcp mcp-http install install-deps fetch-docs clean check help docker docker-build dev-worker worker worker-once
+.PHONY: dev run crawl mcp mcp-http dev-web dev-api dev-worker worker worker-once install install-deps fetch-docs clean check help docker docker-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -15,6 +15,19 @@ crawl:
 dev-mcp:
 	uv run python -m mcp_server.server --transport http --port 3333
 
+# Web frontend development (React + Vite)
+dev-web:
+	cd apps/web && npm run dev
+
+# FastAPI Worker (REST API on port 8000)
+dev-api-worker:
+	uv run uvicorn apps.worker.api:app --reload --port 8000
+
+# Hono BFF API (TypeScript)
+dev-api:
+	cd apps/api && npm run dev
+
+# Worker scheduler (runs crawl immediately + every 30 minutes)
 dev-worker:
 	uv run python -m apps.worker --run-now --interval 30 -v
 
@@ -82,6 +95,9 @@ help:
 	@echo "  dev          Run crawler using scripts/dev.sh"
 	@echo "  crawl        Run crawler manually (old workflow)"
 	@echo "  dev-mcp      Start MCP server (HTTP on port 3333)"
+	@echo "  dev-web      Start React frontend (Vite on port 5173)"
+	@echo "  dev-api-worker Start FastAPI worker REST API (port 8000)"
+	@echo "  dev-api      Start Hono BFF API server (HTTP on port 3000)"
 	@echo "  dev-worker   Start worker scheduler (run now + verbose)"
 	@echo ""
 	@echo "Production:"
