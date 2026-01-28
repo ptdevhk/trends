@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 # TrendRadar Development Environment
@@ -64,6 +64,64 @@ check_port() {
     else
         # Fallback: try to connect
         ! (echo >/dev/tcp/localhost/"$port") 2>/dev/null
+    fi
+}
+
+# Get PIDs of what's using a port (space-separated)
+get_port_pids() {
+    local port="$1"
+    if command -v lsof &>/dev/null; then
+        lsof -i ":$port" -t 2>/dev/null | tr '\n' ' ' | xargs
+    fi
+}
+
+# Check all required ports upfront
+check_all_ports() {
+    local ports=("${MCP_PORT:-3333}" "${WORKER_PORT:-8000}" "${API_PORT:-3000}" "${WEB_PORT:-5173}")
+    local names=("MCP" "Worker" "API" "Web")
+    local conflicts=()
+
+    for i in "${!ports[@]}"; do
+        local port="${ports[$i]}"
+        local name="${names[$i]}"
+        if ! check_port "$port"; then
+            local pids=$(get_port_pids "$port")
+            local first_pid=$(echo "$pids" | awk '{print $1}')
+            local cmd=""
+            if [ -n "$first_pid" ]; then
+                cmd=$(ps -p "$first_pid" -o comm= 2>/dev/null || echo "unknown")
+            fi
+            conflicts+=("$name:$port:$pids:$cmd")
+        fi
+    done
+
+    if [ ${#conflicts[@]} -gt 0 ]; then
+        echo -e "${RED}⚠ Port conflicts detected:${NC}"
+        echo ""
+        for conflict in "${conflicts[@]}"; do
+            IFS=':' read -r name port pids cmd <<< "$conflict"
+            echo -e "  ${YELLOW}$name${NC} (port $port) - PID $pids ($cmd)"
+        done
+        echo ""
+
+        if [ "$FORCE_KILL" = "true" ]; then
+            echo -e "${YELLOW}Killing conflicting processes...${NC}"
+            for conflict in "${conflicts[@]}"; do
+                IFS=':' read -r name port pids cmd <<< "$conflict"
+                for pid in $pids; do
+                    if [ -n "$pid" ]; then
+                        kill -9 "$pid" 2>/dev/null && \
+                            echo -e "  ${GREEN}Killed $name (PID $pid)${NC}"
+                    fi
+                done
+            done
+            echo ""
+            sleep 1  # Give ports time to free up
+        else
+            echo -e "Run with ${CYAN}--force${NC} to kill conflicting processes"
+            echo -e "Or manually: ${CYAN}kill -9 <PID>${NC}"
+            echo ""
+        fi
     fi
 }
 
@@ -173,12 +231,12 @@ start_worker() {
         log "WORKER" "$CYAN" "Starting FastAPI worker on http://localhost:$port"
         cd "$PROJECT_ROOT/apps/worker"
         if [ -f "$ENV_FILE" ]; then
-            uv run --env-file "$ENV_FILE" uvicorn main:app --reload --port "$port" 2>&1 | \
+            uv run --env-file "$ENV_FILE" uvicorn api:app --reload --port "$port" 2>&1 | \
                 while IFS= read -r line; do
                     log "WORKER" "$CYAN" "$line"
                 done &
         else
-            uv run uvicorn main:app --reload --port "$port" 2>&1 | \
+            uv run uvicorn api:app --reload --port "$port" 2>&1 | \
                 while IFS= read -r line; do
                     log "WORKER" "$CYAN" "$line"
                 done &
@@ -237,6 +295,10 @@ main() {
                 services=("mcp" "crawl" "worker" "api" "web")
                 shift
                 ;;
+            --force|-f)
+                FORCE_KILL=true
+                shift
+                ;;
             --help|-h)
                 echo "Usage: $0 [OPTIONS]"
                 echo ""
@@ -244,6 +306,7 @@ main() {
                 echo "  --mcp-only    Start only MCP server"
                 echo "  --crawl-only  Run crawler only (no long-running services)"
                 echo "  --all         Start all services (including future apps/*)"
+                echo "  --force, -f   Kill processes using required ports"
                 echo "  --help        Show this help message"
                 echo ""
                 echo "Environment variables:"
@@ -265,6 +328,9 @@ main() {
     if [ ${#services[@]} -eq 0 ]; then
         services=("mcp" "crawl" "worker" "api" "web")
     fi
+
+    # Check for port conflicts upfront
+    check_all_ports
 
     # Start requested services
     for service in "${services[@]}"; do
