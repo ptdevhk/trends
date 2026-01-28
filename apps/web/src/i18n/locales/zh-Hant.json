@@ -1,0 +1,56 @@
+{
+  "app": {
+    "title": "TrendRadar",
+    "subtitle": "熱點追蹤",
+    "description": "中文新聞熱點聚合與分析工具"
+  },
+  "nav": {
+    "home": "首頁",
+    "trends": "熱點",
+    "search": "搜尋",
+    "settings": "設定"
+  },
+  "trends": {
+    "title": "熱門話題",
+    "latest": "最新熱點",
+    "today": "今日熱點",
+    "empty": "暫無資料",
+    "loading": "載入中...",
+    "error": "載入失敗",
+    "retry": "重試",
+    "rank": "排名",
+    "platform": "平台",
+    "allPlatforms": "全部平台",
+    "refresh": "刷新",
+    "lastUpdated": "最後更新"
+  },
+  "search": {
+    "placeholder": "搜尋關鍵字...",
+    "button": "搜尋",
+    "noResults": "未找到相關結果",
+    "results": "搜尋結果",
+    "resultsCount": "找到 {{count}} 條結果"
+  },
+  "platforms": {
+    "zhihu": "知乎",
+    "weibo": "微博",
+    "douyin": "抖音",
+    "baidu": "百度熱搜",
+    "toutiao": "今日頭條",
+    "bilibili-hot-search": "bilibili 熱搜",
+    "thepaper": "澎湃新聞",
+    "wallstreetcn-hot": "華爾街見聞",
+    "cls-hot": "財聯社熱門",
+    "ifeng": "鳳凰網",
+    "tieba": "貼吧"
+  },
+  "time": {
+    "justNow": "剛剛",
+    "minutesAgo": "{{count}} 分鐘前",
+    "hoursAgo": "{{count}} 小時前",
+    "daysAgo": "{{count}} 天前"
+  },
+  "footer": {
+    "poweredBy": "由 TrendRadar 提供技術支持"
+  }
+}

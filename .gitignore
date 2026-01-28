@@ -48,5 +48,8 @@ output/
 node_modules/
 package-lock.json
 
+# Allow web app lib folder (overrides Python lib/ ignore)
+!apps/web/src/lib/
+
 # Production env
 .env.production
