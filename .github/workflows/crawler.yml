@@ -167,3 +167,14 @@ jobs:
           S3_REGION: ${{ secrets.S3_REGION }}
           GITHUB_ACTIONS: true
         run: python -m trendradar
+
+      - name: Upload output artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: output
+          path: |
+            output/index.html
+            output/html/
+          retention-days: 7
+          if-no-files-found: warn
