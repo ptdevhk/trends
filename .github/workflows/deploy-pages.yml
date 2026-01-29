@@ -4,8 +4,7 @@
 #
 # Triggers:
 #   - Manual dispatch (workflow_dispatch)
-#   - After successful crawler run (workflow_run)
-#   - Push to master (for workflow changes)
+#   - (Legacy) Automatic triggers disabled
 #
 # The static site includes:
 #   - React frontend (if apps/web exists)
@@ -14,7 +13,7 @@
 name: Deploy to GitHub Pages
 
 on:
-  # Manual trigger
+  # Manual trigger only (automatic triggers disabled - legacy workflow)
   workflow_dispatch:
     inputs:
       fresh_build:
@@ -22,23 +21,6 @@ on:
         required: false
         default: 'false'
         type: boolean
-
-  # Deploy after successful crawler run
-  workflow_run:
-    workflows: ["Get Hot News"]
-    types:
-      - completed
-    branches:
-      - master
-
-  # Deploy on push to master (catches workflow file changes)
-  push:
-    branches:
-      - master
-    paths:
-      - '.github/workflows/deploy-pages.yml'
-      - 'scripts/build-static.sh'
-      - 'apps/web/**'
 
 # Only allow one deployment at a time
 concurrency:
