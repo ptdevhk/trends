@@ -5,7 +5,7 @@
  */
 
 import type { z } from "@hono/zod-openapi";
-import type { TrendItemSchema, TopicSchema, SearchResultSchema, RssItemSchema } from "../schemas";
+import type { TrendItemSchema, TopicSchema, SearchResultSchema, RssItemSchema } from "../schemas/index.js";
 
 type TrendItem = z.infer<typeof TrendItemSchema>;
 type Topic = z.infer<typeof TopicSchema>;

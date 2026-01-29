@@ -1022,7 +1022,7 @@ if __name__ == '__main__':
         description='MCP Server - 新闻热点聚合 MCP 工具服务器',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-详细配置教程请查看: README-Cherry-Studio.md
+详细配置教程请查看: AGENTS.md
         """
     )
     parser.add_argument(

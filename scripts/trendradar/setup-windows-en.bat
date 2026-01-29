@@ -157,7 +157,7 @@ echo ==========================================
 echo   Setup Complete!
 echo ==========================================
 echo:
-echo MCP Server Configuration for Claude Desktop:
+echo MCP Server Configuration for MCP clients:
 echo:
 echo   Command: %UV_PATH%
 echo   Working Directory: %PROJECT_ROOT%
@@ -170,7 +170,7 @@ echo     python
 echo     -m
 echo     mcp_server.server
 echo:
-echo Configuration guide: README-Cherry-Studio.md
+echo Configuration guide: AGENTS.md
 echo:
 echo:
 pause

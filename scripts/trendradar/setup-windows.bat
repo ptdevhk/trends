@@ -162,7 +162,7 @@ echo ==========================================
 echo            部署完成！
 echo ==========================================
 echo.
-echo 📋 MCP 服务器配置信息（用于 Claude Desktop）:
+echo 📋 MCP 服务器配置信息（用于 MCP 客户端）:
 echo.
 echo   命令: %UV_PATH%
 echo   工作目录: %PROJECT_ROOT%
@@ -175,7 +175,7 @@ echo     python
 echo     -m
 echo     mcp_server.server
 echo.
-echo 📖 详细教程: README-Cherry-Studio.md
+echo 📖 详细教程: AGENTS.md
 echo.
 echo.
 pause

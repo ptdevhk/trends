@@ -4,8 +4,8 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { prettyJSON } from "hono/pretty-json";
 
-import { healthRoutes, trendsRoutes, searchRoutes, rssRoutes } from "./routes";
-import { config } from "./services/config";
+import { healthRoutes, trendsRoutes, topicsRoutes, searchRoutes, rssRoutes } from "./routes/index.js";
+import { config } from "./services/config.js";
 
 // Create main app
 const app = new OpenAPIHono();
@@ -18,6 +18,7 @@ app.use("*", prettyJSON());
 // Mount routes
 app.route("/", healthRoutes);
 app.route("/", trendsRoutes);
+app.route("/", topicsRoutes);
 app.route("/", searchRoutes);
 app.route("/", rssRoutes);
 
@@ -32,6 +33,7 @@ app.doc("/doc", {
   tags: [
     { name: "health", description: "Health check endpoints" },
     { name: "trends", description: "Trending news and topics" },
+    { name: "topics", description: "Trending topics aggregation" },
     { name: "search", description: "Search functionality" },
     { name: "rss", description: "RSS feed data" },
   ],
@@ -67,8 +69,9 @@ app.get("/", (c) => {
 
 // Start server
 console.log(`Starting 热点追踪 API server on port ${config.port}...`);
-console.log(`Mode: ${config.useMock ? "mock data" : "worker proxy"}`);
-console.log(`Worker URL: ${config.workerUrl}`);
+console.log("Mode: sqlite (direct output/*.db)");
+console.log(`Project root: ${config.projectRoot ?? "(auto-detected)"}`);
+console.log(`Worker URL (optional): ${config.workerUrl}`);
 
 serve({
   fetch: app.fetch,
