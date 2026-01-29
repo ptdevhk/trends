@@ -1,4 +1,15 @@
-TrendRadar is a Chinese news hot topic aggregator and analysis tool. It crawls trending news from 50+ platforms (Zhihu, Weibo, Douyin, Baidu, etc.), applies keyword filtering, and pushes notifications to various channels (Feishu, DingTalk, WeChat Work, Telegram, Email, Slack, etc.). It includes an MCP (Model Context Protocol) server for AI-powered news analysis, plus a modern web stack with React frontend, Hono BFF API, and FastAPI worker.
+Trends is a multi-source data aggregation, AI-powered filtering, and intelligent notification platform with extensible domain support. It features a pluggable architecture for different use cases:
+
+**Extensions:**
+- **News Aggregation** (Production): Crawls trending topics from 50+ Chinese platforms (Zhihu, Weibo, Douyin, Baidu, etc.), applies keyword filtering, and pushes to various notification channels
+- **Resume Screening** (Main Development Direction): Multi-source resume collection with AI-powered candidate matching for HR efficiency
+
+**Core Capabilities:**
+- Multi-source data collection (crawler, RSS, manual import)
+- Keyword & AI-powered filtering with configurable criteria
+- Multi-channel notifications (Feishu, DingTalk, WeChat Work, Telegram, Email, Slack)
+- MCP Server for AI-powered analysis
+- Modern web stack: React frontend, Hono BFF API, FastAPI worker
 
 ## Quick Start
 
@@ -6,6 +17,141 @@ TrendRadar is a Chinese news hot topic aggregator and analysis tool. It crawls t
 make install-deps     # Install Python/Node dependencies
 make dev              # Fast start: skip crawl, use existing output/*.db
 make dev ARGS=--fresh # Crawl first, then start services
+```
+
+## Resume Screening System (Main Development Direction)
+
+Web-based resume multi-source collection, AI-powered screening, and HR efficient review system.
+
+**Core Goal:** Help HR and managers quickly obtain high-quality candidates matching job requirements, reducing manual screening burden.
+
+**Main Feature:** AI-powered resume screening that automatically matches candidates to job requirements using NLP-based content parsing (skills, experience, education extraction), custom screening criteria, and multi-provider AI support (DeepSeek, OpenAI, LiteLLM-compatible).
+
+**Default Audience:** Chinese HR professionals and recruiters
+**Default Language:** zh-Hans (Simplified Chinese) for both input and output
+
+### Architecture (Hub-and-Spoke Pattern)
+
+Cloned from [Moltbot](https://github.com/moltbot/moltbot)'s gateway architecture. Reference: https://context7.com/moltbot/moltbot/llms.txt
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Gateway (Control Plane)                      │
+│  - WebSocket-based orchestration                                 │
+│  - Session state & candidate profile management                  │
+│  - Multi-agent routing with isolated workspaces                  │
+│  - Deterministic routing via bindings                            │
+└─────────────────────────────────────────────────────────────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│  Input Sources  │  │   AI Providers  │  │  Output Channels│
+│  - Job Boards   │  │  - DeepSeek     │  │  - WeChat Work  │
+│  - Manual Upload│  │  - OpenAI       │  │  - Email        │
+│  - Email Ingest │  │  - LiteLLM      │  │  - ATS Webhook  │
+│  - ATS Webhook  │  │  - Gemini       │  │  - Internal Sys │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
+### Multi-Agent Pipeline
+
+Following Moltbot's multi-agent routing pattern with deterministic bindings:
+
+```json5
+{
+  agents: {
+    list: [
+      { id: "screener", name: "Initial Screener", model: "deepseek/deepseek-chat" },
+      { id: "evaluator", name: "Technical Evaluator", model: "anthropic/claude-sonnet-4-5" },
+      { id: "final", name: "Final Decision", model: "anthropic/claude-opus-4-5" }
+    ]
+  },
+  bindings: [
+    { agentId: "screener", match: { source: "job_board" } },
+    { agentId: "screener", match: { source: "manual_upload" } },
+    { agentId: "evaluator", match: { stage: "technical_review" } },
+    { agentId: "final", match: { stage: "final_decision" } }
+  ]
+}
+```
+
+### Source Plugin Pattern
+
+Adapted from Moltbot's Channel Plugin SDK:
+
+```typescript
+export const sourcePlugin: SourcePlugin = {
+  id: 'job_board',
+  displayName: '智通直聘',
+  configSchema: { /* JSON Schema */ },
+  async start({ cfg, log }) { /* initialize connection */ },
+  outbound: { async notify(ctx) { /* send to HR */ } },
+  async onResume({ candidate, resume, metadata }) { /* process resume */ }
+}
+```
+
+| Moltbot Channel | Resume Screening Source |
+|-----------------|------------------------|
+| WhatsApp | Email ingestion |
+| Telegram | Job board API (智通直聘) |
+| Slack | Manual upload portal |
+| Discord | ATS webhook |
+
+### Skills System (Extensibility)
+
+Following Moltbot's SKILL.md pattern with scoring:
+
+```markdown
+---
+name: senior_python_developer
+description: Screening criteria for senior Python developer positions
+---
+
+# Required Criteria
+- 5+ years Python experience
+- Django or FastAPI framework knowledge
+- Database design experience (PostgreSQL/MySQL)
+
+# Preferred Criteria
+- AI/ML project experience
+- Open source contributions
+- Team leadership experience
+
+# Scoring
+- Required: Each criterion = 20 points (max 60)
+- Preferred: Each criterion = 10 points (max 30)
+- Passing threshold: 70 points
+
+# Tools
+Use `resume_extract` to parse skills and experience.
+Use `skill_match` to calculate matching score.
+```
+
+### Session & Tools Configuration
+
+```json5
+{
+  session: {
+    scope: "per-candidate",
+    resetTriggers: ["/archive", "/reject"],
+    retention: { mode: "until-hired", archiveAfterDays: 90 }
+  },
+  tools: {
+    resume_extract: { enabled: true, formats: ["pdf", "docx", "html"] },
+    skill_match: { enabled: true, threshold: 0.7 },
+    linkedin_verify: { enabled: true, apiKey: "${LINKEDIN_API_KEY}" }
+  },
+  notifications: {
+    wechat_work: { enabled: true, webhook: "${WECHAT_WORK_WEBHOOK}" },
+    email: { enabled: true, smtp: { host: "smtp.example.com", port: 587 } }
+  }
+}
+```
+
+### System Flow
+
+```
+Resume Sources → Gateway → Multi-Agent Pipeline → AI Screening & Matching → Push to HR → Tracking & Annotation
 ```
 
 ## Common Commands
@@ -72,12 +218,12 @@ make help             # Show all available commands
 
 ### System Modules
 
-#### Core Crawler (`trendradar/`)
-Python application orchestrating crawling, filtering, reporting, and notifications. Entry point is `trendradar/__main__.py` (runs `NewsAnalyzer`).
+#### Core Engine (`trendradar/`)
+Python application orchestrating data collection, filtering, reporting, and notifications. Entry point is `trendradar/__main__.py` (runs `DataAnalyzer`).
 
 Key subsystems:
 - **`trendradar/core/`**: config loading, analyzer helpers, frequency filtering
-- **`trendradar/crawler/`**: fetchers + RSS parsers for 50+ platforms
+- **`trendradar/crawler/`**: data fetchers + parsers (News: 50+ platforms, Resume: job boards)
 - **`trendradar/storage/`**: persistence abstraction (local SQLite, remote S3/R2)
 - **`trendradar/notification/`**: push to 10+ channels (Feishu, Telegram, Slack, etc.)
 - **`trendradar/report/`**: HTML report generation
@@ -112,7 +258,7 @@ FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/
      :5173          └────────────────┬────────────────┘
                                      │
                     ┌────────────────▼────────────────┐
-                    │   output/news/*.db (SQLite)     │
+                    │   output/*.db (SQLite)          │
                     └────────────────┬────────────────┘
                                      │
                     ┌────────────────▼────────────────┐
@@ -134,9 +280,9 @@ FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/
 2. **Storage Backend Abstraction**: `StorageManager` supports both local SQLite and remote S3-compatible storage (Cloudflare R2, etc.).
 
 3. **Mode-based Report Generation**: Three modes control output behavior:
-   - `daily`: All news accumulated today
-   - `current`: Only currently-on-chart news
-   - `incremental`: Only newly appeared news
+   - `daily`: All data accumulated today
+   - `current`: Only currently active data
+   - `incremental`: Only newly appeared data
 
 4. **LiteLLM Integration**: AI features use LiteLLM for unified access to 100+ AI providers (DeepSeek, OpenAI, Gemini, etc.).
 
@@ -150,8 +296,8 @@ FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/
 
 | Looking for... | Start here |
 |----------------|------------|
-| Crawler entry point | `trendradar/__main__.py` (`NewsAnalyzer`) |
-| Fetchers/RSS parsers | `trendradar/crawler/` |
+| Core engine entry point | `trendradar/__main__.py` (`DataAnalyzer`) |
+| Data fetchers/parsers | `trendradar/crawler/` |
 | Frequency filtering | `trendradar/core/frequency.py`, `config/frequency_words.txt` |
 | Config parsing | `trendradar/core/config.py` |
 | API endpoints (BFF) | `apps/api/src/routes/` |
@@ -159,7 +305,7 @@ FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/
 | MCP tools | `mcp_server/tools/` |
 | React components | `apps/web/src/components/` |
 
-Tip: when paths drift, use ripgrep: `rg -n "createRoute" apps/api/src/routes` / `rg -n "NewsAnalyzer" trendradar`.
+Tip: when paths drift, use ripgrep: `rg -n "createRoute" apps/api/src/routes` / `rg -n "DataAnalyzer" trendradar`.
 
 ## i18n (Internationalization)
 
@@ -190,6 +336,8 @@ make i18n-build
 The `i18n-check` job runs in `.github/workflows/checks.yml` to ensure all locales stay in sync.
 
 ## Deployment
+
+> **Note:** Service names use the legacy `trendradar` prefix for backward compatibility.
 
 ### Native (systemd)
 ```bash
@@ -247,7 +395,9 @@ docker compose up -d trendradar-mcp     # MCP server
 
 ## API Reference
 
-### BFF Endpoints (Hono - port 3000)
+### News Aggregation Extension
+
+#### BFF Endpoints (Hono - port 3000)
 
 **Get trending news:**
 ```bash
@@ -273,7 +423,7 @@ curl "http://localhost:3000/health"
 ```
 → `{"status":"healthy","timestamp":"...","version":"..."}`
 
-### Worker Endpoints (FastAPI - port 8000)
+#### Worker Endpoints (FastAPI - port 8000)
 
 **Health check:**
 ```bash
@@ -282,7 +432,7 @@ curl "http://localhost:8000/health"
 
 FastAPI docs: `http://localhost:8000/docs`
 
-### MCP Server (HTTP - port 3333)
+#### MCP Server (HTTP - port 3333)
 
 **Start the server:**
 ```bash
@@ -297,6 +447,10 @@ uv run python -m mcp_server.server --transport http --port 3333
 ```bash
 npx @modelcontextprotocol/inspector
 ```
+
+### Resume Screening Extension (Coming Soon)
+
+Endpoints for the Resume Screening system will be documented here as they are implemented.
 
 ## Code Conventions
 
