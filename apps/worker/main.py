@@ -105,7 +105,7 @@ def run_scheduler(
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="TrendRadar Worker - Scheduled task runner",
+        description="Worker - Scheduled task runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -187,7 +187,7 @@ def main() -> int:
         return run_once()
 
     # Scheduler mode
-    logger.info("TrendRadar Worker starting...")
+    logger.info("Worker starting...")
     return run_scheduler(
         interval_minutes=args.interval,
         cron_expression=args.cron,

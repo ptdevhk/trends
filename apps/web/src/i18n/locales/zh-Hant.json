@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "TrendRadar",
+    "title": "熱點追蹤",
     "subtitle": "熱點追蹤",
     "description": "中文新聞熱點聚合與分析工具"
   },
@@ -50,7 +50,5 @@
     "hoursAgo": "{{count}} 小時前",
     "daysAgo": "{{count}} 天前"
   },
-  "footer": {
-    "poweredBy": "由 TrendRadar 提供技術支持"
-  }
+  "footer": {}
 }

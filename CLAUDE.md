@@ -284,7 +284,16 @@ FastAPI docs: `http://localhost:8000/docs`
 
 ### MCP Server (HTTP - port 3333)
 
-Test tools via MCP Inspector:
+**Start the server:**
+```bash
+# STDIO mode (for MCP clients over stdio)
+uv run python -m mcp_server.server
+
+# HTTP mode (for web clients)
+uv run python -m mcp_server.server --transport http --port 3333
+```
+
+**Test tools via MCP Inspector:**
 ```bash
 npx @modelcontextprotocol/inspector
 ```

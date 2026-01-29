@@ -26,9 +26,9 @@ app.route("/", rssRoutes);
 app.doc("/doc", {
   openapi: "3.1.0",
   info: {
-    title: "TrendRadar API",
+    title: "热点追踪 API",
     version: config.version,
-    description: "BFF API for TrendRadar - Chinese news hot topic aggregator",
+    description: "BFF API for Chinese news hot topic aggregator",
   },
   tags: [
     { name: "health", description: "Health check endpoints" },
@@ -44,9 +44,9 @@ app.get("/openapi.json", (c) => {
   return c.json(app.getOpenAPI31Document({
     openapi: "3.1.0",
     info: {
-      title: "TrendRadar API",
+      title: "热点追踪 API",
       version: config.version,
-      description: "BFF API for TrendRadar - Chinese news hot topic aggregator",
+      description: "BFF API for Chinese news hot topic aggregator",
     },
   }));
 });
@@ -54,7 +54,7 @@ app.get("/openapi.json", (c) => {
 // Root endpoint
 app.get("/", (c) => {
   return c.json({
-    name: "TrendRadar API",
+    name: "热点追踪 API",
     version: config.version,
     docs: "/doc",
     health: "/health",
@@ -68,7 +68,7 @@ app.get("/", (c) => {
 });
 
 // Start server
-console.log(`Starting TrendRadar API server on port ${config.port}...`);
+console.log(`Starting 热点追踪 API server on port ${config.port}...`);
 console.log("Mode: sqlite (direct output/*.db)");
 console.log(`Project root: ${config.projectRoot ?? "(auto-detected)"}`);
 console.log(`Worker URL (optional): ${config.workerUrl}`);
