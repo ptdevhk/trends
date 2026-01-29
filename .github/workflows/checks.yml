@@ -45,6 +45,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Node.js setup (for TypeScript checks/build)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: "1.3.6"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -56,5 +67,8 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Run checks
-        run: make check
+      - name: Install Node dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run checks + build validation
+        run: make check-build

@@ -47,6 +47,7 @@ output/
 # Node.js
 node_modules/
 package-lock.json
+*.tsbuildinfo
 
 # Allow web app lib folder (overrides Python lib/ ignore)
 !apps/web/src/lib/
