@@ -52,6 +52,64 @@ ls -la apps/browser-extension/
 # Make changes and reload in chrome://extensions
 ```
 
+## Debugging with MCP
+
+Debug the extension using Chrome DevTools Protocol via MCP.
+
+### Quick Start
+
+```bash
+# Start Chrome with remote debugging + extension loaded
+npm run debug
+
+# Or specify a custom URL
+./scripts/debug.sh "https://hr.job5156.com/search?keyword=python"
+```
+
+### MCP Commands
+
+Once Chrome is running, use the `chrome-devtools-9222` MCP server:
+
+```text
+list_pages
+take_snapshot
+list_console_messages
+list_network_requests
+take_screenshot
+```
+
+### Debugging Flow
+
+1. Run `npm run debug` (Chrome opens with the extension + target page)
+2. Log in to hr.job5156.com if required
+3. Use MCP `take_snapshot` to verify page structure
+4. Click the extension icon, then **提取当前页**
+5. Use MCP `list_console_messages` to check for errors
+6. Use MCP `list_network_requests` to verify API calls
+
+## Verification
+
+1. Start debug session:
+
+```bash
+cd apps/browser-extension
+npm run debug
+```
+
+2. Verify MCP connection:
+   - Use `list_pages` (should show an hr.job5156.com tab)
+   - Use `take_snapshot` (should show page content)
+
+3. Test extension functionality:
+   - Click the extension icon in the Chrome toolbar
+   - Click **提取当前页** to extract resumes
+   - Use `list_console_messages` to check for logs/errors
+   - Click **导出 CSV** and verify a download
+
+4. Verify cleanup:
+   - `.chrome-debug-profile/` is git-ignored
+   - Running `git status` should not show debug profile files
+
 ## Files
 
 - `manifest.json` - Extension configuration (Manifest v3)
