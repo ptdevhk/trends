@@ -384,9 +384,9 @@ class SystemManagementTools:
         """
         检查版本更新
 
-        同时检查 TrendRadar 和 MCP Server 两个组件的版本更新。
+        同时检查核心模块和 MCP Server 两个组件的版本更新。
         远程版本 URL 从 config.yaml 获取：
-        - version_check_url: TrendRadar 版本
+        - version_check_url: 核心模块版本
         - mcp_version_check_url: MCP Server 版本
 
         Args:
@@ -395,7 +395,7 @@ class SystemManagementTools:
         Returns:
             版本检查结果字典，包含：
             - success: 是否成功
-            - trendradar: TrendRadar 版本检查结果
+            - core: 核心模块版本检查结果
             - mcp: MCP Server 版本检查结果
             - any_update: 是否有任何组件需要更新
 
@@ -477,7 +477,7 @@ class SystemManagementTools:
 
         try:
             # 导入本地版本
-            from trendradar import __version__ as trendradar_version
+            from trendradar import __version__ as core_version
             from mcp_server import __version__ as mcp_version
 
             # 从配置文件获取远程版本 URL
@@ -495,13 +495,13 @@ class SystemManagementTools:
                 config_data = yaml.safe_load(f)
 
             advanced_config = config_data.get("advanced", {})
-            trendradar_url = advanced_config.get(
+            core_url = advanced_config.get(
                 "version_check_url",
-                "https://raw.githubusercontent.com/sansan0/TrendRadar/refs/heads/master/version"
+                ""
             )
             mcp_url = advanced_config.get(
                 "mcp_version_check_url",
-                "https://raw.githubusercontent.com/sansan0/TrendRadar/refs/heads/master/version_mcp"
+                ""
             )
 
             # 配置代理
@@ -517,27 +517,27 @@ class SystemManagementTools:
             }
 
             # 检查两个版本
-            trendradar_result = check_single_version(
-                "TrendRadar", trendradar_version, trendradar_url, proxies, headers
-            )
+            core_result = check_single_version(
+                "Core", core_version, core_url, proxies, headers
+            ) if core_url else {"success": False, "message": "版本检查 URL 未配置"}
             mcp_result = check_single_version(
                 "MCP Server", mcp_version, mcp_url, proxies, headers
-            )
+            ) if mcp_url else {"success": False, "message": "版本检查 URL 未配置"}
 
             # 判断是否有任何更新
             any_update = (
-                (trendradar_result.get("success") and trendradar_result.get("need_update", False)) or
+                (core_result.get("success") and core_result.get("need_update", False)) or
                 (mcp_result.get("success") and mcp_result.get("need_update", False))
             )
 
             return {
                 "success": True,
                 "summary": {
-                    "description": "版本检查结果（TrendRadar + MCP Server）",
+                    "description": "版本检查结果（核心模块 + MCP Server）",
                     "any_update": any_update
                 },
                 "data": {
-                    "trendradar": trendradar_result,
+                    "core": core_result,
                     "mcp": mcp_result,
                     "any_update": any_update
                 }

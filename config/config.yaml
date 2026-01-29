@@ -468,10 +468,10 @@ advanced:
   # 调试模式
   debug: false
 
-  # 版本检查
-  version_check_url: "https://raw.githubusercontent.com/sansan0/TrendRadar/refs/heads/master/version"
-  mcp_version_check_url: "https://raw.githubusercontent.com/sansan0/TrendRadar/refs/heads/master/version_mcp"
-  configs_version_check_url: "https://raw.githubusercontent.com/sansan0/TrendRadar/refs/heads/master/version_configs"
+  # 版本检查 (留空禁用自动版本检查)
+  version_check_url: ""
+  mcp_version_check_url: ""
+  configs_version_check_url: ""
 
   # 热榜爬虫技术参数
   crawler:

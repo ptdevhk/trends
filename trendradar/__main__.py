@@ -211,7 +211,7 @@ class NewsAnalyzer:
         if config is None:
             print("正在加载配置...")
             config = load_config()
-        print(f"TrendRadar v{__version__} 配置加载完成")
+        print(f"v{__version__} 配置加载完成")
         print(f"监控平台数量: {len(config['PLATFORMS'])}")
         print(f"时区: {config.get('TIMEZONE', 'Asia/Shanghai')}")
 

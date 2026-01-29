@@ -72,7 +72,7 @@ run:
 crawl:
 	uv run python -m trendradar
 
-# MCP server (STDIO mode - for MCP clients like Claude Desktop)
+# MCP server (STDIO mode - for MCP clients over stdio)
 mcp:
 	uv run python -m mcp_server.server
 

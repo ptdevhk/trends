@@ -297,7 +297,7 @@ SKIP_ROOT_INDEX=true uv run python -m trendradar
 
 ### MCP Server
 ```bash
-# STDIO mode (for Claude Desktop)
+# STDIO mode (for MCP clients over stdio)
 uv run python -m mcp_server.server
 
 # HTTP mode (for web clients)

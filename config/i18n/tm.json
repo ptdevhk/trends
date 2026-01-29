@@ -1,12 +1,11 @@
 {
   "_meta": {
-    "description": "Translation Memory for TrendRadar i18n",
+    "description": "Translation Memory for i18n",
     "version": "1.0.0",
     "source_locale": "zh-Hant",
     "updated_at": "2025-01-27"
   },
   "glossary": {
-    "TrendRadar": "TrendRadar",
     "熱榜": {
       "zh-Hans": "热榜",
       "en": "Hot List"

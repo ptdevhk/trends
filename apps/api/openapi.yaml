@@ -1,13 +1,12 @@
 openapi: 3.1.0
 info:
-  title: TrendRadar API
+  title: 热点追踪 API
   description: |
-    BFF (Backend for Frontend) API for TrendRadar - Chinese news hot topic aggregator.
+    BFF (Backend for Frontend) API for Chinese news hot topic aggregator.
     Provides access to trending news, search functionality, and system health status.
   version: 0.1.0
   contact:
-    name: TrendRadar
-    url: https://github.com/ptdevhk/trends
+    name: 热点追踪
 
 servers:
   - url: http://localhost:3000
