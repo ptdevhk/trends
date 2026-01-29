@@ -1,0 +1,17 @@
+{
+  "name": "@trendradar/browser-extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "chrome-types": "^0.1.327",
+    "eslint": "^9.13.0",
+    "globals": "^15.11.0",
+    "typescript": "~5.6.2"
+  }
+}

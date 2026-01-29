@@ -200,6 +200,7 @@ check-node:
 	else \
 		npm run --workspaces --if-present typecheck; \
 		npm run --workspace @trendradar/web lint; \
+		npm run --workspace @trendradar/browser-extension lint; \
 	fi
 
 # Build validation (for CI)

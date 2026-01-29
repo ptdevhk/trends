@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resume Collector</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📋 简历采集器</h1>
+      <p class="subtitle">智通直聘 Resume Collector</p>
+    </header>
+
+    <div id="status-bar" class="status-bar hidden">
+      <span id="status-text"></span>
+    </div>
+
+    <div id="page-info" class="page-info">
+      <span id="page-current">-</span> / <span id="page-total">-</span> 页
+      <span class="divider">|</span>
+      共 <span id="total-items">-</span> 条简历
+    </div>
+
+    <div class="actions">
+      <button id="btn-extract" class="btn btn-primary">
+        <span class="icon">📥</span>
+        提取当前页
+      </button>
+      
+      <div class="export-group">
+        <button id="btn-csv" class="btn btn-secondary">
+          <span class="icon">📊</span>
+          导出 CSV
+        </button>
+        <button id="btn-json" class="btn btn-secondary">
+          <span class="icon">📄</span>
+          导出 JSON
+        </button>
+      </div>
+
+      <div class="options">
+        <label class="option">
+          <input id="opt-save-as" type="checkbox" />
+          每次下载前选择位置
+        </label>
+      </div>
+
+      <div class="tools">
+        <button id="btn-diagnose" class="btn btn-secondary btn-small">
+          <span class="icon">🛠</span>
+          诊断下载
+        </button>
+        <button id="btn-open-download-settings" class="btn btn-secondary btn-small">
+          <span class="icon">⚙️</span>
+          下载设置
+        </button>
+        <button id="btn-show-last-download" class="btn btn-secondary btn-small" disabled>
+          <span class="icon">📂</span>
+          显示文件
+        </button>
+      </div>
+    </div>
+
+    <div id="preview" class="preview hidden">
+      <h3>预览 (前3条)</h3>
+      <div id="preview-content"></div>
+    </div>
+
+    <details id="diagnostics" class="diagnostics hidden">
+      <summary>诊断信息</summary>
+      <pre id="diagnostics-output"></pre>
+    </details>
+
+    <footer>
+      <p>Trends Resume Screening v1.0</p>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

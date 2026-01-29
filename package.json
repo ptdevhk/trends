@@ -16,7 +16,7 @@
     "dev:worker": "cd apps/worker && uv run uvicorn main:app --reload --port 8000",
     "check": "bun run check:typecheck && bun run check:lint",
     "check:typecheck": "bun run --filter '@trendradar/*' typecheck",
-    "check:lint": "bun run --filter '@trendradar/web' lint",
+    "check:lint": "bun run --filter '@trendradar/web' --filter '@trendradar/browser-extension' lint",
     "check:build": "bun run --filter '@trendradar/*' build"
   },
   "repository": {
