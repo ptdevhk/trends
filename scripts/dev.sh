@@ -186,7 +186,7 @@ start_web() {
 
         log "WEB" "$CYAN" "Starting web frontend on http://localhost:$port"
         cd "$PROJECT_ROOT/apps/web"
-        npm run dev 2>&1 | \
+        npm run dev -- --port "$port" 2>&1 | \
             while IFS= read -r line; do
                 log "WEB" "$CYAN" "$line"
             done &
@@ -208,7 +208,7 @@ start_api() {
 
         log "API" "$CYAN" "Starting BFF API on http://localhost:$port"
         cd "$PROJECT_ROOT/apps/api"
-        npm run dev 2>&1 | \
+        PORT="$port" npm run dev 2>&1 | \
             while IFS= read -r line; do
                 log "API" "$CYAN" "$line"
             done &
@@ -291,6 +291,14 @@ main() {
                 services=("crawl")
                 shift
                 ;;
+            --skip-crawl)
+                SKIP_CRAWL=true
+                shift
+                ;;
+            --fresh)
+                SKIP_CRAWL=false
+                shift
+                ;;
             --all)
                 services=("mcp" "crawl" "worker" "api" "web")
                 shift
@@ -305,12 +313,15 @@ main() {
                 echo "Options:"
                 echo "  --mcp-only    Start only MCP server"
                 echo "  --crawl-only  Run crawler only (no long-running services)"
+                echo "  --skip-crawl  Skip initial crawl and start servers immediately (default)"
+                echo "  --fresh       Run crawl first, then start servers"
                 echo "  --all         Start all services (including future apps/*)"
                 echo "  --force, -f   Kill processes using required ports"
                 echo "  --help        Show this help message"
                 echo ""
                 echo "Environment variables:"
                 echo "  ENV_FILE      Path to .env file (default: .env)"
+                echo "  SKIP_CRAWL    Skip crawl on startup (default: true; set to false to crawl)"
                 echo "  MCP_PORT      MCP server port (default: 3333)"
                 echo "  WORKER_PORT   FastAPI worker port (default: 8000)"
                 echo "  API_PORT      BFF API port (default: 3000)"
@@ -324,9 +335,13 @@ main() {
         esac
     done
 
-    # Default: start MCP and run crawler
+    # Default: fast dev mode (skip crawl unless explicitly disabled)
     if [ ${#services[@]} -eq 0 ]; then
-        services=("mcp" "crawl" "worker" "api" "web")
+        if [ "$SKIP_CRAWL" != "false" ] && [ "$SKIP_CRAWL" != "0" ]; then
+            services=("mcp" "worker" "api" "web")
+        else
+            services=("mcp" "crawl" "worker" "api" "web")
+        fi
     fi
 
     # Check for port conflicts upfront

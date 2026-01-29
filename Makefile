@@ -14,15 +14,15 @@
 
 # Start all available services (MCP server + crawler + apps/*)
 dev:
-	./scripts/dev.sh
+	./scripts/dev.sh $(ARGS)
 
 # Start only MCP server (HTTP mode for development)
 dev-mcp:
-	./scripts/dev.sh --mcp-only
+	./scripts/dev.sh --mcp-only $(ARGS)
 
 # Run crawler only (no long-running services)
 dev-crawl:
-	./scripts/dev.sh --crawl-only
+	./scripts/dev.sh --crawl-only $(ARGS)
 
 # Start web frontend only (React + Vite on port 5173)
 dev-web:
