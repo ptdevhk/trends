@@ -1,0 +1,1687 @@
+### Run Molt Bot Onboarding
+
+Source: https://docs.molt.bot/install
+
+Initiates the onboarding process for Molt Bot after installation, which is necessary if onboarding was skipped during the initial setup.
+
+```bash
+moltbot onboard --install-daemon
+```
+
+--------------------------------
+
+### Install Binaries in Dockerfile
+
+Source: https://docs.molt.bot/platforms/hetzner
+
+This Dockerfile demonstrates how to install necessary binaries like gog, goplaces, and wacli at build time. It uses `apt-get` for system packages and `curl` with `tar` for downloading and extracting binaries directly into the image's PATH. This ensures that all required tools are available when the container starts, preventing runtime installation issues.
+
+```dockerfile
+FROM node:22-bookworm
+
+RUN apt-get update && apt-get install -y socat && rm -rf /var/lib/apt/lists/*
+
+# Example binary 1: Gmail CLI
+RUN curl -L https://github.com/steipete/gog/releases/latest/download/gog_Linux_x86_64.tar.gz \
+  | tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/gog
+
+# Example binary 2: Google Places CLI
+RUN curl -L https://github.com/steipete/goplaces/releases/latest/download/goplaces_Linux_x86_64.tar.gz \
+  | tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/goplaces
+
+# Example binary 3: WhatsApp CLI
+RUN curl -L https://github.com/steipete/wacli/releases/latest/download/wacli_Linux_x86_64.tar.gz \
+  | tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/wacli
+
+# Add more binaries below using the same pattern
+
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY ui/package.json ./ui/package.json
+COPY scripts ./scripts
+
+RUN corepack enable
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+RUN pnpm build
+RUN pnpm ui:install
+RUN pnpm ui:build
+
+ENV NODE_ENV=production
+
+CMD ["node","dist/index.js"]
+```
+
+--------------------------------
+
+### Moltbot Multi-Client Legal Setup Example
+
+Source: https://docs.molt.bot/gateway/configuration
+
+Provides an example of a multi-client legal setup using Moltbot's `$include` directive. This configuration merges agent lists and broadcast configurations from different clients, demonstrating a practical application for organizing complex setups.
+
+```json5
+// ~/.clawdbot/moltbot.json
+{
+  gateway: { port: 18789, auth: { token: "secret" } },
+  
+  // Common agent defaults
+  agents: {
+    defaults: {
+      sandbox: { mode: "all", scope: "session" }
+    },
+    // Merge agent lists from all clients
+    list: { "$include": [
+      "./clients/mueller/agents.json5",
+      "./clients/schmidt/agents.json5"
+    ]}
+  },
+  
+  // Merge broadcast configs
+  broadcast: { "$include": [
+    "./clients/mueller/broadcast.json5",
+    "./clients/schmidt/broadcast.json5"
+  ]},
+  
+  channels: { whatsapp: { groupPolicy: "allowlist" } }
+}
+```
+
+```json5
+// ~/.clawdbot/clients/mueller/agents.json5
+[
+  { id: "mueller-transcribe", workspace: "~/clients/mueller/transcribe" },
+  { id: "mueller-docs", workspace: "~/clients/mueller/docs" }
+]
+```
+
+```json5
+// ~/.clawdbot/clients/mueller/broadcast.json5
+{
+  "120363403215116621@g.us": ["mueller-transcribe", "mueller-docs"]
+}
+```
+
+--------------------------------
+
+### Moltb Bot Rescue Gateway Installation Guide
+
+Source: https://docs.molt.bot/gateway/multiple-gateways
+
+Provides a step-by-step guide for installing a rescue Molt Bot Gateway. This involves onboarding the rescue bot with its own profile and ensuring it uses isolated ports, distinct from the main bot. The process includes installing the gateway service.
+
+```bash
+# Main bot (existing or fresh, without --profile param)
+# Runs on port 18789 + Chrome CDC/Canvas/... Ports 
+moltbot onboard
+moltbot gateway install
+
+# Rescue bot (isolated profile + ports)
+moltbot --profile rescue onboard
+# Notes: 
+# - workspace name will be postfixed with -rescue per default
+# - Port should be at least 18789 + 20 Ports, 
+#   better choose completely different base port, like 19789,
+# - rest of the onboarding is the same as normal
+
+# To install the service (if not happened automatically during onboarding)
+moltbot --profile rescue gateway install
+```
+
+--------------------------------
+
+### Installer Script with Flags (Bash)
+
+Source: https://docs.molt.bot/install
+
+Demonstrates how to use the installer script with specific flags to control the installation method and behavior, such as specifying 'npm' or 'git' as the install method.
+
+```bash
+curl -fsSL https://molt.bot/install.sh | bash -s -- --install-method npm
+```
+
+```bash
+curl -fsSL https://molt.bot/install.sh | bash -s -- --install-method git
+```
+
+--------------------------------
+
+### Moltbot Development Setup
+
+Source: https://docs.molt.bot/help/faq
+
+Steps for setting up Moltbot from a git clone, including installing dependencies, building the project and UI assets, and onboarding. It also shows how to run the CLI if not globally installed.
+
+```bash
+git clone https://github.com/moltbot/moltbot.git
+cd moltbot
+pnpm install
+pnpm build
+pnpm ui:build
+moltbot onboard
+pnpm moltbot onboard
+```
+
+--------------------------------
+
+### Install Dependencies and Watch Gateway
+
+Source: https://docs.molt.bot/start/setup
+
+Installs project dependencies using pnpm and starts the Gateway in watch mode. This is essential for the bleeding-edge development workflow, enabling hot-reloading on code changes.
+
+```bash
+pnpm install
+pnpm gateway:watch
+```
+
+--------------------------------
+
+### Quick Start Docker Setup for Molt Bot
+
+Source: https://docs.molt.bot/install/docker
+
+Executes a script to build the Molt Bot gateway image, run the onboarding wizard, and start the gateway via Docker Compose. It also generates a gateway token and writes it to .env. This is the recommended method for a quick setup.
+
+```bash
+./docker-setup.sh
+```
+
+--------------------------------
+
+### Manual Moltbot Installation Steps
+
+Source: https://docs.molt.bot/install/ansible
+
+Guides through the manual installation of Moltbot using Ansible. This involves installing prerequisites, cloning the repository, installing Ansible collections, and running the playbook.
+
+```bash
+# 1. Install prerequisites
+sudo apt update && sudo apt install -y ansible git
+
+# 2. Clone repository
+git clone https://github.com/moltbot/moltbot-ansible.git
+cd moltbot-ansible
+
+# 3. Install Ansible collections
+ansible-galaxy collection install -r requirements.yml
+
+# 4. Run playbook
+./run-playbook.sh
+
+# Or run directly (then manually execute /tmp/moltbot-setup.sh after)
+# ansible-playbook playbook.yml --ask-become-pass
+```
+
+--------------------------------
+
+### Quick Start Moltbot Installation with Curl
+
+Source: https://docs.molt.bot/install/ansible
+
+Installs Moltbot using a one-command curl script. This script automates the download and execution of the moltbot-ansible installation process.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/moltbot/moltbot-ansible/main/install.sh | bash
+```
+
+--------------------------------
+
+### Install Docker and Dependencies on Ubuntu/Debian
+
+Source: https://docs.molt.bot/platforms/hetzner
+
+Installs necessary packages like git, curl, and ca-certificates, followed by Docker using the official installation script. It then verifies the Docker and Docker Compose installations.
+
+```bash
+apt-get update
+apt-get install -y git curl ca-certificates
+curl -fsSL https://get.docker.com | sh
+
+docker --version
+docker compose version
+```
+
+--------------------------------
+
+### Moltbot Onboarding and Daemon Setup
+
+Source: https://docs.molt.bot/help/faq
+
+Installs Moltbot and optionally sets up the gateway as a system daemon. The onboarding wizard typically opens a tokenized dashboard URL in the browser upon completion.
+
+```bash
+curl -fsSL https://molt.bot/install.sh | bash
+moltbot onboard --install-daemon
+```
+
+--------------------------------
+
+### Moltbot Installation and Setup (Node.js)
+
+Source: https://docs.molt.bot/index
+
+Provides commands for globally installing Moltbot using npm or pnpm, onboarding and installing the service as a system daemon, and logging into WhatsApp Web to initiate pairing.
+
+```bash
+# Recommended: global install (npm/pnpm)
+npm install -g moltbot@latest
+# or: pnpm add -g moltbot@latest
+
+# Onboard + install the service (launchd/systemd user service)
+moltbot onboard --install-daemon
+
+# Pair WhatsApp Web (shows QR)
+moltbot channels login
+
+```
+
+--------------------------------
+
+### Bootstrap Moltbot Setup
+
+Source: https://docs.molt.bot/start/setup
+
+Initializes the Moltbot setup process. This command should be run from within the project directory or globally if Moltbot is installed as a package.
+
+```bash
+moltbot setup
+```
+
+--------------------------------
+
+### Quick Install Molt Bot CLI (Bash)
+
+Source: https://docs.molt.bot/install
+
+Installs the Molt Bot CLI globally using a curl script. This is the recommended method for most users as it sets up the CLI and runs onboarding.
+
+```bash
+curl -fsSL https://molt.bot/install.sh | bash
+```
+
+--------------------------------
+
+### Installer Script Non-Interactive Install (Bash)
+
+Source: https://docs.molt.bot/install
+
+Runs the Molt Bot installer script in a non-interactive mode, skipping the onboarding process. Useful for automated or CI/CD environments.
+
+```bash
+curl -fsSL https://molt.bot/install.sh | bash -s -- --no-onboard
+```
+
+--------------------------------
+
+### Moltbot Browser Extension Setup
+
+Source: https://docs.molt.bot/tools/browser
+
+Instructions for installing and loading the Moltbot browser extension in developer mode.
+
+```APIDOC
+## Setup
+
+1. Load the extension (dev/unpacked):
+
+```bash
+moltbot browser extension install
+```
+
+*   Chrome → `chrome://extensions` → enable “Developer mode”
+*   “Load unpacked” → select the directory printed by `moltbot browser extension path`
+*   Pin the extension, then click it on the tab you want to control (badge shows `ON`).
+
+2. Use it:
+
+*   CLI: `moltbot browser --browser-profile chrome tabs`
+*   Agent tool: `browser` with `profile="chrome"`
+```
+
+--------------------------------
+
+### Install Dependencies and Build Project
+
+Source: https://docs.molt.bot/gateway/troubleshooting
+
+Commands to pull the latest changes from the main branch, install dependencies using pnpm, and build the project.
+
+```bash
+git pull origin main && pnpm install
+pnpm build
+```
+
+--------------------------------
+
+### Molt Bot Recommended Starter Configuration (JSON5)
+
+Source: https://docs.molt.bot/gateway/configuration-examples
+
+This configuration provides a recommended starting point for the Molt Bot, including identity settings (name, theme, emoji), agent configuration (workspace, primary model), and detailed channel settings for WhatsApp (allowed numbers and group message requirements).
+
+```json5
+{
+  identity: {
+    name: "Clawd",
+    theme: "helpful assistant",
+    emoji: "🦞"
+  },
+  agent: {
+    workspace: "~/clawd",
+    model: { primary: "anthropic/claude-sonnet-4-5" }
+  },
+  channels: {
+    whatsapp: {
+      allowFrom: ["+15555550123"],
+      groups: { "*": { requireMention: true } }
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Setup DNS Discovery Helper
+
+Source: https://docs.molt.bot/cli
+
+Configures the wide-area discovery DNS helper using CoreDNS and Tailscale. The `--apply` flag installs or updates the CoreDNS configuration, which requires sudo privileges and is currently macOS only.
+
+```bash
+dns setup --apply
+```
+
+--------------------------------
+
+### Install Tailscale on VPS
+
+Source: https://docs.molt.bot/help/faq
+
+Commands to install and log in to Tailscale on a Virtual Private Server (VPS). This enables secure remote access to the VPS. It involves downloading and executing an installation script and then authenticating with the Tailscale service.
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+```
+
+--------------------------------
+
+### Setup Gmail Webhooks via CLI
+
+Source: https://docs.molt.bot/start/onboarding
+
+This command initiates the setup process for Gmail webhooks using the Molt Bot CLI. It requires specifying the target email account. Refer to the provided documentation for detailed setup instructions.
+
+```bash
+moltbot webhooks gmail setup --account you@gmail.com
+```
+
+--------------------------------
+
+### Install Molt Bot Globally via pnpm
+
+Source: https://docs.molt.bot/install
+
+Installs the Molt Bot CLI globally using pnpm. This is an alternative to npm for managing Node.js packages.
+
+```bash
+pnpm add -g moltbot@latest
+```
+
+--------------------------------
+
+### Install Molt Bot Globally via npm
+
+Source: https://docs.molt.bot/install
+
+Manually installs the Molt Bot CLI globally using npm. This method requires Node.js to be pre-installed.
+
+```bash
+npm install -g moltbot@latest
+```
+
+--------------------------------
+
+### Start Command Immediately in Background (JSON)
+
+Source: https://docs.molt.bot/gateway/background-process
+
+This example shows how to immediately start a command in the background using the `exec` tool. The `background: true` parameter ensures the command runs without blocking the main process.
+
+```json
+{
+  "tool": "exec",
+  "command": "npm run build",
+  "background": true
+}
+```
+
+--------------------------------
+
+### Install Molt Bot with Ignore Global libvips (npm)
+
+Source: https://docs.molt.bot/install
+
+Installs the Molt Bot CLI globally using npm while ignoring the global libvips. This is a workaround for potential build issues with the 'sharp' package.
+
+```bash
+SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g moltbot@latest
+```
+
+--------------------------------
+
+### Gateway Configuration Example
+
+Source: https://docs.molt.bot/gateway/configuration
+
+An example of the basic gateway configuration, including the URL for the WebSocket gateway and an authentication token.
+
+```json
+{
+  "gateway": {
+    "url": "wss://gateway.example.ts.net",
+    "token": "your-token"
+  }
+}
+```
+
+--------------------------------
+
+### Install Official Moltbot Plugin
+
+Source: https://docs.molt.bot/plugins
+
+Command to install an official Moltbot plugin, using the Voice Call plugin as an example. After installation, the plugin needs to be enabled and configured.
+
+```bash
+moltbot plugins install @moltbot/voice-call
+
+```
+
+--------------------------------
+
+### Re-running Molt Bot Installer with Verbose Output
+
+Source: https://docs.molt.bot/help/troubleshooting
+
+Use this command to re-run the Molt Bot installer with verbose logging enabled. This is useful for debugging installation failures or when full trace information is required. The `--beta` flag can be used for beta installations.
+
+```bash
+curl -fsSL https://molt.bot/install.sh | bash -s -- --verbose
+curl -fsSL https://molt.bot/install.sh | bash -s -- --beta --verbose
+```
+
+--------------------------------
+
+### Hello-OK Response Example
+
+Source: https://docs.molt.bot/concepts/typebox
+
+An example of the `hello-ok` response frame sent by the Gateway after a successful `connect` request.
+
+```APIDOC
+## Hello-OK Response Example
+
+### Description
+
+This response is sent by the Gateway to confirm a successful connection. It includes server information, supported features, and initial state snapshots.
+
+### Response Body
+
+```json
+{
+  "type": "res",
+  "id": "c1",
+  "ok": true,
+  "payload": {
+    "type": "hello-ok",
+    "protocol": 2,
+    "server": {
+      "version": "dev",
+      "connId": "ws-1"
+    },
+    "features": {
+      "methods": ["health"],
+      "events": ["tick"]
+    },
+    "snapshot": {
+      "presence": [],
+      "health": {},
+      "stateVersion": {
+        "presence": 0,
+        "health": 0
+      },
+      "uptimeMs": 0
+    },
+    "policy": {
+      "maxPayload": 1048576,
+      "maxBufferedBytes": 1048576,
+      "tickIntervalMs": 30000
+    }
+  }
+}
+```
+```
+
+--------------------------------
+
+### Install Homebrew on Linux
+
+Source: https://docs.molt.bot/help/faq
+
+This script installs Homebrew on a Linux system. It downloads and runs the installation script, configures the shell environment, and provides a command to install packages.
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.profile
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+brew install <formula>
+```
+
+--------------------------------
+
+### Full Configuration Example
+
+Source: https://docs.molt.bot/channels/twitch
+
+A comprehensive example demonstrating a complete Molt Bot configuration, including multi-account and access control settings.
+
+```APIDOC
+## Full Config Example
+
+This example shows a detailed configuration for Molt Bot, integrating various settings.
+
+### Request Body Example
+```json
+{
+  "channels": {
+    "twitch": {
+      "enabled": true,
+      "username": "moltbot",
+      "accessToken": "oauth:abc123...",
+      "clientId": "xyz789...",
+      "channel": "vevisk",
+      "clientSecret": "secret123...",
+      "refreshToken": "refresh456...",
+      "allowFrom": ["123456789"],
+      "allowedRoles": ["moderator", "vip"],
+      "accounts": {
+        "default": {
+          "username": "mybot",
+          "accessToken": "oauth:abc123...",
+          "clientId": "xyz789...",
+          "channel": "your_channel",
+          "enabled": true,
+          "clientSecret": "secret123...",
+          "refreshToken": "refresh456...",
+          "expiresIn": 14400,
+          "obtainmentTimestamp": 1706092800000,
+          "allowFrom": ["123456789", "987654321"],
+          "allowedRoles": ["moderator"]
+        }
+      }
+    }
+  }
+}
+```
+```
+
+--------------------------------
+
+### Troubleshooting Moltbot Service Start Issues
+
+Source: https://docs.molt.bot/install/ansible
+
+Provides commands to diagnose and resolve issues when the Moltbot service fails to start. This includes checking logs, verifying file permissions, and attempting a manual start.
+
+```bash
+# Check logs
+sudo journalctl -u moltbot -n 100
+
+# Verify permissions
+sudo ls -la /opt/moltbot
+
+# Test manual start
+sudo -i -u moltbot
+cd ~/moltbot
+pnpm start
+```
+
+--------------------------------
+
+### Moltbot CLI Configuration Set Example
+
+Source: https://docs.molt.bot/tools/browser
+
+Example of using the Moltbot CLI to set the browser executable path configuration.
+
+```bash
+moltbot config set browser.executablePath "/usr/bin/google-chrome"
+```
+
+--------------------------------
+
+### Install Moltbot Gateway Service via CLI
+
+Source: https://docs.molt.bot/platforms/linux
+
+Commands to install and configure the Moltbot Gateway service using the command-line interface. These commands guide the user through the setup process, prompting for necessary selections.
+
+```bash
+moltbot onboard --install-daemon
+```
+
+```bash
+moltbot gateway install
+```
+
+```bash
+moltbot configure
+```
+
+--------------------------------
+
+### Configure Skills Management
+
+Source: https://docs.molt.bot/gateway/configuration-examples
+
+Manages the loading and installation of agent skills. It specifies allowed bundled skills, additional directories for loading custom skills, and preferences for package managers during installation.
+
+```json
+{
+  "skills": {
+    "allowBundled": ["gemini", "peekaboo"],
+    "load": {
+      "extraDirs": ["~/Projects/agent-scripts/skills"]
+    },
+    "install": {
+      "preferBrew": true,
+      "nodeManager": "npm"
+    },
+    "entries": {
+      "nano-banana-pro": {
+        "enabled": true,
+        "apiKey": "GEMINI_KEY_HERE",
+        "env": {
+          "GEMINI_API_KEY": "GEMINI_KEY_HERE"
+        }
+      },
+      "peekaboo": {
+        "enabled": true
+      }
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Switching to Moltbot User
+
+Source: https://docs.molt.bot/install/ansible
+
+Changes the current user to 'moltbot' for performing post-installation setup tasks. This is necessary for running Moltbot-specific commands and configurations.
+
+```bash
+sudo -i -u moltbot
+```
+
+--------------------------------
+
+### Molt Bot CLI Examples
+
+Source: https://docs.molt.bot/concepts/model-providers
+
+Provides examples of using the Molt Bot command-line interface for onboarding, setting models, and listing available models.
+
+```bash
+moltbot onboard --auth-choice opencode-zen
+moltbot models set opencode/claude-opus-4-5
+moltbot models list
+```
+
+--------------------------------
+
+### Install Moltbot Beta Version (Bash)
+
+Source: https://docs.molt.bot/help/faq
+
+Installs the Moltbot beta version using a curl command to download and execute the install script. This is a one-liner for macOS and Linux systems.
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 https://molt.bot/install.sh | bash -s -- --beta
+```
+
+--------------------------------
+
+### Install System Prerequisites
+
+Source: https://docs.molt.bot/platforms/exe-dev
+
+Installs essential packages like git, curl, jq, ca-certificates, and openssl on Ubuntu/Debian-based systems.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git curl jq ca-certificates openssl
+```
+
+--------------------------------
+
+### Molt Bot Session Configuration Example
+
+Source: https://docs.molt.bot/concepts/session
+
+An example configuration file for Molt Bot, demonstrating session scoping, identity linking, and detailed reset policies (daily, idle, per-type, per-channel). It also shows how to specify reset triggers and store paths.
+
+```json5
+// ~/.clawdbot/moltbot.json
+{
+  session: {
+    scope: "per-sender",      // keep group keys separate
+    dmScope: "main",          // DM continuity (set per-channel-peer for shared inboxes)
+    identityLinks: {
+      alice: ["telegram:123456789", "discord:987654321012345678"]
+    },
+    reset: {
+      // Defaults: mode=daily, atHour=4 (gateway host local time).
+      // If you also set idleMinutes, whichever expires first wins.
+      mode: "daily",
+      atHour: 4,
+      idleMinutes: 120
+    },
+    resetByType: {
+      thread: { mode: "daily", atHour: 4 },
+      dm: { mode: "idle", idleMinutes: 240 },
+      group: { mode: "idle", idleMinutes: 120 }
+    },
+    resetByChannel: {
+      discord: { mode: "idle", idleMinutes: 10080 }
+    },
+    resetTriggers: ["/new", "/reset"],
+    store: "~/.clawdbot/agents/{agentId}/sessions/sessions.json",
+    mainKey: "main",
+  }
+}
+```
+
+--------------------------------
+
+### CLI Setup for ZAI API Key Authentication in Molt Bot
+
+Source: https://docs.molt.bot/providers/glm
+
+This command initiates the Molt Bot onboarding process, specifically configuring it to use the Z.AI API key for authentication. It guides the user through setting up the necessary credentials to interact with Z.AI services.
+
+```bash
+moltbot onboard --auth-choice zai-api-key
+```
+
+--------------------------------
+
+### Molt Bot Gateway Installation and Cleanup Commands
+
+Source: https://docs.molt.bot/gateway
+
+Commands for installing, uninstalling, and managing Molt Bot gateway configurations, including forcing reinstallation and cleaning up legacy migrations.
+
+```bash
+# Cleanup: moltbot gateway uninstall (current service) and moltbot doctor (legacy migrations).
+# `gateway install` is a no-op when already installed; use `moltbot gateway install --force` to reinstall (profile/env/path changes).
+```
+
+--------------------------------
+
+### Verify Molt Bot System Status
+
+Source: https://docs.molt.bot/start/getting-started
+
+Executes a series of commands to quickly verify the status and health of the Molt Bot installation. Includes checking general status, health, and performing a security audit.
+
+```bash
+moltbot status
+```
+
+```bash
+moltbot health
+```
+
+```bash
+moltbot security audit --deep
+```
+
+--------------------------------
+
+### Switch Moltbot Install from npm to Git
+
+Source: https://docs.molt.bot/help/faq
+
+Instructions to switch a Moltbot installation from npm to a Git-based install. This involves cloning the repository, installing dependencies, building the project, and updating the gateway service.
+
+```bash
+git clone https://github.com/moltbot/moltbot.git
+cd moltbot
+pnpm install
+pnpm build
+moltbot doctor
+moltbot gateway restart
+```
+
+--------------------------------
+
+### Run Moltbot Gateway from Source (Bash)
+
+Source: https://docs.molt.bot/start/getting-started
+
+Command to run the Moltbot gateway service directly from the built distribution files. This is useful for development and testing.
+
+```bash
+node dist/entry.js gateway --port 18789 --verbose
+```
+
+--------------------------------
+
+### Check Molt Bot Installation and Status
+
+Source: https://docs.molt.bot/install
+
+Commands to verify the Molt Bot installation and check its operational status after installation.
+
+```bash
+moltbot doctor
+```
+
+```bash
+moltbot status
+```
+
+```bash
+moltbot health
+```
+
+```bash
+moltbot dashboard
+```
+
+--------------------------------
+
+### Re-run Installer with Verbose Output (Bash)
+
+Source: https://docs.molt.bot/help/faq
+
+Executes the Moltbot installer script with the '--verbose' flag to enable detailed output. This is useful for debugging installation issues.
+
+```bash
+curl -fsSL https://molt.bot/install.sh | bash -s -- --verbose
+```
+
+--------------------------------
+
+### Display install-cli.sh Help (Bash)
+
+Source: https://docs.molt.bot/install/installer
+
+Fetches and displays the help information for the non-root CLI installer script (install-cli.sh) using curl and bash. This helps users understand the options for installing Moltbot without root privileges.
+
+```bash
+curl -fsSL https://molt.bot/install-cli.sh | bash -s -- --help
+```
+
+--------------------------------
+
+### Molt Bot Gateway Service Installation
+
+Source: https://docs.molt.bot/gateway
+
+Commands to install the Molt Bot gateway service for different profiles. This is used to set up and manage the gateway for specific configurations or instances.
+
+```bash
+moltbot --profile main gateway install
+moltbot --profile rescue gateway install
+```
+
+--------------------------------
+
+### Install Moltbot Matrix Plugin
+
+Source: https://docs.molt.bot/channels/matrix
+
+Instructions for installing the Matrix plugin for Moltbot, either from the npm registry or a local git checkout.
+
+```bash
+moltbot plugins install @moltbot/matrix
+```
+
+```bash
+moltbot plugins install ./extensions/matrix
+```
+
+--------------------------------
+
+### Verify Installed Binaries
+
+Source: https://docs.molt.bot/platforms/hetzner
+
+This set of bash commands verifies that the required binaries (gog, goplaces, wacli) have been successfully installed and are accessible within the running Molt Bot gateway container. The `docker compose exec` command allows executing commands inside a service's container, and `which` locates the executable path.
+
+```bash
+docker compose exec moltbot-gateway which gog
+docker compose exec moltbot-gateway which goplaces
+docker compose exec moltbot-gateway which wacli
+```
+
+--------------------------------
+
+### Install ClawdHub CLI (npm)
+
+Source: https://docs.molt.bot/help/faq
+
+Installs the ClawdHub command-line interface using npm. ClawdHub is used for installing skills on Linux. This command assumes Node.js and npm are installed.
+
+```bash
+npm i -g clawdhub
+```
+
+--------------------------------
+
+### Comprehensive CLI Backend Configuration Example
+
+Source: https://docs.molt.bot/gateway/cli-backends
+
+Provides a detailed example of configuring a custom CLI backend in Moltbot. It includes settings for command, arguments, output parsing, input methods, model aliasing, session management, system prompts, and image handling.
+
+```json5
+{
+  "agents": {
+    "defaults": {
+      "cliBackends": {
+        "claude-cli": {
+          "command": "/opt/homebrew/bin/claude"
+        },
+        "my-cli": {
+          "command": "my-cli",
+          "args": ["--json"],
+          "output": "json",
+          "input": "arg",
+          "modelArg": "--model",
+          "modelAliases": {
+            "claude-opus-4-5": "opus",
+            "claude-sonnet-4-5": "sonnet"
+          },
+          "sessionArg": "--session",
+          "sessionMode": "existing",
+          "sessionIdFields": ["session_id", "conversation_id"],
+          "systemPromptArg": "--system",
+          "systemPromptWhen": "first",
+          "imageArg": "--image",
+          "imageMode": "repeat",
+          "serialize": true
+        }
+      }
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Authenticate Anthropic with Setup Token via CLI
+
+Source: https://docs.molt.bot/help/faq
+
+Commands to paste an Anthropic setup token for authentication, either during the initial setup or for an existing gateway. This allows Molt Bot to use Claude subscription authentication.
+
+```bash
+moltbot models auth paste-token --provider anthropic
+```
+
+```bash
+moltbot models auth setup-token --provider anthropic
+```
+
+--------------------------------
+
+### Display install.sh Help (Bash)
+
+Source: https://docs.molt.bot/install/installer
+
+Fetches and displays the help information for the recommended Moltbot installer script (install.sh) using curl and bash. This is useful for understanding available flags and options.
+
+```bash
+curl -fsSL https://molt.bot/install.sh | bash -s -- --help
+```
+
+--------------------------------
+
+### MiniMax M2.1 - Recommended Setup
+
+Source: https://docs.molt.bot/providers/minimax
+
+Configuration for using MiniMax M2.1 with the Anthropic-compatible API, recommended for hosted setups.
+
+```APIDOC
+## POST /configure
+
+### Description
+Configure the Molt Bot to use the MiniMax M2.1 model with the Anthropic-compatible API.
+
+### Method
+POST
+
+### Endpoint
+/configure
+
+### Parameters
+#### Request Body
+- **env.MINIMAX_API_KEY** (string) - Required - Your MiniMax API key.
+- **agents.defaults.model.primary** (string) - Required - Set to `minimax/MiniMax-M2.1`.
+- **models.providers.minimax.baseUrl** (string) - Required - Set to `https://api.minimax.io/anthropic`.
+- **models.providers.minimax.apiKey** (string) - Required - Uses the value from `env.MINIMAX_API_KEY`.
+- **models.providers.minimax.api** (string) - Required - Set to `anthropic-messages`.
+- **models.providers.minimax.models[].id** (string) - Required - Set to `MiniMax-M2.1`.
+- **models.providers.minimax.models[].name** (string) - Required - Set to `MiniMax M2.1`.
+- **models.providers.minimax.models[].reasoning** (boolean) - Optional - Set to `false`.
+- **models.providers.minimax.models[].input** (array) - Required - Set to `["text"]`.
+- **models.providers.minimax.models[].cost.input** (number) - Required - Set to `15`.
+- **models.providers.minimax.models[].cost.output** (number) - Required - Set to `60`.
+- **models.providers.minimax.models[].cost.cacheRead** (number) - Required - Set to `2`.
+- **models.providers.minimax.models[].cost.cacheWrite** (number) - Required - Set to `10`.
+- **models.providers.minimax.models[].contextWindow** (number) - Required - Set to `200000`.
+- **models.providers.minimax.models[].maxTokens** (number) - Required - Set to `8192`.
+- **models.mode** (string) - Optional - Set to `merge` to add MiniMax alongside built-ins.
+
+### Request Example
+```json
+{
+  "env": { "MINIMAX_API_KEY": "sk-..." },
+  "agents": { "defaults": { "model": { "primary": "minimax/MiniMax-M2.1" } } },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "minimax": {
+        "baseUrl": "https://api.minimax.io/anthropic",
+        "apiKey": "${MINIMAX_API_KEY}",
+        "api": "anthropic-messages",
+        "models": [
+          {
+            "id": "MiniMax-M2.1",
+            "name": "MiniMax M2.1",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 15, "output": 60, "cacheRead": 2, "cacheWrite": 10 },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+### Response
+#### Success Response (200)
+- **status** (string) - Indicates successful configuration.
+
+#### Response Example
+```json
+{
+  "status": "Configuration updated successfully."
+}
+```
+```
+
+--------------------------------
+
+### Switch Moltbot Install from Git to npm
+
+Source: https://docs.molt.bot/help/faq
+
+Instructions to switch a Moltbot installation from a Git-based install to an npm global install. This involves installing the latest version globally and updating the gateway service.
+
+```bash
+npm install -g moltbot@latest
+moltbot doctor
+moltbot gateway restart
+```
+
+--------------------------------
+
+### CLI Setup for OpenCode Zen
+
+Source: https://docs.molt.bot/providers/opencode
+
+Commands to onboard the OpenCode Zen model access path using the moltbot CLI. Supports interactive and non-interactive setup with an API key.
+
+```bash
+moltbot onboard --auth-choice opencode-zen
+# or non-interactive
+moltbot onboard --opencode-zen-api-key "$OPENCODE_API_KEY"
+```
+
+--------------------------------
+
+### Install ClawdHub CLI (pnpm)
+
+Source: https://docs.molt.bot/help/faq
+
+Installs the ClawdHub command-line interface using pnpm. ClawdHub is used for installing skills on Linux. This command assumes Node.js and pnpm are installed.
+
+```bash
+pnpm add -g clawdhub
+```
+
+--------------------------------
+
+### Setup and Run Gmail Webhooks with Molt Bot
+
+Source: https://docs.molt.bot/cli/webhooks
+
+This snippet demonstrates how to set up and run Gmail webhooks using the Molt Bot CLI. It requires an email account for setup and then initiates the webhook listener. Refer to the Gmail Pub/Sub documentation for more in-depth details on the integration.
+
+```bash
+moltbot webhooks gmail setup --account you@example.com
+moltbot webhooks gmail run
+```
+
+--------------------------------
+
+### Install and List Moltbot Plugins (Bash)
+
+Source: https://docs.molt.bot/plugin
+
+Commands to list installed Moltbot plugins and install new official plugins. The 'install' command requires the plugin package name.
+
+```bash
+moltbot plugins list
+moltbot plugins install @moltbot/voice-call
+```
+
+--------------------------------
+
+### Manual Docker Compose Flow for Molt Bot
+
+Source: https://docs.molt.bot/install/docker
+
+Provides a step-by-step manual process to build the Molt Bot Docker image, run the onboard command, and start the gateway service using Docker Compose. This method offers more granular control over the setup process.
+
+```bash
+docker build -t moltbot:local -f Dockerfile .
+docker compose run --rm moltbot-cli onboard
+docker compose up -d moltbot-gateway
+```
+
+--------------------------------
+
+### Install Build Tools for Native Dependencies
+
+Source: https://docs.molt.bot/platforms/exe-dev
+
+Installs build-essential and python3, which are sometimes required for native Node.js module compilation, like 'sharp'.
+
+```bash
+sudo apt-get install -y build-essential python3
+```
+
+--------------------------------
+
+### Remove Moltbot CLI Installation
+
+Source: https://docs.molt.bot/install/uninstall
+
+Commands to remove the Moltbot CLI from global npm, pnpm, or bun installations. Choose the command corresponding to the package manager used during installation.
+
+```bash
+npm rm -g moltbot
+pnpm remove -g moltbot
+bun remove -g moltbot
+```
+
+--------------------------------
+
+### Enabling and Starting Moltbot Gateway User Service
+
+Source: https://docs.molt.bot/gateway
+
+This command enables and starts the Moltbot Gateway user service. The `--user` flag indicates it's a user service, and `--now` starts it immediately after enabling. The service name should match the configured unit file.
+
+```bash
+systemctl --user enable --now moltbot-gateway[-<profile>].service
+```
+
+--------------------------------
+
+### Install Moltbot from Source (Bash)
+
+Source: https://docs.molt.bot/platforms/windows
+
+Bash commands to clone the Moltbot repository, install dependencies using pnpm, build the UI and the project, and then run the onboarding process. This is the standard procedure for installing Moltbot within a WSL environment.
+
+```bash
+git clone https://github.com/moltbot/moltbot.git
+cd moltbot
+pnpm install
+pnpm ui:build # auto-installs UI deps on first run
+pnpm build
+moltbot onboard
+```
+
+--------------------------------
+
+### Install Moltbot on Ubuntu Droplet
+
+Source: https://docs.molt.bot/platforms/digitalocean
+
+Installs Moltbot on an Ubuntu 24.04 LTS Droplet. This script first updates the system, then installs Node.js version 22, followed by Moltbot itself. Finally, it verifies the installation by checking the Moltbot version.
+
+```bash
+# Update system
+apt update && apt upgrade -y
+
+# Install Node.js 22
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt install -y nodejs
+
+# Install Moltbot
+curl -fsSL https://molt.bot/install.sh | bash
+
+# Verify
+moltbot --version
+```
+
+--------------------------------
+
+### CLI Examples for Camera Capture
+
+Source: https://docs.molt.bot/nodes/camera
+
+These examples demonstrate how to use the Moltbot CLI to invoke camera capture commands on different nodes. They cover basic photo and video capture, specifying facing, duration, and device IDs. The output often includes a MEDIA path to temporary files.
+
+```bash
+# iOS CLI Examples
+moltbot nodes camera snap --node <id>               # default: both front + back (2 MEDIA lines)
+moltbot nodes camera snap --node <id> --facing front
+moltbot nodes camera clip --node <id> --duration 3000
+moltbot nodes camera clip --node <id> --no-audio
+
+# macOS CLI Examples
+moltbot nodes camera list --node <id>            # list camera ids
+moltbot nodes camera snap --node <id>            # prints MEDIA:<path>
+moltbot nodes camera snap --node <id> --max-width 1280
+moltbot nodes camera snap --node <id> --delay-ms 2000
+moltbot nodes camera snap --node <id> --device-id <id>
+moltbot nodes camera clip --node <id> --duration 10s          # prints MEDIA:<path>
+moltbot nodes camera clip --node <id> --duration-ms 3000      # prints MEDIA:<path> (legacy flag)
+moltbot nodes camera clip --node <id> --device-id <id>
+moltbot nodes camera clip --node <id> --no-audio
+```
+
+--------------------------------
+
+### Install Google Chrome on Debian/Ubuntu
+
+Source: https://docs.molt.bot/gateway/troubleshooting
+
+This script downloads and installs the stable version of Google Chrome for Debian-based systems. It requires root privileges for the dpkg installation. This is a solution for issues with snap-packaged Chromium.
+
+```bash
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+sudo dpkg -i google-chrome-stable_current_amd64.deb
+```
+
+--------------------------------
+
+### Configure Local Proxy (LM Studio Example)
+
+Source: https://docs.molt.bot/concepts/model-providers
+
+Example configuration for a local LLM proxy like LM Studio, which provides an OpenAI-compatible API. It specifies the base URL, API key, and model details.
+
+```json5
+{
+  agents: {
+    defaults: {
+      model: { primary: "lmstudio/minimax-m2.1-gs32" },
+      models: { "lmstudio/minimax-m2.1-gs32": { alias: "Minimax" } }
+    }
+  },
+  models: {
+    providers: {
+      lmstudio: {
+        baseUrl: "http://localhost:1234/v1",
+        apiKey: "LMSTUDIO_KEY",
+        api: "openai-completions",
+        models: [
+          {
+            id: "minimax-m2.1-gs32",
+            name: "MiniMax M2.1",
+            reasoning: false,
+            input: ["text"],
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+            contextWindow: 200000,
+            maxTokens: 8192
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Install Voice Call Plugin from npm
+
+Source: https://docs.molt.bot/plugins/voice-call
+
+Installs the Voice Call plugin using npm. This is the recommended installation method. After installation, the Molt Bot Gateway needs to be restarted for the plugin to be loaded.
+
+```bash
+moltbot plugins install @moltbot/voice-call
+```
+
+--------------------------------
+
+### Install and Update Moltbot Skills (Bash)
+
+Source: https://docs.molt.bot/help/faq
+
+These bash commands are used to manage Moltbot skills. 'clawdhub install <skill-slug>' installs a specific skill, while 'clawdhub update --all' updates all installed skills. Skills are installed locally or in a configured workspace and are then available to Moltbot sessions.
+
+```bash
+clawdhub install <skill-slug>
+clawdhub update --all
+```
+
+--------------------------------
+
+### Initialize Molt Bot Setup
+
+Source: https://docs.molt.bot/cli/setup
+
+Initializes the `~/.clawdbot/moltbot.json` configuration file and the agent workspace. This command sets up the necessary files and directories for the Molt Bot to function.
+
+```bash
+moltbot setup
+
+```
+
+```bash
+moltbot setup --workspace ~/clawd
+
+```
+
+```bash
+moltbot setup --wizard
+
+```
+
+--------------------------------
+
+### Install Moltbot from Source (Development)
+
+Source: https://docs.molt.bot/index
+
+Clones the Moltbot repository, installs dependencies using pnpm, builds the UI and the project, and then installs the gateway service as a daemon. This is for development purposes.
+
+```bash
+git clone https://github.com/moltbot/moltbot.git
+cd moltbot
+pnpm install
+pnpm ui:build # auto-installs UI deps on first run
+pnpm build
+moltbot onboard --install-daemon
+```
+
+--------------------------------
+
+### Matrix Login API Example
+
+Source: https://docs.molt.bot/channels/matrix
+
+Example using `curl` to obtain an access token from the Matrix Login API.
+
+```APIDOC
+## Matrix Login API Example
+
+### Description
+Demonstrates how to use `curl` to log in to a Matrix homeserver and obtain an access token for the bot account.
+
+### Method
+POST
+
+### Endpoint
+`https://<your-homeserver-url>/_matrix/client/v3/login`
+
+### Parameters
+#### Path Parameters
+N/A
+
+#### Query Parameters
+N/A
+
+#### Request Body
+- **type** (string) - Required - The login type, typically `m.login.password`.
+- **identifier** (object) - Required - An object containing the user identifier.
+  - **type** (string) - Required - The type of identifier, typically `m.id.user`.
+  - **user** (string) - Required - The username of the Matrix account.
+- **password** (string) - Required - The password for the Matrix account.
+
+### Request Example
+```bash
+curl --request POST \
+  --url https://matrix.example.org/_matrix/client/v3/login \
+  --header 'Content-Type: application/json' \
+  --data '{ \
+    "type": "m.login.password", \
+    "identifier": { \
+      "type": "m.id.user", \
+      "user": "your-user-name" \
+    }, \
+    "password": "your-password" \
+  }'
+```
+
+### Response
+#### Success Response (200)
+- **access_token** (string) - The obtained access token.
+- **device_id** (string) - The ID of the device used for login.
+- **home_server** (string) - The URL of the homeserver.
+- **user_id** (string) - The full Matrix user ID (e.g., `@bot:example.org`).
+
+#### Response Example
+```json
+{
+  "access_token": "syt_...",
+  "device_id": "...",
+  "home_server": "https://matrix.example.org",
+  "user_id": "@bot:example.org"
+}
+```
+```
+
+--------------------------------
+
+### Molt Bot Gateway Service with Custom Configuration
+
+Source: https://docs.molt.bot/gateway
+
+Examples of running the Molt Bot gateway service with custom configuration paths and state directories, using different ports for distinct instances.
+
+```bash
+CLAWDBOT_CONFIG_PATH=~/.clawdbot/a.json CLAWDBOT_STATE_DIR=~/.clawdbot-a moltbot gateway --port 19001
+CLAWDBOT_CONFIG_PATH=~/.clawdbot/b.json CLAWDBOT_STATE_DIR=~/.clawdbot-b moltbot gateway --port 19002
+```
+
+--------------------------------
+
+### Re-run Beta Installer with Verbose Output (Bash)
+
+Source: https://docs.molt.bot/help/faq
+
+Installs the beta version of Moltbot with verbose output enabled for enhanced debugging. This command combines the beta flag with the verbose flag.
+
+```bash
+curl -fsSL https://molt.bot/install.sh | bash -s -- --beta --verbose
+```
+
+--------------------------------
+
+### Setup Wide-Area DNS (Bash)
+
+Source: https://docs.molt.bot/gateway/configuration
+
+A one-time setup command for the gateway host to configure wide-area DNS-SD. This command applies the necessary configurations to enable cross-network discovery.
+
+```bash
+moltbot dns setup --apply
+```
+
+--------------------------------
+
+### Display install.ps1 Help (PowerShell)
+
+Source: https://docs.molt.bot/install/installer
+
+Executes the Windows PowerShell installer script (install.ps1) to display its help information. This allows users to see the available parameters and usage for the Windows installer.
+
+```powershell
+& ([scriptblock]::Create((iwr -useb https://molt.bot/install.ps1))) -?
+```
+
+--------------------------------
+
+### Install Project Dependencies with pnpm
+
+Source: https://docs.molt.bot/platforms/mac/dev-setup
+
+Installs all project-wide dependencies required for building the Moltbot macOS application. This command should be run in the root directory of the project.
+
+```bash
+pnpm install
+```
+
+--------------------------------
+
+### Install Moltbot from Git Source (Bash)
+
+Source: https://docs.molt.bot/help/faq
+
+Installs Moltbot directly from its Git repository, allowing for a hackable local copy. This method is useful for development and testing the latest bits.
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 https://molt.bot/install.sh | bash -s -- --install-method git
+```
+
+--------------------------------
+
+### Install Hooks
+
+Source: https://docs.molt.bot/cli/hooks
+
+Installs a hook pack from a local folder/archive or an npm package.
+
+```APIDOC
+## Install Hooks
+
+### Description
+Install a hook pack from a local folder/archive or npm.
+
+**What it does:**
+- Copies the hook pack into `~/.clawdbot/hooks/<id>`
+- Enables the installed hooks in `hooks.internal.entries.*`
+- Records the install under `hooks.internal.installs`
+
+### Method
+POST
+
+### Endpoint
+/moltbot/hooks/install
+
+### Query Parameters
+- **path_or_spec** (string) - Required - Path to local hook pack (folder or archive) or npm package name.
+- **link** (boolean) - Optional - Link a local directory instead of copying (adds it to `hooks.internal.load.extraDirs`).
+
+### Supported archives
+`.zip`, `.tgz`, `.tar.gz`, `.tar`
+
+### Request Example
+```bash
+# Local directory
+moltbot hooks install ./my-hook-pack
+
+# Local archive
+moltbot hooks install ./my-hook-pack.zip
+
+# NPM package
+moltbot hooks install @moltbot/my-hook-pack
+
+# Link a local directory without copying
+moltbot hooks install -l ./my-hook-pack
+```
+
+### Response
+#### Success Response (200)
+- **message** (string) - Confirmation message about the installation.
+
+#### Response Example
+```
+✓ Installed hook pack from ./my-hook-pack
+```
+```
+
+--------------------------------
+
+### Run Gateway (CLI)
+
+Source: https://docs.molt.bot/cli
+
+Starts the Moltbot WebSocket Gateway. Configurable via port, bind address, authentication, and various other options for development and production.
+
+```bash
+moltbot gateway
+moltbot gateway --port <port>
+moltbot gateway --bind <loopback|tailnet|lan|auto|custom>
+moltbot gateway --token <token>
+moltbot gateway --auth <token|password>
+moltbot gateway --password <password>
+moltbot gateway --tailscale <off|serve|funnel>
+moltbot gateway --tailscale-reset-on-exit
+moltbot gateway --allow-unconfigured
+moltbot gateway --dev
+moltbot gateway --reset
+moltbot gateway --force
+moltbot gateway --verbose
+moltbot gateway --claude-cli-logs
+moltbot gateway --ws-log <auto|full|compact>
+moltbot gateway --compact
+moltbot gateway --raw-stream
+moltbot gateway --raw-stream-path <path>
+```
+
+--------------------------------
+
+### Check and Install Moltbot CLI Version
+
+Source: https://docs.molt.bot/gateway/troubleshooting
+
+Checks the currently installed version of the global `moltbot` CLI and provides a command to install a specific version. Ensuring the CLI version matches the app version is crucial for proper functionality.
+
+```bash
+moltbot --version
+npm install -g moltbot@<version>
+```
+
+--------------------------------
+
+### Install Voice Call Plugin from Local Folder (Development)
+
+Source: https://docs.molt.bot/plugins/voice-call
+
+Installs the Voice Call plugin from a local directory, suitable for development purposes. It involves installing the plugin and then running `pnpm install` within the plugin's directory. The Gateway must be restarted afterward.
+
+```bash
+moltbot plugins install ./extensions/voice-call
+cd ./extensions/voice-call && pnpm install
+```
