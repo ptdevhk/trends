@@ -1,5 +1,5 @@
 {
-  "name": "@trendradar/api",
+  "name": "@trends/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
