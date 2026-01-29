@@ -115,9 +115,9 @@ function App() {
 
       {/* Footer */}
       <footer className="border-t py-6 mt-8">
-        <div className="container text-center text-sm text-muted-foreground">
+        {/* <div className="container text-center text-sm text-muted-foreground">
           {t('footer.poweredBy')}
-        </div>
+        </div> */}
       </footer>
     </div>
   )
