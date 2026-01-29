@@ -8,8 +8,24 @@ import {
   TopicsResponseSchema,
 } from "../schemas";
 import { mockData } from "../services/mock-data";
+import { workerClient, type WorkerTrendItem, type WorkerTrendsResponse, type WorkerTrendDetailResponse } from "../services/worker-client";
+import { config } from "../services/config";
 
 const app = new OpenAPIHono();
+
+// Transform worker response to BFF response format (snake_case mobile_url → camelCase mobileUrl)
+function transformTrendItem(item: WorkerTrendItem, includeUrl?: boolean) {
+  return {
+    title: item.title,
+    platform: item.platform,
+    platform_name: item.platform_name,
+    rank: item.rank,
+    timestamp: item.timestamp ?? undefined,
+    date: item.date ?? undefined,
+    url: includeUrl ? (item.url ?? undefined) : undefined,
+    mobileUrl: includeUrl ? (item.mobile_url ?? undefined) : undefined,
+  };
+}
 
 // GET /api/trends - Get trending news
 const getTrendsRoute = createRoute({
@@ -33,14 +49,64 @@ const getTrendsRoute = createRoute({
   },
 });
 
-app.openapi(getTrendsRoute, (c) => {
+app.openapi(getTrendsRoute, async (c) => {
   const { platform, date, limit, include_url } = c.req.valid("query");
 
-  const trends = mockData.getTrends(limit, {
+  // Use mock data in development mode or when explicitly configured
+  if (config.useMock) {
+    const trends = mockData.getTrends(limit, {
+      platform,
+      date,
+      includeUrl: include_url,
+    });
+
+    return c.json({
+      success: true as const,
+      summary: {
+        description: date
+          ? `Trending news for ${date}`
+          : "Latest trending news",
+        total: trends.length,
+        returned: trends.length,
+        platforms: platform || "all platforms",
+      },
+      data: trends,
+    }, 200);
+  }
+
+  // Call the worker API
+  const result = await workerClient.getTrends({
     platform,
     date,
-    includeUrl: include_url,
+    limit,
+    include_url,
   });
+
+  // Fallback to mock data on error
+  if (!result.success || !result.data) {
+    console.error("Worker error, falling back to mock:", result.error);
+    const trends = mockData.getTrends(limit, {
+      platform,
+      date,
+      includeUrl: include_url,
+    });
+
+    return c.json({
+      success: true as const,
+      summary: {
+        description: date
+          ? `Trending news for ${date}`
+          : "Latest trending news",
+        total: trends.length,
+        returned: trends.length,
+        platforms: platform || "all platforms",
+      },
+      data: trends,
+    }, 200);
+  }
+
+  // Transform and return real data
+  const transformedData = result.data.data.map(item => transformTrendItem(item, include_url));
 
   return c.json({
     success: true as const,
@@ -48,11 +114,11 @@ app.openapi(getTrendsRoute, (c) => {
       description: date
         ? `Trending news for ${date}`
         : "Latest trending news",
-      total: trends.length,
-      returned: trends.length,
+      total: result.data.total,
+      returned: transformedData.length,
       platforms: platform || "all platforms",
     },
-    data: trends,
+    data: transformedData,
   }, 200);
 });
 
@@ -78,14 +144,35 @@ const getTrendByIdRoute = createRoute({
   },
 });
 
-app.openapi(getTrendByIdRoute, (c) => {
-  // For now, return mock data
-  // In production, this would look up by ID in the database
-  const trends = mockData.getTrends(1, { includeUrl: true });
+app.openapi(getTrendByIdRoute, async (c) => {
+  const { id } = c.req.valid("param");
 
+  // Use mock data in development mode or when explicitly configured
+  if (config.useMock) {
+    const trends = mockData.getTrends(1, { includeUrl: true });
+    return c.json({
+      success: true as const,
+      data: trends[0],
+    }, 200);
+  }
+
+  // Call the worker API
+  const result = await workerClient.getTrendById(id);
+
+  // Fallback to mock data on error
+  if (!result.success || !result.data) {
+    console.error("Worker error, falling back to mock:", result.error);
+    const trends = mockData.getTrends(1, { includeUrl: true });
+    return c.json({
+      success: true as const,
+      data: trends[0],
+    }, 200);
+  }
+
+  // Transform and return real data
   return c.json({
     success: true as const,
-    data: trends[0],
+    data: transformTrendItem(result.data.data, true),
   }, 200);
 });
 
