@@ -68,102 +68,39 @@ make check            # Run basic health checks
 make help             # Show all available commands
 ```
 
-### Environment Variables
-- `ENV_FILE` - Path to .env file (default: .env)
-- `SKIP_CRAWL` - Skip crawl on dev startup (default: true; set to false to crawl)
-- `MCP_PORT` - MCP server port (default: 3333)
-- `WORKER_PORT` - FastAPI worker port (default: 8000)
-- `API_PORT` - BFF API port (default: 3000)
-- `WEB_PORT` - Web frontend port (default: 5173)
-
 ## Architecture
 
-### Package Structure
+### System Modules
 
-```
-trends/
-├── trendradar/           # Core Python application (v5.4.0)
-│   ├── __main__.py       # Entry point - NewsAnalyzer orchestrates workflow
-│   ├── context.py        # AppContext - dependency injection container
-│   ├── core/             # Business logic (config, analyzer, frequency)
-│   ├── crawler/          # Data fetching (fetcher, rss/)
-│   ├── storage/          # Persistence (SQLite local, S3 remote)
-│   ├── notification/     # Push notifications (10+ channels)
-│   ├── report/           # HTML report generation
-│   └── ai/               # AI integration (LiteLLM-based)
-│
-├── mcp_server/           # MCP Server package (v3.1.7)
-│   ├── server.py         # FastMCP 2.0 server with 21 tools
-│   ├── tools/            # 6 tool classes (data_query, analytics, search, etc.)
-│   ├── services/         # Data and cache services
-│   └── utils/            # Date parsing, validators
-│
-├── apps/                 # Modern web stack
-│   ├── worker/           # FastAPI wrapper + APScheduler
-│   │   ├── api.py        # REST endpoints (/health, /trends, /search)
-│   │   ├── scheduler.py  # APScheduler setup
-│   │   ├── tasks.py      # Scheduled task definitions
-│   │   └── main.py       # Worker entry point
-│   ├── api/              # Hono BFF (TypeScript)
-│   │   ├── src/routes/   # health, trends, topics, search, rss
-│   │   ├── src/schemas/  # Zod validation schemas
-│   │   ├── src/services/ # Data layer (direct SQLite)
-│   │   │   ├── data-service.ts   # Main data access
-│   │   │   ├── cache-service.ts  # TTL cache
-│   │   │   ├── parser-service.ts # SQLite + config parsing
-│   │   │   └── db.ts             # SQLite helpers
-│   │   └── openapi.yaml  # API contract
-│   └── web/              # React frontend (Vite + shadcn-ui)
-│       ├── src/components/   # TrendList, TrendItem, PlatformFilter, etc.
-│       ├── src/i18n/         # react-i18next setup
-│       └── src/hooks/        # Custom React hooks
-│
-├── packages/             # Shared code
-│   ├── config/           # Shared Python constants
-│   └── shared/           # Shared TypeScript types
-│
-├── config/               # Configuration files
-│   ├── config.yaml       # Main config (platforms, modes, AI, notifications)
-│   ├── frequency_words.txt   # Keyword groups for filtering
-│   ├── ai_analysis_prompt.txt    # AI analysis prompt template
-│   └── i18n/             # Internationalization
-│       ├── zh-Hant.yaml  # Traditional Chinese (source of truth)
-│       ├── zh-Hans.yaml  # Simplified Chinese (OpenCC-generated)
-│       ├── en.yaml       # English (AI-translated)
-│       └── tm.json       # Translation memory
-│
-├── scripts/              # Build and utility scripts
-│   ├── dev.sh            # Multi-service startup orchestrator
-│   ├── install.sh        # systemd service installer
-│   ├── install-deps.sh   # Dependency installer
-│   ├── build-static.sh   # Static site generator
-│   └── i18n/             # Translation tooling
-│       ├── sync_keys.py      # Verify all locales have all keys
-│       ├── convert_opencc.py # zh-Hant ↔ zh-Hans conversion
-│       ├── ai_translate.py   # AI translation for English
-│       └── build_static.py   # Build static sites for all locales
-│
-├── deploy/               # Deployment configurations
-│   ├── docker/           # Docker Compose files
-│   │   ├── docker-compose.yml
-│   │   ├── Dockerfile
-│   │   └── Dockerfile.mcp
-│   └── systemd/          # systemd service files
-│       ├── trendradar.service
-│       ├── trendradar.timer
-│       └── trendradar-mcp.service
-│
-├── dev-docs/             # Auto-fetched documentation
-│   ├── packages.yaml     # Sources to fetch
-│   └── fetch-docs.sh     # Fetch script
-│
-└── .github/workflows/    # CI/CD pipelines
-    ├── crawler.yml       # Scheduled crawling
-    ├── deploy-pages.yml  # GitHub Pages deployment
-    ├── checks.yml        # Code quality + i18n-check + secret scanning
-    ├── docker.yml        # Docker image building
-    └── fetch-docs.yml    # Documentation sync
-```
+#### Core Crawler (`trendradar/`)
+Python application orchestrating crawling, filtering, reporting, and notifications. Entry point is `trendradar/__main__.py` (runs `NewsAnalyzer`).
+
+Key subsystems:
+- **`trendradar/core/`**: config loading, analyzer helpers, frequency filtering
+- **`trendradar/crawler/`**: fetchers + RSS parsers for 50+ platforms
+- **`trendradar/storage/`**: persistence abstraction (local SQLite, remote S3/R2)
+- **`trendradar/notification/`**: push to 10+ channels (Feishu, Telegram, Slack, etc.)
+- **`trendradar/report/`**: HTML report generation
+- **`trendradar/ai/`**: LiteLLM-based AI analysis integration
+
+#### MCP Server (`mcp_server/`)
+FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/server.py`. Tool implementations live in `mcp_server/tools/` with supporting services in `mcp_server/services/`.
+
+#### Web Stack (`apps/`)
+- **BFF API (`apps/api/`)**: Hono (TypeScript). Routes in `apps/api/src/routes/`, Zod/OpenAPI schemas in `apps/api/src/schemas/`, data access in `apps/api/src/services/` (direct SQLite reads).
+- **Frontend (`apps/web/`)**: React (Vite + shadcn-ui + Tailwind). UI components in `apps/web/src/components/`.
+- **Worker (`apps/worker/`)**: FastAPI scheduler + optional REST endpoints (see `apps/worker/api.py`).
+
+#### Configuration (`config/`)
+- `config/config.yaml`: platforms, modes, AI settings, notifications
+- `config/frequency_words.txt`: keyword filter rules (supports regex like `/pattern/`)
+- `config/i18n/`: locale files (zh-Hant is the source of truth)
+
+#### Supporting Directories
+- `scripts/`: dev/build/install orchestration + i18n tooling
+- `deploy/`: Docker + systemd configs
+- `packages/`: shared Python constants + TypeScript types
+- `output/`: generated SQLite DBs and artifacts used by the web/API layer
 
 ### Data Flow
 
@@ -208,6 +145,21 @@ trends/
 6. **Fast Dev Mode**:
    - Skip crawl on dev startup (use existing SQLite output)
    - Optional `--fresh` / `SKIP_CRAWL=false` to crawl first
+
+## Finding Code
+
+| Looking for... | Start here |
+|----------------|------------|
+| Crawler entry point | `trendradar/__main__.py` (`NewsAnalyzer`) |
+| Fetchers/RSS parsers | `trendradar/crawler/` |
+| Frequency filtering | `trendradar/core/frequency.py`, `config/frequency_words.txt` |
+| Config parsing | `trendradar/core/config.py` |
+| API endpoints (BFF) | `apps/api/src/routes/` |
+| API schemas (BFF) | `apps/api/src/schemas/` |
+| MCP tools | `mcp_server/tools/` |
+| React components | `apps/web/src/components/` |
+
+Tip: when paths drift, use ripgrep: `rg -n "createRoute" apps/api/src/routes` / `rg -n "NewsAnalyzer" trendradar`.
 
 ## i18n (Internationalization)
 
@@ -282,56 +234,60 @@ docker compose up -d trendradar-mcp     # MCP server
 - `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`, `S3_REGION`
 
 **Development Mode:**
+- `ENV_FILE` - Path to `.env` file (default: `.env`)
 - `SKIP_CRAWL` - Skip crawl on dev startup (default: true; set to false to crawl)
+- `SKIP_ROOT_INDEX` - Skip generating root `index.html` (useful in dev to avoid git pollution)
 - `USE_MOCK` - Deprecated (removed)
 
-## Running Individual Components
+**Service Ports:**
+- `API_PORT` - BFF API port (default: 3000)
+- `WEB_PORT` - Web frontend port (default: 5173)
+- `WORKER_PORT` - FastAPI worker port (default: 8000)
+- `MCP_PORT` - MCP server port (default: 3333)
 
-### Crawler/Analyzer
+## API Reference
+
+### BFF Endpoints (Hono - port 3000)
+
+**Get trending news:**
 ```bash
-uv run python -m trendradar
+curl "http://localhost:3000/api/trends"
+```
+→ `{"success":true,"summary":{"total":123,"returned":50},"data":[{"title":"...","platform":"zhihu","platform_name":"Zhihu Hot List","rank":1}]}`
 
-# Development mode (skips root index.html)
-SKIP_ROOT_INDEX=true uv run python -m trendradar
+**Get topics (keyword frequency):**
+```bash
+curl "http://localhost:3000/api/topics?mode=current&top_n=10"
+```
+→ `{"success":true,"topics":[{"keyword":"AI","frequency":15}],"generated_at":"..."}`
+
+**Search news:**
+```bash
+curl "http://localhost:3000/api/search?q=AI&limit=10"
+```
+→ `{"success":true,"results":[{"title":"...","platform":"weibo","platform_name":"Weibo Hot Search"}],"total":10}`
+
+**Health check:**
+```bash
+curl "http://localhost:3000/health"
+```
+→ `{"status":"healthy","timestamp":"...","version":"..."}`
+
+### Worker Endpoints (FastAPI - port 8000)
+
+**Health check:**
+```bash
+curl "http://localhost:8000/health"
 ```
 
-### MCP Server
+FastAPI docs: `http://localhost:8000/docs`
+
+### MCP Server (HTTP - port 3333)
+
+Test tools via MCP Inspector:
 ```bash
-# STDIO mode (for Claude Desktop)
-uv run python -m mcp_server.server
-
-# HTTP mode (for web clients)
-uv run python -m mcp_server.server --transport http --port 3333
+npx @modelcontextprotocol/inspector
 ```
-
-### FastAPI Worker
-```bash
-# REST API only
-uv run uvicorn apps.worker.api:app --reload --port 8000
-
-# Scheduler mode (runs immediately + every 30 min)
-uv run python -m apps.worker --run-now --interval 30 -v
-```
-
-### React Frontend
-```bash
-cd apps/web && npm run dev
-```
-
-### Hono BFF API
-```bash
-cd apps/api && npm run dev
-```
-
-## Testing Notes
-
-- No formal test suite exists; manual testing via `python -m trendradar`
-- MCP tools can be tested via MCP Inspector: `npx @modelcontextprotocol/inspector`
-- Sample data in `output/` directory for MCP testing
-- Worker API endpoints: `curl localhost:8000/health`
-- BFF API endpoints: `curl localhost:3000/api/trends`
-- BFF topics endpoint: `curl localhost:3000/api/topics`
-- BFF health (no worker dependency): `curl localhost:3000/health`
 
 ## Code Conventions
 
