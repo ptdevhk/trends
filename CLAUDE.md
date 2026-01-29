@@ -396,6 +396,61 @@ docker compose up -d trendradar-mcp     # MCP server
 - `WORKER_PORT` - FastAPI worker port (default: 8000)
 - `MCP_PORT` - MCP server port (default: 3333)
 
+## Tests
+
+### Python (pytest)
+- Framework: pytest (preferred) or unittest
+- Location: `tests/` directory at project root
+- Naming: `test_*.py` or `*_test.py`
+- Run: `uv run pytest` or `make test-python`
+
+### TypeScript (vitest)
+- Framework: vitest
+- Location: Place test files next to source using `.test.ts` extension
+- Run: `make test-node` (uses bun locally, npm in CI)
+
+### Running Tests
+```bash
+make test           # Run all tests (Python + TypeScript)
+make test-python    # Run Python tests only
+make test-node      # Run TypeScript tests only
+```
+
+### Guidelines
+
+- Do not use mocks unless absolutely necessary
+- Do not skip tests based on missing environment variables
+- Make tests resilient to timing and ordering
+- Keep tests focused and independent
+
+## Logs
+
+When running `make dev` (or `./scripts/dev.sh`), service logs are written to `logs/{service}.log`:
+
+- **mcp.log**: MCP server output (port 3333)
+- **api.log**: Hono BFF API output (port 3000)
+- **worker.log**: FastAPI worker output (port 8000)
+- **web.log**: Vite dev server output (port 5173)
+- **crawler.log**: Crawler output (when using `--fresh`)
+
+Log files are overwritten on each run. Use `tail -f logs/<file>` to follow live output.
+
+### Production (systemd)
+
+Logs are written to systemd journal:
+
+```bash
+journalctl -u trendradar -f        # Follow crawler logs
+journalctl -u trendradar-mcp -f    # Follow MCP server logs
+journalctl -u trendradar -n 100    # Last 100 lines
+```
+
+### Log Levels
+
+- **Worker**: Configurable via `--verbose` (DEBUG) or `--quiet` (WARNING)
+- **Crawler/MCP**: Uses print statements (no level control)
+- **API**: Hono logger middleware for request/response logging
+
 ## API Reference
 
 ### News Aggregation Extension
@@ -462,3 +517,17 @@ Endpoints for the Resume Screening system will be documented here as they are im
 - Async wrappers in MCP server use `asyncio.to_thread()` for sync operations
 - TypeScript uses Zod for schema validation in apps/api
 - React components use shadcn-ui + Tailwind CSS in apps/web
+
+### Package Manager
+
+- **CI (remote)**: Always use `npm` for reproducible builds
+- **Local dev**: Use `bun` for faster installs and execution
+- **Fallback**: If bun is not installed locally, npm is used automatically
+
+Makefile targets auto-detect bun availability:
+```bash
+# Uses bun if available, falls back to npm
+make check-node
+make check-build
+make test-node
+```
