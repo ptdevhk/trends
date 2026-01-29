@@ -199,8 +199,8 @@ check-node:
 		bun run check; \
 	else \
 		npm run --workspaces --if-present typecheck; \
-		npm run --workspace @trendradar/web lint; \
-		npm run --workspace @trendradar/browser-extension lint; \
+			npm run --workspace @trends/web lint; \
+			npm run --workspace @trends/browser-extension lint; \
 	fi
 
 # Build validation (for CI)

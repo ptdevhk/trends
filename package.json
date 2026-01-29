@@ -15,9 +15,9 @@
     "dev:api": "cd apps/api && npm run dev",
     "dev:worker": "cd apps/worker && uv run uvicorn main:app --reload --port 8000",
     "check": "bun run check:typecheck && bun run check:lint",
-    "check:typecheck": "bun run --filter '@trendradar/*' typecheck",
-    "check:lint": "bun run --filter '@trendradar/web' --filter '@trendradar/browser-extension' lint",
-    "check:build": "bun run --filter '@trendradar/*' build"
+    "check:typecheck": "bun run --filter '@trends/*' typecheck",
+    "check:lint": "bun run --filter '@trends/web' --filter '@trends/browser-extension' lint",
+    "check:build": "bun run --filter '@trends/*' build"
   },
   "repository": {
     "type": "git",
