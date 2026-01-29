@@ -1,0 +1,13 @@
+/* Content script styles - minimal injection */
+
+/* Visual indicator that extension is active */
+.resume-collector-active::after {
+    content: '📋';
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    font-size: 24px;
+    z-index: 99999;
+    opacity: 0.3;
+    pointer-events: none;
+}
