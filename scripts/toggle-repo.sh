@@ -39,6 +39,7 @@ Usage:
 Notes:
   - Must be run in an interactive terminal (TTY).
   - Requires GitHub CLI (gh) and authentication with admin access.
+  - Forked repositories cannot have their visibility changed (GitHub restriction).
   - Visibility changes require accepting GitHub's warning via:
       --accept-visibility-change-consequences
 EOF
@@ -71,15 +72,31 @@ require_git_repo() {
     fi
 }
 
+require_not_fork() {
+    if [[ "${REPO_IS_FORK:-}" == "true" ]]; then
+        log_error "Cannot change visibility: ${REPO_NAME} is a fork."
+        log_error ""
+        log_error "GitHub prohibits visibility changes for forked repositories."
+        log_error "See: https://docs.github.com/en/repositories/creating-and-managing-repositories/changing-a-repositories-visibility"
+        log_error ""
+        log_error "Alternatives:"
+        log_error "  1. Detach the fork (contact GitHub support)"
+        log_error "  2. Create a new non-fork repository and push the code"
+        log_error "  3. Use a different deployment method (Docker, self-hosted)"
+        exit 1
+    fi
+}
+
 get_repo_info() {
     local info
-    if ! info="$(cd "$PROJECT_ROOT" && gh repo view --json nameWithOwner,visibility --jq '.nameWithOwner + "\n" + .visibility' 2>/dev/null)"; then
+    if ! info="$(cd "$PROJECT_ROOT" && gh repo view --json nameWithOwner,visibility,isFork --jq '.nameWithOwner + "\n" + .visibility + "\n" + (.isFork | tostring)' 2>/dev/null)"; then
         log_error "Failed to query repository via 'gh'."
         log_error "Run: gh auth login"
         exit 1
     fi
     REPO_NAME="$(printf '%s\n' "$info" | sed -n '1p')"
     REPO_VISIBILITY="$(printf '%s\n' "$info" | sed -n '2p')"
+    REPO_IS_FORK="$(printf '%s\n' "$info" | sed -n '3p')"
 }
 
 print_consequences() {
@@ -120,6 +137,9 @@ confirm_visibility_change() {
 show_status() {
     log_info "Repository: ${REPO_NAME}"
     log_info "Visibility: ${REPO_VISIBILITY}"
+    if [[ "$REPO_IS_FORK" == "true" ]]; then
+        log_warn "This repository is a fork (visibility cannot be changed)"
+    fi
 }
 
 apply_visibility() {
@@ -194,4 +214,5 @@ if [[ "$STATUS_ONLY" == "true" ]]; then
     exit 0
 fi
 
+require_not_fork
 apply_visibility "$ACTION"
