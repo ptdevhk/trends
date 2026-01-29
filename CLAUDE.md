@@ -210,7 +210,10 @@ make i18n-build       # Build static sites for all locales
 make install-deps     # Install Python/Node dependencies
 make fetch-docs       # Fetch latest upstream documentation
 make clean            # Remove generated/cached files
-make check            # Run basic health checks
+make check            # Run all checks (Python + TypeScript)
+make check-python     # Python imports + config validation
+make check-node       # TypeScript typecheck + lint (uses bun locally)
+make check-build      # Full build validation
 make help             # Show all available commands
 ```
 

@@ -2,6 +2,7 @@
 
 .PHONY: dev dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
         worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
+        check-python check-node check-build \
         build-static build-static-fresh serve-static \
         i18n-check i18n-sync i18n-convert i18n-translate i18n-build
 
@@ -178,9 +179,36 @@ clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	rm -rf node_modules .venv build dist
 
-# Run basic health checks
-check:
-	uv run python -c "import trendradar; print(f'trendradar v{trendradar.__version__} OK')"
+# Run all validation checks (Python + Node.js)
+check: check-python check-node
+	@echo "All checks passed"
+
+# Python checks
+check-python:
+	@echo "Running Python checks..."
+	@uv run python -c "import trendradar; print(f'  trendradar v{trendradar.__version__} OK')"
+	@uv run python -c "import mcp_server; print(f'  mcp_server v{mcp_server.__version__} OK')"
+	@uv run python -c "import apps.worker; print(f'  apps.worker v{apps.worker.__version__} OK')"
+	@uv run python -c "from trendradar.core.loader import load_config; load_config('config/config.yaml'); print('  config.yaml OK')"
+
+# Node/TypeScript checks (uses Bun when available)
+check-node:
+	@echo "Running Node.js checks..."
+	@if command -v bun > /dev/null 2>&1; then \
+		bun run check; \
+	else \
+		npm run --workspaces --if-present typecheck; \
+		npm run --workspace @trendradar/web lint; \
+	fi
+
+# Build validation (for CI)
+check-build: check
+	@echo "Running build validation..."
+	@if command -v bun > /dev/null 2>&1; then \
+		bun run check:build; \
+	else \
+		npm run --workspaces --if-present build; \
+	fi
 
 # =============================================================================
 # Help
@@ -235,7 +263,10 @@ help:
 	@echo ""
 	@echo "Utilities:"
 	@echo "  clean          Remove generated/cached files"
-	@echo "  check          Run basic health checks"
+	@echo "  check          Run validation checks (Python + Node)"
+	@echo "  check-python   Run Python checks only"
+	@echo "  check-node     Run Node.js checks only"
+	@echo "  check-build    Run checks + build validation"
 	@echo "  help           Show this help message"
 	@echo ""
 	@echo "Environment Variables:"
