@@ -4,14 +4,18 @@ TrendRadar is a Chinese news hot topic aggregator and analysis tool. It crawls t
 
 ```bash
 make install-deps     # Install Python/Node dependencies
-make dev              # Start all services (MCP + crawler + apps/*)
+make dev              # Fast start: skip crawl, use existing output/*.db
+make dev ARGS=--fresh # Crawl first, then start services
 ```
 
 ## Common Commands
 
 ### Development
 ```bash
-make dev              # Start all services (MCP + crawler + apps/*)
+make dev              # Fast start: skip crawl, use existing output/*.db
+make dev ARGS=--fresh # Full start: crawl first, then start services
+make dev ARGS=--force # Kill conflicting port processes
+SKIP_CRAWL=false make dev  # Force crawl on startup
 make dev-mcp          # Start only MCP server (HTTP on port 3333)
 make dev-crawl        # Run crawler only (no long-running services)
 make dev-web          # Start React frontend (Vite on port 5173)
@@ -66,6 +70,7 @@ make help             # Show all available commands
 
 ### Environment Variables
 - `ENV_FILE` - Path to .env file (default: .env)
+- `SKIP_CRAWL` - Skip crawl on dev startup (default: true; set to false to crawl)
 - `MCP_PORT` - MCP server port (default: 3333)
 - `WORKER_PORT` - FastAPI worker port (default: 8000)
 - `API_PORT` - BFF API port (default: 3000)
@@ -100,8 +105,13 @@ trends/
 │   │   ├── tasks.py      # Scheduled task definitions
 │   │   └── main.py       # Worker entry point
 │   ├── api/              # Hono BFF (TypeScript)
-│   │   ├── src/routes/   # health, trends, search, rss
+│   │   ├── src/routes/   # health, trends, topics, search, rss
 │   │   ├── src/schemas/  # Zod validation schemas
+│   │   ├── src/services/ # Data layer (direct SQLite)
+│   │   │   ├── data-service.ts   # Main data access
+│   │   │   ├── cache-service.ts  # TTL cache
+│   │   │   ├── parser-service.ts # SQLite + config parsing
+│   │   │   └── db.ts             # SQLite helpers
 │   │   └── openapi.yaml  # API contract
 │   └── web/              # React frontend (Vite + shadcn-ui)
 │       ├── src/components/   # TrendList, TrendItem, PlatformFilter, etc.
@@ -158,23 +168,26 @@ trends/
 ### Data Flow
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   React     │────▶│    Hono     │────▶│  FastAPI    │
-│   (Web)     │     │   (BFF)     │     │  (Worker)   │
-└─────────────┘     └─────────────┘     └─────────────┘
-     :5173               :3000               :8000
-                                               │
-                    ┌─────────────┐            ▼
-                    │   Worker    │────▶┌─────────────┐
-                    │  (Cron)     │     │ trendradar  │
-                    └─────────────┘     │   (Core)    │
-                                        └─────────────┘
-                                               │
-                                               ▼
-                    ┌─────────────┐     ┌─────────────┐
-                    │ MCP Server  │     │   SQLite    │
-                    │   :3333     │     │  (Storage)  │
-                    └─────────────┘     └─────────────┘
+┌─────────────┐     ┌─────────────────────────────────┐
+│   React     │────▶│   Hono BFF + TypeScript Data    │
+│   (Web)     │     │   (Direct SQLite access)        │
+└─────────────┘     │   :3000                         │
+     :5173          └────────────────┬────────────────┘
+                                     │
+                    ┌────────────────▼────────────────┐
+                    │   output/news/*.db (SQLite)     │
+                    └────────────────┬────────────────┘
+                                     │
+                    ┌────────────────▼────────────────┐
+                    │   FastAPI Worker (optional)     │
+                    │   (Scheduler / crawl helpers)   │
+                    │   :8000                         │
+                    └─────────────────────────────────┘
+
+┌─────────────┐
+│ MCP Server  │
+│   :3333     │
+└─────────────┘
 ```
 
 ### Key Design Patterns
@@ -190,7 +203,11 @@ trends/
 
 4. **LiteLLM Integration**: AI features use LiteLLM for unified access to 100+ AI providers (DeepSeek, OpenAI, Gemini, etc.).
 
-5. **Layered API Architecture**: React → Hono BFF → FastAPI Worker → trendradar core
+5. **Layered API Architecture**: React → Hono BFF (TypeScript data layer) → SQLite
+
+6. **Fast Dev Mode**:
+   - Skip crawl on dev startup (use existing SQLite output)
+   - Optional `--fresh` / `SKIP_CRAWL=false` to crawl first
 
 ## i18n (Internationalization)
 
@@ -264,6 +281,10 @@ docker compose up -d trendradar-mcp     # MCP server
 **Optional - Remote Storage:**
 - `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`, `S3_REGION`
 
+**Development Mode:**
+- `SKIP_CRAWL` - Skip crawl on dev startup (default: true; set to false to crawl)
+- `USE_MOCK` - Deprecated (removed)
+
 ## Running Individual Components
 
 ### Crawler/Analyzer
@@ -309,6 +330,8 @@ cd apps/api && npm run dev
 - Sample data in `output/` directory for MCP testing
 - Worker API endpoints: `curl localhost:8000/health`
 - BFF API endpoints: `curl localhost:3000/api/trends`
+- BFF topics endpoint: `curl localhost:3000/api/topics`
+- BFF health (no worker dependency): `curl localhost:3000/health`
 
 ## Code Conventions
 

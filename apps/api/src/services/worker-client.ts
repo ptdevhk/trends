@@ -5,7 +5,7 @@
  * Falls back to mock data when worker is unavailable.
  */
 
-import { config } from "./config";
+import { config } from "./config.js";
 
 // ============================================
 // Worker Response Types (snake_case from Python)

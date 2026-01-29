@@ -4,27 +4,25 @@ import {
   TrendsResponseSchema,
   TrendIdParamSchema,
   TrendDetailResponseSchema,
-  TopicsQuerySchema,
-  TopicsResponseSchema,
-} from "../schemas";
-import { mockData } from "../services/mock-data";
-import { workerClient, type WorkerTrendItem, type WorkerTrendsResponse, type WorkerTrendDetailResponse } from "../services/worker-client";
-import { config } from "../services/config";
+} from "../schemas/index.js";
+import { config } from "../services/config.js";
+import { DataService } from "../services/data-service.js";
+import { DataNotFoundError } from "../services/errors.js";
 
 const app = new OpenAPIHono();
+const dataService = new DataService(config.projectRoot);
 
-// Transform worker response to BFF response format (snake_case mobile_url → camelCase mobileUrl)
-function transformTrendItem(item: WorkerTrendItem, includeUrl?: boolean) {
-  return {
-    title: item.title,
-    platform: item.platform,
-    platform_name: item.platform_name,
-    rank: item.rank,
-    timestamp: item.timestamp ?? undefined,
-    date: item.date ?? undefined,
-    url: includeUrl ? (item.url ?? undefined) : undefined,
-    mobileUrl: includeUrl ? (item.mobile_url ?? undefined) : undefined,
-  };
+function parsePlatformParam(value?: string): string[] | undefined {
+  if (!value) return undefined;
+  const parts = value.split(",").map((p) => p.trim()).filter(Boolean);
+  return parts.length > 0 ? parts : undefined;
+}
+
+function parseIsoDateParam(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) throw new Error(`Invalid date format: ${value}`);
+  const [, y, m, d] = match;
+  return new Date(Number(y), Number(m) - 1, Number(d));
 }
 
 // GET /api/trends - Get trending news
@@ -51,75 +49,40 @@ const getTrendsRoute = createRoute({
 
 app.openapi(getTrendsRoute, async (c) => {
   const { platform, date, limit, include_url } = c.req.valid("query");
+  const platforms = parsePlatformParam(platform);
 
-  // Use mock data in development mode or when explicitly configured
-  if (config.useMock) {
-    const trends = mockData.getTrends(limit, {
-      platform,
-      date,
-      includeUrl: include_url,
-    });
+  try {
+    const trends = date
+      ? dataService.getNewsByDate(parseIsoDateParam(date), { platforms, limit, includeUrl: include_url })
+      : dataService.getLatestNews({ platforms, limit, includeUrl: include_url });
 
     return c.json({
       success: true as const,
       summary: {
         description: date
           ? `Trending news for ${date}`
-          : "Latest trending news",
+          : "Latest trending news (from existing SQLite output)",
         total: trends.length,
         returned: trends.length,
-        platforms: platform || "all platforms",
+        platforms: platforms ?? "all platforms",
       },
       data: trends,
     }, 200);
+  } catch (error) {
+    if (error instanceof DataNotFoundError) {
+      return c.json({
+        success: true as const,
+        summary: {
+          description: `${error.message}${error.suggestion ? ` (${error.suggestion})` : ""}`,
+          total: 0,
+          returned: 0,
+          platforms: platforms ?? "all platforms",
+        },
+        data: [],
+      }, 200);
+    }
+    throw error;
   }
-
-  // Call the worker API
-  const result = await workerClient.getTrends({
-    platform,
-    date,
-    limit,
-    include_url,
-  });
-
-  // Fallback to mock data on error
-  if (!result.success || !result.data) {
-    console.error("Worker error, falling back to mock:", result.error);
-    const trends = mockData.getTrends(limit, {
-      platform,
-      date,
-      includeUrl: include_url,
-    });
-
-    return c.json({
-      success: true as const,
-      summary: {
-        description: date
-          ? `Trending news for ${date}`
-          : "Latest trending news",
-        total: trends.length,
-        returned: trends.length,
-        platforms: platform || "all platforms",
-      },
-      data: trends,
-    }, 200);
-  }
-
-  // Transform and return real data
-  const transformedData = result.data.data.map(item => transformTrendItem(item, include_url));
-
-  return c.json({
-    success: true as const,
-    summary: {
-      description: date
-        ? `Trending news for ${date}`
-        : "Latest trending news",
-      total: result.data.total,
-      returned: transformedData.length,
-      platforms: platform || "all platforms",
-    },
-    data: transformedData,
-  }, 200);
 });
 
 // GET /api/trends/:id - Get trend details
@@ -146,73 +109,12 @@ const getTrendByIdRoute = createRoute({
 
 app.openapi(getTrendByIdRoute, async (c) => {
   const { id } = c.req.valid("param");
-
-  // Use mock data in development mode or when explicitly configured
-  if (config.useMock) {
-    const trends = mockData.getTrends(1, { includeUrl: true });
-    return c.json({
-      success: true as const,
-      data: trends[0],
-    }, 200);
-  }
-
-  // Call the worker API
-  const result = await workerClient.getTrendById(id);
-
-  // Fallback to mock data on error
-  if (!result.success || !result.data) {
-    console.error("Worker error, falling back to mock:", result.error);
-    const trends = mockData.getTrends(1, { includeUrl: true });
-    return c.json({
-      success: true as const,
-      data: trends[0],
-    }, 200);
-  }
-
-  // Transform and return real data
-  return c.json({
-    success: true as const,
-    data: transformTrendItem(result.data.data, true),
-  }, 200);
-});
-
-// GET /api/topics - Get trending topics
-const getTopicsRoute = createRoute({
-  method: "get",
-  path: "/api/topics",
-  tags: ["trends"],
-  summary: "Get trending topics",
-  description: "Returns aggregated trending topics based on keyword frequency",
-  request: {
-    query: TopicsQuerySchema,
-  },
-  responses: {
-    200: {
-      content: {
-        "application/json": {
-          schema: TopicsResponseSchema,
-        },
-      },
-      description: "Successful response",
-    },
-  },
-});
-
-app.openapi(getTopicsRoute, (c) => {
-  const { top_n, mode, extract_mode } = c.req.valid("query");
-
-  const topics = mockData.getTopics(top_n);
+  const title = decodeURIComponent(id);
+  const trend = dataService.getTrendByTitle(title, { includeUrl: true });
 
   return c.json({
     success: true as const,
-    topics,
-    generated_at: new Date().toISOString(),
-    mode,
-    extract_mode,
-    total_keywords: topics.length,
-    description: `${mode === "daily" ? "Daily" : "Current"} statistics - ${
-      extract_mode === "keywords" ? "Based on preset keywords" : "Auto-extracted"
-    }`,
+    data: trend,
   }, 200);
 });
 

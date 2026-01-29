@@ -1,4 +1,5 @@
-export { default as healthRoutes } from "./health";
-export { default as trendsRoutes } from "./trends";
-export { default as searchRoutes } from "./search";
-export { default as rssRoutes } from "./rss";
+export { default as healthRoutes } from "./health.js";
+export { default as trendsRoutes } from "./trends.js";
+export { default as topicsRoutes } from "./topics.js";
+export { default as searchRoutes } from "./search.js";
+export { default as rssRoutes } from "./rss.js";
