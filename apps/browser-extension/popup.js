@@ -4,22 +4,22 @@
  */
 
 // DOM Elements
-const statusBar = document.getElementById('status-bar');
-const statusText = document.getElementById('status-text');
-const pageCurrent = document.getElementById('page-current');
-const pageTotal = document.getElementById('page-total');
-const totalItems = document.getElementById('total-items');
-const btnExtract = document.getElementById('btn-extract');
-const btnCSV = document.getElementById('btn-csv');
-const btnJSON = document.getElementById('btn-json');
-const btnDiagnose = document.getElementById('btn-diagnose');
-const btnOpenDownloadSettings = document.getElementById('btn-open-download-settings');
-const btnShowLastDownload = document.getElementById('btn-show-last-download');
-const optSaveAs = document.getElementById('opt-save-as');
-const preview = document.getElementById('preview');
-const previewContent = document.getElementById('preview-content');
-const diagnostics = document.getElementById('diagnostics');
-const diagnosticsOutput = document.getElementById('diagnostics-output');
+const statusBar = /** @type {HTMLElement} */ (document.getElementById('status-bar'));
+const statusText = /** @type {HTMLElement} */ (document.getElementById('status-text'));
+const pageCurrent = /** @type {HTMLElement} */ (document.getElementById('page-current'));
+const pageTotal = /** @type {HTMLElement} */ (document.getElementById('page-total'));
+const totalItems = /** @type {HTMLElement} */ (document.getElementById('total-items'));
+const btnExtract = /** @type {HTMLButtonElement} */ (document.getElementById('btn-extract'));
+const btnCSV = /** @type {HTMLButtonElement} */ (document.getElementById('btn-csv'));
+const btnJSON = /** @type {HTMLButtonElement} */ (document.getElementById('btn-json'));
+const btnDiagnose = /** @type {HTMLButtonElement} */ (document.getElementById('btn-diagnose'));
+const btnOpenDownloadSettings = /** @type {HTMLButtonElement} */ (document.getElementById('btn-open-download-settings'));
+const btnShowLastDownload = /** @type {HTMLButtonElement} */ (document.getElementById('btn-show-last-download'));
+const optSaveAs = /** @type {HTMLInputElement} */ (document.getElementById('opt-save-as'));
+const preview = /** @type {HTMLElement} */ (document.getElementById('preview'));
+const previewContent = /** @type {HTMLElement} */ (document.getElementById('preview-content'));
+const diagnostics = /** @type {HTMLDialogElement} */ (document.getElementById('diagnostics'));
+const diagnosticsOutput = /** @type {HTMLElement} */ (document.getElementById('diagnostics-output'));
 
 // State
 let extractedData = [];
@@ -44,42 +44,28 @@ function showStatus(message, type = 'info') {
  * Send message to background service worker
  */
 async function sendToBackground(action, data = {}) {
-    return new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({ action, ...data }, (response) => {
-            if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
-                return;
-            }
-            resolve(response);
-        });
-    });
+    return chrome.runtime.sendMessage({ action, ...data });
 }
 
 /**
  * Send message to content script
  */
 async function sendToContent(action, data = {}) {
-    return new Promise((resolve, reject) => {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            if (!tabs[0]) {
-                reject(new Error('No active tab'));
-                return;
-            }
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+    if (!tab || typeof tab.id !== 'number') {
+        throw new Error('No active tab');
+    }
 
-            if (!tabs[0].url?.includes('hr.job5156.com')) {
-                reject(new Error('请在 hr.job5156.com/search 页面使用'));
-                return;
-            }
+    if (!tab.url?.includes('hr.job5156.com')) {
+        throw new Error('请在 hr.job5156.com/search 页面使用');
+    }
 
-            chrome.tabs.sendMessage(tabs[0].id, { action, ...data }, (response) => {
-                if (chrome.runtime.lastError) {
-                    reject(new Error('请刷新页面后重试'));
-                    return;
-                }
-                resolve(response);
-            });
-        });
-    });
+    try {
+        return await chrome.tabs.sendMessage(tab.id, { action, ...data });
+    } catch {
+        throw new Error('请刷新页面后重试');
+    }
 }
 
 function showDiagnostics(payload) {
@@ -153,20 +139,16 @@ function handleShowLastDownload() {
     try {
         chrome.downloads.show(lastDiagnosticDownloadId);
         showStatus('已尝试在 Finder 中显示文件', 'info');
-    } catch (error) {
+    } catch {
         showStatus('显示文件失败', 'error');
     }
 }
 
-function handleOpenDownloadSettings() {
+async function handleOpenDownloadSettings() {
     try {
-        chrome.tabs.create({ url: 'chrome://settings/downloads' }, () => {
-            if (chrome.runtime.lastError) {
-                showStatus('无法自动打开，请手动访问 chrome://settings/downloads', 'error');
-            }
-        });
-    } catch (error) {
-        showStatus('请手动访问 chrome://settings/downloads', 'error');
+        await chrome.tabs.create({ url: 'chrome://settings/downloads' });
+    } catch {
+        showStatus('无法自动打开，请手动访问 chrome://settings/downloads', 'error');
     }
 }
 

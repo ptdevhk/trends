@@ -43,6 +43,7 @@ function sanitizeDownloadFilename(filename) {
     const parts = name
         .split('/')
         .filter((p) => p && p !== '.' && p !== '..')
+        // eslint-disable-next-line no-control-regex
         .map((p) => p.replace(/[<>:"|?*\u0000-\u001F]/g, '-'));
     name = parts.join('/');
 
@@ -122,7 +123,7 @@ async function ensureOffscreenDocument() {
     console.log('🎯 [BG] Creating offscreen document...');
     creatingOffscreen = chrome.offscreen.createDocument({
         url: OFFSCREEN_URL,
-        reasons: [chrome.offscreen.Reason.BLOBS],
+        reasons: ['BLOBS'],
         justification: 'Create blob URLs for file downloads with proper filenames'
     });
 
@@ -146,17 +147,9 @@ async function ensureOffscreenDocument() {
  * Send message to offscreen document and wait for response
  */
 async function sendToOffscreen(message) {
-    return new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage(message, (response) => {
-            if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
-            } else if (response?.success) {
-                resolve(response);
-            } else {
-                reject(new Error(response?.error || 'Unknown error from offscreen'));
-            }
-        });
-    });
+    const response = await chrome.runtime.sendMessage(message);
+    if (response?.success) return response;
+    throw new Error(response?.error || 'Unknown error from offscreen');
 }
 
 function downloadsSearch(query) {
@@ -209,19 +202,11 @@ async function startDownload({ content, filename, mimeType, saveAs }) {
     // Avoid storing large data URLs as keys.
     if (method === 'blob') desiredFilenameByUrl.set(downloadUrl, safeFilename);
 
-    const downloadId = await new Promise((resolve, reject) => {
-        chrome.downloads.download(
-            {
-                url: downloadUrl,
-                filename: safeFilename,
-                saveAs: !!saveAs,
-                conflictAction: 'uniquify'
-            },
-            (id) => {
-                if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-                else resolve(id);
-            }
-        );
+    const downloadId = await chrome.downloads.download({
+        url: downloadUrl,
+        filename: safeFilename,
+        saveAs: !!saveAs,
+        conflictAction: 'uniquify',
     });
 
     if (method === 'blob' && blobUrlToRevoke) {

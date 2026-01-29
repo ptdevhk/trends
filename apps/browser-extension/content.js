@@ -140,7 +140,7 @@ function resumesToCSV(resumes) {
 function makeRandomId() {
   try {
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID().split('-')[0];
-  } catch (_) {
+  } catch {
     // ignore
   }
   return Math.random().toString(16).slice(2, 10);
@@ -155,30 +155,16 @@ function makeRandomId() {
  * @param {boolean} saveAs - Whether to show "Save As" dialog
  * @returns {Promise<object>} - Download result
  */
-function downloadFile(content, filename, mimeType, saveAs = false) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(
-      {
-        action: 'downloadFile',
-        content: content,
-        filename: filename,
-        mimeType: mimeType,
-        saveAs: !!saveAs
-      },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('Download error:', chrome.runtime.lastError);
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        if (response?.success) {
-          resolve(response);
-        } else {
-          reject(new Error(response?.error || 'Download failed'));
-        }
-      }
-    );
+async function downloadFile(content, filename, mimeType, saveAs = false) {
+  const response = await chrome.runtime.sendMessage({
+    action: 'downloadFile',
+    content: content,
+    filename: filename,
+    mimeType: mimeType,
+    saveAs: !!saveAs,
   });
+  if (response?.success) return response;
+  throw new Error(response?.error || 'Download failed');
 }
 
 /**
