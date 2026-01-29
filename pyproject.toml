@@ -24,7 +24,9 @@ trendradar = "trendradar.__main__:main"
 trendradar-mcp = "mcp_server.server:run_server"
 
 [dependency-groups]
-dev = []
+dev = [
+    "pytest>=8.0.0,<9.0.0"
+]
 
 [build-system]
 requires = ["hatchling"]

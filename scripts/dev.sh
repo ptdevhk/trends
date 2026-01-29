@@ -7,6 +7,7 @@ set -e
 ENV_FILE="${ENV_FILE:-.env}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+LOGS_DIR="$PROJECT_ROOT/logs"
 
 # Colors for output
 RED='\033[0;31m'
@@ -139,11 +140,13 @@ start_mcp_server() {
     cd "$PROJECT_ROOT"
     if [ -f "$ENV_FILE" ]; then
         uv run --env-file "$ENV_FILE" python -m mcp_server.server --transport http --port "$port" 2>&1 | \
+            tee "$LOGS_DIR/mcp.log" | \
             while IFS= read -r line; do
                 log "MCP" "$BLUE" "$line"
             done &
     else
         uv run python -m mcp_server.server --transport http --port "$port" 2>&1 | \
+            tee "$LOGS_DIR/mcp.log" | \
             while IFS= read -r line; do
                 log "MCP" "$BLUE" "$line"
             done &
@@ -161,11 +164,13 @@ start_crawler() {
 
     if [ -f "$ENV_FILE" ]; then
         uv run --env-file "$ENV_FILE" python -m trendradar 2>&1 | \
+            tee "$LOGS_DIR/crawler.log" | \
             while IFS= read -r line; do
                 log "CRAWLER" "$GREEN" "$line"
             done
     else
         uv run python -m trendradar 2>&1 | \
+            tee "$LOGS_DIR/crawler.log" | \
             while IFS= read -r line; do
                 log "CRAWLER" "$GREEN" "$line"
             done
@@ -187,6 +192,7 @@ start_web() {
         log "WEB" "$CYAN" "Starting web frontend on http://localhost:$port"
         cd "$PROJECT_ROOT/apps/web"
         npm run dev -- --port "$port" 2>&1 | \
+            tee "$LOGS_DIR/web.log" | \
             while IFS= read -r line; do
                 log "WEB" "$CYAN" "$line"
             done &
@@ -209,6 +215,7 @@ start_api() {
         log "API" "$CYAN" "Starting BFF API on http://localhost:$port"
         cd "$PROJECT_ROOT/apps/api"
         PORT="$port" npm run dev 2>&1 | \
+            tee "$LOGS_DIR/api.log" | \
             while IFS= read -r line; do
                 log "API" "$CYAN" "$line"
             done &
@@ -232,11 +239,13 @@ start_worker() {
         cd "$PROJECT_ROOT/apps/worker"
         if [ -f "$ENV_FILE" ]; then
             uv run --env-file "$ENV_FILE" uvicorn api:app --reload --port "$port" 2>&1 | \
+                tee "$LOGS_DIR/worker.log" | \
                 while IFS= read -r line; do
                     log "WORKER" "$CYAN" "$line"
                 done &
         else
             uv run uvicorn api:app --reload --port "$port" 2>&1 | \
+                tee "$LOGS_DIR/worker.log" | \
                 while IFS= read -r line; do
                     log "WORKER" "$CYAN" "$line"
                 done &
@@ -271,6 +280,8 @@ print_status() {
 # Main
 main() {
     print_banner
+
+    mkdir -p "$LOGS_DIR"
 
     # Load environment
     if [ -f "$PROJECT_ROOT/$ENV_FILE" ]; then
