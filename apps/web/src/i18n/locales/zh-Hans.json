@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "TrendRadar",
+    "title": "热点追踪",
     "subtitle": "热点追踪",
     "description": "中文新闻热点聚合与分析工具"
   },
@@ -50,7 +50,5 @@
     "hoursAgo": "{{count}} 小时前",
     "daysAgo": "{{count}} 天前"
   },
-  "footer": {
-    "poweredBy": "由 TrendRadar 提供技术支持"
-  }
+  "footer": {}
 }

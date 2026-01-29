@@ -168,7 +168,7 @@ class WorkerScheduler:
             run_crawl_analyze,
             trigger=trigger,
             id="crawl_analyze",
-            name="TrendRadar Crawl & Analyze",
+            name="Crawl & Analyze",
             kwargs=job_kwargs,
             replace_existing=True,
         )
@@ -209,7 +209,7 @@ class WorkerScheduler:
 
     def start(self) -> None:
         """Start the scheduler."""
-        logger.info("Starting TrendRadar Worker Scheduler")
+        logger.info("Starting Worker Scheduler")
         logger.info(f"Timezone: Asia/Shanghai")
 
         # Add the main job

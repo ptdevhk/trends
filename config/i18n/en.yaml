@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-#                    TrendRadar i18n - English
+#                    i18n - English
 #                      Version: 1.0.0
 #
 # This file is generated from zh-Hant.yaml via AI translation
@@ -18,7 +18,7 @@ meta:
 # Application General
 # ===============================================================
 app:
-  name: "TrendRadar"
+  name: "Trend Tracker"
   tagline: "Trend Tracking and Analysis Tool"
   version_update: "New version available"
 

@@ -40,8 +40,8 @@ from mcp_server.utils.errors import DataNotFoundError
 # ============================================
 
 app = FastAPI(
-    title="TrendRadar API",
-    description="REST API for TrendRadar - Chinese news hot topic aggregator",
+    title="热点追踪 API",
+    description="REST API for Chinese news hot topic aggregator",
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -412,7 +412,7 @@ app.include_router(router)
 async def root():
     """Root endpoint with API info."""
     return {
-        "name": "TrendRadar API",
+        "name": "热点追踪 API",
         "version": "0.1.0",
         "docs": "/docs",
         "health": "/health",

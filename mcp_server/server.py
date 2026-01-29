@@ -55,7 +55,7 @@ async def get_platforms_resource() -> str:
     )
     return json.dumps({
         "platforms": config.get("platforms", []),
-        "description": "TrendRadar 支持的热榜平台列表"
+        "description": "支持的热榜平台列表"
     }, ensure_ascii=False, indent=2)
 
 
@@ -70,7 +70,7 @@ async def get_rss_feeds_resource() -> str:
     status = await asyncio.to_thread(tools['data'].get_rss_feeds_status)
     return json.dumps({
         "feeds": status.get("today_feeds", {}),
-        "description": "TrendRadar 支持的 RSS 订阅源列表"
+        "description": "支持的 RSS 订阅源列表"
     }, ensure_ascii=False, indent=2)
 
 
@@ -105,7 +105,7 @@ async def get_keywords_resource() -> str:
     return json.dumps({
         "word_groups": config.get("word_groups", []),
         "total_groups": config.get("total_groups", 0),
-        "description": "TrendRadar 关注词配置"
+        "description": "关注词配置"
     }, ensure_ascii=False, indent=2)
 
 
@@ -788,9 +788,9 @@ async def check_version(
     proxy_url: Optional[str] = None
 ) -> str:
     """
-    检查版本更新（同时检查 TrendRadar 和 MCP Server）
+    检查版本更新（同时检查核心模块和 MCP Server）
 
-    比较本地版本与 GitHub 远程版本，判断是否需要更新。
+    比较本地版本与远程版本，判断是否需要更新。
 
     Args:
         proxy_url: 可选的代理URL，用于访问 GitHub（如 http://127.0.0.1:7890）
@@ -944,7 +944,7 @@ def run_server(
     # 打印启动信息
     print()
     print("=" * 60)
-    print("  TrendRadar MCP Server - FastMCP 2.0")
+    print("  MCP Server - FastMCP 2.0")
     print("=" * 60)
     print(f"  传输模式: {transport.upper()}")
 
@@ -1019,7 +1019,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='TrendRadar MCP Server - 新闻热点聚合 MCP 工具服务器',
+        description='MCP Server - 新闻热点聚合 MCP 工具服务器',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 详细配置教程请查看: README-Cherry-Studio.md

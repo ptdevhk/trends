@@ -1,6 +1,6 @@
 # GitHub Pages Static Site Deployment
 # ====================================
-# Builds and deploys TrendRadar static site to GitHub Pages.
+# Builds and deploys static site to GitHub Pages.
 #
 # Triggers:
 #   - Manual dispatch (workflow_dispatch)
@@ -129,7 +129,7 @@ jobs:
           <head>
               <meta charset="UTF-8">
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>TrendRadar</title>
+              <title>熱點追蹤</title>
               <style>
                   body {
                       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -157,7 +157,7 @@ jobs:
           </head>
           <body>
               <div class="container">
-                  <h1>TrendRadar</h1>
+                  <h1>熱點追蹤</h1>
                   <p>No reports available yet.</p>
                   <p>Run the crawler to generate trending news reports.</p>
               </div>
