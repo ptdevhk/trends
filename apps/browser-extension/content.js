@@ -90,15 +90,10 @@ function installApiHook() {
 function installReloadHelper() {
   try {
     if (globalThis.trReloadExtension) return;
-    globalThis.trReloadExtension = () => {
+    globalThis.trReloadExtension = async () => {
       try {
-        chrome.runtime.sendMessage({ action: 'reloadExtension' }, (response) => {
-          if (chrome.runtime.lastError) {
-            console.warn('🎯 [DEV] Reload failed:', chrome.runtime.lastError.message);
-            return;
-          }
-          console.log('🎯 [DEV] Reload requested', response);
-        });
+        const response = await chrome.runtime.sendMessage({ action: 'reloadExtension' });
+        console.log('🎯 [DEV] Reload requested', response);
       } catch (error) {
         console.warn('🎯 [DEV] Reload failed:', error);
       }
