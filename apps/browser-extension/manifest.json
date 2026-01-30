@@ -2,6 +2,7 @@
     "manifest_version": 3,
     "name": "智通直聘 Resume Collector",
     "version": "1.0.0",
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzXCTw+8W8khXUpXqILIfM0F25TlMaVr6f879wMLp71zoe+LoiZjzmfK3h41TuepIu41qzGUMLt1K1ap6YUCrg78Iq4UgWsJ/Bg43JZ0nlCig6pwE6Xihsg+oVjmKSKB2YkjjWnZRWv1Qx9Q0Jpvtv0OHGCldxfd5beB/BaKDpZalXVPoU++9he1SeKN9rZO/I8LZV57kJ539r938+LDPb+69LTQFDMpg+uFOUUlh8XaA2JAO+IySqDn32QTXFuGxwP4EcSKJibu7qo4E2SqyWMKvLh4RVZDvfLDqXNq6jD/y+zY3aS9FeWfn3uFS5QPwRjlv9JyNpSKgY63KMX+oRQIDAQAB",
     "description": "Extract resume data from hr.job5156.com for the Trends Resume Screening System",
     "permissions": [
         "activeTab",

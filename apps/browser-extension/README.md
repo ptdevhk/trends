@@ -52,6 +52,67 @@ ls -la apps/browser-extension/
 # Make changes and reload in chrome://extensions
 ```
 
+## Debugging with MCP
+
+Debug the extension through Chrome DevTools Protocol (CDP) via MCP.
+
+### macOS / Linux (local development)
+
+```bash
+# Start Chrome with remote debugging and the extension loaded
+cd apps/browser-extension
+npm run debug
+
+# Custom URL
+./scripts/debug.sh "https://hr.job5156.com/search?keyword=python"
+```
+
+The script prefers Chrome for Testing or Chromium (supports `--load-extension`). If only branded
+Chrome 137+ is available, it will warn and you must load the extension manually via
+`chrome://extensions`.
+
+### Cmux container environment
+
+Chrome is managed by systemd (`cmux-devtools.service`) and uses a branded build. Since Chrome 137+,
+the `--load-extension` flag is removed for branded Chrome.
+
+Option 1: apply a pre-loaded profile (recommended for fresh containers)
+
+```bash
+cd apps/browser-extension
+npm run setup-profile
+sudo systemctl restart cmux-devtools
+```
+
+Option 2: manual load once (persists in the profile)
+
+1. Navigate to `chrome://extensions`
+2. Enable Developer mode
+3. Click "Load unpacked" (file picker requires manual interaction)
+4. Select: `/root/workspace/apps/browser-extension`
+5. Navigate to `https://hr.job5156.com/search`
+
+### Generate profile seed (one-time)
+
+After loading the extension manually once, capture a minimal profile seed:
+
+```bash
+mkdir -p apps/browser-extension/profile-seed
+cp /root/.config/chrome/Preferences apps/browser-extension/profile-seed/Preferences
+cp /root/.config/chrome/Secure\\ Preferences apps/browser-extension/profile-seed/Secure\\ Preferences 2>/dev/null || true
+grep -o '\"path\": \"[^\"]*browser-extension[^\"]*\"' apps/browser-extension/profile-seed/Preferences
+```
+
+### MCP commands
+
+Useful MCP commands for verification:
+
+- `list_pages`
+- `take_snapshot`
+- `list_console_messages`
+- `take_screenshot`
+- `navigate_page url="https://hr.job5156.com/search"`
+
 ## Files
 
 - `manifest.json` - Extension configuration (Manifest v3)
