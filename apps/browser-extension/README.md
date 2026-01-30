@@ -52,6 +52,110 @@ ls -la apps/browser-extension/
 # Make changes and reload in chrome://extensions
 ```
 
+## Debugging with MCP
+
+Debug the extension through Chrome DevTools Protocol (CDP) via MCP.
+
+### macOS / Linux (local development)
+
+```bash
+# Start Chrome with remote debugging and the extension loaded
+cd apps/browser-extension
+npm run debug
+
+# Custom URL
+./scripts/debug.sh "https://hr.job5156.com/search?keyword=python"
+```
+
+The script prefers Chrome for Testing or Chromium (supports `--load-extension`). If only branded
+Chrome 137+ is available, it will warn and you must load the extension manually via
+`chrome://extensions`.
+
+### Cmux container environment
+
+Chrome is managed by systemd (`cmux-devtools.service`) and uses a branded build. Since Chrome 137+,
+the `--load-extension` flag is removed for branded Chrome.
+
+Option 1: apply a pre-loaded profile (recommended for fresh containers)
+
+```bash
+cd apps/browser-extension
+npm run setup-profile
+sudo systemctl restart cmux-devtools
+```
+
+Option 2: manual load once (persists in the profile)
+
+1. Navigate to `chrome://extensions`
+2. Enable Developer mode
+3. Click "Load unpacked" (file picker requires manual interaction)
+4. Select: `/root/workspace/apps/browser-extension`
+5. Navigate to `https://hr.job5156.com/search`
+
+### Generate profile seed (one-time)
+
+After loading the extension manually once, capture a minimal profile seed:
+
+```bash
+mkdir -p apps/browser-extension/profile-seed
+cp /root/.config/chrome/Default/Preferences apps/browser-extension/profile-seed/Preferences
+cp /root/.config/chrome/Default/Secure\\ Preferences apps/browser-extension/profile-seed/Secure\\ Preferences 2>/dev/null || true
+grep -o '\"path\": \"[^\"]*browser-extension[^\"]*\"' apps/browser-extension/profile-seed/Preferences
+```
+
+### MCP commands
+
+Useful MCP commands for verification:
+
+- `list_pages`
+- `take_snapshot`
+- `list_console_messages`
+- `take_screenshot`
+- `navigate_page url="https://hr.job5156.com/search"`
+
+### Auto export (dev)
+
+You can auto-extract and print results in the page console after the resume list loads.
+Enable by adding a query param or setting localStorage:
+
+```bash
+# Markdown (default if value is true/1 or unknown)
+https://hr.job5156.com/search?tr_auto_export=md
+
+# Console-only
+https://hr.job5156.com/search?tr_auto_export=console
+
+# Raw dump (no predefined schema)
+https://hr.job5156.com/search?tr_auto_export=raw
+
+# Raw dump + download JSON
+https://hr.job5156.com/search?tr_auto_export=raw_json
+
+# Auto download CSV
+https://hr.job5156.com/search?tr_auto_export=csv
+
+# Auto download JSON
+https://hr.job5156.com/search?tr_auto_export=json
+
+# Console + CSV (and JSON if "all")
+https://hr.job5156.com/search?tr_auto_export=both
+https://hr.job5156.com/search?tr_auto_export=all
+```
+
+Or set in DevTools console:
+
+```js
+localStorage.setItem('tr_auto_export', 'md'); // or console/raw/raw_json/csv/json/both/all
+```
+
+Tokens can be combined with commas, for example:
+
+```bash
+https://hr.job5156.com/search?tr_auto_export=raw,raw_json
+https://hr.job5156.com/search?tr_auto_export=raw,raw_json,page
+https://hr.job5156.com/search?tr_auto_export=md,raw_json
+```
+
 ## Files
 
 - `manifest.json` - Extension configuration (Manifest v3)
