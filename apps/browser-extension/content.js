@@ -87,6 +87,23 @@ function installApiHook() {
   }
 }
 
+function installReloadHelper() {
+  try {
+    if (globalThis.trReloadExtension) return;
+    globalThis.trReloadExtension = async () => {
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'reloadExtension' });
+        console.log('🎯 [DEV] Reload requested', response);
+      } catch (error) {
+        console.warn('🎯 [DEV] Reload failed:', error);
+      }
+    };
+    console.log('🎯 [DEV] Use trReloadExtension() in the DevTools "Content scripts" context to reload the extension');
+  } catch (error) {
+    console.warn('🎯 [DEV] Failed to install reload helper:', error);
+  }
+}
+
 window.addEventListener('message', (event) => {
   if (event.source !== window) return;
   const msg = event.data;
@@ -616,4 +633,5 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Inject indicator that extension is active
 console.log('🎯 智通直聘 Resume Collector loaded');
 installApiHook();
+installReloadHelper();
 runAutoExportIfEnabled();

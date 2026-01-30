@@ -80,9 +80,12 @@ Option 1: apply a pre-loaded profile (recommended for fresh containers)
 
 ```bash
 cd apps/browser-extension
+sudo systemctl stop cmux-devtools
 npm run setup-profile
 sudo systemctl restart cmux-devtools
 ```
+
+Note: stop Chrome before applying the profile seed, otherwise it may be overwritten on shutdown.
 
 Option 2: manual load once (persists in the profile)
 
@@ -91,6 +94,30 @@ Option 2: manual load once (persists in the profile)
 3. Click "Load unpacked" (file picker requires manual interaction)
 4. Select: `/root/workspace/apps/browser-extension`
 5. Navigate to `https://hr.job5156.com/search`
+
+### Fast dev helpers (cmux)
+
+```bash
+# One-shot: stop cmux Chrome, apply profile seed, restart
+cd apps/browser-extension
+npm run cmux:setup-profile
+
+# Restart Chrome and open the search page (default auto-export CSV)
+npm run open-search
+# or a custom URL
+npm run open-search -- "https://hr.job5156.com/search?tr_auto_export=json"
+
+# Validate profile seed (path + extension ID from manifest key)
+npm run check-profile-seed
+```
+
+Reload helper (DevTools console):
+
+```
+trReloadExtension()
+```
+
+Note: select the "Content scripts" execution context in DevTools to access `trReloadExtension()`.
 
 ### Generate profile seed (one-time)
 

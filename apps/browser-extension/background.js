@@ -223,6 +223,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     console.log('🎯 [BG] Received message:', request.action);
 
+    if (request.action === 'reloadExtension') {
+        sendResponse({ success: true });
+        setTimeout(() => {
+            try {
+                chrome.runtime.reload();
+            } catch (error) {
+                console.warn('🎯 [BG] Reload failed:', error);
+            }
+        }, 50);
+        return true;
+    }
+
     if (request.action === 'downloadFile') {
         const { content, filename, mimeType, saveAs } = request;
 

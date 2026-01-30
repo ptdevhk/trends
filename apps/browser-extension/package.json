@@ -6,6 +6,9 @@
   "scripts": {
     "debug": "./scripts/debug.sh",
     "setup-profile": "./scripts/setup-profile.sh",
+    "cmux:setup-profile": "./scripts/cmux-setup-profile.sh",
+    "open-search": "./scripts/open-search.sh",
+    "check-profile-seed": "./scripts/check-profile-seed.sh",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
