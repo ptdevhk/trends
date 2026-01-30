@@ -98,7 +98,7 @@ function installReloadHelper() {
         console.warn('🎯 [DEV] Reload failed:', error);
       }
     };
-    console.log('🎯 [DEV] Use trReloadExtension() in the DevTools \"Content scripts\" context to reload the extension');
+    console.log('🎯 [DEV] Use trReloadExtension() in the DevTools "Content scripts" context to reload the extension');
   } catch (error) {
     console.warn('🎯 [DEV] Failed to install reload helper:', error);
   }
