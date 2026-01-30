@@ -6,7 +6,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXT_DIR="$(dirname "$SCRIPT_DIR")"
 PROFILE_SEED_DIR="${EXT_DIR}/profile-seed"
-CHROME_PROFILE="${CHROME_USER_DATA_DIR:-/root/.config/chrome}"
+USER_DATA_DIR="${CHROME_USER_DATA_DIR:-/root/.config/chrome}"
+# Allow override if needed, otherwise use the standard Default profile.
+CHROME_PROFILE="${CHROME_PROFILE_DIR:-$USER_DATA_DIR/Default}"
 EXTENSION_PATH="/root/workspace/apps/browser-extension"
 
 if [[ ! -f "$PROFILE_SEED_DIR/Preferences" ]]; then

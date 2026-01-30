@@ -1,0 +1,72 @@
+{
+  "extensions": {
+    "settings": {
+      "pafaiemddagkegcjcaihcomblnpjfmkf": {
+        "account_extension_type": 0,
+        "active_permissions": {
+          "api": [
+            "activeTab",
+            "downloads",
+            "storage",
+            "scripting",
+            "offscreen"
+          ],
+          "explicit_host": [
+            "*://hr.job5156.com/*"
+          ],
+          "manifest_permissions": [],
+          "scriptable_host": [
+            "*://hr.job5156.com/search*"
+          ]
+        },
+        "commands": {
+          "_execute_action": {
+            "was_assigned": true
+          }
+        },
+        "content_settings": [],
+        "creation_flags": 38,
+        "disable_reasons": [],
+        "first_install_time": "13414218230697666",
+        "from_webstore": false,
+        "granted_permissions": {
+          "api": [
+            "activeTab",
+            "downloads",
+            "storage",
+            "scripting",
+            "offscreen"
+          ],
+          "explicit_host": [
+            "*://hr.job5156.com/*"
+          ],
+          "manifest_permissions": [],
+          "scriptable_host": [
+            "*://hr.job5156.com/search*"
+          ]
+        },
+        "incognito_content_settings": [],
+        "incognito_preferences": {},
+        "last_update_time": "13414218230697666",
+        "location": 4,
+        "newAllowFileAccess": true,
+        "path": "/root/workspace/apps/browser-extension",
+        "preferences": {},
+        "regular_only_preferences": {},
+        "service_worker_registration_info": {
+          "version": "1.0.0"
+        },
+        "serviceworkerevents": [
+          "downloads.onChanged",
+          "downloads.onDeterminingFilename"
+        ],
+        "was_installed_by_default": false,
+        "was_installed_by_oem": false,
+        "withholding_permissions": false
+      }
+    },
+    "ui": {
+      "developer_mode": true
+    }
+  }
+}

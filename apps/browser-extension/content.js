@@ -16,6 +16,84 @@ const SELECTORS = {
   nextPageBtn: '.el-pagination .btn-next'
 };
 
+const AUTO_EXPORT_PARAM = 'tr_auto_export';
+let autoExportTriggered = false;
+const API_CAPTURE_SOURCE = 'tr-resume-api';
+
+const apiSnapshot = {
+  searchRows: null,
+  attachInfo: null,
+  chatInfo: null,
+  insightInfo: null,
+  lastUpdatedAt: null,
+  lastSearchAt: null,
+  lastUrl: null
+};
+
+function getApiRowForIndex(index) {
+  if (!Array.isArray(apiSnapshot.searchRows)) return null;
+  return apiSnapshot.searchRows[index] || null;
+}
+
+function updateApiSnapshot(kind, payload, url) {
+  apiSnapshot.lastUpdatedAt = new Date().toISOString();
+  if (url) apiSnapshot.lastUrl = url;
+
+  try {
+    document.documentElement.setAttribute('data-tr-api-last', kind);
+    document.documentElement.setAttribute('data-tr-api-updated', apiSnapshot.lastUpdatedAt);
+  } catch {
+    // ignore
+  }
+
+  if (kind === 'search') {
+    const rows = payload?.data?.resumePage?.rows;
+    if (Array.isArray(rows)) {
+      apiSnapshot.searchRows = rows;
+      apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
+      try {
+        document.documentElement.setAttribute('data-tr-api-rows', String(rows.length));
+      } catch {
+        // ignore
+      }
+    }
+    return;
+  }
+  if (kind === 'attach') {
+    apiSnapshot.attachInfo = payload?.data?.attachResumeInfo || null;
+    return;
+  }
+  if (kind === 'chat') {
+    apiSnapshot.chatInfo = payload?.data?.chatInfo || null;
+    return;
+  }
+  if (kind === 'insight') {
+    apiSnapshot.insightInfo = payload?.data?.talentInsightInfo || payload?.data || null;
+  }
+}
+
+function installApiHook() {
+  try {
+    if (document.documentElement.hasAttribute('data-tr-resume-hook')) return;
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('page-hook.js');
+    script.async = true;
+    script.setAttribute('data-tr-resume-hook', 'true');
+    script.onload = () => script.remove();
+    (document.head || document.documentElement).appendChild(script);
+    document.documentElement.setAttribute('data-tr-resume-hook', 'true');
+  } catch (error) {
+    console.warn('Failed to install API hook:', error);
+  }
+}
+
+window.addEventListener('message', (event) => {
+  if (event.source !== window) return;
+  const msg = event.data;
+  if (!msg || msg.source !== API_CAPTURE_SOURCE) return;
+  updateApiSnapshot(msg.kind, msg.payload, msg.url);
+});
+
 /**
  * Extract data from a single resume card
  * @param {Element} card - The resume card DOM element
@@ -102,6 +180,11 @@ function extractResumes() {
     try {
       const resume = extractSingleResume(card);
       resume.pageIndex = index + 1;
+      const apiRow = getApiRowForIndex(index);
+      if (apiRow) {
+        resume.resumeId = apiRow.resumeId ?? '';
+        resume.perUserId = apiRow.perUserId ?? '';
+      }
       resumes.push(resume);
     } catch (error) {
       console.error(`Error extracting resume ${index}:`, error);
@@ -112,6 +195,77 @@ function extractResumes() {
 }
 
 /**
+ * Extract raw HTML/text from resume cards (no predefined schema).
+ * @param {Object} options
+ * @param {boolean} options.includePage - Include full page HTML
+ * @returns {Object} - Raw payload
+ */
+function extractResumesRaw({ includePage = false } = {}) {
+  const cards = document.querySelectorAll(SELECTORS.resumeCard);
+  const items = Array.from(cards).map((card, index) => ({
+    index: index + 1,
+    resumeId: getApiRowForIndex(index)?.resumeId ?? '',
+    perUserId: getApiRowForIndex(index)?.perUserId ?? '',
+    html: card.outerHTML,
+    text: card.innerText
+  }));
+
+  const payload = {
+    url: window.location.href,
+    extractedAt: new Date().toISOString(),
+    count: items.length,
+    cards: items,
+    api: {
+      lastSearchAt: apiSnapshot.lastSearchAt,
+      lastUpdatedAt: apiSnapshot.lastUpdatedAt,
+      searchRowCount: Array.isArray(apiSnapshot.searchRows) ? apiSnapshot.searchRows.length : 0
+    }
+  };
+
+  if (includePage) {
+    payload.pageHtml = document.documentElement.outerHTML;
+  }
+
+  return payload;
+}
+
+function normalizeCardText(text) {
+  if (!text) return '';
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+function rawToMarkdown(rawPayload) {
+  const lines = [];
+  lines.push('# Resume Dump (Raw)');
+  lines.push('');
+  lines.push(`- URL: ${rawPayload.url}`);
+  lines.push(`- Extracted: ${rawPayload.extractedAt}`);
+  lines.push(`- Count: ${rawPayload.count}`);
+  lines.push('');
+
+  rawPayload.cards.forEach((card, idx) => {
+    const indexLabel = String(idx + 1).padStart(2, '0');
+    lines.push(`## Card ${indexLabel}`);
+    if (card.resumeId || card.perUserId) {
+      lines.push(`- resumeId: ${card.resumeId || ''}`);
+      lines.push(`- perUserId: ${card.perUserId || ''}`);
+      lines.push('');
+    }
+    lines.push('```text');
+    const normalized = normalizeCardText(card.text);
+    lines.push(normalized || '(empty)');
+    lines.push('```');
+    lines.push('');
+  });
+
+  return lines.join('\n');
+}
+
+/**
  * Convert resumes to CSV format
  * @param {Array} resumes - Array of resume objects
  * @returns {string} - CSV string
@@ -119,9 +273,11 @@ function extractResumes() {
 function resumesToCSV(resumes) {
   if (resumes.length === 0) return '';
 
-  const headers = ['序号', '姓名', '年龄', '工作经验', '学历', '所在地', '期望薪资', '活跃状态', '求职意向', '简历链接', '提取时间'];
+  const headers = ['序号', 'resumeId', 'perUserId', '姓名', '年龄', '工作经验', '学历', '所在地', '期望薪资', '活跃状态', '求职意向', '简历链接', '提取时间'];
   const rows = resumes.map((r, i) => [
     i + 1,
+    r.resumeId || '',
+    r.perUserId || '',
     r.name,
     r.age,
     r.experience,
@@ -187,6 +343,225 @@ function getPaginationInfo() {
   return { currentPage, totalPages, totalItems };
 }
 
+function parseAutoExportMode(value) {
+  if (!value) return { enabled: false };
+  const mode = String(value).trim().toLowerCase();
+  if (!mode) return { enabled: false };
+
+  const config = {
+    enabled: true,
+    logStructured: false,
+    logRaw: false,
+    downloadCsv: false,
+    downloadJson: false,
+    downloadRawJson: false,
+    downloadMarkdown: false,
+    saveAs: false,
+    rawIncludePage: false
+  };
+
+  if (mode === '1' || mode === 'true') {
+    config.downloadMarkdown = true;
+    return config;
+  }
+  if (mode === 'console' || mode === 'log') {
+    config.logStructured = true;
+    return config;
+  }
+  if (mode === 'csv') {
+    config.downloadCsv = true;
+    return config;
+  }
+  if (mode === 'json') {
+    config.downloadJson = true;
+    return config;
+  }
+  if (mode === 'both' || mode === 'all') {
+    config.downloadCsv = true;
+    config.downloadJson = mode === 'all';
+    config.logStructured = true;
+    return config;
+  }
+  if (mode === 'raw') {
+    config.logRaw = true;
+    return config;
+  }
+  if (mode === 'raw_json' || mode === 'rawjson') {
+    config.downloadRawJson = true;
+    return config;
+  }
+  if (mode === 'md' || mode === 'markdown') {
+    config.downloadMarkdown = true;
+    return config;
+  }
+
+  const tokens = mode
+    .split(/[,+|]/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  for (const token of tokens) {
+    if (token === 'console' || token === 'log') config.logStructured = true;
+    if (token === 'csv') config.downloadCsv = true;
+    if (token === 'json') config.downloadJson = true;
+    if (token === 'raw') config.logRaw = true;
+    if (token === 'rawjson' || token === 'raw_json') config.downloadRawJson = true;
+    if (token === 'md' || token === 'markdown') config.downloadMarkdown = true;
+    if (token === 'page' || token === 'rawpage') config.rawIncludePage = true;
+    if (token === 'saveas') config.saveAs = true;
+  }
+
+  if (!config.logStructured && !config.logRaw && !config.downloadCsv && !config.downloadJson && !config.downloadRawJson && !config.downloadMarkdown) {
+    config.downloadMarkdown = true;
+  }
+
+  return config;
+}
+
+function getAutoExportConfig() {
+  const params = new URLSearchParams(window.location.search || '');
+  const paramValue = params.get(AUTO_EXPORT_PARAM);
+  if (paramValue) return parseAutoExportMode(paramValue);
+
+  try {
+    const localValue = window.localStorage?.getItem(AUTO_EXPORT_PARAM);
+    return parseAutoExportMode(localValue);
+  } catch {
+    return { enabled: false };
+  }
+}
+
+function waitForResumeCards({ timeoutMs = 30000, minCount = 1 } = {}) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const deadline = Date.now() + timeoutMs;
+
+    const check = () => {
+      if (done) return;
+      const count = document.querySelectorAll(SELECTORS.resumeCard).length;
+      if (count >= minCount) {
+        done = true;
+        cleanup();
+        resolve(count);
+      } else if (Date.now() > deadline) {
+        done = true;
+        cleanup();
+        reject(new Error('Timed out waiting for resume cards'));
+      }
+    };
+
+    const cleanup = () => {
+      clearInterval(intervalId);
+      observer.disconnect();
+    };
+
+    const intervalId = setInterval(check, 500);
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true });
+    check();
+  });
+}
+
+function waitForApiRows({ timeoutMs = 5000, minCount = 1 } = {}) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const deadline = Date.now() + timeoutMs;
+
+    const check = () => {
+      if (done) return;
+      const count = Array.isArray(apiSnapshot.searchRows) ? apiSnapshot.searchRows.length : 0;
+      if (count >= minCount) {
+        done = true;
+        cleanup();
+        resolve(count);
+      } else if (Date.now() > deadline) {
+        done = true;
+        cleanup();
+        reject(new Error('Timed out waiting for API rows'));
+      }
+    };
+
+    const cleanup = () => {
+      clearInterval(intervalId);
+      observer.disconnect();
+    };
+
+    const intervalId = setInterval(check, 300);
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true });
+    check();
+  });
+}
+
+async function runAutoExportIfEnabled() {
+  if (autoExportTriggered) return;
+  const config = getAutoExportConfig();
+  if (!config.enabled) return;
+  autoExportTriggered = true;
+
+  try {
+    await waitForResumeCards({});
+    try {
+      await waitForApiRows({});
+    } catch {
+      // API rows are optional; continue with DOM-only extraction
+    }
+    const resumes = extractResumes();
+    if (config.logStructured) {
+      console.log('🎯 [Auto Export] Extracted resumes', {
+        count: resumes.length,
+        resumes
+      });
+    }
+
+    try {
+      document.documentElement.setAttribute('data-tr-auto-export', 'done');
+      document.documentElement.setAttribute('data-tr-auto-export-count', String(resumes.length));
+    } catch {
+      // ignore
+    }
+
+    let rawPayload = null;
+    if (config.logRaw || config.downloadRawJson || config.downloadMarkdown || config.rawIncludePage) {
+      rawPayload = extractResumesRaw({ includePage: config.rawIncludePage });
+      if (config.logRaw) {
+        console.log('🎯 [Auto Export] Raw resumes', rawPayload);
+      }
+      if (config.downloadRawJson) {
+        const timestamp = new Date().toISOString().slice(0, 10);
+        const filename = `resumes_raw_${timestamp}_${makeRandomId()}.json`;
+        await downloadFile(JSON.stringify(rawPayload, null, 2), filename, 'application/json', config.saveAs);
+        console.log('🎯 [Auto Export] Raw JSON download triggered:', filename);
+      }
+      if (config.downloadMarkdown) {
+        const markdown = rawToMarkdown(rawPayload);
+        const timestamp = new Date().toISOString().slice(0, 10);
+        const filename = `resumes_md_${timestamp}_${makeRandomId()}.md`;
+        await downloadFile(markdown, filename, 'text/markdown', config.saveAs);
+        console.log('🎯 [Auto Export] Markdown download triggered:', filename);
+      }
+    }
+
+    if (config.downloadCsv) {
+      const csv = resumesToCSV(resumes);
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `resumes_${timestamp}_${makeRandomId()}.csv`;
+      await downloadFile(csv, filename, 'text/csv', config.saveAs);
+      console.log('🎯 [Auto Export] CSV download triggered:', filename);
+    }
+
+    if (config.downloadJson) {
+      const json = JSON.stringify(resumes, null, 2);
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `resumes_${timestamp}_${makeRandomId()}.json`;
+      await downloadFile(json, filename, 'application/json', config.saveAs);
+      console.log('🎯 [Auto Export] JSON download triggered:', filename);
+    }
+  } catch (error) {
+    console.warn('🎯 [Auto Export] Failed:', error);
+  }
+}
+
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extractCurrentPage') {
@@ -237,3 +612,5 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Inject indicator that extension is active
 console.log('🎯 智通直聘 Resume Collector loaded');
+installApiHook();
+runAutoExportIfEnabled();

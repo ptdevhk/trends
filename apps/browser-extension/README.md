@@ -98,8 +98,8 @@ After loading the extension manually once, capture a minimal profile seed:
 
 ```bash
 mkdir -p apps/browser-extension/profile-seed
-cp /root/.config/chrome/Preferences apps/browser-extension/profile-seed/Preferences
-cp /root/.config/chrome/Secure\\ Preferences apps/browser-extension/profile-seed/Secure\\ Preferences 2>/dev/null || true
+cp /root/.config/chrome/Default/Preferences apps/browser-extension/profile-seed/Preferences
+cp /root/.config/chrome/Default/Secure\\ Preferences apps/browser-extension/profile-seed/Secure\\ Preferences 2>/dev/null || true
 grep -o '\"path\": \"[^\"]*browser-extension[^\"]*\"' apps/browser-extension/profile-seed/Preferences
 ```
 
@@ -112,6 +112,49 @@ Useful MCP commands for verification:
 - `list_console_messages`
 - `take_screenshot`
 - `navigate_page url="https://hr.job5156.com/search"`
+
+### Auto export (dev)
+
+You can auto-extract and print results in the page console after the resume list loads.
+Enable by adding a query param or setting localStorage:
+
+```bash
+# Markdown (default if value is true/1 or unknown)
+https://hr.job5156.com/search?tr_auto_export=md
+
+# Console-only
+https://hr.job5156.com/search?tr_auto_export=console
+
+# Raw dump (no predefined schema)
+https://hr.job5156.com/search?tr_auto_export=raw
+
+# Raw dump + download JSON
+https://hr.job5156.com/search?tr_auto_export=raw_json
+
+# Auto download CSV
+https://hr.job5156.com/search?tr_auto_export=csv
+
+# Auto download JSON
+https://hr.job5156.com/search?tr_auto_export=json
+
+# Console + CSV (and JSON if "all")
+https://hr.job5156.com/search?tr_auto_export=both
+https://hr.job5156.com/search?tr_auto_export=all
+```
+
+Or set in DevTools console:
+
+```js
+localStorage.setItem('tr_auto_export', 'md'); // or console/raw/raw_json/csv/json/both/all
+```
+
+Tokens can be combined with commas, for example:
+
+```bash
+https://hr.job5156.com/search?tr_auto_export=raw,raw_json
+https://hr.job5156.com/search?tr_auto_export=raw,raw_json,page
+https://hr.job5156.com/search?tr_auto_export=md,raw_json
+```
 
 ## Files
 
