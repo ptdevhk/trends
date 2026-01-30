@@ -196,19 +196,22 @@ function extractResumes() {
 
 /**
  * Extract raw HTML/text from resume cards (no predefined schema).
- * @param {Object} options
- * @param {boolean} options.includePage - Include full page HTML
+ * @param {Object} [options]
+ * @param {boolean} [options.includePage=false] - Include full page HTML
  * @returns {Object} - Raw payload
  */
 function extractResumesRaw({ includePage = false } = {}) {
   const cards = document.querySelectorAll(SELECTORS.resumeCard);
-  const items = Array.from(cards).map((card, index) => ({
-    index: index + 1,
-    resumeId: getApiRowForIndex(index)?.resumeId ?? '',
-    perUserId: getApiRowForIndex(index)?.perUserId ?? '',
-    html: card.outerHTML,
-    text: card.innerText
-  }));
+  const items = Array.from(cards).map((card, index) => {
+    const el = /** @type {HTMLElement} */ (card);
+    return {
+      index: index + 1,
+      resumeId: getApiRowForIndex(index)?.resumeId ?? '',
+      perUserId: getApiRowForIndex(index)?.perUserId ?? '',
+      html: el.outerHTML,
+      text: el.innerText
+    };
+  });
 
   const payload = {
     url: window.location.href,

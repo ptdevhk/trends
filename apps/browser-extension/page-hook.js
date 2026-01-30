@@ -1,6 +1,8 @@
 (() => {
-  if (window.__trResumeHookInstalled) return;
-  window.__trResumeHookInstalled = true;
+  /** @type {Window & { __trResumeHookInstalled?: boolean }} */
+  const trWindow = window;
+  if (trWindow.__trResumeHookInstalled) return;
+  trWindow.__trResumeHookInstalled = true;
 
   const SOURCE = 'tr-resume-api';
 
@@ -36,9 +38,9 @@
     post(kind, url, payload);
   };
 
-  if (window.fetch) {
-    const originalFetch = window.fetch;
-    window.fetch = function(...args) {
+  if (trWindow.fetch) {
+    const originalFetch = trWindow.fetch;
+    trWindow.fetch = function(...args) {
       return originalFetch.apply(this, args).then((res) => {
         try {
           const url = normalizeUrl(args[0]);
@@ -56,13 +58,13 @@
   const originalOpen = XMLHttpRequest.prototype.open;
   const originalSend = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-    this.__tr_url = url;
+    /** @type {XMLHttpRequest & { __tr_url?: string }} */ (this).__tr_url = url;
     return originalOpen.call(this, method, url, ...rest);
   };
   XMLHttpRequest.prototype.send = function(...args) {
     this.addEventListener('load', function() {
       try {
-        const url = normalizeUrl(this.__tr_url);
+        const url = normalizeUrl(/** @type {XMLHttpRequest & { __tr_url?: string }} */ (this).__tr_url);
         if (!classify(url)) return;
         let data = null;
         if (this.responseType === 'json' && this.response) {
