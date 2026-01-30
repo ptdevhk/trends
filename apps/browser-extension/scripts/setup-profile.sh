@@ -11,6 +11,22 @@ USER_DATA_DIR="${CHROME_USER_DATA_DIR:-/root/.config/chrome}"
 CHROME_PROFILE="${CHROME_PROFILE_DIR:-$USER_DATA_DIR/Default}"
 EXTENSION_PATH="/root/workspace/apps/browser-extension"
 
+if pgrep -f "chrome.*--remote-debugging-port" > /dev/null 2>&1; then
+  cat <<EOF_MSG
+Chrome appears to be running with remote debugging enabled.
+
+To ensure the profile seed is not overwritten, stop Chrome first:
+  sudo systemctl stop cmux-devtools
+
+Then re-run:
+  ./scripts/setup-profile.sh
+
+After that, restart Chrome:
+  sudo systemctl start cmux-devtools
+EOF_MSG
+  exit 1
+fi
+
 if [[ ! -f "$PROFILE_SEED_DIR/Preferences" ]]; then
   cat <<EOF_MSG
 Error: profile seed not found at $PROFILE_SEED_DIR/Preferences
