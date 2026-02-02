@@ -7,12 +7,42 @@ These instructions apply to `apps/browser-extension/`. Use them for any extensio
 - Extension path (container): `/root/workspace/apps/browser-extension`
 - Manifest: MV3
 
+## Running Scripts
+All scripts are designed to run from **project root** (`/root/workspace`).
+
+**Option A: Direct shell script execution**
+```bash
+./apps/browser-extension/scripts/cmux-setup-profile.sh
+./apps/browser-extension/scripts/open-search.sh
+```
+
+**Option B: npm from subdirectory** (requires cd)
+```bash
+cd apps/browser-extension && npm run cmux:setup-profile
+```
+
+**Option C: Add root package.json scripts** (recommended for frequent use)
+```json
+// In root package.json
+{
+  "scripts": {
+    "ext:setup": "(cd apps/browser-extension && npm run cmux:setup-profile)",
+    "ext:open": "(cd apps/browser-extension && npm run open-search)"
+  }
+}
+```
+
+Then run from project root:
+```bash
+npm run ext:setup
+npm run ext:open
+```
+
 ## Debugging
 ### Cmux container (this workspace)
 - Chrome is systemd-managed and branded (137+): `--load-extension` is not supported.
 - Preferred setup (fresh container):
-  - `cd apps/browser-extension && npm run setup-profile`
-  - `systemctl restart cmux-devtools cmux-cdp-proxy`
+  - `cd apps/browser-extension && npm run cmux:setup-profile`
 - Manual fallback: `chrome://extensions` → Developer mode → Load unpacked → select `/root/workspace/apps/browser-extension`.
 - Profile location: `/root/.config/chrome/Default` (must match the extension path).
 
