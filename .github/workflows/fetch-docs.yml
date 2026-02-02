@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
   workflow_dispatch:      # Manual trigger
+  pull_request:
 
 jobs:
   fetch-docs:
@@ -21,7 +22,20 @@ jobs:
           chmod +x dev-docs/fetch-docs.sh
           ./dev-docs/fetch-docs.sh
 
+      - name: Check for uncommitted doc updates (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --quiet -- dev-docs/; then
+            echo "dev-docs is up to date."
+          else
+            echo "dev-docs changed after fetch. Run 'make fetch-docs' and commit the updates."
+            git status --short dev-docs/
+            git diff --stat dev-docs/
+            exit 1
+          fi
+
       - name: Commit and push if changed
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
