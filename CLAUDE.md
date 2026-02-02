@@ -239,6 +239,7 @@ FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/
 - **BFF API (`apps/api/`)**: Hono (TypeScript). Routes in `apps/api/src/routes/`, Zod/OpenAPI schemas in `apps/api/src/schemas/`, data access in `apps/api/src/services/` (direct SQLite reads).
 - **Frontend (`apps/web/`)**: React (Vite + shadcn-ui + Tailwind). UI components in `apps/web/src/components/`.
 - **Worker (`apps/worker/`)**: FastAPI scheduler + optional REST endpoints (see `apps/worker/api.py`).
+- **Browser Extension (`apps/browser-extension/`)**: Chrome/Edge extension for resume extraction from hr.job5156.com. Scripts in `apps/browser-extension/scripts/`.
 
 #### Configuration (`config/`)
 - `config/config.yaml`: platforms, modes, AI settings, notifications
@@ -307,6 +308,7 @@ FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/
 | API schemas (BFF) | `apps/api/src/schemas/` |
 | MCP tools | `mcp_server/tools/` |
 | React components | `apps/web/src/components/` |
+| Browser extension | `apps/browser-extension/` (see `CLAUDE.md` there) |
 
 Tip: when paths drift, use ripgrep: `rg -n "createRoute" apps/api/src/routes` / `rg -n "DataAnalyzer" trendradar`.
 
@@ -520,9 +522,9 @@ Endpoints for the Resume Screening system will be documented here as they are im
 
 ### Package Manager
 
-- **CI (remote)**: Always use `npm` for reproducible builds
-- **Local dev**: Use `bun` for faster installs and execution
-- **Fallback**: If bun is not installed locally, npm is used automatically
+- **CI (remote)**: Always use `npm` / `npx` for reproducible builds
+- **Local dev**: Use `bun` / `bunx` for faster installs and execution
+- **Python**: Use `uv run` for Python scripts
 
 Makefile targets auto-detect bun availability:
 ```bash
@@ -530,4 +532,26 @@ Makefile targets auto-detect bun availability:
 make check-node
 make check-build
 make test-node
+```
+
+### Running Scripts from Project Root
+
+**Preferred: Direct shell script execution** (works with any package manager):
+
+```bash
+./apps/browser-extension/scripts/cmux-setup-profile.sh
+./scripts/dev.sh
+```
+
+**Workspace scripts via package manager:**
+
+```bash
+# bun (local dev)
+bun run --filter @trends/browser-extension cmux:setup-profile
+
+# npm (CI)
+npm run cmux:setup-profile --workspace @trends/browser-extension
+
+# Python (uv)
+uv run python -m mcp_server.server
 ```

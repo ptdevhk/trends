@@ -7,12 +7,23 @@ These instructions apply to `apps/browser-extension/`. Use them for any extensio
 - Extension path (container): `/root/workspace/apps/browser-extension`
 - Manifest: MV3
 
+## Running Scripts
+
+Run from **project root** using shell scripts (simplest, works with any package manager):
+
+```bash
+./apps/browser-extension/scripts/cmux-setup-profile.sh   # Setup profile + restart Chrome
+./apps/browser-extension/scripts/open-search.sh          # Open search page
+./apps/browser-extension/scripts/check-profile-seed.sh   # Validate profile seed
+```
+
+**Package managers:** Local dev uses `bun`, CI uses `npm`.
+
 ## Debugging
 ### Cmux container (this workspace)
 - Chrome is systemd-managed and branded (137+): `--load-extension` is not supported.
 - Preferred setup (fresh container):
-  - `cd apps/browser-extension && npm run setup-profile`
-  - `systemctl restart cmux-devtools cmux-cdp-proxy`
+  - `./apps/browser-extension/scripts/cmux-setup-profile.sh`
 - Manual fallback: `chrome://extensions` → Developer mode → Load unpacked → select `/root/workspace/apps/browser-extension`.
 - Profile location: `/root/.config/chrome/Default` (must match the extension path).
 
