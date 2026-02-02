@@ -11,12 +11,12 @@ make fetch-docs
 ## Included packages
 
 - `trendradar` → `dev-docs/trendradar/llms.txt` (news crawler, config, report modes, MCP reference)
-- `moltbot` → `dev-docs/moltbot/llms.txt` (Gateway control-plane architecture, Skills system, Plugin SDK)
-- `molt_bot_docs` → `dev-docs/molt_bot/llms.txt` (official docs site: install/onboarding, gateway ops, config examples)
+- `openclaw` → `dev-docs/openclaw/llms.txt` (Gateway control-plane architecture, Skills system, Plugin SDK)
+- `openclaw_docs` → `dev-docs/openclaw_docs/llms.txt` (official docs site: install/onboarding, gateway ops, config examples)
 
-## Moltbot references (why they matter here)
+## OpenClaw references (why they matter here)
 
-For the Resume Screening system direction, we reuse several Moltbot patterns:
+For the Resume Screening system direction, we reuse several OpenClaw patterns:
 
 - **Gateway (control plane)**: WebSocket orchestration, session state, and deterministic agent/binding routing
 - **Skills**: workspace-local `SKILL.md` as “screening criteria” modules (scoring + tool usage)
@@ -26,10 +26,10 @@ For the Resume Screening system direction, we reuse several Moltbot patterns:
 
 ```bash
 # Skills + plugin patterns (inspiration for Resume Screening gateway design)
-rg -n "## Skills System|## Plugin SDK" dev-docs/moltbot/llms.txt
+rg -n "## Skills System|## Plugin SDK" dev-docs/openclaw/llms.txt
 
 # Ops/setup snippets (install/onboarding/config examples)
-rg -n "onboard|gateway|\\$include|docker" dev-docs/molt_bot/llms.txt
+rg -n "onboard|gateway|\\$include|docker" dev-docs/openclaw_docs/llms.txt
 ```
 
 ## Add new packages

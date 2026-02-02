@@ -32,7 +32,7 @@ Web-based resume multi-source collection, AI-powered screening, and HR efficient
 
 ### Architecture (Hub-and-Spoke Pattern)
 
-Cloned from [Moltbot](https://github.com/moltbot/moltbot)'s gateway architecture. Reference: https://context7.com/moltbot/moltbot/llms.txt
+Cloned from [OpenClaw](https://github.com/openclaw/openclaw)'s gateway architecture. Reference: https://context7.com/openclaw/openclaw/llms.txt
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -55,7 +55,7 @@ Cloned from [Moltbot](https://github.com/moltbot/moltbot)'s gateway architecture
 
 ### Multi-Agent Pipeline
 
-Following Moltbot's multi-agent routing pattern with deterministic bindings:
+Following OpenClaw's multi-agent routing pattern with deterministic bindings:
 
 ```json5
 {
@@ -77,7 +77,7 @@ Following Moltbot's multi-agent routing pattern with deterministic bindings:
 
 ### Source Plugin Pattern
 
-Adapted from Moltbot's Channel Plugin SDK:
+Adapted from OpenClaw's Channel Plugin SDK:
 
 ```typescript
 export const sourcePlugin: SourcePlugin = {
@@ -90,7 +90,7 @@ export const sourcePlugin: SourcePlugin = {
 }
 ```
 
-| Moltbot Channel | Resume Screening Source |
+| OpenClaw Channel | Resume Screening Source |
 |-----------------|------------------------|
 | WhatsApp | Email ingestion |
 | Telegram | Job board API (智通直聘) |
@@ -99,7 +99,7 @@ export const sourcePlugin: SourcePlugin = {
 
 ### Skills System (Extensibility)
 
-Following Moltbot's SKILL.md pattern with scoring:
+Following OpenClaw's SKILL.md pattern with scoring:
 
 ```markdown
 ---

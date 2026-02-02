@@ -4,13 +4,13 @@ packages:
     source: https://context7.com/sansan0/trendradar/llms.txt
     tokens: 10000
     output: dev-docs/trendradar/llms.txt
-  - name: moltbot
-    description: Upstream Moltbot repository docs - gateway architecture, skills, and plugin SDK references
-    source: https://context7.com/moltbot/moltbot/llms.txt
+  - name: openclaw
+    description: Upstream OpenClaw repository docs - gateway architecture, skills, and plugin SDK references
+    source: https://context7.com/openclaw/openclaw/llms.txt
     tokens: 10000
-    output: dev-docs/moltbot/llms.txt
-  - name: molt_bot_docs
-    description: Molt Bot official docs website - installation, onboarding, and configuration examples
-    source: https://context7.com/websites/molt_bot/llms.txt
+    output: dev-docs/openclaw/llms.txt
+  - name: openclaw_docs
+    description: OpenClaw official docs website - installation, onboarding, and configuration examples
+    source: https://context7.com/websites/openclaw/llms.txt
     tokens: 10000
-    output: dev-docs/molt_bot/llms.txt
+    output: dev-docs/openclaw_docs/llms.txt
