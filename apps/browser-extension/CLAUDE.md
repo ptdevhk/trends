@@ -60,6 +60,43 @@ Run from **project root** using shell scripts (simplest, works with any package 
 - API capture is injected via `page-hook.js` (web-accessible resource).
 - Do not rely on inline script injection; CSP will block it on this site.
 
+## Chrome DevTools MCP (Browser Automation)
+
+The `chrome-devtools-9222` MCP server provides browser automation tools for agents. **Important:** The `9222` in the name is just an identifier—it's a proxy to Chrome's actual remote debugging port (configured separately). You don't need to manage ports; just use the MCP tools directly.
+
+### Available Tools
+- `mcp__chrome-devtools-9222__list_pages` - List open browser pages
+- `mcp__chrome-devtools-9222__navigate_page` - Navigate to URL
+- `mcp__chrome-devtools-9222__take_snapshot` - Get page accessibility tree (preferred over screenshots)
+- `mcp__chrome-devtools-9222__take_screenshot` - Capture page screenshot
+- `mcp__chrome-devtools-9222__click` - Click elements by UID from snapshot
+- `mcp__chrome-devtools-9222__fill` - Fill form inputs
+- `mcp__chrome-devtools-9222__evaluate_script` - Run JavaScript on page
+
+### Workflow
+1. Call `list_pages` to see available pages and their IDs
+2. Call `select_page` if needed to switch context
+3. Call `navigate_page` with `url` parameter to load a page
+4. Call `take_snapshot` to get the page's accessibility tree with element UIDs
+5. Use UIDs from snapshot for `click`, `fill`, etc.
+
+### Example: Navigate and Inspect
+```
+1. mcp__chrome-devtools-9222__list_pages({})
+   → Returns pages list with IDs
+
+2. mcp__chrome-devtools-9222__navigate_page({"url": "https://hr.job5156.com/search"})
+   → Navigates to the search page
+
+3. mcp__chrome-devtools-9222__take_snapshot({})
+   → Returns page elements with UIDs for interaction
+```
+
+### Troubleshooting
+- **Connection refused**: Chrome may not be running with remote debugging enabled. Run `./apps/browser-extension/scripts/cmux-setup-profile.sh` to restart Chrome with proper flags.
+- **Page not found**: Call `list_pages` first to see what's available.
+- **Stale UIDs**: Always get a fresh snapshot before interacting with elements.
+
 ## Safety / commits
 - `profile-seed/Preferences` and `profile-seed/Secure Preferences` may contain sensitive data.
 - Review and sanitize before pushing to GitHub.

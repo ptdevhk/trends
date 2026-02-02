@@ -309,6 +309,7 @@ FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/
 | MCP tools | `mcp_server/tools/` |
 | React components | `apps/web/src/components/` |
 | Browser extension | `apps/browser-extension/` (see `CLAUDE.md` there) |
+| Chrome DevTools MCP | `apps/browser-extension/CLAUDE.md` (browser automation tools) |
 
 Tip: when paths drift, use ripgrep: `rg -n "createRoute" apps/api/src/routes` / `rg -n "DataAnalyzer" trendradar`.
 
