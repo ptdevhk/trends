@@ -16,13 +16,13 @@ if [[ "$(id -u)" != "0" ]] && command -v sudo >/dev/null 2>&1; then
   SUDO="sudo"
 fi
 
-if ! "$SUDO" systemctl status "$SERVICE_NAME" >/dev/null 2>&1; then
+if ! $SUDO systemctl status "$SERVICE_NAME" >/dev/null 2>&1; then
   echo "Service $SERVICE_NAME not found. Falling back to ./scripts/debug.sh" >&2
   exec "$SCRIPT_DIR/debug.sh" "$TARGET_URL"
 fi
 
-"$SUDO" systemctl set-environment CHROME_START_URL="$TARGET_URL"
-"$SUDO" systemctl restart "$SERVICE_NAME"
-"$SUDO" systemctl unset-environment CHROME_START_URL
+$SUDO systemctl set-environment CHROME_START_URL="$TARGET_URL"
+$SUDO systemctl restart "$SERVICE_NAME"
+$SUDO systemctl unset-environment CHROME_START_URL
 
 echo "Restarted $SERVICE_NAME with start URL: $TARGET_URL"
