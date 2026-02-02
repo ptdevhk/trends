@@ -1,0 +1,773 @@
+# OpenClaw
+
+OpenClaw is a personal AI assistant platform that runs locally on your devices and connects to multiple messaging channels including WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Google Chat, and Microsoft Teams. It uses a Gateway-based architecture with a WebSocket control plane, allowing you to interact with AI models through your existing chat applications. The Gateway serves as the single control plane for sessions, channels, tools, and events, while companion apps for macOS, iOS, and Android provide additional features like voice wake, live canvas, and device integration.
+
+The platform supports multiple AI providers including Anthropic Claude and OpenAI models, with features like browser automation, cron job scheduling, multi-agent routing, and a comprehensive tool system. OpenClaw is designed for single-user, local-first operation with strong security defaults including DM pairing for unknown senders and optional sandboxing for non-main sessions.
+
+## Installation
+
+```bash
+# Quick install via script
+curl -fsSL https://openclaw.bot/install.sh | bash
+
+# Or via npm/pnpm
+npm install -g openclaw@latest
+pnpm add -g openclaw@latest
+
+# Run the onboarding wizard (installs background daemon)
+openclaw onboard --install-daemon
+```
+
+## Gateway Service
+
+### Start the Gateway
+
+```bash
+# Start gateway (foreground with verbose logging)
+openclaw gateway --port 18789 --verbose
+
+# Start with force (kills existing listeners on port)
+openclaw gateway --force
+
+# Dev mode with auto-reload
+pnpm gateway:watch
+
+# Check gateway status
+openclaw gateway status
+
+# Install as background service (launchd/systemd)
+openclaw gateway install
+openclaw gateway start
+openclaw gateway stop
+openclaw gateway restart
+```
+
+### Gateway Configuration
+
+The Gateway is configured via `~/.openclaw/openclaw.json`:
+
+```json5
+{
+  gateway: {
+    mode: "local",
+    port: 18789,
+    bind: "loopback",
+    auth: {
+      mode: "token",
+      token: "your-secure-token"
+    },
+    http: {
+      endpoints: {
+        chatCompletions: { enabled: true }
+      }
+    }
+  },
+  agent: {
+    model: "anthropic/claude-opus-4-5"
+  },
+  channels: {
+    whatsapp: {
+      dmPolicy: "pairing",
+      allowFrom: ["+15551234567"]
+    },
+    telegram: {
+      botToken: "123456:ABCDEF"
+    },
+    discord: {
+      token: "your-discord-token"
+    }
+  }
+}
+```
+
+## WebSocket API
+
+### Connection Protocol
+
+Connect to the Gateway WebSocket at `ws://127.0.0.1:18789`. The first frame must be a `connect` request:
+
+```javascript
+// Connect to Gateway WebSocket
+const ws = new WebSocket("ws://127.0.0.1:18789");
+
+ws.onopen = () => {
+  // First frame must be connect request
+  ws.send(JSON.stringify({
+    type: "req",
+    id: crypto.randomUUID(),
+    method: "connect",
+    params: {
+      minProtocol: 3,
+      maxProtocol: 3,
+      client: {
+        id: "my-app",
+        version: "1.0.0",
+        platform: "node",
+        mode: "operator"
+      },
+      role: "operator",
+      scopes: ["operator.read", "operator.write"],
+      auth: {
+        token: "your-gateway-token"
+      }
+    }
+  }));
+};
+
+ws.onmessage = (event) => {
+  const frame = JSON.parse(event.data);
+  if (frame.type === "res" && frame.payload?.type === "hello-ok") {
+    console.log("Connected!", frame.payload);
+    // Now ready to send requests
+  }
+};
+```
+
+### Send Message
+
+```javascript
+// Send message via WebSocket
+function sendMessage(ws, to, message, channel = "whatsapp") {
+  const requestId = crypto.randomUUID();
+  ws.send(JSON.stringify({
+    type: "req",
+    id: requestId,
+    method: "send",
+    params: {
+      to: to,
+      message: message,
+      channel: channel,
+      idempotencyKey: crypto.randomUUID()
+    }
+  }));
+  return requestId;
+}
+
+// Example usage
+sendMessage(ws, "+15551234567", "Hello from OpenClaw!", "whatsapp");
+```
+
+### Run Agent
+
+```javascript
+// Run agent with message
+function runAgent(ws, message, options = {}) {
+  const requestId = crypto.randomUUID();
+  ws.send(JSON.stringify({
+    type: "req",
+    id: requestId,
+    method: "agent",
+    params: {
+      message: message,
+      sessionKey: options.sessionKey || "main",
+      thinking: options.thinking || "medium",
+      deliver: options.deliver ?? true,
+      channel: options.channel,
+      to: options.to,
+      model: options.model,
+      timeout: options.timeout || 300,
+      idempotencyKey: crypto.randomUUID()
+    }
+  }));
+  return requestId;
+}
+
+// Agent responses come in two stages:
+// 1. Immediate ack: {runId, status: "accepted"}
+// 2. Final response after completion: {runId, status: "ok"|"error", summary}
+// Streamed output arrives as event type "agent"
+```
+
+### Get Sessions
+
+```javascript
+// List active sessions
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "sessions.list",
+  params: {
+    kinds: ["dm", "group"],
+    limit: 50,
+    activeMinutes: 60
+  }
+}));
+
+// Preview session history
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "sessions.preview",
+  params: {
+    sessionKey: "agent:main:main",
+    limit: 20,
+    includeTools: false
+  }
+}));
+
+// Reset session
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "sessions.reset",
+  params: {
+    sessionKey: "agent:main:main"
+  }
+}));
+```
+
+### Health and Status
+
+```javascript
+// Get gateway health
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "health",
+  params: {}
+}));
+
+// Get channel status
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "channels.status",
+  params: {
+    channel: "whatsapp",
+    deep: true
+  }
+}));
+```
+
+## HTTP API
+
+### OpenAI-Compatible Chat Completions
+
+Enable the endpoint in config, then use standard OpenAI API format:
+
+```bash
+# Non-streaming request
+curl -sS http://127.0.0.1:18789/v1/chat/completions \
+  -H 'Authorization: Bearer YOUR_GATEWAY_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -H 'x-openclaw-agent-id: main' \
+  -d '{
+    "model": "openclaw",
+    "messages": [{"role": "user", "content": "What is the weather like today?"}]
+  }'
+
+# Streaming request (SSE)
+curl -N http://127.0.0.1:18789/v1/chat/completions \
+  -H 'Authorization: Bearer YOUR_GATEWAY_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "openclaw:main",
+    "stream": true,
+    "messages": [{"role": "user", "content": "Tell me a joke"}]
+  }'
+```
+
+### Webhook Trigger
+
+```bash
+# Trigger agent via webhook
+curl -X POST http://127.0.0.1:18789/hooks/agent \
+  -H 'Authorization: Bearer YOUR_HOOKS_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "message": "Check my calendar for today",
+    "name": "calendar-check",
+    "wakeMode": "now",
+    "sessionKey": "main",
+    "deliver": true,
+    "channel": "whatsapp",
+    "to": "+15551234567"
+  }'
+
+# Wake assistant
+curl -X POST http://127.0.0.1:18789/hooks/wake \
+  -H 'Authorization: Bearer YOUR_HOOKS_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "text": "Time to check emails",
+    "mode": "now"
+  }'
+```
+
+## CLI Commands
+
+### Agent Commands
+
+```bash
+# Run agent with message
+openclaw agent --message "Summarize my inbox" --thinking high
+
+# Run agent and deliver to channel
+openclaw agent --message "Send a reminder" --deliver --channel whatsapp --to "+15551234567"
+
+# Run agent in RPC mode (JSON output)
+openclaw agent --mode rpc --json --message "Analyze this data"
+
+# List configured agents
+openclaw agents list
+```
+
+### Message Commands
+
+```bash
+# Send message to WhatsApp
+openclaw message send --to "+15551234567" --message "Hello!"
+
+# Send with media
+openclaw message send --to "+15551234567" --message "Check this out" --media /path/to/image.jpg
+
+# Send animated GIF (as MP4 with gifPlayback)
+openclaw message send --to "+15551234567" --media /path/to/animation.mp4 --gif-playback
+```
+
+### Channel Commands
+
+```bash
+# Login to WhatsApp (scan QR)
+openclaw channels login
+
+# Multi-account WhatsApp login
+openclaw channels login --account work
+
+# Check channel status
+openclaw channels status
+
+# Logout from channel
+openclaw channels logout whatsapp
+```
+
+### Pairing Commands
+
+```bash
+# List pending pairing requests
+openclaw pairing list whatsapp
+
+# Approve pairing
+openclaw pairing approve whatsapp ABC123
+
+# Reject pairing
+openclaw pairing reject whatsapp ABC123
+```
+
+### Session Commands
+
+```bash
+# List sessions
+openclaw sessions --json
+
+# List active sessions (last 60 minutes)
+openclaw sessions --active 60
+
+# View session from gateway
+openclaw gateway call sessions.list --params '{}'
+```
+
+### Configuration Commands
+
+```bash
+# Interactive configuration
+openclaw configure
+
+# Configure specific section
+openclaw configure --section web
+
+# Get config value
+openclaw config get browser.enabled
+
+# Set config value
+openclaw config set browser.enabled true
+
+# Show config schema
+openclaw config schema
+```
+
+### Diagnostics
+
+```bash
+# Run diagnostics
+openclaw doctor
+
+# Check health
+openclaw health
+
+# Full status report
+openclaw status --all
+
+# Security audit
+openclaw security audit --deep
+
+# Tail logs
+openclaw logs --follow
+```
+
+## Browser Automation
+
+### Browser CLI
+
+```bash
+# Start managed browser
+openclaw browser --browser-profile openclaw start
+
+# Open URL
+openclaw browser --browser-profile openclaw open https://example.com
+
+# Take snapshot (AI-readable)
+openclaw browser snapshot
+
+# Take screenshot
+openclaw browser screenshot
+openclaw browser screenshot --full-page
+
+# Click element by ref (from snapshot)
+openclaw browser click 12
+
+# Type text
+openclaw browser type 23 "Hello World" --submit
+
+# Navigate
+openclaw browser navigate https://google.com
+
+# List tabs
+openclaw browser tabs
+
+# Get console logs
+openclaw browser console --level error
+```
+
+### Browser Configuration
+
+```json5
+{
+  browser: {
+    enabled: true,
+    defaultProfile: "openclaw",
+    color: "#FF4500",
+    headless: false,
+    executablePath: "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    profiles: {
+      openclaw: { cdpPort: 18800, color: "#FF4500" },
+      work: { cdpPort: 18801, color: "#0066CC" },
+      remote: { cdpUrl: "http://10.0.0.42:9222" }
+    }
+  }
+}
+```
+
+### Browser WebSocket API
+
+```javascript
+// Start browser
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "browser.request",
+  params: {
+    action: "start",
+    profile: "openclaw"
+  }
+}));
+
+// Take snapshot
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "browser.request",
+  params: {
+    action: "snapshot",
+    profile: "openclaw"
+  }
+}));
+
+// Perform action (click element ref 42 from snapshot)
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "browser.request",
+  params: {
+    action: "act",
+    profile: "openclaw",
+    ref: 42,
+    operation: "click"
+  }
+}));
+```
+
+## Cron Jobs
+
+### Cron CLI
+
+```bash
+# Add one-shot reminder (wake immediately)
+openclaw cron add \
+  --name "Send reminder" \
+  --at "2026-01-12T18:00:00Z" \
+  --session main \
+  --system-event "Reminder: submit expense report." \
+  --wake now \
+  --delete-after-run
+
+# Add recurring job (deliver to WhatsApp)
+openclaw cron add \
+  --name "Morning status" \
+  --cron "0 7 * * *" \
+  --tz "America/Los_Angeles" \
+  --session isolated \
+  --message "Summarize inbox + calendar for today." \
+  --deliver \
+  --channel whatsapp \
+  --to "+15551234567"
+
+# Add job with model override
+openclaw cron add \
+  --name "Deep analysis" \
+  --cron "0 6 * * 1" \
+  --tz "America/Los_Angeles" \
+  --session isolated \
+  --message "Weekly deep analysis of project progress." \
+  --model "opus" \
+  --thinking high \
+  --deliver
+
+# List cron jobs
+openclaw cron list
+
+# Run job manually
+openclaw cron run <jobId> --force
+
+# Edit existing job
+openclaw cron edit <jobId> --message "Updated prompt" --model "opus"
+
+# View run history
+openclaw cron runs --id <jobId> --limit 50
+
+# Remove job
+openclaw cron remove <jobId>
+```
+
+### Cron WebSocket API
+
+```javascript
+// List cron jobs
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "cron.list",
+  params: {}
+}));
+
+// Add cron job
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "cron.add",
+  params: {
+    name: "Daily summary",
+    schedule: {
+      kind: "cron",
+      cron: "0 9 * * *",
+      timezone: "America/New_York"
+    },
+    sessionTarget: "isolated",
+    payload: {
+      kind: "agentTurn",
+      message: "Generate daily summary",
+      deliver: true,
+      channel: "whatsapp",
+      to: "+15551234567"
+    }
+  }
+}));
+
+// Run job immediately
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "cron.run",
+  params: {
+    id: "job-id-here",
+    force: true
+  }
+}));
+```
+
+## Node Commands (Device Integration)
+
+```bash
+# List connected nodes
+openclaw nodes list
+
+# Invoke camera snap on iOS node
+openclaw node invoke camera.snap --node iphone --params '{"front": true}'
+
+# Get location from node
+openclaw node invoke location.get --node iphone
+
+# Canvas commands
+openclaw nodes canvas present --node iphone --url "https://example.com"
+openclaw nodes canvas snapshot --node iphone
+
+# Screen recording
+openclaw nodes screen record --node macbook --duration 30
+```
+
+### Node WebSocket API
+
+```javascript
+// List nodes
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "node.list",
+  params: {}
+}));
+
+// Invoke camera on node
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "node.invoke",
+  params: {
+    command: "camera.snap",
+    node: "iphone",
+    params: { front: true },
+    timeoutMs: 30000
+  }
+}));
+
+// Node pairing
+ws.send(JSON.stringify({
+  type: "req",
+  id: crypto.randomUUID(),
+  method: "node.pair.request",
+  params: {
+    device: {
+      id: "device-uuid",
+      publicKey: "base64-public-key"
+    }
+  }
+}));
+```
+
+## Session Configuration
+
+```json5
+{
+  session: {
+    dmScope: "main",  // "main", "per-peer", "per-channel-peer", "per-account-channel-peer"
+    identityLinks: {
+      alice: ["telegram:123456789", "discord:987654321012345678"]
+    },
+    reset: {
+      mode: "daily",
+      atHour: 4,
+      idleMinutes: 120
+    },
+    resetByType: {
+      thread: { mode: "daily", atHour: 4 },
+      dm: { mode: "idle", idleMinutes: 240 },
+      group: { mode: "idle", idleMinutes: 120 }
+    },
+    mainKey: "main"
+  }
+}
+```
+
+## WhatsApp Configuration
+
+```json5
+{
+  channels: {
+    whatsapp: {
+      dmPolicy: "pairing",  // "pairing", "allowlist", "open", "disabled"
+      allowFrom: ["+15551234567", "+15559876543"],
+      selfChatMode: false,  // Enable for personal number usage
+      sendReadReceipts: true,
+      mediaMaxMb: 50,
+      textChunkLimit: 4000,
+      ackReaction: {
+        emoji: "👀",
+        direct: true,
+        group: "mentions"  // "always", "mentions", "never"
+      },
+      groupPolicy: "allowlist",  // "open", "disabled", "allowlist"
+      accounts: {
+        work: {
+          ackReaction: { emoji: "✅" }
+        }
+      }
+    }
+  }
+}
+```
+
+## Agent Tools Configuration
+
+```json5
+{
+  tools: {
+    profile: "full",  // "minimal", "coding", "messaging", "full"
+    allow: ["browser", "canvas", "cron"],
+    deny: ["exec"],
+    elevated: false,
+    web: {
+      search: {
+        enabled: true,
+        provider: "brave",
+        apiKey: "your-brave-api-key",
+        maxResults: 5
+      },
+      fetch: { enabled: true }
+    }
+  },
+  browser: {
+    enabled: true,
+    evaluateEnabled: true
+  }
+}
+```
+
+## Multi-Agent Routing
+
+```json5
+{
+  agents: {
+    defaults: {
+      workspace: "~/.openclaw/workspace",
+      model: "anthropic/claude-opus-4-5",
+      thinking: "medium",
+      timeout: 300
+    },
+    list: [
+      {
+        id: "main",
+        workspace: "~/.openclaw/workspace"
+      },
+      {
+        id: "analyst",
+        workspace: "~/.openclaw/workspace-analyst",
+        model: "anthropic/claude-sonnet-4-20250514"
+      }
+    ]
+  },
+  routing: {
+    bindings: [
+      {
+        agent: "analyst",
+        channel: "telegram",
+        peer: { kind: "dm", id: "123456789" }
+      }
+    ]
+  }
+}
+```
+
+## Summary
+
+OpenClaw provides a comprehensive personal AI assistant platform with flexible deployment options ranging from local development to remote server setups with Tailscale or SSH tunnel access. The WebSocket-based Gateway architecture enables real-time communication across multiple messaging channels while maintaining session continuity and security. Key integration patterns include: connecting to the Gateway WebSocket with proper authentication, using the OpenAI-compatible HTTP API for tool integrations, leveraging the CLI for administration and automation, and configuring cron jobs for scheduled tasks.
+
+The platform excels in scenarios requiring multi-channel messaging (WhatsApp, Telegram, Discord, Slack), browser automation for web interactions, scheduled agent tasks via cron, and device integration through iOS/Android/macOS nodes. Whether deploying as a personal assistant on your local machine or running a remote Gateway accessible via Tailscale, OpenClaw provides the infrastructure to build AI-powered automation workflows while maintaining strong security defaults and user control over data and permissions.

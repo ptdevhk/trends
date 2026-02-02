@@ -25,12 +25,12 @@ jobs:
       - name: Check for uncommitted doc updates (PR only)
         if: github.event_name == 'pull_request'
         run: |
-          if git diff --quiet -- dev-docs/; then
+          if [ -z "$(git status --porcelain -- dev-docs/)" ]; then
             echo "dev-docs is up to date."
           else
             echo "dev-docs changed after fetch. Run 'make fetch-docs' and commit the updates."
-            git status --short dev-docs/
-            git diff --stat dev-docs/
+            git status --short -- dev-docs/
+            git diff --stat -- dev-docs/ || true
             exit 1
           fi
 
