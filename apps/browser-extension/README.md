@@ -42,6 +42,8 @@ Chrome/Edge browser extension to extract resume data from hr.job5156.com (智通
 | workHistory | Previous work experience |
 | profileUrl | Link to full resume |
 | extractedAt | Extraction timestamp |
+| resumeId | Resume ID from API (for deduplication) |
+| perUserId | Per-user ID from API (for deduplication) |
 
 ## Development
 
@@ -167,12 +169,18 @@ https://hr.job5156.com/search?tr_auto_export=json
 # Console + CSV (and JSON if "all")
 https://hr.job5156.com/search?tr_auto_export=both
 https://hr.job5156.com/search?tr_auto_export=all
+
+# With save-as dialog
+https://hr.job5156.com/search?tr_auto_export=csv,saveas
+
+# Include full page HTML in raw payload
+https://hr.job5156.com/search?tr_auto_export=raw,page
 ```
 
 Or set in DevTools console:
 
 ```js
-localStorage.setItem('tr_auto_export', 'md'); // or console/raw/raw_json/csv/json/both/all
+localStorage.setItem('tr_auto_export', 'md'); // Modes: md/csv/json/raw/raw_json/console/both/all. Modifiers: saveas, page
 ```
 
 Tokens can be combined with commas, for example:
@@ -187,9 +195,14 @@ https://hr.job5156.com/search?tr_auto_export=md,raw_json
 
 - `manifest.json` - Extension configuration (Manifest v3)
 - `content.js` - Injected script for data extraction
+- `background.js` - Background service worker (handles downloads via Offscreen API)
+- `page-hook.js` - API capture script (intercepts `/api/search/resume/v2` responses)
+- `offscreen.html/js` - Offscreen document for blob URL downloads
 - `popup.html/css/js` - Extension popup UI
 - `content-styles.css` - Minimal page styles
 - `icons/` - Extension icons (16/32/48/128px)
+- `scripts/` - Debug and setup scripts
+- `profile-seed/` - Chrome profile seed for container auto-loading
 
 ## Integration with Trends
 
