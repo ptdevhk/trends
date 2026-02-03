@@ -49,6 +49,15 @@ Run from **project root** using shell scripts (simplest, works with any package 
   - `saveas` prompts the browser download dialog
 - Downloads land in `/root/Downloads` as `resumes_<type>_<date>_<id>.*`.
 
+## Auto Search (URL Keyword)
+- Enable via URL: `?keyword=<search term>`
+- Supports: Simplified Chinese, Traditional Chinese, English, mixed
+- Combined example: `?keyword=python&tr_auto_export=csv`
+- Data attributes set on `<html>`:
+  - `data-tr-auto-search` = "done" or "skipped"
+  - `data-tr-search-keyword` = the keyword used
+- Order: auto-search runs before auto-export.
+
 ## Unique IDs (dedupe support)
 - The extension captures API rows to include `resumeId` and `perUserId` in exports.
 - If IDs are missing:

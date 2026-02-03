@@ -191,6 +191,31 @@ https://hr.job5156.com/search?tr_auto_export=raw,raw_json,page
 https://hr.job5156.com/search?tr_auto_export=md,raw_json
 ```
 
+### Auto Search (URL Keyword)
+
+The extension can automatically perform a search when you open a URL with a `keyword` parameter.
+
+Usage:
+
+```text
+https://hr.job5156.com/search?keyword=python
+https://hr.job5156.com/search?keyword=车床销售
+https://hr.job5156.com/search?keyword=销售经理
+```
+
+Supported characters:
+- Simplified Chinese (简体中文): `?keyword=软件工程师`
+- Traditional Chinese (繁體中文): `?keyword=軟體工程師`
+- English: `?keyword=python`
+- Mixed: `?keyword=Python开发`
+
+Combine with auto-export for end-to-end workflows:
+
+```text
+https://hr.job5156.com/search?keyword=python&tr_auto_export=csv
+https://hr.job5156.com/search?keyword=车床销售&tr_auto_export=md,rawjson
+```
+
 ## Files
 
 - `manifest.json` - Extension configuration (Manifest v3)
