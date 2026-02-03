@@ -7,6 +7,7 @@
   "nav": {
     "home": "Home",
     "trends": "Trends",
+    "resumes": "Resumes",
     "search": "Search",
     "settings": "Settings"
   },
@@ -30,6 +31,39 @@
     "noResults": "No results found",
     "results": "Search Results",
     "resultsCount": "Found {{count}} results"
+  },
+  "resumes": {
+    "title": "Resume Search Results",
+    "subtitle": "Sample data (dev mode)",
+    "tableTitle": "Candidate List",
+    "refresh": "Refresh",
+    "searchPlaceholder": "Search name or job intention...",
+    "searchButton": "Search",
+    "summary": "Sample {{sample}} · Showing {{returned}} / {{total}}",
+    "empty": "No resume data available",
+    "loading": "Loading...",
+    "error": "Failed to load",
+    "columns": {
+      "select": "Select",
+      "name": "Name",
+      "age": "Age",
+      "experience": "Exp",
+      "education": "Education",
+      "location": "Location",
+      "salary": "Salary",
+      "intention": "Intention",
+      "activity": "Activity",
+      "actions": "Actions"
+    },
+    "actions": {
+      "view": "View"
+    },
+    "detail": {
+      "title": "Resume Details",
+      "workHistory": "Work History",
+      "profileLink": "View profile",
+      "close": "Close"
+    }
   },
   "platforms": {
     "zhihu": "Zhihu",

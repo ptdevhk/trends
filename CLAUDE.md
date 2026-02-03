@@ -236,8 +236,8 @@ Key subsystems:
 FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/server.py`. Tool implementations live in `mcp_server/tools/` with supporting services in `mcp_server/services/`.
 
 #### Web Stack (`apps/`)
-- **BFF API (`apps/api/`)**: Hono (TypeScript). Routes in `apps/api/src/routes/`, Zod/OpenAPI schemas in `apps/api/src/schemas/`, data access in `apps/api/src/services/` (direct SQLite reads).
-- **Frontend (`apps/web/`)**: React (Vite + shadcn-ui + Tailwind). UI components in `apps/web/src/components/`.
+- **BFF API (`apps/api/`)**: Hono (TypeScript). Routes in `apps/api/src/routes/`, Zod/OpenAPI schemas in `apps/api/src/schemas/`, data access in `apps/api/src/services/` (direct SQLite reads + resume JSON samples).
+- **Frontend (`apps/web/`)**: React (Vite + shadcn-ui + Tailwind). Routes: `/resumes` (default), `/trends`. UI components in `apps/web/src/components/`.
 - **Worker (`apps/worker/`)**: FastAPI scheduler + optional REST endpoints (see `apps/worker/api.py`).
 - **Browser Extension (`apps/browser-extension/`)**: Chrome/Edge extension for resume extraction from hr.job5156.com. Scripts in `apps/browser-extension/scripts/`.
 
@@ -263,6 +263,7 @@ FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/
                                      │
                     ┌────────────────▼────────────────┐
                     │   output/*.db (SQLite)          │
+                    │   output/resumes/samples/*.json │
                     └────────────────┬────────────────┘
                                      │
                     ┌────────────────▼────────────────┐
@@ -509,9 +510,27 @@ uv run python -m mcp_server.server --transport http --port 3333
 npx @modelcontextprotocol/inspector
 ```
 
-### Resume Screening Extension (Coming Soon)
+### Resume Screening Extension (Sample Data)
 
-Endpoints for the Resume Screening system will be documented here as they are implemented.
+#### BFF Endpoints (Hono - port 3000)
+
+**List resume samples:**
+```bash
+curl "http://localhost:3000/api/resumes/samples"
+```
+→ `{"success":true,"samples":[{"name":"sample-initial","filename":"sample-initial.json","updatedAt":"...","size":12345}]}`
+
+**Get resumes (latest sample):**
+```bash
+curl "http://localhost:3000/api/resumes"
+```
+→ `{"success":true,"sample":{"name":"sample-initial"},"summary":{"total":25,"returned":25},"data":[{"name":"...","jobIntention":"..."}]}`
+
+**Get resumes (specific sample + search):**
+```bash
+curl "http://localhost:3000/api/resumes?sample=sample-initial&q=sales&limit=20"
+```
+→ `{"success":true,"summary":{"total":5,"returned":5},"data":[{"name":"...","jobIntention":"Sales Manager"}]}`
 
 ## Code Conventions
 
