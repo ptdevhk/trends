@@ -13,10 +13,13 @@ const SELECTORS = {
   topRow: '.list-content__li__up-block',
   workHistory: '.list-content__li__down-right-center',
   pagination: '.el-pagination',
-  nextPageBtn: '.el-pagination .btn-next'
+  nextPageBtn: '.el-pagination .btn-next',
+  searchInput: '.el-autocomplete input.el-input__inner',
+  searchButton: '.resume-search-item-search-input-block__input-button'
 };
 
 const AUTO_EXPORT_PARAM = 'tr_auto_export';
+const AUTO_SEARCH_PARAM = 'keyword';
 let autoExportTriggered = false;
 const API_CAPTURE_SOURCE = 'tr-resume-api';
 
@@ -513,6 +516,99 @@ function waitForApiRows({ timeoutMs = 5000, minCount = 1 } = {}) {
   });
 }
 
+function waitForSearchElements({ timeoutMs = 8000 } = {}) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const deadline = Date.now() + timeoutMs;
+
+    const check = () => {
+      if (done) return;
+      const input = document.querySelector(SELECTORS.searchInput);
+      const button = document.querySelector(SELECTORS.searchButton);
+      if (input && button) {
+        done = true;
+        cleanup();
+        resolve({ input, button });
+      } else if (Date.now() > deadline) {
+        done = true;
+        cleanup();
+        reject(new Error('Timed out waiting for search controls'));
+      }
+    };
+
+    const cleanup = () => {
+      clearInterval(intervalId);
+      observer.disconnect();
+    };
+
+    const intervalId = setInterval(check, 300);
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true });
+    check();
+  });
+}
+
+function setAutoSearchAttributes(status, keyword) {
+  try {
+    document.documentElement.setAttribute('data-tr-auto-search', status);
+    if (keyword) {
+      document.documentElement.setAttribute('data-tr-search-keyword', keyword);
+    } else {
+      document.documentElement.removeAttribute('data-tr-search-keyword');
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function setInputValue(input, value) {
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  if (descriptor?.set) {
+    descriptor.set.call(input, value);
+  } else {
+    input.value = value;
+  }
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+async function autoSearchFromUrl() {
+  const params = new URLSearchParams(window.location.search || '');
+  const keyword = (params.get(AUTO_SEARCH_PARAM) || '').trim();
+  if (!keyword) {
+    setAutoSearchAttributes('skipped', '');
+    return;
+  }
+
+  let input;
+  let button;
+  try {
+    ({ input, button } = await waitForSearchElements());
+  } catch (error) {
+    console.warn('🎯 [Auto Search] Search controls not ready:', error);
+    setAutoSearchAttributes('skipped', keyword);
+    return;
+  }
+
+  const currentValue = (input.value || '').trim();
+  if (currentValue === keyword) {
+    setAutoSearchAttributes('skipped', keyword);
+    return;
+  }
+
+  console.log('🎯 [Auto Search] Searching for:', keyword);
+  setInputValue(input, keyword);
+  button.click();
+  setAutoSearchAttributes('done', keyword);
+
+  try {
+    const count = await waitForResumeCards({});
+    console.log('🎯 [Auto Search] Done, found', count, 'results');
+  } catch (error) {
+    console.warn('🎯 [Auto Search] Search triggered, waiting for results timed out:', error);
+  }
+}
+
 async function runAutoExportIfEnabled() {
   if (autoExportTriggered) return;
   const config = getAutoExportConfig();
@@ -634,4 +730,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 console.log('🎯 智通直聘 Resume Collector loaded');
 installApiHook();
 installReloadHelper();
-runAutoExportIfEnabled();
+autoSearchFromUrl()
+  .catch((error) => console.warn('🎯 [Auto Search] Failed:', error))
+  .finally(() => {
+    runAutoExportIfEnabled();
+  });
