@@ -444,7 +444,7 @@
 
     "chownr": ["chownr@1.1.4", "", {}, "sha512-jJ0bqzaylmJtVnNgzTeSOs8DPavpbYgEr/b0YL8/2GO3xJEhInFmhKMUnEJQjZumK7KXGFhUy89PrsJWlakBVg=="],
 
-    "chrome-types": ["chrome-types@0.1.414", "", {}, "sha512-JHVGPl3bwCduuzfTRhsDxVbIDw8RdYVzv9xMOSc7Hr1DPgvmxAbTrcpO6si1SFDCAPcQDhS2EfCbsqy9ZOCzbA=="],
+    "chrome-types": ["chrome-types@0.1.415", "", {}, "sha512-8xoikSoWsppCbGTKsJ6n8V6sJIMNBCIWcnmomrpfLNuZ3MOFZ9Zk2RFtGaKc7MCV+ct82jPJuPYSbfwbbyzuLw=="],
 
     "class-variance-authority": ["class-variance-authority@0.7.1", "", { "dependencies": { "clsx": "^2.1.1" } }, "sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg=="],
 

@@ -56,7 +56,7 @@ export const ResumesQuerySchema = z.object({
     .optional()
     .openapi({
       param: { name: "limit", in: "query" },
-      example: "50",
+      example: 50,
     }),
 });
 

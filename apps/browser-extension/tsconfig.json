@@ -8,7 +8,8 @@
     "noEmit": true,
     "strict": false,
     "skipLibCheck": true,
-    "types": ["chrome-types"]
+    "types": ["chrome-types"],
+    "typeRoots": ["./node_modules", "../../node_modules"]
   },
   "include": ["*.js"]
 }

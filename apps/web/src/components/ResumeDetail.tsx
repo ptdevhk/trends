@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import type { ResumeItem } from '@/hooks/useResumes'
 
 interface ResumeDetailProps {
@@ -89,11 +89,14 @@ export function ResumeDetail({ resume, open, onOpenChange }: ResumeDetailProps) 
 
         <DialogFooter className="gap-2">
           {resume.profileUrl ? (
-            <Button asChild>
-              <a href={resume.profileUrl} target="_blank" rel="noreferrer">
-                {t('resumes.detail.profileLink')}
-              </a>
-            </Button>
+            <a
+              className={buttonVariants()}
+              href={resume.profileUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t('resumes.detail.profileLink')}
+            </a>
           ) : null}
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             {t('resumes.detail.close')}
