@@ -7,6 +7,7 @@
   "nav": {
     "home": "首页",
     "trends": "热点",
+    "resumes": "简历",
     "search": "搜索",
     "settings": "设置"
   },
@@ -30,6 +31,39 @@
     "noResults": "未找到相关结果",
     "results": "搜索结果",
     "resultsCount": "找到 {{count}} 条结果"
+  },
+  "resumes": {
+    "title": "简历搜索结果",
+    "subtitle": "样本数据（开发模式）",
+    "tableTitle": "候选人列表",
+    "refresh": "刷新",
+    "searchPlaceholder": "搜索姓名或求职意向...",
+    "searchButton": "搜索",
+    "summary": "样本 {{sample}} · 显示 {{returned}} / {{total}} 条",
+    "empty": "暂无简历数据",
+    "loading": "加载中...",
+    "error": "加载失败",
+    "columns": {
+      "select": "选择",
+      "name": "姓名",
+      "age": "年龄",
+      "experience": "经验",
+      "education": "学历",
+      "location": "所在地",
+      "salary": "薪资",
+      "intention": "求职意向",
+      "activity": "活跃",
+      "actions": "操作"
+    },
+    "actions": {
+      "view": "查看"
+    },
+    "detail": {
+      "title": "简历详情",
+      "workHistory": "工作经历",
+      "profileLink": "查看原始简历",
+      "close": "关闭"
+    }
   },
   "platforms": {
     "zhihu": "知乎",

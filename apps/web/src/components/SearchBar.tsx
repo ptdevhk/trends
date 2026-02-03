@@ -8,9 +8,11 @@ interface SearchBarProps {
   onSearch: (keyword: string) => void
   onClear: () => void
   loading?: boolean
+  placeholder?: string
+  buttonLabel?: string
 }
 
-export function SearchBar({ onSearch, onClear, loading }: SearchBarProps) {
+export function SearchBar({ onSearch, onClear, loading, placeholder, buttonLabel }: SearchBarProps) {
   const { t } = useTranslation()
   const [keyword, setKeyword] = useState('')
 
@@ -35,7 +37,7 @@ export function SearchBar({ onSearch, onClear, loading }: SearchBarProps) {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           type="text"
-          placeholder={t('search.placeholder')}
+          placeholder={placeholder ?? t('search.placeholder')}
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           className="pl-9 pr-9"
@@ -51,7 +53,7 @@ export function SearchBar({ onSearch, onClear, loading }: SearchBarProps) {
         )}
       </div>
       <Button type="submit" disabled={loading || !keyword.trim()}>
-        {t('search.button')}
+        {buttonLabel ?? t('search.button')}
       </Button>
     </form>
   )

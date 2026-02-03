@@ -1,0 +1,65 @@
+[
+  {
+    "name": "Alex Chen",
+    "profileUrl": "https://hr.job5156.com/resume/123456",
+    "activityStatus": "Active today",
+    "age": "28",
+    "experience": "5 years",
+    "education": "Bachelor",
+    "location": "Shenzhen",
+    "jobIntention": "Sales Manager",
+    "expectedSalary": "10-15K",
+    "workHistory": [
+      {
+        "raw": "2021-03 ~ 2024-12 Example Tech Co. - Sales Manager"
+      },
+      {
+        "raw": "2018-06 ~ 2021-02 Example Trading Co. - Account Executive"
+      }
+    ],
+    "extractedAt": "2026-02-03T10:00:00.000Z",
+    "resumeId": "R123456",
+    "perUserId": "U987654"
+  },
+  {
+    "name": "Jamie Lee",
+    "profileUrl": "https://hr.job5156.com/resume/234567",
+    "activityStatus": "Active this week",
+    "age": "32",
+    "experience": "8 years",
+    "education": "Master",
+    "location": "Guangzhou",
+    "jobIntention": "Channel Sales Lead",
+    "expectedSalary": "18-22K",
+    "workHistory": [
+      {
+        "raw": "2019-01 ~ 2025-01 Bright Retail Group - Regional Sales Lead"
+      },
+      {
+        "raw": "2016-07 ~ 2018-12 Horizon Market Co. - Sales Supervisor"
+      }
+    ],
+    "extractedAt": "2026-02-03T10:05:00.000Z",
+    "resumeId": "R234567",
+    "perUserId": "U876543"
+  },
+  {
+    "name": "Morgan Wu",
+    "profileUrl": "https://hr.job5156.com/resume/345678",
+    "activityStatus": "Active 3 days ago",
+    "age": "26",
+    "experience": "3 years",
+    "education": "Associate",
+    "location": "Dongguan",
+    "jobIntention": "Sales Representative",
+    "expectedSalary": "8-10K",
+    "workHistory": [
+      {
+        "raw": "2022-02 ~ 2025-01 North Star Logistics - Sales Representative"
+      }
+    ],
+    "extractedAt": "2026-02-03T10:10:00.000Z",
+    "resumeId": "R345678",
+    "perUserId": "U765432"
+  }
+]

@@ -41,6 +41,12 @@ env/
 
 # Project Specific
 output/
+# Keep resume sample data tracked for fast dev
+!output/
+output/*
+!output/resumes/
+!output/resumes/samples/
+!output/resumes/samples/**
 # Logs
 *.log
 logs/

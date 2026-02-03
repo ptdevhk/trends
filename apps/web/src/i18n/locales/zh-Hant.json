@@ -7,6 +7,7 @@
   "nav": {
     "home": "首頁",
     "trends": "熱點",
+    "resumes": "簡歷",
     "search": "搜尋",
     "settings": "設定"
   },
@@ -30,6 +31,39 @@
     "noResults": "未找到相關結果",
     "results": "搜尋結果",
     "resultsCount": "找到 {{count}} 條結果"
+  },
+  "resumes": {
+    "title": "簡歷搜尋結果",
+    "subtitle": "樣本數據（開發模式）",
+    "tableTitle": "候選人列表",
+    "refresh": "刷新",
+    "searchPlaceholder": "搜尋姓名或求職意向...",
+    "searchButton": "搜尋",
+    "summary": "樣本 {{sample}} · 顯示 {{returned}} / {{total}} 筆",
+    "empty": "暫無簡歷數據",
+    "loading": "載入中...",
+    "error": "載入失敗",
+    "columns": {
+      "select": "選擇",
+      "name": "姓名",
+      "age": "年齡",
+      "experience": "經驗",
+      "education": "學歷",
+      "location": "所在地",
+      "salary": "薪資",
+      "intention": "求職意向",
+      "activity": "活躍",
+      "actions": "操作"
+    },
+    "actions": {
+      "view": "查看"
+    },
+    "detail": {
+      "title": "簡歷詳情",
+      "workHistory": "工作經歷",
+      "profileLink": "查看原始簡歷",
+      "close": "關閉"
+    }
   },
   "platforms": {
     "zhihu": "知乎",

@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { prettyJSON } from "hono/pretty-json";
 
-import { healthRoutes, trendsRoutes, topicsRoutes, searchRoutes, rssRoutes } from "./routes/index.js";
+import { healthRoutes, trendsRoutes, topicsRoutes, searchRoutes, rssRoutes, resumesRoutes } from "./routes/index.js";
 import { config } from "./services/config.js";
 
 // Create main app
@@ -21,6 +21,7 @@ app.route("/", trendsRoutes);
 app.route("/", topicsRoutes);
 app.route("/", searchRoutes);
 app.route("/", rssRoutes);
+app.route("/", resumesRoutes);
 
 // OpenAPI documentation endpoint
 app.doc("/doc", {
@@ -36,6 +37,7 @@ app.doc("/doc", {
     { name: "topics", description: "Trending topics aggregation" },
     { name: "search", description: "Search functionality" },
     { name: "rss", description: "RSS feed data" },
+    { name: "resumes", description: "Resume sample data" },
   ],
 });
 
@@ -63,6 +65,8 @@ app.get("/", (c) => {
       topics: "/api/topics",
       search: "/api/search",
       rss: "/api/rss",
+      resumes: "/api/resumes",
+      resume_samples: "/api/resumes/samples",
     },
   });
 });

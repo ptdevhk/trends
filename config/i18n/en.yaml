@@ -196,6 +196,7 @@ ui:
   navigation:
     home: "Home"
     trends: "Trends"
+    resumes: "Resumes"
     analysis: "Analysis"
     settings: "Settings"
     about: "About"
@@ -211,6 +212,42 @@ ui:
     search: "Search trends..."
     select_platform: "Select platform"
     select_date: "Select date"
+
+# ===============================================================
+# Resume Samples (Web)
+# ===============================================================
+resumes:
+  title: "Resume Search Results"
+  subtitle: "Sample data (dev mode)"
+  table_title: "Candidate List"
+  refresh: "Refresh"
+  search_placeholder: "Search name or job intention..."
+  search_button: "Search"
+  summary: "Sample {sample} · Showing {returned} / {total}"
+  empty: "No resume data available"
+  loading: "Loading..."
+  error: "Failed to load"
+
+  columns:
+    select: "Select"
+    name: "Name"
+    age: "Age"
+    experience: "Experience"
+    education: "Education"
+    location: "Location"
+    salary: "Salary"
+    intention: "Intention"
+    activity: "Activity"
+    actions: "Actions"
+
+  actions:
+    view: "View"
+
+  detail:
+    title: "Resume Details"
+    work_history: "Work History"
+    profile_link: "View profile"
+    close: "Close"
 
 # ===============================================================
 # MCP Server Related

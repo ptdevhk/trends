@@ -186,6 +186,7 @@ ui:
   navigation:
     home: 首页
     trends: 热点
+    resumes: 简历
     analysis: 分析
     settings: 设置
     about: 关于
@@ -199,6 +200,42 @@ ui:
     search: 搜索热点...
     select_platform: 选择平台
     select_date: 选择日期
+
+# ===============================================================
+# 简历样本（Web）
+# ===============================================================
+resumes:
+  title: 简历搜索结果
+  subtitle: 样本数据（开发模式）
+  table_title: 候选人列表
+  refresh: 刷新
+  search_placeholder: 搜索姓名或求职意向...
+  search_button: 搜索
+  summary: 样本 {sample} · 显示 {returned} / {total} 条
+  empty: 暂无简历数据
+  loading: 加载中...
+  error: 加载失败
+
+  columns:
+    select: 选择
+    name: 姓名
+    age: 年龄
+    experience: 经验
+    education: 学历
+    location: 所在地
+    salary: 薪资
+    intention: 求职意向
+    activity: 活跃
+    actions: 操作
+
+  actions:
+    view: 查看
+
+  detail:
+    title: 简历详情
+    work_history: 工作经历
+    profile_link: 查看原始简历
+    close: 关闭
 
 # ===============================================================
 # MCP Server 相关
