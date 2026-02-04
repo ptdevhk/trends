@@ -6,7 +6,21 @@ import { DataNotFoundError, FileParseError } from "./errors.js";
 
 import type { ResumeItem, ResumeSampleFile, ResumeWorkHistoryItem } from "../types/resume.js";
 
-type ResumePayload = ResumeItem[] | { data?: ResumeItem[]; resumes?: ResumeItem[] };
+type ResumeMetadata = {
+  sourceUrl?: string;
+  searchCriteria?: {
+    keyword?: string;
+    location?: string;
+    filters?: Record<string, string>;
+  };
+  generatedAt?: string;
+  generatedBy?: string;
+  totalPages?: number;
+  totalResumes?: number;
+  reproduction?: string;
+};
+
+type ResumePayload = ResumeItem[] | { data?: ResumeItem[]; resumes?: ResumeItem[]; metadata?: ResumeMetadata };
 
 function toStringValue(value: unknown): string {
   if (typeof value === "string") return value.trim();
@@ -103,7 +117,7 @@ export class ResumeService {
     return entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
-  loadSample(name?: string): { items: ResumeItem[]; sample: ResumeSampleFile } {
+  loadSample(name?: string): { items: ResumeItem[]; sample: ResumeSampleFile; metadata?: ResumeMetadata } {
     const samplesDir = this.getSamplesDir();
     const samples = this.listSampleFiles();
 
@@ -134,7 +148,13 @@ export class ResumeService {
     }
 
     const items = normalizePayload(parsed, filePath);
-    return { items, sample };
+    const metadata = !Array.isArray(parsed) && parsed ? parsed.metadata : undefined;
+    const resolvedMetadata = metadata ?? {
+      generatedAt: sample.updatedAt,
+      generatedBy: "legacy-sample",
+      totalResumes: items.length,
+    };
+    return { items, sample, metadata: resolvedMetadata };
   }
 
   searchResumes(items: ResumeItem[], query?: string): ResumeItem[] {

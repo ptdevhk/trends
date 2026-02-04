@@ -5,7 +5,8 @@
         check-python check-node check-build \
         test test-python test-node \
         build-static build-static-fresh serve-static \
-        i18n-check i18n-sync i18n-convert i18n-translate i18n-build
+        i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
+        refresh-sample
 
 # Default target
 .DEFAULT_GOAL := help
@@ -175,6 +176,16 @@ fetch-docs:
 # Utilities
 # =============================================================================
 
+# Show instructions for refreshing resume sample data
+refresh-sample:
+	@echo "=== Refresh Resume Sample Data ==="
+	@echo "1. Log into https://hr.job5156.com in Chrome (extension installed)"
+	@echo "2. Navigate to this URL:"
+	@echo "   https://hr.job5156.com/search?keyword=销售&tr_auto_export=json&tr_sample_name=sample-initial"
+	@echo "3. Copy downloaded file to: output/resumes/samples/"
+	@echo ""
+	@echo "The exported file includes metadata for reproduction."
+
 # Remove generated/cached files
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
@@ -286,6 +297,7 @@ help:
 	@echo "  fetch-docs     Fetch latest upstream documentation"
 	@echo ""
 	@echo "Utilities:"
+	@echo "  refresh-sample Show instructions for refreshing resume sample data"
 	@echo "  clean          Remove generated/cached files"
 	@echo "  check          Run validation checks (Python + Node)"
 	@echo "  check-python   Run Python checks only"

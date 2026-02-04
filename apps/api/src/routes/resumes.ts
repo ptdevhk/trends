@@ -64,13 +64,14 @@ app.openapi(getResumesRoute, (c) => {
   const keyword = q?.trim() || undefined;
 
   try {
-    const { items, sample: sampleInfo } = resumeService.loadSample(sampleName);
+    const { items, sample: sampleInfo, metadata } = resumeService.loadSample(sampleName);
     const filtered = resumeService.searchResumes(items, keyword);
     const limited = typeof limit === "number" ? filtered.slice(0, limit) : filtered;
 
     return c.json({
       success: true as const,
       sample: sampleInfo,
+      metadata: metadata ?? undefined,
       summary: {
         total: filtered.length,
         returned: limited.length,
