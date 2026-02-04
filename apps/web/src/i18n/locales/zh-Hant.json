@@ -58,6 +58,13 @@
     "actions": {
       "view": "查看"
     },
+    "card": {
+      "selectAll": "全選",
+      "selectedCount": "已選 {{count}} 筆",
+      "intentionEmpty": "未填寫求職意向",
+      "salaryNegotiable": "薪資面議",
+      "activityStale": "較久未活躍"
+    },
     "detail": {
       "title": "簡歷詳情",
       "workHistory": "工作經歷",

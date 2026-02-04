@@ -58,6 +58,13 @@
     "actions": {
       "view": "查看"
     },
+    "card": {
+      "selectAll": "全选",
+      "selectedCount": "已选 {{count}} 笔",
+      "intentionEmpty": "未填写求职意向",
+      "salaryNegotiable": "薪资面议",
+      "activityStale": "较久未活跃"
+    },
     "detail": {
       "title": "简历详情",
       "workHistory": "工作经历",

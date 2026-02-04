@@ -248,6 +248,13 @@ resumes:
   actions:
     view: "查看"
 
+  card:
+    select_all: "全選"
+    selected_count: "已選 {count} 筆"
+    intention_empty: "未填寫求職意向"
+    salary_negotiable: "薪資面議"
+    activity_stale: "較久未活躍"
+
   detail:
     title: "簡歷詳情"
     work_history: "工作經歷"

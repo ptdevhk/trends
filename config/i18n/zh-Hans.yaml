@@ -231,6 +231,13 @@ resumes:
   actions:
     view: 查看
 
+  card:
+    select_all: 全选
+    selected_count: 已选 {count} 笔
+    intention_empty: 未填写求职意向
+    salary_negotiable: 薪资面议
+    activity_stale: 较久未活跃
+
   detail:
     title: 简历详情
     work_history: 工作经历

@@ -243,6 +243,13 @@ resumes:
   actions:
     view: "View"
 
+  card:
+    select_all: "Select all"
+    selected_count: "Selected {count}"
+    intention_empty: "Job intention not provided"
+    salary_negotiable: "Salary negotiable"
+    activity_stale: "Not active recently"
+
   detail:
     title: "Resume Details"
     work_history: "Work History"

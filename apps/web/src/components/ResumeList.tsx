@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
-import { ResumeTable } from '@/components/ResumeTable'
+import { ResumeCardList } from '@/components/ResumeCardList'
 import { ResumeDetail } from '@/components/ResumeDetail'
 import { SearchBar } from '@/components/SearchBar'
 import { Button } from '@/components/ui/button'
@@ -102,21 +102,21 @@ export function ResumeList() {
           <CardTitle className="text-lg font-semibold">{t('resumes.tableTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="py-10 text-center text-sm text-muted-foreground">
-              {t('resumes.loading')}
-            </div>
-          ) : error ? (
+          {error ? (
             <div className="py-10 text-center">
               <p className="text-sm text-destructive">{t('resumes.error')}</p>
               <p className="text-xs text-muted-foreground mt-1">{error}</p>
             </div>
-          ) : resumes.length === 0 ? (
+          ) : !loading && resumes.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
               {t('resumes.empty')}
             </div>
           ) : (
-            <ResumeTable items={resumes} onViewDetails={setDetailResume} />
+            <ResumeCardList
+              items={resumes}
+              loading={loading}
+              onViewDetails={setDetailResume}
+            />
           )}
         </CardContent>
       </Card>

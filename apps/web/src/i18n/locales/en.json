@@ -58,6 +58,13 @@
     "actions": {
       "view": "View"
     },
+    "card": {
+      "selectAll": "Select all",
+      "selectedCount": "Selected {{count}}",
+      "intentionEmpty": "Job intention not provided",
+      "salaryNegotiable": "Salary negotiable",
+      "activityStale": "Not active recently"
+    },
     "detail": {
       "title": "Resume Details",
       "workHistory": "Work History",
