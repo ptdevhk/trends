@@ -180,6 +180,7 @@ fetch-docs:
 refresh-sample:
 	@KEYWORD="$(or $(KEYWORD),销售)" SAMPLE="$(or $(SAMPLE),sample-initial)" \
 	CDP_PORT="$(or $(CDP_PORT),9222)" \
+	ALLOW_EMPTY="$(ALLOW_EMPTY)" \
 	./scripts/refresh-sample.sh
 
 # Show instructions for refreshing resume sample data
@@ -321,3 +322,5 @@ help:
 	@echo "  WORKER_PORT    FastAPI worker port (default: 8000)"
 	@echo "  API_PORT       BFF API port (default: 3000)"
 	@echo "  WEB_PORT       Web frontend port (default: 5173)"
+	@echo "  CDP_PORT       Chrome DevTools port (default: 9222)"
+	@echo "  ALLOW_EMPTY    Allow empty resume samples (set to 1)"

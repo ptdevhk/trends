@@ -65,6 +65,7 @@ The project uses CDP to automate sample refreshes:
 ```bash
 make refresh-sample                          # Default: 销售 -> sample-initial.json
 make refresh-sample KEYWORD=python SAMPLE=sample-python
+make refresh-sample ALLOW_EMPTY=1            # Allow saving empty sample
 ```
 
 CDP reads from the content script accessor:

@@ -163,6 +163,7 @@ Resume sample files in `output/resumes/samples/` include provenance metadata for
 make refresh-sample                          # Default: 销售 -> sample-initial.json
 make refresh-sample KEYWORD=python           # Custom keyword
 make refresh-sample KEYWORD=python SAMPLE=sample-python
+make refresh-sample ALLOW_EMPTY=1            # Allow saving empty sample
 ```
 Chrome must be running with remote debugging enabled and the extension installed/enabled.
 Manual fallback: `make refresh-sample-manual`.

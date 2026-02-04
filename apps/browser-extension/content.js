@@ -825,12 +825,18 @@ function installExternalAccessor() {
       isLoggedIn: () => isLoggedIn(),
       status: () => {
         const pagination = getPaginationInfo();
+        const cardCount = document.querySelectorAll(SELECTORS.resumeCard).length;
+        const autoSearch = document.documentElement.getAttribute('data-tr-auto-search') || '';
+        const autoExport = document.documentElement.getAttribute('data-tr-auto-export') || '';
         return {
           extensionLoaded: true,
           extensionVersion: version,
           apiSnapshotCount: Array.isArray(apiSnapshot.searchRows) ? apiSnapshot.searchRows.length : 0,
           domReady: document.querySelector(SELECTORS.listContainer) !== null,
           loggedIn: isLoggedIn(),
+          cardCount,
+          autoSearch,
+          autoExport,
           pagination,
           timestamp: new Date().toISOString()
         };

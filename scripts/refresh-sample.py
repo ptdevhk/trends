@@ -246,6 +246,11 @@ async def run():
     parser.add_argument("--keyword", default=DEFAULT_KEYWORD, help="Search keyword")
     parser.add_argument("--sample", default=DEFAULT_SAMPLE, help="Sample file name")
     parser.add_argument("--port", type=int, default=CDP_PORT, help="CDP port")
+    parser.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="Allow writing an empty sample (default: fail when zero resumes)",
+    )
     args = parser.parse_args()
 
     sample_name = sanitize_sample_name(args.sample)
@@ -328,7 +333,33 @@ async def run():
             context_id=context_id,
         )
 
-        await asyncio.sleep(1.0)
+        async def wait_for_results(timeout: float = 45.0):
+            start = time.time()
+            last = None
+            while time.time() - start < timeout:
+                last = await eval_json(
+                    client,
+                    "window.__TR_RESUME_DATA__ ? window.__TR_RESUME_DATA__.status() : null",
+                    context_id=context_id,
+                )
+                if last:
+                    pagination = last.get("pagination") or {}
+                    counts = [
+                        int(last.get("cardCount") or 0),
+                        int(last.get("apiSnapshotCount") or 0),
+                        int(pagination.get("totalItems") or 0),
+                    ]
+                    if max(counts) > 0:
+                        return last
+                    auto_search = (last.get("autoSearch") or "").lower()
+                    if auto_search in ("done", "skipped") and time.time() - start > 5:
+                        break
+                await asyncio.sleep(0.8)
+            return last
+
+        status = await wait_for_results()
+
+        await asyncio.sleep(0.5)
 
         resumes = await eval_json(
             client,
@@ -338,6 +369,10 @@ async def run():
 
         if not isinstance(resumes, list):
             raise CDPError("Failed to extract resume data from the page.")
+        if not resumes and not args.allow_empty:
+            raise CDPError(
+                "No resumes extracted. Ensure you are logged in and results are loaded."
+            )
 
         status = await eval_json(
             client,
