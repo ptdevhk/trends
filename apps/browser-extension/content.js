@@ -7,11 +7,15 @@
 const SELECTORS = {
   listContainer: '.el-checkbox-group.resume-search-item-list-content-block',
   resumeCard: '.list-content__li_part',
-  name: 'a.name',
+  name: '.item-title-part1 a.name, a.name',
   activityStatus: '.date-type-diff-text-block',
-  basicInfoRow: '.list-content__li__down-left-center',
+  basicInfoRow: '.basic-line',
+  basicInfoItem: '.basic-line__text',
+  selfIntro: '.basic-keywords',
   topRow: '.list-content__li__up-block',
-  workHistory: '.list-content__li__down-right-center',
+  topRowText: '.up-block__look-text',
+  workHistory: '.work-block',
+  workItem: '.work-item, .school-item',
   pagination: '.el-pagination',
   nextPageBtn: '.el-pagination .btn-next',
   searchInput: '.el-autocomplete input.el-input__inner',
@@ -193,58 +197,95 @@ window.addEventListener('message', (event) => {
  * @returns {Object} - Extracted resume data
  */
 function extractSingleResume(card) {
-  const getText = (selector) => {
-    const el = card.querySelector(selector);
+  const getText = (selector, root = card) => {
+    const el = root.querySelector(selector);
     return el ? el.textContent.trim() : '';
   };
 
-  const getLink = (selector) => {
-    const el = card.querySelector(selector);
+  const getLink = (selector, root = card) => {
+    const el = root.querySelector(selector);
     return el ? el.href : '';
   };
 
+  const pickText = (selectors) => {
+    for (const selector of selectors) {
+      const text = getText(selector);
+      if (text) return text;
+    }
+    return '';
+  };
+
   // Extract basic info (age, experience, education, location)
-  const basicInfoContainer = card.querySelector(SELECTORS.basicInfoRow);
+  const basicInfoContainer = card.querySelector(SELECTORS.basicInfoRow)
+    || card.querySelector('.list-content__li__down-left-center');
   const basicInfoSpans = basicInfoContainer
-    ? basicInfoContainer.querySelectorAll('div:nth-child(2) span, .basic-line span')
+    ? basicInfoContainer.querySelectorAll(
+      `${SELECTORS.basicInfoItem}, div:nth-child(2) span, .basic-line span`
+    )
     : [];
 
-  const basicInfo = Array.from(basicInfoSpans).map(s => s.textContent.trim()).filter(Boolean);
+  const basicInfo = Array.from(basicInfoSpans)
+    .map((span) => span.textContent.trim())
+    .filter(Boolean);
 
-  // Parse basic info - typical format: ["37岁", "12年", "初中及以下", "东莞万江区"]
-  let age = '', experience = '', education = '', location = '';
-  basicInfo.forEach(item => {
-    if (item.includes('岁')) age = item;
-    else if (item.includes('年') && !item.includes('元')) experience = item;
-    else if (item.includes('中') || item.includes('大专') || item.includes('本科') || item.includes('硕') || item.includes('博')) education = item;
-    else if (!item.includes('元')) location = item;
-  });
-
-  // Extract top row (job intention, salary)
-  const topRow = card.querySelector(SELECTORS.topRow);
-  const topRowText = topRow ? topRow.textContent.trim() : '';
-
-  // Extract salary from top row
-  let expectedSalary = '';
-  const salaryMatch = topRowText.match(/\d+-?\d*元\/月/);
-  if (salaryMatch) {
-    expectedSalary = salaryMatch[0];
+  let age = '';
+  let experience = '';
+  let education = '';
+  let location = '';
+  if (basicInfo.length >= 4) {
+    [age, experience, education, location] = basicInfo;
+  } else {
+    basicInfo.forEach((item) => {
+      if (item.includes('岁')) age = item;
+      else if (item.includes('年') && !item.includes('元')) experience = item;
+      else if (/(中专|高中|大专|本科|硕|博|研究生|MBA|EMBA)/.test(item)) education = item;
+      else if (!item.includes('元')) location = item;
+    });
   }
 
-  // Extract work history
-  const workHistoryContainer = card.querySelector(SELECTORS.workHistory);
-  const workItems = workHistoryContainer
-    ? workHistoryContainer.querySelectorAll('.flex, .work-item, div[class*="history"]')
-    : [];
+  // Extract top row (job intention, salary)
+  const topRow = card.querySelector(SELECTORS.topRowText) || card.querySelector(SELECTORS.topRow);
+  const topRowText = topRow ? topRow.textContent.trim().replace(/\s+/g, ' ') : '';
+  const topRowClean = topRowText
+    .split('人才洞察')[0]
+    .replace(/·\s*$/, '')
+    .trim();
 
-  const workHistory = [];
-  workItems.forEach(item => {
-    const text = item.textContent.trim();
-    // Parse work history entries
-    if (text && text.length > 5) {
-      workHistory.push({ raw: text });
+  let expectedSalary = '';
+  const salaryMatch = topRowClean.match(/(\d[\d-]*\s*元\/月|\d[\d-]*\s*元|面议)/);
+  if (salaryMatch) expectedSalary = salaryMatch[0].replace(/\s+/g, '');
+
+  let jobIntention = topRowClean.replace(/^求职意向[:：]?\s*/, '');
+  jobIntention = jobIntention.replace(/（通勤距离[^）]*）/g, '').trim();
+  if (expectedSalary) {
+    jobIntention = jobIntention.replace(expectedSalary, '').replace(/[·\s]+$/g, '').trim();
+  }
+
+  const selfIntro = pickText([SELECTORS.selfIntro, '.basic-keywords', '.basic-keywords span']);
+
+  // Extract work history
+  const workHistoryContainer = card.querySelector(SELECTORS.workHistory)
+    || card.querySelector('.list-content__li__down-right-center');
+  let workItems = [];
+  if (workHistoryContainer) {
+    const primary = workHistoryContainer.querySelectorAll(SELECTORS.workItem);
+    if (primary.length > 0) {
+      workItems = Array.from(primary);
+    } else {
+      workItems = Array.from(workHistoryContainer.querySelectorAll('div[class*="history"]'));
     }
-  });
+  }
+
+  const seen = new Set();
+  const workHistory = workItems
+    .map((item) => item.textContent.trim())
+    .filter((text) => text && text.length > 5)
+    .filter((text) => {
+      if (seen.has(text)) return false;
+      seen.add(text);
+      return true;
+    })
+    .map((text) => ({ raw: text }));
 
   return {
     name: getText(SELECTORS.name),
@@ -254,8 +295,9 @@ function extractSingleResume(card) {
     experience,
     education,
     location,
-    jobIntention: topRowText.split('求职意向')[1]?.split('元/月')[0]?.trim() || topRowText.substring(0, 100),
+    jobIntention,
     expectedSalary,
+    selfIntro,
     workHistory,
     extractedAt: new Date().toISOString()
   };
@@ -369,7 +411,7 @@ function rawToMarkdown(rawPayload) {
 function resumesToCSV(resumes) {
   if (resumes.length === 0) return '';
 
-  const headers = ['序号', 'resumeId', 'perUserId', '姓名', '年龄', '工作经验', '学历', '所在地', '期望薪资', '活跃状态', '求职意向', '简历链接', '提取时间'];
+  const headers = ['序号', 'resumeId', 'perUserId', '姓名', '年龄', '工作经验', '学历', '所在地', '自我评价', '期望薪资', '活跃状态', '求职意向', '简历链接', '提取时间'];
   const rows = resumes.map((r, i) => [
     i + 1,
     r.resumeId || '',
@@ -379,6 +421,7 @@ function resumesToCSV(resumes) {
     r.experience,
     r.education,
     r.location,
+    r.selfIntro,
     r.expectedSalary,
     r.activityStatus,
     r.jobIntention?.replace(/,/g, ';').substring(0, 100),

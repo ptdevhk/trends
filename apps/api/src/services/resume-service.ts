@@ -61,6 +61,7 @@ function normalizeResumeItem(item: unknown): ResumeItem {
     experience: toStringValue(record.experience),
     education: toStringValue(record.education),
     location: toStringValue(record.location),
+    selfIntro: toStringValue(record.selfIntro),
     jobIntention: toStringValue(record.jobIntention),
     expectedSalary: toStringValue(record.expectedSalary),
     workHistory: normalizeWorkHistory(record.workHistory),
