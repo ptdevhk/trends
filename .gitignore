@@ -61,3 +61,4 @@ package-lock.json
 
 # Production env
 .env.production
+/.codex/environments
