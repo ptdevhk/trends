@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
-import { ResumeTable } from '@/components/ResumeTable'
+import { ResumeCard } from '@/components/ResumeCard'
 import { ResumeDetail } from '@/components/ResumeDetail'
 import { SearchBar } from '@/components/SearchBar'
 import { Button } from '@/components/ui/button'
@@ -116,7 +116,15 @@ export function ResumeList() {
               {t('resumes.empty')}
             </div>
           ) : (
-            <ResumeTable items={resumes} onViewDetails={setDetailResume} />
+            <div className="space-y-3">
+              {resumes.map((resume, index) => (
+                <ResumeCard
+                  key={resume.resumeId || resume.perUserId || `${index}-${resume.name}`}
+                  resume={resume}
+                  onViewDetails={() => setDetailResume(resume)}
+                />
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
