@@ -10,6 +10,7 @@ export type ResumeItem = {
   experience: string;
   education: string;
   location: string;
+  selfIntro: string;
   jobIntention: string;
   expectedSalary: string;
   workHistory: ResumeWorkHistoryItem[];

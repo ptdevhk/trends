@@ -13,12 +13,14 @@ interface ResumeCardProps {
 export function ResumeCard({ resume, onViewDetails }: ResumeCardProps) {
   const { t } = useTranslation()
   const workHistory = resume.workHistory?.filter((item) => item.raw) ?? []
+  const jobIntention = (resume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
+  const selfIntro = resume.selfIntro || '--'
 
   return (
     <div className="mb-3 overflow-hidden rounded-lg border bg-card">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b bg-muted/50 px-4 py-2 text-sm">
         <span className="text-muted-foreground">求职意向</span>
-        <span className="font-medium">{resume.jobIntention || '：--'}</span>
+        <span className="font-medium">{jobIntention}</span>
         {resume.expectedSalary ? (
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
         ) : null}
@@ -62,6 +64,7 @@ export function ResumeCard({ resume, onViewDetails }: ResumeCardProps) {
             {resume.age || '--'} | {resume.experience || '--'} | {resume.education || '--'} |{' '}
             {resume.location || '--'}
           </div>
+          <div className="text-sm text-muted-foreground line-clamp-2">{selfIntro}</div>
         </div>
 
         {workHistory.length > 0 ? (

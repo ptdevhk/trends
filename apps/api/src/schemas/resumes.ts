@@ -15,6 +15,7 @@ export const ResumeItemSchema = z
     experience: z.string().openapi({ example: "5 years" }),
     education: z.string().openapi({ example: "Bachelor" }),
     location: z.string().openapi({ example: "Shenzhen" }),
+    selfIntro: z.string().openapi({ example: "认真敬业，具备团队协作精神" }),
     jobIntention: z.string().openapi({ example: "Sales Manager" }),
     expectedSalary: z.string().openapi({ example: "10-15K" }),
     workHistory: z.array(ResumeWorkHistorySchema),

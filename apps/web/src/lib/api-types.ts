@@ -474,6 +474,35 @@ export interface components {
             success: true;
             samples: components["schemas"]["ResumeSample"][];
         };
+        ResumeSearchCriteria: {
+            /** @example 销售 */
+            keyword?: string;
+            /** @example 东莞 */
+            location?: string;
+            /**
+             * @example {
+             *       "status": "active"
+             *     }
+             */
+            filters?: {
+                [key: string]: string;
+            };
+        };
+        ResumeMetadata: {
+            /** @example https://hr.job5156.com/search?keyword=销售 */
+            sourceUrl?: string;
+            searchCriteria?: components["schemas"]["ResumeSearchCriteria"];
+            /** @example 2026-02-03T09:27:52.152Z */
+            generatedAt?: string;
+            /** @example browser-extension@1.0.0 */
+            generatedBy?: string;
+            /** @example 1 */
+            totalPages?: number;
+            /** @example 20 */
+            totalResumes?: number;
+            /** @example Navigate to sourceUrl, then add ?tr_auto_export=json */
+            reproduction?: string;
+        };
         ResumeWorkHistory: {
             /** @example 2021-03 ~ 2023-08 Example Co. - Sales Manager */
             raw: string;
@@ -493,6 +522,8 @@ export interface components {
             education: string;
             /** @example Shenzhen */
             location: string;
+            /** @example 认真敬业，具备团队协作精神 */
+            selfIntro: string;
             /** @example Sales Manager */
             jobIntention: string;
             /** @example 10-15K */
@@ -509,6 +540,7 @@ export interface components {
             /** @enum {boolean} */
             success: true;
             sample?: components["schemas"]["ResumeSample"];
+            metadata?: components["schemas"]["ResumeMetadata"];
             summary?: {
                 total: number;
                 returned: number;
