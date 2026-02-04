@@ -154,6 +154,33 @@ Use `skill_match` to calculate matching score.
 Resume Sources → Gateway → Multi-Agent Pipeline → AI Screening & Matching → Push to HR → Tracking & Annotation
 ```
 
+### Sample Data Generation
+
+Resume sample files in `output/resumes/samples/` include provenance metadata for reproduction.
+
+**Quick regeneration (semi-manual):**
+1. Log into https://hr.job5156.com in Chrome (with the browser extension installed)
+2. Navigate to: `https://hr.job5156.com/search?keyword=销售&tr_auto_export=json&tr_sample_name=sample-initial`
+3. Copy the downloaded `sample-initial.json` into `output/resumes/samples/`
+
+**Sample file format:**
+```json
+{
+  "metadata": {
+    "sourceUrl": "https://hr.job5156.com/search?keyword=销售",
+    "searchCriteria": { "keyword": "销售" },
+    "generatedAt": "2026-02-03T09:27:52.152Z",
+    "reproduction": "Navigate to sourceUrl, then add ?tr_auto_export=json"
+  },
+  "data": []
+}
+```
+
+**URL Parameters:**
+- `?keyword=<term>` - Search keyword (Chinese/English)
+- `?tr_auto_export=json` - Auto-download JSON with metadata
+- `?tr_sample_name=<name>` - Custom filename (e.g., `sample-initial`)
+
 ## Common Commands
 
 ### Development

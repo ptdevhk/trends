@@ -49,6 +49,16 @@ Run from **project root** using shell scripts (simplest, works with any package 
   - `saveas` prompts the browser download dialog
 - Downloads land in `/root/Downloads` as `resumes_<type>_<date>_<id>.*`.
 
+## Sample Data Generation (for dev/testing)
+
+Generate sample files with provenance metadata for `output/resumes/samples/`:
+
+```
+https://hr.job5156.com/search?keyword=销售&tr_auto_export=json&tr_sample_name=sample-initial
+```
+
+The exported JSON includes `metadata.sourceUrl` and `metadata.searchCriteria` for reproduction.
+
 ## Auto Search (URL Keyword)
 - Enable via URL: `?keyword=<search term>`
 - Supports: Simplified Chinese, Traditional Chinese, English, mixed

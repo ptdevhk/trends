@@ -20,6 +20,7 @@ const SELECTORS = {
 
 const AUTO_EXPORT_PARAM = 'tr_auto_export';
 const AUTO_SEARCH_PARAM = 'keyword';
+const SAMPLE_NAME_PARAM = 'tr_sample_name';
 let autoExportTriggered = false;
 const API_CAPTURE_SOURCE = 'tr-resume-api';
 
@@ -32,6 +33,77 @@ const apiSnapshot = {
   lastSearchAt: null,
   lastUrl: null
 };
+
+function sanitizeSampleName(value) {
+  if (!value) return '';
+  return value
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^\.+/, '')
+    .slice(0, 80);
+}
+
+function buildExportFilename() {
+  const params = new URLSearchParams(window.location.search || '');
+  const rawSampleName = params.get(SAMPLE_NAME_PARAM) || '';
+  const sampleName = sanitizeSampleName(rawSampleName).replace(/\.json$/i, '');
+  const timestamp = new Date().toISOString().slice(0, 10);
+
+  if (sampleName) return `${sampleName}.json`;
+
+  const rawKeyword = params.get(AUTO_SEARCH_PARAM) || '';
+  const keyword = sanitizeSampleName(rawKeyword);
+  if (keyword) return `sample-${keyword}-${timestamp}.json`;
+
+  return `resumes_${timestamp}_${makeRandomId()}.json`;
+}
+
+function buildExportMetadata(resumes) {
+  const url = new URL(window.location.href);
+  const keyword = (url.searchParams.get(AUTO_SEARCH_PARAM) || '').trim();
+  const location = (url.searchParams.get('location') || '').trim();
+  const rawSampleName = url.searchParams.get(SAMPLE_NAME_PARAM) || '';
+  const sampleName = sanitizeSampleName(rawSampleName).replace(/\.json$/i, '');
+
+  url.searchParams.delete(AUTO_EXPORT_PARAM);
+  url.searchParams.delete(SAMPLE_NAME_PARAM);
+
+  const filters = {};
+  for (const [key, value] of url.searchParams.entries()) {
+    if (key === AUTO_SEARCH_PARAM || key === 'location') continue;
+    if (!value) continue;
+    filters[key] = value;
+  }
+
+  let generatedBy = 'browser-extension';
+  try {
+    const version = chrome?.runtime?.getManifest?.().version;
+    if (version) generatedBy = `browser-extension@${version}`;
+  } catch {
+    // ignore
+  }
+
+  const pagination = getPaginationInfo();
+  const reproductionParams = new URLSearchParams();
+  reproductionParams.set(AUTO_EXPORT_PARAM, 'json');
+  if (sampleName) reproductionParams.set(SAMPLE_NAME_PARAM, sampleName);
+
+  return {
+    sourceUrl: url.toString(),
+    searchCriteria: {
+      keyword,
+      location,
+      filters: Object.keys(filters).length ? filters : {}
+    },
+    generatedAt: new Date().toISOString(),
+    generatedBy,
+    totalPages: pagination.totalPages,
+    totalResumes: resumes.length,
+    reproduction: `Navigate to sourceUrl, then add ?${reproductionParams.toString()}`
+  };
+}
 
 function getApiRowForIndex(index) {
   if (!Array.isArray(apiSnapshot.searchRows)) return null;
@@ -667,9 +739,10 @@ async function runAutoExportIfEnabled() {
     }
 
     if (config.downloadJson) {
-      const json = JSON.stringify(resumes, null, 2);
-      const timestamp = new Date().toISOString().slice(0, 10);
-      const filename = `resumes_${timestamp}_${makeRandomId()}.json`;
+      const metadata = buildExportMetadata(resumes);
+      const payload = { metadata, data: resumes };
+      const json = JSON.stringify(payload, null, 2);
+      const filename = buildExportFilename();
       await downloadFile(json, filename, 'application/json', config.saveAs);
       console.log('🎯 [Auto Export] JSON download triggered:', filename);
     }
@@ -705,9 +778,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   else if (request.action === 'downloadJSON') {
     const resumes = extractResumes();
-    const json = JSON.stringify(resumes, null, 2);
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const filename = `resumes_${timestamp}_${makeRandomId()}.json`;
+    const metadata = buildExportMetadata(resumes);
+    const payload = { metadata, data: resumes };
+    const json = JSON.stringify(payload, null, 2);
+    const filename = buildExportFilename();
     const saveAs = !!request.saveAs;
 
     // Download via background script (chrome.downloads API preserves filenames)

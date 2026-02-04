@@ -27,7 +27,7 @@ Chrome/Edge browser extension to extract resume data from hr.job5156.com (智通
 
 ## Data Fields Extracted
 
-> 文件名格式：`resumes_YYYY-MM-DD_<randomid>.csv` / `resumes_YYYY-MM-DD_<randomid>.json`
+> 文件名格式：默认 `resumes_YYYY-MM-DD_<randomid>.*`。如提供 `tr_sample_name`，JSON 会输出为 `<name>.json`；如未提供 `tr_sample_name` 但有 `keyword`，JSON 会输出为 `sample-<keyword>-<date>.json`。
 
 | Field | Description |
 |:------|:------------|
@@ -215,6 +215,34 @@ Combine with auto-export for end-to-end workflows:
 https://hr.job5156.com/search?keyword=python&tr_auto_export=csv
 https://hr.job5156.com/search?keyword=车床销售&tr_auto_export=md,rawjson
 ```
+
+## Generating Sample Data for Development
+
+Use auto-export JSON to generate reproducible sample files with provenance metadata.
+
+1. Log in to `https://hr.job5156.com` in Chrome (extension installed)
+2. Navigate to a search URL, for example:
+   `https://hr.job5156.com/search?keyword=销售&tr_auto_export=json&tr_sample_name=sample-initial`
+3. Copy the downloaded file to `output/resumes/samples/`
+
+The exported JSON includes a metadata wrapper:
+
+```json
+{
+  "metadata": {
+    "sourceUrl": "https://hr.job5156.com/search?keyword=销售",
+    "searchCriteria": { "keyword": "销售" },
+    "generatedAt": "2026-02-03T09:27:52.152Z",
+    "reproduction": "Navigate to sourceUrl, then add ?tr_auto_export=json"
+  },
+  "data": []
+}
+```
+
+Notes:
+- `tr_sample_name` controls the filename (e.g., `sample-initial.json`).
+- If `tr_sample_name` is omitted and `keyword` is present, JSON defaults to `sample-<keyword>-<date>.json`.
+- Without `keyword`, JSON defaults to `resumes_<date>_<id>.json`.
 
 ## Files
 

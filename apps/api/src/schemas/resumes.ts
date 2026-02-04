@@ -33,6 +33,26 @@ export const ResumeSampleSchema = z
   })
   .openapi("ResumeSample");
 
+export const ResumeSearchCriteriaSchema = z
+  .object({
+    keyword: z.string().optional().openapi({ example: "销售" }),
+    location: z.string().optional().openapi({ example: "东莞" }),
+    filters: z.record(z.string()).optional().openapi({ example: { status: "active" } }),
+  })
+  .openapi("ResumeSearchCriteria");
+
+export const ResumeMetadataSchema = z
+  .object({
+    sourceUrl: z.string().optional().openapi({ example: "https://hr.job5156.com/search?keyword=销售" }),
+    searchCriteria: ResumeSearchCriteriaSchema.optional(),
+    generatedAt: z.string().optional().openapi({ example: "2026-02-03T09:27:52.152Z" }),
+    generatedBy: z.string().optional().openapi({ example: "browser-extension@1.0.0" }),
+    totalPages: z.number().int().optional().openapi({ example: 1 }),
+    totalResumes: z.number().int().optional().openapi({ example: 20 }),
+    reproduction: z.string().optional().openapi({ example: "Navigate to sourceUrl, then add ?tr_auto_export=json" }),
+  })
+  .openapi("ResumeMetadata");
+
 export const ResumesQuerySchema = z.object({
   sample: z
     .string()
@@ -64,6 +84,7 @@ export const ResumesResponseSchema = z
   .object({
     success: z.literal(true),
     sample: ResumeSampleSchema.optional(),
+    metadata: ResumeMetadataSchema.optional(),
     summary: z
       .object({
         total: z.number().int(),
