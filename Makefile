@@ -6,7 +6,7 @@
         test test-python test-node \
         build-static build-static-fresh serve-static \
         i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
-        refresh-sample
+        refresh-sample refresh-sample-manual
 
 # Default target
 .DEFAULT_GOAL := help
@@ -176,9 +176,16 @@ fetch-docs:
 # Utilities
 # =============================================================================
 
-# Show instructions for refreshing resume sample data
+# Refresh resume sample data automatically via CDP
 refresh-sample:
-	@echo "=== Refresh Resume Sample Data ==="
+	@KEYWORD="$(or $(KEYWORD),销售)" SAMPLE="$(or $(SAMPLE),sample-initial)" \
+	CDP_PORT="$(or $(CDP_PORT),9222)" \
+	ALLOW_EMPTY="$(ALLOW_EMPTY)" \
+	./scripts/refresh-sample.sh
+
+# Show instructions for refreshing resume sample data
+refresh-sample-manual:
+	@echo "=== Refresh Resume Sample Data (Manual) ==="
 	@echo "1. Log into https://hr.job5156.com in Chrome (extension installed)"
 	@echo "2. Navigate to this URL:"
 	@echo "   https://hr.job5156.com/search?keyword=销售&tr_auto_export=json&tr_sample_name=sample-initial"
@@ -297,7 +304,8 @@ help:
 	@echo "  fetch-docs     Fetch latest upstream documentation"
 	@echo ""
 	@echo "Utilities:"
-	@echo "  refresh-sample Show instructions for refreshing resume sample data"
+	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
+	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
 	@echo "  clean          Remove generated/cached files"
 	@echo "  check          Run validation checks (Python + Node)"
 	@echo "  check-python   Run Python checks only"
@@ -314,3 +322,5 @@ help:
 	@echo "  WORKER_PORT    FastAPI worker port (default: 8000)"
 	@echo "  API_PORT       BFF API port (default: 3000)"
 	@echo "  WEB_PORT       Web frontend port (default: 5173)"
+	@echo "  CDP_PORT       Chrome DevTools port (default: 9222)"
+	@echo "  ALLOW_EMPTY    Allow empty resume samples (set to 1)"

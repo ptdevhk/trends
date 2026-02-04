@@ -158,6 +158,16 @@ Resume Sources → Gateway → Multi-Agent Pipeline → AI Screening & Matching 
 
 Resume sample files in `output/resumes/samples/` include provenance metadata for reproduction.
 
+**Quick regeneration (automated via CDP):**
+```bash
+make refresh-sample                          # Default: 销售 -> sample-initial.json
+make refresh-sample KEYWORD=python           # Custom keyword
+make refresh-sample KEYWORD=python SAMPLE=sample-python
+make refresh-sample ALLOW_EMPTY=1            # Allow saving empty sample
+```
+Chrome must be running with remote debugging enabled and the extension installed/enabled.
+Manual fallback: `make refresh-sample-manual`.
+
 **Quick regeneration (semi-manual):**
 1. Log into https://hr.job5156.com in Chrome (with the browser extension installed)
 2. Navigate to: `https://hr.job5156.com/search?keyword=销售&tr_auto_export=json&tr_sample_name=sample-initial`
