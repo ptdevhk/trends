@@ -59,6 +59,23 @@ https://hr.job5156.com/search?keyword=销售&tr_auto_export=json&tr_sample_name=
 
 The exported JSON includes `metadata.sourceUrl` and `metadata.searchCriteria` for reproduction.
 
+### CDP Automation
+The project uses CDP to automate sample refreshes:
+
+```bash
+make refresh-sample                          # Default: 销售 -> sample-initial.json
+make refresh-sample KEYWORD=python SAMPLE=sample-python
+```
+
+CDP reads from the content script accessor:
+
+```
+window.__TR_RESUME_DATA__.extract()
+window.__TR_RESUME_DATA__.status()
+```
+
+Ensure Chrome is running with remote debugging enabled and the extension is loaded on `hr.job5156.com/search`.
+
 ## Auto Search (URL Keyword)
 - Enable via URL: `?keyword=<search term>`
 - Supports: Simplified Chinese, Traditional Chinese, English, mixed

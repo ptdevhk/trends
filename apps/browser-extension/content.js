@@ -23,6 +23,7 @@ const AUTO_SEARCH_PARAM = 'keyword';
 const SAMPLE_NAME_PARAM = 'tr_sample_name';
 let autoExportTriggered = false;
 const API_CAPTURE_SOURCE = 'tr-resume-api';
+const EXTERNAL_ACCESS_KEY = '__TR_RESUME_DATA__';
 
 const apiSnapshot = {
   searchRows: null,
@@ -800,10 +801,52 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true; // Keep channel open for async response
 });
 
+function getExtensionVersion() {
+  try {
+    return chrome?.runtime?.getManifest?.().version || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function isLoggedIn() {
+  return !document.querySelector('.login-btn, [href*="login"]');
+}
+
+function installExternalAccessor() {
+  try {
+    const version = getExtensionVersion();
+    window[EXTERNAL_ACCESS_KEY] = {
+      extract: () => extractResumes(),
+      extractRaw: (options) => extractResumesRaw(options),
+      getApiSnapshot: () => apiSnapshot,
+      getPaginationInfo: () => getPaginationInfo(),
+      isReady: () => document.querySelector(SELECTORS.listContainer) !== null,
+      isLoggedIn: () => isLoggedIn(),
+      status: () => {
+        const pagination = getPaginationInfo();
+        return {
+          extensionLoaded: true,
+          extensionVersion: version,
+          apiSnapshotCount: Array.isArray(apiSnapshot.searchRows) ? apiSnapshot.searchRows.length : 0,
+          domReady: document.querySelector(SELECTORS.listContainer) !== null,
+          loggedIn: isLoggedIn(),
+          pagination,
+          timestamp: new Date().toISOString()
+        };
+      },
+      version
+    };
+  } catch (error) {
+    console.warn('🎯 [External Access] Failed to install accessor:', error);
+  }
+}
+
 // Inject indicator that extension is active
 console.log('🎯 智通直聘 Resume Collector loaded');
 installApiHook();
 installReloadHelper();
+installExternalAccessor();
 autoSearchFromUrl()
   .catch((error) => console.warn('🎯 [Auto Search] Failed:', error))
   .finally(() => {
