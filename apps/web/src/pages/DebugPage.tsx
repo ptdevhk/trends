@@ -124,6 +124,13 @@ export function DebugPage() {
   const [industryLimit, setIndustryLimit] = useState(1000)
   const [industryItems, setIndustryItems] = useState<Array<IndustryCompany | IndustryKeyword | IndustryBrand>>([])
   const [industryCount, setIndustryCount] = useState(0)
+  const [showAllIndustry, setShowAllIndustry] = useState(false)
+  const [industryAllData, setIndustryAllData] = useState<{
+    companies: IndustryCompany[]
+    keywords: IndustryKeyword[]
+    brands: IndustryBrand[]
+  }>({ companies: [], keywords: [], brands: [] })
+  const [industryAllLoading, setIndustryAllLoading] = useState(false)
   const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionFile[]>([])
   const [selectedJob, setSelectedJob] = useState('')
   const [jobContentMap, setJobContentMap] = useState<Record<string, string>>({})
@@ -143,6 +150,18 @@ export function DebugPage() {
     }
     return response.json() as Promise<T>
   }, [apiBaseUrl])
+
+  const downloadText = useCallback((filename: string, content: string) => {
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }, [])
 
   const sampleOptions = useMemo(
     () =>
@@ -205,6 +224,15 @@ export function DebugPage() {
   const previewIndustryItems = useMemo(
     () => filteredIndustryItems.slice(0, industryLimit),
     [filteredIndustryItems, industryLimit]
+  )
+
+  const previewIndustryAll = useMemo(
+    () => ({
+      companies: industryAllData.companies.slice(0, industryLimit),
+      keywords: industryAllData.keywords.slice(0, industryLimit),
+      brands: industryAllData.brands.slice(0, industryLimit),
+    }),
+    [industryAllData, industryLimit]
   )
 
   const activeSection = useMemo(() => {
@@ -362,6 +390,38 @@ export function DebugPage() {
       mounted = false
     }
   }, [fetchJson, industryFilter, industryView, showIndustry])
+
+  useEffect(() => {
+    if (!showIndustry || !showAllIndustry) return
+    let mounted = true
+    setIndustryError(null)
+    setIndustryAllLoading(true)
+
+    Promise.all([
+      fetchJson<IndustryListResponse<IndustryCompany>>('/api/industry/companies'),
+      fetchJson<IndustryListResponse<IndustryKeyword>>('/api/industry/keywords'),
+      fetchJson<IndustryListResponse<IndustryBrand>>('/api/industry/brands'),
+    ])
+      .then(([companies, keywords, brands]) => {
+        if (!mounted) return
+        setIndustryAllData({
+          companies: companies.data,
+          keywords: keywords.data,
+          brands: brands.data,
+        })
+        setIndustryAllLoading(false)
+      })
+      .catch((err: Error) => {
+        if (mounted) {
+          setIndustryError(err.message)
+          setIndustryAllLoading(false)
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [fetchJson, showAllIndustry, showIndustry])
 
   useEffect(() => {
     if (!showJobs) return
@@ -680,42 +740,79 @@ export function DebugPage() {
                 <Badge variant="secondary">{t('debug.industryLoadedAt', { value: industryStats.loadedAt })}</Badge>
               ) : null}
             </div>
-            <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1.4fr_0.6fr]">
-              <Select
-                options={industryDatasetOptions}
-                value={industryView}
-                onChange={(event) => setIndustryView(event.target.value as 'companies' | 'keywords' | 'brands')}
-              />
-              <Select
-                options={industryFilterOptions}
-                value={industryFilter}
-                onChange={(event) => setIndustryFilter(event.target.value)}
-                disabled={industryFilterOptions.length === 0}
-              />
-              <Input
-                value={industrySearch}
-                onChange={(event) => setIndustrySearch(event.target.value)}
-                placeholder={t('debug.industrySearchPlaceholder')}
-              />
-              <Input
-                type="number"
-                min={1}
-                max={1000}
-                value={industryLimit}
-                onChange={(event) => setIndustryLimit(Number(event.target.value) || 1000)}
-                placeholder={t('debug.industryLimitPlaceholder')}
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllIndustry((current) => !current)}
+              >
+                {showAllIndustry ? t('debug.industryShowSelected') : t('debug.industryShowAll')}
+              </Button>
+              {industryAllLoading ? (
+                <span className="text-xs text-muted-foreground">{t('debug.industryLoadingAll')}</span>
+              ) : null}
             </div>
-            <div className="text-xs text-muted-foreground">
-              {t('debug.industryShowing', {
-                shown: previewIndustryItems.length,
-                filtered: filteredIndustryItems.length,
-                total: industryCount,
-              })}
-            </div>
-            <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-              {previewIndustryItems.length ? JSON.stringify(previewIndustryItems, null, 2) : t('debug.none')}
-            </pre>
+            {showAllIndustry ? (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">{t('debug.industryDatasetCompanies')}</p>
+                  <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
+                    {previewIndustryAll.companies.length ? JSON.stringify(previewIndustryAll.companies, null, 2) : t('debug.none')}
+                  </pre>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">{t('debug.industryDatasetKeywords')}</p>
+                  <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
+                    {previewIndustryAll.keywords.length ? JSON.stringify(previewIndustryAll.keywords, null, 2) : t('debug.none')}
+                  </pre>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">{t('debug.industryDatasetBrands')}</p>
+                  <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
+                    {previewIndustryAll.brands.length ? JSON.stringify(previewIndustryAll.brands, null, 2) : t('debug.none')}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1.4fr_0.6fr]">
+                  <Select
+                    options={industryDatasetOptions}
+                    value={industryView}
+                    onChange={(event) => setIndustryView(event.target.value as 'companies' | 'keywords' | 'brands')}
+                  />
+                  <Select
+                    options={industryFilterOptions}
+                    value={industryFilter}
+                    onChange={(event) => setIndustryFilter(event.target.value)}
+                    disabled={industryFilterOptions.length === 0}
+                  />
+                  <Input
+                    value={industrySearch}
+                    onChange={(event) => setIndustrySearch(event.target.value)}
+                    placeholder={t('debug.industrySearchPlaceholder')}
+                  />
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={industryLimit}
+                    onChange={(event) => setIndustryLimit(Number(event.target.value) || 1000)}
+                    placeholder={t('debug.industryLimitPlaceholder')}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {t('debug.industryShowing', {
+                    shown: previewIndustryItems.length,
+                    filtered: filteredIndustryItems.length,
+                    total: industryCount,
+                  })}
+                </div>
+                <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
+                  {previewIndustryItems.length ? JSON.stringify(previewIndustryItems, null, 2) : t('debug.none')}
+                </pre>
+              </>
+            )}
             {industryValidation ? (
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2 text-xs">
@@ -773,6 +870,17 @@ export function DebugPage() {
               >
                 {showAllJobs ? t('debug.jobsShowSelected') : t('debug.jobsShowAll')}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (!selectedJobContent) return
+                  downloadText(`${selectedJob || 'job'}.md`, selectedJobContent)
+                }}
+                disabled={!selectedJobContent}
+              >
+                {t('debug.jobsDownloadSelected')}
+              </Button>
               {jobsLoading ? (
                 <span className="text-xs text-muted-foreground">{t('debug.jobsLoading')}</span>
               ) : null}
@@ -784,7 +892,21 @@ export function DebugPage() {
                     <div key={job.name} className="rounded-md border bg-muted/20 p-3">
                       <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
                         <span>{job.title ?? job.name}</span>
-                        <span>{job.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span>{job.name}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const content = jobContentMap[job.name] || ''
+                              if (!content) return
+                              downloadText(`${job.name}.md`, content)
+                            }}
+                            disabled={!jobContentMap[job.name]}
+                          >
+                            {t('debug.jobsDownload')}
+                          </Button>
+                        </div>
                       </div>
                       <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
                         {jobContentMap[job.name] || t('debug.none')}
