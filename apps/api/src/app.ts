@@ -36,7 +36,7 @@ export const openApiConfig = {
     { name: "sessions", description: "Resume search sessions" },
     { name: "actions", description: "Candidate actions" },
   ],
-} as const;
+};
 
 export function createApp() {
   const app = new OpenAPIHono();
