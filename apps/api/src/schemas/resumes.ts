@@ -73,11 +73,11 @@ export const ResumesQuerySchema = z.object({
     .coerce
     .number()
     .min(1)
-    .max(500)
+    .max(1000)
     .optional()
     .openapi({
       param: { name: "limit", in: "query" },
-      example: 50,
+      example: 1000,
     }),
 });
 
