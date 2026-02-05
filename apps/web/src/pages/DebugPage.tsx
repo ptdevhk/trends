@@ -111,7 +111,7 @@ export function DebugPage() {
   const [samples, setSamples] = useState<ResumeSample[]>([])
   const [selectedSample, setSelectedSample] = useState('')
   const [query, setQuery] = useState('')
-  const [limit, setLimit] = useState(50)
+  const [limit, setLimit] = useState(1000)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rawResponse, setRawResponse] = useState<ResumesResponse | null>(null)
@@ -121,7 +121,7 @@ export function DebugPage() {
   const [industryView, setIndustryView] = useState<'companies' | 'keywords' | 'brands'>('companies')
   const [industryFilter, setIndustryFilter] = useState('')
   const [industrySearch, setIndustrySearch] = useState('')
-  const [industryLimit, setIndustryLimit] = useState(50)
+  const [industryLimit, setIndustryLimit] = useState(1000)
   const [industryItems, setIndustryItems] = useState<Array<IndustryCompany | IndustryKeyword | IndustryBrand>>([])
   const [industryCount, setIndustryCount] = useState(0)
   const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionFile[]>([])
@@ -493,9 +493,9 @@ export function DebugPage() {
           <Input
             type="number"
             min={1}
-            max={500}
+            max={1000}
             value={limit}
-            onChange={(event) => setLimit(Number(event.target.value) || 50)}
+            onChange={(event) => setLimit(Number(event.target.value) || 1000)}
             placeholder={t('debug.limitPlaceholder')}
           />
         </div>
@@ -702,7 +702,7 @@ export function DebugPage() {
                 min={1}
                 max={1000}
                 value={industryLimit}
-                onChange={(event) => setIndustryLimit(Number(event.target.value) || 50)}
+                onChange={(event) => setIndustryLimit(Number(event.target.value) || 1000)}
                 placeholder={t('debug.industryLimitPlaceholder')}
               />
             </div>
