@@ -16,6 +16,51 @@ type ResumeSample = components['schemas']['ResumeSample']
 type ResumeItem = components['schemas']['ResumeItem']
 type ResumesResponse = components['schemas']['ResumesResponse']
 
+type IndustryStatsResponse = {
+  success: true
+  stats: {
+    loadedAt: string
+    companiesCount: number
+    keywordsCount: number
+    brandsCount: number
+  }
+}
+
+type IndustryValidationResponse = {
+  success: true
+  valid: boolean
+  issues: Array<{
+    section: string
+    row: number
+    issue: string
+    severity: 'error' | 'warning'
+  }>
+  stats: {
+    totalTables: number
+    totalRows: number
+    tablesWithIssues: number
+  }
+}
+
+type JobDescriptionFile = {
+  name: string
+  filename: string
+  updatedAt: string
+  size: number
+  title?: string
+}
+
+type JobDescriptionsResponse = {
+  success: true
+  items: JobDescriptionFile[]
+}
+
+type JobDescriptionResponse = {
+  success: true
+  item: JobDescriptionFile
+  content: string
+}
+
 type CountEntry = { label: string; count: number }
 
 function buildCounts(items: ResumeItem[], key: keyof ResumeItem): CountEntry[] {
@@ -41,6 +86,26 @@ export function DebugPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rawResponse, setRawResponse] = useState<ResumesResponse | null>(null)
+  const [industryStats, setIndustryStats] = useState<IndustryStatsResponse['stats'] | null>(null)
+  const [industryValidation, setIndustryValidation] = useState<IndustryValidationResponse | null>(null)
+  const [industryError, setIndustryError] = useState<string | null>(null)
+  const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionFile[]>([])
+  const [selectedJob, setSelectedJob] = useState('')
+  const [jobContent, setJobContent] = useState('')
+  const [jobsError, setJobsError] = useState<string | null>(null)
+
+  const apiBaseUrl = useMemo(() => {
+    const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+    return rawBaseUrl.replace(/\/api\/?$/, '')
+  }, [])
+
+  const fetchJson = useCallback(async <T,>(path: string): Promise<T> => {
+    const response = await fetch(`${apiBaseUrl}${path}`)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+    return response.json() as Promise<T>
+  }, [apiBaseUrl])
 
   const sampleOptions = useMemo(
     () =>
@@ -59,7 +124,7 @@ export function DebugPage() {
     const parts = location.pathname.split('/').filter(Boolean)
     const index = parts.indexOf('debug')
     const next = index >= 0 ? parts[index + 1] : undefined
-    const allowed = new Set(['all', 'inputs', 'findings', 'process', 'raw'])
+    const allowed = new Set(['all', 'inputs', 'findings', 'process', 'raw', 'industry', 'jobs'])
     if (next && allowed.has(next)) return next
     return 'all'
   }, [location.pathname])
@@ -69,6 +134,8 @@ export function DebugPage() {
   const showFindings = showAll || activeSection === 'findings'
   const showProcess = showAll || activeSection === 'process'
   const showRaw = showAll || activeSection === 'raw'
+  const showIndustry = showAll || activeSection === 'industry'
+  const showJobs = showAll || activeSection === 'jobs'
 
   const navLinks = useMemo(
     () => [
@@ -77,6 +144,8 @@ export function DebugPage() {
       { key: 'findings', label: t('debug.navFindings'), href: '/debug/findings' },
       { key: 'process', label: t('debug.navProcess'), href: '/debug/process' },
       { key: 'raw', label: t('debug.navRaw'), href: '/debug/raw' },
+      { key: 'industry', label: t('debug.navIndustry'), href: '/debug/industry' },
+      { key: 'jobs', label: t('debug.navJobs'), href: '/debug/jobs' },
     ],
     [t]
   )
@@ -145,6 +214,72 @@ export function DebugPage() {
     }
   }, [loadResumes, selectedSample])
 
+  useEffect(() => {
+    if (!showIndustry) return
+    let mounted = true
+    setIndustryError(null)
+
+    fetchJson<IndustryStatsResponse>('/api/industry/stats')
+      .then((data) => {
+        if (mounted) setIndustryStats(data.stats)
+      })
+      .catch((err: Error) => {
+        if (mounted) setIndustryError(err.message)
+      })
+
+    fetchJson<IndustryValidationResponse>('/api/industry/validate')
+      .then((data) => {
+        if (mounted) setIndustryValidation(data)
+      })
+      .catch((err: Error) => {
+        if (mounted) setIndustryError(err.message)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [fetchJson, showIndustry])
+
+  useEffect(() => {
+    if (!showJobs) return
+    let mounted = true
+    setJobsError(null)
+
+    fetchJson<JobDescriptionsResponse>('/api/job-descriptions')
+      .then((data) => {
+        if (!mounted) return
+        setJobDescriptions(data.items)
+        if (data.items.length) {
+          setSelectedJob((current) => current || data.items[0].name)
+        }
+      })
+      .catch((err: Error) => {
+        if (mounted) setJobsError(err.message)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [fetchJson, showJobs])
+
+  useEffect(() => {
+    if (!showJobs || !selectedJob) return
+    let mounted = true
+    setJobsError(null)
+
+    fetchJson<JobDescriptionResponse>(`/api/job-descriptions/${encodeURIComponent(selectedJob)}`)
+      .then((data) => {
+        if (mounted) setJobContent(data.content)
+      })
+      .catch((err: Error) => {
+        if (mounted) setJobsError(err.message)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [fetchJson, selectedJob, showJobs])
+
   const handleSearch = useCallback((keyword: string) => {
     setQuery(keyword)
   }, [])
@@ -157,6 +292,15 @@ export function DebugPage() {
     await loadSamples()
     await loadResumes()
   }, [loadResumes, loadSamples])
+
+  const jobOptions = useMemo(
+    () =>
+      jobDescriptions.map((job) => ({
+        value: job.name,
+        label: job.title ? `${job.title} (${job.name})` : job.name,
+      })),
+    [jobDescriptions]
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -355,6 +499,79 @@ export function DebugPage() {
                 {resumes.length ? JSON.stringify(resumes.slice(0, 3), null, 2) : t('debug.none')}
               </pre>
             </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {showIndustry ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t('debug.industryTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            {industryError ? (
+              <p className="text-sm text-destructive">{industryError}</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">{t('debug.industryCompanies', { count: industryStats?.companiesCount ?? 0 })}</Badge>
+              <Badge variant="outline">{t('debug.industryKeywords', { count: industryStats?.keywordsCount ?? 0 })}</Badge>
+              <Badge variant="outline">{t('debug.industryBrands', { count: industryStats?.brandsCount ?? 0 })}</Badge>
+              {industryStats?.loadedAt ? (
+                <Badge variant="secondary">{t('debug.industryLoadedAt', { value: industryStats.loadedAt })}</Badge>
+              ) : null}
+            </div>
+            {industryValidation ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <Badge variant="secondary">{t('debug.industryTables', { count: industryValidation.stats.totalTables })}</Badge>
+                  <Badge variant="secondary">{t('debug.industryRows', { count: industryValidation.stats.totalRows })}</Badge>
+                  <Badge variant="secondary">{t('debug.industryIssues', { count: industryValidation.stats.tablesWithIssues })}</Badge>
+                  <Badge variant={industryValidation.valid ? 'outline' : 'destructive'}>
+                    {industryValidation.valid ? t('debug.industryValid') : t('debug.industryInvalid')}
+                  </Badge>
+                </div>
+                {industryValidation.issues.length ? (
+                  <pre className="max-h-52 overflow-auto rounded-md bg-muted p-3 text-xs">
+                    {JSON.stringify(industryValidation.issues.slice(0, 5), null, 2)}
+                  </pre>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{t('debug.none')}</p>
+                )}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {showJobs ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t('debug.jobsTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            {jobsError ? <p className="text-sm text-destructive">{jobsError}</p> : null}
+            <div className="grid gap-3 lg:grid-cols-[1fr_2fr]">
+              <Select
+                options={jobOptions}
+                value={selectedJob}
+                onChange={(event) => setSelectedJob(event.target.value)}
+                disabled={jobOptions.length === 0}
+              />
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                {jobDescriptions.length ? (
+                  jobDescriptions.map((job) => (
+                    <Badge key={job.name} variant="outline">
+                      {job.name}
+                    </Badge>
+                  ))
+                ) : (
+                  <Badge variant="outline">{t('debug.none')}</Badge>
+                )}
+              </div>
+            </div>
+            <pre className="max-h-[480px] overflow-auto rounded-md bg-muted p-3 text-xs">
+              {jobContent || t('debug.none')}
+            </pre>
           </CardContent>
         </Card>
       ) : null}
