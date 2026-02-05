@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Header } from '@/components/Header'
 import { ResumesPage } from '@/pages/ResumesPage'
 import { DebugPage } from '@/pages/DebugPage'
+import { AboutPage } from '@/pages/AboutPage'
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
             <Route path="/" element={<Navigate to="/resumes" replace />} />
             <Route path="/resumes" element={<ResumesPage />} />
             <Route path="/debug/*" element={<DebugPage />} />
+            <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<Navigate to="/resumes" replace />} />
           </Routes>
         </main>
