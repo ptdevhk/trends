@@ -120,6 +120,8 @@
     "industryShowAll": "顯示全部表",
     "industryShowSelected": "僅顯示所選",
     "industryLoadingAll": "載入全部表...",
+    "industryFormatJson": "JSON",
+    "industryFormatMarkdown": "Markdown",
     "industryCompanies": "企業：{{count}}",
     "industryKeywords": "關鍵詞：{{count}}",
     "industryBrands": "品牌：{{count}}",

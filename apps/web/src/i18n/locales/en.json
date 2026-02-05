@@ -120,6 +120,8 @@
     "industryShowAll": "Show all tables",
     "industryShowSelected": "Show selected only",
     "industryLoadingAll": "Loading all tables...",
+    "industryFormatJson": "JSON",
+    "industryFormatMarkdown": "Markdown",
     "industryCompanies": "Companies: {{count}}",
     "industryKeywords": "Keywords: {{count}}",
     "industryBrands": "Brands: {{count}}",

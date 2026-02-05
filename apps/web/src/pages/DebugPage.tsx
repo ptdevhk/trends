@@ -125,6 +125,7 @@ export function DebugPage() {
   const [industryItems, setIndustryItems] = useState<Array<IndustryCompany | IndustryKeyword | IndustryBrand>>([])
   const [industryCount, setIndustryCount] = useState(0)
   const [showAllIndustry, setShowAllIndustry] = useState(false)
+  const [industryFormat, setIndustryFormat] = useState<'json' | 'markdown'>('markdown')
   const [industryAllData, setIndustryAllData] = useState<{
     companies: IndustryCompany[]
     keywords: IndustryKeyword[]
@@ -177,6 +178,14 @@ export function DebugPage() {
       { value: 'companies', label: t('debug.industryDatasetCompanies') },
       { value: 'keywords', label: t('debug.industryDatasetKeywords') },
       { value: 'brands', label: t('debug.industryDatasetBrands') },
+    ],
+    [t]
+  )
+
+  const industryFormatOptions = useMemo(
+    () => [
+      { value: 'markdown', label: t('debug.industryFormatMarkdown') },
+      { value: 'json', label: t('debug.industryFormatJson') },
     ],
     [t]
   )
@@ -234,6 +243,89 @@ export function DebugPage() {
     }),
     [industryAllData, industryLimit]
   )
+
+  const escapeCell = useCallback((value: unknown) => {
+    return String(value ?? '').replace(/\|/g, '\\|')
+  }, [])
+
+  const toMarkdownTable = useCallback((headers: string[], rows: string[][]) => {
+    const headerLine = `| ${headers.join(' | ')} |`
+    const dividerLine = `| ${headers.map(() => '---').join(' | ')} |`
+    const bodyLines = rows.map((row) => `| ${row.join(' | ')} |`)
+    return [headerLine, dividerLine, ...bodyLines].join('\n')
+  }, [])
+
+  const industryMarkdown = useMemo(() => {
+    if (industryView === 'companies') {
+      const rows = previewIndustryItems.map((item) => {
+        const company = item as IndustryCompany
+        return [
+          escapeCell(company.id),
+          escapeCell(company.nameCn),
+          escapeCell(company.nameEn ?? ''),
+          escapeCell(company.type),
+          escapeCell(company.category),
+        ]
+      })
+      return toMarkdownTable(['id', 'nameCn', 'nameEn', 'type', 'category'], rows)
+    }
+    if (industryView === 'keywords') {
+      const rows = previewIndustryItems.map((item) => {
+        const keyword = item as IndustryKeyword
+        return [
+          escapeCell(keyword.id),
+          escapeCell(keyword.keyword),
+          escapeCell(keyword.english ?? ''),
+          escapeCell(keyword.category),
+        ]
+      })
+      return toMarkdownTable(['id', 'keyword', 'english', 'category'], rows)
+    }
+    const rows = previewIndustryItems.map((item) => {
+      const brand = item as IndustryBrand
+      return [
+        escapeCell(brand.id),
+        escapeCell(brand.nameCn),
+        escapeCell(brand.nameEn ?? ''),
+        escapeCell(brand.type),
+        escapeCell(brand.origin),
+      ]
+    })
+    return toMarkdownTable(['id', 'nameCn', 'nameEn', 'type', 'origin'], rows)
+  }, [escapeCell, industryView, previewIndustryItems, toMarkdownTable])
+
+  const industryAllMarkdown = useMemo(() => {
+    const companies = toMarkdownTable(
+      ['id', 'nameCn', 'nameEn', 'type', 'category'],
+      previewIndustryAll.companies.map((company) => [
+        escapeCell(company.id),
+        escapeCell(company.nameCn),
+        escapeCell(company.nameEn ?? ''),
+        escapeCell(company.type),
+        escapeCell(company.category),
+      ])
+    )
+    const keywords = toMarkdownTable(
+      ['id', 'keyword', 'english', 'category'],
+      previewIndustryAll.keywords.map((keyword) => [
+        escapeCell(keyword.id),
+        escapeCell(keyword.keyword),
+        escapeCell(keyword.english ?? ''),
+        escapeCell(keyword.category),
+      ])
+    )
+    const brands = toMarkdownTable(
+      ['id', 'nameCn', 'nameEn', 'type', 'origin'],
+      previewIndustryAll.brands.map((brand) => [
+        escapeCell(brand.id),
+        escapeCell(brand.nameCn),
+        escapeCell(brand.nameEn ?? ''),
+        escapeCell(brand.type),
+        escapeCell(brand.origin),
+      ])
+    )
+    return { companies, keywords, brands }
+  }, [escapeCell, previewIndustryAll, toMarkdownTable])
 
   const activeSection = useMemo(() => {
     const parts = location.pathname.split('/').filter(Boolean)
@@ -748,6 +840,12 @@ export function DebugPage() {
               >
                 {showAllIndustry ? t('debug.industryShowSelected') : t('debug.industryShowAll')}
               </Button>
+              <Select
+                className="w-40"
+                options={industryFormatOptions}
+                value={industryFormat}
+                onChange={(event) => setIndustryFormat(event.target.value as 'json' | 'markdown')}
+              />
               {industryAllLoading ? (
                 <span className="text-xs text-muted-foreground">{t('debug.industryLoadingAll')}</span>
               ) : null}
@@ -757,19 +855,25 @@ export function DebugPage() {
                 <div>
                   <p className="text-xs text-muted-foreground">{t('debug.industryDatasetCompanies')}</p>
                   <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-                    {previewIndustryAll.companies.length ? JSON.stringify(previewIndustryAll.companies, null, 2) : t('debug.none')}
+                    {previewIndustryAll.companies.length
+                      ? (industryFormat === 'markdown' ? industryAllMarkdown.companies : JSON.stringify(previewIndustryAll.companies, null, 2))
+                      : t('debug.none')}
                   </pre>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{t('debug.industryDatasetKeywords')}</p>
                   <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-                    {previewIndustryAll.keywords.length ? JSON.stringify(previewIndustryAll.keywords, null, 2) : t('debug.none')}
+                    {previewIndustryAll.keywords.length
+                      ? (industryFormat === 'markdown' ? industryAllMarkdown.keywords : JSON.stringify(previewIndustryAll.keywords, null, 2))
+                      : t('debug.none')}
                   </pre>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{t('debug.industryDatasetBrands')}</p>
                   <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-                    {previewIndustryAll.brands.length ? JSON.stringify(previewIndustryAll.brands, null, 2) : t('debug.none')}
+                    {previewIndustryAll.brands.length
+                      ? (industryFormat === 'markdown' ? industryAllMarkdown.brands : JSON.stringify(previewIndustryAll.brands, null, 2))
+                      : t('debug.none')}
                   </pre>
                 </div>
               </div>
@@ -809,7 +913,9 @@ export function DebugPage() {
                   })}
                 </div>
                 <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-                  {previewIndustryItems.length ? JSON.stringify(previewIndustryItems, null, 2) : t('debug.none')}
+                  {previewIndustryItems.length
+                    ? (industryFormat === 'markdown' ? industryMarkdown : JSON.stringify(previewIndustryItems, null, 2))
+                    : t('debug.none')}
                 </pre>
               </>
             )}
