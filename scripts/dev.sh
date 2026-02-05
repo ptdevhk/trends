@@ -189,6 +189,14 @@ start_web() {
             return 1
         fi
 
+        log "WEB" "$CYAN" "Generating API types..."
+        (
+            cd "$PROJECT_ROOT"
+            if ! npm --workspace @trends/web run gen:api >/dev/null 2>&1; then
+                log "WEB" "$YELLOW" "Failed to generate API types (continuing)"
+            fi
+        )
+
         log "WEB" "$CYAN" "Starting web frontend on http://localhost:$port"
         cd "$PROJECT_ROOT/apps/web"
         npm run dev -- --port "$port" 2>&1 | \

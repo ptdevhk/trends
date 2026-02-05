@@ -1,5 +1,14 @@
 import { z } from "@hono/zod-openapi";
 
+const CsvStringArraySchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  const parts = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : undefined;
+}, z.array(z.string()).optional());
+
 export const ResumeWorkHistorySchema = z
   .object({
     raw: z.string().openapi({ example: "2021-03 ~ 2023-08 Example Co. - Sales Manager" }),
@@ -79,6 +88,104 @@ export const ResumesQuerySchema = z.object({
       param: { name: "limit", in: "query" },
       example: 1000,
     }),
+  offset: z
+    .string()
+    .optional()
+    .transform((v) => (v ? parseInt(v, 10) : undefined))
+    .pipe(z.number().min(0).optional())
+    .openapi({
+      param: { name: "offset", in: "query" },
+      example: "0",
+    }),
+  sessionId: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "sessionId", in: "query" },
+      example: "session-123",
+    }),
+  jobDescriptionId: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "jobDescriptionId", in: "query" },
+      example: "lathe-sales",
+    }),
+  minMatchScore: z
+    .string()
+    .optional()
+    .transform((v) => (v ? parseInt(v, 10) : undefined))
+    .pipe(z.number().min(0).max(100).optional())
+    .openapi({
+      param: { name: "minMatchScore", in: "query" },
+      example: "70",
+    }),
+  sortBy: z
+    .enum(["score", "name", "experience", "extractedAt"])
+    .optional()
+    .openapi({
+      param: { name: "sortBy", in: "query" },
+      example: "score",
+    }),
+  sortOrder: z
+    .enum(["asc", "desc"])
+    .optional()
+    .openapi({
+      param: { name: "sortOrder", in: "query" },
+      example: "desc",
+    }),
+  minExperience: z
+    .string()
+    .optional()
+    .transform((v) => (v ? parseInt(v, 10) : undefined))
+    .pipe(z.number().min(0).optional())
+    .openapi({
+      param: { name: "minExperience", in: "query" },
+      example: "3",
+    }),
+  maxExperience: z
+    .string()
+    .optional()
+    .transform((v) => (v ? parseInt(v, 10) : undefined))
+    .pipe(z.number().min(0).optional())
+    .openapi({
+      param: { name: "maxExperience", in: "query" },
+      example: "10",
+    }),
+  education: CsvStringArraySchema.openapi({
+    param: { name: "education", in: "query" },
+    example: "bachelor,master",
+  }),
+  skills: CsvStringArraySchema.openapi({
+    param: { name: "skills", in: "query" },
+    example: "CNC,FANUC",
+  }),
+  locations: CsvStringArraySchema.openapi({
+    param: { name: "locations", in: "query" },
+    example: "东莞,深圳",
+  }),
+  minSalary: z
+    .string()
+    .optional()
+    .transform((v) => (v ? parseInt(v, 10) : undefined))
+    .pipe(z.number().min(0).optional())
+    .openapi({
+      param: { name: "minSalary", in: "query" },
+      example: "5000",
+    }),
+  maxSalary: z
+    .string()
+    .optional()
+    .transform((v) => (v ? parseInt(v, 10) : undefined))
+    .pipe(z.number().min(0).optional())
+    .openapi({
+      param: { name: "maxSalary", in: "query" },
+      example: "15000",
+    }),
+  recommendation: CsvStringArraySchema.openapi({
+    param: { name: "recommendation", in: "query" },
+    example: "strong_match,match",
+  }),
 });
 
 export const ResumesResponseSchema = z
@@ -103,3 +210,92 @@ export const ResumeSamplesResponseSchema = z
     samples: z.array(ResumeSampleSchema),
   })
   .openapi("ResumeSamplesResponse");
+
+export const ResumeFiltersSchema = z
+  .object({
+    minExperience: z.number().min(0).optional(),
+    maxExperience: z.number().min(0).optional(),
+    education: z.array(z.string()).optional(),
+    skills: z.array(z.string()).optional(),
+    locations: z.array(z.string()).optional(),
+    minSalary: z.number().min(0).optional(),
+    maxSalary: z.number().min(0).optional(),
+    minMatchScore: z.number().min(0).max(100).optional(),
+    recommendation: z.array(z.string()).optional(),
+    sortBy: z.enum(["score", "name", "experience", "extractedAt"]).optional(),
+    sortOrder: z.enum(["asc", "desc"]).optional(),
+  })
+  .openapi("ResumeFilters");
+
+export const RecommendationSchema = z.enum([
+  "strong_match",
+  "match",
+  "potential",
+  "no_match",
+]);
+
+export const ResumeMatchSchema = z
+  .object({
+    resumeId: z.string().openapi({ example: "R123456" }),
+    jobDescriptionId: z.string().openapi({ example: "lathe-sales" }),
+    score: z.number().int().openapi({ example: 85 }),
+    recommendation: RecommendationSchema.openapi({ example: "match" }),
+    highlights: z.array(z.string()).openapi({ example: ["客户开发经验丰富"] }),
+    concerns: z.array(z.string()).openapi({ example: ["缺少机床销售经验"] }),
+    summary: z.string().openapi({ example: "候选人与岗位匹配良好，可安排面试。" }),
+    matchedAt: z.string().openapi({ example: "2026-02-05T08:00:00.000Z" }),
+    sessionId: z.string().optional().openapi({ example: "session-123" }),
+    userId: z.string().optional().openapi({ example: "user-abc" }),
+  })
+  .openapi("ResumeMatch");
+
+export const MatchRequestSchema = z
+  .object({
+    sessionId: z.string().optional().openapi({ example: "session-123" }),
+    sample: z.string().optional().openapi({ example: "sample-initial" }),
+    jobDescriptionId: z.string().openapi({ example: "lathe-sales" }),
+    resumeIds: z.array(z.string()).optional().openapi({ example: ["R123456"] }),
+    limit: z.number().int().min(1).max(1000).optional().openapi({ example: 50 }),
+  })
+  .openapi("MatchRequest");
+
+export const MatchStatsSchema = z
+  .object({
+    processed: z.number().int(),
+    matched: z.number().int(),
+    avgScore: z.number(),
+    processingTimeMs: z.number().int().optional(),
+  })
+  .openapi("MatchStats");
+
+export const MatchResponseSchema = z
+  .object({
+    success: z.literal(true),
+    results: z.array(ResumeMatchSchema),
+    stats: MatchStatsSchema,
+  })
+  .openapi("MatchResponse");
+
+export const ResumeMatchesResponseSchema = z
+  .object({
+    success: z.literal(true),
+    results: z.array(ResumeMatchSchema),
+  })
+  .openapi("ResumeMatchesResponse");
+
+export const ResumeMatchesQuerySchema = z.object({
+  sessionId: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "sessionId", in: "query" },
+      example: "session-123",
+    }),
+  jobDescriptionId: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "jobDescriptionId", in: "query" },
+      example: "lathe-sales",
+    }),
+});

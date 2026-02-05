@@ -6,3 +6,5 @@ export { default as rssRoutes } from "./rss.js";
 export { default as resumesRoutes } from "./resumes.js";
 export { default as industryRoutes } from "./industry.js";
 export { default as jobDescriptionsRoutes } from "./job-descriptions.js";
+export { default as sessionsRoutes } from "./sessions.js";
+export { default as actionsRoutes } from "./actions.js";

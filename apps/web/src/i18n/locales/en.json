@@ -40,10 +40,50 @@
     "refresh": "Refresh",
     "searchPlaceholder": "Search name or job intention...",
     "searchButton": "Search",
-    "summary": "Sample {{sample}} · Showing {{returned}} / {{total}}",
-    "empty": "No resume data available",
-    "loading": "Loading...",
-    "error": "Failed to load",
+  "summary": "Sample {{sample}} · Showing {{returned}} / {{total}}",
+  "empty": "No resume data available",
+  "loading": "Loading...",
+  "error": "Failed to load",
+  "mode": {
+    "ai": "AI Mode",
+    "original": "Original Mode"
+  },
+  "jobDescription": {
+    "placeholder": "Select job description"
+  },
+  "matching": {
+    "matchAll": "Match All",
+    "running": "Matching...",
+    "stats": "Matched {{matched}} / {{processed}} · Avg {{avgScore}}",
+    "sortedByScore": "AI mode: sorted by match score",
+    "scoreLabel": "{{score}} pts",
+    "recommendations": {
+      "strong_match": "Strong match",
+      "match": "Match",
+      "potential": "Potential",
+      "no_match": "No match"
+    }
+  },
+  "filters": {
+    "title": "Filters",
+    "apply": "Apply",
+    "clear": "Clear",
+    "minExperience": "Min experience",
+    "maxExperience": "Max experience",
+    "minMatchScore": "Min match score",
+    "skills": "Skills",
+    "skillsPlaceholder": "e.g. CNC, FANUC",
+    "locations": "Locations",
+    "locationsPlaceholder": "e.g. Dongguan, Shenzhen",
+    "education": {
+      "title": "Education",
+      "high_school": "High school",
+      "associate": "Associate",
+      "bachelor": "Bachelor",
+      "master": "Master",
+      "phd": "PhD"
+    }
+  },
     "columns": {
       "select": "Select",
       "name": "Name",
@@ -56,9 +96,12 @@
       "activity": "Activity",
       "actions": "Actions"
     },
-    "actions": {
-      "view": "View"
-    },
+  "actions": {
+    "view": "View",
+    "star": "Star",
+    "shortlist": "Shortlist",
+    "reject": "Reject"
+  },
     "detail": {
       "title": "Resume Details",
       "workHistory": "Work History",

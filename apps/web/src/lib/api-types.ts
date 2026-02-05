@@ -316,6 +316,20 @@ export interface paths {
                     sample?: string;
                     q?: string;
                     limit?: number;
+                    offset?: string;
+                    sessionId?: string;
+                    jobDescriptionId?: string;
+                    minMatchScore?: string;
+                    sortBy?: "score" | "name" | "experience" | "extractedAt";
+                    sortOrder?: "asc" | "desc";
+                    minExperience?: string;
+                    maxExperience?: string;
+                    education?: string[];
+                    skills?: string[];
+                    locations?: string[];
+                    minSalary?: string;
+                    maxSalary?: string;
+                    recommendation?: string[];
                 };
                 header?: never;
                 path?: never;
@@ -336,6 +350,902 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Match resumes with a job description
+         * @description Runs AI matching and stores results for the session
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["MatchRequest"];
+                };
+            };
+            responses: {
+                /** @description Matching results */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatchResponse"];
+                    };
+                };
+                /** @description Session or job description not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get cached resume matches
+         * @description Returns cached match results for a session or job description
+         */
+        get: {
+            parameters: {
+                query?: {
+                    sessionId?: string;
+                    jobDescriptionId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Match results */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeMatchesResponse"];
+                    };
+                };
+                /** @description Missing query parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/industry/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get industry data statistics
+         * @description Returns counts of companies, keywords, and brands loaded from config
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Statistics about loaded industry data */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            stats: {
+                                loadedAt: string;
+                                companiesCount: number;
+                                keywordsCount: number;
+                                brandsCount: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/industry/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all companies
+         * @description Returns all companies from industry data (key companies, ITES exhibitors, agents)
+         */
+        get: {
+            parameters: {
+                query?: {
+                    category?: "key_company" | "ites_exhibitor" | "agent";
+                    q?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of companies */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            count: number;
+                            data: {
+                                id: number;
+                                nameCn: string;
+                                nameEn?: string;
+                                type: string;
+                                /** @enum {string} */
+                                category: "key_company" | "ites_exhibitor" | "agent";
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/industry/keywords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all keywords
+         * @description Returns all technical keywords organized by category
+         */
+        get: {
+            parameters: {
+                query?: {
+                    category?: "machining" | "lathe" | "edm" | "measurement" | "smt" | "3d_printing";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of keywords */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            count: number;
+                            data: {
+                                id: number;
+                                keyword: string;
+                                english?: string;
+                                /** @enum {string} */
+                                category: "machining" | "lathe" | "edm" | "measurement" | "smt" | "3d_printing";
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/industry/brands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all brands
+         * @description Returns all equipment brands (international, domestic, agents)
+         */
+        get: {
+            parameters: {
+                query?: {
+                    origin?: "international" | "domestic" | "agent";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of brands */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            count: number;
+                            data: {
+                                id: number;
+                                nameCn: string;
+                                nameEn?: string;
+                                type: string;
+                                /** @enum {string} */
+                                origin: "international" | "domestic" | "agent";
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/industry/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify a company, keyword, or brand
+         * @description Check if a value matches known industry data and returns confidence score
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        type: "company" | "keyword" | "brand";
+                        value: string;
+                        category?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Verification result with confidence and matches */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            result: {
+                                verified: boolean;
+                                confidence: number;
+                                match?: unknown;
+                                matches?: unknown[];
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/industry/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Validate markdown format
+         * @description Check the industry data markdown file for format issues
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Validation results with any issues found */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            valid: boolean;
+                            issues: {
+                                section: string;
+                                row: number;
+                                issue: string;
+                                /** @enum {string} */
+                                severity: "error" | "warning";
+                            }[];
+                            stats: {
+                                totalTables: number;
+                                totalRows: number;
+                                tablesWithIssues: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/industry/reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reload industry data
+         * @description Clear cache and reload data from config files
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description New statistics after reload */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            stats: {
+                                loadedAt: string;
+                                companiesCount: number;
+                                keywordsCount: number;
+                                brandsCount: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/job-descriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List job description files
+         * @description Returns Markdown job descriptions under config/job-descriptions
+         */
+        get: {
+            parameters: {
+                query?: {
+                    includeReadme?: boolean | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of job description files */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                name: string;
+                                filename: string;
+                                updatedAt: string;
+                                size: number;
+                                title?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/job-descriptions/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get job description content
+         * @description Returns the raw markdown content for a job description
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Job description content */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                name: string;
+                                filename: string;
+                                updatedAt: string;
+                                size: number;
+                                title?: string;
+                            };
+                            content: string;
+                        };
+                    };
+                };
+                /** @description Job description not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a new search session */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        userId?: string;
+                        jobDescriptionId?: string;
+                        sampleName?: string;
+                        filters?: components["schemas"]["ResumeFilters"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Session created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            session: {
+                                /** @example session-123 */
+                                id: string;
+                                /** @example user-1 */
+                                userId?: string;
+                                /** @example lathe-sales */
+                                jobDescriptionId?: string;
+                                /** @example sample-initial */
+                                sampleName?: string;
+                                filters?: components["schemas"]["ResumeFilters"];
+                                /**
+                                 * @example active
+                                 * @enum {string}
+                                 */
+                                status: "active" | "completed" | "archived";
+                                /** @example 2026-02-05T08:00:00.000Z */
+                                createdAt: string;
+                                /** @example 2026-02-05T08:00:00.000Z */
+                                updatedAt: string;
+                                /** @example 2026-02-10T08:00:00.000Z */
+                                expiresAt?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a search session */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Session details */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            session: {
+                                /** @example session-123 */
+                                id: string;
+                                /** @example user-1 */
+                                userId?: string;
+                                /** @example lathe-sales */
+                                jobDescriptionId?: string;
+                                /** @example sample-initial */
+                                sampleName?: string;
+                                filters?: components["schemas"]["ResumeFilters"];
+                                /**
+                                 * @example active
+                                 * @enum {string}
+                                 */
+                                status: "active" | "completed" | "archived";
+                                /** @example 2026-02-05T08:00:00.000Z */
+                                createdAt: string;
+                                /** @example 2026-02-05T08:00:00.000Z */
+                                updatedAt: string;
+                                /** @example 2026-02-10T08:00:00.000Z */
+                                expiresAt?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Session not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a search session */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        userId?: string;
+                        jobDescriptionId?: string;
+                        sampleName?: string;
+                        filters?: components["schemas"]["ResumeFilters"];
+                        /** @enum {string} */
+                        status?: "active" | "completed" | "archived";
+                        expiresAt?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Session updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            session: {
+                                /** @example session-123 */
+                                id: string;
+                                /** @example user-1 */
+                                userId?: string;
+                                /** @example lathe-sales */
+                                jobDescriptionId?: string;
+                                /** @example sample-initial */
+                                sampleName?: string;
+                                filters?: components["schemas"]["ResumeFilters"];
+                                /**
+                                 * @example active
+                                 * @enum {string}
+                                 */
+                                status: "active" | "completed" | "archived";
+                                /** @example 2026-02-05T08:00:00.000Z */
+                                createdAt: string;
+                                /** @example 2026-02-05T08:00:00.000Z */
+                                updatedAt: string;
+                                /** @example 2026-02-10T08:00:00.000Z */
+                                expiresAt?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Session not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List actions for a session */
+        get: {
+            parameters: {
+                query: {
+                    sessionId: string;
+                    latestOnly?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Action list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            actions: {
+                                id: number;
+                                userId?: string;
+                                sessionId?: string;
+                                resumeId: string;
+                                /** @enum {string} */
+                                actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact";
+                                actionData?: {
+                                    [key: string]: unknown;
+                                };
+                                createdAt: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a candidate action */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        userId?: string;
+                        sessionId?: string;
+                        resumeId: string;
+                        /** @enum {string} */
+                        actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact";
+                        actionData?: {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Action created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            action: {
+                                id: number;
+                                userId?: string;
+                                sessionId?: string;
+                                resumeId: string;
+                                /** @enum {string} */
+                                actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact";
+                                actionData?: {
+                                    [key: string]: unknown;
+                                };
+                                createdAt: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -547,6 +1457,87 @@ export interface components {
                 query?: string;
             };
             data: components["schemas"]["ResumeItem"][];
+        };
+        ResumeMatch: {
+            /** @example R123456 */
+            resumeId: string;
+            /** @example lathe-sales */
+            jobDescriptionId: string;
+            /** @example 85 */
+            score: number;
+            /**
+             * @example match
+             * @enum {string}
+             */
+            recommendation: "strong_match" | "match" | "potential" | "no_match";
+            /**
+             * @example [
+             *       "客户开发经验丰富"
+             *     ]
+             */
+            highlights: string[];
+            /**
+             * @example [
+             *       "缺少机床销售经验"
+             *     ]
+             */
+            concerns: string[];
+            /** @example 候选人与岗位匹配良好，可安排面试。 */
+            summary: string;
+            /** @example 2026-02-05T08:00:00.000Z */
+            matchedAt: string;
+            /** @example session-123 */
+            sessionId?: string;
+            /** @example user-abc */
+            userId?: string;
+        };
+        MatchStats: {
+            processed: number;
+            matched: number;
+            avgScore: number;
+            processingTimeMs?: number;
+        };
+        MatchResponse: {
+            /** @enum {boolean} */
+            success: true;
+            results: components["schemas"]["ResumeMatch"][];
+            stats: components["schemas"]["MatchStats"];
+        };
+        MatchRequest: {
+            /** @example session-123 */
+            sessionId?: string;
+            /** @example sample-initial */
+            sample?: string;
+            /** @example lathe-sales */
+            jobDescriptionId: string;
+            /**
+             * @example [
+             *       "R123456"
+             *     ]
+             */
+            resumeIds?: string[];
+            /** @example 50 */
+            limit?: number;
+        };
+        ResumeMatchesResponse: {
+            /** @enum {boolean} */
+            success: true;
+            results: components["schemas"]["ResumeMatch"][];
+        };
+        ResumeFilters: {
+            minExperience?: number;
+            maxExperience?: number;
+            education?: string[];
+            skills?: string[];
+            locations?: string[];
+            minSalary?: number;
+            maxSalary?: number;
+            minMatchScore?: number;
+            recommendation?: string[];
+            /** @enum {string} */
+            sortBy?: "score" | "name" | "experience" | "extractedAt";
+            /** @enum {string} */
+            sortOrder?: "asc" | "desc";
         };
     };
     responses: never;
