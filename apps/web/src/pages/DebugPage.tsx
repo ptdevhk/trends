@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { apiClient } from '@/lib/api-client'
 import type { components } from '@/lib/api-types'
 import { SearchBar } from '@/components/SearchBar'
@@ -32,6 +33,7 @@ function buildCounts(items: ResumeItem[], key: keyof ResumeItem): CountEntry[] {
 
 export function DebugPage() {
   const { t } = useTranslation()
+  const location = useLocation()
   const [samples, setSamples] = useState<ResumeSample[]>([])
   const [selectedSample, setSelectedSample] = useState('')
   const [query, setQuery] = useState('')
@@ -52,6 +54,32 @@ export function DebugPage() {
   const resumes = rawResponse?.data ?? []
   const summary = rawResponse?.summary
   const metadata = rawResponse?.metadata
+
+  const activeSection = useMemo(() => {
+    const parts = location.pathname.split('/').filter(Boolean)
+    const index = parts.indexOf('debug')
+    const next = index >= 0 ? parts[index + 1] : undefined
+    const allowed = new Set(['all', 'inputs', 'findings', 'process', 'raw'])
+    if (next && allowed.has(next)) return next
+    return 'all'
+  }, [location.pathname])
+
+  const showAll = activeSection === 'all'
+  const showInputs = showAll || activeSection === 'inputs'
+  const showFindings = showAll || activeSection === 'findings'
+  const showProcess = showAll || activeSection === 'process'
+  const showRaw = showAll || activeSection === 'raw'
+
+  const navLinks = useMemo(
+    () => [
+      { key: 'all', label: t('debug.navAll'), href: '/debug' },
+      { key: 'inputs', label: t('debug.navInputs'), href: '/debug/inputs' },
+      { key: 'findings', label: t('debug.navFindings'), href: '/debug/findings' },
+      { key: 'process', label: t('debug.navProcess'), href: '/debug/process' },
+      { key: 'raw', label: t('debug.navRaw'), href: '/debug/raw' },
+    ],
+    [t]
+  )
 
   const locationCounts = useMemo(() => buildCounts(resumes, 'location').slice(0, 5), [resumes])
   const educationCounts = useMemo(() => buildCounts(resumes, 'education').slice(0, 5), [resumes])
@@ -168,6 +196,24 @@ export function DebugPage() {
           />
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          {navLinks.map((link) => (
+            <NavLink
+              key={link.key}
+              to={link.href}
+              end={link.key === 'all'}
+              className={({ isActive }) =>
+                cn(
+                  'rounded-full border px-3 py-1 transition-colors',
+                  isActive ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
+                )
+              }
+            >
+              {link.label}
+            </NavLink>
+          ))}
+        </div>
+
         {summary && !error ? (
           <div className="text-sm text-muted-foreground">
             {t('debug.summary', {
@@ -190,131 +236,141 @@ export function DebugPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t('debug.inputsTitle')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-muted-foreground">{t('debug.inputsSample')}</span>
-              <Badge variant="outline">{selectedSample || '--'}</Badge>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-muted-foreground">{t('debug.inputsQuery')}</span>
-              <Badge variant="secondary">{query || t('debug.none')}</Badge>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-muted-foreground">{t('debug.inputsLimit')}</span>
-              <Badge variant="secondary">{limit}</Badge>
-            </div>
-            <div>
-              <p className="text-muted-foreground">{t('debug.inputsMetadata')}</p>
-              <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs">
-                {metadata ? JSON.stringify(metadata, null, 2) : t('debug.none')}
-              </pre>
-            </div>
-            <div>
-              <p className="text-muted-foreground">{t('debug.inputsSamples')}</p>
-              <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted p-3 text-xs">
-                {samples.length ? JSON.stringify(samples, null, 2) : t('debug.none')}
-              </pre>
-            </div>
-          </CardContent>
-        </Card>
+      {(showInputs || showFindings) && (
+        <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+          {showInputs ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">{t('debug.inputsTitle')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">{t('debug.inputsSample')}</span>
+                  <Badge variant="outline">{selectedSample || '--'}</Badge>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">{t('debug.inputsQuery')}</span>
+                  <Badge variant="secondary">{query || t('debug.none')}</Badge>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">{t('debug.inputsLimit')}</span>
+                  <Badge variant="secondary">{limit}</Badge>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">{t('debug.inputsMetadata')}</p>
+                  <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs">
+                    {metadata ? JSON.stringify(metadata, null, 2) : t('debug.none')}
+                  </pre>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">{t('debug.inputsSamples')}</p>
+                  <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted p-3 text-xs">
+                    {samples.length ? JSON.stringify(samples, null, 2) : t('debug.none')}
+                  </pre>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
 
+          {showFindings ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">{t('debug.findingsTitle')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">{t('debug.findingsTotals')}</p>
+                  <p className="text-lg font-semibold">{resumes.length}</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <p className="text-muted-foreground">{t('debug.findingsLocations')}</p>
+                    <ul className="space-y-1 text-xs">
+                      {locationCounts.length ? locationCounts.map((item) => (
+                        <li key={item.label} className="flex justify-between">
+                          <span className="truncate">{item.label}</span>
+                          <span className="text-muted-foreground">{item.count}</span>
+                        </li>
+                      )) : <li>{t('debug.none')}</li>}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">{t('debug.findingsEducation')}</p>
+                    <ul className="space-y-1 text-xs">
+                      {educationCounts.length ? educationCounts.map((item) => (
+                        <li key={item.label} className="flex justify-between">
+                          <span className="truncate">{item.label}</span>
+                          <span className="text-muted-foreground">{item.count}</span>
+                        </li>
+                      )) : <li>{t('debug.none')}</li>}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">{t('debug.findingsIntentions')}</p>
+                    <ul className="space-y-1 text-xs">
+                      {intentionCounts.length ? intentionCounts.map((item) => (
+                        <li key={item.label} className="flex justify-between">
+                          <span className="truncate">{item.label}</span>
+                          <span className="text-muted-foreground">{item.count}</span>
+                        </li>
+                      )) : <li>{t('debug.none')}</li>}
+                    </ul>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">{t('debug.findingsMissing')}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {missingStats.stats.map((stat) => (
+                      <Badge key={stat.field} variant="outline">
+                        {stat.field}: {stat.missing}
+                      </Badge>
+                    ))}
+                    <Badge variant="outline">workHistory: {missingStats.missingWorkHistory}</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      )}
+
+      {showProcess ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{t('debug.findingsTitle')}</CardTitle>
+            <CardTitle className="text-base">{t('debug.processTitle')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div>
-              <p className="text-muted-foreground">{t('debug.findingsTotals')}</p>
-              <p className="text-lg font-semibold">{resumes.length}</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <p className="text-muted-foreground">{t('debug.findingsLocations')}</p>
-                <ul className="space-y-1 text-xs">
-                  {locationCounts.length ? locationCounts.map((item) => (
-                    <li key={item.label} className="flex justify-between">
-                      <span className="truncate">{item.label}</span>
-                      <span className="text-muted-foreground">{item.count}</span>
-                    </li>
-                  )) : <li>{t('debug.none')}</li>}
-                </ul>
-              </div>
-              <div>
-                <p className="text-muted-foreground">{t('debug.findingsEducation')}</p>
-                <ul className="space-y-1 text-xs">
-                  {educationCounts.length ? educationCounts.map((item) => (
-                    <li key={item.label} className="flex justify-between">
-                      <span className="truncate">{item.label}</span>
-                      <span className="text-muted-foreground">{item.count}</span>
-                    </li>
-                  )) : <li>{t('debug.none')}</li>}
-                </ul>
-              </div>
-              <div>
-                <p className="text-muted-foreground">{t('debug.findingsIntentions')}</p>
-                <ul className="space-y-1 text-xs">
-                  {intentionCounts.length ? intentionCounts.map((item) => (
-                    <li key={item.label} className="flex justify-between">
-                      <span className="truncate">{item.label}</span>
-                      <span className="text-muted-foreground">{item.count}</span>
-                    </li>
-                  )) : <li>{t('debug.none')}</li>}
-                </ul>
-              </div>
+              <p className="text-muted-foreground">{t('debug.processSteps')}</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+                <li>{t('debug.stepLoadSamples')}</li>
+                <li>{t('debug.stepFetchResumes')}</li>
+                <li>{t('debug.stepNormalize')}</li>
+                <li>{t('debug.stepAggregate')}</li>
+              </ol>
             </div>
             <div>
-              <p className="text-muted-foreground">{t('debug.findingsMissing')}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {missingStats.stats.map((stat) => (
-                  <Badge key={stat.field} variant="outline">
-                    {stat.field}: {stat.missing}
-                  </Badge>
-                ))}
-                <Badge variant="outline">workHistory: {missingStats.missingWorkHistory}</Badge>
-              </div>
+              <p className="text-muted-foreground">{t('debug.processPreview')}</p>
+              <pre className="mt-2 max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs">
+                {resumes.length ? JSON.stringify(resumes.slice(0, 3), null, 2) : t('debug.none')}
+              </pre>
             </div>
           </CardContent>
         </Card>
-      </div>
+      ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t('debug.processTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          <div>
-            <p className="text-muted-foreground">{t('debug.processSteps')}</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
-              <li>{t('debug.stepLoadSamples')}</li>
-              <li>{t('debug.stepFetchResumes')}</li>
-              <li>{t('debug.stepNormalize')}</li>
-              <li>{t('debug.stepAggregate')}</li>
-            </ol>
-          </div>
-          <div>
-            <p className="text-muted-foreground">{t('debug.processPreview')}</p>
-            <pre className="mt-2 max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs">
-              {resumes.length ? JSON.stringify(resumes.slice(0, 3), null, 2) : t('debug.none')}
+      {showRaw ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t('debug.rawTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="max-h-[480px] overflow-auto rounded-md bg-muted p-3 text-xs">
+              {rawResponse ? JSON.stringify(rawResponse, null, 2) : t('debug.none')}
             </pre>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t('debug.rawTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="max-h-[480px] overflow-auto rounded-md bg-muted p-3 text-xs">
-            {rawResponse ? JSON.stringify(rawResponse, null, 2) : t('debug.none')}
-          </pre>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }
