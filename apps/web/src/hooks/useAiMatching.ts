@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { apiClient } from '@/lib/api-client'
+import { rawApiClient } from '@/lib/api-helpers'
 import type { MatchStats, MatchingResult } from '@/types/resume'
 
 export type MatchRequest = {
@@ -20,7 +20,11 @@ export function useAiMatching() {
     setLoading(true)
     setError(null)
 
-    const { data, error: apiError } = await (apiClient as any).POST('/api/resumes/match', {
+    const { data, error: apiError } = await rawApiClient.POST<{
+      success: boolean
+      results?: MatchingResult[]
+      stats?: MatchStats
+    }>('/api/resumes/match', {
       body: payload,
     })
 
@@ -40,7 +44,10 @@ export function useAiMatching() {
     setLoading(true)
     setError(null)
 
-    const { data, error: apiError } = await (apiClient as any).GET('/api/resumes/matches', {
+    const { data, error: apiError } = await rawApiClient.GET<{
+      success: boolean
+      results?: MatchingResult[]
+    }>('/api/resumes/matches', {
       params: {
         query: {
           sessionId,

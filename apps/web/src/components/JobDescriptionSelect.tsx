@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { apiClient } from '@/lib/api-client'
+import { rawApiClient } from '@/lib/api-helpers'
 import { Select } from '@/components/ui/select'
 
 interface JobDescriptionOption {
@@ -26,11 +26,14 @@ export function JobDescriptionSelect({ value, onChange, disabled }: JobDescripti
   useEffect(() => {
     let mounted = true
     const load = async () => {
-      const { data } = await (apiClient as any).GET('/api/job-descriptions', {
-        params: {
-          query: {},
-        },
-      })
+      const { data } = await rawApiClient.GET<{ success: boolean; items?: JobDescriptionItem[] }>(
+        '/api/job-descriptions',
+        {
+          params: {
+            query: {},
+          },
+        }
+      )
       if (!data?.success || !mounted) return
       const items = (data.items ?? []) as JobDescriptionItem[]
       const list = items.map((item) => ({

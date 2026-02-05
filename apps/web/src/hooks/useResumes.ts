@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiClient } from '@/lib/api-client'
+import { rawApiClient } from '@/lib/api-helpers'
 import type { components } from '@/lib/api-types'
 import type { ResumeFilters } from '@/types/resume'
 
@@ -44,15 +44,19 @@ export function useResumes(options: UseResumesOptions = {}): UseResumesReturn {
 
   const reloadSamples = useCallback(async () => {
     setError(null)
-    const { data, error: apiError } = await apiClient.GET('/api/resumes/samples')
+    const { data, error: apiError } = await rawApiClient.GET<{
+      success: boolean
+      samples?: ResumeSample[]
+    }>('/api/resumes/samples')
     if (apiError || !data?.success) {
       setError('Failed to load resume samples')
       return
     }
 
-    setSamples(data.samples ?? [])
-    if (data.samples?.length) {
-      setSelectedSample((current) => current || data.samples[0].name)
+    const nextSamples = data.samples ?? []
+    setSamples(nextSamples)
+    if (nextSamples.length) {
+      setSelectedSample((current) => current || nextSamples[0].name)
     }
   }, [])
 
@@ -80,7 +84,12 @@ export function useResumes(options: UseResumesOptions = {}): UseResumesReturn {
     if (filters.locations?.length) queryParams.locations = filters.locations.join(',')
     if (filters.recommendation?.length) queryParams.recommendation = filters.recommendation.join(',')
 
-    const { data, error: apiError } = await (apiClient as any).GET('/api/resumes', {
+    const { data, error: apiError } = await rawApiClient.GET<{
+      success: boolean
+      data?: ResumeItem[]
+      summary?: ResumesSummary
+      sample?: ResumeSample
+    }>('/api/resumes', {
       params: {
         query: {
           ...queryParams,

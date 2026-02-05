@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiClient } from '@/lib/api-client'
+import { rawApiClient } from '@/lib/api-helpers'
 import type { CandidateAction, CandidateActionType } from '@/types/resume'
 
 export function useCandidateActions(sessionId?: string) {
@@ -12,7 +12,10 @@ export function useCandidateActions(sessionId?: string) {
     setLoading(true)
     setError(null)
 
-    const { data, error: apiError } = await (apiClient as any).GET('/api/actions', {
+    const { data, error: apiError } = await rawApiClient.GET<{
+      success: boolean
+      actions?: CandidateAction[]
+    }>('/api/actions', {
       params: {
         query: {
           sessionId,
@@ -39,12 +42,15 @@ export function useCandidateActions(sessionId?: string) {
   const saveAction = useCallback(
     async (payload: { resumeId: string; actionType: CandidateActionType; actionData?: Record<string, unknown> }) => {
       if (!sessionId) return null
-      const { data, error: apiError } = await (apiClient as any).POST('/api/actions', {
-        body: {
-          sessionId,
-          resumeId: payload.resumeId,
-          actionType: payload.actionType,
-          actionData: payload.actionData,
+    const { data, error: apiError } = await rawApiClient.POST<{
+      success: boolean
+      action?: CandidateAction
+    }>('/api/actions', {
+      body: {
+        sessionId,
+        resumeId: payload.resumeId,
+        actionType: payload.actionType,
+        actionData: payload.actionData,
         },
       })
 
@@ -58,7 +64,7 @@ export function useCandidateActions(sessionId?: string) {
         [payload.resumeId]: payload.actionType,
       }))
 
-      return data.action as CandidateAction
+      return data.action ?? null
     },
     [sessionId]
   )

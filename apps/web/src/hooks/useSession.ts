@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiClient } from '@/lib/api-client'
+import { rawApiClient } from '@/lib/api-helpers'
 import type { ResumeFilters } from '@/types/resume'
 
 export type SearchSession = {
@@ -22,7 +22,10 @@ export function useSession() {
   const [error, setError] = useState<string | null>(null)
 
   const createSession = useCallback(async (payload?: Partial<SearchSession>) => {
-    const { data, error: apiError } = await (apiClient as any).POST('/api/sessions', {
+    const { data, error: apiError } = await rawApiClient.POST<{
+      success: boolean
+      session?: SearchSession
+    }>('/api/sessions', {
       body: {
         userId: payload?.userId,
         jobDescriptionId: payload?.jobDescriptionId,
@@ -31,7 +34,7 @@ export function useSession() {
       },
     })
 
-    if (apiError || !data?.success) {
+    if (apiError || !data?.success || !data.session) {
       setError('Failed to create session')
       return null
     }
@@ -39,16 +42,19 @@ export function useSession() {
     setSession(data.session)
     localStorage.setItem(STORAGE_KEY, data.session.id)
     setError(null)
-    return data.session as SearchSession
+    return data.session
   }, [])
 
   const loadSession = useCallback(async (sessionId: string) => {
-    const { data, error: apiError } = await (apiClient as any).GET(`/api/sessions/${sessionId}`)
-    if (apiError || !data?.success) {
+    const { data, error: apiError } = await rawApiClient.GET<{
+      success: boolean
+      session?: SearchSession
+    }>(`/api/sessions/${sessionId}`)
+    if (apiError || !data?.success || !data.session) {
       return null
     }
     setSession(data.session)
-    return data.session as SearchSession
+    return data.session
   }, [])
 
   const updateSession = useCallback(
@@ -57,7 +63,10 @@ export function useSession() {
         return createSession(updates)
       }
 
-      const { data, error: apiError } = await (apiClient as any).PATCH(
+      const { data, error: apiError } = await rawApiClient.PATCH<{
+        success: boolean
+        session?: SearchSession
+      }>(
         `/api/sessions/${session.id}`,
         {
           body: {
@@ -71,14 +80,14 @@ export function useSession() {
         }
       )
 
-      if (apiError || !data?.success) {
+      if (apiError || !data?.success || !data.session) {
         setError('Failed to update session')
         return null
       }
 
       setSession(data.session)
       setError(null)
-      return data.session as SearchSession
+      return data.session
     },
     [createSession, session?.id]
   )
