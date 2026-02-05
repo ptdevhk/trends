@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { prettyJSON } from "hono/pretty-json";
 
-import { healthRoutes, trendsRoutes, topicsRoutes, searchRoutes, rssRoutes, resumesRoutes } from "./routes/index.js";
+import { healthRoutes, trendsRoutes, topicsRoutes, searchRoutes, rssRoutes, resumesRoutes, industryRoutes } from "./routes/index.js";
 import { config } from "./services/config.js";
 
 // Create main app
@@ -22,6 +22,7 @@ app.route("/", topicsRoutes);
 app.route("/", searchRoutes);
 app.route("/", rssRoutes);
 app.route("/", resumesRoutes);
+app.route("/", industryRoutes);
 
 // OpenAPI documentation endpoint
 app.doc("/doc", {
@@ -38,6 +39,7 @@ app.doc("/doc", {
     { name: "search", description: "Search functionality" },
     { name: "rss", description: "RSS feed data" },
     { name: "resumes", description: "Resume sample data" },
+    { name: "industry", description: "Industry data for verification" },
   ],
 });
 
@@ -67,6 +69,9 @@ app.get("/", (c) => {
       rss: "/api/rss",
       resumes: "/api/resumes",
       resume_samples: "/api/resumes/samples",
+      industry_stats: "/api/industry/stats",
+      industry_companies: "/api/industry/companies",
+      industry_verify: "/api/industry/verify",
     },
   });
 });
