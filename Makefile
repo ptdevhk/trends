@@ -213,6 +213,11 @@ check-python:
 # Node/TypeScript checks (uses Bun when available)
 check-node:
 	@echo "Running Node.js checks..."
+	@npm --workspace @trends/web run gen:api
+	@git diff --exit-code apps/web/src/lib/api-types.ts >/dev/null || ( \
+		echo "apps/web/src/lib/api-types.ts is out of date. Run 'npm --workspace @trends/web run gen:api' and commit changes."; \
+		exit 1; \
+	)
 	@if command -v bun > /dev/null 2>&1; then \
 		bun run check; \
 	else \

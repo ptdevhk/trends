@@ -59,6 +59,9 @@ package-lock.json
 # Allow web app lib folder (overrides Python lib/ ignore)
 !apps/web/src/lib/
 
+# Generated OpenAPI spec
+apps/api/openapi.json
+
 # Production env
 .env.production
 /.codex/environments

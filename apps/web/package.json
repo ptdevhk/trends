@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "gen:api": "openapi-typescript http://localhost:3000/openapi.json -o src/lib/api-types.ts",
+    "gen:api": "npm --workspace @trends/api run openapi:gen && openapi-typescript ../api/openapi.json -o src/lib/api-types.ts",
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
