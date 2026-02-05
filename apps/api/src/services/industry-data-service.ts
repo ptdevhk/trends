@@ -87,12 +87,14 @@ function extractTablesFromMarkdown(content: string): {
     const sections: { section: string; rows: Record<string, string>[] }[] = [];
 
     let currentSection = "";
+    const headingStack: Array<string | undefined> = [];
     let tableLines: string[] = [];
     let inTable = false;
 
     for (const line of lines) {
         // Track section headers
-        if (line.startsWith("##")) {
+        const headingMatch = line.match(/^(#{2,6})\s+(.*)$/);
+        if (headingMatch) {
             // Save previous table if exists
             if (tableLines.length > 0) {
                 sections.push({
@@ -101,7 +103,18 @@ function extractTablesFromMarkdown(content: string): {
                 });
                 tableLines = [];
             }
-            currentSection = line.replace(/^#+\s*/, "").trim();
+            const level = headingMatch[1].length;
+            const title = headingMatch[2].trim();
+            headingStack[level] = title;
+            for (let i = level + 1; i < headingStack.length; i += 1) {
+                headingStack[i] = undefined;
+            }
+            const parts: string[] = [];
+            for (let i = 2; i < headingStack.length; i += 1) {
+                const part = headingStack[i];
+                if (part) parts.push(part);
+            }
+            currentSection = parts.join(" / ");
             inTable = false;
         }
         // Detect table start
@@ -384,6 +397,10 @@ export class IndustryDataService {
      */
     verifyCompany(name: string): VerificationResult {
         const data = this.loadAll();
+        if (!name || !name.trim()) {
+            return { verified: false, confidence: 0.0 };
+        }
+
         const normalizedName = name.toLowerCase().trim();
 
         // Exact match

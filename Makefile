@@ -244,7 +244,7 @@ test-node:                                 ## Run TypeScript tests (bun locally,
 	@echo "Running Node.js tests..."
 	@if find apps packages -type f \( -name '*.test.ts' -o -name '*.test.tsx' \) -print -quit 2>/dev/null | grep -q .; then \
 		if command -v bun > /dev/null 2>&1; then \
-			bun test; \
+			bun run test; \
 		else \
 			npm test; \
 		fi; \
