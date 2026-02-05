@@ -480,4 +480,180 @@ export class IndustryDataService {
     getStats(): IndustryData["metadata"] {
         return this.loadAll().metadata;
     }
+
+    /**
+     * Validate markdown format and return issues
+     */
+    validateFormat(): {
+        valid: boolean;
+        issues: Array<{
+            section: string;
+            row: number;
+            issue: string;
+            severity: "error" | "warning";
+        }>;
+        stats: {
+            totalTables: number;
+            totalRows: number;
+            tablesWithIssues: number;
+        };
+    } {
+        const filePath = path.join(this.getIndustryDataDir(), "keywords-structured.md");
+        if (!fs.existsSync(filePath)) {
+            return {
+                valid: false,
+                issues: [{ section: "file", row: 0, issue: "File not found", severity: "error" }],
+                stats: { totalTables: 0, totalRows: 0, tablesWithIssues: 0 },
+            };
+        }
+
+        const content = fs.readFileSync(filePath, "utf-8");
+        const lines = content.split("\n");
+        const issues: Array<{ section: string; row: number; issue: string; severity: "error" | "warning" }> = [];
+
+        let currentSection = "";
+        const headingStack: Array<string | undefined> = [];
+        let tableStartLine = 0;
+        let tableLines: string[] = [];
+        let inTable = false;
+        let lineNum = 0;
+        let totalTables = 0;
+        let totalRows = 0;
+        const tablesWithIssues = new Set<number>();
+
+        const validateTable = (section: string, lines: string[], startLine: number) => {
+            if (lines.length < 2) return;
+
+            totalTables++;
+            const headerLine = lines[0];
+            const separatorLine = lines[1];
+            const dataLines = lines.slice(2);
+
+            // Count columns from header
+            const headerCols = headerLine.split("|").filter((c) => c.trim()).length;
+
+            // Validate separator
+            const separatorCols = separatorLine.split("|").filter((c) => c.trim()).length;
+            if (separatorCols !== headerCols) {
+                issues.push({
+                    section,
+                    row: startLine + 2,
+                    issue: `Separator has ${separatorCols} columns, header has ${headerCols}`,
+                    severity: "error",
+                });
+                tablesWithIssues.add(totalTables);
+            }
+
+            // Check for standard 4-column format (ID, Name CN, Name EN, Type)
+            if (headerCols < 3) {
+                issues.push({
+                    section,
+                    row: startLine + 1,
+                    issue: `Table has only ${headerCols} columns, expected at least 3 (ID, Name, Type)`,
+                    severity: "warning",
+                });
+                tablesWithIssues.add(totalTables);
+            }
+
+            // Validate each data row
+            dataLines.forEach((line, i) => {
+                totalRows++;
+                const dataCols = line.split("|").filter((c, idx) => idx > 0 && c.trim() !== "").length +
+                    line.split("|").filter((c, idx) => idx > 0 && c.trim() === "").length;
+                const actualCols = line.split("|").length - 1; // Exclude leading empty
+
+                // Check column count consistency
+                if (actualCols !== headerCols && actualCols !== headerCols + 1) {
+                    issues.push({
+                        section,
+                        row: startLine + 3 + i,
+                        issue: `Row has ${actualCols} columns, expected ${headerCols}`,
+                        severity: "error",
+                    });
+                    tablesWithIssues.add(totalTables);
+                }
+
+                // Check for empty required fields (ID and Name)
+                const cells = line.split("|").map((c) => c.trim()).filter((_, idx) => idx > 0);
+                if (cells.length >= 2) {
+                    // ID should be numeric
+                    const id = cells[0];
+                    if (id && !/^\d+$/.test(id)) {
+                        issues.push({
+                            section,
+                            row: startLine + 3 + i,
+                            issue: `ID "${id}" is not numeric`,
+                            severity: "warning",
+                        });
+                    }
+
+                    // Name should not be empty
+                    const name = cells[1];
+                    if (!name || name.trim() === "") {
+                        issues.push({
+                            section,
+                            row: startLine + 3 + i,
+                            issue: "Name column is empty",
+                            severity: "error",
+                        });
+                        tablesWithIssues.add(totalTables);
+                    }
+                }
+            });
+        };
+
+        for (const line of lines) {
+            lineNum++;
+
+            const headingMatch = line.match(/^(#{2,6})\s+(.*)$/);
+            if (headingMatch) {
+                if (tableLines.length > 0) {
+                    validateTable(currentSection, tableLines, tableStartLine);
+                    tableLines = [];
+                }
+                const level = headingMatch[1].length;
+                const title = headingMatch[2].trim();
+                headingStack[level] = title;
+                for (let i = level + 1; i < headingStack.length; i += 1) {
+                    headingStack[i] = undefined;
+                }
+                const parts: string[] = [];
+                for (let i = 2; i < headingStack.length; i += 1) {
+                    const part = headingStack[i];
+                    if (part) parts.push(part);
+                }
+                currentSection = parts.join(" / ");
+                inTable = false;
+            } else if (line.includes("|") && line.trim().startsWith("|")) {
+                if (!inTable) {
+                    tableStartLine = lineNum;
+                }
+                inTable = true;
+                tableLines.push(line);
+            } else if (inTable && line.includes("|")) {
+                tableLines.push(line);
+            } else if (inTable && !line.includes("|")) {
+                if (tableLines.length > 0) {
+                    validateTable(currentSection, tableLines, tableStartLine);
+                    tableLines = [];
+                }
+                inTable = false;
+            }
+        }
+
+        // Validate last table
+        if (tableLines.length > 0) {
+            validateTable(currentSection, tableLines, tableStartLine);
+        }
+
+        return {
+            valid: issues.filter((i) => i.severity === "error").length === 0,
+            issues,
+            stats: {
+                totalTables,
+                totalRows,
+                tablesWithIssues: tablesWithIssues.size,
+            },
+        };
+    }
 }
