@@ -6,6 +6,16 @@ import { DataNotFoundError, FileParseError } from "./errors.js";
 
 import type { ResumeItem, ResumeSampleFile, ResumeWorkHistoryItem } from "../types/resume.js";
 
+export type ResumeFilters = {
+  minExperience?: number;
+  maxExperience?: number;
+  education?: string[];
+  skills?: string[];
+  locations?: string[];
+  minSalary?: number;
+  maxSalary?: number;
+};
+
 type ResumeMetadata = {
   sourceUrl?: string;
   searchCriteria?: {
@@ -169,4 +179,104 @@ export class ResumeService {
         || item.jobIntention.toLowerCase().includes(keyword);
     });
   }
+
+  filterResumes(items: ResumeItem[], filters?: ResumeFilters): ResumeItem[] {
+    if (!filters) return items;
+
+    return items.filter((item) => {
+      if (filters.minExperience !== undefined || filters.maxExperience !== undefined) {
+        const experience = parseExperienceYears(item.experience);
+        if (experience === null) return false;
+        if (filters.minExperience !== undefined && experience < filters.minExperience) return false;
+        if (filters.maxExperience !== undefined && experience > filters.maxExperience) return false;
+      }
+
+      if (filters.education?.length) {
+        const level = normalizeEducationLevel(item.education);
+        if (!level || !filters.education.includes(level)) return false;
+      }
+
+      if (filters.locations?.length) {
+        const location = item.location || "";
+        const hasLocation = filters.locations.some((target) => location.includes(target));
+        if (!hasLocation) return false;
+      }
+
+      if (filters.skills?.length) {
+        const haystack = buildSearchText(item);
+        const hasSkill = filters.skills.some((skill) => haystack.includes(skill.toLowerCase()));
+        if (!hasSkill) return false;
+      }
+
+      if (filters.minSalary !== undefined || filters.maxSalary !== undefined) {
+        const salary = parseSalaryRange(item.expectedSalary);
+        if (!salary) return false;
+        if (filters.minSalary !== undefined) {
+          const maxSalary = salary.max ?? salary.min;
+          if (maxSalary !== undefined && maxSalary < filters.minSalary) return false;
+        }
+        if (filters.maxSalary !== undefined) {
+          const minSalary = salary.min ?? salary.max;
+          if (minSalary !== undefined && minSalary > filters.maxSalary) return false;
+        }
+      }
+
+      return true;
+    });
+  }
+}
+
+export function parseExperienceYears(value: string): number | null {
+  if (!value) return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  if (/应届|无经验/.test(normalized)) return 0;
+  const match = normalized.match(/(\d+)(?:\s*[-~到]\s*(\d+))?/);
+  if (!match) return null;
+  const min = Number(match[1]);
+  const max = match[2] ? Number(match[2]) : min;
+  return Number.isNaN(max) ? null : max;
+}
+
+export function normalizeEducationLevel(value: string): string | null {
+  if (!value) return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  if (/博士/.test(normalized)) return "phd";
+  if (/硕士|研究生/.test(normalized)) return "master";
+  if (/本科/.test(normalized)) return "bachelor";
+  if (/大专|专科/.test(normalized)) return "associate";
+  if (/中专|高中|中技/.test(normalized)) return "high_school";
+  return null;
+}
+
+export function parseSalaryRange(value: string): { min?: number; max?: number; currency?: string; period?: string } | null {
+  if (!value) return null;
+  const normalized = value.replace(/\s/g, "");
+  if (!normalized || /面议/.test(normalized)) return null;
+  const match = normalized.match(/(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?/);
+  if (!match) return null;
+  const min = Number(match[1]);
+  const max = match[2] ? Number(match[2]) : undefined;
+  if (Number.isNaN(min)) return null;
+  const periodMatch = normalized.match(/\/(月|年)/);
+  const period = periodMatch ? (periodMatch[1] === "年" ? "year" : "month") : undefined;
+  return {
+    min,
+    max,
+    currency: "CNY",
+    period,
+  };
+}
+
+function buildSearchText(item: ResumeItem): string {
+  const parts = [
+    item.name,
+    item.jobIntention,
+    item.selfIntro,
+    item.education,
+    item.location,
+    ...(item.workHistory?.map((entry) => entry.raw) ?? []),
+  ];
+  return parts.join(" ").toLowerCase();
 }

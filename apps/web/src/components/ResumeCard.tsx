@@ -1,20 +1,48 @@
 import { useTranslation } from 'react-i18next'
-import { User } from 'lucide-react'
+import { Star, User, XCircle, CheckCircle } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { ResumeItem } from '@/hooks/useResumes'
+import type { CandidateActionType, MatchingResult } from '@/types/resume'
+import { cn } from '@/lib/utils'
 
 interface ResumeCardProps {
   resume: ResumeItem
   onViewDetails: () => void
+  matchResult?: MatchingResult
+  showAiScore?: boolean
+  actionType?: CandidateActionType
+  onAction?: (actionType: CandidateActionType) => void
 }
 
-export function ResumeCard({ resume, onViewDetails }: ResumeCardProps) {
+export function ResumeCard({
+  resume,
+  onViewDetails,
+  matchResult,
+  showAiScore,
+  actionType,
+  onAction,
+}: ResumeCardProps) {
   const { t } = useTranslation()
   const workHistory = resume.workHistory?.filter((item) => item.raw) ?? []
   const jobIntention = (resume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
   const selfIntro = resume.selfIntro || '--'
+
+  const score = matchResult?.score
+  const recommendation = matchResult?.recommendation
+  const scoreLabel = recommendation ? t(`resumes.matching.recommendations.${recommendation}`) : ''
+
+  const scoreClassName =
+    typeof score === 'number'
+      ? score >= 90
+        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+        : score >= 70
+          ? 'bg-sky-100 text-sky-700 border-sky-200'
+          : score >= 50
+            ? 'bg-amber-100 text-amber-700 border-amber-200'
+            : 'bg-zinc-100 text-zinc-600 border-zinc-200'
+      : ''
 
   return (
     <div className="mb-3 overflow-hidden rounded-lg border bg-card">
@@ -23,6 +51,12 @@ export function ResumeCard({ resume, onViewDetails }: ResumeCardProps) {
         <span className="font-medium">{jobIntention}</span>
         {resume.expectedSalary ? (
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
+        ) : null}
+        {showAiScore && typeof score === 'number' ? (
+          <Badge className={cn('border', scoreClassName)}>
+            {t('resumes.matching.scoreLabel', { score })}
+            {scoreLabel ? ` · ${scoreLabel}` : ''}
+          </Badge>
         ) : null}
       </div>
 
@@ -51,14 +85,37 @@ export function ResumeCard({ resume, onViewDetails }: ResumeCardProps) {
             {resume.activityStatus ? (
               <Badge variant="secondary">{resume.activityStatus}</Badge>
             ) : null}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              onClick={onViewDetails}
-            >
-              {t('resumes.actions.view')}
-            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <Button
+                  variant={actionType === 'star' ? 'default' : 'ghost'}
+                  size="icon"
+                  onClick={() => onAction?.('star')}
+                  aria-label={t('resumes.actions.star')}
+                >
+                  <Star className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={actionType === 'shortlist' ? 'default' : 'ghost'}
+                  size="icon"
+                  onClick={() => onAction?.('shortlist')}
+                  aria-label={t('resumes.actions.shortlist')}
+                >
+                  <CheckCircle className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={actionType === 'reject' ? 'destructive' : 'ghost'}
+                  size="icon"
+                  onClick={() => onAction?.('reject')}
+                  aria-label={t('resumes.actions.reject')}
+                >
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button variant="ghost" size="sm" onClick={onViewDetails}>
+                {t('resumes.actions.view')}
+              </Button>
+            </div>
           </div>
           <div className="text-sm text-muted-foreground">
             {resume.age || '--'} | {resume.experience || '--'} | {resume.education || '--'} |{' '}

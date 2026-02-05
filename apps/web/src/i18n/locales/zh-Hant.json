@@ -40,13 +40,53 @@
     "refresh": "刷新",
     "searchPlaceholder": "搜尋姓名或求職意向...",
     "searchButton": "搜尋",
-    "summary": "樣本 {{sample}} · 顯示 {{returned}} / {{total}} 筆",
-    "empty": "暫無簡歷數據",
-    "loading": "載入中...",
-    "error": "載入失敗",
-    "columns": {
-      "select": "選擇",
-      "name": "姓名",
+  "summary": "樣本 {{sample}} · 顯示 {{returned}} / {{total}} 筆",
+  "empty": "暫無簡歷數據",
+  "loading": "載入中...",
+  "error": "載入失敗",
+  "mode": {
+    "ai": "AI 模式",
+    "original": "原始模式"
+  },
+  "jobDescription": {
+    "placeholder": "選擇職位"
+  },
+  "matching": {
+    "matchAll": "AI 匹配全部",
+    "running": "匹配中...",
+    "stats": "已匹配 {{matched}} / {{processed}} · 平均分 {{avgScore}}",
+    "sortedByScore": "AI 模式：按匹配分排序",
+    "scoreLabel": "{{score}}分",
+    "recommendations": {
+      "strong_match": "強匹配",
+      "match": "匹配",
+      "potential": "潛力",
+      "no_match": "不匹配"
+    }
+  },
+  "filters": {
+    "title": "篩選條件",
+    "apply": "套用",
+    "clear": "清除",
+    "minExperience": "最低年限",
+    "maxExperience": "最高年限",
+    "minMatchScore": "最低匹配分",
+    "skills": "技能關鍵字",
+    "skillsPlaceholder": "例如：CNC, FANUC",
+    "locations": "地點",
+    "locationsPlaceholder": "例如：東莞, 深圳",
+    "education": {
+      "title": "學歷",
+      "high_school": "高中/中專",
+      "associate": "大專",
+      "bachelor": "本科",
+      "master": "碩士",
+      "phd": "博士"
+    }
+  },
+  "columns": {
+    "select": "選擇",
+    "name": "姓名",
       "age": "年齡",
       "experience": "經驗",
       "education": "學歷",
@@ -55,10 +95,13 @@
       "intention": "求職意向",
       "activity": "活躍",
       "actions": "操作"
-    },
-    "actions": {
-      "view": "查看"
-    },
+  },
+  "actions": {
+    "view": "查看",
+    "star": "收藏",
+    "shortlist": "入選",
+    "reject": "淘汰"
+  },
     "detail": {
       "title": "簡歷詳情",
       "workHistory": "工作經歷",
