@@ -57,13 +57,13 @@ export function FilterPanel({ filters, onChange, mode }: FilterPanelProps) {
       minMatchScore: mode === 'ai' && minMatchScore ? Number(minMatchScore) : undefined,
       skills: skills
         ? skills
-            .split(',')
+            .split(/[,，、]/g)
             .map((item) => item.trim())
             .filter(Boolean)
         : undefined,
       locations: locations
         ? locations
-            .split(',')
+            .split(/[,，、]/g)
             .map((item) => item.trim())
             .filter(Boolean)
         : undefined,
