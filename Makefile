@@ -3,7 +3,7 @@
 .PHONY: dev dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
         worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
         check-python check-node check-build \
-        test test-python test-node \
+        test test-python test-node test-resume \
         build-static build-static-fresh serve-static \
         i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
         refresh-sample refresh-sample-manual
@@ -244,13 +244,17 @@ test-node:                                 ## Run TypeScript tests (bun locally,
 	@echo "Running Node.js tests..."
 	@if find apps packages -type f \( -name '*.test.ts' -o -name '*.test.tsx' \) -print -quit 2>/dev/null | grep -q .; then \
 		if command -v bun > /dev/null 2>&1; then \
-			bun test; \
+			bun run test; \
 		else \
 			npm test; \
 		fi; \
 	else \
 		echo "No TypeScript tests found (*.test.ts/*.test.tsx), skipping"; \
 	fi
+
+test-resume:                               ## Validate resume fixtures
+	@echo "Validating resume fixtures..."
+	@npx tsx scripts/test-resume-fixtures.ts
 
 # =============================================================================
 # Help
@@ -314,6 +318,7 @@ help:
 	@echo "  test           Run all tests (Python + Node)"
 	@echo "  test-python    Run Python tests only"
 	@echo "  test-node      Run Node.js tests only"
+	@echo "  test-resume    Validate resume fixtures"
 	@echo "  help           Show this help message"
 	@echo ""
 	@echo "Environment Variables:"

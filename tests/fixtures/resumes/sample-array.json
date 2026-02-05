@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Candidate One",
+    "profileUrl": "https://example.com/resume/1001",
+    "activityStatus": "active",
+    "age": "30",
+    "experience": "8 years",
+    "education": "bachelor",
+    "location": "dongguan",
+    "selfIntro": "manufacturing engineer with cnc experience",
+    "jobIntention": "cnc engineer",
+    "expectedSalary": "8000-12000",
+    "workHistory": [
+      { "raw": "2020-2024 Example Tech Co. CNC Engineer" }
+    ],
+    "extractedAt": "2026-02-05T08:30:00.000Z",
+    "resumeId": "1001",
+    "perUserId": "9001"
+  },
+  {
+    "name": "Candidate Two",
+    "profileUrl": "https://example.com/resume/1002",
+    "activityStatus": "active",
+    "age": "28",
+    "experience": "5 years",
+    "education": "associate",
+    "location": "shenzhen",
+    "selfIntro": "sales engineer focused on machine tools",
+    "jobIntention": "sales engineer",
+    "expectedSalary": "7000-10000",
+    "workHistory": [
+      { "raw": "2021-2024 Machine Tools Ltd. Sales Engineer" }
+    ],
+    "extractedAt": "2026-02-05T08:35:00.000Z",
+    "resumeId": "1002",
+    "perUserId": "9002"
+  }
+]

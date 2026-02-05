@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "sourceUrl": "https://example.com/search?keyword=cnc",
+    "searchCriteria": { "keyword": "cnc" },
+    "generatedAt": "2026-02-05T09:10:00.000Z",
+    "reproduction": "Navigate to sourceUrl, then export JSON"
+  },
+  "data": [
+    {
+      "name": "Candidate Three",
+      "profileUrl": "https://example.com/resume/1003",
+      "activityStatus": "active",
+      "age": "35",
+      "experience": "12 years",
+      "education": "bachelor",
+      "location": "guangzhou",
+      "selfIntro": "machining center operator with 5-axis exposure",
+      "jobIntention": "machining center operator",
+      "expectedSalary": "9000-14000",
+      "workHistory": [
+        { "raw": "2016-2024 Precision Works Co. Operator" }
+      ],
+      "extractedAt": "2026-02-05T09:05:00.000Z",
+      "resumeId": "1003",
+      "perUserId": "9003"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# Format: keywords separated by spaces, one group per line
+# Use | for regex patterns
+# Use !prefix for exclusion
+# Advanced (TrendRadar reference): +required, @count limit, [GLOBAL_FILTER], /regex/, => alias
+
+# machining
+CNC lathe milling machining-center 5-axis
+
+# measurement
+CMM 3d-scan metrology
+
+# sales
+sales engineer account
+
+# exclude
+!ad !promo

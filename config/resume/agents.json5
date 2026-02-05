@@ -1,0 +1,15 @@
+{
+  agents: {
+    list: [
+      { id: "screener", name: "Initial Screener", model: "deepseek/deepseek-chat" },
+      { id: "evaluator", name: "Technical Evaluator", model: "anthropic/claude-sonnet-4-5" },
+      { id: "final", name: "Final Decision", model: "anthropic/claude-opus-4-5" }
+    ]
+  },
+  bindings: [
+    { agentId: "screener", match: { source: "job_board" } },
+    { agentId: "screener", match: { source: "manual_upload" } },
+    { agentId: "evaluator", match: { stage: "technical_review" } },
+    { agentId: "final", match: { stage: "final_decision" } }
+  ]
+}

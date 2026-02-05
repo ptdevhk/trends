@@ -1,0 +1,7 @@
+{
+  session: {
+    scope: "per-candidate",
+    resetTriggers: ["/archive", "/reject"],
+    retention: { mode: "until-hired", archiveAfterDays: 90 }
+  }
+}

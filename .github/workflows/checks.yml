@@ -70,5 +70,8 @@ jobs:
       - name: Install Node dependencies
         run: bun install --frozen-lockfile
 
+      - name: Validate resume fixtures
+        run: npx tsx scripts/test-resume-fixtures.ts
+
       - name: Run checks + build validation
         run: make check-build

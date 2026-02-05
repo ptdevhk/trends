@@ -2,7 +2,12 @@ import js from '@eslint/js'
 import globals from 'globals'
 
 export default [
-  { ignores: ['node_modules/**'] },
+  {
+    ignores: [
+      'node_modules/**',
+      '.chrome-debug-profile/**',
+    ],
+  },
   js.configs.recommended,
   {
     files: ['**/*.js'],
