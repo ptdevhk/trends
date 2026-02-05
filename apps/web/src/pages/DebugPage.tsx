@@ -61,6 +61,35 @@ type JobDescriptionResponse = {
   content: string
 }
 
+type IndustryListResponse<T> = {
+  success: true
+  count: number
+  data: T[]
+}
+
+type IndustryCompany = {
+  id: number
+  nameCn: string
+  nameEn?: string
+  type: string
+  category: 'key_company' | 'ites_exhibitor' | 'agent'
+}
+
+type IndustryKeyword = {
+  id: number
+  keyword: string
+  english?: string
+  category: 'machining' | 'lathe' | 'edm' | 'measurement' | 'smt' | '3d_printing'
+}
+
+type IndustryBrand = {
+  id: number
+  nameCn: string
+  nameEn?: string
+  type: string
+  origin: 'international' | 'domestic' | 'agent'
+}
+
 type CountEntry = { label: string; count: number }
 
 function buildCounts(items: ResumeItem[], key: keyof ResumeItem): CountEntry[] {
@@ -89,9 +118,17 @@ export function DebugPage() {
   const [industryStats, setIndustryStats] = useState<IndustryStatsResponse['stats'] | null>(null)
   const [industryValidation, setIndustryValidation] = useState<IndustryValidationResponse | null>(null)
   const [industryError, setIndustryError] = useState<string | null>(null)
+  const [industryView, setIndustryView] = useState<'companies' | 'keywords' | 'brands'>('companies')
+  const [industryFilter, setIndustryFilter] = useState('')
+  const [industrySearch, setIndustrySearch] = useState('')
+  const [industryLimit, setIndustryLimit] = useState(50)
+  const [industryItems, setIndustryItems] = useState<Array<IndustryCompany | IndustryKeyword | IndustryBrand>>([])
+  const [industryCount, setIndustryCount] = useState(0)
   const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionFile[]>([])
   const [selectedJob, setSelectedJob] = useState('')
-  const [jobContent, setJobContent] = useState('')
+  const [jobContentMap, setJobContentMap] = useState<Record<string, string>>({})
+  const [showAllJobs, setShowAllJobs] = useState(false)
+  const [jobsLoading, setJobsLoading] = useState(false)
   const [jobsError, setJobsError] = useState<string | null>(null)
 
   const apiBaseUrl = useMemo(() => {
@@ -116,9 +153,59 @@ export function DebugPage() {
     [samples]
   )
 
+  const industryDatasetOptions = useMemo(
+    () => [
+      { value: 'companies', label: t('debug.industryDatasetCompanies') },
+      { value: 'keywords', label: t('debug.industryDatasetKeywords') },
+      { value: 'brands', label: t('debug.industryDatasetBrands') },
+    ],
+    [t]
+  )
+
+  const industryFilterOptions = useMemo(() => {
+    if (industryView === 'companies') {
+      return [
+        { value: '', label: t('debug.industryFilterAll') },
+        { value: 'key_company', label: t('debug.industryFilterKeyCompany') },
+        { value: 'ites_exhibitor', label: t('debug.industryFilterItes') },
+        { value: 'agent', label: t('debug.industryFilterAgent') },
+      ]
+    }
+    if (industryView === 'brands') {
+      return [
+        { value: '', label: t('debug.industryFilterAll') },
+        { value: 'international', label: t('debug.industryFilterInternational') },
+        { value: 'domestic', label: t('debug.industryFilterDomestic') },
+        { value: 'agent', label: t('debug.industryFilterAgent') },
+      ]
+    }
+    return [
+      { value: '', label: t('debug.industryFilterAll') },
+      { value: 'machining', label: t('debug.industryFilterMachining') },
+      { value: 'lathe', label: t('debug.industryFilterLathe') },
+      { value: 'edm', label: t('debug.industryFilterEdm') },
+      { value: 'measurement', label: t('debug.industryFilterMeasurement') },
+      { value: 'smt', label: t('debug.industryFilterSmt') },
+      { value: '3d_printing', label: t('debug.industryFilter3d') },
+    ]
+  }, [industryView, t])
+
   const resumes = rawResponse?.data ?? []
   const summary = rawResponse?.summary
   const metadata = rawResponse?.metadata
+
+  const selectedJobContent = selectedJob ? (jobContentMap[selectedJob] ?? '') : ''
+
+  const filteredIndustryItems = useMemo(() => {
+    if (!industrySearch.trim()) return industryItems
+    const keyword = industrySearch.trim().toLowerCase()
+    return industryItems.filter((item) => JSON.stringify(item).toLowerCase().includes(keyword))
+  }, [industryItems, industrySearch])
+
+  const previewIndustryItems = useMemo(
+    () => filteredIndustryItems.slice(0, industryLimit),
+    [filteredIndustryItems, industryLimit]
+  )
 
   const activeSection = useMemo(() => {
     const parts = location.pathname.split('/').filter(Boolean)
@@ -241,6 +328,42 @@ export function DebugPage() {
   }, [fetchJson, showIndustry])
 
   useEffect(() => {
+    setIndustryFilter('')
+    setIndustrySearch('')
+  }, [industryView])
+
+  useEffect(() => {
+    if (!showIndustry) return
+    let mounted = true
+    setIndustryError(null)
+
+    const params = new URLSearchParams()
+    if (industryFilter) {
+      params.set(industryView === 'brands' ? 'origin' : 'category', industryFilter)
+    }
+
+    const path = industryView === 'companies'
+      ? `/api/industry/companies?${params.toString()}`
+      : industryView === 'keywords'
+        ? `/api/industry/keywords?${params.toString()}`
+        : `/api/industry/brands?${params.toString()}`
+
+    fetchJson<IndustryListResponse<IndustryCompany | IndustryKeyword | IndustryBrand>>(path)
+      .then((data) => {
+        if (!mounted) return
+        setIndustryItems(data.data)
+        setIndustryCount(data.count)
+      })
+      .catch((err: Error) => {
+        if (mounted) setIndustryError(err.message)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [fetchJson, industryFilter, industryView, showIndustry])
+
+  useEffect(() => {
     if (!showJobs) return
     let mounted = true
     setJobsError(null)
@@ -269,7 +392,9 @@ export function DebugPage() {
 
     fetchJson<JobDescriptionResponse>(`/api/job-descriptions/${encodeURIComponent(selectedJob)}`)
       .then((data) => {
-        if (mounted) setJobContent(data.content)
+        if (mounted) {
+          setJobContentMap((prev) => ({ ...prev, [selectedJob]: data.content }))
+        }
       })
       .catch((err: Error) => {
         if (mounted) setJobsError(err.message)
@@ -279,6 +404,41 @@ export function DebugPage() {
       mounted = false
     }
   }, [fetchJson, selectedJob, showJobs])
+
+  useEffect(() => {
+    if (!showJobs || !showAllJobs || jobDescriptions.length === 0) return
+    let mounted = true
+    setJobsError(null)
+    setJobsLoading(true)
+
+    Promise.all(
+      jobDescriptions.map((job) =>
+        fetchJson<JobDescriptionResponse>(`/api/job-descriptions/${encodeURIComponent(job.name)}`)
+          .then((data) => ({ name: job.name, content: data.content }))
+      )
+    )
+      .then((items) => {
+        if (!mounted) return
+        setJobContentMap((prev) => {
+          const next = { ...prev }
+          items.forEach((item) => {
+            next[item.name] = item.content
+          })
+          return next
+        })
+        setJobsLoading(false)
+      })
+      .catch((err: Error) => {
+        if (mounted) {
+          setJobsError(err.message)
+          setJobsLoading(false)
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [fetchJson, jobDescriptions, showAllJobs, showJobs])
 
   const handleSearch = useCallback((keyword: string) => {
     setQuery(keyword)
@@ -520,6 +680,42 @@ export function DebugPage() {
                 <Badge variant="secondary">{t('debug.industryLoadedAt', { value: industryStats.loadedAt })}</Badge>
               ) : null}
             </div>
+            <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1.4fr_0.6fr]">
+              <Select
+                options={industryDatasetOptions}
+                value={industryView}
+                onChange={(event) => setIndustryView(event.target.value as 'companies' | 'keywords' | 'brands')}
+              />
+              <Select
+                options={industryFilterOptions}
+                value={industryFilter}
+                onChange={(event) => setIndustryFilter(event.target.value)}
+                disabled={industryFilterOptions.length === 0}
+              />
+              <Input
+                value={industrySearch}
+                onChange={(event) => setIndustrySearch(event.target.value)}
+                placeholder={t('debug.industrySearchPlaceholder')}
+              />
+              <Input
+                type="number"
+                min={1}
+                max={1000}
+                value={industryLimit}
+                onChange={(event) => setIndustryLimit(Number(event.target.value) || 50)}
+                placeholder={t('debug.industryLimitPlaceholder')}
+              />
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {t('debug.industryShowing', {
+                shown: previewIndustryItems.length,
+                filtered: filteredIndustryItems.length,
+                total: industryCount,
+              })}
+            </div>
+            <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
+              {previewIndustryItems.length ? JSON.stringify(previewIndustryItems, null, 2) : t('debug.none')}
+            </pre>
             {industryValidation ? (
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2 text-xs">
@@ -569,9 +765,41 @@ export function DebugPage() {
                 )}
               </div>
             </div>
-            <pre className="max-h-[480px] overflow-auto rounded-md bg-muted p-3 text-xs">
-              {jobContent || t('debug.none')}
-            </pre>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllJobs((current) => !current)}
+              >
+                {showAllJobs ? t('debug.jobsShowSelected') : t('debug.jobsShowAll')}
+              </Button>
+              {jobsLoading ? (
+                <span className="text-xs text-muted-foreground">{t('debug.jobsLoading')}</span>
+              ) : null}
+            </div>
+            {showAllJobs ? (
+              <div className="space-y-3">
+                {jobDescriptions.length ? (
+                  jobDescriptions.map((job) => (
+                    <div key={job.name} className="rounded-md border bg-muted/20 p-3">
+                      <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{job.title ?? job.name}</span>
+                        <span>{job.name}</span>
+                      </div>
+                      <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
+                        {jobContentMap[job.name] || t('debug.none')}
+                      </pre>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground">{t('debug.none')}</p>
+                )}
+              </div>
+            ) : (
+              <pre className="max-h-[480px] overflow-auto rounded-md bg-muted p-3 text-xs">
+                {selectedJobContent || t('debug.none')}
+              </pre>
+            )}
           </CardContent>
         </Card>
       ) : null}

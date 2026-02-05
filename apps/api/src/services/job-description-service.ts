@@ -75,6 +75,16 @@ export class JobDescriptionService {
 
 function extractTitle(content: string): string | undefined {
   const lines = content.split("\n");
+  if (lines[0]?.trim() === "---") {
+    for (let i = 1; i < lines.length; i += 1) {
+      const line = lines[i].trim();
+      if (line === "---") break;
+      const match = /^title:\s*(.+)$/.exec(line);
+      if (match) {
+        return match[1].replace(/^["']|["']$/g, "").trim();
+      }
+    }
+  }
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed.startsWith("# ")) {
