@@ -1,8 +1,8 @@
 {
   "app": {
-    "title": "热点追踪",
-    "subtitle": "热点追踪",
-    "description": "中文新闻热点聚合与分析工具"
+    "title": "趋势",
+    "subtitle": "Trends",
+    "description": "多源数据聚合与AI智能筛选平台"
   },
   "nav": {
     "home": "首页",

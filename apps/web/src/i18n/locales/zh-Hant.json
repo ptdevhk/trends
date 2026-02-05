@@ -1,8 +1,8 @@
 {
   "app": {
-    "title": "熱點追蹤",
-    "subtitle": "熱點追蹤",
-    "description": "中文新聞熱點聚合與分析工具"
+    "title": "趨勢",
+    "subtitle": "Trends",
+    "description": "多源數據聚合與AI智能篩選平台"
   },
   "nav": {
     "home": "首頁",

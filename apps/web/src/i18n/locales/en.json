@@ -1,8 +1,8 @@
 {
   "app": {
-    "title": "Trend Tracker",
-    "subtitle": "Trend Tracker",
-    "description": "Chinese news aggregation and analysis tool"
+    "title": "Trends",
+    "subtitle": "Trends",
+    "description": "Multi-source data aggregation & AI screening platform"
   },
   "nav": {
     "home": "Home",

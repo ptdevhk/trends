@@ -18,8 +18,8 @@ meta:
 # Application General
 # ===============================================================
 app:
-  name: "Trend Tracker"
-  tagline: "Trend Tracking and Analysis Tool"
+  name: "Trends"
+  tagline: "Multi-source data aggregation & AI screening"
   version_update: "New version available"
 
 # ===============================================================
@@ -74,7 +74,7 @@ platforms:
 # Notification Messages
 # ===============================================================
 notification:
-  title: "TrendRadar Hot Trends"
+  title: "Trends Notification"
   new_trends: "New Trends"
   trend_count: "{count} trends"
   push_time: "Push Time"

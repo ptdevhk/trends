@@ -1,7 +1,7 @@
 [project]
-name = "trendradar"
+name = "trends"
 version = "5.4.0"
-description = "TrendRadar - 热点新闻聚合与分析工具"
+description = "Trends - Multi-source data aggregation & AI screening platform"
 requires-python = ">=3.10"
 dependencies = [
     "requests>=2.32.5,<3.0.0",

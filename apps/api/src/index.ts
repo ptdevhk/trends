@@ -27,7 +27,7 @@ app.route("/", resumesRoutes);
 app.doc("/doc", {
   openapi: "3.1.0",
   info: {
-    title: "热点追踪 API",
+    title: "Trends API",
     version: config.version,
     description: "BFF API for Chinese news hot topic aggregator",
   },
@@ -46,7 +46,7 @@ app.get("/openapi.json", (c) => {
   return c.json(app.getOpenAPI31Document({
     openapi: "3.1.0",
     info: {
-      title: "热点追踪 API",
+      title: "Trends API",
       version: config.version,
       description: "BFF API for Chinese news hot topic aggregator",
     },

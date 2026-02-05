@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
-  title: 热点追踪 API
+  title: Trends API
   description: |
     BFF (Backend for Frontend) API for Chinese news hot topic aggregator.
     Provides access to trending news, search functionality, and system health status.
   version: 0.1.0
   contact:
-    name: 热点追踪
+    name: Trends
 
 servers:
   - url: http://localhost:3000
