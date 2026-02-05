@@ -10,7 +10,12 @@
     "resumes": "Resumes",
     "debug": "Debug",
     "search": "Search",
-    "settings": "Settings"
+    "settings": "Settings",
+    "about": "About"
+  },
+  "about": {
+    "title": "About Trends",
+    "testText": "This is a placeholder about page for the mock nav."
   },
   "trends": {
     "title": "Trending Topics",

@@ -31,6 +31,17 @@ export function Header() {
               {t('nav.resumes')}
             </NavLink>
             <NavLink
+              to="/about"
+              className={({ isActive }) =>
+                cn(
+                  'transition-colors hover:text-foreground',
+                  isActive ? 'text-foreground' : 'text-muted-foreground'
+                )
+              }
+            >
+              {t('nav.about')}
+            </NavLink>
+            <NavLink
               to="/debug"
               className={({ isActive }) =>
                 cn(
@@ -55,6 +66,17 @@ export function Header() {
               }
             >
               {t('nav.resumes')}
+            </NavLink>
+            <NavLink
+              to="/about"
+              className={({ isActive }) =>
+                cn(
+                  'transition-colors hover:text-foreground',
+                  isActive ? 'text-foreground' : 'text-muted-foreground'
+                )
+              }
+            >
+              {t('nav.about')}
             </NavLink>
             <NavLink
               to="/debug"

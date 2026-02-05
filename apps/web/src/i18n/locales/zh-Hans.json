@@ -10,7 +10,12 @@
     "resumes": "简历",
     "debug": "调试",
     "search": "搜索",
-    "settings": "设置"
+    "settings": "设置",
+    "about": "关于"
+  },
+  "about": {
+    "title": "关于 Trends",
+    "testText": "这是一个关于页面的占位文本。"
   },
   "trends": {
     "title": "热门话题",

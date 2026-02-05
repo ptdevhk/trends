@@ -10,7 +10,12 @@
     "resumes": "簡歷",
     "debug": "調試",
     "search": "搜尋",
-    "settings": "設定"
+    "settings": "設定",
+    "about": "關於"
+  },
+  "about": {
+    "title": "關於 Trends",
+    "testText": "這是一個佔位的關於頁面描述。"
   },
   "trends": {
     "title": "熱門話題",
