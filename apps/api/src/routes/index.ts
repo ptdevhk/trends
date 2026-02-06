@@ -9,4 +9,5 @@ export { default as jobDescriptionsRoutes } from "./job-descriptions.js";
 export { default as sessionsRoutes } from "./sessions.js";
 export { default as actionsRoutes } from "./actions.js";
 export { default as searchProfilesRoutes } from "./search-profiles.js";
+export { default as filterPresetsRoutes } from "./filter-presets.js";
 

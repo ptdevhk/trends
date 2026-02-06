@@ -15,6 +15,7 @@ import {
   sessionsRoutes,
   actionsRoutes,
   searchProfilesRoutes,
+  filterPresetsRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 
@@ -37,6 +38,7 @@ export const openApiConfig = {
     { name: "sessions", description: "Resume search sessions" },
     { name: "actions", description: "Candidate actions" },
     { name: "Search Profiles", description: "Search profile management" },
+    { name: "Filter Presets", description: "Filter preset management" },
   ],
 };
 
@@ -60,6 +62,7 @@ export function createApp() {
   app.route("/", sessionsRoutes);
   app.route("/", actionsRoutes);
   app.route("/api/search-profiles", searchProfilesRoutes);
+  app.route("/api/filter-presets", filterPresetsRoutes);
 
   // OpenAPI documentation endpoint
   app.doc("/doc", openApiConfig);
