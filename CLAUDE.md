@@ -19,178 +19,6 @@ make dev              # Fast start: skip crawl, use existing output/*.db
 make dev ARGS=--fresh # Crawl first, then start services
 ```
 
-## Resume Screening System (Main Development Direction)
-
-Web-based resume multi-source collection, AI-powered screening, and HR efficient review system.
-
-**Core Goal:** Help HR and managers quickly obtain high-quality candidates matching job requirements, reducing manual screening burden.
-
-**Main Feature:** AI-powered resume screening that automatically matches candidates to job requirements using NLP-based content parsing (skills, experience, education extraction), custom screening criteria, and multi-provider AI support (DeepSeek, OpenAI, LiteLLM-compatible).
-
-**Default Audience:** Chinese HR professionals and recruiters
-**Default Language:** zh-Hans (Simplified Chinese) for both input and output
-
-### Architecture (Hub-and-Spoke Pattern)
-
-Cloned from [OpenClaw](https://github.com/openclaw/openclaw)'s gateway architecture. Reference: https://context7.com/openclaw/openclaw/llms.txt
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Gateway (Control Plane)                      │
-│  - WebSocket-based orchestration                                 │
-│  - Session state & candidate profile management                  │
-│  - Multi-agent routing with isolated workspaces                  │
-│  - Deterministic routing via bindings                            │
-└─────────────────────────────────────────────────────────────────┘
-         │                    │                    │
-         ▼                    ▼                    ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│  Input Sources  │  │   AI Providers  │  │  Output Channels│
-│  - Job Boards   │  │  - DeepSeek     │  │  - WeChat Work  │
-│  - Manual Upload│  │  - OpenAI       │  │  - Email        │
-│  - Email Ingest │  │  - LiteLLM      │  │  - ATS Webhook  │
-│  - ATS Webhook  │  │  - Gemini       │  │  - Internal Sys │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
-```
-
-### Multi-Agent Pipeline
-
-Following OpenClaw's multi-agent routing pattern with deterministic bindings:
-
-```json5
-{
-  agents: {
-    list: [
-      { id: "screener", name: "Initial Screener", model: "deepseek/deepseek-chat" },
-      { id: "evaluator", name: "Technical Evaluator", model: "anthropic/claude-sonnet-4-5" },
-      { id: "final", name: "Final Decision", model: "anthropic/claude-opus-4-5" }
-    ]
-  },
-  bindings: [
-    { agentId: "screener", match: { source: "job_board" } },
-    { agentId: "screener", match: { source: "manual_upload" } },
-    { agentId: "evaluator", match: { stage: "technical_review" } },
-    { agentId: "final", match: { stage: "final_decision" } }
-  ]
-}
-```
-
-### Source Plugin Pattern
-
-Adapted from OpenClaw's Channel Plugin SDK:
-
-```typescript
-export const sourcePlugin: SourcePlugin = {
-  id: 'job_board',
-  displayName: '智通直聘',
-  configSchema: { /* JSON Schema */ },
-  async start({ cfg, log }) { /* initialize connection */ },
-  outbound: { async notify(ctx) { /* send to HR */ } },
-  async onResume({ candidate, resume, metadata }) { /* process resume */ }
-}
-```
-
-| OpenClaw Channel | Resume Screening Source |
-|-----------------|------------------------|
-| WhatsApp | Email ingestion |
-| Telegram | Job board API (智通直聘) |
-| Slack | Manual upload portal |
-| Discord | ATS webhook |
-
-### Skills System (Extensibility)
-
-Following OpenClaw's SKILL.md pattern with scoring:
-
-```markdown
----
-name: senior_python_developer
-description: Screening criteria for senior Python developer positions
----
-
-# Required Criteria
-- 5+ years Python experience
-- Django or FastAPI framework knowledge
-- Database design experience (PostgreSQL/MySQL)
-
-# Preferred Criteria
-- AI/ML project experience
-- Open source contributions
-- Team leadership experience
-
-# Scoring
-- Required: Each criterion = 20 points (max 60)
-- Preferred: Each criterion = 10 points (max 30)
-- Passing threshold: 70 points
-
-# Tools
-Use `resume_extract` to parse skills and experience.
-Use `skill_match` to calculate matching score.
-```
-
-### Session & Tools Configuration
-
-```json5
-{
-  session: {
-    scope: "per-candidate",
-    resetTriggers: ["/archive", "/reject"],
-    retention: { mode: "until-hired", archiveAfterDays: 90 }
-  },
-  tools: {
-    resume_extract: { enabled: true, formats: ["pdf", "docx", "html"] },
-    skill_match: { enabled: true, threshold: 0.7 },
-    linkedin_verify: { enabled: true, apiKey: "${LINKEDIN_API_KEY}" }
-  },
-  notifications: {
-    wechat_work: { enabled: true, webhook: "${WECHAT_WORK_WEBHOOK}" },
-    email: { enabled: true, smtp: { host: "smtp.example.com", port: 587 } }
-  }
-}
-```
-
-### System Flow
-
-```
-Resume Sources → Gateway → Multi-Agent Pipeline → AI Screening & Matching → Push to HR → Tracking & Annotation
-```
-
-### Sample Data Generation
-
-Resume sample files in `output/resumes/samples/` include provenance metadata for reproduction.
-
-**Quick regeneration (automated via CDP):**
-```bash
-make refresh-sample                          # Default: 销售 -> sample-initial.json
-make refresh-sample KEYWORD=python           # Custom keyword
-make refresh-sample KEYWORD=python SAMPLE=sample-python
-make refresh-sample ALLOW_EMPTY=1            # Allow saving empty sample
-```
-Chrome must be running with remote debugging enabled and the extension installed/enabled.
-Manual fallback: `make refresh-sample-manual`.
-
-**Quick regeneration (semi-manual):**
-1. Log into https://hr.job5156.com in Chrome (with the browser extension installed)
-2. Navigate to: `https://hr.job5156.com/search?keyword=销售&tr_auto_export=json&tr_sample_name=sample-initial`
-3. Copy the downloaded `sample-initial.json` into `output/resumes/samples/`
-
-**Sample file format:**
-```json
-{
-  "metadata": {
-    "sourceUrl": "https://hr.job5156.com/search?keyword=销售",
-    "searchCriteria": { "keyword": "销售" },
-    "generatedAt": "2026-02-03T09:27:52.152Z",
-    "reproduction": "Navigate to sourceUrl, then add ?tr_auto_export=json"
-  },
-  "data": []
-}
-```
-
-**URL Parameters:**
-- `?keyword=<term>` - Search keyword (Chinese/English)
-- `?tr_auto_export=json` - Auto-download JSON with metadata
-- `?tr_sample_name=<name>` - Custom filename (e.g., `sample-initial`)
-
 ## Common Commands
 
 ### Development
@@ -254,436 +82,406 @@ make check-build      # Full build validation
 make help             # Show all available commands
 ```
 
+---
+
 ## Architecture
-
-### System Modules
-
-#### Core Engine (`trendradar/`)
-Python application orchestrating data collection, filtering, reporting, and notifications. Entry point is `trendradar/__main__.py` (runs `DataAnalyzer`).
-
-Key subsystems:
-- **`trendradar/core/`**: config loading, analyzer helpers, frequency filtering
-- **`trendradar/crawler/`**: data fetchers + parsers (News: 50+ platforms, Resume: job boards)
-- **`trendradar/storage/`**: persistence abstraction (local SQLite, remote S3/R2)
-- **`trendradar/notification/`**: push to 10+ channels (Feishu, Telegram, Slack, etc.)
-- **`trendradar/report/`**: HTML report generation
-- **`trendradar/ai/`**: LiteLLM-based AI analysis integration
-
-#### MCP Server (`mcp_server/`)
-FastMCP server exposing tools for querying/analysis. Entry point is `mcp_server/server.py`. Tool implementations live in `mcp_server/tools/` with supporting services in `mcp_server/services/`.
-
-#### Web Stack (`apps/`)
-- **BFF API (`apps/api/`)**: Hono (TypeScript). Routes in `apps/api/src/routes/`, Zod/OpenAPI schemas in `apps/api/src/schemas/`, data access in `apps/api/src/services/` (direct SQLite reads + resume JSON samples).
-- **Frontend (`apps/web/`)**: React (Vite + shadcn-ui + Tailwind). Routes: `/resumes` (default), `/trends`. UI components in `apps/web/src/components/`.
-- **Worker (`apps/worker/`)**: FastAPI scheduler + optional REST endpoints (see `apps/worker/api.py`).
-- **Browser Extension (`apps/browser-extension/`)**: Chrome/Edge extension for resume extraction from hr.job5156.com. Scripts in `apps/browser-extension/scripts/`.
-
-#### Configuration (`config/`)
-- `config/config.yaml`: platforms, modes, AI settings, notifications
-- `config/frequency_words.txt`: keyword filter rules (supports regex like `/pattern/`)
-- `config/i18n/`: locale files (zh-Hant is the source of truth)
-
-#### Supporting Directories
-- `scripts/`: dev/build/install orchestration + i18n tooling
-- `deploy/`: Docker + systemd configs
-- `packages/`: shared Python constants + TypeScript types
-- `output/`: generated SQLite DBs and artifacts used by the web/API layer
 
 ### Data Flow
 
 ```
-┌─────────────┐     ┌─────────────────────────────────┐
-│   React     │────▶│   Hono BFF + TypeScript Data    │
-│   (Web)     │     │   (Direct SQLite access)        │
-└─────────────┘     │   :3000                         │
-     :5173          └────────────────┬────────────────┘
-                                     │
-                    ┌────────────────▼────────────────┐
-                    │   output/*.db (SQLite)          │
-                    │   output/resumes/samples/*.json │
-                    └────────────────┬────────────────┘
-                                     │
-                    ┌────────────────▼────────────────┐
-                    │   FastAPI Worker (optional)     │
-                    │   (Scheduler / crawl helpers)   │
-                    │   :8000                         │
-                    └─────────────────────────────────┘
-
-┌─────────────┐
-│ MCP Server  │
-│   :3333     │
-└─────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              DATA SOURCES                                    │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│  │ News Crawler │  │ Job Boards   │  │ Manual Upload│  │ Email Ingest │    │
+│  │ (50+ sites)  │  │ (job5156)    │  │ (CSV/JSON)   │  │ (IMAP)       │    │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘    │
+└─────────┼─────────────────┼─────────────────┼─────────────────┼────────────┘
+          │                 │                 │                 │
+          ▼                 ▼                 ▼                 ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           STORAGE LAYER                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  output/*.db (SQLite)          output/resumes/samples/*.json        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              API LAYER                                       │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  Hono BFF API (:3000)          FastAPI Worker (:8000)               │   │
+│  │  - /api/trends                  - Scheduler                          │   │
+│  │  - /api/resumes                 - AI Matching                        │   │
+│  │  - /api/job-descriptions        - Crawl triggers                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           PRESENTATION LAYER                                 │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────────┐  │
+│  │ React Web (:5173)│  │ MCP Server (:3333)│  │ Notifications            │  │
+│  │ - Resume Review  │  │ - AI Analysis    │  │ - Feishu, Telegram       │  │
+│  │ - News Dashboard │  │ - Query Tools    │  │ - WeChat Work, Email     │  │
+│  └──────────────────┘  └──────────────────┘  └──────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Key Design Patterns
+---
 
-1. **AppContext (Dependency Injection)**: `trendradar/context.py` provides centralized access to config, storage, time functions.
+## Resume Screening System (Main Development Direction)
 
-2. **Storage Backend Abstraction**: `StorageManager` supports both local SQLite and remote S3-compatible storage (Cloudflare R2, etc.).
+### Design Philosophy: Minimal Human-in-the-Loop
 
-3. **Mode-based Report Generation**: Three modes control output behavior:
-   - `daily`: All data accumulated today
-   - `current`: Only currently active data
-   - `incremental`: Only newly appeared data
+**Core Principle**: Users provide only essential inputs (location + keywords), and the system handles everything else automatically. Configuration is **pre-configured** with sensible defaults but **fully editable** when needed.
 
-4. **LiteLLM Integration**: AI features use LiteLLM for unified access to 100+ AI providers (DeepSeek, OpenAI, Gemini, etc.).
+### Core User Inputs (Minimal Required)
 
-5. **Layered API Architecture**: React → Hono BFF (TypeScript data layer) → SQLite
+| Input | Required | Example | Notes |
+|-------|----------|---------|-------|
+| **Location** | ✅ Yes | `东莞`, `广州` | Single or multiple |
+| **Keywords** | ✅ Yes | `车床 销售`, `CNC` | Space-separated |
+| **Job Description** | ⚙️ Auto-select | `lathe-sales` | Auto-matched or user-selected |
 
-6. **Fast Dev Mode**:
-   - Skip crawl on dev startup (use existing SQLite output)
-   - Optional `--fresh` / `SKIP_CRAWL=false` to crawl first
+All other parameters have smart defaults and are auto-configured.
 
-## Finding Code
+### Automated Workflow (3-Step Flow)
 
-| Looking for... | Start here |
-|----------------|------------|
-| Core engine entry point | `trendradar/__main__.py` (`DataAnalyzer`) |
-| Data fetchers/parsers | `trendradar/crawler/` |
-| Frequency filtering | `trendradar/core/frequency.py`, `config/frequency_words.txt` |
-| Config parsing | `trendradar/core/config.py` |
-| API endpoints (BFF) | `apps/api/src/routes/` |
-| API schemas (BFF) | `apps/api/src/schemas/` |
-| MCP tools | `mcp_server/tools/` |
-| React components | `apps/web/src/components/` |
-| Browser extension | `apps/browser-extension/` (see `CLAUDE.md` there) |
-| Chrome DevTools MCP | `apps/browser-extension/CLAUDE.md` (browser automation tools) |
-
-Tip: when paths drift, use ripgrep: `rg -n "createRoute" apps/api/src/routes` / `rg -n "DataAnalyzer" trendradar`.
-
-## i18n (Internationalization)
-
-### Locales
-- **zh-Hant** (Traditional Chinese) - Source of truth
-- **zh-Hans** (Simplified Chinese) - Generated via OpenCC
-- **en** (English) - AI-translated
-
-### Translation Workflow
-```bash
-# 1. Edit source locale
-vim config/i18n/zh-Hant.yaml
-
-# 2. Check all locales have same keys
-make i18n-check
-
-# 3. Generate Simplified Chinese from Traditional
-make i18n-convert
-
-# 4. Translate to English (requires AI_API_KEY)
-make i18n-translate
-
-# 5. Build static sites for all locales
-make i18n-build
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          USER INPUT (MINIMAL)                                │
+│  ┌─────────────┐  ┌──────────────────┐  ┌────────────────────────────────┐  │
+│  │  Location   │  │    Keywords      │  │  Job Description (optional)   │  │
+│  │  东莞       │  │  车床 销售       │  │  [Auto-select or Pick from   │  │
+│  └─────────────┘  └──────────────────┘  │   dropdown]                   │  │
+│                                          └────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    STEP 1: AUTO-CONFIGURE (No User Action)                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 1. Match keywords to Job Description (JD) from library              │   │
+│  │ 2. Create/resume Session with location + keywords                   │   │
+│  │ 3. Set default filters (experience, education, salary ranges)       │   │
+│  │ 4. Configure AI agents (screener → evaluator → final)               │   │
+│  │ 5. Set notification preferences (WeChat Work, Email)                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│               STEP 2: AUTO-COLLECT & MATCH (Runs Automatically)              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 1. Browser Extension crawls job board with location + keywords      │   │
+│  │ 2. Extract resumes → normalize → deduplicate                        │   │
+│  │ 3. AI Screener: Initial pass (batch, parallel)                      │   │
+│  │ 4. AI Evaluator: Detailed scoring (top candidates only)             │   │
+│  │ 5. Store results with match scores + recommendations                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                STEP 3: REVIEW & ACT (HR Human-in-the-Loop)                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ HR sees: Pre-sorted candidates ranked by AI match score             │   │
+│  │                                                                       │   │
+│  │ Actions: ✅ Shortlist  ❌ Reject  📞 Contact  📝 Add Notes           │   │
+│  │                                                                       │   │
+│  │ Smart Features:                                                       │   │
+│  │ • One-click bulk actions (shortlist all 80+ score)                  │   │
+│  │ • Auto-send notifications for shortlisted candidates                │   │
+│  │ • AI-generated outreach messages (optional)                         │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### CI Integration
-The `i18n-check` job runs in `.github/workflows/checks.yml` to ensure all locales stay in sync.
+### Configuration System (Edit When Needed)
 
-## Deployment
+#### 1. Search Profiles (`config/search-profiles/`)
 
-> **Note:** Service names use the legacy `trendradar` prefix for backward compatibility.
+Pre-configured search profiles that combine location + keywords + filters:
 
-### Native (systemd)
-```bash
-sudo ./scripts/install.sh           # Install services
-sudo systemctl start trendradar.timer   # Start crawler (every 30 min)
-sudo systemctl start trendradar-mcp     # Start MCP server
-sudo systemctl status trendradar-mcp    # Check status
+```yaml
+# config/search-profiles/dongguan-lathe-sales.yaml
+id: dongguan-lathe-sales
+name: 东莞车床销售招聘
+location: 东莞
+keywords:
+  - 车床
+  - 销售
+  - CNC
+jobDescription: lathe-sales  # Auto-linked JD
+filters:
+  minExperience: 2
+  education: [大专, 本科]
+  salaryRange: [8000, 20000]
+schedule:
+  enabled: true
+  cron: "0 9 * * 1-5"  # Mon-Fri 9am
+notifications:
+  wechatWork: true
+  email: hr@company.com
 ```
 
-### Docker
-```bash
-cd deploy/docker
-docker compose up -d trendradar         # Crawler service
-docker compose up -d trendradar-mcp     # MCP server
+#### 2. Job Descriptions (`config/job-descriptions/`)
+
+JD system with enhanced auto-matching:
+
+```yaml
+# config/job-descriptions/lathe-sales.md (frontmatter)
+---
+id: jd-lathe-sales
+title: 车床销售工程师
+auto_match:
+  keywords: [车床, CNC车床, 数控车床, STAR, 机床销售]
+  locations: [东莞, 广州, 深圳]
+  priority: 90  # Higher = preferred when multiple JDs match
+  filter_preset: sales-mid
+---
 ```
 
-### GitHub Actions
-- **crawler.yml**: Runs every 33 minutes, stores output as artifacts
-- **deploy-pages.yml**: Deploys static site to GitHub Pages
-- **checks.yml**: Runs code checks, i18n validation, secret scanning
-
-## Configuration
-
-### Main Config Files
-- `config/config.yaml` - Main config (50+ platforms, modes, AI settings, notifications)
-- `config/frequency_words.txt` - Keyword groups for filtering (supports regex: `/pattern/`)
-- `config/ai_analysis_prompt.txt` - Custom AI analysis prompt template
-
-### Environment Variables
-
-**Required Secrets:**
-- `AI_API_KEY` - AI provider API key
-- `AI_MODEL` - Model identifier (e.g., `deepseek/deepseek-chat`)
-
-**Optional - Notifications:**
-- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-- `FEISHU_WEBHOOK_URL`
-- `SLACK_WEBHOOK_URL`
-- `DINGTALK_WEBHOOK_URL`, `DINGTALK_SECRET`
-
-**Optional - Remote Storage:**
-- `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`, `S3_REGION`
-
-**Development Mode:**
-- `ENV_FILE` - Path to `.env` file (default: `.env`)
-- `SKIP_CRAWL` - Skip crawl on dev startup (default: true; set to false to crawl)
-- `SKIP_ROOT_INDEX` - Skip generating root `index.html` (useful in dev to avoid git pollution)
-- `USE_MOCK` - Deprecated (removed)
-
-**Service Ports:**
-- `API_PORT` - BFF API port (default: 3000)
-- `WEB_PORT` - Web frontend port (default: 5173)
-- `WORKER_PORT` - FastAPI worker port (default: 8000)
-- `MCP_PORT` - MCP server port (default: 3333)
-
-## Tests
-
-### Python (pytest)
-- Framework: pytest (preferred) or unittest
-- Location: `tests/` directory at project root
-- Naming: `test_*.py` or `*_test.py`
-- Run: `uv run pytest` or `make test-python`
-
-### TypeScript (vitest)
-- Framework: vitest
-- Location: Place test files next to source using `.test.ts` extension
-- Run: `make test-node` (uses bun locally, npm in CI)
-
-### Running Tests
-```bash
-make test           # Run all tests (Python + TypeScript)
-make test-python    # Run Python tests only
-make test-node      # Run TypeScript tests only
-```
-
-### Guidelines
-
-- Do not use mocks unless absolutely necessary
-- Do not skip tests based on missing environment variables
-- Make tests resilient to timing and ordering
-- Keep tests focused and independent
-
-## Logs
-
-When running `make dev` (or `./scripts/dev.sh`), service logs are written to `logs/{service}.log`:
-
-- **mcp.log**: MCP server output (port 3333)
-- **api.log**: Hono BFF API output (port 3000)
-- **worker.log**: FastAPI worker output (port 8000)
-- **web.log**: Vite dev server output (port 5173)
-- **crawler.log**: Crawler output (when using `--fresh`)
-
-Log files are overwritten on each run. Use `tail -f logs/<file>` to follow live output.
-
-### Production (systemd)
-
-Logs are written to systemd journal:
-
-```bash
-journalctl -u trendradar -f        # Follow crawler logs
-journalctl -u trendradar-mcp -f    # Follow MCP server logs
-journalctl -u trendradar -n 100    # Last 100 lines
-```
-
-### Log Levels
-
-- **Worker**: Configurable via `--verbose` (DEBUG) or `--quiet` (WARNING)
-- **Crawler/MCP**: Uses print statements (no level control)
-- **API**: Hono logger middleware for request/response logging
-
-## API Reference
-
-### News Aggregation Extension
-
-#### BFF Endpoints (Hono - port 3000)
-
-**Get trending news:**
-```bash
-curl "http://localhost:3000/api/trends"
-```
-→ `{"success":true,"summary":{"total":123,"returned":50},"data":[{"title":"...","platform":"zhihu","platform_name":"Zhihu Hot List","rank":1}]}`
-
-**Get topics (keyword frequency):**
-```bash
-curl "http://localhost:3000/api/topics?mode=current&top_n=10"
-```
-→ `{"success":true,"topics":[{"keyword":"AI","frequency":15}],"generated_at":"..."}`
-
-**Search news:**
-```bash
-curl "http://localhost:3000/api/search?q=AI&limit=10"
-```
-→ `{"success":true,"results":[{"title":"...","platform":"weibo","platform_name":"Weibo Hot Search"}],"total":10}`
-
-**Health check:**
-```bash
-curl "http://localhost:3000/health"
-```
-→ `{"status":"healthy","timestamp":"...","version":"..."}`
-
-#### Worker Endpoints (FastAPI - port 8000)
-
-**Health check:**
-```bash
-curl "http://localhost:8000/health"
-```
-
-FastAPI docs: `http://localhost:8000/docs`
-
-#### MCP Server (HTTP - port 3333)
-
-**Start the server:**
-```bash
-# STDIO mode (for MCP clients over stdio)
-uv run python -m mcp_server.server
-
-# HTTP mode (for web clients)
-uv run python -m mcp_server.server --transport http --port 3333
-```
-
-**Test tools via MCP Inspector:**
-```bash
-npx @modelcontextprotocol/inspector
-```
-
-### Resume Screening Extension (Sample Data)
-
-#### BFF Endpoints (Hono - port 3000)
-
-**List resume samples:**
-```bash
-curl "http://localhost:3000/api/resumes/samples"
-```
-→ `{"success":true,"samples":[{"name":"sample-initial","filename":"sample-initial.json","updatedAt":"...","size":12345}]}`
-
-**Get resumes (latest sample):**
-```bash
-curl "http://localhost:3000/api/resumes"
-```
-→ `{"success":true,"sample":{"name":"sample-initial"},"summary":{"total":25,"returned":25},"data":[{"name":"...","jobIntention":"..."}]}`
-
-**Get resumes (specific sample + search):**
-```bash
-curl "http://localhost:3000/api/resumes?sample=sample-initial&q=sales&limit=20"
-```
-→ `{"success":true,"summary":{"total":5,"returned":5},"data":[{"name":"...","jobIntention":"Sales Manager"}]}`
-
-## Code Conventions
-
-- Type hints used throughout Python code
-- Config values accessed via `ctx.config["KEY"]` pattern
-- Async wrappers in MCP server use `asyncio.to_thread()` for sync operations
-- TypeScript uses Zod for schema validation in apps/api
-- React components use shadcn-ui + Tailwind CSS in apps/web
-
-### Package Manager
-
-- **CI (remote)**: Always use `npm` / `npx` for reproducible builds
-- **Local dev**: Use `bun` / `bunx` for faster installs and execution
-- **Python**: Use `uv run` for Python scripts
-
-Makefile targets auto-detect bun availability:
-```bash
-# Uses bun if available, falls back to npm
-make check-node
-make check-build
-make test-node
-```
-
-### Running Scripts from Project Root
-
-**Preferred: Direct shell script execution** (works with any package manager):
-
-```bash
-./apps/browser-extension/scripts/cmux-setup-profile.sh
-./scripts/dev.sh
-```
-
-**Workspace scripts via package manager:**
-
-```bash
-# bun (local dev)
-bun run --filter @trends/browser-extension cmux:setup-profile
-
-# npm (CI)
-npm run cmux:setup-profile --workspace @trends/browser-extension
-
-# Python (uv)
-uv run python -m mcp_server.server
-```
-
-## Agent Guidelines
-
-### Documentation Check
-- **dev-docs/**: Always check this directory for cached documentation (e.g., LiteLLM, FastMCP) before implementation.
-  - If you encounter a repository URL, use the `context7` tool to query for more detailed documentation.
-- **Job5156 Specs**: See `dev-docs/job5156/manual.md` for detailed operational rules and definitions for the 智通直聘 platform.
-
-## Chinese Text Handling (zh-Hans)
-
-The default audience is Chinese HR professionals. Follow these guidelines for robust Simplified Chinese input/output handling.
-
-### Character Encoding
-
-- **Python file I/O**: Always use `encoding="utf-8"` explicitly
-- **JSON serialization**: Always use `ensure_ascii=False` to preserve Chinese characters
-- **SQLite**: UTF-8 by default, use parameterized queries (never string concat)
-- **HTTP URLs**: Use `encodeURIComponent()` / `URLSearchParams` for proper encoding
-
-### Delimiter Handling
-
-Chinese input may use different delimiter characters:
-
-| Type | ASCII | Chinese | Regex Pattern |
-|------|-------|---------|---------------|
-| Comma | `,` (U+002C) | `，` (U+FF0C) | `/[,，、]/g` |
-| Enumeration | N/A | `、` (U+3001) | Include in comma pattern |
-| Space | ` ` (U+0020) | `　` (U+3000) | `/[\s\u3000]+/g` |
-
-**Best practice**: When splitting user input by comma, always use `/[,，、]/g` to handle all variants.
-
-### Keyword/Search Input
-
-Platform search supports multi-keyword input separated by spaces (e.g., `五金 销售`). Users may enter either half-width space (U+0020) or full-width space (U+3000); normalize before processing or matching.
-
-For multi-keyword search (e.g., `车床 销售`):
-
-1. **Normalize spaces**: Convert full-width space (U+3000) to half-width (U+0020)
-2. **Collapse multiple**: Multiple spaces → single space
-3. **Trim**: Remove leading/trailing whitespace
-4. **URL encoding**: Space becomes `+` or `%20` in query strings
-
-```typescript
-function normalizeKeyword(keyword: string): string {
-  return keyword
-    .replace(/[\u3000]/g, " ") // Full-width → half-width
-    .replace(/\s+/g, " ") // Collapse
-    .trim();
+#### 3. AI Agents (`config/resume/agents.json5`)
+
+Pre-configured agent pipeline with cost-optimized defaults:
+
+```json5
+{
+  agents: {
+    list: [
+      { id: "screener", name: "初筛Agent", model: "deepseek/deepseek-chat", 
+        config: { batchSize: 50, parallelism: 10, timeout: 30000 } },
+      { id: "evaluator", name: "详评Agent", model: "deepseek/deepseek-chat",
+        config: { onlyTopPercent: 30, minScreenerScore: 60 } },
+      { id: "final", name: "终审Agent", model: "anthropic/claude-sonnet-4-5",
+        config: { onlyTopPercent: 10, minEvaluatorScore: 75 } }
+    ],
+    defaults: {
+      screener: { passThreshold: 50 },
+      evaluator: { passThreshold: 70 },
+      final: { passThreshold: 80 }
+    }
+  },
+  bindings: "auto"
 }
 ```
 
-### Text Comparison
+#### 4. Filter Presets (`config/resume/filter-presets.json5`)
 
-- Use `.localeCompare()` for sorting Chinese strings
-- Apply `.normalize("NFC")` before comparison if handling user input from multiple sources
-- Use case-insensitive matching for mixed Chinese/English text
+Quick filter presets for common patterns:
 
-### Common Chinese Patterns
+```json5
+{
+  presets: [
+    { id: "sales-entry", name: "销售入门级", minExp: 0, maxExp: 3, edu: ["大专", "本科"] },
+    { id: "sales-senior", name: "销售资深级", minExp: 5, maxExp: null, edu: ["本科", "硕士"] },
+    { id: "engineer-mid", name: "工程师中级", minExp: 3, maxExp: 8, edu: ["本科"] },
+    { id: "engineer-senior", name: "高级工程师", minExp: 8, maxExp: null, edu: ["本科", "硕士"] }
+  ]
+}
+```
 
-Resume data often contains these patterns:
+### UI Design (Minimal Interaction)
 
-| Field | Pattern | Example |
-|-------|---------|---------|
-| Age | Contains `岁` | `28岁` |
-| Experience | Contains `年` (not `元`) | `5年` |
-| Salary | Contains `元` | `8000-12000元/月`, `面议` |
-| Education | Matches /(中专\|高中\|大专\|本科\|硕\|博\|研究生\|MBA\|EMBA)/ | `本科` |
+#### Quick Start Panel (Default View)
 
-### File Naming with Chinese
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  🔍 快速开始                                                                 │
+│  ───────────────────────────────────────────────────────────────────────── │
+│                                                                              │
+│  位置:  [东莞        ▼]     关键词: [车床 销售                    ] [搜索]  │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ⚡ 智能匹配: 已匹配职位 "车床销售工程师" (lathe-sales)              │   │
+│  │    📋 2年+经验 | 💰 8k-20k | 🎓 大专及以上                          │   │
+│  │    [使用此配置] [修改配置]                                          │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-When using Chinese in filenames:
+#### Results View (AI Pre-sorted)
 
-- Sanitize using: `.replace(/[\\/:*?"<>|]/g, "-")`
-- Replace spaces with hyphens: `.replace(/\s+/g, "-")`
-- Limit length: `.slice(0, 80)`
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  📋 匹配结果                      已处理: 156 | 匹配: 48 | 平均分: 72       │
+│  ───────────────────────────────────────────────────────────────────────── │
+│                                                                              │
+│  [批量操作 ▼] 选中: 0  │  [☐ 全选80分+] [☐ 全部入围] [导出Excel]           │
+│                                                                              │
+│  ┌───────────────────────────────────────────────────────────────────────┐ │
+│  │ ☐  95分 ⭐ 张三 | 5年车床销售 | 本科 | 期望12k | 东莞                  │ │
+│  │     🏢 上一家: XX精密机械 → 车床销售主管                               │ │
+│  │     💡 AI评语: 经验丰富，有STAR品牌销售经验，符合度高                  │ │
+│  │     [✅入围] [❌拒绝] [📞联系] [📝备注]                                 │ │
+│  ├───────────────────────────────────────────────────────────────────────┤ │
+│  │ ☐  87分    李四 | 3年设备销售 | 本科 | 期望15k | 深圳                  │ │
+│  │     🏢 上一家: XX自动化 → 销售工程师                                   │ │
+│  │     💡 AI评语: 设备销售经验，需了解车床产品知识                        │ │
+│  │     [✅入围] [❌拒绝] [📞联系] [📝备注]                                 │ │
+│  └───────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### API Enhancements
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/search-profiles` | GET/POST | List/create search profiles |
+| `/api/search-profiles/:id` | GET/PUT/DELETE | Manage single profile |
+| `/api/search-profiles/:id/run` | POST | Execute profile (collect + match) |
+| `/api/job-descriptions/match` | POST | Auto-match keywords to JD |
+| `/api/filter-presets` | GET | List filter presets |
+| `/api/resumes/bulk-action` | POST | Bulk shortlist/reject/contact |
+| `/api/notifications/test` | POST | Test notification channel |
+
+### Implementation Phases
+
+#### Phase 1: Core Automation (Current Focus)
+- [x] Basic resume collection + AI matching
+- [ ] Search Profile system
+- [ ] Auto-match JD from keywords
+- [ ] Filter presets
+- [ ] Simplified Quick Start UI
+
+#### Phase 2: Bulk Actions & Notifications
+- [ ] Bulk shortlist/reject/contact
+- [ ] Auto-notify shortlisted candidates
+- [ ] AI-generated outreach messages
+- [ ] WeChat Work integration
+
+#### Phase 3: Scheduling & Monitoring
+- [ ] Scheduled crawl jobs
+- [ ] Dashboard with crawl status
+- [ ] Alert on new high-match candidates
+- [ ] Historical analytics
+
+#### Phase 4: Plugin Generalization
+- [ ] Extract common plugin patterns
+- [ ] Plugin configuration UI
+- [ ] Plugin marketplace (internal)
+
+---
+
+## Plugin Architecture (Generalizable Pattern)
+
+The Resume Screening pattern can be generalized to other plugin services:
+
+### Plugin Interface
+
+```typescript
+interface PluginService {
+  id: string;
+  name: string;
+  configDir: string;  // e.g., 'config/resume/', 'config/news/'
+  requiredInputs: PluginInput[];
+  configurableItems: ConfigurableItem[];
+  pipeline: PipelineStage[];
+  outputChannels: OutputChannel[];
+}
+```
+
+### Example: News Aggregation Plugin
+
+```typescript
+const newsPlugin: PluginService = {
+  id: 'news-aggregation',
+  name: '热点新闻监控',
+  configDir: 'config/news/',
+  requiredInputs: [
+    { id: 'keywords', label: '监控关键词', type: 'text', required: true },
+    { id: 'platforms', label: '平台', type: 'multiselect', required: false,
+      defaultValue: ['zhihu', 'weibo', 'baidu'] }
+  ],
+  configurableItems: [
+    { id: 'frequency_words', label: '频率词库', type: 'config-file', editableInUI: true },
+    { id: 'notification', label: '通知设置', type: 'config-file', editableInUI: true }
+  ],
+  pipeline: [
+    { stage: 'crawl', handler: 'CrawlerService', parallelism: 10 },
+    { stage: 'filter', handler: 'FrequencyFilter', configFile: 'frequency_words.txt' },
+    { stage: 'dedupe', handler: 'DedupeService' },
+    { stage: 'notify', handler: 'NotificationService' }
+  ],
+  outputChannels: ['feishu', 'telegram', 'email']
+};
+```
+
+---
+
+## File Structure
+
+```
+config/
+├── resume/
+│   ├── agents.json5           # AI agent configuration
+│   ├── session.json5          # Session settings
+│   ├── filter-presets.json5   # Filter presets
+│   └── skills_words.txt       # Skill keywords
+├── job-descriptions/
+│   ├── README.md
+│   ├── lathe-sales.md         # Example with auto_match config
+│   └── ...                    # Other JD files
+├── search-profiles/           # Search profiles
+│   ├── README.md
+│   ├── dongguan-lathe-sales.yaml
+│   └── ...
+└── notifications/             # Notification templates
+    ├── README.md
+    ├── shortlist-wechat.md
+    └── shortlist-email.md
+
+apps/
+├── api/src/
+│   ├── routes/
+│   │   ├── resumes.ts
+│   │   ├── job-descriptions.ts
+│   │   ├── search-profiles.ts   # NEW
+│   │   └── bulk-actions.ts      # NEW
+│   └── services/
+│       ├── resume-service.ts
+│       ├── job-description-service.ts
+│       ├── search-profile-service.ts  # NEW
+│       ├── auto-match-service.ts      # NEW
+│       └── notification-service.ts    # NEW
+├── web/src/
+│   ├── components/
+│   │   ├── QuickStartPanel.tsx   # NEW
+│   │   ├── ConfigPanel.tsx       # NEW (collapsible)
+│   │   ├── BulkActionBar.tsx     # NEW
+│   │   └── ...
+│   └── pages/
+│       └── ResumesPage.tsx       # Updated with new panels
+└── browser-extension/
+    └── ...                       # Existing extension
+```
+
+---
+
+## Summary
+
+### What Users Do (Minimal)
+1. Enter location + keywords
+2. Click "Search" (one button)
+3. Review AI-sorted results
+4. Bulk approve/reject top candidates
+
+### What System Does Automatically
+1. Match keywords → best Job Description
+2. Apply default filters based on JD
+3. Collect resumes from job boards
+4. Run multi-stage AI screening
+5. Sort by match score
+6. Send notifications on actions
+
+### When Users Want More Control
+- Expand "Advanced Config" panel
+- Select/edit Job Descriptions
+- Customize filter criteria
+- Set up scheduled runs
+- Configure notification channels
+
+This design minimizes the "human-in-the-loop" burden while keeping full configurability available when needed.

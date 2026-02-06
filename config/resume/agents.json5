@@ -1,15 +1,135 @@
 {
+  // Multi-Agent Pipeline Configuration
+  // Follows OpenClaw's multi-agent routing pattern with cost-optimized defaults
+  
   agents: {
     list: [
-      { id: "screener", name: "Initial Screener", model: "deepseek/deepseek-chat" },
-      { id: "evaluator", name: "Technical Evaluator", model: "anthropic/claude-sonnet-4-5" },
-      { id: "final", name: "Final Decision", model: "anthropic/claude-opus-4-5" }
-    ]
+      // Stage 1: Initial Screener (fast, cheap, high throughput)
+      {
+        id: "screener",
+        name: "初筛Agent",
+        description: "快速筛选，排除明显不匹配候选人",
+        model: "deepseek/deepseek-chat",
+        config: {
+          batchSize: 50,           // Process 50 resumes per batch
+          parallelism: 10,         // 10 parallel requests
+          timeout: 30000,          // 30 second timeout
+          maxTokens: 500,          // Short responses
+          temperature: 0.1         // Low creativity, consistent scoring
+        }
+      },
+      
+      // Stage 2: Technical Evaluator (moderate cost, detailed analysis)
+      {
+        id: "evaluator",
+        name: "详评Agent",
+        description: "详细评估技能匹配度和工作经验",
+        model: "deepseek/deepseek-chat",
+        config: {
+          batchSize: 10,           // Smaller batches for detailed work
+          parallelism: 5,
+          timeout: 60000,
+          maxTokens: 1500,
+          temperature: 0.2,
+          // Only process candidates that passed screener
+          onlyTopPercent: 30,
+          minPreviousScore: 50
+        }
+      },
+      
+      // Stage 3: Final Decision (premium model, top candidates only)
+      {
+        id: "final",
+        name: "终审Agent",
+        description: "最终推荐决策和面试建议",
+        model: "anthropic/claude-sonnet-4-5",
+        config: {
+          batchSize: 5,
+          parallelism: 2,
+          timeout: 120000,
+          maxTokens: 2000,
+          temperature: 0.3,
+          // Only process top performers
+          onlyTopPercent: 10,
+          minPreviousScore: 70,
+          // Generate interview questions for shortlisted
+          generateInterviewQuestions: true
+        }
+      }
+    ],
+    
+    // Default thresholds for each stage
+    defaults: {
+      screener: {
+        passThreshold: 50,         // Minimum score to pass to evaluator
+        recommendations: {
+          reject: [0, 30],         // Score 0-30: Reject
+          review: [30, 50],        // Score 30-50: Maybe, needs review
+          pass: [50, 100]          // Score 50+: Pass to next stage
+        }
+      },
+      evaluator: {
+        passThreshold: 70,
+        recommendations: {
+          reject: [0, 50],
+          review: [50, 70],
+          pass: [70, 100]
+        }
+      },
+      final: {
+        passThreshold: 80,
+        recommendations: {
+          notRecommended: [0, 60],
+          conditional: [60, 80],
+          recommended: [80, 90],
+          highlyRecommended: [90, 100]
+        }
+      }
+    }
   },
-  bindings: [
+  
+  // Routing bindings
+  // "auto" = determine stage based on processing status
+  // Can also specify explicit bindings like OpenClaw pattern
+  bindings: "auto",
+  
+  // Explicit binding examples (used if bindings != "auto"):
+  explicitBindings: [
     { agentId: "screener", match: { source: "job_board" } },
     { agentId: "screener", match: { source: "manual_upload" } },
+    { agentId: "screener", match: { source: "email_ingest" } },
     { agentId: "evaluator", match: { stage: "technical_review" } },
     { agentId: "final", match: { stage: "final_decision" } }
-  ]
+  ],
+  
+  // Global settings
+  global: {
+    // Maximum total cost per run (USD)
+    maxCostPerRun: 5.0,
+    
+    // Stop processing if error rate exceeds threshold
+    maxErrorRate: 0.1,
+    
+    // Retry configuration
+    retry: {
+      maxAttempts: 3,
+      backoffMs: 1000,
+      backoffMultiplier: 2
+    },
+    
+    // Caching
+    cache: {
+      enabled: true,
+      ttlMinutes: 60,
+      // Don't re-process same resume + JD combination
+      dedupeByResumeAndJd: true
+    }
+  },
+  
+  // Prompt templates (reference files in config/prompts/)
+  prompts: {
+    screener: "config/prompts/resume-screener.txt",
+    evaluator: "config/prompts/resume-evaluator.txt",
+    final: "config/prompts/resume-final.txt"
+  }
 }

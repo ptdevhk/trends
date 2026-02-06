@@ -1,0 +1,153 @@
+# Example Search Profile: 东莞车床销售招聘
+# This profile demonstrates the minimal-input configuration pattern
+
+id: dongguan-lathe-sales
+name: 东莞车床销售招聘
+description: 东莞地区车床销售工程师岗位自动化招聘
+createdAt: "2026-02-06"
+updatedAt: "2026-02-06"
+status: active
+
+# ============================================================
+# CORE INPUTS (Required - user provides these)
+# ============================================================
+
+location: 东莞
+keywords:
+  - 车床
+  - 销售
+  - CNC
+  - 数控
+
+# ============================================================
+# AUTO-CONFIGURED (System fills these based on keywords)
+# ============================================================
+
+# Job description is auto-matched from config/job-descriptions/
+# Based on keyword overlap: 车床 + 销售 → lathe-sales.md
+jobDescription: lathe-sales
+
+# Filter preset auto-selected based on JD requirements
+filterPreset: sales-mid
+
+# Custom filter overrides (optional, takes precedence over preset)
+filters:
+  minExperience: 2
+  maxExperience: null  # No upper limit
+  education:
+    - 中专
+    - 大专
+    - 本科
+  salaryRange:
+    min: 8000
+    max: 20000
+    currency: CNY
+    period: month
+  locations:
+    - 东莞
+    - 广州
+    - 深圳
+
+# ============================================================
+# AUTOMATION SETTINGS
+# ============================================================
+
+schedule:
+  enabled: true
+  # Run every weekday at 9:00 AM Shanghai time
+  cron: "0 9 * * 1-5"
+  timezone: Asia/Shanghai
+  # Maximum candidates to process per run
+  maxCandidates: 200
+  # Only notify if new high-match candidates found
+  notifyOnlyOnNew: true
+
+# Data source configuration
+sources:
+  - type: job5156
+    enabled: true
+    priority: 1
+  - type: manual_upload
+    enabled: true
+    priority: 2
+
+# ============================================================
+# NOTIFICATION SETTINGS
+# ============================================================
+
+notifications:
+  enabled: true
+  
+  channels:
+    # WeChat Work (企业微信)
+    - type: wechat_work
+      enabled: true
+      webhook: ${WECHAT_WORK_WEBHOOK}
+      
+    # Email
+    - type: email
+      enabled: true
+      recipients:
+        - hr@company.com
+        - manager@company.com
+  
+  triggers:
+    # Notify immediately when high-match candidate found (score >= 80)
+    - event: new_high_match
+      threshold: 80
+      channels: [wechat_work]
+      
+    # Daily summary at 6:00 PM
+    - event: daily_summary
+      time: "18:00"
+      channels: [email]
+      
+    # Weekly report on Friday
+    - event: weekly_report
+      day: friday
+      time: "17:00"
+      channels: [email]
+
+# ============================================================
+# AI MATCHING SETTINGS
+# ============================================================
+
+ai:
+  # Use multi-stage pipeline
+  pipeline:
+    - stage: screener
+      model: deepseek/deepseek-chat
+      threshold: 50
+      batchSize: 50
+      
+    - stage: evaluator
+      model: deepseek/deepseek-chat
+      threshold: 70
+      # Only evaluate top 30% from screener
+      topPercent: 30
+      
+    - stage: final
+      model: anthropic/claude-sonnet-4-5
+      threshold: 80
+      # Only final review top 10% from evaluator
+      topPercent: 10
+  
+  # Auto-generate outreach messages for shortlisted candidates
+  generateOutreach: true
+  outreachTemplate: shortlist-wechat
+
+# ============================================================
+# SESSION SETTINGS
+# ============================================================
+
+session:
+  # Keep session data until position is filled
+  scope: per-position
+  # Reset triggers
+  resetTriggers:
+    - /archive
+    - /close-position
+  # Archive after 90 days of inactivity
+  retention:
+    mode: until-closed
+    archiveAfterDays: 90

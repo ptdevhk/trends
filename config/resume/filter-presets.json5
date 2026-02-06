@@ -1,0 +1,131 @@
+{
+  // Filter presets for quick configuration
+  // Users can select a preset to auto-fill filter values
+  presets: [
+    // Sales roles
+    {
+      id: "sales-entry",
+      name: "销售入门级",
+      category: "sales",
+      filters: {
+        minExperience: 0,
+        maxExperience: 3,
+        education: ["大专", "本科"],
+        salaryRange: { min: 5000, max: 10000 }
+      }
+    },
+    {
+      id: "sales-mid",
+      name: "销售中级",
+      category: "sales",
+      filters: {
+        minExperience: 3,
+        maxExperience: 6,
+        education: ["大专", "本科"],
+        salaryRange: { min: 8000, max: 18000 }
+      }
+    },
+    {
+      id: "sales-senior",
+      name: "销售资深级",
+      category: "sales",
+      filters: {
+        minExperience: 5,
+        maxExperience: null,
+        education: ["本科", "硕士"],
+        salaryRange: { min: 15000, max: 35000 }
+      }
+    },
+
+    // Engineering roles
+    {
+      id: "engineer-entry",
+      name: "工程师入门级",
+      category: "engineering",
+      filters: {
+        minExperience: 0,
+        maxExperience: 3,
+        education: ["本科"],
+        salaryRange: { min: 6000, max: 12000 }
+      }
+    },
+    {
+      id: "engineer-mid",
+      name: "工程师中级",
+      category: "engineering",
+      filters: {
+        minExperience: 3,
+        maxExperience: 8,
+        education: ["本科", "硕士"],
+        salaryRange: { min: 12000, max: 25000 }
+      }
+    },
+    {
+      id: "engineer-senior",
+      name: "高级工程师",
+      category: "engineering",
+      filters: {
+        minExperience: 8,
+        maxExperience: null,
+        education: ["本科", "硕士"],
+        salaryRange: { min: 25000, max: 50000 }
+      }
+    },
+
+    // Technical roles
+    {
+      id: "technician-entry",
+      name: "技术员入门级",
+      category: "technical",
+      filters: {
+        minExperience: 0,
+        maxExperience: 2,
+        education: ["中专", "高中", "大专"],
+        salaryRange: { min: 4000, max: 7000 }
+      }
+    },
+    {
+      id: "technician-senior",
+      name: "高级技术员",
+      category: "technical",
+      filters: {
+        minExperience: 5,
+        maxExperience: null,
+        education: ["中专", "大专", "本科"],
+        salaryRange: { min: 8000, max: 15000 }
+      }
+    },
+
+    // Management roles
+    {
+      id: "manager-mid",
+      name: "中层管理",
+      category: "management",
+      filters: {
+        minExperience: 5,
+        maxExperience: 12,
+        education: ["本科", "硕士", "MBA"],
+        salaryRange: { min: 20000, max: 40000 }
+      }
+    },
+    {
+      id: "manager-senior",
+      name: "高管",
+      category: "management",
+      filters: {
+        minExperience: 10,
+        maxExperience: null,
+        education: ["本科", "硕士", "MBA", "EMBA"],
+        salaryRange: { min: 50000, max: 100000 }
+      }
+    }
+  ],
+
+  // Categories for grouping in UI
+  categories: [
+    { id: "sales", name: "销售类", icon: "💼" },
+    { id: "engineering", name: "工程类", icon: "⚙️" },
+    { id: "technical", name: "技术类", icon: "🔧" },
+    { id: "management", name: "管理类", icon: "👔" }
+  ]
+}
