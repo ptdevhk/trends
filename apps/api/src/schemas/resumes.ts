@@ -3,7 +3,7 @@ import { z } from "@hono/zod-openapi";
 const CsvStringArraySchema = z.preprocess((value) => {
   if (typeof value !== "string") return value;
   const parts = value
-    .split(",")
+    .split(/[,，、]/g)
     .map((part) => part.trim())
     .filter(Boolean);
   return parts.length > 0 ? parts : undefined;
