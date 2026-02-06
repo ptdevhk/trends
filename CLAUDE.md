@@ -612,3 +612,10 @@ npm run cmux:setup-profile --workspace @trends/browser-extension
 # Python (uv)
 uv run python -m mcp_server.server
 ```
+
+## Agent Guidelines
+
+### Documentation Check
+- **dev-docs/**: Always check this directory for cached documentation (e.g., LiteLLM, FastMCP) before implementation.
+  - If you encounter a repository URL, use the `context7` tool to query for more detailed documentation.
+- **Job5156 Specs**: See `dev-docs/job5156/manual.md` for detailed operational rules and definitions for the 智通直聘 platform.
