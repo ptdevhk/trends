@@ -9,6 +9,12 @@ const CsvStringArraySchema = z.preprocess((value) => {
   return parts.length > 0 ? parts : undefined;
 }, z.array(z.string()).optional());
 
+const SearchQuerySchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.replace(/[\u3000]/g, " ").trim();
+  return normalized.length > 0 ? normalized : undefined;
+}, z.string().optional());
+
 export const ResumeWorkHistorySchema = z
   .object({
     raw: z.string().openapi({ example: "2021-03 ~ 2023-08 Example Co. - Sales Manager" }),
@@ -71,13 +77,10 @@ export const ResumesQuerySchema = z.object({
       param: { name: "sample", in: "query" },
       example: "sample-initial",
     }),
-  q: z
-    .string()
-    .optional()
-    .openapi({
-      param: { name: "q", in: "query" },
-      example: "sales",
-    }),
+  q: SearchQuerySchema.openapi({
+    param: { name: "q", in: "query" },
+    example: "sales",
+  }),
   limit: z
     .coerce
     .number()
