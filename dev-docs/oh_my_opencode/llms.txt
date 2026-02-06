@@ -1,0 +1,575 @@
+# Oh My OpenCode
+
+Oh My OpenCode is a batteries-included OpenCode plugin that transforms OpenCode into the best AI agent harness for software development. It provides multi-model orchestration, parallel background agents, crafted LSP/AST tools, and specialized AI agents that work together like a development team. The plugin integrates seamlessly with Claude, OpenAI, Google Gemini, and other providers, automatically configuring optimal models for different task types.
+
+The core philosophy centers around "Sisyphus" - the main orchestrator agent that leverages specialized subagents (Oracle for debugging, Librarian for documentation, Explore for codebase search) to complete complex tasks autonomously. With features like the "ultrawork" keyword, background task execution, and automatic context injection, Oh My OpenCode enables developers to describe tasks naturally and let the AI team handle implementation details, verification, and completion.
+
+---
+
+## Installation
+
+Interactive plugin setup with automatic configuration for available AI providers.
+
+```bash
+# Interactive installation (recommended)
+bunx oh-my-opencode install
+
+# Non-interactive installation with provider flags
+bunx oh-my-opencode install --no-tui \
+  --claude=yes \
+  --openai=yes \
+  --gemini=yes \
+  --copilot=no
+
+# Verify installation
+opencode --version  # Should be 1.0.150 or higher
+cat ~/.config/opencode/opencode.json  # Should contain "oh-my-opencode" in plugin array
+```
+
+---
+
+## Configuration
+
+Plugin configuration with model overrides and feature customization.
+
+```jsonc
+// ~/.config/opencode/oh-my-opencode.json or .opencode/oh-my-opencode.json
+{
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
+
+  // Override specific agent models
+  "agents": {
+    "oracle": { "model": "openai/gpt-5.2" },
+    "librarian": { "model": "zai-coding-plan/glm-4.7" },
+    "explore": { "model": "opencode/gpt-5-nano" },
+    "Sisyphus": {
+      "model": "anthropic/claude-opus-4-5",
+      "temperature": 0.3,
+      "thinking": { "type": "enabled", "budgetTokens": 200000 }
+    }
+  },
+
+  // Category-based model selection for delegate_task
+  "categories": {
+    "quick": { "model": "anthropic/claude-haiku-4-5" },
+    "visual-engineering": { "model": "google/gemini-3-pro" },
+    "ultrabrain": { "model": "openai/gpt-5.2-codex", "variant": "xhigh" }
+  },
+
+  // Background task concurrency limits
+  "background_task": {
+    "defaultConcurrency": 5,
+    "staleTimeoutMs": 180000,
+    "providerConcurrency": { "anthropic": 3, "openai": 5, "google": 10 }
+  },
+
+  // Tmux integration for visual multi-agent
+  "tmux": {
+    "enabled": true,
+    "layout": "main-vertical",
+    "main_pane_size": 60
+  },
+
+  // Disable specific features
+  "disabled_hooks": ["comment-checker", "auto-update-checker"],
+  "disabled_agents": ["multimodal-looker"],
+  "disabled_mcps": ["websearch"]
+}
+```
+
+---
+
+## Ultrawork Mode
+
+Automatic task execution with parallel agents and background exploration.
+
+Include `ultrawork` (or `ulw`) in your prompt to activate full automatic mode. The agent explores the codebase, researches best practices via specialized agents, implements following conventions, verifies with diagnostics, and keeps working until complete.
+
+```
+# Simple ultrawork prompt - agent figures out the rest
+ulw add authentication to my Next.js app
+
+# Ultrawork with specific requirements
+ultrawork refactor the payment module to use the repository pattern
+
+# Start an ultrawork loop for complex multi-step tasks
+/ulw-loop "Build a REST API with authentication and testing"
+```
+
+---
+
+## delegate_task Tool
+
+Spawn specialized agent tasks with category-based or direct agent selection.
+
+The `delegate_task` tool enables multi-agent orchestration by spawning Sisyphus-Junior agents with category-specific configurations or targeting specific agents directly. Supports background execution for parallel exploration.
+
+```typescript
+// Category-based task delegation (uses Sisyphus-Junior with category config)
+delegate_task({
+  category: "visual-engineering",
+  load_skills: ["frontend-ui-ux"],
+  description: "Create dashboard component",
+  prompt: "Build a responsive dashboard with charts using shadcn/ui and Tailwind",
+  run_in_background: false
+})
+// Returns: Full implementation result from visual-engineering agent
+
+// Direct agent targeting for specific expertise
+delegate_task({
+  subagent_type: "oracle",
+  load_skills: [],
+  description: "Architecture review",
+  prompt: "Review this authentication flow design and identify potential issues",
+  run_in_background: false
+})
+// Returns: Detailed analysis from Oracle agent (read-only, high reasoning)
+
+// Parallel background exploration (fire multiple queries)
+delegate_task({
+  category: "quick",
+  load_skills: [],
+  description: "Find auth implementations",
+  prompt: "Search for JWT authentication patterns in the codebase",
+  run_in_background: true  // Returns immediately with task_id
+})
+// Returns: { task_id: "bg_abc123", session_id: "..." }
+
+// Continue existing session (preserves full context)
+delegate_task({
+  session_id: "previous_session_id",
+  load_skills: ["git-master"],
+  description: "Fix commit issue",
+  prompt: "The previous commit failed due to lint errors. Fix and retry.",
+  run_in_background: false
+})
+```
+
+---
+
+## call_omo_agent Tool
+
+Spawn explore or librarian agents for codebase exploration and documentation lookup.
+
+```typescript
+// Fast codebase exploration with Explore agent
+call_omo_agent({
+  subagent_type: "explore",
+  description: "Find auth middleware",
+  prompt: "Search for authentication middleware implementations and how they're applied to routes",
+  run_in_background: false  // Wait for result
+})
+// Returns: Contextual grep results with code snippets and file paths
+
+// Documentation and OSS research with Librarian agent
+call_omo_agent({
+  subagent_type: "librarian",
+  description: "Research React patterns",
+  prompt: "Find official documentation and open source examples for implementing React Server Components with authentication",
+  run_in_background: true  // Returns task_id for later retrieval
+})
+// Returns: { task_id: "bg_xyz789", ... }
+
+// Retrieve background task results
+background_output({
+  task_id: "bg_xyz789",
+  block: false  // Check status immediately
+})
+// Returns: Full research results or status update
+```
+
+---
+
+## LSP Tools
+
+IDE-level code intelligence with Language Server Protocol integration.
+
+```typescript
+// Jump to symbol definition
+lsp_goto_definition({
+  filePath: "/src/auth/middleware.ts",
+  line: 42,      // 1-based line number
+  character: 15  // 0-based character offset
+})
+// Returns: /src/auth/types.ts:15:0 - export interface AuthConfig
+
+// Find all references across workspace
+lsp_find_references({
+  filePath: "/src/auth/middleware.ts",
+  line: 42,
+  character: 15,
+  includeDeclaration: true
+})
+// Returns: List of all locations where symbol is used
+// /src/auth/middleware.ts:42:15
+// /src/api/routes.ts:23:8
+// /src/tests/auth.test.ts:15:22
+
+// Get file outline or workspace symbol search
+lsp_symbols({
+  filePath: "/src/auth/middleware.ts",
+  scope: "document"  // "document" for file, "workspace" for project-wide
+})
+// Returns: Symbol hierarchy with types (function, class, interface, etc.)
+
+// Search symbols across entire workspace
+lsp_symbols({
+  filePath: "/src/index.ts",
+  scope: "workspace",
+  query: "Auth"
+})
+// Returns: All symbols matching "Auth" across the project
+
+// Get diagnostics before running build
+lsp_diagnostics({
+  filePath: "/src/auth/middleware.ts",
+  severity: "error"  // "error", "warning", "information", "hint", "all"
+})
+// Returns: Errors/warnings from language server
+
+// Validate rename operation before executing
+lsp_prepare_rename({
+  filePath: "/src/auth/middleware.ts",
+  line: 42,
+  character: 15
+})
+// Returns: { valid: true, placeholder: "AuthConfig", range: {...} }
+
+// Rename symbol across entire workspace
+lsp_rename({
+  filePath: "/src/auth/middleware.ts",
+  line: 42,
+  character: 15,
+  newName: "AuthenticationConfig"
+})
+// Returns: Applied changes summary with affected files
+```
+
+---
+
+## AST-Grep Tools
+
+AST-aware code pattern search and replacement across 25 languages.
+
+```typescript
+// Search for code patterns with meta-variables
+ast_grep_search({
+  pattern: "console.log($MSG)",  // $MSG matches any single node
+  lang: "typescript",
+  paths: ["./src"],
+  globs: ["!**/node_modules/**"]
+})
+// Returns: All console.log calls with matched content
+// src/utils/debug.ts:15:console.log("User logged in")
+// src/api/handler.ts:42:console.log(error.message)
+
+// Search for function patterns (include params and body)
+ast_grep_search({
+  pattern: "export async function $NAME($$$) { $$$ }",  // $$$ matches multiple nodes
+  lang: "typescript",
+  paths: ["./src/api"]
+})
+// Returns: All exported async functions with their signatures
+
+// Python class pattern search
+ast_grep_search({
+  pattern: "class $NAME($PARENT)",  // Note: no trailing colon for AST patterns
+  lang: "python",
+  paths: ["./src"]
+})
+
+// Replace pattern with AST-aware rewriting (dry-run by default)
+ast_grep_replace({
+  pattern: "console.log($MSG)",
+  rewrite: "logger.info($MSG)",  // Preserves $MSG from match
+  lang: "typescript",
+  paths: ["./src"],
+  dryRun: true  // Preview changes without applying
+})
+// Returns: Preview of all changes that would be made
+
+// Apply replacements (set dryRun: false)
+ast_grep_replace({
+  pattern: "console.log($MSG)",
+  rewrite: "logger.debug($MSG)",
+  lang: "typescript",
+  paths: ["./src"],
+  dryRun: false  // Actually apply changes
+})
+// Returns: Summary of applied changes with file counts
+```
+
+---
+
+## Background Task Management
+
+Manage parallel background agent tasks for complex multi-agent workflows.
+
+```typescript
+// Launch background task (via delegate_task or call_omo_agent)
+const task = delegate_task({
+  category: "quick",
+  load_skills: [],
+  description: "Parallel search",
+  prompt: "Find all API endpoints",
+  run_in_background: true
+})
+// Returns: { task_id: "bg_abc123", session_id: "sess_xyz", status: "running" }
+
+// Check task status (non-blocking)
+background_output({
+  task_id: "bg_abc123",
+  block: false
+})
+// Returns: Current status and any available output
+
+// Wait for task completion (blocking)
+background_output({
+  task_id: "bg_abc123",
+  block: true,
+  timeout: 60000  // Max wait time in ms
+})
+// Returns: Full task result when complete
+
+// Cancel running background task
+background_cancel({
+  task_id: "bg_abc123"
+})
+// Returns: Confirmation of cancellation
+```
+
+---
+
+## Interactive Terminal (Tmux)
+
+Tmux-based terminal for TUI applications and interactive CLI tools.
+
+```typescript
+// Create a new tmux session
+interactive_bash({
+  tmux_command: "new-session -d -s dev-app"
+})
+
+// Send keystrokes to a session
+interactive_bash({
+  tmux_command: "send-keys -t dev-app 'vim main.py' Enter"
+})
+
+// Capture pane output
+interactive_bash({
+  tmux_command: "capture-pane -p -t dev-app"
+})
+// Returns: Current terminal output from the session
+
+// Run interactive debugger
+interactive_bash({
+  tmux_command: "send-keys -t dev-app 'python -m pudb script.py' Enter"
+})
+
+// Kill session when done
+interactive_bash({
+  tmux_command: "kill-session -t dev-app"
+})
+```
+
+---
+
+## Slash Commands
+
+Built-in workflow commands for common development tasks.
+
+```bash
+# Initialize hierarchical AGENTS.md knowledge base
+/init-deep [--create-new] [--max-depth=3]
+
+# Start self-referential development loop
+/ralph-loop "Build a REST API with authentication"
+/ralph-loop "Refactor payment module" --max-iterations=50
+
+# Ultrawork loop (full automatic mode with parallel agents)
+/ulw-loop "Add user dashboard with charts and real-time updates"
+
+# Cancel active Ralph Loop
+/cancel-ralph
+
+# Intelligent refactoring with LSP and AST-grep
+/refactor <target> [--scope=file|module|project] [--strategy=safe|aggressive]
+
+# Start execution from Prometheus-generated plan
+/start-work [plan-name]
+
+# Stop all continuation mechanisms
+/stop-continuation
+```
+
+---
+
+## Skills System
+
+Specialized workflows with embedded MCP servers and detailed instructions.
+
+```bash
+# Browser automation with Playwright
+/playwright Navigate to example.com and take a screenshot
+/playwright Fill the login form and submit
+
+# Git operations with atomic commits
+/git-master commit these changes  # Auto-splits into atomic commits
+/git-master rebase onto main
+/git-master who wrote this authentication code?
+
+# Frontend UI/UX design
+/frontend-ui-ux Create a stunning dashboard with bold typography
+```
+
+```jsonc
+// Custom skill in oh-my-opencode.json
+{
+  "skills": {
+    "data-analyst": {
+      "description": "Specialized for data analysis tasks",
+      "template": "You are a data analyst. Focus on statistical analysis and visualization.",
+      "model": "openai/gpt-5.2",
+      "allowed-tools": ["read", "bash", "lsp_diagnostics"]
+    },
+    "sources": [
+      { "path": "./custom-skills", "recursive": true },
+      "https://example.com/skill.yaml"
+    ]
+  }
+}
+```
+
+---
+
+## CLI Commands
+
+Command-line interface for plugin management and diagnostics.
+
+```bash
+# Interactive setup wizard
+bunx oh-my-opencode install
+
+# Environment diagnostics (17+ health checks)
+bunx oh-my-opencode doctor
+bunx oh-my-opencode doctor --category authentication
+bunx oh-my-opencode doctor --verbose --json
+
+# Run session with completion enforcement
+bunx oh-my-opencode run "Build feature X" --enforce-completion --timeout 300
+
+# MCP OAuth management for remote servers
+bunx oh-my-opencode mcp oauth login my-api --server-url https://api.example.com
+bunx oh-my-opencode mcp oauth logout my-api
+bunx oh-my-opencode mcp oauth status
+
+# Google Antigravity authentication
+bunx oh-my-opencode auth login
+bunx oh-my-opencode auth logout
+bunx oh-my-opencode auth status
+
+# Display version
+bunx oh-my-opencode version
+```
+
+---
+
+## Hooks System
+
+Lifecycle automation hooks for context injection and quality control.
+
+```jsonc
+// Custom Claude Code hooks in ~/.claude/settings.json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [{ "type": "command", "command": "eslint --fix $FILE" }]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [{ "type": "command", "command": "echo 'Prompt submitted'" }]
+      }
+    ]
+  }
+}
+```
+
+```jsonc
+// Disable specific hooks in oh-my-opencode.json
+{
+  "disabled_hooks": [
+    "comment-checker",      // Don't warn about excessive comments
+    "auto-update-checker",  // Don't check for updates
+    "session-notification", // Don't show OS notifications
+    "directory-agents-injector"  // Don't auto-inject AGENTS.md
+  ]
+}
+```
+
+---
+
+## Built-in MCPs
+
+Model Context Protocol servers for web search, documentation, and code search.
+
+```typescript
+// Web search via Exa AI (websearch MCP)
+// Automatically available to agents for real-time web queries
+
+// Official documentation lookup (context7 MCP)
+// Agents can fetch up-to-date docs for any library/framework
+
+// GitHub code search (grep_app MCP)
+// Ultra-fast search across millions of public repositories
+```
+
+```jsonc
+// Disable specific MCPs in oh-my-opencode.json
+{
+  "disabled_mcps": ["websearch", "context7", "grep_app"]
+}
+```
+
+---
+
+## Session Tools
+
+Session management for history analysis and cross-session continuity.
+
+```typescript
+// List all OpenCode sessions
+session_list()
+// Returns: Array of session metadata with IDs, titles, timestamps
+
+// Read messages from a specific session
+session_read({
+  session_id: "sess_abc123",
+  limit: 50
+})
+// Returns: Messages with roles, content, and metadata
+
+// Search across session messages
+session_search({
+  query: "authentication bug",
+  session_id: "sess_abc123"  // Optional: search specific session
+})
+// Returns: Matching messages with context
+
+// Get session metadata and statistics
+session_info({
+  session_id: "sess_abc123"
+})
+// Returns: Token usage, message counts, duration, agent info
+```
+
+---
+
+## Summary
+
+Oh My OpenCode transforms the OpenCode platform into a comprehensive AI development team by providing specialized agents for different task types (Sisyphus for orchestration, Oracle for debugging, Librarian for documentation, Explore for codebase search), powerful tooling (LSP integration, AST-grep, background tasks), and intelligent automation (ultrawork mode, hooks, context injection). The plugin handles model selection automatically based on available providers, enabling developers to focus on describing tasks rather than managing AI configuration.
+
+Key integration patterns include: using `ultrawork` or `ulw` keywords for fully automatic task completion, leveraging `delegate_task` with categories for domain-specific work (visual-engineering for UI, ultrabrain for complex logic), running parallel background agents for exploration while continuing main work, and using the Prometheus planner with `/start-work` for complex multi-step projects. The tmux integration enables visual multi-agent workflows where developers can watch multiple agents work simultaneously in separate terminal panes, making Oh My OpenCode ideal for complex software development tasks that benefit from multi-model orchestration and autonomous execution.
