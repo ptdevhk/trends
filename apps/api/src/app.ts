@@ -14,6 +14,7 @@ import {
   jobDescriptionsRoutes,
   sessionsRoutes,
   actionsRoutes,
+  searchProfilesRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 
@@ -35,6 +36,7 @@ export const openApiConfig = {
     { name: "job-descriptions", description: "Job description templates" },
     { name: "sessions", description: "Resume search sessions" },
     { name: "actions", description: "Candidate actions" },
+    { name: "Search Profiles", description: "Search profile management" },
   ],
 };
 
@@ -57,6 +59,7 @@ export function createApp() {
   app.route("/", jobDescriptionsRoutes);
   app.route("/", sessionsRoutes);
   app.route("/", actionsRoutes);
+  app.route("/api/search-profiles", searchProfilesRoutes);
 
   // OpenAPI documentation endpoint
   app.doc("/doc", openApiConfig);
@@ -88,6 +91,7 @@ export function createApp() {
         industry_companies: "/api/industry/companies",
         industry_verify: "/api/industry/verify",
         job_descriptions: "/api/job-descriptions",
+        search_profiles: "/api/search-profiles",
       },
     });
   });
