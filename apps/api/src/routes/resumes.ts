@@ -189,7 +189,7 @@ app.openapi(getResumesRoute, (c) => {
     let matchMap: Map<string, { score: number; recommendation: string }> | null = null;
     const needsMatchContext = Boolean(
       resolvedJobId
-        && (minMatchScore !== undefined || (recommendation?.length ?? 0) > 0 || sortBy === "score")
+      && (minMatchScore !== undefined || (recommendation?.length ?? 0) > 0 || sortBy === "score")
     );
 
     if (needsMatchContext && resolvedJobId) {
@@ -332,7 +332,7 @@ app.openapi(matchResumesRoute, async (c) => {
     const sampleData = resumeService.loadSample(sampleName);
     items = sampleData.items;
     const jdData = jobService.loadFile(jobDescriptionId);
-    jdMeta = jdData.item;
+    jdMeta = { title: jdData.title };
     content = jdData.content;
   } catch (error) {
     if (error instanceof DataNotFoundError) {
@@ -343,9 +343,9 @@ app.openapi(matchResumesRoute, async (c) => {
 
   const selected = resumeIds?.length
     ? items.filter((item, index) => {
-        const id = resolveResumeId(item, index);
-        return resumeIds.includes(id);
-      })
+      const id = resolveResumeId(item, index);
+      return resumeIds.includes(id);
+    })
     : items;
 
   const limited = typeof limit === "number" ? selected.slice(0, limit) : selected;
@@ -369,28 +369,28 @@ app.openapi(matchResumesRoute, async (c) => {
   const startTime = Date.now();
   const batchResult = toProcess.length
     ? await aiService.matchBatch(
-        toProcess.map((item) => ({
-          id: item.id,
-          name: item.resume.name || "未命名",
-          jobIntention: item.resume.jobIntention || undefined,
-          workExperience: parseExperienceYears(item.resume.experience) ?? undefined,
-          education: item.resume.education || undefined,
-          skills: extractSkills(item.resume.jobIntention),
-          companies: extractCompanies(item.resume.workHistory),
-          summary: item.resume.selfIntro || undefined,
-        })),
-        {
-          title: jdMeta.title || jobDescriptionId,
-          requirements,
-          responsibilities,
-        }
-      )
+      toProcess.map((item) => ({
+        id: item.id,
+        name: item.resume.name || "未命名",
+        jobIntention: item.resume.jobIntention || undefined,
+        workExperience: parseExperienceYears(item.resume.experience) ?? undefined,
+        education: item.resume.education || undefined,
+        skills: extractSkills(item.resume.jobIntention),
+        companies: extractCompanies(item.resume.workHistory),
+        summary: item.resume.selfIntro || undefined,
+      })),
+      {
+        title: jdMeta.title || jobDescriptionId,
+        requirements,
+        responsibilities,
+      }
+    )
     : {
-        results: [],
-        processedCount: 0,
-        failedCount: 0,
-        processingTimeMs: 0,
-      };
+      results: [],
+      processedCount: 0,
+      failedCount: 0,
+      processingTimeMs: 0,
+    };
 
   const storedMatches: typeof cachedMatches = [...cachedMatches];
 
