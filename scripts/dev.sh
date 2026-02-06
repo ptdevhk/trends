@@ -55,6 +55,51 @@ log() {
     echo -e "${color}[$(date '+%H:%M:%S')] [$service]${NC} $message"
 }
 
+# Ensure native Node modules are compatible with the active Node runtime.
+# This handles cases where dependencies were installed under a different Node version.
+ensure_node_native_modules() {
+    local has_api_or_web=false
+    if [ -d "$PROJECT_ROOT/apps/api" ] || [ -d "$PROJECT_ROOT/apps/web" ]; then
+        has_api_or_web=true
+    fi
+
+    if [ "$has_api_or_web" != "true" ]; then
+        return 0
+    fi
+
+    if ! command -v node >/dev/null 2>&1; then
+        log "DEV" "$YELLOW" "Node.js not found; skipping native module compatibility check"
+        return 0
+    fi
+
+    if [ ! -d "$PROJECT_ROOT/node_modules/better-sqlite3" ]; then
+        # Dependencies might not be installed yet; startup commands will surface that separately.
+        return 0
+    fi
+
+    local healthcheck="const Database=require('better-sqlite3'); const db=new Database(':memory:'); db.prepare('select 1').get(); db.close();"
+    if node -e "$healthcheck" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local node_ver
+    node_ver="$(node -v 2>/dev/null || echo 'unknown')"
+    log "DEV" "$YELLOW" "Detected better-sqlite3 ABI mismatch for Node $node_ver; rebuilding..."
+
+    cd "$PROJECT_ROOT"
+    if ! npm rebuild better-sqlite3 >/dev/null 2>&1; then
+        log "DEV" "$RED" "Failed to rebuild better-sqlite3. Try: npm rebuild better-sqlite3"
+        return 1
+    fi
+
+    if ! node -e "$healthcheck" >/dev/null 2>&1; then
+        log "DEV" "$RED" "better-sqlite3 still failed after rebuild. Try: rm -rf node_modules && npm install"
+        return 1
+    fi
+
+    log "DEV" "$GREEN" "better-sqlite3 rebuilt successfully for Node $node_ver"
+}
+
 # Check if a port is available
 check_port() {
     local port="$1"
@@ -365,6 +410,9 @@ main() {
 
     # Check for port conflicts upfront
     check_all_ports
+
+    # Native modules can break when Node version changes between installs/runs.
+    ensure_node_native_modules
 
     # Start requested services
     for service in "${services[@]}"; do

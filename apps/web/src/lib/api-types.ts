@@ -843,7 +843,7 @@ export interface paths {
         };
         /**
          * List job description files
-         * @description Returns Markdown job descriptions under config/job-descriptions
+         * @description Returns Markdown job descriptions with auto_match config
          */
         get: {
             parameters: {
@@ -856,7 +856,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description List of job description files */
+                /** @description List of job descriptions */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -866,11 +866,21 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             items: {
+                                id: string;
                                 name: string;
                                 filename: string;
                                 updatedAt: string;
                                 size: number;
                                 title?: string;
+                                titleEn?: string;
+                                status?: string;
+                                location?: string;
+                                autoMatch?: {
+                                    keywords: string[];
+                                    locations: string[];
+                                    priority: number;
+                                    filter_preset?: string;
+                                };
                             }[];
                         };
                     };
@@ -885,6 +895,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/job-descriptions/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Job description statistics */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Statistics */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            stats: {
+                                total: number;
+                                active: number;
+                                withAutoMatch: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/job-descriptions/match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Auto-match JD from keywords
+         * @description Find the best matching job description based on input keywords
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        keywords: string[];
+                        location?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Match result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            matched?: string;
+                            title?: string;
+                            confidence: number;
+                            matchedKeywords: string[];
+                            filterPreset?: string;
+                            suggestedFilters?: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/job-descriptions/{name}": {
         parameters: {
             query?: never;
@@ -892,10 +1003,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get job description content
-         * @description Returns the raw markdown content for a job description
-         */
+        /** Get job description content */
         get: {
             parameters: {
                 query?: never;
@@ -917,17 +1025,27 @@ export interface paths {
                             /** @enum {boolean} */
                             success: true;
                             item: {
+                                id: string;
                                 name: string;
                                 filename: string;
                                 updatedAt: string;
                                 size: number;
                                 title?: string;
+                                titleEn?: string;
+                                status?: string;
+                                location?: string;
+                                autoMatch?: {
+                                    keywords: string[];
+                                    locations: string[];
+                                    priority: number;
+                                    filter_preset?: string;
+                                };
                             };
                             content: string;
                         };
                     };
                 };
-                /** @description Job description not found */
+                /** @description Not found */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -1246,6 +1364,457 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-profiles/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search profiles statistics */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Profile statistics */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            stats: {
+                                total: number;
+                                active: number;
+                                paused: number;
+                                archived: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all search profiles */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of search profiles */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            profiles: {
+                                id: string;
+                                name: string;
+                                filename: string;
+                                updatedAt: string;
+                                /** @enum {string} */
+                                status: "active" | "paused" | "archived";
+                                location: string;
+                                keywords: string[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-profiles/:id": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get search profile by ID */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Profile details */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            profile: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Profile not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-profiles/auto-match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Auto-match profile from keywords
+         * @description Find the best matching search profile based on input keywords and location
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        keywords: string[];
+                        location?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Match result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            profileId?: string;
+                            jobDescription?: string;
+                            filterPreset?: string;
+                            confidence: number;
+                            matchedKeywords: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-profiles/reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear cache and reload profiles */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cache cleared */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            message: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/filter-presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List filter presets */
+        get: {
+            parameters: {
+                query?: {
+                    category?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of presets */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            presets: {
+                                id: string;
+                                name: string;
+                                category: string;
+                                filters: {
+                                    minExperience?: number;
+                                    maxExperience?: number | null;
+                                    education?: string[];
+                                    salaryRange?: {
+                                        min?: number;
+                                        max?: number;
+                                    };
+                                };
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/filter-presets/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List preset categories */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of categories */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            categories: {
+                                id: string;
+                                name: string;
+                                icon?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/filter-presets/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preset statistics */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Statistics */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            stats: {
+                                total: number;
+                                byCategory: {
+                                    [key: string]: number;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/filter-presets/:id": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get preset by ID */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Preset details */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            preset: {
+                                id: string;
+                                name: string;
+                                category: string;
+                                filters: {
+                                    minExperience?: number;
+                                    maxExperience?: number | null;
+                                    education?: string[];
+                                    salaryRange?: {
+                                        min?: number;
+                                        max?: number;
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
