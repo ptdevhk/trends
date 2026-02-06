@@ -12,6 +12,7 @@ const SELECTORS = {
   basicInfoRow: '.basic-line',
   basicInfoItem: '.basic-line__text',
   locationItem: '.resume-search-item-search-addre__span',
+  locationFallbackItem: '.text-truncate.text-center',
   selfIntro: '.basic-keywords',
   topRow: '.list-content__li__up-block',
   topRowText: '.up-block__look-text',
@@ -230,11 +231,11 @@ function extractSingleResume(card) {
     return '';
   };
 
-  const locationFromCard = getText(SELECTORS.locationItem);
-
   // Extract basic info (age, experience, education, location)
   const basicInfoContainer = card.querySelector(SELECTORS.basicInfoRow)
     || card.querySelector('.list-content__li__down-left-center');
+  const locationFromCard = getText(SELECTORS.locationItem, basicInfoContainer || card)
+    || getText(SELECTORS.locationFallbackItem, basicInfoContainer || card);
   const basicInfoSpans = basicInfoContainer
     ? basicInfoContainer.querySelectorAll(
       `${SELECTORS.basicInfoItem}, div:nth-child(2) span, .basic-line span`
