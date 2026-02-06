@@ -14,3 +14,18 @@ packages:
     source: https://context7.com/websites/openclaw/llms.txt
     tokens: 10000
     output: dev-docs/openclaw_docs/llms.txt
+  - name: opencode
+    description: OpenCode upstream repository documentation - core usage, configuration, and CLI references
+    source: https://context7.com/anomalyco/opencode/llms.txt
+    tokens: 10000
+    output: dev-docs/opencode/llms.txt
+  - name: opencode_ai
+    description: OpenCode AI docs website - product docs and workflows
+    source: https://context7.com/websites/opencode_ai/llms.txt
+    tokens: 10000
+    output: dev-docs/opencode_ai/llms.txt
+  - name: oh_my_opencode
+    description: Oh My OpenCode plugin collection docs - community plugins and usage guides
+    source: https://context7.com/code-yeongyu/oh-my-opencode/llms.txt
+    tokens: 10000
+    output: dev-docs/oh_my_opencode/llms.txt
