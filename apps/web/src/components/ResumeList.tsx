@@ -15,6 +15,7 @@ import { useSession } from '@/hooks/useSession'
 import { useAiMatching } from '@/hooks/useAiMatching'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { FilterPanel } from '@/components/FilterPanel'
+import { QuickStartPanel } from '@/components/QuickStartPanel'
 
 export function ResumeList() {
   const { t } = useTranslation()
@@ -157,6 +158,20 @@ export function ResumeList() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Quick Start Panel - Minimal Input */}
+      <QuickStartPanel
+        onApplyConfig={(config) => {
+          if (config.jobDescriptionId) {
+            setJobDescriptionId(config.jobDescriptionId)
+            updateSession({ jobDescriptionId: config.jobDescriptionId })
+          }
+          if (config.filters) {
+            setFilters({ ...filters, ...config.filters } as typeof filters)
+            updateSession({ filters: { ...filters, ...config.filters } as typeof filters })
+          }
+        }}
+      />
+
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
