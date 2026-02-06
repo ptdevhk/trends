@@ -41,6 +41,17 @@ export function Header() {
             >
               {t('nav.debug')}
             </NavLink>
+            <NavLink
+              to="/about"
+              className={({ isActive }) =>
+                cn(
+                  'transition-colors hover:text-foreground',
+                  isActive ? 'text-foreground' : 'text-muted-foreground'
+                )
+              }
+            >
+              About
+            </NavLink>
           </nav>
         </div>
         <div className="flex items-center gap-3">
@@ -66,6 +77,17 @@ export function Header() {
               }
             >
               {t('nav.debug')}
+            </NavLink>
+            <NavLink
+              to="/about"
+              className={({ isActive }) =>
+                cn(
+                  'transition-colors hover:text-foreground',
+                  isActive ? 'text-foreground' : 'text-muted-foreground'
+                )
+              }
+            >
+              About
             </NavLink>
           </nav>
           <LanguageSwitcher />
