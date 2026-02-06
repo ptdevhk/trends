@@ -16,6 +16,7 @@ import { useAiMatching } from '@/hooks/useAiMatching'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { FilterPanel } from '@/components/FilterPanel'
 import { QuickStartPanel } from '@/components/QuickStartPanel'
+import { BulkActionBar } from '@/components/BulkActionBar'
 
 export function ResumeList() {
   const { t } = useTranslation()
@@ -156,6 +157,11 @@ export function ResumeList() {
     return [...enrichedResumes].sort((a, b) => (b.match?.score ?? -1) - (a.match?.score ?? -1))
   }, [enrichedResumes, mode])
 
+  // High score count for bulk actions
+  const highScoreCount = useMemo(() => {
+    return displayedResumes.filter((e) => (e.match?.score ?? 0) >= 80).length
+  }, [displayedResumes])
+
   return (
     <div className="flex flex-col gap-6">
       {/* Quick Start Panel - Minimal Input */}
@@ -258,6 +264,21 @@ export function ResumeList() {
             </div>
           ) : (
             <div className="space-y-3">
+              {/* Bulk Action Bar - shown in AI mode */}
+              {mode === 'ai' && displayedResumes.length > 0 && (
+                <BulkActionBar
+                  totalCount={displayedResumes.length}
+                  selectedCount={0}
+                  highScoreCount={highScoreCount}
+                  onSelectHighScore={() => {
+                    // TODO: Implement selection state
+                    console.log('Select high score candidates')
+                  }}
+                  onBulkAction={(action) => {
+                    console.log('Bulk action:', action)
+                  }}
+                />
+              )}
               {displayedResumes.map((entry, index) => (
                 <ResumeCard
                   key={entry.key || `${index}-${entry.resume.name}`}
