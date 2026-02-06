@@ -619,3 +619,81 @@ uv run python -m mcp_server.server
 - **dev-docs/**: Always check this directory for cached documentation (e.g., LiteLLM, FastMCP) before implementation.
   - If you encounter a repository URL, use the `context7` tool to query for more detailed documentation.
 - **Job5156 Specs**: See `dev-docs/job5156/manual.md` for detailed operational rules and definitions for the 智通直聘 platform.
+
+## Chinese Text Handling (zh-Hans)
+
+The default audience is Chinese HR professionals. Follow these guidelines for robust Simplified Chinese input/output handling.
+
+### Character Encoding
+
+- **Python file I/O**: Always use `encoding="utf-8"` explicitly
+- **JSON serialization**: Always use `ensure_ascii=False` to preserve Chinese characters
+- **SQLite**: UTF-8 by default, use parameterized queries (never string concat)
+- **HTTP URLs**: Use `encodeURIComponent()` / `URLSearchParams` for proper encoding
+
+### Delimiter Handling
+
+Chinese input may use different delimiter characters:
+
+| Type | ASCII | Chinese | Regex Pattern |
+|------|-------|---------|---------------|
+| Comma | `,` (U+002C) | `，` (U+FF0C) | `/[,，、]/g` |
+| Enumeration | N/A | `、` (U+3001) | Include in comma pattern |
+| Space | ` ` (U+0020) | `　` (U+3000) | `/[\s\u3000]+/g` |
+
+**Best practice**: When splitting user input by comma, always use `/[,，、]/g` to handle all variants.
+
+### Keyword/Search Input
+
+Platform search supports multi-keyword input separated by spaces (e.g., `五金 销售`). Users may enter either half-width space (U+0020) or full-width space (U+3000); normalize before processing or matching.
+
+For multi-keyword search (e.g., `车床 销售`):
+
+1. **Normalize spaces**: Convert full-width space (U+3000) to half-width (U+0020)
+2. **Collapse multiple**: Multiple spaces → single space
+3. **Trim**: Remove leading/trailing whitespace
+4. **URL encoding**: Space becomes `+` or `%20` in query strings
+
+```typescript
+function normalizeKeyword(keyword: string): string {
+  return keyword
+    .replace(/[\u3000]/g, " ") // Full-width → half-width
+    .replace(/\s+/g, " ") // Collapse
+    .trim();
+}
+```
+
+### Text Comparison
+
+- Use `.localeCompare()` for sorting Chinese strings
+- Apply `.normalize("NFC")` before comparison if handling user input from multiple sources
+- Use case-insensitive matching for mixed Chinese/English text
+
+### Common Chinese Patterns
+
+Resume data often contains these patterns:
+
+| Field | Pattern | Example |
+|-------|---------|---------|
+| Age | Contains `岁` | `28岁` |
+| Experience | Contains `年` (not `元`) | `5年` |
+| Salary | Contains `元` | `8000-12000元/月`, `面议` |
+| Education | Matches /(中专\|高中\|大专\|本科\|硕\|博\|研究生\|MBA\|EMBA)/ | `本科` |
+
+### File Naming with Chinese
+
+When using Chinese in filenames:
+
+- Sanitize using: `.replace(/[\\/:*?"<>|]/g, "-")`
+- Replace spaces with hyphens: `.replace(/\s+/g, "-")`
+- Limit length: `.slice(0, 80)`
+
+## Verification Checklist
+
+- [ ] Full-width space in URL keyword → normalized in export metadata
+- [ ] Half-width space in URL keyword → preserved correctly
+- [ ] Location field populated from specific selector when available
+- [ ] Fallback location extraction still works when specific selector absent
+- [ ] Exported filename uses normalized keyword
+- [ ] API search handles both space types identically
+- [ ] `CLAUDE.md` updated with Chinese text handling section
