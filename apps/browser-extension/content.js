@@ -11,6 +11,7 @@ const SELECTORS = {
   activityStatus: '.date-type-diff-text-block',
   basicInfoRow: '.basic-line',
   basicInfoItem: '.basic-line__text',
+  locationItem: '.resume-search-item-search-addre__span',
   selfIntro: '.basic-keywords',
   topRow: '.list-content__li__up-block',
   topRowText: '.up-block__look-text',
@@ -50,6 +51,20 @@ function sanitizeSampleName(value) {
     .slice(0, 80);
 }
 
+/**
+ * Normalize keyword for consistent handling
+ * - Full-width space (U+3000) → half-width space (U+0020)
+ * - Multiple spaces → single space
+ * - Trim leading/trailing
+ */
+function normalizeKeyword(keyword) {
+  if (!keyword) return '';
+  return keyword
+    .replace(/[\u3000]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function buildExportFilename() {
   const params = new URLSearchParams(window.location.search || '');
   const rawSampleName = params.get(SAMPLE_NAME_PARAM) || '';
@@ -59,7 +74,7 @@ function buildExportFilename() {
   if (sampleName) return `${sampleName}.json`;
 
   const rawKeyword = params.get(AUTO_SEARCH_PARAM) || '';
-  const keyword = sanitizeSampleName(rawKeyword);
+  const keyword = sanitizeSampleName(normalizeKeyword(rawKeyword));
   if (keyword) return `sample-${keyword}-${timestamp}.json`;
 
   return `resumes_${timestamp}_${makeRandomId()}.json`;
@@ -67,7 +82,7 @@ function buildExportFilename() {
 
 function buildExportMetadata(resumes) {
   const url = new URL(window.location.href);
-  const keyword = (url.searchParams.get(AUTO_SEARCH_PARAM) || '').trim();
+  const keyword = normalizeKeyword(url.searchParams.get(AUTO_SEARCH_PARAM) || '');
   const location = (url.searchParams.get('location') || '').trim();
   const rawSampleName = url.searchParams.get(SAMPLE_NAME_PARAM) || '';
   const sampleName = sanitizeSampleName(rawSampleName).replace(/\.json$/i, '');
@@ -215,6 +230,8 @@ function extractSingleResume(card) {
     return '';
   };
 
+  const locationFromCard = getText(SELECTORS.locationItem);
+
   // Extract basic info (age, experience, education, location)
   const basicInfoContainer = card.querySelector(SELECTORS.basicInfoRow)
     || card.querySelector('.list-content__li__down-left-center');
@@ -242,6 +259,7 @@ function extractSingleResume(card) {
       else if (!item.includes('元')) location = item;
     });
   }
+  if (locationFromCard) location = locationFromCard;
 
   // Extract top row (job intention, salary)
   const topRow = card.querySelector(SELECTORS.topRowText) || card.querySelector(SELECTORS.topRow);
@@ -690,7 +708,7 @@ function setInputValue(input, value) {
 
 async function autoSearchFromUrl() {
   const params = new URLSearchParams(window.location.search || '');
-  const keyword = (params.get(AUTO_SEARCH_PARAM) || '').trim();
+  const keyword = normalizeKeyword(params.get(AUTO_SEARCH_PARAM) || '');
   if (!keyword) {
     setAutoSearchAttributes('skipped', '');
     return;
@@ -706,7 +724,7 @@ async function autoSearchFromUrl() {
     return;
   }
 
-  const currentValue = (input.value || '').trim();
+  const currentValue = normalizeKeyword(input.value || '');
   if (currentValue === keyword) {
     setAutoSearchAttributes('skipped', keyword);
     return;

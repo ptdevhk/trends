@@ -31,3 +31,20 @@ describe("ResumesQuerySchema Unicode delimiter parsing", () => {
     expect(parsed.locations).toEqual(expected);
   });
 });
+
+describe("ResumesQuerySchema Unicode whitespace normalization", () => {
+  it("normalizes full-width space in q", () => {
+    const parsed = ResumesQuerySchema.parse({ q: "车床　销售" });
+    expect(parsed.q).toBe("车床 销售");
+  });
+
+  it("collapses multiple spaces in q", () => {
+    const parsed = ResumesQuerySchema.parse({ q: "车床   销售" });
+    expect(parsed.q).toBe("车床 销售");
+  });
+
+  it("treats whitespace-only q as undefined", () => {
+    const parsed = ResumesQuerySchema.parse({ q: "　　" });
+    expect(parsed.q).toBeUndefined();
+  });
+});

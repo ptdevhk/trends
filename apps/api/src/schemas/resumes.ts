@@ -74,6 +74,14 @@ export const ResumesQuerySchema = z.object({
   q: z
     .string()
     .optional()
+    .transform((value) => {
+      if (typeof value !== "string") return value;
+      const normalized = value
+        .replace(/[\u3000]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      return normalized || undefined;
+    })
     .openapi({
       param: { name: "q", in: "query" },
       example: "sales",
