@@ -33,6 +33,10 @@ from refresh_sample import (
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# Reduce logging noise from libraries
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 logger = logging.getLogger("worker")
 
 CONVEX_URL = os.environ.get("CONVEX_URL")

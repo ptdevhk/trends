@@ -309,6 +309,51 @@ start_worker() {
     fi
 }
 
+# Start Scraping Worker (Python + CDP)
+start_scraper() {
+    log "SCRAPER" "$CYAN" "Starting Scraping Worker..."
+    
+    # Ensure CONVEX_URL is available
+    if [ -f "$PROJECT_ROOT/apps/web/.env.local" ]; then
+        # Load env vars from web app (synced from convex)
+        source "$PROJECT_ROOT/apps/web/.env.local"
+    fi
+    
+    # Fallback to defaults or check if CONVEX_URL is set
+    if [ -z "$VITE_CONVEX_URL" ] && [ -z "$CONVEX_URL" ]; then
+         log "SCRAPER" "$YELLOW" "CONVEX_URL not found. Waiting for Convex to start..."
+         sleep 5
+         if [ -f "$PROJECT_ROOT/apps/web/.env.local" ]; then
+             source "$PROJECT_ROOT/apps/web/.env.local"
+         fi
+    fi
+    
+    # Use VITE_CONVEX_URL if CONVEX_URL is not set
+    if [ -z "$CONVEX_URL" ] && [ -n "$VITE_CONVEX_URL" ]; then
+        export CONVEX_URL="$VITE_CONVEX_URL"
+    fi
+    
+    if [ -z "$CONVEX_URL" ]; then
+         log "SCRAPER" "$RED" "Failed to find CONVEX_URL. Worker may fail."
+    fi
+
+    cd "$PROJECT_ROOT"
+    if [ -f "$ENV_FILE" ]; then
+        uv run --env-file "$ENV_FILE" python scripts/worker.py 2>&1 | \
+            tee "$LOGS_DIR/scraper.log" | \
+            while IFS= read -r line; do
+                log "SCRAPER" "$CYAN" "$line"
+            done &
+    else
+        uv run python scripts/worker.py 2>&1 | \
+            tee "$LOGS_DIR/scraper.log" | \
+            while IFS= read -r line; do
+                log "SCRAPER" "$CYAN" "$line"
+            done &
+    fi
+    SERVICE_PIDS["scraper"]=$!
+}
+
 # Start Convex backend
 start_convex() {
     local port="${CONVEX_PORT:-3210}" 
@@ -443,9 +488,9 @@ main() {
     # Default: fast dev mode (skip crawl unless explicitly disabled)
     if [ ${#services[@]} -eq 0 ]; then
         if [ "$SKIP_CRAWL" != "false" ] && [ "$SKIP_CRAWL" != "0" ]; then
-            services=("convex" "mcp" "worker" "api" "web")
+            services=("convex" "mcp" "worker" "scraper" "api" "web")
         else
-            services=("convex" "mcp" "crawl" "worker" "api" "web")
+            services=("convex" "mcp" "crawl" "worker" "scraper" "api" "web")
         fi
     fi
 
@@ -462,6 +507,7 @@ main() {
             mcp) start_mcp_server ;;
             crawl) start_crawler ;;
             worker) start_worker ;;
+            scraper) start_scraper ;;
             api) start_api ;;
             web) start_web ;;
         esac
