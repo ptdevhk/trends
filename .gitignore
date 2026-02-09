@@ -65,3 +65,5 @@ apps/api/openapi.json
 # Production env
 .env.production
 /.codex/environments
+
+.env.local

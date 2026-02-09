@@ -20,59 +20,89 @@ NC='\033[0m' # No Color
 # Service PIDs for cleanup
 declare -A SERVICE_PIDS
 
-# Cleanup function
-# Cleanup function (Graceful + Timeout Kill)
+# Cleanup state
+CLEANUP_DONE=0
+
+# List direct child processes for a parent PID
+list_child_pids() {
+    local parent_pid="$1"
+    if command -v pgrep >/dev/null 2>&1; then
+        pgrep -P "$parent_pid" 2>/dev/null || true
+    else
+        ps -eo pid=,ppid= | awk -v p="$parent_pid" '$2 == p { print $1 }'
+    fi
+}
+
+# Recursively send a signal to a process and its descendants
+kill_process_tree() {
+    local pid="$1"
+    local signal="$2"
+    local children
+
+    children="$(list_child_pids "$pid")"
+    for child in $children; do
+        kill_process_tree "$child" "$signal"
+    done
+
+    kill "$signal" "$pid" 2>/dev/null || true
+}
+
+# Send a signal to all descendants of this script
+kill_all_children() {
+    local signal="$1"
+    local children
+
+    children="$(list_child_pids "$$")"
+    for child in $children; do
+        kill_process_tree "$child" "$signal"
+    done
+}
+
+# Cleanup function (Graceful + Timeout Kill + Full Child Cleanup)
 cleanup() {
+    # Avoid running cleanup twice (SIGINT/SIGTERM + EXIT)
+    if [ "$CLEANUP_DONE" -eq 1 ]; then
+        return
+    fi
+    CLEANUP_DONE=1
+    trap - SIGINT SIGTERM EXIT
+
     echo -e "\n${YELLOW}Shutting down services...${NC}"
-    
-    # 1. Send SIGTERM to all services
+
+    # 1. Print tracked services being stopped
     for service in "${!SERVICE_PIDS[@]}"; do
         pid="${SERVICE_PIDS[$service]}"
         if kill -0 "$pid" 2>/dev/null; then
-            echo -e "${CYAN}Stopping $service (PID: $pid)...${NC}"
-            kill -TERM "$pid" 2>/dev/null || true
+            echo -e "${CYAN}Stopping $service (PID: $pid)${NC}"
         fi
     done
 
-    # 2. Wait up to 5 seconds for graceful exit
+    # 2. Graceful shutdown for all child processes of this script
+    kill_all_children "-TERM"
+
+    # 3. Wait up to 5 seconds for graceful exit
     local timeout=5
-    local start_time=$(date +%s)
-    while true; do
-        local any_alive=false
-        for service in "${!SERVICE_PIDS[@]}"; do
-            pid="${SERVICE_PIDS[$service]}"
-            if kill -0 "$pid" 2>/dev/null; then
-                any_alive=true
-                break
-            fi
-        done
-
-        if [ "$any_alive" = "false" ]; then
+    local elapsed=0
+    while [ "$elapsed" -lt "$timeout" ]; do
+        if [ -z "$(list_child_pids "$$")" ]; then
             break
         fi
-
-        local current_time=$(date +%s)
-        if [ $((current_time - start_time)) -ge $timeout ]; then
-            break
-        fi
-        sleep 0.5
+        sleep 1
+        elapsed=$((elapsed + 1))
     done
 
-    # 3. Force kill (SIGKILL) any remaining processes
-    for service in "${!SERVICE_PIDS[@]}"; do
-        pid="${SERVICE_PIDS[$service]}"
-        if kill -0 "$pid" 2>/dev/null; then
-            echo -e "${RED}Force killing $service (PID: $pid)...${NC}"
-            kill -KILL "$pid" 2>/dev/null || true
-        fi
-    done
+    # 4. Force kill anything still alive
+    if [ -n "$(list_child_pids "$$")" ]; then
+        echo -e "${RED}Force killing remaining child processes...${NC}"
+        kill_all_children "-KILL"
+    fi
 
     wait 2>/dev/null || true
     echo -e "${GREEN}All services stopped.${NC}"
     exit 0
 }
 
-# Trap signals for cleanup (Use EXIT to catch script termination)
+# Trap signals for cleanup
 trap cleanup SIGINT SIGTERM EXIT
 
 # Print banner

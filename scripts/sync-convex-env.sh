@@ -1,32 +1,44 @@
 #!/bin/bash
-# Syncs CONVEX_URL from packages/convex/.env.local to apps/web/.env.local
+# Syncs CONVEX_URL from Convex .env.local to apps/web/.env.local
+set -euo pipefail
+
 echo "Syncing Convex environment variables..."
 
-CONVEX_ENV="packages/convex/.env.local"
-WEB_ENV="apps/web/.env.local"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-if [ ! -f "$CONVEX_ENV" ]; then
-    echo "Error: $CONVEX_ENV not found. Run 'npx convex dev' in packages/convex first."
+CONVEX_ENV_PACKAGE="$PROJECT_ROOT/packages/convex/.env.local"
+CONVEX_ENV_ROOT="$PROJECT_ROOT/.env.local"
+WEB_ENV="$PROJECT_ROOT/apps/web/.env.local"
+
+CONVEX_ENV=""
+if [ -f "$CONVEX_ENV_PACKAGE" ]; then
+    CONVEX_ENV="$CONVEX_ENV_PACKAGE"
+elif [ -f "$CONVEX_ENV_ROOT" ]; then
+    # Fallback for users who ran `convex dev` from repo root.
+    CONVEX_ENV="$CONVEX_ENV_ROOT"
+else
+    echo "Error: Convex .env.local not found."
+    echo "Checked: $CONVEX_ENV_PACKAGE and $CONVEX_ENV_ROOT"
+    echo "Run 'bunx convex dev' in '$PROJECT_ROOT/packages/convex' first."
     exit 1
 fi
 
 # Extract CONVEX_URL
-CONVEX_URL=$(grep "^CONVEX_URL=" "$CONVEX_ENV" | cut -d= -f2-)
-
-if [ -z "$CONVEX_URL" ]; then
-    echo "Error: CONVEX_URL not found in $CONVEX_ENV"
+CONVEX_URL="$(grep "^CONVEX_URL=" "$CONVEX_ENV" | cut -d= -f2- || true)"
+if [ -z "$CONVEX_URL" ] || [ "$CONVEX_URL" = "null" ]; then
+    echo "Error: valid CONVEX_URL not found in $CONVEX_ENV"
     exit 1
 fi
 
+mkdir -p "$(dirname "$WEB_ENV")"
+
 # Write to web env
-# Check if VITE_CONVEX_URL already exists
 if grep -q "^VITE_CONVEX_URL=" "$WEB_ENV" 2>/dev/null; then
-    # Update existing
-    # Use perl for in-place editing to handle special chars in URL better than sed on some systems
+    # Use perl for in-place editing to handle URL characters safely.
     perl -i -pe "s|^VITE_CONVEX_URL=.*|VITE_CONVEX_URL=$CONVEX_URL|" "$WEB_ENV"
 else
-    # Append
     echo "VITE_CONVEX_URL=$CONVEX_URL" >> "$WEB_ENV"
 fi
 
-echo "Synced VITE_CONVEX_URL to $WEB_ENV"
+echo "Synced VITE_CONVEX_URL to $WEB_ENV (from $CONVEX_ENV)"
