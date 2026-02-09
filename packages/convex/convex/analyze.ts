@@ -3,11 +3,12 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密机械和机床行业的简历。
-你必须严格按照JSON格式返回结果。
-1. 不要包含 markdown 代码块标记 (如 \`\`\`json ... \`\`\`)。
-2. 所有评分字段（score, breakdown.*）必须是数字（Number），绝对不要使用中文数字或字符串。
-3. 如果无法确切评分，请基于现有信息估算。
-4. 返回纯文本 JSON，不要有任何前缀或后缀。`;
+你必须严格按照【纯数字 JSON】格式返回结果。
+1. 绝对不要包含 markdown 标记 (如 \`\`\`json ... \`\`\`)。
+2. 所有评分字段（score, breakdown.*）必须是【JSON Number 类型】，绝对禁止使用字符串或中文数字（如 "30", "三十", thirty）。
+3. 正确示例: "score": 85
+4. 错误示例: "score": "85", "score": "eighty-five"
+5. 如果无法确切评分，请基于现有信息估算一个数字。`;
 
 const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 
@@ -28,15 +29,15 @@ const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 **曾任职公司**: {companies}
 **简介**: {summary}
 
-请以JSON格式返回分析结果，包含以下字段：
+请以JSON格式返回分析结果，确保 score 为数字类型：
 {
-  "score": (0-100的整数数字),
+  "score": 30, // 必须是0-100的整数数字 (Number)，不要加引号
   "breakdown": {
-    "experience": (数字评分),
-    "skills": (数字评分),
-    "industry_db": (数字评分),
-    "education": (数字评分),
-    "location": (数字评分)
+    "experience": 10, // 数字
+    "skills": 5, // 数字
+    "industry_db": 5, // 数字
+    "education": 5, // 数字
+    "location": 5 // 数字
   },
   "recommendation": "strong_match" | "match" | "potential" | "no_match",
   "highlights": ["匹配亮点1", ...],
@@ -91,6 +92,14 @@ async function callLLM(messages: any[], apiKey: string) {
     // Clean markdown code blocks
     content = content.replace(/```json\n?|```/g, "").trim();
 
+    // Attempt to fix common LLM JSON errors (e.g. unquoted keys or english word numbers)
+    // This simple regex fixes "score": thirty -> "score": 30 (if mapping exists) or just "score": 0
+    // But since we can't easily map all words, let's just quote the value if it looks like a word so JSON.parse passes, then downstream handles it.
+    // However, correcting the Prompt is the best fix.
+    // Let's try to simple-fix unquoted string values for score to make it valid JSON at least.
+    // Match "score": word (no quotes)
+    content = content.replace(/"(score|experience|skills|industry_db|education|location)":\s*([a-zA-Z]+)(?=[,}])/g, '"$1": "$2"');
+
     try {
         const json = JSON.parse(content);
         // Force score to be a number if it's a string like "30"
@@ -113,6 +122,7 @@ export const analyzeResume = action({
             requirements: v.string(),
         })),
         matchingRules: v.optional(v.any()), // New unified config
+        jobDescriptionId: v.optional(v.string()), // Added ID
     },
     handler: async (ctx, args) => {
         const apiKey = process.env.OPENAI_API_KEY;
@@ -170,6 +180,7 @@ export const analyzeResume = action({
                 summary: result.summary,
                 highlights: result.highlights || [],
                 recommendation: result.recommendation || "no_match",
+                jobDescriptionId: args.jobDescriptionId || "default",
             },
         });
 
@@ -185,9 +196,10 @@ export const analyzeBatch = action({
             requirements: v.string(),
         })),
         matchingRules: v.optional(v.any()),
+        jobDescriptionId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const { resumeIds, jobDescription, matchingRules } = args;
+        const { resumeIds, jobDescription, matchingRules, jobDescriptionId } = args;
 
         // Dispatch actions for each resume
         // This runs them securely in background without blocking
@@ -195,7 +207,8 @@ export const analyzeBatch = action({
             return ctx.scheduler.runAfter(0, (internal as any).analyze.analyzeResume, {
                 resumeId: id,
                 jobDescription,
-                matchingRules
+                matchingRules,
+                jobDescriptionId
             });
         }));
 

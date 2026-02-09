@@ -25,6 +25,7 @@ export const updateAnalysis = internalMutation({
             highlights: v.array(v.string()),
             recommendation: v.string(),
             breakdown: v.optional(v.any()),
+            jobDescriptionId: v.optional(v.string()),
         }),
     },
     handler: async (ctx, args) => {

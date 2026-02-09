@@ -22,6 +22,7 @@ import { TaskMonitor } from './TaskMonitor'
 import { useMutation, useAction } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
+import { rawApiClient } from '@/lib/api-helpers'
 
 export function ResumeList() {
   const { t } = useTranslation()
@@ -59,6 +60,36 @@ export function ResumeList() {
   // Use Convex resumes in AI mode to see real-time updates
   const activeResumes = mode === 'ai' ? convexResumes : resumes
   const activeLoading = mode === 'ai' ? convexLoading : loading
+
+  const filteredActiveResumes = useMemo(() => {
+    if (mode !== 'ai') return activeResumes
+
+    let result = convexResumes || []
+
+    // 1. Keyword filter (query)
+    if (query) {
+      const q = query.toLowerCase()
+      result = result.filter(r =>
+        (r.name?.toLowerCase().includes(q)) ||
+        (r.jobIntention?.toLowerCase().includes(q)) ||
+        (r.education?.toLowerCase().includes(q)) ||
+        (r.location?.toLowerCase().includes(q))
+      )
+    }
+
+    // 2. Filter panel (filters)
+    if (filters) {
+      if (filters.locations?.length) {
+        result = result.filter(r => filters.locations!.some(l => r.location?.includes(l)))
+      }
+      if (filters.minMatchScore) {
+        result = result.filter(r => ((r as any).analysis?.score || 0) >= filters.minMatchScore!)
+      }
+      // Add other filters as data structure permits
+    }
+
+    return result
+  }, [mode, activeResumes, convexResumes, query, filters])
 
   useEffect(() => {
     if (session?.jobDescriptionId && !jobDescriptionId) {
@@ -141,9 +172,27 @@ export function ResumeList() {
     if (!convexResumes.length) return;
     setAnalyzing(true);
     try {
+      let jdArg = undefined;
+      if (jobDescriptionId) {
+        try {
+          const { data } = await rawApiClient.GET<{ success: boolean; item?: any; content?: string }>(
+            `/api/job-descriptions/${jobDescriptionId}`
+          );
+          if (data?.success && data.content) {
+            jdArg = {
+              title: data.item?.title || jobDescriptionId,
+              requirements: data.content
+            };
+          }
+        } catch (err) {
+          console.error("Failed to fetch JD", err);
+        }
+      }
+
       await analyzeBatch({
         resumeIds: convexResumes.map(r => r.resumeId as any), // Cast to Id
-        jobDescription: undefined // Use default or fetch current JD
+        jobDescription: jdArg,
+        jobDescriptionId: jobDescriptionId || "default"
       });
     } catch (e) {
       console.error("Analysis failed", e);
@@ -164,9 +213,14 @@ export function ResumeList() {
   const aiStats = useMemo(() => {
     // If using Convex data, stats are computed from analysis fields
     if (mode === 'ai') {
-      const processed = convexResumes.filter((r: any) => r.analysis).length
-      const matched = convexResumes.filter((r: any) => (r.analysis?.score || 0) >= 60).length
-      const avgScore = processed ? Number((convexResumes.reduce((sum, r: any) => sum + (r.analysis?.score || 0), 0) / processed).toFixed(2)) : 0
+      // Must match current JD
+      const validResumes = convexResumes.filter((r: any) =>
+        r.analysis && (!jobDescriptionId || r.analysis.jobDescriptionId === jobDescriptionId)
+      );
+
+      const processed = validResumes.length
+      const matched = validResumes.filter((r: any) => (r.analysis?.score || 0) >= 60).length
+      const avgScore = processed ? Number((validResumes.reduce((sum: number, r: any) => sum + (r.analysis?.score || 0), 0) / processed).toFixed(2)) : 0
       return { processed, matched, avgScore }
     }
     if (matchStats) return matchStats
@@ -175,18 +229,26 @@ export function ResumeList() {
     const matched = matchResults.filter((item) => item.score >= 50).length
     const avgScore = Number((matchResults.reduce((sum, item) => sum + item.score, 0) / processed).toFixed(2))
     return { processed, matched, avgScore }
-  }, [matchResults, matchStats, mode, convexResumes])
+  }, [matchResults, matchStats, mode, convexResumes, jobDescriptionId])
 
   const matchMap = useMemo(() => {
     return new Map(matchResults.map((item) => [item.resumeId, item]))
   }, [matchResults])
 
   const enrichedResumes = useMemo(() => {
-    return activeResumes.map((resume, index) => {
+    return filteredActiveResumes.map((resume, index) => {
       const resumeKey = resume.resumeId || resume.perUserId || (resume.profileUrl && resume.profileUrl !== 'javascript:;' ? resume.profileUrl : `${resume.name}-${resume.extractedAt || index}`)
       // If in AI mode, use the analysis from the resume itself
       const analysis = (resume as any).analysis;
-      const match = mode === 'ai' ? (analysis ? {
+
+      // Only show analysis if it matches current JD context
+      // If jobDescriptionId is selected, analysis must match it.
+      // If no JD selected, maybe show any analysis? Or hide? Let's hide to be safe or show default.
+      // Re-req: "i expect use change config of jd; the reums score shlud cahnge to correcpind is not in db it shloud be reset"
+      // So if current JD != analysis JD, reset.
+      const isAnalysisValid = !jobDescriptionId || (analysis?.jobDescriptionId === jobDescriptionId);
+
+      const match = mode === 'ai' ? (analysis && isAnalysisValid ? {
         resumeId: resumeKey,
         score: analysis.score,
         summary: analysis.summary,
@@ -203,7 +265,7 @@ export function ResumeList() {
         action: actions[resumeKey],
       }
     })
-  }, [actions, matchMap, activeResumes, mode])
+  }, [actions, matchMap, filteredActiveResumes, mode, jobDescriptionId])
 
   const displayedResumes = useMemo(() => {
     if (mode !== 'ai') return enrichedResumes
@@ -296,8 +358,8 @@ export function ResumeList() {
           {summary && !error ? (
             <div className="text-sm text-muted-foreground">
               {t('resumes.summary', {
-                returned: summary.returned ?? resumes.length,
-                total: summary.total ?? resumes.length,
+                returned: mode === 'ai' ? displayedResumes.length : (summary.returned ?? resumes.length),
+                total: mode === 'ai' ? convexResumes.length : (summary.total ?? resumes.length),
                 sample: selectedSample || '--',
               })}
             </div>
@@ -332,7 +394,7 @@ export function ResumeList() {
               <p className="text-sm text-destructive">{t('resumes.error')}</p>
               <p className="text-xs text-muted-foreground mt-1">{error}</p>
             </div>
-          ) : resumes.length === 0 ? (
+          ) : displayedResumes.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
               {t('resumes.empty')}
             </div>

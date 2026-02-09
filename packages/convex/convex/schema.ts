@@ -45,6 +45,7 @@ export default defineSchema({
             highlights: v.array(v.string()),
             recommendation: v.string(),
             breakdown: v.optional(v.any()), // Stores detailed scores per category
+            jobDescriptionId: v.optional(v.string()), // Tracks which JD was used for analysis
         })),
     })
         .index("by_externalId", ["externalId"])
