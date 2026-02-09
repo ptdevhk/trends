@@ -24,9 +24,8 @@ if [ -n "$CONVEX_ENV" ]; then
 elif [ -n "${CONVEX_URL:-}" ]; then
     echo "Using CONVEX_URL from system environment"
 else
-    echo "Error: Convex .env.local not found and CONVEX_URL not set in environment."
+    echo "Error: No .env.local found and CONVEX_URL not set in environment."
     echo "Checked: $CONVEX_ENV_PACKAGE and $CONVEX_ENV_ROOT"
-    echo "Set CONVEX_URL or run 'bunx convex dev' in '$PROJECT_ROOT/packages/convex' first."
     exit 1
 fi
 
