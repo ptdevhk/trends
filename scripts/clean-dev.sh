@@ -7,7 +7,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PORTS=(
   "${CONVEX_PORT:-3210}"
   "${MCP_PORT:-3333}"
-  "${WORKER_PORT:-8000}"
+  "${TRENDS_WORKER_PORT:-8000}"
   "${API_PORT:-3000}"
   "${WEB_PORT:-5173}"
 )
@@ -134,4 +134,4 @@ if [ ${#REMAINING_PIDS[@]} -gt 0 ]; then
 fi
 
 echo "Done. Current listeners on dev ports:"
-lsof -nP -iTCP:"${CONVEX_PORT:-3210}" -iTCP:"${MCP_PORT:-3333}" -iTCP:"${WORKER_PORT:-8000}" -iTCP:"${API_PORT:-3000}" -iTCP:"${WEB_PORT:-5173}" -sTCP:LISTEN 2>/dev/null || true
+lsof -nP -iTCP:"${CONVEX_PORT:-3210}" -iTCP:"${MCP_PORT:-3333}" -iTCP:"${TRENDS_WORKER_PORT:-8000}" -iTCP:"${API_PORT:-3000}" -iTCP:"${WEB_PORT:-5173}" -sTCP:LISTEN 2>/dev/null || true

@@ -183,7 +183,7 @@ service_port() {
     case "$service" in
         convex) echo "${CONVEX_PORT:-3210}" ;;
         mcp) echo "${MCP_PORT:-3333}" ;;
-        worker) echo "${WORKER_PORT:-8000}" ;;
+        worker) echo "${TRENDS_WORKER_PORT:-8000}" ;;
         api) echo "${API_PORT:-3000}" ;;
         web) echo "${WEB_PORT:-5173}" ;;
         *) echo "" ;;
@@ -516,7 +516,7 @@ start_api() {
 
 # Start FastAPI worker (future: apps/worker)
 start_worker() {
-    local port="${WORKER_PORT:-8000}"
+    local port="${TRENDS_WORKER_PORT:-8000}"
 
     if [ -d "$PROJECT_ROOT/apps/worker" ]; then
         if ! check_port "$port"; then
@@ -715,7 +715,7 @@ main() {
                 echo "  ENV_FILE      Path to .env file (default: .env)"
                 echo "  SKIP_CRAWL    Skip crawl on startup (default: true; set to false to crawl)"
                 echo "  MCP_PORT      MCP server port (default: 3333)"
-                echo "  WORKER_PORT   FastAPI worker port (default: 8000)"
+                echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
                 echo "  API_PORT      BFF API port (default: 3000)"
                 echo "  WEB_PORT      Web frontend port (default: 5173)"
                 exit 0
