@@ -15,19 +15,23 @@ CONVEX_ENV=""
 if [ -f "$CONVEX_ENV_PACKAGE" ]; then
     CONVEX_ENV="$CONVEX_ENV_PACKAGE"
 elif [ -f "$CONVEX_ENV_ROOT" ]; then
-    # Fallback for users who ran `convex dev` from repo root.
     CONVEX_ENV="$CONVEX_ENV_ROOT"
+fi
+
+# Extract CONVEX_URL: prefer .env.local file, fall back to system environment
+if [ -n "$CONVEX_ENV" ]; then
+    CONVEX_URL="$(grep "^CONVEX_URL=" "$CONVEX_ENV" | cut -d= -f2- || true)"
+elif [ -n "${CONVEX_URL:-}" ]; then
+    echo "Using CONVEX_URL from system environment"
 else
-    echo "Error: Convex .env.local not found."
+    echo "Error: Convex .env.local not found and CONVEX_URL not set in environment."
     echo "Checked: $CONVEX_ENV_PACKAGE and $CONVEX_ENV_ROOT"
-    echo "Run 'bunx convex dev' in '$PROJECT_ROOT/packages/convex' first."
+    echo "Set CONVEX_URL or run 'bunx convex dev' in '$PROJECT_ROOT/packages/convex' first."
     exit 1
 fi
 
-# Extract CONVEX_URL
-CONVEX_URL="$(grep "^CONVEX_URL=" "$CONVEX_ENV" | cut -d= -f2- || true)"
 if [ -z "$CONVEX_URL" ] || [ "$CONVEX_URL" = "null" ]; then
-    echo "Error: valid CONVEX_URL not found in $CONVEX_ENV"
+    echo "Error: valid CONVEX_URL not found"
     exit 1
 fi
 
@@ -41,4 +45,8 @@ else
     echo "VITE_CONVEX_URL=$CONVEX_URL" >> "$WEB_ENV"
 fi
 
-echo "Synced VITE_CONVEX_URL to $WEB_ENV (from $CONVEX_ENV)"
+if [ -n "$CONVEX_ENV" ]; then
+    echo "Synced VITE_CONVEX_URL to $WEB_ENV (from $CONVEX_ENV)"
+else
+    echo "Synced VITE_CONVEX_URL to $WEB_ENV (from system environment)"
+fi
