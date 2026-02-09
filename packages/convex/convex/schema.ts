@@ -37,6 +37,14 @@ export default defineSchema({
         tags: v.array(v.string()), // e.g. search profile IDs
         crawledAt: v.number(),
         source: v.string(), // e.g. "hr.job5156.com"
+
+        // AI Analysis
+        analysis: v.optional(v.object({
+            score: v.number(),
+            summary: v.string(),
+            highlights: v.array(v.string()),
+            recommendation: v.string(),
+        })),
     })
         .index("by_externalId", ["externalId"])
         .index("by_hash", ["hash"]),
