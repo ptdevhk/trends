@@ -87,7 +87,7 @@
       "name": "@trends/convex",
       "version": "0.1.0",
       "dependencies": {
-        "convex": "^1.11.0",
+        "convex": "^1.25.4",
       },
       "devDependencies": {
         "typescript": "^5.9.3",
