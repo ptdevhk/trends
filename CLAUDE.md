@@ -461,6 +461,67 @@ apps/
 
 ---
 
+## Planning Guidelines (Multi-Agent/Multi-Session)
+
+When creating implementation plans, follow these rules to enable **parallel execution** across different agents, sessions, or worktrees:
+
+### 1. Atomic Tasks
+- Each task should be **independently completable** without blocking on other tasks
+- Avoid sequential dependencies where possible (Step B waits for Step A)
+- If dependencies exist, clearly mark them: `[DEPENDS: Step 0]`
+
+### 2. File Isolation
+- Each task should modify **different files** when possible
+- If multiple tasks touch the same file, document which sections each task owns
+- Use `[CONFLICT RISK: filename]` to flag potential merge conflicts
+
+### 3. Clear Boundaries
+Structure each task with:
+```markdown
+### Task N: [Name]
+**Files**: list of files to modify
+**Depends**: none | Task X
+**Conflict Risk**: none | [filename]
+**Verification**: how to test this task independently
+```
+
+### 4. Merge-Friendly Structure
+- **Each task = one feature** that can be merged independently
+- Plan tasks to touch different files/sections to minimize merge conflicts
+- When splitting a phase, ensure each step is a self-contained feature
+
+### 5. Agent Handoff
+- Include all context needed for a fresh agent to start
+- Reference file paths with absolute links: `[file](file:///path/to/file)`
+- Don't assume prior conversation context
+
+### Example Structure
+```markdown
+## Phase 1.5: Location Filter
+
+### Step 0: Browser Extension Update [INDEPENDENT]
+**Files**: content.js
+**Depends**: none
+**Conflict Risk**: none
+
+### Step 1: Shell Script Update [INDEPENDENT]  
+**Files**: refresh-sample.sh
+**Depends**: none
+**Conflict Risk**: none
+
+### Step 2: Python Script Update [DEPENDS: Step 1]
+**Files**: refresh-sample.py
+**Depends**: Step 1 (uses --location arg)
+**Conflict Risk**: none
+
+### Step 3: Makefile Update [INDEPENDENT]
+**Files**: Makefile
+**Depends**: none
+**Conflict Risk**: none
+```
+
+---
+
 ## Summary
 
 ### What Users Do (Minimal)
