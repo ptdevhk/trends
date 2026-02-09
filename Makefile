@@ -181,6 +181,7 @@ refresh-sample:
 	@KEYWORD="$(or $(KEYWORD),销售)" SAMPLE="$(or $(SAMPLE),sample-initial)" \
 	CDP_PORT="$(or $(CDP_PORT),9222)" \
 	ALLOW_EMPTY="$(ALLOW_EMPTY)" \
+	LOCATION="$(LOCATION)" \
 	./scripts/refresh-sample.sh
 
 # Show instructions for refreshing resume sample data
