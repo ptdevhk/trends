@@ -740,17 +740,35 @@ function getAreaItemText(item) {
   return (clone.textContent || '').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * @param {Element | null | undefined} element
+ * @returns {HTMLElement | null}
+ */
+function asHTMLElement(element) {
+  return element instanceof HTMLElement ? element : null;
+}
+
+/**
+ * @param {ParentNode | null | undefined} container
+ * @param {string} text
+ * @returns {HTMLElement | null}
+ */
 function findAreaItemByText(container, text) {
   if (!container || !text) return null;
   const target = text.replace(/\s+/g, ' ').trim();
   const itemSelector = `${SELECTORS.areaItem}, ${SELECTORS.areaDistrictItem}`;
   const items = container.querySelectorAll(itemSelector);
   for (const item of items) {
-    if (getAreaItemText(item) === target) return item;
+    if (getAreaItemText(item) === target) return asHTMLElement(item);
   }
   return null;
 }
 
+/**
+ * @param {string} blockSelector
+ * @param {{ timeoutMs?: number, itemSelector?: string }} [options]
+ * @returns {Promise<{ block: Element, items: Element[] }>}
+ */
 function waitForAreaItems(blockSelector, { timeoutMs = 5000, itemSelector } = {}) {
   return new Promise((resolve, reject) => {
     let done = false;
@@ -833,7 +851,7 @@ async function autoSelectLocation() {
 
   let modal = document.querySelector(SELECTORS.areaModal);
   if (!isElementVisible(modal)) {
-    const trigger = document.querySelector(SELECTORS.areaTrigger);
+    const trigger = asHTMLElement(document.querySelector(SELECTORS.areaTrigger));
     if (!trigger) {
       setAutoLocationAttributes('failed', location);
       console.warn('🎯 [Auto Location] Trigger not found');
@@ -850,8 +868,8 @@ async function autoSelectLocation() {
   }
 
   const provinceBlock = modal.querySelector(SELECTORS.areaProvinceBlock);
-  const confirmBtn = modal.querySelector(SELECTORS.areaConfirmBtn);
-  const cancelBtn = modal.querySelector(SELECTORS.areaCancelBtn);
+  const confirmBtn = asHTMLElement(modal.querySelector(SELECTORS.areaConfirmBtn));
+  const cancelBtn = asHTMLElement(modal.querySelector(SELECTORS.areaCancelBtn));
   if (!provinceBlock || !confirmBtn || !cancelBtn) {
     setAutoLocationAttributes('failed', location);
     console.warn('🎯 [Auto Location] Missing modal controls');
@@ -913,7 +931,9 @@ async function autoSelectLocation() {
   const provinceItems = Array.from(provinceBlock.querySelectorAll(SELECTORS.areaItem));
   for (const province of provinceItems) {
     if (hotCities && province === hotCities) continue;
-    province.click();
+    const provinceEl = asHTMLElement(province);
+    if (!provinceEl) continue;
+    provinceEl.click();
     await new Promise((resolve) => setTimeout(resolve, 300));
     try {
       if (await tryCityFlow()) return;
