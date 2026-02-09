@@ -18,7 +18,7 @@
 # Start all available services (MCP server + crawler + apps/* + Convex)
 dev:
 	@chmod +x scripts/sync-convex-env.sh
-	@if [ -f "packages/convex/.env.local" ] || [ -f ".env.local" ]; then \
+	@if [ -f "packages/convex/.env.local" ] || [ -f ".env.local" ] || [ -n "$${CONVEX_URL:-}" ]; then \
 		./scripts/sync-convex-env.sh; \
 	else \
 		echo "Skipping Convex env sync (no Convex .env.local found yet)"; \

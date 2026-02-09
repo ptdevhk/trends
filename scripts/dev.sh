@@ -585,6 +585,15 @@ start_scraper() {
 # Start Convex backend
 start_convex() {
     local port="${CONVEX_PORT:-3210}" 
+
+    # If CONVEX_DEPLOYMENT is set in env but .env.local doesn't exist,
+    # generate it so convex dev can start non-interactively.
+    local convex_env_local="$PROJECT_ROOT/packages/convex/.env.local"
+    if [ -n "${CONVEX_DEPLOYMENT:-}" ] && [ ! -f "$convex_env_local" ]; then
+        log "CONVEX" "$CYAN" "Generating $convex_env_local from system environment"
+        mkdir -p "$(dirname "$convex_env_local")"
+        echo "CONVEX_DEPLOYMENT=$CONVEX_DEPLOYMENT" > "$convex_env_local"
+    fi
     
     if [ -d "$PROJECT_ROOT/packages/convex" ]; then
         if ! check_port "$port"; then
