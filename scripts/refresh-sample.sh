@@ -4,6 +4,7 @@ set -euo pipefail
 KEYWORD="${KEYWORD:-销售}"
 SAMPLE="${SAMPLE:-sample-initial}"
 CDP_PORT="${CDP_PORT:-9222}"
+LOCATION="${LOCATION:-}"
 ALLOW_EMPTY="${ALLOW_EMPTY:-}"
 
 if ! curl -fsS "http://127.0.0.1:${CDP_PORT}/json" >/dev/null 2>&1; then
@@ -17,4 +18,5 @@ exec uv run python scripts/refresh-sample.py \
   --keyword "${KEYWORD}" \
   --sample "${SAMPLE}" \
   --port "${CDP_PORT}" \
+  --location "${LOCATION}" \
   ${ALLOW_EMPTY:+--allow-empty}

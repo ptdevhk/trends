@@ -180,6 +180,7 @@ fetch-docs:
 refresh-sample:
 	@KEYWORD="$(or $(KEYWORD),销售)" SAMPLE="$(or $(SAMPLE),sample-initial)" \
 	CDP_PORT="$(or $(CDP_PORT),9222)" \
+	LOCATION="$(LOCATION)" \
 	ALLOW_EMPTY="$(ALLOW_EMPTY)" \
 	./scripts/refresh-sample.sh
 
@@ -187,8 +188,8 @@ refresh-sample:
 refresh-sample-manual:
 	@echo "=== Refresh Resume Sample Data (Manual) ==="
 	@echo "1. Log into https://hr.job5156.com in Chrome (extension installed)"
-	@echo "2. Navigate to this URL:"
-	@echo "   https://hr.job5156.com/search?keyword=销售&tr_auto_export=json&tr_sample_name=sample-initial"
+	@echo "2. Navigate to this URL (add location as needed, e.g. &location=广东):"
+	@echo "   https://hr.job5156.com/search?keyword=销售&location=广东&tr_auto_export=json&tr_sample_name=sample-initial"
 	@echo "3. Copy downloaded file to: output/resumes/samples/"
 	@echo ""
 	@echo "The exported file includes metadata for reproduction."
@@ -332,5 +333,7 @@ help:
 	@echo "  WORKER_PORT    FastAPI worker port (default: 8000)"
 	@echo "  API_PORT       BFF API port (default: 3000)"
 	@echo "  WEB_PORT       Web frontend port (default: 5173)"
+	@echo "  KEYWORD        Search keyword for refresh-sample (default: 销售)"
+	@echo "  LOCATION       Location filter for refresh-sample (e.g., 广东)"
 	@echo "  CDP_PORT       Chrome DevTools port (default: 9222)"
 	@echo "  ALLOW_EMPTY    Allow empty resume samples (set to 1)"

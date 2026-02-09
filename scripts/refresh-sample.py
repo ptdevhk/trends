@@ -56,8 +56,10 @@ def sanitize_sample_name(value: str) -> str:
     return cleaned[:80]
 
 
-def build_search_url(keyword: str) -> str:
+def build_search_url(keyword: str, location: str = "") -> str:
     params = {"keyword": keyword}
+    if location:
+        params["location"] = location
     return "https://hr.job5156.com/search?" + urllib.parse.urlencode(params)
 
 
@@ -246,6 +248,7 @@ async def run():
     parser.add_argument("--keyword", default=DEFAULT_KEYWORD, help="Search keyword")
     parser.add_argument("--sample", default=DEFAULT_SAMPLE, help="Sample file name")
     parser.add_argument("--port", type=int, default=CDP_PORT, help="CDP port")
+    parser.add_argument("--location", default="", help="Location filter (e.g., 广东)")
     parser.add_argument(
         "--allow-empty",
         action="store_true",
@@ -259,7 +262,7 @@ async def run():
     if not sample_name:
         sample_name = "sample"
 
-    search_url = build_search_url(args.keyword)
+    search_url = build_search_url(args.keyword, args.location)
 
     try:
         targets = fetch_json(f"http://127.0.0.1:{args.port}/json")
