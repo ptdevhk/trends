@@ -23,6 +23,32 @@ declare -A SERVICE_PIDS
 # Cleanup state
 CLEANUP_DONE=0
 
+declare -a SERVICE_ORDER=("convex" "mcp" "worker" "scraper" "api" "web")
+declare -A SERVICE_LABELS=(
+    ["convex"]="Convex"
+    ["mcp"]="MCP"
+    ["worker"]="Worker API"
+    ["scraper"]="Scraper"
+    ["api"]="BFF API"
+    ["web"]="Web UI"
+)
+declare -A SERVICE_TAGS=(
+    ["convex"]="CONVEX"
+    ["mcp"]="MCP"
+    ["worker"]="WORKER"
+    ["scraper"]="SCRAPER"
+    ["api"]="API"
+    ["web"]="WEB"
+)
+declare -A SERVICE_LOG_FILES=(
+    ["convex"]="convex.log"
+    ["mcp"]="mcp.log"
+    ["worker"]="worker.log"
+    ["scraper"]="scraper.log"
+    ["api"]="api.log"
+    ["web"]="web.log"
+)
+
 # List direct child processes for a parent PID
 list_child_pids() {
     local parent_pid="$1"
@@ -77,11 +103,13 @@ cleanup() {
 
     echo -e "\n${YELLOW}Shutting down services...${NC}"
 
-    # 1. Print tracked services being stopped
-    for service in "${!SERVICE_PIDS[@]}"; do
-        pid="${SERVICE_PIDS[$service]}"
-        if kill -0 "$pid" 2>/dev/null; then
-            echo -e "${CYAN}Stopping $service (PID: $pid)${NC}"
+    # 1. Print tracked services being stopped in deterministic order
+    local service
+    local pid
+    for service in "${SERVICE_ORDER[@]}"; do
+        pid="${SERVICE_PIDS[$service]:-}"
+        if is_pid_running "$pid"; then
+            echo -e "${CYAN}Stopping $(service_label "$service") (PID: $pid, log: $(service_log_path "$service"))${NC}"
         fi
     done
 
@@ -128,6 +156,129 @@ log() {
     local color="$2"
     local message="$3"
     echo -e "${color}[$(date '+%H:%M:%S')] [$service]${NC} $message"
+}
+
+service_label() {
+    local service="$1"
+    echo "${SERVICE_LABELS[$service]:-$service}"
+}
+
+service_tag() {
+    local service="$1"
+    echo "${SERVICE_TAGS[$service]:-${service^^}}"
+}
+
+service_log_path() {
+    local service="$1"
+    local file="${SERVICE_LOG_FILES[$service]:-}"
+    if [ -z "$file" ]; then
+        echo "-"
+        return
+    fi
+    echo "$LOGS_DIR/$file"
+}
+
+service_port() {
+    local service="$1"
+    case "$service" in
+        convex) echo "${CONVEX_PORT:-3210}" ;;
+        mcp) echo "${MCP_PORT:-3333}" ;;
+        worker) echo "${WORKER_PORT:-8000}" ;;
+        api) echo "${API_PORT:-3000}" ;;
+        web) echo "${WEB_PORT:-5173}" ;;
+        *) echo "" ;;
+    esac
+}
+
+service_url() {
+    local service="$1"
+    local port
+    port="$(service_port "$service")"
+    if [ -z "$port" ]; then
+        echo "-"
+        return
+    fi
+    echo "http://localhost:$port"
+}
+
+is_pid_running() {
+    local pid="$1"
+    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+is_service_running() {
+    local service="$1"
+    local pid="${SERVICE_PIDS[$service]:-}"
+    is_pid_running "$pid"
+}
+
+has_bun() {
+    command -v bun >/dev/null 2>&1
+}
+
+local_js_runner() {
+    if has_bun; then
+        echo "bun"
+    else
+        echo "npm"
+    fi
+}
+
+run_local_js_script() {
+    local script="$1"
+    shift
+
+    if has_bun; then
+        bun run "$script" "$@"
+        return
+    fi
+
+    if [ "$#" -gt 0 ]; then
+        npm run --silent "$script" -- "$@"
+    else
+        npm run --silent "$script"
+    fi
+}
+
+should_filter_terminal_log_line() {
+    local service="$1"
+    local line="$2"
+
+    if [ "$service" != "api" ]; then
+        return 1
+    fi
+
+    case "$line" in
+        *"Previous process hasn't exited yet. Force killing..."*)
+            return 0
+            ;;
+        *'error: script "dev" exited with code 130'*)
+            return 0
+            ;;
+        *"npm ERR! code 130"*)
+            return 0
+            ;;
+        *"npm error code 130"*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+stream_service_logs() {
+    local service="$1"
+    local color="$2"
+    local tag
+    tag="$(service_tag "$service")"
+
+    while IFS= read -r line; do
+        if should_filter_terminal_log_line "$service" "$line"; then
+            continue
+        fi
+        log "$tag" "$color" "$line"
+    done
 }
 
 # Ensure native Node modules are compatible with the active Node runtime.
@@ -208,36 +359,14 @@ check_all_ports() {
     local conflicts=()
 
     for service in "${services_to_check[@]}"; do
-        local port=""
-        local name=""
-        case "$service" in
-            convex)
-                port="${CONVEX_PORT:-3210}"
-                name="Convex"
-                ;;
-            mcp)
-                port="${MCP_PORT:-3333}"
-                name="MCP"
-                ;;
-            worker)
-                port="${WORKER_PORT:-8000}"
-                name="Worker"
-                ;;
-            api)
-                port="${API_PORT:-3000}"
-                name="API"
-                ;;
-            web)
-                port="${WEB_PORT:-5173}"
-                name="Web"
-                ;;
-            *)
-                continue
-                ;;
-        esac
+        local port
+        port="$(service_port "$service")"
+        if [ -z "$port" ]; then
+            continue
+        fi
 
         ports+=("$port")
-        names+=("$name")
+        names+=("$(service_label "$service")")
     done
 
     for i in "${!ports[@]}"; do
@@ -305,7 +434,7 @@ start_mcp_server() {
     fi
 
     # Use process substitution to capture correct PID
-    eval "$cmd" > >(tee "$LOGS_DIR/mcp.log" | while read line; do log "MCP" "$BLUE" "$line"; done) 2>&1 &
+    eval "$cmd" > >(tee "$(service_log_path "mcp")" | stream_service_logs "mcp" "$BLUE") 2>&1 &
     SERVICE_PIDS["mcp"]=$!
 }
 
@@ -341,18 +470,21 @@ start_web() {
             return 0
         fi
 
-        log "WEB" "$CYAN" "Generating API types..."
+        local runner
+        runner="$(local_js_runner)"
+
+        log "WEB" "$CYAN" "Generating API types ($runner run gen:api)..."
         (
-            cd "$PROJECT_ROOT"
-            if ! npm --workspace @trends/web run gen:api >/dev/null 2>&1; then
+            cd "$PROJECT_ROOT/apps/web"
+            if ! run_local_js_script gen:api >/dev/null 2>&1; then
                 log "WEB" "$YELLOW" "Failed to generate API types (continuing)"
             fi
         )
 
-        log "WEB" "$CYAN" "Starting web frontend on http://localhost:$port"
+        log "WEB" "$CYAN" "Starting web frontend on http://localhost:$port ($runner run dev)"
         cd "$PROJECT_ROOT/apps/web"
-        
-        npm run dev -- --port "$port" > >(tee "$LOGS_DIR/web.log" | while read line; do log "WEB" "$CYAN" "$line"; done) 2>&1 &
+
+        run_local_js_script dev --port "$port" > >(tee "$(service_log_path "web")" | stream_service_logs "web" "$CYAN") 2>&1 &
         SERVICE_PIDS["web"]=$!
     else
         log "WEB" "$YELLOW" "apps/web not found (planned for Milestone 3)"
@@ -369,10 +501,13 @@ start_api() {
             return 0
         fi
 
-        log "API" "$CYAN" "Starting BFF API on http://localhost:$port"
+        local runner
+        runner="$(local_js_runner)"
+
+        log "API" "$CYAN" "Starting BFF API on http://localhost:$port ($runner run dev)"
         cd "$PROJECT_ROOT/apps/api"
-        
-        PORT="$port" npm run dev > >(tee "$LOGS_DIR/api.log" | while read line; do log "API" "$CYAN" "$line"; done) 2>&1 &
+
+        PORT="$port" run_local_js_script dev > >(tee "$(service_log_path "api")" | stream_service_logs "api" "$CYAN") 2>&1 &
         SERVICE_PIDS["api"]=$!
     else
         log "API" "$YELLOW" "apps/api not found (planned for Milestone 2)"
@@ -397,7 +532,7 @@ start_worker() {
             cmd="uv run --env-file $ENV_FILE uvicorn api:app --reload --port $port"
         fi
 
-        eval "$cmd" > >(tee "$LOGS_DIR/worker.log" | while read line; do log "WORKER" "$CYAN" "$line"; done) 2>&1 &
+        eval "$cmd" > >(tee "$(service_log_path "worker")" | stream_service_logs "worker" "$CYAN") 2>&1 &
         SERVICE_PIDS["worker"]=$!
     else
         log "WORKER" "$YELLOW" "apps/worker not found (planned for Milestone 1)"
@@ -435,7 +570,7 @@ start_scraper() {
         cmd="uv run --env-file $ENV_FILE python scripts/worker.py"
     fi
 
-    eval "$cmd" > >(tee "$LOGS_DIR/scraper.log" | while read line; do log "SCRAPER" "$CYAN" "$line"; done) 2>&1 &
+    eval "$cmd" > >(tee "$(service_log_path "scraper")" | stream_service_logs "scraper" "$CYAN") 2>&1 &
     SERVICE_PIDS["scraper"]=$!
     
     # Check if it died immediately
@@ -468,7 +603,7 @@ start_convex() {
              cmd="bunx convex dev"
         fi
 
-        $cmd > >(tee "$LOGS_DIR/convex.log" | while read line; do log "CONVEX" "$CYAN" "$line"; done) 2>&1 &
+        $cmd > >(tee "$(service_log_path "convex")" | stream_service_logs "convex" "$CYAN") 2>&1 &
         SERVICE_PIDS["convex"]=$!
         
         sleep 5
@@ -485,16 +620,28 @@ start_convex() {
 print_status() {
     echo ""
     echo -e "${GREEN}Services running:${NC}"
-    echo -e "  ${BLUE}MCP Server:${NC}  http://localhost:${MCP_PORT:-3333}"
+    printf "  %-12s | %-24s | %-8s | %s\n" "Service" "URL" "PID" "Log"
+    printf "  %-12s-+-%-24s-+-%-8s-+-%s\n" "------------" "------------------------" "--------" "------------------------"
 
-    if [ -d "$PROJECT_ROOT/apps/worker" ]; then
-        echo -e "  ${CYAN}Worker API:${NC}  http://localhost:${WORKER_PORT:-8000}"
-    fi
-    if [ -d "$PROJECT_ROOT/apps/api" ]; then
-        echo -e "  ${CYAN}BFF API:${NC}     http://localhost:${API_PORT:-3000}"
-    fi
-    if [ -d "$PROJECT_ROOT/apps/web" ]; then
-        echo -e "  ${CYAN}Web UI:${NC}      http://localhost:${WEB_PORT:-5173}"
+    local service
+    local pid
+    local started=0
+    for service in "${SERVICE_ORDER[@]}"; do
+        pid="${SERVICE_PIDS[$service]:-}"
+        if ! is_pid_running "$pid"; then
+            continue
+        fi
+
+        started=$((started + 1))
+        printf "  %-12s | %-24s | %-8s | %s\n" \
+            "$(service_label "$service")" \
+            "$(service_url "$service")" \
+            "$pid" \
+            "$(service_log_path "$service")"
+    done
+
+    if [ "$started" -eq 0 ]; then
+        echo "  (no active tracked services)"
     fi
 
     echo ""
