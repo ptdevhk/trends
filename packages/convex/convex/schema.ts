@@ -44,6 +44,7 @@ export default defineSchema({
             summary: v.string(),
             highlights: v.array(v.string()),
             recommendation: v.string(),
+            breakdown: v.optional(v.any()), // Stores detailed scores per category
         })),
     })
         .index("by_externalId", ["externalId"])

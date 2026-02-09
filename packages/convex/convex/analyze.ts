@@ -3,13 +3,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密机械和机床行业的简历。
-你需要根据职位要求对候选人进行评分和分析。
-
-评分标准：
-- 90-100分：完美匹配，技能、经验、教育背景完全符合要求
-- 70-89分：良好匹配，大部分要求符合，有少量可培养的差距
-- 50-69分：潜力候选人，有相关基础但需要培训
-- 0-49分：不匹配，基本要求不满足
+你需要根据职位要求和评分规则对候选人进行评分和分析。
 
 你必须严格按照JSON格式返回结果，不要包含任何其他文字。`;
 
@@ -19,6 +13,9 @@ const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 **职位名称**: {jobTitle}
 **职位要求**:
 {requirements}
+
+## 评分规则 (权重与标准)
+{matchingRules}
 
 ## 候选人信息
 **姓名**: {candidateName}
@@ -31,11 +28,18 @@ const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 
 请以JSON格式返回分析结果，包含以下字段：
 {
-  "score": 0-100的整数评分,
-  "recommendation": "strong_match" 或 "match" 或 "potential" 或 "no_match",
-  "highlights": ["匹配亮点1", "匹配亮点2", ...],
-  "concerns": ["关注点或不足1", "关注点或不足2", ...],
-  "summary": "中文总结，说明匹配原因和建议"
+  "score": (0-100的整数总分),
+  "breakdown": {
+    "experience": (根据权重评分),
+    "skills": (根据权重评分),
+    "industry_db": (根据权重评分),
+    "education": (根据权重评分),
+    "location": (根据权重评分)
+  },
+  "recommendation": "strong_match" | "match" | "potential" | "no_match",
+  "highlights": ["匹配亮点1", ...],
+  "concerns": ["不足之处1", ...],
+  "summary": "中文总结"
 }`;
 
 // Helper to normalize resume data
@@ -72,7 +76,12 @@ async function callLLM(messages: any[], apiKey: string) {
     }
 
     const data = await response.json();
-    return JSON.parse(data.choices[0].message.content);
+    try {
+        return JSON.parse(data.choices[0].message.content);
+    } catch (e) {
+        console.error("Failed to parse LLM response:", data.choices[0].message.content);
+        throw new Error("Invalid JSON response from AI");
+    }
 }
 
 export const analyzeResume = action({
@@ -82,6 +91,7 @@ export const analyzeResume = action({
             title: v.string(),
             requirements: v.string(),
         })),
+        matchingRules: v.optional(v.any()), // New unified config
     },
     handler: async (ctx, args) => {
         const apiKey = process.env.OPENAI_API_KEY;
@@ -89,26 +99,25 @@ export const analyzeResume = action({
             throw new Error("OPENAI_API_KEY is not set in Convex environment variables.");
         }
 
-        // 1. Fetch resume data (need a query for this, or pass data? safer to fetch)
-        // Since actions can't query directly, we need a separate internal query or trust passed data.
-        // Best pattern: action calls internalQuery to get data.
         const resume = await ctx.runQuery(internal.resumes.getResume, { resumeId: args.resumeId });
 
         if (!resume) {
             throw new Error(`Resume not found: ${args.resumeId}`);
         }
 
-        // Default JD if not provided (e.g. general assessment)
         const jd = args.jobDescription || {
             title: "销售经理 (通用)",
             requirements: "具备销售经验，沟通能力强，熟悉机床行业优先。",
         };
+
+        const matchingRules = args.matchingRules ? JSON.stringify(args.matchingRules, null, 2) : "使用默认评分标准";
 
         // 2. Prepare Prompt
         const norm = normalizeResume(resume.content);
         let prompt = USER_PROMPT_TEMPLATE
             .replace("{jobTitle}", jd.title)
             .replace("{requirements}", jd.requirements)
+            .replace("{matchingRules}", matchingRules)
             .replace("{candidateName}", norm.name)
             .replace("{jobIntention}", norm.jobIntention)
             .replace("{workExperience}", String(norm.workExperience))
@@ -136,6 +145,7 @@ export const analyzeResume = action({
             resumeId: args.resumeId,
             analysis: {
                 score: result.score,
+                breakdown: result.breakdown,
                 summary: result.summary,
                 highlights: result.highlights || [],
                 recommendation: result.recommendation || "no_match",

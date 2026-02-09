@@ -21,21 +21,58 @@ NC='\033[0m' # No Color
 declare -A SERVICE_PIDS
 
 # Cleanup function
+# Cleanup function (Graceful + Timeout Kill)
 cleanup() {
     echo -e "\n${YELLOW}Shutting down services...${NC}"
+    
+    # 1. Send SIGTERM to all services
     for service in "${!SERVICE_PIDS[@]}"; do
         pid="${SERVICE_PIDS[$service]}"
         if kill -0 "$pid" 2>/dev/null; then
-            echo -e "${CYAN}Stopping $service (PID: $pid)${NC}"
-            kill "$pid" 2>/dev/null || true
+            echo -e "${CYAN}Stopping $service (PID: $pid)...${NC}"
+            kill -TERM "$pid" 2>/dev/null || true
         fi
     done
+
+    # 2. Wait up to 5 seconds for graceful exit
+    local timeout=5
+    local start_time=$(date +%s)
+    while true; do
+        local any_alive=false
+        for service in "${!SERVICE_PIDS[@]}"; do
+            pid="${SERVICE_PIDS[$service]}"
+            if kill -0 "$pid" 2>/dev/null; then
+                any_alive=true
+                break
+            fi
+        done
+
+        if [ "$any_alive" = "false" ]; then
+            break
+        fi
+
+        local current_time=$(date +%s)
+        if [ $((current_time - start_time)) -ge $timeout ]; then
+            break
+        fi
+        sleep 0.5
+    done
+
+    # 3. Force kill (SIGKILL) any remaining processes
+    for service in "${!SERVICE_PIDS[@]}"; do
+        pid="${SERVICE_PIDS[$service]}"
+        if kill -0 "$pid" 2>/dev/null; then
+            echo -e "${RED}Force killing $service (PID: $pid)...${NC}"
+            kill -KILL "$pid" 2>/dev/null || true
+        fi
+    done
+
     wait 2>/dev/null || true
     echo -e "${GREEN}All services stopped.${NC}"
     exit 0
 }
 
-# Trap signals for cleanup
+# Trap signals for cleanup (Use EXIT to catch script termination)
 trap cleanup SIGINT SIGTERM EXIT
 
 # Print banner
@@ -183,19 +220,13 @@ start_mcp_server() {
     log "MCP" "$BLUE" "Starting MCP server on http://localhost:$port"
 
     cd "$PROJECT_ROOT"
+    local cmd="uv run python -m mcp_server.server --transport http --port $port"
     if [ -f "$ENV_FILE" ]; then
-        uv run --env-file "$ENV_FILE" python -m mcp_server.server --transport http --port "$port" 2>&1 | \
-            tee "$LOGS_DIR/mcp.log" | \
-            while IFS= read -r line; do
-                log "MCP" "$BLUE" "$line"
-            done &
-    else
-        uv run python -m mcp_server.server --transport http --port "$port" 2>&1 | \
-            tee "$LOGS_DIR/mcp.log" | \
-            while IFS= read -r line; do
-                log "MCP" "$BLUE" "$line"
-            done &
+        cmd="uv run --env-file $ENV_FILE python -m mcp_server.server --transport http --port $port"
     fi
+
+    # Use process substitution to capture correct PID
+    eval "$cmd" > >(tee "$LOGS_DIR/mcp.log" | while read line; do log "MCP" "$BLUE" "$line"; done) 2>&1 &
     SERVICE_PIDS["mcp"]=$!
 }
 
@@ -204,23 +235,20 @@ start_crawler() {
     log "CRAWLER" "$GREEN" "Running initial crawl..."
 
     cd "$PROJECT_ROOT"
-    # Set SKIP_ROOT_INDEX to avoid git pollution in dev
     export SKIP_ROOT_INDEX=true
 
+    local cmd="uv run python -m trendradar"
     if [ -f "$ENV_FILE" ]; then
-        uv run --env-file "$ENV_FILE" python -m trendradar 2>&1 | \
-            tee "$LOGS_DIR/crawler.log" | \
-            while IFS= read -r line; do
-                log "CRAWLER" "$GREEN" "$line"
-            done
-    else
-        uv run python -m trendradar 2>&1 | \
-            tee "$LOGS_DIR/crawler.log" | \
-            while IFS= read -r line; do
-                log "CRAWLER" "$GREEN" "$line"
-            done
+        cmd="uv run --env-file $ENV_FILE python -m trendradar"
     fi
 
+    eval "$cmd" > >(tee "$LOGS_DIR/crawler.log" | while read line; do log "CRAWLER" "$GREEN" "$line"; done) 2>&1 &
+    # We generally don't track crawler PID for cleanup as it exits, but let's track it just in case
+    # SERVICE_PIDS["crawler"]=$! 
+    # Actually wait for crawler if it's a one-off? The original script waited via pipe. 
+    # But for 'watch mode' (if implemented) implies background. 
+    # Current code implies run once.
+    wait $!
     log "CRAWLER" "$GREEN" "Crawl complete. MCP server continues running."
 }
 
@@ -244,11 +272,8 @@ start_web() {
 
         log "WEB" "$CYAN" "Starting web frontend on http://localhost:$port"
         cd "$PROJECT_ROOT/apps/web"
-        npm run dev -- --port "$port" 2>&1 | \
-            tee "$LOGS_DIR/web.log" | \
-            while IFS= read -r line; do
-                log "WEB" "$CYAN" "$line"
-            done &
+        
+        npm run dev -- --port "$port" > >(tee "$LOGS_DIR/web.log" | while read line; do log "WEB" "$CYAN" "$line"; done) 2>&1 &
         SERVICE_PIDS["web"]=$!
     else
         log "WEB" "$YELLOW" "apps/web not found (planned for Milestone 3)"
@@ -267,11 +292,8 @@ start_api() {
 
         log "API" "$CYAN" "Starting BFF API on http://localhost:$port"
         cd "$PROJECT_ROOT/apps/api"
-        PORT="$port" npm run dev 2>&1 | \
-            tee "$LOGS_DIR/api.log" | \
-            while IFS= read -r line; do
-                log "API" "$CYAN" "$line"
-            done &
+        
+        PORT="$port" npm run dev > >(tee "$LOGS_DIR/api.log" | while read line; do log "API" "$CYAN" "$line"; done) 2>&1 &
         SERVICE_PIDS["api"]=$!
     else
         log "API" "$YELLOW" "apps/api not found (planned for Milestone 2)"
@@ -290,19 +312,13 @@ start_worker() {
 
         log "WORKER" "$CYAN" "Starting FastAPI worker on http://localhost:$port"
         cd "$PROJECT_ROOT/apps/worker"
+        
+        local cmd="uv run uvicorn api:app --reload --port $port"
         if [ -f "$ENV_FILE" ]; then
-            uv run --env-file "$ENV_FILE" uvicorn api:app --reload --port "$port" 2>&1 | \
-                tee "$LOGS_DIR/worker.log" | \
-                while IFS= read -r line; do
-                    log "WORKER" "$CYAN" "$line"
-                done &
-        else
-            uv run uvicorn api:app --reload --port "$port" 2>&1 | \
-                tee "$LOGS_DIR/worker.log" | \
-                while IFS= read -r line; do
-                    log "WORKER" "$CYAN" "$line"
-                done &
+            cmd="uv run --env-file $ENV_FILE uvicorn api:app --reload --port $port"
         fi
+
+        eval "$cmd" > >(tee "$LOGS_DIR/worker.log" | while read line; do log "WORKER" "$CYAN" "$line"; done) 2>&1 &
         SERVICE_PIDS["worker"]=$!
     else
         log "WORKER" "$YELLOW" "apps/worker not found (planned for Milestone 1)"
@@ -315,11 +331,9 @@ start_scraper() {
     
     # Ensure CONVEX_URL is available
     if [ -f "$PROJECT_ROOT/apps/web/.env.local" ]; then
-        # Load env vars from web app (synced from convex)
         source "$PROJECT_ROOT/apps/web/.env.local"
     fi
     
-    # Fallback to defaults or check if CONVEX_URL is set
     if [ -z "$VITE_CONVEX_URL" ] && [ -z "$CONVEX_URL" ]; then
          log "SCRAPER" "$YELLOW" "CONVEX_URL not found. Waiting for Convex to start..."
          sleep 5
@@ -328,7 +342,6 @@ start_scraper() {
          fi
     fi
     
-    # Use VITE_CONVEX_URL if CONVEX_URL is not set
     if [ -z "$CONVEX_URL" ] && [ -n "$VITE_CONVEX_URL" ]; then
         export CONVEX_URL="$VITE_CONVEX_URL"
     fi
@@ -338,20 +351,21 @@ start_scraper() {
     fi
 
     cd "$PROJECT_ROOT"
+    local cmd="uv run python scripts/worker.py"
     if [ -f "$ENV_FILE" ]; then
-        uv run --env-file "$ENV_FILE" python scripts/worker.py 2>&1 | \
-            tee "$LOGS_DIR/scraper.log" | \
-            while IFS= read -r line; do
-                log "SCRAPER" "$CYAN" "$line"
-            done &
-    else
-        uv run python scripts/worker.py 2>&1 | \
-            tee "$LOGS_DIR/scraper.log" | \
-            while IFS= read -r line; do
-                log "SCRAPER" "$CYAN" "$line"
-            done &
+        cmd="uv run --env-file $ENV_FILE python scripts/worker.py"
     fi
+
+    eval "$cmd" > >(tee "$LOGS_DIR/scraper.log" | while read line; do log "SCRAPER" "$CYAN" "$line"; done) 2>&1 &
     SERVICE_PIDS["scraper"]=$!
+    
+    # Check if it died immediately
+    sleep 1
+    if ! kill -0 $! 2>/dev/null; then
+         log "SCRAPER" "$RED" "Scraper failed to start. Check logs."
+    else
+         log "SCRAPER" "$CYAN" "Scraper running (PID: $!)"
+    fi
 }
 
 # Start Convex backend
@@ -361,7 +375,6 @@ start_convex() {
     if [ -d "$PROJECT_ROOT/packages/convex" ]; then
         if ! check_port "$port"; then
             log "CONVEX" "$GREEN" "Port $port is in use. Assuming Convex is already running."
-            # Sync env vars just in case
             if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
                  "$SCRIPT_DIR/sync-convex-env.sh" || true
             fi
@@ -376,17 +389,11 @@ start_convex() {
              cmd="bunx convex dev"
         fi
 
-        $cmd 2>&1 | \
-            tee "$LOGS_DIR/convex.log" | \
-            while IFS= read -r line; do
-                log "CONVEX" "$CYAN" "$line"
-            done &
+        $cmd > >(tee "$LOGS_DIR/convex.log" | while read line; do log "CONVEX" "$CYAN" "$line"; done) 2>&1 &
         SERVICE_PIDS["convex"]=$!
         
-        # Give it a moment to write .env.local
         sleep 5
         
-        # Sync env vars
         if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
              "$SCRIPT_DIR/sync-convex-env.sh" || true
         fi
