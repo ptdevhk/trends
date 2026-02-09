@@ -393,6 +393,115 @@ async def execute_scrape_job(
     return all_resumes
 
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def open_cdp_session(port: int, search_url: str = None):
+    """
+    Context manager that connects to Chrome, finds/creates target,
+    resolves extension context, and yields (client, context_id).
+    """
+    try:
+        targets = fetch_json(f"http://127.0.0.1:{port}/json")
+    except Exception as exc:
+        raise CDPError("Chrome is not reachable on the CDP port.") from exc
+
+    pages = [
+        target
+        for target in targets
+        if target.get("type") == "page" and target.get("webSocketDebuggerUrl")
+    ]
+
+    target = None
+    # Prefer existing search tab
+    if search_url:
+        target_domain = urllib.parse.urlparse(search_url).netloc
+        for page in pages:
+            if target_domain in (page.get("url") or ""):
+                target = page
+                break
+    
+    # Fallback to any job5156 tab
+    if not target:
+        for page in pages:
+            if "hr.job5156.com" in (page.get("url") or ""):
+                target = page
+                break
+                
+    # Create new if needed
+    if not target and search_url:
+        target = create_target(port, search_url)
+        
+    if not target and pages:
+        target = pages[0]
+        
+    if not target:
+        raise CDPError("No debuggable Chrome pages found.")
+
+    ws_url = target.get("webSocketDebuggerUrl")
+    if not ws_url:
+        raise CDPError("Selected target has no webSocketDebuggerUrl.")
+
+    print(f"Using target: {target.get('title') or target.get('url')}")
+
+    async with websockets.connect(ws_url, max_size=64 * 1024 * 1024) as ws:
+        client = CDPClient(ws)
+        await client.call("Page.enable")
+        await client.call("Runtime.enable")
+        
+        if search_url:
+             # If url doesn't match, navigate? 
+             # For now, let's assume we want to ensure we differ slightly or just reload
+             pass
+
+        accessor_found, context_id = await resolve_accessor_context(client)
+        if not accessor_found:
+            # Maybe we need to navigate or reload?
+            if search_url:
+                 await client.call("Page.navigate", {"url": search_url})
+                 await wait_for(client, "document.readyState === 'complete'", timeout=30.0)
+            
+            accessor_found, context_id = await resolve_accessor_context(client)
+            
+        if not accessor_found:
+             # Try waiting a bit more
+             await wait_for(client, "document.readyState === 'complete'", timeout=5.0)
+             accessor_found, context_id = await resolve_accessor_context(client)
+
+        if not accessor_found:
+            raise CDPError(
+                "Extension accessor not found. Ensure the extension is enabled for hr.job5156.com."
+            )
+
+        # Wait for extension status
+        status = await wait_for(
+            client,
+            """(() => {
+              const api = window.__TR_RESUME_DATA__;
+              return api && typeof api.status === "function" ? api.status() : null;
+            })()""",
+            timeout=15.0,
+            context_id=context_id,
+        )
+        if not status:
+            raise CDPError("Extension did not report status in time.")
+
+        # Check ready state
+        await wait_for(
+            client,
+            """(() => {
+              const api = window.__TR_RESUME_DATA__;
+              if (!api) return false;
+              if (typeof api.isReady === "function") return !!api.isReady();
+              return !!document.querySelector(".el-checkbox-group.resume-search-item-list-content-block");
+            })()""",
+            timeout=30.0,
+            context_id=context_id,
+        )
+        
+        yield client, context_id
+
+
 async def run():
     parser = argparse.ArgumentParser()
     parser.add_argument("--keyword", default=DEFAULT_KEYWORD, help="Search keyword")
@@ -416,80 +525,14 @@ async def run():
 
     search_url = build_search_url(args.keyword, args.location)
 
-    try:
-        targets = fetch_json(f"http://127.0.0.1:{args.port}/json")
-    except Exception as exc:
-        raise CDPError("Chrome is not reachable on the CDP port.") from exc
+    async with open_cdp_session(args.port, search_url) as (client, context_id):
+        # We might need to ensure navigation if the page wasn't already on the right URL
+        # The context manager does a best effort, but let's be safe.
+        current_url = await eval_json(client, "window.location.href", context_id=context_id)
+        if search_url.split('?')[0] not in str(current_url):
+             await client.call("Page.navigate", {"url": search_url})
+             await wait_for(client, "document.readyState === 'complete'", timeout=30.0)
 
-    pages = [
-        target
-        for target in targets
-        if target.get("type") == "page" and target.get("webSocketDebuggerUrl")
-    ]
-
-    target = None
-    for page in pages:
-        if "hr.job5156.com/search" in (page.get("url") or ""):
-            target = page
-            break
-    if not target:
-        for page in pages:
-            if "hr.job5156.com" in (page.get("url") or ""):
-                target = page
-                break
-    if not target:
-        target = create_target(args.port, search_url)
-    if not target and pages:
-        target = pages[0]
-    if not target:
-        raise CDPError("No debuggable Chrome pages found.")
-
-    ws_url = target.get("webSocketDebuggerUrl")
-    if not ws_url:
-        raise CDPError("Selected target has no webSocketDebuggerUrl.")
-
-    print(f"Using target: {target.get('title') or target.get('url')}")
-
-    async with websockets.connect(ws_url, max_size=64 * 1024 * 1024) as ws:
-        client = CDPClient(ws)
-        await client.call("Page.enable")
-        await client.call("Runtime.enable")
-        await client.call("Page.navigate", {"url": search_url})
-
-        await wait_for(client, "document.readyState === 'complete'", timeout=30.0)
-
-        accessor_found, context_id = await resolve_accessor_context(client)
-        if not accessor_found:
-            await wait_for(client, "document.readyState === 'complete'", timeout=5.0)
-            accessor_found, context_id = await resolve_accessor_context(client)
-        if not accessor_found:
-            raise CDPError(
-                "Extension accessor not found. Ensure the extension is enabled for hr.job5156.com."
-            )
-
-        status = await wait_for(
-            client,
-            """(() => {
-              const api = window.__TR_RESUME_DATA__;
-              return api && typeof api.status === "function" ? api.status() : null;
-            })()""",
-            timeout=15.0,
-            context_id=context_id,
-        )
-        if not status:
-            raise CDPError("Extension did not report status in time.")
-
-        await wait_for(
-            client,
-            """(() => {
-              const api = window.__TR_RESUME_DATA__;
-              if (!api) return false;
-              if (typeof api.isReady === "function") return !!api.isReady();
-              return !!document.querySelector(".el-checkbox-group.resume-search-item-list-content-block");
-            })()""",
-            timeout=30.0,
-            context_id=context_id,
-        )
 
         resumes = await execute_scrape_job(
             client=client,

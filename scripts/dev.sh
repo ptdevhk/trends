@@ -123,8 +123,8 @@ get_port_pids() {
 
 # Check all required ports upfront
 check_all_ports() {
-    local ports=("${MCP_PORT:-3333}" "${WORKER_PORT:-8000}" "${API_PORT:-3000}" "${WEB_PORT:-5173}")
-    local names=("MCP" "Worker" "API" "Web")
+    local ports=("${CONVEX_PORT:-3210}" "${MCP_PORT:-3333}" "${WORKER_PORT:-8000}" "${API_PORT:-3000}" "${WEB_PORT:-5173}")
+    local names=("Convex" "MCP" "Worker" "API" "Web")
     local conflicts=()
 
     for i in "${!ports[@]}"; do
@@ -309,6 +309,47 @@ start_worker() {
     fi
 }
 
+# Start Convex backend
+start_convex() {
+    local port="${CONVEX_PORT:-3210}" 
+    
+    if [ -d "$PROJECT_ROOT/packages/convex" ]; then
+        if ! check_port "$port"; then
+            log "CONVEX" "$GREEN" "Port $port is in use. Assuming Convex is already running."
+            # Sync env vars just in case
+            if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
+                 "$SCRIPT_DIR/sync-convex-env.sh" || true
+            fi
+            return 0
+        fi
+
+        log "CONVEX" "$CYAN" "Starting Convex Dev..."
+        cd "$PROJECT_ROOT/packages/convex"
+        
+        local cmd="npx convex dev"
+        if command -v bun >/dev/null 2>&1; then
+             cmd="bunx convex dev"
+        fi
+
+        $cmd 2>&1 | \
+            tee "$LOGS_DIR/convex.log" | \
+            while IFS= read -r line; do
+                log "CONVEX" "$CYAN" "$line"
+            done &
+        SERVICE_PIDS["convex"]=$!
+        
+        # Give it a moment to write .env.local
+        sleep 5
+        
+        # Sync env vars
+        if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
+             "$SCRIPT_DIR/sync-convex-env.sh" || true
+        fi
+    else
+        log "CONVEX" "$YELLOW" "packages/convex not found"
+    fi
+}
+
 # Print service status
 print_status() {
     echo ""
@@ -402,9 +443,9 @@ main() {
     # Default: fast dev mode (skip crawl unless explicitly disabled)
     if [ ${#services[@]} -eq 0 ]; then
         if [ "$SKIP_CRAWL" != "false" ] && [ "$SKIP_CRAWL" != "0" ]; then
-            services=("mcp" "worker" "api" "web")
+            services=("convex" "mcp" "worker" "api" "web")
         else
-            services=("mcp" "crawl" "worker" "api" "web")
+            services=("convex" "mcp" "crawl" "worker" "api" "web")
         fi
     fi
 
@@ -417,6 +458,7 @@ main() {
     # Start requested services
     for service in "${services[@]}"; do
         case $service in
+            convex) start_convex ;;
             mcp) start_mcp_server ;;
             crawl) start_crawler ;;
             worker) start_worker ;;

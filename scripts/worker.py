@@ -25,8 +25,9 @@ from refresh_sample import (
     DEFAULT_KEYWORD,
     DEFAULT_SAMPLE,
     CDP_PORT,
-    connect_to_browser,
-    wait_for_results,
+    open_cdp_session,
+    execute_scrape_job,
+    build_search_url,
     eval_json,
     resolve_accessor_context,
 )
@@ -67,59 +68,56 @@ async def process_task(task, client: httpx.AsyncClient):
     keyword = config["keyword"]
     location = config["location"]
     
-    # Initialize browser connection
+    # Build search URL
+    search_url = build_search_url(keyword, location)
+    
     try:
-        cdp_client, context_id = await connect_to_browser(CDP_PORT)
-    except Exception as e:
-        await convex_mutation(client, "resume_tasks:complete", {
-            "taskId": task["_id"],
-            "status": "failed",
-            "error": f"Browser connection failed: {e}"
-        })
-        return
+        async with open_cdp_session(CDP_PORT, search_url) as (cdp_client, context_id):
+            
+            async def on_progress(count, page):
+                await convex_mutation(client, "resume_tasks:updateProgress", {
+                    "taskId": task["_id"],
+                    "current": count,
+                    "page": page,
+                    "total": limit # approximate
+                })
 
-    # Prepare search
-    # Note: We rely on the browser already being open or we need navigation logic here.
-    # For now, we reuse refresh_sample logic which assumes active tab.
-    # Ideally, we should navigate:
-    # await cdp_client.navigate(build_search_url(...)) 
-    
-    # ... (Reuse scraping loop from refresh-sample.py, adapted for progress reporting) ...
-    # This is a simplified version for the adapter proof-of-concept
-    
-    collected_count = 0
-    current_page = 1
-    
-    try:
-        while True:
-            # Report progress
-            await convex_mutation(client, "resume_tasks:updateProgress", {
-                "taskId": task["_id"],
-                "current": collected_count,
-                "page": current_page
-            })
+            logger.info("Starting scrape job...")
+            resumes = await execute_scrape_job(
+                client=cdp_client,
+                context_id=context_id,
+                limit=limit,
+                max_pages=max_pages,
+                allow_empty=True, # Don't crash worker on empty results, just return empty
+                progress_callback=on_progress
+            )
             
-            # Scrape (mocking the extraction call here for brevity, 
-            # in real impl we call the specialized extraction functions)
-            # ...
+            logger.info(f"Scraped {len(resumes)} resumes")
             
-            # Simulate work for POC
-            await asyncio.sleep(2)
-            collected_count += 20
-            
-            if collected_count >= limit or current_page >= max_pages:
-                break
+            # Submit results
+            if resumes:
+                # Transform to match schema if needed, schema expects externalId, content, hash, source, tags
+                formatted_resumes = []
+                for r in resumes:
+                    # simplistic mapping
+                    external_id = r.get("id") or hashlib.md5(json.dumps(r, sort_keys=True).encode()).hexdigest()
+                    formatted_resumes.append({
+                        "externalId": external_id,
+                        "content": r,
+                        "hash": hashlib.md5(json.dumps(r, sort_keys=True).encode()).hexdigest(),
+                        "source": "hr.job5156.com",
+                        "tags": [] # Could add search profile ID here
+                    })
                 
-            current_page += 1
+                await convex_mutation(client, "resume_tasks:submitResumes", { 
+                    "resumes": formatted_resumes 
+                })
             
-        # Submit results
-        # await convex_mutation(client, "resume_tasks:submitResumes", { "resumes": [...] })
-        
-        await convex_mutation(client, "resume_tasks:complete", {
-            "taskId": task["_id"],
-            "status": "completed"
-        })
-        logger.info(f"Task {task['_id']} completed")
+            await convex_mutation(client, "resume_tasks:complete", {
+                "taskId": task["_id"],
+                "status": "completed"
+            })
+            logger.info(f"Task {task['_id']} completed")
 
     except Exception as e:
         logger.error(f"Task failed: {e}")

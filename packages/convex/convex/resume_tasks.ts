@@ -1,6 +1,17 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+// List recent tasks for monitoring
+export const list = query({
+    args: {},
+    handler: async (ctx) => {
+        return await ctx.db
+            .query("collection_tasks")
+            .order("desc")
+            .take(20);
+    },
+});
+
 // Dispatch a new collection task
 export const dispatch = mutation({
     args: {

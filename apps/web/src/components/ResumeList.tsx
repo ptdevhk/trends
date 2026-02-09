@@ -18,11 +18,18 @@ import { FilterPanel } from '@/components/FilterPanel'
 import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 
+import { TaskMonitor } from './TaskMonitor'
+import { useMutation } from 'convex/react'
+import { api } from '../../../../packages/convex/convex/_generated/api'
+
 export function ResumeList() {
   const { t } = useTranslation()
   const { session, updateSession } = useSession()
   const [mode, setMode] = useState<'ai' | 'original'>('ai')
   const [jobDescriptionId, setJobDescriptionId] = useState('')
+
+  const dispatch = useMutation(api.resume_tasks.dispatch);
+
   const {
     resumes,
     samples,
@@ -32,6 +39,7 @@ export function ResumeList() {
     error,
     selectedSample,
     setSelectedSample,
+    query, // Added query
     setQuery,
     setFilters,
     refresh,
@@ -211,11 +219,32 @@ export function ResumeList() {
           <div className="lg:w-64">
             <JobDescriptionSelect value={jobDescriptionId} onChange={handleJobChange} />
           </div>
-          <Button onClick={handleMatchAll} disabled={!jobDescriptionId || matchLoading}>
-            <RefreshCw className={cn('mr-2 h-4 w-4', matchLoading && 'animate-spin')} />
-            {matchLoading ? t('resumes.matching.running') : t('resumes.matching.matchAll')}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!query && !filters.locations?.length) {
+                  alert("Please enter a keyword or location to start collection");
+                  return;
+                }
+                dispatch({
+                  keyword: query || "销售", // Fallback
+                  location: filters.locations?.[0] || "",
+                  limit: 200,
+                  maxPages: 10
+                });
+              }}
+            >
+              Start Agent Collection
+            </Button>
+            <Button onClick={handleMatchAll} disabled={!jobDescriptionId || matchLoading}>
+              <RefreshCw className={cn('mr-2 h-4 w-4', matchLoading && 'animate-spin')} />
+              {matchLoading ? t('resumes.matching.running') : t('resumes.matching.matchAll')}
+            </Button>
+          </div>
         </div>
+
+        <TaskMonitor />
 
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <ModeToggle mode={mode} onModeChange={setMode} aiStats={aiStats ?? undefined} />

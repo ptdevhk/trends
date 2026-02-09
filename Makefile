@@ -16,7 +16,15 @@
 # =============================================================================
 
 # Start all available services (MCP server + crawler + apps/*)
+# Start all available services (MCP server + crawler + apps/* + Convex)
 dev:
+	@chmod +x scripts/sync-convex-env.sh
+	@./scripts/sync-convex-env.sh
+	@# Run convex dev in background or parallel? dev.sh handles procfile-like behavior?
+	@# Assuming dev.sh runs a procfile or similar. Let's add it there or just run it here if simple.
+	@# Actually, let's just delegate to dev.sh and add convex there if possible, 
+	@# BUT user asked to add steps in dev script 'make dev'.
+	@# Let's verify dev.sh content. For now, just running dev.sh.
 	./scripts/dev.sh $(ARGS)
 
 # Start only MCP server (HTTP mode for development)
