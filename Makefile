@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
+.PHONY: dev dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
         worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
         check-python check-node check-build \
         test test-python test-node test-resume \
@@ -26,6 +26,11 @@ dev:
 	@# BUT user asked to add steps in dev script 'make dev'.
 	@# Let's verify dev.sh content. For now, just running dev.sh.
 	./scripts/dev.sh $(ARGS)
+
+# Stop/clean any stale development services and ports
+dev-clean:
+	@chmod +x scripts/clean-dev.sh
+	@./scripts/clean-dev.sh
 
 # Start only MCP server (HTTP mode for development)
 dev-mcp:
@@ -282,6 +287,7 @@ help:
 	@echo ""
 	@echo "Development (Full Experience):"
 	@echo "  dev            Start all services (MCP + crawler + apps/*)"
+	@echo "  dev-clean      Kill stale dev processes and free dev ports"
 	@echo "  dev-mcp        Start only MCP server (HTTP on port 3333)"
 	@echo "  dev-crawl      Run crawler only (no long-running services)"
 	@echo "  dev-web        Start React frontend (Vite on port 5173)"

@@ -64,6 +64,14 @@ cleanup() {
     if [ "$CLEANUP_DONE" -eq 1 ]; then
         return
     fi
+
+    # Nothing started, nothing to clean.
+    if [ ${#SERVICE_PIDS[@]} -eq 0 ] && [ -z "$(list_child_pids "$$")" ]; then
+        CLEANUP_DONE=1
+        trap - SIGINT SIGTERM EXIT
+        return
+    fi
+
     CLEANUP_DONE=1
     trap - SIGINT SIGTERM EXIT
 
@@ -190,9 +198,47 @@ get_port_pids() {
 
 # Check all required ports upfront
 check_all_ports() {
-    local ports=("${CONVEX_PORT:-3210}" "${MCP_PORT:-3333}" "${WORKER_PORT:-8000}" "${API_PORT:-3000}" "${WEB_PORT:-5173}")
-    local names=("Convex" "MCP" "Worker" "API" "Web")
+    local services_to_check=("$@")
+    if [ ${#services_to_check[@]} -eq 0 ]; then
+        services_to_check=("convex" "mcp" "worker" "api" "web")
+    fi
+
+    local ports=()
+    local names=()
     local conflicts=()
+
+    for service in "${services_to_check[@]}"; do
+        local port=""
+        local name=""
+        case "$service" in
+            convex)
+                port="${CONVEX_PORT:-3210}"
+                name="Convex"
+                ;;
+            mcp)
+                port="${MCP_PORT:-3333}"
+                name="MCP"
+                ;;
+            worker)
+                port="${WORKER_PORT:-8000}"
+                name="Worker"
+                ;;
+            api)
+                port="${API_PORT:-3000}"
+                name="API"
+                ;;
+            web)
+                port="${WEB_PORT:-5173}"
+                name="Web"
+                ;;
+            *)
+                continue
+                ;;
+        esac
+
+        ports+=("$port")
+        names+=("$name")
+    done
 
     for i in "${!ports[@]}"; do
         local port="${ports[$i]}"
@@ -232,10 +278,13 @@ check_all_ports() {
             sleep 1  # Give ports time to free up
         else
             echo -e "Run with ${CYAN}--force${NC} to kill conflicting processes"
-            echo -e "Or manually: ${CYAN}kill -9 <PID>${NC}"
+            echo -e "Or run: ${CYAN}./scripts/clean-dev.sh${NC}"
             echo ""
+            return 1
         fi
     fi
+
+    return 0
 }
 
 # Start MCP server
@@ -244,7 +293,7 @@ start_mcp_server() {
 
     if ! check_port "$port"; then
         log "MCP" "$YELLOW" "Port $port already in use, skipping MCP server"
-        return 1
+        return 0
     fi
 
     log "MCP" "$BLUE" "Starting MCP server on http://localhost:$port"
@@ -289,7 +338,7 @@ start_web() {
     if [ -d "$PROJECT_ROOT/apps/web" ]; then
         if ! check_port "$port"; then
             log "WEB" "$YELLOW" "Port $port already in use, skipping web server"
-            return 1
+            return 0
         fi
 
         log "WEB" "$CYAN" "Generating API types..."
@@ -317,7 +366,7 @@ start_api() {
     if [ -d "$PROJECT_ROOT/apps/api" ]; then
         if ! check_port "$port"; then
             log "API" "$YELLOW" "Port $port already in use, skipping API server"
-            return 1
+            return 0
         fi
 
         log "API" "$CYAN" "Starting BFF API on http://localhost:$port"
@@ -337,7 +386,7 @@ start_worker() {
     if [ -d "$PROJECT_ROOT/apps/worker" ]; then
         if ! check_port "$port"; then
             log "WORKER" "$YELLOW" "Port $port already in use, skipping worker"
-            return 1
+            return 0
         fi
 
         log "WORKER" "$CYAN" "Starting FastAPI worker on http://localhost:$port"
@@ -532,7 +581,11 @@ main() {
     fi
 
     # Check for port conflicts upfront
-    check_all_ports
+    if ! check_all_ports "${services[@]}"; then
+        log "DEV" "$YELLOW" "Resolve conflicts first: ./scripts/clean-dev.sh (or rerun with --force)."
+        trap - EXIT
+        exit 1
+    fi
 
     # Native modules can break when Node version changes between installs/runs.
     ensure_node_native_modules
