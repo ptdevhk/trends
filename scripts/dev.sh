@@ -560,8 +560,9 @@ start_scraper() {
         export CONVEX_URL="$VITE_CONVEX_URL"
     fi
     
-    if [ -z "$CONVEX_URL" ]; then
-         log "SCRAPER" "$RED" "Failed to find CONVEX_URL. Worker may fail."
+    if [ -z "${CONVEX_URL:-}" ]; then
+        log "SCRAPER" "$YELLOW" "CONVEX_URL not available. Skipping scraper."
+        return 0
     fi
 
     cd "$PROJECT_ROOT"
@@ -584,44 +585,55 @@ start_scraper() {
 
 # Start Convex backend
 start_convex() {
-    local port="${CONVEX_PORT:-3210}" 
-
-    # If CONVEX_DEPLOYMENT is set in env but .env.local doesn't exist,
-    # generate it so convex dev can start non-interactively.
+    local port="${CONVEX_PORT:-3210}"
     local convex_env_local="$PROJECT_ROOT/packages/convex/.env.local"
-    if [ -n "${CONVEX_DEPLOYMENT:-}" ] && [ ! -f "$convex_env_local" ]; then
-        log "CONVEX" "$CYAN" "Generating $convex_env_local from system environment"
-        mkdir -p "$(dirname "$convex_env_local")"
-        echo "CONVEX_DEPLOYMENT=$CONVEX_DEPLOYMENT" > "$convex_env_local"
-    fi
-    
-    if [ -d "$PROJECT_ROOT/packages/convex" ]; then
-        if ! check_port "$port"; then
-            log "CONVEX" "$GREEN" "Port $port is in use. Assuming Convex is already running."
-            if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
-                 "$SCRIPT_DIR/sync-convex-env.sh" || true
-            fi
-            return 0
-        fi
 
-        log "CONVEX" "$CYAN" "Starting Convex Dev..."
-        cd "$PROJECT_ROOT/packages/convex"
-        
-        local cmd="npx convex dev"
-        if command -v bun >/dev/null 2>&1; then
-             cmd="bunx convex dev"
-        fi
-
-        $cmd > >(tee "$(service_log_path "convex")" | stream_service_logs "convex" "$CYAN") 2>&1 &
-        SERVICE_PIDS["convex"]=$!
-        
-        sleep 5
-        
+    # Case 1: CONVEX_URL already set in system env (e.g., cloud deployment).
+    # Skip starting local convex dev, just sync the URL to downstream consumers.
+    if [ -n "${CONVEX_URL:-}" ]; then
+        log "CONVEX" "$GREEN" "CONVEX_URL already set ($CONVEX_URL). Skipping local convex dev."
         if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
-             "$SCRIPT_DIR/sync-convex-env.sh" || true
+            "$SCRIPT_DIR/sync-convex-env.sh" || true
         fi
-    else
+        return 0
+    fi
+
+    if [ ! -d "$PROJECT_ROOT/packages/convex" ]; then
         log "CONVEX" "$YELLOW" "packages/convex not found"
+        return 0
+    fi
+
+    # Case 2: No .env.local — use CONVEX_AGENT_MODE=anonymous to bootstrap.
+    # This skips the interactive login prompt and creates a local anonymous project.
+    if [ ! -f "$convex_env_local" ]; then
+        log "CONVEX" "$CYAN" "No Convex .env.local found. Bootstrapping with anonymous agent mode..."
+        export CONVEX_AGENT_MODE=anonymous
+    fi
+
+    # Case 3: .env.local exists (or just set agent mode for bootstrap) — start convex dev.
+    if ! check_port "$port"; then
+        log "CONVEX" "$GREEN" "Port $port is in use. Assuming Convex is already running."
+        if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
+            "$SCRIPT_DIR/sync-convex-env.sh" || true
+        fi
+        return 0
+    fi
+
+    log "CONVEX" "$CYAN" "Starting Convex Dev..."
+    cd "$PROJECT_ROOT/packages/convex"
+
+    local cmd="npx convex dev"
+    if command -v bun >/dev/null 2>&1; then
+        cmd="bunx convex dev"
+    fi
+
+    $cmd > >(tee "$(service_log_path "convex")" | stream_service_logs "convex" "$CYAN") 2>&1 &
+    SERVICE_PIDS["convex"]=$!
+
+    sleep 5
+
+    if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
+        "$SCRIPT_DIR/sync-convex-env.sh" || true
     fi
 }
 
