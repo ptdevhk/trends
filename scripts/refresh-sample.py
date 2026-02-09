@@ -203,11 +203,18 @@ def pick_contexts(contexts: dict[int, dict]) -> list[dict]:
     return isolated
 
 
-async def resolve_accessor_context(client: CDPClient) -> int | None:
-    probe = "(() => !!(window.__TR_RESUME_DATA__ && window.__TR_RESUME_DATA__.status))()"
+async def resolve_accessor_context(client: CDPClient) -> tuple[bool, int | None]:
+    probe = """(() => {
+      const api = window.__TR_RESUME_DATA__;
+      return !!(
+        api &&
+        typeof api.status === "function" &&
+        typeof api.extract === "function"
+      );
+    })()"""
     try:
         if await eval_json(client, probe):
-            return None
+            return True, None
     except CDPError:
         pass
 
@@ -217,10 +224,10 @@ async def resolve_accessor_context(client: CDPClient) -> int | None:
             continue
         try:
             if await eval_json(client, probe, context_id=ctx_id):
-                return ctx_id
+                return True, ctx_id
         except CDPError:
             continue
-    return None
+    return False, None
 
 
 async def wait_for(
@@ -306,18 +313,21 @@ async def run():
 
         await wait_for(client, "document.readyState === 'complete'", timeout=30.0)
 
-        context_id = await resolve_accessor_context(client)
-        if context_id is None:
+        accessor_found, context_id = await resolve_accessor_context(client)
+        if not accessor_found:
             await wait_for(client, "document.readyState === 'complete'", timeout=5.0)
-            context_id = await resolve_accessor_context(client)
-        if context_id is None:
+            accessor_found, context_id = await resolve_accessor_context(client)
+        if not accessor_found:
             raise CDPError(
                 "Extension accessor not found. Ensure the extension is enabled for hr.job5156.com."
             )
 
         status = await wait_for(
             client,
-            "window.__TR_RESUME_DATA__ ? window.__TR_RESUME_DATA__.status() : null",
+            """(() => {
+              const api = window.__TR_RESUME_DATA__;
+              return api && typeof api.status === "function" ? api.status() : null;
+            })()""",
             timeout=15.0,
             context_id=context_id,
         )
@@ -331,7 +341,12 @@ async def run():
 
         await wait_for(
             client,
-            "window.__TR_RESUME_DATA__ && window.__TR_RESUME_DATA__.isReady()",
+            """(() => {
+              const api = window.__TR_RESUME_DATA__;
+              if (!api) return false;
+              if (typeof api.isReady === "function") return !!api.isReady();
+              return !!document.querySelector(".el-checkbox-group.resume-search-item-list-content-block");
+            })()""",
             timeout=30.0,
             context_id=context_id,
         )
@@ -342,7 +357,10 @@ async def run():
             while time.time() - start < timeout:
                 last = await eval_json(
                     client,
-                    "window.__TR_RESUME_DATA__ ? window.__TR_RESUME_DATA__.status() : null",
+                    """(() => {
+                      const api = window.__TR_RESUME_DATA__;
+                      return api && typeof api.status === "function" ? api.status() : null;
+                    })()""",
                     context_id=context_id,
                 )
                 if last:
@@ -366,7 +384,10 @@ async def run():
 
         resumes = await eval_json(
             client,
-            "window.__TR_RESUME_DATA__ ? window.__TR_RESUME_DATA__.extract() : null",
+            """(() => {
+              const api = window.__TR_RESUME_DATA__;
+              return api && typeof api.extract === "function" ? api.extract() : null;
+            })()""",
             context_id=context_id,
         )
 
@@ -379,7 +400,10 @@ async def run():
 
         status = await eval_json(
             client,
-            "window.__TR_RESUME_DATA__ ? window.__TR_RESUME_DATA__.status() : null",
+            """(() => {
+              const api = window.__TR_RESUME_DATA__;
+              return api && typeof api.status === "function" ? api.status() : null;
+            })()""",
             context_id=context_id,
         ) or status
 
