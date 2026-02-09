@@ -3,9 +3,11 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密机械和机床行业的简历。
-你需要根据职位要求和评分规则对候选人进行评分和分析。
-
-你必须严格按照JSON格式返回结果，不要包含任何其他文字。`;
+你必须严格按照JSON格式返回结果。
+1. 不要包含 markdown 代码块标记 (如 \`\`\`json ... \`\`\`)。
+2. 所有评分字段（score, breakdown.*）必须是数字（Number），绝对不要使用中文数字或字符串。
+3. 如果无法确切评分，请基于现有信息估算。
+4. 返回纯文本 JSON，不要有任何前缀或后缀。`;
 
 const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 
@@ -28,13 +30,13 @@ const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 
 请以JSON格式返回分析结果，包含以下字段：
 {
-  "score": (0-100的整数总分),
+  "score": (0-100的整数数字),
   "breakdown": {
-    "experience": (根据权重评分),
-    "skills": (根据权重评分),
-    "industry_db": (根据权重评分),
-    "education": (根据权重评分),
-    "location": (根据权重评分)
+    "experience": (数字评分),
+    "skills": (数字评分),
+    "industry_db": (数字评分),
+    "education": (数字评分),
+    "location": (数字评分)
   },
   "recommendation": "strong_match" | "match" | "potential" | "no_match",
   "highlights": ["匹配亮点1", ...],
@@ -57,29 +59,48 @@ function normalizeResume(data: any) {
 
 // Helper to call OpenAI/Compatible API
 async function callLLM(messages: any[], apiKey: string) {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const apiBase = process.env.OPENAI_API_BASE || "https://api.openai.com/v1";
+    const url = `${apiBase}/chat/completions`;
+
+    console.log(`Calling LLM at ${url}...`);
+
+    const response = await fetch(url, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-            model: "gpt-4-turbo-preview", // Or configurable
+            model: process.env.OPENAI_MODEL || "gpt-4-turbo-preview", // Configurable
             messages: messages,
             temperature: 0.1,
-            response_format: { type: "json_object" },
+            // strict json mode is often supported but sometimes model-dependent
+            // response_format: { type: "json_object" }, 
         }),
     });
 
     if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.statusText}`);
+        // Handle 502/504 specially possibly?
+        const text = await response.text();
+        throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${text}`);
     }
 
     const data = await response.json();
+    let content = data.choices[0].message.content;
+
+    // Clean markdown code blocks
+    content = content.replace(/```json\n?|```/g, "").trim();
+
     try {
-        return JSON.parse(data.choices[0].message.content);
+        const json = JSON.parse(content);
+        // Force score to be a number if it's a string like "30"
+        if (typeof json.score === 'string') {
+            const num = parseInt(json.score);
+            if (!isNaN(num)) json.score = num;
+        }
+        return json;
     } catch (e) {
-        console.error("Failed to parse LLM response:", data.choices[0].message.content);
+        console.error("Failed to parse LLM response:", content);
         throw new Error("Invalid JSON response from AI");
     }
 }
@@ -154,4 +175,30 @@ export const analyzeResume = action({
 
         return result;
     },
+});
+
+export const analyzeBatch = action({
+    args: {
+        resumeIds: v.array(v.id("resumes")),
+        jobDescription: v.optional(v.object({
+            title: v.string(),
+            requirements: v.string(),
+        })),
+        matchingRules: v.optional(v.any()),
+    },
+    handler: async (ctx, args) => {
+        const { resumeIds, jobDescription, matchingRules } = args;
+
+        // Dispatch actions for each resume
+        // This runs them securely in background without blocking
+        await Promise.all(resumeIds.map(id => {
+            return ctx.scheduler.runAfter(0, (internal as any).analyze.analyzeResume, {
+                resumeId: id,
+                jobDescription,
+                matchingRules
+            });
+        }));
+
+        return { count: resumeIds.length, status: "scheduled" };
+    }
 });

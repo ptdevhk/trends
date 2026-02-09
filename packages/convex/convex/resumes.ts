@@ -2,8 +2,10 @@ import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const list = query({
-    handler: async (ctx) => {
-        return await ctx.db.query("resumes").order("desc").take(50);
+    args: { limit: v.optional(v.number()) },
+    handler: async (ctx, args) => {
+        const limit = args.limit || 50;
+        return await ctx.db.query("resumes").order("desc").take(limit);
     },
 });
 

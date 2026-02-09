@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { apiClient } from '@/lib/api-client'
 import type { components } from '@/lib/api-types'
 import { SearchBar } from '@/components/SearchBar'
 import { Button } from '@/components/ui/button'
@@ -105,16 +104,64 @@ function buildCounts(items: ResumeItem[], key: keyof ResumeItem): CountEntry[] {
     .sort((a, b) => b.count - a.count)
 }
 
+/* CONVEX INTEGRATION START */
+import { useConvexResumes } from '@/hooks/useConvexResumes'
+/* CONVEX INTEGRATION END */
+
 export function DebugPage() {
   const { t } = useTranslation()
   const location = useLocation()
-  const [samples, setSamples] = useState<ResumeSample[]>([])
-  const [selectedSample, setSelectedSample] = useState('')
+
+  // Use Convex hook instead of legacy API
+  const [limit, setLimit] = useState(200)
+  const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(limit)
+
+  // Adapting Convex data to legacy structure
   const [query, setQuery] = useState('')
-  const [limit, setLimit] = useState(1000)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [rawResponse, setRawResponse] = useState<ResumesResponse | null>(null)
+
+  // Legacy state (kept to minimize refactor errors, but unused/dummy)
+  const [samples] = useState<ResumeSample[]>([{ name: 'convex-db', filename: 'db', updatedAt: new Date().toISOString(), size: 0 }])
+  const [selectedSample, setSelectedSample] = useState('convex-db')
+  const [loading, setLoading] = useState(false)
+  const [error] = useState<string | null>(null)
+
+  // Update rawResponse when convex data changes
+  useEffect(() => {
+    if (convexLoading) {
+      setLoading(true)
+      return
+    }
+
+    // Filter client-side if query exists
+    let displayResumes = convexResumes || []
+    if (query) {
+      const q = query.toLowerCase()
+      displayResumes = displayResumes.filter(r =>
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.jobIntention && r.jobIntention.toLowerCase().includes(q))
+      )
+    }
+
+    setRawResponse({
+      success: true,
+      data: displayResumes,
+      summary: {
+        returned: displayResumes.length,
+        total: convexResumes?.length || 0
+      },
+      metadata: {
+        sourceUrl: "Convex Database",
+        totalResumes: convexResumes?.length || 0,
+        generatedAt: new Date().toISOString(),
+        generatedBy: "Convex Client",
+        searchCriteria: { keyword: query || "all", location: "all" }
+      }
+    })
+    setLoading(false)
+  }, [convexResumes, convexLoading, query])
+
+  // Legacy Industry & Job Description state
   const [industryStats, setIndustryStats] = useState<IndustryStatsResponse['stats'] | null>(null)
   const [industryValidation, setIndustryValidation] = useState<IndustryValidationResponse | null>(null)
   const [industryError, setIndustryError] = useState<string | null>(null)
@@ -371,56 +418,6 @@ export function DebugPage() {
     return { stats, missingWorkHistory }
   }, [resumes])
 
-  const loadSamples = useCallback(async () => {
-    setError(null)
-    const { data, error: apiError } = await apiClient.GET('/api/resumes/samples')
-    if (apiError || !data?.success) {
-      setError('Failed to load resume samples')
-      return
-    }
-
-    setSamples(data.samples ?? [])
-    if (data.samples?.length) {
-      setSelectedSample((current) => current || data.samples[0].name)
-    }
-  }, [])
-
-  const loadResumes = useCallback(async () => {
-    if (!selectedSample) return
-    setLoading(true)
-    setError(null)
-
-    const { data, error: apiError } = await apiClient.GET('/api/resumes', {
-      params: {
-        query: {
-          sample: selectedSample,
-          q: query || undefined,
-          limit,
-        },
-      },
-    })
-
-    if (apiError || !data?.success) {
-      setLoading(false)
-      setError('Failed to load resume data')
-      setRawResponse(null)
-      return
-    }
-
-    setRawResponse(data)
-    setLoading(false)
-  }, [limit, query, selectedSample])
-
-  useEffect(() => {
-    loadSamples()
-  }, [loadSamples])
-
-  useEffect(() => {
-    if (selectedSample) {
-      loadResumes()
-    }
-  }, [loadResumes, selectedSample])
-
   useEffect(() => {
     if (!showIndustry) return
     let mounted = true
@@ -601,9 +598,9 @@ export function DebugPage() {
   }, [])
 
   const handleRefresh = useCallback(async () => {
-    await loadSamples()
-    await loadResumes()
-  }, [loadResumes, loadSamples])
+    // Convex data is live, no need to manually refresh
+    console.log("Convex subscriptions are active")
+  }, [])
 
   const jobOptions = useMemo(
     () =>

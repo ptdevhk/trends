@@ -19,8 +19,9 @@ import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 
 import { TaskMonitor } from './TaskMonitor'
-import { useMutation } from 'convex/react'
+import { useMutation, useAction } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
+import { useConvexResumes } from '@/hooks/useConvexResumes'
 
 export function ResumeList() {
   const { t } = useTranslation()
@@ -49,6 +50,15 @@ export function ResumeList() {
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
   const { results: matchResults, stats: matchStats, loading: matchLoading, error: matchError, matchAll, fetchMatches } = useAiMatching()
   const { actions, saveAction } = useCandidateActions(session?.id)
+
+  // Convex Integration
+  const { resumes: convexResumes, loading: convexLoading } = useConvexResumes()
+  const analyzeBatch = useAction(api.analyze.analyzeBatch)
+  const [analyzing, setAnalyzing] = useState(false)
+
+  // Use Convex resumes in AI mode to see real-time updates
+  const activeResumes = mode === 'ai' ? convexResumes : resumes
+  const activeLoading = mode === 'ai' ? convexLoading : loading
 
   useEffect(() => {
     if (session?.jobDescriptionId && !jobDescriptionId) {
@@ -127,6 +137,22 @@ export function ResumeList() {
     })
   }, [jobDescriptionId, matchAll, selectedSample, session?.id])
 
+  const handleAnalyzeAll = async () => {
+    if (!convexResumes.length) return;
+    setAnalyzing(true);
+    try {
+      await analyzeBatch({
+        resumeIds: convexResumes.map(r => r.resumeId as any), // Cast to Id
+        jobDescription: undefined // Use default or fetch current JD
+      });
+    } catch (e) {
+      console.error("Analysis failed", e);
+      alert("Failed to start analysis: " + e);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const handleFiltersChange = useCallback(
     (nextFilters: typeof filters) => {
       setFilters(nextFilters)
@@ -136,29 +162,48 @@ export function ResumeList() {
   )
 
   const aiStats = useMemo(() => {
+    // If using Convex data, stats are computed from analysis fields
+    if (mode === 'ai') {
+      const processed = convexResumes.filter((r: any) => r.analysis).length
+      const matched = convexResumes.filter((r: any) => (r.analysis?.score || 0) >= 60).length
+      const avgScore = processed ? Number((convexResumes.reduce((sum, r: any) => sum + (r.analysis?.score || 0), 0) / processed).toFixed(2)) : 0
+      return { processed, matched, avgScore }
+    }
     if (matchStats) return matchStats
     if (!matchResults.length) return null
     const processed = matchResults.length
     const matched = matchResults.filter((item) => item.score >= 50).length
     const avgScore = Number((matchResults.reduce((sum, item) => sum + item.score, 0) / processed).toFixed(2))
     return { processed, matched, avgScore }
-  }, [matchResults, matchStats])
+  }, [matchResults, matchStats, mode, convexResumes])
 
   const matchMap = useMemo(() => {
     return new Map(matchResults.map((item) => [item.resumeId, item]))
   }, [matchResults])
 
   const enrichedResumes = useMemo(() => {
-    return resumes.map((resume, index) => {
+    return activeResumes.map((resume, index) => {
       const resumeKey = resume.resumeId || resume.perUserId || (resume.profileUrl && resume.profileUrl !== 'javascript:;' ? resume.profileUrl : `${resume.name}-${resume.extractedAt || index}`)
+      // If in AI mode, use the analysis from the resume itself
+      const analysis = (resume as any).analysis;
+      const match = mode === 'ai' ? (analysis ? {
+        resumeId: resumeKey,
+        score: analysis.score,
+        summary: analysis.summary,
+        highlights: analysis.highlights,
+        recommendation: analysis.recommendation,
+        concerns: analysis.concerns || [],
+        matchedAt: new Date().toISOString()
+      } : undefined) : matchMap.get(resumeKey)
+
       return {
         resume,
         key: resumeKey,
-        match: matchMap.get(resumeKey),
+        match: match,
         action: actions[resumeKey],
       }
     })
-  }, [actions, matchMap, resumes])
+  }, [actions, matchMap, activeResumes, mode])
 
   const displayedResumes = useMemo(() => {
     if (mode !== 'ai') return enrichedResumes
@@ -203,7 +248,7 @@ export function ResumeList() {
             <SearchBar
               onSearch={handleSearch}
               onClear={handleClearSearch}
-              loading={loading}
+              loading={activeLoading}
               placeholder={t('resumes.searchPlaceholder')}
               buttonLabel={t('resumes.searchButton')}
             />
@@ -237,9 +282,9 @@ export function ResumeList() {
             >
               Start Agent Collection
             </Button>
-            <Button onClick={handleMatchAll} disabled={!jobDescriptionId || matchLoading}>
-              <RefreshCw className={cn('mr-2 h-4 w-4', matchLoading && 'animate-spin')} />
-              {matchLoading ? t('resumes.matching.running') : t('resumes.matching.matchAll')}
+            <Button onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll} disabled={!convexResumes.length || analyzing || matchLoading}>
+              <RefreshCw className={cn('mr-2 h-4 w-4', (analyzing || matchLoading) && 'animate-spin')} />
+              {mode === 'ai' ? (analyzing ? 'Analyzing...' : 'Analyze All (AI)') : (matchLoading ? t('resumes.matching.running') : t('resumes.matching.matchAll'))}
             </Button>
           </div>
         </div>
@@ -278,7 +323,7 @@ export function ResumeList() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {activeLoading ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
               {t('resumes.loading')}
             </div>
