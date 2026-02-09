@@ -84,6 +84,28 @@ make help             # Show all available commands
 
 ---
 
+## Coding Conventions
+
+### Package Manager & Runtime
+- **Local dev**: Use `bun` / `bunx`. Fall back to `npm` / `npx` only if bun is unavailable.
+- **GitHub CI**: Use `npm` / `npx` only. Do not depend on bun in CI workflows.
+- In shell scripts, use the fallback pattern: `if command -v bun > /dev/null; then bun ...; else npm ...; fi`
+- Both `bun.lock` and `package-lock.json` are maintained.
+- Target: **Node 22** (LTS). Global `fetch` is available - no polyfills needed.
+- Python uses `uv` for dependency management (not pip directly).
+
+### TypeScript
+- Always use `node:` prefix for Node.js built-in imports (e.g., `import fs from 'node:fs'`)
+- Do not use the `any` type - use `unknown` and narrow, or define proper types
+- Do not use type casts (`as`) unless absolutely necessary - prefer zod parsing for runtime validation
+- Do not use dynamic imports unless following an existing pattern in the codebase
+- When using try/catch, never suppress errors silently - always `console.error` caught errors
+
+### General
+- Do not modify README.md unless explicitly asked
+- Do not write docs or comments unless explicitly asked
+- Prefer editing existing files over creating new ones
+
 ## Architecture
 
 ### Data Flow

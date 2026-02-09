@@ -225,7 +225,7 @@ check-python:
 	@uv run python -c "import apps.worker; print(f'  apps.worker v{apps.worker.__version__} OK')"
 	@uv run python -c "from trendradar.core.loader import load_config; load_config('config/config.yaml'); print('  config.yaml OK')"
 
-# Node/TypeScript checks (uses Bun when available)
+# Node/TypeScript checks (uses Bun locally when available, npm in CI)
 check-node:
 	@echo "Running Node.js checks..."
 	@npm --workspace @trends/web run gen:api
@@ -233,21 +233,29 @@ check-node:
 		echo "apps/web/src/lib/api-types.ts is out of date. Run 'npm --workspace @trends/web run gen:api' and commit changes."; \
 		exit 1; \
 	)
-	@if command -v bun > /dev/null 2>&1; then \
+	@if [ "$$CI" = "true" ]; then \
+		npm run --workspaces --if-present typecheck; \
+		npm run --workspace @trends/web lint; \
+		npm run --workspace @trends/browser-extension lint; \
+	elif command -v bun > /dev/null 2>&1; then \
 		bun run check; \
 	else \
 		npm run --workspaces --if-present typecheck; \
-			npm run --workspace @trends/web lint; \
-			npm run --workspace @trends/browser-extension lint; \
+		npm run --workspace @trends/web lint; \
+		npm run --workspace @trends/browser-extension lint; \
 	fi
 
 # Build validation (for CI)
 check-build: check
 	@echo "Running build validation..."
-	@if command -v bun > /dev/null 2>&1; then \
-		bun run check:build; \
+	@if [ "$$CI" = "true" ] || ! command -v bun > /dev/null 2>&1; then \
+		npm run --workspace @trends/shared build; \
+		npm run --workspace @trends/api build; \
+		npm run --workspace @trends/web build; \
+		if [ -n "$$CONVEX_DEPLOYMENT" ]; then npm run --workspace @trends/convex build; else echo "Skipping @trends/convex build (CONVEX_DEPLOYMENT not set)"; fi; \
 	else \
-		npm run --workspaces --if-present build; \
+		bun run --filter '@trends/shared' --filter '@trends/api' --filter '@trends/web' build; \
+		if [ -n "$$CONVEX_DEPLOYMENT" ]; then bun run --filter '@trends/convex' build; else echo "Skipping @trends/convex build (CONVEX_DEPLOYMENT not set)"; fi; \
 	fi
 
 # =============================================================================
@@ -263,7 +271,9 @@ test-python:                               ## Run Python tests
 test-node:                                 ## Run TypeScript tests (bun locally, npm in CI)
 	@echo "Running Node.js tests..."
 	@if find apps packages -type f \( -name '*.test.ts' -o -name '*.test.tsx' \) -print -quit 2>/dev/null | grep -q .; then \
-		if command -v bun > /dev/null 2>&1; then \
+		if [ "$$CI" = "true" ]; then \
+			npm test; \
+		elif command -v bun > /dev/null 2>&1; then \
 			bun run test; \
 		else \
 			npm test; \

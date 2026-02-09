@@ -4,7 +4,9 @@ echo "Installing Python dependencies..."
 uv sync
 
 echo "Installing Node.js dependencies..."
-if command -v bun &> /dev/null; then
+if [ "${CI:-}" = "true" ]; then
+    npm install
+elif command -v bun &> /dev/null; then
     bun install
 else
     npm install
