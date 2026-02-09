@@ -21,11 +21,23 @@ const SELECTORS = {
   pagination: '.el-pagination',
   nextPageBtn: '.el-pagination .btn-next',
   searchInput: '.el-autocomplete input.el-input__inner',
-  searchButton: '.resume-search-item-search-input-block__input-button'
+  searchButton: '.resume-search-item-search-input-block__input-button',
+  // Area selector (location filter modal)
+  areaTrigger: '.resume-search-item-search-addre',
+  areaModal: '.area-selector-item-block',
+  areaProvinceBlock: '.area-selector-item-block__content__down__blcok:first-child',
+  areaCityBlock: '.area-selector-item-block__content__down__blcok:nth-child(2)',
+  areaDistrictBlock: '.area-selector-item-block__content__down__blcok:nth-child(3)',
+  areaItem: '.down__blcok__select',
+  areaDistrictItem: '.down__block__big-select__block',
+  areaConfirmBtn: '.area-selector-item-block__footer .button-block.blue',
+  areaCancelBtn: '.area-selector-item-block__footer .button-block:not(.blue)',
+  areaSelectedCount: '.content__up__number__select'
 };
 
 const AUTO_EXPORT_PARAM = 'tr_auto_export';
 const AUTO_SEARCH_PARAM = 'keyword';
+const AUTO_LOCATION_PARAM = 'location';
 const SAMPLE_NAME_PARAM = 'tr_sample_name';
 let autoExportTriggered = false;
 const API_CAPTURE_SOURCE = 'tr-resume-api';
@@ -84,7 +96,7 @@ function buildExportFilename() {
 function buildExportMetadata(resumes) {
   const url = new URL(window.location.href);
   const keyword = normalizeKeyword(url.searchParams.get(AUTO_SEARCH_PARAM) || '');
-  const location = (url.searchParams.get('location') || '').trim();
+  const location = (url.searchParams.get(AUTO_LOCATION_PARAM) || '').trim();
   const rawSampleName = url.searchParams.get(SAMPLE_NAME_PARAM) || '';
   const sampleName = sanitizeSampleName(rawSampleName).replace(/\.json$/i, '');
 
@@ -93,7 +105,7 @@ function buildExportMetadata(resumes) {
 
   const filters = {};
   for (const [key, value] of url.searchParams.entries()) {
-    if (key === AUTO_SEARCH_PARAM || key === 'location') continue;
+    if (key === AUTO_SEARCH_PARAM || key === AUTO_LOCATION_PARAM) continue;
     if (!value) continue;
     filters[key] = value;
   }
@@ -683,6 +695,95 @@ function waitForSearchElements({ timeoutMs = 8000 } = {}) {
   });
 }
 
+function isElementVisible(element) {
+  if (!element) return false;
+  const style = window.getComputedStyle(element);
+  return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function waitForAreaModal({ timeoutMs = 8000 } = {}) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const deadline = Date.now() + timeoutMs;
+
+    const check = () => {
+      if (done) return;
+      const modal = document.querySelector(SELECTORS.areaModal);
+      if (modal && isElementVisible(modal)) {
+        done = true;
+        cleanup();
+        resolve(modal);
+      } else if (Date.now() > deadline) {
+        done = true;
+        cleanup();
+        reject(new Error('Timed out waiting for area selector modal'));
+      }
+    };
+
+    const cleanup = () => {
+      clearInterval(intervalId);
+      observer.disconnect();
+    };
+
+    const intervalId = setInterval(check, 300);
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    check();
+  });
+}
+
+function getAreaItemText(item) {
+  if (!item) return '';
+  const source = item.querySelector('span') || item;
+  const clone = source.cloneNode(true);
+  clone.querySelectorAll('.select-num').forEach((node) => node.remove());
+  return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+function findAreaItemByText(container, text) {
+  if (!container || !text) return null;
+  const target = text.replace(/\s+/g, ' ').trim();
+  const itemSelector = `${SELECTORS.areaItem}, ${SELECTORS.areaDistrictItem}`;
+  const items = container.querySelectorAll(itemSelector);
+  for (const item of items) {
+    if (getAreaItemText(item) === target) return item;
+  }
+  return null;
+}
+
+function waitForAreaItems(blockSelector, { timeoutMs = 5000, itemSelector } = {}) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const deadline = Date.now() + timeoutMs;
+    const targetSelector = itemSelector || `${SELECTORS.areaItem}, ${SELECTORS.areaDistrictItem}`;
+
+    const check = () => {
+      if (done) return;
+      const block = document.querySelector(blockSelector);
+      const items = block ? block.querySelectorAll(targetSelector) : [];
+      if (block && items.length > 0) {
+        done = true;
+        cleanup();
+        resolve({ block, items: Array.from(items) });
+      } else if (Date.now() > deadline) {
+        done = true;
+        cleanup();
+        reject(new Error(`Timed out waiting for area items in ${blockSelector}`));
+      }
+    };
+
+    const cleanup = () => {
+      clearInterval(intervalId);
+      observer.disconnect();
+    };
+
+    const intervalId = setInterval(check, 300);
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true });
+    check();
+  });
+}
+
 function setAutoSearchAttributes(status, keyword) {
   try {
     document.documentElement.setAttribute('data-tr-auto-search', status);
@@ -690,6 +791,19 @@ function setAutoSearchAttributes(status, keyword) {
       document.documentElement.setAttribute('data-tr-search-keyword', keyword);
     } else {
       document.documentElement.removeAttribute('data-tr-search-keyword');
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function setAutoLocationAttributes(status, location) {
+  try {
+    document.documentElement.setAttribute('data-tr-auto-location', status);
+    if (location) {
+      document.documentElement.setAttribute('data-tr-location-value', location);
+    } else {
+      document.documentElement.removeAttribute('data-tr-location-value');
     }
   } catch {
     // ignore
@@ -705,6 +819,112 @@ function setInputValue(input, value) {
   }
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+async function autoSelectLocation() {
+  const params = new URLSearchParams(window.location.search || '');
+  const location = (params.get(AUTO_LOCATION_PARAM) || '').trim();
+  if (!location) {
+    setAutoLocationAttributes('skipped', '');
+    return;
+  }
+
+  console.log('🎯 [Auto Location] Selecting location:', location);
+
+  let modal = document.querySelector(SELECTORS.areaModal);
+  if (!isElementVisible(modal)) {
+    const trigger = document.querySelector(SELECTORS.areaTrigger);
+    if (!trigger) {
+      setAutoLocationAttributes('failed', location);
+      console.warn('🎯 [Auto Location] Trigger not found');
+      return;
+    }
+    trigger.click();
+    try {
+      modal = await waitForAreaModal({});
+    } catch (error) {
+      setAutoLocationAttributes('failed', location);
+      console.warn('🎯 [Auto Location] Area selector not ready:', error);
+      return;
+    }
+  }
+
+  const provinceBlock = modal.querySelector(SELECTORS.areaProvinceBlock);
+  const confirmBtn = modal.querySelector(SELECTORS.areaConfirmBtn);
+  const cancelBtn = modal.querySelector(SELECTORS.areaCancelBtn);
+  if (!provinceBlock || !confirmBtn || !cancelBtn) {
+    setAutoLocationAttributes('failed', location);
+    console.warn('🎯 [Auto Location] Missing modal controls');
+    return;
+  }
+
+  const selectAllDistrictAndConfirm = async () => {
+    const { block: districtBlock } = await waitForAreaItems(SELECTORS.areaDistrictBlock, {
+      itemSelector: SELECTORS.areaDistrictItem,
+      timeoutMs: 5000
+    });
+    const selectAllDistrict = findAreaItemByText(districtBlock, `全${location}`)
+      || districtBlock.querySelector(SELECTORS.areaDistrictItem);
+    if (!selectAllDistrict) return false;
+    selectAllDistrict.click();
+    confirmBtn.click();
+    setAutoLocationAttributes('done', location);
+    return true;
+  };
+
+  const provinceMatch = findAreaItemByText(provinceBlock, location);
+  if (provinceMatch) {
+    provinceMatch.click();
+    try {
+      const { block: cityBlock } = await waitForAreaItems(SELECTORS.areaCityBlock, {
+        itemSelector: SELECTORS.areaItem,
+        timeoutMs: 5000
+      });
+      const selectAllCity = findAreaItemByText(cityBlock, location)
+        || cityBlock.querySelector(SELECTORS.areaItem);
+      if (selectAllCity) selectAllCity.click();
+      if (await selectAllDistrictAndConfirm()) return;
+    } catch {
+      // Continue to city-level fallback.
+    }
+  }
+
+  const tryCityFlow = async () => {
+    const { block: cityBlock } = await waitForAreaItems(SELECTORS.areaCityBlock, {
+      itemSelector: SELECTORS.areaItem,
+      timeoutMs: 5000
+    });
+    const cityMatch = findAreaItemByText(cityBlock, location);
+    if (!cityMatch) return false;
+    cityMatch.click();
+    return selectAllDistrictAndConfirm();
+  };
+
+  const hotCities = findAreaItemByText(provinceBlock, '热门城市');
+  if (hotCities) {
+    hotCities.click();
+    try {
+      if (await tryCityFlow()) return;
+    } catch {
+      // Continue to province scan fallback.
+    }
+  }
+
+  const provinceItems = Array.from(provinceBlock.querySelectorAll(SELECTORS.areaItem));
+  for (const province of provinceItems) {
+    if (hotCities && province === hotCities) continue;
+    province.click();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    try {
+      if (await tryCityFlow()) return;
+    } catch {
+      // Continue scanning other provinces.
+    }
+  }
+
+  cancelBtn.click();
+  setAutoLocationAttributes('failed', location);
+  console.warn('🎯 [Auto Location] Location not found:', location);
 }
 
 async function autoSearchFromUrl() {
@@ -889,6 +1109,7 @@ function installExternalAccessor() {
         const pagination = getPaginationInfo();
         const cardCount = document.querySelectorAll(SELECTORS.resumeCard).length;
         const autoSearch = document.documentElement.getAttribute('data-tr-auto-search') || '';
+        const autoLocation = document.documentElement.getAttribute('data-tr-auto-location') || '';
         const autoExport = document.documentElement.getAttribute('data-tr-auto-export') || '';
         return {
           extensionLoaded: true,
@@ -898,6 +1119,7 @@ function installExternalAccessor() {
           loggedIn: isLoggedIn(),
           cardCount,
           autoSearch,
+          autoLocation,
           autoExport,
           pagination,
           timestamp: new Date().toISOString()
@@ -915,7 +1137,9 @@ console.log('🎯 智通直聘 Resume Collector loaded');
 installApiHook();
 installReloadHelper();
 installExternalAccessor();
-autoSearchFromUrl()
+autoSelectLocation()
+  .catch((error) => console.warn('🎯 [Auto Location] Failed:', error))
+  .then(() => autoSearchFromUrl())
   .catch((error) => console.warn('🎯 [Auto Search] Failed:', error))
   .finally(() => {
     runAutoExportIfEnabled();
