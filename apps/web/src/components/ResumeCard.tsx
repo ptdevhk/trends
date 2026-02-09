@@ -6,6 +6,12 @@ import { Button } from '@/components/ui/button'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { CandidateActionType, MatchingResult } from '@/types/resume'
 import { cn } from '@/lib/utils'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 interface ResumeCardProps {
   resume: ResumeItem
@@ -53,10 +59,33 @@ export function ResumeCard({
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
         ) : null}
         {showAiScore && typeof score === 'number' ? (
-          <Badge className={cn('border', scoreClassName)}>
-            {t('resumes.matching.scoreLabel', { score })}
-            {scoreLabel ? ` · ${scoreLabel}` : ''}
-          </Badge>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <Badge className={cn('border', scoreClassName)}>
+                    {t('resumes.matching.scoreLabel', { score })}
+                    {scoreLabel ? ` · ${scoreLabel}` : ''}
+                  </Badge>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="p-3 text-xs w-64 bg-slate-900 text-white">
+                <p className="font-semibold mb-2 text-sm border-b pb-1 border-white/20">Analysis Breakdown</p>
+                {matchResult?.breakdown ? (
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {Object.entries(matchResult.breakdown).map(([key, value]) => (
+                      <div key={key} className="flex justify-between">
+                        <span className="capitalize opacity-80">{key.replace('_', ' ')}:</span>
+                        <span className="font-mono font-bold">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="opacity-70 italic">No detailed breakdown available</p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : null}
       </div>
 

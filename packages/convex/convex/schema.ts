@@ -47,6 +47,11 @@ export default defineSchema({
             breakdown: v.optional(v.any()), // Stores detailed scores per category
             jobDescriptionId: v.optional(v.string()), // Tracks which JD was used for analysis
         })),
+
+        // AI Analysis Cache (Multi-JD Support)
+        // Key: jobDescriptionId (or 'default')
+        // Value: Analysis object
+        analyses: v.optional(v.any()),
     })
         .index("by_externalId", ["externalId"])
         .index("by_hash", ["hash"]),

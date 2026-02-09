@@ -83,7 +83,14 @@ export function ResumeList() {
         result = result.filter(r => filters.locations!.some(l => r.location?.includes(l)))
       }
       if (filters.minMatchScore) {
-        result = result.filter(r => ((r as any).analysis?.score || 0) >= filters.minMatchScore!)
+        result = result.filter(r => {
+          let analysis = (r as any).analysis;
+          const analysesMap = (r as any).analyses;
+          if (jobDescriptionId && analysesMap && analysesMap[jobDescriptionId]) {
+            analysis = analysesMap[jobDescriptionId];
+          }
+          return ((analysis?.score || 0) >= filters.minMatchScore!)
+        })
       }
       // Add other filters as data structure permits
     }
@@ -168,11 +175,15 @@ export function ResumeList() {
     })
   }, [jobDescriptionId, matchAll, selectedSample, session?.id])
 
+  const updateAnalysisBatch = useMutation(api.resumes.updateAnalysisBatch);
+
   const handleAnalyzeAll = async () => {
     if (!convexResumes.length) return;
     setAnalyzing(true);
     try {
       let jdArg = undefined;
+      let jdKeywords: string[] = [];
+
       if (jobDescriptionId) {
         try {
           const { data } = await rawApiClient.GET<{ success: boolean; item?: any; content?: string }>(
@@ -183,17 +194,74 @@ export function ResumeList() {
               title: data.item?.title || jobDescriptionId,
               requirements: data.content
             };
+            // Simple keyword extraction (2+ chars)
+            jdKeywords = (data.content + " " + (data.item?.title || "")).toLowerCase().match(/[\u4e00-\u9fa5a-z0-9]{2,}/g) || [];
           }
         } catch (err) {
           console.error("Failed to fetch JD", err);
         }
       }
 
-      await analyzeBatch({
-        resumeIds: convexResumes.map(r => r.resumeId as any), // Cast to Id
-        jobDescription: jdArg,
-        jobDescriptionId: jobDescriptionId || "default"
+      const resumesToAnalyze: any[] = [];
+      const resumesToSkip: any[] = [];
+
+      // Hybrid Filter Threshold
+      const THRESHOLD = 10; // Very low bar, just to filter complete garbage
+
+      convexResumes.forEach(r => {
+        // Skip if already analyzed for this JD (though UI should prevent this, good to be safe)
+        // Actually, "Analyze All" usually implies re-analyzing or analyzing missing.
+        // Let's assume we analyze everyone in the list (or maybe just those without analysis?)
+        // The current logic was mapping ALL resumes.
+
+        if (!jdKeywords.length) {
+          resumesToAnalyze.push(r.resumeId);
+          return;
+        }
+
+        // Calculate relevance
+        const content = JSON.stringify(r).toLowerCase();
+        let matches = 0;
+        jdKeywords.forEach(k => {
+          if (content.includes(k)) matches++;
+        });
+
+        // Normalize score roughly
+        const score = Math.min(100, Math.round((matches / Math.max(jdKeywords.length, 1)) * 100));
+
+        if (score < THRESHOLD) {
+          resumesToSkip.push(r.resumeId);
+        } else {
+          resumesToAnalyze.push(r.resumeId);
+        }
       });
+
+      // 1. Process Skips (Cheap Mutation)
+      if (resumesToSkip.length > 0) {
+        await updateAnalysisBatch({
+          updates: resumesToSkip.map(id => ({
+            resumeId: id,
+            analysis: {
+              score: 10,
+              recommendation: "no_match",
+              summary: "Auto-filtered: Low keyword match with JD.",
+              highlights: [],
+              breakdown: { keyword_match: 10 },
+              jobDescriptionId: jobDescriptionId || "default"
+            }
+          }))
+        });
+      }
+
+      // 2. Process Analysis (Expensive Action)
+      if (resumesToAnalyze.length > 0) {
+        await analyzeBatch({
+          resumeIds: resumesToAnalyze,
+          jobDescription: jdArg,
+          jobDescriptionId: jobDescriptionId || "default"
+        });
+      }
+
     } catch (e) {
       console.error("Analysis failed", e);
       alert("Failed to start analysis: " + e);
@@ -214,13 +282,32 @@ export function ResumeList() {
     // If using Convex data, stats are computed from analysis fields
     if (mode === 'ai') {
       // Must match current JD
-      const validResumes = convexResumes.filter((r: any) =>
-        r.analysis && (!jobDescriptionId || r.analysis.jobDescriptionId === jobDescriptionId)
-      );
+      // Check map first
+      const validResumes = convexResumes.filter((r: any) => {
+        let analysis = r.analysis;
+        if (jobDescriptionId && r.analyses && r.analyses[jobDescriptionId]) {
+          analysis = r.analyses[jobDescriptionId];
+        }
+        return analysis && (!jobDescriptionId || analysis.jobDescriptionId === jobDescriptionId);
+      });
 
       const processed = validResumes.length
-      const matched = validResumes.filter((r: any) => (r.analysis?.score || 0) >= 60).length
-      const avgScore = processed ? Number((validResumes.reduce((sum: number, r: any) => sum + (r.analysis?.score || 0), 0) / processed).toFixed(2)) : 0
+      const matched = validResumes.filter((r: any) => {
+        let analysis = r.analysis;
+        if (jobDescriptionId && r.analyses && r.analyses[jobDescriptionId]) {
+          analysis = r.analyses[jobDescriptionId];
+        }
+        return (analysis?.score || 0) >= 60;
+      }).length
+
+      const avgScore = processed ? Number((validResumes.reduce((sum: number, r: any) => {
+        let analysis = r.analysis;
+        if (jobDescriptionId && r.analyses && r.analyses[jobDescriptionId]) {
+          analysis = r.analyses[jobDescriptionId];
+        }
+        return sum + (analysis?.score || 0);
+      }, 0) / processed).toFixed(2)) : 0
+
       return { processed, matched, avgScore }
     }
     if (matchStats) return matchStats
@@ -238,23 +325,27 @@ export function ResumeList() {
   const enrichedResumes = useMemo(() => {
     return filteredActiveResumes.map((resume, index) => {
       const resumeKey = resume.resumeId || resume.perUserId || (resume.profileUrl && resume.profileUrl !== 'javascript:;' ? resume.profileUrl : `${resume.name}-${resume.extractedAt || index}`)
-      // If in AI mode, use the analysis from the resume itself
-      const analysis = (resume as any).analysis;
+
+      // Determine which analysis to use
+      let effectiveAnalysis = (resume as any).analysis;
+      const analysesMap = (resume as any).analyses;
+
+      // If we have a specific JD selected, try to find it in the map
+      if (jobDescriptionId && analysesMap && analysesMap[jobDescriptionId]) {
+        effectiveAnalysis = analysesMap[jobDescriptionId];
+      }
 
       // Only show analysis if it matches current JD context
-      // If jobDescriptionId is selected, analysis must match it.
-      // If no JD selected, maybe show any analysis? Or hide? Let's hide to be safe or show default.
-      // Re-req: "i expect use change config of jd; the reums score shlud cahnge to correcpind is not in db it shloud be reset"
-      // So if current JD != analysis JD, reset.
-      const isAnalysisValid = !jobDescriptionId || (analysis?.jobDescriptionId === jobDescriptionId);
+      const isAnalysisValid = !jobDescriptionId || (effectiveAnalysis?.jobDescriptionId === jobDescriptionId);
 
-      const match = mode === 'ai' ? (analysis && isAnalysisValid ? {
+      const match = mode === 'ai' ? (effectiveAnalysis && isAnalysisValid ? {
         resumeId: resumeKey,
-        score: analysis.score,
-        summary: analysis.summary,
-        highlights: analysis.highlights,
-        recommendation: analysis.recommendation,
-        concerns: analysis.concerns || [],
+        score: effectiveAnalysis.score,
+        summary: effectiveAnalysis.summary,
+        highlights: effectiveAnalysis.highlights,
+        recommendation: effectiveAnalysis.recommendation,
+        concerns: effectiveAnalysis.concerns || [],
+        breakdown: effectiveAnalysis.breakdown, // Pass breakdown
         matchedAt: new Date().toISOString()
       } : undefined) : matchMap.get(resumeKey)
 
@@ -433,6 +524,7 @@ export function ResumeList() {
 
       <ResumeDetail
         resume={detailResume}
+        matchResult={displayedResumes.find(r => r.resume.resumeId === detailResume?.resumeId)?.match}
         open={Boolean(detailResume)}
         onOpenChange={(open) => {
           if (!open) setDetailResume(null)

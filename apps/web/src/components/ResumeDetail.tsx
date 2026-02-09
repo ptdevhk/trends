@@ -2,15 +2,19 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import type { ResumeItem } from '@/hooks/useResumes'
+
+import type { MatchingResult } from '@/types/resume'
 
 interface ResumeDetailProps {
   resume: ResumeItem | null
+  matchResult?: MatchingResult
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function ResumeDetail({ resume, open, onOpenChange }: ResumeDetailProps) {
+export function ResumeDetail({ resume, matchResult, open, onOpenChange }: ResumeDetailProps) {
   const { t } = useTranslation()
 
   const workHistory = useMemo(() => {
@@ -30,6 +34,57 @@ export function ResumeDetail({ resume, open, onOpenChange }: ResumeDetailProps) 
         </DialogHeader>
 
         <div className="grid gap-4">
+          {matchResult && (
+            <div className="rounded-lg border bg-slate-50 dark:bg-slate-900 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold flex items-center gap-2">
+                  AI Analysis
+                  <Badge variant={matchResult.score >= 80 ? 'default' : matchResult.score >= 60 ? 'secondary' : 'outline'}>
+                    {matchResult.score} 分
+                  </Badge>
+                </h3>
+                <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">
+                  {matchResult.recommendation?.replace('_', ' ')}
+                </span>
+              </div>
+
+              <p className="text-sm text-foreground mb-3">{matchResult.summary}</p>
+
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                {matchResult.highlights && matchResult.highlights.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-green-600 mb-1">Highlights</h4>
+                    <ul className="list-disc list-inside text-xs text-muted-foreground">
+                      {matchResult.highlights.map((h, i) => <li key={i}>{h}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {matchResult.concerns && matchResult.concerns.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-semibold text-red-600 mb-1">Concerns</h4>
+                    <ul className="list-disc list-inside text-xs text-muted-foreground">
+                      {matchResult.concerns.map((c, i) => <li key={i}>{c}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {matchResult.breakdown && (
+                <div className="bg-background rounded p-2 border">
+                  <h4 className="text-xs font-semibold mb-2">Detailed Breakdown</h4>
+                  <div className="grid grid-cols-5 gap-2 text-center">
+                    {Object.entries(matchResult.breakdown).map(([k, v]) => (
+                      <div key={k} className="flex flex-col">
+                        <span className="text-[10px] text-muted-foreground uppercase truncate" title={k}>{k.replace('_', ' ')}</span>
+                        <span className="text-sm font-mono font-bold">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">{t('resumes.columns.name')}</p>

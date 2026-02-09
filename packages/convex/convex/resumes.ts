@@ -1,4 +1,4 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const list = query({
@@ -29,8 +29,49 @@ export const updateAnalysis = internalMutation({
         }),
     },
     handler: async (ctx, args) => {
+        const resume = await ctx.db.get(args.resumeId);
+        if (!resume) throw new Error("Resume not found");
+
+        const analyses = resume.analyses || {};
+        const jdId = args.analysis.jobDescriptionId || "default";
+
+        // Update the specific JD analysis
+        analyses[jdId] = args.analysis;
+
         await ctx.db.patch(args.resumeId, {
-            analysis: args.analysis,
+            analysis: args.analysis, // Keep current for backward compat / easy access
+            analyses: analyses,      // Store in cache
         });
+    },
+});
+
+export const updateAnalysisBatch = mutation({
+    args: {
+        updates: v.array(v.object({
+            resumeId: v.id("resumes"),
+            analysis: v.object({
+                score: v.number(),
+                summary: v.string(),
+                highlights: v.array(v.string()),
+                recommendation: v.string(),
+                breakdown: v.optional(v.any()),
+                jobDescriptionId: v.optional(v.string()),
+            }),
+        })),
+    },
+    handler: async (ctx, args) => {
+        await Promise.all(args.updates.map(async (update) => {
+            const resume = await ctx.db.get(update.resumeId);
+            if (!resume) return;
+
+            const analyses = resume.analyses || {};
+            const jdId = update.analysis.jobDescriptionId || "default";
+            analyses[jdId] = update.analysis;
+
+            await ctx.db.patch(update.resumeId, {
+                analysis: update.analysis,
+                analyses: analyses,
+            });
+        }));
     },
 });

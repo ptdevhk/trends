@@ -25,6 +25,7 @@ export type MatchingResult = {
   matchedAt: string
   sessionId?: string
   userId?: string
+  breakdown?: Record<string, number>
 }
 
 export type MatchStats = {
