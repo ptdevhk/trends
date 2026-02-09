@@ -59,7 +59,7 @@ dev-api:
 # Start FastAPI worker REST API only (port 8000)
 dev-api-worker:
 	@if [ -d "apps/worker" ]; then \
-		uv run uvicorn apps.worker.api:app --reload --port 8000; \
+		uv run uvicorn apps.worker.api:app --reload --port $${TRENDS_WORKER_PORT:-8000}; \
 	else \
 		echo "apps/worker not found. Create it with Milestone 1 (FastAPI Wrapper)"; \
 		exit 1; \
@@ -353,7 +353,7 @@ help:
 	@echo "Environment Variables:"
 	@echo "  ENV_FILE       Path to .env file (default: .env)"
 	@echo "  MCP_PORT       MCP server port (default: 3333)"
-	@echo "  WORKER_PORT    FastAPI worker port (default: 8000)"
+	@echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
 	@echo "  API_PORT       BFF API port (default: 3000)"
 	@echo "  WEB_PORT       Web frontend port (default: 5173)"
 	@echo "  CDP_PORT       Chrome DevTools port (default: 9222)"
