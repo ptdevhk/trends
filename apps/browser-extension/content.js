@@ -1182,7 +1182,15 @@ function installExternalAccessor() {
           timestamp: new Date().toISOString()
         };
       },
-      version
+      version,
+      goToNextPage: () => {
+        const nextBtn = /** @type {HTMLButtonElement | null} */ (document.querySelector('.el-pagination .btn-next'));
+        if (nextBtn && !nextBtn.disabled) {
+          nextBtn.click();
+          return true;
+        }
+        return false;
+      }
     };
   } catch (error) {
     console.warn('🎯 [External Access] Failed to install accessor:', error);

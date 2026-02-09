@@ -182,7 +182,7 @@ refresh-sample:
 	CDP_PORT="$(or $(CDP_PORT),9222)" \
 	ALLOW_EMPTY="$(ALLOW_EMPTY)" \
 	LOCATION="$(LOCATION)" \
-	./scripts/refresh-sample.sh
+	./scripts/refresh-sample.sh --limit $(or $(LIMIT),200) --max-pages $(or $(MAX_PAGES),10)
 
 # Show instructions for refreshing resume sample data
 refresh-sample-manual:

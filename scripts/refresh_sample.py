@@ -250,10 +250,155 @@ async def wait_for(
     return last
 
 
+async def execute_scrape_job(
+    client: CDPClient,
+    context_id: int | None,
+    limit: int = 200,
+    max_pages: int = 10,
+    allow_empty: bool = False,
+    progress_callback: callable = None,
+) -> list[dict]:
+    """
+    Executes the multi-page scraping logic.
+    Returns a list of extracted resumes.
+    """
+    
+    async def wait_for_results(timeout: float = 45.0):
+        start = time.time()
+        last = None
+        while time.time() - start < timeout:
+            last = await eval_json(
+                client,
+                """(() => {
+                  const api = window.__TR_RESUME_DATA__;
+                  return api && typeof api.status === "function" ? api.status() : null;
+                })()""",
+                context_id=context_id,
+            )
+            if last:
+                counts = [
+                    int(last.get("cardCount") or 0),
+                ]
+                if max(counts) > 0:
+                    return last
+                auto_search = (last.get("autoSearch") or "").lower()
+                if auto_search in ("done", "skipped") and time.time() - start > 5:
+                    break
+            await asyncio.sleep(0.8)
+        return last
+
+    status = await wait_for_results()
+
+    # Polyfill goToNextPage if missing (handling stale extension state)
+    await eval_json(
+        client,
+        """(() => {
+            const api = window.__TR_RESUME_DATA__;
+            if (api && !api.goToNextPage) {
+                console.log("🎯 [Dev] Polyfilling goToNextPage");
+                api.goToNextPage = () => {
+                    const nextBtn = document.querySelector('.el-pagination .btn-next');
+                    if (nextBtn && !nextBtn.disabled) {
+                        nextBtn.click();
+                        return true;
+                    }
+                    return false;
+                };
+            }
+        })()""",
+        context_id=context_id,
+    )
+
+    await asyncio.sleep(0.5)
+    all_resumes = []
+    current_page = 1
+    
+    while True:
+        print(f"Scraping page {current_page}...")
+        
+        # Wait for results to stabilize on this page
+        status = await wait_for_results()
+        await asyncio.sleep(0.5)
+
+        # Extract resumes from current page
+        page_resumes = await eval_json(
+            client,
+            """(() => {
+              const api = window.__TR_RESUME_DATA__;
+              return api && typeof api.extract === "function" ? api.extract() : null;
+            })()""",
+            context_id=context_id,
+        )
+
+        if not isinstance(page_resumes, list):
+            if not allow_empty and not all_resumes:
+                raise CDPError("Failed to extract resume data from the page.")
+            page_resumes = []
+        
+        if not page_resumes and not allow_empty and not all_resumes:
+            raise CDPError(
+                "No resumes extracted. Ensure you are logged in and results are loaded."
+            )
+
+        # Append to collection
+        all_resumes.extend(page_resumes)
+        print(f"  Found {len(page_resumes)} resumes (Total: {len(all_resumes)})")
+
+        if progress_callback:
+            await progress_callback(len(all_resumes), current_page)
+
+        # Check limits
+        if len(all_resumes) >= limit:
+            print(f"Reached limit of {limit} resumes.")
+            break
+        
+        if current_page >= max_pages:
+            print(f"Reached max pages limit of {max_pages}.")
+            break
+
+        # Try to go to next page
+        has_next = await eval_json(
+            client,
+            """(() => {
+              const api = window.__TR_RESUME_DATA__;
+              return api && typeof api.goToNextPage === "function" ? api.goToNextPage() : false;
+            })()""",
+            context_id=context_id,
+        )
+
+        if not has_next:
+            print("No next page available.")
+            break
+
+        # Wait for page number to increment
+        next_page = current_page + 1
+        print(f"Navigating to page {next_page}...")
+        
+        try:
+            await wait_for(
+                client,
+                f"""(() => {{
+                  const api = window.__TR_RESUME_DATA__;
+                  const status = api && typeof api.status === "function" ? api.status() : null;
+                  return status && status.pagination && status.pagination.currentPage === {next_page};
+                }})()""",
+                timeout=15.0,
+                context_id=context_id,
+            )
+            current_page = next_page
+        except CDPError:
+            print("Timeout waiting for next page load.")
+            break
+            
+    return all_resumes
+
+
 async def run():
     parser = argparse.ArgumentParser()
     parser.add_argument("--keyword", default=DEFAULT_KEYWORD, help="Search keyword")
     parser.add_argument("--location", default="", help="Search location filter (e.g. 广东)")
+    parser.add_argument("--limit", type=int, default=200, help="Max total resumes to scrape")
+    parser.add_argument("--max-pages", type=int, default=10, help="Max pages to scrape")
     parser.add_argument("--sample", default=DEFAULT_SAMPLE, help="Sample file name")
     parser.add_argument("--port", type=int, default=CDP_PORT, help="CDP port")
     parser.add_argument(
@@ -334,11 +479,6 @@ async def run():
         if not status:
             raise CDPError("Extension did not report status in time.")
 
-        if not status.get("loggedIn", False):
-            print("Not logged in. Please log in manually and re-run.")
-            print(f"Open: {search_url}")
-            return 1
-
         await wait_for(
             client,
             """(() => {
@@ -351,52 +491,13 @@ async def run():
             context_id=context_id,
         )
 
-        async def wait_for_results(timeout: float = 45.0):
-            start = time.time()
-            last = None
-            while time.time() - start < timeout:
-                last = await eval_json(
-                    client,
-                    """(() => {
-                      const api = window.__TR_RESUME_DATA__;
-                      return api && typeof api.status === "function" ? api.status() : null;
-                    })()""",
-                    context_id=context_id,
-                )
-                if last:
-                    pagination = last.get("pagination") or {}
-                    counts = [
-                        int(last.get("cardCount") or 0),
-                        int(last.get("apiSnapshotCount") or 0),
-                        int(pagination.get("totalItems") or 0),
-                    ]
-                    if max(counts) > 0:
-                        return last
-                    auto_search = (last.get("autoSearch") or "").lower()
-                    if auto_search in ("done", "skipped") and time.time() - start > 5:
-                        break
-                await asyncio.sleep(0.8)
-            return last
-
-        status = await wait_for_results()
-
-        await asyncio.sleep(0.5)
-
-        resumes = await eval_json(
-            client,
-            """(() => {
-              const api = window.__TR_RESUME_DATA__;
-              return api && typeof api.extract === "function" ? api.extract() : null;
-            })()""",
+        resumes = await execute_scrape_job(
+            client=client,
             context_id=context_id,
+            limit=args.limit,
+            max_pages=args.max_pages,
+            allow_empty=args.allow_empty,
         )
-
-        if not isinstance(resumes, list):
-            raise CDPError("Failed to extract resume data from the page.")
-        if not resumes and not args.allow_empty:
-            raise CDPError(
-                "No resumes extracted. Ensure you are logged in and results are loaded."
-            )
 
         status = await eval_json(
             client,

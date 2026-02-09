@@ -19,9 +19,10 @@ if ! curl -fsS "http://127.0.0.1:${CDP_PORT}/json" >/dev/null 2>&1; then
   exit 1
 fi
 
-exec uv run python scripts/refresh-sample.py \
+exec uv run python scripts/refresh_sample.py \
   --keyword "${KEYWORD}" \
   --sample "${SAMPLE}" \
   --port "${CDP_PORT}" \
   ${ALLOW_EMPTY:+--allow-empty} \
-  "${LOCATION_ARGS[@]}"
+  "${LOCATION_ARGS[@]}" \
+  "$@"
