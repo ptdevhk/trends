@@ -5,6 +5,7 @@
   trWindow.__trResumeHookInstalled = true;
 
   const SOURCE = 'tr-resume-api';
+  const EXTERNAL_ACCESS_KEY = '__TR_RESUME_DATA__';
 
   const classify = (url) => {
     if (!url) return null;
@@ -37,6 +38,54 @@
     if (!kind || !payload) return;
     post(kind, url, payload);
   };
+
+  const readAttr = (name) => document.documentElement.getAttribute(name) || '';
+  const getPaginationInfo = () => {
+    const pagination = document.querySelector('.el-pagination');
+    if (!pagination) {
+      return {
+        currentPage: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        totalItems: 0
+      };
+    }
+
+    const activePage = Number(
+      pagination.querySelector('.el-pager li.active')?.textContent?.trim() || '1'
+    ) || 1;
+    const pageNumbers = Array.from(pagination.querySelectorAll('.el-pager li'))
+      .map((node) => Number(node.textContent?.trim() || '0'))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const totalPages = pageNumbers.length > 0 ? Math.max(...pageNumbers) : activePage;
+    const nextPageButton = pagination.querySelector('.btn-next');
+    const hasNextPage = !!nextPageButton && !nextPageButton.classList.contains('disabled');
+
+    return {
+      currentPage: activePage,
+      totalPages,
+      hasNextPage,
+      totalItems: 0
+    };
+  };
+
+  if (!trWindow[EXTERNAL_ACCESS_KEY]) {
+    trWindow[EXTERNAL_ACCESS_KEY] = {
+      status: () => ({
+        extensionLoaded: readAttr('data-tr-resume-hook') === 'true',
+        extensionVersion: 'page-bridge',
+        apiSnapshotCount: Number(readAttr('data-tr-api-rows') || '0') || 0,
+        domReady: document.querySelector('.el-checkbox-group.resume-search-item-list-content-block') !== null,
+        loggedIn: !document.querySelector('.login-btn, [href*="login"]'),
+        cardCount: document.querySelectorAll('.list-content__li_part').length,
+        autoSearch: readAttr('data-tr-auto-search'),
+        autoLocation: readAttr('data-tr-auto-location'),
+        autoExport: readAttr('data-tr-auto-export'),
+        pagination: getPaginationInfo(),
+        timestamp: new Date().toISOString()
+      })
+    };
+  }
 
   if (trWindow.fetch) {
     const originalFetch = trWindow.fetch;

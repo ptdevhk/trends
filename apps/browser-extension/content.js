@@ -737,7 +737,11 @@ function getAreaItemText(item) {
   const source = item.querySelector('span') || item;
   const clone = source.cloneNode(true);
   clone.querySelectorAll('.select-num').forEach((node) => node.remove());
-  return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+  return (clone.textContent || '')
+    // Remove icon-font glyphs that are rendered as private-use unicode chars.
+    .replace(/[\uE000-\uF8FF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -802,6 +806,37 @@ function waitForAreaItems(blockSelector, { timeoutMs = 5000, itemSelector } = {}
   });
 }
 
+function waitForAreaTrigger({ timeoutMs = 8000 } = {}) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const deadline = Date.now() + timeoutMs;
+
+    const check = () => {
+      if (done) return;
+      const trigger = asHTMLElement(document.querySelector(SELECTORS.areaTrigger));
+      if (trigger && isElementVisible(trigger)) {
+        done = true;
+        cleanup();
+        resolve(trigger);
+      } else if (Date.now() > deadline) {
+        done = true;
+        cleanup();
+        reject(new Error('Timed out waiting for area trigger'));
+      }
+    };
+
+    const cleanup = () => {
+      clearInterval(intervalId);
+      observer.disconnect();
+    };
+
+    const intervalId = setInterval(check, 300);
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    check();
+  });
+}
+
 function setAutoSearchAttributes(status, keyword) {
   try {
     document.documentElement.setAttribute('data-tr-auto-search', status);
@@ -851,8 +886,10 @@ async function autoSelectLocation() {
 
   let modal = document.querySelector(SELECTORS.areaModal);
   if (!isElementVisible(modal)) {
-    const trigger = asHTMLElement(document.querySelector(SELECTORS.areaTrigger));
-    if (!trigger) {
+    let trigger;
+    try {
+      trigger = await waitForAreaTrigger({});
+    } catch {
       setAutoLocationAttributes('failed', location);
       console.warn('🎯 [Auto Location] Trigger not found');
       return;
