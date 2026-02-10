@@ -8,6 +8,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Search, Sparkles, Settings2, FilePlus } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Id } from '../../../../packages/convex/convex/_generated/dataModel'
@@ -358,6 +359,12 @@ export function QuickStartPanel({
                                             {t('quickStart.createCustom', '创建自定义配置')}
                                         </Button>
                                     )}
+                                    <Link
+                                        to="/config/jds"
+                                        className="inline-flex items-center h-7 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                                    >
+                                        {t('quickStart.manageJds')}
+                                    </Link>
                                 </div>
                             </div>
                         )}
@@ -368,19 +375,19 @@ export function QuickStartPanel({
                 {matchResult && (
                     <div className="mt-3 p-3 rounded-md border border-dashed border-border text-sm">
                         <p className="text-muted-foreground mb-2">
-                            Current Match Details
+                            {t('quickStart.matchDetails')}
                         </p>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                             <div>
-                                <span className="text-muted-foreground">JD: </span>
+                                <span className="text-muted-foreground">{t('quickStart.labelJd')}: </span>
                                 <span>{matchResult.matched}</span>
                             </div>
                             <div>
-                                <span className="text-muted-foreground">预设: </span>
+                                <span className="text-muted-foreground">{t('quickStart.labelPreset')}: </span>
                                 <span>{matchResult.filterPreset || '-'}</span>
                             </div>
                             <div>
-                                <span className="text-muted-foreground">匹配词: </span>
+                                <span className="text-muted-foreground">{t('quickStart.labelMatchedKeywords')}: </span>
                                 <span>{matchResult.matchedKeywords.join(', ') || '-'}</span>
                             </div>
                         </div>
