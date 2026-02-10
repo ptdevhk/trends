@@ -13,7 +13,8 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/resumes" replace />} />
             <Route path="/resumes" element={<ResumesPage />} />
-            <Route path="/debug/jds" element={<DebugJDs />} />
+            <Route path="/config/jds" element={<DebugJDs />} />
+            <Route path="/debug/jds" element={<Navigate to="/config/jds" replace />} />
             <Route path="/debug/*" element={<DebugPage />} />
             <Route path="*" element={<Navigate to="/resumes" replace />} />
           </Routes>
