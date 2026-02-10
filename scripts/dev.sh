@@ -339,6 +339,48 @@ check_port() {
     fi
 }
 
+wait_for_port() {
+    local port="$1"
+    local pid="$2"
+    local timeout="${3:-120}"
+    local service_name="${4:-SERVICE}"
+    local elapsed=0
+    local check_interval=2
+    local progress_interval=10
+
+    while [ "$elapsed" -lt "$timeout" ]; do
+        if ! check_port "$port"; then
+            log "$service_name" "$GREEN" "Port $port is ready."
+            return 0
+        fi
+
+        if ! kill -0 "$pid" 2>/dev/null; then
+            log "$service_name" "$RED" "Process (PID: $pid) exited before port $port became ready."
+            return 1
+        fi
+
+        if [ "$elapsed" -eq 0 ] || [ $((elapsed % progress_interval)) -eq 0 ]; then
+            log "$service_name" "$CYAN" "Waiting for port $port... (${elapsed}s/${timeout}s)"
+        fi
+
+        sleep "$check_interval"
+        elapsed=$((elapsed + check_interval))
+    done
+
+    if ! check_port "$port"; then
+        log "$service_name" "$GREEN" "Port $port is ready."
+        return 0
+    fi
+
+    if ! kill -0 "$pid" 2>/dev/null; then
+        log "$service_name" "$RED" "Process (PID: $pid) exited before port $port became ready."
+        return 1
+    fi
+
+    log "$service_name" "$RED" "Timed out waiting ${timeout}s for port $port."
+    return 1
+}
+
 # Get PIDs of what's using a port (space-separated)
 get_port_pids() {
     local port="$1"
@@ -593,7 +635,9 @@ start_convex() {
     if [ -n "${CONVEX_URL:-}" ]; then
         log "CONVEX" "$GREEN" "CONVEX_URL already set ($CONVEX_URL). Skipping local convex dev."
         if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
-            "$SCRIPT_DIR/sync-convex-env.sh" || true
+            if ! "$SCRIPT_DIR/sync-convex-env.sh"; then
+                return 1
+            fi
         fi
         return 0
     fi
@@ -614,7 +658,9 @@ start_convex() {
     if ! check_port "$port"; then
         log "CONVEX" "$GREEN" "Port $port is in use. Assuming Convex is already running."
         if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
-            "$SCRIPT_DIR/sync-convex-env.sh" || true
+            if ! "$SCRIPT_DIR/sync-convex-env.sh"; then
+                return 1
+            fi
         fi
         return 0
     fi
@@ -630,10 +676,23 @@ start_convex() {
     $cmd > >(tee "$(service_log_path "convex")" | stream_service_logs "convex" "$CYAN") 2>&1 &
     SERVICE_PIDS["convex"]=$!
 
-    sleep 5
+    local timeout="${CONVEX_STARTUP_TIMEOUT:-120}"
+    if ! wait_for_port "$port" "${SERVICE_PIDS["convex"]}" "$timeout" "CONVEX"; then
+        local convex_log
+        convex_log="$(service_log_path "convex")"
+        log "CONVEX" "$RED" "Convex failed to become ready. Showing last 20 log lines:"
+        if [ -f "$convex_log" ]; then
+            tail -n 20 "$convex_log"
+        else
+            log "CONVEX" "$YELLOW" "No convex log file found at $convex_log"
+        fi
+        return 1
+    fi
 
     if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
-        "$SCRIPT_DIR/sync-convex-env.sh" || true
+        if ! "$SCRIPT_DIR/sync-convex-env.sh"; then
+            return 1
+        fi
     fi
 }
 
@@ -761,7 +820,12 @@ main() {
     # Start requested services
     for service in "${services[@]}"; do
         case $service in
-            convex) start_convex ;;
+            convex)
+                if ! start_convex; then
+                    log "DEV" "$RED" "Convex failed to start. Aborting."
+                    exit 1
+                fi
+                ;;
             mcp) start_mcp_server ;;
             crawl) start_crawler ;;
             worker) start_worker ;;
