@@ -45,7 +45,32 @@
     },
     "errors": {
       "deleteFailed": "刪除失敗。只能刪除自定義職位描述。"
-    }
+    },
+    "exportMarkdown": "匯出 Markdown",
+    "preview": "預覽",
+    "sortAsc": "升冪排序",
+    "sortDesc": "降冪排序"
+  },
+  "bulkActions": {
+    "selected": "已選擇",
+    "selectAll": "全選",
+    "selectHighScore": "選擇 80+ 分",
+    "clearSelection": "取消選擇",
+    "shortlist": "批量入圍",
+    "star": "批量標星",
+    "reject": "批量拒絕",
+    "export": "匯出"
+  },
+  "debugAi": {
+    "title": "AI 調試",
+    "subtitle": "檢視提示詞模板與分析輸出",
+    "promptSection": "提示詞模板",
+    "systemPrompt": "系統提示詞",
+    "userPrompt": "使用者提示詞模板",
+    "selectResume": "選擇簡歷",
+    "rawOutput": "原始輸出",
+    "scoreBreakdown": "分數拆解",
+    "noAnalysis": "此簡歷尚無分析結果"
   },
   "trends": {
     "title": "熱門話題",

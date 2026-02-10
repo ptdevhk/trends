@@ -45,7 +45,32 @@
     },
     "errors": {
       "deleteFailed": "删除失败。只能删除自定义职位描述。"
-    }
+    },
+    "exportMarkdown": "导出 Markdown",
+    "preview": "预览",
+    "sortAsc": "升序排序",
+    "sortDesc": "降序排序"
+  },
+  "bulkActions": {
+    "selected": "已选择",
+    "selectAll": "全选",
+    "selectHighScore": "选择 80+ 分",
+    "clearSelection": "取消选择",
+    "shortlist": "批量入围",
+    "star": "批量标星",
+    "reject": "批量拒绝",
+    "export": "导出"
+  },
+  "debugAi": {
+    "title": "AI 调试",
+    "subtitle": "查看提示词模板与分析输出",
+    "promptSection": "提示词模板",
+    "systemPrompt": "系统提示词",
+    "userPrompt": "用户提示词模板",
+    "selectResume": "选择简历",
+    "rawOutput": "原始输出",
+    "scoreBreakdown": "分数拆解",
+    "noAnalysis": "该简历暂无分析结果"
   },
   "trends": {
     "title": "热门话题",

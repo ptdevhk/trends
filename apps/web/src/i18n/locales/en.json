@@ -45,7 +45,32 @@
     },
     "errors": {
       "deleteFailed": "Failed to delete JD. Only custom JDs can be deleted."
-    }
+    },
+    "exportMarkdown": "Export Markdown",
+    "preview": "Preview",
+    "sortAsc": "Sort ascending",
+    "sortDesc": "Sort descending"
+  },
+  "bulkActions": {
+    "selected": "Selected",
+    "selectAll": "Select all",
+    "selectHighScore": "Select 80+",
+    "clearSelection": "Clear selection",
+    "shortlist": "Bulk shortlist",
+    "star": "Bulk star",
+    "reject": "Bulk reject",
+    "export": "Export"
+  },
+  "debugAi": {
+    "title": "AI Debug",
+    "subtitle": "Inspect prompt templates and analysis output",
+    "promptSection": "Prompt Templates",
+    "systemPrompt": "System Prompt",
+    "userPrompt": "User Prompt Template",
+    "selectResume": "Select Resume",
+    "rawOutput": "Raw Output",
+    "scoreBreakdown": "Score Breakdown",
+    "noAnalysis": "No analysis available for this resume"
   },
   "trends": {
     "title": "Trending Topics",
