@@ -3,6 +3,7 @@ import { Header } from '@/components/Header'
 import { ResumesPage } from '@/pages/ResumesPage'
 import { DebugPage } from '@/pages/DebugPage'
 import DebugJDs from '@/pages/DebugJDs'
+import DebugAI from '@/pages/DebugAI'
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
             <Route path="/resumes" element={<ResumesPage />} />
             <Route path="/config/jds" element={<DebugJDs />} />
             <Route path="/debug/jds" element={<Navigate to="/config/jds" replace />} />
+            <Route path="/debug/ai" element={<DebugAI />} />
             <Route path="/debug/*" element={<DebugPage />} />
             <Route path="*" element={<Navigate to="/resumes" replace />} />
           </Routes>
