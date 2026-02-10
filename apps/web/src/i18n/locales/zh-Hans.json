@@ -10,7 +10,42 @@
     "resumes": "简历",
     "debug": "调试",
     "search": "搜索",
-    "settings": "设置"
+    "settings": "设置",
+    "jds": "职位"
+  },
+  "jdManagement": {
+    "title": "职位描述管理",
+    "subtitle": "管理系统预设和自定义的职位描述，用于 AI 分析。",
+    "createNew": "新建职位",
+    "searchPlaceholder": "搜索职位...",
+    "deleteConfirmTitle": "确认删除",
+    "deleteConfirm": "您确定要删除此自定义职位描述吗？此操作无法撤销。",
+    "deleteSelected": "删除选中 ({{count}})",
+    "confirmBulkDelete": "您确定要删除选中的 {{count}} 个自定义职位描述吗？此操作无法撤销。",
+    "cancel": "取消",
+    "delete": "删除",
+    "duplicate": "复制",
+    "filterAll": "全部类型",
+    "filterSystem": "系统预设",
+    "filterCustom": "自定义",
+    "table": {
+      "title": "标题",
+      "type": "类型",
+      "lastModified": "最后修改",
+      "status": "状态",
+      "actions": "操作"
+    },
+    "types": {
+      "system": "系统",
+      "custom": "自定义"
+    },
+    "status": {
+      "active": "启用",
+      "disabled": "禁用"
+    },
+    "errors": {
+      "deleteFailed": "删除失败。只能删除自定义职位描述。"
+    }
   },
   "trends": {
     "title": "热门话题",
@@ -40,53 +75,53 @@
     "refresh": "刷新",
     "searchPlaceholder": "搜索姓名或求职意向...",
     "searchButton": "搜索",
-  "summary": "样本 {{sample}} · 显示 {{returned}} / {{total}} 条",
-  "empty": "暂无简历数据",
-  "loading": "加载中...",
-  "error": "加载失败",
-  "mode": {
-    "ai": "AI 模式",
-    "original": "原始模式"
-  },
-  "jobDescription": {
-    "placeholder": "选择职位"
-  },
-  "matching": {
-    "matchAll": "AI 匹配全部",
-    "running": "匹配中...",
-    "stats": "已匹配 {{matched}} / {{processed}} · 平均分 {{avgScore}}",
-    "sortedByScore": "AI 模式：按匹配分排序",
-    "scoreLabel": "{{score}}分",
-    "recommendations": {
-      "strong_match": "强匹配",
-      "match": "匹配",
-      "potential": "潜力",
-      "no_match": "不匹配"
-    }
-  },
-  "filters": {
-    "title": "筛选条件",
-    "apply": "应用",
-    "clear": "清除",
-    "minExperience": "最低年限",
-    "maxExperience": "最高年限",
-    "minMatchScore": "最低匹配分",
-    "skills": "技能关键词",
-    "skillsPlaceholder": "例如：CNC, FANUC",
-    "locations": "地点",
-    "locationsPlaceholder": "例如：东莞, 深圳",
-    "education": {
-      "title": "学历",
-      "high_school": "高中/中专",
-      "associate": "大专",
-      "bachelor": "本科",
-      "master": "硕士",
-      "phd": "博士"
-    }
-  },
-  "columns": {
-    "select": "选择",
-    "name": "姓名",
+    "summary": "样本 {{sample}} · 显示 {{returned}} / {{total}} 条",
+    "empty": "暂无简历数据",
+    "loading": "加载中...",
+    "error": "加载失败",
+    "mode": {
+      "ai": "AI 模式",
+      "original": "原始模式"
+    },
+    "jobDescription": {
+      "placeholder": "选择职位"
+    },
+    "matching": {
+      "matchAll": "AI 匹配全部",
+      "running": "匹配中...",
+      "stats": "已匹配 {{matched}} / {{processed}} · 平均分 {{avgScore}}",
+      "sortedByScore": "AI 模式：按匹配分排序",
+      "scoreLabel": "{{score}}分",
+      "recommendations": {
+        "strong_match": "强匹配",
+        "match": "匹配",
+        "potential": "潜力",
+        "no_match": "不匹配"
+      }
+    },
+    "filters": {
+      "title": "筛选条件",
+      "apply": "应用",
+      "clear": "清除",
+      "minExperience": "最低年限",
+      "maxExperience": "最高年限",
+      "minMatchScore": "最低匹配分",
+      "skills": "技能关键词",
+      "skillsPlaceholder": "例如：CNC, FANUC",
+      "locations": "地点",
+      "locationsPlaceholder": "例如：东莞, 深圳",
+      "education": {
+        "title": "学历",
+        "high_school": "高中/中专",
+        "associate": "大专",
+        "bachelor": "本科",
+        "master": "硕士",
+        "phd": "博士"
+      }
+    },
+    "columns": {
+      "select": "选择",
+      "name": "姓名",
       "age": "年龄",
       "experience": "经验",
       "education": "学历",
@@ -95,13 +130,13 @@
       "intention": "求职意向",
       "activity": "活跃",
       "actions": "操作"
-  },
-  "actions": {
-    "view": "查看",
-    "star": "收藏",
-    "shortlist": "入选",
-    "reject": "淘汰"
-  },
+    },
+    "actions": {
+      "view": "查看",
+      "star": "收藏",
+      "shortlist": "入选",
+      "reject": "淘汰"
+    },
     "detail": {
       "title": "简历详情",
       "workHistory": "工作经历",

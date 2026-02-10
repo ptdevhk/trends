@@ -10,7 +10,42 @@
     "resumes": "Resumes",
     "debug": "Debug",
     "search": "Search",
-    "settings": "Settings"
+    "settings": "Settings",
+    "jds": "JDs"
+  },
+  "jdManagement": {
+    "title": "Job Description Management",
+    "subtitle": "Manage System and Custom Job Descriptions for AI Analysis.",
+    "createNew": "Create New JD",
+    "searchPlaceholder": "Search JDs...",
+    "deleteConfirmTitle": "Confirm Deletion",
+    "deleteConfirm": "Are you sure you want to delete this custom Job Description? This action cannot be undone.",
+    "deleteSelected": "Delete Selected ({{count}})",
+    "confirmBulkDelete": "Are you sure you want to delete {{count}} selected custom Job Descriptions? This action cannot be undone.",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "duplicate": "Duplicate",
+    "filterAll": "All Types",
+    "filterSystem": "System Only",
+    "filterCustom": "Custom Only",
+    "table": {
+      "title": "Title",
+      "type": "Type",
+      "lastModified": "Last Modified",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "types": {
+      "system": "System",
+      "custom": "Custom"
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Disabled"
+    },
+    "errors": {
+      "deleteFailed": "Failed to delete JD. Only custom JDs can be deleted."
+    }
   },
   "trends": {
     "title": "Trending Topics",
@@ -40,50 +75,50 @@
     "refresh": "Refresh",
     "searchPlaceholder": "Search name or job intention...",
     "searchButton": "Search",
-  "summary": "Sample {{sample}} · Showing {{returned}} / {{total}}",
-  "empty": "No resume data available",
-  "loading": "Loading...",
-  "error": "Failed to load",
-  "mode": {
-    "ai": "AI Mode",
-    "original": "Original Mode"
-  },
-  "jobDescription": {
-    "placeholder": "Select job description"
-  },
-  "matching": {
-    "matchAll": "Match All",
-    "running": "Matching...",
-    "stats": "Matched {{matched}} / {{processed}} · Avg {{avgScore}}",
-    "sortedByScore": "AI mode: sorted by match score",
-    "scoreLabel": "{{score}} pts",
-    "recommendations": {
-      "strong_match": "Strong match",
-      "match": "Match",
-      "potential": "Potential",
-      "no_match": "No match"
-    }
-  },
-  "filters": {
-    "title": "Filters",
-    "apply": "Apply",
-    "clear": "Clear",
-    "minExperience": "Min experience",
-    "maxExperience": "Max experience",
-    "minMatchScore": "Min match score",
-    "skills": "Skills",
-    "skillsPlaceholder": "e.g. CNC, FANUC",
-    "locations": "Locations",
-    "locationsPlaceholder": "e.g. Dongguan, Shenzhen",
-    "education": {
-      "title": "Education",
-      "high_school": "High school",
-      "associate": "Associate",
-      "bachelor": "Bachelor",
-      "master": "Master",
-      "phd": "PhD"
-    }
-  },
+    "summary": "Sample {{sample}} · Showing {{returned}} / {{total}}",
+    "empty": "No resume data available",
+    "loading": "Loading...",
+    "error": "Failed to load",
+    "mode": {
+      "ai": "AI Mode",
+      "original": "Original Mode"
+    },
+    "jobDescription": {
+      "placeholder": "Select job description"
+    },
+    "matching": {
+      "matchAll": "Match All",
+      "running": "Matching...",
+      "stats": "Matched {{matched}} / {{processed}} · Avg {{avgScore}}",
+      "sortedByScore": "AI mode: sorted by match score",
+      "scoreLabel": "{{score}} pts",
+      "recommendations": {
+        "strong_match": "Strong match",
+        "match": "Match",
+        "potential": "Potential",
+        "no_match": "No match"
+      }
+    },
+    "filters": {
+      "title": "Filters",
+      "apply": "Apply",
+      "clear": "Clear",
+      "minExperience": "Min experience",
+      "maxExperience": "Max experience",
+      "minMatchScore": "Min match score",
+      "skills": "Skills",
+      "skillsPlaceholder": "e.g. CNC, FANUC",
+      "locations": "Locations",
+      "locationsPlaceholder": "e.g. Dongguan, Shenzhen",
+      "education": {
+        "title": "Education",
+        "high_school": "High school",
+        "associate": "Associate",
+        "bachelor": "Bachelor",
+        "master": "Master",
+        "phd": "PhD"
+      }
+    },
     "columns": {
       "select": "Select",
       "name": "Name",
@@ -96,12 +131,12 @@
       "activity": "Activity",
       "actions": "Actions"
     },
-  "actions": {
-    "view": "View",
-    "star": "Star",
-    "shortlist": "Shortlist",
-    "reject": "Reject"
-  },
+    "actions": {
+      "view": "View",
+      "star": "Star",
+      "shortlist": "Shortlist",
+      "reject": "Reject"
+    },
     "detail": {
       "title": "Resume Details",
       "workHistory": "Work History",

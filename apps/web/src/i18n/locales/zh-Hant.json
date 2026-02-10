@@ -10,7 +10,42 @@
     "resumes": "簡歷",
     "debug": "調試",
     "search": "搜尋",
-    "settings": "設定"
+    "settings": "設定",
+    "jds": "職位"
+  },
+  "jdManagement": {
+    "title": "職位描述管理",
+    "subtitle": "管理系統預設和自定義的職位描述，用於 AI 分析。",
+    "createNew": "新建職位",
+    "searchPlaceholder": "搜尋職位...",
+    "deleteConfirmTitle": "確認刪除",
+    "deleteConfirm": "您確定要刪除此自定義職位描述嗎？此操作無法復原。",
+    "deleteSelected": "刪除選中 ({{count}})",
+    "confirmBulkDelete": "您確定要刪除選中的 {{count}} 個自定義職位描述嗎？此操作無法復原。",
+    "cancel": "取消",
+    "delete": "刪除",
+    "duplicate": "複製",
+    "filterAll": "全部類型",
+    "filterSystem": "系統預設",
+    "filterCustom": "自定義",
+    "table": {
+      "title": "標題",
+      "type": "類型",
+      "lastModified": "最後修改",
+      "status": "狀態",
+      "actions": "操作"
+    },
+    "types": {
+      "system": "系統",
+      "custom": "自定義"
+    },
+    "status": {
+      "active": "啟用",
+      "disabled": "禁用"
+    },
+    "errors": {
+      "deleteFailed": "刪除失敗。只能刪除自定義職位描述。"
+    }
   },
   "trends": {
     "title": "熱門話題",
@@ -40,53 +75,53 @@
     "refresh": "刷新",
     "searchPlaceholder": "搜尋姓名或求職意向...",
     "searchButton": "搜尋",
-  "summary": "樣本 {{sample}} · 顯示 {{returned}} / {{total}} 筆",
-  "empty": "暫無簡歷數據",
-  "loading": "載入中...",
-  "error": "載入失敗",
-  "mode": {
-    "ai": "AI 模式",
-    "original": "原始模式"
-  },
-  "jobDescription": {
-    "placeholder": "選擇職位"
-  },
-  "matching": {
-    "matchAll": "AI 匹配全部",
-    "running": "匹配中...",
-    "stats": "已匹配 {{matched}} / {{processed}} · 平均分 {{avgScore}}",
-    "sortedByScore": "AI 模式：按匹配分排序",
-    "scoreLabel": "{{score}}分",
-    "recommendations": {
-      "strong_match": "強匹配",
-      "match": "匹配",
-      "potential": "潛力",
-      "no_match": "不匹配"
-    }
-  },
-  "filters": {
-    "title": "篩選條件",
-    "apply": "套用",
-    "clear": "清除",
-    "minExperience": "最低年限",
-    "maxExperience": "最高年限",
-    "minMatchScore": "最低匹配分",
-    "skills": "技能關鍵字",
-    "skillsPlaceholder": "例如：CNC, FANUC",
-    "locations": "地點",
-    "locationsPlaceholder": "例如：東莞, 深圳",
-    "education": {
-      "title": "學歷",
-      "high_school": "高中/中專",
-      "associate": "大專",
-      "bachelor": "本科",
-      "master": "碩士",
-      "phd": "博士"
-    }
-  },
-  "columns": {
-    "select": "選擇",
-    "name": "姓名",
+    "summary": "樣本 {{sample}} · 顯示 {{returned}} / {{total}} 筆",
+    "empty": "暫無簡歷數據",
+    "loading": "載入中...",
+    "error": "載入失敗",
+    "mode": {
+      "ai": "AI 模式",
+      "original": "原始模式"
+    },
+    "jobDescription": {
+      "placeholder": "選擇職位"
+    },
+    "matching": {
+      "matchAll": "AI 匹配全部",
+      "running": "匹配中...",
+      "stats": "已匹配 {{matched}} / {{processed}} · 平均分 {{avgScore}}",
+      "sortedByScore": "AI 模式：按匹配分排序",
+      "scoreLabel": "{{score}}分",
+      "recommendations": {
+        "strong_match": "強匹配",
+        "match": "匹配",
+        "potential": "潛力",
+        "no_match": "不匹配"
+      }
+    },
+    "filters": {
+      "title": "篩選條件",
+      "apply": "套用",
+      "clear": "清除",
+      "minExperience": "最低年限",
+      "maxExperience": "最高年限",
+      "minMatchScore": "最低匹配分",
+      "skills": "技能關鍵字",
+      "skillsPlaceholder": "例如：CNC, FANUC",
+      "locations": "地點",
+      "locationsPlaceholder": "例如：東莞, 深圳",
+      "education": {
+        "title": "學歷",
+        "high_school": "高中/中專",
+        "associate": "大專",
+        "bachelor": "本科",
+        "master": "碩士",
+        "phd": "博士"
+      }
+    },
+    "columns": {
+      "select": "選擇",
+      "name": "姓名",
       "age": "年齡",
       "experience": "經驗",
       "education": "學歷",
@@ -95,13 +130,13 @@
       "intention": "求職意向",
       "activity": "活躍",
       "actions": "操作"
-  },
-  "actions": {
-    "view": "查看",
-    "star": "收藏",
-    "shortlist": "入選",
-    "reject": "淘汰"
-  },
+    },
+    "actions": {
+      "view": "查看",
+      "star": "收藏",
+      "shortlist": "入選",
+      "reject": "淘汰"
+    },
     "detail": {
       "title": "簡歷詳情",
       "workHistory": "工作經歷",

@@ -84,3 +84,23 @@ export const delete_jd = mutation({
         await ctx.db.delete(args.id);
     },
 });
+
+export const delete_batch = mutation({
+    args: {
+        ids: v.array(v.id("job_descriptions"))
+    },
+    handler: async (ctx, args) => {
+        // 1. Validate all are custom
+        for (const id of args.ids) {
+            const jd = await ctx.db.get(id);
+            if (jd && jd.type === 'system') {
+                throw new Error(`Cannot delete System JD: ${jd.title}`);
+            }
+        }
+
+        // 2. Delete all
+        await Promise.all(args.ids.map(id => ctx.db.delete(id)));
+
+        return { success: true, count: args.ids.length };
+    }
+});
