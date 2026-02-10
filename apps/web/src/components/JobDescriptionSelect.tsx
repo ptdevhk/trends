@@ -19,41 +19,47 @@ interface JobDescriptionSelectProps {
   disabled?: boolean
 }
 
+import { useQuery } from 'convex/react'
+import { api } from '../../../../packages/convex/convex/_generated/api'
+
 export function JobDescriptionSelect({ value, onChange, disabled }: JobDescriptionSelectProps) {
   const { t } = useTranslation()
-  const [options, setOptions] = useState<JobDescriptionOption[]>([])
+  const [systemOptions, setSystemOptions] = useState<JobDescriptionOption[]>([])
+
+  // Fetch Custom JDs
+  const customJDs = useQuery(api.job_descriptions.list, {}) || [];
 
   useEffect(() => {
     let mounted = true
     const load = async () => {
       const { data } = await rawApiClient.GET<{ success: boolean; items?: JobDescriptionItem[] }>(
         '/api/job-descriptions',
-        {
-          params: {
-            query: {},
-          },
-        }
+        { params: { query: {} } }
       )
       if (!data?.success || !mounted) return
       const items = (data.items ?? []) as JobDescriptionItem[]
       const list = items.map((item) => ({
         value: item.name,
-        label: item.title ? `${item.title}` : item.name,
+        label: `${item.title || item.name} (System)`,
       }))
-      setOptions(list)
+      setSystemOptions(list)
     }
     load()
-    return () => {
-      mounted = false
-    }
+    return () => { mounted = false }
   }, [])
 
   const selectOptions = useMemo(() => {
+    const customOptions = customJDs.map(jd => ({
+      value: jd._id,
+      label: `✨ ${jd.title} (Custom)`
+    }));
+
     return [
       { value: '', label: t('resumes.jobDescription.placeholder') },
-      ...options,
+      ...customOptions,
+      ...systemOptions,
     ]
-  }, [options, t])
+  }, [systemOptions, customJDs, t])
 
   return (
     <Select

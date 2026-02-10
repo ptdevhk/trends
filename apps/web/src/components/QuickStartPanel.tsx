@@ -7,10 +7,13 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, Sparkles, ChevronDown, ChevronUp, Settings2 } from 'lucide-react'
+import { Search, Sparkles, Settings2, FilePlus } from 'lucide-react'
+import { useQuery } from 'convex/react'
+import { api } from '../../../../packages/convex/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { JobDescriptionEditor } from './JobDescriptionEditor'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -57,8 +60,72 @@ export function QuickStartPanel({
     const [keywordsInput, setKeywordsInput] = useState(defaultKeywords.join(' '))
     const [matchResult, setMatchResult] = useState<AutoMatchResult | null>(null)
     const [loading, setLoading] = useState(false)
-    const [showAdvanced, setShowAdvanced] = useState(false)
     const [hasSearched, setHasSearched] = useState(false)
+
+    // Editor State
+    const [showEditor, setShowEditor] = useState(false)
+    const [editorData, setEditorData] = useState<{ id?: string, title: string, content: string, type: 'system' | 'custom' } | undefined>(undefined)
+
+    // Use useQuery for custom JDs (if matchResult is a custom/convex ID)
+    // We assume system JDs are simple strings, Convex IDs are ~32 chars
+    const isCustomJD = matchResult?.matched && matchResult.matched.length > 20 && !matchResult.matched.includes('-');
+    const customJDQuery = useQuery(api.job_descriptions.get, isCustomJD ? { id: matchResult.matched as any } : "skip");
+
+    const handleModify = async () => {
+        if (!matchResult?.matched) {
+            // No match? Open as new custom JD
+            setEditorData({
+                title: 'Custom JD',
+                content: `# Job Requirements
+- Education: [e.g. Bachelor's Degree]
+- Experience: [e.g. 3+ years in Sales]
+- Skills: [e.g. Communication, Negotiation]
+- Location: ${location || '[City]'}
+
+# Key Responsibilities
+- [Responsibility 1]
+- [Responsibility 2]
+
+# Preferred Qualifications
+- [Nice-to-have skill]`,
+                type: 'custom'
+            });
+            setShowEditor(true);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            if (isCustomJD && customJDQuery) {
+                // It's a custom JD and we have data from Convex
+                setEditorData({
+                    id: matchResult.matched,
+                    title: customJDQuery.title,
+                    content: customJDQuery.content,
+                    type: 'custom'
+                });
+                setShowEditor(true);
+            } else {
+                // It's a system JD or we need to fetch via API
+                const response = await fetch(`${API_BASE}/api/job-descriptions/${matchResult.matched}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        setEditorData({
+                            title: data.item?.title || matchResult.title || '',
+                            content: data.content || '',
+                            type: 'system'
+                        });
+                        setShowEditor(true);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load JD content", e);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Auto-match when location or keywords change (debounced)
     useEffect(() => {
@@ -192,77 +259,108 @@ export function QuickStartPanel({
                                 <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                                 {t('quickStart.matching', '正在匹配...')}
                             </div>
-                        ) : matchResult?.matched ? (
+                        ) : (
                             <div className="flex flex-col gap-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-sm font-medium">
-                                        ⚡ {t('quickStart.matchedJD', '已匹配')}:
-                                    </span>
-                                    <span className="text-sm font-semibold text-primary">
-                                        {matchResult.title || matchResult.matched}
-                                    </span>
-                                    <span className={cn('text-xs', confidenceColor)}>
-                                        ({Math.round(matchResult.confidence * 100)}% {t('quickStart.confidence', '匹配度')})
-                                    </span>
-                                </div>
+                                {matchResult?.matched ? (
+                                    <>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-sm font-medium">
+                                                ⚡ {t('quickStart.matchedJD', '已匹配')}:
+                                            </span>
+                                            <span className="text-sm font-semibold text-primary">
+                                                {matchResult.title || matchResult.matched}
+                                            </span>
+                                            <span className={cn('text-xs', confidenceColor)}>
+                                                ({Math.round(matchResult.confidence * 100)}% {t('quickStart.confidence', '匹配度')})
+                                            </span>
+                                        </div>
 
-                                {/* Suggested Filters Preview */}
-                                {matchResult.suggestedFilters && (
-                                    <div className="flex items-center flex-wrap gap-2 text-xs text-muted-foreground">
-                                        {matchResult.suggestedFilters.minExperience !== undefined && (
-                                            <span className="px-2 py-0.5 rounded bg-muted">
-                                                {matchResult.suggestedFilters.minExperience}年+
-                                            </span>
+                                        {matchResult.suggestedFilters && (
+                                            <div className="flex items-center flex-wrap gap-2 text-xs text-muted-foreground">
+                                                {matchResult.suggestedFilters.minExperience !== undefined && (
+                                                    <span className="px-2 py-0.5 rounded bg-muted">
+                                                        {matchResult.suggestedFilters.minExperience}年+
+                                                    </span>
+                                                )}
+                                                {matchResult.suggestedFilters.education?.length && (
+                                                    <span className="px-2 py-0.5 rounded bg-muted">
+                                                        {matchResult.suggestedFilters.education.join('/')}
+                                                    </span>
+                                                )}
+                                                {matchResult.suggestedFilters.salaryRange && (
+                                                    <span className="px-2 py-0.5 rounded bg-muted">
+                                                        {matchResult.suggestedFilters.salaryRange.min?.toLocaleString()}-
+                                                        {matchResult.suggestedFilters.salaryRange.max?.toLocaleString()}
+                                                    </span>
+                                                )}
+                                                {matchResult.filterPreset && (
+                                                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary">
+                                                        {matchResult.filterPreset}
+                                                    </span>
+                                                )}
+                                            </div>
                                         )}
-                                        {matchResult.suggestedFilters.education?.length && (
-                                            <span className="px-2 py-0.5 rounded bg-muted">
-                                                {matchResult.suggestedFilters.education.join('/')}
-                                            </span>
-                                        )}
-                                        {matchResult.suggestedFilters.salaryRange && (
-                                            <span className="px-2 py-0.5 rounded bg-muted">
-                                                {matchResult.suggestedFilters.salaryRange.min?.toLocaleString()}-
-                                                {matchResult.suggestedFilters.salaryRange.max?.toLocaleString()}
-                                            </span>
-                                        )}
-                                        {matchResult.filterPreset && (
-                                            <span className="px-2 py-0.5 rounded bg-primary/10 text-primary">
-                                                {matchResult.filterPreset}
-                                            </span>
-                                        )}
+                                    </>
+                                ) : (
+                                    <div className="text-sm text-muted-foreground">
+                                        {keywordsInput.trim()
+                                            ? t('quickStart.noMatch', '未找到匹配的职位描述，将使用默认配置')
+                                            : t('quickStart.enterKeywords', '请输入关键词开始匹配')
+                                        }
                                     </div>
                                 )}
 
-                                {/* Advanced Toggle */}
-                                <button
-                                    onClick={() => setShowAdvanced(!showAdvanced)}
-                                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
-                                >
-                                    <Settings2 className="h-3 w-3" />
-                                    {t('quickStart.modify', '修改配置')}
-                                    {showAdvanced ? (
-                                        <ChevronUp className="h-3 w-3" />
-                                    ) : (
-                                        <ChevronDown className="h-3 w-3" />
+                                <div className="flex gap-2 mt-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs"
+                                        onClick={handleModify}
+                                    >
+                                        <Settings2 className="h-3 w-3 mr-1" />
+                                        {t('quickStart.modify', '修改配置')}
+                                    </Button>
+
+                                    {matchResult?.matched && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 text-xs"
+                                            onClick={() => {
+                                                setEditorData({
+                                                    title: 'Custom JD',
+                                                    content: `# Job Requirements
+- Education: [e.g. Bachelor's Degree]
+- Experience: [e.g. 3+ years in Sales]
+- Skills: [e.g. Communication, Negotiation]
+- Location: ${location || '[City]'}
+
+# Key Responsibilities
+- [Responsibility 1]
+- [Responsibility 2]
+
+# Preferred Qualifications
+- [Nice-to-have skill]`,
+                                                    type: 'custom'
+                                                });
+                                                setShowEditor(true);
+                                            }}
+                                        >
+                                            <FilePlus className="h-3 w-3 mr-1" />
+                                            {t('quickStart.createCustom', '创建自定义配置')}
+                                        </Button>
                                     )}
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="text-sm text-muted-foreground">
-                                {keywordsInput.trim()
-                                    ? t('quickStart.noMatch', '未找到匹配的职位描述，将使用默认配置')
-                                    : t('quickStart.enterKeywords', '请输入关键词开始匹配')
-                                }
+                                </div>
                             </div>
                         )}
                     </div>
                 )}
 
                 {/* Advanced Panel (collapsed by default) */}
-                {showAdvanced && matchResult && (
+                {matchResult && (
                     <div className="mt-3 p-3 rounded-md border border-dashed border-border text-sm">
                         <p className="text-muted-foreground mb-2">
-                            {t('quickStart.advancedHint', '高级配置将在"使用此配置"后可调整')}
+                            Current Match Details
                         </p>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                             <div>
@@ -281,6 +379,23 @@ export function QuickStartPanel({
                     </div>
                 )}
             </CardContent>
+
+            <JobDescriptionEditor
+                open={showEditor}
+                onOpenChange={setShowEditor}
+                initialData={editorData}
+                onSaveSuccess={(newId) => {
+                    if (matchResult) {
+                        setMatchResult({
+                            ...matchResult,
+                            matched: newId,
+                            title: editorData?.title || matchResult.title,
+                        });
+                    }
+                    // Auto-apply or just confirm? User likely wants to apply.
+                    // For now, let them click "Apply" manually, but maybe highlight it.
+                }}
+            />
         </Card>
     )
 }

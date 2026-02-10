@@ -65,4 +65,14 @@ export default defineSchema({
         }),
         lastRunAt: v.optional(v.number()),
     }),
+
+    // Custom Job Descriptions
+    job_descriptions: defineTable({
+        title: v.string(),
+        content: v.string(), // Markdown requirements
+        type: v.string(), // 'system' | 'custom'
+        userId: v.optional(v.string()), // For future multi-user
+        enabled: v.boolean(),
+        lastModified: v.number(),
+    }),
 });

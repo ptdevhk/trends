@@ -41,6 +41,17 @@ export function Header() {
             >
               {t('nav.debug')}
             </NavLink>
+            <NavLink
+              to="/debug/jds"
+              className={({ isActive }) =>
+                cn(
+                  'transition-colors hover:text-foreground',
+                  isActive ? 'text-foreground' : 'text-muted-foreground'
+                )
+              }
+            >
+              JDs
+            </NavLink>
           </nav>
         </div>
         <div className="flex items-center gap-3">
