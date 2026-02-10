@@ -20,6 +20,8 @@ interface ResumeCardProps {
   showAiScore?: boolean
   actionType?: CandidateActionType
   onAction?: (actionType: CandidateActionType) => void
+  selected?: boolean
+  onSelect?: () => void
 }
 
 export function ResumeCard({
@@ -29,6 +31,8 @@ export function ResumeCard({
   showAiScore,
   actionType,
   onAction,
+  selected,
+  onSelect,
 }: ResumeCardProps) {
   const { t } = useTranslation()
   const workHistory = resume.workHistory?.filter((item) => item.raw) ?? []
@@ -91,7 +95,11 @@ export function ResumeCard({
 
       <div className="flex flex-col gap-4 p-4 lg:flex-row">
         <div className="flex items-start gap-3">
-          <Checkbox aria-label={t('resumes.columns.select')} />
+          <Checkbox
+            aria-label={t('resumes.columns.select')}
+            checked={selected}
+            onCheckedChange={() => onSelect?.()}
+          />
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
             <User className="h-6 w-6 text-muted-foreground" />
           </div>

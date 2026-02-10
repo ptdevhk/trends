@@ -29,6 +29,7 @@ export function ResumeList() {
   const { session, updateSession } = useSession()
   const [mode, setMode] = useState<'ai' | 'original'>('ai')
   const [jobDescriptionId, setJobDescriptionId] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const dispatch = useMutation(api.resume_tasks.dispatch);
 
@@ -123,6 +124,10 @@ export function ResumeList() {
       fetchMatches(session.id, jobDescriptionId)
     }
   }, [fetchMatches, jobDescriptionId, session?.id])
+
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [mode, jobDescriptionId, query])
 
   const sampleOptions = useMemo(
     () =>
@@ -363,6 +368,70 @@ export function ResumeList() {
     return [...enrichedResumes].sort((a, b) => (b.match?.score ?? -1) - (a.match?.score ?? -1))
   }, [enrichedResumes, mode])
 
+  const handleSelectAll = useCallback(() => {
+    setSelectedIds(new Set(displayedResumes.map((entry) => entry.key)))
+  }, [displayedResumes])
+
+  const handleSelectHighScore = useCallback(() => {
+    setSelectedIds(
+      new Set(
+        displayedResumes
+          .filter((entry) => (entry.match?.score ?? 0) >= 80)
+          .map((entry) => entry.key)
+      )
+    )
+  }, [displayedResumes])
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set())
+  }, [])
+
+  const handleToggleSelect = useCallback((resumeId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(resumeId)) {
+        next.delete(resumeId)
+      } else {
+        next.add(resumeId)
+      }
+      return next
+    })
+  }, [])
+
+  const handleBulkAction = useCallback(
+    async (action: 'shortlist' | 'reject' | 'star' | 'export') => {
+      if (selectedIds.size === 0) return
+
+      if (action === 'export') {
+        const selectedEntries = displayedResumes
+          .filter((entry) => selectedIds.has(entry.key))
+          .map(({ key, resume, match, action: currentAction }) => ({
+            key,
+            resume,
+            match,
+            action: currentAction,
+          }))
+        const blob = new Blob([JSON.stringify(selectedEntries, null, 2)], {
+          type: 'application/json',
+        })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `selected-resumes-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+        anchor.click()
+        URL.revokeObjectURL(url)
+        return
+      }
+
+      await Promise.all(
+        Array.from(selectedIds).map((resumeId) =>
+          saveAction({ resumeId, actionType: action })
+        )
+      )
+    },
+    [displayedResumes, saveAction, selectedIds]
+  )
+
   // High score count for bulk actions
   const highScoreCount = useMemo(() => {
     return displayedResumes.filter((e) => (e.match?.score ?? 0) >= 80).length
@@ -495,15 +564,12 @@ export function ResumeList() {
               {mode === 'ai' && displayedResumes.length > 0 && (
                 <BulkActionBar
                   totalCount={displayedResumes.length}
-                  selectedCount={0}
+                  selectedCount={selectedIds.size}
                   highScoreCount={highScoreCount}
-                  onSelectHighScore={() => {
-                    // TODO: Implement selection state
-                    console.log('Select high score candidates')
-                  }}
-                  onBulkAction={(action) => {
-                    console.log('Bulk action:', action)
-                  }}
+                  onSelectAll={handleSelectAll}
+                  onSelectHighScore={handleSelectHighScore}
+                  onClearSelection={handleClearSelection}
+                  onBulkAction={handleBulkAction}
                 />
               )}
               {displayedResumes.map((entry, index) => (
@@ -515,6 +581,8 @@ export function ResumeList() {
                   actionType={entry.action}
                   onAction={(actionType) => saveAction({ resumeId: entry.key, actionType })}
                   onViewDetails={() => setDetailResume(entry.resume)}
+                  selected={selectedIds.has(entry.key)}
+                  onSelect={() => handleToggleSelect(entry.key)}
                 />
               ))}
             </div>
