@@ -11,4 +11,11 @@ elif command -v bun &> /dev/null; then
 else
     npm install
 fi
+
+if [ -d "packages/convex" ]; then
+    echo "Prefetching Convex local backend binary..."
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    "$SCRIPT_DIR/prefetch-convex-backend.sh" || echo "Warning: Convex prefetch failed (non-fatal)"
+fi
+
 echo "Done!"

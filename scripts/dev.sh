@@ -683,7 +683,7 @@ start_convex() {
     $cmd > >(tee "$(service_log_path "convex")" | stream_service_logs "convex" "$CYAN") 2>&1 &
     SERVICE_PIDS["convex"]=$!
 
-    local timeout="${CONVEX_STARTUP_TIMEOUT:-120}"
+    local timeout="${CONVEX_STARTUP_TIMEOUT:-60}"
     if ! wait_for_port "$port" "${SERVICE_PIDS["convex"]}" "$timeout" "CONVEX"; then
         local convex_log
         convex_log="$(service_log_path "convex")"

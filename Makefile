@@ -6,7 +6,7 @@
         test test-python test-node test-resume \
         build-static build-static-fresh serve-static \
         i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
-        refresh-sample refresh-sample-manual
+        refresh-sample refresh-sample-manual prefetch-convex
 
 # Default target
 .DEFAULT_GOAL := help
@@ -175,6 +175,10 @@ i18n-build:
 install-deps:
 	./scripts/install-deps.sh
 
+# Prefetch Convex local backend binary into local cache
+prefetch-convex:
+	./scripts/prefetch-convex-backend.sh
+
 # =============================================================================
 # Documentation
 # =============================================================================
@@ -332,6 +336,7 @@ help:
 	@echo ""
 	@echo "Dependencies:"
 	@echo "  install-deps   Install Python/Node deps for development"
+	@echo "  prefetch-convex Prefetch Convex local backend binary"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  fetch-docs     Fetch latest upstream documentation"
