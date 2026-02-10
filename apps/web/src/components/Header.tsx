@@ -31,7 +31,7 @@ export function Header() {
               {t('nav.resumes')}
             </NavLink>
             <NavLink
-              to="/debug"
+              to="/system"
               className={({ isActive }) =>
                 cn(
                   'transition-colors hover:text-foreground',
@@ -39,29 +39,7 @@ export function Header() {
                 )
               }
             >
-              {t('nav.debug')}
-            </NavLink>
-            <NavLink
-              to="/config/jds"
-              className={({ isActive }) =>
-                cn(
-                  'transition-colors hover:text-foreground',
-                  isActive ? 'text-foreground' : 'text-muted-foreground'
-                )
-              }
-            >
-              {t('nav.jds')}
-            </NavLink>
-            <NavLink
-              to="/debug/ai"
-              className={({ isActive }) =>
-                cn(
-                  'transition-colors hover:text-foreground',
-                  isActive ? 'text-foreground' : 'text-muted-foreground'
-                )
-              }
-            >
-              {t('nav.debugAi')}
+              System
             </NavLink>
           </nav>
         </div>
@@ -79,7 +57,7 @@ export function Header() {
               {t('nav.resumes')}
             </NavLink>
             <NavLink
-              to="/debug"
+              to="/system"
               className={({ isActive }) =>
                 cn(
                   'transition-colors hover:text-foreground',
@@ -87,29 +65,7 @@ export function Header() {
                 )
               }
             >
-              {t('nav.debug')}
-            </NavLink>
-            <NavLink
-              to="/config/jds"
-              className={({ isActive }) =>
-                cn(
-                  'transition-colors hover:text-foreground',
-                  isActive ? 'text-foreground' : 'text-muted-foreground'
-                )
-              }
-            >
-              {t('nav.jds')}
-            </NavLink>
-            <NavLink
-              to="/debug/ai"
-              className={({ isActive }) =>
-                cn(
-                  'transition-colors hover:text-foreground',
-                  isActive ? 'text-foreground' : 'text-muted-foreground'
-                )
-              }
-            >
-              {t('nav.debugAi')}
+              System
             </NavLink>
           </nav>
           <LanguageSwitcher />

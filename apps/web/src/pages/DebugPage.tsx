@@ -108,7 +108,7 @@ function buildCounts(items: ResumeItem[], key: keyof ResumeItem): CountEntry[] {
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 /* CONVEX INTEGRATION END */
 
-export function DebugPage() {
+export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
   const { t } = useTranslation()
   const location = useLocation()
 
@@ -374,14 +374,21 @@ export function DebugPage() {
     return { companies, keywords, brands }
   }, [escapeCell, previewIndustryAll, toMarkdownTable])
 
+
   const activeSection = useMemo(() => {
-    const parts = location.pathname.split('/').filter(Boolean)
-    const index = parts.indexOf('debug')
-    const next = index >= 0 ? parts[index + 1] : undefined
-    const allowed = new Set(['all', 'inputs', 'findings', 'process', 'raw', 'industry', 'jobs', 'config'])
-    if (next && allowed.has(next)) return next
+    // Robust detection: strip trailing slash and check prefix
+    const current = location.pathname.endsWith('/') ? location.pathname.slice(0, -1) : location.pathname
+    const base = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+
+    if (current === base) return 'all'
+
+    if (current.startsWith(base + '/')) {
+      const next = current.slice(base.length + 1).split('/')[0]
+      const allowed = new Set(['all', 'inputs', 'findings', 'process', 'raw', 'industry', 'jobs', 'config', 'ai'])
+      if (next && allowed.has(next)) return next
+    }
     return 'all'
-  }, [location.pathname])
+  }, [location.pathname, basePath])
 
   const showAll = activeSection === 'all'
   const showInputs = showAll || activeSection === 'inputs'
@@ -393,17 +400,17 @@ export function DebugPage() {
 
   const navLinks = useMemo(
     () => [
-      { key: 'all', label: t('debug.navAll'), href: '/debug' },
-      { key: 'inputs', label: t('debug.navInputs'), href: '/debug/inputs' },
-      { key: 'findings', label: t('debug.navFindings'), href: '/debug/findings' },
-      { key: 'process', label: t('debug.navProcess'), href: '/debug/process' },
-      { key: 'raw', label: t('debug.navRaw'), href: '/debug/raw' },
-      { key: 'industry', label: t('debug.navIndustry'), href: '/debug/industry' },
-      { key: 'jobs', label: t('debug.navJobs'), href: '/debug/jobs' },
-      { key: 'config', label: t('debug.navConfig'), href: '/debug/config' },
-      { key: 'ai', label: t('debug.navAi'), href: '/debug/ai' },
+      { key: 'all', label: t('debug.navAll'), href: basePath },
+      { key: 'inputs', label: t('debug.navInputs'), href: `${basePath}/inputs` },
+      { key: 'findings', label: t('debug.navFindings'), href: `${basePath}/findings` },
+      { key: 'process', label: t('debug.navProcess'), href: `${basePath}/process` },
+      { key: 'raw', label: t('debug.navRaw'), href: `${basePath}/raw` },
+      { key: 'industry', label: t('debug.navIndustry'), href: `${basePath}/industry` },
+      { key: 'jobs', label: t('debug.navJobs'), href: `${basePath}/jobs` },
+      { key: 'config', label: t('debug.navConfig'), href: `${basePath}/config` },
+      { key: 'ai', label: t('debug.navAi'), href: `${basePath}/ai` },
     ],
-    [t]
+    [t, basePath]
   )
 
   const locationCounts = useMemo(() => buildCounts(resumes, 'location').slice(0, 5), [resumes])
