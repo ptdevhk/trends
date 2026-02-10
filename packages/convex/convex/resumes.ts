@@ -1,4 +1,4 @@
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const list = query({
@@ -45,7 +45,7 @@ export const updateAnalysis = internalMutation({
     },
 });
 
-export const updateAnalysisBatch = mutation({
+export const updateAnalysisBatch = internalMutation({
     args: {
         updates: v.array(v.object({
             resumeId: v.id("resumes"),

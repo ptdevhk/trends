@@ -18,9 +18,10 @@ import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { FilterPanel } from '@/components/FilterPanel'
 import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
+import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import type { MatchingResult, Recommendation } from '@/types/resume'
 
-import { useMutation, useAction } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 import { rawApiClient } from '@/lib/api-helpers'
@@ -93,8 +94,9 @@ export function ResumeList() {
 
   // Convex Integration
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes()
-  const analyzeBatch = useAction(api.analyze.analyzeBatch)
+  const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)
+  const [analysisTaskNotice, setAnalysisTaskNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const activeLoading = mode === 'ai' ? convexLoading : loading
 
@@ -210,14 +212,12 @@ export function ResumeList() {
     })
   }, [jobDescriptionId, matchAll, selectedSample, session?.id])
 
-  const updateAnalysisBatch = useMutation(api.resumes.updateAnalysisBatch)
-
   const handleAnalyzeAll = async () => {
     if (!convexResumes.length) return
     setAnalyzing(true)
     try {
-      let jdArg: { title: string; requirements: string } | undefined
-      let jdKeywords: string[] = []
+      let jdContent = ''
+      let jdTitle = ''
 
       if (jobDescriptionId) {
         try {
@@ -225,85 +225,37 @@ export function ResumeList() {
             `/api/job-descriptions/${jobDescriptionId}`
           )
           if (data?.success && data.content) {
-            jdArg = {
-              title: data.item?.title || jobDescriptionId,
-              requirements: data.content
-            }
-            // Simple keyword extraction (2+ chars)
-            jdKeywords = (data.content + ' ' + (data.item?.title || '')).toLowerCase().match(/[\u4e00-\u9fa5a-z0-9]{2,}/g) || []
+            jdTitle = data.item?.title || jobDescriptionId
+            jdContent = data.content
           }
         } catch (err) {
           console.error('Failed to fetch JD', err)
         }
       }
 
-      const resumesToAnalyze: ConvexResumeItem['resumeId'][] = []
-      const resumesToSkip: ConvexResumeItem['resumeId'][] = []
-
-      // Hybrid Filter Threshold
-      const THRESHOLD = 10 // Very low bar, just to filter complete garbage
-
-      convexResumes.forEach((resume) => {
-        // Skip if already analyzed for this JD (though UI should prevent this, good to be safe)
-        // Actually, "Analyze All" usually implies re-analyzing or analyzing missing.
-        // Let's assume we analyze everyone in the list (or maybe just those without analysis?)
-        // The current logic was mapping ALL resumes.
-
-        if (!jdKeywords.length) {
-          resumesToAnalyze.push(resume.resumeId)
-          return
-        }
-
-        // Calculate relevance
-        const content = JSON.stringify(resume).toLowerCase()
-        let matches = 0
-        jdKeywords.forEach((keyword) => {
-          if (content.includes(keyword)) matches++
-        })
-
-        // Normalize score roughly
-        const score = Math.min(100, Math.round((matches / Math.max(jdKeywords.length, 1)) * 100))
-
-        if (score < THRESHOLD) {
-          resumesToSkip.push(resume.resumeId)
-        } else {
-          resumesToAnalyze.push(resume.resumeId)
-        }
+      await dispatchAnalysis({
+        jobDescriptionId: jobDescriptionId || 'default',
+        jobDescriptionTitle: jdTitle || undefined,
+        jobDescriptionContent: jdContent || undefined,
+        sample: selectedSample || undefined,
+        resumeIds: convexResumes.map((resume) => resume.resumeId),
       })
-
-      // 1. Process Skips (Cheap Mutation)
-      if (resumesToSkip.length > 0) {
-        await updateAnalysisBatch({
-          updates: resumesToSkip.map((id) => ({
-            resumeId: id,
-            analysis: {
-              score: 10,
-              recommendation: 'no_match',
-              summary: 'Auto-filtered: Low keyword match with JD.',
-              highlights: [],
-              breakdown: { keyword_match: 10 },
-              jobDescriptionId: jobDescriptionId || 'default'
-            }
-          }))
-        })
-      }
-
-      // 2. Process Analysis (Expensive Action)
-      if (resumesToAnalyze.length > 0) {
-        await analyzeBatch({
-          resumeIds: resumesToAnalyze,
-          jobDescription: jdArg,
-          jobDescriptionId: jobDescriptionId || 'default'
-        })
-      }
-
+      setAnalysisTaskNotice({ type: 'success', message: t('aiTasks.dispatched') })
     } catch (e) {
-      console.error('Analysis failed', e)
-      alert(`Failed to start analysis: ${String(e)}`)
+      console.error('Failed to dispatch analysis task', e)
+      setAnalysisTaskNotice({ type: 'error', message: t('aiTasks.dispatchFailed') })
     } finally {
       setAnalyzing(false)
     }
   }
+
+  useEffect(() => {
+    if (!analysisTaskNotice) return
+    const timer = window.setTimeout(() => {
+      setAnalysisTaskNotice(null)
+    }, 3000)
+    return () => window.clearTimeout(timer)
+  }, [analysisTaskNotice])
 
   const handleFiltersChange = useCallback(
     (nextFilters: typeof filters) => {
@@ -544,6 +496,21 @@ export function ResumeList() {
           <div className="text-xs text-destructive">{matchError}</div>
         ) : null}
       </div>
+
+      {analysisTaskNotice ? (
+        <div
+          className={cn(
+            'rounded-md border px-3 py-2 text-sm',
+            analysisTaskNotice.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300'
+              : 'border-destructive/30 bg-destructive/10 text-destructive'
+          )}
+        >
+          {analysisTaskNotice.message}
+        </div>
+      ) : null}
+
+      <AnalysisTaskMonitor />
 
       <Card>
         <CardHeader>

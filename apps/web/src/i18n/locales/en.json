@@ -184,6 +184,25 @@
       "close": "Close"
     }
   },
+  "aiTasks": {
+    "dispatched": "Analysis task dispatched",
+    "dispatchFailed": "Failed to start analysis",
+    "monitor": {
+      "activeTitle": "Active Analysis",
+      "historyTitle": "Analysis History",
+      "allCompleted": "All analysis tasks completed",
+      "showHistory": "Show History",
+      "hideHistory": "Hide History",
+      "cancel": "Cancel",
+      "cancelling": "Cancelling...",
+      "progress": "Progress",
+      "skipped": "Skipped",
+      "analyzed": "Analyzed",
+      "avgScore": "Avg Score",
+      "highScore": "High Score (80+)",
+      "failed": "Failed"
+    }
+  },
   "quickStart": {
     "matchDetails": "Current Match Details",
     "labelJd": "JD",
