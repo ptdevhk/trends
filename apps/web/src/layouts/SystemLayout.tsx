@@ -2,6 +2,7 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import {
+  Home,
   LayoutDashboard,
   Settings,
   FileText,
@@ -27,6 +28,12 @@ export default function SystemLayout() {
   const [open, setOpen] = useState(false)
 
   const navItems: NavItem[] = [
+    {
+      title: t('nav.home', { defaultValue: 'Home' }),
+      href: '/resumes',
+      icon: Home,
+      matches: ['/resumes']
+    },
     {
       title: t('debug.navConfig', { defaultValue: 'System Settings' }),
       href: '/system/settings',
@@ -56,9 +63,12 @@ export default function SystemLayout() {
   const NavContent = () => (
     <div className="flex flex-col h-full py-4 bg-background border-r">
       <div className="px-6 mb-6 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 font-bold text-lg">
+        <Link to="/" className="flex items-center gap-2">
           <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded">ADMIN</span>
-          <span>Target Trends</span>
+          <div className="flex items-baseline gap-1">
+            <span className="font-bold text-lg">{t('app.title')}</span>
+            <span className="text-sm text-muted-foreground">{t('app.subtitle')}</span>
+          </div>
         </Link>
         <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setOpen(false)}>
           <X className="h-5 w-5" />
@@ -99,7 +109,7 @@ export default function SystemLayout() {
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Sidebar Desktop */}
-      <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50">
+      <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 left-0 z-50">
         <NavContent />
       </aside>
 
