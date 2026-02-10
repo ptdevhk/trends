@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { Search, Sparkles, Settings2, FilePlus } from 'lucide-react'
 import { useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
+import type { Id } from '../../../../packages/convex/convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -22,6 +23,13 @@ const COMMON_LOCATIONS = [
     '东莞', '深圳', '广州', '佛山', '惠州',
     '苏州', '无锡', '常州', '昆山', '上海'
 ]
+
+function toJobDescriptionId(value: string): Id<'job_descriptions'> | null {
+    if (value.length <= 20 || value.includes('-')) {
+        return null
+    }
+    return value as Id<'job_descriptions'>
+}
 
 interface AutoMatchResult {
     matched?: string
@@ -64,12 +72,12 @@ export function QuickStartPanel({
 
     // Editor State
     const [showEditor, setShowEditor] = useState(false)
-    const [editorData, setEditorData] = useState<{ id?: string, title: string, content: string, type: 'system' | 'custom' } | undefined>(undefined)
+    const [editorData, setEditorData] = useState<{ id?: Id<'job_descriptions'>, title: string, content: string, type: 'system' | 'custom' } | undefined>(undefined)
 
     // Use useQuery for custom JDs (if matchResult is a custom/convex ID)
     // We assume system JDs are simple strings, Convex IDs are ~32 chars
-    const isCustomJD = matchResult?.matched && matchResult.matched.length > 20 && !matchResult.matched.includes('-');
-    const customJDQuery = useQuery(api.job_descriptions.get, isCustomJD ? { id: matchResult.matched as any } : "skip");
+    const matchedCustomId = matchResult?.matched ? toJobDescriptionId(matchResult.matched) : null
+    const customJDQuery = useQuery(api.job_descriptions.get, matchedCustomId ? { id: matchedCustomId } : 'skip')
 
     const handleModify = async () => {
         if (!matchResult?.matched) {
@@ -96,10 +104,10 @@ export function QuickStartPanel({
 
         setLoading(true);
         try {
-            if (isCustomJD && customJDQuery) {
+            if (matchedCustomId && customJDQuery) {
                 // It's a custom JD and we have data from Convex
                 setEditorData({
-                    id: matchResult.matched,
+                    id: matchedCustomId,
                     title: customJDQuery.title,
                     content: customJDQuery.content,
                     type: 'custom'

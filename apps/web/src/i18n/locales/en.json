@@ -65,12 +65,25 @@
     "title": "AI Debug",
     "subtitle": "Inspect prompt templates and analysis output",
     "promptSection": "Prompt Templates",
+    "promptSectionDescription": "Display-only templates copied from packages/convex/convex/analyze.ts.",
     "systemPrompt": "System Prompt",
     "userPrompt": "User Prompt Template",
     "selectResume": "Select Resume",
+    "selectResumePlaceholder": "Select a resume",
     "rawOutput": "Raw Output",
+    "resumeOutputSection": "Resume Selector + Raw Output",
+    "resumeOutputSectionDescription": "Select one resume and inspect analysis and analyses fields.",
     "scoreBreakdown": "Score Breakdown",
-    "noAnalysis": "No analysis available for this resume"
+    "scoreBreakdownDescription": "Breakdown from analysis.breakdown (fallback to first valid analyses entry).",
+    "noAnalysis": "No analysis available for this resume",
+    "unknownCandidate": "Unknown Candidate",
+    "breakdownLabels": {
+      "experience": "Experience",
+      "skills": "Skills",
+      "industryDb": "Industry DB",
+      "education": "Education",
+      "location": "Location"
+    }
   },
   "trends": {
     "title": "Trending Topics",
@@ -180,6 +193,7 @@
     "navRaw": "Raw",
     "navIndustry": "Industry Data",
     "navJobs": "Job Descriptions",
+    "navAi": "AI Debug",
     "searchPlaceholder": "Search name or intention...",
     "searchButton": "Search",
     "limitPlaceholder": "Limit",

@@ -1,7 +1,7 @@
-
 import { useState, useEffect } from "react"
 import { useMutation } from "convex/react"
 import { api } from "../../../../packages/convex/convex/_generated/api"
+import type { Id } from "../../../../packages/convex/convex/_generated/dataModel"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +12,7 @@ interface JobDescriptionEditorProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     initialData?: {
-        id?: string // If editing existing custom JD
+        id?: Id<'job_descriptions'> // If editing existing custom JD
         title: string
         content: string
         type: "system" | "custom"
@@ -46,7 +46,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             if (initialData?.type === 'custom' && initialData.id) {
                 // Update existing
                 await updateJD({
-                    id: initialData.id as any,
+                    id: initialData.id,
                     title,
                     content
                 });

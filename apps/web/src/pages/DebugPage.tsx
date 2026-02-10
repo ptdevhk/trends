@@ -400,6 +400,7 @@ export function DebugPage() {
       { key: 'raw', label: t('debug.navRaw'), href: '/debug/raw' },
       { key: 'industry', label: t('debug.navIndustry'), href: '/debug/industry' },
       { key: 'jobs', label: t('debug.navJobs'), href: '/debug/jobs' },
+      { key: 'ai', label: t('debug.navAi'), href: '/debug/ai' },
     ],
     [t]
   )

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
+import type { ConvexResumeAnalysis, ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { ResumeCard } from '@/components/ResumeCard'
 import { ResumeDetail } from '@/components/ResumeDetail'
 import { SearchBar } from '@/components/SearchBar'
@@ -17,12 +18,51 @@ import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { FilterPanel } from '@/components/FilterPanel'
 import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
+import type { MatchingResult, Recommendation } from '@/types/resume'
 
 import { TaskMonitor } from './TaskMonitor'
 import { useMutation, useAction } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 import { rawApiClient } from '@/lib/api-helpers'
+
+type JobDescriptionApiResponse = {
+  success: boolean
+  item?: {
+    title?: string
+  }
+  content?: string
+}
+
+const VALID_RECOMMENDATIONS: Recommendation[] = ['strong_match', 'match', 'potential', 'no_match']
+
+function isRecommendation(value: string): value is Recommendation {
+  return VALID_RECOMMENDATIONS.some((item) => item === value)
+}
+
+function toRecommendation(value: string): Recommendation {
+  return isRecommendation(value) ? value : 'potential'
+}
+
+function getAnalysisForJob(resume: ConvexResumeItem, selectedJobId: string): ConvexResumeAnalysis | undefined {
+  if (selectedJobId && resume.analyses?.[selectedJobId]) {
+    return resume.analyses[selectedJobId]
+  }
+  return resume.analysis
+}
+
+function buildResumeKey(resume: ResumeItem, index: number): string {
+  if (resume.resumeId) {
+    return resume.resumeId
+  }
+  if (resume.perUserId) {
+    return resume.perUserId
+  }
+  if (resume.profileUrl && resume.profileUrl !== 'javascript:;') {
+    return resume.profileUrl
+  }
+  return `${resume.name}-${resume.extractedAt || index}`
+}
 
 export function ResumeList() {
   const { t } = useTranslation()
@@ -58,14 +98,10 @@ export function ResumeList() {
   const analyzeBatch = useAction(api.analyze.analyzeBatch)
   const [analyzing, setAnalyzing] = useState(false)
 
-  // Use Convex resumes in AI mode to see real-time updates
-  const activeResumes = mode === 'ai' ? convexResumes : resumes
   const activeLoading = mode === 'ai' ? convexLoading : loading
 
-  const filteredActiveResumes = useMemo(() => {
-    if (mode !== 'ai') return activeResumes
-
-    let result = convexResumes || []
+  const filteredConvexResumes = useMemo(() => {
+    let result = convexResumes
 
     // 1. Keyword filter (query)
     if (query) {
@@ -79,25 +115,21 @@ export function ResumeList() {
     }
 
     // 2. Filter panel (filters)
-    if (filters) {
-      if (filters.locations?.length) {
-        result = result.filter(r => filters.locations!.some(l => r.location?.includes(l)))
-      }
-      if (filters.minMatchScore) {
-        result = result.filter(r => {
-          let analysis = (r as any).analysis;
-          const analysesMap = (r as any).analyses;
-          if (jobDescriptionId && analysesMap && analysesMap[jobDescriptionId]) {
-            analysis = analysesMap[jobDescriptionId];
-          }
-          return ((analysis?.score || 0) >= filters.minMatchScore!)
-        })
-      }
-      // Add other filters as data structure permits
+    if (filters.locations?.length) {
+      const locations = filters.locations
+      result = result.filter((resume) => locations.some((location) => resume.location?.includes(location)))
     }
+    const minMatchScore = filters.minMatchScore
+    if (typeof minMatchScore === 'number') {
+      result = result.filter((resume) => {
+        const analysis = getAnalysisForJob(resume, jobDescriptionId)
+        return (analysis?.score ?? 0) >= minMatchScore
+      })
+    }
+    // Add other filters as data structure permits
 
     return result
-  }, [mode, activeResumes, convexResumes, query, filters])
+  }, [convexResumes, filters, jobDescriptionId, query])
 
   useEffect(() => {
     if (session?.jobDescriptionId && !jobDescriptionId) {
@@ -180,82 +212,82 @@ export function ResumeList() {
     })
   }, [jobDescriptionId, matchAll, selectedSample, session?.id])
 
-  const updateAnalysisBatch = useMutation(api.resumes.updateAnalysisBatch);
+  const updateAnalysisBatch = useMutation(api.resumes.updateAnalysisBatch)
 
   const handleAnalyzeAll = async () => {
-    if (!convexResumes.length) return;
-    setAnalyzing(true);
+    if (!convexResumes.length) return
+    setAnalyzing(true)
     try {
-      let jdArg = undefined;
-      let jdKeywords: string[] = [];
+      let jdArg: { title: string; requirements: string } | undefined
+      let jdKeywords: string[] = []
 
       if (jobDescriptionId) {
         try {
-          const { data } = await rawApiClient.GET<{ success: boolean; item?: any; content?: string }>(
+          const { data } = await rawApiClient.GET<JobDescriptionApiResponse>(
             `/api/job-descriptions/${jobDescriptionId}`
-          );
+          )
           if (data?.success && data.content) {
             jdArg = {
               title: data.item?.title || jobDescriptionId,
               requirements: data.content
-            };
+            }
             // Simple keyword extraction (2+ chars)
-            jdKeywords = (data.content + " " + (data.item?.title || "")).toLowerCase().match(/[\u4e00-\u9fa5a-z0-9]{2,}/g) || [];
+            jdKeywords = (data.content + ' ' + (data.item?.title || '')).toLowerCase().match(/[\u4e00-\u9fa5a-z0-9]{2,}/g) || []
           }
         } catch (err) {
-          console.error("Failed to fetch JD", err);
+          console.error('Failed to fetch JD', err)
         }
       }
 
-      const resumesToAnalyze: any[] = [];
-      const resumesToSkip: any[] = [];
+      const resumesToAnalyze: ConvexResumeItem['resumeId'][] = []
+      const resumesToSkip: ConvexResumeItem['resumeId'][] = []
 
       // Hybrid Filter Threshold
-      const THRESHOLD = 10; // Very low bar, just to filter complete garbage
+      const THRESHOLD = 10 // Very low bar, just to filter complete garbage
 
-      convexResumes.forEach(r => {
+      convexResumes.forEach((resume) => {
         // Skip if already analyzed for this JD (though UI should prevent this, good to be safe)
         // Actually, "Analyze All" usually implies re-analyzing or analyzing missing.
         // Let's assume we analyze everyone in the list (or maybe just those without analysis?)
         // The current logic was mapping ALL resumes.
 
         if (!jdKeywords.length) {
-          resumesToAnalyze.push(r.resumeId);
-          return;
+          resumesToAnalyze.push(resume.resumeId)
+          return
         }
 
         // Calculate relevance
-        const content = JSON.stringify(r).toLowerCase();
-        let matches = 0;
-        jdKeywords.forEach(k => {
-          if (content.includes(k)) matches++;
-        });
+        const content = JSON.stringify(resume).toLowerCase()
+        let matches = 0
+        jdKeywords.forEach((keyword) => {
+          if (content.includes(keyword)) matches++
+        })
 
         // Normalize score roughly
-        const score = Math.min(100, Math.round((matches / Math.max(jdKeywords.length, 1)) * 100));
+        const score = Math.min(100, Math.round((matches / Math.max(jdKeywords.length, 1)) * 100))
 
         if (score < THRESHOLD) {
-          resumesToSkip.push(r.resumeId);
+          resumesToSkip.push(resume.resumeId)
         } else {
-          resumesToAnalyze.push(r.resumeId);
+          resumesToAnalyze.push(resume.resumeId)
         }
-      });
+      })
 
       // 1. Process Skips (Cheap Mutation)
       if (resumesToSkip.length > 0) {
         await updateAnalysisBatch({
-          updates: resumesToSkip.map(id => ({
+          updates: resumesToSkip.map((id) => ({
             resumeId: id,
             analysis: {
               score: 10,
-              recommendation: "no_match",
-              summary: "Auto-filtered: Low keyword match with JD.",
+              recommendation: 'no_match',
+              summary: 'Auto-filtered: Low keyword match with JD.',
               highlights: [],
               breakdown: { keyword_match: 10 },
-              jobDescriptionId: jobDescriptionId || "default"
+              jobDescriptionId: jobDescriptionId || 'default'
             }
           }))
-        });
+        })
       }
 
       // 2. Process Analysis (Expensive Action)
@@ -263,17 +295,17 @@ export function ResumeList() {
         await analyzeBatch({
           resumeIds: resumesToAnalyze,
           jobDescription: jdArg,
-          jobDescriptionId: jobDescriptionId || "default"
-        });
+          jobDescriptionId: jobDescriptionId || 'default'
+        })
       }
 
     } catch (e) {
-      console.error("Analysis failed", e);
-      alert("Failed to start analysis: " + e);
+      console.error('Analysis failed', e)
+      alert(`Failed to start analysis: ${String(e)}`)
     } finally {
-      setAnalyzing(false);
+      setAnalyzing(false)
     }
-  };
+  }
 
   const handleFiltersChange = useCallback(
     (nextFilters: typeof filters) => {
@@ -286,32 +318,27 @@ export function ResumeList() {
   const aiStats = useMemo(() => {
     // If using Convex data, stats are computed from analysis fields
     if (mode === 'ai') {
-      // Must match current JD
-      // Check map first
-      const validResumes = convexResumes.filter((r: any) => {
-        let analysis = r.analysis;
-        if (jobDescriptionId && r.analyses && r.analyses[jobDescriptionId]) {
-          analysis = r.analyses[jobDescriptionId];
-        }
-        return analysis && (!jobDescriptionId || analysis.jobDescriptionId === jobDescriptionId);
-      });
+      const validResumes = convexResumes.filter((resume) => {
+        const analysis = getAnalysisForJob(resume, jobDescriptionId)
+        return Boolean(analysis && (!jobDescriptionId || analysis.jobDescriptionId === jobDescriptionId))
+      })
 
       const processed = validResumes.length
-      const matched = validResumes.filter((r: any) => {
-        let analysis = r.analysis;
-        if (jobDescriptionId && r.analyses && r.analyses[jobDescriptionId]) {
-          analysis = r.analyses[jobDescriptionId];
-        }
-        return (analysis?.score || 0) >= 60;
+      const matched = validResumes.filter((resume) => {
+        const analysis = getAnalysisForJob(resume, jobDescriptionId)
+        return (analysis?.score ?? 0) >= 60
       }).length
 
-      const avgScore = processed ? Number((validResumes.reduce((sum: number, r: any) => {
-        let analysis = r.analysis;
-        if (jobDescriptionId && r.analyses && r.analyses[jobDescriptionId]) {
-          analysis = r.analyses[jobDescriptionId];
-        }
-        return sum + (analysis?.score || 0);
-      }, 0) / processed).toFixed(2)) : 0
+      const avgScore = processed
+        ? Number(
+          (
+            validResumes.reduce((sum, resume) => {
+              const analysis = getAnalysisForJob(resume, jobDescriptionId)
+              return sum + (analysis?.score ?? 0)
+            }, 0) / processed
+          ).toFixed(2)
+        )
+        : 0
 
       return { processed, matched, avgScore }
     }
@@ -328,40 +355,45 @@ export function ResumeList() {
   }, [matchResults])
 
   const enrichedResumes = useMemo(() => {
-    return filteredActiveResumes.map((resume, index) => {
-      const resumeKey = resume.resumeId || resume.perUserId || (resume.profileUrl && resume.profileUrl !== 'javascript:;' ? resume.profileUrl : `${resume.name}-${resume.extractedAt || index}`)
+    if (mode === 'ai') {
+      return filteredConvexResumes.map((resume, index) => {
+        const resumeKey = buildResumeKey(resume, index)
+        const analysis = getAnalysisForJob(resume, jobDescriptionId)
+        const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
 
-      // Determine which analysis to use
-      let effectiveAnalysis = (resume as any).analysis;
-      const analysesMap = (resume as any).analyses;
+        const match: MatchingResult | undefined = analysis && isAnalysisValid
+          ? {
+            resumeId: resumeKey,
+            score: analysis.score,
+            summary: analysis.summary,
+            highlights: analysis.highlights,
+            recommendation: toRecommendation(analysis.recommendation),
+            concerns: analysis.concerns ?? [],
+            breakdown: analysis.breakdown,
+            matchedAt: new Date().toISOString(),
+            jobDescriptionId: analysis.jobDescriptionId,
+          }
+          : undefined
 
-      // If we have a specific JD selected, try to find it in the map
-      if (jobDescriptionId && analysesMap && analysesMap[jobDescriptionId]) {
-        effectiveAnalysis = analysesMap[jobDescriptionId];
-      }
+        return {
+          resume,
+          key: resumeKey,
+          match,
+          action: actions[resumeKey],
+        }
+      })
+    }
 
-      // Only show analysis if it matches current JD context
-      const isAnalysisValid = !jobDescriptionId || (effectiveAnalysis?.jobDescriptionId === jobDescriptionId);
-
-      const match = mode === 'ai' ? (effectiveAnalysis && isAnalysisValid ? {
-        resumeId: resumeKey,
-        score: effectiveAnalysis.score,
-        summary: effectiveAnalysis.summary,
-        highlights: effectiveAnalysis.highlights,
-        recommendation: effectiveAnalysis.recommendation,
-        concerns: effectiveAnalysis.concerns || [],
-        breakdown: effectiveAnalysis.breakdown, // Pass breakdown
-        matchedAt: new Date().toISOString()
-      } : undefined) : matchMap.get(resumeKey)
-
+    return resumes.map((resume, index) => {
+      const resumeKey = buildResumeKey(resume, index)
       return {
         resume,
         key: resumeKey,
-        match: match,
+        match: matchMap.get(resumeKey),
         action: actions[resumeKey],
       }
     })
-  }, [actions, matchMap, filteredActiveResumes, mode, jobDescriptionId])
+  }, [actions, filteredConvexResumes, jobDescriptionId, matchMap, mode, resumes])
 
   const displayedResumes = useMemo(() => {
     if (mode !== 'ai') return enrichedResumes

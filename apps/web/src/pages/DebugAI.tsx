@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from 'convex/react'
+import { useTranslation } from 'react-i18next'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -55,12 +56,12 @@ type BreakdownKey = 'experience' | 'skills' | 'industry_db' | 'education' | 'loc
 type ScoreBreakdown = Record<BreakdownKey, number>
 const BREAKDOWN_KEYS: BreakdownKey[] = ['experience', 'skills', 'industry_db', 'education', 'location']
 
-const BREAKDOWN_LABELS: Record<BreakdownKey, string> = {
-  experience: 'Experience',
-  skills: 'Skills',
-  industry_db: 'Industry DB',
-  education: 'Education',
-  location: 'Location',
+const BREAKDOWN_LABEL_KEYS: Record<BreakdownKey, string> = {
+  experience: 'debugAi.breakdownLabels.experience',
+  skills: 'debugAi.breakdownLabels.skills',
+  industry_db: 'debugAi.breakdownLabels.industryDb',
+  education: 'debugAi.breakdownLabels.education',
+  location: 'debugAi.breakdownLabels.location',
 }
 
 const EMPTY_BREAKDOWN: ScoreBreakdown = {
@@ -155,8 +156,8 @@ function readTextField(source: unknown, key: string): string | null {
   return null
 }
 
-function buildResumeLabel(resume: ResumeDoc): string {
-  const name = readTextField(resume.content, 'name') ?? 'Unknown Candidate'
+function buildResumeLabel(resume: ResumeDoc, unknownCandidateLabel: string): string {
+  const name = readTextField(resume.content, 'name') ?? unknownCandidateLabel
   const intention = readTextField(resume.content, 'jobIntention') ?? readTextField(resume.content, 'desiredPosition')
 
   if (!intention) {
@@ -167,6 +168,7 @@ function buildResumeLabel(resume: ResumeDoc): string {
 }
 
 export default function DebugAI() {
+  const { t } = useTranslation()
   const resumeDocs = useQuery(api.resumes.list, { limit: 50 })
   const resumes = useMemo(() => resumeDocs ?? [], [resumeDocs])
 
@@ -185,13 +187,13 @@ export default function DebugAI() {
 
   const resumeOptions = useMemo(
     () => [
-      { value: '', label: 'Select a resume' },
+      { value: '', label: t('debugAi.selectResumePlaceholder') },
       ...resumes.map((resume) => ({
         value: String(resume._id),
-        label: buildResumeLabel(resume),
+        label: buildResumeLabel(resume, t('debugAi.unknownCandidate')),
       })),
     ],
-    [resumes],
+    [resumes, t],
   )
 
   const analysisJson = useMemo(() => {
@@ -214,22 +216,22 @@ export default function DebugAI() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold">Debug AI</h1>
-        <p className="text-sm text-muted-foreground">Inspect prompt templates and resume analysis output from Convex.</p>
+        <h1 className="text-2xl font-bold">{t('debugAi.title')}</h1>
+        <p className="text-sm text-muted-foreground">{t('debugAi.subtitle')}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Prompt Templates</CardTitle>
-          <CardDescription>Display-only templates copied from `packages/convex/convex/analyze.ts`.</CardDescription>
+          <CardTitle>{t('debugAi.promptSection')}</CardTitle>
+          <CardDescription>{t('debugAi.promptSectionDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <h2 className="text-sm font-semibold">SYSTEM_PROMPT</h2>
+            <h2 className="text-sm font-semibold">{t('debugAi.systemPrompt')}</h2>
             <pre className="max-h-64 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">{SYSTEM_PROMPT}</pre>
           </div>
           <div className="space-y-2">
-            <h2 className="text-sm font-semibold">USER_PROMPT_TEMPLATE</h2>
+            <h2 className="text-sm font-semibold">{t('debugAi.userPrompt')}</h2>
             <pre className="max-h-80 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">{USER_PROMPT_TEMPLATE}</pre>
           </div>
         </CardContent>
@@ -237,8 +239,8 @@ export default function DebugAI() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Resume Selector + Raw Output</CardTitle>
-          <CardDescription>Select one resume and inspect `analysis` and `analyses` fields.</CardDescription>
+          <CardTitle>{t('debugAi.resumeOutputSection')}</CardTitle>
+          <CardDescription>{t('debugAi.resumeOutputSectionDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {resumeDocs === undefined ? (
@@ -252,15 +254,15 @@ export default function DebugAI() {
           )}
 
           <pre className="min-h-56 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">
-            {analysisJson ?? 'Select a resume to inspect analysis output.'}
+            {analysisJson ?? t('debugAi.noAnalysis')}
           </pre>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Score Breakdown Visualization</CardTitle>
-          <CardDescription>Breakdown from `analysis.breakdown` (fallback to first valid `analyses[*].breakdown`).</CardDescription>
+          <CardTitle>{t('debugAi.scoreBreakdown')}</CardTitle>
+          <CardDescription>{t('debugAi.scoreBreakdownDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -269,7 +271,7 @@ export default function DebugAI() {
               return (
                 <div key={key} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
-                    <span>{BREAKDOWN_LABELS[key]}</span>
+                    <span>{t(BREAKDOWN_LABEL_KEYS[key])}</span>
                     <span className="font-mono text-xs text-muted-foreground">{score}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted">

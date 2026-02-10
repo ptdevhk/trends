@@ -65,12 +65,25 @@
     "title": "AI 調試",
     "subtitle": "檢視提示詞模板與分析輸出",
     "promptSection": "提示詞模板",
+    "promptSectionDescription": "僅展示模板，複製自 packages/convex/convex/analyze.ts。",
     "systemPrompt": "系統提示詞",
     "userPrompt": "使用者提示詞模板",
     "selectResume": "選擇簡歷",
+    "selectResumePlaceholder": "請選擇簡歷",
     "rawOutput": "原始輸出",
+    "resumeOutputSection": "簡歷選擇 + 原始輸出",
+    "resumeOutputSectionDescription": "選擇一份簡歷並檢視 analysis 與 analyses 欄位。",
     "scoreBreakdown": "分數拆解",
-    "noAnalysis": "此簡歷尚無分析結果"
+    "scoreBreakdownDescription": "優先讀取 analysis.breakdown，回退到 analyses 中首個有效項目。",
+    "noAnalysis": "此簡歷尚無分析結果",
+    "unknownCandidate": "未知候選人",
+    "breakdownLabels": {
+      "experience": "經驗",
+      "skills": "技能",
+      "industryDb": "產業庫",
+      "education": "學歷",
+      "location": "地點"
+    }
   },
   "trends": {
     "title": "熱門話題",
@@ -180,6 +193,7 @@
     "navRaw": "原始",
     "navIndustry": "產業資料",
     "navJobs": "職位描述",
+    "navAi": "AI 調試",
     "searchPlaceholder": "搜尋姓名或意向...",
     "searchButton": "搜尋",
     "limitPlaceholder": "數量",

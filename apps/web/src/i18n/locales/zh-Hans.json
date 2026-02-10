@@ -65,12 +65,25 @@
     "title": "AI 调试",
     "subtitle": "查看提示词模板与分析输出",
     "promptSection": "提示词模板",
+    "promptSectionDescription": "仅展示模板，复制自 packages/convex/convex/analyze.ts。",
     "systemPrompt": "系统提示词",
     "userPrompt": "用户提示词模板",
     "selectResume": "选择简历",
+    "selectResumePlaceholder": "请选择简历",
     "rawOutput": "原始输出",
+    "resumeOutputSection": "简历选择 + 原始输出",
+    "resumeOutputSectionDescription": "选择一份简历并查看 analysis 与 analyses 字段。",
     "scoreBreakdown": "分数拆解",
-    "noAnalysis": "该简历暂无分析结果"
+    "scoreBreakdownDescription": "优先读取 analysis.breakdown，回退到 analyses 中首个有效项。",
+    "noAnalysis": "该简历暂无分析结果",
+    "unknownCandidate": "未知候选人",
+    "breakdownLabels": {
+      "experience": "经验",
+      "skills": "技能",
+      "industryDb": "行业库",
+      "education": "学历",
+      "location": "地点"
+    }
   },
   "trends": {
     "title": "热门话题",
@@ -180,6 +193,7 @@
     "navRaw": "原始",
     "navIndustry": "行业数据",
     "navJobs": "职位描述",
+    "navAi": "AI 调试",
     "searchPlaceholder": "搜索姓名或意向...",
     "searchButton": "搜索",
     "limitPlaceholder": "数量",
