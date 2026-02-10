@@ -193,3 +193,20 @@ export const getSummary = query({
         return stats;
     },
 });
+
+export const resetDatabase = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const tasks = await ctx.db.query("collection_tasks").collect();
+        for (const task of tasks) {
+            await ctx.db.delete(task._id);
+        }
+
+        const resumes = await ctx.db.query("resumes").collect();
+        for (const resume of resumes) {
+            await ctx.db.delete(resume._id);
+        }
+
+        return { success: true, count: tasks.length + resumes.length };
+    },
+});

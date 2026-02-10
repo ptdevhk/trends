@@ -531,6 +531,7 @@ export default function DebugConfig() {
   const [collectionLimit, setCollectionLimit] = useState('200')
   const [collectionMaxPages, setCollectionMaxPages] = useState('10')
   const dispatchCollection = useMutation(api.resume_tasks.dispatch)
+  const resetDatabase = useMutation(api.resume_tasks.resetDatabase)
 
   useEffect(() => {
     if (!toast) {
@@ -549,6 +550,16 @@ export default function DebugConfig() {
   const showToast = useCallback((nextToast: ToastState) => {
     setToast(nextToast)
   }, [])
+
+  const handleResetDatabase = useCallback(async () => {
+    try {
+      await resetDatabase()
+      showToast({ type: 'success', message: 'Database has been reset' })
+    } catch (error) {
+      console.error('Failed to reset database', error)
+      showToast({ type: 'error', message: 'Failed to reset database' })
+    }
+  }, [resetDatabase, showToast])
 
   const requestJson = useCallback(
     async (path: string, init?: RequestInit): Promise<unknown> => {
@@ -1332,6 +1343,35 @@ export default function DebugConfig() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <CardTitle className="text-destructive">Danger Zone</CardTitle>
+          <CardDescription>
+            Irreversible actions that affect the entire system.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+            <div className="space-y-1">
+              <p className="font-medium text-destructive">Reset Database</p>
+              <p className="text-sm text-destructive/80">
+                Delete all collected resumes and tasks. This cannot be undone.
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (window.confirm("Are you sure you want to delete ALL data? This cannot be undone.")) {
+                  handleResetDatabase()
+                }
+              }}
+            >
+              Reset Database
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {toast && (
         <div
