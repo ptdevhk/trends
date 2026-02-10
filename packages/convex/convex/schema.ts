@@ -14,7 +14,8 @@ export default defineSchema({
             v.literal("pending"),
             v.literal("processing"),
             v.literal("completed"),
-            v.literal("failed")
+            v.literal("failed"),
+            v.literal("cancelled")
         ),
         progress: v.object({
             current: v.number(),
@@ -22,6 +23,7 @@ export default defineSchema({
             page: v.number(),
         }),
         workerId: v.optional(v.string()), // ID of the worker processing this task
+        lastStatus: v.optional(v.string()), // Real-time status message (e.g. "Scraping page 2")
         error: v.optional(v.string()),
         startedAt: v.optional(v.number()), // Timestamp
         completedAt: v.optional(v.number()), // Timestamp

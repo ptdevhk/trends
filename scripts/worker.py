@@ -32,6 +32,10 @@ from refresh_sample import (
     resolve_accessor_context,
 )
 
+class CancellationError(Exception):
+    """Raised when a task is cancelled via Convex."""
+    pass
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 # Reduce logging noise from libraries
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -75,16 +79,23 @@ async def process_task(task, client: httpx.AsyncClient):
     # Build search URL
     search_url = build_search_url(keyword, location)
     
+    async def on_progress(count, page):
+        status_msg = f"Scraping page {page}..." if page > 0 else "Initializing..."
+        result = await convex_mutation(client, "resume_tasks:updateProgress", {
+            "taskId": task["_id"],
+            "current": count,
+            "page": page,
+            "total": limit, # approximate
+            "lastStatus": status_msg
+        })
+        if result and isinstance(result, dict) and result.get("status") == "cancelled":
+            raise CancellationError("Task was cancelled by user")
+
     try:
+        # Initial check
+        await on_progress(0, 0)
+        
         async with open_cdp_session(CDP_PORT, search_url) as (cdp_client, context_id):
-            
-            async def on_progress(count, page):
-                await convex_mutation(client, "resume_tasks:updateProgress", {
-                    "taskId": task["_id"],
-                    "current": count,
-                    "page": page,
-                    "total": limit # approximate
-                })
 
             logger.info("Starting scrape job...")
             resumes = await execute_scrape_job(
@@ -123,6 +134,9 @@ async def process_task(task, client: httpx.AsyncClient):
             })
             logger.info(f"Task {task['_id']} completed")
 
+    except CancellationError as e:
+        logger.info(f"Task {task['_id']} was cancelled: {e}")
+        # No need to call complete, it's already cancelled
     except Exception as e:
         logger.error(f"Task failed: {e}")
         await convex_mutation(client, "resume_tasks:complete", {

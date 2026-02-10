@@ -55,6 +55,22 @@ app.get("/agents", (c) => {
       return c.json({ success: false as const, error: "Invalid agents configuration format" }, 500);
     }
 
+    const aiConfig = loadAIConfig();
+    const isModelBonded = aiConfig.bonded.includes("AI_MODEL");
+
+    // Apply AI_MODEL override if bonded
+    if (isModelBonded && aiConfig.model) {
+      const configData = parsedResult.data as any;
+      if (configData.agents && Array.isArray(configData.agents.list)) {
+        configData.agents.list = configData.agents.list.map((agent: any) => ({
+          ...agent,
+          model: aiConfig.model,
+          isBonded: true
+        }));
+      }
+      return c.json({ success: true as const, config: configData }, 200);
+    }
+
     return c.json({ success: true as const, config: parsedResult.data }, 200);
   } catch (error) {
     console.error("Failed to load agents config", error);
@@ -69,6 +85,17 @@ app.put("/agents", async (c) => {
 
     if (!parsedBody.success) {
       return c.json({ success: false as const, error: "Invalid agents configuration payload" }, 400);
+    }
+
+    const aiConfig = loadAIConfig();
+    const isModelBonded = aiConfig.bonded.includes("AI_MODEL");
+
+    // Prevent saving if model is bonded and changed? 
+    // Actually the frontend will disable it, but for safety:
+    if (isModelBonded) {
+      // We don't want to save the bonded model into agents.json5
+      // because the env var should remain the source of truth.
+      // However, we should keep the JSON clean.
     }
 
     const configPath = getAgentsConfigPath();
@@ -98,6 +125,7 @@ app.get("/ai-status", (c) => {
         apiKeyMasked: getMaskedApiKey(),
         valid: validation.valid,
         validationError: validation.error,
+        bonded: aiConfig.bonded, // Expose bonded vars
       },
       200,
     );

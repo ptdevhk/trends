@@ -21,9 +21,16 @@ export interface AIConfig {
     temperature: number;
     maxTokens: number;
     timeout: number;
+    bonded: string[]; // List of variables explicitly set in .env
 }
 
 export function loadAIConfig(): AIConfig {
+    const bonded: string[] = [];
+    if (process.env.AI_ANALYSIS_ENABLED !== undefined) bonded.push("AI_ANALYSIS_ENABLED");
+    if (process.env.AI_MODEL !== undefined) bonded.push("AI_MODEL");
+    if (process.env.AI_API_KEY !== undefined) bonded.push("AI_API_KEY");
+    if (process.env.AI_API_BASE !== undefined) bonded.push("AI_API_BASE");
+
     const enabled = process.env.AI_ANALYSIS_ENABLED === "true";
     const model = process.env.AI_MODEL || "openai/gpt-4o-mini";
     const apiKey = process.env.AI_API_KEY || "";
@@ -40,6 +47,7 @@ export function loadAIConfig(): AIConfig {
         temperature,
         maxTokens,
         timeout,
+        bonded,
     };
 }
 

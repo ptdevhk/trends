@@ -71,15 +71,26 @@ export const updateProgress = mutation({
         current: v.number(),
         page: v.number(),
         total: v.optional(v.number()),
+        lastStatus: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        const task = await ctx.db.get(args.taskId);
+        if (!task) return null;
+
+        if (task.status === "cancelled") {
+            return { status: "cancelled" };
+        }
+
         await ctx.db.patch(args.taskId, {
             progress: {
                 current: args.current,
                 page: args.page,
-                total: args.total ?? 0, // Keep existing total if not provided? simplified
+                total: args.total ?? 0,
             },
+            lastStatus: args.lastStatus,
         });
+
+        return { status: task.status };
     },
 });
 
@@ -91,10 +102,31 @@ export const complete = mutation({
         error: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        const task = await ctx.db.get(args.taskId);
+        if (!task || task.status === "cancelled") {
+            return;
+        }
         await ctx.db.patch(args.taskId, {
             status: args.status,
             completedAt: Date.now(),
             error: args.error,
+        });
+    },
+});
+
+// Cancel a task
+export const cancel = mutation({
+    args: {
+        taskId: v.id("collection_tasks"),
+    },
+    handler: async (ctx, args) => {
+        const task = await ctx.db.get(args.taskId);
+        if (!task || (task.status !== "pending" && task.status !== "processing")) {
+            return;
+        }
+        await ctx.db.patch(args.taskId, {
+            status: "cancelled",
+            completedAt: Date.now(),
         });
     },
 });
@@ -141,5 +173,23 @@ export const submitResumes = mutation({
                 });
             }
         }
+    },
+});
+
+// Get summary statistics for debugging
+export const getSummary = query({
+    args: {},
+    handler: async (ctx) => {
+        const tasks = await ctx.db.query("collection_tasks").collect();
+        const stats = {
+            total: tasks.length,
+            pending: tasks.filter(t => t.status === "pending").length,
+            processing: tasks.filter(t => t.status === "processing").length,
+            completed: tasks.filter(t => t.status === "completed").length,
+            failed: tasks.filter(t => t.status === "failed").length,
+            cancelled: tasks.filter(t => t.status === "cancelled").length,
+            activeWorkers: Array.from(new Set(tasks.filter(t => t.status === "processing").map(t => t.workerId).filter(Boolean))).length
+        };
+        return stats;
     },
 });

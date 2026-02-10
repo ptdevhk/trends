@@ -549,6 +549,13 @@ start_api() {
         log "API" "$CYAN" "Starting BFF API on http://localhost:$port ($runner run dev)"
         cd "$PROJECT_ROOT/apps/api"
 
+        if [ -n "$ENV_FILE" ] && [ -f "$PROJECT_ROOT/$ENV_FILE" ]; then
+            # Source .env into the current subshell to export vars to the runner
+            set -a
+            source "$PROJECT_ROOT/$ENV_FILE"
+            set +a
+        fi
+
         PORT="$port" run_local_js_script dev > >(tee "$(service_log_path "api")" | stream_service_logs "api" "$CYAN") 2>&1 &
         SERVICE_PIDS["api"]=$!
     else

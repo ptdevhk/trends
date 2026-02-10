@@ -69,6 +69,11 @@ collect_known_dev_pids() {
     "$PROJECT_ROOT/node_modules/.bin/tsx watch src/index.ts"
     "$PROJECT_ROOT/node_modules/.bin/vite --port 5173"
     "$PROJECT_ROOT/node_modules/.bin/convex dev"
+    "tsx watch src/index.ts"
+    "vite --port 5173"
+    "convex dev"
+    "uv run uvicorn api:app"
+    "uv run --env-file .env uvicorn api:app"
   )
 
   for pattern in "${patterns[@]}"; do

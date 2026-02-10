@@ -265,7 +265,7 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
     ]
   }, [industryView, t])
 
-  const resumes = rawResponse?.data ?? []
+  const resumes = useMemo(() => rawResponse?.data ?? [], [rawResponse])
   const summary = rawResponse?.summary
   const metadata = rawResponse?.metadata
 

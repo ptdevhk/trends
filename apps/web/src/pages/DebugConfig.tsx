@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useMutation, useQuery } from 'convex/react'
+import { api } from '../../../../packages/convex/convex/_generated/api'
+import { TaskMonitor } from '@/components/TaskMonitor'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,6 +20,7 @@ interface AIStatus {
   apiKeyMasked: string
   valid: boolean
   validationError?: string
+  bonded?: string[]
 }
 
 interface AgentConfig {
@@ -33,6 +37,7 @@ interface AgentItem {
   name: string
   model: string
   config: AgentConfig
+  isBonded?: boolean
   [key: string]: unknown
 }
 
@@ -157,6 +162,7 @@ function parseAgentItem(value: unknown): AgentItem | null {
     name,
     model,
     config,
+    isBonded: Boolean(value.isBonded),
   }
 }
 
@@ -251,6 +257,7 @@ function parseAIStatusPayload(payload: unknown): AIStatus | null {
 
   const apiBase = readString(payload.apiBase) ?? undefined
   const validationError = readString(payload.validationError) ?? undefined
+  const bonded = Array.isArray(payload.bonded) ? payload.bonded.filter((s): s is string => typeof s === 'string') : undefined
 
   return {
     enabled,
@@ -262,6 +269,7 @@ function parseAIStatusPayload(payload: unknown): AIStatus | null {
     apiKeyMasked,
     valid,
     validationError,
+    bonded,
   }
 }
 
@@ -440,6 +448,58 @@ function parseFormNullableNumberField(value: string, fieldLabel: string): number
   return parsed
 }
 
+function SystemSummary() {
+  const summary = useQuery(api.resume_tasks.getSummary)
+
+  if (!summary) return null
+
+  return (
+    <Card className="bg-muted/30 border-dashed">
+      <CardHeader className="py-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-lg flex items-center gap-2">
+              System Diagnostics
+              <Badge variant="outline" className="font-mono text-[10px] bg-emerald-500/5 text-emerald-600 border-emerald-500/20">Live</Badge>
+            </CardTitle>
+            <CardDescription>
+              Backend task heartbeat and worker synchronization.
+            </CardDescription>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Active Workers</p>
+            <p className="text-2xl font-bold text-primary">{summary.activeWorkers}</p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="space-y-1 border-l-2 border-primary/20 pl-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Total</p>
+            <p className="text-xl font-bold">{summary.total}</p>
+          </div>
+          <div className="space-y-1 border-l-2 border-blue-500/20 pl-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Processing</p>
+            <p className="text-xl font-bold text-blue-600">{summary.processing}</p>
+          </div>
+          <div className="space-y-1 border-l-2 border-amber-500/20 pl-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Pending</p>
+            <p className="text-xl font-bold text-amber-600">{summary.pending}</p>
+          </div>
+          <div className="space-y-1 border-l-2 border-emerald-500/20 pl-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Done</p>
+            <p className="text-xl font-bold text-emerald-600">{summary.completed}</p>
+          </div>
+          <div className="space-y-1 border-l-2 border-destructive/20 pl-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Failed</p>
+            <p className="text-xl font-bold text-destructive">{summary.failed + summary.cancelled}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function DebugConfig() {
   const { t } = useTranslation()
 
@@ -464,6 +524,13 @@ export default function DebugConfig() {
   const [presetForm, setPresetForm] = useState<PresetFormState>(createEmptyPresetForm)
 
   const [toast, setToast] = useState<ToastState | null>(null)
+
+  // Agent Collection State
+  const [collectionKeyword, setCollectionKeyword] = useState('')
+  const [collectionLocation, setCollectionLocation] = useState('广东')
+  const [collectionLimit, setCollectionLimit] = useState('200')
+  const [collectionMaxPages, setCollectionMaxPages] = useState('10')
+  const dispatchCollection = useMutation(api.resume_tasks.dispatch)
 
   useEffect(() => {
     if (!toast) {
@@ -781,6 +848,31 @@ export default function DebugConfig() {
     [loadFilterPresets, requestJson, showToast, t],
   )
 
+  const handleStartCollection = useCallback(async () => {
+    if (!collectionKeyword.trim()) {
+      showToast({ type: 'error', message: 'Please enter a keyword' })
+      return
+    }
+
+    try {
+      const limit = parseInt(collectionLimit, 10) || 200
+      const maxPages = parseInt(collectionMaxPages, 10) || 10
+
+      await dispatchCollection({
+        keyword: collectionKeyword.trim(),
+        location: collectionLocation.trim(),
+        limit,
+        maxPages,
+      })
+      showToast({ type: 'success', message: 'Collection task dispatched' })
+      setCollectionKeyword('')
+      // Keep location, limit, maxPages as they are for convenience
+    } catch (error) {
+      console.error('Failed to dispatch collection', error)
+      showToast({ type: 'error', message: 'Failed to start collection' })
+    }
+  }, [collectionKeyword, collectionLocation, dispatchCollection, showToast])
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -793,6 +885,70 @@ export default function DebugConfig() {
           {loadError}
         </div>
       )}
+
+      {/* Real-time System Summary */}
+      <SystemSummary />
+
+      {/* Resume Data Collection */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Resume Data Collection</CardTitle>
+          <CardDescription>
+            Trigger heavy-lifting agent tasks to scrape resumes from external platforms.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label htmlFor="col-keyword" className="text-sm font-medium">Keyword</label>
+              <Input
+                id="col-keyword"
+                placeholder="e.g. 销售, 工程师"
+                value={collectionKeyword}
+                onChange={(e) => setCollectionKeyword(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="col-location" className="text-sm font-medium">Location</label>
+              <Input
+                id="col-location"
+                placeholder="e.g. 广东"
+                value={collectionLocation}
+                onChange={(e) => setCollectionLocation(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="col-limit" className="text-sm font-medium">Limit (Total Resumes)</label>
+              <Input
+                id="col-limit"
+                type="number"
+                placeholder="200"
+                value={collectionLimit}
+                onChange={(e) => setCollectionLimit(e.target.value)}
+                onFocus={(e) => e.target.select()}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="col-max-pages" className="text-sm font-medium">Max Pages</label>
+              <Input
+                id="col-max-pages"
+                type="number"
+                placeholder="10"
+                value={collectionMaxPages}
+                onChange={(e) => setCollectionMaxPages(e.target.value)}
+                onFocus={(e) => e.target.select()}
+              />
+            </div>
+          </div>
+          <Button onClick={handleStartCollection} className="w-full sm:w-auto">
+            Start Agent Collection
+          </Button>
+
+          <div className="mt-6">
+            <TaskMonitor />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -807,6 +963,11 @@ export default function DebugConfig() {
                 <Badge variant={aiStatus.enabled ? 'default' : 'secondary'}>
                   {aiStatus.enabled ? t('debugConfig.aiEnabled') : t('debugConfig.aiDisabled')}
                 </Badge>
+                {aiStatus.bonded?.includes('AI_ANALYSIS_ENABLED') && (
+                  <Badge variant="outline" className="border-emerald-500/50 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400">
+                    Bonded to .env
+                  </Badge>
+                )}
                 <Badge variant={aiStatus.valid ? 'default' : 'destructive'}>
                   {aiStatus.valid ? t('debugConfig.aiValid') : t('debugConfig.aiInvalid')}
                 </Badge>
@@ -814,7 +975,12 @@ export default function DebugConfig() {
 
               <div className="grid gap-3 text-sm sm:grid-cols-2">
                 <div>
-                  <p className="text-muted-foreground">{t('debugConfig.aiModel')}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-muted-foreground">{t('debugConfig.aiModel')}</p>
+                    {aiStatus.bonded?.includes('AI_MODEL') && (
+                      <Badge variant="outline" className="h-4 px-1 text-[10px] border-emerald-500/50 text-emerald-600">Bonded</Badge>
+                    )}
+                  </div>
                   <p className="font-medium">{aiStatus.model}</p>
                 </div>
                 <div>
@@ -892,9 +1058,15 @@ export default function DebugConfig() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t('debugConfig.agentModel')}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground">{t('debugConfig.agentModel')}</p>
+                        {agent.isBonded && (
+                          <Badge variant="outline" className="h-3.5 px-1 text-[9px] border-emerald-500/50 text-emerald-600">Bonded</Badge>
+                        )}
+                      </div>
                       <Input
                         value={agent.model}
+                        disabled={agent.isBonded}
                         onChange={(event) => {
                           updateAgentTextField(agent.id, 'model', event.target.value)
                         }}
@@ -1163,9 +1335,8 @@ export default function DebugConfig() {
 
       {toast && (
         <div
-          className={`fixed bottom-4 right-4 rounded-md px-3 py-2 text-sm text-white shadow-lg ${
-            toast.type === 'success' ? 'bg-emerald-600' : 'bg-destructive'
-          }`}
+          className={`fixed bottom-4 right-4 rounded-md px-3 py-2 text-sm text-white shadow-lg ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-destructive'
+            }`}
         >
           {toast.message}
         </div>

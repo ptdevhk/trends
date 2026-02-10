@@ -20,7 +20,6 @@ import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import type { MatchingResult, Recommendation } from '@/types/resume'
 
-import { TaskMonitor } from './TaskMonitor'
 import { useMutation, useAction } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
@@ -71,7 +70,6 @@ export function ResumeList() {
   const [jobDescriptionId, setJobDescriptionId] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const dispatch = useMutation(api.resume_tasks.dispatch);
 
   const {
     resumes,
@@ -491,10 +489,16 @@ export function ResumeList() {
             <h1 className="text-2xl font-semibold">{t('resumes.title')}</h1>
             <p className="text-sm text-muted-foreground">{t('resumes.subtitle')}</p>
           </div>
-          <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-            <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-            {t('resumes.refresh')}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+              <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
+              {t('resumes.refresh')}
+            </Button>
+            <Button onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll} disabled={!convexResumes.length || analyzing || matchLoading}>
+              <RefreshCw className={cn('mr-2 h-4 w-4', (analyzing || matchLoading) && 'animate-spin')} />
+              {mode === 'ai' ? (analyzing ? 'Analyzing...' : 'Analyze All (AI)') : (matchLoading ? t('resumes.matching.running') : t('resumes.matching.matchAll'))}
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -518,32 +522,8 @@ export function ResumeList() {
           <div className="lg:w-64">
             <JobDescriptionSelect value={jobDescriptionId} onChange={handleJobChange} />
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                if (!query && !filters.locations?.length) {
-                  alert("Please enter a keyword or location to start collection");
-                  return;
-                }
-                dispatch({
-                  keyword: query || "销售", // Fallback
-                  location: filters.locations?.[0] || "",
-                  limit: 200,
-                  maxPages: 10
-                });
-              }}
-            >
-              Start Agent Collection
-            </Button>
-            <Button onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll} disabled={!convexResumes.length || analyzing || matchLoading}>
-              <RefreshCw className={cn('mr-2 h-4 w-4', (analyzing || matchLoading) && 'animate-spin')} />
-              {mode === 'ai' ? (analyzing ? 'Analyzing...' : 'Analyze All (AI)') : (matchLoading ? t('resumes.matching.running') : t('resumes.matching.matchAll'))}
-            </Button>
-          </div>
         </div>
 
-        <TaskMonitor />
 
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <ModeToggle mode={mode} onModeChange={setMode} aiStats={aiStats ?? undefined} />
