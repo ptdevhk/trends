@@ -77,4 +77,37 @@ export default defineSchema({
         enabled: v.boolean(),
         lastModified: v.number(),
     }),
+
+    analysis_tasks: defineTable({
+        config: v.object({
+            jobDescriptionId: v.string(),
+            jobDescriptionTitle: v.optional(v.string()),
+            jobDescriptionContent: v.optional(v.string()),
+            sample: v.optional(v.string()),
+            resumeCount: v.number(),
+        }),
+        status: v.union(
+            v.literal("pending"),
+            v.literal("processing"),
+            v.literal("completed"),
+            v.literal("failed"),
+            v.literal("cancelled")
+        ),
+        progress: v.object({
+            current: v.number(),
+            total: v.number(),
+            skipped: v.number(),
+        }),
+        results: v.optional(v.object({
+            analyzed: v.number(),
+            skipped: v.number(),
+            failed: v.number(),
+            avgScore: v.number(),
+            highScoreCount: v.number(),
+        })),
+        lastStatus: v.optional(v.string()),
+        error: v.optional(v.string()),
+        startedAt: v.optional(v.number()),
+        completedAt: v.optional(v.number()),
+    }).index("by_status", ["status"]),
 });

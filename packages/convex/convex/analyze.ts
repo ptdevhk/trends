@@ -2,7 +2,7 @@ import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
-const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密机械和机床行业的简历。
+export const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密机械和机床行业的简历。
 你必须严格按照【纯数字 JSON】格式返回结果。
 1. 绝对不要包含 markdown 标记 (如 \`\`\`json ... \`\`\`)。
 2. 所有评分字段（score, breakdown.*）必须是【JSON Number 类型】，绝对禁止使用字符串或中文数字（如 "30", "三十", thirty）。
@@ -10,7 +10,7 @@ const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密�
 4. 错误示例: "score": "85", "score": "eighty-five"
 5. 如果无法确切评分，请基于现有信息估算一个数字。`;
 
-const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
+export const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 
 ## 职位信息
 **职位名称**: {jobTitle}
@@ -46,7 +46,7 @@ const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 }`;
 
 // Helper to normalize resume data
-function normalizeResume(data: any) {
+export function normalizeResume(data: any) {
     return {
         name: data.name || "未填写",
         jobIntention: data.jobIntention || data.desiredPosition || "未填写",
@@ -59,7 +59,7 @@ function normalizeResume(data: any) {
 }
 
 // Helper to call OpenAI/Compatible API
-async function callLLM(messages: any[], apiKey: string) {
+export async function callLLM(messages: any[], apiKey: string) {
     const apiBase = process.env.OPENAI_API_BASE || "https://api.openai.com/v1";
     const url = `${apiBase}/chat/completions`;
 
