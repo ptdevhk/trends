@@ -49,6 +49,8 @@ declare -A SERVICE_LOG_FILES=(
     ["web"]="web.log"
 )
 
+SEED_MODE="${SEED_MODE:-auto}"
+
 # List direct child processes for a parent PID
 list_child_pids() {
     local parent_pid="$1"
@@ -703,6 +705,81 @@ start_convex() {
     fi
 }
 
+run_seed_script() {
+    if command -v bun >/dev/null 2>&1; then
+        bun "$PROJECT_ROOT/scripts/seed-convex.ts" "$@"
+    else
+        npx tsx "$PROJECT_ROOT/scripts/seed-convex.ts" "$@"
+    fi
+}
+
+seed_convex() {
+    if [ "$SEED_MODE" = "skip" ]; then
+        log "CONVEX" "$CYAN" "Skipping Convex seed check (--no-seed)."
+        return 0
+    fi
+
+    local seed_script="$PROJECT_ROOT/scripts/seed-convex.ts"
+    if [ ! -f "$seed_script" ]; then
+        log "CONVEX" "$YELLOW" "Seed script not found at $seed_script"
+        return 0
+    fi
+
+    local web_env="$PROJECT_ROOT/apps/web/.env.local"
+    if [ -f "$web_env" ]; then
+        set -a
+        source "$web_env"
+        set +a
+    fi
+
+    if [ -z "${CONVEX_URL:-}" ] && [ -n "${VITE_CONVEX_URL:-}" ]; then
+        export CONVEX_URL="$VITE_CONVEX_URL"
+    fi
+
+    log "CONVEX" "$CYAN" "Checking Convex seed status..."
+
+    local check_output
+    if ! check_output="$(run_seed_script --check-only 2>&1)"; then
+        log "CONVEX" "$YELLOW" "Seed status check failed. Continuing without auto-seed."
+        while IFS= read -r line; do
+            [ -n "$line" ] && log "CONVEX" "$YELLOW" "$line"
+        done <<< "$check_output"
+        return 0
+    fi
+
+    while IFS= read -r line; do
+        [ -n "$line" ] && log "CONVEX" "$CYAN" "$line"
+    done <<< "$check_output"
+
+    local is_empty
+    is_empty="$(printf '%s\n' "$check_output" | awk -F= '/^SEED_IS_EMPTY=/{print $2}' | tail -n 1)"
+
+    if [ "$is_empty" = "true" ]; then
+        log "CONVEX" "$CYAN" "Convex database is empty. Seeding default job descriptions..."
+        local seed_output
+        if ! seed_output="$(run_seed_script 2>&1)"; then
+            log "CONVEX" "$YELLOW" "Convex seeding failed. Continuing startup."
+            while IFS= read -r line; do
+                [ -n "$line" ] && log "CONVEX" "$YELLOW" "$line"
+            done <<< "$seed_output"
+            return 0
+        fi
+
+        while IFS= read -r line; do
+            [ -n "$line" ] && log "CONVEX" "$CYAN" "$line"
+        done <<< "$seed_output"
+        return 0
+    fi
+
+    if [ "$is_empty" = "false" ]; then
+        log "CONVEX" "$GREEN" "Database has data. Skipping seed."
+        return 0
+    fi
+
+    log "CONVEX" "$YELLOW" "Unable to determine seed status. Continuing without auto-seed."
+    return 0
+}
+
 # Print service status
 print_status() {
     echo ""
@@ -773,6 +850,14 @@ main() {
                 services=("mcp" "crawl" "worker" "api" "web")
                 shift
                 ;;
+            --seed)
+                SEED_MODE="auto"
+                shift
+                ;;
+            --no-seed)
+                SEED_MODE="skip"
+                shift
+                ;;
             --force|-f)
                 FORCE_KILL=true
                 shift
@@ -786,12 +871,15 @@ main() {
                 echo "  --skip-crawl  Skip initial crawl and start servers immediately (default)"
                 echo "  --fresh       Run crawl first, then start servers"
                 echo "  --all         Start all services (including future apps/*)"
+                echo "  --seed        Run seed status check (default behavior)"
+                echo "  --no-seed     Skip Convex seed status check"
                 echo "  --force, -f   Kill processes using required ports"
                 echo "  --help        Show this help message"
                 echo ""
                 echo "Environment variables:"
                 echo "  ENV_FILE      Path to .env file (default: .env)"
                 echo "  SKIP_CRAWL    Skip crawl on startup (default: true; set to false to crawl)"
+                echo "  SEED_MODE     Convex seed mode: auto|skip (default: auto)"
                 echo "  MCP_PORT      MCP server port (default: 3333)"
                 echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
                 echo "  API_PORT      BFF API port (default: 3000)"
@@ -832,6 +920,7 @@ main() {
                     log "DEV" "$RED" "Convex failed to start. Aborting."
                     exit 1
                 fi
+                seed_convex
                 ;;
             mcp) start_mcp_server ;;
             crawl) start_crawler ;;
