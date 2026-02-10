@@ -9,6 +9,7 @@
     "trends": "Trends",
     "resumes": "Resumes",
     "debug": "Debug",
+    "debugAi": "Debug AI",
     "search": "Search",
     "settings": "Settings",
     "jds": "JDs"
@@ -122,7 +123,8 @@
       "original": "Original Mode"
     },
     "jobDescription": {
-      "placeholder": "Select job description"
+      "placeholder": "Select job description",
+      "manage": "Manage JDs"
     },
     "matching": {
       "matchAll": "Match All",
@@ -182,6 +184,13 @@
       "close": "Close"
     }
   },
+  "quickStart": {
+    "matchDetails": "Current Match Details",
+    "labelJd": "JD",
+    "labelPreset": "Preset",
+    "labelMatchedKeywords": "Matched Keywords",
+    "manageJds": "Manage all JDs →"
+  },
   "debug": {
     "title": "Debug Console",
     "subtitle": "Raw inputs, findings, and process data",
@@ -194,6 +203,7 @@
     "navIndustry": "Industry Data",
     "navJobs": "Job Descriptions",
     "navAi": "AI Debug",
+    "navConfig": "Config",
     "searchPlaceholder": "Search name or intention...",
     "searchButton": "Search",
     "limitPlaceholder": "Limit",
@@ -259,6 +269,43 @@
     "stepNormalize": "Normalize fields + work history",
     "stepAggregate": "Aggregate summary statistics",
     "none": "None"
+  },
+  "debugConfig": {
+    "title": "System Configuration",
+    "subtitle": "View and edit agent pipeline, filter presets, and AI service settings",
+    "aiStatus": "AI Service Status",
+    "aiEnabled": "Enabled",
+    "aiDisabled": "Disabled",
+    "aiModel": "Model",
+    "aiApiBase": "API Base",
+    "aiTemperature": "Temperature",
+    "aiMaxTokens": "Max Tokens",
+    "aiTimeout": "Timeout",
+    "aiValid": "Configuration Valid",
+    "aiInvalid": "Configuration Invalid",
+    "agents": "Agent Pipeline",
+    "agentsDescription": "Multi-stage AI screening pipeline configuration",
+    "agentModel": "Model",
+    "agentBatchSize": "Batch Size",
+    "agentParallelism": "Parallelism",
+    "agentTimeout": "Timeout (ms)",
+    "agentThreshold": "Pass Threshold",
+    "save": "Save",
+    "saved": "Saved",
+    "saveError": "Save failed",
+    "presets": "Filter Presets",
+    "presetsDescription": "Quick filter configurations for common search patterns",
+    "addPreset": "Add Preset",
+    "editPreset": "Edit",
+    "deletePreset": "Delete",
+    "confirmDelete": "Are you sure you want to delete this preset?",
+    "presetId": "ID",
+    "presetName": "Name",
+    "presetCategory": "Category",
+    "presetMinExp": "Min Experience",
+    "presetMaxExp": "Max Experience",
+    "presetEducation": "Education",
+    "presetSalary": "Salary Range"
   },
   "platforms": {
     "zhihu": "Zhihu",

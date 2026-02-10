@@ -378,7 +378,7 @@ export function DebugPage() {
     const parts = location.pathname.split('/').filter(Boolean)
     const index = parts.indexOf('debug')
     const next = index >= 0 ? parts[index + 1] : undefined
-    const allowed = new Set(['all', 'inputs', 'findings', 'process', 'raw', 'industry', 'jobs'])
+    const allowed = new Set(['all', 'inputs', 'findings', 'process', 'raw', 'industry', 'jobs', 'config'])
     if (next && allowed.has(next)) return next
     return 'all'
   }, [location.pathname])
@@ -400,6 +400,7 @@ export function DebugPage() {
       { key: 'raw', label: t('debug.navRaw'), href: '/debug/raw' },
       { key: 'industry', label: t('debug.navIndustry'), href: '/debug/industry' },
       { key: 'jobs', label: t('debug.navJobs'), href: '/debug/jobs' },
+      { key: 'config', label: t('debug.navConfig'), href: '/debug/config' },
       { key: 'ai', label: t('debug.navAi'), href: '/debug/ai' },
     ],
     [t]

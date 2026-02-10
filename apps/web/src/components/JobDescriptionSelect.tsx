@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ExternalLink } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Select } from '@/components/ui/select'
 
@@ -27,7 +29,7 @@ export function JobDescriptionSelect({ value, onChange, disabled }: JobDescripti
   const [systemOptions, setSystemOptions] = useState<JobDescriptionOption[]>([])
 
   // Fetch Custom JDs
-  const customJDs = useQuery(api.job_descriptions.list, {}) || [];
+  const customJDs = useQuery(api.job_descriptions.list, {})
 
   useEffect(() => {
     let mounted = true
@@ -49,7 +51,7 @@ export function JobDescriptionSelect({ value, onChange, disabled }: JobDescripti
   }, [])
 
   const selectOptions = useMemo(() => {
-    const customOptions = customJDs.map(jd => ({
+    const customOptions = (customJDs ?? []).map(jd => ({
       value: jd._id,
       label: `✨ ${jd.title} (Custom)`
     }));
@@ -62,11 +64,24 @@ export function JobDescriptionSelect({ value, onChange, disabled }: JobDescripti
   }, [systemOptions, customJDs, t])
 
   return (
-    <Select
-      options={selectOptions}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      disabled={disabled}
-    />
+    <div className="flex items-center gap-1.5">
+      <Select
+        className="flex-1"
+        options={selectOptions}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+      />
+      {value && (
+        <Link
+          to="/config/jds"
+          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+          title={t('resumes.jobDescription.manage')}
+          aria-label={t('resumes.jobDescription.manage')}
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </Link>
+      )}
+    </div>
   )
 }

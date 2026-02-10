@@ -9,6 +9,7 @@
     "trends": "热点",
     "resumes": "简历",
     "debug": "调试",
+    "debugAi": "AI 调试",
     "search": "搜索",
     "settings": "设置",
     "jds": "职位"
@@ -122,7 +123,8 @@
       "original": "原始模式"
     },
     "jobDescription": {
-      "placeholder": "选择职位"
+      "placeholder": "选择职位",
+      "manage": "管理职位"
     },
     "matching": {
       "matchAll": "AI 匹配全部",
@@ -182,6 +184,13 @@
       "close": "关闭"
     }
   },
+  "quickStart": {
+    "matchDetails": "当前匹配详情",
+    "labelJd": "职位",
+    "labelPreset": "预设",
+    "labelMatchedKeywords": "匹配词",
+    "manageJds": "管理所有职位 →"
+  },
   "debug": {
     "title": "调试控制台",
     "subtitle": "原始输入、分析发现与处理数据",
@@ -194,6 +203,7 @@
     "navIndustry": "行业数据",
     "navJobs": "职位描述",
     "navAi": "AI 调试",
+    "navConfig": "配置",
     "searchPlaceholder": "搜索姓名或意向...",
     "searchButton": "搜索",
     "limitPlaceholder": "数量",
@@ -259,6 +269,43 @@
     "stepNormalize": "字段规范化与工作经历处理",
     "stepAggregate": "汇总统计",
     "none": "无"
+  },
+  "debugConfig": {
+    "title": "系统配置",
+    "subtitle": "查看和编辑 Agent 流程、筛选预设和 AI 服务设置",
+    "aiStatus": "AI 服务状态",
+    "aiEnabled": "已启用",
+    "aiDisabled": "未启用",
+    "aiModel": "模型",
+    "aiApiBase": "API 地址",
+    "aiTemperature": "温度",
+    "aiMaxTokens": "最大 Token",
+    "aiTimeout": "超时",
+    "aiValid": "配置有效",
+    "aiInvalid": "配置无效",
+    "agents": "Agent 流程",
+    "agentsDescription": "多阶段 AI 筛选流程配置",
+    "agentModel": "模型",
+    "agentBatchSize": "批量大小",
+    "agentParallelism": "并发数",
+    "agentTimeout": "超时 (ms)",
+    "agentThreshold": "通过阈值",
+    "save": "保存",
+    "saved": "已保存",
+    "saveError": "保存失败",
+    "presets": "筛选预设",
+    "presetsDescription": "常用搜索模式的快速筛选配置",
+    "addPreset": "添加预设",
+    "editPreset": "编辑",
+    "deletePreset": "删除",
+    "confirmDelete": "确定要删除这个预设吗？",
+    "presetId": "ID",
+    "presetName": "名称",
+    "presetCategory": "类别",
+    "presetMinExp": "最低经验",
+    "presetMaxExp": "最高经验",
+    "presetEducation": "学历",
+    "presetSalary": "薪资范围"
   },
   "platforms": {
     "zhihu": "知乎",

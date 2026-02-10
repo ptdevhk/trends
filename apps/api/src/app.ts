@@ -16,6 +16,7 @@ import {
   actionsRoutes,
   searchProfilesRoutes,
   filterPresetsRoutes,
+  configRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 
@@ -39,6 +40,7 @@ export const openApiConfig = {
     { name: "actions", description: "Candidate actions" },
     { name: "Search Profiles", description: "Search profile management" },
     { name: "Filter Presets", description: "Filter preset management" },
+    { name: "Config", description: "Runtime configuration management" },
   ],
 };
 
@@ -63,6 +65,7 @@ export function createApp() {
   app.route("/", actionsRoutes);
   app.route("/api/search-profiles", searchProfilesRoutes);
   app.route("/api/filter-presets", filterPresetsRoutes);
+  app.route("/api/config", configRoutes);
 
   // OpenAPI documentation endpoint
   app.doc("/doc", openApiConfig);
@@ -95,6 +98,7 @@ export function createApp() {
         industry_verify: "/api/industry/verify",
         job_descriptions: "/api/job-descriptions",
         search_profiles: "/api/search-profiles",
+        config: "/api/config",
       },
     });
   });

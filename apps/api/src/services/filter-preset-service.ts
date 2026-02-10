@@ -100,6 +100,45 @@ export class FilterPresetService {
         return { total: config.presets.length, byCategory };
     }
 
+    saveConfig(config: FilterPresetsConfig): void {
+        const configPath = this.getConfigPath();
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf8");
+        this.cache = config;
+    }
+
+    addPreset(preset: FilterPreset): void {
+        const config = this.loadConfig();
+        config.presets.push(preset);
+        this.saveConfig(config);
+    }
+
+    updatePreset(id: string, updates: Partial<FilterPreset>): FilterPreset | undefined {
+        const config = this.loadConfig();
+        const index = config.presets.findIndex((preset) => preset.id === id);
+        if (index === -1) {
+            return undefined;
+        }
+
+        const updatedPreset: FilterPreset = {
+            ...config.presets[index],
+            ...updates,
+        };
+        config.presets[index] = updatedPreset;
+        this.saveConfig(config);
+        return updatedPreset;
+    }
+
+    deletePreset(id: string): boolean {
+        const config = this.loadConfig();
+        const before = config.presets.length;
+        config.presets = config.presets.filter((preset) => preset.id !== id);
+        if (config.presets.length === before) {
+            return false;
+        }
+        this.saveConfig(config);
+        return true;
+    }
+
     /**
      * Clear cache
      */
