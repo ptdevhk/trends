@@ -22,6 +22,7 @@ declare -A SERVICE_PIDS
 
 # Cleanup state
 CLEANUP_DONE=0
+SEED_MODE="${SEED_MODE:-auto}"
 
 declare -a SERVICE_ORDER=("convex" "mcp" "worker" "scraper" "api" "web")
 declare -A SERVICE_LABELS=(
@@ -237,6 +238,17 @@ run_local_js_script() {
         npm run --silent "$script" -- "$@"
     else
         npm run --silent "$script"
+    fi
+}
+
+run_local_ts_file() {
+    local file="$1"
+    shift
+
+    if has_bun; then
+        bun "$file" "$@"
+    else
+        npx tsx "$file" "$@"
     fi
 }
 
@@ -703,6 +715,49 @@ start_convex() {
     fi
 }
 
+seed_convex() {
+    if [ "$SEED_MODE" = "never" ]; then
+        log "SEED" "$CYAN" "Skipping Convex seed check (--no-seed)"
+        return 0
+    fi
+
+    local seed_script="$PROJECT_ROOT/scripts/seed-convex.ts"
+    if [ ! -f "$seed_script" ]; then
+        log "SEED" "$YELLOW" "Seed script not found: $seed_script"
+        return 0
+    fi
+
+    if [ -f "$PROJECT_ROOT/apps/web/.env.local" ]; then
+        set -a
+        # shellcheck source=/dev/null
+        source "$PROJECT_ROOT/apps/web/.env.local"
+        set +a
+    fi
+
+    log "SEED" "$CYAN" "Checking Convex seed status..."
+    local check_output
+    if ! check_output="$(run_local_ts_file "$seed_script" --check-only 2>&1)"; then
+        log "SEED" "$RED" "Seed status check failed"
+        while IFS= read -r line; do
+            [ -n "$line" ] && log "SEED" "$YELLOW" "$line"
+        done <<< "$check_output"
+        return 1
+    fi
+
+    while IFS= read -r line; do
+        [ -n "$line" ] && log "SEED" "$CYAN" "$line"
+    done <<< "$check_output"
+
+    if echo "$check_output" | grep -q '"isEmpty":true'; then
+        log "SEED" "$GREEN" "Convex database is empty. Seeding system job descriptions..."
+        run_local_ts_file "$seed_script"
+        return $?
+    fi
+
+    log "SEED" "$GREEN" "Database has data. Skipping seed."
+    return 0
+}
+
 # Print service status
 print_status() {
     echo ""
@@ -777,6 +832,14 @@ main() {
                 FORCE_KILL=true
                 shift
                 ;;
+            --seed)
+                SEED_MODE="auto"
+                shift
+                ;;
+            --no-seed)
+                SEED_MODE="never"
+                shift
+                ;;
             --help|-h)
                 echo "Usage: $0 [OPTIONS]"
                 echo ""
@@ -787,11 +850,14 @@ main() {
                 echo "  --fresh       Run crawl first, then start servers"
                 echo "  --all         Start all services (including future apps/*)"
                 echo "  --force, -f   Kill processes using required ports"
+                echo "  --seed        Run Convex seed check (default behavior)"
+                echo "  --no-seed     Skip Convex seed check for faster restart"
                 echo "  --help        Show this help message"
                 echo ""
                 echo "Environment variables:"
                 echo "  ENV_FILE      Path to .env file (default: .env)"
                 echo "  SKIP_CRAWL    Skip crawl on startup (default: true; set to false to crawl)"
+                echo "  SEED_MODE     Convex seed mode: auto|never (default: auto)"
                 echo "  MCP_PORT      MCP server port (default: 3333)"
                 echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
                 echo "  API_PORT      BFF API port (default: 3000)"
@@ -830,6 +896,10 @@ main() {
             convex)
                 if ! start_convex; then
                     log "DEV" "$RED" "Convex failed to start. Aborting."
+                    exit 1
+                fi
+                if ! seed_convex; then
+                    log "DEV" "$RED" "Convex seed failed. Aborting."
                     exit 1
                 fi
                 ;;

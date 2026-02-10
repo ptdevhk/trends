@@ -6,7 +6,8 @@
         test test-python test-node test-resume \
         build-static build-static-fresh serve-static \
         i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
-        refresh-sample refresh-sample-manual
+        refresh-sample refresh-sample-manual \
+        seed seed-full seed-force
 
 # Default target
 .DEFAULT_GOAL := help
@@ -206,6 +207,30 @@ refresh-sample-manual:
 	@echo ""
 	@echo "The exported file includes metadata for reproduction."
 
+# Seed Convex DB with system JDs (idempotent; only seeds when empty by default)
+seed:
+	@if command -v bun > /dev/null 2>&1; then \
+		bun scripts/seed-convex.ts; \
+	else \
+		npx tsx scripts/seed-convex.ts; \
+	fi
+
+# Seed Convex DB with system JDs + sample resumes (idempotent)
+seed-full:
+	@if command -v bun > /dev/null 2>&1; then \
+		bun scripts/seed-convex.ts --with-resumes; \
+	else \
+		npx tsx scripts/seed-convex.ts --with-resumes; \
+	fi
+
+# Force seeding even if DB is not empty (idempotent inserts)
+seed-force:
+	@if command -v bun > /dev/null 2>&1; then \
+		bun scripts/seed-convex.ts --force; \
+	else \
+		npx tsx scripts/seed-convex.ts --force; \
+	fi
+
 # Remove generated/cached files
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
@@ -339,6 +364,9 @@ help:
 	@echo "Utilities:"
 	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
+	@echo "  seed           Seed Convex with system JDs (idempotent)"
+	@echo "  seed-full      Seed Convex with system JDs + sample resumes"
+	@echo "  seed-force     Force seed system JDs even if DB has data"
 	@echo "  clean          Remove generated/cached files"
 	@echo "  check          Run validation checks (Python + Node)"
 	@echo "  check-python   Run Python checks only"
