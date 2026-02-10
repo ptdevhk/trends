@@ -42,7 +42,7 @@ export function Header() {
               {t('nav.debug')}
             </NavLink>
             <NavLink
-              to="/debug/jds"
+              to="/config/jds"
               className={({ isActive }) =>
                 cn(
                   'transition-colors hover:text-foreground',
@@ -50,7 +50,7 @@ export function Header() {
                 )
               }
             >
-              JDs
+              {t('nav.jds')}
             </NavLink>
           </nav>
         </div>
@@ -79,7 +79,7 @@ export function Header() {
               {t('nav.debug')}
             </NavLink>
             <NavLink
-              to="/debug/jds"
+              to="/config/jds"
               className={({ isActive }) =>
                 cn(
                   'transition-colors hover:text-foreground',
@@ -87,7 +87,7 @@ export function Header() {
                 )
               }
             >
-              JDs
+              {t('nav.jds')}
             </NavLink>
           </nav>
           <LanguageSwitcher />
