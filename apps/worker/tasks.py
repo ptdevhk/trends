@@ -8,6 +8,7 @@ independently.
 """
 
 import logging
+import os
 import sys
 import traceback
 from typing import Optional, Dict, Any
@@ -41,6 +42,8 @@ def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool
         # Import here to avoid circular imports and ensure fresh config each run
         from trendradar.core import load_config
         from trendradar.__main__ import NewsAnalyzer
+
+        os.environ.setdefault("SKIP_ROOT_INDEX", "true")
 
         # Load configuration
         config = load_config()

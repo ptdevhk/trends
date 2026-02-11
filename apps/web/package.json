@@ -20,6 +20,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "convex": "^1.31.7",
+    "date-fns": "^4.1.0",
     "dotenv": "^17.2.4",
     "i18next": "^23.11.0",
     "i18next-browser-languagedetector": "^7.2.0",

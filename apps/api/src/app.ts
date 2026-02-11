@@ -18,6 +18,7 @@ import {
   filterPresetsRoutes,
   configRoutes,
   notificationRoutes,
+  workerRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 
@@ -64,6 +65,7 @@ export function createApp() {
   app.route("/", jobDescriptionsRoutes);
   app.route("/", sessionsRoutes);
   app.route("/", actionsRoutes);
+  app.route("/worker", workerRoutes);
   app.route("/api/search-profiles", searchProfilesRoutes);
   app.route("/api/filter-presets", filterPresetsRoutes);
   app.route("/api/filter-presets", filterPresetsRoutes);

@@ -12,3 +12,4 @@ export { default as searchProfilesRoutes } from "./search-profiles.js";
 export { default as filterPresetsRoutes } from "./filter-presets.js";
 export { default as configRoutes } from "./config.js";
 export { default as notificationRoutes } from "./notifications.js";
+export { default as workerRoutes } from "./worker.js";
