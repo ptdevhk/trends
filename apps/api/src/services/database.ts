@@ -90,6 +90,28 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_matches_session ON resume_matches(session_id);
     CREATE INDEX IF NOT EXISTS idx_matches_user ON resume_matches(user_id);
 
+    CREATE TABLE IF NOT EXISTS match_runs (
+      id TEXT PRIMARY KEY,
+      session_id TEXT,
+      job_description_id TEXT NOT NULL,
+      sample_name TEXT,
+      mode TEXT NOT NULL,
+      status TEXT NOT NULL,
+      total_count INTEGER NOT NULL DEFAULT 0,
+      processed_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      matched_count INTEGER,
+      avg_score REAL,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      error TEXT,
+      FOREIGN KEY (session_id) REFERENCES search_sessions(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_match_runs_session ON match_runs(session_id);
+    CREATE INDEX IF NOT EXISTS idx_match_runs_job ON match_runs(job_description_id);
+    CREATE INDEX IF NOT EXISTS idx_match_runs_started ON match_runs(started_at DESC);
+
     CREATE TABLE IF NOT EXISTS candidate_actions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT,

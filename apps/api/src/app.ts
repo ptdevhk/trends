@@ -92,6 +92,7 @@ export function createApp() {
         resume_matches: "/api/resumes/matches",
         resume_match: "/api/resumes/match",
         resume_match_stream: "/api/resumes/match-stream",
+        resume_match_runs: "/api/resumes/match-runs",
         resume_matches_rescore: "/api/resumes/matches/rescore",
         sessions: "/api/sessions",
         actions: "/api/actions",

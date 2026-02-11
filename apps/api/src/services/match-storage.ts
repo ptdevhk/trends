@@ -1,6 +1,9 @@
 import { getResumeScreeningDb } from "./database.js";
 import type { MatchingResult } from "./ai-matching.js";
 
+export type MatchRunMode = "rules_only" | "hybrid" | "ai_only";
+export type MatchRunStatus = "processing" | "completed" | "failed";
+
 export type StoredMatch = {
   id: number;
   sessionId?: string;
@@ -18,6 +21,23 @@ export type StoredMatch = {
   aiModel?: string;
   processingTimeMs?: number;
   matchedAt: string;
+};
+
+export type StoredMatchRun = {
+  id: string;
+  sessionId?: string;
+  jobDescriptionId: string;
+  sampleName?: string;
+  mode: MatchRunMode;
+  status: MatchRunStatus;
+  totalCount: number;
+  processedCount: number;
+  failedCount: number;
+  matchedCount?: number;
+  avgScore?: number;
+  startedAt: string;
+  completedAt?: string;
+  error?: string;
 };
 
 function parseJsonArray(value: unknown): string[] {
@@ -81,6 +101,41 @@ function normalizeMatch(row: Record<string, unknown>): StoredMatch {
     aiModel: row.ai_model ? String(row.ai_model) : undefined,
     processingTimeMs: row.processing_time_ms ? Number(row.processing_time_ms) : undefined,
     matchedAt: String(row.matched_at),
+  };
+}
+
+function normalizeMatchRun(row: Record<string, unknown>): StoredMatchRun {
+  const rawMode = String(row.mode ?? "hybrid");
+  const rawStatus = String(row.status ?? "processing");
+
+  const mode: MatchRunMode =
+    rawMode === "rules_only" || rawMode === "ai_only" || rawMode === "hybrid"
+      ? rawMode
+      : "hybrid";
+  const status: MatchRunStatus =
+    rawStatus === "completed" || rawStatus === "failed" || rawStatus === "processing"
+      ? rawStatus
+      : "processing";
+
+  return {
+    id: String(row.id),
+    sessionId: row.session_id ? String(row.session_id) : undefined,
+    jobDescriptionId: String(row.job_description_id),
+    sampleName: row.sample_name ? String(row.sample_name) : undefined,
+    mode,
+    status,
+    totalCount: Number(row.total_count ?? 0),
+    processedCount: Number(row.processed_count ?? 0),
+    failedCount: Number(row.failed_count ?? 0),
+    matchedCount: row.matched_count !== null && row.matched_count !== undefined
+      ? Number(row.matched_count)
+      : undefined,
+    avgScore: row.avg_score !== null && row.avg_score !== undefined
+      ? Number(row.avg_score)
+      : undefined,
+    startedAt: String(row.started_at),
+    completedAt: row.completed_at ? String(row.completed_at) : undefined,
+    error: row.error ? String(row.error) : undefined,
   };
 }
 
@@ -222,5 +277,134 @@ export class MatchStorage {
       ? this.db.prepare("DELETE FROM resume_matches WHERE job_description_id = ?").run(jobDescriptionId)
       : this.db.prepare("DELETE FROM resume_matches").run();
     return result.changes ?? 0;
+  }
+
+  createMatchRun(params: {
+    id: string;
+    sessionId?: string;
+    jobDescriptionId: string;
+    sampleName?: string;
+    mode: MatchRunMode;
+    status?: MatchRunStatus;
+    totalCount: number;
+    startedAt?: string;
+  }): void {
+    const startedAt = params.startedAt ?? new Date().toISOString();
+    this.db
+      .prepare(
+        `
+        INSERT INTO match_runs (
+          id,
+          session_id,
+          job_description_id,
+          sample_name,
+          mode,
+          status,
+          total_count,
+          processed_count,
+          failed_count,
+          matched_count,
+          avg_score,
+          started_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, NULL, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          session_id = excluded.session_id,
+          job_description_id = excluded.job_description_id,
+          sample_name = excluded.sample_name,
+          mode = excluded.mode,
+          status = excluded.status,
+          total_count = excluded.total_count,
+          processed_count = 0,
+          failed_count = 0,
+          matched_count = NULL,
+          avg_score = NULL,
+          started_at = excluded.started_at,
+          completed_at = NULL,
+          error = NULL
+        `
+      )
+      .run(
+        params.id,
+        params.sessionId ?? null,
+        params.jobDescriptionId,
+        params.sampleName ?? null,
+        params.mode,
+        params.status ?? "processing",
+        params.totalCount,
+        startedAt
+      );
+  }
+
+  finalizeMatchRun(params: {
+    id: string;
+    status: Extract<MatchRunStatus, "completed" | "failed">;
+    processedCount: number;
+    failedCount: number;
+    matchedCount?: number;
+    avgScore?: number;
+    completedAt?: string;
+    error?: string;
+  }): void {
+    const completedAt = params.completedAt ?? new Date().toISOString();
+    this.db
+      .prepare(
+        `
+        UPDATE match_runs
+        SET
+          status = ?,
+          processed_count = ?,
+          failed_count = ?,
+          matched_count = ?,
+          avg_score = ?,
+          completed_at = ?,
+          error = ?
+        WHERE id = ?
+        `
+      )
+      .run(
+        params.status,
+        params.processedCount,
+        params.failedCount,
+        params.matchedCount ?? null,
+        params.avgScore ?? null,
+        completedAt,
+        params.error ?? null,
+        params.id
+      );
+  }
+
+  listMatchRuns(params?: {
+    sessionId?: string;
+    jobDescriptionId?: string;
+    limit?: number;
+  }): StoredMatchRun[] {
+    const limit = Math.max(1, Math.min(params?.limit ?? 20, 100));
+
+    const clauses: string[] = [];
+    const values: Array<string | number> = [];
+
+    if (params?.sessionId) {
+      clauses.push("session_id = ?");
+      values.push(params.sessionId);
+    }
+    if (params?.jobDescriptionId) {
+      clauses.push("job_description_id = ?");
+      values.push(params.jobDescriptionId);
+    }
+
+    const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+    const rows = this.db
+      .prepare(
+        `
+        SELECT *
+        FROM match_runs
+        ${whereClause}
+        ORDER BY started_at DESC
+        LIMIT ?
+        `
+      )
+      .all(...values, limit) as Record<string, unknown>[];
+
+    return rows.map((row) => normalizeMatchRun(row));
   }
 }

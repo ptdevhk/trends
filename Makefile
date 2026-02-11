@@ -401,7 +401,7 @@ help:
 	@echo "  help           Show this help message"
 	@echo ""
 	@echo "Environment Variables:"
-	@echo "  ENV_FILE       Path to .env file (default: .env)"
+	@echo "  ENV_FILE       Optional env file path (unset by default)"
 	@echo "  MCP_PORT       MCP server port (default: 3333)"
 	@echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
 	@echo "  API_PORT       BFF API port (default: 3000)"

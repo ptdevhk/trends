@@ -19,6 +19,7 @@ import { FilterPanel } from '@/components/FilterPanel'
 import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
+import { MatchRunHistory } from '@/components/MatchRunHistory'
 import type { MatchBreakdown, MatchingResult, Recommendation } from '@/types/resume'
 
 import { useMutation } from 'convex/react'
@@ -95,7 +96,7 @@ function buildResumeKey(resume: ResumeItem, index: number): string {
 export function ResumeList() {
   const { t } = useTranslation()
   const { session, updateSession } = useSession()
-  const [mode, setMode] = useState<'ai' | 'original'>('ai')
+  const [mode, setMode] = useState<'ai' | 'original'>('original')
   const [jobDescriptionId, setJobDescriptionId] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -585,7 +586,11 @@ export function ResumeList() {
         ) : null}
       </div>
 
-      <AnalysisTaskMonitor />
+      {mode === 'ai' ? (
+        <AnalysisTaskMonitor />
+      ) : (
+        <MatchRunHistory sessionId={session?.id} jobDescriptionId={jobDescriptionId || undefined} />
+      )}
 
       <Card>
         <CardHeader>

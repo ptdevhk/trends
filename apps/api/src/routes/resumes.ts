@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { randomUUID } from "node:crypto";
 import {
   ResumesQuerySchema,
   ResumesResponseSchema,
@@ -7,12 +8,19 @@ import {
   MatchResponseSchema,
   ResumeMatchesResponseSchema,
   ResumeMatchesQuerySchema,
+  MatchRunsResponseSchema,
+  MatchRunsQuerySchema,
 } from "../schemas/index.js";
 import { config } from "../services/config.js";
 import { ResumeService, parseExperienceYears } from "../services/resume-service.js";
 import { DataNotFoundError } from "../services/errors.js";
 import { AIMatchingService, type MatchingRequest, type MatchingResult } from "../services/ai-matching.js";
-import { MatchStorage, type StoredMatch } from "../services/match-storage.js";
+import {
+  MatchStorage,
+  type MatchRunMode,
+  type StoredMatch,
+  type StoredMatchRun,
+} from "../services/match-storage.js";
 import { SessionManager } from "../services/session-manager.js";
 import { JobDescriptionService } from "../services/job-description-service.js";
 import { RuleScoringService } from "../services/rule-scoring.js";
@@ -140,6 +148,40 @@ function mapStoredMatch(match: StoredMatch): {
     matchedAt: match.matchedAt,
     sessionId: match.sessionId,
     userId: match.userId,
+  };
+}
+
+function mapStoredMatchRun(run: StoredMatchRun): {
+  id: string;
+  sessionId?: string;
+  jobDescriptionId: string;
+  sampleName?: string;
+  mode: MatchRunMode;
+  status: "processing" | "completed" | "failed";
+  totalCount: number;
+  processedCount: number;
+  failedCount: number;
+  matchedCount?: number;
+  avgScore?: number;
+  startedAt: string;
+  completedAt?: string;
+  error?: string;
+} {
+  return {
+    id: run.id,
+    sessionId: run.sessionId,
+    jobDescriptionId: run.jobDescriptionId,
+    sampleName: run.sampleName,
+    mode: run.mode,
+    status: run.status,
+    totalCount: run.totalCount,
+    processedCount: run.processedCount,
+    failedCount: run.failedCount,
+    matchedCount: run.matchedCount,
+    avgScore: run.avgScore,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    error: run.error,
   };
 }
 
@@ -494,110 +536,165 @@ app.openapi(matchResumesRoute, async (c) => {
     indexData: indexMap.get(item.resumeId) ?? createFallbackIndex(item.resume, item.resumeId),
   }));
 
-  const startTime = Date.now();
-
-  if (mode === "rules_only" || mode === "hybrid") {
-    const context = ruleScoringService.buildContext(jobDescriptionId);
-    const scored = ruleScoringService.scoreBatch(prepared.map((item) => item.indexData), context);
-
-    const entries = scored.map((entry) => ({
+  const shouldTrackRun = mode !== "hybrid";
+  const runId = randomUUID();
+  if (shouldTrackRun) {
+    matchStorage.createMatchRun({
+      id: runId,
       sessionId: session?.id,
-      resumeId: entry.resumeId,
       jobDescriptionId,
       sampleName: sampleName ?? undefined,
-      result: ruleScoringService.toMatchingResult(entry.result),
-      aiModel: "rule-scoring",
-      processingTimeMs: Date.now() - startTime,
-    }));
+      mode,
+      totalCount: prepared.length,
+    });
+  }
 
-    if (entries.length > 0) {
-      matchStorage.saveMatches(entries);
+  const startTime = Date.now();
+
+  try {
+    if (mode === "rules_only" || mode === "hybrid") {
+      const context = ruleScoringService.buildContext(jobDescriptionId);
+      const scored = ruleScoringService.scoreBatch(prepared.map((item) => item.indexData), context);
+
+      const entries = scored.map((entry) => ({
+        sessionId: session?.id,
+        resumeId: entry.resumeId,
+        jobDescriptionId,
+        sampleName: sampleName ?? undefined,
+        result: ruleScoringService.toMatchingResult(entry.result),
+        aiModel: "rule-scoring",
+        processingTimeMs: Date.now() - startTime,
+      }));
+
+      if (entries.length > 0) {
+        matchStorage.saveMatches(entries);
+      }
+
+      const storedMatches = matchStorage.getMatchesByResumeIds(
+        prepared.map((item) => item.resumeId),
+        jobDescriptionId
+      );
+
+      const results = storedMatches
+        .map((match) => mapStoredMatch(match))
+        .sort((a, b) => b.score - a.score);
+
+      const pendingAiCount = mode === "hybrid"
+        ? Math.min(toTopN(topN), results.length)
+        : 0;
+      const stats = computeStats(
+        results,
+        Date.now() - startTime,
+        mode === "hybrid" ? pendingAiCount : undefined
+      );
+
+      if (shouldTrackRun) {
+        matchStorage.finalizeMatchRun({
+          id: runId,
+          status: "completed",
+          processedCount: stats.processed,
+          failedCount: 0,
+          matchedCount: stats.matched,
+          avgScore: stats.avgScore,
+        });
+      }
+
+      return c.json(
+        {
+          success: true as const,
+          mode,
+          streamPath: mode === "hybrid" ? "/api/resumes/match-stream" : undefined,
+          pendingAiCount: mode === "hybrid" ? pendingAiCount : undefined,
+          results,
+          stats,
+        },
+        200
+      );
     }
 
-    const storedMatches = matchStorage.getMatchesByResumeIds(
+    const cachedMatches = matchStorage.getMatchesByResumeIds(
+      prepared.map((item) => item.resumeId),
+      jobDescriptionId
+    );
+    const cachedMap = new Map(cachedMatches.map((match) => [match.resumeId, match]));
+
+    const toProcess = prepared.filter((item) => {
+      const cached = cachedMap.get(item.resumeId);
+      if (!cached) return true;
+      return cached.scoreSource === "rule";
+    });
+
+    if (toProcess.length > 0) {
+      const batchResult = await aiService.matchBatch(
+        toProcess.map((item) => buildAiResumePayload(item)),
+        {
+          title: jdMeta.title || jobDescriptionId,
+          requirements,
+          responsibilities,
+        }
+      );
+
+      const entries = batchResult.results.map((entry) => ({
+        sessionId: session?.id,
+        resumeId: entry.resumeId,
+        jobDescriptionId,
+        sampleName: sampleName ?? undefined,
+        result: {
+          ...entry.result,
+          scoreSource: "ai" as const,
+        },
+        aiModel: aiService.getServiceInfo().model,
+        processingTimeMs: batchResult.processingTimeMs,
+      }));
+
+      if (entries.length > 0) {
+        matchStorage.saveMatches(entries);
+      }
+    }
+
+    const finalMatches = matchStorage.getMatchesByResumeIds(
       prepared.map((item) => item.resumeId),
       jobDescriptionId
     );
 
-    const results = storedMatches
+    const finalResults = finalMatches
       .map((match) => mapStoredMatch(match))
       .sort((a, b) => b.score - a.score);
+    const stats = computeStats(finalResults, Date.now() - startTime);
 
-    const pendingAiCount = mode === "hybrid"
-      ? Math.min(toTopN(topN), results.length)
-      : 0;
+    if (shouldTrackRun) {
+      matchStorage.finalizeMatchRun({
+        id: runId,
+        status: "completed",
+        processedCount: stats.processed,
+        failedCount: 0,
+        matchedCount: stats.matched,
+        avgScore: stats.avgScore,
+      });
+    }
 
     return c.json(
       {
         success: true as const,
-        mode,
-        streamPath: mode === "hybrid" ? "/api/resumes/match-stream" : undefined,
-        pendingAiCount: mode === "hybrid" ? pendingAiCount : undefined,
-        results,
-        stats: computeStats(results, Date.now() - startTime, mode === "hybrid" ? pendingAiCount : undefined),
+        mode: "ai_only",
+        results: finalResults,
+        stats,
       },
       200
     );
-  }
-
-  const cachedMatches = matchStorage.getMatchesByResumeIds(
-    prepared.map((item) => item.resumeId),
-    jobDescriptionId
-  );
-  const cachedMap = new Map(cachedMatches.map((match) => [match.resumeId, match]));
-
-  const toProcess = prepared.filter((item) => {
-    const cached = cachedMap.get(item.resumeId);
-    if (!cached) return true;
-    return cached.scoreSource === "rule";
-  });
-
-  if (toProcess.length > 0) {
-    const batchResult = await aiService.matchBatch(
-      toProcess.map((item) => buildAiResumePayload(item)),
-      {
-        title: jdMeta.title || jobDescriptionId,
-        requirements,
-        responsibilities,
-      }
-    );
-
-    const entries = batchResult.results.map((entry) => ({
-      sessionId: session?.id,
-      resumeId: entry.resumeId,
-      jobDescriptionId,
-      sampleName: sampleName ?? undefined,
-      result: {
-        ...entry.result,
-        scoreSource: "ai" as const,
-      },
-      aiModel: aiService.getServiceInfo().model,
-      processingTimeMs: batchResult.processingTimeMs,
-    }));
-
-    if (entries.length > 0) {
-      matchStorage.saveMatches(entries);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (shouldTrackRun) {
+      matchStorage.finalizeMatchRun({
+        id: runId,
+        status: "failed",
+        processedCount: 0,
+        failedCount: prepared.length,
+        error: message,
+      });
     }
+    throw error;
   }
-
-  const finalMatches = matchStorage.getMatchesByResumeIds(
-    prepared.map((item) => item.resumeId),
-    jobDescriptionId
-  );
-
-  const finalResults = finalMatches
-    .map((match) => mapStoredMatch(match))
-    .sort((a, b) => b.score - a.score);
-
-  return c.json(
-    {
-      success: true as const,
-      mode: "ai_only",
-      results: finalResults,
-      stats: computeStats(finalResults, Date.now() - startTime),
-    },
-    200
-  );
 });
 
 app.post("/api/resumes/match-stream", async (c) => {
@@ -668,6 +765,16 @@ app.post("/api/resumes/match-stream", async (c) => {
     indexData: indexMap.get(item.resumeId) ?? createFallbackIndex(item.resume, item.resumeId),
   }));
 
+  const runId = randomUUID();
+  matchStorage.createMatchRun({
+    id: runId,
+    sessionId: session?.id,
+    jobDescriptionId,
+    sampleName: sampleName ?? undefined,
+    mode,
+    totalCount: prepared.length,
+  });
+
   const encoder = new TextEncoder();
   const abortSignal = c.req.raw.signal;
 
@@ -679,9 +786,32 @@ app.post("/api/resumes/match-stream", async (c) => {
       };
 
       const startTime = Date.now();
+      let runFinalized = false;
+
+      const finalizeRun = (params: {
+        status: "completed" | "failed";
+        processedCount: number;
+        failedCount: number;
+        matchedCount?: number;
+        avgScore?: number;
+        error?: string;
+      }): void => {
+        if (runFinalized) return;
+        runFinalized = true;
+        matchStorage.finalizeMatchRun({
+          id: runId,
+          status: params.status,
+          processedCount: params.processedCount,
+          failedCount: params.failedCount,
+          matchedCount: params.matchedCount,
+          avgScore: params.avgScore,
+          error: params.error,
+        });
+      };
 
       try {
         safeSend("ready", {
+          runId,
           mode,
           total: prepared.length,
           topN: requestedTopN,
@@ -726,13 +856,21 @@ app.post("/api/resumes/match-stream", async (c) => {
           });
 
           if (mode === "rules_only") {
+            const stats = computeStats(
+              orderedRuleMatches.map((match) => ({ score: match.score })),
+              Date.now() - startTime,
+              0
+            );
+            finalizeRun({
+              status: "completed",
+              processedCount: stats.processed,
+              failedCount: 0,
+              matchedCount: stats.matched,
+              avgScore: stats.avgScore,
+            });
             safeSend("done", {
               mode,
-              stats: computeStats(
-                orderedRuleMatches.map((match) => ({ score: match.score })),
-                Date.now() - startTime,
-                0
-              ),
+              stats,
             });
             controller.close();
             return;
@@ -817,15 +955,24 @@ app.post("/api/resumes/match-stream", async (c) => {
           const finalTopMatches = matchStorage
             .getMatchesByResumeIds(topIds, jobDescriptionId)
             .sort((a, b) => b.score - a.score);
+          const stats = computeStats(
+            finalTopMatches.map((match) => ({ score: match.score })),
+            Date.now() - startTime,
+            Math.max(0, aiCandidates.length - aiDone)
+          );
+
+          finalizeRun({
+            status: "completed",
+            processedCount: stats.processed,
+            failedCount: aiFailed,
+            matchedCount: stats.matched,
+            avgScore: stats.avgScore,
+          });
 
           safeSend("done", {
             mode,
             failedCount: aiFailed,
-            stats: computeStats(
-              finalTopMatches.map((match) => ({ score: match.score })),
-              Date.now() - startTime,
-              Math.max(0, aiCandidates.length - aiDone)
-            ),
+            stats,
           });
 
           controller.close();
@@ -870,19 +1017,33 @@ app.post("/api/resumes/match-stream", async (c) => {
             },
           }
         );
+        const stats = computeStats(
+          batchResult.results.map((entry) => ({ score: entry.result.score })),
+          Date.now() - startTime,
+          0
+        );
+        finalizeRun({
+          status: "completed",
+          processedCount: stats.processed,
+          failedCount: batchResult.failedCount,
+          matchedCount: stats.matched,
+          avgScore: stats.avgScore,
+        });
 
         safeSend("done", {
           mode,
           failedCount: batchResult.failedCount,
-          stats: computeStats(
-            batchResult.results.map((entry) => ({ score: entry.result.score })),
-            Date.now() - startTime,
-            0
-          ),
+          stats,
         });
         controller.close();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        finalizeRun({
+          status: "failed",
+          processedCount: 0,
+          failedCount: prepared.length,
+          error: message,
+        });
         safeSend("error", { message });
         controller.close();
       }
@@ -937,6 +1098,36 @@ app.openapi(getResumeMatchesRoute, (c) => {
     {
       success: true as const,
       results: results.map((match) => mapStoredMatch(match)),
+    },
+    200
+  );
+});
+
+const getMatchRunsRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/match-runs",
+  tags: ["resumes"],
+  summary: "Get resume match run history",
+  description: "Returns recent matching runs for backend AI/rule pipeline",
+  request: {
+    query: MatchRunsQuerySchema,
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: MatchRunsResponseSchema } },
+      description: "Recent run history",
+    },
+  },
+});
+
+app.openapi(getMatchRunsRoute, (c) => {
+  const { sessionId, jobDescriptionId, limit } = c.req.valid("query");
+  const runs = matchStorage.listMatchRuns({ sessionId, jobDescriptionId, limit });
+
+  return c.json(
+    {
+      success: true as const,
+      runs: runs.map((run) => mapStoredMatchRun(run)),
     },
     200
   );

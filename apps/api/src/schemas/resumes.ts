@@ -327,3 +327,60 @@ export const ResumeMatchesQuerySchema = z.object({
       example: "lathe-sales",
     }),
 });
+
+export const MatchRunStatusSchema = z.enum(["processing", "completed", "failed"]);
+export const MatchRunModeSchema = z.enum(["rules_only", "hybrid", "ai_only"]);
+
+export const MatchRunSchema = z
+  .object({
+    id: z.string().openapi({ example: "run-123" }),
+    sessionId: z.string().optional().openapi({ example: "session-123" }),
+    jobDescriptionId: z.string().openapi({ example: "lathe-sales" }),
+    sampleName: z.string().optional().openapi({ example: "sample-initial" }),
+    mode: MatchRunModeSchema.openapi({ example: "hybrid" }),
+    status: MatchRunStatusSchema.openapi({ example: "completed" }),
+    totalCount: z.number().int().openapi({ example: 100 }),
+    processedCount: z.number().int().openapi({ example: 20 }),
+    failedCount: z.number().int().openapi({ example: 0 }),
+    matchedCount: z.number().int().optional().openapi({ example: 14 }),
+    avgScore: z.number().optional().openapi({ example: 72.3 }),
+    startedAt: z.string().openapi({ example: "2026-02-11T08:00:00.000Z" }),
+    completedAt: z.string().optional().openapi({ example: "2026-02-11T08:00:09.000Z" }),
+    error: z.string().optional().openapi({ example: "AI provider timeout" }),
+  })
+  .openapi("MatchRun");
+
+export const MatchRunsQuerySchema = z.object({
+  sessionId: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "sessionId", in: "query" },
+      example: "session-123",
+    }),
+  jobDescriptionId: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "jobDescriptionId", in: "query" },
+      example: "lathe-sales",
+    }),
+  limit: z
+    .coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .openapi({
+      param: { name: "limit", in: "query" },
+      example: 20,
+    }),
+});
+
+export const MatchRunsResponseSchema = z
+  .object({
+    success: z.literal(true),
+    runs: z.array(MatchRunSchema),
+  })
+  .openapi("MatchRunsResponse");

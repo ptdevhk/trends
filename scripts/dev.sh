@@ -4,10 +4,19 @@ set -e
 # TrendRadar Development Environment
 # Starts all available services concurrently with proper process management
 
-ENV_FILE="${ENV_FILE:-.env}"
+ENV_FILE="${ENV_FILE:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 LOGS_DIR="$PROJECT_ROOT/logs"
+ENV_FILE_RESOLVED=""
+
+if [ -n "$ENV_FILE" ]; then
+    if [ -f "$ENV_FILE" ]; then
+        ENV_FILE_RESOLVED="$ENV_FILE"
+    elif [ -f "$PROJECT_ROOT/$ENV_FILE" ]; then
+        ENV_FILE_RESOLVED="$PROJECT_ROOT/$ENV_FILE"
+    fi
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -524,8 +533,8 @@ start_mcp_server() {
 
     cd "$PROJECT_ROOT"
     local cmd="uv run python -m mcp_server.server --transport http --port $port"
-    if [ -f "$ENV_FILE" ]; then
-        cmd="uv run --env-file $ENV_FILE python -m mcp_server.server --transport http --port $port"
+    if [ -n "$ENV_FILE_RESOLVED" ]; then
+        cmd="uv run --env-file \"$ENV_FILE_RESOLVED\" python -m mcp_server.server --transport http --port $port"
     fi
 
     # Use process substitution to capture correct PID
@@ -541,8 +550,8 @@ start_crawler() {
     export SKIP_ROOT_INDEX=true
 
     local cmd="uv run python -m trendradar"
-    if [ -f "$ENV_FILE" ]; then
-        cmd="uv run --env-file $ENV_FILE python -m trendradar"
+    if [ -n "$ENV_FILE_RESOLVED" ]; then
+        cmd="uv run --env-file \"$ENV_FILE_RESOLVED\" python -m trendradar"
     fi
 
     eval "$cmd" > >(tee "$LOGS_DIR/crawler.log" | while read line; do log "CRAWLER" "$GREEN" "$line"; done) 2>&1 &
@@ -602,14 +611,17 @@ start_api() {
         log "API" "$CYAN" "Starting BFF API on http://localhost:$port ($runner run dev)"
         cd "$PROJECT_ROOT/apps/api"
 
-        if [ -n "$ENV_FILE" ] && [ -f "$PROJECT_ROOT/$ENV_FILE" ]; then
-            # Source .env into the current subshell to export vars to the runner
-            set -a
-            source "$PROJECT_ROOT/$ENV_FILE"
-            set +a
+        if [ -n "$ENV_FILE_RESOLVED" ] && [ "$runner" = "bun" ]; then
+            PORT="$port" bun --env-file "$ENV_FILE_RESOLVED" run dev > >(tee "$(service_log_path "api")" | stream_service_logs "api" "$CYAN") 2>&1 &
+        else
+            if [ -n "$ENV_FILE_RESOLVED" ]; then
+                # Export optional env-file values into this subshell for npm fallback.
+                set -a
+                source "$ENV_FILE_RESOLVED"
+                set +a
+            fi
+            PORT="$port" run_local_js_script dev > >(tee "$(service_log_path "api")" | stream_service_logs "api" "$CYAN") 2>&1 &
         fi
-
-        PORT="$port" run_local_js_script dev > >(tee "$(service_log_path "api")" | stream_service_logs "api" "$CYAN") 2>&1 &
         SERVICE_PIDS["api"]=$!
     else
         log "API" "$YELLOW" "apps/api not found (planned for Milestone 2)"
@@ -630,8 +642,8 @@ start_worker() {
         cd "$PROJECT_ROOT/apps/worker"
         
         local cmd="uv run uvicorn api:app --reload --port $port"
-        if [ -f "$ENV_FILE" ]; then
-            cmd="uv run --env-file $ENV_FILE uvicorn api:app --reload --port $port"
+        if [ -n "$ENV_FILE_RESOLVED" ]; then
+            cmd="uv run --env-file \"$ENV_FILE_RESOLVED\" uvicorn api:app --reload --port $port"
         fi
 
         eval "$cmd" > >(tee "$(service_log_path "worker")" | stream_service_logs "worker" "$CYAN") 2>&1 &
@@ -669,8 +681,8 @@ start_scraper() {
 
     cd "$PROJECT_ROOT"
     local cmd="uv run python scripts/worker.py"
-    if [ -f "$ENV_FILE" ]; then
-        cmd="uv run --env-file $ENV_FILE python scripts/worker.py"
+    if [ -n "$ENV_FILE_RESOLVED" ]; then
+        cmd="uv run --env-file \"$ENV_FILE_RESOLVED\" python scripts/worker.py"
     fi
 
     eval "$cmd" > >(tee "$(service_log_path "scraper")" | stream_service_logs "scraper" "$CYAN") 2>&1 &
@@ -895,10 +907,10 @@ main() {
     mkdir -p "$LOGS_DIR"
 
     # Load environment
-    if [ -f "$PROJECT_ROOT/$ENV_FILE" ]; then
-        log "DEV" "$GREEN" "Using environment from: $ENV_FILE"
+    if [ -n "$ENV_FILE_RESOLVED" ]; then
+        log "DEV" "$GREEN" "Using environment from: $ENV_FILE_RESOLVED"
     else
-        log "DEV" "$YELLOW" "No $ENV_FILE found, using system environment"
+        log "DEV" "$YELLOW" "Using system environment variables (no ENV_FILE configured)"
     fi
 
     # Parse command line arguments
@@ -952,7 +964,7 @@ main() {
                 echo "  --help        Show this help message"
                 echo ""
                 echo "Environment variables:"
-                echo "  ENV_FILE      Path to .env file (default: .env)"
+                echo "  ENV_FILE      Optional env file path (unset by default)"
                 echo "  SKIP_CRAWL    Skip crawl on startup (default: true; set to false to crawl)"
                 echo "  SEED_MODE     Convex seed mode: auto|skip (default: auto)"
                 echo "  MCP_PORT      MCP server port (default: 3333)"
