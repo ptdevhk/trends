@@ -242,6 +242,18 @@ export const RecommendationSchema = z.enum([
   "no_match",
 ]);
 
+export const ScoreSourceSchema = z.enum(["rule", "ai"]);
+
+export const MatchBreakdownSchema = z
+  .object({
+    skillMatch: z.number().int().openapi({ example: 20 }),
+    experienceMatch: z.number().int().openapi({ example: 18 }),
+    educationMatch: z.number().int().openapi({ example: 12 }),
+    locationMatch: z.number().int().openapi({ example: 15 }),
+    industryMatch: z.number().int().openapi({ example: 10 }),
+  })
+  .openapi("MatchBreakdown");
+
 export const ResumeMatchSchema = z
   .object({
     resumeId: z.string().openapi({ example: "R123456" }),
@@ -251,6 +263,8 @@ export const ResumeMatchSchema = z
     highlights: z.array(z.string()).openapi({ example: ["客户开发经验丰富"] }),
     concerns: z.array(z.string()).openapi({ example: ["缺少机床销售经验"] }),
     summary: z.string().openapi({ example: "候选人与岗位匹配良好，可安排面试。" }),
+    breakdown: MatchBreakdownSchema.optional(),
+    scoreSource: ScoreSourceSchema.optional().openapi({ example: "rule" }),
     matchedAt: z.string().openapi({ example: "2026-02-05T08:00:00.000Z" }),
     sessionId: z.string().optional().openapi({ example: "session-123" }),
     userId: z.string().optional().openapi({ example: "user-abc" }),
@@ -264,6 +278,8 @@ export const MatchRequestSchema = z
     jobDescriptionId: z.string().openapi({ example: "lathe-sales" }),
     resumeIds: z.array(z.string()).optional().openapi({ example: ["R123456"] }),
     limit: z.number().int().min(1).max(1000).optional().openapi({ example: 50 }),
+    topN: z.number().int().min(1).max(500).optional().openapi({ example: 20 }),
+    mode: z.enum(["rules_only", "hybrid", "ai_only"]).optional().openapi({ example: "hybrid" }),
   })
   .openapi("MatchRequest");
 
@@ -273,12 +289,16 @@ export const MatchStatsSchema = z
     matched: z.number().int(),
     avgScore: z.number(),
     processingTimeMs: z.number().int().optional(),
+    pendingAi: z.number().int().optional(),
   })
   .openapi("MatchStats");
 
 export const MatchResponseSchema = z
   .object({
     success: z.literal(true),
+    mode: z.enum(["rules_only", "hybrid", "ai_only"]).optional(),
+    streamPath: z.string().optional(),
+    pendingAiCount: z.number().int().optional(),
     results: z.array(ResumeMatchSchema),
     stats: MatchStatsSchema,
   })
@@ -307,3 +327,60 @@ export const ResumeMatchesQuerySchema = z.object({
       example: "lathe-sales",
     }),
 });
+
+export const MatchRunStatusSchema = z.enum(["processing", "completed", "failed"]);
+export const MatchRunModeSchema = z.enum(["rules_only", "hybrid", "ai_only"]);
+
+export const MatchRunSchema = z
+  .object({
+    id: z.string().openapi({ example: "run-123" }),
+    sessionId: z.string().optional().openapi({ example: "session-123" }),
+    jobDescriptionId: z.string().openapi({ example: "lathe-sales" }),
+    sampleName: z.string().optional().openapi({ example: "sample-initial" }),
+    mode: MatchRunModeSchema.openapi({ example: "hybrid" }),
+    status: MatchRunStatusSchema.openapi({ example: "completed" }),
+    totalCount: z.number().int().openapi({ example: 100 }),
+    processedCount: z.number().int().openapi({ example: 20 }),
+    failedCount: z.number().int().openapi({ example: 0 }),
+    matchedCount: z.number().int().optional().openapi({ example: 14 }),
+    avgScore: z.number().optional().openapi({ example: 72.3 }),
+    startedAt: z.string().openapi({ example: "2026-02-11T08:00:00.000Z" }),
+    completedAt: z.string().optional().openapi({ example: "2026-02-11T08:00:09.000Z" }),
+    error: z.string().optional().openapi({ example: "AI provider timeout" }),
+  })
+  .openapi("MatchRun");
+
+export const MatchRunsQuerySchema = z.object({
+  sessionId: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "sessionId", in: "query" },
+      example: "session-123",
+    }),
+  jobDescriptionId: z
+    .string()
+    .optional()
+    .openapi({
+      param: { name: "jobDescriptionId", in: "query" },
+      example: "lathe-sales",
+    }),
+  limit: z
+    .coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .openapi({
+      param: { name: "limit", in: "query" },
+      example: 20,
+    }),
+});
+
+export const MatchRunsResponseSchema = z
+  .object({
+    success: z.literal(true),
+    runs: z.array(MatchRunSchema),
+  })
+  .openapi("MatchRunsResponse");

@@ -13,6 +13,8 @@
 # Default target
 .DEFAULT_GOAL := help
 
+.PHONY: seed-matches clear-matches
+
 # =============================================================================
 # Development (Full Experience)
 # =============================================================================
@@ -25,6 +27,7 @@ dev:
 	else \
 		echo "Skipping Convex env sync (no Convex .env.local found yet)"; \
 	fi
+	@npx tsx scripts/seed-matches.ts
 	./scripts/dev.sh $(ARGS)
 
 # Stop/clean any stale development services and ports
@@ -253,6 +256,14 @@ seed-force:
 		npx tsx scripts/seed-convex.ts --force; \
 	fi
 
+# Seed deterministic resume matches into output/resume_screening.db
+seed-matches:
+	@npx tsx scripts/seed-matches.ts
+
+# Clear cached resume matches from output/resume_screening.db
+clear-matches:
+	@npx tsx scripts/clear-matches.ts
+
 # Refresh resume sample data automatically via CDP
 refresh-sample:
 	@KEYWORD="$(or $(KEYWORD),销售)" SAMPLE="$(or $(SAMPLE),sample-initial)" \
@@ -417,6 +428,8 @@ help:
 	@echo "  seed           Seed Convex with system job descriptions"
 	@echo "  seed-full      Seed Convex with system job descriptions + sample resumes"
 	@echo "  seed-force     Force seed Convex even if DB is not empty"
+	@echo "  seed-matches   Seed deterministic resume matches for dev mode"
+	@echo "  clear-matches  Clear cached resume matches from SQLite"
 	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
 	@echo "  chrome-debug   Start Google Chrome with remote debugging (port 9222)"
@@ -432,7 +445,7 @@ help:
 	@echo "  help           Show this help message"
 	@echo ""
 	@echo "Environment Variables:"
-	@echo "  ENV_FILE       Path to .env file (default: .env)"
+	@echo "  ENV_FILE       Optional env file path (unset by default)"
 	@echo "  MCP_PORT       MCP server port (default: 3333)"
 	@echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
 	@echo "  API_PORT       BFF API port (default: 3000)"

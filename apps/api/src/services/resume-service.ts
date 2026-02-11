@@ -3,8 +3,10 @@ import path from "node:path";
 
 import { findProjectRoot } from "./db.js";
 import { DataNotFoundError, FileParseError } from "./errors.js";
+import { ResumeIndexService } from "./resume-index.js";
 
 import type { ResumeItem, ResumeSampleFile, ResumeWorkHistoryItem } from "../types/resume.js";
+import type { ResumeIndex } from "./resume-index.js";
 
 export type ResumeFilters = {
   minExperience?: number;
@@ -99,9 +101,11 @@ function normalizePayload(payload: ResumePayload, filepath: string): ResumeItem[
 
 export class ResumeService {
   readonly projectRoot: string;
+  private readonly indexService: ResumeIndexService;
 
   constructor(projectRoot?: string) {
     this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
+    this.indexService = new ResumeIndexService(this.projectRoot);
   }
 
   private getSamplesDir(): string {
@@ -128,7 +132,12 @@ export class ResumeService {
     return entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
-  loadSample(name?: string): { items: ResumeItem[]; sample: ResumeSampleFile; metadata?: ResumeMetadata } {
+  loadSample(name?: string): {
+    items: ResumeItem[];
+    sample: ResumeSampleFile;
+    metadata?: ResumeMetadata;
+    indexes: Map<string, ResumeIndex>;
+  } {
     const samplesDir = this.getSamplesDir();
     const samples = this.listSampleFiles();
 
@@ -165,7 +174,9 @@ export class ResumeService {
       generatedBy: "legacy-sample",
       totalResumes: items.length,
     };
-    return { items, sample, metadata: resolvedMetadata };
+    const cacheKey = `${sample.filename}:${sample.updatedAt}`;
+    const indexes = this.indexService.buildIndex(cacheKey, items);
+    return { items, sample, metadata: resolvedMetadata, indexes };
   }
 
   searchResumes(items: ResumeItem[], query?: string): ResumeItem[] {

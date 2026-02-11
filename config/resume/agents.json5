@@ -12,6 +12,7 @@
         model: "deepseek/deepseek-chat",
         config: {
           batchSize: 50,           // Process 50 resumes per batch
+          concurrency: 5,          // Default concurrent workers for API batch matching
           parallelism: 10,         // 10 parallel requests
           timeout: 30000,          // 30 second timeout
           maxTokens: 500,          // Short responses
@@ -101,6 +102,15 @@
     { agentId: "evaluator", match: { stage: "technical_review" } },
     { agentId: "final", match: { stage: "final_decision" } }
   ],
+
+  // Rule-first hybrid scoring defaults
+  ruleScoring: {
+    enabled: true,
+    defaultMode: "hybrid",   // rules_only | hybrid | ai_only
+    aiTopN: 20,              // Only top N rule-scored resumes go to AI
+    aiConcurrency: 5,        // AI batch concurrency
+    minRuleScoreForAi: 50
+  },
   
   // Global settings
   global: {

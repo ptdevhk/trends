@@ -73,6 +73,8 @@ function initSchema(db: Database.Database): void {
       highlights TEXT,
       concerns TEXT,
       summary TEXT,
+      breakdown TEXT,
+      score_source TEXT DEFAULT 'ai',
       ai_model TEXT,
       processing_time_ms INTEGER,
       matched_at TEXT NOT NULL,
@@ -84,8 +86,31 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_matches_job ON resume_matches(job_description_id);
     CREATE INDEX IF NOT EXISTS idx_matches_resume ON resume_matches(resume_id);
     CREATE INDEX IF NOT EXISTS idx_matches_score ON resume_matches(score DESC);
+    CREATE INDEX IF NOT EXISTS idx_matches_job_score ON resume_matches(job_description_id, score DESC);
     CREATE INDEX IF NOT EXISTS idx_matches_session ON resume_matches(session_id);
     CREATE INDEX IF NOT EXISTS idx_matches_user ON resume_matches(user_id);
+
+    CREATE TABLE IF NOT EXISTS match_runs (
+      id TEXT PRIMARY KEY,
+      session_id TEXT,
+      job_description_id TEXT NOT NULL,
+      sample_name TEXT,
+      mode TEXT NOT NULL,
+      status TEXT NOT NULL,
+      total_count INTEGER NOT NULL DEFAULT 0,
+      processed_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      matched_count INTEGER,
+      avg_score REAL,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      error TEXT,
+      FOREIGN KEY (session_id) REFERENCES search_sessions(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_match_runs_session ON match_runs(session_id);
+    CREATE INDEX IF NOT EXISTS idx_match_runs_job ON match_runs(job_description_id);
+    CREATE INDEX IF NOT EXISTS idx_match_runs_started ON match_runs(started_at DESC);
 
     CREATE TABLE IF NOT EXISTS candidate_actions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,4 +128,19 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_actions_user ON candidate_actions(user_id);
     CREATE INDEX IF NOT EXISTS idx_actions_type ON candidate_actions(action_type);
   `);
+
+  ensureColumn(db, "resume_matches", "breakdown", "TEXT");
+  ensureColumn(db, "resume_matches", "score_source", "TEXT DEFAULT 'ai'");
+}
+
+function ensureColumn(
+  db: Database.Database,
+  table: string,
+  column: string,
+  definition: string
+): void {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<Record<string, unknown>>;
+  const exists = rows.some((row) => String(row.name) === column);
+  if (exists) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
