@@ -2035,6 +2035,11 @@ export interface components {
             /** @example 85 */
             score: number;
             /**
+             * @example ai
+             * @enum {string}
+             */
+            scoreSource?: "rule" | "ai";
+            /**
              * @example match
              * @enum {string}
              */
@@ -2053,6 +2058,15 @@ export interface components {
             concerns: string[];
             /** @example 候选人与岗位匹配良好，可安排面试。 */
             summary: string;
+            /**
+             * @example {
+             *       "skillMatch": 18,
+             *       "experienceMatch": 25
+             *     }
+             */
+            breakdown?: {
+                [key: string]: number;
+            };
             /** @example 2026-02-05T08:00:00.000Z */
             matchedAt: string;
             /** @example session-123 */
@@ -2087,6 +2101,11 @@ export interface components {
             resumeIds?: string[];
             /** @example 50 */
             limit?: number;
+            /**
+             * @example hybrid
+             * @enum {string}
+             */
+            mode?: "rules_only" | "hybrid" | "ai_only";
         };
         ResumeMatchesResponse: {
             /** @enum {boolean} */

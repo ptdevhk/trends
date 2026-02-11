@@ -73,6 +73,7 @@ function initSchema(db: Database.Database): void {
       highlights TEXT,
       concerns TEXT,
       summary TEXT,
+      breakdown TEXT,
       ai_model TEXT,
       processing_time_ms INTEGER,
       matched_at TEXT NOT NULL,
@@ -84,6 +85,7 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_matches_job ON resume_matches(job_description_id);
     CREATE INDEX IF NOT EXISTS idx_matches_resume ON resume_matches(resume_id);
     CREATE INDEX IF NOT EXISTS idx_matches_score ON resume_matches(score DESC);
+    CREATE INDEX IF NOT EXISTS idx_matches_job_score ON resume_matches(job_description_id, score DESC);
     CREATE INDEX IF NOT EXISTS idx_matches_session ON resume_matches(session_id);
     CREATE INDEX IF NOT EXISTS idx_matches_user ON resume_matches(user_id);
 
@@ -103,4 +105,19 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_actions_user ON candidate_actions(user_id);
     CREATE INDEX IF NOT EXISTS idx_actions_type ON candidate_actions(action_type);
   `);
+
+  ensureResumeMatchesColumns(db);
+}
+
+function ensureResumeMatchesColumns(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(resume_matches)").all() as Array<{ name: string }>;
+  const existing = new Set(columns.map((col) => col.name));
+
+  if (!existing.has("breakdown")) {
+    try {
+      db.exec("ALTER TABLE resume_matches ADD COLUMN breakdown TEXT");
+    } catch (error) {
+      console.error("[DB] Failed to add resume_matches.breakdown column", error);
+    }
+  }
 }

@@ -247,10 +247,12 @@ export const ResumeMatchSchema = z
     resumeId: z.string().openapi({ example: "R123456" }),
     jobDescriptionId: z.string().openapi({ example: "lathe-sales" }),
     score: z.number().int().openapi({ example: 85 }),
+    scoreSource: z.enum(["rule", "ai"]).optional().openapi({ example: "ai" }),
     recommendation: RecommendationSchema.openapi({ example: "match" }),
     highlights: z.array(z.string()).openapi({ example: ["客户开发经验丰富"] }),
     concerns: z.array(z.string()).openapi({ example: ["缺少机床销售经验"] }),
     summary: z.string().openapi({ example: "候选人与岗位匹配良好，可安排面试。" }),
+    breakdown: z.record(z.number()).optional().openapi({ example: { skillMatch: 18, experienceMatch: 25 } }),
     matchedAt: z.string().openapi({ example: "2026-02-05T08:00:00.000Z" }),
     sessionId: z.string().optional().openapi({ example: "session-123" }),
     userId: z.string().optional().openapi({ example: "user-abc" }),
@@ -264,6 +266,7 @@ export const MatchRequestSchema = z
     jobDescriptionId: z.string().openapi({ example: "lathe-sales" }),
     resumeIds: z.array(z.string()).optional().openapi({ example: ["R123456"] }),
     limit: z.number().int().min(1).max(1000).optional().openapi({ example: 50 }),
+    mode: z.enum(["rules_only", "hybrid", "ai_only"]).optional().openapi({ example: "hybrid" }),
   })
   .openapi("MatchRequest");
 

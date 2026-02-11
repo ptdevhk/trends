@@ -18,6 +18,7 @@ export type MatchingResult = {
   resumeId: string
   jobDescriptionId?: string
   score: number
+  scoreSource?: 'rule' | 'ai'
   recommendation: Recommendation
   highlights: string[]
   concerns: string[]

@@ -84,7 +84,13 @@ export function TaskMonitor() {
     )
 }
 
-function TaskItem({ task, onCancel }: { task: Doc<"collection_tasks">, onCancel?: (args: { taskId: any }) => Promise<any> }) {
+function TaskItem({
+    task,
+    onCancel,
+}: {
+    task: Doc<"collection_tasks">,
+    onCancel?: (args: { taskId: Doc<"collection_tasks">["_id"] }) => Promise<unknown>
+}) {
     const isActive = task.status === 'pending' || task.status === 'processing'
 
     return (

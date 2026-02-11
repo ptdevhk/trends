@@ -165,8 +165,8 @@ export function QuickStartPanel({
                         })
                     }
                 }
-            } catch {
-                // Silently fail
+            } catch (error) {
+                console.error("Failed to auto-match job description", error);
             } finally {
                 setLoading(false)
                 setHasSearched(true)

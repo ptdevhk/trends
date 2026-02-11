@@ -42,6 +42,8 @@ export function ResumeCard({
   const score = matchResult?.score
   const recommendation = matchResult?.recommendation
   const scoreLabel = recommendation ? t(`resumes.matching.recommendations.${recommendation}`) : ''
+  const scoreSource = matchResult?.scoreSource
+  const scoreSourceLabel = scoreSource === 'rule' ? 'Rule' : scoreSource === 'ai' ? 'AI' : ''
 
   const scoreClassName =
     typeof score === 'number'
@@ -54,6 +56,13 @@ export function ResumeCard({
             : 'bg-zinc-100 text-zinc-600 border-zinc-200'
       : ''
 
+  const sourceClassName =
+    scoreSource === 'rule'
+      ? 'bg-orange-100 text-orange-700 border-orange-200'
+      : scoreSource === 'ai'
+        ? 'bg-blue-100 text-blue-700 border-blue-200'
+        : ''
+
   return (
     <div className="mb-3 overflow-hidden rounded-lg border bg-card">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b bg-muted/50 px-4 py-2 text-sm">
@@ -63,33 +72,40 @@ export function ResumeCard({
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
         ) : null}
         {showAiScore && typeof score === 'number' ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="cursor-help">
-                  <Badge className={cn('border', scoreClassName)}>
-                    {t('resumes.matching.scoreLabel', { score })}
-                    {scoreLabel ? ` · ${scoreLabel}` : ''}
-                  </Badge>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent className="p-3 text-xs w-64 bg-slate-900 text-white">
-                <p className="font-semibold mb-2 text-sm border-b pb-1 border-white/20">Analysis Breakdown</p>
-                {matchResult?.breakdown ? (
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                    {Object.entries(matchResult.breakdown).map(([key, value]) => (
-                      <div key={key} className="flex justify-between">
-                        <span className="capitalize opacity-80">{key.replace('_', ' ')}:</span>
-                        <span className="font-mono font-bold">{value}</span>
-                      </div>
-                    ))}
+          <div className="ml-2 flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help">
+                    <Badge className={cn('border', scoreClassName)}>
+                      {t('resumes.matching.scoreLabel', { score })}
+                      {scoreLabel ? ` · ${scoreLabel}` : ''}
+                    </Badge>
                   </div>
-                ) : (
-                  <p className="opacity-70 italic">No detailed breakdown available</p>
-                )}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                </TooltipTrigger>
+                <TooltipContent className="p-3 text-xs w-64 bg-slate-900 text-white">
+                  <p className="font-semibold mb-2 text-sm border-b pb-1 border-white/20">Analysis Breakdown</p>
+                  {matchResult?.breakdown ? (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                      {Object.entries(matchResult.breakdown).map(([key, value]) => (
+                        <div key={key} className="flex justify-between">
+                          <span className="capitalize opacity-80">{key.replace('_', ' ')}:</span>
+                          <span className="font-mono font-bold">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="opacity-70 italic">No detailed breakdown available</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {scoreSourceLabel ? (
+              <Badge className={cn('border text-[10px] px-2 py-0.5 uppercase tracking-wide', sourceClassName)}>
+                {scoreSourceLabel}
+              </Badge>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

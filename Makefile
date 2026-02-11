@@ -7,7 +7,7 @@
 		build-static build-static-fresh serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
-		seed seed-full seed-force
+		seed seed-full seed-force seed-matches clear-matches
 
 # Default target
 .DEFAULT_GOAL := help
@@ -24,6 +24,7 @@ dev:
 	else \
 		echo "Skipping Convex env sync (no Convex .env.local found yet)"; \
 	fi
+	@$(MAKE) seed-matches
 	./scripts/dev.sh $(ARGS)
 
 # Stop/clean any stale development services and ports
@@ -215,6 +216,14 @@ seed-force:
 	else \
 		npx tsx scripts/seed-convex.ts --force; \
 	fi
+
+# Seed deterministic rule-based matches into output/resume_screening.db for dev UX
+seed-matches:
+	@node --import tsx scripts/seed-matches.ts
+
+# Clear all cached resume matches (dev utility)
+clear-matches:
+	@node --import tsx scripts/clear-matches.ts
 
 # Refresh resume sample data automatically via CDP
 refresh-sample:

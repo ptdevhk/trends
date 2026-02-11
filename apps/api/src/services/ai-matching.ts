@@ -39,6 +39,7 @@ export interface MatchingResult {
     highlights: string[]; // Matching points
     concerns: string[]; // Missing or concerning points
     summary: string; // AI-generated summary in Chinese
+    breakdown?: Record<string, number>;
     rawResponse?: string; // For debugging
 }
 
@@ -48,6 +49,10 @@ export interface BatchMatchingResult {
     failedCount: number;
     processingTimeMs: number;
 }
+
+type BatchOptions = {
+    concurrency?: number;
+};
 
 // Prompt templates
 const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密机械和机床行业的简历。
@@ -177,33 +182,49 @@ export class AIMatchingService {
     async matchBatch(
         resumes: MatchingRequest["resume"][],
         jobDescription: MatchingRequest["jobDescription"],
-        criteria?: MatchingRequest["criteria"]
+        criteria?: MatchingRequest["criteria"],
+        options?: BatchOptions
     ): Promise<BatchMatchingResult> {
         const startTime = Date.now();
         const results: BatchMatchingResult["results"] = [];
         let failedCount = 0;
 
-        for (const resume of resumes) {
-            try {
-                const result = await this.matchResume({
-                    resume,
-                    jobDescription,
-                    criteria,
-                });
-                results.push({ resumeId: resume.id, result });
-            } catch {
-                failedCount++;
-                results.push({
-                    resumeId: resume.id,
-                    result: {
+        const concurrency = Math.max(1, Math.min(50, options?.concurrency ?? 5));
+        const limit = createConcurrencyLimiter(concurrency);
+
+        const tasks = resumes.map((resume) =>
+            limit(async () => {
+                try {
+                    const result = await this.matchResume({
+                        resume,
+                        jobDescription,
+                        criteria,
+                    });
+                    return { resumeId: resume.id, result, failed: false };
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    console.error("[AI Matching] Batch item error:", errorMessage);
+                    const fallbackResult: MatchingResult = {
                         score: 0,
                         recommendation: "no_match",
                         highlights: [],
                         concerns: ["处理失败"],
                         summary: "简历处理失败",
-                    },
-                });
-            }
+                        rawResponse: errorMessage,
+                    };
+                    return {
+                        resumeId: resume.id,
+                        result: fallbackResult,
+                        failed: true,
+                    };
+                }
+            })
+        );
+
+        const completed = await Promise.all(tasks);
+        for (const item of completed) {
+            results.push({ resumeId: item.resumeId, result: item.result });
+            if (item.failed) failedCount += 1;
         }
 
         return {
@@ -383,3 +404,34 @@ export class AIMatchingService {
 
 // Singleton instance
 export const aiMatchingService = new AIMatchingService();
+
+function createConcurrencyLimiter(concurrency: number): <T>(fn: () => Promise<T>) => Promise<T> {
+    let activeCount = 0;
+    const queue: Array<() => void> = [];
+
+    const next = () => {
+        activeCount -= 1;
+        const run = queue.shift();
+        if (run) run();
+    };
+
+    return async function limit<T>(fn: () => Promise<T>): Promise<T> {
+        return await new Promise<T>((resolve, reject) => {
+            const run = () => {
+                activeCount += 1;
+                Promise.resolve()
+                    .then(fn)
+                    .then(resolve)
+                    .catch(reject)
+                    .finally(next);
+            };
+
+            if (activeCount < concurrency) {
+                run();
+                return;
+            }
+
+            queue.push(run);
+        });
+    };
+}

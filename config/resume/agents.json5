@@ -125,6 +125,21 @@
       dedupeByResumeAndJd: true
     }
   },
+
+  // Tier-2 Rule Scoring (instant, deterministic)
+  ruleScoring: {
+    enabled: true,
+    // Only send top N candidates to Tier-3 AI analysis
+    topCandidatesForAi: 20,
+    // Optional minimum rule score to qualify for AI
+    minRuleScoreForAi: 60
+  },
+
+  // Tier-3 AI Matching (LLM) runtime settings
+  aiMatching: {
+    // Concurrency limit for LLM requests (matchBatch + SSE)
+    concurrency: 5
+  },
   
   // Prompt templates (reference files in config/prompts/)
   prompts: {
