@@ -25,6 +25,8 @@ from apscheduler.events import (
 
 from apps.worker.tasks import run_crawl_analyze, health_check
 from apps.worker.timezone import bootstrap_worker_timezone, resolve_worker_timezone
+from apps.worker.profile_loader import ProfileLoader
+from apps.worker.resume_tasks import run_resume_crawl_task
 from trendradar.utils.time import get_configured_time
 
 logger = logging.getLogger(__name__)
@@ -137,6 +139,27 @@ class WorkerScheduler:
         logger.info(f"Received {sig_name}, shutting down scheduler...")
         self.stop()
 
+    def _save_stats(self) -> None:
+        """Save scheduler statistics to file for API access."""
+        import json
+        from pathlib import Path
+        
+        try:
+            stats = self.get_stats()
+            # Serialize dates
+            if stats.get("last_run"):
+                stats["last_run"] = stats["last_run"].isoformat()
+            if stats.get("last_success"):
+                stats["last_success"] = stats["last_success"].isoformat()
+            if stats.get("last_failure"):
+                stats["last_failure"] = stats["last_failure"].isoformat()
+                
+            output_path = Path("apps/worker/status.json")
+            with open(output_path, "w") as f:
+                json.dump(stats, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save stats: {e}")
+
     def _on_job_executed(self, event: JobExecutionEvent) -> None:
         """Handle successful job execution."""
         self.stats["jobs_executed"] += 1
@@ -144,6 +167,7 @@ class WorkerScheduler:
         self.stats["last_run"] = current_time
         self.stats["last_success"] = current_time
         logger.info(f"Job '{event.job_id}' executed successfully")
+        self._save_stats()
 
     def _on_job_error(self, event: JobExecutionEvent) -> None:
         """Handle job execution error."""
@@ -152,11 +176,13 @@ class WorkerScheduler:
         self.stats["last_run"] = current_time
         self.stats["last_failure"] = current_time
         logger.error(f"Job '{event.job_id}' failed with exception: {event.exception}")
+        self._save_stats()
 
     def _on_job_missed(self, event: JobExecutionEvent) -> None:
         """Handle missed job execution."""
         self.stats["jobs_missed"] += 1
         logger.warning(f"Job '{event.job_id}' was missed")
+        self._save_stats()
 
     def add_crawl_job(self) -> None:
         """Add the main crawl/analyze job to the scheduler."""
@@ -214,6 +240,27 @@ class WorkerScheduler:
         )
         logger.info(f"Added custom job: {job_id}")
 
+    def load_profile_jobs(self) -> None:
+        """Load and schedule jobs from search profiles."""
+        try:
+            # Determine config directory (relative to project root)
+            # Assuming CWD is project root
+            loader = ProfileLoader(config_dir="config/search-profiles")
+            profiles = loader.load_profiles()
+            
+            for profile in profiles:
+                job_id = f"crawl_profile_{profile['id']}"
+                self.add_custom_job(
+                    func=run_resume_crawl_task,
+                    job_id=job_id,
+                    cron_expression=profile['cron'],
+                    profile=profile
+                )
+                logger.info(f"Scheduled profile job: {job_id} ({profile['cron']})")
+                
+        except Exception as e:
+            logger.error(f"Failed to load profile jobs: {e}")
+
     def start(self) -> None:
         """Start the scheduler."""
         logger.info("Starting Worker Scheduler")
@@ -221,6 +268,9 @@ class WorkerScheduler:
 
         # Add the main job
         self.add_crawl_job()
+        
+        # Load dynamic profile jobs
+        self.load_profile_jobs()
 
         # Run immediately if requested
         if self.run_immediately:
@@ -233,8 +283,18 @@ class WorkerScheduler:
         # Print next run time
         jobs = self.scheduler.get_jobs()
         if jobs:
-            next_run = jobs[0].next_run_time
-            logger.info(f"Next scheduled run: {next_run}")
+            try:
+                # Some Job versions/states might not have next_run_time yet
+                next_run = getattr(jobs[0], 'next_run_time', None)
+                if next_run:
+                    logger.info(f"Next scheduled run: {next_run}")
+                else:
+                    logger.info("Next scheduled run: not yet determined")
+            except Exception as e:
+                logger.warning(f"Could not determine next run time: {e}")
+            
+        # Save initial stats
+        self._save_stats()
 
         # Start the scheduler (blocks until stopped)
         try:
@@ -250,17 +310,19 @@ class WorkerScheduler:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get scheduler statistics."""
+        jobs_info = []
+        for job in self.scheduler.get_jobs():
+            next_run = getattr(job, 'next_run_time', None)
+            jobs_info.append({
+                "id": job.id,
+                "name": job.name,
+                "next_run": next_run.isoformat() if next_run else None,
+            })
+            
         return {
             **self.stats,
             "running": self.scheduler.running,
-            "jobs": [
-                {
-                    "id": job.id,
-                    "name": job.name,
-                    "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
-                }
-                for job in self.scheduler.get_jobs()
-            ],
+            "jobs": jobs_info,
         }
 
 

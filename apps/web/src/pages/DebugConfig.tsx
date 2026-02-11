@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { TaskMonitor } from '@/components/TaskMonitor'
+import { SchedulerStatus } from '@/components/SchedulerStatus'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -898,7 +899,10 @@ export default function DebugConfig() {
       )}
 
       {/* Real-time System Summary */}
-      <SystemSummary />
+      <div className="grid gap-6 md:grid-cols-2">
+        <SystemSummary />
+        <SchedulerStatus apiBaseUrl={apiBaseUrl} />
+      </div>
 
       {/* Resume Data Collection */}
       <Card>
