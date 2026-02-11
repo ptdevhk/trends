@@ -868,6 +868,7 @@ start_convex() {
     local timeout="${CONVEX_STARTUP_TIMEOUT:-60}"
     local convex_log=""
     local convex_pid=""
+    local -a convex_exec_cmd=()
 
     # Case 1: CONVEX_URL already set in system env (e.g., cloud deployment).
     # Skip starting local convex dev, just sync the URL to downstream consumers.
@@ -983,10 +984,17 @@ start_convex() {
             log "CONVEX" "$CYAN" "Using CONVEX_LOCAL_FORCE_UPGRADE on attempt $attempt."
         fi
 
-        command_str="$(convex_command_to_string "${CONVEX_DEV_CMD[@]}")"
+        convex_exec_cmd=()
+        if [ -n "${TZ:-}" ]; then
+            convex_exec_cmd=(env -u TZ)
+            log "CONVEX" "$YELLOW" "Unsetting TZ for Convex startup (current TZ=${TZ}) due local backend compatibility."
+        fi
+        convex_exec_cmd+=("${CONVEX_DEV_CMD[@]}")
+
+        command_str="$(convex_command_to_string "${convex_exec_cmd[@]}")"
         log "CONVEX" "$CYAN" "Attempt $attempt/$total_attempts command: $command_str"
 
-        "${CONVEX_DEV_CMD[@]}" > >(tee "$(service_log_path "convex")" | stream_service_logs "convex" "$CYAN") 2>&1 &
+        "${convex_exec_cmd[@]}" > >(tee "$(service_log_path "convex")" | stream_service_logs "convex" "$CYAN") 2>&1 &
         SERVICE_PIDS["convex"]=$!
 
         if wait_for_port "$port" "${SERVICE_PIDS["convex"]}" "$timeout" "CONVEX"; then
