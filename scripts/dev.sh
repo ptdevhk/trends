@@ -240,6 +240,57 @@ run_local_js_script() {
     fi
 }
 
+is_windows_uname() {
+    case "$(uname -s)" in
+        CYGWIN*|MINGW*|MSYS*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+convex_cache_binaries_dir() {
+    if is_windows_uname; then
+        if [ -n "${LOCALAPPDATA:-}" ]; then
+            echo "${LOCALAPPDATA}/convex/binaries"
+            return
+        fi
+        if [ -n "${USERPROFILE:-}" ]; then
+            echo "${USERPROFILE}/AppData/Local/convex/binaries"
+            return
+        fi
+        echo "${HOME}/AppData/Local/convex/binaries"
+        return
+    fi
+    echo "${HOME}/.cache/convex/binaries"
+}
+
+convex_backend_binary_name() {
+    if is_windows_uname; then
+        echo "convex-local-backend.exe"
+    else
+        echo "convex-local-backend"
+    fi
+}
+
+latest_cached_convex_backend_version() {
+    local cache_root binary_name version candidate
+    cache_root="$(convex_cache_binaries_dir)"
+    binary_name="$(convex_backend_binary_name)"
+
+    if [ ! -d "$cache_root" ]; then
+        return 1
+    fi
+
+    while IFS= read -r candidate; do
+        version="$(basename "$candidate")"
+        if [ -f "$cache_root/$version/$binary_name" ]; then
+            echo "$version"
+            return 0
+        fi
+    done < <(find "$cache_root" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -r)
+
+    return 1
+}
+
 should_filter_terminal_log_line() {
     local service="$1"
     local line="$2"
@@ -636,6 +687,8 @@ start_scraper() {
 start_convex() {
     local port="${CONVEX_PORT:-3210}"
     local convex_env_local="$PROJECT_ROOT/packages/convex/.env.local"
+    local selected_backend_version=""
+    local prefetch_script="$SCRIPT_DIR/prefetch-convex-backend.sh"
 
     # Case 1: CONVEX_URL already set in system env (e.g., cloud deployment).
     # Skip starting local convex dev, just sync the URL to downstream consumers.
@@ -680,10 +733,32 @@ start_convex() {
         cmd="bunx convex dev"
     fi
 
+    selected_backend_version="${CONVEX_LOCAL_BACKEND_VERSION:-}"
+    if [ -z "$selected_backend_version" ]; then
+        if selected_backend_version="$(latest_cached_convex_backend_version)"; then
+            log "CONVEX" "$CYAN" "Using cached local backend version: $selected_backend_version"
+        elif [ -f "$prefetch_script" ]; then
+            log "CONVEX" "$CYAN" "No cached local backend binary found. Trying prefetch before startup..."
+            if "$prefetch_script"; then
+                if selected_backend_version="$(latest_cached_convex_backend_version)"; then
+                    log "CONVEX" "$CYAN" "Using prefetched local backend version: $selected_backend_version"
+                fi
+            else
+                log "CONVEX" "$YELLOW" "Prefetch before startup failed; continuing with default convex dev behavior."
+            fi
+        fi
+    else
+        log "CONVEX" "$CYAN" "Using CONVEX_LOCAL_BACKEND_VERSION override: $selected_backend_version"
+    fi
+
+    if [ -n "$selected_backend_version" ]; then
+        cmd="$cmd --local --local-backend-version $selected_backend_version --local-force-upgrade"
+    fi
+
     $cmd > >(tee "$(service_log_path "convex")" | stream_service_logs "convex" "$CYAN") 2>&1 &
     SERVICE_PIDS["convex"]=$!
 
-    local timeout="${CONVEX_STARTUP_TIMEOUT:-120}"
+    local timeout="${CONVEX_STARTUP_TIMEOUT:-60}"
     if ! wait_for_port "$port" "${SERVICE_PIDS["convex"]}" "$timeout" "CONVEX"; then
         local convex_log
         convex_log="$(service_log_path "convex")"
