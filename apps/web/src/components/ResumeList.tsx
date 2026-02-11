@@ -520,7 +520,7 @@ export function ResumeList() {
         updateSession({ jobDescriptionId: config.jobDescriptionId })
       }
 
-      const nextFilters = { ...filters }
+      const nextFilters: typeof filters = { ...filters, minMatchScore: undefined }
       if (config.location.trim()) {
         nextFilters.locations = [config.location.trim()]
       }

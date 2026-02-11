@@ -156,7 +156,21 @@ export function useIndustryKeywords() {
   }, [allKeywords]);
 
   const hotKeywords = useMemo(() => {
-    return CATEGORY_ORDER.flatMap((category) => grouped[category].slice(0, 3));
+    const popular = [
+      { id: 'p1', keyword: 'CNC', category: 'machining' },
+      { id: 'p2', keyword: '加工中心', category: 'machining' },
+      { id: 'p3', keyword: '数控车床', category: 'lathe' },
+      { id: 'p4', keyword: '销售', category: 'custom' },
+      { id: 'p5', keyword: '工程师', category: 'custom' },
+    ] as IndustryKeyword[]
+
+    const categoryChips = CATEGORY_ORDER.flatMap((category) => grouped[category].slice(0, 3));
+
+    // Filter out duplicates from category chips if they are already in popular
+    const popularSet = new Set(popular.map(p => p.keyword));
+    const filteredCategoryChips = categoryChips.filter(c => !popularSet.has(c.keyword));
+
+    return [...popular, ...filteredCategoryChips];
   }, [grouped]);
 
   return {
