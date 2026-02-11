@@ -10,6 +10,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..');
 const skillRoot = path.join(repoRoot, 'dev-docs', 'skills', 'trends-agent-governance');
 const claudeCommandPath = path.join(repoRoot, '.claude', 'commands', 'trends-agent-governance.md');
+const claudeRulesPath = path.join(repoRoot, '.claude', 'rules', 'agent-governance.md');
 
 const requiredFiles = [
   'SKILL.md',
@@ -126,6 +127,24 @@ async function run(): Promise<void> {
   const missingSections = requiredSections.filter((section) => !claudeCommandContent.includes(section));
   if (missingSections.length > 0) {
     throw new Error(`Claude Code command missing sections: ${missingSections.join(', ')}`);
+  }
+
+  // Validate .claude/rules/agent-governance.md (auto-loaded governance workflow)
+  try {
+    await access(claudeRulesPath);
+  } catch {
+    throw new Error(`Missing Claude Code rules file: ${claudeRulesPath}`);
+  }
+
+  const rulesContent = await readFile(claudeRulesPath, 'utf8');
+  if (rulesContent.trim().length === 0) {
+    throw new Error(`Claude Code rules file is empty: ${claudeRulesPath}`);
+  }
+
+  const requiredRulesSections = ['Source Priority', 'Evidence Reporting', 'Task Classification'];
+  const missingRulesSections = requiredRulesSections.filter((section) => !rulesContent.includes(section));
+  if (missingRulesSections.length > 0) {
+    throw new Error(`Claude Code rules file missing sections: ${missingRulesSections.join(', ')}`);
   }
 
   console.log(`Skill validation passed: ${skillRoot}`);

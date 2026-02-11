@@ -421,7 +421,7 @@ help:
 	@echo "  sync-agent-policy Sync generated dev-docs/AGENTS.md from canonical AGENTS policy"
 	@echo "  check-agent-policy Validate generated dev-docs/AGENTS.md is up to date"
 	@echo "  install-agent-skill Install governance skill into ~/.codex/skills"
-	@echo "  check-agent-skill Validate governance skill structure and installed copy drift"
+	@echo "  check-agent-skill Validate governance skill, command, rules file, and installed copy drift"
 	@echo "  sync-agent-governance Run policy sync + skill install"
 	@echo ""
 	@echo "Utilities:"
