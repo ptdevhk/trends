@@ -2,6 +2,9 @@
 set -euo pipefail
 
 GITHUB_API="https://api.github.com/repos/get-convex/convex-backend/releases?per_page=100"
+DEFAULT_MIRROR_BASES="https://ghproxy.net,https://gh.ddlc.top"
+DEFAULT_DOWNLOAD_TIMEOUT_SECS="240"
+DEFAULT_CONNECT_TIMEOUT_SECS="10"
 
 log() {
     echo "[convex-prefetch] $*"
@@ -64,12 +67,180 @@ require_command() {
     fi
 }
 
+trim() {
+    echo "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+effective_mirror_mode() {
+    if [ -n "${CONVEX_MIRROR_MODE:-}" ]; then
+        echo "${CONVEX_MIRROR_MODE}"
+        return
+    fi
+    if [ "${CI:-}" = "true" ]; then
+        echo "off"
+        return
+    fi
+    echo "fallback"
+}
+
+validate_mirror_mode() {
+    case "$1" in
+        fallback|mirror-first|off) ;;
+        *)
+            log "Invalid CONVEX_MIRROR_MODE='$1'. Expected one of: fallback, mirror-first, off."
+            exit 1
+            ;;
+    esac
+}
+
+validate_positive_integer() {
+    local value="$1"
+    local name="$2"
+    if ! [[ "$value" =~ ^[0-9]+$ ]] || [ "$value" -le 0 ]; then
+        log "Invalid ${name}='${value}'. Expected a positive integer."
+        exit 1
+    fi
+}
+
+hash_tool() {
+    if command -v shasum >/dev/null 2>&1; then
+        echo "shasum"
+        return
+    fi
+    if command -v sha256sum >/dev/null 2>&1; then
+        echo "sha256sum"
+        return
+    fi
+    echo ""
+}
+
+sha256_of_file() {
+    local file="$1"
+    local tool="$2"
+    case "$tool" in
+        shasum)
+            shasum -a 256 "$file" | awk '{print tolower($1)}'
+            ;;
+        sha256sum)
+            sha256sum "$file" | awk '{print tolower($1)}'
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+normalize_digest_sha256() {
+    local digest="$1"
+    if [[ "$digest" == sha256:* ]]; then
+        echo "${digest#sha256:}" | tr '[:upper:]' '[:lower:]'
+        return
+    fi
+    echo ""
+}
+
+mirror_bases() {
+    local csv raw_entry cleaned
+    local -a entries
+
+    csv="${CONVEX_MIRROR_BASES:-$DEFAULT_MIRROR_BASES}"
+    IFS=',' read -r -a entries <<< "$csv"
+
+    for raw_entry in "${entries[@]}"; do
+        cleaned="$(trim "$raw_entry")"
+        if [ -n "$cleaned" ]; then
+            echo "${cleaned%/}"
+        fi
+    done
+}
+
+emit_source() {
+    printf '%s\t%s\n' "$1" "$2"
+}
+
+build_sources() {
+    local mode="$1"
+    local official_url="$2"
+    local base
+
+    case "$mode" in
+        off)
+            emit_source "official" "$official_url"
+            ;;
+        fallback)
+            emit_source "official" "$official_url"
+            while IFS= read -r base; do
+                emit_source "mirror:${base}" "${base}/${official_url}"
+            done < <(mirror_bases)
+            ;;
+        mirror-first)
+            while IFS= read -r base; do
+                emit_source "mirror:${base}" "${base}/${official_url}"
+            done < <(mirror_bases)
+            emit_source "official" "$official_url"
+            ;;
+    esac
+}
+
+download_with_retry() {
+    local source_url="$1"
+    local output_file="$2"
+    local connect_timeout="$3"
+    local download_timeout="$4"
+    local -a curl_args
+
+    curl_args=(
+        -fL
+        --retry 3
+        --retry-delay 2
+        --connect-timeout "$connect_timeout"
+        --max-time "$download_timeout"
+        -o "$output_file"
+    )
+
+    if [ "${CONVEX_CURL_NO_SILENT:-}" = "true" ] || [ "${CONVEX_CURL_NO_SILENT:-}" = "1" ]; then
+        curl "${curl_args[@]}" "$source_url"
+        return
+    fi
+
+    curl --silent --show-error "${curl_args[@]}" "$source_url"
+}
+
+latest_release_tag() {
+    local effective_url
+    effective_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' -L "https://github.com/get-convex/convex-backend/releases/latest")"
+    case "$effective_url" in
+        */releases/tag/*)
+            echo "${effective_url##*/tag/}"
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+release_info_from_latest_redirect() {
+    local asset_name="$1"
+    local version
+    version="$(latest_release_tag)" || return 1
+    printf '%s\t%s\t%s\n' \
+        "$version" \
+        "https://github.com/get-convex/convex-backend/releases/download/${version}/${asset_name}" \
+        ""
+}
+
 main() {
     require_command curl
     require_command jq
     require_command unzip
 
-    local target_info artifact_name binary_name release_info version url cache_root dest_dir binary_path tmp_zip
+    local target_info artifact_name binary_name release_info version url digest expected_sha
+    local cache_root dest_dir binary_path tmp_zip
+    local mirror_mode hash_cmd download_timeout connect_timeout source_line source_label source_url
+    local selected_source_label selected_source_url actual_sha
+    local -a source_lines
+
     target_info="$(detect_platform)"
     if [ -z "$target_info" ]; then
         log "Unsupported platform $(uname -s)/$(uname -m). Skipping."
@@ -82,21 +253,57 @@ main() {
 
     log "Prefetching Convex backend binary for asset: ${artifact_name}"
 
-    release_info="$(curl -fsSL "$GITHUB_API" | jq -r --arg asset "$artifact_name" '
+    if ! release_info="$(curl -fsSL "$GITHUB_API" | jq -r --arg asset "$artifact_name" '
         map(select((.prerelease | not) and (.draft | not)))
         | map(select(any(.assets[]?; .name == $asset)))
         | .[0] // empty
-        | [.tag_name, (.assets[] | select(.name == $asset) | .browser_download_url)]
+        | [.tag_name, (.assets[] | select(.name == $asset) | .browser_download_url), (.assets[] | select(.name == $asset) | (.digest // ""))]
         | @tsv
-    ')"
+    ')"; then
+        release_info=""
+    fi
+
+    if [ -z "$release_info" ]; then
+        log "GitHub API metadata unavailable. Trying releases/latest redirect fallback..."
+        if ! release_info="$(release_info_from_latest_redirect "$artifact_name")"; then
+            release_info=""
+        fi
+    fi
 
     if [ -z "$release_info" ]; then
         log "Could not find a stable release with asset ${artifact_name}. Skipping."
         exit 0
     fi
 
-    version="${release_info%%$'\t'*}"
-    url="${release_info##*$'\t'}"
+    IFS=$'\t' read -r version url digest <<< "$release_info"
+    expected_sha="$(normalize_digest_sha256 "$digest")"
+
+    mirror_mode="$(effective_mirror_mode)"
+    validate_mirror_mode "$mirror_mode"
+
+    download_timeout="${CONVEX_DOWNLOAD_TIMEOUT_SECS:-$DEFAULT_DOWNLOAD_TIMEOUT_SECS}"
+    connect_timeout="${CONVEX_CONNECT_TIMEOUT_SECS:-$DEFAULT_CONNECT_TIMEOUT_SECS}"
+    validate_positive_integer "$download_timeout" "CONVEX_DOWNLOAD_TIMEOUT_SECS"
+    validate_positive_integer "$connect_timeout" "CONVEX_CONNECT_TIMEOUT_SECS"
+
+    if [ -z "$expected_sha" ] && [ "$mirror_mode" != "off" ]; then
+        log "Release digest is unavailable for ${artifact_name}. For safety, forcing mirror mode to 'off' for this run."
+        mirror_mode="off"
+    fi
+
+    hash_cmd="$(hash_tool)"
+    if [ -n "$expected_sha" ] && [ -z "$hash_cmd" ]; then
+        log "Neither 'shasum' nor 'sha256sum' is available; cannot verify SHA-256."
+        exit 1
+    fi
+
+    log "Mirror mode: ${mirror_mode} (download timeout ${download_timeout}s, connect timeout ${connect_timeout}s)"
+    if [ -n "$expected_sha" ]; then
+        log "Expected SHA-256: ${expected_sha}"
+    else
+        log "Release metadata has no SHA-256 digest; download will proceed from official source only."
+    fi
+
     dest_dir="${cache_root}/${version}"
     binary_path="${dest_dir}/${binary_name}"
 
@@ -105,11 +312,52 @@ main() {
         exit 0
     fi
 
-    mkdir -p "$dest_dir"
-    tmp_zip="$(mktemp "${TMPDIR:-/tmp}/convex-backend.XXXXXX.zip")"
-    trap 'rm -f "$tmp_zip"' EXIT
+    source_lines=()
+    while IFS= read -r source_line; do
+        source_lines+=("$source_line")
+    done < <(build_sources "$mirror_mode" "$url")
 
-    curl -fL --retry 3 --retry-delay 2 -o "$tmp_zip" "$url"
+    if [ "${#source_lines[@]}" -eq 0 ]; then
+        log "No download sources are available. Skipping."
+        exit 0
+    fi
+
+    mkdir -p "$dest_dir"
+    tmp_zip="$(mktemp "${TMPDIR:-/tmp}/convex-backend.XXXXXX")"
+    trap 'rm -f "${tmp_zip:-}"' EXIT
+
+    selected_source_label=""
+    selected_source_url=""
+
+    for source_line in "${source_lines[@]}"; do
+        IFS=$'\t' read -r source_label source_url <<< "$source_line"
+        rm -f "$tmp_zip"
+
+        log "Attempting source: ${source_label}"
+        if ! download_with_retry "$source_url" "$tmp_zip" "$connect_timeout" "$download_timeout"; then
+            log "Source failed: ${source_label}"
+            continue
+        fi
+
+        if [ -n "$expected_sha" ]; then
+            actual_sha="$(sha256_of_file "$tmp_zip" "$hash_cmd")"
+            if [ "$actual_sha" != "$expected_sha" ]; then
+                log "SHA-256 mismatch from ${source_label} (expected ${expected_sha}, got ${actual_sha})."
+                continue
+            fi
+            log "SHA-256 verified for source: ${source_label}"
+        fi
+
+        selected_source_label="$source_label"
+        selected_source_url="$source_url"
+        break
+    done
+
+    if [ -z "$selected_source_url" ]; then
+        log "Failed to download Convex backend binary from all sources."
+        exit 1
+    fi
+
     unzip -o -q "$tmp_zip" -d "$dest_dir"
 
     if [ ! -f "$binary_path" ]; then
@@ -121,6 +369,7 @@ main() {
         chmod +x "$binary_path"
     fi
 
+    log "Download source: ${selected_source_label}"
     log "Cached: ${binary_path}"
 }
 
