@@ -332,8 +332,8 @@ app.openapi(getResumesRoute, (c) => {
   const keyword = q?.trim() || undefined;
 
   try {
-    const { items, sample: sampleInfo, metadata } = resumeService.loadSample(sampleName);
-    let filtered = resumeService.searchResumes(items, keyword);
+    const { items, sample: sampleInfo, metadata, indexes } = resumeService.loadSample(sampleName);
+    let filtered = resumeService.searchResumes(items, keyword, indexes);
     filtered = resumeService.filterResumes(filtered, {
       minExperience,
       maxExperience,
@@ -347,9 +347,10 @@ app.openapi(getResumesRoute, (c) => {
     const session = sessionId ? sessionManager.getSession(sessionId) : null;
     const resolvedJobId = jobDescriptionId || session?.jobDescriptionId;
 
-    const enriched = filtered.map((resume, index) => ({
-      resume,
-      id: resolveResumeId(resume, index),
+    const enriched = filtered.map((item, index) => ({
+      resume: item,
+      id: resolveResumeId(item, index),
+      relevanceScore: item.relevanceScore,
     }));
 
     let matchMap: Map<string, { score: number; recommendation: string }> | null = null;
@@ -407,6 +408,9 @@ app.openapi(getResumesRoute, (c) => {
         const nameB = b.resume.name?.toLowerCase() ?? "";
         return nameA.localeCompare(nameB) * direction;
       });
+    } else if (keyword) {
+      // Default sort by relevance if keyword is present but no explicit sortBy
+      working = [...working].sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
     }
 
     const start = offset ?? 0;

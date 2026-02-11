@@ -435,6 +435,27 @@ export class IndustryDataService {
     }
 
     /**
+     * Get a Set of all known company names (CN and EN) for fast lookup
+     */
+    getCompanyLookup(): Set<string> {
+        const data = this.loadAll();
+        const names = new Set<string>();
+
+        for (const company of data.companies) {
+            if (company.nameCn) names.add(company.nameCn.toLowerCase().trim());
+            if (company.nameEn) names.add(company.nameEn.toLowerCase().trim());
+        }
+
+        // Also include brands as they often represent companies in this context
+        for (const brand of data.brands) {
+            if (brand.nameCn) names.add(brand.nameCn.toLowerCase().trim());
+            if (brand.nameEn) names.add(brand.nameEn.toLowerCase().trim());
+        }
+
+        return names;
+    }
+
+    /**
      * Match keywords in text
      */
     matchKeywords(text: string, category?: KeywordEntry["category"]): KeywordEntry[] {

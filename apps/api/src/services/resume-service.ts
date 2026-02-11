@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { findProjectRoot } from "./db.js";
 import { DataNotFoundError, FileParseError } from "./errors.js";
+import { IndustryDataService } from "./industry-data-service.js";
 import { ResumeIndexService } from "./resume-index.js";
 
 import type { ResumeItem, ResumeSampleFile, ResumeWorkHistoryItem } from "../types/resume.js";
@@ -38,6 +39,30 @@ function toStringValue(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (value === null || value === undefined) return "";
   return String(value);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildSearchText(item: ResumeItem): string {
+  const parts = [
+    item.name,
+    item.jobIntention,
+    item.selfIntro,
+    item.education,
+    item.location,
+    item.expectedSalary,
+    ...(item.workHistory?.map((entry) => entry.raw) ?? []),
+  ];
+  return parts.join(" ").toLowerCase();
+}
+
+function extractCompanyName(raw: string): string {
+  return raw
+    .replace(/^[\d\-~至今年月日()（）.\s]+/, "")
+    .replace(/[\s,，。;；]+/g, " ")
+    .trim();
 }
 
 function normalizeWorkHistory(value: unknown): ResumeWorkHistoryItem[] {
@@ -102,10 +127,12 @@ function normalizePayload(payload: ResumePayload, filepath: string): ResumeItem[
 export class ResumeService {
   readonly projectRoot: string;
   private readonly indexService: ResumeIndexService;
+  private readonly industryService: IndustryDataService;
 
   constructor(projectRoot?: string) {
     this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
     this.indexService = new ResumeIndexService(this.projectRoot);
+    this.industryService = new IndustryDataService(this.projectRoot);
   }
 
   private getSamplesDir(): string {
@@ -179,19 +206,81 @@ export class ResumeService {
     return { items, sample, metadata: resolvedMetadata, indexes };
   }
 
-  searchResumes(items: ResumeItem[], query?: string): ResumeItem[] {
-    if (!query) return items;
-    const trimmed = query.trim();
-    if (!trimmed) return items;
-    const keyword = trimmed.toLowerCase();
+  searchResumes(
+    items: ResumeItem[],
+    query?: string,
+    indexMap?: Map<string, ResumeIndex>
+  ): Array<ResumeItem & { relevanceScore: number }> {
+    if (!query || !query.trim()) {
+      return items.map(item => ({ ...item, relevanceScore: 0 }));
+    }
 
-    return items.filter((item) => {
-      return item.name.toLowerCase().includes(keyword)
-        || item.jobIntention.toLowerCase().includes(keyword);
-    });
+    const keyword = query.trim().toLowerCase();
+    const results: Array<ResumeItem & { relevanceScore: number }> = [];
+    const industryLookup = this.industryService.getCompanyLookup();
+
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      const resumeId = item.resumeId || `idx-${i}`;
+      const index = indexMap?.get(resumeId);
+
+      let score = 0;
+      const name = (item.name || "").toLowerCase();
+      const jobIntention = (item.jobIntention || "").toLowerCase();
+      const searchText = index?.searchText || buildSearchText(item);
+
+      // 1. Exact Name Match (Highest priority)
+      if (name === keyword) {
+        score += 100;
+      } else if (name.includes(keyword)) {
+        score += 50;
+      }
+
+      // 2. Industry Company Match
+      const companies = index?.companies ?? (item.workHistory?.map(wh => extractCompanyName(wh.raw)) || []);
+      for (const co of companies) {
+        const normalizedCo = co.toLowerCase().trim();
+        if (industryLookup.has(normalizedCo)) {
+          score += 100;
+          break;
+        }
+      }
+
+      // 3. Job Intention Match
+      if (jobIntention.includes(keyword)) {
+        score += 30;
+        // Bonus for start of intention
+        if (jobIntention.startsWith(keyword)) {
+          score += 20;
+        }
+      }
+
+      // 4. Skills Match (from index if available)
+      if (index) {
+        const matchedSkills = index.skills.filter(s => s.includes(keyword));
+        score += matchedSkills.length * 10;
+      }
+
+      // 5. Full Text Search (Expanded recall)
+      if (searchText.includes(keyword)) {
+        score += 10;
+        // Count occurrences (capped)
+        const occurrences = (searchText.match(new RegExp(escapeRegex(keyword), "g")) || []).length;
+        score += Math.min(occurrences, 5) * 2;
+      }
+
+      if (score > 0) {
+        results.push({
+          ...item,
+          relevanceScore: score,
+        });
+      }
+    }
+
+    return results.sort((a, b) => b.relevanceScore - a.relevanceScore);
   }
 
-  filterResumes(items: ResumeItem[], filters?: ResumeFilters): ResumeItem[] {
+  filterResumes<T extends ResumeItem>(items: T[], filters?: ResumeFilters): T[] {
     if (!filters) return items;
 
     return items.filter((item) => {
@@ -278,16 +367,4 @@ export function parseSalaryRange(value: string): { min?: number; max?: number; c
     currency: "CNY",
     period,
   };
-}
-
-function buildSearchText(item: ResumeItem): string {
-  const parts = [
-    item.name,
-    item.jobIntention,
-    item.selfIntro,
-    item.education,
-    item.location,
-    ...(item.workHistory?.map((entry) => entry.raw) ?? []),
-  ];
-  return parts.join(" ").toLowerCase();
 }
