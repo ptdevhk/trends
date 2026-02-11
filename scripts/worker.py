@@ -152,9 +152,12 @@ async def process_task(task, client: httpx.AsyncClient):
                     context_id=context_id,
                 )
                 final_url = await eval_json(cdp_client, "window.location.href", context_id=context_id)
-                raise CDPError(
-                    f"No resumes extracted for keyword='{keyword}' location='{location}'. "
-                    f"url='{final_url}' status={final_status}"
+                logger.warning(
+                    "No resumes extracted for keyword='%s' location='%s'. url='%s' status=%s",
+                    keyword,
+                    location,
+                    final_url,
+                    final_status,
                 )
             
             # Submit results

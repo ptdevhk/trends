@@ -104,6 +104,22 @@ function normalizeKeywords(keywords: string[]): string[] {
     );
 }
 
+function buildKeywordAnalysisId(keywords: string[]): string {
+    if (keywords.length === 0) {
+        return "keyword-search";
+    }
+
+    const stableKeywords = [...keywords].sort();
+    const seed = stableKeywords.join("|");
+    let hash = 2166136261;
+    for (const char of seed) {
+        hash ^= char.codePointAt(0) ?? 0;
+        hash = Math.imul(hash, 16777619);
+    }
+
+    return `keyword-search:${stableKeywords.length}:${(hash >>> 0).toString(16)}`;
+}
+
 function classifyResumes(
     resumes: Doc<"resumes">[],
     keywords: string[]
@@ -220,10 +236,12 @@ export const dispatch = mutation({
         if (!args.jobDescriptionContent && normalizedKeywords.length === 0) {
             throw new Error("Either jobDescriptionContent or keywords is required for analysis.");
         }
+        const derivedJobDescriptionId = args.jobDescriptionId
+            || (normalizedKeywords.length > 0 ? buildKeywordAnalysisId(normalizedKeywords) : undefined);
 
         const taskId = await ctx.db.insert("analysis_tasks", {
             config: {
-                jobDescriptionId: args.jobDescriptionId,
+                jobDescriptionId: derivedJobDescriptionId,
                 jobDescriptionTitle: args.jobDescriptionTitle,
                 jobDescriptionContent: args.jobDescriptionContent,
                 keywords: normalizedKeywords.length > 0 ? normalizedKeywords : undefined,
@@ -419,7 +437,8 @@ export const processAnalysisTask = internalAction({
                 ? normalizeKeywords(task.config.keywords)
                 : extractKeywords(keywordSource);
             const { toAnalyze, toSkip } = classifyResumes(resumes, keywords);
-            const analysisJobDescriptionId = task.config.jobDescriptionId || "keyword-search";
+            const analysisJobDescriptionId = task.config.jobDescriptionId
+                || (keywords.length > 0 ? buildKeywordAnalysisId(keywords) : "keyword-search");
 
             skippedCount = toSkip.length;
 

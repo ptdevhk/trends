@@ -544,7 +544,7 @@ app.openapi(matchResumesRoute, async (c) => {
     });
   } else {
     session = sessionManager.updateSession(session.id, {
-      jobDescriptionId: normalizedJobDescriptionId,
+      jobDescriptionId: normalizedJobDescriptionId ?? null,
       sampleName: sample ?? session.sampleName,
     }) ?? session;
   }

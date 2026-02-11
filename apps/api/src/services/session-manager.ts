@@ -35,6 +35,13 @@ export type SearchSession = {
   expiresAt?: string;
 };
 
+type SessionUpdateInput = Partial<Omit<SearchSession, "jobDescriptionId" | "userId" | "sampleName" | "expiresAt">> & {
+  userId?: string | null;
+  jobDescriptionId?: string | null;
+  sampleName?: string | null;
+  expiresAt?: string | null;
+};
+
 function toIsoNow(): string {
   return formatIsoOffsetInTimezone(new Date(), config.timezone);
 }
@@ -139,7 +146,7 @@ export class SessionManager {
     return this.createSession({ userId });
   }
 
-  updateSession(sessionId: string, updates: Partial<SearchSession>): SearchSession | null {
+  updateSession(sessionId: string, updates: SessionUpdateInput): SearchSession | null {
     const existing = this.getSession(sessionId);
     if (!existing) return null;
 
