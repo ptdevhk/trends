@@ -9,43 +9,31 @@ USER_DATA_DIR="${EXT_DIR}/.chrome-debug-profile"
 TARGET_URL="${1:-https://hr.job5156.com/search}"
 DEBUG_PORT="${CHROME_DEBUG_PORT:-9222}"
 
-if pgrep -f "remote-debugging-port" > /dev/null 2>&1; then
-  cat <<EOF_MSG
-Chrome appears to be running with remote debugging already.
-
-In the container, Chrome is managed by systemd and uses a branded build.
-Since Chrome 137+, the --load-extension flag is removed in branded Chrome.
-
-To load the extension manually:
-  1. Navigate to chrome://extensions
-  2. Enable Developer mode
-  3. Click Load unpacked
-  4. Select: $EXT_DIR
-
-Then navigate to: $TARGET_URL
-
-MCP commands you can use:
-  - list_pages
-  - take_snapshot
-  - list_console_messages
-EOF_MSG
-  exit 0
-fi
+# (Auto-detection moved to wrapper script)
 
 detect_chrome() {
   if [[ "$OSTYPE" == "darwin"* ]]; then
-    for chrome_path in \
-      "$HOME/.cache/puppeteer/chrome/*/chrome-mac-*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing" \
-      "/Applications/Chromium.app/Contents/MacOS/Chromium" \
-      "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary" \
-      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"; do
-      for expanded in $chrome_path; do
-        if [[ -x "$expanded" ]]; then
-          echo "$expanded"
-          return 0
-        fi
-      done
+    # Standard Mac paths (check fixed paths first to avoid space-splitting issues with wildcards)
+    local mac_paths=(
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary"
+      "/Applications/Chromium.app/Contents/MacOS/Chromium"
+    )
+    for p in "${mac_paths[@]}"; do
+      if [[ -x "$p" ]]; then
+        echo "$p"
+        return 0
+      fi
     done
+
+    # Fallback to slower wildcard search for Puppeteer/Testing builds if needed
+    # We use a temporary file glob to avoid space issues
+    local pup_paths
+    pup_paths=$(ls -d "$HOME"/.cache/puppeteer/chrome/*/chrome-mac-*/Google\ Chrome\ for\ Testing.app/Contents/MacOS/Google\ Chrome\ for\ Testing 2>/dev/null | head -n 1)
+    if [[ -n "$pup_paths" ]] && [[ -x "$pup_paths" ]]; then
+       echo "$pup_paths"
+       return 0
+    fi
   else
     for chrome_cmd in \
       "chromium-browser" \
