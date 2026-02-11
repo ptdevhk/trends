@@ -5,7 +5,13 @@
  * Compatible with OpenAI API and Poe.com proxy
  */
 
+import fs from "node:fs";
+import path from "node:path";
+
+import JSON5 from "json5";
+
 import { aiConfig, validateAIConfig, getMaskedApiKey } from "./ai-config.js";
+import { findProjectRoot } from "./db.js";
 
 // Types
 export interface MatchingRequest {
@@ -39,7 +45,29 @@ export interface MatchingResult {
     highlights: string[]; // Matching points
     concerns: string[]; // Missing or concerning points
     summary: string; // AI-generated summary in Chinese
+    breakdown?: {
+        skillMatch: number;
+        experienceMatch: number;
+        educationMatch: number;
+        locationMatch: number;
+        industryMatch: number;
+    };
+    matchedSkills?: string[];
+    matchedCompanies?: string[];
+    scoreSource?: "rule" | "ai";
     rawResponse?: string; // For debugging
+}
+
+export interface BatchMatchingProgress {
+    resumeId: string;
+    result: MatchingResult;
+    done: number;
+    total: number;
+}
+
+export interface BatchMatchingOptions {
+    concurrency?: number;
+    onResult?: (progress: BatchMatchingProgress) => void | Promise<void>;
 }
 
 export interface BatchMatchingResult {
@@ -47,6 +75,49 @@ export interface BatchMatchingResult {
     processedCount: number;
     failedCount: number;
     processingTimeMs: number;
+}
+
+function toObject(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== "object") return null;
+    return value as Record<string, unknown>;
+}
+
+function readNumberField(obj: Record<string, unknown> | null, key: string): number | null {
+    if (!obj) return null;
+    const value = obj[key];
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function loadConfiguredConcurrency(): number {
+    try {
+        const projectRoot = findProjectRoot();
+        const configPath = path.join(projectRoot, "config", "resume", "agents.json5");
+        if (!fs.existsSync(configPath)) return 5;
+
+        const parsed = JSON5.parse(fs.readFileSync(configPath, "utf8")) as unknown;
+        const root = toObject(parsed);
+        const ruleScoring = toObject(root?.ruleScoring);
+        const explicit = readNumberField(ruleScoring, "aiConcurrency");
+        if (explicit && explicit > 0) {
+            return Math.floor(explicit);
+        }
+
+        const agents = toObject(root?.agents);
+        const list = Array.isArray(agents?.list) ? agents?.list : [];
+        for (const item of list) {
+            const entry = toObject(item);
+            if (!entry || entry.id !== "screener") continue;
+            const config = toObject(entry.config);
+            const parallelism = readNumberField(config, "parallelism");
+            if (parallelism && parallelism > 0) {
+                return Math.floor(parallelism);
+            }
+        }
+    } catch (error) {
+        console.error("[AI Matching] Failed to read agents config:", error);
+    }
+
+    return 5;
 }
 
 // Prompt templates
@@ -94,6 +165,7 @@ const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 export class AIMatchingService {
     private readonly baseUrl: string;
     private readonly headers: Record<string, string>;
+    private readonly defaultConcurrency: number;
 
     constructor() {
         // Use apiBase if provided, otherwise construct from model provider
@@ -103,6 +175,8 @@ export class AIMatchingService {
             "Content-Type": "application/json",
             Authorization: `Bearer ${aiConfig.apiKey}`,
         };
+
+        this.defaultConcurrency = loadConfiguredConcurrency();
     }
 
     /**
@@ -124,12 +198,14 @@ export class AIMatchingService {
         model: string;
         apiBase: string;
         apiKeyMasked: string;
+        concurrency: number;
     } {
         return {
             enabled: aiConfig.enabled,
             model: aiConfig.model,
             apiBase: this.baseUrl,
             apiKeyMasked: getMaskedApiKey(),
+            concurrency: this.defaultConcurrency,
         };
     }
 
@@ -145,6 +221,7 @@ export class AIMatchingService {
                 highlights: [],
                 concerns: [availability.reason || "AI service unavailable"],
                 summary: "AI匹配服务不可用",
+                scoreSource: "ai",
             };
         }
 
@@ -167,6 +244,7 @@ export class AIMatchingService {
                 concerns: [`AI分析失败: ${errorMessage}`],
                 summary: "AI分析过程中发生错误",
                 rawResponse: errorMessage,
+                scoreSource: "ai",
             };
         }
     }
@@ -177,37 +255,77 @@ export class AIMatchingService {
     async matchBatch(
         resumes: MatchingRequest["resume"][],
         jobDescription: MatchingRequest["jobDescription"],
-        criteria?: MatchingRequest["criteria"]
+        criteria?: MatchingRequest["criteria"],
+        options?: BatchMatchingOptions
     ): Promise<BatchMatchingResult> {
         const startTime = Date.now();
-        const results: BatchMatchingResult["results"] = [];
-        let failedCount = 0;
+        if (resumes.length === 0) {
+            return {
+                results: [],
+                processedCount: 0,
+                failedCount: 0,
+                processingTimeMs: 0,
+            };
+        }
 
-        for (const resume of resumes) {
-            try {
-                const result = await this.matchResume({
-                    resume,
-                    jobDescription,
-                    criteria,
-                });
-                results.push({ resumeId: resume.id, result });
-            } catch {
-                failedCount++;
-                results.push({
-                    resumeId: resume.id,
-                    result: {
+        const concurrency = Math.max(1, Math.min(
+            options?.concurrency ?? this.defaultConcurrency,
+            resumes.length
+        ));
+
+        const orderedResults: Array<{ resumeId: string; result: MatchingResult } | null> =
+            Array.from({ length: resumes.length }, () => null);
+        let failedCount = 0;
+        let done = 0;
+        let nextIndex = 0;
+
+        const worker = async (): Promise<void> => {
+            while (true) {
+                const currentIndex = nextIndex;
+                nextIndex += 1;
+
+                if (currentIndex >= resumes.length) return;
+                const resume = resumes[currentIndex];
+
+                let result: MatchingResult;
+                try {
+                    result = await this.matchResume({
+                        resume,
+                        jobDescription,
+                        criteria,
+                    });
+                } catch {
+                    failedCount += 1;
+                    result = {
                         score: 0,
                         recommendation: "no_match",
                         highlights: [],
                         concerns: ["处理失败"],
                         summary: "简历处理失败",
-                    },
-                });
+                        scoreSource: "ai",
+                    };
+                }
+
+                orderedResults[currentIndex] = { resumeId: resume.id, result };
+                done += 1;
+
+                if (options?.onResult) {
+                    await options.onResult({
+                        resumeId: resume.id,
+                        result,
+                        done,
+                        total: resumes.length,
+                    });
+                }
             }
-        }
+        };
+
+        await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
         return {
-            results,
+            results: orderedResults.filter(
+                (entry): entry is { resumeId: string; result: MatchingResult } => entry !== null
+            ),
             processedCount: resumes.length,
             failedCount,
             processingTimeMs: Date.now() - startTime,
@@ -333,19 +451,30 @@ export class AIMatchingService {
                 jsonText = jsonText.slice(jsonStart, jsonEnd + 1);
             }
 
-            const parsed = JSON.parse(jsonText);
+            const parsed = JSON.parse(jsonText) as Record<string, unknown>;
 
             // Validate and normalize
-            const score = Math.max(0, Math.min(100, parseInt(parsed.score, 10) || 0));
-            const recommendation = this.normalizeRecommendation(parsed.recommendation, score);
+            const rawScore = typeof parsed.score === "number"
+                ? parsed.score
+                : Number.parseInt(String(parsed.score ?? "0"), 10);
+            const score = Math.max(0, Math.min(100, Number.isFinite(rawScore) ? rawScore : 0));
+            const recommendation = this.normalizeRecommendation(
+                typeof parsed.recommendation === "string" ? parsed.recommendation : undefined,
+                score
+            );
 
             return {
                 score,
                 recommendation,
-                highlights: Array.isArray(parsed.highlights) ? parsed.highlights : [],
-                concerns: Array.isArray(parsed.concerns) ? parsed.concerns : [],
-                summary: parsed.summary || "无分析结果",
+                highlights: Array.isArray(parsed.highlights)
+                    ? parsed.highlights.map((item) => String(item))
+                    : [],
+                concerns: Array.isArray(parsed.concerns)
+                    ? parsed.concerns.map((item) => String(item))
+                    : [],
+                summary: typeof parsed.summary === "string" ? parsed.summary : "无分析结果",
                 rawResponse: response,
+                scoreSource: "ai",
             };
         } catch (error) {
             console.error("[AI Matching] Parse error:", error);
@@ -356,6 +485,7 @@ export class AIMatchingService {
                 concerns: ["AI响应解析失败"],
                 summary: "无法解析AI返回结果",
                 rawResponse: response,
+                scoreSource: "ai",
             };
         }
     }

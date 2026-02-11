@@ -7,7 +7,7 @@
 		build-static build-static-fresh serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
-		seed seed-full seed-force
+		seed seed-full seed-force seed-matches clear-matches
 
 # Default target
 .DEFAULT_GOAL := help
@@ -24,6 +24,7 @@ dev:
 	else \
 		echo "Skipping Convex env sync (no Convex .env.local found yet)"; \
 	fi
+	@npx tsx scripts/seed-matches.ts
 	./scripts/dev.sh $(ARGS)
 
 # Stop/clean any stale development services and ports
@@ -216,6 +217,14 @@ seed-force:
 		npx tsx scripts/seed-convex.ts --force; \
 	fi
 
+# Seed deterministic resume matches into output/resume_screening.db
+seed-matches:
+	@npx tsx scripts/seed-matches.ts
+
+# Clear cached resume matches from output/resume_screening.db
+clear-matches:
+	@npx tsx scripts/clear-matches.ts
+
 # Refresh resume sample data automatically via CDP
 refresh-sample:
 	@KEYWORD="$(or $(KEYWORD),销售)" SAMPLE="$(or $(SAMPLE),sample-initial)" \
@@ -375,6 +384,8 @@ help:
 	@echo "  seed           Seed Convex with system job descriptions"
 	@echo "  seed-full      Seed Convex with system job descriptions + sample resumes"
 	@echo "  seed-force     Force seed Convex even if DB is not empty"
+	@echo "  seed-matches   Seed deterministic resume matches for dev mode"
+	@echo "  clear-matches  Clear cached resume matches from SQLite"
 	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
 	@echo "  chrome-debug   Start Google Chrome with remote debugging (port 9222)"

@@ -242,6 +242,18 @@ export const RecommendationSchema = z.enum([
   "no_match",
 ]);
 
+export const ScoreSourceSchema = z.enum(["rule", "ai"]);
+
+export const MatchBreakdownSchema = z
+  .object({
+    skillMatch: z.number().int().openapi({ example: 20 }),
+    experienceMatch: z.number().int().openapi({ example: 18 }),
+    educationMatch: z.number().int().openapi({ example: 12 }),
+    locationMatch: z.number().int().openapi({ example: 15 }),
+    industryMatch: z.number().int().openapi({ example: 10 }),
+  })
+  .openapi("MatchBreakdown");
+
 export const ResumeMatchSchema = z
   .object({
     resumeId: z.string().openapi({ example: "R123456" }),
@@ -251,6 +263,8 @@ export const ResumeMatchSchema = z
     highlights: z.array(z.string()).openapi({ example: ["客户开发经验丰富"] }),
     concerns: z.array(z.string()).openapi({ example: ["缺少机床销售经验"] }),
     summary: z.string().openapi({ example: "候选人与岗位匹配良好，可安排面试。" }),
+    breakdown: MatchBreakdownSchema.optional(),
+    scoreSource: ScoreSourceSchema.optional().openapi({ example: "rule" }),
     matchedAt: z.string().openapi({ example: "2026-02-05T08:00:00.000Z" }),
     sessionId: z.string().optional().openapi({ example: "session-123" }),
     userId: z.string().optional().openapi({ example: "user-abc" }),
@@ -264,6 +278,8 @@ export const MatchRequestSchema = z
     jobDescriptionId: z.string().openapi({ example: "lathe-sales" }),
     resumeIds: z.array(z.string()).optional().openapi({ example: ["R123456"] }),
     limit: z.number().int().min(1).max(1000).optional().openapi({ example: 50 }),
+    topN: z.number().int().min(1).max(500).optional().openapi({ example: 20 }),
+    mode: z.enum(["rules_only", "hybrid", "ai_only"]).optional().openapi({ example: "hybrid" }),
   })
   .openapi("MatchRequest");
 
@@ -273,12 +289,16 @@ export const MatchStatsSchema = z
     matched: z.number().int(),
     avgScore: z.number(),
     processingTimeMs: z.number().int().optional(),
+    pendingAi: z.number().int().optional(),
   })
   .openapi("MatchStats");
 
 export const MatchResponseSchema = z
   .object({
     success: z.literal(true),
+    mode: z.enum(["rules_only", "hybrid", "ai_only"]).optional(),
+    streamPath: z.string().optional(),
+    pendingAiCount: z.number().int().optional(),
     results: z.array(ResumeMatchSchema),
     stats: MatchStatsSchema,
   })

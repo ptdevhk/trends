@@ -73,6 +73,8 @@ function initSchema(db: Database.Database): void {
       highlights TEXT,
       concerns TEXT,
       summary TEXT,
+      breakdown TEXT,
+      score_source TEXT DEFAULT 'ai',
       ai_model TEXT,
       processing_time_ms INTEGER,
       matched_at TEXT NOT NULL,
@@ -84,6 +86,7 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_matches_job ON resume_matches(job_description_id);
     CREATE INDEX IF NOT EXISTS idx_matches_resume ON resume_matches(resume_id);
     CREATE INDEX IF NOT EXISTS idx_matches_score ON resume_matches(score DESC);
+    CREATE INDEX IF NOT EXISTS idx_matches_job_score ON resume_matches(job_description_id, score DESC);
     CREATE INDEX IF NOT EXISTS idx_matches_session ON resume_matches(session_id);
     CREATE INDEX IF NOT EXISTS idx_matches_user ON resume_matches(user_id);
 
@@ -103,4 +106,19 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_actions_user ON candidate_actions(user_id);
     CREATE INDEX IF NOT EXISTS idx_actions_type ON candidate_actions(action_type);
   `);
+
+  ensureColumn(db, "resume_matches", "breakdown", "TEXT");
+  ensureColumn(db, "resume_matches", "score_source", "TEXT DEFAULT 'ai'");
+}
+
+function ensureColumn(
+  db: Database.Database,
+  table: string,
+  column: string,
+  definition: string
+): void {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<Record<string, unknown>>;
+  const exists = rows.some((row) => String(row.name) === column);
+  if (exists) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
@@ -19,7 +19,7 @@ import { FilterPanel } from '@/components/FilterPanel'
 import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
-import type { MatchingResult, Recommendation } from '@/types/resume'
+import type { MatchBreakdown, MatchingResult, Recommendation } from '@/types/resume'
 
 import { useMutation } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -42,6 +42,34 @@ function isRecommendation(value: string): value is Recommendation {
 
 function toRecommendation(value: string): Recommendation {
   return isRecommendation(value) ? value : 'potential'
+}
+
+function toMatchBreakdown(value: Record<string, number> | undefined): MatchBreakdown | undefined {
+  if (!value) return undefined
+  const {
+    skillMatch,
+    experienceMatch,
+    educationMatch,
+    locationMatch,
+    industryMatch,
+  } = value
+  if (
+    typeof skillMatch !== 'number'
+    || typeof experienceMatch !== 'number'
+    || typeof educationMatch !== 'number'
+    || typeof locationMatch !== 'number'
+    || typeof industryMatch !== 'number'
+  ) {
+    return undefined
+  }
+
+  return {
+    skillMatch,
+    experienceMatch,
+    educationMatch,
+    locationMatch,
+    industryMatch,
+  }
 }
 
 function getAnalysisForJob(resume: ConvexResumeItem, selectedJobId: string): ConvexResumeAnalysis | undefined {
@@ -89,7 +117,16 @@ export function ResumeList() {
   } = useResumes({ limit: 200, sessionId: session?.id, jobDescriptionId })
 
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
-  const { results: matchResults, stats: matchStats, loading: matchLoading, error: matchError, matchAll, fetchMatches } = useAiMatching()
+  const {
+    results: matchResults,
+    stats: matchStats,
+    loading: matchLoading,
+    error: matchError,
+    progress: matchProgress,
+    matchAll,
+    fetchMatches,
+  } = useAiMatching()
+  const autoRunKeyRef = useRef<string>('')
   const { actions, saveAction } = useCandidateActions(session?.id)
 
   // Convex Integration
@@ -161,6 +198,27 @@ export function ResumeList() {
   }, [fetchMatches, jobDescriptionId, session?.id])
 
   useEffect(() => {
+    if (mode !== 'original') {
+      autoRunKeyRef.current = ''
+      return
+    }
+    if (!jobDescriptionId) return
+
+    const triggerKey = `${session?.id || 'no-session'}:${selectedSample || ''}:${jobDescriptionId}`
+    if (autoRunKeyRef.current === triggerKey) return
+
+    autoRunKeyRef.current = triggerKey
+    void matchAll({
+      sessionId: session?.id,
+      jobDescriptionId,
+      sample: selectedSample || undefined,
+      limit: 200,
+      topN: 20,
+      mode: 'hybrid',
+    })
+  }, [jobDescriptionId, matchAll, mode, selectedSample, session?.id])
+
+  useEffect(() => {
     setSelectedIds(new Set())
   }, [mode, jobDescriptionId, query])
 
@@ -218,6 +276,8 @@ export function ResumeList() {
       jobDescriptionId,
       sample: selectedSample || undefined,
       limit: 200,
+      topN: 20,
+      mode: 'hybrid',
     })
   }, [jobDescriptionId, matchAll, selectedSample, session?.id])
 
@@ -320,7 +380,8 @@ export function ResumeList() {
             highlights: analysis.highlights,
             recommendation: toRecommendation(analysis.recommendation),
             concerns: analysis.concerns ?? [],
-            breakdown: analysis.breakdown,
+            breakdown: toMatchBreakdown(analysis.breakdown),
+            scoreSource: 'ai',
             matchedAt: new Date().toISOString(),
             jobDescriptionId: analysis.jobDescriptionId,
           }
@@ -347,9 +408,8 @@ export function ResumeList() {
   }, [actions, filteredConvexResumes, jobDescriptionId, matchMap, mode, resumes])
 
   const displayedResumes = useMemo(() => {
-    if (mode !== 'ai') return enrichedResumes
     return [...enrichedResumes].sort((a, b) => (b.match?.score ?? -1) - (a.match?.score ?? -1))
-  }, [enrichedResumes, mode])
+  }, [enrichedResumes])
 
   const handleSelectAll = useCallback(() => {
     setSelectedIds(new Set(displayedResumes.map((entry) => entry.key)))
@@ -420,6 +480,10 @@ export function ResumeList() {
     return displayedResumes.filter((e) => (e.match?.score ?? 0) >= 80).length
   }, [displayedResumes])
 
+  const disableAnalyzeButton = mode === 'ai'
+    ? (!convexResumes.length || analyzing || matchLoading || !jobDescriptionId)
+    : (matchLoading || !jobDescriptionId)
+
   return (
     <div className="flex flex-col gap-6">
       {/* Quick Start Panel - Minimal Input */}
@@ -449,7 +513,7 @@ export function ResumeList() {
             </Button>
             <Button
               onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll}
-              disabled={(!convexResumes.length || analyzing || matchLoading) || (mode === 'ai' && !jobDescriptionId)}
+              disabled={disableAnalyzeButton}
               title={mode === 'ai' && !jobDescriptionId ? t('resumes.selectJobDescriptionFirst') : undefined}
             >
               <RefreshCw className={cn('mr-2 h-4 w-4', (analyzing || matchLoading) && 'animate-spin')} />
@@ -513,6 +577,11 @@ export function ResumeList() {
 
         {matchError ? (
           <div className="text-xs text-destructive">{matchError}</div>
+        ) : null}
+        {mode !== 'ai' && matchProgress ? (
+          <div className="text-xs text-muted-foreground">
+            AI progress: {matchProgress.done}/{matchProgress.total}
+          </div>
         ) : null}
       </div>
 

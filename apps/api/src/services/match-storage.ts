@@ -13,6 +13,8 @@ export type StoredMatch = {
   highlights: string[];
   concerns: string[];
   summary: string;
+  breakdown?: MatchingResult["breakdown"];
+  scoreSource: "rule" | "ai";
   aiModel?: string;
   processingTimeMs?: number;
   matchedAt: string;
@@ -28,7 +30,40 @@ function parseJsonArray(value: unknown): string[] {
   }
 }
 
+function parseJsonObject(
+  value: unknown
+): MatchingResult["breakdown"] | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const requiredKeys = [
+      "skillMatch",
+      "experienceMatch",
+      "educationMatch",
+      "locationMatch",
+      "industryMatch",
+    ];
+    const hasAllKeys = requiredKeys.every((key) => typeof parsed[key] === "number");
+    if (!hasAllKeys) return undefined;
+    return {
+      skillMatch: Number(parsed.skillMatch),
+      experienceMatch: Number(parsed.experienceMatch),
+      educationMatch: Number(parsed.educationMatch),
+      locationMatch: Number(parsed.locationMatch),
+      industryMatch: Number(parsed.industryMatch),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 function normalizeMatch(row: Record<string, unknown>): StoredMatch {
+  const scoreSource = row.score_source
+    ? String(row.score_source)
+    : String(row.ai_model || "").startsWith("rule")
+      ? "rule"
+      : "ai";
+
   return {
     id: Number(row.id),
     sessionId: row.session_id ? String(row.session_id) : undefined,
@@ -41,6 +76,8 @@ function normalizeMatch(row: Record<string, unknown>): StoredMatch {
     highlights: parseJsonArray(row.highlights),
     concerns: parseJsonArray(row.concerns),
     summary: row.summary ? String(row.summary) : "",
+    breakdown: parseJsonObject(row.breakdown),
+    scoreSource: scoreSource === "rule" ? "rule" : "ai",
     aiModel: row.ai_model ? String(row.ai_model) : undefined,
     processingTimeMs: row.processing_time_ms ? Number(row.processing_time_ms) : undefined,
     matchedAt: String(row.matched_at),
@@ -79,10 +116,12 @@ export class MatchStorage {
           highlights,
           concerns,
           summary,
+          breakdown,
+          score_source,
           ai_model,
           processing_time_ms,
           matched_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(resume_id, job_description_id) DO UPDATE SET
           session_id = excluded.session_id,
           user_id = excluded.user_id,
@@ -92,6 +131,8 @@ export class MatchStorage {
           highlights = excluded.highlights,
           concerns = excluded.concerns,
           summary = excluded.summary,
+          breakdown = excluded.breakdown,
+          score_source = excluded.score_source,
           ai_model = excluded.ai_model,
           processing_time_ms = excluded.processing_time_ms,
           matched_at = excluded.matched_at
@@ -108,6 +149,8 @@ export class MatchStorage {
         JSON.stringify(params.result.highlights ?? []),
         JSON.stringify(params.result.concerns ?? []),
         params.result.summary ?? "",
+        params.result.breakdown ? JSON.stringify(params.result.breakdown) : null,
+        params.result.scoreSource ?? "ai",
         params.aiModel ?? null,
         params.processingTimeMs ?? null,
         now
@@ -171,6 +214,13 @@ export class MatchStorage {
     const result = this.db
       .prepare("DELETE FROM resume_matches WHERE matched_at < ?")
       .run(cutoff);
+    return result.changes ?? 0;
+  }
+
+  clearMatches(jobDescriptionId?: string): number {
+    const result = jobDescriptionId
+      ? this.db.prepare("DELETE FROM resume_matches WHERE job_description_id = ?").run(jobDescriptionId)
+      : this.db.prepare("DELETE FROM resume_matches").run();
     return result.changes ?? 0;
   }
 }
