@@ -13,6 +13,7 @@ import type * as analyze from "../analyze.js";
 import type * as job_descriptions from "../job_descriptions.js";
 import type * as resume_tasks from "../resume_tasks.js";
 import type * as resumes from "../resumes.js";
+import type * as seed from "../seed.js";
 
 import type {
   ApiFromModules,
@@ -26,6 +27,7 @@ declare const fullApi: ApiFromModules<{
   job_descriptions: typeof job_descriptions;
   resume_tasks: typeof resume_tasks;
   resumes: typeof resumes;
+  seed: typeof seed;
 }>;
 
 /**

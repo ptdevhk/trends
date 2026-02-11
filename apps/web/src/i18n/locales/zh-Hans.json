@@ -126,6 +126,7 @@
       "placeholder": "选择职位",
       "manage": "管理职位"
     },
+    "selectJobDescriptionFirst": "请先选择职位描述",
     "matching": {
       "matchAll": "AI 匹配全部",
       "running": "匹配中...",

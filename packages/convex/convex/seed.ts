@@ -105,3 +105,22 @@ export const seedResumes = mutation({
         return { inserted, skipped };
     },
 });
+
+export const clearAll = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const jds = await ctx.db.query("job_descriptions").collect();
+        for (const jd of jds) await ctx.db.delete(jd._id);
+
+        const resumes = await ctx.db.query("resumes").collect();
+        for (const resume of resumes) await ctx.db.delete(resume._id);
+
+        const tasks = await ctx.db.query("collection_tasks").collect();
+        for (const task of tasks) await ctx.db.delete(task._id);
+
+        const analysisTasks = await ctx.db.query("analysis_tasks").collect();
+        for (const task of analysisTasks) await ctx.db.delete(task._id);
+
+        return { success: true };
+    },
+});

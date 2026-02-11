@@ -126,6 +126,7 @@
       "placeholder": "Select job description",
       "manage": "Manage JDs"
     },
+    "selectJobDescriptionFirst": "Please select a Job Description first",
     "matching": {
       "matchAll": "Match All",
       "running": "Matching...",

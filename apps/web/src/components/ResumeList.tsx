@@ -447,7 +447,11 @@ export function ResumeList() {
               <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
               {t('resumes.refresh')}
             </Button>
-            <Button onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll} disabled={!convexResumes.length || analyzing || matchLoading}>
+            <Button
+              onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll}
+              disabled={(!convexResumes.length || analyzing || matchLoading) || (mode === 'ai' && !jobDescriptionId)}
+              title={mode === 'ai' && !jobDescriptionId ? t('resumes.selectJobDescriptionFirst') : undefined}
+            >
               <RefreshCw className={cn('mr-2 h-4 w-4', (analyzing || matchLoading) && 'animate-spin')} />
               {mode === 'ai' ? (analyzing ? 'Analyzing...' : 'Analyze All (AI)') : (matchLoading ? t('resumes.matching.running') : t('resumes.matching.matchAll'))}
             </Button>

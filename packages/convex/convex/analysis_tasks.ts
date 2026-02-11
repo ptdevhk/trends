@@ -187,6 +187,10 @@ export const dispatch = mutation({
         resumeIds: v.array(v.id("resumes")),
     },
     handler: async (ctx, args) => {
+        if (!args.jobDescriptionId || args.jobDescriptionId === "default") {
+            throw new Error("Job Description must be selected for analysis.");
+        }
+
         const taskId = await ctx.db.insert("analysis_tasks", {
             config: {
                 jobDescriptionId: args.jobDescriptionId,
