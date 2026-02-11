@@ -32,4 +32,18 @@ if [ -d "packages/convex" ]; then
     "$SCRIPT_DIR/prefetch-convex-backend.sh" || echo "Warning: Convex prefetch failed (non-fatal)"
 fi
 
+# Sync agent governance artifacts (policy mirror + Codex skill install)
+if [ "${CI:-}" != "true" ]; then
+    echo "Syncing agent governance artifacts..."
+    _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if command -v bun > /dev/null 2>&1; then
+        bunx tsx "$_SCRIPT_DIR/agent-governance/sync-policy.ts" || echo "Warning: Agent policy sync failed (non-fatal)"
+    else
+        npx tsx "$_SCRIPT_DIR/agent-governance/sync-policy.ts" || echo "Warning: Agent policy sync failed (non-fatal)"
+    fi
+    "$_SCRIPT_DIR/agent-governance/install-skill.sh" || echo "Warning: Agent skill install failed (non-fatal)"
+else
+    echo "Skipping agent governance sync in CI"
+fi
+
 echo "Done!"

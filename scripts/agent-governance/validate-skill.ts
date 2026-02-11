@@ -9,6 +9,7 @@ import YAML from 'yaml';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..');
 const skillRoot = path.join(repoRoot, 'dev-docs', 'skills', 'trends-agent-governance');
+const claudeCommandPath = path.join(repoRoot, '.claude', 'commands', 'trends-agent-governance.md');
 
 const requiredFiles = [
   'SKILL.md',
@@ -108,6 +109,23 @@ async function run(): Promise<void> {
 
   if (missingOptional.length > 0) {
     console.warn(`Optional skill files are missing: ${missingOptional.join(', ')}`);
+  }
+
+  try {
+    await access(claudeCommandPath);
+  } catch {
+    throw new Error(`Missing Claude Code command file: ${claudeCommandPath}`);
+  }
+
+  const claudeCommandContent = await readFile(claudeCommandPath, 'utf8');
+  if (claudeCommandContent.trim().length === 0) {
+    throw new Error(`Claude Code command file is empty: ${claudeCommandPath}`);
+  }
+
+  const requiredSections = ['Source Matrix', 'Evidence Template', 'Workflow'];
+  const missingSections = requiredSections.filter((section) => !claudeCommandContent.includes(section));
+  if (missingSections.length > 0) {
+    throw new Error(`Claude Code command missing sections: ${missingSections.join(', ')}`);
   }
 
   console.log(`Skill validation passed: ${skillRoot}`);
