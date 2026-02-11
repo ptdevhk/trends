@@ -7,10 +7,13 @@
 		build-static build-static-fresh serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
-		seed seed-full seed-force
+		seed seed-full seed-force \
+		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance
 
 # Default target
 .DEFAULT_GOAL := help
+
+.PHONY: seed-matches clear-matches
 
 # =============================================================================
 # Development (Full Experience)
@@ -24,6 +27,7 @@ dev:
 	else \
 		echo "Skipping Convex env sync (no Convex .env.local found yet)"; \
 	fi
+	@npx tsx scripts/seed-matches.ts
 	./scripts/dev.sh $(ARGS)
 
 # Stop/clean any stale development services and ports
@@ -188,6 +192,42 @@ prefetch-convex:
 fetch-docs:
 	./dev-docs/fetch-docs.sh
 
+# Sync dev-docs/AGENTS.md from canonical AGENTS policy block
+sync-agent-policy:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/agent-governance/sync-policy.ts; \
+	else \
+		npx tsx scripts/agent-governance/sync-policy.ts; \
+	fi
+
+# Validate dev-docs/AGENTS.md matches canonical AGENTS policy block
+check-agent-policy:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/agent-governance/sync-policy.ts --check; \
+	else \
+		npx tsx scripts/agent-governance/sync-policy.ts --check; \
+	fi
+
+# Install repo governance skill into ${CODEX_HOME:-$HOME/.codex}/skills
+install-agent-skill:
+	@./scripts/agent-governance/install-skill.sh
+
+# Validate repo governance skill structure + installed skill sync (local only)
+check-agent-skill:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/agent-governance/validate-skill.ts; \
+	else \
+		npx tsx scripts/agent-governance/validate-skill.ts; \
+	fi
+	@if [ "$$CI" = "true" ]; then \
+		echo "Skipping installed skill drift check in CI"; \
+	else \
+		./scripts/agent-governance/install-skill.sh --check; \
+	fi
+
+# Sync all governance artifacts
+sync-agent-governance: sync-agent-policy install-agent-skill
+
 # =============================================================================
 # Utilities
 # =============================================================================
@@ -215,6 +255,14 @@ seed-force:
 	else \
 		npx tsx scripts/seed-convex.ts --force; \
 	fi
+
+# Seed deterministic resume matches into output/resume_screening.db
+seed-matches:
+	@npx tsx scripts/seed-matches.ts
+
+# Clear cached resume matches from output/resume_screening.db
+clear-matches:
+	@npx tsx scripts/clear-matches.ts
 
 # Refresh resume sample data automatically via CDP
 refresh-sample:
@@ -246,7 +294,7 @@ clean:
 	rm -rf node_modules .venv build dist
 
 # Run all validation checks (Python + Node.js)
-check: check-python check-node
+check: check-python check-node check-agent-policy check-agent-skill
 	@echo "All checks passed"
 
 # Python checks
@@ -370,11 +418,18 @@ help:
 	@echo ""
 	@echo "Documentation:"
 	@echo "  fetch-docs     Fetch latest upstream documentation"
+	@echo "  sync-agent-policy Sync generated dev-docs/AGENTS.md from canonical AGENTS policy"
+	@echo "  check-agent-policy Validate generated dev-docs/AGENTS.md is up to date"
+	@echo "  install-agent-skill Install governance skill into ~/.codex/skills"
+	@echo "  check-agent-skill Validate governance skill structure and installed copy drift"
+	@echo "  sync-agent-governance Run policy sync + skill install"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  seed           Seed Convex with system job descriptions"
 	@echo "  seed-full      Seed Convex with system job descriptions + sample resumes"
 	@echo "  seed-force     Force seed Convex even if DB is not empty"
+	@echo "  seed-matches   Seed deterministic resume matches for dev mode"
+	@echo "  clear-matches  Clear cached resume matches from SQLite"
 	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
 	@echo "  chrome-debug   Start Google Chrome with remote debugging (port 9222)"
@@ -390,7 +445,7 @@ help:
 	@echo "  help           Show this help message"
 	@echo ""
 	@echo "Environment Variables:"
-	@echo "  ENV_FILE       Path to .env file (default: .env)"
+	@echo "  ENV_FILE       Optional env file path (unset by default)"
 	@echo "  MCP_PORT       MCP server port (default: 3333)"
 	@echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
 	@echo "  API_PORT       BFF API port (default: 3000)"

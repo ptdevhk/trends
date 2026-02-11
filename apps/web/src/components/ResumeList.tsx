@@ -19,7 +19,8 @@ import { FilterPanel } from '@/components/FilterPanel'
 import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
-import type { MatchingResult, Recommendation } from '@/types/resume'
+import { MatchRunHistory } from '@/components/MatchRunHistory'
+import type { MatchBreakdown, MatchingResult, Recommendation } from '@/types/resume'
 
 import { useMutation } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -42,6 +43,34 @@ function isRecommendation(value: string): value is Recommendation {
 
 function toRecommendation(value: string): Recommendation {
   return isRecommendation(value) ? value : 'potential'
+}
+
+function toMatchBreakdown(value: Record<string, number> | undefined): MatchBreakdown | undefined {
+  if (!value) return undefined
+  const {
+    skillMatch,
+    experienceMatch,
+    educationMatch,
+    locationMatch,
+    industryMatch,
+  } = value
+  if (
+    typeof skillMatch !== 'number'
+    || typeof experienceMatch !== 'number'
+    || typeof educationMatch !== 'number'
+    || typeof locationMatch !== 'number'
+    || typeof industryMatch !== 'number'
+  ) {
+    return undefined
+  }
+
+  return {
+    skillMatch,
+    experienceMatch,
+    educationMatch,
+    locationMatch,
+    industryMatch,
+  }
 }
 
 function getAnalysisForJob(resume: ConvexResumeItem, selectedJobId: string): ConvexResumeAnalysis | undefined {
@@ -89,7 +118,15 @@ export function ResumeList() {
   } = useResumes({ limit: 200, sessionId: session?.id, jobDescriptionId })
 
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
-  const { results: matchResults, stats: matchStats, loading: matchLoading, error: matchError, matchAll, fetchMatches } = useAiMatching()
+  const {
+    results: matchResults,
+    stats: matchStats,
+    loading: matchLoading,
+    error: matchError,
+    progress: matchProgress,
+    matchAll,
+    fetchMatches,
+  } = useAiMatching()
   const { actions, saveAction } = useCandidateActions(session?.id)
 
   // Convex Integration
@@ -170,6 +207,46 @@ export function ResumeList() {
     return () => window.clearTimeout(timer)
   }, [analysisDispatchMessage])
 
+  // Fetch selected job description details
+  const [selectedJob, setSelectedJob] = useState<{ id: string; title: string; requirements?: string } | null>(null)
+
+  useEffect(() => {
+    async function loadJob() {
+      if (!jobDescriptionId) {
+        setSelectedJob(null)
+        return
+      }
+      try {
+        const { data } = await rawApiClient.GET<{
+          success: boolean
+          item?: {
+            _id: string
+            title: string
+            content: string
+          }
+          // The API response type might be slightly different based on previous view
+          // API returns content as top level property in handleAnalyzeAll logic?
+          // In handleAnalyzeAll: data.content
+          // Let's verify the type alias JobDescriptionApiResponse usage
+        }>(`/api/job-descriptions/${jobDescriptionId}`)
+
+        // Based on handleAnalyzeAll logic:
+        // jdTitle = data.item?.title || jobDescriptionId
+        // jdContent = data.content
+        if (data?.success) {
+          setSelectedJob({
+            id: jobDescriptionId,
+            title: data.item?.title || 'Unknown Position',
+            requirements: (data as any).content || ''
+          })
+        }
+      } catch (err) {
+        console.error('Failed to load job details', err)
+      }
+    }
+    loadJob()
+  }, [jobDescriptionId])
+
   const sampleOptions = useMemo(
     () =>
       samples.map((sample) => ({
@@ -218,6 +295,8 @@ export function ResumeList() {
       jobDescriptionId,
       sample: selectedSample || undefined,
       limit: 200,
+      topN: 20,
+      mode: 'hybrid',
     })
   }, [jobDescriptionId, matchAll, selectedSample, session?.id])
 
@@ -320,7 +399,8 @@ export function ResumeList() {
             highlights: analysis.highlights,
             recommendation: toRecommendation(analysis.recommendation),
             concerns: analysis.concerns ?? [],
-            breakdown: analysis.breakdown,
+            breakdown: toMatchBreakdown(analysis.breakdown),
+            scoreSource: 'ai',
             matchedAt: new Date().toISOString(),
             jobDescriptionId: analysis.jobDescriptionId,
           }
@@ -347,9 +427,8 @@ export function ResumeList() {
   }, [actions, filteredConvexResumes, jobDescriptionId, matchMap, mode, resumes])
 
   const displayedResumes = useMemo(() => {
-    if (mode !== 'ai') return enrichedResumes
     return [...enrichedResumes].sort((a, b) => (b.match?.score ?? -1) - (a.match?.score ?? -1))
-  }, [enrichedResumes, mode])
+  }, [enrichedResumes])
 
   const handleSelectAll = useCallback(() => {
     setSelectedIds(new Set(displayedResumes.map((entry) => entry.key)))
@@ -420,6 +499,10 @@ export function ResumeList() {
     return displayedResumes.filter((e) => (e.match?.score ?? 0) >= 80).length
   }, [displayedResumes])
 
+  const disableAnalyzeButton = mode === 'ai'
+    ? (!convexResumes.length || analyzing || matchLoading || !jobDescriptionId)
+    : (matchLoading || !jobDescriptionId)
+
   return (
     <div className="flex flex-col gap-6">
       {/* Quick Start Panel - Minimal Input */}
@@ -449,7 +532,7 @@ export function ResumeList() {
             </Button>
             <Button
               onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll}
-              disabled={(!convexResumes.length || analyzing || matchLoading) || (mode === 'ai' && !jobDescriptionId)}
+              disabled={disableAnalyzeButton}
               title={mode === 'ai' && !jobDescriptionId ? t('resumes.selectJobDescriptionFirst') : undefined}
             >
               <RefreshCw className={cn('mr-2 h-4 w-4', (analyzing || matchLoading) && 'animate-spin')} />
@@ -514,9 +597,18 @@ export function ResumeList() {
         {matchError ? (
           <div className="text-xs text-destructive">{matchError}</div>
         ) : null}
+        {mode !== 'ai' && matchProgress ? (
+          <div className="text-xs text-muted-foreground">
+            AI progress: {matchProgress.done}/{matchProgress.total}
+          </div>
+        ) : null}
       </div>
 
-      <AnalysisTaskMonitor />
+      {mode === 'ai' ? (
+        <AnalysisTaskMonitor />
+      ) : (
+        <MatchRunHistory sessionId={session?.id} jobDescriptionId={jobDescriptionId || undefined} />
+      )}
 
       <Card>
         <CardHeader>
@@ -562,12 +654,14 @@ export function ResumeList() {
                   key={entry.key || `${index}-${entry.resume.name}`}
                   resume={entry.resume}
                   matchResult={entry.match}
-                  showAiScore={mode === 'ai'}
+                  showAiScore={Boolean(entry.match)}
                   actionType={entry.action}
                   onAction={(actionType) => saveAction({ resumeId: entry.key, actionType })}
                   onViewDetails={() => setDetailResume(entry.resume)}
                   selected={selectedIds.has(entry.key)}
                   onSelect={() => handleToggleSelect(entry.key)}
+                  jobDescriptionId={jobDescriptionId}
+                  jobDescription={selectedJob || undefined}
                 />
               ))}
             </div>

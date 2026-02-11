@@ -11,6 +11,34 @@ Trends is a multi-source data aggregation, AI-powered filtering, and intelligent
 - MCP Server for AI-powered analysis
 - Modern web stack: React frontend, Hono BFF API, FastAPI worker
 
+<!-- AGENT_POLICY:BEGIN -->
+## Agent Governance Policy (Canonical)
+
+- Canonical policy file: `/Users/karlchow/.codex/worktrees/0e71/trends/AGENTS.md`
+- Generated mirror file: `/Users/karlchow/.codex/worktrees/0e71/trends/dev-docs/AGENTS.md`
+- Do not edit `/Users/karlchow/.codex/worktrees/0e71/trends/dev-docs/AGENTS.md` directly.
+- After policy edits, run `npx tsx scripts/agent-governance/sync-policy.ts`.
+
+### Source Matrix (strict order)
+1. Local repository sources, including `/Users/karlchow/.codex/worktrees/0e71/trends/dev-docs/*.txt` and implementation files.
+2. Context7 references for library/framework/API behavior and usage details.
+3. Official web sources only when freshness-sensitive or time-sensitive facts are required.
+
+### Evidence Contract
+- For non-trivial technical design/recommendation responses, include a `Sources Used` section.
+- `Sources Used` must include:
+  - Absolute local file paths consulted.
+  - Context7 library IDs queried.
+  - Web URLs only when freshness-sensitive facts are used.
+- Use `none` for any category with no source usage.
+
+### Enforcement
+- Sync generated policy mirror with `make sync-agent-policy`.
+- Validate policy drift with `make check-agent-policy`.
+- Validate governance skill package and installed copy with `make check-agent-skill`.
+- `make check` must fail if policy or governance skill checks fail.
+<!-- AGENT_POLICY:END -->
+
 ## Quick Start
 
 ```bash

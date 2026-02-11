@@ -976,7 +976,7 @@ export default function DebugConfig() {
                 </Badge>
                 {aiStatus.bonded?.includes('AI_ANALYSIS_ENABLED') && (
                   <Badge variant="outline" className="border-emerald-500/50 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400">
-                    Bonded to .env
+                    Bound to environment
                   </Badge>
                 )}
                 <Badge variant={aiStatus.valid ? 'default' : 'destructive'}>

@@ -2,7 +2,7 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { SYSTEM_PROMPT, USER_PROMPT_TEMPLATE, callLLM, normalizeResume } from "./analyze";
+import { SYSTEM_PROMPT, USER_PROMPT_TEMPLATE, callLLM, getAiApiKey, normalizeResume } from "./analyze";
 
 type AnalysisTaskStatus = "pending" | "processing" | "completed" | "failed" | "cancelled";
 
@@ -345,9 +345,9 @@ export const processAnalysisTask = internalAction({
         let cancelled = false;
 
         try {
-            const apiKey = process.env.OPENAI_API_KEY;
+            const apiKey = getAiApiKey();
             if (!apiKey) {
-                throw new Error("OPENAI_API_KEY is not set in Convex environment variables.");
+                throw new Error("AI_API_KEY/OPENAI_API_KEY is not set in Convex environment variables.");
             }
 
             const markResult = await ctx.runMutation(internal.analysis_tasks.markProcessing, {

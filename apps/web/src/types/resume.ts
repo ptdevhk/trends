@@ -13,6 +13,15 @@ export type ResumeFilters = {
 }
 
 export type Recommendation = 'strong_match' | 'match' | 'potential' | 'no_match'
+export type ScoreSource = 'rule' | 'ai'
+
+export type MatchBreakdown = {
+  skillMatch: number
+  experienceMatch: number
+  educationMatch: number
+  locationMatch: number
+  industryMatch: number
+}
 
 export type MatchingResult = {
   resumeId: string
@@ -25,7 +34,8 @@ export type MatchingResult = {
   matchedAt: string
   sessionId?: string
   userId?: string
-  breakdown?: Record<string, number>
+  breakdown?: MatchBreakdown
+  scoreSource?: ScoreSource
 }
 
 export type MatchStats = {

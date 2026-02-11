@@ -367,7 +367,7 @@ export interface paths {
         put?: never;
         /**
          * Match resumes with a job description
-         * @description Runs AI matching and stores results for the session
+         * @description Runs rule/AI matching and stores results for the session
          */
         post: {
             parameters: {
@@ -461,6 +461,135 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        /** Clear cached resume matches */
+        delete: {
+            parameters: {
+                query?: {
+                    jobDescriptionId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted count */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            deleted: number;
+                            jobDescriptionId?: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/match-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get resume match run history
+         * @description Returns recent matching runs for backend AI/rule pipeline
+         */
+        get: {
+            parameters: {
+                query?: {
+                    sessionId?: string;
+                    jobDescriptionId?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Recent run history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatchRunsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/matches/rescore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-score resumes with rule engine */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        sessionId?: string;
+                        sample?: string;
+                        jobDescriptionId: string;
+                        resumeIds?: string[];
+                        limit?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Re-scored results */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatchResponse"];
+                    };
+                };
+                /** @description Session or data not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2027,6 +2156,18 @@ export interface components {
             };
             data: components["schemas"]["ResumeItem"][];
         };
+        MatchBreakdown: {
+            /** @example 20 */
+            skillMatch: number;
+            /** @example 18 */
+            experienceMatch: number;
+            /** @example 12 */
+            educationMatch: number;
+            /** @example 15 */
+            locationMatch: number;
+            /** @example 10 */
+            industryMatch: number;
+        };
         ResumeMatch: {
             /** @example R123456 */
             resumeId: string;
@@ -2053,6 +2194,12 @@ export interface components {
             concerns: string[];
             /** @example 候选人与岗位匹配良好，可安排面试。 */
             summary: string;
+            breakdown?: components["schemas"]["MatchBreakdown"];
+            /**
+             * @example rule
+             * @enum {string}
+             */
+            scoreSource?: "rule" | "ai";
             /** @example 2026-02-05T08:00:00.000Z */
             matchedAt: string;
             /** @example session-123 */
@@ -2065,10 +2212,15 @@ export interface components {
             matched: number;
             avgScore: number;
             processingTimeMs?: number;
+            pendingAi?: number;
         };
         MatchResponse: {
             /** @enum {boolean} */
             success: true;
+            /** @enum {string} */
+            mode?: "rules_only" | "hybrid" | "ai_only";
+            streamPath?: string;
+            pendingAiCount?: number;
             results: components["schemas"]["ResumeMatch"][];
             stats: components["schemas"]["MatchStats"];
         };
@@ -2087,11 +2239,59 @@ export interface components {
             resumeIds?: string[];
             /** @example 50 */
             limit?: number;
+            /** @example 20 */
+            topN?: number;
+            /**
+             * @example hybrid
+             * @enum {string}
+             */
+            mode?: "rules_only" | "hybrid" | "ai_only";
         };
         ResumeMatchesResponse: {
             /** @enum {boolean} */
             success: true;
             results: components["schemas"]["ResumeMatch"][];
+        };
+        MatchRun: {
+            /** @example run-123 */
+            id: string;
+            /** @example session-123 */
+            sessionId?: string;
+            /** @example lathe-sales */
+            jobDescriptionId: string;
+            /** @example sample-initial */
+            sampleName?: string;
+            /**
+             * @example hybrid
+             * @enum {string}
+             */
+            mode: "rules_only" | "hybrid" | "ai_only";
+            /**
+             * @example completed
+             * @enum {string}
+             */
+            status: "processing" | "completed" | "failed";
+            /** @example 100 */
+            totalCount: number;
+            /** @example 20 */
+            processedCount: number;
+            /** @example 0 */
+            failedCount: number;
+            /** @example 14 */
+            matchedCount?: number;
+            /** @example 72.3 */
+            avgScore?: number;
+            /** @example 2026-02-11T08:00:00.000Z */
+            startedAt: string;
+            /** @example 2026-02-11T08:00:09.000Z */
+            completedAt?: string;
+            /** @example AI provider timeout */
+            error?: string;
+        };
+        MatchRunsResponse: {
+            /** @enum {boolean} */
+            success: true;
+            runs: components["schemas"]["MatchRun"][];
         };
         ResumeFilters: {
             minExperience?: number;

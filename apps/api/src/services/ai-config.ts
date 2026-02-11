@@ -1,7 +1,9 @@
 /**
  * AI Configuration
  *
- * Reads from shared .env file (same as trendradar Python AI module)
+ * Reads from process environment variables.
+ * Values may come from the system environment or an explicitly provided env file
+ * by the process runner (for example, bun --env-file in development).
  *
  * Environment variables:
  * - AI_ANALYSIS_ENABLED: Enable AI features (default: false)
@@ -21,7 +23,7 @@ export interface AIConfig {
     temperature: number;
     maxTokens: number;
     timeout: number;
-    bonded: string[]; // List of variables explicitly set in .env
+    bonded: string[]; // List of variables explicitly set in process environment
 }
 
 export function loadAIConfig(): AIConfig {
