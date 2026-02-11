@@ -1,12 +1,13 @@
 # TrendRadar Development Makefile
 
 .PHONY: dev dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
-	worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
-	check-python check-node check-build \
-	test test-python test-node test-resume \
-	build-static build-static-fresh serve-static \
-	i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
-	refresh-sample refresh-sample-manual prefetch-convex chrome-debug
+		worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
+		check-python check-node check-build \
+		test test-python test-node test-resume \
+		build-static build-static-fresh serve-static \
+		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
+		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
+		seed seed-full seed-force
 
 # Default target
 .DEFAULT_GOAL := help
@@ -191,6 +192,30 @@ fetch-docs:
 # Utilities
 # =============================================================================
 
+# Seed Convex with system job descriptions (idempotent)
+seed:
+	@if command -v bun > /dev/null 2>&1; then \
+		bun scripts/seed-convex.ts; \
+	else \
+		npx tsx scripts/seed-convex.ts; \
+	fi
+
+# Seed Convex with system job descriptions + sample resumes (idempotent)
+seed-full:
+	@if command -v bun > /dev/null 2>&1; then \
+		bun scripts/seed-convex.ts --with-resumes; \
+	else \
+		npx tsx scripts/seed-convex.ts --with-resumes; \
+	fi
+
+# Force seeding even when DB is not empty (idempotent)
+seed-force:
+	@if command -v bun > /dev/null 2>&1; then \
+		bun scripts/seed-convex.ts --force; \
+	else \
+		npx tsx scripts/seed-convex.ts --force; \
+	fi
+
 # Refresh resume sample data automatically via CDP
 refresh-sample:
 	@KEYWORD="$(or $(KEYWORD),销售)" SAMPLE="$(or $(SAMPLE),sample-initial)" \
@@ -347,6 +372,9 @@ help:
 	@echo "  fetch-docs     Fetch latest upstream documentation"
 	@echo ""
 	@echo "Utilities:"
+	@echo "  seed           Seed Convex with system job descriptions"
+	@echo "  seed-full      Seed Convex with system job descriptions + sample resumes"
+	@echo "  seed-force     Force seed Convex even if DB is not empty"
 	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
 	@echo "  chrome-debug   Start Google Chrome with remote debugging (port 9222)"
