@@ -7,6 +7,7 @@ v2.0.0: 仅支持 SQLite 数据库，移除 TXT 文件支持
 
 import re
 import sqlite3
+import os
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
@@ -15,6 +16,7 @@ import yaml
 
 from ..utils.errors import FileParseError, DataNotFoundError
 from .cache_service import get_cache
+from trendradar.utils.time import DEFAULT_TIMEZONE, get_configured_time, resolve_timezone
 
 
 class ParserService:
@@ -34,6 +36,28 @@ class ParserService:
             self.project_root = Path(project_root)
 
         self.cache = get_cache()
+        self.timezone = self._resolve_timezone()
+
+    def _resolve_timezone(self) -> str:
+        env_timezone = os.environ.get("TIMEZONE", "").strip() or None
+        configured_timezone = None
+        config_path = self.project_root / "config" / "config.yaml"
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config_data = yaml.safe_load(f) or {}
+                app_config = config_data.get("app", {})
+                timezone = app_config.get("timezone")
+                if isinstance(timezone, str) and timezone.strip():
+                    configured_timezone = timezone.strip()
+            except Exception:
+                configured_timezone = None
+
+        return resolve_timezone(
+            env_timezone=env_timezone,
+            configured_timezone=configured_timezone,
+            default_timezone=DEFAULT_TIMEZONE,
+        )
 
     @staticmethod
     def clean_title(title: str) -> str:
@@ -53,7 +77,7 @@ class ParserService:
             日期字符串（YYYY-MM-DD）
         """
         if date is None:
-            date = datetime.now()
+            date = get_configured_time(self.timezone)
         return date.strftime("%Y-%m-%d")
 
     def _get_db_path(self, date: datetime = None, db_type: str = "news") -> Optional[Path]:
@@ -210,7 +234,7 @@ class ParserService:
             try:
                 ts = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S").timestamp()
             except (ValueError, TypeError):
-                ts = datetime.now().timestamp()
+                ts = get_configured_time(self.timezone).timestamp()
             all_timestamps[f"{crawl_time}.db"] = ts
 
         if not all_titles:
@@ -292,7 +316,7 @@ class ParserService:
             try:
                 ts = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S").timestamp()
             except (ValueError, TypeError):
-                ts = datetime.now().timestamp()
+                ts = get_configured_time(self.timezone).timestamp()
             all_timestamps[f"{crawl_time}.db"] = ts
 
         if not all_items:
@@ -324,7 +348,7 @@ class ParserService:
         platform_key = ','.join(sorted(platform_ids)) if platform_ids else 'all'
         cache_key = f"read_all:{db_type}:{date_str}:{platform_key}"
 
-        is_today = (date is None) or (date.date() == datetime.now().date())
+        is_today = (date is None) or (date.date() == get_configured_time(self.timezone).date())
         ttl = 900 if is_today else 900
 
         cached = self.cache.get(cache_key, ttl=ttl)

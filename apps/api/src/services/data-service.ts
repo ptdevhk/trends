@@ -1,18 +1,10 @@
 import { CacheService } from "./cache-service.js";
+import { config } from "./config.js";
 import { DataNotFoundError } from "./errors.js";
 import { matchWordGroupAny, ParserService } from "./parser-service.js";
+import { formatDateInTimezone, formatIsoOffsetInTimezone } from "./timezone.js";
 
 import type { Topic, TrendItem, SearchResultItem, RssItem } from "../types/data.js";
-
-function formatDateTime(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  const second = String(date.getSeconds()).padStart(2, "0");
-  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
-}
 
 const STOPWORDS = new Set([
   "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一",
@@ -105,7 +97,7 @@ export class DataService {
           platform: platformId,
           platform_name: platformName,
           rank,
-          timestamp: formatDateTime(fetchTime),
+          timestamp: formatIsoOffsetInTimezone(fetchTime, config.timezone),
           date: dateStr,
         };
 
@@ -130,7 +122,7 @@ export class DataService {
     limit?: number;
     includeUrl?: boolean;
   }): TrendItem[] {
-    const dateKey = targetDate.toISOString().slice(0, 10);
+    const dateKey = formatDateInTimezone(targetDate, config.timezone);
     const cacheKey = this.cache.makeKey("news_by_date", { dateKey, ...options });
     const cached = this.cache.get<TrendItem[]>(cacheKey, 900);
     if (cached) return cached;
@@ -316,7 +308,7 @@ export class DataService {
 
     const result = {
       topics,
-      generated_at: formatDateTime(new Date()),
+      generated_at: formatIsoOffsetInTimezone(new Date(), config.timezone),
       mode,
       extract_mode,
       total_keywords: wordFrequency.size,
@@ -374,7 +366,7 @@ export class DataService {
               published_at: info.published_at ?? "",
               author: info.author ?? "",
               date: dateStr,
-              fetch_time: formatDateTime(fetchTime),
+              fetch_time: formatIsoOffsetInTimezone(fetchTime, config.timezone),
             };
             if (options.includeSummary) item.summary = info.summary ?? "";
             rss.push(item);

@@ -21,7 +21,7 @@ from typing import Any, Dict, List
 # =============================================================================
 
 APP_DEFAULTS: Dict[str, Any] = {
-    "TIMEZONE": "Asia/Shanghai",
+    "TIMEZONE": "Asia/Hong_Kong",
     "DEBUG": False,
     "SHOW_VERSION_UPDATE": True,
 }

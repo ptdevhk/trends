@@ -6,7 +6,7 @@ export const HealthResponseSchema = z
       example: "healthy",
     }),
     timestamp: z.string().openapi({
-      example: "2025-01-27T10:00:00Z",
+      example: "2026-02-11T15:03:47+08:00",
     }),
     version: z.string().optional().openapi({
       example: "0.1.0",

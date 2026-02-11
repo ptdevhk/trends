@@ -13,6 +13,7 @@ import { Select } from '@/components/ui/select'
 import { Doc, Id } from '../../../../packages/convex/convex/_generated/dataModel'
 
 import { useTranslation } from 'react-i18next'
+import { formatInAppTimezone } from '@/lib/timezone'
 
 type SortColumn = 'title' | 'type' | 'lastModified'
 type SortDirection = 'asc' | 'desc'
@@ -334,7 +335,7 @@ export default function DebugJDs() {
                                         {jd.type === 'system' ? t('jdManagement.types.system') : t('jdManagement.types.custom')}
                                     </TableCell>
                                     <TableCell>
-                                        {new Date(jd.lastModified).toLocaleString()}
+                                        {formatInAppTimezone(jd.lastModified, { includeDate: true, includeSeconds: true })}
                                     </TableCell>
                                     <TableCell>
                                         {jd.enabled !== false ? (

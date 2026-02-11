@@ -7,6 +7,7 @@ import type { Doc } from '../../../../packages/convex/convex/_generated/dataMode
 import { Progress } from './ui/progress'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from './ui/button'
+import { formatInAppTimezone } from '@/lib/timezone'
 
 type AnalysisTaskDoc = Doc<'analysis_tasks'>
 
@@ -83,7 +84,7 @@ function TaskItem({
         </div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-muted-foreground">
-            {new Date(task._creationTime).toLocaleTimeString()}
+            {formatInAppTimezone(task._creationTime)}
           </div>
           {isActive ? (
             <Button

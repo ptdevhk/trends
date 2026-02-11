@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Callable, Optional, Any
 
 import pytz
+from trendradar.utils.time import DEFAULT_TIMEZONE
 
 
 class PushRecordManager:
@@ -42,7 +43,7 @@ class PushRecordManager:
 
     def _default_get_time(self) -> datetime:
         """默认时间获取函数（使用 storage_backend 的时区配置）"""
-        timezone = getattr(self.storage_backend, 'timezone', 'Asia/Shanghai')
+        timezone = getattr(self.storage_backend, 'timezone', DEFAULT_TIMEZONE)
         return datetime.now(pytz.timezone(timezone))
 
     def has_pushed_today(self) -> bool:

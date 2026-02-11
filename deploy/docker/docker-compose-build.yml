@@ -17,7 +17,8 @@ services:
       - ../../output:/app/output
 
     environment:
-      - TZ=Asia/Shanghai
+      - TZ=Asia/Hong_Kong
+      - TIMEZONE=Asia/Hong_Kong
       # Web 服务器
       - ENABLE_WEBSERVER=${ENABLE_WEBSERVER:-false}
       - WEBSERVER_PORT=${WEBSERVER_PORT:-8080}
@@ -79,4 +80,5 @@ services:
       - ../../output:/app/output
 
     environment:
-      - TZ=Asia/Shanghai
+      - TZ=Asia/Hong_Kong
+      - TIMEZONE=Asia/Hong_Kong

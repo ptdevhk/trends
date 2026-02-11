@@ -1,4 +1,6 @@
+import { config } from "./config.js";
 import { getResumeScreeningDb } from "./database.js";
+import { formatIsoOffsetInTimezone } from "./timezone.js";
 
 export type CandidateActionType = "star" | "shortlist" | "reject" | "archive" | "note" | "contact";
 
@@ -47,7 +49,7 @@ export class ActionStorage {
     actionType: CandidateActionType;
     actionData?: Record<string, unknown>;
   }): CandidateAction {
-    const now = new Date().toISOString();
+    const now = formatIsoOffsetInTimezone(new Date(), config.timezone);
     const result = this.db
       .prepare(
         `

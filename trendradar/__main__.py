@@ -20,7 +20,12 @@ from trendradar.core import load_config
 from trendradar.core.analyzer import convert_keyword_stats_to_platform_stats
 from trendradar.crawler import DataFetcher
 from trendradar.storage import convert_crawl_results_to_news_data
-from trendradar.utils.time import is_within_days
+from trendradar.utils.time import (
+    DEFAULT_TIMEZONE,
+    apply_process_timezone,
+    is_within_days,
+    resolve_timezone,
+)
 from trendradar.ai import AIAnalyzer, AIAnalysisResult
 
 
@@ -213,7 +218,7 @@ class NewsAnalyzer:
             config = load_config()
         print(f"v{__version__} 配置加载完成")
         print(f"监控平台数量: {len(config['PLATFORMS'])}")
-        print(f"时区: {config.get('TIMEZONE', 'Asia/Shanghai')}")
+        print(f"时区: {config.get('TIMEZONE', DEFAULT_TIMEZONE)}")
 
         # 创建应用上下文
         self.ctx = AppContext(config)
@@ -984,7 +989,7 @@ class NewsAnalyzer:
     def _initialize_and_check_config(self) -> None:
         """通用初始化和配置检查"""
         now = self.ctx.get_time()
-        print(f"当前北京时间: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"当前时间: {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
         if not self.ctx.config["ENABLE_CRAWLER"]:
             print("爬虫功能已禁用（ENABLE_CRAWLER=False），程序退出")
@@ -1104,7 +1109,7 @@ class NewsAnalyzer:
             # RSS 代理：优先使用 RSS 专属代理，否则使用爬虫默认代理
             rss_proxy_url = rss_config.get("PROXY_URL", "") or self.proxy_url or ""
             # 获取配置的时区
-            timezone = self.ctx.config.get("TIMEZONE", "Asia/Shanghai")
+            timezone = self.ctx.config.get("TIMEZONE", DEFAULT_TIMEZONE)
             # 获取新鲜度过滤配置
             freshness_config = rss_config.get("FRESHNESS_FILTER", {})
             freshness_enabled = freshness_config.get("ENABLED", True)
@@ -1320,7 +1325,7 @@ class NewsAnalyzer:
         freshness_config = rss_config.get("FRESHNESS_FILTER", {})
         freshness_enabled = freshness_config.get("ENABLED", True)
         default_max_age_days = freshness_config.get("MAX_AGE_DAYS", 3)
-        timezone = self.ctx.config.get("TIMEZONE", "Asia/Shanghai")
+        timezone = self.ctx.config.get("TIMEZONE", DEFAULT_TIMEZONE)
 
         # 构建 feed_id -> max_age_days 的映射
         feed_max_age_map = {}
@@ -1637,6 +1642,12 @@ def main():
     try:
         # 先加载配置以获取 version_check_url
         config = load_config()
+        effective_timezone = resolve_timezone(
+            env_timezone=os.environ.get("TIMEZONE", "").strip() or None,
+            configured_timezone=config.get("TIMEZONE"),
+        )
+        config["TIMEZONE"] = effective_timezone
+        apply_process_timezone(effective_timezone)
         version_url = config.get("VERSION_CHECK_URL", "")
         configs_version_url = config.get("CONFIGS_VERSION_CHECK_URL", "")
 

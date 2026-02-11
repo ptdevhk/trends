@@ -10,11 +10,11 @@
 app:
   # 时区配置（影响所有时间显示、推送窗口判断、数据存储）
   # 常用时区：
-  #   - Asia/Shanghai (北京时间 UTC+8)
+  #   - Asia/Hong_Kong (香港时间 UTC+8)
   #   - America/New_York (美东时间 UTC-5/-4)
   #   - Europe/London (伦敦时间 UTC+0/+1)
   # 完整时区列表: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-  timezone: "Asia/Shanghai"
+  timezone: "Asia/Hong_Kong"
   show_version_update: true           # 显示版本更新提示
 
 
@@ -227,8 +227,8 @@ notification:
   # 💡 想要精准定时？建议使用 Docker 部署在个人服务器上
   push_window:
     enabled: false                    # 是否启用推送时间窗口控制
-    start: "20:00"                    # 开始时间（北京时间）
-    end: "22:00"                      # 结束时间（北京时间）
+    start: "20:00"                    # 开始时间（app.timezone）
+    end: "22:00"                      # 结束时间（app.timezone）
     once_per_day: true                # true=窗口内只推送一次，false=窗口内每次执行都推送
 
   # 推送渠道配置

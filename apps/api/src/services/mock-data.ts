@@ -4,6 +4,9 @@
  * Provides mock data for development and when worker is unavailable.
  */
 
+import { config } from "./config.js";
+import { formatDateInTimezone, formatIsoOffsetInTimezone } from "./timezone.js";
+
 import type { z } from "@hono/zod-openapi";
 import type { TrendItemSchema, TopicSchema, SearchResultSchema, RssItemSchema } from "../schemas/index.js";
 
@@ -41,7 +44,7 @@ function generateTrendItems(count: number, options: {
   includeUrl?: boolean;
 }): TrendItem[] {
   const now = new Date();
-  const dateStr = options.date || now.toISOString().split("T")[0];
+  const dateStr = options.date || formatDateInTimezone(now, config.timezone);
 
   return Array.from({ length: Math.min(count, sampleTitles.length) }, (_, i) => {
     const platformInfo = options.platform
@@ -55,7 +58,7 @@ function generateTrendItems(count: number, options: {
       rank: i + 1,
       avg_rank: i + 1 + Math.random() * 2,
       count: Math.floor(Math.random() * 10) + 1,
-      timestamp: now.toISOString(),
+      timestamp: formatIsoOffsetInTimezone(now, config.timezone),
       date: dateStr,
     };
 
@@ -106,7 +109,7 @@ function searchItems(keyword: string, limit: number): SearchResult[] {
       count: 3,
       avg_rank: i + 1.3,
       url: `https://example.com/news/${i + 1}`,
-      date: new Date().toISOString().split("T")[0],
+      date: formatDateInTimezone(new Date(), config.timezone),
     };
   });
 }
@@ -131,10 +134,10 @@ function generateRssItems(count: number, options: {
       feed_id: feedInfo.id,
       feed_name: feedInfo.name,
       url: `https://example.com/rss/${i + 1}`,
-      published_at: new Date(Date.now() - i * 3600000).toISOString(),
+      published_at: formatIsoOffsetInTimezone(new Date(Date.now() - i * 3600000), config.timezone),
       author: `Author ${i + 1}`,
-      date: new Date().toISOString().split("T")[0],
-      fetch_time: new Date().toISOString(),
+      date: formatDateInTimezone(new Date(), config.timezone),
+      fetch_time: formatIsoOffsetInTimezone(new Date(), config.timezone),
     };
 
     if (options.includeSummary) {

@@ -8,6 +8,7 @@ ENV_FILE="${ENV_FILE:-.env}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 LOGS_DIR="$PROJECT_ROOT/logs"
+APP_TIMEZONE_DEFAULT="Asia/Hong_Kong"
 
 # Colors for output
 RED='\033[0;31m'
@@ -50,6 +51,69 @@ declare -A SERVICE_LOG_FILES=(
 )
 
 SEED_MODE="${SEED_MODE:-auto}"
+
+resolve_timezone_from_env_file() {
+    local env_path="$PROJECT_ROOT/$ENV_FILE"
+    if [ ! -f "$env_path" ]; then
+        return
+    fi
+
+    local timezone
+    timezone="$(
+        grep -E '^[[:space:]]*TIMEZONE[[:space:]]*=' "$env_path" | tail -n 1 \
+            | sed -E 's/^[[:space:]]*TIMEZONE[[:space:]]*=[[:space:]]*//' \
+            | sed -E 's/[[:space:]]+$//' \
+            | sed -E "s/^[\"']//" \
+            | sed -E "s/[\"']$//"
+    )"
+
+    if [ -n "$timezone" ]; then
+        echo "$timezone"
+    fi
+}
+
+resolve_timezone_from_config_file() {
+    local config_path="$PROJECT_ROOT/config/config.yaml"
+    if [ ! -f "$config_path" ]; then
+        return
+    fi
+
+    local timezone
+    timezone="$(
+        grep -E '^[[:space:]]*timezone[[:space:]]*:' "$config_path" | head -n 1 \
+            | sed -E 's/^[[:space:]]*timezone[[:space:]]*:[[:space:]]*//' \
+            | sed -E 's/[[:space:]]+#.*$//' \
+            | sed -E 's/[[:space:]]+$//' \
+            | sed -E "s/^[\"']//" \
+            | sed -E "s/[\"']$//"
+    )"
+
+    if [ -n "$timezone" ]; then
+        echo "$timezone"
+    fi
+}
+
+resolve_app_timezone() {
+    local timezone="${TIMEZONE:-}"
+
+    if [ -z "$timezone" ] && [ -n "${APP_TIMEZONE:-}" ]; then
+        timezone="$APP_TIMEZONE"
+    fi
+
+    if [ -z "$timezone" ]; then
+        timezone="$(resolve_timezone_from_env_file)"
+    fi
+
+    if [ -z "$timezone" ]; then
+        timezone="$(resolve_timezone_from_config_file)"
+    fi
+
+    if [ -z "$timezone" ]; then
+        timezone="$APP_TIMEZONE_DEFAULT"
+    fi
+
+    echo "$timezone"
+}
 
 # List direct child processes for a parent PID
 list_child_pids() {
@@ -894,12 +958,20 @@ main() {
 
     mkdir -p "$LOGS_DIR"
 
+    local resolved_timezone
+    resolved_timezone="$(resolve_app_timezone)"
+    export APP_TIMEZONE="$resolved_timezone"
+    export TIMEZONE="${TIMEZONE:-$resolved_timezone}"
+    export TZ="${TZ:-$TIMEZONE}"
+    export VITE_APP_TIMEZONE="${VITE_APP_TIMEZONE:-$TIMEZONE}"
+
     # Load environment
     if [ -f "$PROJECT_ROOT/$ENV_FILE" ]; then
         log "DEV" "$GREEN" "Using environment from: $ENV_FILE"
     else
         log "DEV" "$YELLOW" "No $ENV_FILE found, using system environment"
     fi
+    log "DEV" "$GREEN" "Timezone: $TIMEZONE"
 
     # Parse command line arguments
     local services=()

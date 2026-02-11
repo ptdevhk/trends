@@ -16,6 +16,17 @@ interface UseTrendsReturn {
   refresh: () => Promise<void>
 }
 
+function resolveLastUpdated(news: NewsItem[]): Date {
+  for (const item of news) {
+    if (!item.timestamp) continue
+    const parsed = new Date(item.timestamp)
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed
+    }
+  }
+  return new Date()
+}
+
 export function useTrends(options: UseTrendsOptions = {}): UseTrendsReturn {
   const { platforms, limit = 50, autoFetch = true } = options
 
@@ -36,7 +47,7 @@ export function useTrends(options: UseTrendsOptions = {}): UseTrendsReturn {
 
     if (response.success && response.data) {
       setNews(response.data)
-      setLastUpdated(new Date())
+      setLastUpdated(resolveLastUpdated(response.data))
     } else {
       setError(response.error?.message ?? 'Failed to fetch news')
     }

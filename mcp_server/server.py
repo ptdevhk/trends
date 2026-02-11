@@ -7,8 +7,11 @@ TrendRadar MCP Server - FastMCP 2.0 实现
 
 import asyncio
 import json
+import os
+from pathlib import Path
 from typing import List, Optional, Dict, Union
 
+import yaml
 from fastmcp import FastMCP
 
 from .tools.data_query import DataQueryTools
@@ -19,6 +22,7 @@ from .tools.system import SystemManagementTools
 from .tools.storage_sync import StorageSyncTools
 from .utils.date_parser import DateParser
 from .utils.errors import MCPError
+from trendradar.utils.time import DEFAULT_TIMEZONE, apply_process_timezone, resolve_timezone
 
 
 # 创建 FastMCP 2.0 应用
@@ -38,6 +42,30 @@ def _get_tools(project_root: Optional[str] = None):
         _tools_instances['system'] = SystemManagementTools(project_root)
         _tools_instances['storage'] = StorageSyncTools(project_root)
     return _tools_instances
+
+
+def _resolve_server_timezone(project_root: Optional[str] = None) -> str:
+    env_timezone = os.environ.get("TIMEZONE", "").strip() or None
+    configured_timezone = None
+
+    root = Path(project_root).resolve() if project_root else Path.cwd().resolve()
+    config_path = root / "config" / "config.yaml"
+    if config_path.exists():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config_data = yaml.safe_load(f) or {}
+            app_config = config_data.get("app", {})
+            timezone = app_config.get("timezone")
+            if isinstance(timezone, str) and timezone.strip():
+                configured_timezone = timezone.strip()
+        except Exception:
+            configured_timezone = None
+
+    return resolve_timezone(
+        env_timezone=env_timezone,
+        configured_timezone=configured_timezone,
+        default_timezone=DEFAULT_TIMEZONE,
+    )
 
 
 # ==================== MCP Resources ====================
@@ -938,6 +966,10 @@ def run_server(
         host: HTTP模式的监听地址，默认 0.0.0.0
         port: HTTP模式的监听端口，默认 3333
     """
+    timezone = _resolve_server_timezone(project_root)
+    os.environ["TIMEZONE"] = timezone
+    apply_process_timezone(timezone)
+
     # 初始化工具实例
     _get_tools(project_root)
 
@@ -947,6 +979,7 @@ def run_server(
     print("  MCP Server - FastMCP 2.0")
     print("=" * 60)
     print(f"  传输模式: {transport.upper()}")
+    print(f"  时区: {timezone}")
 
     if transport == 'stdio':
         print("  协议: MCP over stdio (标准输入输出)")

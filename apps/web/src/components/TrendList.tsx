@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TrendItem } from './TrendItem'
 import type { NewsItem } from '@/lib/types'
+import { formatInAppTimezone } from '@/lib/timezone'
 
 interface TrendListProps {
   news: NewsItem[]
@@ -25,13 +26,6 @@ export function TrendList({
 }: TrendListProps) {
   const { t } = useTranslation()
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -41,7 +35,7 @@ export function TrendList({
         <div className="flex items-center gap-2">
           {lastUpdated && (
             <span className="text-xs text-muted-foreground">
-              {t('trends.lastUpdated')}: {formatTime(lastUpdated)}
+              {t('trends.lastUpdated')}: {formatInAppTimezone(lastUpdated)}
             </span>
           )}
           <Button

@@ -24,6 +24,8 @@ from apscheduler.events import (
 )
 
 from apps.worker.tasks import run_crawl_analyze, health_check
+from apps.worker.timezone import bootstrap_worker_timezone, resolve_worker_timezone
+from trendradar.utils.time import get_configured_time
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,7 @@ class WorkerScheduler:
         cron_expression: Optional[str] = None,
         run_immediately: bool = False,
         config_overrides: Optional[Dict[str, Any]] = None,
+        timezone: Optional[str] = None,
     ):
         """
         Initialize the scheduler.
@@ -62,8 +65,10 @@ class WorkerScheduler:
             run_immediately: Whether to run a job immediately on start
             config_overrides: Config overrides to pass to tasks
         """
+        self.timezone = timezone or bootstrap_worker_timezone()
+
         self.scheduler = BlockingScheduler(
-            timezone="Asia/Shanghai",
+            timezone=self.timezone,
             job_defaults={
                 "coalesce": True,  # Combine missed runs into one
                 "max_instances": 1,  # Only one instance of each job at a time
@@ -135,15 +140,17 @@ class WorkerScheduler:
     def _on_job_executed(self, event: JobExecutionEvent) -> None:
         """Handle successful job execution."""
         self.stats["jobs_executed"] += 1
-        self.stats["last_run"] = datetime.now()
-        self.stats["last_success"] = datetime.now()
+        current_time = get_configured_time(self.timezone)
+        self.stats["last_run"] = current_time
+        self.stats["last_success"] = current_time
         logger.info(f"Job '{event.job_id}' executed successfully")
 
     def _on_job_error(self, event: JobExecutionEvent) -> None:
         """Handle job execution error."""
         self.stats["jobs_failed"] += 1
-        self.stats["last_run"] = datetime.now()
-        self.stats["last_failure"] = datetime.now()
+        current_time = get_configured_time(self.timezone)
+        self.stats["last_run"] = current_time
+        self.stats["last_failure"] = current_time
         logger.error(f"Job '{event.job_id}' failed with exception: {event.exception}")
 
     def _on_job_missed(self, event: JobExecutionEvent) -> None:
@@ -157,11 +164,11 @@ class WorkerScheduler:
 
         if self.cron_expression:
             # Use cron trigger
-            trigger = CronTrigger.from_crontab(self.cron_expression)
+            trigger = CronTrigger.from_crontab(self.cron_expression, timezone=self.timezone)
             logger.info(f"Adding crawl job with cron schedule: {self.cron_expression}")
         else:
             # Use interval trigger
-            trigger = IntervalTrigger(minutes=self.interval_minutes)
+            trigger = IntervalTrigger(minutes=self.interval_minutes, timezone=self.timezone)
             logger.info(f"Adding crawl job with interval: every {self.interval_minutes} minutes")
 
         self.scheduler.add_job(
@@ -192,9 +199,9 @@ class WorkerScheduler:
             **kwargs: Additional arguments passed to the job function
         """
         if cron_expression:
-            trigger = CronTrigger.from_crontab(cron_expression)
+            trigger = CronTrigger.from_crontab(cron_expression, timezone=self.timezone)
         elif interval_minutes:
-            trigger = IntervalTrigger(minutes=interval_minutes)
+            trigger = IntervalTrigger(minutes=interval_minutes, timezone=self.timezone)
         else:
             raise ValueError("Either interval_minutes or cron_expression must be specified")
 
@@ -210,7 +217,7 @@ class WorkerScheduler:
     def start(self) -> None:
         """Start the scheduler."""
         logger.info("Starting Worker Scheduler")
-        logger.info(f"Timezone: Asia/Shanghai")
+        logger.info(f"Timezone: {self.timezone}")
 
         # Add the main job
         self.add_crawl_job()
@@ -262,6 +269,7 @@ def create_scheduler(
     cron_expression: Optional[str] = None,
     run_immediately: bool = False,
     config_overrides: Optional[Dict[str, Any]] = None,
+    timezone: Optional[str] = None,
 ) -> WorkerScheduler:
     """
     Factory function to create a configured scheduler instance.
@@ -290,4 +298,5 @@ def create_scheduler(
         cron_expression=cron_expression,
         run_immediately=run_immediately,
         config_overrides=config_overrides,
+        timezone=timezone or resolve_worker_timezone(),
     )

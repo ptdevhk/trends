@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { HealthResponseSchema } from "../schemas/index.js";
 import { config } from "../services/config.js";
+import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 
 const app = new OpenAPIHono();
 
@@ -25,7 +26,7 @@ const healthRoute = createRoute({
 app.openapi(healthRoute, async (c) => {
   return c.json({
     status: "healthy" as const,
-    timestamp: new Date().toISOString(),
+    timestamp: formatIsoOffsetInTimezone(new Date(), config.timezone),
     version: config.version,
   });
 });

@@ -270,6 +270,7 @@ components:
         timestamp:
           type: string
           format: date-time
+          example: '2026-02-11T15:03:47+08:00'
         version:
           type: string
           example: '0.1.0'
@@ -305,6 +306,7 @@ components:
         timestamp:
           type: string
           description: When the trend was captured
+          example: '2026-02-11T15:03:47+08:00'
         date:
           type: string
           format: date
@@ -386,6 +388,7 @@ components:
         generated_at:
           type: string
           format: date-time
+          example: '2026-02-11T15:03:47+08:00'
         mode:
           type: string
         extract_mode:
