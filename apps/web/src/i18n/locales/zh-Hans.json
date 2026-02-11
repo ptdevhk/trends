@@ -127,6 +127,7 @@
       "manage": "管理职位"
     },
     "selectJobDescriptionFirst": "请先选择职位描述",
+    "selectKeywordsOrJobDescription": "请选择关键词或职位描述",
     "matching": {
       "matchAll": "AI 匹配全部",
       "running": "匹配中...",
@@ -209,6 +210,10 @@
     "labelJd": "职位",
     "labelPreset": "预设",
     "labelMatchedKeywords": "匹配词",
+    "hotKeywords": "热门关键词",
+    "expandKeywords": "展开全部",
+    "collapseKeywords": "收起",
+    "customKeywordPlaceholder": "自定义关键词...",
     "manageJds": "管理所有职位 →"
   },
   "debug": {
@@ -292,7 +297,7 @@
   },
   "debugConfig": {
     "title": "系统配置",
-    "subtitle": "查看和编辑 Agent 流程、筛选预设和 AI 服务设置",
+    "subtitle": "查看和编辑 Agent 流程、自定义关键词和 AI 服务设置",
     "aiStatus": "AI 服务状态",
     "aiEnabled": "已启用",
     "aiDisabled": "未启用",
@@ -313,6 +318,15 @@
     "save": "保存",
     "saved": "已保存",
     "saveError": "保存失败",
+    "customKeywords": "自定义关键词",
+    "customKeywordsDescription": "管理可在简历页面关键词芯片中使用的自定义标签",
+    "addCustomKeyword": "添加关键词",
+    "editCustomKeyword": "编辑",
+    "deleteCustomKeyword": "删除",
+    "customKeywordId": "ID",
+    "customKeywordKeyword": "关键词",
+    "customKeywordEnglish": "English",
+    "customKeywordCategory": "类别",
     "presets": "筛选预设",
     "presetsDescription": "常用搜索模式的快速筛选配置",
     "addPreset": "添加预设",

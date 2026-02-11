@@ -80,9 +80,10 @@ export default defineSchema({
 
     analysis_tasks: defineTable({
         config: v.object({
-            jobDescriptionId: v.string(),
+            jobDescriptionId: v.optional(v.string()),
             jobDescriptionTitle: v.optional(v.string()),
             jobDescriptionContent: v.optional(v.string()),
+            keywords: v.optional(v.array(v.string())),
             sample: v.optional(v.string()),
             resumeCount: v.number(),
         }),

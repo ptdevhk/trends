@@ -5,13 +5,9 @@ import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeAnalysis, ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { ResumeCard } from '@/components/ResumeCard'
 import { ResumeDetail } from '@/components/ResumeDetail'
-import { SearchBar } from '@/components/SearchBar'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { ModeToggle } from '@/components/ModeToggle'
-import { JobDescriptionSelect } from '@/components/JobDescriptionSelect'
 import { useSession } from '@/hooks/useSession'
 import { useAiMatching } from '@/hooks/useAiMatching'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
@@ -31,6 +27,15 @@ type JobDescriptionApiResponse = {
   success: boolean
   item?: {
     title?: string
+  }
+  content?: string
+}
+
+type JobDescriptionDetailResponse = {
+  success: boolean
+  item?: {
+    _id: string
+    title: string
   }
   content?: string
 }
@@ -80,6 +85,17 @@ function getAnalysisForJob(resume: ConvexResumeItem, selectedJobId: string): Con
   return resume.analysis
 }
 
+function isAutoFilteredAnalysis(analysis: ConvexResumeAnalysis | undefined): boolean {
+  if (!analysis) return false
+  const summary = analysis.summary || ''
+  const keywordMatch = analysis.breakdown?.keyword_match
+  return (
+    summary.startsWith('Auto-filtered: Low keyword match with JD.')
+    && analysis.recommendation === 'no_match'
+    && keywordMatch === 10
+  )
+}
+
 function buildResumeKey(resume: ResumeItem, index: number): string {
   if (resume.resumeId) {
     return resume.resumeId
@@ -98,20 +114,19 @@ export function ResumeList() {
   const { session, updateSession } = useSession()
   const [mode, setMode] = useState<'ai' | 'original'>('ai')
   const [jobDescriptionId, setJobDescriptionId] = useState('')
+  const [quickStartKeywords, setQuickStartKeywords] = useState<string[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
 
   const {
     resumes,
-    samples,
     summary,
     filters,
     loading,
     error,
     selectedSample,
     setSelectedSample,
-    query, // Added query
-    setQuery,
+    query,
     setFilters,
     refresh,
     reloadSamples,
@@ -142,6 +157,12 @@ export function ResumeList() {
 
   const filteredConvexResumes = useMemo(() => {
     let result = convexResumes
+
+    // Hide resumes that were auto-skipped by the keyword pre-filter.
+    result = result.filter((resume) => {
+      const analysis = getAnalysisForJob(resume, jobDescriptionId)
+      return !isAutoFilteredAnalysis(analysis)
+    })
 
     // 1. Keyword filter (query)
     if (query) {
@@ -217,27 +238,15 @@ export function ResumeList() {
         return
       }
       try {
-        const { data } = await rawApiClient.GET<{
-          success: boolean
-          item?: {
-            _id: string
-            title: string
-            content: string
-          }
-          // The API response type might be slightly different based on previous view
-          // API returns content as top level property in handleAnalyzeAll logic?
-          // In handleAnalyzeAll: data.content
-          // Let's verify the type alias JobDescriptionApiResponse usage
-        }>(`/api/job-descriptions/${jobDescriptionId}`)
+        const { data } = await rawApiClient.GET<JobDescriptionDetailResponse>(
+          `/api/job-descriptions/${jobDescriptionId}`
+        )
 
-        // Based on handleAnalyzeAll logic:
-        // jdTitle = data.item?.title || jobDescriptionId
-        // jdContent = data.content
         if (data?.success) {
           setSelectedJob({
             id: jobDescriptionId,
             title: data.item?.title || 'Unknown Position',
-            requirements: (data as any).content || ''
+            requirements: data.content || ''
           })
         }
       } catch (err) {
@@ -247,38 +256,10 @@ export function ResumeList() {
     loadJob()
   }, [jobDescriptionId])
 
-  const sampleOptions = useMemo(
-    () =>
-      samples.map((sample) => ({
-        value: sample.name,
-        label: sample.name,
-      })),
-    [samples]
-  )
-
-  const handleSearch = useCallback(
-    (keyword: string) => {
-      setQuery(keyword)
-    },
-    [setQuery]
-  )
-
-  const handleClearSearch = useCallback(() => {
-    setQuery('')
-  }, [setQuery])
-
   const handleRefresh = useCallback(async () => {
     await reloadSamples()
     await refresh()
   }, [reloadSamples, refresh])
-
-  const handleSampleChange = useCallback(
-    (value: string) => {
-      setSelectedSample(value)
-      updateSession({ sampleName: value })
-    },
-    [setSelectedSample, updateSession]
-  )
 
   const handleJobChange = useCallback(
     (value: string) => {
@@ -289,25 +270,38 @@ export function ResumeList() {
   )
 
   const handleMatchAll = useCallback(async () => {
-    if (!jobDescriptionId) return
+    if (jobDescriptionId) {
+      await matchAll({
+        sessionId: session?.id,
+        jobDescriptionId,
+        sample: selectedSample || undefined,
+        limit: 200,
+        topN: 20,
+        mode: 'hybrid',
+      })
+      return
+    }
+
+    if (quickStartKeywords.length === 0) return
     await matchAll({
       sessionId: session?.id,
-      jobDescriptionId,
+      keywords: quickStartKeywords,
+      location: filters.locations?.[0],
       sample: selectedSample || undefined,
       limit: 200,
       topN: 20,
-      mode: 'hybrid',
+      mode: 'rules_only',
     })
-  }, [jobDescriptionId, matchAll, selectedSample, session?.id])
+  }, [filters.locations, jobDescriptionId, matchAll, quickStartKeywords, selectedSample, session?.id])
 
   const handleAnalyzeAll = async () => {
     if (!convexResumes.length) return
+    if (!jobDescriptionId && quickStartKeywords.length === 0) return
     setAnalyzing(true)
     try {
-      let jdContent = ''
-      let jdTitle = ''
-
       if (jobDescriptionId) {
+        let jdContent = ''
+        let jdTitle = ''
         try {
           const { data } = await rawApiClient.GET<JobDescriptionApiResponse>(
             `/api/job-descriptions/${jobDescriptionId}`
@@ -319,15 +313,21 @@ export function ResumeList() {
         } catch (err) {
           console.error('Failed to fetch JD', err)
         }
-      }
 
-      await dispatchAnalysis({
-        jobDescriptionId: jobDescriptionId || 'default',
-        jobDescriptionTitle: jdTitle || undefined,
-        jobDescriptionContent: jdContent || undefined,
-        sample: selectedSample || undefined,
-        resumeIds: convexResumes.map((resume) => resume.resumeId),
-      })
+        await dispatchAnalysis({
+          jobDescriptionId,
+          jobDescriptionTitle: jdTitle || undefined,
+          jobDescriptionContent: jdContent || undefined,
+          sample: selectedSample || undefined,
+          resumeIds: convexResumes.map((resume) => resume.resumeId),
+        })
+      } else if (quickStartKeywords.length > 0) {
+        await dispatchAnalysis({
+          keywords: quickStartKeywords,
+          sample: selectedSample || undefined,
+          resumeIds: convexResumes.map((resume) => resume.resumeId),
+        })
+      }
       setAnalysisDispatchMessage({ type: 'success', text: t('aiTasks.dispatched') })
     } catch (e) {
       console.error('Failed to dispatch analysis task', e)
@@ -350,7 +350,11 @@ export function ResumeList() {
     if (mode === 'ai') {
       const validResumes = convexResumes.filter((resume) => {
         const analysis = getAnalysisForJob(resume, jobDescriptionId)
-        return Boolean(analysis && (!jobDescriptionId || analysis.jobDescriptionId === jobDescriptionId))
+        return Boolean(
+          analysis
+          && !isAutoFilteredAnalysis(analysis)
+          && (!jobDescriptionId || analysis.jobDescriptionId === jobDescriptionId)
+        )
       })
 
       const processed = validResumes.length
@@ -499,110 +503,98 @@ export function ResumeList() {
     return displayedResumes.filter((e) => (e.match?.score ?? 0) >= 80).length
   }, [displayedResumes])
 
+  const hasInput = Boolean(jobDescriptionId) || quickStartKeywords.length > 0
   const disableAnalyzeButton = mode === 'ai'
-    ? (!convexResumes.length || analyzing || matchLoading || !jobDescriptionId)
-    : (matchLoading || !jobDescriptionId)
+    ? (!convexResumes.length || analyzing || !hasInput)
+    : (matchLoading || !hasInput)
+
+  const handleQuickStartApply = useCallback(
+    (config: {
+      location: string
+      keywords: string[]
+      jobDescriptionId?: string
+    }) => {
+      setQuickStartKeywords(config.keywords)
+      if (config.jobDescriptionId) {
+        setJobDescriptionId(config.jobDescriptionId)
+        updateSession({ jobDescriptionId: config.jobDescriptionId })
+      }
+
+      const nextFilters = { ...filters }
+      if (config.location.trim()) {
+        nextFilters.locations = [config.location.trim()]
+      }
+      if (config.keywords.length > 0) {
+        nextFilters.skills = config.keywords
+      }
+      setFilters(nextFilters)
+      updateSession({ filters: nextFilters })
+    },
+    [filters, updateSession, setFilters]
+  )
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Quick Start Panel - Minimal Input */}
+    <div className="flex flex-col gap-4">
       <QuickStartPanel
-        onApplyConfig={(config) => {
-          if (config.jobDescriptionId) {
-            setJobDescriptionId(config.jobDescriptionId)
-            updateSession({ jobDescriptionId: config.jobDescriptionId })
-          }
-          if (config.filters) {
-            setFilters({ ...filters, ...config.filters } as typeof filters)
-            updateSession({ filters: { ...filters, ...config.filters } as typeof filters })
-          }
-        }}
+        onApplyConfig={handleQuickStartApply}
+        jobDescriptionId={jobDescriptionId}
+        onJobChange={handleJobChange}
       />
 
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">{t('resumes.title')}</h1>
-            <p className="text-sm text-muted-foreground">{t('resumes.subtitle')}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-              <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-              {t('resumes.refresh')}
-            </Button>
-            <Button
-              onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll}
-              disabled={disableAnalyzeButton}
-              title={mode === 'ai' && !jobDescriptionId ? t('resumes.selectJobDescriptionFirst') : undefined}
-            >
-              <RefreshCw className={cn('mr-2 h-4 w-4', (analyzing || matchLoading) && 'animate-spin')} />
-              {mode === 'ai' ? (analyzing ? 'Analyzing...' : 'Analyze All (AI)') : (matchLoading ? t('resumes.matching.running') : t('resumes.matching.matchAll'))}
-            </Button>
-          </div>
-        </div>
-
-        {analysisDispatchMessage ? (
-          <div
-            className={cn(
-              'w-fit rounded-md px-2.5 py-1.5 text-xs',
-              analysisDispatchMessage.type === 'success'
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                : 'bg-destructive/10 text-destructive'
-            )}
-            role="status"
-          >
-            {analysisDispatchMessage.text}
-          </div>
-        ) : null}
-
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="flex-1">
-            <SearchBar
-              onSearch={handleSearch}
-              onClear={handleClearSearch}
-              loading={activeLoading}
-              placeholder={t('resumes.searchPlaceholder')}
-              buttonLabel={t('resumes.searchButton')}
-            />
-          </div>
-          <div className="lg:w-60">
-            <Select
-              options={sampleOptions}
-              value={selectedSample}
-              onChange={(event) => handleSampleChange(event.target.value)}
-              disabled={sampleOptions.length === 0}
-            />
-          </div>
-          <div className="lg:w-64">
-            <JobDescriptionSelect value={jobDescriptionId} onChange={handleJobChange} />
-          </div>
-        </div>
-
-
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <ModeToggle mode={mode} onModeChange={setMode} aiStats={aiStats ?? undefined} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <ModeToggle mode={mode} onModeChange={setMode} aiStats={aiStats ?? undefined} />
+        <div className="flex flex-wrap items-center gap-2">
           {summary && !error ? (
-            <div className="text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {t('resumes.summary', {
                 returned: mode === 'ai' ? displayedResumes.length : (summary.returned ?? resumes.length),
                 total: mode === 'ai' ? convexResumes.length : (summary.total ?? resumes.length),
                 sample: selectedSample || '--',
               })}
-            </div>
+            </span>
           ) : null}
+          <Button size="sm" variant="outline" onClick={handleRefresh} disabled={activeLoading}>
+            <RefreshCw className={cn('mr-2 h-4 w-4', activeLoading && 'animate-spin')} />
+            {t('resumes.refresh')}
+          </Button>
+          <Button
+            size="sm"
+            onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll}
+            disabled={disableAnalyzeButton}
+            title={!hasInput ? t('resumes.selectKeywordsOrJobDescription', '请选择关键词或职位描述') : undefined}
+          >
+            <RefreshCw className={cn('mr-2 h-4 w-4', (analyzing || matchLoading) && 'animate-spin')} />
+            {mode === 'ai'
+              ? (analyzing ? 'Analyzing...' : 'Analyze All (AI)')
+              : (matchLoading ? t('resumes.matching.running') : t('resumes.matching.matchAll'))}
+          </Button>
         </div>
-
-        <FilterPanel filters={filters} onChange={handleFiltersChange} mode={mode} />
-
-        {matchError ? (
-          <div className="text-xs text-destructive">{matchError}</div>
-        ) : null}
-        {mode !== 'ai' && matchProgress ? (
-          <div className="text-xs text-muted-foreground">
-            AI progress: {matchProgress.done}/{matchProgress.total}
-          </div>
-        ) : null}
       </div>
+
+      {analysisDispatchMessage ? (
+        <div
+          className={cn(
+            'w-fit rounded-md px-2.5 py-1.5 text-xs',
+            analysisDispatchMessage.type === 'success'
+              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+              : 'bg-destructive/10 text-destructive'
+          )}
+          role="status"
+        >
+          {analysisDispatchMessage.text}
+        </div>
+      ) : null}
+
+      <FilterPanel filters={filters} onChange={handleFiltersChange} mode={mode} />
+
+      {matchError ? (
+        <div className="text-xs text-destructive">{matchError}</div>
+      ) : null}
+      {mode !== 'ai' && matchProgress ? (
+        <div className="text-xs text-muted-foreground">
+          AI progress: {matchProgress.done}/{matchProgress.total}
+        </div>
+      ) : null}
 
       {mode === 'ai' ? (
         <AnalysisTaskMonitor />
@@ -610,64 +602,60 @@ export function ResumeList() {
         <MatchRunHistory sessionId={session?.id} jobDescriptionId={jobDescriptionId || undefined} />
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex flex-wrap items-center gap-2 text-lg font-semibold">
-            {t('resumes.tableTitle')}
-            {mode === 'ai' ? (
-              <span className="text-xs font-normal text-muted-foreground">
-                {t('resumes.matching.sortedByScore')}
-              </span>
+      <div className="space-y-3">
+        <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold">
+          {t('resumes.tableTitle')}
+          {mode === 'ai' ? (
+            <span className="text-xs font-normal text-muted-foreground">
+              {t('resumes.matching.sortedByScore')}
+            </span>
+          ) : null}
+        </h2>
+
+        {activeLoading ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            {t('resumes.loading')}
+          </div>
+        ) : error ? (
+          <div className="py-10 text-center">
+            <p className="text-sm text-destructive">{t('resumes.error')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+          </div>
+        ) : displayedResumes.length === 0 ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            {t('resumes.empty')}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {mode === 'ai' && displayedResumes.length > 0 ? (
+              <BulkActionBar
+                totalCount={displayedResumes.length}
+                selectedCount={selectedIds.size}
+                highScoreCount={highScoreCount}
+                onSelectAll={handleSelectAll}
+                onSelectHighScore={handleSelectHighScore}
+                onClearSelection={handleClearSelection}
+                onBulkAction={handleBulkAction}
+              />
             ) : null}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {activeLoading ? (
-            <div className="py-10 text-center text-sm text-muted-foreground">
-              {t('resumes.loading')}
-            </div>
-          ) : error ? (
-            <div className="py-10 text-center">
-              <p className="text-sm text-destructive">{t('resumes.error')}</p>
-              <p className="text-xs text-muted-foreground mt-1">{error}</p>
-            </div>
-          ) : displayedResumes.length === 0 ? (
-            <div className="py-10 text-center text-sm text-muted-foreground">
-              {t('resumes.empty')}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {/* Bulk Action Bar - shown in AI mode */}
-              {mode === 'ai' && displayedResumes.length > 0 && (
-                <BulkActionBar
-                  totalCount={displayedResumes.length}
-                  selectedCount={selectedIds.size}
-                  highScoreCount={highScoreCount}
-                  onSelectAll={handleSelectAll}
-                  onSelectHighScore={handleSelectHighScore}
-                  onClearSelection={handleClearSelection}
-                  onBulkAction={handleBulkAction}
-                />
-              )}
-              {displayedResumes.map((entry, index) => (
-                <ResumeCard
-                  key={entry.key || `${index}-${entry.resume.name}`}
-                  resume={entry.resume}
-                  matchResult={entry.match}
-                  showAiScore={Boolean(entry.match)}
-                  actionType={entry.action}
-                  onAction={(actionType) => saveAction({ resumeId: entry.key, actionType })}
-                  onViewDetails={() => setDetailResume(entry.resume)}
-                  selected={selectedIds.has(entry.key)}
-                  onSelect={() => handleToggleSelect(entry.key)}
-                  jobDescriptionId={jobDescriptionId}
-                  jobDescription={selectedJob || undefined}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            {displayedResumes.map((entry, index) => (
+              <ResumeCard
+                key={entry.key || `${index}-${entry.resume.name}`}
+                resume={entry.resume}
+                matchResult={entry.match}
+                showAiScore={Boolean(entry.match)}
+                actionType={entry.action}
+                onAction={(actionType) => saveAction({ resumeId: entry.key, actionType })}
+                onViewDetails={() => setDetailResume(entry.resume)}
+                selected={selectedIds.has(entry.key)}
+                onSelect={() => handleToggleSelect(entry.key)}
+                jobDescriptionId={jobDescriptionId}
+                jobDescription={selectedJob || undefined}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       <ResumeDetail
         resume={detailResume}

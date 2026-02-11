@@ -1,0 +1,9 @@
+{
+  tags: [
+    // Custom keyword tags added by user via settings
+    // { id: "custom-1", keyword: "激光切割", english: "laser cutting", category: "custom" }
+  ],
+  categories: [
+    { id: "custom", name: "自定义", icon: "⚙️" }
+  ]
+}

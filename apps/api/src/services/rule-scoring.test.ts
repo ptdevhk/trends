@@ -45,6 +45,23 @@ function cleanupFixtureRoot(root: string): void {
 }
 
 describe("RuleScoringService", () => {
+  it("builds keyword-only context with inferred industry tags", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["cnc", "车床"], "广东");
+
+      expect(context.jobDescriptionId).toBe("keyword-search");
+      expect(context.title).toBe("cnc, 车床");
+      expect(context.keywords).toEqual(["cnc", "车床"]);
+      expect(context.targetLocations).toEqual(["广东"]);
+      expect(context.industryTags).toEqual(expect.arrayContaining(["cnc", "machinery"]));
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
   it("scores strong candidate higher than weak candidate", () => {
     const root = createFixtureRoot();
 

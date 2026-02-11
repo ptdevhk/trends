@@ -28,6 +28,7 @@ export function FilterPanel({ filters, onChange, mode }: FilterPanelProps) {
   const [skills, setSkills] = useState('')
   const [locations, setLocations] = useState('')
   const [education, setEducation] = useState<string[]>([])
+  const [clearing, setClearing] = useState(false)
 
   useEffect(() => {
     setMinExperience(filters.minExperience?.toString() ?? '')
@@ -50,6 +51,7 @@ export function FilterPanel({ filters, onChange, mode }: FilterPanelProps) {
   }
 
   const handleApply = () => {
+    if (clearing) return
     onChange({
       ...filters,
       minExperience: minExperience ? Number(minExperience) : undefined,
@@ -72,6 +74,7 @@ export function FilterPanel({ filters, onChange, mode }: FilterPanelProps) {
   }
 
   const handleClear = () => {
+    setClearing(true)
     setMinExperience('')
     setMaxExperience('')
     setMinMatchScore('')
@@ -79,6 +82,7 @@ export function FilterPanel({ filters, onChange, mode }: FilterPanelProps) {
     setLocations('')
     setEducation([])
     onChange({})
+    window.setTimeout(() => setClearing(false), 200)
   }
 
   return (
@@ -89,7 +93,7 @@ export function FilterPanel({ filters, onChange, mode }: FilterPanelProps) {
           <Button size="sm" variant="outline" onClick={handleClear}>
             {t('resumes.filters.clear')}
           </Button>
-          <Button size="sm" onClick={handleApply}>
+          <Button size="sm" onClick={handleApply} disabled={clearing}>
             {t('resumes.filters.apply')}
           </Button>
         </div>

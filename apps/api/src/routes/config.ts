@@ -3,41 +3,32 @@ import path from "node:path";
 import { OpenAPIHono, z } from "@hono/zod-openapi";
 import JSON5 from "json5";
 import { findProjectRoot } from "../services/db.js";
-import { filterPresetService } from "../services/filter-preset-service.js";
+import { customKeywordService } from "../services/custom-keyword-service.js";
 import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-config.js";
 
 const app = new OpenAPIHono();
 
 const AgentsConfigSchema = z.record(z.unknown());
-const SalaryRangeSchema = z.object({
-  min: z.number().optional(),
-  max: z.number().optional(),
-});
-const PresetFiltersSchema = z.object({
-  minExperience: z.number().optional(),
-  maxExperience: z.number().nullable().optional(),
-  education: z.array(z.string()).optional(),
-  salaryRange: SalaryRangeSchema.optional(),
-});
-const FilterPresetSchema = z.object({
+const CustomKeywordTagSchema = z.object({
   id: z.string(),
-  name: z.string(),
+  keyword: z.string(),
+  english: z.string().optional(),
   category: z.string(),
-  filters: PresetFiltersSchema,
 });
-const PresetCategorySchema = z.object({
+const CustomKeywordCategorySchema = z.object({
   id: z.string(),
   name: z.string(),
   icon: z.string().optional(),
 });
-const FilterPresetsConfigSchema = z.object({
-  presets: z.array(FilterPresetSchema),
-  categories: z.array(PresetCategorySchema),
+const CustomKeywordsResponseSchema = z.object({
+  success: z.literal(true),
+  tags: z.array(CustomKeywordTagSchema),
+  categories: z.array(CustomKeywordCategorySchema),
 });
-const FilterPresetUpdateSchema = z.object({
-  name: z.string().optional(),
+const CustomKeywordUpdateSchema = z.object({
+  keyword: z.string().optional(),
+  english: z.string().optional(),
   category: z.string().optional(),
-  filters: PresetFiltersSchema.optional(),
 });
 
 function getAgentsConfigPath(): string {
@@ -135,92 +126,79 @@ app.get("/ai-status", (c) => {
   }
 });
 
-app.get("/filter-presets", (c) => {
+app.get("/custom-keywords", (c) => {
   try {
-    const presets = filterPresetService.listPresets();
-    const categories = filterPresetService.listCategories();
-    return c.json({ success: true as const, presets, categories }, 200);
+    const tags = customKeywordService.listTags();
+    const categories = customKeywordService.listCategories();
+    const response = CustomKeywordsResponseSchema.parse({
+      success: true as const,
+      tags,
+      categories,
+    });
+    return c.json(response, 200);
   } catch (error) {
-    console.error("Failed to load filter presets", error);
-    return c.json({ success: false as const, error: "Failed to load filter presets" }, 500);
+    console.error("Failed to load custom keywords", error);
+    return c.json({ success: false as const, error: "Failed to load custom keywords" }, 500);
   }
 });
 
-app.put("/filter-presets", async (c) => {
+app.post("/custom-keywords", async (c) => {
   try {
     const body: unknown = await c.req.json();
-    const parsedBody = FilterPresetsConfigSchema.safeParse(body);
+    const parsedBody = CustomKeywordTagSchema.safeParse(body);
 
     if (!parsedBody.success) {
-      return c.json({ success: false as const, error: "Invalid filter presets payload" }, 400);
+      return c.json({ success: false as const, error: "Invalid custom keyword payload" }, 400);
     }
 
-    filterPresetService.saveConfig(parsedBody.data);
-    return c.json({ success: true as const, config: parsedBody.data }, 200);
+    const existingTag = customKeywordService.getTag(parsedBody.data.id);
+    if (existingTag) {
+      return c.json({ success: false as const, error: `Tag already exists: ${parsedBody.data.id}` }, 409);
+    }
+
+    customKeywordService.addTag(parsedBody.data);
+    return c.json({ success: true as const, tag: parsedBody.data }, 201);
   } catch (error) {
-    console.error("Failed to save filter presets", error);
-    return c.json({ success: false as const, error: "Failed to save filter presets" }, 500);
+    console.error("Failed to add custom keyword", error);
+    return c.json({ success: false as const, error: "Failed to add custom keyword" }, 500);
   }
 });
 
-app.put("/filter-presets/:id", async (c) => {
+app.put("/custom-keywords/:id", async (c) => {
   try {
     const id = c.req.param("id");
     const body: unknown = await c.req.json();
-    const parsedBody = FilterPresetUpdateSchema.safeParse(body);
+    const parsedBody = CustomKeywordUpdateSchema.safeParse(body);
 
     if (!parsedBody.success) {
-      return c.json({ success: false as const, error: "Invalid filter preset update payload" }, 400);
+      return c.json({ success: false as const, error: "Invalid custom keyword update payload" }, 400);
     }
 
-    const updatedPreset = filterPresetService.updatePreset(id, parsedBody.data);
-
-    if (!updatedPreset) {
-      return c.json({ success: false as const, error: `Preset not found: ${id}` }, 404);
+    const updatedTag = customKeywordService.updateTag(id, parsedBody.data);
+    if (!updatedTag) {
+      return c.json({ success: false as const, error: `Tag not found: ${id}` }, 404);
     }
 
-    return c.json({ success: true as const, preset: updatedPreset }, 200);
+    return c.json({ success: true as const, tag: updatedTag }, 200);
   } catch (error) {
-    console.error("Failed to update filter preset", error);
-    return c.json({ success: false as const, error: "Failed to update filter preset" }, 500);
+    console.error("Failed to update custom keyword", error);
+    return c.json({ success: false as const, error: "Failed to update custom keyword" }, 500);
   }
 });
 
-app.post("/filter-presets", async (c) => {
-  try {
-    const body: unknown = await c.req.json();
-    const parsedBody = FilterPresetSchema.safeParse(body);
-
-    if (!parsedBody.success) {
-      return c.json({ success: false as const, error: "Invalid filter preset payload" }, 400);
-    }
-
-    const existingPreset = filterPresetService.getPreset(parsedBody.data.id);
-    if (existingPreset) {
-      return c.json({ success: false as const, error: `Preset already exists: ${parsedBody.data.id}` }, 409);
-    }
-
-    filterPresetService.addPreset(parsedBody.data);
-    return c.json({ success: true as const, preset: parsedBody.data }, 201);
-  } catch (error) {
-    console.error("Failed to add filter preset", error);
-    return c.json({ success: false as const, error: "Failed to add filter preset" }, 500);
-  }
-});
-
-app.delete("/filter-presets/:id", (c) => {
+app.delete("/custom-keywords/:id", (c) => {
   try {
     const id = c.req.param("id");
-    const deleted = filterPresetService.deletePreset(id);
+    const deleted = customKeywordService.deleteTag(id);
 
     if (!deleted) {
-      return c.json({ success: false as const, error: `Preset not found: ${id}` }, 404);
+      return c.json({ success: false as const, error: `Tag not found: ${id}` }, 404);
     }
 
     return c.json({ success: true as const }, 200);
   } catch (error) {
-    console.error("Failed to delete filter preset", error);
-    return c.json({ success: false as const, error: "Failed to delete filter preset" }, 500);
+    console.error("Failed to delete custom keyword", error);
+    return c.json({ success: false as const, error: "Failed to delete custom keyword" }, 500);
   }
 });
 

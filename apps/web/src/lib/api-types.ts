@@ -391,6 +391,19 @@ export interface paths {
                         "application/json": components["schemas"]["MatchResponse"];
                     };
                 };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
                 /** @description Session or job description not found */
                 404: {
                     headers: {
@@ -559,7 +572,9 @@ export interface paths {
                     "application/json": {
                         sessionId?: string;
                         sample?: string;
-                        jobDescriptionId: string;
+                        jobDescriptionId?: string;
+                        keywords?: string[];
+                        location?: string;
                         resumeIds?: string[];
                         limit?: number;
                     };
@@ -573,6 +588,19 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["MatchResponse"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
                     };
                 };
                 /** @description Session or data not found */
@@ -2230,7 +2258,16 @@ export interface components {
             /** @example sample-initial */
             sample?: string;
             /** @example lathe-sales */
-            jobDescriptionId: string;
+            jobDescriptionId?: string;
+            /**
+             * @example [
+             *       "cnc",
+             *       "车床"
+             *     ]
+             */
+            keywords?: string[];
+            /** @example 广东 */
+            location?: string;
             /**
              * @example [
              *       "R123456"

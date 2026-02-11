@@ -127,6 +127,7 @@
       "manage": "Manage JDs"
     },
     "selectJobDescriptionFirst": "Please select a Job Description first",
+    "selectKeywordsOrJobDescription": "Please select keywords or a job description",
     "matching": {
       "matchAll": "Match All",
       "running": "Matching...",
@@ -209,6 +210,10 @@
     "labelJd": "JD",
     "labelPreset": "Preset",
     "labelMatchedKeywords": "Matched Keywords",
+    "hotKeywords": "Hot Keywords",
+    "expandKeywords": "Show All",
+    "collapseKeywords": "Collapse",
+    "customKeywordPlaceholder": "Custom keyword...",
     "manageJds": "Manage all JDs →"
   },
   "debug": {
@@ -292,7 +297,7 @@
   },
   "debugConfig": {
     "title": "System Configuration",
-    "subtitle": "View and edit agent pipeline, filter presets, and AI service settings",
+    "subtitle": "View and edit agent pipeline, custom keywords, and AI service settings",
     "aiStatus": "AI Service Status",
     "aiEnabled": "Enabled",
     "aiDisabled": "Disabled",
@@ -313,6 +318,15 @@
     "save": "Save",
     "saved": "Saved",
     "saveError": "Save failed",
+    "customKeywords": "Custom Keywords",
+    "customKeywordsDescription": "Manage custom tags available in resume keyword chips",
+    "addCustomKeyword": "Add Keyword",
+    "editCustomKeyword": "Edit",
+    "deleteCustomKeyword": "Delete",
+    "customKeywordId": "ID",
+    "customKeywordKeyword": "Keyword",
+    "customKeywordEnglish": "English",
+    "customKeywordCategory": "Category",
     "presets": "Filter Presets",
     "presetsDescription": "Quick filter configurations for common search patterns",
     "addPreset": "Add Preset",

@@ -50,6 +50,12 @@ const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
   "summary": "中文总结"
 }`
 
+const KEYWORD_PROMPT_VARIANT = `buildKeywordRequirements(['cnc', '车床', '4轴']):
+候选人需具备以下关键技能/经验:
+- cnc
+- 车床
+- 4轴`
+
 type ResumeDoc = Doc<'resumes'>
 type BreakdownKey = 'experience' | 'skills' | 'industry_db' | 'education' | 'location'
 
@@ -233,6 +239,10 @@ export default function DebugAI() {
           <div className="space-y-2">
             <h2 className="text-sm font-semibold">{t('debugAi.userPrompt')}</h2>
             <pre className="max-h-80 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">{USER_PROMPT_TEMPLATE}</pre>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold">Keyword-Based Prompt Variant</h2>
+            <pre className="max-h-64 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">{KEYWORD_PROMPT_VARIANT}</pre>
           </div>
         </CardContent>
       </Card>

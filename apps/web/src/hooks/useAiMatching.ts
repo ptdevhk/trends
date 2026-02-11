@@ -7,7 +7,9 @@ export type MatchMode = 'rules_only' | 'hybrid' | 'ai_only'
 export type MatchRequest = {
   sessionId?: string
   sample?: string
-  jobDescriptionId: string
+  jobDescriptionId?: string
+  keywords?: string[]
+  location?: string
   resumeIds?: string[]
   limit?: number
   topN?: number
