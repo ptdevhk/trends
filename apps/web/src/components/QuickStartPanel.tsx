@@ -7,20 +7,22 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, Sparkles, Settings2, FilePlus } from 'lucide-react'
+import { Settings2, FilePlus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Id } from '../../../../packages/convex/convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { JobDescriptionEditor } from './JobDescriptionEditor'
+import { JobDescriptionSelect } from './JobDescriptionSelect'
+import { KeywordChips } from './KeywordChips'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 // Common locations for precision machinery industry
 const COMMON_LOCATIONS = [
+    '广东',
     '东莞', '深圳', '广州', '佛山', '惠州',
     '苏州', '无锡', '常州', '昆山', '上海'
 ]
@@ -56,17 +58,21 @@ interface QuickStartPanelProps {
     }) => void
     defaultLocation?: string
     defaultKeywords?: string[]
+    jobDescriptionId?: string
+    onJobChange?: (value: string) => void
 }
 
 export function QuickStartPanel({
     onApplyConfig,
-    defaultLocation = '',
+    defaultLocation = '广东',
     defaultKeywords = [],
+    jobDescriptionId = '',
+    onJobChange,
 }: QuickStartPanelProps) {
     const { t } = useTranslation()
 
     const [location, setLocation] = useState(defaultLocation)
-    const [keywordsInput, setKeywordsInput] = useState(defaultKeywords.join(' '))
+    const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
     const [matchResult, setMatchResult] = useState<AutoMatchResult | null>(null)
     const [loading, setLoading] = useState(false)
     const [hasSearched, setHasSearched] = useState(false)
@@ -138,9 +144,10 @@ export function QuickStartPanel({
 
     // Auto-match when location or keywords change (debounced)
     useEffect(() => {
-        const keywords = keywordsInput.split(/\s+/).filter(Boolean)
+        const keywords = selectedKeywords.map((keyword) => keyword.trim()).filter(Boolean)
         if (keywords.length === 0) {
             setMatchResult(null)
+            setHasSearched(false)
             return
         }
 
@@ -165,8 +172,8 @@ export function QuickStartPanel({
                         })
                     }
                 }
-            } catch {
-                // Silently fail
+            } catch (error) {
+                console.error('Failed to auto-match job description', error)
             } finally {
                 setLoading(false)
                 setHasSearched(true)
@@ -174,18 +181,20 @@ export function QuickStartPanel({
         }, 500)
 
         return () => clearTimeout(timer)
-    }, [keywordsInput, location])
+    }, [selectedKeywords, location])
 
     const handleApply = useCallback(() => {
-        const keywords = keywordsInput.split(/\s+/).filter(Boolean)
+        const keywords = selectedKeywords.map((keyword) => keyword.trim()).filter(Boolean)
         onApplyConfig?.({
             location,
             keywords,
-            jobDescriptionId: matchResult?.matched,
+            jobDescriptionId: jobDescriptionId || matchResult?.matched,
             filterPreset: matchResult?.filterPreset,
             filters: matchResult?.suggestedFilters,
         })
-    }, [keywordsInput, location, matchResult, onApplyConfig])
+    }, [jobDescriptionId, location, matchResult, onApplyConfig, selectedKeywords])
+
+    const hasKeywords = selectedKeywords.some((keyword) => keyword.trim().length > 0)
 
     const confidenceColor = matchResult?.confidence
         ? matchResult.confidence >= 0.7
@@ -196,24 +205,15 @@ export function QuickStartPanel({
         : ''
 
     return (
-        <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-            <CardContent className="pt-6">
-                {/* Header */}
-                <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className="h-5 w-5 text-primary" />
-                    <h2 className="text-lg font-semibold">
-                        {t('quickStart.title', '快速开始')}
-                    </h2>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                        {t('quickStart.hint', '输入位置和关键词，系统自动配置')}
-                    </span>
-                </div>
+        <div className="rounded-lg bg-muted/30 px-6 py-5">
+            <p className="mb-3 text-xs text-muted-foreground">
+                {t('quickStart.hint', '输入位置和关键词，系统自动配置')}
+            </p>
 
-                {/* Main Input Row */}
+            <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    {/* Location */}
-                    <div className="sm:w-40">
-                        <label className="text-sm font-medium text-muted-foreground mb-1 block">
+                    <div className="sm:w-44">
+                        <label className="mb-1 block text-sm font-medium text-muted-foreground">
                             {t('quickStart.location', '位置')}
                         </label>
                         <div className="relative">
@@ -221,9 +221,9 @@ export function QuickStartPanel({
                                 type="text"
                                 value={location}
                                 onChange={(e) => setLocation(e.target.value)}
-                                placeholder="东莞"
+                                placeholder="广东"
                                 list="location-suggestions"
-                                className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                             />
                             <datalist id="location-suggestions">
                                 {COMMON_LOCATIONS.map((loc) => (
@@ -233,32 +233,36 @@ export function QuickStartPanel({
                         </div>
                     </div>
 
-                    {/* Keywords */}
-                    <div className="flex-1">
-                        <label className="text-sm font-medium text-muted-foreground mb-1 block">
-                            {t('quickStart.keywords', '关键词')}
-                        </label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <input
-                                type="text"
-                                value={keywordsInput}
-                                onChange={(e) => setKeywordsInput(e.target.value)}
-                                placeholder="车床 销售 CNC"
-                                className="w-full h-10 pl-10 pr-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Apply Button */}
                     <Button
                         onClick={handleApply}
-                        disabled={!keywordsInput.trim()}
+                        disabled={!hasKeywords}
                         className="sm:w-auto"
                     >
                         {t('quickStart.apply', '使用此配置')}
                     </Button>
                 </div>
+
+                <div>
+                    <label className="mb-1 block text-sm font-medium text-muted-foreground">
+                        {t('quickStart.keywords', '关键词')}
+                    </label>
+                    <KeywordChips
+                        value={selectedKeywords}
+                        onChange={setSelectedKeywords}
+                    />
+                </div>
+
+                <div className="max-w-sm">
+                    <label className="mb-1 block text-xs text-muted-foreground">
+                        {t('quickStart.manualJd', '手动职位（可选）')}
+                    </label>
+                    <JobDescriptionSelect
+                        value={jobDescriptionId}
+                        onChange={(value) => onJobChange?.(value)}
+                        disabled={!onJobChange}
+                    />
+                </div>
+            </div>
 
                 {/* Match Result */}
                 {hasSearched && (
@@ -312,7 +316,7 @@ export function QuickStartPanel({
                                     </>
                                 ) : (
                                     <div className="text-sm text-muted-foreground">
-                                        {keywordsInput.trim()
+                                        {hasKeywords
                                             ? t('quickStart.noMatch', '未找到匹配的职位描述，将使用默认配置')
                                             : t('quickStart.enterKeywords', '请输入关键词开始匹配')
                                         }
@@ -393,7 +397,6 @@ export function QuickStartPanel({
                         </div>
                     </div>
                 )}
-            </CardContent>
 
             <JobDescriptionEditor
                 open={showEditor}
@@ -411,6 +414,6 @@ export function QuickStartPanel({
                     // For now, let them click "Apply" manually, but maybe highlight it.
                 }}
             />
-        </Card>
+        </div>
     )
 }

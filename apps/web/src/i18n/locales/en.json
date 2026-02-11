@@ -209,6 +209,10 @@
     "labelJd": "JD",
     "labelPreset": "Preset",
     "labelMatchedKeywords": "Matched Keywords",
+    "hotKeywords": "Hot Keywords",
+    "expandKeywords": "Show All",
+    "collapseKeywords": "Collapse",
+    "customKeywordPlaceholder": "Custom keyword...",
     "manageJds": "Manage all JDs →"
   },
   "debug": {

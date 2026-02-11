@@ -209,6 +209,10 @@
     "labelJd": "職位",
     "labelPreset": "預設",
     "labelMatchedKeywords": "匹配詞",
+    "hotKeywords": "熱門關鍵詞",
+    "expandKeywords": "展開全部",
+    "collapseKeywords": "收起",
+    "customKeywordPlaceholder": "自定義關鍵詞...",
     "manageJds": "管理所有職位 →"
   },
   "debug": {

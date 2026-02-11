@@ -209,6 +209,10 @@
     "labelJd": "职位",
     "labelPreset": "预设",
     "labelMatchedKeywords": "匹配词",
+    "hotKeywords": "热门关键词",
+    "expandKeywords": "展开全部",
+    "collapseKeywords": "收起",
+    "customKeywordPlaceholder": "自定义关键词...",
     "manageJds": "管理所有职位 →"
   },
   "debug": {
