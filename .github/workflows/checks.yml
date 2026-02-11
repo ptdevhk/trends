@@ -68,5 +68,10 @@ jobs:
       - name: Validate resume fixtures
         run: npx tsx scripts/test-resume-fixtures.ts
 
+      - name: Run agent governance checks
+        run: |
+          make check-agent-policy
+          make check-agent-skill
+
       - name: Run checks + build validation
         run: make check-build
