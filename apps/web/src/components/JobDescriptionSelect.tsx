@@ -4,16 +4,13 @@ import { ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Select } from '@/components/ui/select'
-
-interface JobDescriptionOption {
-  value: string
-  label: string
-}
-
-interface JobDescriptionItem {
-  name: string
-  title?: string
-}
+import {
+  buildJobDescriptionOptions,
+  type ConvexJobDescriptionItem,
+  type SystemJobDescriptionItem,
+} from './job-description-options'
+import { useQuery } from 'convex/react'
+import { api } from '../../../../packages/convex/convex/_generated/api'
 
 interface JobDescriptionSelectProps {
   value: string
@@ -21,47 +18,44 @@ interface JobDescriptionSelectProps {
   disabled?: boolean
 }
 
-import { useQuery } from 'convex/react'
-import { api } from '../../../../packages/convex/convex/_generated/api'
-
 export function JobDescriptionSelect({ value, onChange, disabled }: JobDescriptionSelectProps) {
   const { t } = useTranslation()
-  const [systemOptions, setSystemOptions] = useState<JobDescriptionOption[]>([])
+  const [systemJobDescriptions, setSystemJobDescriptions] = useState<SystemJobDescriptionItem[]>([])
 
-  // Fetch Custom JDs
-  const customJDs = useQuery(api.job_descriptions.list, {})
+  const convexJobDescriptions = useQuery(api.job_descriptions.list, {})
+
+  const normalizedConvexJobDescriptions = useMemo<ConvexJobDescriptionItem[]>(
+    () =>
+      (convexJobDescriptions ?? []).map((item) => ({
+        _id: String(item._id),
+        title: item.title,
+        type: item.type,
+        enabled: item.enabled,
+      })),
+    [convexJobDescriptions]
+  )
 
   useEffect(() => {
     let mounted = true
     const load = async () => {
-      const { data } = await rawApiClient.GET<{ success: boolean; items?: JobDescriptionItem[] }>(
+      const { data } = await rawApiClient.GET<{ success: boolean; items?: SystemJobDescriptionItem[] }>(
         '/api/job-descriptions',
         { params: { query: {} } }
       )
       if (!data?.success || !mounted) return
-      const items = (data.items ?? []) as JobDescriptionItem[]
-      const list = items.map((item) => ({
-        value: item.name,
-        label: `${item.title || item.name} (System)`,
-      }))
-      setSystemOptions(list)
+      setSystemJobDescriptions(data.items ?? [])
     }
     load()
     return () => { mounted = false }
   }, [])
 
   const selectOptions = useMemo(() => {
-    const customOptions = (customJDs ?? []).map(jd => ({
-      value: jd._id,
-      label: `✨ ${jd.title} (Custom)`
-    }));
-
-    return [
-      { value: '', label: t('resumes.jobDescription.placeholder') },
-      ...customOptions,
-      ...systemOptions,
-    ]
-  }, [systemOptions, customJDs, t])
+    return buildJobDescriptionOptions({
+      placeholderLabel: t('resumes.jobDescription.placeholder'),
+      convexJobDescriptions: normalizedConvexJobDescriptions,
+      systemJobDescriptions,
+    })
+  }, [normalizedConvexJobDescriptions, systemJobDescriptions, t])
 
   return (
     <div className="flex items-center gap-1.5">
