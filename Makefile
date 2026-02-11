@@ -180,7 +180,7 @@ i18n-build:
 install-deps:
 	./scripts/install-deps.sh
 
-# Prefetch Convex local backend binary into local cache
+# Prefetch Convex local backend and dashboard assets into local cache
 prefetch-convex:
 	./scripts/prefetch-convex-backend.sh
 
@@ -414,7 +414,7 @@ help:
 	@echo ""
 	@echo "Dependencies:"
 	@echo "  install-deps   Install Python/Node deps for development"
-	@echo "  prefetch-convex Prefetch Convex local backend binary"
+	@echo "  prefetch-convex Prefetch Convex local backend + dashboard assets"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  fetch-docs     Fetch latest upstream documentation"
