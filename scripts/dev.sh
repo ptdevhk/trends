@@ -170,8 +170,6 @@ kill_all_children() {
 
 # Cleanup function (Graceful + Timeout Kill + Full Child Cleanup)
 cleanup() {
-    local exit_code=$?
-
     # Avoid running cleanup twice (SIGINT/SIGTERM + EXIT)
     if [ "$CLEANUP_DONE" -eq 1 ]; then
         return
@@ -221,7 +219,7 @@ cleanup() {
 
     wait 2>/dev/null || true
     echo -e "${GREEN}All services stopped.${NC}"
-    exit "$exit_code"
+    exit 0
 }
 
 # Trap signals for cleanup
@@ -584,37 +582,6 @@ wait_for_port() {
     return 1
 }
 
-declare -a CONVEX_DEV_CMD=()
-
-build_convex_dev_command() {
-    local selected_backend_version="$1"
-    local use_force_upgrade="$2"
-    local force_local_mode="$3"
-
-    CONVEX_DEV_CMD=(npx convex dev)
-    if command -v bun >/dev/null 2>&1; then
-        CONVEX_DEV_CMD=(bunx convex dev)
-    fi
-
-    if [ -n "$selected_backend_version" ]; then
-        CONVEX_DEV_CMD+=(--local --local-backend-version "$selected_backend_version")
-    elif [ "$force_local_mode" = "true" ]; then
-        CONVEX_DEV_CMD+=(--local)
-    fi
-
-    if [ "$use_force_upgrade" = "true" ]; then
-        CONVEX_DEV_CMD+=(--local-force-upgrade)
-    fi
-}
-
-convex_command_to_string() {
-    local token rendered=""
-    for token in "$@"; do
-        rendered+="$(printf '%q ' "$token")"
-    done
-    echo "${rendered% }"
-}
-
 # Get PIDs of what's using a port (space-separated)
 get_port_pids() {
     local port="$1"
@@ -852,22 +819,7 @@ start_convex() {
     local port="${CONVEX_PORT:-3210}"
     local convex_env_local="$PROJECT_ROOT/packages/convex/.env.local"
     local selected_backend_version=""
-    local cached_backend_version=""
-    local force_upgrade_raw="${CONVEX_LOCAL_FORCE_UPGRADE:-true}"
-    local force_upgrade_enabled="false"
     local prefetch_script="$SCRIPT_DIR/prefetch-convex-backend.sh"
-    local startup_retries_raw="${CONVEX_STARTUP_RETRIES:-1}"
-    local startup_retries=1
-    local retry_delay_raw="${CONVEX_RETRY_DELAY_SECS:-2}"
-    local retry_delay_secs=2
-    local total_attempts=2
-    local attempt=1
-    local use_force_upgrade_for_attempt="false"
-    local local_mode_requested="false"
-    local command_str=""
-    local timeout="${CONVEX_STARTUP_TIMEOUT:-60}"
-    local convex_log=""
-    local convex_pid=""
 
     # Case 1: CONVEX_URL already set in system env (e.g., cloud deployment).
     # Skip starting local convex dev, just sync the URL to downstream consumers.
@@ -909,15 +861,20 @@ start_convex() {
     log "CONVEX" "$CYAN" "Starting Convex Dev..."
     cd "$PROJECT_ROOT/packages/convex"
 
+    local cmd="npx convex dev"
+    if command -v bun >/dev/null 2>&1; then
+        cmd="bunx convex dev"
+    fi
+
     selected_backend_version="${CONVEX_LOCAL_BACKEND_VERSION:-}"
     if [ -z "$selected_backend_version" ]; then
-        if cached_backend_version="$(latest_cached_convex_backend_version)"; then
-            log "CONVEX" "$CYAN" "Detected cached local backend version: $cached_backend_version"
+        if selected_backend_version="$(latest_cached_convex_backend_version)"; then
+            log "CONVEX" "$CYAN" "Using cached local backend version: $selected_backend_version"
         elif [ -f "$prefetch_script" ]; then
             log "CONVEX" "$CYAN" "No cached local backend binary found. Trying prefetch before startup..."
             if "$prefetch_script"; then
-                if cached_backend_version="$(latest_cached_convex_backend_version)"; then
-                    log "CONVEX" "$CYAN" "Detected prefetched local backend version: $cached_backend_version"
+                if selected_backend_version="$(latest_cached_convex_backend_version)"; then
+                    log "CONVEX" "$CYAN" "Using prefetched local backend version: $selected_backend_version"
                 fi
             else
                 log "CONVEX" "$YELLOW" "Prefetch before startup failed; continuing with default convex dev behavior."
@@ -927,112 +884,32 @@ start_convex() {
         log "CONVEX" "$CYAN" "Using CONVEX_LOCAL_BACKEND_VERSION override: $selected_backend_version"
     fi
 
-    case "${force_upgrade_raw,,}" in
-        true|1|yes)
-            force_upgrade_enabled="true"
-            ;;
-        false|0|no|"")
-            force_upgrade_enabled="false"
-            ;;
-        *)
-            log "CONVEX" "$YELLOW" "Invalid CONVEX_LOCAL_FORCE_UPGRADE='$force_upgrade_raw'. Expected true or false; defaulting to true."
-            force_upgrade_enabled="true"
-            ;;
-    esac
-
-    case "$startup_retries_raw" in
-        ''|*[!0-9]*)
-            log "CONVEX" "$YELLOW" "Invalid CONVEX_STARTUP_RETRIES='$startup_retries_raw'. Expected a non-negative integer; defaulting to 1."
-            startup_retries=1
-            ;;
-        *)
-            startup_retries="$startup_retries_raw"
-            ;;
-    esac
-
-    case "$retry_delay_raw" in
-        ''|*[!0-9]*)
-            log "CONVEX" "$YELLOW" "Invalid CONVEX_RETRY_DELAY_SECS='$retry_delay_raw'. Expected a non-negative integer; defaulting to 2."
-            retry_delay_secs=2
-            ;;
-        *)
-            retry_delay_secs="$retry_delay_raw"
-            ;;
-    esac
-
-    total_attempts=$((startup_retries + 1))
-    if [ "$total_attempts" -lt 1 ]; then
-        total_attempts=1
-    fi
-    log "CONVEX" "$CYAN" "Startup retry policy: total attempts=$total_attempts, retry delay=${retry_delay_secs}s."
-    if [ -z "$selected_backend_version" ] && [ "$force_upgrade_enabled" = "true" ]; then
-        local_mode_requested="true"
-        log "CONVEX" "$CYAN" "CONVEX_LOCAL_FORCE_UPGRADE enabled without CONVEX_LOCAL_BACKEND_VERSION; using local mode for startup attempts."
+    if [ -n "$selected_backend_version" ]; then
+        cmd="$cmd --local --local-backend-version $selected_backend_version --local-force-upgrade"
     fi
 
-    attempt=1
-    while [ "$attempt" -le "$total_attempts" ]; do
-        use_force_upgrade_for_attempt="$force_upgrade_enabled"
-        if [ "$attempt" -gt 1 ] && [ "$force_upgrade_enabled" = "true" ]; then
-            use_force_upgrade_for_attempt="false"
-            log "CONVEX" "$CYAN" "Retry attempt $attempt/$total_attempts: dropping --local-force-upgrade."
-        fi
+    $cmd > >(tee "$(service_log_path "convex")" | stream_service_logs "convex" "$CYAN") 2>&1 &
+    SERVICE_PIDS["convex"]=$!
 
-        build_convex_dev_command "$selected_backend_version" "$use_force_upgrade_for_attempt" "$local_mode_requested"
-        if [ "$use_force_upgrade_for_attempt" = "true" ]; then
-            log "CONVEX" "$CYAN" "Using CONVEX_LOCAL_FORCE_UPGRADE on attempt $attempt."
-        fi
-
-        command_str="$(convex_command_to_string "${CONVEX_DEV_CMD[@]}")"
-        log "CONVEX" "$CYAN" "Attempt $attempt/$total_attempts command: $command_str"
-
-        "${CONVEX_DEV_CMD[@]}" > >(tee "$(service_log_path "convex")" | stream_service_logs "convex" "$CYAN") 2>&1 &
-        SERVICE_PIDS["convex"]=$!
-
-        if wait_for_port "$port" "${SERVICE_PIDS["convex"]}" "$timeout" "CONVEX"; then
-            if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
-                if ! "$SCRIPT_DIR/sync-convex-env.sh"; then
-                    return 1
-                fi
-            fi
-            sync_convex_ai_env
-            return 0
-        fi
-
+    local timeout="${CONVEX_STARTUP_TIMEOUT:-60}"
+    if ! wait_for_port "$port" "${SERVICE_PIDS["convex"]}" "$timeout" "CONVEX"; then
+        local convex_log
         convex_log="$(service_log_path "convex")"
-        log "CONVEX" "$RED" "Attempt $attempt/$total_attempts failed."
-        log "CONVEX" "$CYAN" "Failed command: $command_str"
-        log "CONVEX" "$RED" "Showing last 20 log lines:"
+        log "CONVEX" "$RED" "Convex failed to become ready. Showing last 20 log lines:"
         if [ -f "$convex_log" ]; then
             tail -n 20 "$convex_log"
         else
             log "CONVEX" "$YELLOW" "No convex log file found at $convex_log"
         fi
-
-        convex_pid="${SERVICE_PIDS["convex"]:-}"
-        if [ -n "$convex_pid" ] && kill -0 "$convex_pid" 2>/dev/null; then
-            log "CONVEX" "$YELLOW" "Stopping failed Convex process (PID: $convex_pid) before retry."
-            kill_process_tree "$convex_pid" "-TERM"
-            sleep 1
-            if kill -0 "$convex_pid" 2>/dev/null; then
-                kill_process_tree "$convex_pid" "-KILL"
-            fi
-        fi
-
-        if [ "$attempt" -lt "$total_attempts" ] && [ "$retry_delay_secs" -gt 0 ]; then
-            log "CONVEX" "$CYAN" "Retrying Convex startup in ${retry_delay_secs}s..."
-            sleep "$retry_delay_secs"
-        fi
-
-        attempt=$((attempt + 1))
-    done
-
-    log "CONVEX" "$RED" "Convex failed after ${total_attempts} attempt(s)."
-    if [ "$force_upgrade_enabled" = "true" ]; then
-        log "CONVEX" "$YELLOW" "Tried retry strategy: dropped --local-force-upgrade on retry attempt(s)."
+        return 1
     fi
-    log "CONVEX" "$YELLOW" "If local deployment remains unstable, you can opt out manually: npx convex disable-local-deployments"
-    return 1
+
+    if [ -f "$SCRIPT_DIR/sync-convex-env.sh" ]; then
+        if ! "$SCRIPT_DIR/sync-convex-env.sh"; then
+            return 1
+        fi
+    fi
+    sync_convex_ai_env
 }
 
 run_seed_script() {
@@ -1222,11 +1099,6 @@ main() {
                 echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
                 echo "  API_PORT      BFF API port (default: 3000)"
                 echo "  WEB_PORT      Web frontend port (default: 5173)"
-                echo "  CONVEX_STARTUP_TIMEOUT Convex startup timeout in seconds (default: 60)"
-                echo "  CONVEX_STARTUP_RETRIES Additional Convex startup retries after first failure (default: 1)"
-                echo "  CONVEX_RETRY_DELAY_SECS Delay between Convex startup attempts in seconds (default: 2)"
-                echo "  CONVEX_LOCAL_BACKEND_VERSION Explicit Convex local backend version override"
-                echo "  CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: true)"
                 exit 0
                 ;;
             *)
