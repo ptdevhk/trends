@@ -70,7 +70,10 @@ function TaskItem({
   const isActive = task.status === 'pending' || task.status === 'processing'
   const total = task.progress.total || task.config.resumeCount || 1
   const progress = Math.min(100, Math.max(0, Math.round((task.progress.current / total) * 100)))
-  const taskTitle = task.config.jobDescriptionTitle || task.config.jobDescriptionId
+  const keywordLabel = task.config.keywords?.length
+    ? `Keywords: ${task.config.keywords.join(', ')}`
+    : undefined
+  const taskTitle = task.config.jobDescriptionTitle || task.config.jobDescriptionId || keywordLabel || 'Unknown'
 
   return (
     <div className="space-y-2 border-b last:border-0 last:pb-0 pb-4">

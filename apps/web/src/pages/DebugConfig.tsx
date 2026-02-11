@@ -56,36 +56,24 @@ interface AgentsConfig {
   [key: string]: unknown
 }
 
-interface FilterPreset {
+interface CustomKeywordTag {
   id: string
-  name: string
+  keyword: string
+  english?: string
   category: string
-  filters: {
-    minExperience?: number
-    maxExperience?: number | null
-    education?: string[]
-    salaryRange?: {
-      min?: number
-      max?: number
-    }
-  }
 }
 
-interface PresetCategory {
+interface CustomKeywordCategory {
   id: string
   name: string
   icon?: string
 }
 
-interface PresetFormState {
+interface CustomKeywordFormState {
   id: string
-  name: string
+  keyword: string
+  english: string
   category: string
-  minExperience: string
-  maxExperience: string
-  education: string
-  salaryMin: string
-  salaryMax: string
 }
 
 type ToastState = {
@@ -274,56 +262,28 @@ function parseAIStatusPayload(payload: unknown): AIStatus | null {
   }
 }
 
-function parseFilterPreset(value: unknown): FilterPreset | null {
+function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
   if (!isRecord(value)) {
     return null
   }
 
   const id = readString(value.id)
-  const name = readString(value.name)
+  const keyword = readString(value.keyword)
+  const english = readString(value.english) ?? undefined
   const category = readString(value.category)
-  if (!id || !name || !category) {
+  if (!id || !keyword || !category) {
     return null
-  }
-
-  const rawFilters = isRecord(value.filters) ? value.filters : {}
-  const rawSalary = isRecord(rawFilters.salaryRange) ? rawFilters.salaryRange : null
-
-  const filters: FilterPreset['filters'] = {
-    minExperience: readOptionalNumber(rawFilters.minExperience),
-    maxExperience:
-      rawFilters.maxExperience === null
-        ? null
-        : readOptionalNumber(rawFilters.maxExperience),
-  }
-
-  if (Array.isArray(rawFilters.education)) {
-    const education = rawFilters.education.filter((item): item is string => typeof item === 'string')
-    if (education.length > 0) {
-      filters.education = education
-    }
-  }
-
-  if (rawSalary) {
-    const salaryMin = readOptionalNumber(rawSalary.min)
-    const salaryMax = readOptionalNumber(rawSalary.max)
-    if (salaryMin !== undefined || salaryMax !== undefined) {
-      filters.salaryRange = {
-        ...(salaryMin !== undefined ? { min: salaryMin } : {}),
-        ...(salaryMax !== undefined ? { max: salaryMax } : {}),
-      }
-    }
   }
 
   return {
     id,
-    name,
+    keyword,
+    english,
     category,
-    filters,
   }
 }
 
-function parsePresetCategory(value: unknown): PresetCategory | null {
+function parseCustomKeywordCategory(value: unknown): CustomKeywordCategory | null {
   if (!isRecord(value)) {
     return null
   }
@@ -343,110 +303,42 @@ function parsePresetCategory(value: unknown): PresetCategory | null {
   }
 }
 
-function parseFilterPresetsPayload(payload: unknown): { presets: FilterPreset[]; categories: PresetCategory[] } | null {
+function parseCustomKeywordsPayload(payload: unknown): { tags: CustomKeywordTag[]; categories: CustomKeywordCategory[] } | null {
   if (!isRecord(payload) || payload.success !== true) {
     return null
   }
 
-  if (!Array.isArray(payload.presets) || !Array.isArray(payload.categories)) {
+  if (!Array.isArray(payload.tags) || !Array.isArray(payload.categories)) {
     return null
   }
 
-  const presets = payload.presets
-    .map((item) => parseFilterPreset(item))
-    .filter((item): item is FilterPreset => item !== null)
+  const tags = payload.tags
+    .map((item) => parseCustomKeywordTag(item))
+    .filter((item): item is CustomKeywordTag => item !== null)
 
   const categories = payload.categories
-    .map((item) => parsePresetCategory(item))
-    .filter((item): item is PresetCategory => item !== null)
+    .map((item) => parseCustomKeywordCategory(item))
+    .filter((item): item is CustomKeywordCategory => item !== null)
 
-  return { presets, categories }
+  return { tags, categories }
 }
 
-function createEmptyPresetForm(): PresetFormState {
+function createEmptyCustomKeywordForm(): CustomKeywordFormState {
   return {
     id: '',
-    name: '',
+    keyword: '',
+    english: '',
     category: '',
-    minExperience: '',
-    maxExperience: '',
-    education: '',
-    salaryMin: '',
-    salaryMax: '',
   }
 }
 
-function presetToForm(preset: FilterPreset): PresetFormState {
+function customKeywordToForm(tag: CustomKeywordTag): CustomKeywordFormState {
   return {
-    id: preset.id,
-    name: preset.name,
-    category: preset.category,
-    minExperience: preset.filters.minExperience !== undefined ? String(preset.filters.minExperience) : '',
-    maxExperience:
-      preset.filters.maxExperience === null
-        ? ''
-        : preset.filters.maxExperience !== undefined
-          ? String(preset.filters.maxExperience)
-          : '',
-    education: preset.filters.education?.join(', ') ?? '',
-    salaryMin: preset.filters.salaryRange?.min !== undefined ? String(preset.filters.salaryRange.min) : '',
-    salaryMax: preset.filters.salaryRange?.max !== undefined ? String(preset.filters.salaryRange.max) : '',
+    id: tag.id,
+    keyword: tag.keyword,
+    english: tag.english ?? '',
+    category: tag.category,
   }
-}
-
-function formatSalaryRange(preset: FilterPreset): string {
-  const min = preset.filters.salaryRange?.min
-  const max = preset.filters.salaryRange?.max
-  if (min === undefined && max === undefined) {
-    return '-'
-  }
-  return `${min ?? '-'} - ${max ?? '-'}`
-}
-
-function formatEducation(preset: FilterPreset): string {
-  const education = preset.filters.education
-  if (!education || education.length === 0) {
-    return '-'
-  }
-  return education.join(', ')
-}
-
-function formatMaxExperience(value: number | null | undefined): string {
-  if (value === null) {
-    return '∞'
-  }
-  if (value === undefined) {
-    return '-'
-  }
-  return String(value)
-}
-
-function parseFormNumberField(value: string, fieldLabel: string): number | undefined {
-  const normalized = value.trim()
-  if (!normalized) {
-    return undefined
-  }
-
-  const parsed = Number(normalized)
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`${fieldLabel}: invalid number`)
-  }
-
-  return parsed
-}
-
-function parseFormNullableNumberField(value: string, fieldLabel: string): number | null {
-  const normalized = value.trim()
-  if (!normalized) {
-    return null
-  }
-
-  const parsed = Number(normalized)
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`${fieldLabel}: invalid number`)
-  }
-
-  return parsed
 }
 
 function SystemSummary() {
@@ -514,15 +406,15 @@ export default function DebugConfig() {
 
   const [aiStatus, setAiStatus] = useState<AIStatus | null>(null)
   const [agentsConfig, setAgentsConfig] = useState<AgentsConfig | null>(null)
-  const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([])
-  const [presetCategories, setPresetCategories] = useState<PresetCategory[]>([])
+  const [customKeywordTags, setCustomKeywordTags] = useState<CustomKeywordTag[]>([])
+  const [customKeywordCategories, setCustomKeywordCategories] = useState<CustomKeywordCategory[]>([])
 
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null)
-  const [savingPreset, setSavingPreset] = useState(false)
+  const [savingCustomKeyword, setSavingCustomKeyword] = useState(false)
 
-  const [presetDialogOpen, setPresetDialogOpen] = useState(false)
-  const [editingPresetId, setEditingPresetId] = useState<string | null>(null)
-  const [presetForm, setPresetForm] = useState<PresetFormState>(createEmptyPresetForm)
+  const [customKeywordDialogOpen, setCustomKeywordDialogOpen] = useState(false)
+  const [editingCustomKeywordId, setEditingCustomKeywordId] = useState<string | null>(null)
+  const [customKeywordForm, setCustomKeywordForm] = useState<CustomKeywordFormState>(createEmptyCustomKeywordForm)
 
   const [toast, setToast] = useState<ToastState | null>(null)
 
@@ -600,14 +492,14 @@ export default function DebugConfig() {
     setAgentsConfig(parsed)
   }, [requestJson])
 
-  const loadFilterPresets = useCallback(async () => {
-    const payload = await requestJson('/api/config/filter-presets')
-    const parsed = parseFilterPresetsPayload(payload)
+  const loadCustomKeywords = useCallback(async () => {
+    const payload = await requestJson('/api/config/custom-keywords')
+    const parsed = parseCustomKeywordsPayload(payload)
     if (!parsed) {
-      throw new Error('Invalid filter presets response')
+      throw new Error('Invalid custom keywords response')
     }
-    setFilterPresets(parsed.presets)
-    setPresetCategories(parsed.categories)
+    setCustomKeywordTags(parsed.tags)
+    setCustomKeywordCategories(parsed.categories)
   }, [requestJson])
 
   const loadData = useCallback(async () => {
@@ -615,14 +507,14 @@ export default function DebugConfig() {
     setLoadError(null)
 
     try {
-      await Promise.all([loadAIStatus(), loadAgentsConfig(), loadFilterPresets()])
+      await Promise.all([loadAIStatus(), loadAgentsConfig(), loadCustomKeywords()])
     } catch (error) {
       console.error('Failed to load configuration data', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
     }
-  }, [loadAIStatus, loadAgentsConfig, loadFilterPresets, t])
+  }, [loadAIStatus, loadAgentsConfig, loadCustomKeywords, t])
 
   useEffect(() => {
     loadData().catch((error) => {
@@ -747,117 +639,88 @@ export default function DebugConfig() {
     [agentsConfig, requestJson, showToast, t],
   )
 
-  const openAddPresetDialog = useCallback(() => {
-    setEditingPresetId(null)
-    setPresetForm(createEmptyPresetForm())
-    setPresetDialogOpen(true)
+  const openAddCustomKeywordDialog = useCallback(() => {
+    setEditingCustomKeywordId(null)
+    setCustomKeywordForm(createEmptyCustomKeywordForm())
+    setCustomKeywordDialogOpen(true)
   }, [])
 
-  const openEditPresetDialog = useCallback((preset: FilterPreset) => {
-    setEditingPresetId(preset.id)
-    setPresetForm(presetToForm(preset))
-    setPresetDialogOpen(true)
+  const openEditCustomKeywordDialog = useCallback((tag: CustomKeywordTag) => {
+    setEditingCustomKeywordId(tag.id)
+    setCustomKeywordForm(customKeywordToForm(tag))
+    setCustomKeywordDialogOpen(true)
   }, [])
 
-  const buildPresetFromForm = useCallback((): FilterPreset => {
-    const id = presetForm.id.trim()
-    const name = presetForm.name.trim()
-    const category = presetForm.category.trim()
+  const buildCustomKeywordFromForm = useCallback((): CustomKeywordTag => {
+    const id = customKeywordForm.id.trim()
+    const keyword = customKeywordForm.keyword.trim()
+    const english = customKeywordForm.english.trim()
+    const category = customKeywordForm.category.trim()
 
-    if (!id || !name || !category) {
+    if (!id || !keyword || !category) {
       throw new Error('Missing required fields')
-    }
-
-    const minExperience = parseFormNumberField(presetForm.minExperience, t('debugConfig.presetMinExp'))
-    const maxExperience = parseFormNullableNumberField(presetForm.maxExperience, t('debugConfig.presetMaxExp'))
-
-    const salaryMin = parseFormNumberField(presetForm.salaryMin, t('debugConfig.presetSalary'))
-    const salaryMax = parseFormNumberField(presetForm.salaryMax, t('debugConfig.presetSalary'))
-
-    const education = presetForm.education
-      .split(',')
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0)
-
-    const filters: FilterPreset['filters'] = {
-      maxExperience,
-    }
-
-    if (minExperience !== undefined) {
-      filters.minExperience = minExperience
-    }
-
-    if (education.length > 0) {
-      filters.education = education
-    }
-
-    if (salaryMin !== undefined || salaryMax !== undefined) {
-      filters.salaryRange = {
-        ...(salaryMin !== undefined ? { min: salaryMin } : {}),
-        ...(salaryMax !== undefined ? { max: salaryMax } : {}),
-      }
     }
 
     return {
       id,
-      name,
+      keyword,
+      english: english || undefined,
       category,
-      filters,
     }
-  }, [presetForm, t])
+  }, [customKeywordForm])
 
-  const handleSavePreset = useCallback(async () => {
-    setSavingPreset(true)
+  const handleSaveCustomKeyword = useCallback(async () => {
+    setSavingCustomKeyword(true)
 
     try {
-      const preset = buildPresetFromForm()
+      const tag = buildCustomKeywordFromForm()
 
-      if (editingPresetId) {
-        await requestJson(`/api/config/filter-presets/${encodeURIComponent(editingPresetId)}`, {
+      if (editingCustomKeywordId) {
+        await requestJson(`/api/config/custom-keywords/${encodeURIComponent(editingCustomKeywordId)}`, {
           method: 'PUT',
           body: JSON.stringify({
-            name: preset.name,
-            category: preset.category,
-            filters: preset.filters,
+            keyword: tag.keyword,
+            english: tag.english,
+            category: tag.category,
           }),
         })
       } else {
-        await requestJson('/api/config/filter-presets', {
+        await requestJson('/api/config/custom-keywords', {
           method: 'POST',
-          body: JSON.stringify(preset),
+          body: JSON.stringify(tag),
         })
       }
 
-      await loadFilterPresets()
-      setPresetDialogOpen(false)
+      await loadCustomKeywords()
+      setCustomKeywordDialogOpen(false)
       showToast({ type: 'success', message: t('debugConfig.saved') })
     } catch (error) {
-      console.error('Failed to save filter preset', error)
+      console.error('Failed to save custom keyword', error)
       showToast({ type: 'error', message: t('debugConfig.saveError') })
     } finally {
-      setSavingPreset(false)
+      setSavingCustomKeyword(false)
     }
-  }, [buildPresetFromForm, editingPresetId, loadFilterPresets, requestJson, showToast, t])
+  }, [buildCustomKeywordFromForm, editingCustomKeywordId, loadCustomKeywords, requestJson, showToast, t])
 
-  const handleDeletePreset = useCallback(
-    async (presetId: string) => {
+  const handleDeleteCustomKeyword = useCallback(
+    async (tagId: string) => {
       const confirmed = window.confirm(t('debugConfig.confirmDelete'))
       if (!confirmed) {
         return
       }
 
       try {
-        await requestJson(`/api/config/filter-presets/${encodeURIComponent(presetId)}`, {
+        await requestJson(`/api/config/custom-keywords/${encodeURIComponent(tagId)}`, {
           method: 'DELETE',
         })
-        await loadFilterPresets()
+        await loadCustomKeywords()
         showToast({ type: 'success', message: t('debugConfig.saved') })
       } catch (error) {
-        console.error('Failed to delete filter preset', error)
+        console.error('Failed to delete custom keyword', error)
         showToast({ type: 'error', message: t('debugConfig.saveError') })
       }
     },
-    [loadFilterPresets, requestJson, showToast, t],
+    [loadCustomKeywords, requestJson, showToast, t],
   )
 
   const handleStartCollection = useCallback(async () => {
@@ -1150,11 +1013,11 @@ export default function DebugConfig() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <CardTitle>{t('debugConfig.presets')}</CardTitle>
-              <CardDescription>{t('debugConfig.presetsDescription')}</CardDescription>
+              <CardTitle>{t('debugConfig.customKeywords')}</CardTitle>
+              <CardDescription>{t('debugConfig.customKeywordsDescription')}</CardDescription>
             </div>
-            <Button size="sm" onClick={openAddPresetDialog}>
-              {t('debugConfig.addPreset')}
+            <Button size="sm" onClick={openAddCustomKeywordDialog}>
+              {t('debugConfig.addCustomKeyword')}
             </Button>
           </div>
         </CardHeader>
@@ -1163,54 +1026,48 @@ export default function DebugConfig() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('debugConfig.presetId')}</TableHead>
-                  <TableHead>{t('debugConfig.presetName')}</TableHead>
-                  <TableHead>{t('debugConfig.presetCategory')}</TableHead>
-                  <TableHead>{t('debugConfig.presetMinExp')}</TableHead>
-                  <TableHead>{t('debugConfig.presetMaxExp')}</TableHead>
-                  <TableHead>{t('debugConfig.presetEducation')}</TableHead>
-                  <TableHead>{t('debugConfig.presetSalary')}</TableHead>
+                  <TableHead>{t('debugConfig.customKeywordId')}</TableHead>
+                  <TableHead>{t('debugConfig.customKeywordKeyword')}</TableHead>
+                  <TableHead>{t('debugConfig.customKeywordEnglish')}</TableHead>
+                  <TableHead>{t('debugConfig.customKeywordCategory')}</TableHead>
                   <TableHead className="text-right">{t('resumes.actions.view')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filterPresets.length === 0 ? (
+                {customKeywordTags.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-6 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
                       {loading ? t('trends.loading') : t('debug.none')}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filterPresets.map((preset) => (
-                    <TableRow key={preset.id}>
-                      <TableCell className="font-mono text-xs">{preset.id}</TableCell>
-                      <TableCell>{preset.name}</TableCell>
-                      <TableCell>{preset.category}</TableCell>
-                      <TableCell>{preset.filters.minExperience ?? '-'}</TableCell>
-                      <TableCell>{formatMaxExperience(preset.filters.maxExperience)}</TableCell>
-                      <TableCell>{formatEducation(preset)}</TableCell>
-                      <TableCell>{formatSalaryRange(preset)}</TableCell>
+                  customKeywordTags.map((tag) => (
+                    <TableRow key={tag.id}>
+                      <TableCell className="font-mono text-xs">{tag.id}</TableCell>
+                      <TableCell>{tag.keyword}</TableCell>
+                      <TableCell>{tag.english || '-'}</TableCell>
+                      <TableCell>{tag.category}</TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              openEditPresetDialog(preset)
+                              openEditCustomKeywordDialog(tag)
                             }}
                           >
-                            {t('debugConfig.editPreset')}
+                            {t('debugConfig.editCustomKeyword')}
                           </Button>
                           <Button
                             variant="destructive"
                             size="sm"
                             onClick={() => {
-                              handleDeletePreset(preset.id).catch((error) => {
-                                console.error('Unexpected handleDeletePreset failure', error)
+                              handleDeleteCustomKeyword(tag.id).catch((error) => {
+                                console.error('Unexpected handleDeleteCustomKeyword failure', error)
                               })
                             }}
                           >
-                            {t('debugConfig.deletePreset')}
+                            {t('debugConfig.deleteCustomKeyword')}
                           </Button>
                         </div>
                       </TableCell>
@@ -1223,104 +1080,59 @@ export default function DebugConfig() {
         </CardContent>
       </Card>
 
-      <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
+      <Dialog open={customKeywordDialogOpen} onOpenChange={setCustomKeywordDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingPresetId ? t('debugConfig.editPreset') : t('debugConfig.addPreset')}</DialogTitle>
+            <DialogTitle>
+              {editingCustomKeywordId ? t('debugConfig.editCustomKeyword') : t('debugConfig.addCustomKeyword')}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-3 py-2">
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.presetId')}</p>
+              <p className="text-xs text-muted-foreground">{t('debugConfig.customKeywordId')}</p>
               <Input
-                value={presetForm.id}
+                value={customKeywordForm.id}
                 onChange={(event) => {
-                  setPresetForm((current) => ({ ...current, id: event.target.value }))
+                  setCustomKeywordForm((current) => ({ ...current, id: event.target.value }))
                 }}
-                disabled={Boolean(editingPresetId)}
+                disabled={Boolean(editingCustomKeywordId)}
               />
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.presetName')}</p>
+              <p className="text-xs text-muted-foreground">{t('debugConfig.customKeywordKeyword')}</p>
               <Input
-                value={presetForm.name}
+                value={customKeywordForm.keyword}
                 onChange={(event) => {
-                  setPresetForm((current) => ({ ...current, name: event.target.value }))
+                  setCustomKeywordForm((current) => ({ ...current, keyword: event.target.value }))
                 }}
               />
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.presetCategory')}</p>
+              <p className="text-xs text-muted-foreground">{t('debugConfig.customKeywordEnglish')}</p>
               <Input
-                value={presetForm.category}
-                list="preset-category-options"
+                value={customKeywordForm.english}
                 onChange={(event) => {
-                  setPresetForm((current) => ({ ...current, category: event.target.value }))
+                  setCustomKeywordForm((current) => ({ ...current, english: event.target.value }))
                 }}
               />
-              <datalist id="preset-category-options">
-                {presetCategories.map((category) => (
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">{t('debugConfig.customKeywordCategory')}</p>
+              <Input
+                value={customKeywordForm.category}
+                list="custom-keyword-category-options"
+                onChange={(event) => {
+                  setCustomKeywordForm((current) => ({ ...current, category: event.target.value }))
+                }}
+              />
+              <datalist id="custom-keyword-category-options">
+                {customKeywordCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
                 ))}
               </datalist>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t('debugConfig.presetMinExp')}</p>
-                <Input
-                  type="number"
-                  value={presetForm.minExperience}
-                  onChange={(event) => {
-                    setPresetForm((current) => ({ ...current, minExperience: event.target.value }))
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t('debugConfig.presetMaxExp')}</p>
-                <Input
-                  type="number"
-                  value={presetForm.maxExperience}
-                  onChange={(event) => {
-                    setPresetForm((current) => ({ ...current, maxExperience: event.target.value }))
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.presetEducation')}</p>
-              <Input
-                value={presetForm.education}
-                onChange={(event) => {
-                  setPresetForm((current) => ({ ...current, education: event.target.value }))
-                }}
-              />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t('debugConfig.presetSalary')} (min)</p>
-                <Input
-                  type="number"
-                  value={presetForm.salaryMin}
-                  onChange={(event) => {
-                    setPresetForm((current) => ({ ...current, salaryMin: event.target.value }))
-                  }}
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">{t('debugConfig.presetSalary')} (max)</p>
-                <Input
-                  type="number"
-                  value={presetForm.salaryMax}
-                  onChange={(event) => {
-                    setPresetForm((current) => ({ ...current, salaryMax: event.target.value }))
-                  }}
-                />
-              </div>
             </div>
           </div>
 
@@ -1328,21 +1140,21 @@ export default function DebugConfig() {
             <Button
               variant="outline"
               onClick={() => {
-                setPresetDialogOpen(false)
+                setCustomKeywordDialogOpen(false)
               }}
-              disabled={savingPreset}
+              disabled={savingCustomKeyword}
             >
               {t('jdManagement.cancel')}
             </Button>
             <Button
               onClick={() => {
-                handleSavePreset().catch((error) => {
-                  console.error('Unexpected handleSavePreset failure', error)
+                handleSaveCustomKeyword().catch((error) => {
+                  console.error('Unexpected handleSaveCustomKeyword failure', error)
                 })
               }}
-              disabled={savingPreset}
+              disabled={savingCustomKeyword}
             >
-              {savingPreset ? `${t('debugConfig.save')}...` : t('debugConfig.save')}
+              {savingCustomKeyword ? `${t('debugConfig.save')}...` : t('debugConfig.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

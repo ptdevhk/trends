@@ -155,6 +155,27 @@ export class RuleScoringService {
     };
   }
 
+  buildContextFromKeywords(
+    keywords: string[],
+    location?: string,
+  ): RuleScoringContext {
+    const cleanKeywords = ensureKeywords(keywords);
+    const normalizedLocation = location?.trim();
+    const targetLocations = normalizedLocation ? [normalizedLocation] : [];
+    const industryTags = inferIndustryTags(cleanKeywords);
+
+    return {
+      jobDescriptionId: "keyword-search",
+      title: cleanKeywords.join(", "),
+      keywords: cleanKeywords,
+      targetLocations,
+      minExperience: undefined,
+      educationRequirements: [],
+      industryKeywords: cleanKeywords,
+      industryTags,
+    };
+  }
+
   scoreResume(index: ResumeIndex, context: RuleScoringContext): RuleScoringResult {
     const matchedSkills = context.keywords.filter((keyword) =>
       index.searchText.includes(keyword) || index.skills.some((skill) => skill.includes(keyword))

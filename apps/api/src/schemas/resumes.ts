@@ -275,7 +275,9 @@ export const MatchRequestSchema = z
   .object({
     sessionId: z.string().optional().openapi({ example: "session-123" }),
     sample: z.string().optional().openapi({ example: "sample-initial" }),
-    jobDescriptionId: z.string().openapi({ example: "lathe-sales" }),
+    jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),
+    keywords: z.array(z.string()).optional().openapi({ example: ["cnc", "车床"] }),
+    location: z.string().optional().openapi({ example: "广东" }),
     resumeIds: z.array(z.string()).optional().openapi({ example: ["R123456"] }),
     limit: z.number().int().min(1).max(1000).optional().openapi({ example: 50 }),
     topN: z.number().int().min(1).max(500).optional().openapi({ example: 20 }),

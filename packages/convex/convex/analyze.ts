@@ -45,6 +45,14 @@ export const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配�
   "summary": "中文总结"
 }`;
 
+export function buildKeywordRequirements(keywords: string[]): string {
+    return `候选人需具备以下关键技能/经验:\n${keywords.map((keyword) => `- ${keyword}`).join("\n")}`;
+}
+
+export function buildKeywordMatchingRules(keywords: string[]): string {
+    return `根据候选人与以下关键词的匹配程度评分。关键词越相关评分越高。\n关键词: ${keywords.join(", ")}`;
+}
+
 export function getAiApiKey(): string | undefined {
     return process.env.AI_API_KEY || process.env.OPENAI_API_KEY || undefined;
 }

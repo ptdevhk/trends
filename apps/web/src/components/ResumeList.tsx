@@ -103,6 +103,7 @@ export function ResumeList() {
   const { session, updateSession } = useSession()
   const [mode, setMode] = useState<'ai' | 'original'>('ai')
   const [jobDescriptionId, setJobDescriptionId] = useState('')
+  const [quickStartKeywords, setQuickStartKeywords] = useState<string[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
 
@@ -252,25 +253,38 @@ export function ResumeList() {
   )
 
   const handleMatchAll = useCallback(async () => {
-    if (!jobDescriptionId) return
+    if (jobDescriptionId) {
+      await matchAll({
+        sessionId: session?.id,
+        jobDescriptionId,
+        sample: selectedSample || undefined,
+        limit: 200,
+        topN: 20,
+        mode: 'hybrid',
+      })
+      return
+    }
+
+    if (quickStartKeywords.length === 0) return
     await matchAll({
       sessionId: session?.id,
-      jobDescriptionId,
+      keywords: quickStartKeywords,
+      location: filters.locations?.[0],
       sample: selectedSample || undefined,
       limit: 200,
       topN: 20,
-      mode: 'hybrid',
+      mode: 'rules_only',
     })
-  }, [jobDescriptionId, matchAll, selectedSample, session?.id])
+  }, [filters.locations, jobDescriptionId, matchAll, quickStartKeywords, selectedSample, session?.id])
 
   const handleAnalyzeAll = async () => {
     if (!convexResumes.length) return
+    if (!jobDescriptionId && quickStartKeywords.length === 0) return
     setAnalyzing(true)
     try {
-      let jdContent = ''
-      let jdTitle = ''
-
       if (jobDescriptionId) {
+        let jdContent = ''
+        let jdTitle = ''
         try {
           const { data } = await rawApiClient.GET<JobDescriptionApiResponse>(
             `/api/job-descriptions/${jobDescriptionId}`
@@ -282,15 +296,21 @@ export function ResumeList() {
         } catch (err) {
           console.error('Failed to fetch JD', err)
         }
-      }
 
-      await dispatchAnalysis({
-        jobDescriptionId: jobDescriptionId || 'default',
-        jobDescriptionTitle: jdTitle || undefined,
-        jobDescriptionContent: jdContent || undefined,
-        sample: selectedSample || undefined,
-        resumeIds: convexResumes.map((resume) => resume.resumeId),
-      })
+        await dispatchAnalysis({
+          jobDescriptionId,
+          jobDescriptionTitle: jdTitle || undefined,
+          jobDescriptionContent: jdContent || undefined,
+          sample: selectedSample || undefined,
+          resumeIds: convexResumes.map((resume) => resume.resumeId),
+        })
+      } else if (quickStartKeywords.length > 0) {
+        await dispatchAnalysis({
+          keywords: quickStartKeywords,
+          sample: selectedSample || undefined,
+          resumeIds: convexResumes.map((resume) => resume.resumeId),
+        })
+      }
       setAnalysisDispatchMessage({ type: 'success', text: t('aiTasks.dispatched') })
     } catch (e) {
       console.error('Failed to dispatch analysis task', e)
@@ -462,22 +482,18 @@ export function ResumeList() {
     return displayedResumes.filter((e) => (e.match?.score ?? 0) >= 80).length
   }, [displayedResumes])
 
+  const hasInput = Boolean(jobDescriptionId) || quickStartKeywords.length > 0
   const disableAnalyzeButton = mode === 'ai'
-    ? (!convexResumes.length || analyzing || matchLoading || !jobDescriptionId)
-    : (matchLoading || !jobDescriptionId)
+    ? (!convexResumes.length || analyzing || !hasInput)
+    : (matchLoading || !hasInput)
 
   const handleQuickStartApply = useCallback(
     (config: {
       location: string
       keywords: string[]
       jobDescriptionId?: string
-      filters?: {
-        minExperience?: number
-        maxExperience?: number | null
-        education?: string[]
-        salaryRange?: { min?: number; max?: number }
-      }
     }) => {
+      setQuickStartKeywords(config.keywords)
       if (config.jobDescriptionId) {
         setJobDescriptionId(config.jobDescriptionId)
         updateSession({ jobDescriptionId: config.jobDescriptionId })
@@ -489,23 +505,6 @@ export function ResumeList() {
       }
       if (config.keywords.length > 0) {
         nextFilters.skills = config.keywords
-      }
-      if (config.filters) {
-        if (config.filters.minExperience !== undefined) {
-          nextFilters.minExperience = config.filters.minExperience
-        }
-        if (config.filters.maxExperience !== undefined) {
-          nextFilters.maxExperience = config.filters.maxExperience ?? undefined
-        }
-        if (config.filters.education) {
-          nextFilters.education = config.filters.education
-        }
-        if (config.filters.salaryRange?.min !== undefined) {
-          nextFilters.minSalary = config.filters.salaryRange.min
-        }
-        if (config.filters.salaryRange?.max !== undefined) {
-          nextFilters.maxSalary = config.filters.salaryRange.max
-        }
       }
       setFilters(nextFilters)
       updateSession({ filters: nextFilters })
@@ -541,7 +540,7 @@ export function ResumeList() {
             size="sm"
             onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll}
             disabled={disableAnalyzeButton}
-            title={mode === 'ai' && !jobDescriptionId ? t('resumes.selectJobDescriptionFirst') : undefined}
+            title={!hasInput ? t('resumes.selectKeywordsOrJobDescription', '请选择关键词或职位描述') : undefined}
           >
             <RefreshCw className={cn('mr-2 h-4 w-4', (analyzing || matchLoading) && 'animate-spin')} />
             {mode === 'ai'

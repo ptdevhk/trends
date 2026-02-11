@@ -2,7 +2,15 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { SYSTEM_PROMPT, USER_PROMPT_TEMPLATE, callLLM, getAiApiKey, normalizeResume } from "./analyze";
+import {
+    SYSTEM_PROMPT,
+    USER_PROMPT_TEMPLATE,
+    buildKeywordMatchingRules,
+    buildKeywordRequirements,
+    callLLM,
+    getAiApiKey,
+    normalizeResume,
+} from "./analyze";
 
 type AnalysisTaskStatus = "pending" | "processing" | "completed" | "failed" | "cancelled";
 
@@ -86,6 +94,16 @@ function extractKeywords(input: string): string[] {
     return [...new Set(matched)];
 }
 
+function normalizeKeywords(keywords: string[]): string[] {
+    return Array.from(
+        new Set(
+            keywords
+                .map((keyword) => keyword.trim().toLowerCase())
+                .filter((keyword) => keyword.length > 0)
+        )
+    );
+}
+
 function classifyResumes(
     resumes: Doc<"resumes">[],
     keywords: string[]
@@ -121,15 +139,25 @@ function classifyResumes(
 async function analyzeOneResume(
     resume: Doc<"resumes">,
     config: {
-        jobDescriptionId: string;
+        jobDescriptionId?: string;
         jobDescriptionTitle?: string;
         jobDescriptionContent?: string;
+        keywords?: string[];
     },
     apiKey: string
 ): Promise<AnalysisResult> {
-    const jobTitle = config.jobDescriptionTitle || config.jobDescriptionId || "销售经理 (通用)";
-    const requirements = config.jobDescriptionContent || "具备销售经验，沟通能力强，熟悉机床行业优先。";
-    const matchingRules = "使用默认评分标准";
+    const normalizedKeywords = normalizeKeywords(config.keywords ?? []);
+    const useKeywordPath = normalizedKeywords.length > 0 && !config.jobDescriptionContent;
+
+    const jobTitle = config.jobDescriptionTitle
+        || config.jobDescriptionId
+        || (useKeywordPath ? normalizedKeywords.join(", ") : "销售经理 (通用)");
+    const requirements = useKeywordPath
+        ? buildKeywordRequirements(normalizedKeywords)
+        : (config.jobDescriptionContent || "具备销售经验，沟通能力强，熟悉机床行业优先。");
+    const matchingRules = useKeywordPath
+        ? buildKeywordMatchingRules(normalizedKeywords)
+        : "使用默认评分标准";
     const normalizedResume = normalizeResume(resume.content);
 
     const prompt = USER_PROMPT_TEMPLATE
@@ -180,15 +208,17 @@ export const getSummary = query({
 
 export const dispatch = mutation({
     args: {
-        jobDescriptionId: v.string(),
+        jobDescriptionId: v.optional(v.string()),
         jobDescriptionTitle: v.optional(v.string()),
         jobDescriptionContent: v.optional(v.string()),
+        keywords: v.optional(v.array(v.string())),
         sample: v.optional(v.string()),
         resumeIds: v.array(v.id("resumes")),
     },
     handler: async (ctx, args) => {
-        if (!args.jobDescriptionId || args.jobDescriptionId === "default") {
-            throw new Error("Job Description must be selected for analysis.");
+        const normalizedKeywords = normalizeKeywords(args.keywords ?? []);
+        if (!args.jobDescriptionContent && normalizedKeywords.length === 0) {
+            throw new Error("Either jobDescriptionContent or keywords is required for analysis.");
         }
 
         const taskId = await ctx.db.insert("analysis_tasks", {
@@ -196,6 +226,7 @@ export const dispatch = mutation({
                 jobDescriptionId: args.jobDescriptionId,
                 jobDescriptionTitle: args.jobDescriptionTitle,
                 jobDescriptionContent: args.jobDescriptionContent,
+                keywords: normalizedKeywords.length > 0 ? normalizedKeywords : undefined,
                 sample: args.sample,
                 resumeCount: args.resumeIds.length,
             },
@@ -384,8 +415,11 @@ export const processAnalysisTask = internalAction({
                 resumeIds: args.resumeIds,
             });
             const keywordSource = `${task.config.jobDescriptionContent ?? ""} ${task.config.jobDescriptionTitle ?? ""}`;
-            const keywords = extractKeywords(keywordSource);
+            const keywords = task.config.keywords && task.config.keywords.length > 0
+                ? normalizeKeywords(task.config.keywords)
+                : extractKeywords(keywordSource);
             const { toAnalyze, toSkip } = classifyResumes(resumes, keywords);
+            const analysisJobDescriptionId = task.config.jobDescriptionId || "keyword-search";
 
             skippedCount = toSkip.length;
 
@@ -401,7 +435,7 @@ export const processAnalysisTask = internalAction({
                             breakdown: {
                                 keyword_match: 10,
                             },
-                            jobDescriptionId: task.config.jobDescriptionId,
+                            jobDescriptionId: analysisJobDescriptionId,
                         },
                     })),
                 });
@@ -430,6 +464,7 @@ export const processAnalysisTask = internalAction({
                                 jobDescriptionId: task.config.jobDescriptionId,
                                 jobDescriptionTitle: task.config.jobDescriptionTitle,
                                 jobDescriptionContent: task.config.jobDescriptionContent,
+                                keywords: task.config.keywords,
                             },
                             apiKey
                         );
@@ -442,7 +477,7 @@ export const processAnalysisTask = internalAction({
                                 highlights: result.highlights,
                                 recommendation: result.recommendation,
                                 breakdown: result.breakdown,
-                                jobDescriptionId: task.config.jobDescriptionId,
+                                jobDescriptionId: analysisJobDescriptionId,
                             },
                         });
 

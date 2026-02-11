@@ -127,6 +127,7 @@
       "manage": "管理職位"
     },
     "selectJobDescriptionFirst": "請先選擇職位描述",
+    "selectKeywordsOrJobDescription": "請選擇關鍵詞或職位描述",
     "matching": {
       "matchAll": "AI 匹配全部",
       "running": "匹配中...",
@@ -296,7 +297,7 @@
   },
   "debugConfig": {
     "title": "系統配置",
-    "subtitle": "查看和編輯 Agent 流程、篩選預設和 AI 服務設定",
+    "subtitle": "查看和編輯 Agent 流程、自定義關鍵詞和 AI 服務設定",
     "aiStatus": "AI 服務狀態",
     "aiEnabled": "已啟用",
     "aiDisabled": "未啟用",
@@ -317,6 +318,15 @@
     "save": "儲存",
     "saved": "已儲存",
     "saveError": "儲存失敗",
+    "customKeywords": "自定義關鍵詞",
+    "customKeywordsDescription": "管理可在簡歷頁面關鍵詞晶片中使用的自定義標籤",
+    "addCustomKeyword": "新增關鍵詞",
+    "editCustomKeyword": "編輯",
+    "deleteCustomKeyword": "刪除",
+    "customKeywordId": "ID",
+    "customKeywordKeyword": "關鍵詞",
+    "customKeywordEnglish": "English",
+    "customKeywordCategory": "類別",
     "presets": "篩選預設",
     "presetsDescription": "常用搜尋模式的快速篩選配置",
     "addPreset": "新增預設",

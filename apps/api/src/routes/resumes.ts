@@ -55,7 +55,9 @@ const ClearMatchesResponseSchema = z.object({
 const RescoreRequestSchema = z.object({
   sessionId: z.string().optional(),
   sample: z.string().optional(),
-  jobDescriptionId: z.string(),
+  jobDescriptionId: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+  location: z.string().optional(),
   resumeIds: z.array(z.string()).optional(),
   limit: z.number().int().min(1).max(1000).optional(),
 });
@@ -119,6 +121,35 @@ function extractCompanies(workHistory: ResumeItem["workHistory"]): string[] | un
     .filter(Boolean);
   if (entries.length === 0) return undefined;
   return Array.from(new Set(entries)).slice(0, 8);
+}
+
+function normalizeKeywords(keywords: string[] | undefined): string[] {
+  if (!Array.isArray(keywords)) return [];
+  return Array.from(
+    new Set(
+      keywords
+        .map((item) => item.trim().toLowerCase())
+        .filter((item) => item.length > 0)
+    )
+  );
+}
+
+function toKeywordJobDescriptionId(keywords: string[], location?: string): string {
+  const locationPart = location?.trim() ? `@${location.trim()}` : "";
+  return `keyword-search:${keywords.join("|")}${locationPart}`;
+}
+
+function buildKeywordRequirements(keywords: string[]): string {
+  return `候选人需具备以下关键技能/经验:\n${keywords.map((keyword) => `- ${keyword}`).join("\n")}`;
+}
+
+function buildKeywordResponsibilities(keywords: string[], location?: string): string | undefined {
+  const parts = [
+    `核心关键词: ${keywords.join(", ")}`,
+    location?.trim() ? `目标地点: ${location.trim()}` : undefined,
+  ].filter((item): item is string => Boolean(item));
+  if (parts.length === 0) return undefined;
+  return parts.join("\n");
 }
 
 function mapStoredMatch(match: StoredMatch): {
@@ -465,6 +496,10 @@ const matchResumesRoute = createRoute({
       content: { "application/json": { schema: MatchResponseSchema } },
       description: "Matching results",
     },
+    400: {
+      content: { "application/json": { schema: SimpleErrorSchema } },
+      description: "Invalid request",
+    },
     404: {
       content: { "application/json": { schema: SimpleErrorSchema } },
       description: "Session or job description not found",
@@ -477,12 +512,23 @@ app.openapi(matchResumesRoute, async (c) => {
   const {
     sessionId,
     jobDescriptionId,
+    keywords,
+    location,
     sample,
     resumeIds,
     limit,
     topN,
     mode: modeInput,
   } = requestPayload;
+
+  const normalizedJobDescriptionId = jobDescriptionId?.trim();
+  const normalizedKeywords = normalizeKeywords(keywords);
+  if (!normalizedJobDescriptionId && normalizedKeywords.length === 0) {
+    return c.json({ success: false, error: "jobDescriptionId or keywords is required" }, 400);
+  }
+  const matchJobDescriptionId = normalizedJobDescriptionId
+    ? normalizedJobDescriptionId
+    : toKeywordJobDescriptionId(normalizedKeywords, location);
 
   const mode = toMatchMode(modeInput);
 
@@ -493,12 +539,12 @@ app.openapi(matchResumesRoute, async (c) => {
 
   if (!session) {
     session = sessionManager.createSession({
-      jobDescriptionId,
+      jobDescriptionId: normalizedJobDescriptionId,
       sampleName: sample,
     });
   } else {
     session = sessionManager.updateSession(session.id, {
-      jobDescriptionId,
+      jobDescriptionId: normalizedJobDescriptionId,
       sampleName: sample ?? session.sampleName,
     }) ?? session;
   }
@@ -514,9 +560,14 @@ app.openapi(matchResumesRoute, async (c) => {
     const sampleData = resumeService.loadSample(sampleName);
     items = sampleData.items;
     indexMap = sampleData.indexes;
-    const jdData = jobService.loadFile(jobDescriptionId);
-    jdMeta = { title: jdData.title };
-    content = jdData.content;
+
+    if (normalizedJobDescriptionId) {
+      const jdData = jobService.loadFile(normalizedJobDescriptionId);
+      jdMeta = { title: jdData.title };
+      content = jdData.content;
+    } else {
+      jdMeta = { title: normalizedKeywords.join(", ") };
+    }
   } catch (error) {
     if (error instanceof DataNotFoundError) {
       return c.json({ success: false, error: error.message }, 404);
@@ -532,8 +583,12 @@ app.openapi(matchResumesRoute, async (c) => {
 
   const limited = typeof limit === "number" ? selected.slice(0, limit) : selected;
 
-  const requirements = extractSection(content, ["Requirements", "任职要求", "要求"]) || stripFrontMatter(content);
-  const responsibilities = extractSection(content, ["Responsibilities", "岗位职责", "职责"]);
+  const requirements = normalizedJobDescriptionId
+    ? (extractSection(content, ["Requirements", "任职要求", "要求"]) || stripFrontMatter(content))
+    : buildKeywordRequirements(normalizedKeywords);
+  const responsibilities = normalizedJobDescriptionId
+    ? extractSection(content, ["Responsibilities", "岗位职责", "职责"])
+    : buildKeywordResponsibilities(normalizedKeywords, location);
 
   const prepared = limited.map((item) => ({
     ...item,
@@ -546,7 +601,7 @@ app.openapi(matchResumesRoute, async (c) => {
     matchStorage.createMatchRun({
       id: runId,
       sessionId: session?.id,
-      jobDescriptionId,
+      jobDescriptionId: matchJobDescriptionId,
       sampleName: sampleName ?? undefined,
       mode,
       totalCount: prepared.length,
@@ -557,13 +612,15 @@ app.openapi(matchResumesRoute, async (c) => {
 
   try {
     if (mode === "rules_only" || mode === "hybrid") {
-      const context = ruleScoringService.buildContext(jobDescriptionId);
+      const context = normalizedJobDescriptionId
+        ? ruleScoringService.buildContext(normalizedJobDescriptionId)
+        : ruleScoringService.buildContextFromKeywords(normalizedKeywords, location);
       const scored = ruleScoringService.scoreBatch(prepared.map((item) => item.indexData), context);
 
       const entries = scored.map((entry) => ({
         sessionId: session?.id,
         resumeId: entry.resumeId,
-        jobDescriptionId,
+        jobDescriptionId: matchJobDescriptionId,
         sampleName: sampleName ?? undefined,
         result: ruleScoringService.toMatchingResult(entry.result),
         aiModel: "rule-scoring",
@@ -576,7 +633,7 @@ app.openapi(matchResumesRoute, async (c) => {
 
       const storedMatches = matchStorage.getMatchesByResumeIds(
         prepared.map((item) => item.resumeId),
-        jobDescriptionId
+        matchJobDescriptionId
       );
 
       const results = storedMatches
@@ -618,7 +675,7 @@ app.openapi(matchResumesRoute, async (c) => {
 
     const cachedMatches = matchStorage.getMatchesByResumeIds(
       prepared.map((item) => item.resumeId),
-      jobDescriptionId
+      matchJobDescriptionId
     );
     const cachedMap = new Map(cachedMatches.map((match) => [match.resumeId, match]));
 
@@ -632,7 +689,7 @@ app.openapi(matchResumesRoute, async (c) => {
       const batchResult = await aiService.matchBatch(
         toProcess.map((item) => buildAiResumePayload(item)),
         {
-          title: jdMeta.title || jobDescriptionId,
+          title: jdMeta.title || matchJobDescriptionId,
           requirements,
           responsibilities,
         }
@@ -641,7 +698,7 @@ app.openapi(matchResumesRoute, async (c) => {
       const entries = batchResult.results.map((entry) => ({
         sessionId: session?.id,
         resumeId: entry.resumeId,
-        jobDescriptionId,
+        jobDescriptionId: matchJobDescriptionId,
         sampleName: sampleName ?? undefined,
         result: {
           ...entry.result,
@@ -658,7 +715,7 @@ app.openapi(matchResumesRoute, async (c) => {
 
     const finalMatches = matchStorage.getMatchesByResumeIds(
       prepared.map((item) => item.resumeId),
-      jobDescriptionId
+      matchJobDescriptionId
     );
 
     const finalResults = finalMatches
@@ -710,12 +767,23 @@ app.post("/api/resumes/match-stream", async (c) => {
   const {
     sessionId,
     jobDescriptionId,
+    keywords,
+    location,
     sample,
     resumeIds,
     limit,
     topN,
     mode: modeInput,
   } = parsed.data;
+
+  const normalizedJobDescriptionId = jobDescriptionId?.trim();
+  const normalizedKeywords = normalizeKeywords(keywords);
+  if (!normalizedJobDescriptionId && normalizedKeywords.length === 0) {
+    return c.json({ success: false, error: "jobDescriptionId or keywords is required" }, 400);
+  }
+  const matchJobDescriptionId = normalizedJobDescriptionId
+    ? normalizedJobDescriptionId
+    : toKeywordJobDescriptionId(normalizedKeywords, location);
 
   const mode = toMatchMode(modeInput);
   const requestedTopN = toTopN(topN);
@@ -727,7 +795,7 @@ app.post("/api/resumes/match-stream", async (c) => {
 
   if (!session) {
     session = sessionManager.createSession({
-      jobDescriptionId,
+      jobDescriptionId: normalizedJobDescriptionId,
       sampleName: sample,
     });
   }
@@ -743,9 +811,13 @@ app.post("/api/resumes/match-stream", async (c) => {
     const sampleData = resumeService.loadSample(sampleName);
     items = sampleData.items;
     indexMap = sampleData.indexes;
-    const jdData = jobService.loadFile(jobDescriptionId);
-    jdMeta = { title: jdData.title };
-    content = jdData.content;
+    if (normalizedJobDescriptionId) {
+      const jdData = jobService.loadFile(normalizedJobDescriptionId);
+      jdMeta = { title: jdData.title };
+      content = jdData.content;
+    } else {
+      jdMeta = { title: normalizedKeywords.join(", ") };
+    }
   } catch (error) {
     if (error instanceof DataNotFoundError) {
       return c.json({ success: false, error: error.message }, 404);
@@ -761,8 +833,12 @@ app.post("/api/resumes/match-stream", async (c) => {
 
   const limited = typeof limit === "number" ? selected.slice(0, limit) : selected;
 
-  const requirements = extractSection(content, ["Requirements", "任职要求", "要求"]) || stripFrontMatter(content);
-  const responsibilities = extractSection(content, ["Responsibilities", "岗位职责", "职责"]);
+  const requirements = normalizedJobDescriptionId
+    ? (extractSection(content, ["Requirements", "任职要求", "要求"]) || stripFrontMatter(content))
+    : buildKeywordRequirements(normalizedKeywords);
+  const responsibilities = normalizedJobDescriptionId
+    ? extractSection(content, ["Responsibilities", "岗位职责", "职责"])
+    : buildKeywordResponsibilities(normalizedKeywords, location);
 
   const prepared = limited.map((item) => ({
     ...item,
@@ -774,7 +850,7 @@ app.post("/api/resumes/match-stream", async (c) => {
   matchStorage.createMatchRun({
     id: runId,
     sessionId: session?.id,
-    jobDescriptionId,
+    jobDescriptionId: matchJobDescriptionId,
     sampleName: sampleName ?? undefined,
     mode,
     totalCount: prepared.length,
@@ -825,7 +901,9 @@ app.post("/api/resumes/match-stream", async (c) => {
         let ruleOrdered = prepared;
 
         if (mode === "rules_only" || mode === "hybrid") {
-          const context = ruleScoringService.buildContext(jobDescriptionId);
+          const context = normalizedJobDescriptionId
+            ? ruleScoringService.buildContext(normalizedJobDescriptionId)
+            : ruleScoringService.buildContextFromKeywords(normalizedKeywords, location);
           const scored = ruleScoringService.scoreBatch(prepared.map((item) => item.indexData), context);
           const orderedRuleResults = scored
             .map((entry) => ({
@@ -835,7 +913,7 @@ app.post("/api/resumes/match-stream", async (c) => {
             .sort((a, b) => b.result.score - a.result.score);
           const existingRuleScopeMatches = matchStorage.getMatchesByResumeIds(
             prepared.map((item) => item.resumeId),
-            jobDescriptionId
+            matchJobDescriptionId
           );
           const existingRuleScopeMap = new Map(
             existingRuleScopeMatches.map((match) => [match.resumeId, match])
@@ -849,7 +927,7 @@ app.post("/api/resumes/match-stream", async (c) => {
             .map(({ resumeId, result }) => ({
               sessionId: session?.id,
               resumeId,
-              jobDescriptionId,
+              jobDescriptionId: matchJobDescriptionId,
               sampleName: sampleName ?? undefined,
               result,
               aiModel: "rule-scoring",
@@ -869,7 +947,7 @@ app.post("/api/resumes/match-stream", async (c) => {
             mode,
             results: orderedRuleResults.map(({ resumeId, result }) => ({
               resumeId,
-              jobDescriptionId,
+              jobDescriptionId: matchJobDescriptionId,
               ...result,
               matchedAt: ruleMatchedAt,
               sessionId: session?.id,
@@ -900,7 +978,7 @@ app.post("/api/resumes/match-stream", async (c) => {
 
           const aiCandidates = ruleOrdered.slice(0, requestedTopN);
           const topIds = aiCandidates.map((item) => item.resumeId);
-          const existingTopMatches = matchStorage.getMatchesByResumeIds(topIds, jobDescriptionId);
+          const existingTopMatches = matchStorage.getMatchesByResumeIds(topIds, matchJobDescriptionId);
           const existingTopMap = new Map(existingTopMatches.map((match) => [match.resumeId, match]));
 
           let aiDone = 0;
@@ -931,7 +1009,7 @@ app.post("/api/resumes/match-stream", async (c) => {
             const batchResult = await aiService.matchBatch(
               processQueue.map((item) => buildAiResumePayload(item)),
               {
-                title: jdMeta.title || jobDescriptionId,
+                title: jdMeta.title || matchJobDescriptionId,
                 requirements,
                 responsibilities,
               },
@@ -945,7 +1023,7 @@ app.post("/api/resumes/match-stream", async (c) => {
                   matchStorage.saveMatch({
                     sessionId: session?.id,
                     resumeId,
-                    jobDescriptionId,
+                    jobDescriptionId: matchJobDescriptionId,
                     sampleName: sampleName ?? undefined,
                     result: payload,
                     aiModel: aiService.getServiceInfo().model,
@@ -956,7 +1034,7 @@ app.post("/api/resumes/match-stream", async (c) => {
                     resumeId,
                     result: {
                       resumeId,
-                      jobDescriptionId,
+                      jobDescriptionId: matchJobDescriptionId,
                       ...payload,
                       matchedAt: new Date().toISOString(),
                       sessionId: session?.id,
@@ -975,7 +1053,7 @@ app.post("/api/resumes/match-stream", async (c) => {
           }
 
           const finalTopMatches = matchStorage
-            .getMatchesByResumeIds(topIds, jobDescriptionId)
+            .getMatchesByResumeIds(topIds, matchJobDescriptionId)
             .sort((a, b) => b.score - a.score);
           const finalScoreMap = new Map(
             orderedRuleResults.map((entry) => [entry.resumeId, entry.result.score])
@@ -1010,7 +1088,7 @@ app.post("/api/resumes/match-stream", async (c) => {
         const batchResult = await aiService.matchBatch(
           prepared.map((item) => buildAiResumePayload(item)),
           {
-            title: jdMeta.title || jobDescriptionId,
+            title: jdMeta.title || matchJobDescriptionId,
             requirements,
             responsibilities,
           },
@@ -1024,7 +1102,7 @@ app.post("/api/resumes/match-stream", async (c) => {
               matchStorage.saveMatch({
                 sessionId: session?.id,
                 resumeId,
-                jobDescriptionId,
+                jobDescriptionId: matchJobDescriptionId,
                 sampleName: sampleName ?? undefined,
                 result: payload,
                 aiModel: aiService.getServiceInfo().model,
@@ -1035,7 +1113,7 @@ app.post("/api/resumes/match-stream", async (c) => {
                 resumeId,
                 result: {
                   resumeId,
-                  jobDescriptionId,
+                  jobDescriptionId: matchJobDescriptionId,
                   ...payload,
                   matchedAt: new Date().toISOString(),
                   sessionId: session?.id,
@@ -1212,6 +1290,10 @@ const rescoreResumeMatchesRoute = createRoute({
       content: { "application/json": { schema: MatchRescoreResponseSchema } },
       description: "Re-scored results",
     },
+    400: {
+      content: { "application/json": { schema: SimpleErrorSchema } },
+      description: "Invalid request",
+    },
     404: {
       content: { "application/json": { schema: SimpleErrorSchema } },
       description: "Session or data not found",
@@ -1220,7 +1302,15 @@ const rescoreResumeMatchesRoute = createRoute({
 });
 
 app.openapi(rescoreResumeMatchesRoute, (c) => {
-  const { sessionId, sample, jobDescriptionId, resumeIds, limit } = c.req.valid("json");
+  const { sessionId, sample, jobDescriptionId, keywords, location, resumeIds, limit } = c.req.valid("json");
+  const normalizedJobDescriptionId = jobDescriptionId?.trim();
+  const normalizedKeywords = normalizeKeywords(keywords);
+  if (!normalizedJobDescriptionId && normalizedKeywords.length === 0) {
+    return c.json({ success: false, error: "jobDescriptionId or keywords is required" }, 400);
+  }
+  const matchJobDescriptionId = normalizedJobDescriptionId
+    ? normalizedJobDescriptionId
+    : toKeywordJobDescriptionId(normalizedKeywords, location);
 
   const session = sessionId ? sessionManager.getSession(sessionId) : null;
   if (sessionId && !session) {
@@ -1236,7 +1326,9 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
     const sampleData = resumeService.loadSample(sampleName);
     items = sampleData.items;
     indexMap = sampleData.indexes;
-    jobService.loadFile(jobDescriptionId);
+    if (normalizedJobDescriptionId) {
+      jobService.loadFile(normalizedJobDescriptionId);
+    }
   } catch (error) {
     if (error instanceof DataNotFoundError) {
       return c.json({ success: false, error: error.message }, 404);
@@ -1252,7 +1344,9 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
 
   const limited = typeof limit === "number" ? selected.slice(0, limit) : selected;
 
-  const context = ruleScoringService.buildContext(jobDescriptionId);
+  const context = normalizedJobDescriptionId
+    ? ruleScoringService.buildContext(normalizedJobDescriptionId)
+    : ruleScoringService.buildContextFromKeywords(normalizedKeywords, location);
   const scored = ruleScoringService.scoreBatch(
     limited.map((item) => indexMap.get(item.resumeId) ?? createFallbackIndex(item.resume, item.resumeId)),
     context
@@ -1262,7 +1356,7 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
   const entries = scored.map((entry) => ({
     sessionId: session?.id,
     resumeId: entry.resumeId,
-    jobDescriptionId,
+    jobDescriptionId: matchJobDescriptionId,
     sampleName: sampleName ?? undefined,
     result: ruleScoringService.toMatchingResult(entry.result),
     aiModel: "rule-scoring",
@@ -1274,7 +1368,7 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
   }
 
   const finalMatches = matchStorage
-    .getMatchesByResumeIds(limited.map((item) => item.resumeId), jobDescriptionId)
+    .getMatchesByResumeIds(limited.map((item) => item.resumeId), matchJobDescriptionId)
     .sort((a, b) => b.score - a.score);
 
   const results = finalMatches.map((match) => mapStoredMatch(match));
