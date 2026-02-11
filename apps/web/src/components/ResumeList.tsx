@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
@@ -96,7 +96,7 @@ function buildResumeKey(resume: ResumeItem, index: number): string {
 export function ResumeList() {
   const { t } = useTranslation()
   const { session, updateSession } = useSession()
-  const [mode, setMode] = useState<'ai' | 'original'>('original')
+  const [mode, setMode] = useState<'ai' | 'original'>('ai')
   const [jobDescriptionId, setJobDescriptionId] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -127,7 +127,6 @@ export function ResumeList() {
     matchAll,
     fetchMatches,
   } = useAiMatching()
-  const autoRunKeyRef = useRef<string>('')
   const { actions, saveAction } = useCandidateActions(session?.id)
 
   // Convex Integration
@@ -197,27 +196,6 @@ export function ResumeList() {
       fetchMatches(session.id, jobDescriptionId)
     }
   }, [fetchMatches, jobDescriptionId, session?.id])
-
-  useEffect(() => {
-    if (mode !== 'original') {
-      autoRunKeyRef.current = ''
-      return
-    }
-    if (!jobDescriptionId) return
-
-    const triggerKey = `${session?.id || 'no-session'}:${selectedSample || ''}:${jobDescriptionId}`
-    if (autoRunKeyRef.current === triggerKey) return
-
-    autoRunKeyRef.current = triggerKey
-    void matchAll({
-      sessionId: session?.id,
-      jobDescriptionId,
-      sample: selectedSample || undefined,
-      limit: 200,
-      topN: 20,
-      mode: 'hybrid',
-    })
-  }, [jobDescriptionId, matchAll, mode, selectedSample, session?.id])
 
   useEffect(() => {
     setSelectedIds(new Set())

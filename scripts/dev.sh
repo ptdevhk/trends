@@ -227,6 +227,14 @@ has_bun() {
     command -v bun >/dev/null 2>&1
 }
 
+convex_cli_runner() {
+    if has_bun; then
+        echo "bunx"
+    else
+        echo "npx"
+    fi
+}
+
 local_js_runner() {
     if has_bun; then
         echo "bun"
@@ -249,6 +257,64 @@ run_local_js_script() {
     else
         npm run --silent "$script"
     fi
+}
+
+sync_convex_ai_env() {
+    local convex_dir="$PROJECT_ROOT/packages/convex"
+    local convex_env_file="$convex_dir/.env.local"
+    local runner
+    local key
+    local value
+    local synced=0
+    local failed=0
+    local keys=("AI_ANALYSIS_ENABLED" "AI_MODEL" "AI_API_KEY" "AI_API_BASE")
+
+    if [ ! -d "$convex_dir" ]; then
+        return 0
+    fi
+
+    runner="$(convex_cli_runner)"
+
+    for key in "${keys[@]}"; do
+        value="${!key:-}"
+        if [ -z "$value" ]; then
+            continue
+        fi
+
+        if [ -f "$convex_env_file" ]; then
+            if (
+                cd "$convex_dir" &&
+                "$runner" convex env set --env-file "$convex_env_file" "$key" "$value" >/dev/null 2>&1
+            ); then
+                synced=$((synced + 1))
+            else
+                log "CONVEX" "$YELLOW" "Failed to sync $key into Convex deployment env."
+                failed=$((failed + 1))
+            fi
+        else
+            if (
+                cd "$convex_dir" &&
+                "$runner" convex env set "$key" "$value" >/dev/null 2>&1
+            ); then
+                synced=$((synced + 1))
+            else
+                log "CONVEX" "$YELLOW" "Failed to sync $key into Convex deployment env."
+                failed=$((failed + 1))
+            fi
+        fi
+    done
+
+    if [ "$synced" -gt 0 ]; then
+        log "CONVEX" "$GREEN" "Synced $synced AI env var(s) to Convex deployment."
+    else
+        log "CONVEX" "$YELLOW" "No AI env vars found in system environment (expected AI_ANALYSIS_ENABLED/AI_MODEL/AI_API_KEY/AI_API_BASE)."
+    fi
+
+    if [ "$failed" -gt 0 ]; then
+        log "CONVEX" "$YELLOW" "$failed Convex env var(s) failed to sync."
+    fi
+
+    return 0
 }
 
 is_windows_uname() {
@@ -713,6 +779,7 @@ start_convex() {
                 return 1
             fi
         fi
+        sync_convex_ai_env
         return 0
     fi
 
@@ -736,6 +803,7 @@ start_convex() {
                 return 1
             fi
         fi
+        sync_convex_ai_env
         return 0
     fi
 
@@ -790,6 +858,7 @@ start_convex() {
             return 1
         fi
     fi
+    sync_convex_ai_env
 }
 
 run_seed_script() {

@@ -124,8 +124,29 @@ export function MatchRunHistory({ sessionId, jobDescriptionId }: MatchRunHistory
   }
 
   const hasActive = activeRuns.length > 0
+  const latestFinishedRun = finishedRuns[0]
+  const latestFinishedFailed = latestFinishedRun?.status === 'failed'
 
   if (!hasActive && !showHistory && finishedRuns.length > 0) {
+    if (latestFinishedFailed) {
+      return (
+        <Card className="mb-6 bg-muted/20">
+          <CardContent className="flex items-center justify-between py-3">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <XCircle className="h-4 w-4" />
+              <span>
+                {t('aiTasks.monitor.failed')}
+                {latestFinishedRun?.error ? `: ${latestFinishedRun.error}` : ''}
+              </span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)} className="h-8 text-xs">
+              {t('aiTasks.monitor.showHistory')}
+            </Button>
+          </CardContent>
+        </Card>
+      )
+    }
+
     return (
       <Card className="mb-6 bg-muted/20">
         <CardContent className="flex items-center justify-between py-3">

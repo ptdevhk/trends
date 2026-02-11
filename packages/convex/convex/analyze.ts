@@ -45,6 +45,18 @@ export const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配�
   "summary": "中文总结"
 }`;
 
+export function getAiApiKey(): string | undefined {
+    return process.env.AI_API_KEY || process.env.OPENAI_API_KEY || undefined;
+}
+
+export function getAiApiBase(): string {
+    return process.env.AI_API_BASE || process.env.OPENAI_API_BASE || "https://api.openai.com/v1";
+}
+
+export function getAiModel(): string {
+    return process.env.AI_MODEL || process.env.OPENAI_MODEL || "gpt-4-turbo-preview";
+}
+
 // Helper to normalize resume data
 export function normalizeResume(data: any) {
     return {
@@ -60,7 +72,7 @@ export function normalizeResume(data: any) {
 
 // Helper to call OpenAI/Compatible API
 export async function callLLM(messages: any[], apiKey: string) {
-    const apiBase = process.env.OPENAI_API_BASE || "https://api.openai.com/v1";
+    const apiBase = getAiApiBase();
     const url = `${apiBase}/chat/completions`;
 
     console.log(`Calling LLM at ${url}...`);
@@ -72,7 +84,7 @@ export async function callLLM(messages: any[], apiKey: string) {
             "Authorization": `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-            model: process.env.OPENAI_MODEL || "gpt-4-turbo-preview", // Configurable
+            model: getAiModel(), // Configurable
             messages: messages,
             temperature: 0.1,
             // strict json mode is often supported but sometimes model-dependent
@@ -125,9 +137,9 @@ export const analyzeResume = action({
         jobDescriptionId: v.optional(v.string()), // Added ID
     },
     handler: async (ctx, args) => {
-        const apiKey = process.env.OPENAI_API_KEY;
+        const apiKey = getAiApiKey();
         if (!apiKey) {
-            throw new Error("OPENAI_API_KEY is not set in Convex environment variables.");
+            throw new Error("AI_API_KEY/OPENAI_API_KEY is not set in Convex environment variables.");
         }
 
         const resume = await ctx.runQuery(internal.resumes.getResume, { resumeId: args.resumeId });

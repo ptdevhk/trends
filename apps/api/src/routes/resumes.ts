@@ -764,6 +764,7 @@ app.post("/api/resumes/match-stream", async (c) => {
     ...item,
     indexData: indexMap.get(item.resumeId) ?? createFallbackIndex(item.resume, item.resumeId),
   }));
+  const preparedMap = new Map(prepared.map((item) => [item.resumeId, item]));
 
   const runId = randomUUID();
   matchStorage.createMatchRun({
@@ -822,42 +823,59 @@ app.post("/api/resumes/match-stream", async (c) => {
         if (mode === "rules_only" || mode === "hybrid") {
           const context = ruleScoringService.buildContext(jobDescriptionId);
           const scored = ruleScoringService.scoreBatch(prepared.map((item) => item.indexData), context);
+          const orderedRuleResults = scored
+            .map((entry) => ({
+              resumeId: entry.resumeId,
+              result: ruleScoringService.toMatchingResult(entry.result),
+            }))
+            .sort((a, b) => b.result.score - a.result.score);
+          const existingRuleScopeMatches = matchStorage.getMatchesByResumeIds(
+            prepared.map((item) => item.resumeId),
+            jobDescriptionId
+          );
+          const existingRuleScopeMap = new Map(
+            existingRuleScopeMatches.map((match) => [match.resumeId, match])
+          );
 
-          const ruleEntries = scored.map((entry) => ({
-            sessionId: session?.id,
-            resumeId: entry.resumeId,
-            jobDescriptionId,
-            sampleName: sampleName ?? undefined,
-            result: ruleScoringService.toMatchingResult(entry.result),
-            aiModel: "rule-scoring",
-            processingTimeMs: Date.now() - startTime,
-          }));
+          const ruleEntries = orderedRuleResults
+            .filter(({ resumeId }) => {
+              const existing = existingRuleScopeMap.get(resumeId);
+              return !existing || existing.scoreSource !== "ai";
+            })
+            .map(({ resumeId, result }) => ({
+              sessionId: session?.id,
+              resumeId,
+              jobDescriptionId,
+              sampleName: sampleName ?? undefined,
+              result,
+              aiModel: "rule-scoring",
+              processingTimeMs: Date.now() - startTime,
+            }));
 
           if (ruleEntries.length > 0) {
             matchStorage.saveMatches(ruleEntries);
           }
 
-          const ruleMatches = matchStorage.getMatchesByResumeIds(
-            prepared.map((item) => item.resumeId),
-            jobDescriptionId
-          );
-
-          const orderedRuleMatches = [...ruleMatches].sort((a, b) => b.score - a.score);
-          const ruleMap = new Map(orderedRuleMatches.map((match) => [match.resumeId, match]));
-
-          ruleOrdered = orderedRuleMatches
-            .map((match) => prepared.find((item) => item.resumeId === match.resumeId))
+          ruleOrdered = orderedRuleResults
+            .map((entry) => preparedMap.get(entry.resumeId))
             .filter((item): item is (typeof prepared)[number] => Boolean(item));
 
+          const ruleMatchedAt = new Date().toISOString();
           safeSend("rules", {
             mode,
-            results: orderedRuleMatches.map((match) => mapStoredMatch(match)),
-            progress: { done: orderedRuleMatches.length, total: prepared.length },
+            results: orderedRuleResults.map(({ resumeId, result }) => ({
+              resumeId,
+              jobDescriptionId,
+              ...result,
+              matchedAt: ruleMatchedAt,
+              sessionId: session?.id,
+            })),
+            progress: { done: orderedRuleResults.length, total: prepared.length },
           });
 
           if (mode === "rules_only") {
             const stats = computeStats(
-              orderedRuleMatches.map((match) => ({ score: match.score })),
+              orderedRuleResults.map((entry) => ({ score: entry.result.score })),
               Date.now() - startTime,
               0
             );
@@ -955,8 +973,14 @@ app.post("/api/resumes/match-stream", async (c) => {
           const finalTopMatches = matchStorage
             .getMatchesByResumeIds(topIds, jobDescriptionId)
             .sort((a, b) => b.score - a.score);
+          const finalScoreMap = new Map(
+            orderedRuleResults.map((entry) => [entry.resumeId, entry.result.score])
+          );
+          for (const match of finalTopMatches) {
+            finalScoreMap.set(match.resumeId, match.score);
+          }
           const stats = computeStats(
-            finalTopMatches.map((match) => ({ score: match.score })),
+            Array.from(finalScoreMap.values()).map((score) => ({ score })),
             Date.now() - startTime,
             Math.max(0, aiCandidates.length - aiDone)
           );
