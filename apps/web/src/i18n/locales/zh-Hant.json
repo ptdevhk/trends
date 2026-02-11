@@ -184,6 +184,25 @@
       "close": "關閉"
     }
   },
+  "aiTasks": {
+    "dispatched": "分析任務已建立",
+    "dispatchFailed": "啟動分析失敗",
+    "monitor": {
+      "activeTitle": "進行中的分析",
+      "historyTitle": "分析歷史",
+      "allCompleted": "所有分析任務已完成",
+      "showHistory": "顯示歷史",
+      "hideHistory": "隱藏歷史",
+      "cancel": "取消",
+      "cancelling": "取消中...",
+      "progress": "進度",
+      "skipped": "已跳過",
+      "analyzed": "已分析",
+      "avgScore": "平均分",
+      "highScore": "高分 (80+)",
+      "failed": "失敗"
+    }
+  },
   "quickStart": {
     "matchDetails": "當前匹配詳情",
     "labelJd": "職位",

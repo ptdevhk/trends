@@ -1,4 +1,4 @@
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const list = query({
@@ -13,6 +13,16 @@ export const getResume = internalQuery({
     args: { resumeId: v.id("resumes") },
     handler: async (ctx, args) => {
         return await ctx.db.get(args.resumeId);
+    },
+});
+
+export const getResumesByIds = internalQuery({
+    args: {
+        resumeIds: v.array(v.id("resumes")),
+    },
+    handler: async (ctx, args) => {
+        const docs = await Promise.all(args.resumeIds.map((resumeId) => ctx.db.get(resumeId)));
+        return docs.filter((doc): doc is NonNullable<typeof doc> => doc !== null);
     },
 });
 
@@ -45,7 +55,7 @@ export const updateAnalysis = internalMutation({
     },
 });
 
-export const updateAnalysisBatch = mutation({
+export const updateAnalysisBatch = internalMutation({
     args: {
         updates: v.array(v.object({
             resumeId: v.id("resumes"),

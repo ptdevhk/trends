@@ -18,9 +18,10 @@ import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { FilterPanel } from '@/components/FilterPanel'
 import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
+import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import type { MatchingResult, Recommendation } from '@/types/resume'
 
-import { useMutation, useAction } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 import { rawApiClient } from '@/lib/api-helpers'
@@ -93,8 +94,12 @@ export function ResumeList() {
 
   // Convex Integration
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes()
-  const analyzeBatch = useAction(api.analyze.analyzeBatch)
+  const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)
+  const [analysisDispatchMessage, setAnalysisDispatchMessage] = useState<{
+    type: 'success' | 'error'
+    text: string
+  } | null>(null)
 
   const activeLoading = mode === 'ai' ? convexLoading : loading
 
@@ -159,6 +164,12 @@ export function ResumeList() {
     setSelectedIds(new Set())
   }, [mode, jobDescriptionId, query])
 
+  useEffect(() => {
+    if (!analysisDispatchMessage) return
+    const timer = window.setTimeout(() => setAnalysisDispatchMessage(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [analysisDispatchMessage])
+
   const sampleOptions = useMemo(
     () =>
       samples.map((sample) => ({
@@ -210,14 +221,12 @@ export function ResumeList() {
     })
   }, [jobDescriptionId, matchAll, selectedSample, session?.id])
 
-  const updateAnalysisBatch = useMutation(api.resumes.updateAnalysisBatch)
-
   const handleAnalyzeAll = async () => {
     if (!convexResumes.length) return
     setAnalyzing(true)
     try {
-      let jdArg: { title: string; requirements: string } | undefined
-      let jdKeywords: string[] = []
+      let jdContent = ''
+      let jdTitle = ''
 
       if (jobDescriptionId) {
         try {
@@ -225,81 +234,25 @@ export function ResumeList() {
             `/api/job-descriptions/${jobDescriptionId}`
           )
           if (data?.success && data.content) {
-            jdArg = {
-              title: data.item?.title || jobDescriptionId,
-              requirements: data.content
-            }
-            // Simple keyword extraction (2+ chars)
-            jdKeywords = (data.content + ' ' + (data.item?.title || '')).toLowerCase().match(/[\u4e00-\u9fa5a-z0-9]{2,}/g) || []
+            jdTitle = data.item?.title || jobDescriptionId
+            jdContent = data.content
           }
         } catch (err) {
           console.error('Failed to fetch JD', err)
         }
       }
 
-      const resumesToAnalyze: ConvexResumeItem['resumeId'][] = []
-      const resumesToSkip: ConvexResumeItem['resumeId'][] = []
-
-      // Hybrid Filter Threshold
-      const THRESHOLD = 10 // Very low bar, just to filter complete garbage
-
-      convexResumes.forEach((resume) => {
-        // Skip if already analyzed for this JD (though UI should prevent this, good to be safe)
-        // Actually, "Analyze All" usually implies re-analyzing or analyzing missing.
-        // Let's assume we analyze everyone in the list (or maybe just those without analysis?)
-        // The current logic was mapping ALL resumes.
-
-        if (!jdKeywords.length) {
-          resumesToAnalyze.push(resume.resumeId)
-          return
-        }
-
-        // Calculate relevance
-        const content = JSON.stringify(resume).toLowerCase()
-        let matches = 0
-        jdKeywords.forEach((keyword) => {
-          if (content.includes(keyword)) matches++
-        })
-
-        // Normalize score roughly
-        const score = Math.min(100, Math.round((matches / Math.max(jdKeywords.length, 1)) * 100))
-
-        if (score < THRESHOLD) {
-          resumesToSkip.push(resume.resumeId)
-        } else {
-          resumesToAnalyze.push(resume.resumeId)
-        }
+      await dispatchAnalysis({
+        jobDescriptionId: jobDescriptionId || 'default',
+        jobDescriptionTitle: jdTitle || undefined,
+        jobDescriptionContent: jdContent || undefined,
+        sample: selectedSample || undefined,
+        resumeIds: convexResumes.map((resume) => resume.resumeId),
       })
-
-      // 1. Process Skips (Cheap Mutation)
-      if (resumesToSkip.length > 0) {
-        await updateAnalysisBatch({
-          updates: resumesToSkip.map((id) => ({
-            resumeId: id,
-            analysis: {
-              score: 10,
-              recommendation: 'no_match',
-              summary: 'Auto-filtered: Low keyword match with JD.',
-              highlights: [],
-              breakdown: { keyword_match: 10 },
-              jobDescriptionId: jobDescriptionId || 'default'
-            }
-          }))
-        })
-      }
-
-      // 2. Process Analysis (Expensive Action)
-      if (resumesToAnalyze.length > 0) {
-        await analyzeBatch({
-          resumeIds: resumesToAnalyze,
-          jobDescription: jdArg,
-          jobDescriptionId: jobDescriptionId || 'default'
-        })
-      }
-
+      setAnalysisDispatchMessage({ type: 'success', text: t('aiTasks.dispatched') })
     } catch (e) {
-      console.error('Analysis failed', e)
-      alert(`Failed to start analysis: ${String(e)}`)
+      console.error('Failed to dispatch analysis task', e)
+      setAnalysisDispatchMessage({ type: 'error', text: t('aiTasks.dispatchFailed') })
     } finally {
       setAnalyzing(false)
     }
@@ -501,6 +454,20 @@ export function ResumeList() {
           </div>
         </div>
 
+        {analysisDispatchMessage ? (
+          <div
+            className={cn(
+              'w-fit rounded-md px-2.5 py-1.5 text-xs',
+              analysisDispatchMessage.type === 'success'
+                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                : 'bg-destructive/10 text-destructive'
+            )}
+            role="status"
+          >
+            {analysisDispatchMessage.text}
+          </div>
+        ) : null}
+
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="flex-1">
             <SearchBar
@@ -544,6 +511,8 @@ export function ResumeList() {
           <div className="text-xs text-destructive">{matchError}</div>
         ) : null}
       </div>
+
+      <AnalysisTaskMonitor />
 
       <Card>
         <CardHeader>
