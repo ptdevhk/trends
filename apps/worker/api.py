@@ -34,6 +34,10 @@ if str(project_root) not in sys.path:
 
 from mcp_server.services.data_service import DataService
 from mcp_server.utils.errors import DataNotFoundError
+from apps.worker.timezone import bootstrap_worker_timezone
+from trendradar.utils.time import format_iso_offset_time
+
+WORKER_TIMEZONE = bootstrap_worker_timezone()
 
 # ============================================
 # FastAPI App
@@ -156,7 +160,7 @@ async def health_check():
     """
     return HealthResponse(
         status="ok",
-        timestamp=datetime.now().isoformat(),
+        timestamp=format_iso_offset_time(timezone=WORKER_TIMEZONE),
         version="0.1.0",
     )
 

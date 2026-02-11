@@ -6,6 +6,7 @@ import { Loader2, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp } from 'l
 import { useState } from 'react'
 import { Button } from './ui/button'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
+import { formatInAppTimezone } from '@/lib/timezone'
 
 export function TaskMonitor() {
     const tasks = useQuery(api.resume_tasks.list)
@@ -107,7 +108,7 @@ function TaskItem({ task, onCancel }: { task: Doc<"collection_tasks">, onCancel?
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="text-xs text-muted-foreground">
-                        {new Date(task._creationTime).toLocaleTimeString()}
+                        {formatInAppTimezone(task._creationTime)}
                     </div>
                     {isActive && onCancel && (
                         <Button

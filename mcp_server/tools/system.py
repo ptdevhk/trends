@@ -95,7 +95,12 @@ class SystemManagementTools:
             from trendradar.crawler.fetcher import DataFetcher
             from trendradar.storage.local import LocalStorageBackend
             from trendradar.storage.base import convert_crawl_results_to_news_data
-            from trendradar.utils.time import get_configured_time, format_date_folder, format_time_filename
+            from trendradar.utils.time import (
+                DEFAULT_TIMEZONE,
+                get_configured_time,
+                format_date_folder,
+                format_time_filename,
+            )
             from ..services.cache_service import get_cache
 
             # 参数验证
@@ -165,8 +170,8 @@ class SystemManagementTools:
             )
 
             # 获取当前时间（统一使用 trendradar 的时间工具）
-            # 从配置中读取时区，默认为 Asia/Shanghai
-            timezone = config_data.get("app", {}).get("timezone", "Asia/Shanghai")
+            # 从配置中读取时区
+            timezone = config_data.get("app", {}).get("timezone", DEFAULT_TIMEZONE)
             current_time = get_configured_time(timezone)
             crawl_date = format_date_folder(None, timezone)
             crawl_time_str = format_time_filename(timezone)

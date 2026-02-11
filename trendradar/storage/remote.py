@@ -31,6 +31,7 @@ except ImportError:
 from trendradar.storage.base import StorageBackend, NewsItem, NewsData, RSSItem, RSSData
 from trendradar.storage.sqlite_mixin import SQLiteStorageMixin
 from trendradar.utils.time import (
+    DEFAULT_TIMEZONE,
     get_configured_time,
     format_date_folder,
     format_time_filename,
@@ -60,7 +61,7 @@ class RemoteStorageBackend(SQLiteStorageMixin, StorageBackend):
         enable_txt: bool = False,  # 远程模式默认不生成 TXT
         enable_html: bool = True,
         temp_dir: Optional[str] = None,
-        timezone: str = "Asia/Shanghai",
+        timezone: str = DEFAULT_TIMEZONE,
     ):
         """
         初始化远程存储后端
@@ -74,7 +75,7 @@ class RemoteStorageBackend(SQLiteStorageMixin, StorageBackend):
             enable_txt: 是否启用 TXT 快照（默认关闭）
             enable_html: 是否启用 HTML 报告
             temp_dir: 临时目录路径（默认使用系统临时目录）
-            timezone: 时区配置（默认 Asia/Shanghai）
+            timezone: 时区配置（默认 Asia/Hong_Kong）
         """
         if not HAS_BOTO3:
             raise ImportError("远程存储后端需要安装 boto3: pip install boto3")

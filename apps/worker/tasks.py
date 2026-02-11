@@ -10,8 +10,10 @@ independently.
 import logging
 import sys
 import traceback
-from datetime import datetime
 from typing import Optional, Dict, Any
+
+from apps.worker.timezone import resolve_worker_timezone
+from trendradar.utils.time import get_configured_time
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,8 @@ def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool
     Returns:
         True if the task completed successfully, False otherwise
     """
-    start_time = datetime.now()
+    timezone = resolve_worker_timezone()
+    start_time = get_configured_time(timezone)
     logger.info(f"[Task] Starting crawl_analyze at {start_time.isoformat()}")
 
     try:
@@ -55,12 +58,12 @@ def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool
         analyzer = NewsAnalyzer(config=config)
         analyzer.run()
 
-        elapsed = (datetime.now() - start_time).total_seconds()
+        elapsed = (get_configured_time(timezone) - start_time).total_seconds()
         logger.info(f"[Task] crawl_analyze completed successfully in {elapsed:.1f}s")
         return True
 
     except Exception as e:
-        elapsed = (datetime.now() - start_time).total_seconds()
+        elapsed = (get_configured_time(timezone) - start_time).total_seconds()
         logger.error(f"[Task] crawl_analyze failed after {elapsed:.1f}s: {e}")
         logger.debug(traceback.format_exc())
         return False

@@ -52,7 +52,7 @@ class RSSFetcher:
             timeout: 请求超时（秒）
             use_proxy: 是否使用代理
             proxy_url: 代理 URL
-            timezone: 时区配置（如 'Asia/Shanghai'）
+            timezone: 时区配置（如 'Asia/Hong_Kong'）
             freshness_enabled: 是否启用新鲜度过滤
             default_max_age_days: 默认最大文章年龄（天）
         """

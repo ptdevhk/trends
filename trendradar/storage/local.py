@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 from trendradar.storage.base import StorageBackend, NewsItem, NewsData, RSSItem, RSSData
 from trendradar.storage.sqlite_mixin import SQLiteStorageMixin
 from trendradar.utils.time import (
+    DEFAULT_TIMEZONE,
     get_configured_time,
     format_date_folder,
     format_time_filename,
@@ -37,7 +38,7 @@ class LocalStorageBackend(SQLiteStorageMixin, StorageBackend):
         data_dir: str = "output",
         enable_txt: bool = True,
         enable_html: bool = True,
-        timezone: str = "Asia/Shanghai",
+        timezone: str = DEFAULT_TIMEZONE,
     ):
         """
         初始化本地存储后端
@@ -46,7 +47,7 @@ class LocalStorageBackend(SQLiteStorageMixin, StorageBackend):
             data_dir: 数据目录路径
             enable_txt: 是否启用 TXT 快照
             enable_html: 是否启用 HTML 报告
-            timezone: 时区配置（默认 Asia/Shanghai）
+            timezone: 时区配置（默认 Asia/Hong_Kong）
         """
         self.data_dir = Path(data_dir)
         self.enable_txt = enable_txt

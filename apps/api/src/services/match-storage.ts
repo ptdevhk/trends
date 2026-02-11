@@ -1,4 +1,6 @@
+import { config } from "./config.js";
 import { getResumeScreeningDb } from "./database.js";
+import { formatIsoOffsetInTimezone } from "./timezone.js";
 import type { MatchingResult } from "./ai-matching.js";
 
 export type MatchRunMode = "rules_only" | "hybrid" | "ai_only";
@@ -156,7 +158,7 @@ export class MatchStorage {
     aiModel?: string;
     processingTimeMs?: number;
   }): void {
-    const now = new Date().toISOString();
+    const now = formatIsoOffsetInTimezone(new Date(), config.timezone);
     this.db
       .prepare(
         `
@@ -265,7 +267,10 @@ export class MatchStorage {
   }
 
   clearOldMatches(olderThanDays: number): number {
-    const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
+    const cutoff = formatIsoOffsetInTimezone(
+      new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000),
+      config.timezone,
+    );
     const result = this.db
       .prepare("DELETE FROM resume_matches WHERE matched_at < ?")
       .run(cutoff);

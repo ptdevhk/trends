@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 from .cache_service import get_cache
 from .parser_service import ParserService
 from ..utils.errors import DataNotFoundError
+from trendradar.utils.time import format_iso_offset_time, get_configured_time
 
 
 class DataService:
@@ -42,6 +43,7 @@ class DataService:
         """
         self.parser = ParserService(project_root)
         self.cache = get_cache()
+        self.timezone = self.parser.timezone
 
     def get_latest_news(
         self,
@@ -78,9 +80,12 @@ class DataService:
         # 获取最新的文件时间
         if timestamps:
             latest_timestamp = max(timestamps.values())
-            fetch_time = datetime.fromtimestamp(latest_timestamp)
+            fetch_time = datetime.fromtimestamp(
+                latest_timestamp,
+                tz=get_configured_time(self.timezone).tzinfo
+            )
         else:
-            fetch_time = datetime.now()
+            fetch_time = get_configured_time(self.timezone)
 
         # 转换为新闻列表
         news_list = []
@@ -96,7 +101,7 @@ class DataService:
                     "platform": platform_id,
                     "platform_name": platform_name,
                     "rank": rank,
-                    "timestamp": fetch_time.strftime("%Y-%m-%d %H:%M:%S")
+                    "timestamp": format_iso_offset_time(fetch_time, self.timezone)
                 }
 
                 # 条件性添加 URL 字段
@@ -224,7 +229,7 @@ class DataService:
             start_date, end_date = date_range
         else:
             # 默认搜索今天
-            start_date = end_date = datetime.now()
+            start_date = end_date = get_configured_time(self.timezone)
 
         # 收集所有匹配的新闻
         results = []
@@ -431,7 +436,7 @@ class DataService:
         # 构建结果
         result = {
             "topics": topics,
-            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "generated_at": format_iso_offset_time(timezone=self.timezone),
             "mode": mode,
             "extract_mode": extract_mode,
             "total_keywords": len(word_frequency),
@@ -703,7 +708,7 @@ class DataService:
 
         rss_list = []
         seen_urls = set()  # 跨日期 URL 去重
-        today = datetime.now()
+        today = get_configured_time(self.timezone)
 
         for i in range(days):
             target_date = today - timedelta(days=i)
@@ -718,7 +723,10 @@ class DataService:
                 # 获取抓取时间
                 if timestamps:
                     latest_timestamp = max(timestamps.values())
-                    fetch_time = datetime.fromtimestamp(latest_timestamp)
+                    fetch_time = datetime.fromtimestamp(
+                        latest_timestamp,
+                        tz=get_configured_time(self.timezone).tzinfo
+                    )
                 else:
                     fetch_time = target_date
 
@@ -742,7 +750,7 @@ class DataService:
                             "published_at": info.get("published_at", ""),
                             "author": info.get("author", ""),
                             "date": target_date.strftime("%Y-%m-%d"),
-                            "fetch_time": fetch_time.strftime("%Y-%m-%d %H:%M:%S") if isinstance(fetch_time, datetime) else target_date.strftime("%Y-%m-%d")
+                            "fetch_time": format_iso_offset_time(fetch_time, self.timezone)
                         }
 
                         if include_summary:
@@ -792,7 +800,7 @@ class DataService:
 
         results = []
         seen_urls = set()  # 用于 URL 去重
-        today = datetime.now()
+        today = get_configured_time(self.timezone)
 
         for i in range(days):
             target_date = today - timedelta(days=i)
@@ -884,7 +892,7 @@ class DataService:
             "available_dates": available_dates[:10],  # 最近 10 天
             "total_dates": len(available_dates),
             "today_feeds": today_stats,
-            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "generated_at": format_iso_offset_time(timezone=self.timezone)
         }
 
         self.cache.set(cache_key, result)

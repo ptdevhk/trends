@@ -3,13 +3,93 @@
 时间工具模块 - 统一时间处理函数
 """
 
+import os
+import time
 from datetime import datetime
 from typing import Optional
 
 import pytz
+from packages.config import APP_DEFAULTS
 
 # 默认时区
-DEFAULT_TIMEZONE = "Asia/Shanghai"
+DEFAULT_TIMEZONE = APP_DEFAULTS["TIMEZONE"]
+
+
+def resolve_timezone(
+    env_timezone: Optional[str] = None,
+    configured_timezone: Optional[str] = None,
+    default_timezone: str = DEFAULT_TIMEZONE,
+) -> str:
+    """
+    解析最终使用的时区（优先级：环境变量 > 配置文件 > 默认值）
+
+    Args:
+        env_timezone: 环境变量中的时区值
+        configured_timezone: 配置文件中的时区值
+        default_timezone: 默认时区
+
+    Returns:
+        有效的时区名称
+    """
+    candidates = [env_timezone, configured_timezone, default_timezone]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            pytz.timezone(candidate)
+            return candidate
+        except pytz.UnknownTimeZoneError:
+            print(f"[警告] 未知时区 '{candidate}'，将回退到下一个可用时区")
+            continue
+    return default_timezone
+
+
+def apply_process_timezone(timezone: Optional[str] = None) -> str:
+    """
+    设置当前进程时区，确保日志与日期函数一致
+
+    Args:
+        timezone: 时区名称，None 时使用默认时区
+
+    Returns:
+        实际生效的时区名称
+    """
+    effective_timezone = resolve_timezone(env_timezone=timezone)
+    os.environ["TZ"] = effective_timezone
+    if hasattr(time, "tzset"):
+        try:
+            time.tzset()
+        except Exception:
+            pass
+    return effective_timezone
+
+
+def format_iso_offset_time(
+    dt: Optional[datetime] = None,
+    timezone: str = DEFAULT_TIMEZONE,
+) -> str:
+    """
+    将时间格式化为带时区偏移的 ISO-8601 字符串（精确到秒）
+
+    Args:
+        dt: 输入时间，None 时使用当前配置时区时间
+        timezone: 目标时区
+
+    Returns:
+        形如 2026-02-11T15:03:47+08:00 的字符串
+    """
+    if dt is None:
+        dt = get_configured_time(timezone)
+    elif dt.tzinfo is None:
+        try:
+            target_tz = pytz.timezone(resolve_timezone(configured_timezone=timezone))
+            dt = target_tz.localize(dt)
+        except Exception:
+            dt = pytz.UTC.localize(dt)
+    else:
+        dt = dt.astimezone(pytz.timezone(resolve_timezone(configured_timezone=timezone)))
+
+    return dt.isoformat(timespec="seconds")
 
 
 def get_configured_time(timezone: str = DEFAULT_TIMEZONE) -> datetime:
@@ -17,16 +97,15 @@ def get_configured_time(timezone: str = DEFAULT_TIMEZONE) -> datetime:
     获取配置时区的当前时间
 
     Args:
-        timezone: 时区名称，如 'Asia/Shanghai', 'America/Los_Angeles'
+        timezone: 时区名称，如 'Asia/Hong_Kong', 'America/Los_Angeles'
 
     Returns:
         带时区信息的当前时间
     """
-    try:
-        tz = pytz.timezone(timezone)
-    except pytz.UnknownTimeZoneError:
-        print(f"[警告] 未知时区 '{timezone}'，使用默认时区 {DEFAULT_TIMEZONE}")
-        tz = pytz.timezone(DEFAULT_TIMEZONE)
+    resolved_timezone = resolve_timezone(configured_timezone=timezone)
+    if resolved_timezone != timezone:
+        print(f"[警告] 未知时区 '{timezone}'，使用默认时区 {resolved_timezone}")
+    tz = pytz.timezone(resolved_timezone)
     return datetime.now(tz)
 
 

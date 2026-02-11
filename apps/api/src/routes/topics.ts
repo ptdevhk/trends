@@ -4,6 +4,7 @@ import { TopicsQuerySchema, TopicsResponseSchema } from "../schemas/index.js";
 import { config } from "../services/config.js";
 import { DataService } from "../services/data-service.js";
 import { DataNotFoundError } from "../services/errors.js";
+import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 
 const app = new OpenAPIHono();
 const dataService = new DataService(config.projectRoot);
@@ -48,7 +49,7 @@ app.openapi(getTopicsRoute, async (c) => {
       return c.json({
         success: true as const,
         topics: [],
-        generated_at: new Date().toISOString(),
+        generated_at: formatIsoOffsetInTimezone(new Date(), config.timezone),
         mode,
         extract_mode,
         total_keywords: 0,

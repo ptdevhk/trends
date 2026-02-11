@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
+import { config } from "./config.js";
 import { getResumeScreeningDb } from "./database.js";
+import { formatIsoOffsetInTimezone } from "./timezone.js";
 
 export type ResumeFilters = {
   q?: string;
@@ -34,7 +36,7 @@ export type SearchSession = {
 };
 
 function toIsoNow(): string {
-  return new Date().toISOString();
+  return formatIsoOffsetInTimezone(new Date(), config.timezone);
 }
 
 function parseJson<T>(value: unknown): T | undefined {
@@ -184,7 +186,10 @@ export class SessionManager {
   }
 
   archiveIdleSessions(idleMinutes: number): number {
-    const cutoff = new Date(Date.now() - idleMinutes * 60 * 1000).toISOString();
+    const cutoff = formatIsoOffsetInTimezone(
+      new Date(Date.now() - idleMinutes * 60 * 1000),
+      config.timezone,
+    );
     const result = this.db
       .prepare(
         "UPDATE search_sessions SET status = 'archived', updated_at = ? WHERE status = 'active' AND updated_at < ?"

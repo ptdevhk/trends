@@ -31,6 +31,11 @@ import logging
 import sys
 from typing import Optional
 
+from apps.worker.timezone import bootstrap_worker_timezone
+
+# Ensure process timezone is applied before configuring log timestamps.
+WORKER_TIMEZONE = bootstrap_worker_timezone()
+
 # Set up logging before imports
 logging.basicConfig(
     level=logging.INFO,
@@ -188,6 +193,7 @@ def main() -> int:
 
     # Scheduler mode
     logger.info("Worker starting...")
+    logger.info(f"Worker timezone: {WORKER_TIMEZONE}")
     return run_scheduler(
         interval_minutes=args.interval,
         cron_expression=args.cron,

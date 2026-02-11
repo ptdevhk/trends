@@ -54,9 +54,9 @@ filters:
 
 schedule:
   enabled: true
-  # Run every weekday at 9:00 AM Shanghai time
+  # Run every weekday at 9:00 AM Hong Kong time
   cron: "0 9 * * 1-5"
-  timezone: Asia/Shanghai
+  timezone: Asia/Hong_Kong
   # Maximum candidates to process per run
   maxCandidates: 200
   # Only notify if new high-match candidates found
