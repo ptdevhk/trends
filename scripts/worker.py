@@ -29,6 +29,7 @@ from refresh_sample import (
     execute_scrape_job,
     build_search_url,
     eval_json,
+    wait_for,
     resolve_accessor_context,
 )
 
@@ -71,10 +72,10 @@ async def process_task(task, client: httpx.AsyncClient):
     logger.info(f"Processing task {task['_id']}: {task['config']}")
     
     config = task["config"]
-    limit = config["limit"]
-    max_pages = config.get("maxPages", 10)
-    keyword = config["keyword"]
-    location = config["location"]
+    limit = int(config["limit"])
+    max_pages = int(config.get("maxPages", 10))
+    keyword = str(config["keyword"]).strip()
+    location = str(config["location"]).strip()
     
     # Build search URL
     search_url = build_search_url(keyword, location)
@@ -96,6 +97,8 @@ async def process_task(task, client: httpx.AsyncClient):
         await on_progress(0, 0)
         
         async with open_cdp_session(CDP_PORT, search_url) as (cdp_client, context_id):
+            current_url = await eval_json(cdp_client, "window.location.href", context_id=context_id)
+            logger.info(f"Active page: {current_url}")
 
             logger.info("Starting scrape job...")
             resumes = await execute_scrape_job(
@@ -107,7 +110,52 @@ async def process_task(task, client: httpx.AsyncClient):
                 progress_callback=on_progress
             )
             
+            if not resumes:
+                first_status = await eval_json(
+                    cdp_client,
+                    """(() => {
+                      const api = window.__TR_RESUME_DATA__;
+                      return api && typeof api.status === "function" ? api.status() : null;
+                    })()""",
+                    context_id=context_id,
+                )
+                logger.warning(
+                    "Scrape returned 0 resumes (first attempt). Retrying once with hard navigation. status=%s",
+                    first_status,
+                )
+
+                await cdp_client.call("Page.navigate", {"url": search_url})
+                await wait_for(cdp_client, "document.readyState === 'complete'", timeout=30.0)
+                accessor_found, retry_context_id = await resolve_accessor_context(cdp_client)
+                if not accessor_found:
+                    raise CDPError("Extension accessor not found after retry navigation.")
+
+                resumes = await execute_scrape_job(
+                    client=cdp_client,
+                    context_id=retry_context_id,
+                    limit=limit,
+                    max_pages=max_pages,
+                    allow_empty=True,
+                    progress_callback=on_progress,
+                )
+                context_id = retry_context_id
+
             logger.info(f"Scraped {len(resumes)} resumes")
+
+            if not resumes:
+                final_status = await eval_json(
+                    cdp_client,
+                    """(() => {
+                      const api = window.__TR_RESUME_DATA__;
+                      return api && typeof api.status === "function" ? api.status() : null;
+                    })()""",
+                    context_id=context_id,
+                )
+                final_url = await eval_json(cdp_client, "window.location.href", context_id=context_id)
+                raise CDPError(
+                    f"No resumes extracted for keyword='{keyword}' location='{location}'. "
+                    f"url='{final_url}' status={final_status}"
+                )
             
             # Submit results
             if resumes:

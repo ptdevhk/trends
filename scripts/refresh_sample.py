@@ -278,12 +278,17 @@ async def execute_scrape_job(
             if last:
                 counts = [
                     int(last.get("cardCount") or 0),
+                    int(last.get("apiSnapshotCount") or 0),
                 ]
                 if max(counts) > 0:
                     return last
                 auto_search = (last.get("autoSearch") or "").lower()
-                if auto_search in ("done", "skipped") and time.time() - start > 5:
-                    break
+                elapsed = time.time() - start
+                if auto_search in ("done", "skipped") and elapsed > 15:
+                    pagination = last.get("pagination") or {}
+                    total_items = int(pagination.get("totalItems") or 0)
+                    if total_items <= 0:
+                        break
             await asyncio.sleep(0.8)
         return last
 
@@ -450,9 +455,8 @@ async def open_cdp_session(port: int, search_url: str = None):
         await client.call("Runtime.enable")
         
         if search_url:
-             # If url doesn't match, navigate? 
-             # For now, let's assume we want to ensure we differ slightly or just reload
-             pass
+            await client.call("Page.navigate", {"url": search_url})
+            await wait_for(client, "document.readyState === 'complete'", timeout=30.0)
 
         accessor_found, context_id = await resolve_accessor_context(client)
         if not accessor_found:

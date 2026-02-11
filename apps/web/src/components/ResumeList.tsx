@@ -85,6 +85,17 @@ function getAnalysisForJob(resume: ConvexResumeItem, selectedJobId: string): Con
   return resume.analysis
 }
 
+function isAutoFilteredAnalysis(analysis: ConvexResumeAnalysis | undefined): boolean {
+  if (!analysis) return false
+  const summary = analysis.summary || ''
+  const keywordMatch = analysis.breakdown?.keyword_match
+  return (
+    summary.startsWith('Auto-filtered: Low keyword match with JD.')
+    && analysis.recommendation === 'no_match'
+    && keywordMatch === 10
+  )
+}
+
 function buildResumeKey(resume: ResumeItem, index: number): string {
   if (resume.resumeId) {
     return resume.resumeId
@@ -146,6 +157,12 @@ export function ResumeList() {
 
   const filteredConvexResumes = useMemo(() => {
     let result = convexResumes
+
+    // Hide resumes that were auto-skipped by the keyword pre-filter.
+    result = result.filter((resume) => {
+      const analysis = getAnalysisForJob(resume, jobDescriptionId)
+      return !isAutoFilteredAnalysis(analysis)
+    })
 
     // 1. Keyword filter (query)
     if (query) {
@@ -333,7 +350,11 @@ export function ResumeList() {
     if (mode === 'ai') {
       const validResumes = convexResumes.filter((resume) => {
         const analysis = getAnalysisForJob(resume, jobDescriptionId)
-        return Boolean(analysis && (!jobDescriptionId || analysis.jobDescriptionId === jobDescriptionId))
+        return Boolean(
+          analysis
+          && !isAutoFilteredAnalysis(analysis)
+          && (!jobDescriptionId || analysis.jobDescriptionId === jobDescriptionId)
+        )
       })
 
       const processed = validResumes.length
