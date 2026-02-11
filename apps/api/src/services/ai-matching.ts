@@ -159,6 +159,43 @@ const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
   "summary": "中文总结，说明匹配原因和建议"
 }`;
 
+const SCORE_WORD_MAP: Record<string, number> = {
+    zero: 0,
+    ten: 10,
+    twenty: 20,
+    thirty: 30,
+    forty: 40,
+    fifty: 50,
+    sixty: 60,
+    seventy: 70,
+    eighty: 80,
+    ninety: 90,
+    hundred: 100,
+};
+
+const MAX_ERROR_TEXT_LENGTH = 320;
+const MAX_RAW_RESPONSE_LENGTH = 4000;
+
+function compactWhitespace(value: string): string {
+    return value.replace(/\s+/g, " ").trim();
+}
+
+function trimText(value: string, maxLength: number): string {
+    if (value.length <= maxLength) return value;
+    return `${value.slice(0, maxLength - 1)}…`;
+}
+
+function toCompactErrorMessage(value: unknown): string {
+    const raw = value instanceof Error ? value.message : String(value);
+    const compact = compactWhitespace(raw);
+    return trimText(compact, MAX_ERROR_TEXT_LENGTH);
+}
+
+function toStoredRawResponse(value: string): string {
+    const compact = compactWhitespace(value);
+    return trimText(compact, MAX_RAW_RESPONSE_LENGTH);
+}
+
 /**
  * AI Matching Service class
  */
@@ -235,7 +272,7 @@ export class AIMatchingService {
             const response = await this.callLLM(messages);
             return this.parseResponse(response);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorMessage = toCompactErrorMessage(error);
             console.error("[AI Matching] Error:", errorMessage);
             return {
                 score: 0,
@@ -451,12 +488,13 @@ export class AIMatchingService {
                 jsonText = jsonText.slice(jsonStart, jsonEnd + 1);
             }
 
-            const parsed = JSON.parse(jsonText) as Record<string, unknown>;
+            const parsed = this.parseResponseObject(jsonText);
+            if (!parsed) {
+                throw new Error("Unable to parse AI response as object");
+            }
 
             // Validate and normalize
-            const rawScore = typeof parsed.score === "number"
-                ? parsed.score
-                : Number.parseInt(String(parsed.score ?? "0"), 10);
+            const rawScore = this.parseScoreValue(parsed.score);
             const score = Math.max(0, Math.min(100, Number.isFinite(rawScore) ? rawScore : 0));
             const recommendation = this.normalizeRecommendation(
                 typeof parsed.recommendation === "string" ? parsed.recommendation : undefined,
@@ -473,7 +511,7 @@ export class AIMatchingService {
                     ? parsed.concerns.map((item) => String(item))
                     : [],
                 summary: typeof parsed.summary === "string" ? parsed.summary : "无分析结果",
-                rawResponse: response,
+                rawResponse: toStoredRawResponse(response),
                 scoreSource: "ai",
             };
         } catch (error) {
@@ -484,10 +522,122 @@ export class AIMatchingService {
                 highlights: [],
                 concerns: ["AI响应解析失败"],
                 summary: "无法解析AI返回结果",
-                rawResponse: response,
+                rawResponse: toStoredRawResponse(response),
                 scoreSource: "ai",
             };
         }
+    }
+
+    private parseResponseObject(jsonText: string): Record<string, unknown> | null {
+        const parsed = this.tryParseObject(jsonText);
+        if (parsed) return parsed;
+
+        const repaired = this.repairScoreField(jsonText);
+        if (repaired !== jsonText) {
+            const repairedParsed = this.tryParseObject(repaired);
+            if (repairedParsed) return repairedParsed;
+        }
+
+        return null;
+    }
+
+    private tryParseObject(text: string): Record<string, unknown> | null {
+        try {
+            const parsed = JSON.parse(text) as unknown;
+            if (parsed && typeof parsed === "object") {
+                return parsed as Record<string, unknown>;
+            }
+        } catch {
+            // noop
+        }
+
+        try {
+            const parsed = JSON5.parse(text) as unknown;
+            if (parsed && typeof parsed === "object") {
+                return parsed as Record<string, unknown>;
+            }
+        } catch {
+            // noop
+        }
+
+        return null;
+    }
+
+    private repairScoreField(text: string): string {
+        return text.replace(
+            /("score"\s*:\s*)([A-Za-z\u4e00-\u9fa5][A-Za-z\u4e00-\u9fa5\s-]*)(\s*[,}\n])/gi,
+            (_match, prefix: string, scoreToken: string, suffix: string) => {
+                const score = this.parseScoreToken(scoreToken);
+                if (score === null) {
+                    return `${prefix}${scoreToken}${suffix}`;
+                }
+                return `${prefix}${score}${suffix}`;
+            }
+        );
+    }
+
+    private parseScoreValue(value: unknown): number {
+        if (typeof value === "number" && Number.isFinite(value)) {
+            return value;
+        }
+
+        if (typeof value === "string") {
+            const tokenScore = this.parseScoreToken(value);
+            if (tokenScore !== null) return tokenScore;
+            const numeric = Number.parseInt(value, 10);
+            return Number.isFinite(numeric) ? numeric : 0;
+        }
+
+        const numeric = Number.parseInt(String(value ?? "0"), 10);
+        return Number.isFinite(numeric) ? numeric : 0;
+    }
+
+    private parseScoreToken(token: string): number | null {
+        const cleaned = token
+            .trim()
+            .toLowerCase()
+            .replace(/^["']|["']$/g, "")
+            .replace(/\.$/, "");
+
+        if (!cleaned) return null;
+
+        const numeric = Number.parseInt(cleaned, 10);
+        if (Number.isFinite(numeric)) {
+            return Math.max(0, Math.min(100, numeric));
+        }
+
+        if (SCORE_WORD_MAP[cleaned] !== undefined) {
+            return SCORE_WORD_MAP[cleaned];
+        }
+
+        const compact = cleaned.replace(/\s+/g, "-");
+        if (SCORE_WORD_MAP[compact] !== undefined) {
+            return SCORE_WORD_MAP[compact];
+        }
+
+        const parts = compact.split("-");
+        if (parts.length === 2) {
+            const tens = SCORE_WORD_MAP[parts[0]];
+            const ones = this.parseOneDigitWord(parts[1]);
+            if (typeof tens === "number" && typeof ones === "number") {
+                return Math.max(0, Math.min(100, tens + ones));
+            }
+        }
+
+        return null;
+    }
+
+    private parseOneDigitWord(word: string): number | null {
+        if (word === "one") return 1;
+        if (word === "two") return 2;
+        if (word === "three") return 3;
+        if (word === "four") return 4;
+        if (word === "five") return 5;
+        if (word === "six") return 6;
+        if (word === "seven") return 7;
+        if (word === "eight") return 8;
+        if (word === "nine") return 9;
+        return null;
     }
 
     /**

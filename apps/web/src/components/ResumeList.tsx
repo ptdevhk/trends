@@ -636,7 +636,7 @@ export function ResumeList() {
                   key={entry.key || `${index}-${entry.resume.name}`}
                   resume={entry.resume}
                   matchResult={entry.match}
-                  showAiScore={mode === 'ai'}
+                  showAiScore={Boolean(entry.match)}
                   actionType={entry.action}
                   onAction={(actionType) => saveAction({ resumeId: entry.key, actionType })}
                   onViewDetails={() => setDetailResume(entry.resume)}

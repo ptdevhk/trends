@@ -494,6 +494,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/match-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get resume match run history
+         * @description Returns recent matching runs for backend AI/rule pipeline
+         */
+        get: {
+            parameters: {
+                query?: {
+                    sessionId?: string;
+                    jobDescriptionId?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Recent run history */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatchRunsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/matches/rescore": {
         parameters: {
             query?: never;
@@ -2208,6 +2251,47 @@ export interface components {
             /** @enum {boolean} */
             success: true;
             results: components["schemas"]["ResumeMatch"][];
+        };
+        MatchRun: {
+            /** @example run-123 */
+            id: string;
+            /** @example session-123 */
+            sessionId?: string;
+            /** @example lathe-sales */
+            jobDescriptionId: string;
+            /** @example sample-initial */
+            sampleName?: string;
+            /**
+             * @example hybrid
+             * @enum {string}
+             */
+            mode: "rules_only" | "hybrid" | "ai_only";
+            /**
+             * @example completed
+             * @enum {string}
+             */
+            status: "processing" | "completed" | "failed";
+            /** @example 100 */
+            totalCount: number;
+            /** @example 20 */
+            processedCount: number;
+            /** @example 0 */
+            failedCount: number;
+            /** @example 14 */
+            matchedCount?: number;
+            /** @example 72.3 */
+            avgScore?: number;
+            /** @example 2026-02-11T08:00:00.000Z */
+            startedAt: string;
+            /** @example 2026-02-11T08:00:09.000Z */
+            completedAt?: string;
+            /** @example AI provider timeout */
+            error?: string;
+        };
+        MatchRunsResponse: {
+            /** @enum {boolean} */
+            success: true;
+            runs: components["schemas"]["MatchRun"][];
         };
         ResumeFilters: {
             minExperience?: number;
