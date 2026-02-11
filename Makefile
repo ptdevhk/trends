@@ -1,12 +1,12 @@
 # TrendRadar Development Makefile
 
 .PHONY: dev dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
-        worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
-        check-python check-node check-build \
-        test test-python test-node test-resume \
-        build-static build-static-fresh serve-static \
-        i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
-        refresh-sample refresh-sample-manual prefetch-convex
+	worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
+	check-python check-node check-build \
+	test test-python test-node test-resume \
+	build-static build-static-fresh serve-static \
+	i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
+	refresh-sample refresh-sample-manual prefetch-convex chrome-debug
 
 # Default target
 .DEFAULT_GOAL := help
@@ -210,6 +210,11 @@ refresh-sample-manual:
 	@echo ""
 	@echo "The exported file includes metadata for reproduction."
 
+# Start Chrome with remote debugging on port 9222 (for CDP/MCP)
+chrome-debug:
+	@chmod +x scripts/chrome-debug.sh
+	./scripts/chrome-debug.sh
+
 # Remove generated/cached files
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
@@ -344,6 +349,7 @@ help:
 	@echo "Utilities:"
 	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
+	@echo "  chrome-debug   Start Google Chrome with remote debugging (port 9222)"
 	@echo "  clean          Remove generated/cached files"
 	@echo "  check          Run validation checks (Python + Node)"
 	@echo "  check-python   Run Python checks only"
