@@ -17,6 +17,7 @@ import {
   searchProfilesRoutes,
   filterPresetsRoutes,
   configRoutes,
+  notificationRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 
@@ -65,7 +66,9 @@ export function createApp() {
   app.route("/", actionsRoutes);
   app.route("/api/search-profiles", searchProfilesRoutes);
   app.route("/api/filter-presets", filterPresetsRoutes);
+  app.route("/api/filter-presets", filterPresetsRoutes);
   app.route("/api/config", configRoutes);
+  app.route("/api/notifications", notificationRoutes);
 
   // OpenAPI documentation endpoint
   app.doc("/doc", openApiConfig);

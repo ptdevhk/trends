@@ -12,6 +12,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Phone } from 'lucide-react'
+import { useState } from 'react'
+import { OutreachModal } from './OutreachModal'
 
 interface ResumeCardProps {
   resume: ResumeItem
@@ -22,7 +25,14 @@ interface ResumeCardProps {
   onAction?: (actionType: CandidateActionType) => void
   selected?: boolean
   onSelect?: () => void
+  jobDescriptionId?: string
+  jobDescription?: {
+    id: string
+    title: string
+    requirements?: string
+  }
 }
+
 
 export function ResumeCard({
   resume,
@@ -33,8 +43,11 @@ export function ResumeCard({
   onAction,
   selected,
   onSelect,
+  jobDescriptionId,
+  jobDescription,
 }: ResumeCardProps) {
   const { t } = useTranslation()
+  const [showOutreach, setShowOutreach] = useState(false)
   const workHistory = resume.workHistory?.filter((item) => item.raw) ?? []
   const jobIntention = (resume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
   const selfIntro = resume.selfIntro || '--'
@@ -167,7 +180,33 @@ export function ResumeCard({
               <Button variant="ghost" size="sm" onClick={onViewDetails}>
                 {t('resumes.actions.view')}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowOutreach(true)}
+                className="gap-2"
+                disabled={!matchResult}
+              >
+                <Phone className="h-3.5 w-3.5" />
+                Contact
+              </Button>
             </div>
+
+            <OutreachModal
+              isOpen={showOutreach}
+              onClose={() => setShowOutreach(false)}
+              resume={resume}
+              jobDescription={jobDescription ? {
+                ...jobDescription,
+                requirements: jobDescription.requirements || ''
+              } : {
+                id: jobDescriptionId || 'default',
+                title: 'Current Position',
+                requirements: ''
+              }}
+              analysis={matchResult}
+              onSuccess={() => onAction?.('contact')}
+            />
           </div>
           <div className="text-sm text-muted-foreground">
             {resume.age || '--'} | {resume.experience || '--'} | {resume.education || '--'} |{' '}

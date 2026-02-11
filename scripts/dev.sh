@@ -16,6 +16,15 @@ if [ -n "$ENV_FILE" ]; then
     elif [ -f "$PROJECT_ROOT/$ENV_FILE" ]; then
         ENV_FILE_RESOLVED="$PROJECT_ROOT/$ENV_FILE"
     fi
+elif [ -f "$PROJECT_ROOT/.env" ]; then
+    ENV_FILE_RESOLVED="$PROJECT_ROOT/.env"
+    echo -e "${CYAN}[$(date '+%H:%M:%S')] [DEV]${NC} Auto-detected .env in project root."
+fi
+
+if [ -n "$ENV_FILE_RESOLVED" ]; then
+    set -a
+    source "$ENV_FILE_RESOLVED"
+    set +a
 fi
 
 # Colors for output
@@ -599,9 +608,6 @@ start_mcp_server() {
 
     cd "$PROJECT_ROOT"
     local cmd="uv run python -m mcp_server.server --transport http --port $port"
-    if [ -n "$ENV_FILE_RESOLVED" ]; then
-        cmd="uv run --env-file \"$ENV_FILE_RESOLVED\" python -m mcp_server.server --transport http --port $port"
-    fi
 
     # Use process substitution to capture correct PID
     eval "$cmd" > >(tee "$(service_log_path "mcp")" | stream_service_logs "mcp" "$BLUE") 2>&1 &
@@ -616,9 +622,6 @@ start_crawler() {
     export SKIP_ROOT_INDEX=true
 
     local cmd="uv run python -m trendradar"
-    if [ -n "$ENV_FILE_RESOLVED" ]; then
-        cmd="uv run --env-file \"$ENV_FILE_RESOLVED\" python -m trendradar"
-    fi
 
     eval "$cmd" > >(tee "$LOGS_DIR/crawler.log" | while read line; do log "CRAWLER" "$GREEN" "$line"; done) 2>&1 &
     # We generally don't track crawler PID for cleanup as it exits, but let's track it just in case
@@ -677,17 +680,7 @@ start_api() {
         log "API" "$CYAN" "Starting BFF API on http://localhost:$port ($runner run dev)"
         cd "$PROJECT_ROOT/apps/api"
 
-        if [ -n "$ENV_FILE_RESOLVED" ] && [ "$runner" = "bun" ]; then
-            PORT="$port" bun --env-file "$ENV_FILE_RESOLVED" run dev > >(tee "$(service_log_path "api")" | stream_service_logs "api" "$CYAN") 2>&1 &
-        else
-            if [ -n "$ENV_FILE_RESOLVED" ]; then
-                # Export optional env-file values into this subshell for npm fallback.
-                set -a
-                source "$ENV_FILE_RESOLVED"
-                set +a
-            fi
-            PORT="$port" run_local_js_script dev > >(tee "$(service_log_path "api")" | stream_service_logs "api" "$CYAN") 2>&1 &
-        fi
+        PORT="$port" run_local_js_script dev > >(tee "$(service_log_path "api")" | stream_service_logs "api" "$CYAN") 2>&1 &
         SERVICE_PIDS["api"]=$!
     else
         log "API" "$YELLOW" "apps/api not found (planned for Milestone 2)"
@@ -708,9 +701,6 @@ start_worker() {
         cd "$PROJECT_ROOT/apps/worker"
         
         local cmd="uv run uvicorn api:app --reload --port $port"
-        if [ -n "$ENV_FILE_RESOLVED" ]; then
-            cmd="uv run --env-file \"$ENV_FILE_RESOLVED\" uvicorn api:app --reload --port $port"
-        fi
 
         eval "$cmd" > >(tee "$(service_log_path "worker")" | stream_service_logs "worker" "$CYAN") 2>&1 &
         SERVICE_PIDS["worker"]=$!
@@ -747,9 +737,6 @@ start_scraper() {
 
     cd "$PROJECT_ROOT"
     local cmd="uv run python scripts/worker.py"
-    if [ -n "$ENV_FILE_RESOLVED" ]; then
-        cmd="uv run --env-file \"$ENV_FILE_RESOLVED\" python scripts/worker.py"
-    fi
 
     eval "$cmd" > >(tee "$(service_log_path "scraper")" | stream_service_logs "scraper" "$CYAN") 2>&1 &
     SERVICE_PIDS["scraper"]=$!

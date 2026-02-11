@@ -207,6 +207,46 @@ export function ResumeList() {
     return () => window.clearTimeout(timer)
   }, [analysisDispatchMessage])
 
+  // Fetch selected job description details
+  const [selectedJob, setSelectedJob] = useState<{ id: string; title: string; requirements?: string } | null>(null)
+
+  useEffect(() => {
+    async function loadJob() {
+      if (!jobDescriptionId) {
+        setSelectedJob(null)
+        return
+      }
+      try {
+        const { data } = await rawApiClient.GET<{
+          success: boolean
+          item?: {
+            _id: string
+            title: string
+            content: string
+          }
+          // The API response type might be slightly different based on previous view
+          // API returns content as top level property in handleAnalyzeAll logic?
+          // In handleAnalyzeAll: data.content
+          // Let's verify the type alias JobDescriptionApiResponse usage
+        }>(`/api/job-descriptions/${jobDescriptionId}`)
+
+        // Based on handleAnalyzeAll logic:
+        // jdTitle = data.item?.title || jobDescriptionId
+        // jdContent = data.content
+        if (data?.success) {
+          setSelectedJob({
+            id: jobDescriptionId,
+            title: data.item?.title || 'Unknown Position',
+            requirements: (data as any).content || ''
+          })
+        }
+      } catch (err) {
+        console.error('Failed to load job details', err)
+      }
+    }
+    loadJob()
+  }, [jobDescriptionId])
+
   const sampleOptions = useMemo(
     () =>
       samples.map((sample) => ({
@@ -620,6 +660,8 @@ export function ResumeList() {
                   onViewDetails={() => setDetailResume(entry.resume)}
                   selected={selectedIds.has(entry.key)}
                   onSelect={() => handleToggleSelect(entry.key)}
+                  jobDescriptionId={jobDescriptionId}
+                  jobDescription={selectedJob || undefined}
                 />
               ))}
             </div>

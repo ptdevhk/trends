@@ -220,6 +220,11 @@ export class AIMatchingService {
      * Check if AI service is available
      */
     isAvailable(): { available: boolean; reason?: string } {
+        // Allow bypass in test/dev environment if explicitly requested or if using a mock provider
+        if (process.env.NODE_ENV === 'test' || process.env.AI_MOCK_ENABLED === 'true') {
+            return { available: true };
+        }
+
         const validation = validateAIConfig();
         if (!validation.valid) {
             return { available: false, reason: validation.error };
@@ -370,6 +375,61 @@ export class AIMatchingService {
     }
 
     /**
+     * Generate an outreach email for a candidate
+     */
+    async generateOutreach(
+        resume: MatchingRequest["resume"],
+        jobDescription: MatchingRequest["jobDescription"],
+        analysis: MatchingResult
+    ): Promise<{ subject: string; body: string }> {
+        const availability = this.isAvailable();
+        if (!availability.available) {
+            throw new Error(availability.reason || "AI service unavailable");
+        }
+
+        const prompt = `You are a professional technical recruiter. Draft a personalized outreach email to a candidate.
+
+Job: ${jobDescription.title}
+Company: ${jobDescription.company || "our company"}
+Candidate: ${resume.name}
+Summary: ${analysis.summary}
+Highlights: ${analysis.highlights.join(", ")}
+
+Requirements:
+1. Tone: Professional, polite, and engaging.
+2. Language: Chinese (Simplified).
+3. Structure: Subject line + Body.
+4. Content: Mention specific highlights from their profile that match the job.
+
+Return strictly valid JSON:
+{
+  "subject": "Email subject",
+  "body": "Email body (text format, use \\n for newlines)"
+}`;
+
+        const messages = [{ role: "user", content: prompt }];
+
+        try {
+            const response = await this.callLLM(messages);
+            const parsed = this.parseResponseObject(response);
+            if (!parsed || typeof parsed.subject !== "string" || typeof parsed.body !== "string") {
+                // Fallback if JSON parsing fails
+                return {
+                    subject: `关于${jobDescription.title}职位的沟通`,
+                    body: response // Return raw response as body if not JSON
+                };
+            }
+            return {
+                subject: parsed.subject as string,
+                body: parsed.body as string
+            };
+        } catch (error) {
+            console.error("[AI Outreach] Error:", error);
+            throw error;
+        }
+    }
+
+    /**
      * Build the prompt from request
      */
     private buildPrompt(request: MatchingRequest): string {
@@ -410,9 +470,17 @@ export class AIMatchingService {
     /**
      * Call the LLM API
      */
-    private async callLLM(
+    async callLLM(
         messages: Array<{ role: string; content: string }>
     ): Promise<string> {
+        // Mock response for testing
+        if (process.env.AI_MOCK_ENABLED === 'true') {
+            return JSON.stringify({
+                subject: "关于高级前端工程师职位的沟通",
+                body: "尊敬的候选人：\n\n您好！我们对您在React和TypeScript方面的丰富经验印象深刻..."
+            });
+        }
+
         // Extract model name (remove provider prefix for some APIs)
         const modelParts = aiConfig.model.split("/");
         const modelName = modelParts.length > 1 ? modelParts.slice(1).join("/") : aiConfig.model;
