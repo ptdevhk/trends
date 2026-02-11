@@ -7,10 +7,13 @@
 		build-static build-static-fresh serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
-		seed seed-full seed-force seed-matches clear-matches
+		seed seed-full seed-force \
+		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance
 
 # Default target
 .DEFAULT_GOAL := help
+
+.PHONY: seed-matches clear-matches
 
 # =============================================================================
 # Development (Full Experience)
