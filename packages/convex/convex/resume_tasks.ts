@@ -1,8 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
-
-const SUBMIT_RESUME_PARALLELISM = 8;
+import { resolveSubmitResumeParallelism } from "./lib/parallelism";
 
 // List recent tasks for monitoring
 export const list = query({
@@ -159,7 +158,7 @@ export const submitResumes = mutation({
 
         const resumes = Array.from(dedupedResumes.values());
         let nextIndex = 0;
-        const parallelism = Math.max(1, Math.min(SUBMIT_RESUME_PARALLELISM, resumes.length));
+        const parallelism = resolveSubmitResumeParallelism(resumes.length);
 
         const worker = async (): Promise<void> => {
             while (true) {

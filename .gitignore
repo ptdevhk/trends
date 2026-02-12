@@ -47,6 +47,9 @@ output/*
 !output/resumes/
 !output/resumes/samples/
 !output/resumes/samples/**
+!output/benchmarks/
+output/benchmarks/*
+!output/benchmarks/.gitkeep
 # Logs
 *.log
 logs/

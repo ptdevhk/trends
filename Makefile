@@ -13,7 +13,7 @@
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: seed-matches clear-matches verify-critical-path
+.PHONY: seed-matches clear-matches verify-critical-path benchmark-critical-path benchmark-critical-path-seeded benchmark-parallelism-matrix
 
 # =============================================================================
 # Development (Full Experience)
@@ -300,6 +300,89 @@ verify-critical-path:
 		npx tsx scripts/verify-critical-path.ts $(ARGS); \
 	fi
 
+# Benchmark critical path with repeated runs (median/p95 + pass/degraded/fail rates)
+benchmark-critical-path:
+	@if command -v bun > /dev/null 2>&1; then \
+		RUNS="$(or $(RUNS),10)" \
+		WARMUP="$(or $(WARMUP),1)" \
+		MODES="$(or $(MODES),seeded,dual)" \
+		KEYWORD="$(or $(KEYWORD),CNC)" \
+		LOCATION="$(or $(LOCATION),广东)" \
+		BASELINE="$(BASELINE)" \
+		STRICT="$(STRICT)" \
+		JSON="$(JSON)" \
+		OUT="$(OUT)" \
+		bun scripts/benchmark-critical-path.ts $(ARGS); \
+	else \
+		RUNS="$(or $(RUNS),10)" \
+		WARMUP="$(or $(WARMUP),1)" \
+		MODES="$(or $(MODES),seeded,dual)" \
+		KEYWORD="$(or $(KEYWORD),CNC)" \
+		LOCATION="$(or $(LOCATION),广东)" \
+		BASELINE="$(BASELINE)" \
+		STRICT="$(STRICT)" \
+		JSON="$(JSON)" \
+		OUT="$(OUT)" \
+		npx tsx scripts/benchmark-critical-path.ts $(ARGS); \
+	fi
+
+# Convenience benchmark mode for seeded-only verification
+benchmark-critical-path-seeded:
+	@$(MAKE) benchmark-critical-path \
+		MODES=seeded \
+		RUNS="$(or $(RUNS),10)" \
+		WARMUP="$(or $(WARMUP),1)" \
+		KEYWORD="$(or $(KEYWORD),CNC)" \
+		LOCATION="$(or $(LOCATION),广东)" \
+		BASELINE="$(BASELINE)" \
+		STRICT="$(STRICT)" \
+		JSON="$(JSON)" \
+		OUT="$(OUT)" \
+		ARGS="$(ARGS)"
+
+# Benchmark matrix for parallelism tuning (seeded mode short runs)
+benchmark-parallelism-matrix:
+	@mkdir -p output/benchmarks
+	@timestamp=$$(date +%Y%m%d-%H%M%S); \
+	matrix_file="output/benchmarks/parallelism-matrix-$$timestamp.json"; \
+	runs="$(or $(RUNS),3)"; \
+	warmup="$(or $(WARMUP),0)"; \
+	modes="$(or $(MODES),seeded)"; \
+	keyword="$(or $(KEYWORD),CNC)"; \
+	location="$(or $(LOCATION),广东)"; \
+	echo "[]" > "$$matrix_file"; \
+	for ai in 2 4 8 12; do \
+		for submit in 4 8 16 24; do \
+			echo "Benchmarking AI_ANALYSIS_PARALLELISM=$$ai SUBMIT_RESUME_PARALLELISM=$$submit"; \
+			run_file=$$(mktemp); \
+			if command -v bun > /dev/null 2>&1; then \
+				AI_ANALYSIS_PARALLELISM="$$ai" \
+				SUBMIT_RESUME_PARALLELISM="$$submit" \
+				RUNS="$$runs" \
+				WARMUP="$$warmup" \
+				MODES="$$modes" \
+				KEYWORD="$$keyword" \
+				LOCATION="$$location" \
+				JSON=1 \
+				bun scripts/benchmark-critical-path.ts > "$$run_file"; \
+			else \
+				AI_ANALYSIS_PARALLELISM="$$ai" \
+				SUBMIT_RESUME_PARALLELISM="$$submit" \
+				RUNS="$$runs" \
+				WARMUP="$$warmup" \
+				MODES="$$modes" \
+				KEYWORD="$$keyword" \
+				LOCATION="$$location" \
+				JSON=1 \
+				npx tsx scripts/benchmark-critical-path.ts > "$$run_file"; \
+			fi; \
+			node -e 'const fs = require("node:fs"); const matrixPath = process.argv[1]; const runPath = process.argv[2]; const ai = Number(process.argv[3]); const submit = Number(process.argv[4]); const benchmark = JSON.parse(fs.readFileSync(runPath, "utf8")); const summaryByMode = benchmark.summaryByMode && typeof benchmark.summaryByMode === "object" ? benchmark.summaryByMode : {}; const modeNames = Object.keys(summaryByMode); const selectedMode = modeNames.length > 0 ? modeNames[0] : "seeded"; const selectedSummary = summaryByMode[selectedMode] && typeof summaryByMode[selectedMode] === "object" ? summaryByMode[selectedMode] : {}; const rows = JSON.parse(fs.readFileSync(matrixPath, "utf8")); rows.push({ aiAnalysisParallelism: ai, submitResumeParallelism: submit, mode: selectedMode, count: selectedSummary.count ?? 0, passRate: selectedSummary.passRate ?? 0, degradedRate: selectedSummary.degradedRate ?? 0, failRate: selectedSummary.failRate ?? 0, medianMs: selectedSummary.medianMs ?? null, p95Ms: selectedSummary.p95Ms ?? null, minMs: selectedSummary.minMs ?? null, maxMs: selectedSummary.maxMs ?? null }); fs.writeFileSync(matrixPath, JSON.stringify(rows, null, 2));' "$$matrix_file" "$$run_file" "$$ai" "$$submit"; \
+			rm -f "$$run_file"; \
+		done; \
+	done; \
+	echo "Parallelism matrix written to $$matrix_file"; \
+	cat "$$matrix_file"
+
 # Refresh resume sample data automatically via CDP
 refresh-sample:
 	@KEYWORD="$(or $(KEYWORD),销售)" SAMPLE="$(or $(SAMPLE),sample-initial)" \
@@ -470,6 +553,9 @@ help:
 	@echo "  seed-matches   Seed deterministic resume matches for dev mode"
 	@echo "  clear-matches  Clear cached resume matches from SQLite"
 	@echo "  verify-critical-path Run critical-path smoke verification (Collection -> Search -> Analysis)"
+	@echo "  benchmark-critical-path Run repeated critical-path benchmark (median/p95 + rates)"
+	@echo "  benchmark-critical-path-seeded Run seeded-only benchmark profile"
+	@echo "  benchmark-parallelism-matrix Run AI/submit parallelism benchmark matrix"
 	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
 	@echo "  chrome-debug   Start Google Chrome with remote debugging (port 9222)"
@@ -495,10 +581,16 @@ help:
 	@echo "  WEB_PORT       Web frontend port (default: 5173)"
 	@echo "  CDP_PORT       Chrome DevTools port (default: 9222)"
 	@echo "  ALLOW_EMPTY    Allow empty resume samples (set to 1)"
-	@echo "  KEYWORD        Search keyword for refresh-sample (default: 销售)"
+	@echo "  KEYWORD        Search keyword for refresh-sample / verify / benchmark"
 	@echo "  SAMPLE         Sample name for refresh-sample (default: sample-initial)"
-	@echo "  LOCATION       Location filter for refresh-sample (e.g. 广东)"
+	@echo "  LOCATION       Location filter for refresh-sample / verify / benchmark"
+	@echo "  RUNS           Benchmark measured runs per mode (default: 10, matrix: 3)"
+	@echo "  WARMUP         Benchmark warmup runs per mode (default: 1, matrix: 0)"
+	@echo "  MODES          Benchmark modes list (default: seeded,dual; matrix: seeded)"
+	@echo "  BASELINE       Baseline benchmark JSON path for regression compare"
+	@echo "  STRICT         Set 1/true to fail benchmark on >25% slowdown"
+	@echo "  OUT            Benchmark JSON output path (set to 1/true for default path)"
 	@echo "  MODE           Verification mode for verify-critical-path (dual|live|seeded)"
 	@echo "  COLLECTION_TIMEOUT_SEC Collection stage timeout for verify-critical-path"
 	@echo "  ANALYSIS_TIMEOUT_SEC Analysis stage timeout for verify-critical-path"
-	@echo "  JSON           Set to 1/true for JSON verifier output"
+	@echo "  JSON           Set to 1/true for JSON verify/benchmark output"
