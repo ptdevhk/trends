@@ -522,15 +522,38 @@ async function runLiveCollectionStage(
 
 async function runSeededCollectionStage(
     client: ConvexHttpClient,
-    projectRoot: string
+    projectRoot: string,
+    keyword: string,
+    location: string
 ): Promise<StageResult> {
+    const keywordAnchorId = `verify-keyword-anchor:${keyword.toLowerCase()}:${location.toLowerCase()}`;
+    const keywordAnchorResume: SeedResume = {
+        externalId: keywordAnchorId,
+        content: {
+            name: "Verifier Keyword Anchor",
+            location,
+            jobIntention: `${keyword} 销售工程师`,
+            selfIntro: `This deterministic seeded resume ensures keyword search coverage for ${keyword}.`,
+            workHistory: [
+                { raw: `Worked on ${keyword} opportunities and customer development.` },
+            ],
+        },
+        hash: createHash("sha256").update(`${keywordAnchorId}:${keyword}:${location}`, "utf8").digest("hex"),
+        source: "verify-critical-path",
+        tags: ["seed", "verify-critical-path"],
+    };
+
     const existing = await client.query(api.resumes.list, { limit: 200 });
     if (existing.length > 0) {
+        const ensureAnchor = await client.mutation(api.seed.seedResumes, { resumes: [keywordAnchorResume] });
+        const refreshed = await client.query(api.resumes.list, { limit: 200 });
         return stagePass({
             mode: "seeded",
             action: "reused-existing-resumes",
-            existingCount: existing.length,
-            existingWithSearchText: existing.filter(hasSearchText).length,
+            existingCount: refreshed.length,
+            existingWithSearchText: refreshed.filter(hasSearchText).length,
+            keywordAnchor: ensureAnchor,
+            keywordAnchorId,
         });
     }
 
@@ -554,6 +577,7 @@ async function runSeededCollectionStage(
         inserted += result.inserted;
         skipped += result.skipped;
     }
+    const anchorResult = await client.mutation(api.seed.seedResumes, { resumes: [keywordAnchorResume] });
 
     const afterSeed = await client.query(api.resumes.list, { limit: 200 });
     if (afterSeed.length === 0) {
@@ -574,6 +598,8 @@ async function runSeededCollectionStage(
         action: "seeded",
         inserted,
         skipped,
+        keywordAnchor: anchorResult,
+        keywordAnchorId,
         countAfterSeed: afterSeed.length,
         withSearchText: afterSeed.filter(hasSearchText).length,
     });
@@ -629,7 +655,7 @@ async function runCollectionStage(
         return runLiveCollectionStage(client, options, logger);
     }
     if (options.mode === "seeded") {
-        return runSeededCollectionStage(client, projectRoot);
+        return runSeededCollectionStage(client, projectRoot, options.keyword, options.location);
     }
 
     const liveResult = await runLiveCollectionStage(client, options, logger);
@@ -638,7 +664,7 @@ async function runCollectionStage(
     }
 
     logger.warn(`[collection] live mode failed (${liveResult.error ?? "unknown error"}), running seeded fallback.`);
-    const seededResult = await runSeededCollectionStage(client, projectRoot);
+    const seededResult = await runSeededCollectionStage(client, projectRoot, options.keyword, options.location);
     return classifyDualCollectionResult(liveResult, seededResult);
 }
 

@@ -32,17 +32,17 @@ describe("verify-critical-path status reduction", () => {
 
 describe("verify-critical-path dual mode fallback", () => {
   it("marks degraded pass when live fails and seeded succeeds", () => {
-    const live = {
+    const live: StageResult = {
       status: "FAIL",
       fallbackUsed: false,
       evidence: { mode: "live" },
       error: "live timeout",
-    } as StageResult;
-    const seeded = {
+    };
+    const seeded: StageResult = {
       status: "PASS",
       fallbackUsed: false,
       evidence: { mode: "seeded" },
-    } as StageResult;
+    };
 
     const result = classifyDualCollectionResult(live, seeded);
     expect(result.status).toBe("DEGRADED_PASS");
@@ -51,18 +51,18 @@ describe("verify-critical-path dual mode fallback", () => {
   });
 
   it("fails when both live and seeded fail", () => {
-    const live = {
+    const live: StageResult = {
       status: "FAIL",
       fallbackUsed: false,
       evidence: { mode: "live" },
       error: "live failed",
-    } as StageResult;
-    const seeded = {
+    };
+    const seeded: StageResult = {
       status: "FAIL",
       fallbackUsed: false,
       evidence: { mode: "seeded" },
       error: "seed failed",
-    } as StageResult;
+    };
 
     const result = classifyDualCollectionResult(live, seeded);
     expect(result.status).toBe("FAIL");
@@ -86,15 +86,27 @@ describe("verify-critical-path json report schema", () => {
       },
     });
 
-    const parsed = JSON.parse(toJsonOutput(report)) as Record<string, unknown>;
-    const stages = parsed.stages as Record<string, unknown>;
-    const collection = stages.collection as Record<string, unknown>;
+    const parsed: unknown = JSON.parse(toJsonOutput(report));
+    if (typeof parsed !== "object" || parsed === null) {
+      throw new Error("Expected JSON object output");
+    }
+    const root = parsed as { [key: string]: unknown };
+    const stagesValue = root.stages;
+    if (typeof stagesValue !== "object" || stagesValue === null) {
+      throw new Error("Expected stages object");
+    }
+    const stages = stagesValue as { [key: string]: unknown };
+    const collectionValue = stages.collection;
+    if (typeof collectionValue !== "object" || collectionValue === null) {
+      throw new Error("Expected collection stage object");
+    }
+    const collection = collectionValue as { [key: string]: unknown };
 
-    expect(parsed.overallStatus).toBe("DEGRADED_PASS");
-    expect(parsed.mode).toBe("dual");
-    expect(parsed.keyword).toBe("CNC");
-    expect(parsed.location).toBe("广东");
-    expect(parsed.durationMs).toBe(10_000);
+    expect(root.overallStatus).toBe("DEGRADED_PASS");
+    expect(root.mode).toBe("dual");
+    expect(root.keyword).toBe("CNC");
+    expect(root.location).toBe("广东");
+    expect(root.durationMs).toBe(10_000);
     expect(collection.status).toBe("DEGRADED_PASS");
     expect(collection.fallbackUsed).toBe(true);
   });
