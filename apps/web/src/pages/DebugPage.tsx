@@ -108,58 +108,59 @@ function buildCounts(items: ResumeItem[], key: keyof ResumeItem): CountEntry[] {
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 /* CONVEX INTEGRATION END */
 
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebounced(value)
+    }, delay)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [delay, value])
+
+  return debounced
+}
+
 export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
   const { t } = useTranslation()
   const location = useLocation()
 
+  const [query, setQuery] = useState('')
+  const debouncedQuery = useDebouncedValue(query, 300)
+  const convexQuery = debouncedQuery.trim() || undefined
+
   // Use Convex hook instead of legacy API
   const [limit, setLimit] = useState(200)
-  const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(limit)
+  const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(limit, convexQuery)
 
   // Adapting Convex data to legacy structure
-  const [query, setQuery] = useState('')
-  const [rawResponse, setRawResponse] = useState<ResumesResponse | null>(null)
-
-  // Legacy state (kept to minimize refactor errors, but unused/dummy)
-  const [samples] = useState<ResumeSample[]>([{ name: 'convex-db', filename: 'db', updatedAt: new Date().toISOString(), size: 0 }])
-  const [selectedSample, setSelectedSample] = useState('convex-db')
-  const [loading, setLoading] = useState(false)
-  const [error] = useState<string | null>(null)
-
-  // Update rawResponse when convex data changes
-  useEffect(() => {
-    if (convexLoading) {
-      setLoading(true)
-      return
-    }
-
-    // Filter client-side if query exists
-    let displayResumes = convexResumes || []
-    if (query) {
-      const q = query.toLowerCase()
-      displayResumes = displayResumes.filter(r =>
-        (r.name && r.name.toLowerCase().includes(q)) ||
-        (r.jobIntention && r.jobIntention.toLowerCase().includes(q))
-      )
-    }
-
-    setRawResponse({
+  const loading = convexLoading
+  const rawResponse = useMemo<ResumesResponse>(() => {
+    const displayResumes = convexResumes || []
+    return {
       success: true,
       data: displayResumes,
       summary: {
         returned: displayResumes.length,
-        total: convexResumes?.length || 0
+        total: displayResumes.length
       },
       metadata: {
         sourceUrl: "Convex Database",
-        totalResumes: convexResumes?.length || 0,
+        totalResumes: displayResumes.length,
         generatedAt: new Date().toISOString(),
         generatedBy: "Convex Client",
-        searchCriteria: { keyword: query || "all", location: "all" }
+        searchCriteria: { keyword: convexQuery || "all", location: "all" }
       }
-    })
-    setLoading(false)
-  }, [convexResumes, convexLoading, query])
+    }
+  }, [convexQuery, convexResumes])
+
+  // Legacy state (kept to minimize refactor errors, but unused/dummy)
+  const [samples] = useState<ResumeSample[]>([{ name: 'convex-db', filename: 'db', updatedAt: new Date().toISOString(), size: 0 }])
+  const [selectedSample, setSelectedSample] = useState('convex-db')
+  const [error] = useState<string | null>(null)
 
   // Legacy Industry & Job Description state
   const [industryStats, setIndustryStats] = useState<IndustryStatsResponse['stats'] | null>(null)

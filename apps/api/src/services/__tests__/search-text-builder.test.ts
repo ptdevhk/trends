@@ -45,4 +45,15 @@ describe("buildSearchText", () => {
     expect(resultA).toBe(resultA.toLowerCase());
     expect(resultA).toBe(resultB);
   });
+
+  it("splits cjk and ascii boundaries for mixed-script search tokens", () => {
+    const result = buildSearchText({
+      jobIntention: "东莞CNC编程",
+      selfIntro: "熟悉cnc操作和车床CNC技术员",
+    });
+
+    expect(result).toContain("东莞 cnc 编程");
+    expect(result).toContain("cnc 操作");
+    expect(result).toContain("车床 cnc 技术员");
+  });
 });

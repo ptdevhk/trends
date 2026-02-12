@@ -1,7 +1,7 @@
-import { internalMutation } from "./_generated/server";
+import { mutation } from "./_generated/server";
 import { buildSearchText } from "./search_text";
 
-export const backfillSearchText = internalMutation({
+export const backfillSearchText = mutation({
     args: {},
     handler: async (ctx) => {
         const resumes = await ctx.db.query("resumes").collect();
@@ -15,5 +15,21 @@ export const backfillSearchText = internalMutation({
             count++;
         }
         return `Backfilled ${count} resumes`;
+    },
+});
+
+export const reindexSearchText = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const resumes = await ctx.db.query("resumes").collect();
+        let count = 0;
+        for (const resume of resumes) {
+            const searchText = buildSearchText(resume.content);
+            if (searchText !== resume.searchText) {
+                await ctx.db.patch(resume._id, { searchText });
+                count++;
+            }
+        }
+        return `Reindexed ${count} resumes`;
     },
 });

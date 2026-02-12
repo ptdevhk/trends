@@ -38,26 +38,33 @@ export function QuickStartPanel({
 
   // Auto-emit updates when location or keywords changes
   useEffect(() => {
-    // Debounce slightly or just emit?
-    // User wants "reflect any selection".
+    const normalizedKeywords = selectedKeywords.map((k) => k.trim()).filter(Boolean);
+    const effectiveJobDescriptionId = normalizedKeywords.length > 0
+      ? undefined
+      : (jobDescriptionId || undefined);
+
     const timer = setTimeout(() => {
       onApplyConfig?.({
         location,
-        keywords: selectedKeywords.map((k) => k.trim()).filter(Boolean),
-        jobDescriptionId: jobDescriptionId || undefined,
+        keywords: normalizedKeywords,
+        jobDescriptionId: effectiveJobDescriptionId,
       });
     }, 500);
     return () => clearTimeout(timer);
   }, [location, selectedKeywords, jobDescriptionId, onApplyConfig]);
 
+  useEffect(() => {
+    if (!jobDescriptionId) {
+      return;
+    }
+    setSelectedKeywords([]);
+    setCustomKeyword("");
+  }, [jobDescriptionId]);
+
 
   const handleKeywordsChange = useCallback((keywords: string[]) => {
     setSelectedKeywords(keywords);
     setCustomKeyword(keywords.join(' '));
-    // Logic to clear JD if keywords match? User didn't specify, but keeping existing behavior is safe?
-    // Actually user said "reflect any selection".
-    // I will remove the auto-clear logic to be safe, or make it optional.
-    // The previous logic cleared JD if keywords added.
     if (keywords.length > 0 && jobDescriptionId) {
       onJobChange?.("");
     }
@@ -65,10 +72,11 @@ export function QuickStartPanel({
 
   const handleJobChange = useCallback((value: string) => {
     onJobChange?.(value);
-    if (value && selectedKeywords.length > 0) {
+    if (value) {
       setSelectedKeywords([]);
+      setCustomKeyword("");
     }
-  }, [onJobChange, selectedKeywords]);
+  }, [onJobChange]);
 
 
   return (
@@ -113,10 +121,10 @@ export function QuickStartPanel({
                     setCustomKeyword(val);
                     // Split by space/comma, filter empty
                     const parts = val.split(/[\s,]+/).filter(Boolean);
-                    // Avoid triggering search if semantic content hasn't changed?
-                    // But duplicates/order might matter in string, not set?
-                    // Set logic handles uniqueness in chips, but here we just pass array.
                     setSelectedKeywords(parts);
+                    if (parts.length > 0 && jobDescriptionId) {
+                      onJobChange?.("");
+                    }
                   }}
                   placeholder={t("quickStart.customKeywordPlaceholder", "关键词 (空格分隔)...")}
                   className="h-9 w-full sm:w-64 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
