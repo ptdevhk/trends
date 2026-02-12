@@ -68,7 +68,6 @@ export function createApp() {
   app.route("/worker", workerRoutes);
   app.route("/api/search-profiles", searchProfilesRoutes);
   app.route("/api/filter-presets", filterPresetsRoutes);
-  app.route("/api/filter-presets", filterPresetsRoutes);
   app.route("/api/config", configRoutes);
   app.route("/api/notifications", notificationRoutes);
 

@@ -27,8 +27,23 @@ type Message = {
     content: string;
 };
 
+const DEFAULT_ANALYSIS_PARALLELISM = 4;
+const MAX_ANALYSIS_PARALLELISM = 12;
+
 function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
+}
+
+function resolveAnalysisParallelism(totalCandidates: number): number {
+    if (totalCandidates <= 0) {
+        return 1;
+    }
+
+    const rawValue = process.env.AI_ANALYSIS_PARALLELISM ?? process.env.AI_PARALLELISM;
+    const parsed = rawValue ? Number.parseInt(rawValue, 10) : Number.NaN;
+    const configured = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_ANALYSIS_PARALLELISM;
+
+    return Math.max(1, Math.min(configured, MAX_ANALYSIS_PARALLELISM, totalCandidates));
 }
 
 function toNumber(value: unknown): number | null {
@@ -333,11 +348,14 @@ export const updateProgress = internalMutation({
             return { status: "cancelled" as const };
         }
 
+        const nextCurrent = Math.max(task.progress.current, args.current);
+        const nextSkipped = Math.max(task.progress.skipped ?? 0, args.skipped);
+
         await ctx.db.patch(args.taskId, {
             progress: {
-                current: args.current,
+                current: nextCurrent,
                 total: task.progress.total,
-                skipped: args.skipped,
+                skipped: nextSkipped,
             },
             lastStatus: args.lastStatus,
         });
@@ -475,54 +493,70 @@ export const processAnalysisTask = internalAction({
             }
 
             if (!cancelled) {
-                for (const resume of toAnalyze) {
-                    try {
-                        const result = await analyzeOneResume(
-                            resume,
-                            {
-                                jobDescriptionId: task.config.jobDescriptionId,
-                                jobDescriptionTitle: task.config.jobDescriptionTitle,
-                                jobDescriptionContent: task.config.jobDescriptionContent,
-                                keywords: task.config.keywords,
-                            },
-                            apiKey
-                        );
+                const parallelism = resolveAnalysisParallelism(toAnalyze.length);
+                let nextIndex = 0;
 
-                        await ctx.runMutation(internal.resumes.updateAnalysis, {
-                            resumeId: resume._id,
-                            analysis: {
-                                score: result.score,
-                                summary: result.summary,
-                                highlights: result.highlights,
-                                recommendation: result.recommendation,
-                                breakdown: result.breakdown,
-                                jobDescriptionId: analysisJobDescriptionId,
-                            },
+                const worker = async (): Promise<void> => {
+                    while (!cancelled) {
+                        const currentIndex = nextIndex;
+                        nextIndex += 1;
+                        if (currentIndex >= toAnalyze.length) {
+                            return;
+                        }
+
+                        const resume = toAnalyze[currentIndex];
+                        try {
+                            const result = await analyzeOneResume(
+                                resume,
+                                {
+                                    jobDescriptionId: task.config.jobDescriptionId,
+                                    jobDescriptionTitle: task.config.jobDescriptionTitle,
+                                    jobDescriptionContent: task.config.jobDescriptionContent,
+                                    keywords: task.config.keywords,
+                                },
+                                apiKey
+                            );
+
+                            await ctx.runMutation(internal.resumes.updateAnalysis, {
+                                resumeId: resume._id,
+                                analysis: {
+                                    score: result.score,
+                                    summary: result.summary,
+                                    highlights: result.highlights,
+                                    recommendation: result.recommendation,
+                                    breakdown: result.breakdown,
+                                    jobDescriptionId: analysisJobDescriptionId,
+                                },
+                            });
+
+                            analyzedCount += 1;
+                            scoreSum += result.score;
+                            if (result.score >= 80) {
+                                highScoreCount += 1;
+                            }
+                        } catch (error) {
+                            failedCount += 1;
+                            console.error(`Failed to analyze resume ${String(resume._id)}:`, error);
+                        }
+
+                        current += 1;
+                        const progressValue = current;
+                        const progressResult = await ctx.runMutation(internal.analysis_tasks.updateProgress, {
+                            taskId: args.taskId,
+                            current: progressValue,
+                            skipped: skippedCount,
+                            lastStatus: `Analyzing resumes ${progressValue}/${task.progress.total}`,
                         });
 
-                        analyzedCount += 1;
-                        scoreSum += result.score;
-                        if (result.score >= 80) {
-                            highScoreCount += 1;
+                        if (progressResult?.status === "cancelled") {
+                            cancelled = true;
+                            return;
                         }
-                    } catch (error) {
-                        failedCount += 1;
-                        console.error(`Failed to analyze resume ${String(resume._id)}:`, error);
                     }
+                };
 
-                    current += 1;
-                    const progressResult = await ctx.runMutation(internal.analysis_tasks.updateProgress, {
-                        taskId: args.taskId,
-                        current,
-                        skipped: skippedCount,
-                        lastStatus: `Analyzing resumes ${current}/${task.progress.total}`,
-                    });
-
-                    if (progressResult?.status === "cancelled") {
-                        cancelled = true;
-                        break;
-                    }
-                }
+                const workers = Array.from({ length: parallelism }, () => worker());
+                await Promise.all(workers);
             }
 
             const avgScore = analyzedCount > 0

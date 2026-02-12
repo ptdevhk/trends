@@ -144,7 +144,13 @@ export function ResumeList() {
     setFilters,
     refresh,
     reloadSamples,
-  } = useResumes({ limit: 200, sessionId: session?.id, jobDescriptionId })
+  } = useResumes({
+    limit: 200,
+    autoFetch: mode !== 'ai',
+    loadSamples: mode !== 'ai',
+    sessionId: session?.id,
+    jobDescriptionId,
+  })
 
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
 
@@ -222,10 +228,10 @@ export function ResumeList() {
   }, [convexResumes, filters, jobDescriptionId])
 
   useEffect(() => {
-    if (session?.jobDescriptionId && jobDescriptionId === null) {
+    if (session?.jobDescriptionId && !jobDescriptionId) {
       setJobDescriptionId(session.jobDescriptionId)
     }
-    if (session?.sampleName && selectedSample === null) {
+    if (session?.sampleName && !selectedSample) {
       setSelectedSample(session.sampleName)
     }
     if (session?.filters && filters.minMatchScore === undefined && !filters.skills?.length) {
@@ -254,9 +260,12 @@ export function ResumeList() {
 
 
   const handleRefresh = useCallback(async () => {
+    if (mode === 'ai') {
+      return
+    }
     await reloadSamples()
     await refresh()
-  }, [reloadSamples, refresh])
+  }, [mode, reloadSamples, refresh])
 
   const handleJobChange = useCallback(
     (value: string) => {

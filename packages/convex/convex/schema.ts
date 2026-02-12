@@ -9,6 +9,8 @@ export default defineSchema({
             location: v.string(),
             limit: v.number(),
             maxPages: v.optional(v.number()),
+            autoAnalyze: v.optional(v.boolean()),
+            analysisTopN: v.optional(v.number()),
         }),
         status: v.union(
             v.literal("pending"),

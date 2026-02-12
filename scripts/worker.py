@@ -1,13 +1,9 @@
-import argparse
 import asyncio
 import hashlib
 import json
 import logging
 import os
 import sys
-import time
-from datetime import datetime
-from pathlib import Path
 
 try:
     import httpx
@@ -20,10 +16,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import existing scraping logic
 from refresh_sample import (
-    CDPClient,
     CDPError,
-    DEFAULT_KEYWORD,
-    DEFAULT_SAMPLE,
     CDP_PORT,
     open_cdp_session,
     execute_scrape_job,
@@ -68,6 +61,20 @@ async def convex_mutation(client: httpx.AsyncClient, name: str, args: dict):
         logger.error(f"Mutation {name} failed: {e}")
         raise
 
+async def convex_query(client: httpx.AsyncClient, name: str, args: dict):
+    url = f"{API_URL}/query"
+    payload = {"path": name, "args": args}
+    try:
+        resp = await client.post(url, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        if data["status"] != "success":
+            raise Exception(f"Convex error: {data.get('errorMessage')}")
+        return data["value"]
+    except Exception as e:
+        logger.error(f"Query {name} failed: {e}")
+        raise
+
 async def process_task(task, client: httpx.AsyncClient):
     logger.info(f"Processing task {task['_id']}: {task['config']}")
     
@@ -76,6 +83,11 @@ async def process_task(task, client: httpx.AsyncClient):
     max_pages = int(config.get("maxPages", 10))
     keyword = str(config["keyword"]).strip()
     location = str(config["location"]).strip()
+    auto_analyze = bool(config.get("autoAnalyze"))
+    try:
+        analysis_top_n = max(1, int(config.get("analysisTopN", 10)))
+    except (TypeError, ValueError):
+        analysis_top_n = 10
     
     # Build search URL
     search_url = build_search_url(keyword, location)
@@ -178,6 +190,41 @@ async def process_task(task, client: httpx.AsyncClient):
                 await convex_mutation(client, "resume_tasks:submitResumes", { 
                     "resumes": formatted_resumes 
                 })
+
+            if auto_analyze and keyword:
+                try:
+                    search_hits = await convex_query(client, "resumes:search", {
+                        "query": keyword,
+                        "limit": analysis_top_n,
+                    })
+                    resume_ids = [
+                        item.get("_id")
+                        for item in search_hits
+                        if isinstance(item, dict) and item.get("_id")
+                    ]
+                    if resume_ids:
+                        analysis_task_id = await convex_mutation(client, "analysis_tasks:dispatch", {
+                            "keywords": [keyword],
+                            "resumeIds": resume_ids,
+                        })
+                        logger.info(
+                            "Auto-dispatched analysis task %s for collection task %s (%d candidates)",
+                            analysis_task_id,
+                            task["_id"],
+                            len(resume_ids),
+                        )
+                    else:
+                        logger.info(
+                            "Auto-analysis requested for collection task %s but no candidates matched keyword '%s'",
+                            task["_id"],
+                            keyword,
+                        )
+                except Exception as analysis_error:
+                    logger.warning(
+                        "Auto-analysis dispatch failed for collection task %s: %s",
+                        task["_id"],
+                        analysis_error,
+                    )
             
             await convex_mutation(client, "resume_tasks:complete", {
                 "taskId": task["_id"],
