@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RefreshCw, FileText } from 'lucide-react'
+import { RefreshCw, FileText, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/EmptyState'
@@ -649,7 +649,19 @@ export function ResumeList() {
       </div>
 
       <div className="grid gap-4">
-        {activeLoading ? (
+        {error ? (
+          <EmptyState
+            icon={AlertTriangle}
+            title={t('resumes.loadError', 'Failed to load resumes')}
+            description={t('resumes.loadErrorDesc', 'There was a problem connecting to the server. Please try again.')}
+            action={
+              <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                {t('common.retry', 'Retry')}
+              </Button>
+            }
+          />
+        ) : activeLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
             <ResumeCardSkeleton key={i} />
           ))
