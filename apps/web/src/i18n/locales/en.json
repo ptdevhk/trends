@@ -114,6 +114,7 @@
     "refresh": "Refresh",
     "searchPlaceholder": "Search name or job intention...",
     "searchButton": "Search",
+    "analyzeAll": "AI Mode",
     "summary": "Sample {{sample}} · Showing {{returned}} / {{total}}",
     "empty": "No resume data available",
     "loading": "Loading...",

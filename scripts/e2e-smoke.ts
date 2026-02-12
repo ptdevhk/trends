@@ -56,9 +56,8 @@ async function runAnalysisTest(page: Page) {
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
 
-    // Click Analyze All - usually it's "Analyze All" or translated. 
-    // From snapshot, it's untranslated: "resumes.analyzeAll"
-    const analyzeBtn = page.getByRole('button', { name: /resumes\.analyzeAll|Analyze/i });
+    // Click the Analyze/Search action button (label may vary by locale/version).
+    const analyzeBtn = page.getByRole('button', { name: /resumes\.analyzeAll|Analyze|AI\s?Mode|AI模式/i });
     if (await analyzeBtn.isEnabled()) {
         await analyzeBtn.click();
         await waitForToast(page, /Analyzing|正在分析/i);

@@ -184,7 +184,8 @@
       "workHistory": "工作經歷",
       "profileLink": "查看原始簡歷",
       "close": "關閉"
-    }
+    },
+    "analyzeAll": "AI模式"
   },
   "aiTasks": {
     "dispatched": "分析任務已建立",
