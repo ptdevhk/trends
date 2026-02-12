@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { buildSearchText } from "./search_text";
 
 // List recent tasks for monitoring
 export const list = query({
@@ -150,6 +151,7 @@ export const submitResumes = mutation({
                 .query("resumes")
                 .withIndex("by_externalId", (q) => q.eq("externalId", resume.externalId))
                 .unique();
+            const searchText = buildSearchText(resume.content);
 
             if (existing) {
                 // Optimistic: Only update if hash changed or tags need merging
@@ -159,7 +161,12 @@ export const submitResumes = mutation({
                         content: resume.content,
                         hash: resume.hash,
                         crawledAt: Date.now(),
+                        searchText,
                         // merge tags logic could go here
+                    });
+                } else if (!existing.searchText) {
+                    await ctx.db.patch(existing._id, {
+                        searchText,
                     });
                 }
             } else {
@@ -167,6 +174,7 @@ export const submitResumes = mutation({
                     externalId: resume.externalId,
                     content: resume.content,
                     hash: resume.hash,
+                    searchText,
                     tags: resume.tags,
                     source: resume.source,
                     crawledAt: Date.now(),

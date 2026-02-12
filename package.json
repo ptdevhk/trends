@@ -18,7 +18,8 @@
     "check:typecheck": "bun run --filter '@trends/*' typecheck",
     "check:lint": "bun run --filter '@trends/web' --filter '@trends/browser-extension' lint",
     "check:build": "bun run --filter '@trends/*' build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify:critical-path": "tsx scripts/verify-critical-path.ts"
   },
   "repository": {
     "type": "git",

@@ -13,7 +13,7 @@
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: seed-matches clear-matches
+.PHONY: seed-matches clear-matches verify-critical-path
 
 # =============================================================================
 # Development (Full Experience)
@@ -264,6 +264,26 @@ seed-matches:
 clear-matches:
 	@npx tsx scripts/clear-matches.ts
 
+# Verify critical path (Collection -> Search -> Analysis)
+verify-critical-path:
+	@if command -v bun > /dev/null 2>&1; then \
+		MODE="$(or $(MODE),dual)" \
+		KEYWORD="$(or $(KEYWORD),CNC)" \
+		LOCATION="$(or $(LOCATION),广东)" \
+		COLLECTION_TIMEOUT_SEC="$(or $(COLLECTION_TIMEOUT_SEC),180)" \
+		ANALYSIS_TIMEOUT_SEC="$(or $(ANALYSIS_TIMEOUT_SEC),300)" \
+		JSON="$(JSON)" \
+		bun scripts/verify-critical-path.ts $(ARGS); \
+	else \
+		MODE="$(or $(MODE),dual)" \
+		KEYWORD="$(or $(KEYWORD),CNC)" \
+		LOCATION="$(or $(LOCATION),广东)" \
+		COLLECTION_TIMEOUT_SEC="$(or $(COLLECTION_TIMEOUT_SEC),180)" \
+		ANALYSIS_TIMEOUT_SEC="$(or $(ANALYSIS_TIMEOUT_SEC),300)" \
+		JSON="$(JSON)" \
+		npx tsx scripts/verify-critical-path.ts $(ARGS); \
+	fi
+
 # Refresh resume sample data automatically via CDP
 refresh-sample:
 	@KEYWORD="$(or $(KEYWORD),销售)" SAMPLE="$(or $(SAMPLE),sample-initial)" \
@@ -430,6 +450,7 @@ help:
 	@echo "  seed-force     Force seed Convex even if DB is not empty"
 	@echo "  seed-matches   Seed deterministic resume matches for dev mode"
 	@echo "  clear-matches  Clear cached resume matches from SQLite"
+	@echo "  verify-critical-path Run critical-path smoke verification (Collection -> Search -> Analysis)"
 	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
 	@echo "  chrome-debug   Start Google Chrome with remote debugging (port 9222)"
@@ -455,3 +476,7 @@ help:
 	@echo "  KEYWORD        Search keyword for refresh-sample (default: 销售)"
 	@echo "  SAMPLE         Sample name for refresh-sample (default: sample-initial)"
 	@echo "  LOCATION       Location filter for refresh-sample (e.g. 广东)"
+	@echo "  MODE           Verification mode for verify-critical-path (dual|live|seeded)"
+	@echo "  COLLECTION_TIMEOUT_SEC Collection stage timeout for verify-critical-path"
+	@echo "  ANALYSIS_TIMEOUT_SEC Analysis stage timeout for verify-critical-path"
+	@echo "  JSON           Set to 1/true for JSON verifier output"

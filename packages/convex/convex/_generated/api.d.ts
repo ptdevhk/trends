@@ -14,6 +14,7 @@ import type * as job_descriptions from "../job_descriptions.js";
 import type * as migrations from "../migrations.js";
 import type * as resume_tasks from "../resume_tasks.js";
 import type * as resumes from "../resumes.js";
+import type * as search_text from "../search_text.js";
 import type * as seed from "../seed.js";
 
 import type {
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   resume_tasks: typeof resume_tasks;
   resumes: typeof resumes;
+  search_text: typeof search_text;
   seed: typeof seed;
 }>;
 

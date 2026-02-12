@@ -1,0 +1,48 @@
+import { describe, expect, it } from "vitest";
+
+import { buildSearchText } from "../../../../../packages/convex/convex/search_text";
+
+describe("buildSearchText", () => {
+  it("handles missing fields safely", () => {
+    expect(buildSearchText({})).toBe("");
+    expect(buildSearchText(null)).toBe("");
+  });
+
+  it("includes key resume fields for search", () => {
+    const value = buildSearchText({
+      name: "Alice",
+      jobIntention: "CNC Sales Engineer",
+      location: "Dongguan",
+      selfIntro: "FANUC and STAR machine sales",
+      workHistory: [{ raw: "Sold CNC lathes for 5 years" }],
+      tags: ["precision", "lathe"],
+    });
+
+    expect(value).toContain("alice");
+    expect(value).toContain("cnc sales engineer");
+    expect(value).toContain("dongguan");
+    expect(value).toContain("fanuc");
+    expect(value).toContain("sold cnc lathes for 5 years");
+  });
+
+  it("normalizes to lowercase deterministically", () => {
+    const contentA = {
+      name: "BOB",
+      location: "GUANGDONG",
+      workHistory: [{ raw: "CNC TECH" }],
+      extra: { skills: ["FANUC"] },
+    };
+    const contentB = {
+      extra: { skills: ["FANUC"] },
+      workHistory: [{ raw: "CNC TECH" }],
+      location: "GUANGDONG",
+      name: "BOB",
+    };
+
+    const resultA = buildSearchText(contentA);
+    const resultB = buildSearchText(contentB);
+
+    expect(resultA).toBe(resultA.toLowerCase());
+    expect(resultA).toBe(resultB);
+  });
+});
