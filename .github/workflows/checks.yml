@@ -73,5 +73,8 @@ jobs:
           make check-agent-policy
           make check-agent-skill
 
+      - name: Verify critical path (seeded mode)
+        run: make verify-critical-path MODE=seeded JSON=1 || echo "Advisory verification failed, skipping block"
+
       - name: Run checks + build validation
         run: make check-build
