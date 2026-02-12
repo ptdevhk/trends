@@ -7,7 +7,6 @@ import { ResumeCard } from '@/components/ResumeCard'
 import { ResumeDetail } from '@/components/ResumeDetail'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { ModeToggle } from '@/components/ModeToggle'
 import { useSession } from '@/hooks/useSession'
 import { useAiMatching } from '@/hooks/useAiMatching'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
@@ -20,8 +19,10 @@ import type { MatchBreakdown, MatchingResult, Recommendation } from '@/types/res
 
 import { useMutation } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
+import type { Id } from '../../../../packages/convex/convex/_generated/dataModel'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 import { rawApiClient } from '@/lib/api-helpers'
+import { expandKeyword, DEFAULT_CONFIG } from '@/lib/trendradar/parser'
 
 type JobDescriptionApiResponse = {
   success: boolean
@@ -112,7 +113,7 @@ function buildResumeKey(resume: ResumeItem, index: number): string {
 export function ResumeList() {
   const { t } = useTranslation()
   const { session, updateSession } = useSession()
-  const [mode, setMode] = useState<'ai' | 'original'>('ai')
+  const [mode] = useState<'ai'>('ai')
   const [jobDescriptionId, setJobDescriptionId] = useState('')
   const [quickStartKeywords, setQuickStartKeywords] = useState<string[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -134,18 +135,21 @@ export function ResumeList() {
 
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
   const {
-    results: matchResults,
-    stats: matchStats,
-    loading: matchLoading,
-    error: matchError,
-    progress: matchProgress,
     matchAll,
-    fetchMatches,
+    isMatching,
+    progress,
+    results: matchResults,
+    error: matchError,
   } = useAiMatching()
   const { actions, saveAction } = useCandidateActions(session?.id)
 
   // Convex Integration
-  const { resumes: convexResumes, loading: convexLoading } = useConvexResumes()
+  const expandedQuery = useMemo(() => {
+    if (!query) return undefined
+    return expandKeyword(query, DEFAULT_CONFIG)
+  }, [query])
+
+  const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisDispatchMessage, setAnalysisDispatchMessage] = useState<{
@@ -165,6 +169,9 @@ export function ResumeList() {
     })
 
     // 1. Keyword filter (query)
+    // 1. Keyword filter (query) - Handled by backend search now via useConvexResumes(expandedQuery)
+    // We only keep client side highlighting or fallback if needed, but for filtering we rely on backend.
+    /*
     if (query) {
       const q = query.toLowerCase()
       result = result.filter(r =>
@@ -174,6 +181,7 @@ export function ResumeList() {
         (r.location?.toLowerCase().includes(q))
       )
     }
+    */
 
     // 2. Filter panel (filters)
     if (filters.locations?.length) {
@@ -193,13 +201,13 @@ export function ResumeList() {
   }, [convexResumes, filters, jobDescriptionId, query])
 
   useEffect(() => {
-    if (session?.jobDescriptionId && !jobDescriptionId) {
+    if (session?.jobDescriptionId && jobDescriptionId === null) {
       setJobDescriptionId(session.jobDescriptionId)
     }
-    if (session?.sampleName && session.sampleName !== selectedSample) {
+    if (session?.sampleName && selectedSample === null) {
       setSelectedSample(session.sampleName)
     }
-    if (session?.filters) {
+    if (session?.filters && filters.minMatchScore === undefined && !filters.skills?.length) {
       setFilters(session.filters)
     }
   }, [
@@ -270,8 +278,10 @@ export function ResumeList() {
   )
 
   const handleMatchAll = useCallback(async () => {
+    let result;
+    // Path B: Job Description
     if (jobDescriptionId) {
-      await matchAll({
+      result = await matchAll({
         sessionId: session?.id,
         jobDescriptionId,
         sample: selectedSample || undefined,
@@ -279,20 +289,53 @@ export function ResumeList() {
         topN: 20,
         mode: 'hybrid',
       })
-      return
+    }
+    // Path A: Keywords
+    else if (quickStartKeywords.length > 0) {
+      result = await matchAll({
+        sessionId: session?.id,
+        keywords: quickStartKeywords,
+        location: filters.locations?.[0],
+        sample: selectedSample || undefined,
+        limit: 200,
+        topN: 20,
+        mode: 'rules_only',
+      })
     }
 
-    if (quickStartKeywords.length === 0) return
-    await matchAll({
-      sessionId: session?.id,
-      keywords: quickStartKeywords,
-      location: filters.locations?.[0],
-      sample: selectedSample || undefined,
-      limit: 200,
-      topN: 20,
-      mode: 'rules_only',
-    })
-  }, [filters.locations, jobDescriptionId, matchAll, quickStartKeywords, selectedSample, session?.id])
+    // AI Double-Confirmation: Automatically analyze top results
+    if (result?.results && result.results.length > 0) {
+      const topCandidates = result.results
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10) // Analyze top 10 for verification
+
+      const resumeIdsToAnalyze = topCandidates.map((r) => r.resumeId as Id<'resumes'>)
+
+      if (resumeIdsToAnalyze.length > 0) {
+        setAnalysisDispatchMessage({ type: 'success', text: t('aiTasks.autoVerifying', 'Auto-verifying top candidates with AI...') })
+
+        try {
+          if (jobDescriptionId) {
+            await dispatchAnalysis({
+              jobDescriptionId,
+              jobDescriptionTitle: selectedJob?.title,
+              jobDescriptionContent: selectedJob?.requirements,
+              sample: selectedSample || undefined,
+              resumeIds: resumeIdsToAnalyze,
+            })
+          } else {
+            await dispatchAnalysis({
+              keywords: quickStartKeywords,
+              sample: selectedSample || undefined,
+              resumeIds: resumeIdsToAnalyze,
+            })
+          }
+        } catch (err) {
+          console.error('Failed to dispatch auto-verification', err)
+        }
+      }
+    }
+  }, [filters.locations, jobDescriptionId, matchAll, quickStartKeywords, selectedSample, session?.id, dispatchAnalysis, selectedJob, t])
 
   const handleAnalyzeAll = async () => {
     if (!convexResumes.length) return
@@ -300,6 +343,7 @@ export function ResumeList() {
     setAnalyzing(true)
     try {
       if (jobDescriptionId) {
+        // Path B: Job Description
         let jdContent = ''
         let jdTitle = ''
         try {
@@ -322,6 +366,7 @@ export function ResumeList() {
           resumeIds: convexResumes.map((resume) => resume.resumeId),
         })
       } else if (quickStartKeywords.length > 0) {
+        // Path A: Keywords
         await dispatchAnalysis({
           keywords: quickStartKeywords,
           sample: selectedSample || undefined,
@@ -347,42 +392,34 @@ export function ResumeList() {
 
   const aiStats = useMemo(() => {
     // If using Convex data, stats are computed from analysis fields
-    if (mode === 'ai') {
-      const validResumes = convexResumes.filter((resume) => {
-        const analysis = getAnalysisForJob(resume, jobDescriptionId)
-        return Boolean(
-          analysis
-          && !isAutoFilteredAnalysis(analysis)
-          && (!jobDescriptionId || analysis.jobDescriptionId === jobDescriptionId)
-        )
-      })
+    const validResumes = convexResumes.filter((resume) => {
+      const analysis = getAnalysisForJob(resume, jobDescriptionId)
+      return Boolean(
+        analysis
+        && !isAutoFilteredAnalysis(analysis)
+        && (!jobDescriptionId || analysis.jobDescriptionId === jobDescriptionId)
+      )
+    })
 
-      const processed = validResumes.length
-      const matched = validResumes.filter((resume) => {
-        const analysis = getAnalysisForJob(resume, jobDescriptionId)
-        return (analysis?.score ?? 0) >= 60
-      }).length
+    const processed = validResumes.length
+    const matched = validResumes.filter((resume) => {
+      const analysis = getAnalysisForJob(resume, jobDescriptionId)
+      return (analysis?.score ?? 0) >= 60
+    }).length
 
-      const avgScore = processed
-        ? Number(
-          (
-            validResumes.reduce((sum, resume) => {
-              const analysis = getAnalysisForJob(resume, jobDescriptionId)
-              return sum + (analysis?.score ?? 0)
-            }, 0) / processed
-          ).toFixed(2)
-        )
-        : 0
+    const avgScore = processed
+      ? Number(
+        (
+          validResumes.reduce((sum, resume) => {
+            const analysis = getAnalysisForJob(resume, jobDescriptionId)
+            return sum + (analysis?.score ?? 0)
+          }, 0) / processed
+        ).toFixed(2)
+      )
+      : 0
 
-      return { processed, matched, avgScore }
-    }
-    if (matchStats) return matchStats
-    if (!matchResults.length) return null
-    const processed = matchResults.length
-    const matched = matchResults.filter((item) => item.score >= 50).length
-    const avgScore = Number((matchResults.reduce((sum, item) => sum + item.score, 0) / processed).toFixed(2))
     return { processed, matched, avgScore }
-  }, [matchResults, matchStats, mode, convexResumes, jobDescriptionId])
+  }, [convexResumes, jobDescriptionId])
 
   const matchMap = useMemo(() => {
     return new Map(matchResults.map((item) => [item.resumeId, item]))
@@ -504,9 +541,7 @@ export function ResumeList() {
   }, [displayedResumes])
 
   const hasInput = Boolean(jobDescriptionId) || quickStartKeywords.length > 0
-  const disableAnalyzeButton = mode === 'ai'
-    ? (!convexResumes.length || analyzing || !hasInput)
-    : (matchLoading || !hasInput)
+  const disableAnalyzeButton = (!convexResumes.length || analyzing || !hasInput)
 
   const handleQuickStartApply = useCallback(
     (config: {
@@ -542,7 +577,6 @@ export function ResumeList() {
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <ModeToggle mode={mode} onModeChange={setMode} aiStats={aiStats ?? undefined} />
         <div className="flex flex-wrap items-center gap-2">
           {summary && !error ? (
             <span className="text-sm text-muted-foreground">
@@ -559,14 +593,12 @@ export function ResumeList() {
           </Button>
           <Button
             size="sm"
-            onClick={mode === 'ai' ? handleAnalyzeAll : handleMatchAll}
+            onClick={handleAnalyzeAll}
             disabled={disableAnalyzeButton}
             title={!hasInput ? t('resumes.selectKeywordsOrJobDescription', '请选择关键词或职位描述') : undefined}
           >
-            <RefreshCw className={cn('mr-2 h-4 w-4', (analyzing || matchLoading) && 'animate-spin')} />
-            {mode === 'ai'
-              ? (analyzing ? 'Analyzing...' : 'Analyze All (AI)')
-              : (matchLoading ? t('resumes.matching.running') : t('resumes.matching.matchAll'))}
+            <RefreshCw className={cn('mr-2 h-4 w-4', analyzing && 'animate-spin')} />
+            {analyzing ? 'Analyzing...' : 'Analyze All (AI)'}
           </Button>
         </div>
       </div>
@@ -590,17 +622,11 @@ export function ResumeList() {
       {matchError ? (
         <div className="text-xs text-destructive">{matchError}</div>
       ) : null}
-      {mode !== 'ai' && matchProgress ? (
-        <div className="text-xs text-muted-foreground">
-          AI progress: {matchProgress.done}/{matchProgress.total}
-        </div>
-      ) : null}
+
 
       {mode === 'ai' ? (
         <AnalysisTaskMonitor />
-      ) : (
-        <MatchRunHistory sessionId={session?.id} jobDescriptionId={jobDescriptionId || undefined} />
-      )}
+      ) : null}
 
       <div className="space-y-3">
         <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold">

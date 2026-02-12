@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { useCallback, useMemo, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,13 +32,9 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
   const { keywords, grouped, hotKeywords, loading, error } = useIndustryKeywords()
   const [expanded, setExpanded] = useState(false)
   const [customKeyword, setCustomKeyword] = useState('')
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(normalizeKeywords(value)))
 
-  const normalizedValue = useMemo(() => normalizeKeywords(value), [value])
-
-  useEffect(() => {
-    setSelected(new Set(normalizedValue))
-  }, [normalizedValue])
+  // Derive selection directly from props
+  const selected = useMemo(() => new Set(normalizeKeywords(value)), [value])
 
   const selectedValues = useMemo(() => Array.from(selected), [selected])
   const hotKeywordSet = useMemo(
@@ -58,44 +54,31 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
     return selectedValues.filter((keyword) => !knownKeywordSet.has(keyword))
   }, [knownKeywordSet, selectedValues])
 
-  const updateSelection = useCallback(
-    (updater: (previous: Set<string>) => Set<string>) => {
-      setSelected((previous) => {
-        const next = updater(previous)
-        onChange(Array.from(next))
-        return next
-      })
-    },
-    [onChange]
-  )
-
   const toggleKeyword = useCallback(
     (keyword: string) => {
       const normalized = keyword.trim()
       if (!normalized) return
-      updateSelection((previous) => {
-        const next = new Set(previous)
-        if (next.has(normalized)) {
-          next.delete(normalized)
-        } else {
-          next.add(normalized)
-        }
-        return next
-      })
+
+      const next = new Set(selected)
+      if (next.has(normalized)) {
+        next.delete(normalized)
+      } else {
+        next.add(normalized)
+      }
+      onChange(Array.from(next))
     },
-    [updateSelection]
+    [onChange, selected]
   )
 
   const addCustomKeyword = useCallback(() => {
     const normalized = customKeyword.trim()
     if (!normalized) return
-    updateSelection((previous) => {
-      const next = new Set(previous)
-      next.add(normalized)
-      return next
-    })
+
+    const next = new Set(selected)
+    next.add(normalized)
+    onChange(Array.from(next))
     setCustomKeyword('')
-  }, [customKeyword, updateSelection])
+  }, [customKeyword, onChange, selected])
 
   const handleCustomKeywordKeyDown = useCallback(
     (event: KeyboardEvent<HTMLInputElement>) => {
@@ -164,16 +147,16 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
 
       {expanded
         ? CATEGORY_ORDER.map((category) => {
-            if (grouped[category].length === 0) return null
-            return (
-              <div key={category} className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {CATEGORY_LABELS[category]}:
-                </span>
-                {grouped[category].map((item) => renderChip(item.keyword))}
-              </div>
-            )
-          })
+          if (grouped[category].length === 0) return null
+          return (
+            <div key={category} className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                {CATEGORY_LABELS[category]}:
+              </span>
+              {grouped[category].map((item) => renderChip(item.keyword))}
+            </div>
+          )
+        })
         : null}
 
       {customSelectedKeywords.length > 0 ? (

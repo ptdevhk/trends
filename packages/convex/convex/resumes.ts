@@ -1,3 +1,4 @@
+```typescript
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 
@@ -6,6 +7,20 @@ export const list = query({
     handler: async (ctx, args) => {
         const limit = args.limit || 50;
         return await ctx.db.query("resumes").order("desc").take(limit);
+    },
+});
+
+export const search = query({
+    args: {
+        query: v.string(),
+        limit: v.optional(v.number())
+    },
+    handler: async (ctx, args) => {
+        const limit = args.limit || 50;
+        return await ctx.db
+            .query("resumes")
+            .withSearchIndex("search_body", (q) => q.search("searchText", args.query))
+            .take(limit);
     },
 });
 

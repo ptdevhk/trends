@@ -54,9 +54,15 @@ export default defineSchema({
         // Key: jobDescriptionId (or 'default')
         // Value: Analysis object
         analyses: v.optional(v.any()),
+
+        // Full Text Search Field (Populated via mutation)
+        searchText: v.optional(v.string()),
     })
         .index("by_externalId", ["externalId"])
-        .index("by_hash", ["hash"]),
+        .index("by_hash", ["hash"])
+        .searchIndex("search_body", {
+            searchField: "searchText",
+        }),
 
     // Optional: Search Profiles (if we want to store user configs)
     search_profiles: defineTable({

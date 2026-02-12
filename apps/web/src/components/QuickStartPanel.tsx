@@ -42,6 +42,22 @@ export function QuickStartPanel({
   const [location, setLocation] = useState(defaultLocation);
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords);
 
+  const handleKeywordsChange = useCallback((keywords: string[]) => {
+    setSelectedKeywords(keywords);
+    // If keywords are present, clear the JD selection
+    if (keywords.length > 0 && jobDescriptionId) {
+      onJobChange?.("");
+    }
+  }, [jobDescriptionId, onJobChange]);
+
+  const handleJobChange = useCallback((value: string) => {
+    onJobChange?.(value);
+    // If JD is selected, clear the keywords
+    if (value && selectedKeywords.length > 0) {
+      setSelectedKeywords([]);
+    }
+  }, [onJobChange, selectedKeywords]);
+
   const handleApply = useCallback(() => {
     onApplyConfig?.({
       location,
@@ -91,7 +107,7 @@ export function QuickStartPanel({
           <label className="mb-1 block text-sm font-medium text-muted-foreground">
             {t("quickStart.keywords", "关键词")}
           </label>
-          <KeywordChips value={selectedKeywords} onChange={setSelectedKeywords} />
+          <KeywordChips value={selectedKeywords} onChange={handleKeywordsChange} />
         </div>
 
         <div className="max-w-sm">
@@ -100,7 +116,7 @@ export function QuickStartPanel({
           </label>
           <JobDescriptionSelect
             value={jobDescriptionId}
-            onChange={(value) => onJobChange?.(value)}
+            onChange={handleJobChange}
             disabled={!onJobChange}
           />
         </div>
