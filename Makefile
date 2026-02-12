@@ -301,6 +301,11 @@ verify-critical-path:
 		npx tsx scripts/verify-critical-path.ts $(ARGS); \
 	fi
 
+# Run E2E smoke tests via DevTools MCP / Playwright CDP
+e2e:
+	@echo "Running E2E smoke tests via DevTools..."
+	@npx tsx scripts/e2e-smoke.ts
+
 # Benchmark critical path with repeated runs (median/p95 + pass/degraded/fail rates)
 benchmark-critical-path:
 	@if command -v bun > /dev/null 2>&1; then \

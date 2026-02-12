@@ -19,7 +19,8 @@
     "check:lint": "bun run --filter '@trends/web' --filter '@trends/browser-extension' lint",
     "check:build": "bun run --filter '@trends/*' build",
     "test": "vitest run",
-    "verify:critical-path": "tsx scripts/verify-critical-path.ts"
+    "verify:critical-path": "tsx scripts/verify-critical-path.ts",
+    "e2e": "tsx scripts/e2e-smoke.ts"
   },
   "repository": {
     "type": "git",
@@ -27,10 +28,12 @@
   },
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/node": "^25.0.10",
-    "vitest": "^1.6.0",
+    "playwright": "^1.58.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
+    "vitest": "^1.6.0",
     "yaml": "^2.8.2"
   }
 }

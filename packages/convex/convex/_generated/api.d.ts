@@ -17,6 +17,7 @@ import type * as resume_tasks from "../resume_tasks.js";
 import type * as resumes from "../resumes.js";
 import type * as search_text from "../search_text.js";
 import type * as seed from "../seed.js";
+import type * as sessions from "../sessions.js";
 
 import type {
   ApiFromModules,
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   resumes: typeof resumes;
   search_text: typeof search_text;
   seed: typeof seed;
+  sessions: typeof sessions;
 }>;
 
 /**

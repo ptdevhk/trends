@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
-import { api } from '../../../packages/convex/convex/_generated/api';
+import { api } from '../../../../packages/convex/convex/_generated/api';
 import type { ResumeFilters } from '@/types/resume';
 import { toast } from 'sonner';
 
