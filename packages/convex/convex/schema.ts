@@ -129,4 +129,20 @@ export default defineSchema({
         startedAt: v.optional(v.number()),
         completedAt: v.optional(v.number()),
     }).index("by_status", ["status"]),
+
+    // Persistent User Sessions
+    screening_sessions: defineTable({
+        sessionKey: v.string(), // Fingerprint or anonymous ID
+        status: v.union(v.literal("active"), v.literal("archived")),
+        config: v.object({
+            location: v.string(),
+            keywords: v.array(v.string()),
+            jobDescriptionId: v.optional(v.string()),
+            filters: v.optional(v.any()), // Stores ResumeFilters object
+        }),
+        reviewedResumeIds: v.array(v.string()), // IDs of resumes seen/acted upon
+        lastActive: v.number(),
+    })
+        .index("by_sessionKey", ["sessionKey"])
+        .index("by_status", ["status"]),
 });

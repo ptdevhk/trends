@@ -1,128 +1,89 @@
-import { useCallback, useEffect, useState } from 'react'
-import { rawApiClient } from '@/lib/api-helpers'
-import type { ResumeFilters } from '@/types/resume'
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '../../../packages/convex/convex/_generated/api';
+import type { ResumeFilters } from '@/types/resume';
+import { toast } from 'sonner';
 
-export type SearchSession = {
-  id: string
-  userId?: string
-  jobDescriptionId?: string
-  sampleName?: string
-  filters?: ResumeFilters
-  status: 'active' | 'completed' | 'archived'
-  createdAt: string
-  updatedAt: string
-  expiresAt?: string
-}
-
-const STORAGE_KEY = 'trends.resume.sessionId'
+const STORAGE_KEY = 'trends.resume.sessionKey';
 
 export function useSession() {
-  const [session, setSession] = useState<SearchSession | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // 1. Session Key (Persistent in LocalStorage)
+  const [sessionKey] = useState(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return stored;
+    const newKey = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    localStorage.setItem(STORAGE_KEY, newKey);
+    return newKey;
+  });
 
-  const createSession = useCallback(async (payload?: Partial<SearchSession>) => {
-    const { data, error: apiError } = await rawApiClient.POST<{
-      success: boolean
-      session?: SearchSession
-    }>('/api/sessions', {
-      body: {
-        userId: payload?.userId,
-        jobDescriptionId: payload?.jobDescriptionId,
-        sampleName: payload?.sampleName,
-        filters: payload?.filters,
-      },
-    })
+  // 2. Convex Sync
+  const activeSession = useQuery(api.sessions.getActiveSession, { sessionKey });
+  const saveSession = useMutation(api.sessions.saveSession);
+  const addReviewedItem = useMutation(api.sessions.addReviewedItem);
 
-    if (apiError || !data?.success || !data.session) {
-      setError('Failed to create session')
-      return null
-    }
+  const [hasRestored, setHasRestored] = useState(false);
 
-    setSession(data.session)
-    localStorage.setItem(STORAGE_KEY, data.session.id)
-    setError(null)
-    return data.session
-  }, [])
+  // 3. Local State (Initialized from Convex when available)
+  const [location, setLocation] = useState('广东');
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [jobDescriptionId, setJobDescriptionId] = useState<string | undefined>(undefined);
+  const [filters, setFilters] = useState<ResumeFilters>({});
 
-  const loadSession = useCallback(async (sessionId: string) => {
-    const { data, error: apiError } = await rawApiClient.GET<{
-      success: boolean
-      session?: SearchSession
-    }>(`/api/sessions/${sessionId}`)
-    if (apiError || !data?.success || !data.session) {
-      return null
-    }
-    setSession(data.session)
-    return data.session
-  }, [])
-
-  const updateSession = useCallback(
-    async (updates: Partial<SearchSession>) => {
-      if (!session?.id) {
-        return createSession(updates)
-      }
-
-      const { data, error: apiError } = await rawApiClient.PATCH<{
-        success: boolean
-        session?: SearchSession
-      }>(
-        `/api/sessions/${session.id}`,
-        {
-          body: {
-            userId: updates.userId,
-            jobDescriptionId: updates.jobDescriptionId,
-            sampleName: updates.sampleName,
-            filters: updates.filters,
-            status: updates.status,
-            expiresAt: updates.expiresAt,
-          },
-        }
-      )
-
-      if (apiError || !data?.success || !data.session) {
-        setError('Failed to update session')
-        return null
-      }
-
-      setSession(data.session)
-      setError(null)
-      return data.session
-    },
-    [createSession, session?.id]
-  )
-
+  // 4. Initialization (Restore from DB)
   useEffect(() => {
-    let mounted = true
-
-    const init = async () => {
-      setLoading(true)
-      const storedId = localStorage.getItem(STORAGE_KEY)
-      if (storedId) {
-        const loaded = await loadSession(storedId)
-        if (mounted && !loaded) {
-          localStorage.removeItem(STORAGE_KEY)
-          await createSession()
-        }
-      } else {
-        await createSession()
-      }
-      if (mounted) setLoading(false)
+    if (activeSession && !hasRestored) {
+      setLocation(activeSession.config.location);
+      setKeywords(activeSession.config.keywords);
+      setJobDescriptionId(activeSession.config.jobDescriptionId);
+      setFilters(activeSession.config.filters || {});
+      setHasRestored(true);
+      toast.info('已恢复之前的筛选会话', {
+        description: `${activeSession.config.location} · ${activeSession.config.keywords.join(', ')}`,
+      });
     }
+  }, [activeSession, hasRestored]);
 
-    init()
+  // 5. Auto-save (Debounced)
+  useEffect(() => {
+    if (!hasRestored) return;
 
-    return () => {
-      mounted = false
-    }
-  }, [createSession, loadSession])
+    const timer = setTimeout(() => {
+      saveSession({
+        sessionKey,
+        location,
+        keywords,
+        jobDescriptionId,
+        filters,
+      });
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [sessionKey, location, keywords, jobDescriptionId, filters, saveSession, hasRestored]);
+
+  // 6. Helpers
+  const trackReviewedResume = useCallback(
+    async (resumeId: string) => {
+      await addReviewedItem({ sessionKey, resumeId });
+    },
+    [sessionKey, addReviewedItem]
+  );
+
+  const reviewedIdsSet = useMemo(() =>
+    new Set(activeSession?.reviewedResumeIds || []),
+    [activeSession?.reviewedResumeIds]
+  );
 
   return {
-    session,
-    loading,
-    error,
-    createSession,
-    updateSession,
-    setSession,
-  }
+    location,
+    setLocation,
+    keywords,
+    setKeywords,
+    jobDescriptionId,
+    setJobDescriptionId,
+    filters,
+    setFilters,
+    reviewedIdsSet,
+    trackReviewedResume,
+    loading: !activeSession && !hasRestored,
+  };
 }
