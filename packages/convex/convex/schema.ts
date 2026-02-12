@@ -24,6 +24,16 @@ export default defineSchema({
             total: v.number(),
             page: v.number(),
         }),
+        results: v.optional(v.object({
+            extracted: v.number(),
+            submitted: v.number(),
+            deduped: v.number(),
+            inserted: v.number(),
+            updated: v.number(),
+            unchanged: v.number(),
+            autoAnalyzed: v.optional(v.number()),
+            autoAnalysisTaskId: v.optional(v.string()),
+        })),
         workerId: v.optional(v.string()), // ID of the worker processing this task
         lastStatus: v.optional(v.string()), // Real-time status message (e.g. "Scraping page 2")
         error: v.optional(v.string()),

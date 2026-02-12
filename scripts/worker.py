@@ -173,6 +173,16 @@ async def process_task(task, client: httpx.AsyncClient):
                 )
             
             # Submit results
+            submit_stats = {
+                "input": 0,
+                "submitted": 0,
+                "deduped": 0,
+                "inserted": 0,
+                "updated": 0,
+                "unchanged": 0,
+            }
+            analysis_task_id = None
+            auto_analyzed = 0
             if resumes:
                 # Transform to match schema if needed, schema expects externalId, content, hash, source, tags
                 formatted_resumes = []
@@ -186,10 +196,20 @@ async def process_task(task, client: httpx.AsyncClient):
                         "source": "hr.job5156.com",
                         "tags": [] # Could add search profile ID here
                     })
-                
-                await convex_mutation(client, "resume_tasks:submitResumes", { 
+
+                submit_result = await convex_mutation(client, "resume_tasks:submitResumes", {
                     "resumes": formatted_resumes 
                 })
+                if isinstance(submit_result, dict):
+                    submit_stats["input"] = int(submit_result.get("input", len(formatted_resumes)))
+                    submit_stats["submitted"] = int(submit_result.get("submitted", len(formatted_resumes)))
+                    submit_stats["deduped"] = int(submit_result.get("deduped", 0))
+                    submit_stats["inserted"] = int(submit_result.get("inserted", 0))
+                    submit_stats["updated"] = int(submit_result.get("updated", 0))
+                    submit_stats["unchanged"] = int(submit_result.get("unchanged", 0))
+                else:
+                    submit_stats["input"] = len(formatted_resumes)
+                    submit_stats["submitted"] = len(formatted_resumes)
 
             if auto_analyze and keyword:
                 try:
@@ -207,6 +227,7 @@ async def process_task(task, client: httpx.AsyncClient):
                             "keywords": [keyword],
                             "resumeIds": resume_ids,
                         })
+                        auto_analyzed = len(resume_ids)
                         logger.info(
                             "Auto-dispatched analysis task %s for collection task %s (%d candidates)",
                             analysis_task_id,
@@ -225,11 +246,24 @@ async def process_task(task, client: httpx.AsyncClient):
                         task["_id"],
                         analysis_error,
                     )
-            
-            await convex_mutation(client, "resume_tasks:complete", {
+
+            complete_payload = {
                 "taskId": task["_id"],
-                "status": "completed"
-            })
+                "status": "completed",
+                "results": {
+                    "extracted": len(resumes),
+                    "submitted": submit_stats["submitted"],
+                    "deduped": submit_stats["deduped"],
+                    "inserted": submit_stats["inserted"],
+                    "updated": submit_stats["updated"],
+                    "unchanged": submit_stats["unchanged"],
+                    "autoAnalyzed": auto_analyzed,
+                }
+            }
+            if analysis_task_id:
+                complete_payload["results"]["autoAnalysisTaskId"] = str(analysis_task_id)
+            
+            await convex_mutation(client, "resume_tasks:complete", complete_payload)
             logger.info(f"Task {task['_id']} completed")
 
     except CancellationError as e:
