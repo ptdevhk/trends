@@ -10,6 +10,7 @@ export type ResumesSummary = components['schemas']['ResumesResponse']['summary']
 interface UseResumesOptions {
   limit?: number
   autoFetch?: boolean
+  loadSamples?: boolean
   sessionId?: string
   jobDescriptionId?: string
 }
@@ -31,7 +32,7 @@ interface UseResumesReturn {
 }
 
 export function useResumes(options: UseResumesOptions = {}): UseResumesReturn {
-  const { limit = 200, autoFetch = true, sessionId, jobDescriptionId } = options
+  const { limit = 200, autoFetch = true, loadSamples = true, sessionId, jobDescriptionId } = options
 
   const [resumes, setResumes] = useState<ResumeItem[]>([])
   const [samples, setSamples] = useState<ResumeSample[]>([])
@@ -43,6 +44,12 @@ export function useResumes(options: UseResumesOptions = {}): UseResumesReturn {
   const [error, setError] = useState<string | null>(null)
 
   const reloadSamples = useCallback(async () => {
+    if (!loadSamples) {
+      setSamples([])
+      setSelectedSample('')
+      return
+    }
+
     setError(null)
     const { data, error: apiError } = await rawApiClient.GET<{
       success: boolean
@@ -58,7 +65,7 @@ export function useResumes(options: UseResumesOptions = {}): UseResumesReturn {
     if (nextSamples.length) {
       setSelectedSample((current) => current || nextSamples[0].name)
     }
-  }, [])
+  }, [loadSamples])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -114,8 +121,11 @@ export function useResumes(options: UseResumesOptions = {}): UseResumesReturn {
   }, [filters, jobDescriptionId, limit, query, selectedSample, sessionId])
 
   useEffect(() => {
-    reloadSamples()
-  }, [reloadSamples])
+    if (!loadSamples) {
+      return
+    }
+    void reloadSamples()
+  }, [loadSamples, reloadSamples])
 
   useEffect(() => {
     if (autoFetch) {

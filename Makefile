@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
+.PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
 		worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume \
@@ -27,8 +27,24 @@ dev:
 	else \
 		echo "Skipping Convex env sync (no Convex .env.local found yet)"; \
 	fi
-	@npx tsx scripts/seed-matches.ts
+	@if [ "$${SKIP_MATCH_SEED:-false}" = "true" ]; then \
+		echo "Skipping seed-matches (SKIP_MATCH_SEED=true)"; \
+	else \
+		npx tsx scripts/seed-matches.ts; \
+	fi
 	./scripts/dev.sh $(ARGS)
+
+# Start only critical-path services (Convex + scraper + API + web)
+dev-critical:
+	@WEB_SKIP_API_GEN=true ./scripts/dev.sh --profile critical $(ARGS)
+
+# Start only UI-focused services (Convex + API + web)
+dev-fast:
+	@WEB_SKIP_API_GEN=true ./scripts/dev.sh --profile fast-ui $(ARGS)
+
+# Start backend-focused services (Convex + MCP + worker + scraper + API)
+dev-backend:
+	./scripts/dev.sh --profile backend $(ARGS)
 
 # Stop/clean any stale development services and ports
 dev-clean:
@@ -397,6 +413,9 @@ help:
 	@echo ""
 	@echo "Development (Full Experience):"
 	@echo "  dev            Start all services (MCP + crawler + apps/*)"
+	@echo "  dev-fast       Start fast UI loop (Convex + API + web)"
+	@echo "  dev-critical   Start critical-path loop (Convex + scraper + API + web)"
+	@echo "  dev-backend    Start backend loop (Convex + MCP + worker + scraper + API)"
 	@echo "  dev-clean      Kill stale dev processes and free dev ports"
 	@echo "  dev-mcp        Start only MCP server (HTTP on port 3333)"
 	@echo "  dev-crawl      Run crawler only (no long-running services)"
@@ -467,6 +486,9 @@ help:
 	@echo ""
 	@echo "Environment Variables:"
 	@echo "  ENV_FILE       Optional env file path (unset by default)"
+	@echo "  SKIP_MATCH_SEED Set to true to skip automatic seed-matches in make dev"
+	@echo "  SERVICE_PROFILE Default service profile when running scripts/dev.sh (full|critical|fast-ui|backend)"
+	@echo "  WEB_SKIP_API_GEN Set to true to start web without OpenAPI type generation"
 	@echo "  MCP_PORT       MCP server port (default: 3333)"
 	@echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
 	@echo "  API_PORT       BFF API port (default: 3000)"

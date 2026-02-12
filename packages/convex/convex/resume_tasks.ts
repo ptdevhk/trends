@@ -2,6 +2,8 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
 
+const SUBMIT_RESUME_PARALLELISM = 8;
+
 // List recent tasks for monitoring
 export const list = query({
     args: {},
@@ -20,6 +22,8 @@ export const dispatch = mutation({
         location: v.string(),
         limit: v.number(),
         maxPages: v.optional(v.number()),
+        autoAnalyze: v.optional(v.boolean()),
+        analysisTopN: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const taskId = await ctx.db.insert("collection_tasks", {
@@ -28,6 +32,8 @@ export const dispatch = mutation({
                 location: args.location,
                 limit: args.limit,
                 maxPages: args.maxPages ?? 10,
+                autoAnalyze: args.autoAnalyze,
+                analysisTopN: args.analysisTopN,
             },
             status: "pending",
             progress: {
@@ -146,41 +152,59 @@ export const submitResumes = mutation({
         ),
     },
     handler: async (ctx, args) => {
+        const dedupedResumes = new Map<string, (typeof args.resumes)[number]>();
         for (const resume of args.resumes) {
-            const existing = await ctx.db
-                .query("resumes")
-                .withIndex("by_externalId", (q) => q.eq("externalId", resume.externalId))
-                .unique();
-            const searchText = buildSearchText(resume.content);
+            dedupedResumes.set(resume.externalId, resume);
+        }
 
-            if (existing) {
-                // Optimistic: Only update if hash changed or tags need merging
-                // For now, simpler to just skip heavy updates if hash matches
-                if (existing.hash !== resume.hash) {
-                    await ctx.db.patch(existing._id, {
+        const resumes = Array.from(dedupedResumes.values());
+        let nextIndex = 0;
+        const parallelism = Math.max(1, Math.min(SUBMIT_RESUME_PARALLELISM, resumes.length));
+
+        const worker = async (): Promise<void> => {
+            while (true) {
+                const currentIndex = nextIndex;
+                nextIndex += 1;
+                if (currentIndex >= resumes.length) {
+                    return;
+                }
+
+                const resume = resumes[currentIndex];
+                const existing = await ctx.db
+                    .query("resumes")
+                    .withIndex("by_externalId", (q) => q.eq("externalId", resume.externalId))
+                    .unique();
+                const searchText = buildSearchText(resume.content);
+
+                if (existing) {
+                    if (existing.hash !== resume.hash) {
+                        await ctx.db.patch(existing._id, {
+                            content: resume.content,
+                            hash: resume.hash,
+                            crawledAt: Date.now(),
+                            searchText,
+                        });
+                    } else if (!existing.searchText) {
+                        await ctx.db.patch(existing._id, {
+                            searchText,
+                        });
+                    }
+                } else {
+                    await ctx.db.insert("resumes", {
+                        externalId: resume.externalId,
                         content: resume.content,
                         hash: resume.hash,
+                        searchText,
+                        tags: resume.tags,
+                        source: resume.source,
                         crawledAt: Date.now(),
-                        searchText,
-                        // merge tags logic could go here
-                    });
-                } else if (!existing.searchText) {
-                    await ctx.db.patch(existing._id, {
-                        searchText,
                     });
                 }
-            } else {
-                await ctx.db.insert("resumes", {
-                    externalId: resume.externalId,
-                    content: resume.content,
-                    hash: resume.hash,
-                    searchText,
-                    tags: resume.tags,
-                    source: resume.source,
-                    crawledAt: Date.now(),
-                });
             }
-        }
+        };
+
+        const workers = Array.from({ length: parallelism }, () => worker());
+        await Promise.all(workers);
     },
 });
 

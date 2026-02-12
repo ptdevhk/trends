@@ -741,20 +741,17 @@ start_web() {
         fi
 
         local runner
+        local web_dev_script="dev"
         runner="$(local_js_runner)"
 
-        log "WEB" "$CYAN" "Generating API types ($runner run gen:api)..."
-        (
-            cd "$PROJECT_ROOT/apps/web"
-            if ! run_local_js_script gen:api >/dev/null 2>&1; then
-                log "WEB" "$YELLOW" "Failed to generate API types (continuing)"
-            fi
-        )
+        if [ "${WEB_SKIP_API_GEN:-false}" = "true" ]; then
+            web_dev_script="dev:fast"
+        fi
 
-        log "WEB" "$CYAN" "Starting web frontend on http://localhost:$port ($runner run dev)"
+        log "WEB" "$CYAN" "Starting web frontend on http://localhost:$port ($runner run $web_dev_script)"
         cd "$PROJECT_ROOT/apps/web"
 
-        run_local_js_script dev --port "$port" > >(tee "$(service_log_path "web")" | stream_service_logs "web" "$CYAN") 2>&1 &
+        run_local_js_script "$web_dev_script" --port "$port" > >(tee "$(service_log_path "web")" | stream_service_logs "web" "$CYAN") 2>&1 &
         SERVICE_PIDS["web"]=$!
     else
         log "WEB" "$YELLOW" "apps/web not found (planned for Milestone 3)"
@@ -1172,6 +1169,8 @@ main() {
     fi
     log "DEV" "$GREEN" "Timezone: $TIMEZONE"
 
+    local service_profile="${SERVICE_PROFILE:-full}"
+
     # Parse command line arguments
     local services=()
     while [[ $# -gt 0 ]]; do
@@ -1193,7 +1192,19 @@ main() {
                 shift
                 ;;
             --all)
-                services=("mcp" "crawl" "worker" "api" "web")
+                services=("convex" "mcp" "crawl" "worker" "scraper" "api" "web")
+                shift
+                ;;
+            --profile)
+                if [[ $# -lt 2 ]]; then
+                    echo "Missing value for --profile (expected: full|critical|fast-ui|backend)"
+                    exit 1
+                fi
+                service_profile="$2"
+                shift 2
+                ;;
+            --profile=*)
+                service_profile="${1#*=}"
                 shift
                 ;;
             --seed)
@@ -1217,6 +1228,7 @@ main() {
                 echo "  --skip-crawl  Skip initial crawl and start servers immediately (default)"
                 echo "  --fresh       Run crawl first, then start servers"
                 echo "  --all         Start all services (including future apps/*)"
+                echo "  --profile     Service profile: full|critical|fast-ui|backend"
                 echo "  --seed        Run seed status check (default behavior)"
                 echo "  --no-seed     Skip Convex seed status check"
                 echo "  --force, -f   Kill processes using required ports"
@@ -1225,6 +1237,7 @@ main() {
                 echo "Environment variables:"
                 echo "  ENV_FILE      Optional env file path (unset by default)"
                 echo "  SKIP_CRAWL    Skip crawl on startup (default: true; set to false to crawl)"
+                echo "  SERVICE_PROFILE Service profile when no explicit service flags are provided (default: full)"
                 echo "  SEED_MODE     Convex seed mode: auto|skip (default: auto)"
                 echo "  MCP_PORT      MCP server port (default: 3333)"
                 echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
@@ -1244,14 +1257,42 @@ main() {
         esac
     done
 
-    # Default: fast dev mode (skip crawl unless explicitly disabled)
+    # Default service selection by profile (only when explicit service flags were not provided)
     if [ ${#services[@]} -eq 0 ]; then
-        if [ "$SKIP_CRAWL" != "false" ] && [ "$SKIP_CRAWL" != "0" ]; then
-            services=("convex" "mcp" "worker" "scraper" "api" "web")
-        else
-            services=("convex" "mcp" "crawl" "worker" "scraper" "api" "web")
-        fi
+        case "$service_profile" in
+            full)
+                if [ "$SKIP_CRAWL" != "false" ] && [ "$SKIP_CRAWL" != "0" ]; then
+                    services=("convex" "mcp" "worker" "scraper" "api" "web")
+                else
+                    services=("convex" "mcp" "crawl" "worker" "scraper" "api" "web")
+                fi
+                ;;
+            critical)
+                if [ "$SKIP_CRAWL" != "false" ] && [ "$SKIP_CRAWL" != "0" ]; then
+                    services=("convex" "scraper" "api" "web")
+                else
+                    services=("convex" "crawl" "scraper" "api" "web")
+                fi
+                ;;
+            fast-ui)
+                services=("convex" "api" "web")
+                ;;
+            backend)
+                if [ "$SKIP_CRAWL" != "false" ] && [ "$SKIP_CRAWL" != "0" ]; then
+                    services=("convex" "mcp" "worker" "scraper" "api")
+                else
+                    services=("convex" "mcp" "crawl" "worker" "scraper" "api")
+                fi
+                ;;
+            *)
+                echo "Unknown service profile: $service_profile"
+                echo "Supported profiles: full, critical, fast-ui, backend"
+                exit 1
+                ;;
+        esac
     fi
+
+    log "DEV" "$GREEN" "Service profile: $service_profile"
 
     # Check for port conflicts upfront
     if ! check_all_ports "${services[@]}"; then
