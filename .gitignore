@@ -47,6 +47,9 @@ output/*
 !output/resumes/
 !output/resumes/samples/
 !output/resumes/samples/**
+!output/benchmarks/
+output/benchmarks/*
+!output/benchmarks/.gitkeep
 # Logs
 *.log
 logs/
@@ -58,6 +61,8 @@ package-lock.json
 
 # Allow web app lib folder (overrides Python lib/ ignore)
 !apps/web/src/lib/
+!packages/convex/convex/lib/
+!packages/convex/convex/lib/parallelism.ts
 
 # Generated OpenAPI spec
 apps/api/openapi.json

@@ -11,6 +11,7 @@ import {
     getAiApiKey,
     normalizeResume,
 } from "./analyze";
+import { resolveAnalysisParallelism } from "./lib/parallelism";
 
 type AnalysisTaskStatus = "pending" | "processing" | "completed" | "failed" | "cancelled";
 
@@ -27,23 +28,8 @@ type Message = {
     content: string;
 };
 
-const DEFAULT_ANALYSIS_PARALLELISM = 4;
-const MAX_ANALYSIS_PARALLELISM = 12;
-
 function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
-}
-
-function resolveAnalysisParallelism(totalCandidates: number): number {
-    if (totalCandidates <= 0) {
-        return 1;
-    }
-
-    const rawValue = process.env.AI_ANALYSIS_PARALLELISM ?? process.env.AI_PARALLELISM;
-    const parsed = rawValue ? Number.parseInt(rawValue, 10) : Number.NaN;
-    const configured = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_ANALYSIS_PARALLELISM;
-
-    return Math.max(1, Math.min(configured, MAX_ANALYSIS_PARALLELISM, totalCandidates));
 }
 
 function toNumber(value: unknown): number | null {
