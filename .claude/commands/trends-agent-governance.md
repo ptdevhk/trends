@@ -17,7 +17,7 @@ Apply this governance workflow for non-trivial technical planning and recommenda
    - Write commands so they are copy/paste-ready from repository root in a fresh environment.
    - Avoid machine-specific absolute paths in implementation guidance.
 6. Include a `Sources Used` section in the final response using the template below.
-   - Keep local evidence paths absolute in `Sources Used`.
+   - Use repo-relative paths in `Sources Used`.
 7. If AGENTS governance files changed, run:
    - `make sync-agent-policy`
    - `make check-agent-policy`
@@ -36,7 +36,7 @@ Use this strict order for non-trivial technical design/recommendation tasks:
 
 Output pathing rules:
 - Use repo-relative paths in implementation/report content so the output is portable to fresh environments.
-- Use absolute local paths only in `Sources Used` to document exactly what was consulted.
+- Use repo-relative paths in `Sources Used` to document what was consulted.
 
 If a source tier is not used, set it to `none` in `Sources Used`.
 
@@ -46,9 +46,9 @@ Use this template in non-trivial technical design/recommendation responses:
 
 ```markdown
 ## Sources Used
-- Local files (absolute paths consulted):
-  - /absolute/path/one
-  - /absolute/path/two
+- Local files:
+  - apps/example/path.ts
+  - config/example/config.json5
 - Context7:
   - /org/project
   - /org/project/version

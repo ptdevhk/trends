@@ -4,13 +4,13 @@ Use this template in non-trivial technical design/recommendation responses.
 
 Pathing requirements:
 - Use repo-relative paths in implementation content outside this section.
-- Keep `Local files` below as absolute paths for evidence/audit purposes.
+- Use repo-relative paths for local files.
 
 ```markdown
 ## Sources Used
-- Local files (absolute paths consulted):
-  - /absolute/path/one
-  - /absolute/path/two
+- Local files:
+  - apps/example/path.ts
+  - config/example/config.json5
 - Context7:
   - /org/project
   - /org/project/version

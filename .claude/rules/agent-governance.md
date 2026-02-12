@@ -21,15 +21,15 @@ For implementation and report content:
 
 1. Use repo-relative paths (for example `apps/api/src/routes/resumes.ts`) so output is reusable in a fresh environment.
 2. Write commands that are copy/paste-ready from repository root.
-3. Avoid machine-specific absolute paths outside `Sources Used`.
+3. Avoid machine-specific absolute paths.
 
 ## Evidence Reporting
 
 For non-trivial technical design/recommendation responses, append:
 
     ## Sources Used
-    - Local files (absolute paths consulted):
-      - /absolute/path/one
+    - Local files:
+      - apps/example/path.ts
     - Context7:
       - /org/project
     - Web:

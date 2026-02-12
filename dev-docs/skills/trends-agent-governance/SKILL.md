@@ -13,7 +13,7 @@ Apply this workflow for non-trivial technical planning and recommendation tasks.
    - If the task is a technical design/recommendation task, require source evidence.
    - If the task is a trivial edit or command-only action, skip evidence unless explicitly requested.
 2. Load local sources first.
-   - Read implementation files and relevant docs under `/Users/karlchow/.codex/worktrees/0e71/trends`.
+   - Read implementation files and relevant docs in this repository.
    - Read `dev-docs/*.txt` material relevant to the task.
 3. Query Context7 for libraries/frameworks/APIs involved in the recommendation.
 4. Query official web sources only when freshness-sensitive facts are required.
@@ -22,7 +22,7 @@ Apply this workflow for non-trivial technical planning and recommendation tasks.
    - Write commands so they are copy/paste-ready from repository root in a fresh environment.
    - Avoid machine-specific absolute paths in implementation guidance.
 6. Produce output with `Sources Used` section using the template in `references/evidence-template.md`.
-   - Keep local evidence paths absolute in `Sources Used` to satisfy governance auditability.
+   - Use repo-relative paths in `Sources Used`.
 7. If AGENTS governance files changed, run:
    - `make sync-agent-policy`
    - `make check-agent-policy`
