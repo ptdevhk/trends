@@ -9,6 +9,7 @@
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force \
 		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance \
+		install-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		clean-db fresh-env
 
 # Default target
@@ -241,6 +242,30 @@ check-agent-skill:
 	else \
 		./scripts/agent-governance/install-skill.sh --check; \
 	fi
+
+# Install any repo skill into ${CODEX_HOME:-$HOME/.codex}/skills
+install-skill:
+	@if [ -z "$(SKILL)" ]; then \
+		echo "SKILL is required. Usage: make install-skill SKILL=<skill-name>"; \
+		exit 1; \
+	fi
+	@./scripts/skills/install-skill.sh --skill "$(SKILL)"
+
+# Check installed skill drift for any repo skill
+check-skill-install:
+	@if [ -z "$(SKILL)" ]; then \
+		echo "SKILL is required. Usage: make check-skill-install SKILL=<skill-name>"; \
+		exit 1; \
+	fi
+	@./scripts/skills/install-skill.sh --skill "$(SKILL)" --check
+
+# Install resume-qa-hybrid-mcp skill into ${CODEX_HOME:-$HOME/.codex}/skills
+install-test-plan-skill:
+	@$(MAKE) install-skill SKILL=resume-qa-hybrid-mcp
+
+# Check installed drift for resume-qa-hybrid-mcp skill
+check-test-plan-skill:
+	@$(MAKE) check-skill-install SKILL=resume-qa-hybrid-mcp
 
 # Sync all governance artifacts
 sync-agent-governance: sync-agent-policy install-agent-skill
@@ -570,6 +595,10 @@ help:
 	@echo "  check-agent-policy Validate generated dev-docs/AGENTS.md is up to date"
 	@echo "  install-agent-skill Install governance skill into ~/.codex/skills"
 	@echo "  check-agent-skill Validate governance skill, command, rules file, and installed copy drift"
+	@echo "  install-skill SKILL=<name> Install any repo skill into ~/.codex/skills"
+	@echo "  check-skill-install SKILL=<name> Validate installed skill sync with repo source"
+	@echo "  install-test-plan-skill Install resume-qa-hybrid-mcp skill into ~/.codex/skills"
+	@echo "  check-test-plan-skill Validate installed resume-qa-hybrid-mcp skill drift"
 	@echo "  sync-agent-governance Run policy sync + skill install"
 	@echo ""
 	@echo "Utilities:"
