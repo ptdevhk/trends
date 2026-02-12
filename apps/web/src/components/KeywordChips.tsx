@@ -1,8 +1,7 @@
-import { useCallback, useMemo, useState, type KeyboardEvent } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import {
   CATEGORY_LABELS,
@@ -31,7 +30,6 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
   const { t } = useTranslation()
   const { keywords, grouped, hotKeywords, loading, error } = useIndustryKeywords()
   const [expanded, setExpanded] = useState(false)
-  const [customKeyword, setCustomKeyword] = useState('')
 
   // Derive selection directly from props
   const selected = useMemo(() => new Set(normalizeKeywords(value)), [value])
@@ -70,25 +68,7 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
     [onChange, selected]
   )
 
-  const addCustomKeyword = useCallback(() => {
-    const normalized = customKeyword.trim()
-    if (!normalized) return
 
-    const next = new Set(selected)
-    next.add(normalized)
-    onChange(Array.from(next))
-    setCustomKeyword('')
-  }, [customKeyword, onChange, selected])
-
-  const handleCustomKeywordKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === 'Enter') {
-        event.preventDefault()
-        addCustomKeyword()
-      }
-    },
-    [addCustomKeyword]
-  )
 
   const renderChip = useCallback(
     (keyword: string) => {
@@ -166,25 +146,7 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          value={customKeyword}
-          onChange={(event) => setCustomKeyword(event.target.value)}
-          onKeyDown={handleCustomKeywordKeyDown}
-          placeholder={t('quickStart.customKeywordPlaceholder', '自定义关键词...')}
-          className="h-8 max-w-xs text-xs"
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 px-3 text-xs"
-          onClick={addCustomKeyword}
-          disabled={!customKeyword.trim()}
-        >
-          +
-        </Button>
-      </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>

@@ -1,12 +1,18 @@
 import { useMutation, useQuery } from 'convex/react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Clock, History as HistoryIcon } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { Progress } from './ui/progress'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from './ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { formatInAppTimezone } from '@/lib/timezone'
 
 type AnalysisTaskDoc = Doc<'analysis_tasks'>
@@ -139,7 +145,6 @@ export function AnalysisTaskMonitor() {
   const { t } = useTranslation()
   const tasks = useQuery(api.analysis_tasks.list)
   const cancelTask = useMutation(api.analysis_tasks.cancel)
-  const [showHistory, setShowHistory] = useState(false)
 
   if (!tasks || tasks.length === 0) {
     return null
@@ -149,58 +154,46 @@ export function AnalysisTaskMonitor() {
   const finishedTasks = tasks.filter((task) => task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled')
   const hasActive = activeTasks.length > 0
 
-  if (!hasActive && !showHistory && finishedTasks.length > 0) {
-    return (
-      <Card className="mb-6 bg-muted/20">
-        <CardContent className="py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-            <span>{t('aiTasks.monitor.allCompleted')}</span>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)} className="h-8 text-xs">
-            {t('aiTasks.monitor.showHistory')}
-          </Button>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
-    <Card className="mb-6">
-      <CardHeader className="pb-3 border-b">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            {hasActive ? (
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            ) : (
-              <Clock className="h-5 w-5 text-muted-foreground" />
-            )}
-            {hasActive ? t('aiTasks.monitor.activeTitle') : t('aiTasks.monitor.historyTitle')}
-          </CardTitle>
-          {finishedTasks.length > 0 ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowHistory((prev) => !prev)}
-              className="text-xs h-8"
-            >
-              {showHistory ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
-              {showHistory ? t('aiTasks.monitor.hideHistory') : t('aiTasks.monitor.showHistory')}
-            </Button>
-          ) : null}
-        </div>
-      </CardHeader>
-      <CardContent className="pt-4 space-y-4">
-        {activeTasks.map((task) => (
-          <TaskItem key={task._id} task={task} onCancel={cancelTask} />
-        ))}
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          className={`h-9 w-9 ${hasActive ? 'border-primary/50 text-primary bg-primary/5' : 'text-muted-foreground'}`}
+        >
+          {hasActive ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <HistoryIcon className="h-4 w-4" />
+          )}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{t('aiTasks.monitor.historyTitle', 'Analysis History')}</DialogTitle>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto space-y-4 pr-1">
+          {activeTasks.length > 0 && (
+            <div className="space-y-3">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active</div>
+              {activeTasks.map((task) => (
+                <TaskItem key={task._id} task={task} onCancel={cancelTask} />
+              ))}
+            </div>
+          )}
 
-        {showHistory ? (
-          finishedTasks.map((task) => (
-            <TaskItem key={task._id} task={task} onCancel={cancelTask} />
-          ))
-        ) : null}
-      </CardContent>
-    </Card>
+          {finishedTasks.length > 0 && (
+            <div className="space-y-3">
+              {activeTasks.length > 0 && <div className="border-t my-2" />}
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">History</div>
+              {finishedTasks.slice(0, 20).map((task) => (
+                <TaskItem key={task._id} task={task} onCancel={cancelTask} />
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

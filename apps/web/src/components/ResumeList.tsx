@@ -484,6 +484,9 @@ export function ResumeList() {
   const hasInput = Boolean(jobDescriptionId) || quickStartKeywords.length > 0
   const disableAnalyzeButton = (!convexResumes.length || analyzing || !hasInput)
   */
+  // Re-enabling for usage in Analyze All button
+  const hasInput = Boolean(jobDescriptionId) || quickStartKeywords.length > 0
+  const disableAnalyzeButton = (filteredConvexResumes.length === 0 || analyzing || !hasInput)
 
   const handleQuickStartApply = useCallback(
     (config: {
@@ -495,8 +498,23 @@ export function ResumeList() {
       if (config.jobDescriptionId) {
         setJobDescriptionId(config.jobDescriptionId)
         updateSession({ jobDescriptionId: config.jobDescriptionId })
+      } else {
+        // If no JD, ensure we search by keywords
+        // (already handled by quickStartKeywords state)
+        if (!config.jobDescriptionId && jobDescriptionId) {
+          setJobDescriptionId('');
+          updateSession({ jobDescriptionId: undefined });
+        }
       }
 
+      // User requested that QuickStart keywords do NOT affect the "Filter" panel (frontend filters).
+      // So we DO NOT update `filters.skills` here.
+      // We only update location if explicit? User said "default nothing".
+      // Maybe location should also not be auto-set in filters?
+      // "frontend filter only, default nothing, not afect by keyword from user enter"
+      // This implies the Filter Panel should be completely independent.
+      // So I will comment out the filter updates.
+      /*
       const nextFilters: typeof filters = { ...filters, minMatchScore: undefined }
       if (config.location.trim()) {
         nextFilters.locations = [config.location.trim()]
@@ -506,8 +524,9 @@ export function ResumeList() {
       }
       setFilters(nextFilters)
       updateSession({ filters: nextFilters })
+      */
     },
-    [filters, updateSession, setFilters]
+    [updateSession, jobDescriptionId]
   )
 
   return (
@@ -516,9 +535,35 @@ export function ResumeList() {
         onApplyConfig={handleQuickStartApply}
         jobDescriptionId={jobDescriptionId}
         onJobChange={handleJobChange}
+        extraActions={
+          <div className="flex items-center gap-2">
+            {!selectedIds.size && (
+              <Button
+                onClick={handleAnalyzeAll}
+                disabled={disableAnalyzeButton}
+                size="sm"
+                className="gap-2"
+              >
+                {analyzing ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    {t('aiTasks.analyzing')}
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    {t('resumes.analyzeAll')}
+                  </>
+                )}
+              </Button>
+            )}
+            <AnalysisTaskMonitor />
+          </div>
+        }
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
+        {/*
         <div className="flex flex-wrap items-center gap-2">
           {summary && !error ? (
             <span className="text-sm text-muted-foreground">
@@ -531,34 +576,42 @@ export function ResumeList() {
           ) : null}
           <Button size="sm" variant="outline" onClick={handleRefresh} disabled={activeLoading}>
             <RefreshCw className={cn('mr-2 h-4 w-4', activeLoading && 'animate-spin')} />
-            {t('resumes.refresh')}
+            {t('common.refresh')}
           </Button>
         </div>
+        */}
       </div>
 
-      {/* 3. Advanced Filters (Screening Conditions) */}
       <FilterPanel
         filters={filters}
-        onChange={handleFiltersChange}
-        mode={mode}
+        onFiltersChange={handleFiltersChange}
+        className=""
+        defaultCollapsed={true}
+        headerAction={
+          <div className="flex items-center gap-4">
+            {summary && !error && (
+              <span className="text-xs text-muted-foreground">
+                {t('resumes.summary', {
+                  returned: mode === 'ai' ? displayedResumes.length : (summary.returned ?? resumes.length),
+                  total: mode === 'ai' ? convexResumes.length : (summary.total ?? resumes.length),
+                  sample: selectedSample || '--',
+                })}
+              </span>
+            )}
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleRefresh} disabled={activeLoading}>
+              <RefreshCw className={cn('h-3.5 w-3.5', activeLoading && 'animate-spin')} />
+            </Button>
+          </div>
+        }
       />
 
       {/* 4. Task Monitor & Bulk Actions */}
       <div className="space-y-4">
-        {analyzing && (
-          <div className={cn("rounded-md p-4 mb-4", analysisDispatchMessage?.type === 'error' ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary")}>
-            <div className="flex items-center gap-2">
-              {analyzing && <RefreshCw className="h-4 w-4 animate-spin" />}
-              <p className="text-sm font-medium">{analysisDispatchMessage?.text || t('aiTasks.analyzing')}</p>
-            </div>
-          </div>
-        )}
-
-        <AnalysisTaskMonitor />
+        {/* Analysis monitor was moved to QuickStartPanel */}
 
         <div className="flex items-center justify-between py-2">
           <BulkActionBar
-            totalCount={filteredConvexResumes.length}
+            totalCount={displayedResumes.length}
             selectedCount={selectedIds.size}
             highScoreCount={highScoreCount}
             onSelectAll={handleSelectAll}
@@ -567,13 +620,7 @@ export function ResumeList() {
             onBulkAction={handleBulkAction}
           />
           {/* Right side actions if any */}
-          <div className="flex items-center gap-2">
-            {!selectedIds.size && (
-              <Button onClick={handleAnalyzeAll} disabled={activeLoading || analyzing || filteredConvexResumes.length === 0} variant="default">
-                {t('resumes.analyzeAll')}
-              </Button>
-            )}
-          </div>
+
         </div>
       </div>
 
