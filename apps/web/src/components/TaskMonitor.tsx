@@ -10,6 +10,7 @@ import { formatInAppTimezone } from '@/lib/timezone'
 
 export function TaskMonitor() {
     const tasks = useQuery(api.resume_tasks.list)
+    const workerHealth = useQuery(api.resume_tasks.getWorkerHealth, { freshnessMs: 15_000 })
     const [showHistory, setShowHistory] = useState(false)
     const cancelTask = useMutation(api.resume_tasks.cancel)
 
@@ -18,7 +19,11 @@ export function TaskMonitor() {
     }
 
     const activeTasks = tasks.filter(t => t.status === 'pending' || t.status === 'processing')
+    const pendingTasks = tasks.filter(t => t.status === 'pending')
     const finishedTasks = tasks.filter(t => t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled')
+    const showWorkerWarning = pendingTasks.length > 0
+        && workerHealth !== undefined
+        && workerHealth.hasHealthyWorker === false
 
     const hasActive = activeTasks.length > 0
     // If only finished tasks exist and history is hidden, don't render anything (or just a small summary?)
@@ -69,6 +74,12 @@ export function TaskMonitor() {
                 </div>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
+                {showWorkerWarning && (
+                    <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        Pending tasks detected but no healthy scraper worker heartbeat is visible.
+                    </div>
+                )}
+
                 {activeTasks.map((task) => (
                     <TaskItem key={task._id} task={task} onCancel={cancelTask} />
                 ))}

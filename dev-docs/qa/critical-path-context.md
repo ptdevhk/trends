@@ -37,5 +37,6 @@ This document is the in-repo source of truth for verifying the resume critical p
 ## Evidence Requirements
 - Stage status (`PASS` / `DEGRADED_PASS` / `FAIL`).
 - Direct evidence payload (task IDs, progress snapshots, hit counts, analyzed counts).
+- Search-stage evidence must include `rawHitCount`, `identityDistinctHitCount`, and sentinel `sentinelNoHitCount`.
 - Error message when status is not `PASS`.
 - `fallbackUsed` flag for fallback execution visibility.

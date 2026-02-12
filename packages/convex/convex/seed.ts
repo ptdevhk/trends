@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
+import { deriveResumeIdentity } from "./lib/resume_identity";
 
 const jobDescriptionType = v.union(v.literal("system"), v.literal("custom"));
 
@@ -82,15 +83,43 @@ export const seedResumes = mutation({
         let skipped = 0;
 
         for (const resume of args.resumes) {
-            const existing = await ctx.db
+            const identity = deriveResumeIdentity({
+                content: resume.content,
+                externalId: resume.externalId,
+            });
+            let existing = await ctx.db
                 .query("resumes")
-                .withIndex("by_externalId", (q) => q.eq("externalId", resume.externalId))
+                .withIndex("by_identityKey", (q) => q.eq("identityKey", identity.identityKey))
                 .unique();
+            if (!existing) {
+                existing = await ctx.db
+                    .query("resumes")
+                    .withIndex("by_externalId", (q) => q.eq("externalId", resume.externalId))
+                    .unique();
+            }
+
             const searchText = buildSearchText(resume.content);
 
             if (existing) {
+                const nextTags = Array.from(new Set([...existing.tags, ...resume.tags]));
+                const patch: {
+                    identityKey?: string;
+                    searchText?: string;
+                    tags?: string[];
+                } = {};
                 if (!existing.searchText) {
-                    await ctx.db.patch(existing._id, { searchText });
+                    patch.searchText = searchText;
+                }
+                if (existing.identityKey !== identity.identityKey) {
+                    patch.identityKey = identity.identityKey;
+                }
+                const tagsChanged = nextTags.length !== existing.tags.length
+                    || nextTags.some((tag, index) => existing.tags[index] !== tag);
+                if (tagsChanged) {
+                    patch.tags = nextTags;
+                }
+                if (Object.keys(patch).length > 0) {
+                    await ctx.db.patch(existing._id, patch);
                 }
                 skipped += 1;
                 continue;
@@ -98,6 +127,7 @@ export const seedResumes = mutation({
 
             await ctx.db.insert("resumes", {
                 externalId: resume.externalId,
+                identityKey: identity.identityKey,
                 content: resume.content,
                 hash: resume.hash,
                 searchText,

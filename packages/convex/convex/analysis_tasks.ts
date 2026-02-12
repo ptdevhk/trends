@@ -105,6 +105,15 @@ function normalizeKeywords(keywords: string[]): string[] {
     );
 }
 
+function stableHash(seed: string): string {
+    let hash = 2166136261;
+    for (const char of seed) {
+        hash ^= char.codePointAt(0) ?? 0;
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16);
+}
+
 function buildKeywordAnalysisId(keywords: string[]): string {
     if (keywords.length === 0) {
         return "keyword-search";
@@ -112,13 +121,41 @@ function buildKeywordAnalysisId(keywords: string[]): string {
 
     const stableKeywords = [...keywords].sort();
     const seed = stableKeywords.join("|");
-    let hash = 2166136261;
-    for (const char of seed) {
-        hash ^= char.codePointAt(0) ?? 0;
-        hash = Math.imul(hash, 16777619);
+    return `keyword-search:${stableKeywords.length}:${stableHash(seed)}`;
+}
+
+type AnalysisDispatchKeyInput = {
+    derivedJobDescriptionId?: string;
+    jobDescriptionTitle?: string;
+    jobDescriptionContent?: string;
+    keywords?: string[];
+    resumeIds: readonly string[];
+};
+
+function buildAnalysisDispatchJobKey(input: AnalysisDispatchKeyInput): string {
+    if (input.derivedJobDescriptionId && input.derivedJobDescriptionId.trim()) {
+        return `job:${input.derivedJobDescriptionId.trim().toLowerCase()}`;
     }
 
-    return `keyword-search:${stableKeywords.length}:${(hash >>> 0).toString(16)}`;
+    const normalizedKeywords = normalizeKeywords(input.keywords ?? []);
+    if (normalizedKeywords.length > 0) {
+        return `keywords:${buildKeywordAnalysisId(normalizedKeywords)}`;
+    }
+
+    const title = input.jobDescriptionTitle?.trim().toLowerCase() ?? "";
+    const content = input.jobDescriptionContent?.trim().toLowerCase() ?? "";
+    if (!title && !content) {
+        return "job:default";
+    }
+    return `job-content:${stableHash(`${title}|${content}`)}`;
+}
+
+export function buildAnalysisDispatchIdempotencyKey(input: AnalysisDispatchKeyInput): string {
+    const uniqueResumeIds = Array.from(new Set(input.resumeIds.map((resumeId) => String(resumeId)))).sort();
+    const resumeSeed = uniqueResumeIds.join("|");
+    const resumeHash = stableHash(`resume:${uniqueResumeIds.length}:${resumeSeed}`);
+    const jobKey = buildAnalysisDispatchJobKey(input);
+    return `${jobKey}:resumes:${resumeHash}`;
 }
 
 function classifyResumes(
@@ -237,29 +274,62 @@ export const dispatch = mutation({
         if (!args.jobDescriptionContent && normalizedKeywords.length === 0) {
             throw new Error("Either jobDescriptionContent or keywords is required for analysis.");
         }
+        const uniqueResumeIdMap = new Map<string, (typeof args.resumeIds)[number]>();
+        for (const resumeId of args.resumeIds) {
+            uniqueResumeIdMap.set(String(resumeId), resumeId);
+        }
+        const uniqueResumeIds = Array.from(uniqueResumeIdMap.values());
         const derivedJobDescriptionId = args.jobDescriptionId
             || (normalizedKeywords.length > 0 ? buildKeywordAnalysisId(normalizedKeywords) : undefined);
+        const idempotencyKey = buildAnalysisDispatchIdempotencyKey({
+            derivedJobDescriptionId,
+            jobDescriptionTitle: args.jobDescriptionTitle,
+            jobDescriptionContent: args.jobDescriptionContent,
+            keywords: normalizedKeywords,
+            resumeIds: uniqueResumeIds.map((resumeId) => String(resumeId)),
+        });
+
+        const existingProcessingTask = await ctx.db
+            .query("analysis_tasks")
+            .withIndex("by_idempotency_status", (q) =>
+                q.eq("idempotencyKey", idempotencyKey).eq("status", "processing")
+            )
+            .first();
+        if (existingProcessingTask) {
+            return existingProcessingTask._id;
+        }
+
+        const existingPendingTask = await ctx.db
+            .query("analysis_tasks")
+            .withIndex("by_idempotency_status", (q) =>
+                q.eq("idempotencyKey", idempotencyKey).eq("status", "pending")
+            )
+            .first();
+        if (existingPendingTask) {
+            return existingPendingTask._id;
+        }
 
         const taskId = await ctx.db.insert("analysis_tasks", {
+            idempotencyKey,
             config: {
                 jobDescriptionId: derivedJobDescriptionId,
                 jobDescriptionTitle: args.jobDescriptionTitle,
                 jobDescriptionContent: args.jobDescriptionContent,
                 keywords: normalizedKeywords.length > 0 ? normalizedKeywords : undefined,
                 sample: args.sample,
-                resumeCount: args.resumeIds.length,
+                resumeCount: uniqueResumeIds.length,
             },
             status: "pending",
             progress: {
                 current: 0,
-                total: args.resumeIds.length,
+                total: uniqueResumeIds.length,
                 skipped: 0,
             },
         });
 
         await ctx.scheduler.runAfter(0, internal.analysis_tasks.processAnalysisTask, {
             taskId,
-            resumeIds: args.resumeIds,
+            resumeIds: uniqueResumeIds,
         });
 
         return taskId;

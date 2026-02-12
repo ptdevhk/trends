@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import sys
+from typing import Any, Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 try:
     import httpx
@@ -47,6 +49,87 @@ if not CONVEX_URL:
 # Ensure URL ends with /api
 API_URL = f"{CONVEX_URL.rstrip('/')}/api"
 
+def _read_str(value: Any) -> Optional[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    return None
+
+def _normalize_token(value: str) -> Optional[str]:
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    return trimmed.lower()
+
+def _normalize_profile_url(value: str) -> Optional[str]:
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+
+    lowered = trimmed.lower()
+    if lowered in ("javascript:;", "javascript:void(0)", "#"):
+        return None
+
+    parsed = urlsplit(trimmed)
+    if not parsed.netloc and not parsed.scheme:
+        parsed = urlsplit(f"https://{trimmed}")
+
+    if parsed.netloc:
+        host = parsed.netloc.lower()
+        path = parsed.path.rstrip("/") or "/"
+        query_pairs = sorted(
+            (key, val)
+            for key, val in parse_qsl(parsed.query, keep_blank_values=True)
+            if not key.lower().startswith("utm_")
+        )
+        query = urlencode(query_pairs)
+        suffix = f"?{query}" if query else ""
+        return f"{host}{path}{suffix}".lower()
+
+    fallback = lowered
+    if fallback.startswith("http://"):
+        fallback = fallback[len("http://"):]
+    if fallback.startswith("https://"):
+        fallback = fallback[len("https://"):]
+    if "#" in fallback:
+        fallback = fallback.split("#", 1)[0]
+    fallback = fallback.rstrip("/")
+    return fallback or None
+
+def derive_external_id(resume: dict[str, Any]) -> str:
+    profile_url = (
+        _read_str(resume.get("profileUrl"))
+        or _read_str(resume.get("profile_url"))
+        or _read_str(resume.get("profileURL"))
+        or _read_str(resume.get("url"))
+    )
+    if profile_url:
+        normalized_profile_url = _normalize_profile_url(profile_url)
+        if normalized_profile_url:
+            return normalized_profile_url
+
+    resume_id = _read_str(resume.get("resumeId")) or _read_str(resume.get("resume_id"))
+    if resume_id:
+        normalized_resume_id = _normalize_token(resume_id)
+        if normalized_resume_id:
+            return normalized_resume_id
+
+    per_user_id = _read_str(resume.get("perUserId")) or _read_str(resume.get("per_user_id"))
+    if per_user_id:
+        normalized_per_user_id = _normalize_token(per_user_id)
+        if normalized_per_user_id:
+            return normalized_per_user_id
+
+    external_id = _read_str(resume.get("externalId")) or _read_str(resume.get("external_id"))
+    if external_id:
+        normalized_external_id = _normalize_token(external_id)
+        if normalized_external_id:
+            return normalized_external_id
+
+    return hashlib.md5(json.dumps(resume, sort_keys=True).encode()).hexdigest()
+
 async def convex_mutation(client: httpx.AsyncClient, name: str, args: dict):
     url = f"{API_URL}/mutation"
     payload = {"path": name, "args": args}
@@ -75,8 +158,29 @@ async def convex_query(client: httpx.AsyncClient, name: str, args: dict):
         logger.error(f"Query {name} failed: {e}")
         raise
 
+async def heartbeat(
+    client: httpx.AsyncClient,
+    state: str,
+    active_task_id: Optional[str] = None,
+    last_error: Optional[str] = None,
+):
+    payload = {
+        "workerId": WORKER_ID,
+        "state": state,
+    }
+    if active_task_id:
+        payload["activeTaskId"] = active_task_id
+    if last_error:
+        payload["lastError"] = last_error[:1000]
+
+    try:
+        await convex_mutation(client, "resume_tasks:heartbeat", payload)
+    except Exception as error:
+        logger.warning("Heartbeat failed: %s", error)
+
 async def process_task(task, client: httpx.AsyncClient):
     logger.info(f"Processing task {task['_id']}: {task['config']}")
+    await heartbeat(client, "processing", active_task_id=task["_id"])
     
     config = task["config"]
     limit = int(config["limit"])
@@ -102,6 +206,7 @@ async def process_task(task, client: httpx.AsyncClient):
             "total": total_for_progress,
             "lastStatus": status_msg
         })
+        await heartbeat(client, "processing", active_task_id=task["_id"])
         if result and isinstance(result, dict) and result.get("status") == "cancelled":
             raise CancellationError("Task was cancelled by user")
 
@@ -178,6 +283,9 @@ async def process_task(task, client: httpx.AsyncClient):
                 "input": 0,
                 "submitted": 0,
                 "deduped": 0,
+                "identityDeduped": 0,
+                "identityMatched": 0,
+                "legacyExternalIdMatched": 0,
                 "inserted": 0,
                 "updated": 0,
                 "unchanged": 0,
@@ -188,8 +296,7 @@ async def process_task(task, client: httpx.AsyncClient):
                 # Transform to match schema if needed, schema expects externalId, content, hash, source, tags
                 formatted_resumes = []
                 for r in resumes:
-                    # simplistic mapping
-                    external_id = r.get("id") or hashlib.md5(json.dumps(r, sort_keys=True).encode()).hexdigest()
+                    external_id = derive_external_id(r)
                     formatted_resumes.append({
                         "externalId": external_id,
                         "content": r,
@@ -205,6 +312,9 @@ async def process_task(task, client: httpx.AsyncClient):
                     submit_stats["input"] = int(submit_result.get("input", len(formatted_resumes)))
                     submit_stats["submitted"] = int(submit_result.get("submitted", len(formatted_resumes)))
                     submit_stats["deduped"] = int(submit_result.get("deduped", 0))
+                    submit_stats["identityDeduped"] = int(submit_result.get("identityDeduped", 0))
+                    submit_stats["identityMatched"] = int(submit_result.get("identityMatched", 0))
+                    submit_stats["legacyExternalIdMatched"] = int(submit_result.get("legacyExternalIdMatched", 0))
                     submit_stats["inserted"] = int(submit_result.get("inserted", 0))
                     submit_stats["updated"] = int(submit_result.get("updated", 0))
                     submit_stats["unchanged"] = int(submit_result.get("unchanged", 0))
@@ -255,6 +365,9 @@ async def process_task(task, client: httpx.AsyncClient):
                     "extracted": len(resumes),
                     "submitted": submit_stats["submitted"],
                     "deduped": submit_stats["deduped"],
+                    "identityDeduped": submit_stats.get("identityDeduped", 0),
+                    "identityMatched": submit_stats.get("identityMatched", 0),
+                    "legacyExternalIdMatched": submit_stats.get("legacyExternalIdMatched", 0),
                     "inserted": submit_stats["inserted"],
                     "updated": submit_stats["updated"],
                     "unchanged": submit_stats["unchanged"],
@@ -265,30 +378,37 @@ async def process_task(task, client: httpx.AsyncClient):
                 complete_payload["results"]["autoAnalysisTaskId"] = str(analysis_task_id)
             
             await convex_mutation(client, "resume_tasks:complete", complete_payload)
+            await heartbeat(client, "idle")
             logger.info(f"Task {task['_id']} completed")
 
     except CancellationError as e:
         logger.info(f"Task {task['_id']} was cancelled: {e}")
+        await heartbeat(client, "idle")
         # No need to call complete, it's already cancelled
     except Exception as e:
         logger.error(f"Task failed: {e}")
+        await heartbeat(client, "error", active_task_id=task["_id"], last_error=str(e))
         await convex_mutation(client, "resume_tasks:complete", {
             "taskId": task["_id"],
             "status": "failed",
             "error": str(e)
         })
+        await heartbeat(client, "idle")
 
 async def worker_loop():
     async with httpx.AsyncClient() as client:
         logger.info(f"Worker {WORKER_ID} started. Polling {CONVEX_URL}...")
+        await heartbeat(client, "idle")
         while True:
             try:
+                await heartbeat(client, "idle")
                 # 1. Claim task
                 task = await convex_mutation(client, "resume_tasks:claim", {
                     "workerId": WORKER_ID
                 })
                 
                 if task:
+                    await heartbeat(client, "processing", active_task_id=task["_id"])
                     await process_task(task, client)
                 else:
                     await asyncio.sleep(5) # Poll interval
@@ -297,6 +417,7 @@ async def worker_loop():
                 break
             except Exception as e:
                 logger.error(f"Loop error: {e}")
+                await heartbeat(client, "error", last_error=str(e))
                 await asyncio.sleep(5)
 
 if __name__ == "__main__":
