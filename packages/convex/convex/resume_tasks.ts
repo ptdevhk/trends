@@ -106,6 +106,16 @@ export const complete = mutation({
         taskId: v.id("collection_tasks"),
         status: v.union(v.literal("completed"), v.literal("failed")),
         error: v.optional(v.string()),
+        results: v.optional(v.object({
+            extracted: v.number(),
+            submitted: v.number(),
+            deduped: v.number(),
+            inserted: v.number(),
+            updated: v.number(),
+            unchanged: v.number(),
+            autoAnalyzed: v.optional(v.number()),
+            autoAnalysisTaskId: v.optional(v.string()),
+        })),
     },
     handler: async (ctx, args) => {
         const task = await ctx.db.get(args.taskId);
@@ -116,6 +126,7 @@ export const complete = mutation({
             status: args.status,
             completedAt: Date.now(),
             error: args.error,
+            ...(args.results ? { results: args.results } : {}),
         });
     },
 });
@@ -151,12 +162,17 @@ export const submitResumes = mutation({
         ),
     },
     handler: async (ctx, args) => {
+        const totalInput = args.resumes.length;
         const dedupedResumes = new Map<string, (typeof args.resumes)[number]>();
         for (const resume of args.resumes) {
             dedupedResumes.set(resume.externalId, resume);
         }
 
         const resumes = Array.from(dedupedResumes.values());
+        const deduped = totalInput - resumes.length;
+        let inserted = 0;
+        let updated = 0;
+        let unchanged = 0;
         let nextIndex = 0;
         const parallelism = resolveSubmitResumeParallelism(resumes.length);
 
@@ -183,10 +199,14 @@ export const submitResumes = mutation({
                             crawledAt: Date.now(),
                             searchText,
                         });
+                        updated += 1;
                     } else if (!existing.searchText) {
                         await ctx.db.patch(existing._id, {
                             searchText,
                         });
+                        updated += 1;
+                    } else {
+                        unchanged += 1;
                     }
                 } else {
                     await ctx.db.insert("resumes", {
@@ -198,12 +218,22 @@ export const submitResumes = mutation({
                         source: resume.source,
                         crawledAt: Date.now(),
                     });
+                    inserted += 1;
                 }
             }
         };
 
         const workers = Array.from({ length: parallelism }, () => worker());
         await Promise.all(workers);
+
+        return {
+            input: totalInput,
+            submitted: resumes.length,
+            deduped,
+            inserted,
+            updated,
+            unchanged,
+        };
     },
 });
 

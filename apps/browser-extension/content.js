@@ -143,6 +143,57 @@ function getApiRowForIndex(index) {
   return apiSnapshot.searchRows[index] || null;
 }
 
+function isPlaceholderProfileUrl(value) {
+  if (!value) return true;
+  const normalized = String(value).trim().toLowerCase();
+  return (
+    normalized === '' ||
+    normalized === '#' ||
+    normalized.startsWith('javascript:') ||
+    normalized === 'about:blank'
+  );
+}
+
+function toAbsoluteHttpUrl(value) {
+  if (!value || typeof value !== 'string') return '';
+  try {
+    const url = new URL(value, window.location.origin);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    if (isPlaceholderProfileUrl(url.href)) return '';
+    return url.href;
+  } catch {
+    return '';
+  }
+}
+
+function buildProfileUrlFromApiRow(apiRow) {
+  if (!apiRow || typeof apiRow !== 'object') return '';
+  const resumeId = apiRow.resumeId;
+  if (resumeId === null || resumeId === undefined || resumeId === '') return '';
+  const encodedId = encodeURIComponent(String(resumeId));
+  return `${window.location.origin}/api/com/resume/${encodedId}`;
+}
+
+function extractProfileUrl(card, apiRow) {
+  const nameLink = card.querySelector(SELECTORS.name);
+  if (!nameLink) return buildProfileUrlFromApiRow(apiRow);
+
+  const candidates = [
+    nameLink.getAttribute('href'),
+    nameLink.getAttribute('data-href'),
+    nameLink.getAttribute('data-url'),
+    nameLink.getAttribute('data-link'),
+    nameLink.href,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = toAbsoluteHttpUrl(candidate);
+    if (normalized) return normalized;
+  }
+
+  return buildProfileUrlFromApiRow(apiRow);
+}
+
 function updateApiSnapshot(kind, payload, url) {
   apiSnapshot.lastUpdatedAt = new Date().toISOString();
   if (url) apiSnapshot.lastUrl = url;
@@ -224,15 +275,10 @@ window.addEventListener('message', (event) => {
  * @param {Element} card - The resume card DOM element
  * @returns {Object} - Extracted resume data
  */
-function extractSingleResume(card) {
+function extractSingleResume(card, apiRow = null) {
   const getText = (selector, root = card) => {
     const el = root.querySelector(selector);
     return el ? el.textContent.trim() : '';
-  };
-
-  const getLink = (selector, root = card) => {
-    const el = root.querySelector(selector);
-    return el ? el.href : '';
   };
 
   const pickText = (selectors) => {
@@ -320,7 +366,7 @@ function extractSingleResume(card) {
 
   return {
     name: getText(SELECTORS.name),
-    profileUrl: getLink(SELECTORS.name),
+    profileUrl: extractProfileUrl(card, apiRow),
     activityStatus: getText(SELECTORS.activityStatus),
     age,
     experience,
@@ -344,9 +390,9 @@ function extractResumes() {
 
   cards.forEach((card, index) => {
     try {
-      const resume = extractSingleResume(card);
-      resume.pageIndex = index + 1;
       const apiRow = getApiRowForIndex(index);
+      const resume = extractSingleResume(card, apiRow);
+      resume.pageIndex = index + 1;
       if (apiRow) {
         resume.resumeId = apiRow.resumeId ?? '';
         resume.perUserId = apiRow.perUserId ?? '';

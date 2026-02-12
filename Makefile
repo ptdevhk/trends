@@ -8,7 +8,8 @@
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force \
-		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance
+		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance \
+		clean-db fresh-env
 
 # Default target
 .DEFAULT_GOAL := help
@@ -412,6 +413,31 @@ clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	rm -rf node_modules .venv build dist
 
+# Clean local databases and environment for a fresh start
+clean-db:
+	@echo "Cleaning local databases..."
+	# Remove ignored files in output/ (like .db files) but KEEP tracked samples
+	@if command -v git > /dev/null 2>&1 && git rev-parse --is-inside-work-tree > /dev/null 2>&1; then \
+		git clean -fdX output/; \
+	else \
+		rm -f output/*.db output/**/*.db; \
+		rm -rf output/news output/rss; \
+	fi
+	rm -f packages/convex/.env.local apps/web/.env.local
+	@if [ -d "$$HOME/.convex/anonymous-convex-backend-state" ]; then \
+		echo "Wiping local Convex backend state..."; \
+		rm -rf "$$HOME/.convex/anonymous-convex-backend-state"; \
+	fi
+	@echo "Local databases cleaned."
+
+# Wipe everything including dependencies and logs for a fresh environment
+fresh-env: clean clean-db
+	@echo "Cleaning logs..."
+	rm -rf logs/*.log api.log web.log
+	@echo "Reinstalling dependencies..."
+	$(MAKE) install-deps
+	@echo "Fresh environment ready."
+
 # Run all validation checks (Python + Node.js)
 check: check-python check-node check-agent-policy check-agent-skill
 	@echo "All checks passed"
@@ -568,6 +594,8 @@ help:
 	@echo "  test-python    Run Python tests only"
 	@echo "  test-node      Run Node.js tests only"
 	@echo "  test-resume    Validate resume fixtures"
+	@echo "  clean-db       Clean local databases and environment (Convex state + SQLite)"
+	@echo "  fresh-env      Wipe everything and reinstall dependencies (nuclear option)"
 	@echo "  help           Show this help message"
 	@echo ""
 	@echo "Environment Variables:"

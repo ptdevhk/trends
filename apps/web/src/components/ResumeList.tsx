@@ -507,6 +507,37 @@ export function ResumeList() {
     [displayedResumes, saveAction, selectedIds, t]
   )
 
+  const actionFeedbackLabels = useMemo<Partial<Record<CandidateActionType, string>>>(
+    () => ({
+      shortlist: t('resumes.actions.shortlist', '入围'),
+      reject: t('resumes.actions.reject', '拒绝'),
+      star: t('resumes.actions.star', '标星'),
+      contact: '联系',
+    }),
+    [t]
+  )
+
+  const handleCardAction = useCallback(
+    (resumeId: string, action: CandidateActionType) => {
+      const actionLabel = actionFeedbackLabels[action] ?? action
+
+      void saveAction({ resumeId, actionType: action })
+        .then((result) => {
+          if (result) {
+            toast.success(`${actionLabel} 已保存`)
+            return
+          }
+
+          toast.error('Action failed. Please try again.')
+        })
+        .catch((error: unknown) => {
+          console.error('Individual action failed', error)
+          toast.error('Action failed. Please try again.')
+        })
+    },
+    [actionFeedbackLabels, saveAction]
+  )
+
   // High score count for bulk actions
   const highScoreCount = useMemo(() => {
     return displayedResumes.filter((e) => (e.match?.score ?? 0) >= 80).length
@@ -687,8 +718,9 @@ export function ResumeList() {
               resume={entry.resume}
               matchResult={entry.match}
               ruleScore={entry.ruleScore}
+              showAiScore={entry.match?.scoreSource === 'ai'}
               actionType={entry.action}
-              onAction={(action) => saveAction({ resumeId: entry.key, actionType: action })}
+              onAction={(action) => handleCardAction(entry.key, action)}
               onViewDetails={() => setDetailResume(entry.resume)}
               selected={selectedIds.has(entry.key)}
               onSelect={() => handleToggleSelect(entry.key)}
