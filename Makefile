@@ -326,6 +326,11 @@ verify-critical-path:
 		npx tsx scripts/verify-critical-path.ts $(ARGS); \
 	fi
 
+# Run E2E smoke tests via DevTools MCP / Playwright CDP
+e2e:
+	@echo "Running E2E smoke tests via DevTools..."
+	@npx tsx scripts/e2e-smoke.ts
+
 # Benchmark critical path with repeated runs (median/p95 + pass/degraded/fail rates)
 benchmark-critical-path:
 	@if command -v bun > /dev/null 2>&1; then \
@@ -521,16 +526,14 @@ test-python:                               ## Run Python tests
 test-node:                                 ## Run TypeScript tests (bun locally, npm in CI)
 	@echo "Running Node.js tests..."
 	@if find apps packages -type f \( -name '*.test.ts' -o -name '*.test.tsx' \) -print -quit 2>/dev/null | grep -q .; then \
-		if [ "$$CI" = "true" ]; then \
-			npm test; \
-		elif command -v bun > /dev/null 2>&1; then \
-			bun run test; \
-		else \
-			npm test; \
-		fi; \
+		(cd apps/web && npm test); \
 	else \
 		echo "No TypeScript tests found (*.test.ts/*.test.tsx), skipping"; \
 	fi
+
+test-coverage:                             ## Run Node.js tests with coverage
+	@echo "Running Node.js tests with coverage..."
+	@(cd apps/web && npm run test -- --coverage)
 
 test-resume:                               ## Validate resume fixtures
 	@echo "Validating resume fixtures..."

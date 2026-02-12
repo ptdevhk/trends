@@ -32,6 +32,7 @@ interface ResumeCardProps {
     title: string
     requirements?: string
   }
+  isReviewed?: boolean
 }
 
 function isSafeProfileUrl(value: string | undefined): value is string {
@@ -52,6 +53,7 @@ export function ResumeCard({
   onSelect,
   jobDescriptionId,
   jobDescription,
+  isReviewed,
 }: ResumeCardProps) {
   const { t } = useTranslation()
   const [showOutreach, setShowOutreach] = useState(false)
@@ -93,6 +95,11 @@ export function ResumeCard({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b bg-muted/50 px-4 py-2 text-sm">
         <span className="text-muted-foreground">求职意向</span>
         <span className="font-medium">{jobIntention}</span>
+        {isReviewed && (
+          <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px]">
+            {t('resumes.status.reviewed', '已查阅')}
+          </Badge>
+        )}
         {resume.expectedSalary ? (
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
         ) : null}

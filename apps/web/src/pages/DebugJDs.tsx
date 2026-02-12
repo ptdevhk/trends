@@ -7,20 +7,21 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { JobDescriptionEditor } from '../components/JobDescriptionEditor'
-import { Trash2, Edit, Plus, FileText, Check, X, Copy, ArrowUpDown, Eye, Download } from 'lucide-react'
+import { Trash2, Edit, Plus, FileText, Check, X, Copy, ArrowUpDown, Eye, Download, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react'
 
+import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { Doc, Id } from '../../../../packages/convex/convex/_generated/dataModel'
 
 import { useTranslation } from 'react-i18next'
 import { formatInAppTimezone } from '@/lib/timezone'
 
-type SortColumn = 'title' | 'type' | 'lastModified'
+type SortColumn = 'title' | 'type' | 'lastModified' | 'usageCount'
 type SortDirection = 'asc' | 'desc'
 
 export default function DebugJDs() {
     const { t } = useTranslation()
-    const jds = useQuery(api.job_descriptions.list_all)
+    const jds = useQuery(api.job_descriptions.list_with_usage)
     const deleteJD = useMutation(api.job_descriptions.delete_jd)
     const deleteBatch = useMutation(api.job_descriptions.delete_batch)
 
@@ -60,6 +61,10 @@ export default function DebugJDs() {
 
             if (sortColumn === 'title') {
                 return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) * direction
+            }
+
+            if (sortColumn === 'usageCount') {
+                return ((a as any).usageCount - (b as any).usageCount) * direction
             }
 
             return a.type.localeCompare(b.type, undefined, { sensitivity: 'base' }) * direction
@@ -192,6 +197,25 @@ export default function DebugJDs() {
         }
     }
 
+    const handleBulkExport = () => {
+        if (selectedIds.size === 0) return
+        try {
+            const selectedJDs = jds?.filter(jd => selectedIds.has(jd._id)) || []
+            const content = selectedJDs.map(jd => `# ${jd.title}\n\n${jd.content}`).join('\n\n---\n\n')
+            const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
+            const url = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = `bulk-export-${new Date().toISOString().split('T')[0]}.md`
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            window.URL.revokeObjectURL(url)
+        } catch (error) {
+            console.error('Failed to export bulk JDs:', error)
+        }
+    }
+
     return (
         <div className="container mx-auto p-6 max-w-5xl">
             <div className="flex justify-between items-center mb-6">
@@ -206,10 +230,16 @@ export default function DebugJDs() {
                 </div>
                 <div className="flex gap-2">
                     {selectedIds.size > 0 && (
-                        <Button variant="destructive" onClick={() => setShowBulkDeleteConfirm(true)}>
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            {t('jdManagement.deleteSelected', { count: selectedIds.size })}
-                        </Button>
+                        <>
+                            <Button variant="outline" onClick={handleBulkExport}>
+                                <Download className="h-4 w-4 mr-2" />
+                                {t('jdManagement.exportSelected', { count: selectedIds.size, defaultValue: 'Export selected' })}
+                            </Button>
+                            <Button variant="destructive" onClick={() => setShowBulkDeleteConfirm(true)}>
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                {t('jdManagement.deleteSelected', { count: selectedIds.size })}
+                            </Button>
+                        </>
                     )}
                     <Button onClick={handleCreate}>
                         <Plus className="h-4 w-4 mr-2" />
@@ -268,7 +298,9 @@ export default function DebugJDs() {
                                     title={getSortTitle('title')}
                                 >
                                     {t('jdManagement.table.title')}
-                                    <ArrowUpDown className="h-3.5 w-3.5" />
+                                    {sortColumn === 'title' ? (
+                                        sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                                    ) : <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />}
                                 </button>
                             </TableHead>
                             <TableHead>
@@ -279,7 +311,22 @@ export default function DebugJDs() {
                                     title={getSortTitle('type')}
                                 >
                                     {t('jdManagement.table.type')}
-                                    <ArrowUpDown className="h-3.5 w-3.5" />
+                                    {sortColumn === 'type' ? (
+                                        sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                                    ) : <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />}
+                                </button>
+                            </TableHead>
+                            <TableHead>
+                                <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1 hover:text-foreground"
+                                    onClick={() => handleSort('usageCount')}
+                                    title={getSortTitle('usageCount')}
+                                >
+                                    {t('jdManagement.table.usageCount', { defaultValue: 'Used By' })}
+                                    {sortColumn === 'usageCount' ? (
+                                        sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                                    ) : <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />}
                                 </button>
                             </TableHead>
                             <TableHead>
@@ -290,7 +337,9 @@ export default function DebugJDs() {
                                     title={getSortTitle('lastModified')}
                                 >
                                     {t('jdManagement.table.lastModified')}
-                                    <ArrowUpDown className="h-3.5 w-3.5" />
+                                    {sortColumn === 'lastModified' ? (
+                                        sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                                    ) : <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />}
                                 </button>
                             </TableHead>
                             <TableHead>{t('jdManagement.table.status')}</TableHead>
@@ -333,6 +382,11 @@ export default function DebugJDs() {
                                     </TableCell>
                                     <TableCell className="capitalize">
                                         {jd.type === 'system' ? t('jdManagement.types.system') : t('jdManagement.types.custom')}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline" className="bg-muted text-xs">
+                                            {(jd as any).usageCount || 0} {t('jdManagement.usageSuffix', { defaultValue: 'Analysis' })}
+                                        </Badge>
                                     </TableCell>
                                     <TableCell>
                                         {formatInAppTimezone(jd.lastModified, { includeDate: true, includeSeconds: true })}
@@ -415,8 +469,22 @@ export default function DebugJDs() {
             {/* Preview Dialog */}
             <Dialog open={!!previewJd} onOpenChange={(open) => !open && setPreviewJd(null)}>
                 <DialogContent className="max-w-3xl">
-                    <DialogHeader>
+                    <DialogHeader className="flex flex-row items-center justify-between">
                         <DialogTitle>{previewJd?.title || t('jdManagement.preview', { defaultValue: 'Preview' })}</DialogTitle>
+                        {previewJd && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="mr-6"
+                                onClick={() => {
+                                    handleEdit(previewJd)
+                                    setPreviewJd(null)
+                                }}
+                            >
+                                <Edit className="h-4 w-4 mr-2" />
+                                {t('jdManagement.edit', { defaultValue: 'Edit' })}
+                            </Button>
+                        )}
                     </DialogHeader>
                     <pre className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-muted p-4 text-sm leading-6">
                         {previewJd?.content}
@@ -430,8 +498,26 @@ export default function DebugJDs() {
                     <DialogHeader>
                         <DialogTitle>{t('jdManagement.deleteConfirmTitle')}</DialogTitle>
                     </DialogHeader>
-                    <div className="py-4">
-                        {t('jdManagement.deleteConfirm')}
+                    <div className="py-4 space-y-3">
+                        <div>{t('jdManagement.deleteConfirm')}</div>
+                        {deleteId && (() => {
+                            const jd = jds?.find(j => j._id === deleteId)
+                            const count = (jd as any)?.usageCount || 0
+                            if (count > 0) {
+                                return (
+                                    <div className="flex items-start gap-2 p-3 bg-warning/10 text-orange-600 rounded-md border border-warning/20 text-sm">
+                                        <AlertTriangle className="h-4 w-4 mt-0.5" />
+                                        <div>
+                                            {t('jdManagement.usageWarning', {
+                                                count,
+                                                defaultValue: 'This JD has been used for {{count}} analysis. Deleting it will leave those resumes without a JD link.'
+                                            })}
+                                        </div>
+                                    </div>
+                                )
+                            }
+                            return null
+                        })()}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDeleteId(null)}>{t('jdManagement.cancel')}</Button>
@@ -446,8 +532,26 @@ export default function DebugJDs() {
                     <DialogHeader>
                         <DialogTitle>{t('jdManagement.deleteConfirmTitle')}</DialogTitle>
                     </DialogHeader>
-                    <div className="py-4">
-                        {t('jdManagement.confirmBulkDelete', { count: selectedIds.size })}
+                    <div className="py-4 space-y-3">
+                        <div>{t('jdManagement.confirmBulkDelete', { count: selectedIds.size })}</div>
+                        {(() => {
+                            const selectedJDs = jds?.filter(jd => selectedIds.has(jd._id)) || []
+                            const totalUsage = selectedJDs.reduce((acc, jd) => acc + ((jd as any).usageCount || 0), 0)
+                            if (totalUsage > 0) {
+                                return (
+                                    <div className="flex items-start gap-2 p-3 bg-warning/10 text-orange-600 rounded-md border border-warning/20 text-sm">
+                                        <AlertTriangle className="h-4 w-4 mt-0.5" />
+                                        <div>
+                                            {t('jdManagement.bulkUsageWarning', {
+                                                count: totalUsage,
+                                                defaultValue: 'These JDs have been used for total {{count}} analysis. Deleting them will affect these records.'
+                                            })}
+                                        </div>
+                                    </div>
+                                )
+                            }
+                            return null
+                        })()}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setShowBulkDeleteConfirm(false)}>{t('jdManagement.cancel')}</Button>

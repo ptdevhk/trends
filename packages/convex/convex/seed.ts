@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
+import { deriveResumeIdentity } from "./lib/resume_identity";
 
 const jobDescriptionType = v.union(v.literal("system"), v.literal("custom"));
 
@@ -31,6 +32,7 @@ export const seedJobDescriptions = mutation({
         items: v.array(
             v.object({
                 title: v.string(),
+                slug: v.optional(v.string()),
                 content: v.string(),
                 type: jobDescriptionType,
             })
@@ -42,16 +44,26 @@ export const seedJobDescriptions = mutation({
 
         let inserted = 0;
         let skipped = 0;
+        let updated = 0;
 
         for (const item of args.items) {
             const key = `${item.title}::${item.type}`;
             if (existingKeys.has(key)) {
+                // Update slug for existing JDs if not set
+                const existing = existingJobDescriptions.find(
+                    (jd) => jd.title === item.title && jd.type === item.type
+                );
+                if (existing && item.slug && !existing.slug) {
+                    await ctx.db.patch(existing._id, { slug: item.slug });
+                    updated += 1;
+                }
                 skipped += 1;
                 continue;
             }
 
             await ctx.db.insert("job_descriptions", {
                 title: item.title,
+                slug: item.slug,
                 content: item.content,
                 type: item.type,
                 enabled: true,
@@ -61,7 +73,7 @@ export const seedJobDescriptions = mutation({
             inserted += 1;
         }
 
-        return { inserted, skipped };
+        return { inserted, skipped, updated };
     },
 });
 
@@ -82,15 +94,43 @@ export const seedResumes = mutation({
         let skipped = 0;
 
         for (const resume of args.resumes) {
-            const existing = await ctx.db
+            const identity = deriveResumeIdentity({
+                content: resume.content,
+                externalId: resume.externalId,
+            });
+            let existing = await ctx.db
                 .query("resumes")
-                .withIndex("by_externalId", (q) => q.eq("externalId", resume.externalId))
+                .withIndex("by_identityKey", (q) => q.eq("identityKey", identity.identityKey))
                 .unique();
+            if (!existing) {
+                existing = await ctx.db
+                    .query("resumes")
+                    .withIndex("by_externalId", (q) => q.eq("externalId", resume.externalId))
+                    .unique();
+            }
+
             const searchText = buildSearchText(resume.content);
 
             if (existing) {
+                const nextTags = Array.from(new Set([...existing.tags, ...resume.tags]));
+                const patch: {
+                    identityKey?: string;
+                    searchText?: string;
+                    tags?: string[];
+                } = {};
                 if (!existing.searchText) {
-                    await ctx.db.patch(existing._id, { searchText });
+                    patch.searchText = searchText;
+                }
+                if (existing.identityKey !== identity.identityKey) {
+                    patch.identityKey = identity.identityKey;
+                }
+                const tagsChanged = nextTags.length !== existing.tags.length
+                    || nextTags.some((tag, index) => existing.tags[index] !== tag);
+                if (tagsChanged) {
+                    patch.tags = nextTags;
+                }
+                if (Object.keys(patch).length > 0) {
+                    await ctx.db.patch(existing._id, patch);
                 }
                 skipped += 1;
                 continue;
@@ -98,6 +138,7 @@ export const seedResumes = mutation({
 
             await ctx.db.insert("resumes", {
                 externalId: resume.externalId,
+                identityKey: identity.identityKey,
                 content: resume.content,
                 hash: resume.hash,
                 searchText,

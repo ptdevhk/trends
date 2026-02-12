@@ -56,4 +56,21 @@ describe("buildSearchText", () => {
     expect(result).toContain("cnc 操作");
     expect(result).toContain("车床 cnc 技术员");
   });
+
+  it("keeps cnc parity stable for mixed-case mixed-script variants", () => {
+    const variantA = buildSearchText({
+      selfIntro: "精通CNC车床与编程",
+      workHistory: [{ raw: "负责cnc设备调试" }],
+    });
+    const variantB = buildSearchText({
+      selfIntro: "精通cnc车床与编程",
+      workHistory: [{ raw: "负责CNC设备调试" }],
+    });
+
+    expect(variantA).toContain("cnc");
+    expect(variantB).toContain("cnc");
+    expect(variantA).toContain("车床");
+    expect(variantB).toContain("车床");
+    expect(variantA).toBe(variantB);
+  });
 });

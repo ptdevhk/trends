@@ -28,6 +28,9 @@ export default defineSchema({
             extracted: v.number(),
             submitted: v.number(),
             deduped: v.number(),
+            identityDeduped: v.optional(v.number()),
+            identityMatched: v.optional(v.number()),
+            legacyExternalIdMatched: v.optional(v.number()),
             inserted: v.number(),
             updated: v.number(),
             unchanged: v.number(),
@@ -43,9 +46,24 @@ export default defineSchema({
         .index("by_status", ["status"])
         .index("by_worker", ["workerId"]),
 
+    collection_workers: defineTable({
+        workerId: v.string(),
+        state: v.union(
+            v.literal("idle"),
+            v.literal("processing"),
+            v.literal("error")
+        ),
+        lastHeartbeatAt: v.number(),
+        activeTaskId: v.optional(v.id("collection_tasks")),
+        lastError: v.optional(v.string()),
+    })
+        .index("by_workerId", ["workerId"])
+        .index("by_lastHeartbeatAt", ["lastHeartbeatAt"]),
+
     // Resumes repository (deduplicated)
     resumes: defineTable({
         externalId: v.string(), // e.g. from job site
+        identityKey: v.optional(v.string()),
         content: v.any(), // JSON payload from crawler
         hash: v.string(), // Content hash for change detection
         tags: v.array(v.string()), // e.g. search profile IDs
@@ -71,6 +89,7 @@ export default defineSchema({
         searchText: v.optional(v.string()),
     })
         .index("by_externalId", ["externalId"])
+        .index("by_identityKey", ["identityKey"])
         .index("by_hash", ["hash"])
         .searchIndex("search_body", {
             searchField: "searchText",
@@ -89,14 +108,16 @@ export default defineSchema({
     // Custom Job Descriptions
     job_descriptions: defineTable({
         title: v.string(),
+        slug: v.optional(v.string()), // Filesystem identifier for system JDs (e.g., "lathe-sales")
         content: v.string(), // Markdown requirements
         type: v.string(), // 'system' | 'custom'
         userId: v.optional(v.string()), // For future multi-user
         enabled: v.boolean(),
         lastModified: v.number(),
-    }),
+    }).index("by_slug", ["slug"]),
 
     analysis_tasks: defineTable({
+        idempotencyKey: v.optional(v.string()),
         config: v.object({
             jobDescriptionId: v.optional(v.string()),
             jobDescriptionTitle: v.optional(v.string()),
@@ -126,7 +147,25 @@ export default defineSchema({
         })),
         lastStatus: v.optional(v.string()),
         error: v.optional(v.string()),
-        startedAt: v.optional(v.number()),
-        completedAt: v.optional(v.number()),
-    }).index("by_status", ["status"]),
+            startedAt: v.optional(v.number()),
+            completedAt: v.optional(v.number()),
+    })
+        .index("by_status", ["status"])
+        .index("by_idempotency_status", ["idempotencyKey", "status"]),
+
+    // Persistent User Sessions
+    screening_sessions: defineTable({
+        sessionKey: v.string(), // Fingerprint or anonymous ID
+        status: v.union(v.literal("active"), v.literal("archived")),
+        config: v.object({
+            location: v.string(),
+            keywords: v.array(v.string()),
+            jobDescriptionId: v.optional(v.string()),
+            filters: v.optional(v.any()), // Stores ResumeFilters object
+        }),
+        reviewedResumeIds: v.array(v.string()), // IDs of resumes seen/acted upon
+        lastActive: v.number(),
+    })
+        .index("by_sessionKey", ["sessionKey"])
+        .index("by_status", ["status"]),
 });

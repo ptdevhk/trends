@@ -66,6 +66,7 @@ const DEFAULT_ANALYSIS_TIMEOUT_SEC = 300;
 const DEFAULT_COLLECTION_LIMIT = 120;
 const DEFAULT_COLLECTION_MAX_PAGES = 5;
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
+const DEFAULT_WORKER_HEALTH_FRESHNESS_MS = 15_000;
 
 function createLogger(json: boolean): Logger {
     return {
@@ -250,6 +251,60 @@ function readStringField(record: Record<string, unknown>, key: string): string |
     return null;
 }
 
+function normalizeIdentityToken(value: string): string {
+    return value.trim().toLowerCase();
+}
+
+function normalizeProfileUrlForIdentity(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const lowered = trimmed.toLowerCase();
+    if (lowered === "javascript:;" || lowered === "javascript:void(0)" || lowered === "#") {
+        return null;
+    }
+
+    let parsed: URL | null = null;
+    try {
+        parsed = new URL(trimmed);
+    } catch (error) {
+        try {
+            parsed = new URL(`https://${trimmed}`);
+        } catch (fallbackError) {
+            console.error("Failed to normalize profile URL for verification identity.", error, fallbackError);
+            parsed = null;
+        }
+    }
+
+    if (!parsed) {
+        const fallback = lowered
+            .replace(/^https?:\/\//, "")
+            .replace(/#.*$/, "")
+            .replace(/\/+$/, "");
+        return fallback || null;
+    }
+
+    const path = parsed.pathname.replace(/\/+$/, "") || "/";
+    const sortedParams = Array.from(parsed.searchParams.entries())
+        .filter(([key]) => !key.toLowerCase().startsWith("utm_"))
+        .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+            if (leftKey === rightKey) {
+                return leftValue.localeCompare(rightValue);
+            }
+            return leftKey.localeCompare(rightKey);
+        });
+
+    const query = sortedParams.length > 0
+        ? `?${sortedParams
+            .map(([key, paramValue]) => `${encodeURIComponent(key)}=${encodeURIComponent(paramValue)}`)
+            .join("&")}`
+        : "";
+
+    return `${parsed.hostname.toLowerCase()}${path}${query}`.toLowerCase();
+}
+
 function extractResumesFromPayload(payload: unknown): Record<string, unknown>[] {
     if (Array.isArray(payload)) {
         return payload.filter(isRecord);
@@ -298,17 +353,27 @@ function extractResumeSource(payload: unknown): string {
 }
 
 function resolveResumeExternalId(resume: Record<string, unknown>, index: number): string {
-    const keyCandidates = ["externalId", "resumeId", "perUserId"];
-    for (const key of keyCandidates) {
-        const candidate = readStringField(resume, key);
-        if (candidate) {
-            return candidate;
+    const profileUrl = readStringField(resume, "profileUrl");
+    if (profileUrl) {
+        const normalizedProfileUrl = normalizeProfileUrlForIdentity(profileUrl);
+        if (normalizedProfileUrl) {
+            return normalizedProfileUrl;
         }
     }
 
-    const profileUrl = readStringField(resume, "profileUrl");
-    if (profileUrl && profileUrl !== "javascript:;") {
-        return profileUrl;
+    const resumeId = readStringField(resume, "resumeId");
+    if (resumeId) {
+        return normalizeIdentityToken(resumeId);
+    }
+
+    const perUserId = readStringField(resume, "perUserId");
+    if (perUserId) {
+        return normalizeIdentityToken(perUserId);
+    }
+
+    const externalId = readStringField(resume, "externalId");
+    if (externalId) {
+        return normalizeIdentityToken(externalId);
     }
 
     const name = readStringField(resume, "name") ?? "resume";
@@ -353,6 +418,24 @@ function chunkItems<T>(items: T[], chunkSize: number): T[][] {
 
 function hasSearchText(resume: Doc<"resumes">): boolean {
     return typeof resume.searchText === "string" && resume.searchText.trim().length > 0;
+}
+
+function resolveResumeIdentityKeyForEvidence(
+    resume: Pick<Doc<"resumes">, "_id" | "identityKey" | "externalId">
+): string {
+    if (typeof resume.identityKey === "string" && resume.identityKey.trim()) {
+        return resume.identityKey;
+    }
+    if (typeof resume.externalId === "string" && resume.externalId.trim()) {
+        return `externalId:${resume.externalId.trim().toLowerCase()}`;
+    }
+    return String(resume._id);
+}
+
+export function countIdentityDistinctHits(
+    resumes: Array<Pick<Doc<"resumes">, "_id" | "identityKey" | "externalId">>
+): number {
+    return new Set(resumes.map((resume) => resolveResumeIdentityKeyForEvidence(resume))).size;
 }
 
 function stagePass(evidence: Record<string, unknown>, fallbackUsed: boolean = false): StageResult {
@@ -432,6 +515,27 @@ async function runLiveCollectionStage(
     logger: Logger
 ): Promise<StageResult> {
     const beforeResumes = await client.query(api.resumes.list, { limit: 200 });
+    const stalePending = await client.mutation(api.resume_tasks.failStalePending, {
+        staleMs: options.collectionTimeoutSec * 1_000,
+    });
+    const workerHealth = await client.query(api.resume_tasks.getWorkerHealth, {
+        freshnessMs: DEFAULT_WORKER_HEALTH_FRESHNESS_MS,
+    });
+
+    if (!workerHealth.hasHealthyWorker) {
+        return stageFail(
+            {
+                mode: "live",
+                preflight: {
+                    stalePending,
+                    workerHealth,
+                },
+                resumesBefore: beforeResumes.length,
+            },
+            "Collection preflight failed: no healthy scraper worker heartbeat detected."
+        );
+    }
+
     const taskId = await client.mutation(api.resume_tasks.dispatch, {
         keyword: options.keyword,
         location: options.location,
@@ -458,6 +562,10 @@ async function runLiveCollectionStage(
                 elapsedMs: pollResult.elapsedMs,
                 lastStatus: pollResult.task?.status,
                 lastTaskStatus: pollResult.task?.lastStatus ?? null,
+                preflight: {
+                    stalePending,
+                    workerHealth,
+                },
                 resumesBefore: beforeResumes.length,
                 resumesAfter: afterResumes.length,
             },
@@ -471,6 +579,10 @@ async function runLiveCollectionStage(
             {
                 mode: "live",
                 taskId: String(taskId),
+                preflight: {
+                    stalePending,
+                    workerHealth,
+                },
                 resumesBefore: beforeResumes.length,
                 resumesAfter: afterResumes.length,
             },
@@ -487,6 +599,10 @@ async function runLiveCollectionStage(
                 taskError: task.error ?? null,
                 taskLastStatus: task.lastStatus ?? null,
                 progress: task.progress,
+                preflight: {
+                    stalePending,
+                    workerHealth,
+                },
                 resumesBefore: beforeResumes.length,
                 resumesAfter: afterResumes.length,
             },
@@ -501,6 +617,10 @@ async function runLiveCollectionStage(
                 taskId: String(taskId),
                 taskStatus: task.status,
                 progress: task.progress,
+                preflight: {
+                    stalePending,
+                    workerHealth,
+                },
                 resumesBefore: beforeResumes.length,
                 resumesAfter: afterResumes.length,
             },
@@ -514,6 +634,10 @@ async function runLiveCollectionStage(
         taskStatus: task.status,
         taskLastStatus: task.lastStatus ?? null,
         progress: task.progress,
+        preflight: {
+            stalePending,
+            workerHealth,
+        },
         resumesBefore: beforeResumes.length,
         resumesAfter: afterResumes.length,
         resumesAdded: afterResumes.length - beforeResumes.length,
@@ -674,9 +798,10 @@ async function runSearchStage(client: ConvexHttpClient, keyword: string): Promis
     const positiveHits = await client.query(api.resumes.search, { query: keyword, limit: 50 });
     const negativeHits = await client.query(api.resumes.search, { query: "__nohit__", limit: 50 });
 
-    const positiveCount = positiveHits.length;
-    const negativeCount = negativeHits.length;
-    const searchPass = positiveCount > 0 && negativeCount === 0;
+    const rawHitCount = positiveHits.length;
+    const identityDistinctHitCount = countIdentityDistinctHits(positiveHits);
+    const sentinelNoHitCount = negativeHits.length;
+    const searchPass = rawHitCount > 0 && sentinelNoHitCount === 0;
 
     if (!searchPass) {
         return stageFail(
@@ -684,8 +809,11 @@ async function runSearchStage(client: ConvexHttpClient, keyword: string): Promis
                 keyword,
                 resumeCount: listResults.length,
                 searchableCount,
-                positiveHits: positiveCount,
-                negativeHits: negativeCount,
+                rawHitCount,
+                identityDistinctHitCount,
+                sentinelNoHitCount,
+                positiveHits: rawHitCount,
+                negativeHits: sentinelNoHitCount,
             },
             "Search verification failed. Expected positive hits > 0 and sentinel negative hits = 0."
         );
@@ -695,8 +823,11 @@ async function runSearchStage(client: ConvexHttpClient, keyword: string): Promis
         keyword,
         resumeCount: listResults.length,
         searchableCount,
-        positiveHits: positiveCount,
-        negativeHits: negativeCount,
+        rawHitCount,
+        identityDistinctHitCount,
+        sentinelNoHitCount,
+        positiveHits: rawHitCount,
+        negativeHits: sentinelNoHitCount,
     });
 }
 

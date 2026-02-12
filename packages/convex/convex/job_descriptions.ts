@@ -104,3 +104,31 @@ export const delete_batch = mutation({
         return { success: true, count: args.ids.length };
     }
 });
+
+export const list_with_usage = query({
+    handler: async (ctx) => {
+        const jds = await ctx.db.query("job_descriptions").collect();
+        const resumes = await ctx.db.query("resumes").collect();
+
+        return jds.map(jd => {
+            const jdIdStr = String(jd._id);
+            const jdSlug = jd.slug;
+
+            const usageCount = resumes.filter(r => {
+                const analysisJdId = r.analysis?.jobDescriptionId;
+                // Check in legacy analysis field - match by Convex _id or by slug
+                if (analysisJdId === jdIdStr) return true;
+                if (jdSlug && analysisJdId === jdSlug) return true;
+                // Check in multi-JD analyses map - match by Convex _id or by slug
+                if (r.analyses && r.analyses[jdIdStr]) return true;
+                if (jdSlug && r.analyses && r.analyses[jdSlug]) return true;
+                return false;
+            }).length;
+
+            return {
+                ...jd,
+                usageCount
+            };
+        });
+    }
+});

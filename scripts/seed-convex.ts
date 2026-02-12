@@ -15,6 +15,7 @@ type SeedStatus = {
 
 type SeedJobDescription = {
   title: string;
+  slug?: string;
   content: string;
   type: "system" | "custom";
 };
@@ -207,10 +208,11 @@ function loadJobDescriptions(projectRoot: string): SeedJobDescription[] {
   return files.map((filename) => {
     const filePath = path.join(jobDescriptionDir, filename);
     const content = fs.readFileSync(filePath, "utf8");
-    const fallbackTitle = filename.replace(/\.md$/i, "");
-    const title = extractTitle(content, fallbackTitle);
+    const slug = filename.replace(/\.md$/i, "");
+    const title = extractTitle(content, slug);
     const jobDescription: SeedJobDescription = {
       title,
+      slug,
       content,
       type: "system",
     };

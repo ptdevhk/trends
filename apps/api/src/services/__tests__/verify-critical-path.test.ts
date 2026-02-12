@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildVerificationReport,
   classifyDualCollectionResult,
+  countIdentityDistinctHits,
   reduceOverallStatus,
   toJsonOutput,
   type StageResult,
@@ -109,5 +110,67 @@ describe("verify-critical-path json report schema", () => {
     expect(root.durationMs).toBe(10_000);
     expect(collection.status).toBe("DEGRADED_PASS");
     expect(collection.fallbackUsed).toBe(true);
+  });
+});
+
+describe("verify-critical-path search evidence helpers", () => {
+  it("computes identity-distinct counts with identityKey/externalId fallback", () => {
+    const count = countIdentityDistinctHits([
+      { _id: "resume:1", identityKey: "profileUrl:a", externalId: "ext-a" },
+      { _id: "resume:2", identityKey: "profileUrl:a", externalId: "ext-b" },
+      { _id: "resume:3", externalId: "EXT-C" },
+      { _id: "resume:4", externalId: "ext-c" },
+    ]);
+
+    expect(count).toBe(2);
+  });
+
+  it("keeps new search evidence fields in JSON output", () => {
+    const report = buildVerificationReport({
+      mode: "dual",
+      keyword: "CNC",
+      location: "广东",
+      convexUrl: "http://127.0.0.1:3210",
+      startedAt: "2026-02-12T00:00:00.000Z",
+      finishedAt: "2026-02-12T00:00:01.000Z",
+      stages: {
+        collection: stage("PASS"),
+        search: {
+          status: "PASS",
+          fallbackUsed: false,
+          evidence: {
+            rawHitCount: 5,
+            identityDistinctHitCount: 3,
+            sentinelNoHitCount: 0,
+          },
+        },
+        analysis: stage("PASS"),
+      },
+    });
+
+    const parsed: unknown = JSON.parse(toJsonOutput(report));
+    if (typeof parsed !== "object" || parsed === null) {
+      throw new Error("Expected JSON object output");
+    }
+    const root = parsed as { [key: string]: unknown };
+    const stagesValue = root.stages;
+    if (typeof stagesValue !== "object" || stagesValue === null) {
+      throw new Error("Expected stages object");
+    }
+    const stages = stagesValue as { [key: string]: unknown };
+    const searchValue = stages.search;
+    if (typeof searchValue !== "object" || searchValue === null) {
+      throw new Error("Expected search stage object");
+    }
+    const search = searchValue as { [key: string]: unknown };
+    const evidenceValue = search.evidence;
+    if (typeof evidenceValue !== "object" || evidenceValue === null) {
+      throw new Error("Expected search evidence object");
+    }
+    const evidence = evidenceValue as { [key: string]: unknown };
+
+    expect(evidence.rawHitCount).toBe(5);
+    expect(evidence.identityDistinctHitCount).toBe(3);
+    expect(evidence.sentinelNoHitCount).toBe(0);
   });
 });
