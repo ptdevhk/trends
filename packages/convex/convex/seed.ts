@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { buildSearchText } from "./search_text";
 
 const jobDescriptionType = v.union(v.literal("system"), v.literal("custom"));
 
@@ -85,8 +86,12 @@ export const seedResumes = mutation({
                 .query("resumes")
                 .withIndex("by_externalId", (q) => q.eq("externalId", resume.externalId))
                 .unique();
+            const searchText = buildSearchText(resume.content);
 
             if (existing) {
+                if (!existing.searchText) {
+                    await ctx.db.patch(existing._id, { searchText });
+                }
                 skipped += 1;
                 continue;
             }
@@ -95,6 +100,7 @@ export const seedResumes = mutation({
                 externalId: resume.externalId,
                 content: resume.content,
                 hash: resume.hash,
+                searchText,
                 source: resume.source,
                 tags: resume.tags,
                 crawledAt: Date.now(),

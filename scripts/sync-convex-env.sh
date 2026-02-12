@@ -10,12 +10,30 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CONVEX_ENV_PACKAGE="$PROJECT_ROOT/packages/convex/.env.local"
 CONVEX_ENV_ROOT="$PROJECT_ROOT/.env.local"
 WEB_ENV="$PROJECT_ROOT/apps/web/.env.local"
+SYNC_WAIT_SECS="${CONVEX_SYNC_WAIT_SECS:-15}"
 
 CONVEX_ENV=""
 if [ -f "$CONVEX_ENV_PACKAGE" ]; then
     CONVEX_ENV="$CONVEX_ENV_PACKAGE"
 elif [ -f "$CONVEX_ENV_ROOT" ]; then
     CONVEX_ENV="$CONVEX_ENV_ROOT"
+fi
+
+if [ -z "$CONVEX_ENV" ] && [ -z "${CONVEX_URL:-}" ] && [ "$SYNC_WAIT_SECS" -gt 0 ] 2>/dev/null; then
+    echo "Waiting up to ${SYNC_WAIT_SECS}s for Convex .env.local..."
+    waited=0
+    while [ "$waited" -lt "$SYNC_WAIT_SECS" ]; do
+        if [ -f "$CONVEX_ENV_PACKAGE" ]; then
+            CONVEX_ENV="$CONVEX_ENV_PACKAGE"
+            break
+        fi
+        if [ -f "$CONVEX_ENV_ROOT" ]; then
+            CONVEX_ENV="$CONVEX_ENV_ROOT"
+            break
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
 fi
 
 # Extract CONVEX_URL: prefer .env.local file, fall back to system environment
