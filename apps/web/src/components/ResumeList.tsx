@@ -24,6 +24,7 @@ import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 import { rawApiClient } from '@/lib/api-helpers'
 import { expandKeyword, DEFAULT_CONFIG, calculateResumeScore } from '@/lib/trendradar/parser'
+import { deriveAnalysisLookupKey } from '@/lib/analysis-utils'
 
 type JobDescriptionApiResponse = {
   success: boolean
@@ -73,11 +74,20 @@ function toMatchBreakdown(value: Record<string, number> | undefined): MatchBreak
   }
 }
 
-function getAnalysisForJob(resume: ConvexResumeItem, selectedJobId: string): ConvexResumeAnalysis | undefined {
-  if (selectedJobId && resume.analyses?.[selectedJobId]) {
-    return resume.analyses[selectedJobId]
+function getAnalysisForJob(
+  resume: ConvexResumeItem,
+  jobDescriptionId: string | undefined,
+  keywords: string[]
+): ConvexResumeAnalysis | undefined {
+  const lookupKey = deriveAnalysisLookupKey(jobDescriptionId, keywords)
+  if (lookupKey && resume.analyses?.[lookupKey]) {
+    return resume.analyses[lookupKey]
   }
-  return resume.analysis
+  if (resume.analysis) {
+    if (!lookupKey) return resume.analysis
+    if (resume.analysis.jobDescriptionId === lookupKey) return resume.analysis
+  }
+  return undefined
 }
 
 function isAutoFilteredAnalysis(analysis: ConvexResumeAnalysis | undefined): boolean {
@@ -178,6 +188,8 @@ export function ResumeList() {
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)
+  const [lastDispatchTime, setLastDispatchTime] = useState<number>(0)
+  const DISPATCH_COOLDOWN_MS = 2000
   // Removed analysisDispatchMessage state
 
   const activeLoading = mode === 'ai' ? convexLoading : loading
@@ -187,7 +199,7 @@ export function ResumeList() {
 
     // Hide resumes that were auto-skipped by the keyword pre-filter.
     result = result.filter((resume: ConvexResumeItem) => {
-      const analysis = getAnalysisForJob(resume, jobDescriptionId || '')
+      const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
 
       // Rule-Based Pre-Scoring
       // Concatenate fields for scoring
@@ -231,14 +243,14 @@ export function ResumeList() {
     const minMatchScore = filters.minMatchScore
     if (typeof minMatchScore === 'number') {
       result = result.filter((resume: ConvexResumeItem) => {
-        const analysis = getAnalysisForJob(resume, jobDescriptionId || '')
+        const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
         return (analysis?.score ?? 0) >= minMatchScore
       })
     }
     // Add other filters as data structure permits
 
     return result
-  }, [convexResumes, filters, jobDescriptionId])
+  }, [convexResumes, filters, jobDescriptionId, sessionKeywords])
 
   useEffect(() => {
     if (!session?.id) return
@@ -312,11 +324,16 @@ export function ResumeList() {
   const handleAnalyzeAll = async () => {
     if (!convexResumes.length) return
     if (!jobDescriptionId && sessionKeywords.length === 0) return
+    const now = Date.now()
+    if (now - lastDispatchTime < DISPATCH_COOLDOWN_MS) {
+      toast.info(t('aiTasks.waitForCompletion', 'Please wait for current analysis to complete.'))
+      return
+    }
     setAnalyzing(true)
     try {
       // Priority Selection: Top 10 Rule-Scored candidates not yet analyzed
       const candidatesToAnalyze = filteredConvexResumes
-        .filter((r: ConvexResumeItem) => !getAnalysisForJob(r, jobDescriptionId || ''))
+        .filter((r: ConvexResumeItem) => !getAnalysisForJob(r, jobDescriptionId, sessionKeywords))
         .slice(0, 10)
 
       if (candidatesToAnalyze.length === 0) {
@@ -378,6 +395,7 @@ export function ResumeList() {
           resumeIds,
         })
       }
+      setLastDispatchTime(Date.now())
       toast.success(t('aiTasks.dispatchedTop', { count: resumeIds.length, defaultValue: `Analyzing top ${resumeIds.length} candidates...` }));
     } catch (e) {
       console.error(e)
@@ -406,7 +424,7 @@ export function ResumeList() {
     if (mode === 'ai') {
       return filteredConvexResumes.map((resume: ConvexResumeItem, index: number) => {
         const resumeKey = buildResumeKey(resume, index)
-        const analysis = getAnalysisForJob(resume, jobDescriptionId || '')
+        const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
 
         const match: MatchingResult | undefined = analysis && isAnalysisValid
@@ -448,7 +466,7 @@ export function ResumeList() {
         action: actions[resumeKey],
       }
     })
-  }, [actions, filteredConvexResumes, jobDescriptionId, mode, resumes])
+  }, [actions, filteredConvexResumes, jobDescriptionId, mode, resumes, sessionKeywords])
 
   const displayedResumes = useMemo(() => {
     // Sort by AI Score if available, otherwise by Rule Score

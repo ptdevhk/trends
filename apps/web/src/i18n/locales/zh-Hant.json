@@ -189,6 +189,7 @@
   "aiTasks": {
     "dispatched": "分析任務已建立",
     "dispatchFailed": "啟動分析失敗",
+    "waitForCompletion": "請等待目前分析完成。",
     "monitor": {
       "activeTitle": "進行中的分析",
       "historyTitle": "分析歷史",

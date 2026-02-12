@@ -189,6 +189,7 @@
   "aiTasks": {
     "dispatched": "Analysis task dispatched",
     "dispatchFailed": "Failed to start analysis",
+    "waitForCompletion": "Please wait for current analysis to complete.",
     "monitor": {
       "activeTitle": "Active Analysis",
       "historyTitle": "Analysis History",
