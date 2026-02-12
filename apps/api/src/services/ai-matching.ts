@@ -12,6 +12,7 @@ import JSON5 from "json5";
 
 import { aiConfig, validateAIConfig, getMaskedApiKey } from "./ai-config.js";
 import { findProjectRoot } from "./db.js";
+import { localeToNaturalLanguage, resolveAIOutputLocale } from "./locale-utils.js";
 
 // Types
 export interface MatchingRequest {
@@ -131,6 +132,11 @@ const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密�
 - 0-49分：不匹配，基本要求不满足
 
 你必须严格按照JSON格式返回结果，不要包含任何其他文字。`;
+
+function buildSystemPrompt(locale: string): string {
+    const naturalLanguage = localeToNaturalLanguage(locale);
+    return `${SYSTEM_PROMPT}\nPlease respond entirely in ${naturalLanguage}.`;
+}
 
 const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 
@@ -267,9 +273,11 @@ export class AIMatchingService {
             };
         }
 
+        const aiOutputLocale = resolveAIOutputLocale();
+        const systemPrompt = buildSystemPrompt(aiOutputLocale);
         const userPrompt = this.buildPrompt(request);
         const messages = [
-            { role: "system", content: SYSTEM_PROMPT },
+            { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
         ];
 

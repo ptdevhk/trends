@@ -16,12 +16,22 @@ const resources = {
   en: { translation: en },
 }
 
+const SUPPORTED_LOCALES = ['zh-Hans', 'zh-Hant', 'en']
+type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
+
+function isSupportedLocale(locale: string | undefined): locale is SupportedLocale {
+  return typeof locale === 'string' && SUPPORTED_LOCALES.includes(locale)
+}
+
+const envLocale = import.meta.env.VITE_DEFAULT_LOCALE
+const defaultLocale: SupportedLocale = isSupportedLocale(envLocale) ? envLocale : 'zh-Hans'
+
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'zh-Hant',
+    fallbackLng: defaultLocale,
     debug: import.meta.env.DEV,
     interpolation: {
       escapeValue: false,

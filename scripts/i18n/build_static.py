@@ -23,6 +23,7 @@ The script:
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -38,6 +39,7 @@ I18N_DIR = PROJECT_ROOT / "config" / "i18n"
 TEMPLATE_DIR = PROJECT_ROOT / "templates"  # Future template directory
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "static"
 AVAILABLE_LOCALES = ["zh-Hant", "zh-Hans", "en"]
+DEFAULT_LOCALE = "zh-Hans"
 
 
 def load_locale(locale: str) -> dict[str, Any]:
@@ -384,6 +386,7 @@ def build_locale(
 def build_all_locales(
     locales: list[str],
     output_dir: Path,
+    default_locale: str,
     clean: bool = False,
 ) -> bool:
     """Build static sites for all specified locales."""
@@ -406,9 +409,8 @@ def build_all_locales(
         except Exception as e:
             print(f"  ERROR: {e}")
 
-    # Create root index.html that redirects to default locale
+    # Create root index.html that redirects to configured default locale
     root_index = output_dir / "index.html"
-    default_locale = locales[0] if locales else "zh-Hant"
     redirect_html = f'''<!DOCTYPE html>
 <html>
 <head>
@@ -416,22 +418,7 @@ def build_all_locales(
     <meta http-equiv="refresh" content="0; url=/{default_locale}/">
     <title>TrendRadar</title>
     <script>
-        // Try to detect user's preferred language
-        const userLang = navigator.language || navigator.userLanguage;
-        let targetLocale = '{default_locale}';
-
-        if (userLang.startsWith('zh')) {{
-            // Check for Traditional vs Simplified
-            if (userLang.includes('TW') || userLang.includes('HK') || userLang.includes('Hant')) {{
-                targetLocale = 'zh-Hant';
-            }} else {{
-                targetLocale = 'zh-Hans';
-            }}
-        }} else if (userLang.startsWith('en')) {{
-            targetLocale = 'en';
-        }}
-
-        window.location.href = '/' + targetLocale + '/';
+        window.location.href = '/{default_locale}/';
     </script>
 </head>
 <body>
@@ -441,9 +428,37 @@ def build_all_locales(
 '''
     with open(root_index, "w", encoding="utf-8") as f:
         f.write(redirect_html)
-    print(f"\nGenerated: {root_index} (redirect)")
+    print(f"\nGenerated: {root_index} (redirect -> /{default_locale}/)")
 
     return success_count == len(locales)
+
+
+def resolve_default_locale(locales: list[str]) -> str:
+    env_locale = (
+        os.environ.get("VITE_DEFAULT_LOCALE")
+        or os.environ.get("DEFAULT_LOCALE")
+        or DEFAULT_LOCALE
+    ).strip()
+
+    if env_locale not in AVAILABLE_LOCALES:
+        print(
+            f"Warning: Unsupported default locale '{env_locale}'. "
+            f"Falling back to '{DEFAULT_LOCALE}'."
+        )
+        env_locale = DEFAULT_LOCALE
+
+    if env_locale in locales:
+        return env_locale
+
+    if locales:
+        fallback = locales[0]
+        print(
+            f"Warning: Default locale '{env_locale}' is not in selected locales "
+            f"({', '.join(locales)}). Falling back to '{fallback}'."
+        )
+        return fallback
+
+    return DEFAULT_LOCALE
 
 
 def main() -> int:
@@ -470,6 +485,7 @@ def main() -> int:
     args = parser.parse_args()
 
     locales = [l.strip() for l in args.locales.split(",")]
+    default_locale = resolve_default_locale(locales)
 
     print("=" * 60)
     print("TrendRadar Static Site Builder")
@@ -477,9 +493,10 @@ def main() -> int:
     print()
     print(f"Output directory: {args.output_dir}")
     print(f"Locales: {', '.join(locales)}")
+    print(f"Default locale: {default_locale}")
     print()
 
-    success = build_all_locales(locales, args.output_dir, args.clean)
+    success = build_all_locales(locales, args.output_dir, default_locale, args.clean)
 
     print()
     print("=" * 60)

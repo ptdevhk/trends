@@ -10,6 +10,31 @@ export const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选
 4. 错误示例: "score": "85", "score": "eighty-five"
 5. 如果无法确切评分，请基于现有信息估算一个数字。`;
 
+const DEFAULT_AI_OUTPUT_LOCALE = "zh-Hans";
+
+const LOCALE_TO_NATURAL: Record<string, string> = {
+    "zh-Hans": "Simplified Chinese",
+    "zh-Hant": "Traditional Chinese",
+    en: "English",
+    ja: "Japanese",
+    ko: "Korean",
+};
+
+// For Convex deployments, set AI_OUTPUT_LOCALE via the dashboard or `convex env set`.
+export function resolveAIOutputLocale(): string {
+    const locale = process.env.AI_OUTPUT_LOCALE?.trim();
+    return locale && locale.length > 0 ? locale : DEFAULT_AI_OUTPUT_LOCALE;
+}
+
+export function localeToNaturalLanguage(locale: string): string {
+    return LOCALE_TO_NATURAL[locale] ?? locale;
+}
+
+export function buildSystemPrompt(locale: string): string {
+    const naturalLanguage = localeToNaturalLanguage(locale);
+    return `${SYSTEM_PROMPT}\nPlease respond entirely in ${naturalLanguage}.`;
+}
+
 export const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 
 ## 职位信息
@@ -178,7 +203,7 @@ export const analyzeResume = action({
             .replace("{summary}", norm.summary);
 
         const messages = [
-            { role: "system", content: SYSTEM_PROMPT },
+            { role: "system", content: buildSystemPrompt(resolveAIOutputLocale()) },
             { role: "user", content: prompt },
         ];
 
