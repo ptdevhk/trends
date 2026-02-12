@@ -34,6 +34,11 @@ interface ResumeCardProps {
   }
 }
 
+function isSafeProfileUrl(value: string | undefined): value is string {
+  if (!value) return false
+  return value.startsWith('http://') || value.startsWith('https://')
+}
+
 
 export function ResumeCard({
   resume,
@@ -53,6 +58,8 @@ export function ResumeCard({
   const workHistory = resume.workHistory?.filter((item) => item.raw) ?? []
   const jobIntention = (resume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
   const selfIntro = resume.selfIntro || '--'
+  const profileUrl = resume.profileUrl?.trim()
+  const hasProfileUrl = isSafeProfileUrl(profileUrl)
 
   const score = matchResult?.score
   const recommendation = matchResult?.recommendation
@@ -150,10 +157,10 @@ export function ResumeCard({
 
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            {resume.profileUrl ? (
+            {hasProfileUrl ? (
               <a
                 className="font-medium text-foreground hover:underline"
-                href={resume.profileUrl}
+                href={profileUrl}
                 target="_blank"
                 rel="noreferrer"
               >

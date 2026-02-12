@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw, FileText, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -91,6 +91,11 @@ function isAutoFilteredAnalysis(analysis: ConvexResumeAnalysis | undefined): boo
   )
 }
 
+function isSafeProfileUrl(value: string | undefined): value is string {
+  if (!value) return false
+  return value.startsWith('http://') || value.startsWith('https://')
+}
+
 function buildResumeKey(resume: ResumeItem, index: number): string {
   if (resume.resumeId) {
     return resume.resumeId
@@ -98,7 +103,7 @@ function buildResumeKey(resume: ResumeItem, index: number): string {
   if (resume.perUserId) {
     return resume.perUserId
   }
-  if (resume.profileUrl && resume.profileUrl !== 'javascript:;') {
+  if (isSafeProfileUrl(resume.profileUrl)) {
     return resume.profileUrl
   }
   return `${resume.name}-${resume.extractedAt || index}`
@@ -126,6 +131,7 @@ function ResumeCardSkeleton() {
 export function ResumeList() {
   const { t } = useTranslation()
   const { session, updateSession } = useSession()
+  const hydratedSessionIdRef = useRef<string | null>(null)
   const [mode] = useState<'ai'>('ai')
   const [jobDescriptionId, setJobDescriptionId] = useState('')
   const [quickStartKeywords, setQuickStartKeywords] = useState<string[]>([])
@@ -140,7 +146,6 @@ export function ResumeList() {
     error,
     selectedSample,
     setSelectedSample,
-    query,
     setFilters,
     refresh,
     reloadSamples,
@@ -158,9 +163,11 @@ export function ResumeList() {
 
   // Convex Integration
   const expandedQuery = useMemo(() => {
-    if (!query) return undefined
-    return expandKeyword(query, DEFAULT_CONFIG)
-  }, [query])
+    if (jobDescriptionId) return undefined
+    const kw = quickStartKeywords.join(' ').trim()
+    if (!kw) return undefined
+    return expandKeyword(kw, DEFAULT_CONFIG)
+  }, [jobDescriptionId, quickStartKeywords])
 
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
@@ -228,32 +235,32 @@ export function ResumeList() {
   }, [convexResumes, filters, jobDescriptionId])
 
   useEffect(() => {
-    if (session?.jobDescriptionId && !jobDescriptionId) {
+    if (!session?.id) return
+    if (hydratedSessionIdRef.current === session.id) return
+
+    hydratedSessionIdRef.current = session.id
+
+    if (session.jobDescriptionId) {
       setJobDescriptionId(session.jobDescriptionId)
     }
-    if (session?.sampleName && !selectedSample) {
+    if (session.sampleName) {
       setSelectedSample(session.sampleName)
     }
-    if (session?.filters && filters.minMatchScore === undefined && !filters.skills?.length) {
+    if (session.filters && filters.minMatchScore === undefined && !filters.skills?.length) {
       setFilters(session.filters)
     }
-  }, [
-    filters.minMatchScore,
-    filters.skills?.length,
-    jobDescriptionId,
-    selectedSample,
-    session?.filters,
-    session?.jobDescriptionId,
-    session?.sampleName,
-    setFilters,
-    setSelectedSample,
-  ])
+  }, [filters.minMatchScore, filters.skills?.length, session, setFilters, setSelectedSample])
+
+  useEffect(() => {
+    if (!jobDescriptionId || quickStartKeywords.length === 0) return
+    setQuickStartKeywords([])
+  }, [jobDescriptionId, quickStartKeywords])
 
 
 
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [mode, jobDescriptionId, query])
+  }, [mode, jobDescriptionId, expandedQuery])
 
   // Removed analysisDispatchMessage useEffect
 
@@ -269,6 +276,9 @@ export function ResumeList() {
 
   const handleJobChange = useCallback(
     (value: string) => {
+      if (value) {
+        setQuickStartKeywords([])
+      }
       setJobDescriptionId(value)
       updateSession({ jobDescriptionId: value })
     },
@@ -318,6 +328,26 @@ export function ResumeList() {
         toast.info(t('aiTasks.noNewCandidates', 'No new candidates to analyze among top matches.'))
         setAnalyzing(false)
         return
+      }
+
+      const normalizedKeywords = quickStartKeywords
+        .map((keyword) => keyword.trim().toLowerCase())
+        .filter((keyword) => keyword.length > 0)
+
+      if (!jobDescriptionId && normalizedKeywords.length > 0) {
+        const matchCount = candidatesToAnalyze.filter((resume) => {
+          const text = JSON.stringify(resume).toLowerCase()
+          return normalizedKeywords.some((keyword) => text.includes(keyword))
+        }).length
+
+        if (matchCount === 0) {
+          toast.warning(
+            t(
+              'aiTasks.lowKeywordMatch',
+              'Keywords may not match displayed resumes. Consider collecting new resumes first.'
+            )
+          )
+        }
       }
 
       const resumeIds = candidatesToAnalyze.map((r: ConvexResumeItem) => r.resumeId)
@@ -557,16 +587,21 @@ export function ResumeList() {
       keywords: string[]
       jobDescriptionId?: string
     }) => {
-      setQuickStartKeywords(config.keywords)
+      const normalizedKeywords = config.keywords
+        .map((keyword) => keyword.trim())
+        .filter((keyword) => keyword.length > 0)
+
       if (config.jobDescriptionId) {
+        setQuickStartKeywords([])
         setJobDescriptionId(config.jobDescriptionId)
         updateSession({ jobDescriptionId: config.jobDescriptionId })
       } else {
+        setQuickStartKeywords(normalizedKeywords)
         // If no JD, ensure we search by keywords
         // (already handled by quickStartKeywords state)
         if (!config.jobDescriptionId && jobDescriptionId) {
           setJobDescriptionId('');
-          updateSession({ jobDescriptionId: undefined });
+          updateSession({ jobDescriptionId: '' });
         }
       }
 

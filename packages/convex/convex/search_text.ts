@@ -25,6 +25,16 @@ function normalizeWhitespace(value: string): string {
     return value.replace(/\s+/g, " ").trim();
 }
 
+const CJK_RANGE = "\\u4e00-\\u9fff\\u3400-\\u4dbf";
+const CJK_CHAR = `[${CJK_RANGE}]`;
+const ASCII_WORD = "[a-zA-Z0-9]";
+
+function addScriptBoundarySpaces(text: string): string {
+    return text
+        .replace(new RegExp(`(${CJK_CHAR})(${ASCII_WORD})`, "g"), "$1 $2")
+        .replace(new RegExp(`(${ASCII_WORD})(${CJK_CHAR})`, "g"), "$1 $2");
+}
+
 function toTextFragments(value: unknown): string[] {
     if (value === null || value === undefined) {
         return [];
@@ -90,5 +100,5 @@ export function buildSearchText(content: unknown): string {
         ...collectNonPriorityFragments(content),
     ].join(" ");
 
-    return normalizeWhitespace(merged).toLowerCase();
+    return normalizeWhitespace(addScriptBoundarySpaces(merged)).toLowerCase();
 }
