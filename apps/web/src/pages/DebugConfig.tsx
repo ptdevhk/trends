@@ -746,7 +746,7 @@ export default function DebugConfig() {
       console.error('Failed to dispatch collection', error)
       showToast({ type: 'error', message: 'Failed to start collection' })
     }
-  }, [collectionKeyword, collectionLocation, dispatchCollection, showToast])
+  }, [collectionKeyword, collectionLocation, collectionLimit, collectionMaxPages, dispatchCollection, showToast])
 
   return (
     <div className="space-y-6">

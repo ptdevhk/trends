@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from './ui/button'
-import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
+import type { Doc, Id } from '../../../../packages/convex/convex/_generated/dataModel'
 import { formatInAppTimezone } from '@/lib/timezone'
 
 export function TaskMonitor() {
@@ -85,7 +85,7 @@ export function TaskMonitor() {
     )
 }
 
-function TaskItem({ task, onCancel }: { task: Doc<"collection_tasks">, onCancel?: (args: { taskId: any }) => Promise<any> }) {
+function TaskItem({ task, onCancel }: { task: Doc<"collection_tasks">, onCancel?: (args: { taskId: Id<"collection_tasks"> }) => Promise<void | null> }) {
     const isActive = task.status === 'pending' || task.status === 'processing'
 
     return (

@@ -4,25 +4,23 @@ import { RefreshCw } from 'lucide-react'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeAnalysis, ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { ResumeCard } from '@/components/ResumeCard'
+import type { CandidateActionType } from '@/types/resume'
 import { ResumeDetail } from '@/components/ResumeDetail'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useSession } from '@/hooks/useSession'
-import { useAiMatching } from '@/hooks/useAiMatching'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { FilterPanel } from '@/components/FilterPanel'
 import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
-import { MatchRunHistory } from '@/components/MatchRunHistory'
 import type { MatchBreakdown, MatchingResult, Recommendation } from '@/types/resume'
 
 import { useMutation } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
-import type { Id } from '../../../../packages/convex/convex/_generated/dataModel'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 import { rawApiClient } from '@/lib/api-helpers'
-import { expandKeyword, DEFAULT_CONFIG } from '@/lib/trendradar/parser'
+import { expandKeyword, DEFAULT_CONFIG, calculateResumeScore } from '@/lib/trendradar/parser'
 
 type JobDescriptionApiResponse = {
   success: boolean
@@ -32,14 +30,7 @@ type JobDescriptionApiResponse = {
   content?: string
 }
 
-type JobDescriptionDetailResponse = {
-  success: boolean
-  item?: {
-    _id: string
-    title: string
-  }
-  content?: string
-}
+
 
 const VALID_RECOMMENDATIONS: Recommendation[] = ['strong_match', 'match', 'potential', 'no_match']
 
@@ -134,13 +125,7 @@ export function ResumeList() {
   } = useResumes({ limit: 200, sessionId: session?.id, jobDescriptionId })
 
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
-  const {
-    matchAll,
-    isMatching,
-    progress,
-    results: matchResults,
-    error: matchError,
-  } = useAiMatching()
+
   const { actions, saveAction } = useCandidateActions(session?.id)
 
   // Convex Integration
@@ -163,34 +148,51 @@ export function ResumeList() {
     let result = convexResumes
 
     // Hide resumes that were auto-skipped by the keyword pre-filter.
-    result = result.filter((resume) => {
+    result = result.filter((resume: ConvexResumeItem) => {
       const analysis = getAnalysisForJob(resume, jobDescriptionId)
-      return !isAutoFilteredAnalysis(analysis)
+
+      // Rule-Based Pre-Scoring
+      // Concatenate fields for scoring
+      const contentText = [
+        resume.name,
+        resume.jobIntention,
+        resume.education,
+        resume.experience,
+        resume.location,
+        resume.selfIntro,
+        ...(resume.workHistory || []).map((w: { raw: string }) => w.raw), // Temporary any until workHistory type is fixed or we use a better type
+        resume.tags?.join(' ')
+      ].filter((item): item is string => !!item).join(' ')
+
+      const ruleResult = calculateResumeScore(contentText, DEFAULT_CONFIG)
+
+      // Auto-filter based on Analysis (AI Memory)
+      if (isAutoFilteredAnalysis(analysis)) return false;
+
+      // Attach rule score for sorting/filtering
+      (resume as ConvexResumeItem & { _ruleScore?: number })._ruleScore = ruleResult.score;
+
+      return true
     })
 
-    // 1. Keyword filter (query)
+    // Sort by Rule Score descending (Pre-scoring)
+    result.sort((a: ConvexResumeItem, b: ConvexResumeItem) => {
+      const scoreA = (a as ConvexResumeItem & { _ruleScore?: number })._ruleScore || 0
+      const scoreB = (b as ConvexResumeItem & { _ruleScore?: number })._ruleScore || 0
+      return scoreB - scoreA
+    })
+
     // 1. Keyword filter (query) - Handled by backend search now via useConvexResumes(expandedQuery)
     // We only keep client side highlighting or fallback if needed, but for filtering we rely on backend.
-    /*
-    if (query) {
-      const q = query.toLowerCase()
-      result = result.filter(r =>
-        (r.name?.toLowerCase().includes(q)) ||
-        (r.jobIntention?.toLowerCase().includes(q)) ||
-        (r.education?.toLowerCase().includes(q)) ||
-        (r.location?.toLowerCase().includes(q))
-      )
-    }
-    */
 
     // 2. Filter panel (filters)
     if (filters.locations?.length) {
       const locations = filters.locations
-      result = result.filter((resume) => locations.some((location) => resume.location?.includes(location)))
+      result = result.filter((resume: ConvexResumeItem) => locations.some((location) => resume.location?.includes(location)))
     }
     const minMatchScore = filters.minMatchScore
     if (typeof minMatchScore === 'number') {
-      result = result.filter((resume) => {
+      result = result.filter((resume: ConvexResumeItem) => {
         const analysis = getAnalysisForJob(resume, jobDescriptionId)
         return (analysis?.score ?? 0) >= minMatchScore
       })
@@ -198,7 +200,7 @@ export function ResumeList() {
     // Add other filters as data structure permits
 
     return result
-  }, [convexResumes, filters, jobDescriptionId, query])
+  }, [convexResumes, filters, jobDescriptionId])
 
   useEffect(() => {
     if (session?.jobDescriptionId && jobDescriptionId === null) {
@@ -211,6 +213,8 @@ export function ResumeList() {
       setFilters(session.filters)
     }
   }, [
+    filters.minMatchScore,
+    filters.skills?.length,
     jobDescriptionId,
     selectedSample,
     session?.filters,
@@ -220,11 +224,7 @@ export function ResumeList() {
     setSelectedSample,
   ])
 
-  useEffect(() => {
-    if (session?.id && jobDescriptionId) {
-      fetchMatches(session.id, jobDescriptionId)
-    }
-  }, [fetchMatches, jobDescriptionId, session?.id])
+
 
   useEffect(() => {
     setSelectedIds(new Set())
@@ -236,33 +236,7 @@ export function ResumeList() {
     return () => window.clearTimeout(timer)
   }, [analysisDispatchMessage])
 
-  // Fetch selected job description details
-  const [selectedJob, setSelectedJob] = useState<{ id: string; title: string; requirements?: string } | null>(null)
 
-  useEffect(() => {
-    async function loadJob() {
-      if (!jobDescriptionId) {
-        setSelectedJob(null)
-        return
-      }
-      try {
-        const { data } = await rawApiClient.GET<JobDescriptionDetailResponse>(
-          `/api/job-descriptions/${jobDescriptionId}`
-        )
-
-        if (data?.success) {
-          setSelectedJob({
-            id: jobDescriptionId,
-            title: data.item?.title || 'Unknown Position',
-            requirements: data.content || ''
-          })
-        }
-      } catch (err) {
-        console.error('Failed to load job details', err)
-      }
-    }
-    loadJob()
-  }, [jobDescriptionId])
 
   const handleRefresh = useCallback(async () => {
     await reloadSamples()
@@ -277,6 +251,7 @@ export function ResumeList() {
     [updateSession]
   )
 
+  /*
   const handleMatchAll = useCallback(async () => {
     let result;
     // Path B: Job Description
@@ -302,46 +277,27 @@ export function ResumeList() {
         mode: 'rules_only',
       })
     }
-
-    // AI Double-Confirmation: Automatically analyze top results
-    if (result?.results && result.results.length > 0) {
-      const topCandidates = result.results
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 10) // Analyze top 10 for verification
-
-      const resumeIdsToAnalyze = topCandidates.map((r) => r.resumeId as Id<'resumes'>)
-
-      if (resumeIdsToAnalyze.length > 0) {
-        setAnalysisDispatchMessage({ type: 'success', text: t('aiTasks.autoVerifying', 'Auto-verifying top candidates with AI...') })
-
-        try {
-          if (jobDescriptionId) {
-            await dispatchAnalysis({
-              jobDescriptionId,
-              jobDescriptionTitle: selectedJob?.title,
-              jobDescriptionContent: selectedJob?.requirements,
-              sample: selectedSample || undefined,
-              resumeIds: resumeIdsToAnalyze,
-            })
-          } else {
-            await dispatchAnalysis({
-              keywords: quickStartKeywords,
-              sample: selectedSample || undefined,
-              resumeIds: resumeIdsToAnalyze,
-            })
-          }
-        } catch (err) {
-          console.error('Failed to dispatch auto-verification', err)
-        }
-      }
-    }
-  }, [filters.locations, jobDescriptionId, matchAll, quickStartKeywords, selectedSample, session?.id, dispatchAnalysis, selectedJob, t])
+  }, [filters.locations, jobDescriptionId, matchAll, quickStartKeywords, selectedSample, session?.id, t])
+  */
 
   const handleAnalyzeAll = async () => {
     if (!convexResumes.length) return
     if (!jobDescriptionId && quickStartKeywords.length === 0) return
     setAnalyzing(true)
     try {
+      // Priority Selection: Top 10 Rule-Scored candidates not yet analyzed
+      const candidatesToAnalyze = filteredConvexResumes
+        .filter((r: ConvexResumeItem) => !getAnalysisForJob(r, jobDescriptionId))
+        .slice(0, 10)
+
+      if (candidatesToAnalyze.length === 0) {
+        setAnalysisDispatchMessage({ type: 'success', text: t('aiTasks.noNewCandidates', 'No new candidates to analyze among top matches.') })
+        setAnalyzing(false)
+        return
+      }
+
+      const resumeIds = candidatesToAnalyze.map((r: ConvexResumeItem) => r.resumeId)
+
       if (jobDescriptionId) {
         // Path B: Job Description
         let jdContent = ''
@@ -363,17 +319,17 @@ export function ResumeList() {
           jobDescriptionTitle: jdTitle || undefined,
           jobDescriptionContent: jdContent || undefined,
           sample: selectedSample || undefined,
-          resumeIds: convexResumes.map((resume) => resume.resumeId),
+          resumeIds,
         })
       } else if (quickStartKeywords.length > 0) {
         // Path A: Keywords
         await dispatchAnalysis({
           keywords: quickStartKeywords,
           sample: selectedSample || undefined,
-          resumeIds: convexResumes.map((resume) => resume.resumeId),
+          resumeIds,
         })
       }
-      setAnalysisDispatchMessage({ type: 'success', text: t('aiTasks.dispatched') })
+      setAnalysisDispatchMessage({ type: 'success', text: t('aiTasks.dispatchedTop', { count: resumeIds.length, defaultValue: `Analyzing top ${resumeIds.length} candidates...` }) })
     } catch (e) {
       console.error('Failed to dispatch analysis task', e)
       setAnalysisDispatchMessage({ type: 'error', text: t('aiTasks.dispatchFailed') })
@@ -390,44 +346,17 @@ export function ResumeList() {
     [setFilters, updateSession]
   )
 
-  const aiStats = useMemo(() => {
-    // If using Convex data, stats are computed from analysis fields
-    const validResumes = convexResumes.filter((resume) => {
-      const analysis = getAnalysisForJob(resume, jobDescriptionId)
-      return Boolean(
-        analysis
-        && !isAutoFilteredAnalysis(analysis)
-        && (!jobDescriptionId || analysis.jobDescriptionId === jobDescriptionId)
-      )
-    })
+  type EnrichedResume = {
+    resume: ConvexResumeItem | ResumeItem
+    key: string
+    match?: MatchingResult
+    ruleScore?: number
+    action?: CandidateActionType | undefined
+  }
 
-    const processed = validResumes.length
-    const matched = validResumes.filter((resume) => {
-      const analysis = getAnalysisForJob(resume, jobDescriptionId)
-      return (analysis?.score ?? 0) >= 60
-    }).length
-
-    const avgScore = processed
-      ? Number(
-        (
-          validResumes.reduce((sum, resume) => {
-            const analysis = getAnalysisForJob(resume, jobDescriptionId)
-            return sum + (analysis?.score ?? 0)
-          }, 0) / processed
-        ).toFixed(2)
-      )
-      : 0
-
-    return { processed, matched, avgScore }
-  }, [convexResumes, jobDescriptionId])
-
-  const matchMap = useMemo(() => {
-    return new Map(matchResults.map((item) => [item.resumeId, item]))
-  }, [matchResults])
-
-  const enrichedResumes = useMemo(() => {
+  const enrichedResumes = useMemo<EnrichedResume[]>(() => {
     if (mode === 'ai') {
-      return filteredConvexResumes.map((resume, index) => {
+      return filteredConvexResumes.map((resume: ConvexResumeItem, index: number) => {
         const resumeKey = buildResumeKey(resume, index)
         const analysis = getAnalysisForJob(resume, jobDescriptionId)
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
@@ -447,10 +376,13 @@ export function ResumeList() {
           }
           : undefined
 
+        const ruleScore = (resume as ConvexResumeItem & { _ruleScore?: number })._ruleScore || 0
+
         return {
           resume,
           key: resumeKey,
           match,
+          ruleScore, // Pass it down
           action: actions[resumeKey],
         }
       })
@@ -461,14 +393,22 @@ export function ResumeList() {
       return {
         resume,
         key: resumeKey,
-        match: matchMap.get(resumeKey),
+        match: undefined, // No AI match in non-AI mode? Or map it if needed. 
+        // Original code had matchMap.get(resumeKey) but we removed matchMap logic for 'ai' mode.
+        // For strictness, if this path is dead or legacy, we might just return basic structure.
+        ruleScore: 0,
         action: actions[resumeKey],
       }
     })
-  }, [actions, filteredConvexResumes, jobDescriptionId, matchMap, mode, resumes])
+  }, [actions, filteredConvexResumes, jobDescriptionId, mode, resumes])
 
   const displayedResumes = useMemo(() => {
-    return [...enrichedResumes].sort((a, b) => (b.match?.score ?? -1) - (a.match?.score ?? -1))
+    // Sort by AI Score if available, otherwise by Rule Score
+    return [...enrichedResumes].sort((a, b) => {
+      const scoreA = a.match?.score ?? a.ruleScore ?? 0
+      const scoreB = b.match?.score ?? b.ruleScore ?? 0
+      return scoreB - scoreA
+    })
   }, [enrichedResumes])
 
   const handleSelectAll = useCallback(() => {
@@ -540,8 +480,10 @@ export function ResumeList() {
     return displayedResumes.filter((e) => (e.match?.score ?? 0) >= 80).length
   }, [displayedResumes])
 
+  /*
   const hasInput = Boolean(jobDescriptionId) || quickStartKeywords.length > 0
   const disableAnalyzeButton = (!convexResumes.length || analyzing || !hasInput)
+  */
 
   const handleQuickStartApply = useCallback(
     (config: {
@@ -591,105 +533,78 @@ export function ResumeList() {
             <RefreshCw className={cn('mr-2 h-4 w-4', activeLoading && 'animate-spin')} />
             {t('resumes.refresh')}
           </Button>
-          <Button
-            size="sm"
-            onClick={handleAnalyzeAll}
-            disabled={disableAnalyzeButton}
-            title={!hasInput ? t('resumes.selectKeywordsOrJobDescription', '请选择关键词或职位描述') : undefined}
-          >
-            <RefreshCw className={cn('mr-2 h-4 w-4', analyzing && 'animate-spin')} />
-            {analyzing ? 'Analyzing...' : 'Analyze All (AI)'}
-          </Button>
         </div>
       </div>
 
-      {analysisDispatchMessage ? (
-        <div
-          className={cn(
-            'w-fit rounded-md px-2.5 py-1.5 text-xs',
-            analysisDispatchMessage.type === 'success'
-              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-              : 'bg-destructive/10 text-destructive'
-          )}
-          role="status"
-        >
-          {analysisDispatchMessage.text}
-        </div>
-      ) : null}
+      {/* 3. Advanced Filters (Screening Conditions) */}
+      <FilterPanel
+        filters={filters}
+        onChange={handleFiltersChange}
+        mode={mode}
+      />
 
-      <FilterPanel filters={filters} onChange={handleFiltersChange} mode={mode} />
-
-      {matchError ? (
-        <div className="text-xs text-destructive">{matchError}</div>
-      ) : null}
-
-
-      {mode === 'ai' ? (
-        <AnalysisTaskMonitor />
-      ) : null}
-
-      <div className="space-y-3">
-        <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold">
-          {t('resumes.tableTitle')}
-          {mode === 'ai' ? (
-            <span className="text-xs font-normal text-muted-foreground">
-              {t('resumes.matching.sortedByScore')}
-            </span>
-          ) : null}
-        </h2>
-
-        {activeLoading ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">
-            {t('resumes.loading')}
-          </div>
-        ) : error ? (
-          <div className="py-10 text-center">
-            <p className="text-sm text-destructive">{t('resumes.error')}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{error}</p>
-          </div>
-        ) : displayedResumes.length === 0 ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">
-            {t('resumes.empty')}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {mode === 'ai' && displayedResumes.length > 0 ? (
-              <BulkActionBar
-                totalCount={displayedResumes.length}
-                selectedCount={selectedIds.size}
-                highScoreCount={highScoreCount}
-                onSelectAll={handleSelectAll}
-                onSelectHighScore={handleSelectHighScore}
-                onClearSelection={handleClearSelection}
-                onBulkAction={handleBulkAction}
-              />
-            ) : null}
-            {displayedResumes.map((entry, index) => (
-              <ResumeCard
-                key={entry.key || `${index}-${entry.resume.name}`}
-                resume={entry.resume}
-                matchResult={entry.match}
-                showAiScore={Boolean(entry.match)}
-                actionType={entry.action}
-                onAction={(actionType) => saveAction({ resumeId: entry.key, actionType })}
-                onViewDetails={() => setDetailResume(entry.resume)}
-                selected={selectedIds.has(entry.key)}
-                onSelect={() => handleToggleSelect(entry.key)}
-                jobDescriptionId={jobDescriptionId}
-                jobDescription={selectedJob || undefined}
-              />
-            ))}
+      {/* 4. Task Monitor & Bulk Actions */}
+      <div className="space-y-4">
+        {analyzing && (
+          <div className={cn("rounded-md p-4 mb-4", analysisDispatchMessage?.type === 'error' ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary")}>
+            <div className="flex items-center gap-2">
+              {analyzing && <RefreshCw className="h-4 w-4 animate-spin" />}
+              <p className="text-sm font-medium">{analysisDispatchMessage?.text || t('aiTasks.analyzing')}</p>
+            </div>
           </div>
         )}
+
+        <AnalysisTaskMonitor />
+
+        <div className="flex items-center justify-between py-2">
+          <BulkActionBar
+            totalCount={filteredConvexResumes.length}
+            selectedCount={selectedIds.size}
+            highScoreCount={highScoreCount}
+            onSelectAll={handleSelectAll}
+            onSelectHighScore={handleSelectHighScore}
+            onClearSelection={handleClearSelection}
+            onBulkAction={handleBulkAction}
+          />
+          {/* Right side actions if any */}
+          <div className="flex items-center gap-2">
+            {!selectedIds.size && (
+              <Button onClick={handleAnalyzeAll} disabled={activeLoading || analyzing || filteredConvexResumes.length === 0} variant="default">
+                {t('resumes.analyzeAll')}
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
+      {/* 5. Resume List */}
+      <div className="grid gap-4">
+        {displayedResumes.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground">
+            {t('resumes.noResumes')}
+          </div>
+        ) : (
+          displayedResumes.map((entry) => (
+            <ResumeCard
+              key={entry.key}
+              resume={entry.resume}
+              matchResult={entry.match}
+              ruleScore={entry.ruleScore}
+              actionType={entry.action}
+              onAction={(action) => saveAction({ resumeId: entry.key, actionType: action })}
+              onViewDetails={() => setDetailResume(entry.resume)}
+              selected={selectedIds.has(entry.key)}
+              onSelect={() => handleToggleSelect(entry.key)}
+            />
+          ))
+        )}
+      </div>
       <ResumeDetail
         resume={detailResume}
-        matchResult={displayedResumes.find(r => r.resume.resumeId === detailResume?.resumeId)?.match}
-        open={Boolean(detailResume)}
-        onOpenChange={(open) => {
-          if (!open) setDetailResume(null)
-        }}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        matchResult={detailResume ? (displayedResumes.find(r => r.key === buildResumeKey(detailResume, 0)) as any)?.match : undefined}
+        open={!!detailResume}
+        onOpenChange={(open) => !open && setDetailResume(null)}
       />
     </div>
   )

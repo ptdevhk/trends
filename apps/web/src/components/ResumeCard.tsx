@@ -20,6 +20,7 @@ interface ResumeCardProps {
   resume: ResumeItem
   onViewDetails: () => void
   matchResult?: MatchingResult
+  ruleScore?: number
   showAiScore?: boolean
   actionType?: CandidateActionType
   onAction?: (actionType: CandidateActionType) => void
@@ -38,6 +39,7 @@ export function ResumeCard({
   resume,
   onViewDetails,
   matchResult,
+  ruleScore,
   showAiScore,
   actionType,
   onAction,
@@ -57,13 +59,17 @@ export function ResumeCard({
   const scoreSource = matchResult?.scoreSource
   const scoreLabel = recommendation ? t(`resumes.matching.recommendations.${recommendation}`) : ''
 
+  // Use Rule Score if AI Score is missing
+  const effectiveScore = typeof score === 'number' ? score : ruleScore
+  const isRuleScore = typeof score !== 'number' && typeof ruleScore === 'number'
+
   const scoreClassName =
-    typeof score === 'number'
-      ? score >= 90
+    typeof effectiveScore === 'number'
+      ? effectiveScore >= 90
         ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-        : score >= 70
+        : effectiveScore >= 70
           ? 'bg-sky-100 text-sky-700 border-sky-200'
-          : score >= 50
+          : effectiveScore >= 50
             ? 'bg-amber-100 text-amber-700 border-amber-200'
             : 'bg-zinc-100 text-zinc-600 border-zinc-200'
       : ''
@@ -117,6 +123,15 @@ export function ResumeCard({
                 {scoreSource === 'ai' ? 'AI' : 'Rule'}
               </Badge>
             ) : null}
+          </div>
+        ) : isRuleScore && effectiveScore && effectiveScore > 0 ? (
+          <div className="flex items-center gap-2">
+            <Badge className={cn('border', scoreClassName)}>
+              Rule Score: {effectiveScore}
+            </Badge>
+            <Badge variant="outline" className="text-[10px] uppercase tracking-wide border-amber-200 text-amber-600">
+              Pre-Score
+            </Badge>
           </div>
         ) : null}
       </div>

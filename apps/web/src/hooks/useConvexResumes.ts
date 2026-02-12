@@ -147,10 +147,17 @@ function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
 }
 
 export function useConvexResumes(limit: number = 200, query?: string) {
-  const convexResumes = useQuery(
-    query ? api.resumes.search : api.resumes.list,
-    query ? { query, limit } : { limit }
+  const searchResults = useQuery(
+    api.resumes.search,
+    query ? { query, limit } : "skip"
   )
+
+  const listResults = useQuery(
+    api.resumes.list,
+    query ? "skip" : { limit }
+  )
+
+  const convexResumes = query ? searchResults : listResults
 
   const mappedResumes = (convexResumes ?? []).map(mapResumeDoc)
 

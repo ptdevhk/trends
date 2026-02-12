@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -44,14 +44,9 @@ export function OutreachModal({
     const [generating, setGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Auto-generate draft when modal opens
-    useEffect(() => {
-        if (isOpen && analysis && !subject && !body) {
-            handleGenerateDraft();
-        }
-    }, [isOpen, analysis]);
 
-    const handleGenerateDraft = async () => {
+
+    const handleGenerateDraft = useCallback(async () => {
         if (!analysis) return;
         setGenerating(true);
         try {
@@ -86,7 +81,14 @@ export function OutreachModal({
         } finally {
             setGenerating(false);
         }
-    };
+    }, [analysis, jobDescription, resume]);
+
+    // Auto-generate draft when modal opens
+    useEffect(() => {
+        if (isOpen && analysis && !subject && !body) {
+            handleGenerateDraft();
+        }
+    }, [isOpen, analysis, subject, body, handleGenerateDraft]);
 
     const handleSend = async () => {
         setLoading(true);

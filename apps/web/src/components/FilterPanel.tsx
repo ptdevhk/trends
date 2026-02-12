@@ -59,15 +59,15 @@ export function FilterPanel({ filters, onChange, mode }: FilterPanelProps) {
       minMatchScore: mode === 'ai' && minMatchScore ? Number(minMatchScore) : undefined,
       skills: skills
         ? skills
-            .split(/[,，、]/g)
-            .map((item) => item.trim())
-            .filter(Boolean)
+          .split(/[,，、]/g)
+          .map((item) => item.trim())
+          .filter(Boolean)
         : undefined,
       locations: locations
         ? locations
-            .split(/[,，、]/g)
-            .map((item) => item.trim())
-            .filter(Boolean)
+          .split(/[,，、]/g)
+          .map((item) => item.trim())
+          .filter(Boolean)
         : undefined,
       education: education.length ? education : undefined,
     })
@@ -86,11 +86,11 @@ export function FilterPanel({ filters, onChange, mode }: FilterPanelProps) {
   }
 
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">{t('resumes.filters.title')}</h3>
+    <div className="rounded-lg border bg-card p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-base font-semibold">筛选条件</h3>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={handleClear}>
+          <Button size="sm" variant="ghost" onClick={handleClear} disabled={clearing} className="text-muted-foreground hover:text-foreground">
             {t('resumes.filters.clear')}
           </Button>
           <Button size="sm" onClick={handleApply} disabled={clearing}>
@@ -99,57 +99,75 @@ export function FilterPanel({ filters, onChange, mode }: FilterPanelProps) {
         </div>
       </div>
 
-      <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">{t('resumes.filters.minExperience')}</label>
-          <Input
-            type="number"
-            value={minExperience}
-            onChange={(event) => setMinExperience(event.target.value)}
-            placeholder="0"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">{t('resumes.filters.maxExperience')}</label>
-          <Input
-            type="number"
-            value={maxExperience}
-            onChange={(event) => setMaxExperience(event.target.value)}
-            placeholder="10"
-          />
-        </div>
-        {mode === 'ai' ? (
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">{t('resumes.filters.minMatchScore')}</label>
+      <div className="grid gap-6">
+        {/* Row 1: Numeric Filters */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.minExperience')}</label>
+              <Input
+                type="number"
+                value={minExperience}
+                onChange={(event) => setMinExperience(event.target.value)}
+                placeholder="0"
+                className="bg-background"
+              />
+            </div>
+            <span className="mb-2 text-muted-foreground">-</span>
+            <div className="flex-1 space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.maxExperience')}</label>
+              <Input
+                type="number"
+                value={maxExperience}
+                onChange={(event) => setMaxExperience(event.target.value)}
+                placeholder="10"
+                className="bg-background"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.minMatchScore')}</label>
             <Input
               type="number"
               value={minMatchScore}
               onChange={(event) => setMinMatchScore(event.target.value)}
               placeholder="70"
+              className="bg-background"
+              disabled={mode !== 'ai'}
             />
           </div>
-        ) : null}
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">{t('resumes.filters.skills')}</label>
-          <Input
-            value={skills}
-            onChange={(event) => setSkills(event.target.value)}
-            placeholder={t('resumes.filters.skillsPlaceholder')}
-          />
+          {/* Spacer for 3rd column if needed or move skills here */}
         </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">{t('resumes.filters.locations')}</label>
-          <Input
-            value={locations}
-            onChange={(event) => setLocations(event.target.value)}
-            placeholder={t('resumes.filters.locationsPlaceholder')}
-          />
+
+        {/* Row 2: Text Filters */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.skills')}</label>
+            <Input
+              value={skills}
+              onChange={(event) => setSkills(event.target.value)}
+              placeholder="例如：CNC, FANUC"
+              className="bg-background"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.locations')}</label>
+            <Input
+              value={locations}
+              onChange={(event) => setLocations(event.target.value)}
+              placeholder="例如：东莞, 深圳"
+              className="bg-background"
+            />
+          </div>
         </div>
+
+        {/* Row 3: Education */}
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">{t('resumes.filters.education.title')}</p>
-          <div className="flex flex-wrap gap-3">
+          <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.education.title')}</label>
+          <div className="flex flex-wrap gap-4">
             {EDUCATION_LEVELS.map((level) => (
-              <label key={level.value} className="flex items-center gap-2 text-xs">
+              <label key={level.value} className="flex cursor-pointer items-center gap-2 text-sm text-foreground/80 hover:text-foreground">
                 <Checkbox
                   checked={educationSet.has(level.value)}
                   onCheckedChange={() => toggleEducation(level.value)}

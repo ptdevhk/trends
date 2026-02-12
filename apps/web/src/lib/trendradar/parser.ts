@@ -184,3 +184,47 @@ export function expandKeyword(keyword: string, config: ParsedConfig): string {
 
     return keyword;
 }
+
+export function calculateResumeScore(text: string, config: ParsedConfig): { score: number; matches: string[] } {
+    let totalScore = 0;
+    const lowerText = text.toLowerCase();
+    const matchedWords: Set<string> = new Set();
+
+    for (const group of config.groups) {
+        // Check required (Weight: 5)
+        for (const req of group.required) {
+            const isMatch = req.is_regex && req.pattern
+                ? req.pattern.test(lowerText)
+                : lowerText.includes(req.word.toLowerCase());
+
+            if (isMatch) {
+                totalScore += 5;
+                matchedWords.add(req.display_name || req.word);
+            }
+        }
+
+        // Check normal (Weight: 1)
+        let normalCount = 0;
+        for (const norm of group.normal) {
+            const isMatch = norm.is_regex && norm.pattern
+                ? norm.pattern.test(lowerText)
+                : lowerText.includes(norm.word.toLowerCase());
+
+            if (isMatch) {
+                normalCount++;
+                matchedWords.add(norm.display_name || norm.word);
+            }
+        }
+
+        if (group.max_count > 0) {
+            normalCount = Math.min(normalCount, group.max_count);
+        }
+        totalScore += normalCount;
+    }
+
+    // Global filters (negative weight? or strict filter? logic says "filters" usually exclude)
+    // But here we might just use them as bonus or penalty. 
+    // For now, let's keep it simple: sums of positive matches.
+
+    return { score: totalScore, matches: Array.from(matchedWords) };
+}
