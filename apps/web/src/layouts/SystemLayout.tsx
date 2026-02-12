@@ -1,5 +1,6 @@
 
 import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
   Home,
@@ -108,6 +109,7 @@ export default function SystemLayout() {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
+      <Toaster position="top-center" richColors />
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 left-0 z-50">
         <NavContent />

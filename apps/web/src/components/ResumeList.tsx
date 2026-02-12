@@ -1,6 +1,9 @@
 import { useCallback, useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, FileText } from 'lucide-react'
+import { toast } from 'sonner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/EmptyState'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeAnalysis, ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { ResumeCard } from '@/components/ResumeCard'
@@ -101,6 +104,25 @@ function buildResumeKey(resume: ResumeItem, index: number): string {
   return `${resume.name}-${resume.extractedAt || index}`
 }
 
+function ResumeCardSkeleton() {
+  return (
+    <div className="p-4 border rounded-lg space-y-3">
+      <div className="flex justify-between">
+        <Skeleton className="h-6 w-1/3" />
+        <Skeleton className="h-6 w-16" />
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-5/6" />
+      </div>
+      <div className="flex gap-2 pt-2">
+        <Skeleton className="h-8 w-20" />
+        <Skeleton className="h-8 w-20" />
+      </div>
+    </div>
+  )
+}
+
 export function ResumeList() {
   const { t } = useTranslation()
   const { session, updateSession } = useSession()
@@ -137,10 +159,7 @@ export function ResumeList() {
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)
-  const [analysisDispatchMessage, setAnalysisDispatchMessage] = useState<{
-    type: 'success' | 'error'
-    text: string
-  } | null>(null)
+  // Removed analysisDispatchMessage state
 
   const activeLoading = mode === 'ai' ? convexLoading : loading
 
@@ -230,11 +249,7 @@ export function ResumeList() {
     setSelectedIds(new Set())
   }, [mode, jobDescriptionId, query])
 
-  useEffect(() => {
-    if (!analysisDispatchMessage) return
-    const timer = window.setTimeout(() => setAnalysisDispatchMessage(null), 4000)
-    return () => window.clearTimeout(timer)
-  }, [analysisDispatchMessage])
+  // Removed analysisDispatchMessage useEffect
 
 
 
@@ -291,7 +306,7 @@ export function ResumeList() {
         .slice(0, 10)
 
       if (candidatesToAnalyze.length === 0) {
-        setAnalysisDispatchMessage({ type: 'success', text: t('aiTasks.noNewCandidates', 'No new candidates to analyze among top matches.') })
+        toast.info(t('aiTasks.noNewCandidates', 'No new candidates to analyze among top matches.'))
         setAnalyzing(false)
         return
       }
@@ -329,10 +344,10 @@ export function ResumeList() {
           resumeIds,
         })
       }
-      setAnalysisDispatchMessage({ type: 'success', text: t('aiTasks.dispatchedTop', { count: resumeIds.length, defaultValue: `Analyzing top ${resumeIds.length} candidates...` }) })
+      toast.success(t('aiTasks.dispatchedTop', { count: resumeIds.length, defaultValue: `Analyzing top ${resumeIds.length} candidates...` }));
     } catch (e) {
-      console.error('Failed to dispatch analysis task', e)
-      setAnalysisDispatchMessage({ type: 'error', text: t('aiTasks.dispatchFailed') })
+      console.error(e)
+      toast.error(t('aiTasks.error'))
     } finally {
       setAnalyzing(false)
     }
@@ -463,16 +478,24 @@ export function ResumeList() {
         anchor.download = `selected-resumes-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
         anchor.click()
         URL.revokeObjectURL(url)
+        toast.success(t('bulk.exported', { count: selectedEntries.length, defaultValue: `Exported ${selectedEntries.length} resumes` }))
         return
       }
 
-      await Promise.all(
-        Array.from(selectedIds).map((resumeId) =>
-          saveAction({ resumeId, actionType: action })
+      try {
+        await Promise.all(
+          Array.from(selectedIds).map((resumeId) =>
+            saveAction({ resumeId, actionType: action })
+          )
         )
-      )
+        const actionLabels: Record<string, string> = { shortlist: 'shortlisted', reject: 'rejected', star: 'starred' }
+        toast.success(t('bulk.actionDone', { count: selectedIds.size, action: actionLabels[action] || action, defaultValue: `${selectedIds.size} resumes ${actionLabels[action] || action}` }))
+      } catch (e) {
+        console.error('Bulk action failed', e)
+        toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))
+      }
     },
-    [displayedResumes, saveAction, selectedIds]
+    [displayedResumes, saveAction, selectedIds, t]
   )
 
   // High score count for bulk actions
@@ -531,6 +554,7 @@ export function ResumeList() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Removed analysisDispatchMessage JSX */}
       <QuickStartPanel
         onApplyConfig={handleQuickStartApply}
         jobDescriptionId={jobDescriptionId}
@@ -624,12 +648,17 @@ export function ResumeList() {
         </div>
       </div>
 
-      {/* 5. Resume List */}
       <div className="grid gap-4">
-        {displayedResumes.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground">
-            {t('resumes.noResumes')}
-          </div>
+        {activeLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <ResumeCardSkeleton key={i} />
+          ))
+        ) : displayedResumes.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title={t('resumes.noResumes', 'No resumes found')}
+            description={t('resumes.noResumesDesc', 'Try adjusting your filters or search keywords.')}
+          />
         ) : (
           displayedResumes.map((entry) => (
             <ResumeCard

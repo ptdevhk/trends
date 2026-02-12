@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -76,10 +77,7 @@ interface CustomKeywordFormState {
   category: string
 }
 
-type ToastState = {
-  type: 'success' | 'error'
-  message: string
-}
+
 
 type AgentNumericField = 'batchSize' | 'parallelism' | 'timeout' | 'temperature'
 
@@ -416,8 +414,6 @@ export default function DebugConfig() {
   const [editingCustomKeywordId, setEditingCustomKeywordId] = useState<string | null>(null)
   const [customKeywordForm, setCustomKeywordForm] = useState<CustomKeywordFormState>(createEmptyCustomKeywordForm)
 
-  const [toast, setToast] = useState<ToastState | null>(null)
-
   // Agent Collection State
   const [collectionKeyword, setCollectionKeyword] = useState('')
   const [collectionLocation, setCollectionLocation] = useState('广东')
@@ -426,33 +422,15 @@ export default function DebugConfig() {
   const dispatchCollection = useMutation(api.resume_tasks.dispatch)
   const resetDatabase = useMutation(api.resume_tasks.resetDatabase)
 
-  useEffect(() => {
-    if (!toast) {
-      return undefined
-    }
-
-    const timer = window.setTimeout(() => {
-      setToast(null)
-    }, 2500)
-
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [toast])
-
-  const showToast = useCallback((nextToast: ToastState) => {
-    setToast(nextToast)
-  }, [])
-
   const handleResetDatabase = useCallback(async () => {
     try {
       await resetDatabase()
-      showToast({ type: 'success', message: 'Database has been reset' })
+      toast.success('Database has been reset')
     } catch (error) {
       console.error('Failed to reset database', error)
-      showToast({ type: 'error', message: 'Failed to reset database' })
+      toast.error('Failed to reset database')
     }
-  }, [resetDatabase, showToast])
+  }, [resetDatabase])
 
   const requestJson = useCallback(
     async (path: string, init?: RequestInit): Promise<unknown> => {
@@ -628,15 +606,15 @@ export default function DebugConfig() {
         }
 
         setAgentsConfig(parsed)
-        showToast({ type: 'success', message: t('debugConfig.saved') })
+        toast.success(t('debugConfig.saved'))
       } catch (error) {
         console.error('Failed to save agent config', error)
-        showToast({ type: 'error', message: t('debugConfig.saveError') })
+        toast.error(t('debugConfig.saveError'))
       } finally {
         setSavingAgentId(null)
       }
     },
-    [agentsConfig, requestJson, showToast, t],
+    [agentsConfig, requestJson, t],
   )
 
   const openAddCustomKeywordDialog = useCallback(() => {
@@ -693,14 +671,14 @@ export default function DebugConfig() {
 
       await loadCustomKeywords()
       setCustomKeywordDialogOpen(false)
-      showToast({ type: 'success', message: t('debugConfig.saved') })
+      toast.success(t('debugConfig.saved'))
     } catch (error) {
       console.error('Failed to save custom keyword', error)
-      showToast({ type: 'error', message: t('debugConfig.saveError') })
+      toast.error(t('debugConfig.saveError'))
     } finally {
       setSavingCustomKeyword(false)
     }
-  }, [buildCustomKeywordFromForm, editingCustomKeywordId, loadCustomKeywords, requestJson, showToast, t])
+  }, [buildCustomKeywordFromForm, editingCustomKeywordId, loadCustomKeywords, requestJson, t])
 
   const handleDeleteCustomKeyword = useCallback(
     async (tagId: string) => {
@@ -714,18 +692,18 @@ export default function DebugConfig() {
           method: 'DELETE',
         })
         await loadCustomKeywords()
-        showToast({ type: 'success', message: t('debugConfig.saved') })
+        toast.success(t('debugConfig.saved'))
       } catch (error) {
         console.error('Failed to delete custom keyword', error)
-        showToast({ type: 'error', message: t('debugConfig.saveError') })
+        toast.error(t('debugConfig.saveError'))
       }
     },
-    [loadCustomKeywords, requestJson, showToast, t],
+    [loadCustomKeywords, requestJson, t],
   )
 
   const handleStartCollection = useCallback(async () => {
     if (!collectionKeyword.trim()) {
-      showToast({ type: 'error', message: 'Please enter a keyword' })
+      toast.error('Please enter a keyword')
       return
     }
 
@@ -739,14 +717,14 @@ export default function DebugConfig() {
         limit,
         maxPages,
       })
-      showToast({ type: 'success', message: 'Collection task dispatched' })
+      toast.success('Collection task dispatched')
       setCollectionKeyword('')
       // Keep location, limit, maxPages as they are for convenience
     } catch (error) {
       console.error('Failed to dispatch collection', error)
-      showToast({ type: 'error', message: 'Failed to start collection' })
+      toast.error('Failed to start collection')
     }
-  }, [collectionKeyword, collectionLocation, collectionLimit, collectionMaxPages, dispatchCollection, showToast])
+  }, [collectionKeyword, collectionLocation, collectionLimit, collectionMaxPages, dispatchCollection])
 
   return (
     <div className="space-y-6">
@@ -1189,14 +1167,7 @@ export default function DebugConfig() {
         </CardContent>
       </Card>
 
-      {toast && (
-        <div
-          className={`fixed bottom-4 right-4 rounded-md px-3 py-2 text-sm text-white shadow-lg ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-destructive'
-            }`}
-        >
-          {toast.message}
-        </div>
-      )}
+
     </div>
   )
 }
