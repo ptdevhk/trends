@@ -345,9 +345,23 @@ async def execute_scrape_job(
                 "No resumes extracted. Ensure you are logged in and results are loaded."
             )
 
-        # Append to collection
-        all_resumes.extend(page_resumes)
-        print(f"  Found {len(page_resumes)} resumes (Total: {len(all_resumes)})")
+        # Append only up to remaining capacity to enforce a strict global limit.
+        remaining = max(0, limit - len(all_resumes))
+        if remaining == 0:
+            print(f"Reached limit of {limit} resumes.")
+            break
+
+        accepted_resumes = page_resumes[:remaining]
+        truncated_count = len(page_resumes) - len(accepted_resumes)
+        all_resumes.extend(accepted_resumes)
+
+        if truncated_count > 0:
+            print(
+                f"  Found {len(page_resumes)} resumes "
+                f"(accepted {len(accepted_resumes)}, truncated {truncated_count}, total {len(all_resumes)})"
+            )
+        else:
+            print(f"  Found {len(accepted_resumes)} resumes (Total: {len(all_resumes)})")
 
         if progress_callback:
             await progress_callback(len(all_resumes), current_page)
