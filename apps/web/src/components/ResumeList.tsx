@@ -91,6 +91,11 @@ function isAutoFilteredAnalysis(analysis: ConvexResumeAnalysis | undefined): boo
   )
 }
 
+function isSafeProfileUrl(value: string | undefined): value is string {
+  if (!value) return false
+  return value.startsWith('http://') || value.startsWith('https://')
+}
+
 function buildResumeKey(resume: ResumeItem, index: number): string {
   if (resume.resumeId) {
     return resume.resumeId
@@ -98,7 +103,7 @@ function buildResumeKey(resume: ResumeItem, index: number): string {
   if (resume.perUserId) {
     return resume.perUserId
   }
-  if (resume.profileUrl && resume.profileUrl !== 'javascript:;') {
+  if (isSafeProfileUrl(resume.profileUrl)) {
     return resume.profileUrl
   }
   return `${resume.name}-${resume.extractedAt || index}`

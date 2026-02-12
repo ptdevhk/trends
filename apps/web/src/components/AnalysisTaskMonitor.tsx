@@ -9,6 +9,7 @@ import { Button } from './ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -172,6 +173,9 @@ export function AnalysisTaskMonitor() {
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{t('aiTasks.monitor.historyTitle', 'Analysis History')}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('aiTasks.monitor.historyDescription', 'View active and completed AI analysis tasks.')}
+          </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto space-y-4 pr-1">
           {activeTasks.length > 0 && (

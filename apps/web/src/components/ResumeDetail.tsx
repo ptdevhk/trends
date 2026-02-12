@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { ResumeItem } from '@/hooks/useResumes'
@@ -14,6 +14,11 @@ interface ResumeDetailProps {
   onOpenChange: (open: boolean) => void
 }
 
+function isSafeProfileUrl(value: string | undefined): value is string {
+  if (!value) return false
+  return value.startsWith('http://') || value.startsWith('https://')
+}
+
 export function ResumeDetail({ resume, matchResult, open, onOpenChange }: ResumeDetailProps) {
   const { t } = useTranslation()
 
@@ -21,6 +26,8 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange }: Resume
     if (!resume?.workHistory?.length) return []
     return resume.workHistory.filter((item) => item.raw)
   }, [resume])
+  const profileUrl = resume?.profileUrl?.trim()
+  const hasProfileUrl = isSafeProfileUrl(profileUrl)
 
   if (!resume) {
     return null
@@ -31,6 +38,9 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange }: Resume
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('resumes.detail.title')}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('resumes.detail.description', 'Review resume details and AI analysis summary.')}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
@@ -143,10 +153,10 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange }: Resume
         </div>
 
         <DialogFooter className="gap-2">
-          {resume.profileUrl ? (
+          {hasProfileUrl ? (
             <a
               className={buttonVariants()}
-              href={resume.profileUrl}
+              href={profileUrl}
               target="_blank"
               rel="noreferrer"
             >
