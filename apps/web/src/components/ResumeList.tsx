@@ -140,7 +140,6 @@ export function ResumeList() {
     error,
     selectedSample,
     setSelectedSample,
-    query,
     setFilters,
     refresh,
     reloadSamples,
@@ -158,9 +157,10 @@ export function ResumeList() {
 
   // Convex Integration
   const expandedQuery = useMemo(() => {
-    if (!query) return undefined
-    return expandKeyword(query, DEFAULT_CONFIG)
-  }, [query])
+    const kw = quickStartKeywords.join(' ').trim()
+    if (!kw) return undefined
+    return expandKeyword(kw, DEFAULT_CONFIG)
+  }, [quickStartKeywords])
 
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
@@ -253,7 +253,7 @@ export function ResumeList() {
 
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [mode, jobDescriptionId, query])
+  }, [mode, jobDescriptionId, expandedQuery])
 
   // Removed analysisDispatchMessage useEffect
 
@@ -318,6 +318,26 @@ export function ResumeList() {
         toast.info(t('aiTasks.noNewCandidates', 'No new candidates to analyze among top matches.'))
         setAnalyzing(false)
         return
+      }
+
+      const normalizedKeywords = quickStartKeywords
+        .map((keyword) => keyword.trim().toLowerCase())
+        .filter((keyword) => keyword.length > 0)
+
+      if (!jobDescriptionId && normalizedKeywords.length > 0) {
+        const matchCount = candidatesToAnalyze.filter((resume) => {
+          const text = JSON.stringify(resume).toLowerCase()
+          return normalizedKeywords.some((keyword) => text.includes(keyword))
+        }).length
+
+        if (matchCount === 0) {
+          toast.warning(
+            t(
+              'aiTasks.lowKeywordMatch',
+              'Keywords may not match displayed resumes. Consider collecting new resumes first.'
+            )
+          )
+        }
       }
 
       const resumeIds = candidatesToAnalyze.map((r: ConvexResumeItem) => r.resumeId)
