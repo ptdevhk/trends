@@ -1,3 +1,3 @@
 display_name: Trends Agent Governance
-short_description: Enforce source usage order, evidence format, and AGENTS policy synchronization for technical guidance.
-default_prompt: Apply the trends-agent-governance workflow before technical recommendations. Use local sources first, then Context7, then official web docs only for freshness-sensitive facts, and include a Sources Used section.
+short_description: Enforce source usage order, portable report pathing, evidence format, and AGENTS policy synchronization for technical guidance.
+default_prompt: Apply the trends-agent-governance workflow before technical recommendations. Use local sources first, then Context7, then official web docs only for freshness-sensitive facts. Keep implementation guidance repo-relative and paste-ready for fresh environments, and include a Sources Used section with absolute local evidence paths.

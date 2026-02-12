@@ -10,4 +10,8 @@ Use this order for non-trivial technical design/recommendation tasks.
 3. Official web sources
    - Use only for freshness-sensitive facts (new releases, policy changes, current status).
 
+Output pathing rules:
+- Use repo-relative paths in implementation/report content so the output is portable to fresh environments.
+- Use absolute local paths only in `Sources Used` to document exactly what was consulted.
+
 If a source tier is not used, state `none` for that tier in `Sources Used`.

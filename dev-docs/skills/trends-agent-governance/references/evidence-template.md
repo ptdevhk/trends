@@ -2,9 +2,13 @@
 
 Use this template in non-trivial technical design/recommendation responses.
 
+Pathing requirements:
+- Use repo-relative paths in implementation content outside this section.
+- Keep `Local files` below as absolute paths for evidence/audit purposes.
+
 ```markdown
 ## Sources Used
-- Local files:
+- Local files (absolute paths consulted):
   - /absolute/path/one
   - /absolute/path/two
 - Context7:

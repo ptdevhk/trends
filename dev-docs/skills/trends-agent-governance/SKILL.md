@@ -5,7 +5,7 @@ description: Enforce source selection, evidence reporting, and policy sync for T
 
 # Trends Agent Governance
 
-Follow this workflow for non-trivial technical planning and recommendation tasks.
+Apply this workflow for non-trivial technical planning and recommendation tasks.
 
 ## Workflow
 
@@ -17,8 +17,13 @@ Follow this workflow for non-trivial technical planning and recommendation tasks
    - Read `dev-docs/*.txt` material relevant to the task.
 3. Query Context7 for libraries/frameworks/APIs involved in the recommendation.
 4. Query official web sources only when freshness-sensitive facts are required.
-5. Produce output with `Sources Used` section using the template in `references/evidence-template.md`.
-6. If AGENTS governance files changed, run:
+5. Format output for portability.
+   - Use repo-relative paths for implementation/report content (for example `apps/api/src/routes/resumes.ts`).
+   - Write commands so they are copy/paste-ready from repository root in a fresh environment.
+   - Avoid machine-specific absolute paths in implementation guidance.
+6. Produce output with `Sources Used` section using the template in `references/evidence-template.md`.
+   - Keep local evidence paths absolute in `Sources Used` to satisfy governance auditability.
+7. If AGENTS governance files changed, run:
    - `make sync-agent-policy`
    - `make check-agent-policy`
 
