@@ -94,11 +94,12 @@ async def process_task(task, client: httpx.AsyncClient):
     
     async def on_progress(count, page):
         status_msg = f"Scraping page {page}..." if page > 0 else "Initializing..."
+        total_for_progress = max(limit, count)
         result = await convex_mutation(client, "resume_tasks:updateProgress", {
             "taskId": task["_id"],
             "current": count,
             "page": page,
-            "total": limit, # approximate
+            "total": total_for_progress,
             "lastStatus": status_msg
         })
         if result and isinstance(result, dict) and result.get("status") == "cancelled":
