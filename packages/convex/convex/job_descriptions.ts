@@ -111,11 +111,17 @@ export const list_with_usage = query({
         const resumes = await ctx.db.query("resumes").collect();
 
         return jds.map(jd => {
+            const jdIdStr = String(jd._id);
+            const jdSlug = jd.slug;
+
             const usageCount = resumes.filter(r => {
-                // Check in legacy analysis field
-                if (r.analysis?.jobDescriptionId === jd._id) return true;
-                // Check in multi-JD analyses map
-                if (r.analyses && r.analyses[jd._id]) return true;
+                const analysisJdId = r.analysis?.jobDescriptionId;
+                // Check in legacy analysis field - match by Convex _id or by slug
+                if (analysisJdId === jdIdStr) return true;
+                if (jdSlug && analysisJdId === jdSlug) return true;
+                // Check in multi-JD analyses map - match by Convex _id or by slug
+                if (r.analyses && r.analyses[jdIdStr]) return true;
+                if (jdSlug && r.analyses && r.analyses[jdSlug]) return true;
                 return false;
             }).length;
 

@@ -108,12 +108,13 @@ export default defineSchema({
     // Custom Job Descriptions
     job_descriptions: defineTable({
         title: v.string(),
+        slug: v.optional(v.string()), // Filesystem identifier for system JDs (e.g., "lathe-sales")
         content: v.string(), // Markdown requirements
         type: v.string(), // 'system' | 'custom'
         userId: v.optional(v.string()), // For future multi-user
         enabled: v.boolean(),
         lastModified: v.number(),
-    }),
+    }).index("by_slug", ["slug"]),
 
     analysis_tasks: defineTable({
         idempotencyKey: v.optional(v.string()),

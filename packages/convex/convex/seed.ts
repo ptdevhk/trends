@@ -32,6 +32,7 @@ export const seedJobDescriptions = mutation({
         items: v.array(
             v.object({
                 title: v.string(),
+                slug: v.optional(v.string()),
                 content: v.string(),
                 type: jobDescriptionType,
             })
@@ -43,16 +44,26 @@ export const seedJobDescriptions = mutation({
 
         let inserted = 0;
         let skipped = 0;
+        let updated = 0;
 
         for (const item of args.items) {
             const key = `${item.title}::${item.type}`;
             if (existingKeys.has(key)) {
+                // Update slug for existing JDs if not set
+                const existing = existingJobDescriptions.find(
+                    (jd) => jd.title === item.title && jd.type === item.type
+                );
+                if (existing && item.slug && !existing.slug) {
+                    await ctx.db.patch(existing._id, { slug: item.slug });
+                    updated += 1;
+                }
                 skipped += 1;
                 continue;
             }
 
             await ctx.db.insert("job_descriptions", {
                 title: item.title,
+                slug: item.slug,
                 content: item.content,
                 type: item.type,
                 enabled: true,
@@ -62,7 +73,7 @@ export const seedJobDescriptions = mutation({
             inserted += 1;
         }
 
-        return { inserted, skipped };
+        return { inserted, skipped, updated };
     },
 });
 
