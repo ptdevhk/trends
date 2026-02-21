@@ -1,6 +1,8 @@
 ---
 name: resume-qa-hybrid-mcp
 description: Build and execute hybrid QA plans for resume workflows that combine MCP/browser validation and API checks. Use when asked for test plans, QA execution, regression coverage, or resume flow verification.
+validation:
+  descriptionTerms: [QA, test, resume, MCP]
 ---
 
 # Resume QA Hybrid MCP

@@ -1,6 +1,14 @@
 ---
 name: trends-agent-governance
 description: Enforce source selection, evidence reporting, and policy sync for Trends technical guidance. Use when handling architecture, design, library, framework, API recommendation, or AGENTS governance tasks.
+validation:
+  descriptionTerms: [architecture, design, library, api]
+  command:
+    path: .claude/commands/trends-agent-governance.md
+    requiredSections: [Source Matrix, Evidence Template, Workflow]
+  rules:
+    path: .claude/rules/agent-governance.md
+    requiredSections: [Source Priority, Evidence Reporting, Task Classification]
 ---
 
 # Trends Agent Governance

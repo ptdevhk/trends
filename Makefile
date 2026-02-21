@@ -9,7 +9,8 @@
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force \
 		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance \
-		install-skill check-skill-install install-test-plan-skill check-test-plan-skill \
+		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
+		install-browser-ext-skill check-browser-ext-skill \
 		clean-db fresh-env
 
 # Default target
@@ -228,19 +229,19 @@ check-agent-policy:
 
 # Install repo governance skill into ${CODEX_HOME:-$HOME/.codex}/skills
 install-agent-skill:
-	@./scripts/agent-governance/install-skill.sh
+	@./scripts/skills/install-skill.sh --skill trends-agent-governance
 
 # Validate repo governance skill structure + installed skill sync (local only)
 check-agent-skill:
 	@if command -v bun > /dev/null 2>&1; then \
-		bunx tsx scripts/agent-governance/validate-skill.ts; \
+		bunx tsx scripts/skills/validate-skill.ts --skill trends-agent-governance; \
 	else \
-		npx tsx scripts/agent-governance/validate-skill.ts; \
+		npx tsx scripts/skills/validate-skill.ts --skill trends-agent-governance; \
 	fi
 	@if [ "$$CI" = "true" ]; then \
 		echo "Skipping installed skill drift check in CI"; \
 	else \
-		./scripts/agent-governance/install-skill.sh --check; \
+		./scripts/skills/install-skill.sh --skill trends-agent-governance --check; \
 	fi
 
 # Install any repo skill into ${CODEX_HOME:-$HOME/.codex}/skills
@@ -250,6 +251,18 @@ install-skill:
 		exit 1; \
 	fi
 	@./scripts/skills/install-skill.sh --skill "$(SKILL)"
+
+# Validate skill structure for any repo skill
+validate-skill:
+	@if [ -z "$(SKILL)" ]; then \
+		echo "SKILL is required. Usage: make validate-skill SKILL=<skill-name>"; \
+		exit 1; \
+	fi
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/skills/validate-skill.ts --skill "$(SKILL)"; \
+	else \
+		npx tsx scripts/skills/validate-skill.ts --skill "$(SKILL)"; \
+	fi
 
 # Check installed skill drift for any repo skill
 check-skill-install:
@@ -265,7 +278,17 @@ install-test-plan-skill:
 
 # Check installed drift for resume-qa-hybrid-mcp skill
 check-test-plan-skill:
+	@$(MAKE) validate-skill SKILL=resume-qa-hybrid-mcp
 	@$(MAKE) check-skill-install SKILL=resume-qa-hybrid-mcp
+
+# Install browser-extension-dev skill into ${CODEX_HOME:-$HOME/.codex}/skills
+install-browser-ext-skill:
+	@$(MAKE) install-skill SKILL=browser-extension-dev
+
+# Check browser-extension-dev skill structure + installed drift
+check-browser-ext-skill:
+	@$(MAKE) validate-skill SKILL=browser-extension-dev
+	@$(MAKE) check-skill-install SKILL=browser-extension-dev
 
 # Sync all governance artifacts
 sync-agent-governance: sync-agent-policy install-agent-skill
@@ -599,9 +622,12 @@ help:
 	@echo "  install-agent-skill Install governance skill into ~/.codex/skills"
 	@echo "  check-agent-skill Validate governance skill, command, rules file, and installed copy drift"
 	@echo "  install-skill SKILL=<name> Install any repo skill into ~/.codex/skills"
+	@echo "  validate-skill SKILL=<name> Validate skill structure from SKILL.md frontmatter"
 	@echo "  check-skill-install SKILL=<name> Validate installed skill sync with repo source"
 	@echo "  install-test-plan-skill Install resume-qa-hybrid-mcp skill into ~/.codex/skills"
-	@echo "  check-test-plan-skill Validate installed resume-qa-hybrid-mcp skill drift"
+	@echo "  check-test-plan-skill Validate resume-qa-hybrid-mcp skill + installed drift"
+	@echo "  install-browser-ext-skill Install browser-extension-dev skill into ~/.codex/skills"
+	@echo "  check-browser-ext-skill Validate browser-extension-dev skill + installed drift"
 	@echo "  sync-agent-governance Run policy sync + skill install"
 	@echo ""
 	@echo "Utilities:"
