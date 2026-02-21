@@ -20,6 +20,88 @@ export interface IngestResult {
   skillsVersion: number;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function toStringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function toWorkHistory(value: unknown): ResumeWorkHistoryItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (!isRecord(item)) return null;
+      const raw = toStringValue(item.raw).trim();
+      if (!raw) return null;
+      return { raw };
+    })
+    .filter((item): item is ResumeWorkHistoryItem => item !== null);
+}
+
+function toResumeItem(value: unknown): ResumeItem | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const perUserId = value.perUserId;
+  const normalizedPerUserId =
+    typeof perUserId === "string"
+      ? perUserId
+      : typeof perUserId === "number" && Number.isFinite(perUserId)
+        ? String(perUserId)
+        : undefined;
+
+  return {
+    name: toStringValue(value.name),
+    profileUrl: toStringValue(value.profileUrl),
+    activityStatus: toStringValue(value.activityStatus),
+    age: toStringValue(value.age),
+    experience: toStringValue(value.experience),
+    education: toStringValue(value.education),
+    location: toStringValue(value.location),
+    selfIntro: toStringValue(value.selfIntro),
+    jobIntention: toStringValue(value.jobIntention),
+    expectedSalary: toStringValue(value.expectedSalary),
+    workHistory: toWorkHistory(value.workHistory),
+    extractedAt: toStringValue(value.extractedAt),
+    resumeId: toStringValue(value.resumeId) || undefined,
+    perUserId: normalizedPerUserId,
+  };
+}
+
+function hasResumeSignal(item: ResumeItem): boolean {
+  return Boolean(
+    item.name
+    || item.jobIntention
+    || item.selfIntro
+    || item.profileUrl
+    || item.resumeId
+    || item.perUserId
+    || item.workHistory.length > 0
+  );
+}
+
+function extractResumeItem(content: unknown): ResumeItem {
+  if (isRecord(content) && Array.isArray(content.data) && content.data.length > 0) {
+    const item = toResumeItem(content.data[0]);
+    if (item && hasResumeSignal(item)) {
+      return item;
+    }
+  }
+
+  const directItem = toResumeItem(content);
+  if (directItem && hasResumeSignal(directItem)) {
+    return directItem;
+  }
+
+  throw new Error("Invalid resume content: expected ResumeItem or { data: ResumeItem[] }");
+}
+
 function normalizeText(value: string | undefined): string {
   return (value || "")
     .replace(/[\u3000\s]+/g, " ")
@@ -160,14 +242,7 @@ export class IngestComputeService {
    * Compute ingest data for a single resume
    */
   computeOne(resumeId: string, content: unknown): IngestResult {
-    // Parse content - expecting structure like { data: ResumeItem[] }
-    const parsed = content as { data?: ResumeItem[] };
-    if (!parsed.data || !Array.isArray(parsed.data) || parsed.data.length === 0) {
-      throw new Error("Invalid resume content: expected { data: ResumeItem[] }");
-    }
-
-    // Use first item (single resume submission)
-    const item = parsed.data[0];
+    const item = extractResumeItem(content);
     const index = buildResumeIndex(item, 0);
     const searchText = index.searchText.toLowerCase();
 
@@ -201,6 +276,7 @@ export class IngestComputeService {
    * Compute ingest data for multiple resumes (batch)
    */
   computeBatch(inputs: IngestInput[]): IngestResult[] {
+    this.skillsKnowledgeService.clearCache();
     return inputs.map((input) => this.computeOne(input.resumeId, input.content));
   }
 

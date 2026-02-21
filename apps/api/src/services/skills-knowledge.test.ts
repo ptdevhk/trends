@@ -289,6 +289,26 @@ describe("SkillsKnowledgeService", () => {
     }
   });
 
+  it("appends learning feedback into Learning Log section", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new SkillsKnowledgeService(root);
+      const entry = service.appendLearningEntry("shortlist pattern -> cnc + senior");
+
+      expect(entry).toMatch(/^- \d{4}-\d{2}-\d{2}: shortlist pattern -> cnc \+ senior$/);
+
+      const log = service.getLearningLog();
+      expect(log).toHaveLength(3);
+      expect(log[2]?.observation).toBe("shortlist pattern -> cnc + senior");
+
+      const saved = fs.readFileSync(path.join(root, "config", "resume", "skills.md"), "utf8");
+      expect(saved).toContain(entry);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
   it("caches parsed data and clearCache invalidates it", () => {
     const root = createFixtureRoot();
 

@@ -26,6 +26,7 @@ import { JobDescriptionService } from "../services/job-description-service.js";
 import { RuleScoringService } from "../services/rule-scoring.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { IngestComputeService } from "../services/ingest-compute-service.js";
+import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
@@ -38,6 +39,7 @@ const sessionManager = new SessionManager(config.projectRoot);
 const jobService = new JobDescriptionService(config.projectRoot);
 const ruleScoringService = new RuleScoringService(config.projectRoot);
 const ingestComputeService = new IngestComputeService(config.projectRoot);
+const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
 
 const DEFAULT_AI_TOP_N = 20;
 
@@ -65,6 +67,9 @@ const RescoreRequestSchema = z.object({
 });
 
 const MatchRescoreResponseSchema = MatchResponseSchema;
+const LearningFeedbackRequestSchema = z.object({
+  observation: z.string().trim().min(1),
+});
 
 function stripFrontMatter(content: string): string {
   const lines = content.split("\n");
@@ -1384,6 +1389,22 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
     },
     200
   );
+});
+
+app.post("/api/resumes/learning-feedback", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = LearningFeedbackRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "Invalid request: observation is required" }, 400);
+  }
+
+  try {
+    const entry = skillsKnowledgeService.appendLearningEntry(parsed.data.observation);
+    return c.json({ success: true, entry }, 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
 });
 
 // Internal endpoint for ingest compute (called by Convex action)

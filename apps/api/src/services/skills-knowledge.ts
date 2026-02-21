@@ -465,6 +465,60 @@ export class SkillsKnowledgeService {
     return this.parseSkillsFile().version;
   }
 
+  appendLearningEntry(observation: string): string {
+    const normalizedObservation = observation.trim();
+    if (!normalizedObservation) {
+      throw new Error("Observation cannot be empty");
+    }
+
+    const skillsPath = this.getSkillsPath();
+    if (!fs.existsSync(skillsPath)) {
+      throw new FileParseError(skillsPath, "skills.md not found");
+    }
+
+    const content = fs.readFileSync(skillsPath, "utf8");
+    const lines = content.split("\n");
+    const learningLogIndex = lines.findIndex((line) =>
+      /^##\s+Learning Log(?:\s*\([^)]*\))?\s*$/i.test(line.trim())
+    );
+
+    if (learningLogIndex === -1) {
+      throw new FileParseError(skillsPath, "Learning Log section not found");
+    }
+
+    let sectionEndIndex = lines.length;
+    for (let index = learningLogIndex + 1; index < lines.length; index += 1) {
+      if (/^##\s+/.test(lines[index].trim())) {
+        sectionEndIndex = index;
+        break;
+      }
+    }
+
+    while (sectionEndIndex > learningLogIndex + 1 && lines[sectionEndIndex - 1].trim() === "") {
+      sectionEndIndex -= 1;
+    }
+
+    const date = new Date().toISOString().slice(0, 10);
+    const entry = `- ${date}: ${normalizedObservation}`;
+
+    const insertLines: string[] = [];
+    if (sectionEndIndex === learningLogIndex + 1) {
+      insertLines.push("");
+    }
+    insertLines.push(entry);
+
+    const updatedLines = [
+      ...lines.slice(0, sectionEndIndex),
+      ...insertLines,
+      ...lines.slice(sectionEndIndex),
+    ];
+
+    fs.writeFileSync(skillsPath, updatedLines.join("\n"), "utf8");
+    this.clearCache();
+
+    return entry;
+  }
+
   /**
    * Clear cache
    */
