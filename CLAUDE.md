@@ -195,7 +195,7 @@ make help             # Show all available commands
 
 All other parameters have smart defaults and are auto-configured.
 
-### Automated Workflow (3-Step Flow)
+### Automated Workflow (Two-Path Architecture)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -208,43 +208,50 @@ All other parameters have smart defaults and are auto-configured.
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    STEP 1: AUTO-CONFIGURE (No User Action)                   │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ 1. Match keywords to Job Description (JD) from library              │   │
-│  │ 2. Create/resume Session with location + keywords                   │   │
-│  │ 3. Set default filters (experience, education, salary ranges)       │   │
-│  │ 4. Configure AI agents (screener → evaluator → final)               │   │
-│  │ 5. Set notification preferences (WeChat Work, Email)                │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│               STEP 2: AUTO-COLLECT & MATCH (Runs Automatically)              │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ 1. Browser Extension crawls job board with location + keywords      │   │
-│  │ 2. Extract resumes → normalize → deduplicate                        │   │
-│  │ 3. AI Screener: Initial pass (batch, parallel)                      │   │
-│  │ 4. AI Evaluator: Detailed scoring (top candidates only)             │   │
-│  │ 5. Store results with match scores + recommendations                │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                STEP 3: REVIEW & ACT (HR Human-in-the-Loop)                   │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ HR sees: Pre-sorted candidates ranked by AI match score             │   │
-│  │                                                                       │   │
-│  │ Actions: ✅ Shortlist  ❌ Reject  📞 Contact  📝 Add Notes           │   │
-│  │                                                                       │   │
-│  │ Smart Features:                                                       │   │
-│  │ • One-click bulk actions (shortlist all 80+ score)                  │   │
-│  │ • Auto-send notifications for shortlisted candidates                │   │
-│  │ • AI-generated outreach messages (optional)                         │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
+INGEST PATH (background, async, on new resume)
+================================================
+New Resume arrives
+       |
+       v
+Background Agent reads:
+  - config/resume/skills.md    (skill taxonomy, synonyms, signals)
+  - config/job-descriptions/*  (all active JDs)
+       |
+       v
+Pre-compute and store:
+  1. buildSearchText()          (CJK-boundary-aware)
+  2. extractIndustryTags()      (from skills.md taxonomy)
+  3. expandSynonymHits()        (from skills.md synonym tables)
+  4. ruleScore(ALL active JDs)  (pre-score against every JD)
+  5. detectExperienceLevel()    (from skills.md signals)
+       |
+       v
+Resume stored in Convex with all pre-computed fields
+  => Ready for instant queries
+
+
+QUERY PATH (user-facing, < 2s, zero LLM)
+================================================
+User: "CNC 东莞"
+       |
+       v
+Convex searchIndex("CNC 东莞")
+  + filter by pre-computed tags/location
+  + sort by pre-computed ruleScores[activeJD]
+       |
+       v
+Ranked results returned instantly
+
+
+LEARNING PATH (append, periodic)
+================================================
+HR feedback (shortlist/reject patterns)
+       |
+       v
+Append to skills.md log section
+       |
+       v
+Next ingest cycle picks up new patterns
 ```
 
 ### Configuration System (Edit When Needed)
@@ -332,6 +339,32 @@ Quick filter presets for common patterns:
 }
 ```
 
+#### 5. Skills Knowledge (`config/resume/skills.md`)
+
+Curated knowledge used by the background ingest agent for deterministic matching:
+
+- Skill taxonomy by domain/function
+- Synonym tables and alias expansion rules
+- Experience-level signals (e.g., junior/mid/senior indicators)
+- Industry context and weighting hints
+- Append-only learning log section for HR feedback patterns
+
+```markdown
+# Skills Knowledge
+
+## Taxonomy
+- cnc-machining: [CNC, 数控, 加工中心, 车铣复合]
+
+## Synonyms
+- 车床销售: [机床销售, 数控销售, CNC销售]
+
+## Experience Signals
+- senior: [团队管理, 大客户, 渠道拓展]
+
+## Learning Log (Append Only)
+- 2026-02-10: shortlist pattern -> STAR + 渠道客户优先
+```
+
 ### UI Design (Minimal Interaction)
 
 #### Quick Start Panel (Default View)
@@ -388,31 +421,22 @@ Quick filter presets for common patterns:
 | `/api/resumes/bulk-action` | POST | Bulk shortlist/reject/contact |
 | `/api/notifications/test` | POST | Test notification channel |
 
-### Implementation Phases
+### Implementation Status
 
-#### Phase 1: Core Automation (Current Focus)
-- [x] Basic resume collection + AI matching
-- [ ] Search Profile system
-- [ ] Auto-match JD from keywords
-- [ ] Filter presets
-- [ ] Simplified Quick Start UI
+#### Completed (Phases 1-22)
+- [x] Foundation through Production Polish (Phases 1-21)
+- [x] E2E Testing, CI Pipeline, Session Memory, JD Enhancements (Phase 22)
 
-#### Phase 2: Bulk Actions & Notifications
-- [ ] Bulk shortlist/reject/contact
-- [ ] Auto-notify shortlisted candidates
-- [ ] AI-generated outreach messages
-- [ ] WeChat Work integration
+#### In Progress
+- [ ] CNC tokenization fix (`addScriptBoundarySpaces` — plan ready)
 
-#### Phase 3: Scheduling & Monitoring
-- [ ] Scheduled crawl jobs
-- [ ] Dashboard with crawl status
-- [ ] Alert on new high-match candidates
-- [ ] Historical analytics
-
-#### Phase 4: Plugin Generalization
-- [ ] Extract common plugin patterns
-- [ ] Plugin configuration UI
-- [ ] Plugin marketplace (internal)
+#### Next: Memory-First Background Agent (Phases M1-M6)
+- [ ] M1: Create `config/resume/skills.md` knowledge file
+- [ ] M2: skills.md parser service (`skills-knowledge.ts`)
+- [ ] M3: Background ingest agent (pre-compute on new resume arrival)
+- [ ] M4: Query path uses pre-computed fields (< 2s, zero LLM)
+- [ ] M5: Backfill existing resumes through ingest agent
+- [ ] M6: Learning feedback loop (append HR patterns to skills.md)
 
 ---
 
@@ -470,7 +494,8 @@ config/
 │   ├── agents.json5           # AI agent configuration
 │   ├── session.json5          # Session settings
 │   ├── filter-presets.json5   # Filter presets
-│   └── skills_words.txt       # Skill keywords
+│   ├── skills_words.txt       # Skill keywords
+│   └── skills.md              # Curated skill taxonomy, synonyms, signals
 ├── job-descriptions/
 │   ├── README.md
 │   ├── lathe-sales.md         # Example with auto_match config
@@ -496,6 +521,8 @@ apps/
 │       ├── job-description-service.ts
 │       ├── search-profile-service.ts  # NEW
 │       ├── auto-match-service.ts      # NEW
+│       ├── skills-knowledge.ts        # skills.md parser
+│       ├── resume-ingest-agent.ts     # Background ingest agent
 │       └── notification-service.ts    # NEW
 ├── web/src/
 │   ├── components/
@@ -584,8 +611,8 @@ Structure each task with:
 1. Match keywords → best Job Description
 2. Apply default filters based on JD
 3. Collect resumes from job boards
-4. Run multi-stage AI screening
-5. Sort by match score
+4. Background agent pre-scores against all JDs using skills.md knowledge
+5. Sort by pre-computed match score (instant, no LLM at query time)
 6. Send notifications on actions
 
 ### When Users Want More Control
@@ -594,5 +621,6 @@ Structure each task with:
 - Customize filter criteria
 - Set up scheduled runs
 - Configure notification channels
+- Edit skills.md to add domain synonyms and experience signals
 
 This design minimizes the "human-in-the-loop" burden while keeping full configurability available when needed.
