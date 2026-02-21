@@ -119,6 +119,61 @@ function buildResumeKey(resume: ResumeItem, index: number): string {
   return `${resume.name}-${resume.extractedAt || index}`
 }
 
+type ScoredConvexResume = ConvexResumeItem & {
+  _ruleScore: number
+}
+
+function buildRuleScoringText(resume: ConvexResumeItem): string {
+  return [
+    resume.name,
+    resume.jobIntention,
+    resume.education,
+    resume.experience,
+    resume.location,
+    resume.selfIntro,
+    ...(resume.workHistory || []).map((work) => work.raw),
+    resume.tags?.join(' ')
+  ]
+    .filter((item): item is string => Boolean(item))
+    .join(' ')
+}
+
+function getPrecomputedRuleScore(resume: ConvexResumeItem, jobDescriptionId: string | undefined): number | null {
+  if (!jobDescriptionId) {
+    return null
+  }
+
+  const score = resume.ingestData?.ruleScores?.[jobDescriptionId]
+  if (typeof score === 'number' && Number.isFinite(score)) {
+    return score
+  }
+
+  return null
+}
+
+function hasIngestData(
+  resume: ConvexResumeItem | ResumeItem
+): resume is ConvexResumeItem & { ingestData: NonNullable<ConvexResumeItem['ingestData']> } {
+  return (
+    typeof resume === 'object'
+    && resume !== null
+    && 'ingestData' in resume
+    && typeof resume.ingestData === 'object'
+    && resume.ingestData !== null
+  )
+}
+
+function buildLearningObservation(
+  action: 'shortlist' | 'reject',
+  resume: ConvexResumeItem & { ingestData: NonNullable<ConvexResumeItem['ingestData']> }
+): string {
+  const tags = resume.ingestData.industryTags.length > 0
+    ? resume.ingestData.industryTags.join('/')
+    : 'none'
+  const level = resume.ingestData.experienceLevel || 'unknown'
+  return `${action} pattern -> ${tags} + ${level}`
+}
+
 function ResumeCardSkeleton() {
   return (
     <div className="p-4 border rounded-lg space-y-3">
@@ -185,7 +240,7 @@ export function ResumeList() {
     return expandKeyword(kw, DEFAULT_CONFIG)
   }, [jobDescriptionId, sessionKeywords])
 
-  const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery)
+  const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery, jobDescriptionId)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)
   const [lastDispatchTime, setLastDispatchTime] = useState<number>(0)
@@ -195,42 +250,28 @@ export function ResumeList() {
   const activeLoading = mode === 'ai' ? convexLoading : loading
 
   const filteredConvexResumes = useMemo(() => {
-    let result = convexResumes
+    let result: ScoredConvexResume[] = convexResumes
+      .filter((resume: ConvexResumeItem) => {
+        const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
+        return !isAutoFilteredAnalysis(analysis)
+      })
+      .map((resume: ConvexResumeItem) => {
+        const precomputedScore = getPrecomputedRuleScore(resume, jobDescriptionId)
+        if (precomputedScore !== null) {
+          return {
+            ...resume,
+            _ruleScore: precomputedScore,
+          }
+        }
 
-    // Hide resumes that were auto-skipped by the keyword pre-filter.
-    result = result.filter((resume: ConvexResumeItem) => {
-      const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
+        const fallbackScore = calculateResumeScore(buildRuleScoringText(resume), DEFAULT_CONFIG).score
+        return {
+          ...resume,
+          _ruleScore: fallbackScore,
+        }
+      })
 
-      // Rule-Based Pre-Scoring
-      // Concatenate fields for scoring
-      const contentText = [
-        resume.name,
-        resume.jobIntention,
-        resume.education,
-        resume.experience,
-        resume.location,
-        resume.selfIntro,
-        ...(resume.workHistory || []).map((w: { raw: string }) => w.raw), // Temporary any until workHistory type is fixed or we use a better type
-        resume.tags?.join(' ')
-      ].filter((item): item is string => !!item).join(' ')
-
-      const ruleResult = calculateResumeScore(contentText, DEFAULT_CONFIG)
-
-      // Auto-filter based on Analysis (AI Memory)
-      if (isAutoFilteredAnalysis(analysis)) return false;
-
-      // Attach rule score for sorting/filtering
-      (resume as ConvexResumeItem & { _ruleScore?: number })._ruleScore = ruleResult.score;
-
-      return true
-    })
-
-    // Sort by Rule Score descending (Pre-scoring)
-    result.sort((a: ConvexResumeItem, b: ConvexResumeItem) => {
-      const scoreA = (a as ConvexResumeItem & { _ruleScore?: number })._ruleScore || 0
-      const scoreB = (b as ConvexResumeItem & { _ruleScore?: number })._ruleScore || 0
-      return scoreB - scoreA
-    })
+    result = [...result].sort((a: ScoredConvexResume, b: ScoredConvexResume) => b._ruleScore - a._ruleScore)
 
     // 1. Keyword filter (query) - Handled by backend search now via useConvexResumes(expandedQuery)
     // We only keep client side highlighting or fallback if needed, but for filtering we rely on backend.
@@ -238,11 +279,11 @@ export function ResumeList() {
     // 2. Filter panel (filters)
     if (filters.locations?.length) {
       const locations = filters.locations
-      result = result.filter((resume: ConvexResumeItem) => locations.some((location) => resume.location?.includes(location)))
+      result = result.filter((resume: ScoredConvexResume) => locations.some((location) => resume.location?.includes(location)))
     }
     const minMatchScore = filters.minMatchScore
     if (typeof minMatchScore === 'number') {
-      result = result.filter((resume: ConvexResumeItem) => {
+      result = result.filter((resume: ScoredConvexResume) => {
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
         return (analysis?.score ?? 0) >= minMatchScore
       })
@@ -422,7 +463,7 @@ export function ResumeList() {
 
   const enrichedResumes = useMemo<EnrichedResume[]>(() => {
     if (mode === 'ai') {
-      return filteredConvexResumes.map((resume: ConvexResumeItem, index: number) => {
+      return filteredConvexResumes.map((resume: ScoredConvexResume, index: number) => {
         const resumeKey = buildResumeKey(resume, index)
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
@@ -442,7 +483,7 @@ export function ResumeList() {
           }
           : undefined
 
-        const ruleScore = (resume as ConvexResumeItem & { _ruleScore?: number })._ruleScore || 0
+        const ruleScore = resume._ruleScore || 0
 
         return {
           resume,
@@ -476,6 +517,24 @@ export function ResumeList() {
       return scoreB - scoreA
     })
   }, [enrichedResumes])
+
+  const displayedResumeMap = useMemo(
+    () => new Map(displayedResumes.map((entry) => [entry.key, entry.resume])),
+    [displayedResumes]
+  )
+
+  const sendLearningFeedback = useCallback((action: 'shortlist' | 'reject', resume: ConvexResumeItem | ResumeItem | undefined) => {
+    if (!resume || !hasIngestData(resume)) {
+      return
+    }
+
+    const observation = buildLearningObservation(action, resume)
+    void rawApiClient
+      .POST<{ success: boolean; entry?: string }>('/api/resumes/learning-feedback', {
+        body: { observation },
+      })
+      .catch(() => undefined)
+  }, [])
 
   const handleSelectAll = useCallback(() => {
     setSelectedIds(new Set(displayedResumes.map((entry) => entry.key)))
@@ -511,16 +570,17 @@ export function ResumeList() {
     async (action: 'shortlist' | 'reject' | 'star' | 'export') => {
       if (selectedIds.size === 0) return
 
+      const selectedEntries = displayedResumes.filter((entry) => selectedIds.has(entry.key))
+
       if (action === 'export') {
-        const selectedEntries = displayedResumes
-          .filter((entry) => selectedIds.has(entry.key))
+        const exportEntries = selectedEntries
           .map(({ key, resume, match, action: currentAction }) => ({
             key,
             resume,
             match,
             action: currentAction,
           }))
-        const blob = new Blob([JSON.stringify(selectedEntries, null, 2)], {
+        const blob = new Blob([JSON.stringify(exportEntries, null, 2)], {
           type: 'application/json',
         })
         const url = URL.createObjectURL(blob)
@@ -529,24 +589,30 @@ export function ResumeList() {
         anchor.download = `selected-resumes-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
         anchor.click()
         URL.revokeObjectURL(url)
-        toast.success(t('bulk.exported', { count: selectedEntries.length, defaultValue: `Exported ${selectedEntries.length} resumes` }))
+        toast.success(t('bulk.exported', { count: exportEntries.length, defaultValue: `Exported ${exportEntries.length} resumes` }))
         return
       }
 
       try {
+        if (action === 'shortlist' || action === 'reject') {
+          selectedEntries.forEach((entry) => {
+            sendLearningFeedback(action, entry.resume)
+          })
+        }
+
         await Promise.all(
-          Array.from(selectedIds).map((resumeId) =>
-            saveAction({ resumeId, actionType: action })
+          selectedEntries.map((entry) =>
+            saveAction({ resumeId: entry.key, actionType: action })
           )
         )
         const actionLabels: Record<string, string> = { shortlist: 'shortlisted', reject: 'rejected', star: 'starred' }
-        toast.success(t('bulk.actionDone', { count: selectedIds.size, action: actionLabels[action] || action, defaultValue: `${selectedIds.size} resumes ${actionLabels[action] || action}` }))
+        toast.success(t('bulk.actionDone', { count: selectedEntries.length, action: actionLabels[action] || action, defaultValue: `${selectedEntries.length} resumes ${actionLabels[action] || action}` }))
       } catch (e) {
         console.error('Bulk action failed', e)
         toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))
       }
     },
-    [displayedResumes, saveAction, selectedIds, t]
+    [displayedResumes, saveAction, selectedIds, sendLearningFeedback, t]
   )
 
   const actionFeedbackLabels = useMemo<Partial<Record<CandidateActionType, string>>>(
@@ -562,6 +628,9 @@ export function ResumeList() {
   const handleCardAction = useCallback(
     (resumeId: string, action: CandidateActionType) => {
       const actionLabel = actionFeedbackLabels[action] ?? action
+      if (action === 'shortlist' || action === 'reject') {
+        sendLearningFeedback(action, displayedResumeMap.get(resumeId))
+      }
 
       void saveAction({ resumeId, actionType: action })
         .then((result) => {
@@ -577,7 +646,7 @@ export function ResumeList() {
           toast.error('Action failed. Please try again.')
         })
     },
-    [actionFeedbackLabels, saveAction]
+    [actionFeedbackLabels, displayedResumeMap, saveAction, sendLearningFeedback]
   )
 
   // High score count for bulk actions

@@ -1,5 +1,6 @@
-import { mutation } from "./_generated/server";
-import type { Doc } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
+import { action, mutation } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
 import { deriveResumeIdentityKey } from "./lib/resume_identity";
@@ -93,6 +94,13 @@ function groupDuplicatesByIdentity(resumes: Doc<"resumes">[]): Array<{
         });
 }
 
+type BackfillIngestDataResult = {
+    scheduled: number;
+    batches: number;
+    hasMore: boolean;
+    message: string;
+};
+
 export const backfillSearchText = mutation({
     args: {},
     handler: async (ctx) => {
@@ -123,6 +131,44 @@ export const reindexSearchText = mutation({
             }
         }
         return `Reindexed ${count} resumes`;
+    },
+});
+
+export const backfillIngestData = action({
+    args: {
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args): Promise<BackfillIngestDataResult> => {
+        const limit = Math.max(1, Math.min(args.limit ?? 100, 500));
+        const unprocessed: Array<Pick<Doc<"resumes">, "_id">> = await ctx.runQuery(internal.resumes.listUnprocessed, { limit });
+        const resumeIds: Id<"resumes">[] = unprocessed.map((resume: Pick<Doc<"resumes">, "_id">) => resume._id);
+
+        if (resumeIds.length === 0) {
+            return {
+                scheduled: 0,
+                batches: 0,
+                hasMore: false,
+                message: "No unprocessed resumes remaining",
+            };
+        }
+
+        const batchSize = 50;
+        let batches = 0;
+
+        for (let index = 0; index < resumeIds.length; index += batchSize) {
+            const chunk = resumeIds.slice(index, index + batchSize);
+            await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
+                resumeIds: chunk,
+            });
+            batches += 1;
+        }
+
+        return {
+            scheduled: resumeIds.length,
+            batches,
+            hasMore: resumeIds.length === limit,
+            message: `Scheduled ingest backfill for ${resumeIds.length} resumes in ${batches} batch(es)`,
+        };
     },
 });
 
