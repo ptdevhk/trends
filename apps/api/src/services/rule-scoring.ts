@@ -1,5 +1,6 @@
 import { FilterPresetService } from "./filter-preset-service.js";
 import { JobDescriptionService } from "./job-description-service.js";
+import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import type { MatchingResult } from "./ai-matching.js";
 import type { ResumeIndex } from "./resume-index.js";
 
@@ -103,13 +104,29 @@ function compactText(value: string): string {
   return value.toLowerCase().replace(/[\u3000\s]+/g, " ");
 }
 
+function getIndustryMap(skillsService?: SkillsKnowledgeService): Array<{ tag: string; keywords: string[] }> {
+  try {
+    if (skillsService) {
+      return skillsService.getIndustryTaxonomy().map((d) => ({
+        tag: d.tag,
+        keywords: d.keywords,
+      }));
+    }
+    return INDUSTRY_MAP;
+  } catch {
+    return INDUSTRY_MAP;
+  }
+}
+
 export class RuleScoringService {
   private readonly jobService: JobDescriptionService;
   private readonly filterPresetService: FilterPresetService;
+  private readonly skillsService: SkillsKnowledgeService;
 
   constructor(projectRoot?: string) {
     this.jobService = new JobDescriptionService(projectRoot);
     this.filterPresetService = new FilterPresetService(projectRoot);
+    this.skillsService = new SkillsKnowledgeService(projectRoot);
   }
 
   buildContext(jobDescriptionId: string): RuleScoringContext {
@@ -141,7 +158,8 @@ export class RuleScoringService {
       compactText(jd.content || ""),
     ]);
 
-    const industryTags = inferIndustryTags(industryKeywords);
+    const industryMap = getIndustryMap(this.skillsService);
+    const industryTags = this.inferIndustryTags(industryKeywords, industryMap);
 
     return {
       jobDescriptionId,
@@ -162,7 +180,8 @@ export class RuleScoringService {
     const cleanKeywords = ensureKeywords(keywords);
     const normalizedLocation = location?.trim();
     const targetLocations = normalizedLocation ? [normalizedLocation] : [];
-    const industryTags = inferIndustryTags(cleanKeywords);
+    const industryMap = getIndustryMap(this.skillsService);
+    const industryTags = this.inferIndustryTags(cleanKeywords, industryMap);
 
     return {
       jobDescriptionId: "keyword-search",
@@ -174,6 +193,19 @@ export class RuleScoringService {
       industryKeywords: cleanKeywords,
       industryTags,
     };
+  }
+
+  private inferIndustryTags(tokens: string[], industryMap: Array<{ tag: string; keywords: string[] }>): string[] {
+    const haystack = tokens.join(" ").toLowerCase();
+    const tags = new Set<string>();
+
+    for (const item of industryMap) {
+      if (item.keywords.some((keyword) => haystack.includes(keyword.toLowerCase()))) {
+        tags.add(item.tag);
+      }
+    }
+
+    return Array.from(tags);
   }
 
   scoreResume(index: ResumeIndex, context: RuleScoringContext): RuleScoringResult {

@@ -459,6 +459,13 @@ export class SkillsKnowledgeService {
   }
 
   /**
+   * Get version number
+   */
+  getVersion(): number {
+    return this.parseSkillsFile().version;
+  }
+
+  /**
    * Clear cache
    */
   clearCache(): void {

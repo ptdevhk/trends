@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { findProjectRoot } from "./db.js";
 import { JobDescriptionService } from "./job-description-service.js";
+import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { resolveResumeId } from "./resume-id.js";
 
 import type { ResumeItem, ResumeWorkHistoryItem } from "../types/resume.js";
@@ -150,7 +151,7 @@ function createSearchText(item: ResumeItem): string {
   return normalizeText(parts.join(" "));
 }
 
-function scoreIndustryTags(haystack: string): string[] {
+function scoreIndustryTagsLegacy(haystack: string): string[] {
   const tags: string[] = [];
 
   for (const [tag, keywords] of Object.entries(INDUSTRY_KEYWORDS)) {
@@ -167,6 +168,7 @@ export class ResumeIndexService {
 
   private readonly indexCache = new Map<string, Map<string, ResumeIndex>>();
   private readonly jobService: JobDescriptionService;
+  private readonly skillsService: SkillsKnowledgeService;
 
   private vocabularyLoaded = false;
   private readonly skillVocabulary = new Set<string>();
@@ -176,9 +178,23 @@ export class ResumeIndexService {
   constructor(projectRoot?: string) {
     this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
     this.jobService = new JobDescriptionService(this.projectRoot);
+    this.skillsService = new SkillsKnowledgeService(this.projectRoot);
   }
 
   private loadSkillVocabulary(): void {
+    // Try skills.md first (M3), fallback to skills_words.txt
+    try {
+      const vocab = this.skillsService.getSkillVocabulary();
+      for (const keyword of vocab) {
+        this.skillVocabulary.add(keyword);
+      }
+      if (this.skillVocabulary.size > 0) {
+        return;
+      }
+    } catch {
+      // Fall through to legacy file
+    }
+
     const filePath = path.join(this.projectRoot, "config", "resume", "skills_words.txt");
     if (!fs.existsSync(filePath)) return;
 
@@ -302,7 +318,7 @@ export class ResumeIndexService {
         locationCity: this.extractLocationCity(item.location || ""),
         skills,
         companies,
-        industryTags: scoreIndustryTags(tagHaystack),
+        industryTags: this.scoreIndustryTags(tagHaystack),
         salaryRange: parseSalaryRange(item.expectedSalary),
         searchText,
       });
@@ -310,6 +326,28 @@ export class ResumeIndexService {
 
     this.indexCache.set(sampleKey, nextMap);
     return nextMap;
+  }
+
+  private scoreIndustryTags(haystack: string): string[] {
+    // Try skills.md first (M3), fallback to hardcoded INDUSTRY_KEYWORDS
+    try {
+      const taxonomy = this.skillsService.getIndustryTaxonomy();
+      const tags: string[] = [];
+
+      for (const domain of taxonomy) {
+        if (domain.keywords.some((keyword) => haystack.includes(keyword.toLowerCase()))) {
+          tags.push(domain.tag);
+        }
+      }
+
+      if (tags.length > 0) {
+        return tags;
+      }
+    } catch {
+      // Fall through to legacy
+    }
+
+    return scoreIndustryTagsLegacy(haystack);
   }
 
   getIndex(sampleKey: string): Map<string, ResumeIndex> | undefined {

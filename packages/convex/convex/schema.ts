@@ -87,6 +87,16 @@ export default defineSchema({
 
         // Full Text Search Field (Populated via mutation)
         searchText: v.optional(v.string()),
+
+        // Pre-computed Ingest Data (M3)
+        ingestData: v.optional(v.object({
+            industryTags: v.array(v.string()),
+            synonymHits: v.array(v.string()),
+            ruleScores: v.any(),          // Record<string, number> — JD ID → score
+            experienceLevel: v.string(),  // "senior" | "mid" | "junior" | "unknown"
+            computedAt: v.number(),
+            skillsVersion: v.number(),
+        })),
     })
         .index("by_externalId", ["externalId"])
         .index("by_identityKey", ["identityKey"])
