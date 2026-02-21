@@ -100,3 +100,65 @@ export const updateAnalysisBatch = internalMutation({
         }));
     },
 });
+
+export const updateIngestData = internalMutation({
+    args: {
+        resumeId: v.id("resumes"),
+        ingestData: v.object({
+            industryTags: v.array(v.string()),
+            synonymHits: v.array(v.string()),
+            ruleScores: v.any(),
+            experienceLevel: v.string(),
+            computedAt: v.number(),
+            skillsVersion: v.number(),
+        }),
+    },
+    handler: async (ctx, args) => {
+        const resume = await ctx.db.get(args.resumeId);
+        if (!resume) throw new Error("Resume not found");
+
+        await ctx.db.patch(args.resumeId, {
+            ingestData: args.ingestData,
+        });
+    },
+});
+
+export const updateIngestDataBatch = internalMutation({
+    args: {
+        updates: v.array(v.object({
+            resumeId: v.id("resumes"),
+            ingestData: v.object({
+                industryTags: v.array(v.string()),
+                synonymHits: v.array(v.string()),
+                ruleScores: v.any(),
+                experienceLevel: v.string(),
+                computedAt: v.number(),
+                skillsVersion: v.number(),
+            }),
+        })),
+    },
+    handler: async (ctx, args) => {
+        await Promise.all(args.updates.map(async (update) => {
+            const resume = await ctx.db.get(update.resumeId);
+            if (!resume) return;
+
+            await ctx.db.patch(update.resumeId, {
+                ingestData: update.ingestData,
+            });
+        }));
+    },
+});
+
+export const listUnprocessed = internalQuery({
+    args: {
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const limit = args.limit || 100;
+        const resumes = await ctx.db
+            .query("resumes")
+            .filter((q) => q.eq(q.field("ingestData"), undefined))
+            .take(limit);
+        return resumes;
+    },
+});

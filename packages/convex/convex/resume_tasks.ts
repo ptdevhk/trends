@@ -326,6 +326,8 @@ export const submitResumes = mutation({
         let unchanged = 0;
         let nextIndex = 0;
         const parallelism = resolveSubmitResumeParallelism(resumes.length);
+        const insertedIds: any[] = [];
+        const updatedIds: any[] = [];
 
         const worker = async (): Promise<void> => {
             while (true) {
@@ -372,6 +374,7 @@ export const submitResumes = mutation({
                             searchText,
                         });
                         updated += 1;
+                        updatedIds.push(existing._id);
                         continue;
                     }
 
@@ -398,7 +401,7 @@ export const submitResumes = mutation({
                         unchanged += 1;
                     }
                 } else {
-                    await ctx.db.insert("resumes", {
+                    const newId = await ctx.db.insert("resumes", {
                         externalId: resume.externalId,
                         identityKey: entry.identityKey,
                         content: resume.content,
@@ -409,12 +412,24 @@ export const submitResumes = mutation({
                         crawledAt: Date.now(),
                     });
                     inserted += 1;
+                    insertedIds.push(newId);
                 }
             }
         };
 
         const workers = Array.from({ length: parallelism }, () => worker());
         await Promise.all(workers);
+
+        // Schedule ingest computation for new/updated resumes (M3)
+        const processIds = [...insertedIds, ...updatedIds];
+        if (processIds.length > 0) {
+            const BATCH = 50;
+            for (let i = 0; i < processIds.length; i += BATCH) {
+                await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
+                    resumeIds: processIds.slice(i, i + BATCH),
+                });
+            }
+        }
 
         return {
             input: totalInput,

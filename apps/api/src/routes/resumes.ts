@@ -25,6 +25,7 @@ import { SessionManager } from "../services/session-manager.js";
 import { JobDescriptionService } from "../services/job-description-service.js";
 import { RuleScoringService } from "../services/rule-scoring.js";
 import { resolveResumeId } from "../services/resume-id.js";
+import { IngestComputeService } from "../services/ingest-compute-service.js";
 
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
@@ -36,6 +37,7 @@ const matchStorage = new MatchStorage(config.projectRoot);
 const sessionManager = new SessionManager(config.projectRoot);
 const jobService = new JobDescriptionService(config.projectRoot);
 const ruleScoringService = new RuleScoringService(config.projectRoot);
+const ingestComputeService = new IngestComputeService(config.projectRoot);
 
 const DEFAULT_AI_TOP_N = 20;
 
@@ -1382,6 +1384,24 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
     },
     200
   );
+});
+
+// Internal endpoint for ingest compute (called by Convex action)
+app.post("/api/resumes/ingest-compute", async (c) => {
+  const body = await c.req.json();
+  const resumes = body.resumes as Array<{ resumeId: string; content: unknown }>;
+
+  if (!Array.isArray(resumes)) {
+    return c.json({ success: false, error: "Invalid request: expected { resumes: [...] }" }, 400);
+  }
+
+  try {
+    const results = ingestComputeService.computeBatch(resumes);
+    return c.json({ success: true, results }, 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
 });
 
 export default app;
