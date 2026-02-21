@@ -1,0 +1,4 @@
+display_name: Browser Extension Dev
+short_description: Develop/debug the Trends MV3 browser extension, CDP automation flows, and resume collection/export pipeline.
+default_prompt: Use the browser-extension-dev workflow. Prefer repo scripts and CDP automation that already exist, validate exports via window.__TR_RESUME_DATA__ accessors, and keep guidance repo-relative and runnable from repo root.
+
