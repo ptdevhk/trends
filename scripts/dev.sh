@@ -42,6 +42,14 @@ declare -A SERVICE_PIDS
 # Cleanup state
 CLEANUP_DONE=0
 
+# Singleton lock state (initialized in main)
+PROJECT_HASH=""
+LOCKFILE=""
+LOCKDIR=""
+PIDFILE=""
+PATHFILE=""
+LOCK_METHOD="mkdir"
+
 declare -a SERVICE_ORDER=("convex" "mcp" "worker" "scraper" "api" "web")
 declare -A SERVICE_LABELS=(
     ["convex"]="Convex"
@@ -180,6 +188,8 @@ cleanup() {
     # Nothing started, nothing to clean.
     if [ ${#SERVICE_PIDS[@]} -eq 0 ] && [ -z "$(list_child_pids "$$")" ]; then
         CLEANUP_DONE=1
+        release_lock
+        rm -f "$PIDFILE" "$PATHFILE" 2>/dev/null || true
         trap - SIGINT SIGTERM EXIT
         return
     fi
@@ -220,6 +230,8 @@ cleanup() {
     fi
 
     wait 2>/dev/null || true
+    release_lock
+    rm -f "$PIDFILE" "$PATHFILE" 2>/dev/null || true
     echo -e "${GREEN}All services stopped.${NC}"
     exit "$exit_code"
 }
@@ -397,6 +409,61 @@ is_windows_uname() {
         CYGWIN*|MINGW*|MSYS*) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+hash_path() {
+    local input="$1"
+    if command -v md5sum >/dev/null 2>&1; then
+        printf '%s' "$input" | md5sum | awk '{print $1}' | cut -c1-8
+    elif command -v md5 >/dev/null 2>&1; then
+        printf '%s' "$input" | md5 | awk '{print $NF}' | cut -c1-8
+    elif command -v shasum >/dev/null 2>&1; then
+        printf '%s' "$input" | shasum -a 256 | awk '{print $1}' | cut -c1-8
+    else
+        printf '%s' "nohash"
+    fi
+}
+
+is_dev_script_pid() {
+    local pid="$1"
+    if [ -z "$pid" ]; then
+        return 1
+    fi
+
+    local cmd
+    cmd="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+    case "$cmd" in
+        *"scripts/dev.sh"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+acquire_lock() {
+    if [ "$LOCK_METHOD" = "flock" ]; then
+        if [ -z "$LOCKFILE" ]; then
+            return 1
+        fi
+        exec 200>"$LOCKFILE"
+        flock -n 200 2>/dev/null || return 1
+    else
+        if [ -z "$LOCKDIR" ]; then
+            return 1
+        fi
+        mkdir "$LOCKDIR" 2>/dev/null || return 1
+    fi
+}
+
+release_lock() {
+    if [ "$LOCK_METHOD" = "flock" ]; then
+        flock -u 200 2>/dev/null || true
+        if [ -n "$LOCKFILE" ]; then
+            rm -f "$LOCKFILE" 2>/dev/null || true
+        fi
+    fi
+
+    if [ -n "$LOCKDIR" ]; then
+        rm -rf "$LOCKDIR" 2>/dev/null || true
+    fi
 }
 
 convex_cache_binaries_dir() {
@@ -1169,6 +1236,80 @@ print_status() {
 
 # Main
 main() {
+    PROJECT_HASH="$(hash_path "$PROJECT_ROOT")"
+    LOCKFILE="/tmp/dev-server-${PROJECT_HASH}.lock"
+    LOCKDIR="/tmp/dev-server-${PROJECT_HASH}.lockdir"
+    PIDFILE="/tmp/dev-server-${PROJECT_HASH}.pid"
+    PATHFILE="/tmp/dev-server-${PROJECT_HASH}.path"
+    LOCK_METHOD="mkdir"
+
+    if command -v flock >/dev/null 2>&1; then
+        LOCK_METHOD="flock"
+    fi
+
+    if ! acquire_lock; then
+        local lock_failed=true
+        local existing_pid=""
+
+        if [ -f "$PIDFILE" ]; then
+            existing_pid="$(cat "$PIDFILE" 2>/dev/null || true)"
+        fi
+
+        if [ "$LOCK_METHOD" = "mkdir" ]; then
+            if [ -z "$existing_pid" ] || ! is_dev_script_pid "$existing_pid"; then
+                log "DEV" "$YELLOW" "Stale dev.sh lock detected. Cleaning lock artifacts."
+                rm -rf "$LOCKDIR" 2>/dev/null || true
+                rm -f "$PIDFILE" "$PATHFILE" 2>/dev/null || true
+                if acquire_lock; then
+                    lock_failed=false
+                fi
+            fi
+        fi
+
+        if [ "$lock_failed" = "true" ] && [ -n "$existing_pid" ] && is_dev_script_pid "$existing_pid"; then
+            log "DEV" "$YELLOW" "Another dev.sh instance is running (PID: $existing_pid). Stopping it..."
+            kill -TERM -- "-$existing_pid" 2>/dev/null || kill -TERM "$existing_pid" 2>/dev/null || true
+
+            local wait_count=0
+            while [ "$wait_count" -lt 6 ] && is_dev_script_pid "$existing_pid"; do
+                sleep 0.5
+                wait_count=$((wait_count + 1))
+            done
+
+            if is_dev_script_pid "$existing_pid"; then
+                kill -KILL -- "-$existing_pid" 2>/dev/null || kill -KILL "$existing_pid" 2>/dev/null || true
+                sleep 1
+            fi
+
+            if is_dev_script_pid "$existing_pid"; then
+                log "DEV" "$RED" "Failed to stop previous dev.sh instance (PID: $existing_pid)."
+            else
+                rm -rf "$LOCKDIR" 2>/dev/null || true
+                rm -f "$LOCKFILE" "$PIDFILE" "$PATHFILE" 2>/dev/null || true
+
+                sleep 1
+                if acquire_lock; then
+                    lock_failed=false
+                    log "DEV" "$GREEN" "Previous instance stopped. Acquired singleton lock."
+                fi
+            fi
+        fi
+
+        if [ "$lock_failed" = "true" ]; then
+            log "DEV" "$RED" "Failed to acquire singleton lock for this project."
+            log "DEV" "$YELLOW" "Lock artifacts: $LOCKFILE, $LOCKDIR, $PIDFILE, $PATHFILE"
+            if [ -f "$PIDFILE" ]; then
+                log "DEV" "$YELLOW" "Current lock PID: $(cat "$PIDFILE" 2>/dev/null || true)"
+            fi
+            log "DEV" "$YELLOW" "Try running ./scripts/clean-dev.sh and retry."
+            trap - EXIT
+            exit 1
+        fi
+    fi
+
+    echo "$$" > "$PIDFILE"
+    echo "$PROJECT_ROOT" > "$PATHFILE"
+
     print_banner
 
     mkdir -p "$LOGS_DIR"
@@ -1252,6 +1393,10 @@ main() {
                 echo "  --no-seed     Skip Convex seed status check"
                 echo "  --force, -f   Kill processes using required ports"
                 echo "  --help        Show this help message"
+                echo ""
+                echo "Singleton behavior:"
+                echo "  Uses /tmp/dev-server-<hash>.{lock,lockdir,pid,path} per project."
+                echo "  If another scripts/dev.sh instance is active, this run stops it and takes over."
                 echo ""
                 echo "Environment variables:"
                 echo "  ENV_FILE      Optional env file path (unset by default)"

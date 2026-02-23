@@ -4,6 +4,25 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+hash_path() {
+  local input="$1"
+  if command -v md5sum >/dev/null 2>&1; then
+    printf '%s' "$input" | md5sum | awk '{print $1}' | cut -c1-8
+  elif command -v md5 >/dev/null 2>&1; then
+    printf '%s' "$input" | md5 | awk '{print $NF}' | cut -c1-8
+  elif command -v shasum >/dev/null 2>&1; then
+    printf '%s' "$input" | shasum -a 256 | awk '{print $1}' | cut -c1-8
+  else
+    printf '%s' "nohash"
+  fi
+}
+
+PROJECT_HASH="$(hash_path "$PROJECT_ROOT")"
+LOCKFILE="/tmp/dev-server-${PROJECT_HASH}.lock"
+LOCKDIR="/tmp/dev-server-${PROJECT_HASH}.lockdir"
+PIDFILE="/tmp/dev-server-${PROJECT_HASH}.pid"
+PATHFILE="/tmp/dev-server-${PROJECT_HASH}.path"
+
 PORTS=(
   "${CONVEX_PORT:-3210}"
   "${MCP_PORT:-3333}"
@@ -13,6 +32,11 @@ PORTS=(
 )
 
 declare -A TARGET_PIDS=()
+
+cleanup_lock_artifacts() {
+  rm -f "$LOCKFILE" "$PIDFILE" "$PATHFILE" 2>/dev/null || true
+  rm -rf "$LOCKDIR" 2>/dev/null || true
+}
 
 add_pid() {
   local pid="$1"
@@ -112,6 +136,8 @@ collect_known_dev_pids
 
 if [ ${#TARGET_PIDS[@]} -eq 0 ]; then
   echo "No dev services detected."
+  cleanup_lock_artifacts
+  echo "Removed singleton lock artifacts for this project."
   exit 0
 fi
 
@@ -140,3 +166,6 @@ fi
 
 echo "Done. Current listeners on dev ports:"
 lsof -nP -iTCP:"${CONVEX_PORT:-3210}" -iTCP:"${MCP_PORT:-3333}" -iTCP:"${TRENDS_WORKER_PORT:-8000}" -iTCP:"${API_PORT:-3000}" -iTCP:"${WEB_PORT:-5173}" -sTCP:LISTEN 2>/dev/null || true
+
+cleanup_lock_artifacts
+echo "Removed singleton lock artifacts for this project."
