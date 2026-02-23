@@ -324,12 +324,12 @@ export class IngestComputeService {
 
     for (const jd of jds) {
       try {
-        const context = this.ruleScoringService.buildContext(jd.id);
+        const context = this.ruleScoringService.buildContext(jd.name);
         const result = this.ruleScoringService.scoreResume(index, context);
         scores[jd.id] = result.score;
       } catch (error) {
         // Log error but don't fail the whole batch
-        console.error(`Failed to score resume against JD ${jd.id}:`, error);
+        console.error(`Failed to score resume against JD ${jd.name}:`, error);
         scores[jd.id] = 0;
       }
     }

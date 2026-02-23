@@ -423,17 +423,18 @@ Curated knowledge used by the background ingest agent for deterministic matching
 
 ### Implementation Status
 
-#### Completed (Phases 1-22)
+#### Completed (Phases 1-22 + Pre-Stage + M1-M2)
 - [x] Foundation through Production Polish (Phases 1-21)
 - [x] E2E Testing, CI Pipeline, Session Memory, JD Enhancements (Phase 22)
+- [x] Pre-Stage: Generalized skill validation infra + Browser Extension Dev skill
+- [x] M1: Create `config/resume/skills.md` knowledge file
+- [x] M2: skills.md parser service (`skills-knowledge.ts`) — 12 tests passing
 
 #### In Progress
 - [ ] CNC tokenization fix (`addScriptBoundarySpaces` — plan ready)
+- [ ] M3: Background ingest agent — **plan ready** (6 tasks, T0/T1/T5 parallelizable)
 
-#### Next: Memory-First Background Agent (Phases M1-M6)
-- [ ] M1: Create `config/resume/skills.md` knowledge file
-- [ ] M2: skills.md parser service (`skills-knowledge.ts`)
-- [ ] M3: Background ingest agent (pre-compute on new resume arrival)
+#### Next: Memory-First Background Agent (Phases M4-M6)
 - [ ] M4: Query path uses pre-computed fields (< 2s, zero LLM)
 - [ ] M5: Backfill existing resumes through ingest agent
 - [ ] M6: Learning feedback loop (append HR patterns to skills.md)
