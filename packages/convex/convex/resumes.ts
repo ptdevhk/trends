@@ -1,12 +1,77 @@
-
 import { internalMutation, internalQuery, query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
+function toRuleScores(value: unknown): Record<string, number> {
+    if (!isRecord(value)) {
+        return {};
+    }
+
+    const scores: Record<string, number> = {};
+    for (const [key, rawScore] of Object.entries(value)) {
+        if (typeof rawScore === "number" && Number.isFinite(rawScore)) {
+            scores[key] = rawScore;
+        }
+    }
+    return scores;
+}
+
+function getIngestRuleScore(resume: Doc<"resumes">, jobDescriptionId: string | undefined): number {
+    if (!jobDescriptionId) {
+        return 0;
+    }
+
+    const score = toRuleScores(resume.ingestData?.ruleScores)[jobDescriptionId];
+    if (typeof score === "number" && Number.isFinite(score)) {
+        return score;
+    }
+    return 0;
+}
+
+function sortByIngestRuleScore(
+    resumes: Doc<"resumes">[],
+    jobDescriptionId: string | undefined
+): Doc<"resumes">[] {
+    if (!jobDescriptionId) {
+        return resumes;
+    }
+
+    return [...resumes].sort((left, right) => {
+        const scoreDiff = getIngestRuleScore(right, jobDescriptionId) - getIngestRuleScore(left, jobDescriptionId);
+        if (scoreDiff !== 0) {
+            return scoreDiff;
+        }
+        return right.crawledAt - left.crawledAt;
+    });
+}
 
 export const list = query({
     args: { limit: v.optional(v.number()) },
     handler: async (ctx, args) => {
         const limit = args.limit || 50;
         return await ctx.db.query("resumes").order("desc").take(limit);
+    },
+});
+
+export const listWithIngestData = query({
+    args: {
+        limit: v.optional(v.number()),
+        jobDescriptionId: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const limit = args.limit || 50;
+        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+
+        if (!jobDescriptionId) {
+            return await ctx.db.query("resumes").order("desc").take(limit);
+        }
+
+        const resumes = await ctx.db.query("resumes").collect();
+        return sortByIngestRuleScore(resumes, jobDescriptionId).slice(0, limit);
     },
 });
 
@@ -21,6 +86,30 @@ export const search = query({
             .query("resumes")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.query))
             .take(limit);
+    },
+});
+
+export const searchWithIngestData = query({
+    args: {
+        query: v.string(),
+        limit: v.optional(v.number()),
+        jobDescriptionId: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const limit = args.limit || 50;
+        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+        const fetchLimit = Math.max(limit, 200);
+
+        const matches = await ctx.db
+            .query("resumes")
+            .withSearchIndex("search_body", (q) => q.search("searchText", args.query))
+            .take(fetchLimit);
+
+        if (!jobDescriptionId) {
+            return matches.slice(0, limit);
+        }
+
+        return sortByIngestRuleScore(matches, jobDescriptionId).slice(0, limit);
     },
 });
 

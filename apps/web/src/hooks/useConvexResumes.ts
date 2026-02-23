@@ -13,12 +13,22 @@ export type ConvexResumeAnalysis = {
   jobDescriptionId?: string
 }
 
+export type ConvexIngestData = {
+  industryTags: string[]
+  synonymHits: string[]
+  ruleScores: Record<string, number>
+  experienceLevel: string
+  computedAt: number
+  skillsVersion: number
+}
+
 export type ConvexResumeItem = ResumeItem & {
   resumeId: Doc<'resumes'>['_id']
   externalId: string
   crawledAt: number
   analysis?: ConvexResumeAnalysis
   analyses?: Record<string, ConvexResumeAnalysis>
+  ingestData?: ConvexIngestData
   source: string
   tags: string[]
 }
@@ -103,6 +113,22 @@ function parseAnalysis(value: unknown): ConvexResumeAnalysis | undefined {
   }
 }
 
+function parseRuleScores(value: unknown): Record<string, number> {
+  if (!isRecord(value)) {
+    return {}
+  }
+
+  const parsed: Record<string, number> = {}
+  for (const [key, rawValue] of Object.entries(value)) {
+    const score = toNumber(rawValue)
+    if (score !== null) {
+      parsed[key] = score
+    }
+  }
+
+  return parsed
+}
+
 function parseAnalysesMap(value: unknown): Record<string, ConvexResumeAnalysis> | undefined {
   if (!isRecord(value)) {
     return undefined
@@ -117,6 +143,27 @@ function parseAnalysesMap(value: unknown): Record<string, ConvexResumeAnalysis> 
   }
 
   return Object.keys(parsed).length ? parsed : undefined
+}
+
+function parseIngestData(value: unknown): ConvexIngestData | undefined {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const computedAt = toNumber(value.computedAt)
+  const skillsVersion = toNumber(value.skillsVersion)
+  if (computedAt === null || skillsVersion === null) {
+    return undefined
+  }
+
+  return {
+    industryTags: toStringArray(value.industryTags),
+    synonymHits: toStringArray(value.synonymHits),
+    ruleScores: parseRuleScores(value.ruleScores),
+    experienceLevel: toStringValue(value.experienceLevel) || 'unknown',
+    computedAt,
+    skillsVersion,
+  }
 }
 
 function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
@@ -141,20 +188,23 @@ function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
     crawledAt: doc.crawledAt,
     analysis: parseAnalysis(doc.analysis),
     analyses: parseAnalysesMap(doc.analyses),
+    ingestData: parseIngestData(doc.ingestData),
     source: doc.source,
     tags: doc.tags,
   }
 }
 
-export function useConvexResumes(limit: number = 200, query?: string) {
+export function useConvexResumes(limit: number = 200, query?: string, jobDescriptionId?: string) {
+  const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
+
   const searchResults = useQuery(
-    api.resumes.search,
-    query ? { query, limit } : "skip"
+    api.resumes.searchWithIngestData,
+    query ? { query, limit, jobDescriptionId: normalizedJobDescriptionId } : 'skip'
   )
 
   const listResults = useQuery(
-    api.resumes.list,
-    query ? "skip" : { limit }
+    api.resumes.listWithIngestData,
+    query ? 'skip' : { limit, jobDescriptionId: normalizedJobDescriptionId }
   )
 
   const convexResumes = query ? searchResults : listResults
@@ -164,5 +214,6 @@ export function useConvexResumes(limit: number = 200, query?: string) {
   return {
     resumes: mappedResumes,
     loading: convexResumes === undefined,
+    jobDescriptionId: normalizedJobDescriptionId,
   }
 }

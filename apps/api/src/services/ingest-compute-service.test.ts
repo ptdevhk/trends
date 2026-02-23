@@ -225,6 +225,14 @@ describe("IngestComputeService", () => {
     expect(result.skillsVersion).toBe(42);  // from TEST_SKILLS_MD
   });
 
+  it("should accept direct ResumeItem payloads from Convex storage", () => {
+    const directPayload = SAMPLE_RESUME_CNC_SALES.data[0];
+    const result = service.computeOne("resume-direct", directPayload);
+
+    expect(result.resumeId).toBe("resume-direct");
+    expect(result.ruleScores["jd-lathe-sales"]).toBeGreaterThan(50);
+  });
+
   it("should compute batch of resumes", () => {
     const inputs = [
       { resumeId: "resume-123", content: SAMPLE_RESUME_CNC_SALES },
@@ -238,6 +246,22 @@ describe("IngestComputeService", () => {
     expect(results[1].resumeId).toBe("resume-456");
     expect(results[0].experienceLevel).toBe("senior");
     expect(results[1].experienceLevel).toBe("junior");
+  });
+
+  it("should clear skills cache before each computeBatch call", () => {
+    const initial = service.computeBatch([
+      { resumeId: "resume-123", content: SAMPLE_RESUME_CNC_SALES },
+    ]);
+    expect(initial[0]?.skillsVersion).toBe(42);
+
+    const skillsPath = path.join(tmpDir, "config", "resume", "skills.md");
+    const updatedSkills = fs.readFileSync(skillsPath, "utf8").replace("version: 42", "version: 43");
+    fs.writeFileSync(skillsPath, updatedSkills, "utf8");
+
+    const updated = service.computeBatch([
+      { resumeId: "resume-123", content: SAMPLE_RESUME_CNC_SALES },
+    ]);
+    expect(updated[0]?.skillsVersion).toBe(43);
   });
 
   it("should handle resume without work history", () => {
