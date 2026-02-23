@@ -88,6 +88,8 @@ export default defineSchema({
         // Full Text Search Field (Populated via mutation)
         searchText: v.optional(v.string()),
 
+        primaryRuleScore: v.optional(v.number()),
+
         // Pre-computed Ingest Data (M3)
         ingestData: v.optional(v.object({
             industryTags: v.array(v.string()),
@@ -102,6 +104,7 @@ export default defineSchema({
         .index("by_externalId", ["externalId"])
         .index("by_identityKey", ["identityKey"])
         .index("by_hash", ["hash"])
+        .index("by_primaryRuleScore", ["primaryRuleScore"])
         .searchIndex("search_body", {
             searchField: "searchText",
         }),

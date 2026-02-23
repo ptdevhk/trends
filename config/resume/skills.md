@@ -1,6 +1,6 @@
 ---
-version: 1
-updated_at: '2026-02-21'
+version: 2
+updated_at: '2026-02-23'
 description: >
   Curated skill taxonomy, synonyms, and domain knowledge for resume screening.
   Used by the background ingest agent for deterministic matching and pre-scoring.
@@ -93,6 +93,45 @@ Known companies in the target industry with name variations. Used for company re
 - HYUNDAI WIA (aliases: 现代威亚, 현대위아)
 - TSUGAMI (aliases: 津上, つがみ)
 - JINGDIAO (aliases: 北京精雕, 精雕)
+
+Tier 1 - CNC/Machining
+- HARDINGE (aliases: 哈挺, Hardinge)
+- YASDA (aliases: 安田, ヤスダ)
+- HERMLE (aliases: 哈默, 赫姆勒)
+- TOYODA (aliases: 丰田工机, ジェイテクト)
+- RENISHAW (aliases: 雷尼绍, レニショー)
+- TORNOS (aliases: 特纳斯, Tornos Swiss)
+- GF MACHINING (aliases: 乔治费歇尔, 米科朗, Mikron, AgieCharmilles)
+- OKK (aliases: 大阪机工, オーケーケー)
+- MATSUURA (aliases: 松浦, マツウラ)
+- HURCO (aliases: 赫克, ハーコ)
+- KURAKI (aliases: 仓敷, クラキ)
+
+Tier 2 - EDM/Wire Cutting
+- SODICK (aliases: 沙迪克, ソディック)
+- CHARMILLES (aliases: 夏米尔, GF AgieCharmilles)
+
+Tier 3 - Measurement/Metrology
+- HEXAGON (aliases: 海克斯康, ヘキサゴン)
+- ZEISS (aliases: 蔡司, 卡尔蔡司, Carl Zeiss)
+- KEYENCE (aliases: 基恩士, キーエンス)
+- MITUTOYO (aliases: 三丰, ミツトヨ)
+- WENZEL (aliases: 温泽, ヴェンツェル)
+- FARO (aliases: 法如, ファロ)
+- CREAFORM (aliases: 形创)
+
+Tier 4 - Tooling/Components
+- SANDVIK (aliases: 山特维克, サンドビック)
+- MARPOSS (aliases: 马波斯, マーポス)
+- HEIDENHAIN (aliases: 海德汉, ハイデンハイン)
+
+Tier 5 - Domestic (Pearl River Delta)
+- 创世纪 (aliases: 深圳创世纪, CGJ)
+- 台群 (aliases: 台群精机, Taiqun)
+- 沈阳机床 (aliases: 沈机, SMTCL)
+- 润星科技 (aliases: 润星, Runxing)
+- 思瑞测量 (aliases: 思瑞, CHOTEST)
+- 秦川机床 (aliases: 秦川, Qinchuan)
 
 ## Industry Context
 

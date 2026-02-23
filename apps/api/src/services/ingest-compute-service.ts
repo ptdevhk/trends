@@ -17,6 +17,7 @@ export interface IngestResult {
   companyHits: string[];
   companyAliasTokens: string;
   ruleScores: Record<string, number>;  // jdId → score (0-100)
+  primaryRuleScore: number;
   experienceLevel: string;
   computedAt: number;
   skillsVersion: number;
@@ -256,6 +257,8 @@ export class IngestComputeService {
 
     // 3. Compute ruleScores for all active JDs
     const ruleScores = this.computeRuleScores(index);
+    const scoreValues = Object.values(ruleScores);
+    const primaryRuleScore = scoreValues.length > 0 ? Math.max(...scoreValues) : 0;
 
     // 4. Compute experienceLevel
     const experienceLevel = this.computeExperienceLevel(searchText);
@@ -274,6 +277,7 @@ export class IngestComputeService {
       companyHits,
       companyAliasTokens,
       ruleScores,
+      primaryRuleScore,
       experienceLevel,
       computedAt: Date.now(),
       skillsVersion,

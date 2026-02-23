@@ -9,6 +9,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
 
+function toRuleScores(value: unknown): Record<string, number> {
+    if (!isRecord(value)) {
+        return {};
+    }
+
+    const scores: Record<string, number> = {};
+    for (const [key, rawScore] of Object.entries(value)) {
+        if (typeof rawScore === "number" && Number.isFinite(rawScore)) {
+            scores[key] = rawScore;
+        }
+    }
+    return scores;
+}
+
 function analysisRichness(resume: Doc<"resumes">): number {
     let richness = 0;
     if (resume.analysis !== undefined) {
@@ -101,6 +115,13 @@ type BackfillIngestDataResult = {
     message: string;
 };
 
+type ReIngestStaleSkillsVersionResult = {
+    scheduled: number;
+    batches: number;
+    currentVersion: number;
+    hasMore: boolean;
+};
+
 export const backfillSearchText = mutation({
     args: {},
     handler: async (ctx) => {
@@ -169,6 +190,39 @@ export const backfillIngestData = action({
             hasMore: resumeIds.length === limit,
             message: `Scheduled ingest backfill for ${resumeIds.length} resumes in ${batches} batch(es)`,
         };
+    },
+});
+
+export const backfillPrimaryRuleScore = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const resumes = await ctx.db.query("resumes").collect();
+        let updated = 0;
+
+        for (const resume of resumes) {
+            if (resume.primaryRuleScore !== undefined) {
+                continue;
+            }
+
+            const scores = toRuleScores(resume.ingestData?.ruleScores);
+            const values = Object.values(scores);
+            const primaryRuleScore = values.length > 0 ? Math.max(...values) : 0;
+            await ctx.db.patch(resume._id, { primaryRuleScore });
+            updated += 1;
+        }
+
+        return `Backfilled ${updated} resumes`;
+    },
+});
+
+export const reIngestStaleSkillsVersion = action({
+    args: {
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args): Promise<ReIngestStaleSkillsVersionResult> => {
+        return await ctx.runAction(internal.ingest_agent.reIngestStaleResumes, {
+            limit: args.limit,
+        });
     },
 });
 

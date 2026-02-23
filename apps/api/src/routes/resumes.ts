@@ -1407,6 +1407,11 @@ app.post("/api/resumes/learning-feedback", async (c) => {
   }
 });
 
+app.get("/api/resumes/skills-version", (c) => {
+  const version = skillsKnowledgeService.getVersion();
+  return c.json({ success: true, version }, 200);
+});
+
 // Internal endpoint for ingest compute (called by Convex action)
 app.post("/api/resumes/ingest-compute", async (c) => {
   const body = await c.req.json();

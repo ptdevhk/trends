@@ -1,4 +1,4 @@
-
+import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
@@ -41,6 +41,7 @@ export const create = mutation({
             enabled: true,
             lastModified: Date.now(),
         });
+        await ctx.scheduler.runAfter(0, internal.ingest_agent.reIngestAllResumes, {});
         return id;
     },
 });
@@ -58,6 +59,10 @@ export const update = mutation({
             ...updates,
             lastModified: Date.now(),
         });
+
+        if (args.content !== undefined) {
+            await ctx.scheduler.runAfter(0, internal.ingest_agent.reIngestAllResumes, {});
+        }
     },
 });
 

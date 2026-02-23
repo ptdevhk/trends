@@ -225,6 +225,8 @@ describe("IngestComputeService", () => {
 
     // CNC sales resume should score well on lathe-sales JD
     expect(result.ruleScores["jd-lathe-sales"]).toBeGreaterThan(50);
+    const maxScore = Math.max(...Object.values(result.ruleScores));
+    expect(result.primaryRuleScore).toBe(maxScore);
   });
 
   it("should detect senior experience level", () => {

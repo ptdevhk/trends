@@ -17,6 +17,10 @@ function getBffApiUrl(): string {
   return process.env.BFF_API_URL || "http://localhost:3000";
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 export const processNewResumes = internalAction({
   args: {
     resumeIds: v.array(v.id("resumes")),
@@ -94,6 +98,7 @@ export const processNewResumes = internalAction({
           skillsVersion: item.skillsVersion,
         },
         companyAliasTokens: item.companyAliasTokens || "",
+        primaryRuleScore: typeof item.primaryRuleScore === "number" ? item.primaryRuleScore : 0,
       }));
 
       await ctx.runMutation(internal.resumes.updateIngestDataBatch, {
@@ -108,5 +113,89 @@ export const processNewResumes = internalAction({
       console.error(`[ingest_agent] Error:`, message);
       return { processed: 0, error: message };
     }
+  },
+});
+
+export const reIngestAllResumes = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ scheduled: number; batches: number }> => {
+    const resumeIds: Id<"resumes">[] = await ctx.runQuery(internal.resumes.listProcessedIds, {});
+
+    if (resumeIds.length === 0) {
+      return { scheduled: 0, batches: 0 };
+    }
+
+    const batchSize = 50;
+    let batches = 0;
+
+    for (let index = 0; index < resumeIds.length; index += batchSize) {
+      await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
+        resumeIds: resumeIds.slice(index, index + batchSize),
+      });
+      batches += 1;
+    }
+
+    return { scheduled: resumeIds.length, batches };
+  },
+});
+
+export const reIngestStaleResumes = internalAction({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ scheduled: number; batches: number; currentVersion: number; hasMore: boolean }> => {
+    const limit = Math.max(1, Math.min(args.limit ?? 200, 1000));
+    const bffUrl = getBffApiUrl();
+    const versionResponse = await fetch(`${bffUrl}/api/resumes/skills-version`);
+
+    if (!versionResponse.ok) {
+      const text = await versionResponse.text();
+      throw new Error(`Failed to get skills version: ${versionResponse.status} ${versionResponse.statusText} - ${text}`);
+    }
+
+    const versionPayload: unknown = await versionResponse.json();
+    if (!isRecord(versionPayload)) {
+      throw new Error("Invalid skills version response: expected object");
+    }
+
+    const currentVersion = versionPayload.version;
+    if (typeof currentVersion !== "number" || !Number.isFinite(currentVersion)) {
+      throw new Error("Invalid skills version response: version must be a number");
+    }
+
+    const staleResumes: Array<{ _id: Id<"resumes"> }> = await ctx.runQuery(internal.resumes.listStaleResumes, {
+      currentVersion,
+      limit,
+    });
+
+    if (staleResumes.length === 0) {
+      return {
+        scheduled: 0,
+        batches: 0,
+        currentVersion,
+        hasMore: false,
+      };
+    }
+
+    const resumeIds = staleResumes.map((resume) => resume._id);
+    const batchSize = 50;
+    let batches = 0;
+
+    for (let index = 0; index < resumeIds.length; index += batchSize) {
+      await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
+        resumeIds: resumeIds.slice(index, index + batchSize),
+      });
+      batches += 1;
+    }
+
+    return {
+      scheduled: resumeIds.length,
+      batches,
+      currentVersion,
+      hasMore: resumeIds.length === limit,
+    };
   },
 });

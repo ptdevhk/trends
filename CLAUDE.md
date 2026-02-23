@@ -423,17 +423,18 @@ Curated knowledge used by the background ingest agent for deterministic matching
 
 ### Implementation Status
 
-#### Completed (Phases 1-22 + Pre-Stage + M1-M6 + CI)
+#### Completed (Phases 1-22 + Pre-Stage + M1-M7 + CI)
 - [x] Foundation through Production Polish (Phases 1-21)
 - [x] E2E Testing, CI Pipeline, Session Memory, JD Enhancements (Phase 22)
 - [x] Pre-Stage: Generalized skill validation infra + Browser Extension Dev skill
 - [x] M1: Create `config/resume/skills.md` knowledge file
 - [x] M2: skills.md parser service (`skills-knowledge.ts`) — 12 tests passing
 - [x] CNC tokenization fix (`addScriptBoundarySpaces`) — migration pending
-- [x] M3: Background ingest agent (`IngestComputeService`, 11 tests)
+- [x] M3: Background ingest agent (`IngestComputeService`, 14 tests)
 - [x] M4: Query path uses pre-computed fields (< 2s, zero LLM)
 - [x] M5: Backfill migration code — migration pending
 - [x] M6: Learning feedback loop (append HR patterns to skills.md)
+- [x] M7: Company-brand cross-language search (`companyHits` + alias token enrichment)
 - [x] CI: TypeScript fix (18 errors → 0) + ingest signal display in UI
 
 #### Pending: Migration Runs
@@ -443,6 +444,7 @@ Curated knowledge used by the background ingest agent for deterministic matching
 
 #### Next: Post-Migration Feature Work
 - [ ] Re-ingest on JD changes (gap: existing resumes miss new JD scores)
+- [ ] Expand company patterns: import remaining brands from `config/industry-data/keywords-structured.md` into `skills.md`
 - [ ] Scalability: denormalized `primaryRuleScore` index (replace `.collect()`)
 - [ ] Skills version tracking: auto re-ingest when skills.md changes
 

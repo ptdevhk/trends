@@ -66,12 +66,13 @@ export const listWithIngestData = query({
         const limit = args.limit || 50;
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
 
-        if (!jobDescriptionId) {
-            return await ctx.db.query("resumes").order("desc").take(limit);
-        }
-
-        const resumes = await ctx.db.query("resumes").collect();
-        return sortByIngestRuleScore(resumes, jobDescriptionId).slice(0, limit);
+        const overfetchLimit = Math.max(limit * 3, limit);
+        const candidates = await ctx.db
+            .query("resumes")
+            .withIndex("by_primaryRuleScore")
+            .order("desc")
+            .take(overfetchLimit);
+        return sortByIngestRuleScore(candidates, jobDescriptionId).slice(0, limit);
     },
 });
 
@@ -203,6 +204,7 @@ export const updateIngestData = internalMutation({
             skillsVersion: v.number(),
         }),
         companyAliasTokens: v.optional(v.string()),
+        primaryRuleScore: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const resume = await ctx.db.get(args.resumeId);
@@ -210,6 +212,7 @@ export const updateIngestData = internalMutation({
 
         const patch: Partial<Doc<"resumes">> = {
             ingestData: args.ingestData,
+            primaryRuleScore: args.primaryRuleScore ?? 0,
         };
 
         const aliasTokens = args.companyAliasTokens?.trim().toLowerCase();
@@ -240,6 +243,7 @@ export const updateIngestDataBatch = internalMutation({
                 skillsVersion: v.number(),
             }),
             companyAliasTokens: v.optional(v.string()),
+            primaryRuleScore: v.optional(v.number()),
         })),
     },
     handler: async (ctx, args) => {
@@ -249,6 +253,7 @@ export const updateIngestDataBatch = internalMutation({
 
             const patch: Partial<Doc<"resumes">> = {
                 ingestData: update.ingestData,
+                primaryRuleScore: update.primaryRuleScore ?? 0,
             };
 
             const aliasTokens = update.companyAliasTokens?.trim().toLowerCase();
@@ -277,5 +282,37 @@ export const listUnprocessed = internalQuery({
             .filter((q) => q.eq(q.field("ingestData"), undefined))
             .take(limit);
         return resumes;
+    },
+});
+
+export const listProcessedIds = internalQuery({
+    args: {},
+    handler: async (ctx) => {
+        const resumes = await ctx.db.query("resumes").collect();
+        return resumes
+            .filter((resume) => resume.ingestData !== undefined)
+            .map((resume) => resume._id);
+    },
+});
+
+export const listStaleResumes = internalQuery({
+    args: {
+        currentVersion: v.number(),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const limit = args.limit || 100;
+        const resumes = await ctx.db
+            .query("resumes")
+            .filter((q) => q.neq(q.field("ingestData"), undefined))
+            .take(limit * 5);
+
+        return resumes
+            .filter((resume) => {
+                const version = resume.ingestData?.skillsVersion;
+                return typeof version !== "number" || version < args.currentVersion;
+            })
+            .slice(0, limit)
+            .map((resume) => ({ _id: resume._id }));
     },
 });
