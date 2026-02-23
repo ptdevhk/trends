@@ -1,3 +1,4 @@
+/// <reference path="../convex-env.d.ts" />
 type EnvSource = Record<string, string | undefined>;
 
 export const DEFAULT_ANALYSIS_PARALLELISM = 4;
