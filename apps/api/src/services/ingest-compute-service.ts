@@ -14,6 +14,8 @@ export interface IngestResult {
   resumeId: string;
   industryTags: string[];
   synonymHits: string[];
+  companyHits: string[];
+  companyAliasTokens: string;
   ruleScores: Record<string, number>;  // jdId → score (0-100)
   experienceLevel: string;
   computedAt: number;
@@ -258,13 +260,19 @@ export class IngestComputeService {
     // 4. Compute experienceLevel
     const experienceLevel = this.computeExperienceLevel(searchText);
 
-    // 5. Get skills version
+    // 5. Compute companyHits + alias tokens for cross-language company matching
+    const companyHits = this.computeCompanyHits(index.companies, searchText);
+    const companyAliasTokens = this.buildCompanyAliasTokens(companyHits);
+
+    // 6. Get skills version
     const skillsVersion = this.skillsKnowledgeService.getVersion();
 
     return {
       resumeId,
       industryTags,
       synonymHits,
+      companyHits,
+      companyAliasTokens,
       ruleScores,
       experienceLevel,
       computedAt: Date.now(),
@@ -369,6 +377,68 @@ export class IngestComputeService {
     }
 
     return maxLevel;
+  }
+
+  /**
+   * Compute matched canonical company names from extracted companies and search text.
+   */
+  private computeCompanyHits(companies: string[], searchText: string): string[] {
+    const patterns = this.skillsKnowledgeService.getCompanyPatterns();
+    const normalizedCompanies = companies.map((company) => company.toLowerCase());
+    const normalizedSearchText = searchText.toLowerCase();
+
+    const hits: string[] = [];
+    for (const pattern of patterns) {
+      const matched = pattern.allNames.some((candidate) => {
+        const normalizedCandidate = candidate.toLowerCase().trim();
+        if (!normalizedCandidate) {
+          return false;
+        }
+
+        if (normalizedSearchText.includes(normalizedCandidate)) {
+          return true;
+        }
+
+        return normalizedCompanies.some((company) => company.includes(normalizedCandidate));
+      });
+
+      if (matched) {
+        hits.push(pattern.name.toLowerCase());
+      }
+    }
+
+    return hits;
+  }
+
+  /**
+   * Build alias tokens for matched companies so Convex searchText can match cross-language aliases.
+   */
+  private buildCompanyAliasTokens(companyHits: string[]): string {
+    if (companyHits.length === 0) {
+      return "";
+    }
+
+    const patterns = this.skillsKnowledgeService.getCompanyPatterns();
+    const patternByName = new Map(
+      patterns.map((pattern) => [pattern.name.toLowerCase(), pattern])
+    );
+
+    const aliasTokens = new Set<string>();
+    for (const companyHit of companyHits) {
+      const pattern = patternByName.get(companyHit.toLowerCase());
+      if (!pattern) {
+        continue;
+      }
+
+      for (const candidate of pattern.allNames) {
+        const normalizedCandidate = candidate.toLowerCase().trim();
+        if (normalizedCandidate) {
+          aliasTokens.add(normalizedCandidate);
+        }
+      }
+    }
+
+    return Array.from(aliasTokens).join(" ");
   }
 }
 

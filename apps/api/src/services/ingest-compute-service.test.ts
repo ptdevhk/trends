@@ -53,6 +53,7 @@ description: Test skills knowledge file
 
 - STAR (aliases: 星, STAR机床, スター精密)
 - FANUC (aliases: 发那科, ファナック)
+- HAAS (aliases: 哈斯, Haas Automation)
 
 ## Industry Context
 
@@ -154,6 +155,27 @@ const SAMPLE_RESUME_JUNIOR = {
   ],
 };
 
+const SAMPLE_RESUME_HAAS = {
+  data: [
+    {
+      name: "王五",
+      profileUrl: "https://example.com/profile/789",
+      activityStatus: "在线中",
+      age: "31岁",
+      experience: "6年",
+      education: "本科",
+      location: "东莞市",
+      jobIntention: "哈斯车床销售经理",
+      expectedSalary: "15000-20000元/月",
+      selfIntro: "熟悉精密加工行业客户开发与渠道管理。",
+      workHistory: [
+        { raw: "2020-01~2025-12(5年11月)东莞某设备公司销售经理" },
+      ],
+      extractedAt: "2026-02-21T10:00:00.000Z",
+    },
+  ],
+};
+
 describe("IngestComputeService", () => {
   let tmpDir: string;
   let service: IngestComputeService;
@@ -225,6 +247,27 @@ describe("IngestComputeService", () => {
     expect(result.skillsVersion).toBe(42);  // from TEST_SKILLS_MD
   });
 
+  it("should compute companyHits and alias tokens from STAR mention", () => {
+    const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
+
+    expect(result.companyHits).toContain("star");
+    expect(result.companyAliasTokens).toContain("スター精密");
+  });
+
+  it("should match HAAS aliases across languages", () => {
+    const result = service.computeOne("resume-789", SAMPLE_RESUME_HAAS);
+
+    expect(result.companyHits).toContain("haas");
+    expect(result.companyAliasTokens).toContain("haas automation");
+  });
+
+  it("should return empty company matches for unknown brands", () => {
+    const result = service.computeOne("resume-456", SAMPLE_RESUME_JUNIOR);
+
+    expect(result.companyHits).toEqual([]);
+    expect(result.companyAliasTokens).toBe("");
+  });
+
   it("should accept direct ResumeItem payloads from Convex storage", () => {
     const directPayload = SAMPLE_RESUME_CNC_SALES.data[0];
     const result = service.computeOne("resume-direct", directPayload);
@@ -246,6 +289,8 @@ describe("IngestComputeService", () => {
     expect(results[1].resumeId).toBe("resume-456");
     expect(results[0].experienceLevel).toBe("senior");
     expect(results[1].experienceLevel).toBe("junior");
+    expect(results.every((item) => Array.isArray(item.companyHits))).toBe(true);
+    expect(results.every((item) => typeof item.companyAliasTokens === "string")).toBe(true);
   });
 
   it("should clear skills cache before each computeBatch call", () => {

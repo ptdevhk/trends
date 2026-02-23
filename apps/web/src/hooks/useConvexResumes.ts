@@ -16,6 +16,7 @@ export type ConvexResumeAnalysis = {
 export type ConvexIngestData = {
   industryTags: string[]
   synonymHits: string[]
+  companyHits: string[]
   ruleScores: Record<string, number>
   experienceLevel: string
   computedAt: number
@@ -159,6 +160,7 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
   return {
     industryTags: toStringArray(value.industryTags),
     synonymHits: toStringArray(value.synonymHits),
+    companyHits: toStringArray(value.companyHits),
     ruleScores: parseRuleScores(value.ruleScores),
     experienceLevel: toStringValue(value.experienceLevel) || 'unknown',
     computedAt,

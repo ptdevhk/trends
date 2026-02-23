@@ -92,6 +92,7 @@ export default defineSchema({
         ingestData: v.optional(v.object({
             industryTags: v.array(v.string()),
             synonymHits: v.array(v.string()),
+            companyHits: v.optional(v.array(v.string())),
             ruleScores: v.any(),          // Record<string, number> — JD ID → score
             experienceLevel: v.string(),  // "senior" | "mid" | "junior" | "unknown"
             computedAt: v.number(),

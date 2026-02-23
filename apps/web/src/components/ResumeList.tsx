@@ -838,6 +838,7 @@ export function ResumeList() {
                 matchResult={entry.match}
                 ruleScore={entry.ruleScore}
                 industryTags={ingestData?.industryTags}
+                companyHits={ingestData?.companyHits}
                 experienceLevel={ingestData?.experienceLevel}
                 showAiScore={entry.match?.scoreSource === 'ai'}
                 actionType={entry.action}

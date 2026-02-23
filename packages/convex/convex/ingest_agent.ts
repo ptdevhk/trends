@@ -87,11 +87,13 @@ export const processNewResumes = internalAction({
         ingestData: {
           industryTags: item.industryTags,
           synonymHits: item.synonymHits,
+          companyHits: item.companyHits || [],
           ruleScores: item.ruleScores,
           experienceLevel: item.experienceLevel,
           computedAt: item.computedAt,
           skillsVersion: item.skillsVersion,
         },
+        companyAliasTokens: item.companyAliasTokens || "",
       }));
 
       await ctx.runMutation(internal.resumes.updateIngestDataBatch, {

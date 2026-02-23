@@ -22,6 +22,7 @@ interface ResumeCardProps {
   matchResult?: MatchingResult
   ruleScore?: number
   industryTags?: string[]
+  companyHits?: string[]
   experienceLevel?: string
   showAiScore?: boolean
   actionType?: CandidateActionType
@@ -57,6 +58,7 @@ export function ResumeCard({
   jobDescription,
   isReviewed,
   industryTags,
+  companyHits,
   experienceLevel,
 }: ResumeCardProps) {
   const { t } = useTranslation()
@@ -96,6 +98,9 @@ export function ResumeCard({
   const visibleIndustryTags = (industryTags ?? [])
     .filter((tag) => tag.trim().length > 0)
     .slice(0, 4)
+  const visibleCompanyHits = (companyHits ?? [])
+    .filter((company) => company.trim().length > 0)
+    .slice(0, 3)
   const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase()
   const experienceBadge =
     normalizedExperienceLevel === 'senior'
@@ -176,6 +181,15 @@ export function ResumeCard({
             className="text-[10px] border-violet-200 bg-violet-50 text-violet-700"
           >
             {tag}
+          </Badge>
+        ))}
+        {visibleCompanyHits.map((company, index) => (
+          <Badge
+            key={`co-${company}-${index}`}
+            variant="outline"
+            className="text-[10px] border-blue-200 bg-blue-50 text-blue-700"
+          >
+            {company.toUpperCase()}
           </Badge>
         ))}
       </div>

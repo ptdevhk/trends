@@ -196,19 +196,33 @@ export const updateIngestData = internalMutation({
         ingestData: v.object({
             industryTags: v.array(v.string()),
             synonymHits: v.array(v.string()),
+            companyHits: v.optional(v.array(v.string())),
             ruleScores: v.any(),
             experienceLevel: v.string(),
             computedAt: v.number(),
             skillsVersion: v.number(),
         }),
+        companyAliasTokens: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const resume = await ctx.db.get(args.resumeId);
         if (!resume) throw new Error("Resume not found");
 
-        await ctx.db.patch(args.resumeId, {
+        const patch: Partial<Doc<"resumes">> = {
             ingestData: args.ingestData,
-        });
+        };
+
+        const aliasTokens = args.companyAliasTokens?.trim().toLowerCase();
+        if (aliasTokens) {
+            const existingSearchText = resume.searchText || "";
+            if (!existingSearchText.toLowerCase().includes(aliasTokens)) {
+                patch.searchText = existingSearchText
+                    ? `${existingSearchText} ${aliasTokens}`
+                    : aliasTokens;
+            }
+        }
+
+        await ctx.db.patch(args.resumeId, patch);
     },
 });
 
@@ -219,11 +233,13 @@ export const updateIngestDataBatch = internalMutation({
             ingestData: v.object({
                 industryTags: v.array(v.string()),
                 synonymHits: v.array(v.string()),
+                companyHits: v.optional(v.array(v.string())),
                 ruleScores: v.any(),
                 experienceLevel: v.string(),
                 computedAt: v.number(),
                 skillsVersion: v.number(),
             }),
+            companyAliasTokens: v.optional(v.string()),
         })),
     },
     handler: async (ctx, args) => {
@@ -231,9 +247,21 @@ export const updateIngestDataBatch = internalMutation({
             const resume = await ctx.db.get(update.resumeId);
             if (!resume) return;
 
-            await ctx.db.patch(update.resumeId, {
+            const patch: Partial<Doc<"resumes">> = {
                 ingestData: update.ingestData,
-            });
+            };
+
+            const aliasTokens = update.companyAliasTokens?.trim().toLowerCase();
+            if (aliasTokens) {
+                const existingSearchText = resume.searchText || "";
+                if (!existingSearchText.toLowerCase().includes(aliasTokens)) {
+                    patch.searchText = existingSearchText
+                        ? `${existingSearchText} ${aliasTokens}`
+                        : aliasTokens;
+                }
+            }
+
+            await ctx.db.patch(update.resumeId, patch);
         }));
     },
 });
