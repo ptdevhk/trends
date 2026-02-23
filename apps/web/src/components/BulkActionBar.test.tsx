@@ -6,7 +6,7 @@ import { BulkActionBar } from './BulkActionBar'
 // Mock useTranslation
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key: string, fallback: string) => fallback,
+        t: (_key: string, fallback: string) => fallback,
     }),
 }))
 

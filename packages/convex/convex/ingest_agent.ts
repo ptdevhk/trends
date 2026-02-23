@@ -1,3 +1,4 @@
+/// <reference path="./convex-env.d.ts" />
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
@@ -20,7 +21,10 @@ export const processNewResumes = internalAction({
   args: {
     resumeIds: v.array(v.id("resumes")),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ processed: number; error: string | null }> => {
     const { resumeIds } = args;
 
     if (resumeIds.length === 0) {
@@ -31,7 +35,7 @@ export const processNewResumes = internalAction({
 
     try {
       // 1. Fetch resume documents
-      const resumes = await ctx.runQuery(internal.resumes.getResumesByIds, {
+      const resumes: Array<{ _id: Id<"resumes">; content: Record<string, unknown> }> = await ctx.runQuery(internal.resumes.getResumesByIds, {
         resumeIds,
       });
 
@@ -42,7 +46,7 @@ export const processNewResumes = internalAction({
 
       // 2. Prepare payload for BFF
       const payload = {
-        resumes: resumes.map((resume) => ({
+        resumes: resumes.map((resume: { _id: Id<"resumes">; content: Record<string, unknown> }) => ({
           resumeId: resume._id,
           content: resume.content,
         })),

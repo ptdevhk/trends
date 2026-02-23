@@ -21,6 +21,8 @@ interface ResumeCardProps {
   onViewDetails: () => void
   matchResult?: MatchingResult
   ruleScore?: number
+  industryTags?: string[]
+  experienceLevel?: string
   showAiScore?: boolean
   actionType?: CandidateActionType
   onAction?: (actionType: CandidateActionType) => void
@@ -54,6 +56,8 @@ export function ResumeCard({
   jobDescriptionId,
   jobDescription,
   isReviewed,
+  industryTags,
+  experienceLevel,
 }: ResumeCardProps) {
   const { t } = useTranslation()
   const [showOutreach, setShowOutreach] = useState(false)
@@ -89,6 +93,18 @@ export function ResumeCard({
       : scoreSource === 'rule'
         ? 'bg-amber-500 text-white border-amber-600'
         : ''
+  const visibleIndustryTags = (industryTags ?? [])
+    .filter((tag) => tag.trim().length > 0)
+    .slice(0, 4)
+  const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase()
+  const experienceBadge =
+    normalizedExperienceLevel === 'senior'
+      ? { label: '资深', className: 'border-orange-200 bg-orange-50 text-orange-700' }
+      : normalizedExperienceLevel === 'mid'
+        ? { label: '中级', className: 'border-teal-200 bg-teal-50 text-teal-700' }
+        : normalizedExperienceLevel === 'junior'
+          ? { label: '初级', className: 'border-zinc-200 bg-zinc-50 text-zinc-600' }
+          : null
 
   return (
     <div className="mb-3 overflow-hidden rounded-lg border bg-card">
@@ -148,6 +164,20 @@ export function ResumeCard({
             </Badge>
           </div>
         ) : null}
+        {experienceBadge ? (
+          <Badge variant="outline" className={cn('text-[10px]', experienceBadge.className)}>
+            {experienceBadge.label}
+          </Badge>
+        ) : null}
+        {visibleIndustryTags.map((tag, index) => (
+          <Badge
+            key={`${tag}-${index}`}
+            variant="outline"
+            className="text-[10px] border-violet-200 bg-violet-50 text-violet-700"
+          >
+            {tag}
+          </Badge>
+        ))}
       </div>
 
       <div className="flex flex-col gap-4 p-4 lg:flex-row">

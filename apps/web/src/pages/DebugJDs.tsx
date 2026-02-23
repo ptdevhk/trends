@@ -19,6 +19,14 @@ import { formatInAppTimezone } from '@/lib/timezone'
 type SortColumn = 'title' | 'type' | 'lastModified' | 'usageCount'
 type SortDirection = 'asc' | 'desc'
 
+function getUsageCount(value: unknown): number {
+    if (typeof value !== 'object' || value === null || !('usageCount' in value)) {
+        return 0
+    }
+    const rawUsageCount = value.usageCount
+    return typeof rawUsageCount === 'number' && Number.isFinite(rawUsageCount) ? rawUsageCount : 0
+}
+
 export default function DebugJDs() {
     const { t } = useTranslation()
     const jds = useQuery(api.job_descriptions.list_with_usage)
@@ -64,7 +72,7 @@ export default function DebugJDs() {
             }
 
             if (sortColumn === 'usageCount') {
-                return ((a as any).usageCount - (b as any).usageCount) * direction
+                return (getUsageCount(a) - getUsageCount(b)) * direction
             }
 
             return a.type.localeCompare(b.type, undefined, { sensitivity: 'base' }) * direction
@@ -385,7 +393,7 @@ export default function DebugJDs() {
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="outline" className="bg-muted text-xs">
-                                            {(jd as any).usageCount || 0} {t('jdManagement.usageSuffix', { defaultValue: 'Analysis' })}
+                                            {getUsageCount(jd)} {t('jdManagement.usageSuffix', { defaultValue: 'Analysis' })}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
@@ -502,7 +510,7 @@ export default function DebugJDs() {
                         <div>{t('jdManagement.deleteConfirm')}</div>
                         {deleteId && (() => {
                             const jd = jds?.find(j => j._id === deleteId)
-                            const count = (jd as any)?.usageCount || 0
+                            const count = getUsageCount(jd)
                             if (count > 0) {
                                 return (
                                     <div className="flex items-start gap-2 p-3 bg-warning/10 text-orange-600 rounded-md border border-warning/20 text-sm">
@@ -536,7 +544,7 @@ export default function DebugJDs() {
                         <div>{t('jdManagement.confirmBulkDelete', { count: selectedIds.size })}</div>
                         {(() => {
                             const selectedJDs = jds?.filter(jd => selectedIds.has(jd._id)) || []
-                            const totalUsage = selectedJDs.reduce((acc, jd) => acc + ((jd as any).usageCount || 0), 0)
+                            const totalUsage = selectedJDs.reduce((acc, jd) => acc + getUsageCount(jd), 0)
                             if (totalUsage > 0) {
                                 return (
                                     <div className="flex items-start gap-2 p-3 bg-warning/10 text-orange-600 rounded-md border border-warning/20 text-sm">

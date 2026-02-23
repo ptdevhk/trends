@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
 import { resolveSubmitResumeParallelism } from "./lib/parallelism";

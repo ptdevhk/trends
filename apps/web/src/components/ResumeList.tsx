@@ -828,24 +828,30 @@ export function ResumeList() {
             description={t('resumes.noResumesDesc', 'Try adjusting your filters or search keywords.')}
           />
         ) : (
-          displayedResumes.map((entry) => (
-            <ResumeCard
-              key={entry.key}
-              resume={entry.resume}
-              matchResult={entry.match}
-              ruleScore={entry.ruleScore}
-              showAiScore={entry.match?.scoreSource === 'ai'}
-              actionType={entry.action}
-              onAction={(action) => handleCardAction(entry.key, action)}
-              onViewDetails={() => {
-                setDetailResume(entry.resume)
-                trackReviewedResume(entry.key)
-              }}
-              selected={selectedIds.has(entry.key)}
-              onSelect={() => handleToggleSelect(entry.key)}
-              isReviewed={reviewedIdsSet.has(entry.key)}
-            />
-          ))
+          displayedResumes.map((entry) => {
+            const ingestData = hasIngestData(entry.resume) ? entry.resume.ingestData : undefined
+
+            return (
+              <ResumeCard
+                key={entry.key}
+                resume={entry.resume}
+                matchResult={entry.match}
+                ruleScore={entry.ruleScore}
+                industryTags={ingestData?.industryTags}
+                experienceLevel={ingestData?.experienceLevel}
+                showAiScore={entry.match?.scoreSource === 'ai'}
+                actionType={entry.action}
+                onAction={(action) => handleCardAction(entry.key, action)}
+                onViewDetails={() => {
+                  setDetailResume(entry.resume)
+                  trackReviewedResume(entry.key)
+                }}
+                selected={selectedIds.has(entry.key)}
+                onSelect={() => handleToggleSelect(entry.key)}
+                isReviewed={reviewedIdsSet.has(entry.key)}
+              />
+            )
+          })
         )}
       </div>
       <ResumeDetail
