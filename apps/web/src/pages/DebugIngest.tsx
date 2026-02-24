@@ -46,6 +46,10 @@ function parseSkillsVersionPayload(value: unknown): number | null {
   return typeof value.version === 'number' ? value.version : null
 }
 
+function toBrandLabel(value: string): string {
+  return value.toUpperCase()
+}
+
 export default function DebugIngest() {
   const { t } = useTranslation()
   const { resumes, loading } = useConvexResumes(500)
@@ -283,6 +287,19 @@ export default function DebugIngest() {
                               <div>
                                 <span className="font-medium">{t('debugIngest.companyHits', { defaultValue: 'Company Hits' })}:</span>{' '}
                                 {ingestData.companyHits.length > 0 ? ingestData.companyHits.join(', ') : '--'}
+                              </div>
+                              <div className="md:col-span-2">
+                                <span className="font-medium">{t('debugIngest.brandHits', { defaultValue: 'Brand Hits' })}:</span>{' '}
+                                {ingestData.brandHits.length > 0
+                                  ? ingestData.brandHits
+                                    .map((hit) => {
+                                      const sourceLabel = t(`debugIngest.brandSource.${hit.source}`, { defaultValue: hit.source })
+                                      const contextLabel = t(`debugIngest.brandContext.${hit.context}`, { defaultValue: hit.context })
+                                      const roleLabel = t(`debugIngest.brandRole.${hit.role}`, { defaultValue: hit.role })
+                                      return `${toBrandLabel(hit.brand)} (${sourceLabel} / ${contextLabel} / ${roleLabel})`
+                                    })
+                                    .join('; ')
+                                  : '--'}
                               </div>
                               <div>
                                 <span className="font-medium">{t('debugIngest.experienceLevel', { defaultValue: 'Experience Level' })}:</span>{' '}

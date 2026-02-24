@@ -91,6 +91,7 @@ export const processNewResumes = internalAction({
         ingestData: {
           industryTags: item.industryTags,
           synonymHits: item.synonymHits,
+          brandHits: item.brandHits || [],
           companyHits: item.companyHits || [],
           ruleScores: item.ruleScores,
           experienceLevel: item.experienceLevel,

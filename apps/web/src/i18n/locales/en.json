@@ -106,6 +106,24 @@
     "staleBadge": "Stale",
     "fresh": "Fresh",
     "industryTags": "Industry Tags",
+    "brandHits": "Brand Hits",
+    "brandSource": {
+      "workHistory": "Work History",
+      "selfIntro": "Self Intro",
+      "jobIntention": "Job Intention"
+    },
+    "brandContext": {
+      "employer": "Employer",
+      "equipment": "Equipment",
+      "sales": "Sales",
+      "technical": "Technical",
+      "general": "General"
+    },
+    "brandRole": {
+      "employer": "Employer Brand",
+      "equipment": "Equipment Brand",
+      "both": "Dual-role Brand"
+    },
     "companyHits": "Company Hits",
     "experienceLevel": "Experience Level",
     "ruleScoreCount": "Rule Scores",

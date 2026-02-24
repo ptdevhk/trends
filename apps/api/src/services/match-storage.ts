@@ -67,12 +67,16 @@ function parseJsonObject(
     ];
     const hasAllKeys = requiredKeys.every((key) => typeof parsed[key] === "number");
     if (!hasAllKeys) return undefined;
+    const brandRelevance = typeof parsed.brandRelevance === "number"
+      ? Number(parsed.brandRelevance)
+      : 0;
     return {
       skillMatch: Number(parsed.skillMatch),
       experienceMatch: Number(parsed.experienceMatch),
       educationMatch: Number(parsed.educationMatch),
       locationMatch: Number(parsed.locationMatch),
       industryMatch: Number(parsed.industryMatch),
+      brandRelevance,
     };
   } catch {
     return undefined;

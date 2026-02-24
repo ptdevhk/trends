@@ -16,6 +16,12 @@ export type ConvexResumeAnalysis = {
 export type ConvexIngestData = {
   industryTags: string[]
   synonymHits: string[]
+  brandHits: Array<{
+    brand: string
+    role: string
+    source: string
+    context: string
+  }>
   companyHits: string[]
   ruleScores: Record<string, number>
   experienceLevel: string
@@ -130,6 +136,31 @@ function parseRuleScores(value: unknown): Record<string, number> {
   return parsed
 }
 
+function parseBrandHits(value: unknown): ConvexIngestData['brandHits'] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null
+      }
+
+      const brand = toStringValue(item.brand)
+      const role = toStringValue(item.role)
+      const source = toStringValue(item.source)
+      const context = toStringValue(item.context)
+
+      if (!brand || !role || !source || !context) {
+        return null
+      }
+
+      return { brand, role, source, context }
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+}
+
 function parseAnalysesMap(value: unknown): Record<string, ConvexResumeAnalysis> | undefined {
   if (!isRecord(value)) {
     return undefined
@@ -160,6 +191,7 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
   return {
     industryTags: toStringArray(value.industryTags),
     synonymHits: toStringArray(value.synonymHits),
+    brandHits: parseBrandHits(value.brandHits),
     companyHits: toStringArray(value.companyHits),
     ruleScores: parseRuleScores(value.ruleScores),
     experienceLevel: toStringValue(value.experienceLevel) || 'unknown',

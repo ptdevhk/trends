@@ -40,6 +40,7 @@ export interface CompanyPattern {
   name: string;
   aliases: string[];
   allNames: string[];
+  role: "employer" | "equipment" | "both";
 }
 
 /**
@@ -352,17 +353,23 @@ export class SkillsKnowledgeService {
     const lines = section.split("\n");
 
     for (const line of lines) {
-      // Match: - NAME (aliases: a1, a2, a3)
-      const match = line.match(/^-\s*([^(]+)\s*\(aliases:\s*([^)]+)\)$/);
+      // Match: - NAME [role: both] (aliases: a1, a2, a3)
+      const match = line.match(
+        /^-\s*([^([]+?)\s*(?:\[role:\s*(employer|equipment|both)\])?\s*\(aliases:\s*([^)]+)\)$/i
+      );
       if (match) {
         const name = match[1].trim().toLowerCase();
-        const aliases = match[2]
+        const rawRole = match[2]?.trim().toLowerCase();
+        const role: CompanyPattern["role"] = rawRole === "employer" || rawRole === "equipment" || rawRole === "both"
+          ? rawRole
+          : "both";
+        const aliases = match[3]
           .split(",")
           .map((a) => a.trim().toLowerCase())
           .filter((a) => a.length > 0);
 
         const allNames = [name, ...aliases];
-        patterns.push({ name, aliases, allNames });
+        patterns.push({ name, aliases, allNames, role });
       }
     }
 

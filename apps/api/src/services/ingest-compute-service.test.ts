@@ -51,9 +51,10 @@ description: Test skills knowledge file
 
 ## Company Patterns
 
-- STAR (aliases: 星, STAR机床, スター精密)
-- FANUC (aliases: 发那科, ファナック)
-- HAAS (aliases: 哈斯, Haas Automation)
+- STAR [role: both] (aliases: 星, STAR机床, スター精密)
+- FANUC [role: both] (aliases: 发那科, ファナック)
+- HAAS [role: equipment] (aliases: 哈斯, Haas Automation)
+- MAZAK [role: both] (aliases: 马扎克, Yamazaki Mazak)
 
 ## Industry Context
 
@@ -249,10 +250,93 @@ describe("IngestComputeService", () => {
     expect(result.skillsVersion).toBe(42);  // from TEST_SKILLS_MD
   });
 
+  it("should classify selfIntro brand mentions as equipment context", () => {
+    const equipmentResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          selfIntro: "熟悉发那科与马扎克机台操作，具备设备使用经验。",
+          jobIntention: "CNC操作员",
+          workHistory: [],
+        },
+      ],
+    };
+    const result = service.computeOne("resume-equipment", equipmentResume);
+
+    expect(result.brandHits).toContainEqual({
+      brand: "fanuc",
+      role: "both",
+      source: "selfIntro",
+      context: "equipment",
+    });
+  });
+
+  it("should classify workHistory brand mentions as employer context", () => {
+    const employerResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          selfIntro: "负责机器人自动化项目交付。",
+          workHistory: [
+            { raw: "2020-01~2023-12(3年11月)上海发那科机器人有限公司销售工程师" },
+          ],
+        },
+      ],
+    };
+    const result = service.computeOne("resume-employer", employerResume);
+
+    expect(result.brandHits).toContainEqual({
+      brand: "fanuc",
+      role: "both",
+      source: "workHistory",
+      context: "employer",
+    });
+  });
+
+  it("should classify STAR sales mention as sales context", () => {
+    const salesResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          selfIntro: "负责STAR销售、渠道拓展与客户拜访。",
+          jobIntention: "机床销售工程师",
+          workHistory: [],
+        },
+      ],
+    };
+    const result = service.computeOne("resume-sales", salesResume);
+
+    expect(result.brandHits).toContainEqual({
+      brand: "star",
+      role: "both",
+      source: "selfIntro",
+      context: "sales",
+    });
+  });
+
+  it("should dedupe repeated brand mentions in same source/context", () => {
+    const dedupeResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          selfIntro: "发那科设备使用经验，发那科机台操作，发那科设备熟悉。",
+          workHistory: [],
+        },
+      ],
+    };
+    const result = service.computeOne("resume-dedupe", dedupeResume);
+
+    const fanucEquipmentHits = result.brandHits.filter((hit) =>
+      hit.brand === "fanuc" && hit.source === "selfIntro" && hit.context === "equipment"
+    );
+    expect(fanucEquipmentHits).toHaveLength(1);
+  });
+
   it("should compute companyHits and alias tokens from STAR mention", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
     expect(result.companyHits).toContain("star");
+    expect(result.companyHits).toEqual(Array.from(new Set(result.brandHits.map((hit) => hit.brand))));
     expect(result.companyAliasTokens).toContain("スター精密");
   });
 
@@ -291,6 +375,7 @@ describe("IngestComputeService", () => {
     expect(results[1].resumeId).toBe("resume-456");
     expect(results[0].experienceLevel).toBe("senior");
     expect(results[1].experienceLevel).toBe("junior");
+    expect(results.every((item) => Array.isArray(item.brandHits))).toBe(true);
     expect(results.every((item) => Array.isArray(item.companyHits))).toBe(true);
     expect(results.every((item) => typeof item.companyAliasTokens === "string")).toBe(true);
   });

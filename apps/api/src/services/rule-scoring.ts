@@ -4,6 +4,15 @@ import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import type { MatchingResult } from "./ai-matching.js";
 import type { ResumeIndex } from "./resume-index.js";
 
+export type BrandContext = "employer" | "equipment" | "sales" | "technical" | "general";
+
+export interface BrandHit {
+  brand: string;
+  role: "employer" | "equipment" | "both";
+  source: "workHistory" | "selfIntro" | "jobIntention";
+  context: BrandContext;
+}
+
 export interface RuleScoringResult {
   score: number;
   recommendation: MatchingResult["recommendation"];
@@ -13,7 +22,9 @@ export interface RuleScoringResult {
     educationMatch: number;
     locationMatch: number;
     industryMatch: number;
+    brandRelevance: number;
   };
+  brandContext?: BrandHit[];
   matchedSkills: string[];
   matchedCompanies: string[];
 }
@@ -27,6 +38,7 @@ export interface RuleScoringContext {
   educationRequirements: string[];
   industryKeywords: string[];
   industryTags: string[];
+  brandKeywords?: string[];
 }
 
 const EDUCATION_RANK: Record<string, number> = {
@@ -179,6 +191,7 @@ export class RuleScoringService {
 
     const industryMap = getIndustryMap(this.skillsService);
     const industryTags = this.inferIndustryTags(industryKeywords, industryMap);
+    const brandKeywords = this.inferBrandKeywords(keywords);
 
     return {
       jobDescriptionId,
@@ -189,6 +202,7 @@ export class RuleScoringService {
       educationRequirements,
       industryKeywords,
       industryTags,
+      brandKeywords,
     };
   }
 
@@ -201,6 +215,7 @@ export class RuleScoringService {
     const targetLocations = normalizedLocation ? [normalizedLocation] : [];
     const industryMap = getIndustryMap(this.skillsService);
     const industryTags = this.inferIndustryTags(cleanKeywords, industryMap);
+    const brandKeywords = this.inferBrandKeywords(cleanKeywords);
 
     return {
       jobDescriptionId: "keyword-search",
@@ -211,6 +226,7 @@ export class RuleScoringService {
       educationRequirements: [],
       industryKeywords: cleanKeywords,
       industryTags,
+      brandKeywords,
     };
   }
 
@@ -227,13 +243,39 @@ export class RuleScoringService {
     return Array.from(tags);
   }
 
-  scoreResume(index: ResumeIndex, context: RuleScoringContext): RuleScoringResult {
+  private inferBrandKeywords(tokens: string[]): string[] {
+    if (tokens.length === 0) {
+      return [];
+    }
+
+    const normalizedTokens = tokens.map((token) => token.toLowerCase());
+    const matches = new Set<string>();
+
+    try {
+      const patterns = this.skillsService.getCompanyPatterns();
+      for (const pattern of patterns) {
+        const aliases = pattern.allNames.map((name) => name.toLowerCase());
+        const hasMatch = normalizedTokens.some((token) =>
+          aliases.some((alias) => token.includes(alias) || alias.includes(token))
+        );
+        if (hasMatch) {
+          matches.add(pattern.name.toLowerCase());
+        }
+      }
+    } catch (error) {
+      console.error("[RuleScoring] Failed to infer brand keywords:", error);
+    }
+
+    return Array.from(matches);
+  }
+
+  scoreResume(index: ResumeIndex, context: RuleScoringContext, brandHits: BrandHit[] = []): RuleScoringResult {
     const matchedSkills = context.keywords.filter((keyword) =>
       index.searchText.includes(keyword) || index.skills.some((skill) => skill.includes(keyword))
     );
 
     const skillMatch = context.keywords.length > 0
-      ? Math.round((matchedSkills.length / context.keywords.length) * 30)
+      ? Math.round((matchedSkills.length / context.keywords.length) * 25)
       : 0;
 
     let experienceMatch = 0;
@@ -281,9 +323,38 @@ export class RuleScoringService {
       ? index.industryTags.filter((tag) => context.industryTags.includes(tag)).length / context.industryTags.length
       : 0;
     const industryRatio = Math.max(keywordRatio, tagRatio);
-    const industryMatch = Math.round(Math.min(1, industryRatio) * 15);
+    const industryMatch = Math.round(Math.min(1, industryRatio) * 10);
 
-    const rawScore = skillMatch + experienceMatch + educationMatch + locationMatch + industryMatch;
+    const normalizedBrandKeywords = (context.brandKeywords ?? [])
+      .map((brand) => brand.toLowerCase())
+      .filter((brand) => brand.length > 0);
+    const hasBrandKeywordTargets = normalizedBrandKeywords.length > 0;
+    const matchedBrandHits = hasBrandKeywordTargets
+      ? brandHits.filter((hit) => normalizedBrandKeywords.includes(hit.brand.toLowerCase()))
+      : brandHits;
+
+    const contextWeightWithBrandKeyword: Record<BrandContext, number> = {
+      employer: 10,
+      sales: 9,
+      equipment: 7,
+      technical: 6,
+      general: 4,
+    };
+    const contextWeightNoBrandKeyword: Record<BrandContext, number> = {
+      employer: 4,
+      sales: 3,
+      equipment: 2,
+      technical: 2,
+      general: 1,
+    };
+    const contextWeights = hasBrandKeywordTargets
+      ? contextWeightWithBrandKeyword
+      : contextWeightNoBrandKeyword;
+
+    const brandRelevance = matchedBrandHits.reduce((maxScore, hit) =>
+      Math.max(maxScore, contextWeights[hit.context] ?? 0), 0);
+
+    const rawScore = skillMatch + experienceMatch + educationMatch + locationMatch + industryMatch + brandRelevance;
     const score = Math.max(0, Math.min(100, rawScore));
 
     return {
@@ -295,7 +366,9 @@ export class RuleScoringService {
         educationMatch,
         locationMatch,
         industryMatch,
+        brandRelevance,
       },
+      brandContext: matchedBrandHits,
       matchedSkills,
       matchedCompanies,
     };
@@ -311,6 +384,8 @@ export class RuleScoringService {
   toMatchingResult(result: RuleScoringResult): MatchingResult {
     const highlights: string[] = [];
     const concerns: string[] = [];
+    const formatBrands = (brands: Set<string>): string =>
+      Array.from(brands).slice(0, 3).map((brand) => brand.toUpperCase()).join("、");
 
     if (result.matchedSkills.length > 0) {
       highlights.push(`命中关键词: ${result.matchedSkills.slice(0, 6).join("、")}`);
@@ -331,13 +406,40 @@ export class RuleScoringService {
     if (result.matchedCompanies.length > 0) {
       highlights.push(`相关公司经历: ${result.matchedCompanies.slice(0, 3).join("、")}`);
     }
+    if (Array.isArray(result.brandContext) && result.brandContext.length > 0) {
+      const employerBrands = new Set(
+        result.brandContext
+          .filter((item) => item.context === "employer")
+          .map((item) => item.brand)
+      );
+      const salesBrands = new Set(
+        result.brandContext
+          .filter((item) => item.context === "sales")
+          .map((item) => item.brand)
+      );
+      const equipmentBrands = new Set(
+        result.brandContext
+          .filter((item) => item.context === "equipment")
+          .map((item) => item.brand)
+      );
+
+      if (employerBrands.size > 0) {
+        highlights.push(`品牌雇主经历: ${formatBrands(employerBrands)}`);
+      }
+      if (salesBrands.size > 0) {
+        highlights.push(`品牌销售经验: ${formatBrands(salesBrands)}`);
+      }
+      if (equipmentBrands.size > 0) {
+        highlights.push(`品牌设备经验: ${formatBrands(equipmentBrands)}`);
+      }
+    }
 
     return {
       score: result.score,
       recommendation: result.recommendation,
       highlights,
       concerns,
-      summary: `规则评分 ${result.score} 分，技能匹配 ${result.breakdown.skillMatch}/30，经验 ${result.breakdown.experienceMatch}/25。`,
+      summary: `规则评分 ${result.score} 分，技能匹配 ${result.breakdown.skillMatch}/25，经验 ${result.breakdown.experienceMatch}/25，品牌相关 ${result.breakdown.brandRelevance}/10。`,
       breakdown: result.breakdown,
       matchedSkills: result.matchedSkills,
       matchedCompanies: result.matchedCompanies,

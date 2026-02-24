@@ -2718,6 +2718,8 @@ export interface components {
             locationMatch: number;
             /** @example 10 */
             industryMatch: number;
+            /** @example 7 */
+            brandRelevance: number;
         };
         ResumeMatch: {
             /** @example R123456 */

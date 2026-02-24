@@ -106,6 +106,24 @@
     "staleBadge": "过期",
     "fresh": "最新",
     "industryTags": "行业标签",
+    "brandHits": "品牌命中",
+    "brandSource": {
+      "workHistory": "工作经历",
+      "selfIntro": "自我介绍",
+      "jobIntention": "求职意向"
+    },
+    "brandContext": {
+      "employer": "雇主经历",
+      "equipment": "设备经验",
+      "sales": "销售经验",
+      "technical": "技术经验",
+      "general": "泛相关"
+    },
+    "brandRole": {
+      "employer": "雇主品牌",
+      "equipment": "设备品牌",
+      "both": "双向品牌"
+    },
     "companyHits": "公司命中",
     "experienceLevel": "经验等级",
     "ruleScoreCount": "规则分数量",

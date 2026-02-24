@@ -37,6 +37,29 @@ auto_match:
     "utf8"
   );
 
+  fs.writeFileSync(
+    path.join(root, "config", "resume", "skills.md"),
+    `---
+version: 1
+updated_at: '2026-02-24'
+---
+
+# Skills Knowledge
+
+## Domain Taxonomy
+
+### cnc
+- displayName: CNC
+- keywords: cnc, 数控, fanuc
+
+## Company Patterns
+
+- FANUC [role: both] (aliases: 发那科, Fanuc)
+- STAR [role: both] (aliases: 津上, Star Micronics)
+`,
+    "utf8"
+  );
+
   return root;
 }
 
@@ -56,7 +79,7 @@ describe("RuleScoringService", () => {
       expect(context.title).toBe("cnc, 车床");
       expect(context.keywords).toEqual(["cnc", "车床"]);
       expect(context.targetLocations).toEqual(["广东"]);
-      expect(context.industryTags).toEqual(expect.arrayContaining(["cnc", "machinery"]));
+      expect(context.industryTags).toEqual(["cnc"]);
     } finally {
       cleanupFixtureRoot(root);
     }
@@ -101,6 +124,7 @@ describe("RuleScoringService", () => {
       expect(weakScore.recommendation === "potential" || weakScore.recommendation === "no_match").toBe(true);
       expect(strongScore.breakdown.skillMatch).toBeGreaterThan(0);
       expect(strongScore.breakdown.locationMatch).toBe(15);
+      expect(strongScore.breakdown.brandRelevance).toBe(0);
     } finally {
       cleanupFixtureRoot(root);
     }
@@ -153,6 +177,68 @@ describe("RuleScoringService", () => {
         dongguanContext
       );
       expect(dongguanScore.breakdown.locationMatch).toBe(15);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("applies higher brand relevance when JD includes brand keyword", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["发那科", "销售"], "东莞");
+
+      const index: ResumeIndex = {
+        resumeId: "R-brand",
+        experienceYears: 5,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        skills: ["销售", "cnc"],
+        companies: ["上海发那科机器人有限公司"],
+        industryTags: ["cnc", "sales"],
+        salaryRange: { min: 10000, max: 18000 },
+        searchText: "东莞 发那科 销售 cnc",
+      };
+
+      const equipmentResult = service.scoreResume(index, context, [
+        { brand: "fanuc", role: "both", source: "selfIntro", context: "equipment" },
+      ]);
+      const employerResult = service.scoreResume(index, context, [
+        { brand: "fanuc", role: "both", source: "workHistory", context: "employer" },
+      ]);
+
+      expect(equipmentResult.breakdown.brandRelevance).toBe(7);
+      expect(employerResult.breakdown.brandRelevance).toBe(10);
+      expect(employerResult.score).toBeGreaterThan(equipmentResult.score);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("uses low brand weights when JD has no brand keyword", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["cnc", "销售"], "东莞");
+
+      const index: ResumeIndex = {
+        resumeId: "R-brand-low",
+        experienceYears: 4,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        skills: ["销售", "cnc"],
+        companies: [],
+        industryTags: ["cnc"],
+        salaryRange: { min: 9000, max: 16000 },
+        searchText: "东莞 cnc 销售",
+      };
+
+      const result = service.scoreResume(index, context, [
+        { brand: "fanuc", role: "both", source: "workHistory", context: "employer" },
+      ]);
+      expect(result.breakdown.brandRelevance).toBe(4);
     } finally {
       cleanupFixtureRoot(root);
     }

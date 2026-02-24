@@ -21,6 +21,7 @@ export type MatchBreakdown = {
   educationMatch: number
   locationMatch: number
   industryMatch: number
+  brandRelevance: number
 }
 
 export type MatchingResult = {

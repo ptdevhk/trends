@@ -10,10 +10,20 @@ export interface IngestInput {
   content: unknown;  // raw crawler JSON
 }
 
+export type BrandContext = "employer" | "equipment" | "sales" | "technical" | "general";
+
+export interface BrandHit {
+  brand: string;
+  role: "employer" | "equipment" | "both";
+  source: "workHistory" | "selfIntro" | "jobIntention";
+  context: BrandContext;
+}
+
 export interface IngestResult {
   resumeId: string;
   industryTags: string[];
   synonymHits: string[];
+  brandHits: BrandHit[];
   companyHits: string[];
   companyAliasTokens: string;
   ruleScores: Record<string, number>;  // jdId → score (0-100)
@@ -204,6 +214,11 @@ function createSearchText(item: ResumeItem): string {
   return normalizeText(parts.join(" "));
 }
 
+const BRAND_CONTEXT_WINDOW = 30;
+const EQUIPMENT_SIGNALS = ["操作", "使用", "熟练", "熟悉", "机台", "机型", "设备", "机床"];
+const SALES_SIGNALS = ["销售", "代理", "渠道", "推广", "业务", "客户"];
+const TECHNICAL_SIGNALS = ["维修", "调试", "编程", "安装", "保养", "维护"];
+
 /**
  * Build a single ResumeIndex from a ResumeItem
  * (extracted helper from ResumeIndexService.buildIndex)
@@ -255,17 +270,18 @@ export class IngestComputeService {
     // 2. Compute synonymHits
     const synonymHits = this.computeSynonymHits(searchText);
 
-    // 3. Compute ruleScores for all active JDs
-    const ruleScores = this.computeRuleScores(index);
+    // 3. Compute field-aware brandHits, then derive companyHits for backward compatibility
+    const brandHits = this.computeBrandHits(item, index.companies, searchText);
+    const companyHits = Array.from(new Set(brandHits.map((hit) => hit.brand)));
+    const companyAliasTokens = this.buildCompanyAliasTokens(companyHits);
+
+    // 4. Compute ruleScores for all active JDs
+    const ruleScores = this.computeRuleScores(index, brandHits);
     const scoreValues = Object.values(ruleScores);
     const primaryRuleScore = scoreValues.length > 0 ? Math.max(...scoreValues) : 0;
 
-    // 4. Compute experienceLevel
+    // 5. Compute experienceLevel
     const experienceLevel = this.computeExperienceLevel(searchText);
-
-    // 5. Compute companyHits + alias tokens for cross-language company matching
-    const companyHits = this.computeCompanyHits(index.companies, searchText);
-    const companyAliasTokens = this.buildCompanyAliasTokens(companyHits);
 
     // 6. Get skills version
     const skillsVersion = this.skillsKnowledgeService.getVersion();
@@ -274,6 +290,7 @@ export class IngestComputeService {
       resumeId,
       industryTags,
       synonymHits,
+      brandHits,
       companyHits,
       companyAliasTokens,
       ruleScores,
@@ -330,14 +347,14 @@ export class IngestComputeService {
   /**
    * Compute rule scores for all active JDs
    */
-  private computeRuleScores(index: ResumeIndex): Record<string, number> {
+  private computeRuleScores(index: ResumeIndex, brandHits: BrandHit[]): Record<string, number> {
     const jds = this.jobDescriptionService.listFiles().filter((jd) => jd.status === "active");
     const scores: Record<string, number> = {};
 
     for (const jd of jds) {
       try {
         const context = this.ruleScoringService.buildContext(jd.name);
-        const result = this.ruleScoringService.scoreResume(index, context);
+        const result = this.ruleScoringService.scoreResume(index, context, brandHits);
         scores[jd.id] = result.score;
       } catch (error) {
         // Log error but don't fail the whole batch
@@ -384,34 +401,150 @@ export class IngestComputeService {
   }
 
   /**
-   * Compute matched canonical company names from extracted companies and search text.
+   * Compute field-aware brand hits from resume text segments.
    */
-  private computeCompanyHits(companies: string[], searchText: string): string[] {
+  private computeBrandHits(item: ResumeItem, companies: string[], searchText: string): BrandHit[] {
     const patterns = this.skillsKnowledgeService.getCompanyPatterns();
-    const normalizedCompanies = companies.map((company) => company.toLowerCase());
     const normalizedSearchText = searchText.toLowerCase();
+    const normalizedCompanies = companies
+      .map((company) => company.trim().toLowerCase())
+      .filter((company) => company.length > 0);
 
-    const hits: string[] = [];
+    const hits: BrandHit[] = [];
+    const dedupe = new Set<string>();
+
+    const collectFromSource = (
+      source: BrandHit["source"],
+      text: string,
+      candidateCompanies: string[],
+      patternName: string,
+      role: BrandHit["role"],
+      aliases: string[]
+    ): void => {
+      const normalizedText = text.toLowerCase();
+      if (!normalizedText) {
+        return;
+      }
+
+      for (const alias of aliases) {
+        const normalizedAlias = alias.trim().toLowerCase();
+        if (!normalizedAlias || normalizedAlias.length < 2) {
+          continue;
+        }
+        if (!normalizedText.includes(normalizedAlias)) {
+          continue;
+        }
+
+        let offset = 0;
+        while (offset <= normalizedText.length - normalizedAlias.length) {
+          const mentionIndex = normalizedText.indexOf(normalizedAlias, offset);
+          if (mentionIndex < 0) {
+            break;
+          }
+          const context = this.classifyBrandContext(
+            source,
+            normalizedText,
+            mentionIndex,
+            normalizedAlias,
+            candidateCompanies
+          );
+          const key = `${patternName}|${source}|${context}`;
+          if (!dedupe.has(key)) {
+            dedupe.add(key);
+            hits.push({
+              brand: patternName,
+              role,
+              source,
+              context,
+            });
+          }
+          offset = mentionIndex + normalizedAlias.length;
+        }
+      }
+    };
+
     for (const pattern of patterns) {
-      const matched = pattern.allNames.some((candidate) => {
-        const normalizedCandidate = candidate.toLowerCase().trim();
-        if (!normalizedCandidate) {
-          return false;
-        }
+      const aliases = pattern.allNames
+        .map((candidate) => candidate.trim().toLowerCase())
+        .filter((candidate) => candidate.length > 0);
 
-        if (normalizedSearchText.includes(normalizedCandidate)) {
-          return true;
-        }
+      if (!aliases.some((alias) => normalizedSearchText.includes(alias))) {
+        continue;
+      }
 
-        return normalizedCompanies.some((company) => company.includes(normalizedCandidate));
-      });
+      collectFromSource(
+        "selfIntro",
+        item.selfIntro || "",
+        normalizedCompanies,
+        pattern.name.toLowerCase(),
+        pattern.role,
+        aliases
+      );
+      collectFromSource(
+        "jobIntention",
+        item.jobIntention || "",
+        normalizedCompanies,
+        pattern.name.toLowerCase(),
+        pattern.role,
+        aliases
+      );
 
-      if (matched) {
-        hits.push(pattern.name.toLowerCase());
+      for (const entry of item.workHistory || []) {
+        const entryCompanies = extractCompanies([entry])
+          .map((company) => company.trim().toLowerCase())
+          .filter((company) => company.length > 0);
+        const candidateCompanies = Array.from(new Set([...normalizedCompanies, ...entryCompanies]));
+        collectFromSource(
+          "workHistory",
+          entry.raw || "",
+          candidateCompanies,
+          pattern.name.toLowerCase(),
+          pattern.role,
+          aliases
+        );
       }
     }
 
     return hits;
+  }
+
+  private classifyBrandContext(
+    source: BrandHit["source"],
+    text: string,
+    mentionIndex: number,
+    mention: string,
+    companies: string[]
+  ): BrandContext {
+    if (source === "workHistory") {
+      const employerMatch = companies.some((company) =>
+        company.includes(mention) || mention.includes(company)
+      );
+      if (employerMatch) {
+        return "employer";
+      }
+    }
+
+    const windowStart = Math.max(0, mentionIndex - BRAND_CONTEXT_WINDOW);
+    const windowEnd = Math.min(text.length, mentionIndex + mention.length + BRAND_CONTEXT_WINDOW);
+    const nearbyText = text.slice(windowStart, windowEnd);
+
+    if (SALES_SIGNALS.some((signal) => nearbyText.includes(signal))) {
+      return "sales";
+    }
+    if (TECHNICAL_SIGNALS.some((signal) => nearbyText.includes(signal))) {
+      return "technical";
+    }
+    if (EQUIPMENT_SIGNALS.some((signal) => nearbyText.includes(signal))) {
+      return "equipment";
+    }
+
+    if (source === "selfIntro") {
+      return "equipment";
+    }
+    if (source === "jobIntention") {
+      return "general";
+    }
+    return "employer";
   }
 
   /**
