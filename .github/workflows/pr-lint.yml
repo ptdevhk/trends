@@ -16,19 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate PR title
-        uses: amannn/action-semantic-pull-request@v5
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          requireScope: false
-          types: |
-            feat
-            fix
-            chore
-            docs
-            refactor
-            test
-            perf
-            ci
-            build
-            revert
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          pattern='^(feat|fix|chore|docs|refactor|test|perf|ci|build|revert)(\([^)]+\))?(!)?: .+'
+
+          if [[ "${PR_TITLE}" =~ ${pattern} ]]; then
+            echo "PR title is valid: ${PR_TITLE}"
+          else
+            echo "Invalid PR title: ${PR_TITLE}"
+            echo "Expected format: <type>(<optional-scope>)<optional-!>: <subject>"
+            echo "Allowed types: feat, fix, chore, docs, refactor, test, perf, ci, build, revert"
+            exit 1
+          fi
