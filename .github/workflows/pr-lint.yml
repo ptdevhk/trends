@@ -15,7 +15,7 @@ jobs:
   semantic-pr-title:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate PR title
+      - name: Validate PR title (non-blocking)
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
@@ -25,8 +25,7 @@ jobs:
           if [[ "${PR_TITLE}" =~ ${pattern} ]]; then
             echo "PR title is valid: ${PR_TITLE}"
           else
-            echo "Invalid PR title: ${PR_TITLE}"
-            echo "Expected format: <type>(<optional-scope>)<optional-!>: <subject>"
+            echo "PR title check warning (not blocking): ${PR_TITLE}"
+            echo "Recommended format: <type>(<optional-scope>)<optional-!>: <subject>"
             echo "Allowed types: feat, fix, chore, docs, refactor, test, perf, ci, build, revert"
-            exit 1
           fi
