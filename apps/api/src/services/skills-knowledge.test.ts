@@ -34,6 +34,11 @@ description: Test skills knowledge file
 - 车床: CNC车床, 数控车床
 - 数控: CNC, Computer Numerical Control
 - 销售: 业务, 商务
+- 机床销售: 车床销售
+- 销售岗位: 机床销售
+- 哈斯: 哈斯机床
+- 循环A: 循环B
+- 循环B: 循环A
 
 ## Experience Signals
 
@@ -71,6 +76,10 @@ B2B sales requires technical knowledge and customer relationship management.
 
 - 2026-02-10: STAR + 渠道客户优先
 - 2026-02-15: 车床经验5年+更匹配
+- 2026-02-18: synonym_suggestion: 哈斯设备 -> 哈斯
+- 2026-02-19: shortlist_pattern: star + 渠道客户 -> high_priority
+- 2026-02-20: reject_pattern: 培训岗 -> negative_signal
+- 2026-02-21: domain_expansion: machinery -> 哈斯
 `;
 
 function createFixtureRoot(): string {
@@ -136,6 +145,10 @@ describe("SkillsKnowledgeService", () => {
       expect(synonymMap.get("数控车床")).toBe("车床");
       expect(synonymMap.get("cnc")).toBe("数控");
       expect(synonymMap.get("业务")).toBe("销售");
+      expect(synonymMap.get("车床销售")).toBe("销售岗位");
+      expect(synonymMap.get("机床销售")).toBe("销售岗位");
+      expect(synonymMap.get("循环a")).toBe("循环b");
+      expect(synonymMap.get("循环b")).toBe("循环b");
 
       // Canonical terms should map to themselves
       expect(synonymMap.get("机床")).toBe("机床");
@@ -279,11 +292,11 @@ describe("SkillsKnowledgeService", () => {
       const service = new SkillsKnowledgeService(root);
       const log = service.getLearningLog();
 
-      expect(log).toHaveLength(2);
+      expect(log).toHaveLength(6);
       expect(log[0].date).toBe("2026-02-10");
       expect(log[0].observation).toBe("STAR + 渠道客户优先");
-      expect(log[1].date).toBe("2026-02-15");
-      expect(log[1].observation).toBe("车床经验5年+更匹配");
+      expect(log[5].date).toBe("2026-02-21");
+      expect(log[5].observation).toBe("domain_expansion: machinery -> 哈斯");
     } finally {
       cleanupFixtureRoot(root);
     }
@@ -299,11 +312,87 @@ describe("SkillsKnowledgeService", () => {
       expect(entry).toMatch(/^- \d{4}-\d{2}-\d{2}: shortlist pattern -> cnc \+ senior$/);
 
       const log = service.getLearningLog();
-      expect(log).toHaveLength(3);
-      expect(log[2]?.observation).toBe("shortlist pattern -> cnc + senior");
+      expect(log).toHaveLength(7);
+      expect(log[6]?.observation).toBe("shortlist pattern -> cnc + senior");
 
       const saved = fs.readFileSync(path.join(root, "config", "resume", "skills.md"), "utf8");
       expect(saved).toContain(entry);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("extracts structured actionable patterns from learning log", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new SkillsKnowledgeService(root);
+      const patterns = service.extractActionablePatterns();
+
+      expect(patterns).toHaveLength(4);
+      expect(patterns[0]).toEqual({
+        type: "synonym_suggestion",
+        date: "2026-02-18",
+        raw: "synonym_suggestion: 哈斯设备 -> 哈斯",
+        variant: "哈斯设备",
+        canonical: "哈斯",
+      });
+      expect(patterns[1]).toEqual({
+        type: "shortlist_pattern",
+        date: "2026-02-19",
+        raw: "shortlist_pattern: star + 渠道客户 -> high_priority",
+        keywords: ["star", "渠道客户"],
+        priority: "high_priority",
+      });
+      expect(patterns[2]).toEqual({
+        type: "reject_pattern",
+        date: "2026-02-20",
+        raw: "reject_pattern: 培训岗 -> negative_signal",
+        keyword: "培训岗",
+        negativeSignal: "negative_signal",
+      });
+      expect(patterns[3]).toEqual({
+        type: "domain_expansion",
+        date: "2026-02-21",
+        raw: "domain_expansion: machinery -> 哈斯",
+        tag: "machinery",
+        newKeyword: "哈斯",
+      });
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("generates synonym suggestions from zero-result queries", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new SkillsKnowledgeService(root);
+      const suggestions = service.generateSynonymSuggestions([
+        "哈斯设备 苏州",
+        "车床销售岗位 东莞",
+      ]);
+
+      expect(suggestions.some((item) => item.variant === "哈斯设备" && item.canonical === "哈斯")).toBe(true);
+      expect(suggestions.some((item) => item.variant === "销售岗位" && item.canonical === "销售岗位")).toBe(false);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("bumps skills version and updates frontmatter timestamp", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new SkillsKnowledgeService(root);
+      const nextVersion = service.bumpVersion();
+
+      expect(nextVersion).toBe(2);
+      expect(service.getVersion()).toBe(2);
+
+      const saved = fs.readFileSync(path.join(root, "config", "resume", "skills.md"), "utf8");
+      expect(saved).toContain("version: 2");
+      expect(saved).toMatch(/updated_at:\s*'\d{4}-\d{2}-\d{2}'/);
     } finally {
       cleanupFixtureRoot(root);
     }

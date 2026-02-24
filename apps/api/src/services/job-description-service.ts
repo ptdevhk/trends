@@ -64,6 +64,15 @@ export class JobDescriptionService {
     return path.join(this.projectRoot, "config", "job-descriptions");
   }
 
+  private normalizeName(name: string): string {
+    return name
+      .trim()
+      .replace(/\.md$/i, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
   /**
    * Parse YAML frontmatter from markdown content
    */
@@ -184,6 +193,29 @@ export class JobDescriptionService {
 
     this.cache.set(cacheKey, jd);
     return jd;
+  }
+
+  createFile(input: { name: string; content: string; overwrite?: boolean }): JobDescriptionFull {
+    const normalizedName = this.normalizeName(input.name);
+    if (!normalizedName) {
+      throw new Error("Invalid job description name");
+    }
+
+    const dir = this.getDescriptionsDir();
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    const filePath = path.join(dir, `${normalizedName}.md`);
+    if (!input.overwrite && fs.existsSync(filePath)) {
+      throw new Error(`Job description already exists: ${normalizedName}`);
+    }
+
+    const content = input.content.endsWith("\n") ? input.content : `${input.content}\n`;
+    fs.writeFileSync(filePath, content, "utf8");
+    this.cache.delete(normalizedName);
+
+    return this.loadFile(normalizedName);
   }
 
   /**

@@ -15,6 +15,7 @@ import {
   sessionsRoutes,
   actionsRoutes,
   searchProfilesRoutes,
+  searchAnalyticsRoutes,
   filterPresetsRoutes,
   configRoutes,
   notificationRoutes,
@@ -41,6 +42,7 @@ export const openApiConfig = {
     { name: "sessions", description: "Resume search sessions" },
     { name: "actions", description: "Candidate actions" },
     { name: "Search Profiles", description: "Search profile management" },
+    { name: "Search Analytics", description: "Search quality telemetry and suggestions" },
     { name: "Filter Presets", description: "Filter preset management" },
     { name: "Config", description: "Runtime configuration management" },
   ],
@@ -67,6 +69,7 @@ export function createApp() {
   app.route("/", actionsRoutes);
   app.route("/worker", workerRoutes);
   app.route("/api/search-profiles", searchProfilesRoutes);
+  app.route("/api/search-analytics", searchAnalyticsRoutes);
   app.route("/api/filter-presets", filterPresetsRoutes);
   app.route("/api/config", configRoutes);
   app.route("/api/notifications", notificationRoutes);
@@ -105,6 +108,7 @@ export function createApp() {
         industry_verify: "/api/industry/verify",
         job_descriptions: "/api/job-descriptions",
         search_profiles: "/api/search-profiles",
+        search_analytics: "/api/search-analytics",
         config: "/api/config",
       },
     });

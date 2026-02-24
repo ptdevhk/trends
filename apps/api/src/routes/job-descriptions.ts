@@ -28,6 +28,12 @@ const MatchRequestSchema = z.object({
   location: z.string().optional(),
 });
 
+const CreateRequestSchema = z.object({
+  name: z.string().trim().min(1),
+  content: z.string().trim().min(1),
+  overwrite: z.boolean().optional(),
+});
+
 const MatchResponseSchema = z.object({
   success: z.literal(true),
   matched: z.string().optional(),
@@ -73,6 +79,47 @@ app.openapi(listRoute, (c) => {
   const { includeReadme } = c.req.valid("query");
   const items = jobDescriptionService.listFiles(Boolean(includeReadme));
   return c.json({ success: true as const, items }, 200);
+});
+
+const createRouteDef = createRoute({
+  method: "post",
+  path: "/api/job-descriptions",
+  tags: ["job-descriptions"],
+  summary: "Create a job description file",
+  request: {
+    body: {
+      content: { "application/json": { schema: CreateRequestSchema } },
+    },
+  },
+  responses: {
+    201: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+            item: JobDescriptionFileSchema,
+            content: z.string(),
+          }),
+        },
+      },
+      description: "Created",
+    },
+    409: { description: "Already exists" },
+  },
+});
+
+app.openapi(createRouteDef, (c) => {
+  const { name, content, overwrite } = c.req.valid("json");
+  try {
+    const jd = jobDescriptionService.createFile({ name, content, overwrite });
+    return c.json({ success: true as const, item: jd, content: jd.content }, 201);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("already exists")) {
+      return c.json({ success: false, error: message }, 409);
+    }
+    return c.json({ success: false, error: message }, 400);
+  }
 });
 
 // ============================================================
@@ -188,4 +235,3 @@ app.openapi(getRoute, (c) => {
 });
 
 export default app;
-

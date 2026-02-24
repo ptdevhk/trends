@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { randomUUID } from "node:crypto";
 import {
@@ -27,6 +29,12 @@ import { RuleScoringService } from "../services/rule-scoring.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { IngestComputeService } from "../services/ingest-compute-service.js";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
+import { SearchEventLogger } from "../services/search-event-logger.js";
+import {
+  ExportService,
+  type ExportFormat,
+  type ResumeExportEntry,
+} from "../services/export-service.js";
 
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
@@ -40,6 +48,8 @@ const jobService = new JobDescriptionService(config.projectRoot);
 const ruleScoringService = new RuleScoringService(config.projectRoot);
 const ingestComputeService = new IngestComputeService(config.projectRoot);
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
+const searchEventLogger = new SearchEventLogger(config.projectRoot);
+const exportService = new ExportService();
 
 const DEFAULT_AI_TOP_N = 20;
 
@@ -69,6 +79,56 @@ const RescoreRequestSchema = z.object({
 const MatchRescoreResponseSchema = MatchResponseSchema;
 const LearningFeedbackRequestSchema = z.object({
   observation: z.string().trim().min(1),
+  action: z.enum(["shortlist", "reject"]).optional(),
+  resumeId: z.string().trim().min(1).optional(),
+  query: z.string().trim().min(1).optional(),
+  autoReingestLimit: z.number().int().min(1).max(1000).optional(),
+});
+const TriggerReingestRequestSchema = z.object({
+  limit: z.number().int().min(1).max(1000).optional(),
+});
+const ResumeExportRequestSchema = z.object({
+  format: z.enum(["csv", "xlsx"]).default("csv"),
+  entries: z
+    .array(
+      z.object({
+        key: z.string().min(1),
+        ruleScore: z.number().optional(),
+        action: z.string().optional(),
+        match: z
+          .object({
+            score: z.number(),
+            recommendation: z.string(),
+            scoreSource: z.enum(["rule", "ai"]).optional(),
+          })
+          .optional(),
+        resume: z.object({
+          name: z.string().optional(),
+          jobIntention: z.string().optional(),
+          location: z.string().optional(),
+          experience: z.string().optional(),
+          education: z.string().optional(),
+          expectedSalary: z.string().optional(),
+          profileUrl: z.string().optional(),
+          selfIntro: z.string().optional(),
+          workHistory: z
+            .array(
+              z.object({
+                raw: z.string().optional(),
+              })
+            )
+            .optional(),
+          ingestData: z
+            .object({
+              industryTags: z.array(z.string()).optional(),
+              companyHits: z.array(z.string()).optional(),
+            })
+            .optional(),
+        }),
+      })
+    )
+    .min(1)
+    .max(2000),
 });
 
 function stripFrontMatter(content: string): string {
@@ -139,6 +199,141 @@ function normalizeKeywords(keywords: string[] | undefined): string[] {
         .filter((item) => item.length > 0)
     )
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readEnvVarFromFile(filePath: string, key: string): string | null {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match || match[1] !== key) {
+      continue;
+    }
+
+    let value = match[2].trim();
+    const hasDoubleQuotes = value.startsWith("\"") && value.endsWith("\"");
+    const hasSingleQuotes = value.startsWith("'") && value.endsWith("'");
+    if (hasDoubleQuotes || hasSingleQuotes) {
+      value = value.slice(1, -1);
+    }
+
+    return value;
+  }
+
+  return null;
+}
+
+function resolveConvexUrl(): string {
+  if (process.env.CONVEX_URL) {
+    return process.env.CONVEX_URL;
+  }
+  if (process.env.VITE_CONVEX_URL) {
+    return process.env.VITE_CONVEX_URL;
+  }
+
+  const candidateFiles = [
+    path.join(config.projectRoot, "packages", "convex", ".env.local"),
+    path.join(config.projectRoot, "apps", "web", ".env.local"),
+    path.join(config.projectRoot, ".env.local"),
+    path.join(config.projectRoot, ".env"),
+  ];
+
+  for (const filePath of candidateFiles) {
+    const direct = readEnvVarFromFile(filePath, "CONVEX_URL");
+    if (direct) {
+      return direct;
+    }
+    const vite = readEnvVarFromFile(filePath, "VITE_CONVEX_URL");
+    if (vite) {
+      return vite;
+    }
+  }
+
+  return "http://127.0.0.1:3210";
+}
+
+async function triggerReingestStaleSkillsVersion(limit: number): Promise<{
+  scheduled: number;
+  batches: number;
+  currentVersion: number;
+  hasMore: boolean;
+}> {
+  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
+  const response = await fetch(`${convexUrl}/api/action`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      path: "migrations:reIngestStaleSkillsVersion",
+      args: { limit },
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Convex action failed (${response.status}): ${text}`);
+  }
+
+  const payload = await response.json() as {
+    status?: string;
+    value?: unknown;
+    errorMessage?: string;
+  };
+
+  if (payload.status !== "success") {
+    throw new Error(payload.errorMessage || "Convex action failed");
+  }
+
+  if (!isRecord(payload.value)) {
+    throw new Error("Invalid re-ingest response from Convex");
+  }
+
+  const result = payload.value;
+
+  return {
+    scheduled: typeof result.scheduled === "number" ? result.scheduled : 0,
+    batches: typeof result.batches === "number" ? result.batches : 0,
+    currentVersion: typeof result.currentVersion === "number" ? result.currentVersion : skillsKnowledgeService.getVersion(),
+    hasMore: result.hasMore === true,
+  };
+}
+
+function shouldTriggerSkillsReingest(observation: string): boolean {
+  const normalized = observation.trim().toLowerCase();
+  return normalized.startsWith("synonym_suggestion:") || normalized.startsWith("domain_expansion:");
+}
+
+function buildSearchEventQuery(params: {
+  keywords: string[];
+  location?: string;
+  jobDescriptionId?: string;
+}): string | null {
+  const keywords = params.keywords.map((keyword) => keyword.trim()).filter(Boolean);
+  if (keywords.length > 0) {
+    const location = params.location?.trim();
+    return location ? `${keywords.join(" ")} ${location}` : keywords.join(" ");
+  }
+
+  const jobDescriptionId = params.jobDescriptionId?.trim();
+  if (jobDescriptionId) {
+    return `jd:${jobDescriptionId}`;
+  }
+
+  return null;
 }
 
 function toKeywordJobDescriptionId(keywords: string[], location?: string): string {
@@ -456,6 +651,15 @@ app.openapi(getResumesRoute, (c) => {
     const paged = end ? working.slice(start, end) : working.slice(start);
     const limited = paged.map((item) => item.resume);
 
+    if (keyword) {
+      const topScore = working[0]?.relevanceScore;
+      searchEventLogger.logSearchQuery({
+        query: keyword,
+        resultCount: working.length,
+        topScore: typeof topScore === "number" ? topScore : undefined,
+      });
+    }
+
     return c.json({
       success: true as const,
       sample: sampleInfo,
@@ -536,6 +740,11 @@ app.openapi(matchResumesRoute, async (c) => {
   const matchJobDescriptionId = normalizedJobDescriptionId
     ? normalizedJobDescriptionId
     : toKeywordJobDescriptionId(normalizedKeywords, location);
+  const searchEventQuery = buildSearchEventQuery({
+    keywords: normalizedKeywords,
+    location,
+    jobDescriptionId: normalizedJobDescriptionId,
+  });
 
   const mode = toMatchMode(modeInput);
 
@@ -667,6 +876,14 @@ app.openapi(matchResumesRoute, async (c) => {
         });
       }
 
+      if (searchEventQuery) {
+        searchEventLogger.logSearchQuery({
+          query: searchEventQuery,
+          resultCount: results.length,
+          topScore: results[0]?.score,
+        });
+      }
+
       return c.json(
         {
           success: true as const,
@@ -738,6 +955,14 @@ app.openapi(matchResumesRoute, async (c) => {
         failedCount: 0,
         matchedCount: stats.matched,
         avgScore: stats.avgScore,
+      });
+    }
+
+    if (searchEventQuery) {
+      searchEventLogger.logSearchQuery({
+        query: searchEventQuery,
+        resultCount: finalResults.length,
+        topScore: finalResults[0]?.score,
       });
     }
 
@@ -1318,6 +1543,11 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
   const matchJobDescriptionId = normalizedJobDescriptionId
     ? normalizedJobDescriptionId
     : toKeywordJobDescriptionId(normalizedKeywords, location);
+  const searchEventQuery = buildSearchEventQuery({
+    keywords: normalizedKeywords,
+    location,
+    jobDescriptionId: normalizedJobDescriptionId,
+  });
 
   const session = sessionId ? sessionManager.getSession(sessionId) : null;
   if (sessionId && !session) {
@@ -1379,6 +1609,13 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
     .sort((a, b) => b.score - a.score);
 
   const results = finalMatches.map((match) => mapStoredMatch(match));
+  if (searchEventQuery) {
+    searchEventLogger.logSearchQuery({
+      query: searchEventQuery,
+      resultCount: results.length,
+      topScore: results[0]?.score,
+    });
+  }
 
   return c.json(
     {
@@ -1391,6 +1628,36 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
   );
 });
 
+app.post("/api/resumes/export", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = ResumeExportRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "Invalid request body" }, 400);
+  }
+
+  const format: ExportFormat = parsed.data.format;
+  const entries: ResumeExportEntry[] = parsed.data.entries;
+
+  try {
+    const file = await exportService.exportResumes(format, entries);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `resumes-export-${timestamp}.${file.extension}`;
+
+    return new Response(file.content, {
+      status: 200,
+      headers: {
+        "Content-Type": file.contentType,
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    console.error("Failed to export resumes:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
 app.post("/api/resumes/learning-feedback", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = LearningFeedbackRequestSchema.safeParse(body);
@@ -1400,7 +1667,30 @@ app.post("/api/resumes/learning-feedback", async (c) => {
 
   try {
     const entry = skillsKnowledgeService.appendLearningEntry(parsed.data.observation);
-    return c.json({ success: true, entry }, 200);
+    if (parsed.data.action && parsed.data.resumeId) {
+      searchEventLogger.logCandidateAction({
+        resumeId: parsed.data.resumeId,
+        action: parsed.data.action,
+        query: parsed.data.query,
+      });
+    }
+
+    let bumpedVersion: number | undefined;
+    let reingest:
+      | {
+          scheduled: number;
+          batches: number;
+          currentVersion: number;
+          hasMore: boolean;
+        }
+      | undefined;
+
+    if (shouldTriggerSkillsReingest(parsed.data.observation)) {
+      bumpedVersion = skillsKnowledgeService.bumpVersion();
+      reingest = await triggerReingestStaleSkillsVersion(parsed.data.autoReingestLimit ?? 200);
+    }
+
+    return c.json({ success: true, entry, bumpedVersion, reingest }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
@@ -1410,6 +1700,22 @@ app.post("/api/resumes/learning-feedback", async (c) => {
 app.get("/api/resumes/skills-version", (c) => {
   const version = skillsKnowledgeService.getVersion();
   return c.json({ success: true, version }, 200);
+});
+
+app.post("/api/resumes/trigger-reingest", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = TriggerReingestRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "Invalid request payload" }, 400);
+  }
+
+  try {
+    const result = await triggerReingestStaleSkillsVersion(parsed.data.limit ?? 200);
+    return c.json({ success: true, ...result }, 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
 });
 
 // Internal endpoint for ingest compute (called by Convex action)

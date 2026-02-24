@@ -11,7 +11,11 @@ import logging
 import os
 import sys
 import traceback
+import json
+from pathlib import Path
 from typing import Optional, Dict, Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from apps.worker.timezone import resolve_worker_timezone
 from trendradar.utils.time import get_configured_time
@@ -118,4 +122,128 @@ def health_check() -> bool:
 
     except Exception as e:
         logger.error(f"[Health] Health check failed: {e}")
+        return False
+
+
+def _worker_api_base_url(override: Optional[str] = None) -> str:
+    base_url = override or os.environ.get("TRENDS_API_URL", "http://localhost:3000")
+    return base_url.rstrip("/")
+
+
+def _skills_state_path() -> Path:
+    return Path("apps/worker/skills-version-state.json")
+
+
+def _request_json(url: str, method: str = "GET", body: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    payload = None
+    headers = {"Accept": "application/json"}
+
+    if body is not None:
+        payload = json.dumps(body).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+
+    request = Request(url, data=payload, method=method, headers=headers)
+    try:
+        with urlopen(request, timeout=20) as response:
+            raw = response.read().decode("utf-8")
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+            raise RuntimeError(f"Unexpected JSON payload from {url}")
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace") if error.fp else str(error)
+        raise RuntimeError(f"HTTP {error.code} from {url}: {detail}") from error
+    except URLError as error:
+        raise RuntimeError(f"Network error for {url}: {error}") from error
+
+
+def _load_last_skills_version() -> Optional[int]:
+    state_path = _skills_state_path()
+    if not state_path.exists():
+        return None
+
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    version = payload.get("skillsVersion")
+    if isinstance(version, int):
+        return version
+    if isinstance(version, float) and version.is_integer():
+        return int(version)
+    return None
+
+
+def _save_last_skills_version(version: int) -> None:
+    state_path = _skills_state_path()
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(
+        json.dumps(
+            {
+                "skillsVersion": version,
+                "updatedAt": get_configured_time(resolve_worker_timezone()).isoformat(),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
+def run_skills_version_check(
+    api_base_url: Optional[str] = None,
+    reingest_limit: int = 200,
+) -> bool:
+    base_url = _worker_api_base_url(api_base_url)
+
+    try:
+        version_response = _request_json(f"{base_url}/api/resumes/skills-version")
+        if version_response.get("success") is not True:
+            logger.error("[Task] Skills version request failed: %s", version_response)
+            return False
+
+        current_version = version_response.get("version")
+        if not isinstance(current_version, int):
+            logger.error("[Task] Invalid skills version payload: %s", version_response)
+            return False
+
+        previous_version = _load_last_skills_version()
+        if previous_version is None:
+            _save_last_skills_version(current_version)
+            logger.info("[Task] Initialized skills version tracker at v%s", current_version)
+            return True
+
+        if current_version == previous_version:
+            logger.info("[Task] Skills version unchanged (v%s)", current_version)
+            return True
+
+        logger.info(
+            "[Task] Skills version changed from v%s to v%s, triggering re-ingest",
+            previous_version,
+            current_version,
+        )
+        trigger_response = _request_json(
+            f"{base_url}/api/resumes/trigger-reingest",
+            method="POST",
+            body={"limit": max(1, int(reingest_limit))},
+        )
+
+        if trigger_response.get("success") is not True:
+            logger.error("[Task] Failed to trigger re-ingest: %s", trigger_response)
+            return False
+
+        _save_last_skills_version(current_version)
+        logger.info(
+            "[Task] Re-ingest triggered successfully (scheduled=%s, hasMore=%s)",
+            trigger_response.get("scheduled", 0),
+            trigger_response.get("hasMore", False),
+        )
+        return True
+
+    except Exception as error:
+        logger.error("[Task] skills_version_check failed: %s", error)
+        logger.debug(traceback.format_exc())
         return False

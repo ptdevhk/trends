@@ -7,6 +7,9 @@ import { DebugPage } from '@/pages/DebugPage'
 import DebugJDs from '@/pages/DebugJDs'
 import DebugAI from '@/pages/DebugAI'
 import DebugConfig from '@/pages/DebugConfig'
+import DebugIngest from '@/pages/DebugIngest'
+import { SearchProfilesPage } from '@/pages/SearchProfilesPage'
+import SearchAnalyticsPage from '@/pages/SearchAnalyticsPage'
 import SystemLayout from '@/layouts/SystemLayout'
 
 function MainShell() {
@@ -33,6 +36,8 @@ function App() {
             <Route path="settings" element={<DebugConfig />} />
             <Route path="jds" element={<DebugJDs />} />
             <Route path="ai-debugger" element={<DebugAI />} />
+            <Route path="ingest" element={<DebugIngest />} />
+            <Route path="search-analytics" element={<SearchAnalyticsPage />} />
             <Route path="data/*" element={<DebugPage basePath="/system/data" />} />
           </Route>
 
@@ -40,6 +45,7 @@ function App() {
           <Route element={<MainShell />}>
             <Route path="/" element={<Navigate to="/resumes" replace />} />
             <Route path="/resumes" element={<ResumesPage />} />
+            <Route path="/profiles" element={<SearchProfilesPage />} />
 
             {/* Legacy Redirects */}
             <Route path="/config/jds" element={<Navigate to="/system/jds" replace />} />

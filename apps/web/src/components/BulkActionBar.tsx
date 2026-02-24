@@ -8,16 +8,25 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle, XCircle, Download, Users, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+
+type ExportFormat = 'csv' | 'xlsx'
+
+function toExportFormat(value: string): ExportFormat {
+    return value === 'xlsx' ? 'xlsx' : 'csv'
+}
 
 interface BulkActionBarProps {
     totalCount: number
     selectedCount: number
     highScoreCount: number  // 80+ score count
+    exportFormat?: ExportFormat
+    onExportFormatChange?: (format: ExportFormat) => void
     onSelectAll?: () => void
     onSelectHighScore?: () => void
     onClearSelection?: () => void
-    onBulkAction?: (action: 'shortlist' | 'reject' | 'star' | 'export') => void
+    onBulkAction?: (action: 'shortlist' | 'reject' | 'star' | 'export', format?: ExportFormat) => void
     disabled?: boolean
 }
 
@@ -25,6 +34,8 @@ export function BulkActionBar({
     totalCount,
     selectedCount,
     highScoreCount,
+    exportFormat = 'csv',
+    onExportFormatChange,
     onSelectAll,
     onSelectHighScore,
     onClearSelection,
@@ -37,11 +48,15 @@ export function BulkActionBar({
     const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'star' | 'export') => {
         setLoading(action)
         try {
+            if (action === 'export') {
+                await onBulkAction?.(action, exportFormat)
+                return
+            }
             await onBulkAction?.(action)
         } finally {
             setLoading(null)
         }
-    }, [onBulkAction])
+    }, [exportFormat, onBulkAction])
 
     return (
         <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-muted/50 border">
@@ -133,6 +148,16 @@ export function BulkActionBar({
                     <Download className={cn('mr-1 h-4 w-4', loading === 'export' && 'animate-spin')} />
                     {t('bulkActions.export', '导出')}
                 </Button>
+                <Select
+                    value={exportFormat}
+                    onChange={(event) => onExportFormatChange?.(toExportFormat(event.target.value))}
+                    options={[
+                        { value: 'csv', label: 'CSV' },
+                        { value: 'xlsx', label: 'XLSX' },
+                    ]}
+                    disabled={disabled || loading !== null}
+                    className="h-9 w-[92px]"
+                />
             </div>
         </div>
     )

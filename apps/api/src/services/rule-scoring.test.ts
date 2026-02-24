@@ -105,4 +105,56 @@ describe("RuleScoringService", () => {
       cleanupFixtureRoot(root);
     }
   });
+
+  it("matches location with exact or long-enough substrings only", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const baseIndex: Omit<ResumeIndex, "locationCity" | "resumeId"> = {
+        experienceYears: 3,
+        educationLevel: "bachelor",
+        skills: ["cnc"],
+        companies: [],
+        industryTags: ["cnc"],
+        salaryRange: { min: 8000, max: 15000 },
+        searchText: "cnc 销售 北京 东莞",
+      };
+
+      const beijingContext = service.buildContextFromKeywords(["cnc"], "北京");
+      const beijingScore = service.scoreResume(
+        {
+          ...baseIndex,
+          resumeId: "R-beijing",
+          locationCity: "北京市",
+        },
+        beijingContext
+      );
+      expect(beijingScore.breakdown.locationMatch).toBe(15);
+
+      const shortContext = service.buildContextFromKeywords(["cnc"], "京");
+      const shortScore = service.scoreResume(
+        {
+          ...baseIndex,
+          resumeId: "R-short",
+          locationCity: "北京",
+        },
+        shortContext
+      );
+      expect(shortScore.breakdown.locationMatch).toBe(0);
+
+      const dongguanContext = service.buildContextFromKeywords(["cnc"], "东莞");
+      const dongguanScore = service.scoreResume(
+        {
+          ...baseIndex,
+          resumeId: "R-dongguan",
+          locationCity: "东莞市",
+        },
+        dongguanContext
+      );
+      expect(dongguanScore.breakdown.locationMatch).toBe(15);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
 });

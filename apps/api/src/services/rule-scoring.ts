@@ -104,6 +104,25 @@ function compactText(value: string): string {
   return value.toLowerCase().replace(/[\u3000\s]+/g, " ");
 }
 
+function locationMatches(candidateLocation: string, targetLocation: string): boolean {
+  const candidate = candidateLocation.trim().toLowerCase();
+  const target = targetLocation.trim().toLowerCase();
+  if (!candidate || !target) {
+    return false;
+  }
+
+  if (candidate === target) {
+    return true;
+  }
+
+  const canUseSubstring = candidate.length >= 2 && target.length >= 2;
+  if (!canUseSubstring) {
+    return false;
+  }
+
+  return candidate.includes(target) || target.includes(candidate);
+}
+
 function getIndustryMap(skillsService?: SkillsKnowledgeService): Array<{ tag: string; keywords: string[] }> {
   try {
     if (skillsService) {
@@ -246,7 +265,7 @@ export class RuleScoringService {
     let locationMatch = 0;
     if (context.targetLocations.length > 0) {
       const location = index.locationCity || "";
-      if (location && context.targetLocations.some((target) => location.includes(target) || target.includes(location))) {
+      if (location && context.targetLocations.some((target) => locationMatches(location, target))) {
         locationMatch = 15;
       }
     }

@@ -8,6 +8,7 @@
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force \
+		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
@@ -297,6 +298,16 @@ sync-agent-governance: sync-agent-policy install-agent-skill
 # Utilities
 # =============================================================================
 
+cli-build:
+	@mkdir -p bin
+	@cd packages/cli && go build -o ../../bin/trends .
+
+cli-install:
+	@cd packages/cli && go install .
+
+cli-test:
+	@cd packages/cli && go test ./...
+
 # Seed Convex with system job descriptions (idempotent)
 seed:
 	@if command -v bun > /dev/null 2>&1; then \
@@ -557,6 +568,7 @@ test-node:                                 ## Run TypeScript tests (bun locally,
 test-coverage:                             ## Run Node.js tests with coverage
 	@echo "Running Node.js tests with coverage..."
 	@(cd apps/web && npm run test -- --coverage)
+	@npx vitest run --coverage apps/api/src
 
 test-resume:                               ## Validate resume fixtures
 	@echo "Validating resume fixtures..."
@@ -614,6 +626,11 @@ help:
 	@echo "Dependencies:"
 	@echo "  install-deps   Install Python/Node deps for development"
 	@echo "  prefetch-convex Prefetch Convex local backend + dashboard assets"
+	@echo ""
+	@echo "CLI:"
+	@echo "  cli-build      Build Go CLI to bin/trends"
+	@echo "  cli-install    Install Go CLI to GOPATH/bin"
+	@echo "  cli-test       Run Go CLI tests"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  fetch-docs     Fetch latest upstream documentation"

@@ -58,6 +58,44 @@ export interface LearningLogEntry {
   observation: string;
 }
 
+export type ActionableLearningPattern =
+  | {
+      type: "synonym_suggestion";
+      date: string;
+      raw: string;
+      variant: string;
+      canonical: string;
+    }
+  | {
+      type: "shortlist_pattern";
+      date: string;
+      raw: string;
+      keywords: string[];
+      priority: string;
+    }
+  | {
+      type: "reject_pattern";
+      date: string;
+      raw: string;
+      keyword: string;
+      negativeSignal: string;
+    }
+  | {
+      type: "domain_expansion";
+      date: string;
+      raw: string;
+      tag: string;
+      newKeyword: string;
+    };
+
+export interface SynonymSuggestion {
+  query: string;
+  variant: string;
+  canonical: string;
+  confidence: number;
+  reason: string;
+}
+
 /**
  * Parsed skills knowledge
  */
@@ -71,6 +109,43 @@ export interface SkillsKnowledge {
   industryContext: IndustryContextSection[];
   exclusionTokens: string[];
   learningLog: LearningLogEntry[];
+}
+
+const SEARCH_TOKEN_SPLIT_RE = /[\s,，、;；|/]+/;
+
+function normalizeToken(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function normalizeQuery(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function tokenizeQuery(value: string): string[] {
+  return value
+    .split(SEARCH_TOKEN_SPLIT_RE)
+    .map((token) => normalizeToken(token))
+    .filter((token) => token.length >= 2);
+}
+
+function overlapConfidence(left: string, right: string): number {
+  if (left === right) return 1;
+  if (left.includes(right) || right.includes(left)) return 0.8;
+
+  let common = 0;
+  for (const char of left) {
+    if (right.includes(char)) {
+      common += 1;
+    }
+  }
+
+  const ratio = common / Math.max(left.length, right.length);
+  if (ratio >= 0.6) return 0.65;
+  return 0;
 }
 
 /**
@@ -379,6 +454,37 @@ export class SkillsKnowledgeService {
       map.set(entry.canonical, entry.canonical);
     }
 
+    const maxIterations = Math.max(1, map.size);
+    let changed = true;
+    let iterations = 0;
+
+    while (changed && iterations < maxIterations) {
+      changed = false;
+      iterations += 1;
+
+      for (const [variant, canonical] of map.entries()) {
+        const parent = map.get(canonical);
+        if (!parent || parent === canonical) {
+          continue;
+        }
+        if (parent !== variant) {
+          map.set(variant, parent);
+          changed = true;
+          continue;
+        }
+
+        map.set(variant, canonical);
+      }
+    }
+
+    // Final pass prevents unresolved cycles if the map contains circular pairs.
+    for (const [variant, canonical] of map.entries()) {
+      const parent = map.get(canonical);
+      if (parent === variant && variant !== canonical) {
+        map.set(variant, canonical);
+      }
+    }
+
     return map;
   }
 
@@ -458,11 +564,234 @@ export class SkillsKnowledgeService {
     return this.parseSkillsFile().learningLog;
   }
 
+  extractActionablePatterns(entries?: LearningLogEntry[]): ActionableLearningPattern[] {
+    const sourceEntries = entries ?? this.getLearningLog();
+    const patterns: ActionableLearningPattern[] = [];
+
+    for (const entry of sourceEntries) {
+      const raw = entry.observation.trim();
+      if (!raw) {
+        continue;
+      }
+
+      const synonymMatch = raw.match(/^synonym_suggestion:\s*(.+?)\s*->\s*(.+)$/i);
+      if (synonymMatch) {
+        const variant = normalizeToken(synonymMatch[1]);
+        const canonical = normalizeToken(synonymMatch[2]);
+        if (variant && canonical) {
+          patterns.push({
+            type: "synonym_suggestion",
+            date: entry.date,
+            raw,
+            variant,
+            canonical,
+          });
+        }
+        continue;
+      }
+
+      const shortlistMatch = raw.match(/^shortlist_pattern:\s*(.+?)\s*->\s*(.+)$/i);
+      if (shortlistMatch) {
+        const keywords = shortlistMatch[1]
+          .split("+")
+          .map((keyword) => normalizeToken(keyword))
+          .filter((keyword) => keyword.length > 0);
+        const priority = shortlistMatch[2].trim();
+        if (keywords.length > 0 && priority) {
+          patterns.push({
+            type: "shortlist_pattern",
+            date: entry.date,
+            raw,
+            keywords,
+            priority,
+          });
+        }
+        continue;
+      }
+
+      const rejectMatch = raw.match(/^reject_pattern:\s*(.+?)\s*->\s*(.+)$/i);
+      if (rejectMatch) {
+        const keyword = normalizeToken(rejectMatch[1]);
+        const negativeSignal = rejectMatch[2].trim();
+        if (keyword && negativeSignal) {
+          patterns.push({
+            type: "reject_pattern",
+            date: entry.date,
+            raw,
+            keyword,
+            negativeSignal,
+          });
+        }
+        continue;
+      }
+
+      const expansionMatch = raw.match(/^domain_expansion:\s*(.+?)\s*->\s*(.+)$/i);
+      if (expansionMatch) {
+        const tag = normalizeToken(expansionMatch[1]);
+        const newKeyword = normalizeToken(expansionMatch[2]);
+        if (tag && newKeyword) {
+          patterns.push({
+            type: "domain_expansion",
+            date: entry.date,
+            raw,
+            tag,
+            newKeyword,
+          });
+        }
+      }
+    }
+
+    return patterns;
+  }
+
+  generateSynonymSuggestions(zeroResultQueries: string[]): SynonymSuggestion[] {
+    const synonymTable = this.getSynonymTable();
+    const vocabulary = this.getSkillVocabulary();
+    const canonicalTerms = Array.from(new Set(synonymTable.values()));
+    const suggestions: SynonymSuggestion[] = [];
+    const seen = new Set<string>();
+
+    for (const rawQuery of zeroResultQueries) {
+      const query = normalizeQuery(rawQuery);
+      if (!query) {
+        continue;
+      }
+
+      for (const token of tokenizeQuery(query)) {
+        if (synonymTable.has(token) || vocabulary.has(token)) {
+          continue;
+        }
+
+        let bestCanonical: string | null = null;
+        let bestConfidence = 0;
+
+        for (const canonical of canonicalTerms) {
+          if (canonical === token) {
+            continue;
+          }
+          const confidence = overlapConfidence(token, canonical);
+          if (confidence > bestConfidence) {
+            bestConfidence = confidence;
+            bestCanonical = canonical;
+          }
+        }
+
+        if (!bestCanonical || bestConfidence < 0.6) {
+          for (const [variant, canonical] of synonymTable.entries()) {
+            if (variant === canonical || canonical === token) {
+              continue;
+            }
+            const confidence = overlapConfidence(token, variant) * 0.9;
+            if (confidence > bestConfidence) {
+              bestConfidence = confidence;
+              bestCanonical = canonical;
+            }
+          }
+        }
+
+        if (!bestCanonical || bestConfidence < 0.6) {
+          continue;
+        }
+
+        const dedupeKey = `${query}|${token}|${bestCanonical}`;
+        if (seen.has(dedupeKey)) {
+          continue;
+        }
+        seen.add(dedupeKey);
+
+        suggestions.push({
+          query,
+          variant: token,
+          canonical: bestCanonical,
+          confidence: Number(bestConfidence.toFixed(2)),
+          reason: "zero_result_overlap",
+        });
+      }
+    }
+
+    return suggestions.sort((left, right) => {
+      if (right.confidence !== left.confidence) {
+        return right.confidence - left.confidence;
+      }
+      return left.query.localeCompare(right.query);
+    });
+  }
+
   /**
    * Get version number
    */
   getVersion(): number {
     return this.parseSkillsFile().version;
+  }
+
+  bumpVersion(): number {
+    const skillsPath = this.getSkillsPath();
+    if (!fs.existsSync(skillsPath)) {
+      throw new FileParseError(skillsPath, "skills.md not found");
+    }
+
+    const content = fs.readFileSync(skillsPath, "utf8");
+    const lines = content.split("\n");
+    if (lines[0]?.trim() !== "---") {
+      throw new FileParseError(skillsPath, "Invalid frontmatter: expected opening ---");
+    }
+
+    let frontmatterEnd = -1;
+    for (let index = 1; index < lines.length; index += 1) {
+      if (lines[index].trim() === "---") {
+        frontmatterEnd = index;
+        break;
+      }
+    }
+
+    if (frontmatterEnd === -1) {
+      throw new FileParseError(skillsPath, "Invalid frontmatter: no closing ---");
+    }
+
+    const frontmatterLines = lines.slice(1, frontmatterEnd);
+    const frontmatter = parseYaml(frontmatterLines.join("\n")) as unknown;
+    const currentVersion = (
+      isRecord(frontmatter)
+      && typeof frontmatter.version === "number"
+      && Number.isFinite(frontmatter.version)
+    )
+      ? Math.floor(frontmatter.version)
+      : 0;
+
+    const nextVersion = currentVersion + 1;
+    const updatedAt = new Date().toISOString().slice(0, 10);
+
+    let hasVersion = false;
+    let hasUpdatedAt = false;
+
+    const updatedFrontmatterLines = frontmatterLines.map((line) => {
+      if (/^version\s*:/.test(line)) {
+        hasVersion = true;
+        return `version: ${nextVersion}`;
+      }
+      if (/^updated_at\s*:/.test(line)) {
+        hasUpdatedAt = true;
+        return `updated_at: '${updatedAt}'`;
+      }
+      return line;
+    });
+
+    if (!hasVersion) {
+      updatedFrontmatterLines.push(`version: ${nextVersion}`);
+    }
+    if (!hasUpdatedAt) {
+      updatedFrontmatterLines.push(`updated_at: '${updatedAt}'`);
+    }
+
+    const nextLines = [
+      lines[0],
+      ...updatedFrontmatterLines,
+      ...lines.slice(frontmatterEnd),
+    ];
+
+    fs.writeFileSync(skillsPath, nextLines.join("\n"), "utf8");
+    this.clearCache();
+    return nextVersion;
   }
 
   appendLearningEntry(observation: string): string {
