@@ -1,9 +1,25 @@
 {
   tags: [
-    // Custom keyword tags added by user via settings
-    // { id: "custom-1", keyword: "激光切割", english: "laser cutting", category: "custom" }
+    { id: "seed-equipment-cnc", keyword: "CNC", english: "CNC", category: "equipment" },
+    { id: "seed-equipment-cnc-lathe", keyword: "数控车床", english: "CNC Lathe", category: "equipment" },
+    { id: "seed-equipment-machining-center", keyword: "加工中心", english: "Machining Center", category: "equipment" },
+    { id: "seed-equipment-machine-tool", keyword: "机床", english: "Machine Tool", category: "equipment" },
+    { id: "seed-equipment-lathe", keyword: "车床", english: "Lathe", category: "equipment" },
+    { id: "seed-role-sales", keyword: "销售", english: "Sales", category: "role" },
+    { id: "seed-role-engineer", keyword: "工程师", english: "Engineer", category: "role" },
+    { id: "seed-location-dongguan", keyword: "东莞", english: "Dongguan", category: "location" },
+    { id: "seed-brand-haas-cn", keyword: "哈斯", english: "HAAS", category: "brand" },
+    { id: "seed-brand-haas-en", keyword: "HAAS", english: "HAAS", category: "brand" },
+    { id: "seed-brand-fanuc", keyword: "发那科", english: "FANUC", category: "brand" },
+    { id: "seed-brand-star", keyword: "津上", english: "STAR", category: "brand" },
+    { id: "seed-brand-mazak", keyword: "马扎克", english: "MAZAK", category: "brand" },
+    { id: "seed-brand-dmg-mori", keyword: "德马吉森精机", english: "DMG MORI", category: "brand" }
   ],
   categories: [
+    { id: "equipment", name: "设备", icon: "🔧" },
+    { id: "role", name: "岗位", icon: "👤" },
+    { id: "location", name: "地点", icon: "📍" },
+    { id: "brand", name: "品牌", icon: "🏭" },
     { id: "custom", name: "自定义", icon: "⚙️" }
   ]
 }
