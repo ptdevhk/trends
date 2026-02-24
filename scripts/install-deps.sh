@@ -41,7 +41,13 @@ if [ "${CI:-}" != "true" ]; then
     else
         npx tsx "$_SCRIPT_DIR/agent-governance/sync-policy.ts" || echo "Warning: Agent policy sync failed (non-fatal)"
     fi
-    "$_SCRIPT_DIR/agent-governance/install-skill.sh" || echo "Warning: Agent skill install failed (non-fatal)"
+    if [ -x "$_SCRIPT_DIR/skills/install-skill.sh" ]; then
+        "$_SCRIPT_DIR/skills/install-skill.sh" --skill trends-agent-governance || echo "Warning: Agent skill install failed (non-fatal)"
+    elif [ -x "$_SCRIPT_DIR/agent-governance/install-skill.sh" ]; then
+        "$_SCRIPT_DIR/agent-governance/install-skill.sh" || echo "Warning: Agent skill install failed (non-fatal)"
+    else
+        echo "Warning: Agent skill install script not found (non-fatal)"
+    fi
 else
     echo "Skipping agent governance sync in CI"
 fi
