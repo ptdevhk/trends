@@ -90,6 +90,7 @@ function normalizeConfig(raw: unknown): CustomKeywordsConfig {
 export class CustomKeywordService {
     readonly projectRoot: string;
     private cache: CustomKeywordsConfig | null = null;
+    private cacheMtimeMs: number | null = null;
 
     constructor(projectRoot?: string) {
         this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
@@ -99,19 +100,32 @@ export class CustomKeywordService {
         return path.join(this.projectRoot, "config", "resume", "custom-keywords.json5");
     }
 
-    private loadConfig(): CustomKeywordsConfig {
-        if (this.cache) return this.cache;
+    private getConfigMtime(configPath: string): number | null {
+        if (!fs.existsSync(configPath)) {
+            return null;
+        }
+        return fs.statSync(configPath).mtimeMs;
+    }
 
+    private loadConfig(): CustomKeywordsConfig {
         const configPath = this.getConfigPath();
+        const currentMtimeMs = this.getConfigMtime(configPath);
+
+        if (this.cache && this.cacheMtimeMs === currentMtimeMs) {
+            return this.cache;
+        }
+
         if (!fs.existsSync(configPath)) {
             const fallback = { tags: [], categories: [...DEFAULT_CATEGORIES] };
             this.cache = fallback;
+            this.cacheMtimeMs = null;
             return fallback;
         }
 
         const content = fs.readFileSync(configPath, "utf8");
         const parsed = JSON5.parse(content) as unknown;
         this.cache = normalizeConfig(parsed);
+        this.cacheMtimeMs = currentMtimeMs;
         return this.cache;
     }
 
@@ -120,6 +134,7 @@ export class CustomKeywordService {
         const configPath = this.getConfigPath();
         fs.writeFileSync(configPath, JSON.stringify(normalized, null, 2), "utf8");
         this.cache = normalized;
+        this.cacheMtimeMs = this.getConfigMtime(configPath);
     }
 
     listTags(category?: string): CustomKeywordTag[] {
@@ -184,6 +199,7 @@ export class CustomKeywordService {
 
     clearCache(): void {
         this.cache = null;
+        this.cacheMtimeMs = null;
     }
 }
 
