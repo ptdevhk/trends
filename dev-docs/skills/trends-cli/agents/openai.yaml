@@ -1,0 +1,3 @@
+display_name: Trends CLI
+short_description: Operate Trends backend services through the Go CLI and MCP mode.
+default_prompt: Use the trends-cli workflow. Build the CLI if needed, execute the smallest command set for the requested operation, and report concise command output with follow-up actions.

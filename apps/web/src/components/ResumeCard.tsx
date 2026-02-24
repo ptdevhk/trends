@@ -3,6 +3,7 @@ import { Star, User, XCircle, CheckCircle } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { CandidateActionType, MatchingResult } from '@/types/resume'
 import { cn } from '@/lib/utils'
@@ -41,6 +42,25 @@ interface ResumeCardProps {
 function isSafeProfileUrl(value: string | undefined): value is string {
   if (!value) return false
   return value.startsWith('http://') || value.startsWith('https://')
+}
+
+export function ResumeCardSkeleton() {
+  return (
+    <div className="p-4 border rounded-lg space-y-3">
+      <div className="flex justify-between">
+        <Skeleton className="h-6 w-1/3" />
+        <Skeleton className="h-6 w-16" />
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-5/6" />
+      </div>
+      <div className="flex gap-2 pt-2">
+        <Skeleton className="h-8 w-20" />
+        <Skeleton className="h-8 w-20" />
+      </div>
+    </div>
+  )
 }
 
 

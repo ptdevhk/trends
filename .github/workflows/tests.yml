@@ -5,6 +5,10 @@ on:
     branches: [main, master]
   pull_request:
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -31,3 +35,11 @@ jobs:
 
       - name: Run tests with coverage
         run: make test-coverage
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          use_oidc: true
+          files: ./apps/web/coverage/lcov.info,./coverage/lcov.info
+          fail_ci_if_error: false

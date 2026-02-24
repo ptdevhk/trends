@@ -1045,7 +1045,63 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /** Create a job description file */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        content: string;
+                        overwrite?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                id: string;
+                                name: string;
+                                filename: string;
+                                updatedAt: string;
+                                size: number;
+                                title?: string;
+                                titleEn?: string;
+                                status?: string;
+                                location?: string;
+                                autoMatch?: {
+                                    keywords: string[];
+                                    locations: string[];
+                                    priority: number;
+                                    filter_preset?: string;
+                                };
+                            };
+                            content: string;
+                        };
+                    };
+                };
+                /** @description Already exists */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;

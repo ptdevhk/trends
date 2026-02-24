@@ -27,6 +27,11 @@ import { RuleScoringService } from "../services/rule-scoring.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { IngestComputeService } from "../services/ingest-compute-service.js";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
+import {
+  ExportService,
+  type ExportFormat,
+  type ResumeExportEntry,
+} from "../services/export-service.js";
 
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
@@ -40,6 +45,7 @@ const jobService = new JobDescriptionService(config.projectRoot);
 const ruleScoringService = new RuleScoringService(config.projectRoot);
 const ingestComputeService = new IngestComputeService(config.projectRoot);
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
+const exportService = new ExportService();
 
 const DEFAULT_AI_TOP_N = 20;
 
@@ -69,6 +75,49 @@ const RescoreRequestSchema = z.object({
 const MatchRescoreResponseSchema = MatchResponseSchema;
 const LearningFeedbackRequestSchema = z.object({
   observation: z.string().trim().min(1),
+});
+const ResumeExportRequestSchema = z.object({
+  format: z.enum(["csv", "xlsx"]).default("csv"),
+  entries: z
+    .array(
+      z.object({
+        key: z.string().min(1),
+        ruleScore: z.number().optional(),
+        action: z.string().optional(),
+        match: z
+          .object({
+            score: z.number(),
+            recommendation: z.string(),
+            scoreSource: z.enum(["rule", "ai"]).optional(),
+          })
+          .optional(),
+        resume: z.object({
+          name: z.string().optional(),
+          jobIntention: z.string().optional(),
+          location: z.string().optional(),
+          experience: z.string().optional(),
+          education: z.string().optional(),
+          expectedSalary: z.string().optional(),
+          profileUrl: z.string().optional(),
+          selfIntro: z.string().optional(),
+          workHistory: z
+            .array(
+              z.object({
+                raw: z.string().optional(),
+              })
+            )
+            .optional(),
+          ingestData: z
+            .object({
+              industryTags: z.array(z.string()).optional(),
+              companyHits: z.array(z.string()).optional(),
+            })
+            .optional(),
+        }),
+      })
+    )
+    .min(1)
+    .max(2000),
 });
 
 function stripFrontMatter(content: string): string {
@@ -1389,6 +1438,36 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
     },
     200
   );
+});
+
+app.post("/api/resumes/export", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = ResumeExportRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "Invalid request body" }, 400);
+  }
+
+  const format: ExportFormat = parsed.data.format;
+  const entries: ResumeExportEntry[] = parsed.data.entries;
+
+  try {
+    const file = await exportService.exportResumes(format, entries);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `resumes-export-${timestamp}.${file.extension}`;
+
+    return new Response(file.content, {
+      status: 200,
+      headers: {
+        "Content-Type": file.contentType,
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    console.error("Failed to export resumes:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
 });
 
 app.post("/api/resumes/learning-feedback", async (c) => {

@@ -19,6 +19,7 @@ Endpoints:
 """
 
 import sys
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -35,6 +36,7 @@ if str(project_root) not in sys.path:
 from mcp_server.services.data_service import DataService
 from mcp_server.utils.errors import DataNotFoundError
 from apps.worker.timezone import bootstrap_worker_timezone
+from apps.worker.tasks import run_crawl_analyze
 from trendradar.utils.time import format_iso_offset_time
 
 WORKER_TIMEZONE = bootstrap_worker_timezone()
@@ -159,6 +161,16 @@ class WorkerStatus(BaseModel):
     jobs: List[dict]
 
 
+class WorkerTriggerResponse(BaseModel):
+    """Worker trigger response."""
+
+    success: bool = True
+    mode: str
+    started_at: str
+    finished_at: str
+    message: str
+
+
 # ============================================
 # Endpoints
 # ============================================
@@ -195,6 +207,53 @@ async def get_worker_status():
         return WorkerStatus(**data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read worker status: {e}")
+
+
+@router.post("/worker/crawl", response_model=WorkerTriggerResponse, tags=["System"])
+async def trigger_worker_crawl():
+    """
+    Trigger a one-time crawl/analyze run immediately.
+    """
+    started_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+    success = await asyncio.to_thread(run_crawl_analyze)
+    finished_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Crawl task failed")
+
+    return WorkerTriggerResponse(
+        mode="crawl",
+        started_at=started_at,
+        finished_at=finished_at,
+        message="Crawl task completed",
+    )
+
+
+@router.post("/worker/run", response_model=WorkerTriggerResponse, tags=["System"])
+async def trigger_worker_run(
+    once: bool = Query(default=True, description="Run once immediately"),
+):
+    """
+    Trigger worker execution.
+
+    Currently supports one-time run (`once=true`) for immediate execution.
+    """
+    if not once:
+        raise HTTPException(status_code=400, detail="Only once=true is supported")
+
+    started_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+    success = await asyncio.to_thread(run_crawl_analyze)
+    finished_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Worker run failed")
+
+    return WorkerTriggerResponse(
+        mode="worker-run",
+        started_at=started_at,
+        finished_at=finished_at,
+        message="Worker run completed",
+    )
 
 
 @router.get("/health", response_model=HealthResponse, tags=["System"])

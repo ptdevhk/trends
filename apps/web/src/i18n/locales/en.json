@@ -86,6 +86,31 @@
       "location": "Location"
     }
   },
+  "debugIngest": {
+    "nav": "Ingest Debug",
+    "title": "Ingest Diagnostics",
+    "subtitle": "Inspect ingestData, staleness, and trigger re-ingest tasks.",
+    "total": "Total Resumes",
+    "withIngest": "With Ingest Data",
+    "stale": "Stale / Missing",
+    "skillsVersion": "Skills Version",
+    "computedAt": "Computed At",
+    "status": "Status",
+    "searchPlaceholder": "Search by name / intention / location...",
+    "reingest": "Trigger Re-ingest",
+    "reingestSuccess": "Scheduled {{scheduled}} resumes for ingest",
+    "reingestFailed": "Failed to trigger re-ingest",
+    "skillsVersionFailed": "Failed to load skills version",
+    "noResults": "No resumes found",
+    "missing": "Missing",
+    "staleBadge": "Stale",
+    "fresh": "Fresh",
+    "industryTags": "Industry Tags",
+    "companyHits": "Company Hits",
+    "experienceLevel": "Experience Level",
+    "ruleScoreCount": "Rule Scores",
+    "noIngestData": "No ingest data yet for this resume."
+  },
   "trends": {
     "title": "Trending Topics",
     "latest": "Latest Trends",

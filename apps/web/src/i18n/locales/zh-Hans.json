@@ -86,6 +86,31 @@
       "location": "地点"
     }
   },
+  "debugIngest": {
+    "nav": "Ingest 调试",
+    "title": "Ingest 诊断",
+    "subtitle": "查看 ingestData、过期状态并触发重算任务。",
+    "total": "简历总数",
+    "withIngest": "已有 Ingest 数据",
+    "stale": "过期 / 缺失",
+    "skillsVersion": "技能版本",
+    "computedAt": "计算时间",
+    "status": "状态",
+    "searchPlaceholder": "按姓名 / 意向 / 地点搜索...",
+    "reingest": "触发重算",
+    "reingestSuccess": "已调度 {{scheduled}} 份简历进行 ingest",
+    "reingestFailed": "触发重算失败",
+    "skillsVersionFailed": "加载技能版本失败",
+    "noResults": "未找到简历",
+    "missing": "缺失",
+    "staleBadge": "过期",
+    "fresh": "最新",
+    "industryTags": "行业标签",
+    "companyHits": "公司命中",
+    "experienceLevel": "经验等级",
+    "ruleScoreCount": "规则分数量",
+    "noIngestData": "该简历尚未生成 ingest 数据。"
+  },
   "trends": {
     "title": "热门话题",
     "latest": "最新热点",

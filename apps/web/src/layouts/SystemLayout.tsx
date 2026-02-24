@@ -8,6 +8,7 @@ import {
   Settings,
   FileText,
   Bot,
+  Database,
   Menu,
   X
 } from 'lucide-react'
@@ -52,6 +53,12 @@ export default function SystemLayout() {
       href: '/system/ai-debugger',
       icon: Bot,
       matches: ['/system/ai-debugger']
+    },
+    {
+      title: t('debugIngest.nav', { defaultValue: 'Ingest Debug' }),
+      href: '/system/ingest',
+      icon: Database,
+      matches: ['/system/ingest']
     },
     {
       title: t('debug.title', { defaultValue: 'Data Inspector' }),

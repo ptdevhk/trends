@@ -7,6 +7,7 @@ import { DebugPage } from '@/pages/DebugPage'
 import DebugJDs from '@/pages/DebugJDs'
 import DebugAI from '@/pages/DebugAI'
 import DebugConfig from '@/pages/DebugConfig'
+import DebugIngest from '@/pages/DebugIngest'
 import SystemLayout from '@/layouts/SystemLayout'
 
 function MainShell() {
@@ -33,6 +34,7 @@ function App() {
             <Route path="settings" element={<DebugConfig />} />
             <Route path="jds" element={<DebugJDs />} />
             <Route path="ai-debugger" element={<DebugAI />} />
+            <Route path="ingest" element={<DebugIngest />} />
             <Route path="data/*" element={<DebugPage basePath="/system/data" />} />
           </Route>
 
