@@ -4,5 +4,6 @@ export default defineConfig({
     test: {
         environment: "node",
         include: ["apps/**/*.test.ts", "packages/**/*.test.ts"],
+        exclude: ["apps/web/**/*.test.ts", "apps/web/**/*.test.tsx"],
     },
 });

@@ -432,7 +432,7 @@ export function useResumeListState() {
           }
 
           const contentDisposition = response.headers.get('content-disposition')
-          const filenameMatch = contentDisposition?.match(/filename=\"?([^"]+)\"?$/)
+          const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?$/)
           const filename = filenameMatch?.[1] || `selected-resumes-${new Date().toISOString().replace(/[:.]/g, '-')}.${exportFormat}`
 
           const blob = await response.blob()

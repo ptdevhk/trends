@@ -423,7 +423,7 @@ Curated knowledge used by the background ingest agent for deterministic matching
 
 ### Implementation Status
 
-#### Completed (Phases 1-22 + Pre-Stage + M1-M7 + CI)
+#### Completed (Phases 1-22 + Pre-Stage + M1-M7 + CI + Post-M7 + WS1-WS5)
 - [x] Foundation through Production Polish (Phases 1-21)
 - [x] E2E Testing, CI Pipeline, Session Memory, JD Enhancements (Phase 22)
 - [x] Pre-Stage: Generalized skill validation infra + Browser Extension Dev skill
@@ -436,17 +436,25 @@ Curated knowledge used by the background ingest agent for deterministic matching
 - [x] M6: Learning feedback loop (append HR patterns to skills.md)
 - [x] M7: Company-brand cross-language search (`companyHits` + alias token enrichment)
 - [x] CI: TypeScript fix (18 errors → 0) + ingest signal display in UI
+- [x] Post-M7: Re-ingest on JD changes, expand company patterns (44 brands), `primaryRuleScore` index, skills version tracking
+- [x] WS1: Bulk export (CSV/XLSX via `export-service.ts`)
+- [x] WS2: CI improvements (Codecov, Dependabot, PR conventional commit lint)
+- [x] WS3: Ingest debug page (`/system/ingest`)
+- [x] WS4: UI refactor (ResumeList 867→~200 lines, extracted scoring utils + state hook)
+- [x] WS5: Go CLI (`packages/cli/`) with MCP server mode, `trends-cli` skill package
 
 #### Pending: Migration Runs
 - [ ] Run `npx convex run migrations:reindexSearchText` (CJK tokenization)
 - [ ] Run `npx convex run migrations:backfillIngestData` (process existing resumes)
+- [ ] Run `npx convex run migrations:backfillPrimaryRuleScore` (denormalized score index)
 - [ ] End-to-end verification
+- [ ] Merge `codex/debug-1` branch to main
 
-#### Next: Post-Migration Feature Work
-- [ ] Re-ingest on JD changes (gap: existing resumes miss new JD scores)
-- [ ] Expand company patterns: import remaining brands from `config/industry-data/keywords-structured.md` into `skills.md`
-- [ ] Scalability: denormalized `primaryRuleScore` index (replace `.collect()`)
-- [ ] Skills version tracking: auto re-ingest when skills.md changes
+#### Next: Post-Merge Feature Work
+- [ ] Additional job boards (BOSS直聘, 拉勾)
+- [ ] Search profiles YAML auto-run via worker scheduler
+- [ ] Quick Start Panel UI (minimal-input design from CLAUDE.md)
+- [ ] Notification templates (WeChat Work, Feishu, Email)
 
 ---
 
