@@ -8,6 +8,7 @@ export type ConvexResumeAnalysis = {
   summary: string
   highlights: string[]
   recommendation: string
+  analyzedAt?: number
   concerns?: string[]
   breakdown?: Record<string, number>
   jobDescriptionId?: string
@@ -114,6 +115,7 @@ function parseAnalysis(value: unknown): ConvexResumeAnalysis | undefined {
     summary: toStringValue(value.summary),
     highlights: toStringArray(value.highlights),
     recommendation: toStringValue(value.recommendation),
+    analyzedAt: toNumber(value.analyzedAt) ?? undefined,
     concerns: toStringArray(value.concerns),
     breakdown: parseBreakdown(value.breakdown),
     jobDescriptionId: toStringValue(value.jobDescriptionId) || undefined,

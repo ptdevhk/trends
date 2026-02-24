@@ -204,6 +204,7 @@ export const updateAnalysis = internalMutation({
             recommendation: v.string(),
             breakdown: v.optional(v.any()),
             jobDescriptionId: v.optional(v.string()),
+            analyzedAt: v.optional(v.number()),
         }),
     },
     handler: async (ctx, args) => {
@@ -234,6 +235,7 @@ export const updateAnalysisBatch = internalMutation({
                 recommendation: v.string(),
                 breakdown: v.optional(v.any()),
                 jobDescriptionId: v.optional(v.string()),
+                analyzedAt: v.optional(v.number()),
             }),
         })),
     },

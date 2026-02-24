@@ -147,11 +147,11 @@ describe('resume-scoring', () => {
       },
     })
 
-    expect(hasIngestData(resume)).toBe(true)
-    if (hasIngestData(resume)) {
-      expect(buildLearningObservation('shortlist', resume)).toBe('shortlist pattern -> cnc/lathe + senior')
-    }
-  })
+	    expect(hasIngestData(resume)).toBe(true)
+	    if (hasIngestData(resume)) {
+	      expect(buildLearningObservation('shortlist', resume)).toBe('shortlist_pattern: cnc + lathe + senior -> high_priority')
+	    }
+	  })
 
   it('flags auto-filtered analyses', () => {
     expect(

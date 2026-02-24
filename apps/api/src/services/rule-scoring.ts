@@ -1,3 +1,10 @@
+import fs from "node:fs";
+import path from "node:path";
+
+import JSON5 from "json5";
+import { z } from "zod";
+
+import { findProjectRoot } from "./db.js";
 import { FilterPresetService } from "./filter-preset-service.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
@@ -5,6 +12,114 @@ import type { MatchingResult } from "./ai-matching.js";
 import type { ResumeIndex } from "./resume-index.js";
 
 export type BrandContext = "employer" | "equipment" | "sales" | "technical" | "general";
+
+export interface RuleWeightsConfig {
+  categoryWeights: {
+    skillMatch: number;
+    experienceMatch: number;
+    educationMatch: number;
+    locationMatch: number;
+    industryMatch: number;
+    brandRelevance: number;
+  };
+  brandContextWithTarget: Record<BrandContext, number>;
+  brandContextNoTarget: Record<BrandContext, number>;
+  recommendationThresholds: {
+    strongMatch: number;
+    match: number;
+    potential: number;
+  };
+}
+
+const DEFAULT_WEIGHTS: RuleWeightsConfig = {
+  categoryWeights: {
+    skillMatch: 25,
+    experienceMatch: 25,
+    educationMatch: 15,
+    locationMatch: 15,
+    industryMatch: 10,
+    brandRelevance: 10,
+  },
+  brandContextWithTarget: { employer: 10, sales: 9, equipment: 7, technical: 6, general: 4 },
+  brandContextNoTarget: { employer: 4, sales: 3, equipment: 2, technical: 2, general: 1 },
+  recommendationThresholds: { strongMatch: 85, match: 70, potential: 50 },
+};
+
+const nonNegativeNumber = z.number().finite().min(0);
+const brandContextWeightsSchema = z.object({
+  employer: nonNegativeNumber,
+  equipment: nonNegativeNumber,
+  sales: nonNegativeNumber,
+  technical: nonNegativeNumber,
+  general: nonNegativeNumber,
+}).partial();
+
+const ruleWeightsSchema = z.object({
+  categoryWeights: z.object({
+    skillMatch: nonNegativeNumber,
+    experienceMatch: nonNegativeNumber,
+    educationMatch: nonNegativeNumber,
+    locationMatch: nonNegativeNumber,
+    industryMatch: nonNegativeNumber,
+    brandRelevance: nonNegativeNumber,
+  }).partial().optional(),
+  brandContextWithTarget: brandContextWeightsSchema.optional(),
+  brandContextNoTarget: brandContextWeightsSchema.optional(),
+  recommendationThresholds: z.object({
+    strongMatch: nonNegativeNumber,
+    match: nonNegativeNumber,
+    potential: nonNegativeNumber,
+  }).partial().optional(),
+}).partial();
+
+type RuleWeightsConfigOverrides = z.infer<typeof ruleWeightsSchema>;
+
+function mergeRuleWeights(overrides: RuleWeightsConfigOverrides | undefined): RuleWeightsConfig {
+  if (!overrides) {
+    return DEFAULT_WEIGHTS;
+  }
+
+  return {
+    categoryWeights: {
+      ...DEFAULT_WEIGHTS.categoryWeights,
+      ...(overrides.categoryWeights ?? {}),
+    },
+    brandContextWithTarget: {
+      ...DEFAULT_WEIGHTS.brandContextWithTarget,
+      ...(overrides.brandContextWithTarget ?? {}),
+    },
+    brandContextNoTarget: {
+      ...DEFAULT_WEIGHTS.brandContextNoTarget,
+      ...(overrides.brandContextNoTarget ?? {}),
+    },
+    recommendationThresholds: {
+      ...DEFAULT_WEIGHTS.recommendationThresholds,
+      ...(overrides.recommendationThresholds ?? {}),
+    },
+  };
+}
+
+function loadWeightsConfig(projectRoot: string): RuleWeightsConfig {
+  const configPath = path.join(projectRoot, "config", "resume", "rule-weights.json5");
+  if (!fs.existsSync(configPath)) {
+    return DEFAULT_WEIGHTS;
+  }
+
+  try {
+    const content = fs.readFileSync(configPath, "utf8");
+    const raw: unknown = JSON5.parse(content);
+    const parsed = ruleWeightsSchema.safeParse(raw);
+    if (!parsed.success) {
+      console.error("[RuleScoring] Failed to parse rule-weights.json5:", parsed.error);
+      return DEFAULT_WEIGHTS;
+    }
+
+    return mergeRuleWeights(parsed.data);
+  } catch (error) {
+    console.error("[RuleScoring] Failed to load rule-weights.json5:", error);
+    return DEFAULT_WEIGHTS;
+  }
+}
 
 export interface BrandHit {
   brand: string;
@@ -75,13 +190,6 @@ function normalizeEducationLevel(value: string | null | undefined): string | nul
   if (["high_school", "high school"].includes(normalized) || /中专|高中|中技/.test(normalized)) return "high_school";
 
   return null;
-}
-
-function recommendationFromScore(score: number): MatchingResult["recommendation"] {
-  if (score >= 85) return "strong_match";
-  if (score >= 70) return "match";
-  if (score >= 50) return "potential";
-  return "no_match";
 }
 
 function ensureKeywords(value: string[]): string[] {
@@ -170,14 +278,14 @@ function resolveProximityGroup(location: string): string | null {
   return null;
 }
 
-function getLocationProximityScore(candidateLocation: string, targetLocations: string[]): number {
+function getLocationProximityScore(candidateLocation: string, targetLocations: string[], exactWeight: number): number {
   const candidate = candidateLocation.trim();
   if (!candidate || targetLocations.length === 0) {
     return 0;
   }
 
   if (targetLocations.some((target) => locationMatches(candidate, target))) {
-    return 15;
+    return exactWeight;
   }
 
   const candidateGroup = resolveProximityGroup(candidate);
@@ -200,7 +308,8 @@ function getLocationProximityScore(candidateLocation: string, targetLocations: s
     });
   });
 
-  return hasProximityMatch ? 8 : 0;
+  const proximityWeight = Math.round((exactWeight * 8) / DEFAULT_WEIGHTS.categoryWeights.locationMatch);
+  return hasProximityMatch ? proximityWeight : 0;
 }
 
 function getIndustryMap(skillsService?: SkillsKnowledgeService): Array<{ tag: string; keywords: string[] }> {
@@ -221,11 +330,22 @@ export class RuleScoringService {
   private readonly jobService: JobDescriptionService;
   private readonly filterPresetService: FilterPresetService;
   private readonly skillsService: SkillsKnowledgeService;
+  private readonly weights: RuleWeightsConfig;
 
   constructor(projectRoot?: string) {
-    this.jobService = new JobDescriptionService(projectRoot);
-    this.filterPresetService = new FilterPresetService(projectRoot);
-    this.skillsService = new SkillsKnowledgeService(projectRoot);
+    const resolvedProjectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
+    this.weights = loadWeightsConfig(resolvedProjectRoot);
+    this.jobService = new JobDescriptionService(resolvedProjectRoot);
+    this.filterPresetService = new FilterPresetService(resolvedProjectRoot);
+    this.skillsService = new SkillsKnowledgeService(resolvedProjectRoot);
+  }
+
+  private recommendationFromScore(score: number): MatchingResult["recommendation"] {
+    const thresholds = this.weights.recommendationThresholds;
+    if (score >= thresholds.strongMatch) return "strong_match";
+    if (score >= thresholds.match) return "match";
+    if (score >= thresholds.potential) return "potential";
+    return "no_match";
   }
 
   buildContext(jobDescriptionId: string): RuleScoringContext {
@@ -338,6 +458,7 @@ export class RuleScoringService {
   }
 
   scoreResume(index: ResumeIndex, context: RuleScoringContext, brandHits: BrandHit[] = []): RuleScoringResult {
+    const categoryWeights = this.weights.categoryWeights;
     const keywordVariantMap = new Map<string, string[]>(
       context.keywords.map((keyword) => {
         const variants = this.skillsService.expandQueryWithSynonyms([keyword]);
@@ -366,18 +487,21 @@ export class RuleScoringService {
     });
 
     const skillMatch = context.keywords.length > 0
-      ? Math.round((matchedSkills.length / context.keywords.length) * 25)
+      ? Math.round((matchedSkills.length / context.keywords.length) * categoryWeights.skillMatch)
       : 0;
 
     let experienceMatch = 0;
     if (context.minExperience === undefined) {
-      experienceMatch = index.experienceYears === null ? 8 : 25;
+      experienceMatch = index.experienceYears === null
+        ? Math.round((categoryWeights.experienceMatch * 8) / DEFAULT_WEIGHTS.categoryWeights.experienceMatch)
+        : categoryWeights.experienceMatch;
     } else if (index.experienceYears !== null) {
       if (index.experienceYears >= context.minExperience) {
-        experienceMatch = 25;
+        experienceMatch = categoryWeights.experienceMatch;
       } else {
         const gap = context.minExperience - index.experienceYears;
-        experienceMatch = Math.max(0, 25 - Math.round(gap * 5));
+        const perYearPenalty = Math.round((categoryWeights.experienceMatch * 5) / DEFAULT_WEIGHTS.categoryWeights.experienceMatch);
+        experienceMatch = Math.max(0, categoryWeights.experienceMatch - Math.round(gap * perYearPenalty));
       }
     }
 
@@ -385,18 +509,21 @@ export class RuleScoringService {
     const resumeEducation = normalizeEducationLevel(index.educationLevel);
     const minEducationRank = getMinEducationRank(context.educationRequirements);
     if (!minEducationRank) {
-      educationMatch = resumeEducation ? 10 : 0;
+      educationMatch = resumeEducation
+        ? Math.round((categoryWeights.educationMatch * 10) / DEFAULT_WEIGHTS.categoryWeights.educationMatch)
+        : 0;
     } else if (resumeEducation) {
       const rank = EDUCATION_RANK[resumeEducation] ?? 0;
       if (rank >= minEducationRank) {
-        educationMatch = 15;
+        educationMatch = categoryWeights.educationMatch;
       } else {
-        educationMatch = Math.max(0, 15 - (minEducationRank - rank) * 6);
+        const perRankPenalty = Math.round((categoryWeights.educationMatch * 6) / DEFAULT_WEIGHTS.categoryWeights.educationMatch);
+        educationMatch = Math.max(0, categoryWeights.educationMatch - (minEducationRank - rank) * perRankPenalty);
       }
     }
 
     const location = index.locationCity || "";
-    const locationMatch = getLocationProximityScore(location, context.targetLocations);
+    const locationMatch = getLocationProximityScore(location, context.targetLocations, categoryWeights.locationMatch);
 
     const matchedCompanies = index.companies.filter((company) =>
       context.industryKeywords.some((keyword) => {
@@ -415,7 +542,7 @@ export class RuleScoringService {
       ? index.industryTags.filter((tag) => context.industryTags.includes(tag)).length / context.industryTags.length
       : 0;
     const industryRatio = Math.max(keywordRatio, tagRatio);
-    const industryMatch = Math.round(Math.min(1, industryRatio) * 10);
+    const industryMatch = Math.round(Math.min(1, industryRatio) * categoryWeights.industryMatch);
 
     const normalizedBrandKeywords = (context.brandKeywords ?? [])
       .map((brand) => brand.toLowerCase())
@@ -425,23 +552,9 @@ export class RuleScoringService {
       ? brandHits.filter((hit) => normalizedBrandKeywords.includes(hit.brand.toLowerCase()))
       : brandHits;
 
-    const contextWeightWithBrandKeyword: Record<BrandContext, number> = {
-      employer: 10,
-      sales: 9,
-      equipment: 7,
-      technical: 6,
-      general: 4,
-    };
-    const contextWeightNoBrandKeyword: Record<BrandContext, number> = {
-      employer: 4,
-      sales: 3,
-      equipment: 2,
-      technical: 2,
-      general: 1,
-    };
     const contextWeights = hasBrandKeywordTargets
-      ? contextWeightWithBrandKeyword
-      : contextWeightNoBrandKeyword;
+      ? this.weights.brandContextWithTarget
+      : this.weights.brandContextNoTarget;
 
     const brandRelevance = matchedBrandHits.reduce((maxScore, hit) =>
       Math.max(maxScore, contextWeights[hit.context] ?? 0), 0);
@@ -451,7 +564,7 @@ export class RuleScoringService {
 
     return {
       score,
-      recommendation: recommendationFromScore(score),
+      recommendation: this.recommendationFromScore(score),
       breakdown: {
         skillMatch,
         experienceMatch,
@@ -531,7 +644,7 @@ export class RuleScoringService {
       recommendation: result.recommendation,
       highlights,
       concerns,
-      summary: `规则评分 ${result.score} 分，技能匹配 ${result.breakdown.skillMatch}/25，经验 ${result.breakdown.experienceMatch}/25，品牌相关 ${result.breakdown.brandRelevance}/10。`,
+      summary: `规则评分 ${result.score} 分，技能匹配 ${result.breakdown.skillMatch}/${this.weights.categoryWeights.skillMatch}，经验 ${result.breakdown.experienceMatch}/${this.weights.categoryWeights.experienceMatch}，品牌相关 ${result.breakdown.brandRelevance}/${this.weights.categoryWeights.brandRelevance}。`,
       breakdown: result.breakdown,
       matchedSkills: result.matchedSkills,
       matchedCompanies: result.matchedCompanies,

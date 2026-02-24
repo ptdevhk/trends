@@ -49,19 +49,31 @@ export function getAnalysisForJob(
   resume: {
     analyses?: Record<string, ConvexResumeAnalysis>
     analysis?: ConvexResumeAnalysis
+    ingestData?: {
+      computedAt?: number
+    }
   },
   jobDescriptionId: string | undefined,
   keywords: string[]
 ): ConvexResumeAnalysis | undefined {
   const lookupKey = deriveAnalysisLookupKey(jobDescriptionId, keywords)
-  if (lookupKey && resume.analyses?.[lookupKey]) {
-    return resume.analyses[lookupKey]
+  const analysis = lookupKey && resume.analyses?.[lookupKey]
+    ? resume.analyses[lookupKey]
+    : resume.analysis && (!lookupKey || resume.analysis.jobDescriptionId === lookupKey)
+      ? resume.analysis
+      : undefined
+
+  if (!analysis) {
+    return undefined
   }
-  if (resume.analysis) {
-    if (!lookupKey) return resume.analysis
-    if (resume.analysis.jobDescriptionId === lookupKey) return resume.analysis
+
+  const ingestTime = resume.ingestData?.computedAt
+  const analysisTime = analysis.analyzedAt
+  if (analysis && ingestTime && analysisTime && ingestTime > analysisTime) {
+    return undefined
   }
-  return undefined
+
+  return analysis
 }
 
 export function isAutoFilteredAnalysis(analysis: ConvexResumeAnalysis | undefined): boolean {
@@ -190,9 +202,12 @@ export function buildLearningObservation(
   action: 'shortlist' | 'reject',
   resume: ResumeWithIngestData
 ): string {
-  const tags = resume.ingestData.industryTags.length > 0
-    ? resume.ingestData.industryTags.join('/')
-    : 'none'
   const level = resume.ingestData.experienceLevel || 'unknown'
-  return `${action} pattern -> ${tags} + ${level}`
+  const tokens = [...resume.ingestData.industryTags, level].filter((token) => token.length > 0)
+
+  if (action === 'shortlist') {
+    return `shortlist_pattern: ${tokens.join(' + ')} -> high_priority`
+  }
+
+  return `reject_pattern: ${tokens.join('/')} -> low_fit`
 }

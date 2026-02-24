@@ -333,15 +333,19 @@ export class IngestComputeService {
    */
   private computeSynonymHits(searchText: string): string[] {
     const synonymTable = this.skillsKnowledgeService.getSynonymTable();
-    const hits = new Set<string>();
+    const matchedTerms: string[] = [];
 
-    for (const [variant, canonical] of synonymTable.entries()) {
+    for (const [variant] of synonymTable.entries()) {
       if (searchText.includes(variant.toLowerCase())) {
-        hits.add(canonical);
+        matchedTerms.push(variant);
       }
     }
 
-    return Array.from(hits);
+    if (matchedTerms.length === 0) {
+      return [];
+    }
+
+    return this.skillsKnowledgeService.expandQueryWithSynonyms(matchedTerms);
   }
 
   /**

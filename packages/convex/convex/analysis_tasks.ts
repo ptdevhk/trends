@@ -529,6 +529,7 @@ export const processAnalysisTask = internalAction({
                                 keyword_match: 10,
                             },
                             jobDescriptionId: analysisJobDescriptionId,
+                            analyzedAt: Date.now(),
                         },
                     })),
                 });
@@ -582,6 +583,7 @@ export const processAnalysisTask = internalAction({
                                     recommendation: result.recommendation,
                                     breakdown: result.breakdown,
                                     jobDescriptionId: analysisJobDescriptionId,
+                                    analyzedAt: Date.now(),
                                 },
                             });
 

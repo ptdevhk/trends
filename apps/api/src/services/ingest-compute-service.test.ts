@@ -214,8 +214,14 @@ describe("IngestComputeService", () => {
   it("should compute synonymHits for CNC sales resume", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
-    expect(result.synonymHits).toContain("车床");  // matches "车床" in jobIntention
-    expect(result.synonymHits).toContain("销售");  // matches "销售" in jobIntention
+    expect(result.synonymHits).toEqual(expect.arrayContaining([
+      "车床",
+      "cnc车床",
+      "数控车床",
+      "销售",
+      "业务",
+      "商务",
+    ]));
   });
 
   it("should compute ruleScores for all active JDs", () => {

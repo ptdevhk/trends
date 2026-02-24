@@ -227,6 +227,7 @@ export const analyzeResume = action({
                 highlights: result.highlights || [],
                 recommendation: result.recommendation || "no_match",
                 jobDescriptionId: args.jobDescriptionId || "default",
+                analyzedAt: Date.now(),
             },
         });
 

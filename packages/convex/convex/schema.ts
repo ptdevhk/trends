@@ -78,6 +78,7 @@ export default defineSchema({
             recommendation: v.string(),
             breakdown: v.optional(v.any()), // Stores detailed scores per category
             jobDescriptionId: v.optional(v.string()), // Tracks which JD was used for analysis
+            analyzedAt: v.optional(v.number()),
         })),
 
         // AI Analysis Cache (Multi-JD Support)
