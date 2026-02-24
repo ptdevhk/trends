@@ -56,9 +56,10 @@ description: Test skills knowledge file
 
 ## Company Patterns
 
-- FANUC (aliases: 发那科, Fanuc)
-- STAR (aliases: 津上, Star Micronics)
-- BROTHER (aliases: 兄弟, Brother Industries)
+- FANUC [role: both] (aliases: 发那科, Fanuc)
+- STAR [role: employer] (aliases: 津上, Star Micronics)
+- BROTHER [role: equipment] (aliases: 兄弟, Brother Industries)
+- MAKINO (aliases: 牧野, Makino)
 
 ## Industry Context
 
@@ -210,26 +211,36 @@ describe("SkillsKnowledgeService", () => {
     }
   });
 
-  it("parses company patterns with aliases", () => {
+  it("parses company patterns with aliases and role tags", () => {
     const root = createFixtureRoot();
 
     try {
       const service = new SkillsKnowledgeService(root);
       const patterns = service.getCompanyPatterns();
 
-      expect(patterns).toHaveLength(3);
+      expect(patterns).toHaveLength(4);
 
       const fanuc = patterns.find((p) => p.name === "fanuc");
       expect(fanuc).toBeDefined();
+      expect(fanuc?.role).toBe("both");
       expect(fanuc?.aliases).toContain("发那科");
       expect(fanuc?.allNames).toContain("fanuc");
       expect(fanuc?.allNames).toContain("发那科");
 
       const star = patterns.find((p) => p.name === "star");
       expect(star).toBeDefined();
+      expect(star?.role).toBe("employer");
       expect(star?.aliases).toContain("津上");
       expect(star?.allNames).toContain("star");
       expect(star?.allNames).toContain("star micronics");
+
+      const brother = patterns.find((p) => p.name === "brother");
+      expect(brother).toBeDefined();
+      expect(brother?.role).toBe("equipment");
+
+      const makino = patterns.find((p) => p.name === "makino");
+      expect(makino).toBeDefined();
+      expect(makino?.role).toBe("both");
     } finally {
       cleanupFixtureRoot(root);
     }

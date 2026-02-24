@@ -52,6 +52,7 @@ export interface MatchingResult {
         educationMatch: number;
         locationMatch: number;
         industryMatch: number;
+        brandRelevance: number;
     };
     matchedSkills?: string[];
     matchedCompanies?: string[];

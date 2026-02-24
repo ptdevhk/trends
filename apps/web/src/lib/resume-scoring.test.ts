@@ -67,6 +67,7 @@ describe('resume-scoring', () => {
       educationMatch: 90,
       locationMatch: 60,
       industryMatch: 50,
+      brandRelevance: 6,
     })
 
     expect(breakdown).toEqual({
@@ -75,10 +76,30 @@ describe('resume-scoring', () => {
       educationMatch: 90,
       locationMatch: 60,
       industryMatch: 50,
+      brandRelevance: 6,
     })
   })
 
-  it('returns undefined for invalid breakdown', () => {
+  it('fills missing brand relevance with 0 for backward compatibility', () => {
+    expect(
+      toMatchBreakdown({
+        skillMatch: 80,
+        experienceMatch: 70,
+        educationMatch: 90,
+        locationMatch: 60,
+        industryMatch: 50,
+      })
+    ).toEqual({
+      skillMatch: 80,
+      experienceMatch: 70,
+      educationMatch: 90,
+      locationMatch: 60,
+      industryMatch: 50,
+      brandRelevance: 0,
+    })
+  })
+
+  it('returns undefined for incomplete breakdown payload', () => {
     expect(
       toMatchBreakdown({
         skillMatch: 80,

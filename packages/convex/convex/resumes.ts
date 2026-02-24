@@ -197,6 +197,12 @@ export const updateIngestData = internalMutation({
         ingestData: v.object({
             industryTags: v.array(v.string()),
             synonymHits: v.array(v.string()),
+            brandHits: v.optional(v.array(v.object({
+                brand: v.string(),
+                role: v.string(),
+                source: v.string(),
+                context: v.string(),
+            }))),
             companyHits: v.optional(v.array(v.string())),
             ruleScores: v.any(),
             experienceLevel: v.string(),
@@ -236,6 +242,12 @@ export const updateIngestDataBatch = internalMutation({
             ingestData: v.object({
                 industryTags: v.array(v.string()),
                 synonymHits: v.array(v.string()),
+                brandHits: v.optional(v.array(v.object({
+                    brand: v.string(),
+                    role: v.string(),
+                    source: v.string(),
+                    context: v.string(),
+                }))),
                 companyHits: v.optional(v.array(v.string())),
                 ruleScores: v.any(),
                 experienceLevel: v.string(),

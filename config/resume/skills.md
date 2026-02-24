@@ -1,6 +1,6 @@
 ---
-version: 2
-updated_at: '2026-02-23'
+version: 3
+updated_at: '2026-02-24'
 description: >
   Curated skill taxonomy, synonyms, and domain knowledge for resume screening.
   Used by the background ingest agent for deterministic matching and pre-scoring.
@@ -78,60 +78,60 @@ Keywords that indicate experience level. Used by the ingest agent to classify ca
 
 Known companies in the target industry with name variations. Used for company recognition and industry context.
 
-- FANUC (aliases: 发那科, Fanuc)
-- SIEMENS (aliases: 西门子, Siemens)
-- STAR (aliases: 津上, スター精密, Star Micronics)
-- BROTHER (aliases: 兄弟, Brother Industries)
-- MITSUBISHI (aliases: 三菱, Mitsubishi Electric)
-- HAAS (aliases: 哈斯, Haas Automation)
-- MAZAK (aliases: 马扎克, Yamazaki Mazak)
-- DMG MORI (aliases: 德马吉森精机, DMG森精机)
-- MAKINO (aliases: 牧野, マキノ)
-- OKUMA (aliases: 大隈, オークマ)
-- CITIZEN (aliases: 西铁城, シチズン)
-- DOOSAN (aliases: 斗山, 두산)
-- HYUNDAI WIA (aliases: 现代威亚, 현대위아)
-- TSUGAMI (aliases: 津上, つがみ)
-- JINGDIAO (aliases: 北京精雕, 精雕)
+- FANUC [role: both] (aliases: 发那科, Fanuc)
+- SIEMENS [role: both] (aliases: 西门子, Siemens)
+- STAR [role: both] (aliases: 津上, スター精密, Star Micronics)
+- BROTHER [role: both] (aliases: 兄弟, Brother Industries)
+- MITSUBISHI [role: both] (aliases: 三菱, Mitsubishi Electric)
+- HAAS [role: both] (aliases: 哈斯, Haas Automation)
+- MAZAK [role: both] (aliases: 马扎克, Yamazaki Mazak)
+- DMG MORI [role: both] (aliases: 德马吉森精机, DMG森精机)
+- MAKINO [role: both] (aliases: 牧野, マキノ)
+- OKUMA [role: both] (aliases: 大隈, オークマ)
+- CITIZEN [role: both] (aliases: 西铁城, シチズン)
+- DOOSAN [role: both] (aliases: 斗山, 두산)
+- HYUNDAI WIA [role: both] (aliases: 现代威亚, 현대위아)
+- TSUGAMI [role: both] (aliases: 津上, つがみ)
+- JINGDIAO [role: both] (aliases: 北京精雕, 精雕)
 
 Tier 1 - CNC/Machining
-- HARDINGE (aliases: 哈挺, Hardinge)
-- YASDA (aliases: 安田, ヤスダ)
-- HERMLE (aliases: 哈默, 赫姆勒)
-- TOYODA (aliases: 丰田工机, ジェイテクト)
-- RENISHAW (aliases: 雷尼绍, レニショー)
-- TORNOS (aliases: 特纳斯, Tornos Swiss)
-- GF MACHINING (aliases: 乔治费歇尔, 米科朗, Mikron, AgieCharmilles)
-- OKK (aliases: 大阪机工, オーケーケー)
-- MATSUURA (aliases: 松浦, マツウラ)
-- HURCO (aliases: 赫克, ハーコ)
-- KURAKI (aliases: 仓敷, クラキ)
+- HARDINGE [role: both] (aliases: 哈挺, Hardinge)
+- YASDA [role: both] (aliases: 安田, ヤスダ)
+- HERMLE [role: both] (aliases: 哈默, 赫姆勒)
+- TOYODA [role: both] (aliases: 丰田工机, ジェイテクト)
+- RENISHAW [role: equipment] (aliases: 雷尼绍, レニショー)
+- TORNOS [role: both] (aliases: 特纳斯, Tornos Swiss)
+- GF MACHINING [role: both] (aliases: 乔治费歇尔, 米科朗, Mikron, AgieCharmilles)
+- OKK [role: both] (aliases: 大阪机工, オーケーケー)
+- MATSUURA [role: both] (aliases: 松浦, マツウラ)
+- HURCO [role: both] (aliases: 赫克, ハーコ)
+- KURAKI [role: both] (aliases: 仓敷, クラキ)
 
 Tier 2 - EDM/Wire Cutting
-- SODICK (aliases: 沙迪克, ソディック)
-- CHARMILLES (aliases: 夏米尔, GF AgieCharmilles)
+- SODICK [role: equipment] (aliases: 沙迪克, ソディック)
+- CHARMILLES [role: equipment] (aliases: 夏米尔, GF AgieCharmilles)
 
 Tier 3 - Measurement/Metrology
-- HEXAGON (aliases: 海克斯康, ヘキサゴン)
-- ZEISS (aliases: 蔡司, 卡尔蔡司, Carl Zeiss)
-- KEYENCE (aliases: 基恩士, キーエンス)
-- MITUTOYO (aliases: 三丰, ミツトヨ)
-- WENZEL (aliases: 温泽, ヴェンツェル)
-- FARO (aliases: 法如, ファロ)
-- CREAFORM (aliases: 形创)
+- HEXAGON [role: equipment] (aliases: 海克斯康, ヘキサゴン)
+- ZEISS [role: equipment] (aliases: 蔡司, 卡尔蔡司, Carl Zeiss)
+- KEYENCE [role: equipment] (aliases: 基恩士, キーエンス)
+- MITUTOYO [role: equipment] (aliases: 三丰, ミツトヨ)
+- WENZEL [role: equipment] (aliases: 温泽, ヴェンツェル)
+- FARO [role: equipment] (aliases: 法如, ファロ)
+- CREAFORM [role: equipment] (aliases: 形创)
 
 Tier 4 - Tooling/Components
-- SANDVIK (aliases: 山特维克, サンドビック)
-- MARPOSS (aliases: 马波斯, マーポス)
-- HEIDENHAIN (aliases: 海德汉, ハイデンハイン)
+- SANDVIK [role: equipment] (aliases: 山特维克, サンドビック)
+- MARPOSS [role: equipment] (aliases: 马波斯, マーポス)
+- HEIDENHAIN [role: equipment] (aliases: 海德汉, ハイデンハイン)
 
 Tier 5 - Domestic (Pearl River Delta)
-- 创世纪 (aliases: 深圳创世纪, CGJ)
-- 台群 (aliases: 台群精机, Taiqun)
-- 沈阳机床 (aliases: 沈机, SMTCL)
-- 润星科技 (aliases: 润星, Runxing)
-- 思瑞测量 (aliases: 思瑞, CHOTEST)
-- 秦川机床 (aliases: 秦川, Qinchuan)
+- 创世纪 [role: both] (aliases: 深圳创世纪, CGJ)
+- 台群 [role: both] (aliases: 台群精机, Taiqun)
+- 沈阳机床 [role: both] (aliases: 沈机, SMTCL)
+- 润星科技 [role: both] (aliases: 润星, Runxing)
+- 思瑞测量 [role: both] (aliases: 思瑞, CHOTEST)
+- 秦川机床 [role: both] (aliases: 秦川, Qinchuan)
 
 ## Industry Context
 

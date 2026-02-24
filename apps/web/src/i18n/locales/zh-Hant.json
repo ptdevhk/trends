@@ -106,6 +106,24 @@
     "staleBadge": "過期",
     "fresh": "最新",
     "industryTags": "產業標籤",
+    "brandHits": "品牌命中",
+    "brandSource": {
+      "workHistory": "工作經歷",
+      "selfIntro": "自我介紹",
+      "jobIntention": "求職意向"
+    },
+    "brandContext": {
+      "employer": "雇主經歷",
+      "equipment": "設備經驗",
+      "sales": "銷售經驗",
+      "technical": "技術經驗",
+      "general": "泛相關"
+    },
+    "brandRole": {
+      "employer": "雇主品牌",
+      "equipment": "設備品牌",
+      "both": "雙向品牌"
+    },
     "companyHits": "公司命中",
     "experienceLevel": "經驗等級",
     "ruleScoreCount": "規則分數數量",

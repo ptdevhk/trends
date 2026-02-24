@@ -251,6 +251,7 @@ export const MatchBreakdownSchema = z
     educationMatch: z.number().int().openapi({ example: 12 }),
     locationMatch: z.number().int().openapi({ example: 15 }),
     industryMatch: z.number().int().openapi({ example: 10 }),
+    brandRelevance: z.number().int().openapi({ example: 7 }),
   })
   .openapi("MatchBreakdown");
 

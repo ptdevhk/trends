@@ -22,6 +22,7 @@ export function toMatchBreakdown(value: Record<string, number> | undefined): Mat
     educationMatch,
     locationMatch,
     industryMatch,
+    brandRelevance,
   } = value
 
   if (
@@ -40,6 +41,7 @@ export function toMatchBreakdown(value: Record<string, number> | undefined): Mat
     educationMatch,
     locationMatch,
     industryMatch,
+    brandRelevance: typeof brandRelevance === 'number' ? brandRelevance : 0,
   }
 }
 
@@ -138,6 +140,12 @@ export function getPrecomputedRuleScore(
 export type ResumeWithIngestData = ResumeItem & {
   ingestData: {
     industryTags: string[]
+    brandHits?: Array<{
+      brand: string
+      role: string
+      source: string
+      context: string
+    }>
     companyHits: string[]
     ruleScores: Record<string, number>
     experienceLevel: string
