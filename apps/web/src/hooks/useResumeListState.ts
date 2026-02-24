@@ -459,8 +459,14 @@ export function useResumeListState() {
           const anchor = document.createElement('a')
           anchor.href = url
           anchor.download = filename
-          anchor.click()
-          URL.revokeObjectURL(url)
+          anchor.style.display = 'none'
+          document.body.appendChild(anchor)
+          try {
+            anchor.click()
+          } finally {
+            anchor.remove()
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+          }
           toast.success(t('bulk.exported', { count: exportEntries.length, defaultValue: `Exported ${exportEntries.length} resumes` }))
           return
         } catch (error) {

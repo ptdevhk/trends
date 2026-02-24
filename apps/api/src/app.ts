@@ -52,7 +52,13 @@ export function createApp() {
   const app = new OpenAPIHono();
 
   // Middleware
-  app.use("*", cors());
+  app.use(
+    "*",
+    cors({
+      origin: "*",
+      exposeHeaders: ["Content-Disposition"],
+    })
+  );
   app.use("*", logger());
   app.use("*", prettyJSON());
 

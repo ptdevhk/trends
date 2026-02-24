@@ -39,9 +39,8 @@ async function runSearchTest(page: Page) {
     await clearBtn.waitFor({ state: 'visible' });
     await clearBtn.click();
 
-    // Summary might be translated or untranslated.
-    // Usually it contains "份" or "resumes"
-    await expect(page.getByText(/共 \d+ 份|returned|resumes/i)).toBeVisible();
+    // Verify the list renders (AI mode may not show the "Sample/summary" line).
+    await page.getByRole('checkbox', { name: /选择|Select/i }).first().waitFor({ state: 'visible' });
     console.log('✅ Search & Filter test passed.');
 }
 
