@@ -423,7 +423,7 @@ Curated knowledge used by the background ingest agent for deterministic matching
 
 ### Implementation Status
 
-#### Completed (Phases 1-22 + Pre-Stage + M1-M7 + CI + Post-M7 + WS1-WS5)
+#### Completed (Phases 1-22 + Pre-Stage + M1-M7 + CI + Post-M7 + WS1-WS5 + WS-B + WS-C)
 - [x] Foundation through Production Polish (Phases 1-21)
 - [x] E2E Testing, CI Pipeline, Session Memory, JD Enhancements (Phase 22)
 - [x] Pre-Stage: Generalized skill validation infra + Browser Extension Dev skill
@@ -442,6 +442,8 @@ Curated knowledge used by the background ingest agent for deterministic matching
 - [x] WS3: Ingest debug page (`/system/ingest`)
 - [x] WS4: UI refactor (ResumeList 867→~200 lines, extracted scoring utils + state hook)
 - [x] WS5: Go CLI (`packages/cli/`) with MCP server mode, `trends-cli` skill package
+- [x] WS-B: Search Profiles (management page, CRUD API, QuickStartPanel auto-match, worker scheduling, run status)
+- [x] WS-C: Search Accuracy (C1 synonym transitivity, C2 location 2-char guard, search event logger, learning log parser, auto re-ingest, analytics dashboard)
 
 #### Pending: Migration Runs
 - [ ] Run `npx convex run migrations:reindexSearchText` (CJK tokenization)
@@ -452,8 +454,6 @@ Curated knowledge used by the background ingest agent for deterministic matching
 
 #### Next: Post-Merge Feature Work
 - [ ] Additional job boards (BOSS直聘, 拉勾)
-- [ ] Search profiles YAML auto-run via worker scheduler
-- [ ] Quick Start Panel UI (minimal-input design from CLAUDE.md)
 - [ ] Notification templates (WeChat Work, Feishu, Email)
 
 ---
