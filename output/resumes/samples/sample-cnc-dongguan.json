@@ -1,0 +1,554 @@
+{
+  "metadata": {
+    "sourceUrl": "https://hr.job5156.com/search?keyword=CNC&location=%E4%B8%9C%E8%8E%9E",
+    "searchCriteria": {
+      "keyword": "CNC",
+      "location": "东莞",
+      "filters": {}
+    },
+    "generatedAt": "2026-02-24T07:30:50.937Z",
+    "generatedBy": "browser-extension@1.0.0",
+    "totalPages": 0,
+    "totalResumes": 20,
+    "reproduction": "Navigate to sourceUrl, then add ?tr_auto_export=json&tr_sample_name=sample-cnc-dongguan"
+  },
+  "data": [
+    {
+      "name": "马先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/16139011",
+      "activityStatus": "24小时活跃",
+      "age": "36岁",
+      "experience": "16年",
+      "education": "初中及以下",
+      "location": "东莞企石镇",
+      "jobIntention": "东莞企石镇CNC操作工,CNC学徒",
+      "expectedSalary": "面议",
+      "selfIntro": "",
+      "workHistory": [
+        {
+          "raw": "2022-09~至今(3年5月)宇佳鑫操机学徒"
+        },
+        {
+          "raw": "暂未填写教育经历"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.811Z",
+      "pageIndex": 1,
+      "resumeId": 16139011,
+      "perUserId": 16586627
+    },
+    {
+      "name": "蒋先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/14090891",
+      "activityStatus": "3日内活跃",
+      "age": "26岁",
+      "experience": "8年",
+      "education": "初中及以下",
+      "location": "东莞谢岗镇",
+      "jobIntention": "惠州,深圳,东莞CNC技术员",
+      "expectedSalary": "10000-11000元/月",
+      "selfIntro": "从事CNC行业六年以上。自动化零件、小散件、杂件。铜、铝、玻纤、PEI、PEEK、赛钢、亚克力、钢件等材料都有加工经验。会分中、打表、看图纸、使用检具。会架三轴和四轴、会使用探头和校探头，会接探头、对刀仪、电池阀。能看懂宏程序和简单修改程序。有钢件表壳、手机壳开粗加工经验。会磨钻头（铣刀还需练习）。会三菱和法兰克系统。会使用小黄机和台群机。有过生产组长的经验。自开自调，调机看线都可以。",
+      "workHistory": [
+        {
+          "raw": "2025-06~至今(8月)广东长盈精密技术有限公司CNC技术员"
+        },
+        {
+          "raw": "2025-02~2025-05(3月)东莞富杰精密机械有限公司CNC技术员"
+        },
+        {
+          "raw": "暂未填写教育经历"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.812Z",
+      "pageIndex": 2,
+      "resumeId": 14090891,
+      "perUserId": 14566535
+    },
+    {
+      "name": "周先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/475316",
+      "activityStatus": "24小时活跃",
+      "age": "44岁",
+      "experience": "24年",
+      "education": "高中",
+      "location": "东莞",
+      "jobIntention": "广东CNC编程,CNC技术员",
+      "expectedSalary": "12000-20000元/月",
+      "selfIntro": "自我评价：为人正直、勤奋、务实、，爱好广泛，热爱运动 ；工作认真，主动承担责任，具有独立处理事情的能力；具有团队精神 ，与同事及其它部门积极配合，公司利益至上；具有较强的学习能力，希望在本行业内服务，继续提高自我技能。\n\n职业技能：多年数控加工中心工作经验，能跟据图纸要求合理制定加工工艺，制做工装夹具，选择合适刀具路径，加工出合格的零件，熟练操作FANUC，三菱，日本兄弟系统。ug四轴五轴编程，",
+      "workHistory": [
+        {
+          "raw": "2023-07~2025-08(2年1月)星越五金科技有限公司CNC编程工程师"
+        },
+        {
+          "raw": "2022-03~2023-06(1年3月)深圳泰瑞琦五金有限公司CNC编程工程师"
+        },
+        {
+          "raw": "1997-9~2000-7新邵六中理工高中"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.812Z",
+      "pageIndex": 3,
+      "resumeId": 475316,
+      "perUserId": 475316
+    },
+    {
+      "name": "韦先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/6417137",
+      "activityStatus": "3日内活跃",
+      "age": "39岁",
+      "experience": "19年",
+      "education": "高中",
+      "location": "东莞",
+      "jobIntention": "东莞CNC编程",
+      "expectedSalary": "10000-14999元/月",
+      "selfIntro": "CNC编程 操机 塑胶模加工",
+      "workHistory": [
+        {
+          "raw": "2025-03~2025-07(4月)东莞市锐鼎五金制品有限公司CNC编程"
+        },
+        {
+          "raw": "2024-12~2025-03(3月)晗泰CNC编程"
+        },
+        {
+          "raw": "2010-02~2010-05宁波飞天模具学校CNC加工中心操作与编程高中"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.812Z",
+      "pageIndex": 4,
+      "resumeId": 6417137,
+      "perUserId": 6417137
+    },
+    {
+      "name": "余先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/10612174",
+      "activityStatus": "24小时活跃",
+      "age": "29岁",
+      "experience": "12年",
+      "education": "大专",
+      "location": "东莞寮步镇",
+      "jobIntention": "东莞,深圳CNC编程",
+      "expectedSalary": "14000-16000元/月",
+      "selfIntro": "负责CNC操机，加工模具，零件，产品",
+      "workHistory": [
+        {
+          "raw": "2024-03~至今(1年11月)聚鑫鸿精密模具CNC编程"
+        },
+        {
+          "raw": "2021-02~2024-02(3年)东莞汇亿鑫塑胶有限公司CNC编程"
+        },
+        {
+          "raw": "2013~2016南昌教育学院计算机应用大专"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.813Z",
+      "pageIndex": 5,
+      "resumeId": 10612174,
+      "perUserId": 10662983
+    },
+    {
+      "name": "韦先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/13142190",
+      "activityStatus": "24小时活跃",
+      "age": "23岁",
+      "experience": "8年",
+      "education": "初中及以下",
+      "location": "深圳宝安区",
+      "jobIntention": "东莞CNC操作工",
+      "expectedSalary": "7000-9000元/月",
+      "selfIntro": "",
+      "workHistory": [
+        {
+          "raw": "2025-02~2025-10(8月)知了模具CNC"
+        },
+        {
+          "raw": "2024-02~2024-12(10月)迪奥光学透镜CNC"
+        },
+        {
+          "raw": "2014-09~2017-07三中初中及以下"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.813Z",
+      "pageIndex": 6,
+      "resumeId": 13142190,
+      "perUserId": 13583645
+    },
+    {
+      "name": "艾先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/7040023",
+      "activityStatus": "24小时活跃",
+      "age": "31岁",
+      "experience": "15年",
+      "education": "初中及以下",
+      "location": "东莞",
+      "jobIntention": "东莞CNC操作工,CNC技术员",
+      "expectedSalary": "7000-9000元/月",
+      "selfIntro": "本人从事CNC工作8年多 操机中常遇到的问题能独立解决，会磨刀，会调机，能熟练操作三菱和法兰克系统机型，包括加工中心，佳铁机，新代 宝源 精雕机等，能服从上级领导安排；",
+      "workHistory": [
+        {
+          "raw": "2022-10~2023-12(1年2月)东莞盛鑫模具CNC操机师傅"
+        },
+        {
+          "raw": "2019-05~2022-08(3年3月)河源龙川帝闻电子科技有限公司CNC师傅"
+        },
+        {
+          "raw": "2006-09~2009-5田东中学全科初中及以下"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.813Z",
+      "pageIndex": 7,
+      "resumeId": 7040023,
+      "perUserId": 7040023
+    },
+    {
+      "name": "李先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/13865129",
+      "activityStatus": "24小时活跃",
+      "age": "37岁",
+      "experience": "13年",
+      "education": "初中及以下",
+      "location": "东莞凤岗镇",
+      "jobIntention": "东莞凤岗镇CNC编程",
+      "expectedSalary": "8000-9999元/月",
+      "selfIntro": "会UG拆铜公，powermill编写刀路",
+      "workHistory": [
+        {
+          "raw": "2024-10~至今(1年4月)东莞凤岗建业五金CNC编程"
+        },
+        {
+          "raw": "2023-08~2024-10(1年2月)东莞市凤岗镇信烨模具厂CNC编程师傅"
+        },
+        {
+          "raw": "1999~2002清湾镇初级中学初中及以下"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.813Z",
+      "pageIndex": 8,
+      "resumeId": 13865129,
+      "perUserId": 14346979
+    },
+    {
+      "name": "冼先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/14093349",
+      "activityStatus": "在线中",
+      "age": "29岁",
+      "experience": "12年",
+      "education": "初中及以下",
+      "location": "东莞塘厦镇",
+      "jobIntention": "东莞,深圳,惠州CNC编程",
+      "expectedSalary": "10000-16000元/月",
+      "selfIntro": "1.负责CNC机台日常保养、及熟悉各种系统操作",
+      "workHistory": [
+        {
+          "raw": "2023-02~2025-12(2年10月)东莞市霖浩塑胶电子有限公司CNC编程"
+        },
+        {
+          "raw": "2021-04~2023-01(1年9月)广东鑫永佳科技有限公司CNC编程师傅"
+        },
+        {
+          "raw": "2009~2012河源市紫金县黄塘中学初中及以下"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.813Z",
+      "pageIndex": 9,
+      "resumeId": 14093349,
+      "perUserId": 14568991
+    },
+    {
+      "name": "赵先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/13786235",
+      "activityStatus": "24小时活跃",
+      "age": "42岁",
+      "experience": "18年",
+      "education": "中专",
+      "location": "东莞常平镇",
+      "jobIntention": "东莞CNC编程",
+      "expectedSalary": "15000-16000元/月",
+      "selfIntro": "负责耳机模具编程，及电极设计，对加工工艺进行优化，对加工品质把控，自己对CNC操作员进行培训及指导",
+      "workHistory": [
+        {
+          "raw": "2025-10~至今(4月)东莞市展铭塑胶制品有限公司CNC编程"
+        },
+        {
+          "raw": "2024-11~2025-04(5月)德丰电创科技股份有限公司CNC编程"
+        },
+        {
+          "raw": "2000~2003南阳市八中文化课学习中专"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.814Z",
+      "pageIndex": 10,
+      "resumeId": 13786235,
+      "perUserId": 9437472
+    },
+    {
+      "name": "郭先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/5476948",
+      "activityStatus": "刚刚活跃",
+      "age": "36岁",
+      "experience": "6年",
+      "education": "大专",
+      "location": "东莞",
+      "jobIntention": "东莞CNC编程",
+      "expectedSalary": "面议",
+      "selfIntro": "有操作过三菱、法兰克系统，会磨刀。\n有设计夹具的经验。\n有加工产品经验，会用带刀库的数控机床。\n熟识机械制图、熟练操作UG编程软件，熟悉机械加工。",
+      "workHistory": [
+        {
+          "raw": "2021-05~至今(4年9月)东莞市思榕智能装备有限公司CNC编程"
+        },
+        {
+          "raw": "2019-03~2020-01(10月)东莞乾源科技有限公司CNC编程"
+        },
+        {
+          "raw": "2007-9~2010-7江西交通职业技术学院软件技术大专"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.814Z",
+      "pageIndex": 11,
+      "resumeId": 5476948,
+      "perUserId": 5476948
+    },
+    {
+      "name": "吴先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/5525237",
+      "activityStatus": "刚刚活跃",
+      "age": "35岁",
+      "experience": "16年",
+      "education": "高中",
+      "location": "东莞",
+      "jobIntention": "东莞,广州CNC编程",
+      "expectedSalary": "10000-14999元/月",
+      "selfIntro": "自我评价：服从上级安排，认真完成工作，团结互助！",
+      "workHistory": [
+        {
+          "raw": "2023-08~至今(2年6月)东莞市中启声学科技有限公司CNC编程"
+        },
+        {
+          "raw": "2020-06~2023-07(3年1月)东莞市超骏精密齿轮有限公司CNC编程工程师"
+        },
+        {
+          "raw": "2006-9~2009-06周口中学理科高中"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.814Z",
+      "pageIndex": 12,
+      "resumeId": 5525237,
+      "perUserId": 5525237
+    },
+    {
+      "name": "姚先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/10240687",
+      "activityStatus": "24小时活跃",
+      "age": "48岁",
+      "experience": "29年",
+      "education": "中专",
+      "location": "东莞长安镇",
+      "jobIntention": "深圳,东莞,中山CNC编程,CNC技术员",
+      "expectedSalary": "面议",
+      "selfIntro": "用UG，MaSterCAM CAD软件进行编程及操作CNC机床，主用UG，MaSterCAM，CAD软件进行3D画图，分模，拆铜公，及编程加工上模下模，零件镶件，钛钢件等和出放电图，可以操作森精，牧野，雅思达，沙迪克，法兰克，三菱，兄弟，哈斯，米克朗，德马等cnc数控机床，会磨cnc铣床刀具。会开车床，铣床，磨床。车床，火花机，线切割，NC数控机床。",
+      "workHistory": [
+        {
+          "raw": "2024-01~至今(2年1月)新溢眼镜制造厂CNC编程"
+        },
+        {
+          "raw": "2018-04~2023-11(5年7月)东洋东秀工厂CNC编程员， CNC技术员 慢走丝技工"
+        },
+        {
+          "raw": "1993-09~1996-07清远职业技术学校机械电子中专"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.814Z",
+      "pageIndex": 13,
+      "resumeId": 10240687,
+      "perUserId": 10205390
+    },
+    {
+      "name": "陈先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/13680521",
+      "activityStatus": "3日内活跃",
+      "age": "26岁",
+      "experience": "11年",
+      "education": "本科",
+      "location": "东莞厚街镇",
+      "jobIntention": "惠州,东莞,深圳CNC编程",
+      "expectedSalary": "13000-15000元/月",
+      "selfIntro": "CNC编程＋操机\n主要负责模具钢料与电极的程式编程以及拆电极；模具及电极加工校表调机，加工效果反馈进而改善参数。",
+      "workHistory": [
+        {
+          "raw": "2023-03~至今(2年11月)金运来精密科技有限公司CNC编程主管"
+        },
+        {
+          "raw": "2022-04~2023-03(11月)深圳市东煌塑胶科技有限公司CNC编程主管"
+        },
+        {
+          "raw": "2020~2023广东南方职业学院商务英语本科"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.814Z",
+      "pageIndex": 14,
+      "resumeId": 13680521,
+      "perUserId": 14175441
+    },
+    {
+      "name": "杨先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/14581417",
+      "activityStatus": "3日内活跃",
+      "age": "35岁",
+      "experience": "15年",
+      "education": "中专",
+      "location": "东莞万江区",
+      "jobIntention": "东莞CNC技术员,CNC操作工",
+      "expectedSalary": "10000-13000元/月",
+      "selfIntro": "操作CNC三轴，卧式加工中心。调试机台，加工非标精密零件。",
+      "workHistory": [
+        {
+          "raw": "2022-10~2025-10(3年)东莞市普华精密机械有限公司CNC技术员"
+        },
+        {
+          "raw": "2019-12~2022-09(2年9月)广东博智林智能制造有限公司CNC技术员"
+        },
+        {
+          "raw": "2006~2009华岳电子工程学校模具设计与制造中专"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.814Z",
+      "pageIndex": 15,
+      "resumeId": 14581417,
+      "perUserId": 15052369
+    },
+    {
+      "name": "赵先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/11048041",
+      "activityStatus": "24小时活跃",
+      "age": "35岁",
+      "experience": "16年",
+      "education": "大专",
+      "location": "东莞塘厦镇",
+      "jobIntention": "东莞CNC编程,CNC技术员",
+      "expectedSalary": "10000-14999元/月",
+      "selfIntro": "1、编制本公司所有需数控加工CNC程序，确保CNC程式正确无误，加工安全；\n2、根据生产任务，合理编制CNC程序和安排CNC加工先后程序，以确保生产进度；\n3、控制CNC加工工件表面光洁度与尺寸之精确度，以保证产品质量；\n4、跟踪CNC加工、工件，以避免错误的发生，如发生错误， 协同设计人员确定正确合理的解决方案；\n5、正确管理电脑图档，以方便他人查验、应用（操机人员或其他编程人员）",
+      "workHistory": [
+        {
+          "raw": "2019-08~至今(6年6月)东莞市昇晟精密机械科技有限公司CNC编程工程师"
+        },
+        {
+          "raw": "2017-05~2019-05(2年)东莞达得利精密金属有限公司CNC高级技术员"
+        },
+        {
+          "raw": "2008-03~2010-06湖南工学院模具设计与制造大专"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.815Z",
+      "pageIndex": 16,
+      "resumeId": 11048041,
+      "perUserId": 11230481
+    },
+    {
+      "name": "李先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/7418509",
+      "activityStatus": "本周活跃",
+      "age": "36岁",
+      "experience": "16年",
+      "education": "中专",
+      "location": "东莞虎门镇",
+      "jobIntention": "东莞虎门镇,东莞长安镇CNC编程",
+      "expectedSalary": "12000-15000元/月",
+      "selfIntro": "本公司主要以生产手机外壳，笔记本外壳等铝制品为主，有CNC128台，本人主要负责夹具定位，调试好气缸接管和真空管，刀具装夹，程式确认，产品首件的调试和确认，培训开机人员的操作和自检。管理开机人员的工作琐事和工作分配等等！",
+      "workHistory": [
+        {
+          "raw": "2023-04~至今(2年10月)深圳伙伴气动CNC编程"
+        },
+        {
+          "raw": "2018-09~2020-06(1年9月)奥嘉德精密金属厂CNC工程打样技术员"
+        },
+        {
+          "raw": "2005-9~2008-06湖北楚才技工学校模具与钳工中专"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.815Z",
+      "pageIndex": 17,
+      "resumeId": 7418509,
+      "perUserId": 7418509
+    },
+    {
+      "name": "肖孟南",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/10323529",
+      "activityStatus": "3日内活跃",
+      "age": "39岁",
+      "experience": "17年",
+      "education": "大专",
+      "location": "东莞大岭山镇",
+      "jobIntention": "东莞CNC编程",
+      "expectedSalary": "10000-14999元/月",
+      "selfIntro": "主要加工电子类压铸产品/自动化/机械五金零件，负责CNC编程，调机，夹具设计，首件确认。",
+      "workHistory": [
+        {
+          "raw": "2024-10~2025-09(11月)东莞鑫豪信精密技术有限公司cnc编程"
+        },
+        {
+          "raw": "2023-03~2024-10(1年7月)苏州东亚科技cnc五轴工程师"
+        },
+        {
+          "raw": "2007-03~2010-07湖南工程学院数控技术大专"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.815Z",
+      "pageIndex": 18,
+      "resumeId": 10323529,
+      "perUserId": 10300189
+    },
+    {
+      "name": "舒先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/8441312",
+      "activityStatus": "本周活跃",
+      "age": "35岁",
+      "experience": "15年",
+      "education": "高中",
+      "location": "东莞",
+      "jobIntention": "广州,东莞CNC技术员",
+      "expectedSalary": "6000-7999元/月",
+      "selfIntro": "我叫舒用，自2011年从事模具cnc操作，已有多年vnc操机经验，曾参与公司自动化车间项目。能不能苦耐劳，团结他人，为人和善。希望能在新的公司里充分发挥自己所长，完善自身，为公司的业绩添砖加瓦。",
+      "workHistory": [
+        {
+          "raw": "2023-01~2023-10(9月)东莞振粤精密模具有限公司CNC操机师傅"
+        },
+        {
+          "raw": "2022-09~2023-01(4月)路东盛维塑胶制品有限公司cnc操机"
+        },
+        {
+          "raw": "2006-07~2009-05溆浦四中CNC操作高中"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.815Z",
+      "pageIndex": 19,
+      "resumeId": 8441312,
+      "perUserId": 8226014
+    },
+    {
+      "name": "曹先生",
+      "profileUrl": "https://hr.job5156.com/api/com/resume/10858531",
+      "activityStatus": "24小时活跃",
+      "age": "30岁",
+      "experience": "12年",
+      "education": "大专",
+      "location": "东莞清溪镇",
+      "jobIntention": "东莞CNC编程",
+      "expectedSalary": "18000-25000元/月",
+      "selfIntro": "• 主导产品零件的工艺规划与编制，精通CNC三轴、四轴编程操作\n• 优化毛坯材料选型，将材料利用率提升\n• 设计开发专用工装夹具，确保生产工艺要求100％达标\n• 标准化工艺文件输出，建立完善的加工作业流程体系\n• 实施工艺改进项目，推动生产效率的提升",
+      "workHistory": [
+        {
+          "raw": "2023-02~至今(3年)深圳高捷技术有限公司CNC编程工程师"
+        },
+        {
+          "raw": "2021-06~2023-02(1年8月)戴德科技（东莞）有限公司CNC编程工程师"
+        },
+        {
+          "raw": "2021~2023广东理工学院机械设计与制造大专"
+        }
+      ],
+      "extractedAt": "2026-02-24T07:30:48.815Z",
+      "pageIndex": 20,
+      "resumeId": 10858531,
+      "perUserId": 10997566
+    }
+  ]
+}
