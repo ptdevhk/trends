@@ -308,9 +308,9 @@ seed:
 # Seed Convex with system job descriptions + sample resumes (idempotent)
 seed-full:
 	@if command -v bun > /dev/null 2>&1; then \
-		bun scripts/seed-convex.ts --with-resumes; \
+		bun scripts/seed-convex.ts --with-resumes $(if $(SAMPLE),--sample $(SAMPLE)); \
 	else \
-		npx tsx scripts/seed-convex.ts --with-resumes; \
+		npx tsx scripts/seed-convex.ts --with-resumes $(if $(SAMPLE),--sample $(SAMPLE)); \
 	fi
 
 # Force seeding even when DB is not empty (idempotent)

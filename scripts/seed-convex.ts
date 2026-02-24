@@ -37,6 +37,7 @@ type CliOptions = {
   withResumes: boolean;
   force: boolean;
   checkOnly: boolean;
+  sample: string | null;
 };
 
 const seedStatusFunction = makeFunctionReference<"query", Record<string, never>, SeedStatus>("seed:status");
@@ -44,7 +45,7 @@ const seedJobDescriptionsFunction = makeFunctionReference<"mutation", { items: S
 const seedResumesFunction = makeFunctionReference<"mutation", { resumes: SeedResume[] }, SeedResult>("seed:seedResumes");
 
 function printUsage(): void {
-  console.log("Usage: seed-convex.ts [--with-resumes] [--force] [--check-only]");
+  console.log("Usage: seed-convex.ts [--with-resumes] [--force] [--check-only] [--sample <name>]");
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -52,9 +53,11 @@ function parseArgs(argv: string[]): CliOptions {
     withResumes: false,
     force: false,
     checkOnly: false,
+    sample: null,
   };
 
-  for (const arg of argv) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
     if (arg === "--with-resumes") {
       options.withResumes = true;
       continue;
@@ -65,6 +68,27 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--check-only") {
       options.checkOnly = true;
+      continue;
+    }
+    if (arg === "--sample") {
+      const sample = argv[i + 1];
+      if (!sample || sample.startsWith("--")) {
+        console.error("Missing value for --sample");
+        printUsage();
+        process.exit(1);
+      }
+      options.sample = sample;
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith("--sample=")) {
+      const sample = arg.slice("--sample=".length).trim();
+      if (!sample) {
+        console.error("Missing value for --sample");
+        printUsage();
+        process.exit(1);
+      }
+      options.sample = sample;
       continue;
     }
     if (arg === "--help" || arg === "-h") {
@@ -231,7 +255,11 @@ function readStringField(record: Record<string, unknown>, key: string): string |
   return null;
 }
 
-function resolveResumeExternalId(resume: Record<string, unknown>, index: number): string {
+function resolveResumeExternalId(
+  resume: Record<string, unknown>,
+  index: number,
+  fallbackPrefix = "sample"
+): string {
   const keyCandidates = ["externalId", "resumeId", "perUserId"];
   for (const key of keyCandidates) {
     const candidate = readStringField(resume, key);
@@ -251,7 +279,7 @@ function resolveResumeExternalId(resume: Record<string, unknown>, index: number)
     return `${name}-${extractedAt}`;
   }
 
-  return `sample-initial-${index + 1}`;
+  return `${fallbackPrefix}-${index + 1}`;
 }
 
 function extractResumesFromPayload(payload: unknown): Record<string, unknown>[] {
@@ -301,27 +329,76 @@ function extractResumeSource(payload: unknown): string {
   return sourceUrl;
 }
 
-function loadSampleResumes(projectRoot: string): SeedResume[] {
-  const samplePath = path.join(projectRoot, "output", "resumes", "samples", "sample-initial.json");
-  if (!fs.existsSync(samplePath)) {
-    throw new Error(`Resume sample file not found: ${samplePath}`);
+function normalizeSampleFileName(sampleName: string): string {
+  return sampleName.toLowerCase().endsWith(".json") ? sampleName : `${sampleName}.json`;
+}
+
+function loadSampleResumes(projectRoot: string, specificSample: string | null): SeedResume[] {
+  const sampleDir = path.join(projectRoot, "output", "resumes", "samples");
+  if (!fs.existsSync(sampleDir)) {
+    throw new Error(`Resume sample directory not found: ${sampleDir}`);
   }
 
-  const raw: unknown = JSON.parse(fs.readFileSync(samplePath, "utf8"));
-  const source = extractResumeSource(raw);
-  const resumes = extractResumesFromPayload(raw).slice(0, 100);
+  let sampleFiles: string[] = [];
+  if (specificSample) {
+    const fileName = normalizeSampleFileName(specificSample);
+    const samplePath = path.join(sampleDir, fileName);
+    if (!fs.existsSync(samplePath)) {
+      throw new Error(`Resume sample file not found: ${samplePath}`);
+    }
+    sampleFiles = [fileName];
+  } else {
+    sampleFiles = fs.readdirSync(sampleDir)
+      .filter((filename) => filename.endsWith(".json"))
+      .sort();
+    if (sampleFiles.length === 0) {
+      throw new Error(`No resume sample files found in: ${sampleDir}`);
+    }
+  }
 
-  return resumes.map((resume, index) => {
-    const externalId = resolveResumeExternalId(resume, index);
-    const hash = crypto.createHash("sha256").update(JSON.stringify(resume), "utf8").digest("hex");
-    return {
-      externalId,
-      content: resume,
-      hash,
-      source,
-      tags: ["sample-initial", "seed"],
-    };
-  });
+  const dedupedResumes = new Map<string, SeedResume>();
+
+  for (const fileName of sampleFiles) {
+    const samplePath = path.join(sampleDir, fileName);
+    const raw: unknown = JSON.parse(fs.readFileSync(samplePath, "utf8"));
+    const source = extractResumeSource(raw);
+    const sampleTag = fileName.replace(/\.json$/i, "");
+    const extractedResumes = extractResumesFromPayload(raw);
+    const resumes = extractedResumes.slice(0, 100);
+    let inserted = 0;
+    let duplicates = 0;
+
+    resumes.forEach((resume, index) => {
+      const externalId = resolveResumeExternalId(resume, index, sampleTag);
+      const existing = dedupedResumes.get(externalId);
+      if (existing) {
+        duplicates += 1;
+        const mergedTags = new Set(existing.tags);
+        mergedTags.add(sampleTag);
+        mergedTags.add("seed");
+        existing.tags = Array.from(mergedTags);
+        return;
+      }
+
+      const hash = crypto.createHash("sha256").update(JSON.stringify(resume), "utf8").digest("hex");
+      dedupedResumes.set(externalId, {
+        externalId,
+        content: resume,
+        hash,
+        source,
+        tags: [sampleTag, "seed"],
+      });
+      inserted += 1;
+    });
+
+    console.log(
+      `Loaded sample ${fileName}: extracted=${extractedResumes.length}, capped=${resumes.length}, inserted=${inserted}, duplicates=${duplicates}`
+    );
+  }
+
+  const deduped = Array.from(dedupedResumes.values());
+  console.log(`Prepared ${deduped.length} deduplicated resumes from ${sampleFiles.length} sample file(s).`);
+  return deduped;
 }
 
 function chunkItems<T>(items: T[], chunkSize: number): T[][] {
@@ -368,7 +445,7 @@ async function main(): Promise<void> {
   console.log(`Job descriptions: inserted=${jdResult.inserted}, skipped=${jdResult.skipped}`);
 
   if (options.withResumes) {
-    const resumes = loadSampleResumes(projectRoot);
+    const resumes = loadSampleResumes(projectRoot, options.sample);
     const batches = chunkItems(resumes, 50);
     let inserted = 0;
     let skipped = 0;
