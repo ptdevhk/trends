@@ -4,7 +4,10 @@ import path from "node:path";
 import { findProjectRoot } from "./db.js";
 import { DataNotFoundError, FileParseError } from "./errors.js";
 import { IndustryDataService } from "./industry-data-service.js";
+import { parseSearchQuery } from "./query-parser.js";
+import { resolveResumeId } from "./resume-id.js";
 import { ResumeIndexService } from "./resume-index.js";
+import { SkillsKnowledgeService } from "./skills-knowledge.js";
 
 import type { ResumeItem, ResumeSampleFile, ResumeWorkHistoryItem } from "../types/resume.js";
 import type { ResumeIndex } from "./resume-index.js";
@@ -128,11 +131,13 @@ export class ResumeService {
   readonly projectRoot: string;
   private readonly indexService: ResumeIndexService;
   private readonly industryService: IndustryDataService;
+  private readonly skillsService: SkillsKnowledgeService;
 
   constructor(projectRoot?: string) {
     this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
     this.indexService = new ResumeIndexService(this.projectRoot);
     this.industryService = new IndustryDataService(this.projectRoot);
+    this.skillsService = new SkillsKnowledgeService(this.projectRoot);
   }
 
   private getSamplesDir(): string {
@@ -209,70 +214,130 @@ export class ResumeService {
   searchResumes(
     items: ResumeItem[],
     query?: string,
-    indexMap?: Map<string, ResumeIndex>
+    indexMap?: Map<string, ResumeIndex>,
+    ruleScoreMap?: Map<string, number>
   ): Array<ResumeItem & { relevanceScore: number }> {
     if (!query || !query.trim()) {
       return items.map(item => ({ ...item, relevanceScore: 0 }));
     }
 
-    const keyword = query.trim().toLowerCase();
+    const parsedQuery = parseSearchQuery(query.trim());
+    if (parsedQuery.keywords.length === 0) {
+      return items.map(item => ({ ...item, relevanceScore: 0 }));
+    }
+
+    const keywordSets = parsedQuery.keywords.map((keyword) => {
+      const expanded = this.skillsService.expandQueryWithSynonyms([keyword]);
+      const variants = Array.from(
+        new Set(
+          [keyword, ...expanded]
+            .map((item) => item.trim().toLowerCase())
+            .filter((item) => item.length >= 2)
+        )
+      );
+
+      return {
+        original: keyword,
+        variants: variants.length > 0 ? variants : [keyword],
+      };
+    });
+
     const results: Array<ResumeItem & { relevanceScore: number }> = [];
     const industryLookup = this.industryService.getCompanyLookup();
 
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
-      const resumeId = item.resumeId || `idx-${i}`;
+      const resumeId = resolveResumeId(item, i);
       const index = indexMap?.get(resumeId);
 
-      let score = 0;
       const name = (item.name || "").toLowerCase();
       const jobIntention = (item.jobIntention || "").toLowerCase();
       const searchText = index?.searchText || buildSearchText(item);
-
-      // 1. Exact Name Match (Highest priority)
-      if (name === keyword) {
-        score += 100;
-      } else if (name.includes(keyword)) {
-        score += 50;
-      }
-
-      // 2. Industry Company Match
       const companies = index?.companies ?? (item.workHistory?.map(wh => extractCompanyName(wh.raw)) || []);
-      for (const co of companies) {
-        const normalizedCo = co.toLowerCase().trim();
-        if (industryLookup.has(normalizedCo)) {
+
+      const perKeywordScores = keywordSets.map(({ original, variants }) => {
+        let score = 0;
+
+        // 1. Exact Name Match (Highest priority, original keyword only)
+        if (name === original) {
           score += 100;
-          break;
+        } else if (name.includes(original)) {
+          score += 50;
         }
-      }
 
-      // 3. Job Intention Match
-      if (jobIntention.includes(keyword)) {
-        score += 30;
-        // Bonus for start of intention
-        if (jobIntention.startsWith(keyword)) {
-          score += 20;
+        // 2. Industry Company Match
+        const hasIndustryCompanyMatch = companies.some((company) => {
+          const normalizedCompany = company.toLowerCase().trim();
+          if (!normalizedCompany || !industryLookup.has(normalizedCompany)) {
+            return false;
+          }
+          return variants.some((variant) => normalizedCompany.includes(variant));
+        });
+        if (hasIndustryCompanyMatch) {
+          score += 100;
         }
+
+        // 3. Job Intention Match
+        const intentionMatches = variants.filter((variant) => jobIntention.includes(variant));
+        if (intentionMatches.length > 0) {
+          score += 30;
+          // Bonus for start of intention
+          if (intentionMatches.some((variant) => jobIntention.startsWith(variant))) {
+            score += 20;
+          }
+        }
+
+        // 4. Skills Match (from index if available)
+        if (index) {
+          const matchedSkills = index.skills.filter((skill) =>
+            variants.some((variant) => skill.includes(variant))
+          );
+          score += matchedSkills.length * 10;
+        }
+
+        // 5. Full Text Search (Expanded recall)
+        let hasTextMatch = false;
+        let occurrences = 0;
+        for (const variant of variants) {
+          if (!searchText.includes(variant)) {
+            continue;
+          }
+
+          hasTextMatch = true;
+          occurrences += (searchText.match(new RegExp(escapeRegex(variant), "g")) || []).length;
+        }
+        if (hasTextMatch) {
+          score += 10;
+          score += Math.min(occurrences, 5) * 2;
+        }
+
+        return {
+          keyword: original,
+          score,
+          matched: score > 0,
+        };
+      });
+
+      const matchedCount = perKeywordScores.filter((entry) => entry.matched).length;
+      const isAndMode = parsedQuery.mode === "AND";
+      if (isAndMode && matchedCount < keywordSets.length) {
+        continue;
+      }
+      if (!isAndMode && matchedCount === 0) {
+        continue;
       }
 
-      // 4. Skills Match (from index if available)
-      if (index) {
-        const matchedSkills = index.skills.filter(s => s.includes(keyword));
-        score += matchedSkills.length * 10;
-      }
+      const totalScore = perKeywordScores.reduce((sum, entry) => sum + entry.score, 0);
+      const adHocScore = Math.round(totalScore / keywordSets.length);
+      const ruleScore = ruleScoreMap?.get(resumeId);
+      const relevanceScore = typeof ruleScore === "number"
+        ? Math.round((adHocScore * 0.4) + (ruleScore * 0.6))
+        : adHocScore;
 
-      // 5. Full Text Search (Expanded recall)
-      if (searchText.includes(keyword)) {
-        score += 10;
-        // Count occurrences (capped)
-        const occurrences = (searchText.match(new RegExp(escapeRegex(keyword), "g")) || []).length;
-        score += Math.min(occurrences, 5) * 2;
-      }
-
-      if (score > 0) {
+      if (relevanceScore > 0) {
         results.push({
           ...item,
-          relevanceScore: score,
+          relevanceScore,
         });
       }
     }

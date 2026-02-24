@@ -496,6 +496,81 @@ export class SkillsKnowledgeService {
   }
 
   /**
+   * Expand query keywords with synonym variants (bidirectional).
+   */
+  expandQueryWithSynonyms(keywords: string[]): string[] {
+    const synonymTable = this.getSynonymTable();
+    const synonymEntries = this.parseSkillsFile().synonyms;
+    const normalizedKeywords = keywords
+      .map((keyword) => normalizeToken(keyword))
+      .filter((keyword) => keyword.length >= 2);
+
+    if (normalizedKeywords.length === 0) {
+      return [];
+    }
+
+    const canonicalGroups = new Map<string, Set<string>>();
+    const getCanonical = (term: string): string => synonymTable.get(term) ?? term;
+
+    const addToGroup = (canonical: string, term: string): void => {
+      if (term.length < 2) {
+        return;
+      }
+      const group = canonicalGroups.get(canonical);
+      if (group) {
+        group.add(term);
+        return;
+      }
+      canonicalGroups.set(canonical, new Set([term]));
+    };
+
+    for (const entry of synonymEntries) {
+      const terms = entry.allTerms
+        .map((term) => normalizeToken(term))
+        .filter((term) => term.length >= 2);
+      const canonical = getCanonical(normalizeToken(entry.canonical));
+      addToGroup(canonical, canonical);
+      for (const term of terms) {
+        const resolved = getCanonical(term);
+        addToGroup(canonical, term);
+        addToGroup(canonical, resolved);
+        addToGroup(resolved, term);
+        addToGroup(resolved, resolved);
+      }
+    }
+
+    for (const [variant, canonical] of synonymTable.entries()) {
+      addToGroup(canonical, canonical);
+      addToGroup(canonical, variant);
+    }
+
+    const expanded: string[] = [];
+    const seen = new Set<string>();
+    const pushTerm = (term: string): void => {
+      if (term.length < 2 || seen.has(term)) {
+        return;
+      }
+      seen.add(term);
+      expanded.push(term);
+    };
+
+    for (const keyword of normalizedKeywords) {
+      const canonical = getCanonical(keyword);
+      pushTerm(keyword);
+      pushTerm(canonical);
+
+      const group = canonicalGroups.get(canonical);
+      if (group) {
+        for (const term of group) {
+          pushTerm(term);
+        }
+      }
+    }
+
+    return expanded;
+  }
+
+  /**
    * Get full skill vocabulary (all domain keywords + synonym variants)
    */
   getSkillVocabulary(): Set<string> {

@@ -58,6 +58,12 @@ const INDUSTRY_MAP: Array<{ tag: string; keywords: string[] }> = [
   { tag: "software", keywords: ["软件", "c++", "c#", "qt", "mfc", "开发"] },
 ];
 
+const LOCATION_PROXIMITY_GROUPS: Record<string, string[]> = {
+  pearlRiverDelta: ["东莞", "深圳", "广州", "佛山", "惠州", "中山", "珠海", "江门"],
+  yangtzeRiverDelta: ["上海", "苏州", "杭州", "南京", "无锡", "宁波", "常州", "嘉兴"],
+  bohaiRim: ["北京", "天津", "大连", "青岛", "济南"],
+};
+
 function normalizeEducationLevel(value: string | null | undefined): string | null {
   const normalized = (value || "").trim().toLowerCase();
   if (!normalized) return null;
@@ -133,6 +139,68 @@ function locationMatches(candidateLocation: string, targetLocation: string): boo
   }
 
   return candidate.includes(target) || target.includes(candidate);
+}
+
+function normalizeLocationToken(value: string): string {
+  return value.trim().toLowerCase().replace(/市$/u, "");
+}
+
+function resolveProximityGroup(location: string): string | null {
+  const normalized = normalizeLocationToken(location);
+  if (normalized.length < 2) {
+    return null;
+  }
+
+  for (const [group, cities] of Object.entries(LOCATION_PROXIMITY_GROUPS)) {
+    const inGroup = cities.some((city) => {
+      const normalizedCity = normalizeLocationToken(city);
+      if (!normalizedCity || normalizedCity.length < 2) {
+        return false;
+      }
+      return normalized === normalizedCity
+        || normalized.includes(normalizedCity)
+        || normalizedCity.includes(normalized);
+    });
+
+    if (inGroup) {
+      return group;
+    }
+  }
+
+  return null;
+}
+
+function getLocationProximityScore(candidateLocation: string, targetLocations: string[]): number {
+  const candidate = candidateLocation.trim();
+  if (!candidate || targetLocations.length === 0) {
+    return 0;
+  }
+
+  if (targetLocations.some((target) => locationMatches(candidate, target))) {
+    return 15;
+  }
+
+  const candidateGroup = resolveProximityGroup(candidate);
+  if (!candidateGroup) {
+    return 0;
+  }
+
+  const groupCities = LOCATION_PROXIMITY_GROUPS[candidateGroup] ?? [];
+  const hasProximityMatch = targetLocations.some((target) => {
+    const normalizedTarget = normalizeLocationToken(target);
+    if (!normalizedTarget || normalizedTarget.length < 2) {
+      return false;
+    }
+
+    return groupCities.some((city) => {
+      const normalizedCity = normalizeLocationToken(city);
+      return normalizedTarget === normalizedCity
+        || normalizedTarget.includes(normalizedCity)
+        || normalizedCity.includes(normalizedTarget);
+    });
+  });
+
+  return hasProximityMatch ? 8 : 0;
 }
 
 function getIndustryMap(skillsService?: SkillsKnowledgeService): Array<{ tag: string; keywords: string[] }> {
@@ -270,9 +338,32 @@ export class RuleScoringService {
   }
 
   scoreResume(index: ResumeIndex, context: RuleScoringContext, brandHits: BrandHit[] = []): RuleScoringResult {
-    const matchedSkills = context.keywords.filter((keyword) =>
-      index.searchText.includes(keyword) || index.skills.some((skill) => skill.includes(keyword))
+    const keywordVariantMap = new Map<string, string[]>(
+      context.keywords.map((keyword) => {
+        const variants = this.skillsService.expandQueryWithSynonyms([keyword]);
+        return [
+          keyword,
+          variants.length > 0 ? variants : [keyword],
+        ];
+      })
     );
+
+    const industryKeywordVariantMap = new Map<string, string[]>(
+      context.industryKeywords.map((keyword) => {
+        const variants = this.skillsService.expandQueryWithSynonyms([keyword]);
+        return [
+          keyword,
+          variants.length > 0 ? variants : [keyword],
+        ];
+      })
+    );
+
+    const matchedSkills = context.keywords.filter((keyword) => {
+      const variants = keywordVariantMap.get(keyword) ?? [keyword];
+      return variants.some((variant) =>
+        index.searchText.includes(variant) || index.skills.some((skill) => skill.includes(variant))
+      );
+    });
 
     const skillMatch = context.keywords.length > 0
       ? Math.round((matchedSkills.length / context.keywords.length) * 25)
@@ -286,7 +377,7 @@ export class RuleScoringService {
         experienceMatch = 25;
       } else {
         const gap = context.minExperience - index.experienceYears;
-        experienceMatch = Math.max(0, 25 - Math.round(gap * 8));
+        experienceMatch = Math.max(0, 25 - Math.round(gap * 5));
       }
     }
 
@@ -304,19 +395,20 @@ export class RuleScoringService {
       }
     }
 
-    let locationMatch = 0;
-    if (context.targetLocations.length > 0) {
-      const location = index.locationCity || "";
-      if (location && context.targetLocations.some((target) => locationMatches(location, target))) {
-        locationMatch = 15;
-      }
-    }
+    const location = index.locationCity || "";
+    const locationMatch = getLocationProximityScore(location, context.targetLocations);
 
     const matchedCompanies = index.companies.filter((company) =>
-      context.industryKeywords.some((keyword) => company.toLowerCase().includes(keyword))
+      context.industryKeywords.some((keyword) => {
+        const variants = industryKeywordVariantMap.get(keyword) ?? [keyword];
+        return variants.some((variant) => company.toLowerCase().includes(variant));
+      })
     );
 
-    const matchedIndustryKeywords = context.industryKeywords.filter((keyword) => index.searchText.includes(keyword));
+    const matchedIndustryKeywords = context.industryKeywords.filter((keyword) => {
+      const variants = industryKeywordVariantMap.get(keyword) ?? [keyword];
+      return variants.some((variant) => index.searchText.includes(variant));
+    });
     const keywordRatioBase = Math.max(1, Math.min(context.industryKeywords.length, 10));
     const keywordRatio = matchedIndustryKeywords.length / keywordRatioBase;
     const tagRatio = context.industryTags.length > 0

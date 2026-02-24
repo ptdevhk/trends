@@ -49,6 +49,36 @@ function sortByIngestRuleScore(
     });
 }
 
+function toNormalizedTokens(values: string[] | undefined): string[] {
+    if (!Array.isArray(values) || values.length === 0) {
+        return [];
+    }
+
+    return Array.from(
+        new Set(
+            values
+                .map((value) => value.trim().toLowerCase())
+                .filter((value) => value.length >= 2)
+        )
+    );
+}
+
+function appendMissingTokens(existingSearchText: string, tokens: string[]): string {
+    if (tokens.length === 0) {
+        return existingSearchText;
+    }
+
+    const normalizedExisting = existingSearchText.toLowerCase();
+    const missingTokens = tokens.filter((token) => !normalizedExisting.includes(token));
+    if (missingTokens.length === 0) {
+        return existingSearchText;
+    }
+
+    return existingSearchText
+        ? `${existingSearchText} ${missingTokens.join(" ")}`
+        : missingTokens.join(" ");
+}
+
 export const list = query({
     args: { limit: v.optional(v.number()) },
     handler: async (ctx, args) => {
@@ -221,14 +251,21 @@ export const updateIngestData = internalMutation({
             primaryRuleScore: args.primaryRuleScore ?? 0,
         };
 
+        const existingSearchText = resume.searchText || "";
+        let nextSearchText = existingSearchText;
+
         const aliasTokens = args.companyAliasTokens?.trim().toLowerCase();
         if (aliasTokens) {
-            const existingSearchText = resume.searchText || "";
-            if (!existingSearchText.toLowerCase().includes(aliasTokens)) {
-                patch.searchText = existingSearchText
-                    ? `${existingSearchText} ${aliasTokens}`
-                    : aliasTokens;
-            }
+            nextSearchText = appendMissingTokens(nextSearchText, [aliasTokens]);
+        }
+
+        const synonymTokens = toNormalizedTokens(args.ingestData.synonymHits);
+        if (synonymTokens.length > 0) {
+            nextSearchText = appendMissingTokens(nextSearchText, synonymTokens);
+        }
+
+        if (nextSearchText !== existingSearchText) {
+            patch.searchText = nextSearchText;
         }
 
         await ctx.db.patch(args.resumeId, patch);
@@ -268,14 +305,21 @@ export const updateIngestDataBatch = internalMutation({
                 primaryRuleScore: update.primaryRuleScore ?? 0,
             };
 
+            const existingSearchText = resume.searchText || "";
+            let nextSearchText = existingSearchText;
+
             const aliasTokens = update.companyAliasTokens?.trim().toLowerCase();
             if (aliasTokens) {
-                const existingSearchText = resume.searchText || "";
-                if (!existingSearchText.toLowerCase().includes(aliasTokens)) {
-                    patch.searchText = existingSearchText
-                        ? `${existingSearchText} ${aliasTokens}`
-                        : aliasTokens;
-                }
+                nextSearchText = appendMissingTokens(nextSearchText, [aliasTokens]);
+            }
+
+            const synonymTokens = toNormalizedTokens(update.ingestData.synonymHits);
+            if (synonymTokens.length > 0) {
+                nextSearchText = appendMissingTokens(nextSearchText, synonymTokens);
+            }
+
+            if (nextSearchText !== existingSearchText) {
+                patch.searchText = nextSearchText;
             }
 
             await ctx.db.patch(update.resumeId, patch);

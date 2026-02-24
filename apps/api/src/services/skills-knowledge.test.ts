@@ -159,6 +159,29 @@ describe("SkillsKnowledgeService", () => {
     }
   });
 
+  it("expands query keywords with bidirectional synonyms", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new SkillsKnowledgeService(root);
+
+      const expandedFromChinese = service.expandQueryWithSynonyms(["数控"]);
+      expect(expandedFromChinese).toContain("数控");
+      expect(expandedFromChinese).toContain("cnc");
+      expect(expandedFromChinese).toContain("computer numerical control");
+
+      const expandedFromEnglish = service.expandQueryWithSynonyms(["CNC"]);
+      expect(expandedFromEnglish).toContain("cnc");
+      expect(expandedFromEnglish).toContain("数控");
+
+      const expandedWithDeduping = service.expandQueryWithSynonyms(["CNC", "cnc", "a"]);
+      expect(expandedWithDeduping[0]).toBe("cnc");
+      expect(expandedWithDeduping).not.toContain("a");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
   it("getSkillVocabulary returns union of all keywords and synonyms", () => {
     const root = createFixtureRoot();
 

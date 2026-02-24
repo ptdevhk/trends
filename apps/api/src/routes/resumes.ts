@@ -566,7 +566,25 @@ app.openapi(getResumesRoute, (c) => {
 
   try {
     const { items, sample: sampleInfo, metadata, indexes } = resumeService.loadSample(sampleName);
-    let filtered = resumeService.searchResumes(items, keyword, indexes);
+    const session = sessionId ? sessionManager.getSession(sessionId) : null;
+    const resolvedJobId = jobDescriptionId?.trim() || session?.jobDescriptionId;
+
+    let ruleScoreMap: Map<string, number> | undefined;
+    if (resolvedJobId) {
+      try {
+        const context = ruleScoringService.buildContext(resolvedJobId);
+        const indexList = items.map((item, index) => {
+          const resumeId = resolveResumeId(item, index);
+          return indexes.get(resumeId) ?? createFallbackIndex(item, resumeId);
+        });
+        const scored = ruleScoringService.scoreBatch(indexList, context);
+        ruleScoreMap = new Map(scored.map((entry) => [entry.resumeId, entry.result.score]));
+      } catch (error) {
+        console.error(`[Resumes] Failed to compute rule score map for ${resolvedJobId}:`, error);
+      }
+    }
+
+    let filtered = resumeService.searchResumes(items, keyword, indexes, ruleScoreMap);
     filtered = resumeService.filterResumes(filtered, {
       minExperience,
       maxExperience,
@@ -576,9 +594,6 @@ app.openapi(getResumesRoute, (c) => {
       minSalary,
       maxSalary,
     });
-
-    const session = sessionId ? sessionManager.getSession(sessionId) : null;
-    const resolvedJobId = jobDescriptionId || session?.jobDescriptionId;
 
     const enriched = filtered.map((item, index) => ({
       resume: item,

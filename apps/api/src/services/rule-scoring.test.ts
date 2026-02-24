@@ -52,6 +52,10 @@ updated_at: '2026-02-24'
 - displayName: CNC
 - keywords: cnc, 数控, fanuc
 
+## Synonym Table
+
+- 数控: CNC
+
 ## Company Patterns
 
 - FANUC [role: both] (aliases: 发那科, Fanuc)
@@ -177,6 +181,130 @@ describe("RuleScoringService", () => {
         dongguanContext
       );
       expect(dongguanScore.breakdown.locationMatch).toBe(15);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("applies proximity location scoring for nearby cities", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["cnc"], "东莞");
+
+      const baseIndex: Omit<ResumeIndex, "locationCity" | "resumeId"> = {
+        experienceYears: 3,
+        educationLevel: "bachelor",
+        skills: ["cnc"],
+        companies: [],
+        industryTags: ["cnc"],
+        salaryRange: { min: 8000, max: 15000 },
+        searchText: "cnc 销售",
+      };
+
+      const exactResult = service.scoreResume(
+        {
+          ...baseIndex,
+          resumeId: "R-exact",
+          locationCity: "东莞",
+        },
+        context
+      );
+      expect(exactResult.breakdown.locationMatch).toBe(15);
+
+      const nearbyResult = service.scoreResume(
+        {
+          ...baseIndex,
+          resumeId: "R-nearby",
+          locationCity: "深圳",
+        },
+        context
+      );
+      expect(nearbyResult.breakdown.locationMatch).toBe(8);
+
+      const farResult = service.scoreResume(
+        {
+          ...baseIndex,
+          resumeId: "R-far",
+          locationCity: "北京",
+        },
+        context
+      );
+      expect(farResult.breakdown.locationMatch).toBe(0);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("uses softer experience gap penalty", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = {
+        ...service.buildContextFromKeywords(["cnc"], "东莞"),
+        minExperience: 5,
+      };
+
+      const baseIndex: Omit<ResumeIndex, "experienceYears" | "resumeId"> = {
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        skills: ["cnc"],
+        companies: [],
+        industryTags: ["cnc"],
+        salaryRange: { min: 8000, max: 15000 },
+        searchText: "cnc 销售",
+      };
+
+      const oneYearShort = service.scoreResume(
+        {
+          ...baseIndex,
+          resumeId: "R-gap-1",
+          experienceYears: 4,
+        },
+        context
+      );
+      expect(oneYearShort.breakdown.experienceMatch).toBe(20);
+
+      const twoYearsShort = service.scoreResume(
+        {
+          ...baseIndex,
+          resumeId: "R-gap-2",
+          experienceYears: 3,
+        },
+        context
+      );
+      expect(twoYearsShort.breakdown.experienceMatch).toBe(15);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("matches skills and industry keywords through synonyms", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["数控"]);
+
+      const index: ResumeIndex = {
+        resumeId: "R-synonym",
+        experienceYears: 3,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        skills: ["cnc"],
+        companies: [],
+        industryTags: ["cnc"],
+        salaryRange: { min: 8000, max: 15000 },
+        searchText: "cnc 车床 销售",
+      };
+
+      const result = service.scoreResume(index, context);
+
+      expect(result.matchedSkills).toContain("数控");
+      expect(result.breakdown.skillMatch).toBe(25);
+      expect(result.breakdown.industryMatch).toBeGreaterThan(0);
     } finally {
       cleanupFixtureRoot(root);
     }
