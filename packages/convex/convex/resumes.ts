@@ -49,6 +49,22 @@ function sortByIngestRuleScore(
     });
 }
 
+function splitQueryTokens(query: string): string[] {
+    return query
+        .trim()
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((token) => token.length >= 1);
+}
+
+function matchesAllTokens(searchText: string | undefined, tokens: string[]): boolean {
+    if (tokens.length <= 1) {
+        return true;
+    }
+    const normalizedText = (searchText || "").toLowerCase();
+    return tokens.every((token) => normalizedText.includes(token));
+}
+
 function toNormalizedTokens(values: string[] | undefined): string[] {
     if (!Array.isArray(values) || values.length === 0) {
         return [];
@@ -113,10 +129,20 @@ export const search = query({
     },
     handler: async (ctx, args) => {
         const limit = args.limit || 50;
-        return await ctx.db
+        const tokens = splitQueryTokens(args.query);
+        const fetchLimit = tokens.length > 1 ? Math.max(limit * 5, 500) : limit;
+
+        const matches = await ctx.db
             .query("resumes")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.query))
-            .take(limit);
+            .take(fetchLimit);
+
+        // Convex full-text search uses OR. Post-filter to enforce AND.
+        const filtered = tokens.length > 1
+            ? matches.filter((doc) => matchesAllTokens(doc.searchText, tokens))
+            : matches;
+
+        return filtered.slice(0, limit);
     },
 });
 
@@ -129,18 +155,25 @@ export const searchWithIngestData = query({
     handler: async (ctx, args) => {
         const limit = args.limit || 50;
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
-        const fetchLimit = Math.max(limit, 200);
+        const tokens = splitQueryTokens(args.query);
+        // Over-fetch to compensate for AND post-filtering on OR results
+        const fetchLimit = tokens.length > 1 ? Math.max(limit * 5, 500) : Math.max(limit, 200);
 
         const matches = await ctx.db
             .query("resumes")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.query))
             .take(fetchLimit);
 
+        // Convex full-text search uses OR. Post-filter to enforce AND.
+        const filtered = tokens.length > 1
+            ? matches.filter((doc) => matchesAllTokens(doc.searchText, tokens))
+            : matches;
+
         if (!jobDescriptionId) {
-            return matches.slice(0, limit);
+            return filtered.slice(0, limit);
         }
 
-        return sortByIngestRuleScore(matches, jobDescriptionId).slice(0, limit);
+        return sortByIngestRuleScore(filtered, jobDescriptionId).slice(0, limit);
     },
 });
 

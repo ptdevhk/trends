@@ -68,12 +68,18 @@ func newResumeSearchCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "search <query>",
-		Short: "Search resumes",
+		Short: "Search resumes (AND mode: all keywords must match)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			response, err := newAPIClient().SearchResumes(context.Background(), args[0], limit)
 			if err != nil {
 				return err
+			}
+
+			options := currentOptions()
+			if options.Output != "json" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Query: %s | Total: %d | Returned: %d\n\n",
+					response.Summary.Query, response.Summary.Total, response.Summary.Returned)
 			}
 
 			headers := []string{"id", "name", "intention", "location", "experience", "education"}
