@@ -300,17 +300,17 @@ sync-agent-governance: sync-agent-policy install-agent-skill
 # Seed Convex with system job descriptions (idempotent)
 seed:
 	@if command -v bun > /dev/null 2>&1; then \
-		bun scripts/seed-convex.ts; \
+		bun scripts/seed-convex.ts --force; \
 	else \
-		npx tsx scripts/seed-convex.ts; \
+		npx tsx scripts/seed-convex.ts --force; \
 	fi
 
 # Seed Convex with system job descriptions + sample resumes (idempotent)
 seed-full:
 	@if command -v bun > /dev/null 2>&1; then \
-		bun scripts/seed-convex.ts --with-resumes $(if $(SAMPLE),--sample $(SAMPLE)); \
+		bun scripts/seed-convex.ts --with-resumes --force $(if $(SAMPLE),--sample $(SAMPLE)); \
 	else \
-		npx tsx scripts/seed-convex.ts --with-resumes $(if $(SAMPLE),--sample $(SAMPLE)); \
+		npx tsx scripts/seed-convex.ts --with-resumes --force $(if $(SAMPLE),--sample $(SAMPLE)); \
 	fi
 
 # Force seeding even when DB is not empty (idempotent)
