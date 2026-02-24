@@ -23,7 +23,7 @@ from apscheduler.events import (
     JobExecutionEvent,
 )
 
-from apps.worker.tasks import run_crawl_analyze, health_check
+from apps.worker.tasks import run_crawl_analyze, health_check, run_skills_version_check
 from apps.worker.timezone import bootstrap_worker_timezone, resolve_worker_timezone
 from apps.worker.profile_loader import ProfileLoader
 from apps.worker.resume_tasks import run_resume_crawl_task
@@ -261,6 +261,23 @@ class WorkerScheduler:
         except Exception as e:
             logger.error(f"Failed to load profile jobs: {e}")
 
+    def add_skills_version_check_job(self) -> None:
+        """Schedule periodic skills version checks for automatic re-ingest."""
+        reingest_limit_env = os.environ.get("SKILLS_REINGEST_LIMIT", "").strip()
+        try:
+            reingest_limit = int(reingest_limit_env) if reingest_limit_env else 200
+        except ValueError:
+            logger.warning("Invalid SKILLS_REINGEST_LIMIT=%s, using 200", reingest_limit_env)
+            reingest_limit = 200
+
+        self.add_custom_job(
+            func=run_skills_version_check,
+            job_id="skills_version_check",
+            interval_minutes=360,
+            reingest_limit=reingest_limit,
+        )
+        logger.info("Scheduled skills version check every 6 hours")
+
     def start(self) -> None:
         """Start the scheduler."""
         logger.info("Starting Worker Scheduler")
@@ -271,6 +288,7 @@ class WorkerScheduler:
         
         # Load dynamic profile jobs
         self.load_profile_jobs()
+        self.add_skills_version_check_job()
 
         # Run immediately if requested
         if self.run_immediately:

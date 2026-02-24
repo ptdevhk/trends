@@ -1918,6 +1918,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/search-profiles/:id/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get latest run status for a profile */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Latest run status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            status: {
+                                profileId: string;
+                                taskId: string;
+                                /** @enum {string} */
+                                taskStatus: "pending" | "processing" | "completed" | "failed" | "cancelled" | "unknown";
+                                startedAt: string;
+                                updatedAt: string;
+                                completedAt?: string;
+                                resultCount?: number;
+                                extracted?: number;
+                                submitted?: number;
+                                error?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Profile/status not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/search-profiles/:id": {
         parameters: {
             query?: never;
@@ -2068,6 +2135,161 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-analytics/zero-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get zero-result queries grouped by frequency */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Zero-result query summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                query: string;
+                                count: number;
+                                lastSeen: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-analytics/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get aggregated search analytics summary */
+        get: {
+            parameters: {
+                query?: {
+                    topQueries?: number;
+                    daily?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Search analytics summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            summary: {
+                                totalSearches: number;
+                                zeroResultSearches: number;
+                                zeroResultRate: number;
+                                topQueries: {
+                                    query: string;
+                                    count: number;
+                                }[];
+                                actionDistribution: {
+                                    [key: string]: number;
+                                };
+                                dailyTrend: {
+                                    date: string;
+                                    searches: number;
+                                    zeroResults: number;
+                                    shortlist: number;
+                                    reject: number;
+                                }[];
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-analytics/synonym-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Generate synonym suggestions from zero-result queries */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Synonym suggestions */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            suggestions: {
+                                query: string;
+                                variant: string;
+                                canonical: string;
+                                confidence: number;
+                                reason: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;

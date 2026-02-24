@@ -9,6 +9,7 @@ import {
   FileText,
   Bot,
   Database,
+  BarChart3,
   Menu,
   X
 } from 'lucide-react'
@@ -49,6 +50,12 @@ export default function SystemLayout() {
       matches: ['/system/jds']
     },
     {
+      title: t('searchProfiles.nav', { defaultValue: 'Search Profiles' }),
+      href: '/profiles',
+      icon: FileText,
+      matches: ['/profiles']
+    },
+    {
       title: t('debugAi.title', { defaultValue: 'AI Debugger' }),
       href: '/system/ai-debugger',
       icon: Bot,
@@ -59,6 +66,12 @@ export default function SystemLayout() {
       href: '/system/ingest',
       icon: Database,
       matches: ['/system/ingest']
+    },
+    {
+      title: t('searchAnalytics.nav', { defaultValue: 'Search Analytics' }),
+      href: '/system/search-analytics',
+      icon: BarChart3,
+      matches: ['/system/search-analytics']
     },
     {
       title: t('debug.title', { defaultValue: 'Data Inspector' }),

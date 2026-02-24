@@ -69,6 +69,105 @@ const RunProfileResponseSchema = z.object({
     }),
 });
 
+const ProfileRunStatusSchema = z.object({
+    profileId: z.string(),
+    taskId: z.string(),
+    taskStatus: z.enum(["pending", "processing", "completed", "failed", "cancelled", "unknown"]),
+    startedAt: z.string(),
+    updatedAt: z.string(),
+    completedAt: z.string().optional(),
+    resultCount: z.number().int().optional(),
+    extracted: z.number().int().optional(),
+    submitted: z.number().int().optional(),
+    error: z.string().optional(),
+});
+
+type ProfileRunStatus = z.infer<typeof ProfileRunStatusSchema>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
+function readString(value: unknown): string | undefined {
+    return typeof value === "string" && value.trim().length > 0
+        ? value.trim()
+        : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+    return typeof value === "number" && Number.isFinite(value)
+        ? value
+        : undefined;
+}
+
+function toIsoTimestamp(value: unknown): string | undefined {
+    const numeric = readNumber(value);
+    if (numeric === undefined) {
+        return undefined;
+    }
+    return new Date(numeric).toISOString();
+}
+
+function normalizeTaskStatus(value: unknown): ProfileRunStatus["taskStatus"] {
+    const status = readString(value);
+    if (
+        status === "pending"
+        || status === "processing"
+        || status === "completed"
+        || status === "failed"
+        || status === "cancelled"
+    ) {
+        return status;
+    }
+    return "unknown";
+}
+
+function getRunStatusFilePath(): string {
+    return path.join(searchProfileService.projectRoot, "output", "search-profile-runs.json");
+}
+
+function readRunStatusStore(): Record<string, ProfileRunStatus> {
+    const filePath = getRunStatusFilePath();
+    if (!fs.existsSync(filePath)) {
+        return {};
+    }
+
+    try {
+        const content = fs.readFileSync(filePath, "utf8");
+        const parsed = JSON.parse(content) as unknown;
+        if (!isRecord(parsed)) {
+            return {};
+        }
+
+        const store: Record<string, ProfileRunStatus> = {};
+        for (const [key, value] of Object.entries(parsed)) {
+            const validated = ProfileRunStatusSchema.safeParse(value);
+            if (!validated.success) {
+                continue;
+            }
+            store[key] = validated.data;
+        }
+        return store;
+    } catch {
+        return {};
+    }
+}
+
+function writeRunStatusStore(store: Record<string, ProfileRunStatus>): void {
+    const filePath = getRunStatusFilePath();
+    const outputDir = path.dirname(filePath);
+    if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, JSON.stringify(store, null, 2), "utf8");
+}
+
+function upsertRunStatus(status: ProfileRunStatus): void {
+    const store = readRunStatusStore();
+    store[status.profileId] = status;
+    writeRunStatusStore(store);
+}
+
 function readEnvVarFromFile(filePath: string, key: string): string | null {
     if (!fs.existsSync(filePath)) {
         return null;
@@ -169,6 +268,65 @@ async function dispatchCollectionTask(args: {
     return {
         taskId: String(payload.value),
         convexUrl,
+    };
+}
+
+async function getCollectionTaskStatus(taskId: string): Promise<Partial<ProfileRunStatus> | null> {
+    const convexUrl = resolveConvexUrl().replace(/\/$/, "");
+    const response = await fetch(`${convexUrl}/api/query`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+        },
+        body: JSON.stringify({
+            path: "resume_tasks:list",
+            args: {},
+        }),
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Convex task query failed (${response.status}): ${text}`);
+    }
+
+    const payload = await response.json() as {
+        status?: string;
+        value?: unknown;
+        errorMessage?: string;
+    };
+
+    if (payload.status !== "success") {
+        throw new Error(payload.errorMessage || "Convex query failed.");
+    }
+
+    if (!Array.isArray(payload.value)) {
+        return null;
+    }
+
+    const task = payload.value.find((item) => {
+        if (!isRecord(item)) return false;
+        return String(item._id ?? "") === taskId;
+    });
+
+    if (!isRecord(task)) {
+        return null;
+    }
+
+    const results = isRecord(task.results) ? task.results : undefined;
+    const progress = isRecord(task.progress) ? task.progress : undefined;
+    const submitted = readNumber(results?.submitted);
+    const extracted = readNumber(results?.extracted);
+    const progressCurrent = readNumber(progress?.current);
+    const resultCount = submitted ?? extracted ?? progressCurrent;
+
+    return {
+        taskStatus: normalizeTaskStatus(task.status),
+        completedAt: toIsoTimestamp(task.completedAt),
+        resultCount: resultCount !== undefined ? Math.round(resultCount) : undefined,
+        extracted: extracted !== undefined ? Math.round(extracted) : undefined,
+        submitted: submitted !== undefined ? Math.round(submitted) : undefined,
+        error: readString(task.error),
     };
 }
 
@@ -419,6 +577,14 @@ app.openapi(runProfileRoute, async (c) => {
             autoAnalyze,
             analysisTopN,
         });
+        const now = new Date().toISOString();
+        upsertRunStatus({
+            profileId: profile.id,
+            taskId,
+            taskStatus: "pending",
+            startedAt: now,
+            updatedAt: now,
+        });
 
         return c.json({
             success: true,
@@ -466,6 +632,79 @@ const reloadRoute = createRoute({
 app.openapi(reloadRoute, (c) => {
     searchProfileService.clearCache();
     return c.json({ success: true, message: "Profile cache cleared" } as const);
+});
+
+// ============================================================
+// GET /api/search-profiles/:id/status
+// ============================================================
+const getProfileStatusRoute = createRoute({
+    method: "get",
+    path: "/:id/status",
+    tags: ["Search Profiles"],
+    summary: "Get latest run status for a profile",
+    request: {
+        params: z.object({
+            id: z.string(),
+        }),
+    },
+    responses: {
+        200: {
+            description: "Latest run status",
+            content: {
+                "application/json": {
+                    schema: z.object({
+                        success: z.literal(true),
+                        status: ProfileRunStatusSchema,
+                    }),
+                },
+            },
+        },
+        404: {
+            description: "Profile/status not found",
+            content: {
+                "application/json": {
+                    schema: z.object({
+                        success: z.literal(false),
+                        error: z.string(),
+                    }),
+                },
+            },
+        },
+    },
+});
+
+app.openapi(getProfileStatusRoute, async (c) => {
+    const { id } = c.req.valid("param");
+
+    let profile: SearchProfile;
+    try {
+        profile = searchProfileService.loadProfile(id);
+    } catch {
+        return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
+    }
+
+    const store = readRunStatusStore();
+    const storedStatus = store[profile.id];
+    if (!storedStatus) {
+        return c.json({ success: false as const, error: `No run status for profile: ${profile.id}` }, 404);
+    }
+
+    let resolvedStatus = storedStatus;
+    try {
+        const liveStatus = await getCollectionTaskStatus(storedStatus.taskId);
+        if (liveStatus) {
+            resolvedStatus = {
+                ...storedStatus,
+                ...liveStatus,
+                updatedAt: new Date().toISOString(),
+            };
+            upsertRunStatus(resolvedStatus);
+        }
+    } catch (error) {
+        console.error("Failed to resolve profile run status:", error);
+    }
+
+    return c.json({ success: true as const, status: resolvedStatus }, 200);
 });
 
 // ============================================================

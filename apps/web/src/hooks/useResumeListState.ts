@@ -9,7 +9,7 @@ import { useSession } from '@/hooks/useSession'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { rawApiClient } from '@/lib/api-helpers'
 import { expandKeyword, DEFAULT_CONFIG, calculateResumeScore } from '@/lib/trendradar/parser'
-import type { CandidateActionType, MatchingResult } from '@/types/resume'
+import type { CandidateActionType, MatchingResult, ResumeFilters } from '@/types/resume'
 import {
   buildLearningObservation,
   buildResumeKey,
@@ -62,6 +62,7 @@ export function useResumeListState() {
   const { t } = useTranslation()
   const {
     location: sessionLocation,
+    setLocation: setSessionLocation,
     keywords: sessionKeywords,
     setKeywords: setSessionKeywords,
     jobDescriptionId,
@@ -344,20 +345,38 @@ export function useResumeListState() {
     [displayedResumes]
   )
 
-  const sendLearningFeedback = useCallback((action: 'shortlist' | 'reject', resume: ConvexResumeItem | ResumeItem | undefined) => {
-    if (!resume || !hasIngestData(resume)) {
-      return
+  const feedbackQuery = useMemo(() => {
+    const parts = [...sessionKeywords]
+    const normalizedLocation = sessionLocation.trim()
+    if (normalizedLocation) {
+      parts.push(normalizedLocation)
     }
+    const query = parts.join(' ').trim()
+    return query.length > 0 ? query : undefined
+  }, [sessionKeywords, sessionLocation])
 
-    const observation = buildLearningObservation(action, resume)
-    void rawApiClient
-      .POST<{ success: boolean; entry?: string }>('/api/resumes/learning-feedback', {
-        body: { observation },
-      })
-      .catch((error: unknown) => {
-        console.error('Failed to send learning feedback', error)
-      })
-  }, [])
+  const sendLearningFeedback = useCallback(
+    (action: 'shortlist' | 'reject', resumeId: string, resume: ConvexResumeItem | ResumeItem | undefined) => {
+      if (!resume || !hasIngestData(resume)) {
+        return
+      }
+
+      const observation = buildLearningObservation(action, resume)
+      void rawApiClient
+        .POST<{ success: boolean; entry?: string }>('/api/resumes/learning-feedback', {
+          body: {
+            observation,
+            action,
+            resumeId,
+            query: feedbackQuery,
+          },
+        })
+        .catch((error: unknown) => {
+          console.error('Failed to send learning feedback', error)
+        })
+    },
+    [feedbackQuery]
+  )
 
   const handleSelectAll = useCallback(() => {
     setSelectedIds(new Set(displayedResumes.map((entry) => entry.key)))
@@ -454,7 +473,7 @@ export function useResumeListState() {
       try {
         if (action === 'shortlist' || action === 'reject') {
           selectedEntries.forEach((entry) => {
-            sendLearningFeedback(action, entry.resume)
+            sendLearningFeedback(action, entry.key, entry.resume)
           })
         }
 
@@ -487,7 +506,7 @@ export function useResumeListState() {
     (resumeId: string, action: CandidateActionType) => {
       const actionLabel = actionFeedbackLabels[action] ?? action
       if (action === 'shortlist' || action === 'reject') {
-        sendLearningFeedback(action, displayedResumeMap.get(resumeId))
+        sendLearningFeedback(action, resumeId, displayedResumeMap.get(resumeId))
       }
 
       void saveAction({ resumeId, actionType: action })
@@ -519,10 +538,15 @@ export function useResumeListState() {
       location: string
       keywords: string[]
       jobDescriptionId?: string
+      filters?: Partial<ResumeFilters>
     }) => {
       const normalizedKeywords = config.keywords
         .map((keyword) => keyword.trim())
         .filter((keyword) => keyword.length > 0)
+      const normalizedLocation = config.location.trim()
+      if (normalizedLocation) {
+        setSessionLocation(normalizedLocation)
+      }
 
       if (config.jobDescriptionId) {
         setSessionKeywords([])
@@ -533,8 +557,15 @@ export function useResumeListState() {
           setJobDescriptionId('')
         }
       }
+
+      if (config.filters) {
+        setFilters({
+          ...filters,
+          ...config.filters,
+        })
+      }
     },
-    [jobDescriptionId, setJobDescriptionId, setSessionKeywords]
+    [filters, jobDescriptionId, setFilters, setJobDescriptionId, setSessionKeywords, setSessionLocation]
   )
 
   return {
