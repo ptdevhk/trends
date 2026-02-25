@@ -266,16 +266,53 @@ resolve_repo_url() {
         return
     fi
 
-    local script_dir source_root remote_url
+    local script_dir source_root remote_url git_config_path gitdir_path
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     source_root="$(cd "$script_dir/.." && pwd)"
 
+    remote_url=""
+    git_config_path=""
+
+    # Prefer git for accuracy, but avoid failing on "dubious ownership" when root runs git in a repo
+    # owned by another user (e.g. /opt/trends owned by the service user).
     if git -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        remote_url="$(git -C "$source_root" config --get remote.origin.url || true)"
-        if [[ -n "$remote_url" ]]; then
-            echo "$remote_url"
-            return
+        remote_url="$(git -C "$source_root" config --get remote.origin.url 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$remote_url" && -n "${SUDO_USER:-}" ]]; then
+        remote_url="$(run_as_invoking_user git -C "$source_root" config --get remote.origin.url 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$remote_url" ]] && id "$SERVICE_USER" >/dev/null 2>&1; then
+        remote_url="$(run_as_service_user "git -C '$source_root' config --get remote.origin.url 2>/dev/null || true")"
+    fi
+
+    # Final fallback: parse origin url from git config without invoking git (works even when git refuses).
+    if [[ -z "$remote_url" ]]; then
+        if [[ -f "$source_root/.git/config" ]]; then
+            git_config_path="$source_root/.git/config"
+        elif [[ -f "$source_root/.git" ]]; then
+            gitdir_path="$(sed -nE 's/^[[:space:]]*gitdir:[[:space:]]*(.+)[[:space:]]*$/\1/p' "$source_root/.git" | head -n 1 || true)"
+            if [[ -n "$gitdir_path" && "$gitdir_path" != /* ]]; then
+                gitdir_path="$source_root/$gitdir_path"
+            fi
+            if [[ -n "$gitdir_path" && -f "$gitdir_path/config" ]]; then
+                git_config_path="$gitdir_path/config"
+            fi
         fi
+
+        if [[ -n "$git_config_path" ]]; then
+            remote_url="$(awk '
+                $0 ~ /^\\[remote \"origin\"\\]$/ { in_origin=1; next }
+                $0 ~ /^\\[/ { in_origin=0 }
+                in_origin && $1 == \"url\" { print $3; exit }
+            ' "$git_config_path" 2>/dev/null || true)"
+        fi
+    fi
+
+    if [[ -n "$remote_url" ]]; then
+        echo "$remote_url"
+        return
     fi
 
     log_error "Unable to determine repository URL. Set REPO_URL explicitly, e.g. REPO_URL=https://github.com/ptdevhk/trends.git"
