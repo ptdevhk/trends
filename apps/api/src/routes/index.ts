@@ -10,6 +10,7 @@ export { default as sessionsRoutes } from "./sessions.js";
 export { default as actionsRoutes } from "./actions.js";
 export { default as searchProfilesRoutes } from "./search-profiles.js";
 export { default as searchAnalyticsRoutes } from "./search-analytics.js";
+export { default as scoringEvaluationRoutes } from "./scoring-evaluation.js";
 export { default as filterPresetsRoutes } from "./filter-presets.js";
 export { default as configRoutes } from "./config.js";
 export { default as notificationRoutes } from "./notifications.js";

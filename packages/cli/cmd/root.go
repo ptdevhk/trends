@@ -22,6 +22,8 @@ type RootOptions struct {
 	Output    string
 }
 
+var cliVersion = "dev"
+
 var rootCmd = &cobra.Command{
 	Use:           "trends",
 	Short:         "Trends backend service CLI",
@@ -70,6 +72,22 @@ func Execute() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func SetVersion(version string) {
+	trimmed := strings.TrimSpace(version)
+	if trimmed == "" {
+		return
+	}
+	cliVersion = trimmed
+	rootCmd.Version = trimmed
+}
+
+func currentVersion() string {
+	if strings.TrimSpace(cliVersion) == "" {
+		return "dev"
+	}
+	return cliVersion
 }
 
 func currentOptions() RootOptions {

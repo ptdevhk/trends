@@ -98,7 +98,7 @@ func handleMCPRequest(ctx context.Context, request mcpRequest) (any, error) {
 			},
 			"serverInfo": map[string]any{
 				"name":    "trends-cli",
-				"version": "0.1.0",
+				"version": currentVersion(),
 			},
 		}, nil
 	case "ping":

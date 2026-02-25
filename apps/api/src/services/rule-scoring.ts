@@ -12,6 +12,7 @@ import type { MatchingResult } from "./ai-matching.js";
 import type { ResumeIndex } from "./resume-index.js";
 
 export type BrandContext = "employer" | "equipment" | "sales" | "technical" | "general";
+export type BrandRole = "employer" | "equipment" | "both";
 
 export interface RuleWeightsConfig {
   categoryWeights: {
@@ -24,6 +25,7 @@ export interface RuleWeightsConfig {
   };
   brandContextWithTarget: Record<BrandContext, number>;
   brandContextNoTarget: Record<BrandContext, number>;
+  brandRoleMultipliers: Record<BrandRole, number>;
   recommendationThresholds: {
     strongMatch: number;
     match: number;
@@ -42,6 +44,7 @@ const DEFAULT_WEIGHTS: RuleWeightsConfig = {
   },
   brandContextWithTarget: { employer: 10, sales: 9, equipment: 7, technical: 6, general: 4 },
   brandContextNoTarget: { employer: 4, sales: 3, equipment: 2, technical: 2, general: 1 },
+  brandRoleMultipliers: { employer: 1, equipment: 0.7, both: 1 },
   recommendationThresholds: { strongMatch: 85, match: 70, potential: 50 },
 };
 
@@ -52,6 +55,11 @@ const brandContextWeightsSchema = z.object({
   sales: nonNegativeNumber,
   technical: nonNegativeNumber,
   general: nonNegativeNumber,
+}).partial();
+const brandRoleMultipliersSchema = z.object({
+  employer: nonNegativeNumber,
+  equipment: nonNegativeNumber,
+  both: nonNegativeNumber,
 }).partial();
 
 const ruleWeightsSchema = z.object({
@@ -65,6 +73,7 @@ const ruleWeightsSchema = z.object({
   }).partial().optional(),
   brandContextWithTarget: brandContextWeightsSchema.optional(),
   brandContextNoTarget: brandContextWeightsSchema.optional(),
+  brandRoleMultipliers: brandRoleMultipliersSchema.optional(),
   recommendationThresholds: z.object({
     strongMatch: nonNegativeNumber,
     match: nonNegativeNumber,
@@ -74,7 +83,7 @@ const ruleWeightsSchema = z.object({
 
 type RuleWeightsConfigOverrides = z.infer<typeof ruleWeightsSchema>;
 
-function mergeRuleWeights(overrides: RuleWeightsConfigOverrides | undefined): RuleWeightsConfig {
+export function mergeRuleWeights(overrides: RuleWeightsConfigOverrides | undefined): RuleWeightsConfig {
   if (!overrides) {
     return DEFAULT_WEIGHTS;
   }
@@ -92,6 +101,10 @@ function mergeRuleWeights(overrides: RuleWeightsConfigOverrides | undefined): Ru
       ...DEFAULT_WEIGHTS.brandContextNoTarget,
       ...(overrides.brandContextNoTarget ?? {}),
     },
+    brandRoleMultipliers: {
+      ...DEFAULT_WEIGHTS.brandRoleMultipliers,
+      ...(overrides.brandRoleMultipliers ?? {}),
+    },
     recommendationThresholds: {
       ...DEFAULT_WEIGHTS.recommendationThresholds,
       ...(overrides.recommendationThresholds ?? {}),
@@ -99,7 +112,7 @@ function mergeRuleWeights(overrides: RuleWeightsConfigOverrides | undefined): Ru
   };
 }
 
-function loadWeightsConfig(projectRoot: string): RuleWeightsConfig {
+export function loadRuleWeightsConfig(projectRoot: string): RuleWeightsConfig {
   const configPath = path.join(projectRoot, "config", "resume", "rule-weights.json5");
   if (!fs.existsSync(configPath)) {
     return DEFAULT_WEIGHTS;
@@ -121,9 +134,15 @@ function loadWeightsConfig(projectRoot: string): RuleWeightsConfig {
   }
 }
 
+export function saveRuleWeightsConfig(projectRoot: string, config: RuleWeightsConfig): void {
+  const configPath = path.join(projectRoot, "config", "resume", "rule-weights.json5");
+  const serialized = `${JSON5.stringify(config, null, 2)}\n`;
+  fs.writeFileSync(configPath, serialized, "utf8");
+}
+
 export interface BrandHit {
   brand: string;
-  role: "employer" | "equipment" | "both";
+  role: BrandRole;
   source: "workHistory" | "selfIntro" | "jobIntention";
   context: BrandContext;
 }
@@ -334,7 +353,7 @@ export class RuleScoringService {
 
   constructor(projectRoot?: string) {
     const resolvedProjectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
-    this.weights = loadWeightsConfig(resolvedProjectRoot);
+    this.weights = loadRuleWeightsConfig(resolvedProjectRoot);
     this.jobService = new JobDescriptionService(resolvedProjectRoot);
     this.filterPresetService = new FilterPresetService(resolvedProjectRoot);
     this.skillsService = new SkillsKnowledgeService(resolvedProjectRoot);
@@ -556,8 +575,14 @@ export class RuleScoringService {
       ? this.weights.brandContextWithTarget
       : this.weights.brandContextNoTarget;
 
-    const brandRelevance = matchedBrandHits.reduce((maxScore, hit) =>
-      Math.max(maxScore, contextWeights[hit.context] ?? 0), 0);
+    const brandRelevance = Math.min(
+      categoryWeights.brandRelevance,
+      matchedBrandHits.reduce((maxScore, hit) => {
+        const baseWeight = contextWeights[hit.context] ?? 0;
+        const roleMultiplier = this.weights.brandRoleMultipliers[hit.role] ?? 1;
+        return Math.max(maxScore, Math.round(baseWeight * roleMultiplier));
+      }, 0)
+    );
 
     const rawScore = skillMatch + experienceMatch + educationMatch + locationMatch + industryMatch + brandRelevance;
     const score = Math.max(0, Math.min(100, rawScore));

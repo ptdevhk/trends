@@ -247,3 +247,47 @@ def run_skills_version_check(
         logger.error("[Task] skills_version_check failed: %s", error)
         logger.debug(traceback.format_exc())
         return False
+
+
+def run_scoring_auto_tune(
+    api_base_url: Optional[str] = None,
+    dry_run: bool = False,
+    period_days: int = 14,
+    top_k: int = 10,
+    min_labeled_actions: int = 20,
+    ndcg_improvement_threshold: float = 0.02,
+) -> bool:
+    base_url = _worker_api_base_url(api_base_url)
+    logger.info(
+        "[Task] Starting scoring auto-tune (dry_run=%s, period_days=%s, k=%s)",
+        dry_run,
+        period_days,
+        top_k,
+    )
+
+    try:
+        response = _request_json(
+            f"{base_url}/api/scoring-evaluation/run-tuner",
+            method="POST",
+            body={
+                "dryRun": bool(dry_run),
+                "periodDays": max(1, int(period_days)),
+                "k": max(1, int(top_k)),
+                "minLabeledActions": max(1, int(min_labeled_actions)),
+                "ndcgImprovementThreshold": float(ndcg_improvement_threshold),
+            },
+        )
+
+        if response.get("success") is not True:
+            logger.error("[Task] scoring auto-tune request failed: %s", response)
+            return False
+
+        result = response.get("result", {})
+        status = result.get("status")
+        reason = result.get("reason")
+        logger.info("[Task] scoring auto-tune completed with status=%s reason=%s", status, reason)
+        return True
+    except Exception as error:
+        logger.error("[Task] scoring auto-tune failed: %s", error)
+        logger.debug(traceback.format_exc())
+        return False

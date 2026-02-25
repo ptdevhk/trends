@@ -26,7 +26,12 @@ from apscheduler.events import (
     SchedulerEvent,
 )
 
-from apps.worker.tasks import run_crawl_analyze, health_check, run_skills_version_check
+from apps.worker.tasks import (
+    run_crawl_analyze,
+    health_check,
+    run_skills_version_check,
+    run_scoring_auto_tune,
+)
 from apps.worker.timezone import bootstrap_worker_timezone, resolve_worker_timezone
 from apps.worker.profile_loader import ProfileLoader
 from apps.worker.resume_tasks import run_resume_crawl_task
@@ -293,6 +298,54 @@ class WorkerScheduler:
         )
         logger.info("Scheduled skills version check every 6 hours")
 
+    def add_scoring_auto_tune_job(self) -> None:
+        """Schedule nightly scoring auto-tune analysis and optional weight updates."""
+        cron_expression = os.environ.get("SCORING_AUTO_TUNE_CRON", "").strip() or "0 3 * * *"
+
+        dry_run_env = os.environ.get("SCORING_AUTO_TUNE_DRY_RUN", "").strip().lower()
+        dry_run = dry_run_env in {"1", "true", "yes", "on"}
+
+        period_days_env = os.environ.get("SCORING_AUTO_TUNE_PERIOD_DAYS", "").strip()
+        top_k_env = os.environ.get("SCORING_AUTO_TUNE_K", "").strip()
+        min_labeled_env = os.environ.get("SCORING_AUTO_TUNE_MIN_LABELED", "").strip()
+        threshold_env = os.environ.get("SCORING_AUTO_TUNE_NDCG_THRESHOLD", "").strip()
+
+        try:
+            period_days = int(period_days_env) if period_days_env else 14
+        except ValueError:
+            logger.warning("Invalid SCORING_AUTO_TUNE_PERIOD_DAYS=%s, using 14", period_days_env)
+            period_days = 14
+
+        try:
+            top_k = int(top_k_env) if top_k_env else 10
+        except ValueError:
+            logger.warning("Invalid SCORING_AUTO_TUNE_K=%s, using 10", top_k_env)
+            top_k = 10
+
+        try:
+            min_labeled = int(min_labeled_env) if min_labeled_env else 20
+        except ValueError:
+            logger.warning("Invalid SCORING_AUTO_TUNE_MIN_LABELED=%s, using 20", min_labeled_env)
+            min_labeled = 20
+
+        try:
+            ndcg_threshold = float(threshold_env) if threshold_env else 0.02
+        except ValueError:
+            logger.warning("Invalid SCORING_AUTO_TUNE_NDCG_THRESHOLD=%s, using 0.02", threshold_env)
+            ndcg_threshold = 0.02
+
+        self.add_custom_job(
+            func=run_scoring_auto_tune,
+            job_id="scoring_auto_tune",
+            cron_expression=cron_expression,
+            dry_run=dry_run,
+            period_days=max(1, period_days),
+            top_k=max(1, top_k),
+            min_labeled_actions=max(1, min_labeled),
+            ndcg_improvement_threshold=ndcg_threshold,
+        )
+        logger.info("Scheduled scoring auto-tune job with cron: %s (dry_run=%s)", cron_expression, dry_run)
+
     def start(self) -> None:
         """Start the scheduler."""
         logger.info("Starting Worker Scheduler")
@@ -304,6 +357,7 @@ class WorkerScheduler:
         # Load dynamic profile jobs
         self.load_profile_jobs()
         self.add_skills_version_check_job()
+        self.add_scoring_auto_tune_job()
 
         # Run immediately if requested
         if self.run_immediately:

@@ -40,6 +40,21 @@ const sendSchema = z.object({
     body: z.string(), // HTML is expected
 });
 
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message;
+    }
+    return "Unknown error";
+}
+
+function getMessageId(info: unknown): string | undefined {
+    if (typeof info !== "object" || info === null || !("messageId" in info)) {
+        return undefined;
+    }
+    const { messageId } = info;
+    return typeof messageId === "string" ? messageId : undefined;
+}
+
 // POST /api/notifications/draft
 app.post(
     "/draft",
@@ -49,8 +64,8 @@ app.post(
         try {
             const draft = await aiMatchingService.generateOutreach(resume, jobDescription, analysis);
             return c.json(draft);
-        } catch (e: any) {
-            return c.json({ error: e.message }, 500);
+        } catch (e: unknown) {
+            return c.json({ error: getErrorMessage(e) }, 500);
         }
     }
 );
@@ -67,9 +82,10 @@ app.post(
                 subject,
                 html: body.replace(/\n/g, "<br>"), // Simple text-to-HTML conversion
             });
-            return c.json({ success: true, messageId: info.messageId, preview: info.messageId ? undefined : "Check server logs" });
-        } catch (e: any) {
-            return c.json({ error: e.message }, 500);
+            const messageId = getMessageId(info);
+            return c.json({ success: true, messageId, preview: messageId ? undefined : "Check server logs" });
+        } catch (e: unknown) {
+            return c.json({ error: getErrorMessage(e) }, 500);
         }
     }
 );

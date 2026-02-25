@@ -458,6 +458,26 @@ describe("SkillsKnowledgeService", () => {
     }
   });
 
+  it("applies synonym suggestions into the Synonym Table section", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new SkillsKnowledgeService(root);
+      const added = service.applySynonymSuggestions([
+        { variant: "哈斯机台", canonical: "哈斯" },
+        { variant: "车铣复合", canonical: "车床" },
+      ]);
+
+      expect(added).toBe(2);
+
+      const synonyms = service.getSynonymTable();
+      expect(synonyms.get("哈斯机台")).toBe("哈斯");
+      expect(synonyms.get("车铣复合")).toBe("车床");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
   it("throws FileParseError for missing file", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "skills-missing-"));
     fs.mkdirSync(path.join(root, "config", "resume"), { recursive: true });

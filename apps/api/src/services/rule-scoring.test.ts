@@ -371,4 +371,67 @@ describe("RuleScoringService", () => {
       cleanupFixtureRoot(root);
     }
   });
+
+  it("applies lower score for equipment-only brand role", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["fanuc"], "东莞");
+
+      const index: ResumeIndex = {
+        resumeId: "R-brand-role-equipment",
+        experienceYears: 5,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        skills: ["销售", "cnc"],
+        companies: ["上海发那科机器人有限公司"],
+        industryTags: ["cnc", "sales"],
+        salaryRange: { min: 10000, max: 18000 },
+        searchText: "东莞 发那科 销售 cnc",
+      };
+
+      const equipmentRoleResult = service.scoreResume(index, context, [
+        { brand: "fanuc", role: "equipment", source: "workHistory", context: "employer" },
+      ]);
+      const employerRoleResult = service.scoreResume(index, context, [
+        { brand: "fanuc", role: "employer", source: "workHistory", context: "employer" },
+      ]);
+
+      expect(equipmentRoleResult.breakdown.brandRelevance).toBe(7);
+      expect(employerRoleResult.breakdown.brandRelevance).toBe(10);
+      expect(employerRoleResult.score).toBeGreaterThan(equipmentRoleResult.score);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("keeps full score for both-role brand hits", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["fanuc"], "东莞");
+
+      const index: ResumeIndex = {
+        resumeId: "R-brand-role-both",
+        experienceYears: 5,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        skills: ["销售", "cnc"],
+        companies: ["上海发那科机器人有限公司"],
+        industryTags: ["cnc", "sales"],
+        salaryRange: { min: 10000, max: 18000 },
+        searchText: "东莞 发那科 销售 cnc",
+      };
+
+      const bothRoleResult = service.scoreResume(index, context, [
+        { brand: "fanuc", role: "both", source: "workHistory", context: "employer" },
+      ]);
+
+      expect(bothRoleResult.breakdown.brandRelevance).toBe(10);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
 });
