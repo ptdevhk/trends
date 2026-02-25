@@ -185,6 +185,28 @@ export class SearchEventLogger {
     return events;
   }
 
+  getEvents(options?: {
+    since?: string | Date;
+    types?: SearchEventType[];
+  }): SearchEvent[] {
+    const sinceIso = options?.since instanceof Date
+      ? options.since.toISOString()
+      : typeof options?.since === "string"
+        ? options.since
+        : null;
+    const typeSet = options?.types?.length ? new Set(options.types) : null;
+
+    return this.readEvents().filter((event) => {
+      if (sinceIso && event.ts < sinceIso) {
+        return false;
+      }
+      if (typeSet && !typeSet.has(event.type)) {
+        return false;
+      }
+      return true;
+    });
+  }
+
   logSearchQuery(params: {
     query: string;
     resultCount: number;

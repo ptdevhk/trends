@@ -16,6 +16,7 @@ import {
   actionsRoutes,
   searchProfilesRoutes,
   searchAnalyticsRoutes,
+  scoringEvaluationRoutes,
   filterPresetsRoutes,
   configRoutes,
   notificationRoutes,
@@ -43,6 +44,7 @@ export const openApiConfig = {
     { name: "actions", description: "Candidate actions" },
     { name: "Search Profiles", description: "Search profile management" },
     { name: "Search Analytics", description: "Search quality telemetry and suggestions" },
+    { name: "Scoring Evaluation", description: "Scoring quality analysis, auto-tuning, and rollback" },
     { name: "Filter Presets", description: "Filter preset management" },
     { name: "Config", description: "Runtime configuration management" },
   ],
@@ -76,6 +78,7 @@ export function createApp() {
   app.route("/worker", workerRoutes);
   app.route("/api/search-profiles", searchProfilesRoutes);
   app.route("/api/search-analytics", searchAnalyticsRoutes);
+  app.route("/api/scoring-evaluation", scoringEvaluationRoutes);
   app.route("/api/filter-presets", filterPresetsRoutes);
   app.route("/api/config", configRoutes);
   app.route("/api/notifications", notificationRoutes);
@@ -115,6 +118,7 @@ export function createApp() {
         job_descriptions: "/api/job-descriptions",
         search_profiles: "/api/search-profiles",
         search_analytics: "/api/search-analytics",
+        scoring_evaluation: "/api/scoring-evaluation/report",
         config: "/api/config",
       },
     });

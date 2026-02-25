@@ -930,6 +930,101 @@ export class SkillsKnowledgeService {
     return entry;
   }
 
+  applySynonymSuggestions(
+    suggestions: Array<{ variant: string; canonical: string }>
+  ): number {
+    if (suggestions.length === 0) {
+      return 0;
+    }
+
+    const skillsPath = this.getSkillsPath();
+    if (!fs.existsSync(skillsPath)) {
+      throw new FileParseError(skillsPath, "skills.md not found");
+    }
+
+    const content = fs.readFileSync(skillsPath, "utf8");
+    const lines = content.split("\n");
+    const synonymHeadingIndex = lines.findIndex((line) => /^##\s+Synonym Table\s*$/i.test(line.trim()));
+    if (synonymHeadingIndex === -1) {
+      throw new FileParseError(skillsPath, "Synonym Table section not found");
+    }
+
+    let sectionEndIndex = lines.length;
+    for (let index = synonymHeadingIndex + 1; index < lines.length; index += 1) {
+      if (/^##\s+/.test(lines[index].trim())) {
+        sectionEndIndex = index;
+        break;
+      }
+    }
+
+    const existing = new Map<string, { canonical: string; variants: Set<string> }>();
+    for (const line of lines.slice(synonymHeadingIndex + 1, sectionEndIndex)) {
+      const match = line.match(/^\s*-\s*([^:]+):\s*(.+)$/);
+      if (!match) {
+        continue;
+      }
+
+      const canonicalRaw = match[1].trim();
+      const canonical = normalizeToken(canonicalRaw);
+      if (!canonical) {
+        continue;
+      }
+
+      const variants = match[2]
+        .split(",")
+        .map((value) => normalizeToken(value))
+        .filter((value) => value.length > 0 && value !== canonical);
+      existing.set(canonical, {
+        canonical: canonicalRaw,
+        variants: new Set(variants),
+      });
+    }
+
+    let addedCount = 0;
+    for (const suggestion of suggestions) {
+      const variant = normalizeToken(suggestion.variant);
+      const canonical = normalizeToken(suggestion.canonical);
+      if (!variant || !canonical || variant === canonical) {
+        continue;
+      }
+
+      const entry = existing.get(canonical) ?? {
+        canonical,
+        variants: new Set<string>(),
+      };
+      if (!entry.variants.has(variant)) {
+        entry.variants.add(variant);
+        addedCount += 1;
+      }
+      existing.set(canonical, entry);
+    }
+
+    if (addedCount === 0) {
+      return 0;
+    }
+
+    const synonymLines = Array.from(existing.entries())
+      .map(([canonical, entry]) => ({
+        canonical,
+        variants: Array.from(entry.variants).sort((left, right) => left.localeCompare(right)),
+      }))
+      .filter((entry) => entry.variants.length > 0)
+      .sort((left, right) => left.canonical.localeCompare(right.canonical))
+      .map((entry) => `- ${entry.canonical}: ${entry.variants.join(", ")}`);
+
+    const updatedLines = [
+      ...lines.slice(0, synonymHeadingIndex + 1),
+      "",
+      ...synonymLines,
+      "",
+      ...lines.slice(sectionEndIndex),
+    ];
+
+    fs.writeFileSync(skillsPath, updatedLines.join("\n"), "utf8");
+    this.clearCache();
+    return addedCount;
+  }
+
   /**
    * Clear cache
    */

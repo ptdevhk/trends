@@ -270,6 +270,33 @@ export class MatchStorage {
     return rows.map((row) => normalizeMatch(row));
   }
 
+  getLatestMatchesByResumeIds(resumeIds: string[]): StoredMatch[] {
+    if (resumeIds.length === 0) {
+      return [];
+    }
+
+    const placeholders = resumeIds.map(() => "?").join(", ");
+    const rows = this.db
+      .prepare(
+        `
+        SELECT rm.*
+        FROM resume_matches rm
+        INNER JOIN (
+          SELECT resume_id, MAX(matched_at) AS matched_at
+          FROM resume_matches
+          WHERE resume_id IN (${placeholders})
+          GROUP BY resume_id
+        ) latest
+          ON rm.resume_id = latest.resume_id
+         AND rm.matched_at = latest.matched_at
+        WHERE rm.resume_id IN (${placeholders})
+        `
+      )
+      .all(...resumeIds, ...resumeIds) as Record<string, unknown>[];
+
+    return rows.map((row) => normalizeMatch(row));
+  }
+
   clearOldMatches(olderThanDays: number): number {
     const cutoff = formatIsoOffsetInTimezone(
       new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000),
