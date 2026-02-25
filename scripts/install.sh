@@ -80,13 +80,30 @@ ensure_base_dependencies() {
 
 ensure_node_22() {
     local node_major=""
+    local node_major_int=0
+    local node_version=""
+    local node_22_version=""
     if command -v node >/dev/null 2>&1; then
-        node_major="$(node -v | sed -E 's/^v([0-9]+).*/\1/')"
+        node_version="$(node -v)"
+        node_major="$(echo "$node_version" | sed -E 's/^v([0-9]+).*/\1/')"
     fi
 
     if [[ "$node_major" == "22" ]]; then
-        log_info "Node.js $(node -v) already installed."
+        log_info "Node.js $node_version already installed."
         return
+    fi
+
+    if [[ "$node_major" =~ ^[0-9]+$ ]]; then
+        node_major_int="$node_major"
+    fi
+
+    if [[ "$node_major_int" -gt 22 ]]; then
+        if [[ ! "${ALLOW_NODE_DOWNGRADE:-}" =~ ^(1|true|yes)$ ]]; then
+            log_error "Detected Node.js $node_version; refusing to downgrade to Node.js 22 by default."
+            log_error "Re-run with ALLOW_NODE_DOWNGRADE=1 to allow downgrade, e.g.:"
+            log_error "  ALLOW_NODE_DOWNGRADE=1 make install"
+            exit 1
+        fi
     fi
 
     log_info "Installing Node.js 22 (NodeSource)..."
@@ -94,7 +111,18 @@ ensure_node_22() {
     curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
     apt-get update
     APT_UPDATED=1
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nodejs
+    node_22_version="$(apt-cache madison nodejs | awk '/22\./ { print $3; exit }')"
+    if [[ -z "$node_22_version" ]]; then
+        log_error "Unable to find a Node.js 22 package candidate from apt metadata."
+        exit 1
+    fi
+
+    if [[ "$node_major_int" -gt 22 ]]; then
+        log_warn "Detected Node.js $node_version; downgrading to Node.js 22 ($node_22_version)."
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades --no-install-recommends "nodejs=$node_22_version"
+    else
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "nodejs=$node_22_version"
+    fi
 
     node_major="$(node -v | sed -E 's/^v([0-9]+).*/\1/')"
     if [[ "$node_major" != "22" ]]; then
