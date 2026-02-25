@@ -97,13 +97,10 @@ ensure_node_22() {
         node_major_int="$node_major"
     fi
 
-    if [[ "$node_major_int" -gt 22 ]]; then
-        if [[ ! "${ALLOW_NODE_DOWNGRADE:-}" =~ ^(1|true|yes)$ ]]; then
-            log_error "Detected Node.js $node_version; refusing to downgrade to Node.js 22 by default."
-            log_error "Re-run with ALLOW_NODE_DOWNGRADE=1 to allow downgrade, e.g.:"
-            log_error "  ALLOW_NODE_DOWNGRADE=1 make install"
-            exit 1
-        fi
+    if [[ "$node_major_int" -gt 22 && ! "${ALLOW_NODE_DOWNGRADE:-}" =~ ^(1|true|yes)$ ]]; then
+        log_warn "Detected Node.js $node_version (expected v22). Continuing without changes."
+        log_warn "Set ALLOW_NODE_DOWNGRADE=1 to downgrade to Node.js 22."
+        return
     fi
 
     log_info "Installing Node.js 22 (NodeSource)..."
