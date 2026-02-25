@@ -8,7 +8,7 @@ export interface EmailOptions {
 }
 
 export interface NotificationAdapter {
-    sendEmail(options: EmailOptions): Promise<any>;
+    sendEmail(options: EmailOptions): Promise<unknown>;
 }
 
 class EtherealAdapter implements NotificationAdapter {
