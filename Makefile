@@ -1,7 +1,7 @@
 # TrendRadar Development Makefile
 
 .PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
-		worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
+		worker worker-once install deploy install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume \
 		build-static build-static-fresh serve-static \
@@ -133,7 +133,11 @@ worker-once:
 
 # Install as systemd services (production)
 install:
-	sudo ./scripts/install.sh
+	sudo ./scripts/install.sh install
+
+# Pull, rebuild, and restart all production services
+deploy:
+	sudo ./scripts/install.sh upgrade
 
 # Remove systemd services
 uninstall:

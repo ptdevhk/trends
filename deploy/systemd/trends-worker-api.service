@@ -1,0 +1,21 @@
+[Unit]
+Description=Trends Worker FastAPI REST API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trends
+Group=trends
+WorkingDirectory=/opt/trends
+EnvironmentFile=-/etc/trends/env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/trends/.venv/bin/python -m uvicorn apps.worker.api:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trends-worker-api
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Trends News Crawler Timer
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+RandomizedDelaySec=30
+Unit=trends-crawler.service
+
+[Install]
+WantedBy=timers.target
