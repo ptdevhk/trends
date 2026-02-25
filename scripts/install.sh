@@ -192,8 +192,11 @@ ensure_repo_access() {
     local repo_url auth_home
     repo_url="$(resolve_repo_url)"
 
-    if git ls-remote "$repo_url" >/dev/null 2>&1; then
-        log_info "Repository access verified for $repo_url."
+    # Check if the service user can access the repo (has cached credentials or public repo).
+    # Checking as root is misleading because root's credentials don't help the service user
+    # who actually runs git operations in clone_or_update_repo.
+    if id "$SERVICE_USER" >/dev/null 2>&1 && run_as_service_user "git ls-remote '$repo_url'" >/dev/null 2>&1; then
+        log_info "Repository access verified for $repo_url (service user)."
         return
     fi
 
@@ -592,7 +595,18 @@ setup_convex_local() {
 
     systemctl daemon-reload
     systemctl enable trends-convex.service
-    systemctl restart trends-convex.service
+
+    # Stop existing backend to free port 3210 before pushing schema.
+    # `convex dev --local --once` starts its own backend subprocess, pushes
+    # schema/functions, then exits (backend subprocess also exits).
+    systemctl stop trends-convex.service 2>/dev/null || true
+
+    log_info "Pushing Convex schema/functions to local backend..."
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && export CONVEX_AGENT_MODE=anonymous && env -u TZ npx convex dev --local --once"
+
+    # Now start the persistent backend service.
+    log_info "Starting Convex local backend service..."
+    systemctl start trends-convex.service
 
     log_info "Waiting for Convex local backend on port 3210..."
     if ! wait_for_port_listen 3210 60; then
@@ -600,9 +614,6 @@ setup_convex_local() {
         log_error "Inspect logs: journalctl -u trends-convex -n 100 --no-pager"
         exit 1
     fi
-
-    log_info "Pushing Convex schema/functions to local backend..."
-    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && export CONVEX_AGENT_MODE=anonymous && env -u TZ npx convex dev --local --once"
 
     convex_url="$(read_env_var_from_file "$convex_env_file" "CONVEX_URL" || true)"
     if [[ -z "$convex_url" ]]; then
@@ -898,8 +909,8 @@ install_flow() {
     ensure_uv
     ensure_repo_access
     create_service_user
-    clone_or_update_repo
     sync_service_user_gh_credentials
+    clone_or_update_repo
     sync_dependencies
     deploy_env_file
     setup_convex
@@ -939,8 +950,8 @@ upgrade_flow() {
     fi
 
     create_service_user
-    clone_or_update_repo
     sync_service_user_gh_credentials
+    clone_or_update_repo
 
     sync_dependencies
     if [[ -n "$ENV_FILE" ]]; then
