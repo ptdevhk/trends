@@ -7,7 +7,7 @@
 import type { NewsItem, ApiResponse, GetLatestNewsParams, SearchNewsParams } from './types'
 
 // API base URL - in production this would come from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 /**
  * Platform definitions

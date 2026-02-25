@@ -63,7 +63,7 @@ export default function DebugIngest() {
   const [reingesting, setReingesting] = useState(false)
 
   const apiBaseUrl = useMemo(() => {
-    const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+    const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
     return rawBaseUrl.replace(/\/api\/?$/, '')
   }, [])
 

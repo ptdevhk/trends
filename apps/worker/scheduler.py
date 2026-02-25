@@ -20,7 +20,10 @@ from apscheduler.events import (
     EVENT_JOB_EXECUTED,
     EVENT_JOB_ERROR,
     EVENT_JOB_MISSED,
+    EVENT_SCHEDULER_STARTED,
+    EVENT_SCHEDULER_SHUTDOWN,
     JobExecutionEvent,
+    SchedulerEvent,
 )
 
 from apps.worker.tasks import run_crawl_analyze, health_check, run_skills_version_check
@@ -127,6 +130,8 @@ class WorkerScheduler:
         self.scheduler.add_listener(self._on_job_executed, EVENT_JOB_EXECUTED)
         self.scheduler.add_listener(self._on_job_error, EVENT_JOB_ERROR)
         self.scheduler.add_listener(self._on_job_missed, EVENT_JOB_MISSED)
+        self.scheduler.add_listener(self._on_scheduler_started, EVENT_SCHEDULER_STARTED)
+        self.scheduler.add_listener(self._on_scheduler_shutdown, EVENT_SCHEDULER_SHUTDOWN)
 
     def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown."""
@@ -153,8 +158,8 @@ class WorkerScheduler:
                 stats["last_success"] = stats["last_success"].isoformat()
             if stats.get("last_failure"):
                 stats["last_failure"] = stats["last_failure"].isoformat()
-                
-            output_path = Path("apps/worker/status.json")
+
+            output_path = Path(__file__).resolve().parent / "status.json"
             with open(output_path, "w") as f:
                 json.dump(stats, f, indent=2)
         except Exception as e:
@@ -182,6 +187,16 @@ class WorkerScheduler:
         """Handle missed job execution."""
         self.stats["jobs_missed"] += 1
         logger.warning(f"Job '{event.job_id}' was missed")
+        self._save_stats()
+
+    def _on_scheduler_started(self, event: SchedulerEvent) -> None:
+        """Persist scheduler state as soon as the scheduler loop is running."""
+        logger.info("Scheduler started (event code: %s)", event.code)
+        self._save_stats()
+
+    def _on_scheduler_shutdown(self, event: SchedulerEvent) -> None:
+        """Persist scheduler state on shutdown."""
+        logger.info("Scheduler stopped (event code: %s)", event.code)
         self._save_stats()
 
     def add_crawl_job(self) -> None:
@@ -294,8 +309,20 @@ class WorkerScheduler:
         if self.run_immediately:
             logger.info("Running initial crawl immediately...")
             try:
-                run_crawl_analyze(config_overrides=self.config_overrides)
+                started = get_configured_time(self.timezone)
+                succeeded = run_crawl_analyze(config_overrides=self.config_overrides)
+                self.stats["last_run"] = started
+                if succeeded:
+                    self.stats["jobs_executed"] += 1
+                    self.stats["last_success"] = started
+                else:
+                    self.stats["jobs_failed"] += 1
+                    self.stats["last_failure"] = started
             except Exception as e:
+                failed_at = get_configured_time(self.timezone)
+                self.stats["jobs_failed"] += 1
+                self.stats["last_run"] = failed_at
+                self.stats["last_failure"] = failed_at
                 logger.error(f"Initial crawl failed: {e}")
 
         # Print next run time

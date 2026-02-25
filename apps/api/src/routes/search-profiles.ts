@@ -654,7 +654,7 @@ const getProfileStatusRoute = createRoute({
                 "application/json": {
                     schema: z.object({
                         success: z.literal(true),
-                        status: ProfileRunStatusSchema,
+                        status: ProfileRunStatusSchema.nullable(),
                     }),
                 },
             },
@@ -686,7 +686,7 @@ app.openapi(getProfileStatusRoute, async (c) => {
     const store = readRunStatusStore();
     const storedStatus = store[profile.id];
     if (!storedStatus) {
-        return c.json({ success: false as const, error: `No run status for profile: ${profile.id}` }, 404);
+        return c.json({ success: true as const, status: null }, 200);
     }
 
     let resolvedStatus = storedStatus;

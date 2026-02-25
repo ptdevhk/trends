@@ -36,7 +36,7 @@ type StreamDonePayload = {
   stats?: MatchStats
 }
 
-const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
 const baseUrl = rawBaseUrl.replace(/\/api\/?$/, '')
 
 function mergeResult(results: MatchingResult[], incoming: MatchingResult): MatchingResult[] {

@@ -1958,7 +1958,7 @@ export interface paths {
                                 extracted?: number;
                                 submitted?: number;
                                 error?: string;
-                            };
+                            } | null;
                         };
                     };
                 };

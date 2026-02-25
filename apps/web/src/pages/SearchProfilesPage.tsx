@@ -37,15 +37,22 @@ type ProfileResponse = {
   profile?: SearchProfileDetails
 }
 
-type RunProfileResponse = {
-  success: boolean
+type RunProfileSuccessResponse = {
+  success: true
   profileId: string
   taskId: string
 }
 
+type RunProfileErrorResponse = {
+  success: false
+  error?: string
+}
+
+type RunProfileResponse = RunProfileSuccessResponse | RunProfileErrorResponse
+
 type ProfileStatusResponse = {
   success: boolean
-  status?: SearchProfileRunStatus
+  status?: SearchProfileRunStatus | null
 }
 
 type ProfileFormState = {
@@ -73,6 +80,59 @@ function parseKeywords(value: string): string[] {
     .split(/[\s,，、]+/)
     .map((keyword) => keyword.trim())
     .filter((keyword) => keyword.length > 0)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+function extractApiErrorMessage(error: unknown): string | null {
+  const direct = readString(error)
+  if (direct) {
+    return direct
+  }
+
+  if (!isRecord(error)) {
+    return null
+  }
+
+  const detail = readString(error.detail)
+  if (detail) {
+    return detail
+  }
+
+  const message = readString(error.message)
+  if (message) {
+    return message
+  }
+
+  const nestedError = error.error
+  if (isRecord(nestedError)) {
+    const nestedMessage = readString(nestedError.message)
+    if (nestedMessage) {
+      return nestedMessage
+    }
+    const nestedErrorText = readString(nestedError.error)
+    if (nestedErrorText) {
+      return nestedErrorText
+    }
+  }
+
+  return readString(nestedError)
+}
+
+function isLikelyNetworkError(message: string | null): boolean {
+  if (!message) {
+    return false
+  }
+  const normalized = message.toLowerCase()
+  return normalized.includes('failed to fetch')
+    || normalized.includes('networkerror')
+    || normalized.includes('err_connection_refused')
 }
 
 function buildScheduleLabel(profile?: SearchProfileDetails): string {
@@ -118,30 +178,35 @@ export function SearchProfilesPage() {
   }, [])
 
   const fetchRunStatus = useCallback(async (profileId: string) => {
-    const { data } = await rawApiClient.GET<ProfileStatusResponse>(`/api/search-profiles/${profileId}/status`)
-    const status = data?.status
-    if (!data?.success || !status) {
+    try {
+      const { data } = await rawApiClient.GET<ProfileStatusResponse>(`/api/search-profiles/${profileId}/status`)
+      const status = data?.status
+      if (!data?.success || !status) {
+        return null
+      }
+
+      setRunStatuses((previous) => ({
+        ...previous,
+        [profileId]: status,
+      }))
+
+      if (TERMINAL_STATUSES.includes(status.taskStatus)) {
+        clearPolling(profileId)
+        setRunningIds((previous) => {
+          if (!previous.has(profileId)) {
+            return previous
+          }
+          const next = new Set(previous)
+          next.delete(profileId)
+          return next
+        })
+      }
+
+      return status
+    } catch (error) {
+      console.error(`Failed to load run status for profile ${profileId}`, error)
       return null
     }
-
-    setRunStatuses((previous) => ({
-      ...previous,
-      [profileId]: status,
-    }))
-
-    if (TERMINAL_STATUSES.includes(status.taskStatus)) {
-      clearPolling(profileId)
-      setRunningIds((previous) => {
-        if (!previous.has(profileId)) {
-          return previous
-        }
-        const next = new Set(previous)
-        next.delete(profileId)
-        return next
-      })
-    }
-
-    return status
   }, [clearPolling])
 
   const startPolling = useCallback((profileId: string) => {
@@ -265,12 +330,38 @@ export function SearchProfilesPage() {
   const handleRunNow = useCallback(async (profileId: string) => {
     setRunningIds((previous) => new Set(previous).add(profileId))
 
-    const { data } = await rawApiClient.POST<RunProfileResponse>(`/api/search-profiles/${profileId}/run`, {
-      body: {},
-    })
+    try {
+      const { data, error } = await rawApiClient.POST<RunProfileResponse>(`/api/search-profiles/${profileId}/run`, {
+        body: {},
+      })
 
-    if (!data?.success) {
-      toast.error(t('searchProfiles.runError', { defaultValue: 'Failed to run profile' }))
+      if (!data?.success) {
+        const rawMessage = (data && 'error' in data ? readString(data.error) : null)
+          || extractApiErrorMessage(error)
+        const message = isLikelyNetworkError(rawMessage)
+          ? t('searchProfiles.runNetworkError', { defaultValue: 'Cannot reach API server. Start make dev or make dev-api.' })
+          : (rawMessage || t('searchProfiles.runError', { defaultValue: 'Failed to run profile' }))
+        toast.error(message)
+        setRunningIds((previous) => {
+          if (!previous.has(profileId)) {
+            return previous
+          }
+          const next = new Set(previous)
+          next.delete(profileId)
+          return next
+        })
+        return
+      }
+
+      toast.success(t('searchProfiles.runSuccess', { defaultValue: 'Profile run started' }))
+      startPolling(profileId)
+    } catch (error) {
+      console.error(`Failed to run profile ${profileId}`, error)
+      const rawMessage = extractApiErrorMessage(error)
+      const message = isLikelyNetworkError(rawMessage)
+        ? t('searchProfiles.runNetworkError', { defaultValue: 'Cannot reach API server. Start make dev or make dev-api.' })
+        : (rawMessage || t('searchProfiles.runError', { defaultValue: 'Failed to run profile' }))
+      toast.error(message)
       setRunningIds((previous) => {
         if (!previous.has(profileId)) {
           return previous
@@ -279,11 +370,7 @@ export function SearchProfilesPage() {
         next.delete(profileId)
         return next
       })
-      return
     }
-
-    toast.success(t('searchProfiles.runSuccess', { defaultValue: 'Profile run started' }))
-    startPolling(profileId)
   }, [startPolling, t])
 
   const handleSave = useCallback(async () => {
