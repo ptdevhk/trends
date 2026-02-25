@@ -1,0 +1,24 @@
+[Unit]
+Description=Trends Convex Local Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trends
+Group=trends
+WorkingDirectory=/opt/trends/packages/convex
+EnvironmentFile=-/etc/trends/env
+Environment=NODE_ENV=production
+Environment=CONVEX_AGENT_MODE=anonymous
+UnsetEnvironment=TZ
+ExecStartPre=/usr/bin/bash /opt/trends/scripts/prefetch-convex-backend.sh
+ExecStart=/usr/bin/npx convex dev --local
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trends-convex
+
+[Install]
+WantedBy=multi-user.target

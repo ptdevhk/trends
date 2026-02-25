@@ -404,6 +404,292 @@ build_artifacts() {
     run_as_service_user "cd '$INSTALL_DIR' && npm run --workspace @trends/web build"
 }
 
+read_env_var_from_file() {
+    local file_path="$1"
+    local key="$2"
+    local line=""
+    local value=""
+    local first_char=""
+    local last_char=""
+
+    if [[ ! -f "$file_path" ]]; then
+        return 1
+    fi
+
+    line="$(grep -E "^[[:space:]]*${key}=" "$file_path" | tail -n 1 || true)"
+    if [[ -z "$line" ]]; then
+        return 1
+    fi
+
+    value="${line#*=}"
+    value="$(echo "$value" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+
+    if [[ "${#value}" -ge 2 ]]; then
+        first_char="${value:0:1}"
+        last_char="${value: -1}"
+        if [[ ( "$first_char" == "\"" && "$last_char" == "\"" ) || ( "$first_char" == "'" && "$last_char" == "'" ) ]]; then
+            value="${value:1:${#value}-2}"
+        fi
+    fi
+
+    printf '%s' "$value"
+}
+
+resolve_runtime_env_var() {
+    local key="$1"
+    local value="${!key:-}"
+
+    if [[ -z "$value" ]]; then
+        value="$(read_env_var_from_file "$CONFIG_DIR/env" "$key" || true)"
+    fi
+
+    printf '%s' "$value"
+}
+
+upsert_env_var_in_file() {
+    local file_path="$1"
+    local key="$2"
+    local value="$3"
+    local tmp_file=""
+
+    mkdir -p "$(dirname "$file_path")"
+    if [[ ! -f "$file_path" ]]; then
+        touch "$file_path"
+    fi
+
+    tmp_file="$(mktemp)"
+    awk -v key="$key" -v value="$value" '
+        BEGIN { updated = 0 }
+        $0 ~ "^[[:space:]]*" key "=" {
+            print key "=" value
+            updated = 1
+            next
+        }
+        { print }
+        END {
+            if (updated == 0) {
+                print key "=" value
+            }
+        }
+    ' "$file_path" > "$tmp_file"
+    mv "$tmp_file" "$file_path"
+}
+
+shell_escape() {
+    printf '%q' "$1"
+}
+
+wait_for_port_listen() {
+    local port="$1"
+    local timeout="${2:-60}"
+    local elapsed=0
+
+    while [[ "$elapsed" -lt "$timeout" ]]; do
+        if ss -ltn "sport = :$port" 2>/dev/null | grep -q "LISTEN"; then
+            return 0
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+
+    return 1
+}
+
+is_convex_cloud_mode() {
+    local deploy_key=""
+    deploy_key="$(resolve_runtime_env_var "CONVEX_DEPLOY_KEY")"
+    [[ -n "$deploy_key" ]]
+}
+
+sync_convex_url_to_web() {
+    local sync_script="$INSTALL_DIR/scripts/sync-convex-env.sh"
+
+    if [[ ! -x "$sync_script" ]]; then
+        log_warn "Convex URL sync script not found: $sync_script"
+        return 0
+    fi
+
+    log_info "Syncing Convex URL to apps/web/.env.local..."
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$INSTALL_DIR' && '$sync_script'"
+}
+
+sync_convex_ai_env() {
+    local convex_dir="$INSTALL_DIR/packages/convex"
+    local convex_env_file="$convex_dir/.env.local"
+    local keys=("AI_ANALYSIS_ENABLED" "AI_MODEL" "AI_API_KEY" "AI_API_BASE")
+    local key=""
+    local value=""
+    local escaped_value=""
+    local synced=0
+    local failed=0
+
+    if [[ ! -d "$convex_dir" ]]; then
+        return 0
+    fi
+
+    for key in "${keys[@]}"; do
+        value="$(resolve_runtime_env_var "$key")"
+        if [[ -z "$value" ]]; then
+            continue
+        fi
+        escaped_value="$(shell_escape "$value")"
+
+        if [[ -f "$convex_env_file" ]]; then
+            if run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex env set --env-file '$convex_env_file' '$key' $escaped_value >/dev/null 2>&1"; then
+                synced=$((synced + 1))
+            else
+                log_warn "Failed to sync $key into Convex deployment env."
+                failed=$((failed + 1))
+            fi
+        else
+            if run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex env set '$key' $escaped_value >/dev/null 2>&1"; then
+                synced=$((synced + 1))
+            else
+                log_warn "Failed to sync $key into Convex deployment env."
+                failed=$((failed + 1))
+            fi
+        fi
+    done
+
+    if [[ "$synced" -gt 0 ]]; then
+        log_info "Synced $synced AI env var(s) to Convex deployment."
+    else
+        log_warn "No AI env vars found in environment (expected AI_ANALYSIS_ENABLED/AI_MODEL/AI_API_KEY/AI_API_BASE)."
+    fi
+
+    if [[ "$failed" -gt 0 ]]; then
+        log_warn "$failed Convex env var(s) failed to sync."
+    fi
+}
+
+setup_convex_local() {
+    local convex_dir="$INSTALL_DIR/packages/convex"
+    local convex_env_file="$convex_dir/.env.local"
+    local convex_unit_source="$INSTALL_DIR/deploy/systemd/trends-convex.service"
+    local convex_unit_target="$SYSTEMD_DIR/trends-convex.service"
+    local prefetch_script="$INSTALL_DIR/scripts/prefetch-convex-backend.sh"
+    local convex_url=""
+
+    log_info "Configuring Convex local backend..."
+
+    upsert_env_var_in_file "$convex_env_file" "CONVEX_DEPLOYMENT" "anonymous:anonymous-agent-1"
+    chmod 600 "$convex_env_file"
+    chown "$SERVICE_USER:$SERVICE_GROUP" "$convex_env_file"
+
+    if [[ -x "$prefetch_script" ]]; then
+        if ! run_as_service_user "cd '$INSTALL_DIR' && '$prefetch_script'"; then
+            log_warn "Convex backend prefetch failed; continuing with normal startup."
+        fi
+    else
+        log_warn "Convex prefetch script not found: $prefetch_script"
+    fi
+
+    if [[ ! -f "$convex_unit_source" ]]; then
+        log_error "Missing unit file: $convex_unit_source"
+        exit 1
+    fi
+    cp "$convex_unit_source" "$convex_unit_target"
+
+    systemctl daemon-reload
+    systemctl enable trends-convex.service
+    systemctl restart trends-convex.service
+
+    log_info "Waiting for Convex local backend on port 3210..."
+    if ! wait_for_port_listen 3210 60; then
+        log_error "Timed out waiting for Convex backend on port 3210."
+        log_error "Inspect logs: journalctl -u trends-convex -n 100 --no-pager"
+        exit 1
+    fi
+
+    log_info "Pushing Convex schema/functions to local backend..."
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && export CONVEX_AGENT_MODE=anonymous && env -u TZ npx convex dev --local --once"
+
+    convex_url="$(read_env_var_from_file "$convex_env_file" "CONVEX_URL" || true)"
+    if [[ -z "$convex_url" ]]; then
+        convex_url="http://127.0.0.1:3210"
+    fi
+
+    upsert_env_var_in_file "$CONFIG_DIR/env" "CONVEX_URL" "$convex_url"
+    chmod 600 "$CONFIG_DIR/env"
+    chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG_DIR/env"
+    export CONVEX_URL="$convex_url"
+}
+
+setup_convex_cloud() {
+    local convex_dir="$INSTALL_DIR/packages/convex"
+    local convex_env_file="$convex_dir/.env.local"
+    local deploy_key=""
+    local escaped_deploy_key=""
+    local convex_url=""
+
+    deploy_key="$(resolve_runtime_env_var "CONVEX_DEPLOY_KEY")"
+    if [[ -z "$deploy_key" ]]; then
+        log_error "CONVEX_DEPLOY_KEY is required for cloud mode."
+        exit 1
+    fi
+    escaped_deploy_key="$(shell_escape "$deploy_key")"
+
+    log_info "Deploying Convex backend to Convex Cloud..."
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && CONVEX_DEPLOY_KEY=$escaped_deploy_key npx convex deploy"
+
+    convex_url="$(read_env_var_from_file "$convex_env_file" "CONVEX_URL" || true)"
+    if [[ -z "$convex_url" ]]; then
+        convex_url="$(resolve_runtime_env_var "CONVEX_URL")"
+    fi
+    if [[ -z "$convex_url" ]]; then
+        log_error "Failed to resolve CONVEX_URL after cloud deploy."
+        exit 1
+    fi
+
+    upsert_env_var_in_file "$CONFIG_DIR/env" "CONVEX_URL" "$convex_url"
+    chmod 600 "$CONFIG_DIR/env"
+    chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG_DIR/env"
+    export CONVEX_URL="$convex_url"
+
+    systemctl stop trends-convex.service 2>/dev/null || true
+    systemctl disable trends-convex.service 2>/dev/null || true
+}
+
+setup_convex() {
+    local convex_dir="$INSTALL_DIR/packages/convex"
+
+    if [[ ! -d "$convex_dir" ]]; then
+        log_info "Skipping Convex setup: $convex_dir not found."
+        return 0
+    fi
+
+    if is_convex_cloud_mode; then
+        log_info "Convex mode detected: cloud."
+        setup_convex_cloud
+    else
+        log_info "Convex mode detected: self-hosted local backend."
+        setup_convex_local
+    fi
+
+    sync_convex_url_to_web
+    sync_convex_ai_env
+}
+
+seed_and_migrate_convex() {
+    local convex_dir="$INSTALL_DIR/packages/convex"
+
+    if [[ ! -d "$convex_dir" ]]; then
+        return 0
+    fi
+
+    log_info "Running Convex seed..."
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$INSTALL_DIR' && npx tsx scripts/seed-convex.ts"
+
+    log_info "Running Convex migration: reindexSearchText..."
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:reindexSearchText"
+
+    log_info "Running Convex migration: backfillPrimaryRuleScore..."
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillPrimaryRuleScore"
+
+    log_info "Running Convex migration: backfillIngestData..."
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillIngestData '{\"limit\":100}'"
+}
+
 resolve_env_file() {
     if [[ -z "${ENV_FILE:-}" ]]; then
         return 1
@@ -493,7 +779,7 @@ install_systemd_units() {
     local unit
 
     log_info "Installing trends systemd unit files..."
-    for unit in "${SERVICES[@]}" "$TIMER"; do
+    for unit in "${SERVICES[@]}" "$TIMER" "trends-convex.service"; do
         if [[ ! -f "$source_dir/$unit" ]]; then
             log_error "Missing unit file: $source_dir/$unit"
             exit 1
@@ -615,8 +901,10 @@ install_flow() {
     clone_or_update_repo
     sync_service_user_gh_credentials
     sync_dependencies
-    build_artifacts
     deploy_env_file
+    setup_convex
+    build_artifacts
+    seed_and_migrate_convex
     stop_port_processes 3000
     remove_legacy_units
     install_systemd_units
@@ -627,7 +915,7 @@ install_flow() {
     log_info "Installation completed."
     echo ""
     echo "Verification commands:"
-    echo "  systemctl status trends-api trends-worker trends-worker-api trends-mcp trends-crawler.timer"
+    echo "  systemctl status trends-convex trends-api trends-worker trends-worker-api trends-mcp trends-crawler.timer"
     echo "  curl -s http://127.0.0.1:3000/api/health"
     echo "  curl -s https://trends.pt-mes.com/"
     echo ""
@@ -655,12 +943,14 @@ upgrade_flow() {
     sync_service_user_gh_credentials
 
     sync_dependencies
-    build_artifacts
     if [[ -n "$ENV_FILE" ]]; then
         deploy_env_file
     else
         log_info "ENV_FILE is empty; keeping existing $CONFIG_DIR/env unchanged."
     fi
+    setup_convex
+    build_artifacts
+    seed_and_migrate_convex
     stop_port_processes 3000
     remove_legacy_units
     install_systemd_units
@@ -669,7 +959,7 @@ upgrade_flow() {
     echo ""
     log_info "Upgrade completed. Services restarted."
     echo "Check status with:"
-    echo "  systemctl status trends-api trends-worker trends-worker-api trends-mcp trends-crawler.timer"
+    echo "  systemctl status trends-convex trends-api trends-worker trends-worker-api trends-mcp trends-crawler.timer"
 }
 
 uninstall_flow() {
@@ -677,14 +967,14 @@ uninstall_flow() {
     check_systemd
 
     log_info "Stopping and disabling trends services..."
-    systemctl stop trends-api.service trends-worker.service trends-worker-api.service trends-mcp.service trends-crawler.timer trends-crawler.service 2>/dev/null || true
-    systemctl disable trends-api.service trends-worker.service trends-worker-api.service trends-mcp.service trends-crawler.timer trends-crawler.service 2>/dev/null || true
+    systemctl stop trends-api.service trends-worker.service trends-worker-api.service trends-mcp.service trends-crawler.timer trends-crawler.service trends-convex.service 2>/dev/null || true
+    systemctl disable trends-api.service trends-worker.service trends-worker-api.service trends-mcp.service trends-crawler.timer trends-crawler.service trends-convex.service 2>/dev/null || true
 
     remove_legacy_units
 
     log_info "Removing trends unit files..."
     local unit
-    for unit in "${SERVICES[@]}" "$TIMER"; do
+    for unit in "${SERVICES[@]}" "$TIMER" "trends-convex.service"; do
         rm -f "$SYSTEMD_DIR/$unit"
     done
     systemctl daemon-reload
