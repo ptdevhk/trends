@@ -281,6 +281,9 @@ resolve_repo_url() {
 
 clone_or_update_repo() {
     local repo_url repo_git_owner repo_git_group
+    local desired_branch="${INSTALL_BRANCH:-}"
+    local default_ref=""
+    local default_branch=""
     repo_url="$(resolve_repo_url)"
     repo_git_owner="$SERVICE_USER"
     repo_git_group="$SERVICE_GROUP"
@@ -293,12 +296,36 @@ clone_or_update_repo() {
     chown -R "$repo_git_owner:$repo_git_group" "$INSTALL_DIR"
 
     if [[ -d "$INSTALL_DIR/.git" ]]; then
-        log_info "Repository already exists at $INSTALL_DIR, pulling latest changes..."
         if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
+            run_as_invoking_user git -C "$INSTALL_DIR" fetch --prune origin
+            default_ref="$(run_as_invoking_user git -C "$INSTALL_DIR" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
             run_as_invoking_user git -C "$INSTALL_DIR" pull --ff-only
         else
+            run_as_service_user "cd '$INSTALL_DIR' && git fetch --prune origin"
+            default_ref="$(run_as_service_user "git -C '$INSTALL_DIR' symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true")"
             run_as_service_user "cd '$INSTALL_DIR' && git pull --ff-only"
         fi
+
+        if [[ -z "$desired_branch" && -n "$default_ref" && "$default_ref" == origin/* ]]; then
+            default_branch="${default_ref#origin/}"
+            if [[ -n "$default_branch" && "$default_branch" != "HEAD" ]]; then
+                desired_branch="$default_branch"
+            fi
+        fi
+
+        if [[ -n "$desired_branch" ]]; then
+            log_info "Aligning $INSTALL_DIR to branch $desired_branch..."
+            if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
+                run_as_invoking_user git -C "$INSTALL_DIR" checkout -B "$desired_branch" "origin/$desired_branch"
+                run_as_invoking_user git -C "$INSTALL_DIR" pull --ff-only
+            else
+                run_as_service_user "cd '$INSTALL_DIR' && git checkout -B '$desired_branch' 'origin/$desired_branch'"
+                run_as_service_user "cd '$INSTALL_DIR' && git pull --ff-only"
+            fi
+        else
+            log_warn "Could not resolve desired branch (INSTALL_BRANCH unset, origin/HEAD missing). Keeping existing branch."
+        fi
+
         chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
         return
     fi
@@ -308,11 +335,23 @@ clone_or_update_repo() {
         exit 1
     fi
 
-    log_info "Cloning repository into $INSTALL_DIR from $repo_url..."
-    if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
-        run_as_invoking_user git clone "$repo_url" "$INSTALL_DIR"
+    if [[ -n "$desired_branch" ]]; then
+        log_info "Cloning repository (branch $desired_branch) into $INSTALL_DIR from $repo_url..."
     else
-        run_as_service_user "git clone '$repo_url' '$INSTALL_DIR'"
+        log_info "Cloning repository into $INSTALL_DIR from $repo_url..."
+    fi
+    if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
+        if [[ -n "$desired_branch" ]]; then
+            run_as_invoking_user git clone --branch "$desired_branch" "$repo_url" "$INSTALL_DIR"
+        else
+            run_as_invoking_user git clone "$repo_url" "$INSTALL_DIR"
+        fi
+    else
+        if [[ -n "$desired_branch" ]]; then
+            run_as_service_user "git clone --branch '$desired_branch' '$repo_url' '$INSTALL_DIR'"
+        else
+            run_as_service_user "git clone '$repo_url' '$INSTALL_DIR'"
+        fi
     fi
     chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
 }
@@ -604,6 +643,7 @@ upgrade_flow() {
     ensure_base_dependencies
     ensure_node_22
     ensure_uv
+    ensure_repo_access
 
     if [[ ! -d "$INSTALL_DIR/.git" ]]; then
         log_error "$INSTALL_DIR is not a git repository. Run install first."
@@ -611,9 +651,8 @@ upgrade_flow() {
     fi
 
     create_service_user
-    chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
-    log_info "Pulling latest code..."
-    run_as_service_user "cd '$INSTALL_DIR' && git pull --ff-only"
+    clone_or_update_repo
+    sync_service_user_gh_credentials
 
     sync_dependencies
     build_artifacts
