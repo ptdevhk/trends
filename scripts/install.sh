@@ -720,22 +720,35 @@ setup_convex() {
 
 seed_and_migrate_convex() {
     local convex_dir="$INSTALL_DIR/packages/convex"
+    local seed_script="$INSTALL_DIR/scripts/seed-convex.ts"
+    local seed_args="--force"
 
     if [[ ! -d "$convex_dir" ]]; then
         return 0
     fi
 
-    log_info "Running Convex seed..."
-    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$INSTALL_DIR' && npx tsx scripts/seed-convex.ts"
+    # Always seed JDs (idempotent). Optionally include sample resumes.
+    if [[ -n "${SEED_RESUMES:-}" ]]; then
+        seed_args="$seed_args --with-resumes"
+        log_info "Seeding Convex: job descriptions + sample resumes..."
+    else
+        log_info "Seeding Convex: job descriptions only..."
+    fi
+
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$INSTALL_DIR' && npx tsx '$seed_script' $seed_args" \
+        || log_warn "Convex seed failed. Continuing with migrations."
 
     log_info "Running Convex migration: reindexSearchText..."
-    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:reindexSearchText"
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:reindexSearchText" \
+        || log_warn "reindexSearchText failed."
 
     log_info "Running Convex migration: backfillPrimaryRuleScore..."
-    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillPrimaryRuleScore"
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillPrimaryRuleScore" \
+        || log_warn "backfillPrimaryRuleScore failed."
 
     log_info "Running Convex migration: backfillIngestData..."
-    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillIngestData '{\"limit\":100}'"
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillIngestData '{\"limit\":100}'" \
+        || log_warn "backfillIngestData failed."
 }
 
 resolve_env_file() {
@@ -920,10 +933,11 @@ trends.pt-mes.com {
     tls leotse@datadigitalisation.com
     encode gzip
 
-    # React SPA — production build served as static files
-    root * /opt/trends/apps/web/dist
-    try_files {path} /index.html
-    file_server
+    # Convex backend — self-hosted on port 3210 (WebSocket + HTTP)
+    # Set CONVEX_PUBLIC_URL=https://trends.pt-mes.com/convex in .env.production
+    handle_path /convex/* {
+        reverse_proxy 127.0.0.1:3210
+    }
 
     # BFF API — Hono on port 3000
     handle /api/* {
@@ -933,6 +947,13 @@ trends.pt-mes.com {
     # MCP HTTP — optional, for AI clients
     handle /mcp/* {
         reverse_proxy 127.0.0.1:3333
+    }
+
+    # React SPA — production build served as static files
+    handle {
+        root * /opt/trends/apps/web/dist
+        try_files {path} /index.html
+        file_server
     }
 }
 EOF

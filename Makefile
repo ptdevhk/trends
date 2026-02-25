@@ -1,7 +1,7 @@
 # TrendRadar Development Makefile
 
 .PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
-		worker worker-once install deploy install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
+		worker worker-once install install-seed deploy install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume \
 		build-static build-static-fresh serve-static \
@@ -131,9 +131,13 @@ worker-once:
 # Deployment
 # =============================================================================
 
-# Install as systemd services (production)
+# Install as systemd services (production) — seeds JDs + runs migrations
 install:
 	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh install
+
+# Install with full demo data (JDs + sample resumes + migrations)
+install-seed:
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=1 ./scripts/install.sh install
 
 # Pull, rebuild, and restart all production services
 deploy:
