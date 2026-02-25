@@ -1,0 +1,19 @@
+[Unit]
+Description=Trends News Crawler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=trends
+Group=trends
+WorkingDirectory=/opt/trends
+EnvironmentFile=-/etc/trends/env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/trends/.venv/bin/python -m trendradar
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trends-crawler
+
+[Install]
+WantedBy=multi-user.target

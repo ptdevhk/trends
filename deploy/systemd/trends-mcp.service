@@ -1,0 +1,21 @@
+[Unit]
+Description=Trends MCP HTTP Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trends
+Group=trends
+WorkingDirectory=/opt/trends
+EnvironmentFile=-/etc/trends/env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/trends/.venv/bin/python -m mcp_server.server --transport http --host 127.0.0.1 --port 3333
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trends-mcp
+
+[Install]
+WantedBy=multi-user.target

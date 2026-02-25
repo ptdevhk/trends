@@ -1,168 +1,92 @@
-# TrendRadar Systemd Services
+# Trends Systemd Services
 
-Native Linux deployment using systemd for production servers.
+Native Linux deployment for the full Trends stack on Ubuntu 24.04.
 
 ## Services
 
-| Service | Type | Description |
-|---------|------|-------------|
-| `trendradar.service` | oneshot | News crawler (runs via timer) |
-| `trendradar.timer` | timer | Triggers crawler every 30 minutes |
-| `trendradar-mcp.service` | simple | MCP HTTP server (port 3333) |
+| Service | Type | Port | Description |
+|---------|------|------|-------------|
+| `trends-api.service` | simple | 3000 | Hono BFF API |
+| `trends-worker.service` | simple | - | FastAPI scheduler worker |
+| `trends-worker-api.service` | simple | 8000 | FastAPI REST API for worker triggers/status |
+| `trends-mcp.service` | simple | 3333 | MCP HTTP server |
+| `trends-crawler.service` | oneshot | - | News crawler run |
+| `trends-crawler.timer` | timer | - | Runs crawler every 30 minutes |
 
-## Quick Install
+## Install / Upgrade / Uninstall
 
 ```bash
-# From project root
-sudo ./scripts/install.sh
+# Initial install
+sudo ./scripts/install.sh install
+
+# Pull latest code + rebuild + restart services
+sudo ./scripts/install.sh upgrade
+
+# Remove installed systemd units
+sudo ./scripts/install.sh uninstall
 ```
 
-## Manual Installation
-
-### 1. Create system user
+Equivalent Make targets:
 
 ```bash
-sudo useradd -r -s /sbin/nologin -d /opt/trendradar trendradar
+make install
+make deploy
+make uninstall
 ```
 
-### 2. Install application
+## Runtime Paths
 
-```bash
-sudo mkdir -p /opt/trendradar
-sudo cp -r . /opt/trendradar/
-sudo chown -R trendradar:trendradar /opt/trendradar
-
-# Create virtual environment
-cd /opt/trendradar
-sudo -u trendradar python3 -m venv .venv
-sudo -u trendradar .venv/bin/pip install -r requirements.txt
+```text
+/opt/trends                 # Git checkout and runtime working directory
+/etc/trends/env             # Environment file loaded by all services
+/etc/systemd/system/        # Installed unit files
 ```
 
-### 3. Configure environment
+## Caddy Recommendation
 
-```bash
-sudo mkdir -p /etc/trendradar
-sudo cp .env.example /etc/trendradar/env
-sudo chmod 600 /etc/trendradar/env
-sudo chown trendradar:trendradar /etc/trendradar/env
+Add this block to `/etc/caddy/Caddyfile`:
 
-# Edit configuration
-sudo nano /etc/trendradar/env
+```caddyfile
+trends.pt-mes.com {
+    tls leotse@datadigitalisation.com
+    encode gzip
+
+    root * /opt/trends/apps/web/dist
+    try_files {path} /index.html
+    file_server
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:3000
+    }
+
+    handle /mcp/* {
+        reverse_proxy 127.0.0.1:3333
+    }
+}
 ```
 
-### 4. Install systemd units
+Then reload Caddy:
 
 ```bash
-sudo cp deploy/systemd/*.service deploy/systemd/*.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-```
-
-### 5. Enable and start services
-
-```bash
-# Start crawler timer
-sudo systemctl enable --now trendradar.timer
-
-# Start MCP server (optional)
-sudo systemctl enable --now trendradar-mcp.service
+sudo systemctl reload caddy
 ```
 
 ## Management Commands
 
 ```bash
-# Check crawler timer status
-systemctl status trendradar.timer
-systemctl list-timers trendradar.timer
+# Start all production services
+sudo systemctl start trends-api trends-worker trends-worker-api trends-mcp trends-crawler.timer
 
-# Run crawler manually
-sudo systemctl start trendradar.service
+# Check status
+systemctl status trends-api trends-worker trends-worker-api trends-mcp trends-crawler.timer
 
-# View logs
-journalctl -u trendradar -f
-journalctl -u trendradar-mcp -f
+# Run crawler immediately
+sudo systemctl start trends-crawler.service
 
-# Restart MCP server
-sudo systemctl restart trendradar-mcp
-
-# Stop all services
-sudo systemctl stop trendradar.timer trendradar-mcp
-```
-
-## Directory Structure
-
-```
-/opt/trendradar/           # Application root
-├── .venv/                 # Python virtual environment
-├── config/                # Configuration files
-│   ├── config.yaml
-│   └── frequency_words.txt
-├── output/                # Generated output
-│   ├── news/              # SQLite databases
-│   ├── html/              # HTML reports
-│   └── txt/               # Text snapshots
-├── trendradar/            # Main application
-└── mcp_server/            # MCP server
-
-/etc/trendradar/           # System configuration
-└── env                    # Environment variables
-```
-
-## Customizing Schedule
-
-Edit the timer to change the crawl frequency:
-
-```bash
-sudo systemctl edit trendradar.timer
-```
-
-Add override:
-
-```ini
-[Timer]
-OnCalendar=
-OnCalendar=*:0/15
-```
-
-Common schedules:
-- `*:0/15` - Every 15 minutes
-- `*:0/30` - Every 30 minutes (default)
-- `*-*-* *:00:00` - Every hour
-- `*-*-* 9,12,18:00:00` - At 9am, 12pm, 6pm
-
-## Troubleshooting
-
-### Service fails to start
-
-```bash
-# Check logs
-journalctl -u trendradar -n 50 --no-pager
-
-# Test manually
-sudo -u trendradar /opt/trendradar/.venv/bin/python -m trendradar
-```
-
-### Permission denied
-
-```bash
-# Fix ownership
-sudo chown -R trendradar:trendradar /opt/trendradar
-sudo chmod 755 /opt/trendradar
-```
-
-### MCP server port in use
-
-```bash
-# Check what's using port 3333
-sudo ss -tlnp | grep 3333
-
-# Change port in service override
-sudo systemctl edit trendradar-mcp.service
-```
-
-Add:
-
-```ini
-[Service]
-ExecStart=
-ExecStart=/opt/trendradar/.venv/bin/python -m mcp_server.server --transport http --host 127.0.0.1 --port 3334
+# Logs
+journalctl -u trends-api -f
+journalctl -u trends-worker -f
+journalctl -u trends-worker-api -f
+journalctl -u trends-mcp -f
+journalctl -u trends-crawler -f
 ```

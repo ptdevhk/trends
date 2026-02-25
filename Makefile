@@ -1,7 +1,7 @@
 # TrendRadar Development Makefile
 
 .PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
-		worker worker-once install install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
+		worker worker-once install install-seed deploy install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume \
 		build-static build-static-fresh serve-static \
@@ -131,9 +131,17 @@ worker-once:
 # Deployment
 # =============================================================================
 
-# Install as systemd services (production)
+# Install as systemd services (production) — seeds JDs + runs migrations
 install:
-	sudo ./scripts/install.sh
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh install
+
+# Install with full demo data (JDs + sample resumes + migrations)
+install-seed:
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=1 ./scripts/install.sh install
+
+# Pull, rebuild, and restart all production services
+deploy:
+	sudo ENV_FILE="$${ENV_FILE:-}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade
 
 # Remove systemd services
 uninstall:
@@ -606,6 +614,7 @@ help:
 	@echo ""
 	@echo "Deployment:"
 	@echo "  install        Install as systemd services (requires sudo)"
+	@echo "  deploy         Pull latest code, rebuild, and restart services (requires sudo)"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "  docker         Start Docker containers"
 	@echo "  docker-build   Build and start Docker containers"
@@ -674,7 +683,10 @@ help:
 	@echo "  help           Show this help message"
 	@echo ""
 	@echo "Environment Variables:"
-	@echo "  ENV_FILE       Optional env file path (unset by default)"
+	@echo "  ENV_FILE       Env file path (install default: .env.production; deploy default: keep existing env)"
+	@echo "  WORKSPACE_DIR  Workspace root used to resolve relative ENV_FILE paths (auto-set by make)"
+	@echo "  INSTALL_BRANCH Git branch to deploy into /opt/trends (default: repo default branch)"
+	@echo "  ALLOW_NODE_DOWNGRADE Set 1/true to allow installer to downgrade Node to v22 when a newer Node is already installed"
 	@echo "  SKIP_MATCH_SEED Set to true to skip automatic seed-matches in make dev"
 	@echo "  SERVICE_PROFILE Default service profile when running scripts/dev.sh (full|critical|fast-ui|backend)"
 	@echo "  WEB_SKIP_API_GEN Set to true to start web without OpenAPI type generation"

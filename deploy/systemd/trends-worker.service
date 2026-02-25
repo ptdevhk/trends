@@ -1,0 +1,21 @@
+[Unit]
+Description=Trends Worker Scheduler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trends
+Group=trends
+WorkingDirectory=/opt/trends
+EnvironmentFile=-/etc/trends/env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/trends/.venv/bin/python -m apps.worker
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trends-worker
+
+[Install]
+WantedBy=multi-user.target

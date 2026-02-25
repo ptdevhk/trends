@@ -52,18 +52,26 @@ if [ -z "$CONVEX_URL" ] || [ "$CONVEX_URL" = "null" ]; then
     exit 1
 fi
 
+# For the browser frontend, prefer CONVEX_PUBLIC_URL (public-facing URL through
+# a reverse proxy like Caddy) over the internal CONVEX_URL.  This matters for
+# self-hosted mode where CONVEX_URL is 127.0.0.1:3210 — unreachable from the
+# user's browser.  Cloud mode URLs are already public, so the fallback is fine.
+WEB_CONVEX_URL="${CONVEX_PUBLIC_URL:-$CONVEX_URL}"
+
 mkdir -p "$(dirname "$WEB_ENV")"
 
 # Write to web env
 if grep -q "^VITE_CONVEX_URL=" "$WEB_ENV" 2>/dev/null; then
     # Use perl for in-place editing to handle URL characters safely.
-    perl -i -pe "s|^VITE_CONVEX_URL=.*|VITE_CONVEX_URL=$CONVEX_URL|" "$WEB_ENV"
+    perl -i -pe "s|^VITE_CONVEX_URL=.*|VITE_CONVEX_URL=$WEB_CONVEX_URL|" "$WEB_ENV"
 else
-    echo "VITE_CONVEX_URL=$CONVEX_URL" >> "$WEB_ENV"
+    echo "VITE_CONVEX_URL=$WEB_CONVEX_URL" >> "$WEB_ENV"
 fi
 
-if [ -n "$CONVEX_ENV" ]; then
-    echo "Synced VITE_CONVEX_URL to $WEB_ENV (from $CONVEX_ENV)"
+if [ -n "${CONVEX_PUBLIC_URL:-}" ]; then
+    echo "Synced VITE_CONVEX_URL=$WEB_CONVEX_URL to $WEB_ENV (from CONVEX_PUBLIC_URL)"
+elif [ -n "$CONVEX_ENV" ]; then
+    echo "Synced VITE_CONVEX_URL=$WEB_CONVEX_URL to $WEB_ENV (from $CONVEX_ENV)"
 else
-    echo "Synced VITE_CONVEX_URL to $WEB_ENV (from system environment)"
+    echo "Synced VITE_CONVEX_URL=$WEB_CONVEX_URL to $WEB_ENV (from system environment)"
 fi

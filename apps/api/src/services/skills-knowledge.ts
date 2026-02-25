@@ -3,8 +3,8 @@ import path from "node:path";
 
 import { parse as parseYaml } from "yaml";
 
-import { FileParseError } from "./errors";
-import { findProjectRoot } from "./db";
+import { FileParseError } from "./errors.js";
+import { findProjectRoot } from "./db.js";
 
 /**
  * Domain entry from skills taxonomy
