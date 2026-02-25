@@ -133,11 +133,11 @@ worker-once:
 
 # Install as systemd services (production)
 install:
-	sudo ./scripts/install.sh install
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" ./scripts/install.sh install
 
 # Pull, rebuild, and restart all production services
 deploy:
-	sudo ./scripts/install.sh upgrade
+	sudo ENV_FILE="$${ENV_FILE:-}" WORKSPACE_DIR="$$(pwd)" ./scripts/install.sh upgrade
 
 # Remove systemd services
 uninstall:
@@ -610,6 +610,7 @@ help:
 	@echo ""
 	@echo "Deployment:"
 	@echo "  install        Install as systemd services (requires sudo)"
+	@echo "  deploy         Pull latest code, rebuild, and restart services (requires sudo)"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "  docker         Start Docker containers"
 	@echo "  docker-build   Build and start Docker containers"
@@ -678,7 +679,8 @@ help:
 	@echo "  help           Show this help message"
 	@echo ""
 	@echo "Environment Variables:"
-	@echo "  ENV_FILE       Optional env file path (unset by default)"
+	@echo "  ENV_FILE       Env file path (install default: .env.production; deploy default: keep existing env)"
+	@echo "  WORKSPACE_DIR  Workspace root used to resolve relative ENV_FILE paths (auto-set by make)"
 	@echo "  SKIP_MATCH_SEED Set to true to skip automatic seed-matches in make dev"
 	@echo "  SERVICE_PROFILE Default service profile when running scripts/dev.sh (full|critical|fast-ui|backend)"
 	@echo "  WEB_SKIP_API_GEN Set to true to start web without OpenAPI type generation"
