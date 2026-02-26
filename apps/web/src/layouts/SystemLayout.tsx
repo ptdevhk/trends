@@ -51,9 +51,9 @@ export default function SystemLayout() {
     },
     {
       title: t('searchProfiles.nav', { defaultValue: 'Search Profiles' }),
-      href: '/profiles',
+      href: '/system/profiles',
       icon: FileText,
-      matches: ['/profiles']
+      matches: ['/system/profiles']
     },
     {
       title: t('debugAi.title', { defaultValue: 'AI Debugger' }),

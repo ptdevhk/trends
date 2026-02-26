@@ -376,7 +376,7 @@ export function QuickStartPanel({
                 {t('quickStart.useConfig', 'Use this config')}
               </Button>
               <Link
-                to={`/profiles?edit=${encodeURIComponent(autoMatchResult.profile.id)}`}
+                to={`/system/profiles?edit=${encodeURIComponent(autoMatchResult.profile.id)}`}
                 className="text-xs text-primary underline-offset-4 hover:underline"
               >
                 {t('quickStart.modifyConfig', 'Modify')}

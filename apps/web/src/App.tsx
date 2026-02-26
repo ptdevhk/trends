@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { Header } from '@/components/Header'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -25,6 +25,11 @@ function MainShell() {
   )
 }
 
+function ProfilesLegacyRedirect() {
+  const location = useLocation()
+  return <Navigate to={{ pathname: '/system/profiles', search: location.search }} replace />
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -35,17 +40,20 @@ function App() {
             <Route index element={<Navigate to="settings" replace />} />
             <Route path="settings" element={<DebugConfig />} />
             <Route path="jds" element={<DebugJDs />} />
+            <Route path="profiles" element={<SearchProfilesPage />} />
             <Route path="ai-debugger" element={<DebugAI />} />
             <Route path="ingest" element={<DebugIngest />} />
             <Route path="search-analytics" element={<SearchAnalyticsPage />} />
             <Route path="data/*" element={<DebugPage basePath="/system/data" />} />
           </Route>
 
+          {/* Legacy Redirects Outside Shells */}
+          <Route path="/profiles" element={<ProfilesLegacyRedirect />} />
+
           {/* Default App Shell */}
           <Route element={<MainShell />}>
             <Route path="/" element={<Navigate to="/resumes" replace />} />
             <Route path="/resumes" element={<ResumesPage />} />
-            <Route path="/profiles" element={<SearchProfilesPage />} />
 
             {/* Legacy Redirects */}
             <Route path="/config/jds" element={<Navigate to="/system/jds" replace />} />
