@@ -12,7 +12,7 @@
 		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
-		clean-db fresh-env
+		clean-db fresh-env refresh-env
 
 # Default target
 .DEFAULT_GOAL := help
@@ -151,6 +151,20 @@ deploy-seed:
 # Remove systemd services
 uninstall:
 	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" ./scripts/install.sh uninstall
+
+# Refresh /etc/trends/env from .env.production and restart services (no rebuild)
+refresh-env:
+	@if [ ! -f .env.production ]; then echo "Error: .env.production not found"; exit 1; fi
+	sudo cp .env.production /etc/trends/env
+	sudo chmod 600 /etc/trends/env
+	sudo chown trends:trends /etc/trends/env
+	sudo systemctl daemon-reload
+	sudo systemctl restart trends-api trends-worker trends-worker-api trends-mcp
+	@echo "✅ Environment refreshed and services restarted"
+	@sudo systemctl is-active --quiet trends-api && echo "  trends-api: active" || echo "  trends-api: FAILED"
+	@sudo systemctl is-active --quiet trends-worker && echo "  trends-worker: active" || echo "  trends-worker: FAILED"
+	@sudo systemctl is-active --quiet trends-worker-api && echo "  trends-worker-api: active" || echo "  trends-worker-api: FAILED"
+	@sudo systemctl is-active --quiet trends-mcp && echo "  trends-mcp: active" || echo "  trends-mcp: FAILED"
 
 # Docker: start containers
 docker:
@@ -620,6 +634,7 @@ help:
 	@echo "Deployment:"
 	@echo "  install        Install as systemd services (requires sudo)"
 	@echo "  deploy         Pull latest code, rebuild, and restart services (requires sudo)"
+	@echo "  refresh-env    Refresh /etc/trends/env from .env.production and restart services (no rebuild)"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "  docker         Start Docker containers"
 	@echo "  docker-build   Build and start Docker containers"
