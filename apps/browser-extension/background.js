@@ -8,6 +8,7 @@
  * See: https://issues.chromium.org/issues/40706258
  */
 
+(() => {
 console.log('🎯 [BG] Resume Collector background script loading...');
 
 // Offscreen document URL
@@ -465,3 +466,4 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 console.log('🎯 [BG] Resume Collector background script v1.0.0 ready');
+})();

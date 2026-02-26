@@ -3,6 +3,7 @@
  * v1.0.0 - Adds download diagnostics + Save As option
  */
 
+(() => {
 // DOM Elements
 const statusBar = /** @type {HTMLElement} */ (document.getElementById('status-bar'));
 const statusText = /** @type {HTMLElement} */ (document.getElementById('status-text'));
@@ -408,3 +409,4 @@ document.addEventListener('DOMContentLoaded', () => {
         showStatus('请刷新 hr.job5156.com 页面', 'error');
     });
 });
+})();
