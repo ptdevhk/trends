@@ -4,7 +4,7 @@
 		worker worker-once install install-seed deploy deploy-seed install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume \
-		build-static build-static-fresh serve-static \
+		build-static build-static-fresh build-extension-zip serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force \
@@ -189,6 +189,10 @@ build-static:
 # Run crawler first, then build static site
 build-static-fresh:
 	./scripts/build-static.sh --fresh
+
+# Build browser extension zip for web UI download
+build-extension-zip:
+	./scripts/build-extension-zip.sh
 
 # Serve static site locally (port 8000)
 serve-static:
@@ -643,6 +647,7 @@ help:
 	@echo "Static Site:"
 	@echo "  build-static       Build static site from existing output"
 	@echo "  build-static-fresh Run crawler first, then build static site"
+	@echo "  build-extension-zip Build browser extension zip + metadata for web download"
 	@echo "  serve-static       Serve static site locally (port 8000)"
 	@echo ""
 	@echo "i18n (Internationalization):"

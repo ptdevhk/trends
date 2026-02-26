@@ -75,7 +75,7 @@ apt_install() {
 
 ensure_base_dependencies() {
     require_apt
-    apt_install ca-certificates curl git gnupg
+    apt_install ca-certificates curl git gnupg zip
 }
 
 ensure_node_22() {
@@ -443,6 +443,9 @@ build_artifacts() {
 
     log_info "Generating @trends/web API types..."
     run_as_service_user "cd '$INSTALL_DIR' && npm --workspace @trends/web run gen:api"
+
+    log_info "Building browser extension zip for web download..."
+    run_as_service_user "cd '$INSTALL_DIR' && ./scripts/build-extension-zip.sh"
 
     log_info "Building @trends/web..."
     run_as_service_user "cd '$INSTALL_DIR' && npm run --workspace @trends/web build"

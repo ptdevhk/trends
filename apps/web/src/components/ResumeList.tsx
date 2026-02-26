@@ -11,6 +11,7 @@ import { FilterPanel } from '@/components/FilterPanel'
 import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
+import { CollectResumesButton } from '@/components/CollectResumesButton'
 import { useResumeListState } from '@/hooks/useResumeListState'
 import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
 
@@ -69,6 +70,7 @@ export function ResumeList() {
         defaultKeywords={sessionKeywords}
         extraActions={
           <div className="flex items-center gap-2">
+            <CollectResumesButton location={sessionLocation} keywords={sessionKeywords} />
             {!selectedIds.size && (
               <Button
                 onClick={handleAnalyzeAll}

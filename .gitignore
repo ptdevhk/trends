@@ -67,6 +67,7 @@ bin/
 
 # Generated OpenAPI spec
 apps/api/openapi.json
+apps/web/public/extension/
 
 # Production env
 .env.production
