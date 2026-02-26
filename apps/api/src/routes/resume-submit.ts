@@ -176,6 +176,22 @@ async function submitResumesToConvex(args: {
   };
 }
 
+async function recordSyncError(errorMessage: string): Promise<void> {
+  try {
+    const convexUrl = resolveConvexUrl().replace(/\/$/, "");
+    await fetch(`${convexUrl}/api/mutation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        path: "sync_events:recordError",
+        args: { source: "browser-extension", error: errorMessage },
+      }),
+    });
+  } catch (err) {
+    console.error("Failed to record sync error event", err);
+  }
+}
+
 function normalizeBearerToken(headerValue: string | undefined): string | null {
   if (!headerValue) return null;
   const match = headerValue.match(/^Bearer\s+(.+)$/i);
@@ -286,18 +302,21 @@ app.openapi(resumeSubmitRoute, async (c) => {
   try {
     const expectedToken = process.env.RESUME_SUBMIT_TOKEN?.trim();
     if (!expectedToken) {
+      await recordSyncError("RESUME_SUBMIT_TOKEN is not configured on server");
       return c.json({ success: false as const, error: "RESUME_SUBMIT_TOKEN is not configured" }, 500);
     }
 
     const authHeader = c.req.header("Authorization");
     const providedToken = normalizeBearerToken(authHeader);
     if (!providedToken || providedToken !== expectedToken) {
+      await recordSyncError("Authentication failed: invalid or missing token");
       return c.json({ success: false as const, error: "Unauthorized" }, 401);
     }
 
     const body: unknown = await c.req.json();
     const parsedBody = ResumeSubmitRequestSchema.safeParse(body);
     if (!parsedBody.success) {
+      await recordSyncError("Invalid resume submit payload");
       return c.json({ success: false as const, error: "Invalid resume submit payload" }, 400);
     }
 
@@ -338,6 +357,8 @@ app.openapi(resumeSubmitRoute, async (c) => {
     );
   } catch (error) {
     console.error("Failed to submit resumes", error);
+    const msg = error instanceof Error ? error.message : "Failed to submit resumes";
+    await recordSyncError(msg);
     return c.json({ success: false as const, error: "Failed to submit resumes" }, 500);
   }
 });

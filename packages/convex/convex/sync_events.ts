@@ -1,7 +1,27 @@
+import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
 const STALE_EVENT_MS = 3_600_000;
 const MAX_CLEANUP_BATCH = 20;
+
+export const recordError = mutation({
+    args: {
+        source: v.string(),
+        error: v.string(),
+    },
+    handler: async (ctx, { source, error }) => {
+        await ctx.db.insert("sync_events", {
+            source,
+            status: "error",
+            submitted: 0,
+            inserted: 0,
+            updated: 0,
+            unchanged: 0,
+            error,
+            timestamp: Date.now(),
+        });
+    },
+});
 
 export const getLatest = query({
     args: {},
