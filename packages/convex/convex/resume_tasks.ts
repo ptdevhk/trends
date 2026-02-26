@@ -432,6 +432,26 @@ export const submitResumes = mutation({
             }
         }
 
+        const now = Date.now();
+        await ctx.db.insert("sync_events", {
+            source: "browser-extension",
+            status: "success",
+            submitted: resumes.length,
+            inserted,
+            updated,
+            unchanged,
+            timestamp: now,
+        });
+
+        const cutoff = now - 3_600_000;
+        const staleEvents = await ctx.db
+            .query("sync_events")
+            .withIndex("by_timestamp", (q) => q.lt("timestamp", cutoff))
+            .take(20);
+        for (const event of staleEvents) {
+            await ctx.db.delete(event._id);
+        }
+
         return {
             input: totalInput,
             submitted: resumes.length,

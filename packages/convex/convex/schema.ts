@@ -189,4 +189,15 @@ export default defineSchema({
     })
         .index("by_sessionKey", ["sessionKey"])
         .index("by_status", ["status"]),
+
+    sync_events: defineTable({
+        source: v.string(),
+        status: v.union(v.literal("success"), v.literal("error")),
+        submitted: v.number(),
+        inserted: v.number(),
+        updated: v.number(),
+        unchanged: v.number(),
+        error: v.optional(v.string()),
+        timestamp: v.number(),
+    }).index("by_timestamp", ["timestamp"]),
 });

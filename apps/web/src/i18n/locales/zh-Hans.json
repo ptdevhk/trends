@@ -250,6 +250,10 @@
       "failed": "失败"
     }
   },
+  "syncNotifications": {
+    "success": "已同步 {{submitted}} 份简历 ({{inserted}} 新增, {{updated}} 更新)",
+    "error": "同步失败: {{error}}"
+  },
   "quickStart": {
     "location": "位置",
     "customKeywords": "关键词",

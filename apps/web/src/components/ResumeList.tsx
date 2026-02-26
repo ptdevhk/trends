@@ -13,6 +13,7 @@ import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { CollectResumesButton } from '@/components/CollectResumesButton'
 import { useResumeListState } from '@/hooks/useResumeListState'
+import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
 
 export function ResumeList() {
@@ -49,6 +50,7 @@ export function ResumeList() {
     handleBulkAction,
     handleCardAction,
   } = useResumeListState()
+  useSyncNotifications()
 
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
 

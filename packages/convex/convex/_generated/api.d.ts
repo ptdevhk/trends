@@ -20,6 +20,7 @@ import type * as resumes from "../resumes.js";
 import type * as search_text from "../search_text.js";
 import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
+import type * as sync_events from "../sync_events.js";
 
 import type {
   ApiFromModules,
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   search_text: typeof search_text;
   seed: typeof seed;
   sessions: typeof sessions;
+  sync_events: typeof sync_events;
 }>;
 
 /**
