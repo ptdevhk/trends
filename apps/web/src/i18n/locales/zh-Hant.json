@@ -257,6 +257,7 @@
     "collectResumes": "採集",
     "collectTooltip": "開啟招聘網站自動同步。需安裝擴展並登入。",
     "collectDisabledHint": "請先輸入位置和關鍵詞",
+    "collectReminder": "請確保瀏覽器擴展已安裝並配置了有效的 Token",
     "downloadExtension": "下載擴展 v{{version}}",
     "matchDetails": "當前匹配詳情",
     "labelJd": "職位",

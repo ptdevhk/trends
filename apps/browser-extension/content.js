@@ -709,6 +709,135 @@ function setAutoSyncAttributes(status, count) {
   }
 }
 
+const SyncStatusWidget = (() => {
+  const WIDGET_ID = 'tr-sync-status-widget';
+  const DEFAULT_AUTO_DISMISS_MS = 5000;
+  const HIDE_DELAY_MS = 220;
+  let widgetEl = null;
+  let dismissTimer = null;
+  let hideTimer = null;
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function clearTimers() {
+    if (dismissTimer) {
+      clearTimeout(dismissTimer);
+      dismissTimer = null;
+    }
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+  }
+
+  function ensureWidget() {
+    if (widgetEl && widgetEl.isConnected) return widgetEl;
+
+    widgetEl = document.createElement('div');
+    widgetEl.id = WIDGET_ID;
+    widgetEl.className = 'tr-sync-widget';
+    widgetEl.setAttribute('role', 'status');
+    widgetEl.setAttribute('aria-live', 'polite');
+    widgetEl.setAttribute('aria-atomic', 'true');
+    const mountTarget = document.body || document.documentElement;
+    mountTarget.appendChild(widgetEl);
+    return widgetEl;
+  }
+
+  function renderIcon(state) {
+    if (state === 'progress') {
+      return '<span class="tr-sync-widget__spinner" aria-hidden="true"></span>';
+    }
+    if (state === 'success') {
+      return '<span aria-hidden="true">✓</span>';
+    }
+    return '<span aria-hidden="true">!</span>';
+  }
+
+  function openOptionsPage() {
+    try {
+      chrome.runtime.sendMessage({ action: 'openOptionsPage' }, () => {
+        const runtimeError = chrome.runtime.lastError;
+        if (runtimeError) {
+          console.warn('🎯 [Auto Sync] Failed to open options page:', runtimeError.message);
+        }
+      });
+    } catch (error) {
+      console.warn('🎯 [Auto Sync] Failed to request options page:', error);
+    }
+  }
+
+  function show({ state = 'progress', message = '', hint = '', autoDismiss = false } = {}) {
+    const normalizedState = state === 'success' || state === 'error' ? state : 'progress';
+    const safeMessage = escapeHtml(message);
+    const safeHint = escapeHtml(hint);
+    const widget = ensureWidget();
+    clearTimers();
+
+    widget.className = `tr-sync-widget tr-sync-widget--${normalizedState}`;
+    widget.classList.remove('tr-sync-widget--hidden');
+    widget.innerHTML = `
+      <div class="tr-sync-widget__icon">${renderIcon(normalizedState)}</div>
+      <div class="tr-sync-widget__content">
+        <div class="tr-sync-widget__message">${safeMessage}</div>
+        ${safeHint ? `<div class="tr-sync-widget__hint">${safeHint}</div>` : ''}
+      </div>
+      ${normalizedState === 'error' ? '<button type="button" class="tr-sync-widget__close" aria-label="关闭提示">×</button>' : ''}
+    `;
+
+    widget.onclick = null;
+    if (normalizedState === 'error') {
+      widget.onclick = (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest('.tr-sync-widget__close')) return;
+        openOptionsPage();
+      };
+
+      const closeBtn = widget.querySelector('.tr-sync-widget__close');
+      closeBtn?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        hide();
+      });
+    }
+
+    const dismissMs = typeof autoDismiss === 'number'
+      ? autoDismiss
+      : autoDismiss
+        ? DEFAULT_AUTO_DISMISS_MS
+        : 0;
+    if (dismissMs > 0) {
+      dismissTimer = setTimeout(() => {
+        hide();
+      }, dismissMs);
+    }
+  }
+
+  function hide() {
+    if (!widgetEl) return;
+    clearTimers();
+    widgetEl.classList.add('tr-sync-widget--hidden');
+    hideTimer = setTimeout(() => {
+      if (widgetEl) {
+        widgetEl.remove();
+        widgetEl = null;
+      }
+      hideTimer = null;
+    }, HIDE_DELAY_MS);
+  }
+
+  return {
+    show,
+    hide
+  };
+})();
+
 function waitForResumeCards({ timeoutMs = 30000, minCount = 1 } = {}) {
   return new Promise((resolve, reject) => {
     let done = false;
@@ -1199,10 +1328,58 @@ async function runAutoExportIfEnabled() {
   }
 }
 
-async function syncCurrentPageToServer() {
-  const resumes = extractResumes();
+async function syncCurrentPageToServer(resumesOverride) {
+  const resumes = Array.isArray(resumesOverride) ? resumesOverride : extractResumes();
   const metadata = buildSubmitMetadata();
   return chrome.runtime.sendMessage({ action: 'syncToServer', metadata, resumes });
+}
+
+function resolveAutoSyncErrorStatus(errorLike) {
+  const rawError = typeof errorLike === 'string'
+    ? errorLike
+    : (errorLike?.error || errorLike?.message || String(errorLike || ''));
+  const message = String(rawError).trim() || 'Unknown error';
+  const lowerMessage = message.toLowerCase();
+
+  if (message === 'Server token not configured') {
+    return {
+      message: 'Token 未配置',
+      hint: '点击此提示打开扩展设置并填写 Token'
+    };
+  }
+
+  if (message.includes('401') || lowerMessage.includes('unauthorized')) {
+    return {
+      message: '认证失败 - Token 无效或已过期',
+      hint: '点击此提示打开扩展设置并更新 Token'
+    };
+  }
+
+  if (message === 'Server URL not configured') {
+    return {
+      message: '服务器地址未配置',
+      hint: '点击此提示打开扩展设置并填写服务器地址'
+    };
+  }
+
+  if (
+    lowerMessage.includes('failed to fetch')
+    || lowerMessage.includes('networkerror')
+    || lowerMessage.includes('network error')
+    || lowerMessage.includes('err_network')
+    || lowerMessage.includes('load failed')
+    || lowerMessage.includes('connection')
+  ) {
+    return {
+      message: '无法连接服务器',
+      hint: '请检查网络连接和服务器状态后重试'
+    };
+  }
+
+  return {
+    message: `同步失败: ${message}`,
+    hint: '点击此提示打开扩展设置排查问题'
+  };
 }
 
 async function runAutoSyncIfEnabled() {
@@ -1213,6 +1390,11 @@ async function runAutoSyncIfEnabled() {
     return;
   }
   autoSyncTriggered = true;
+  setAutoSyncAttributes('running');
+  SyncStatusWidget.show({
+    state: 'progress',
+    message: '正在同步简历到服务器...'
+  });
 
   try {
     await waitForResumeCards({});
@@ -1222,17 +1404,43 @@ async function runAutoSyncIfEnabled() {
       // API rows are optional; continue with DOM-only extraction
     }
 
-    const response = await syncCurrentPageToServer();
+    const resumes = extractResumes();
+    const resumeCount = resumes.length;
+    SyncStatusWidget.show({
+      state: 'progress',
+      message: `正在同步 ${resumeCount} 份简历...`
+    });
+
+    const response = await syncCurrentPageToServer(resumes);
     if (response?.success) {
-      const submitted = typeof response.submitted === 'number' ? response.submitted : null;
-      setAutoSyncAttributes('done', submitted ?? undefined);
+      const submitted = typeof response.submitted === 'number' ? response.submitted : resumeCount;
+      const inserted = typeof response.inserted === 'number' ? response.inserted : 0;
+      const updated = typeof response.updated === 'number' ? response.updated : 0;
+      SyncStatusWidget.show({
+        state: 'success',
+        message: `已同步 ${submitted} 份简历 (${inserted} 新增, ${updated} 更新)`,
+        autoDismiss: 5000
+      });
+      setAutoSyncAttributes('done', submitted);
       return;
     }
 
     console.warn('🎯 [Auto Sync] Failed:', response);
+    const status = resolveAutoSyncErrorStatus(response?.error || response);
+    SyncStatusWidget.show({
+      state: 'error',
+      message: status.message,
+      hint: status.hint
+    });
     setAutoSyncAttributes('failed');
   } catch (error) {
     console.warn('🎯 [Auto Sync] Failed:', error);
+    const status = resolveAutoSyncErrorStatus(error);
+    SyncStatusWidget.show({
+      state: 'error',
+      message: status.message,
+      hint: status.hint
+    });
     setAutoSyncAttributes('failed');
   }
 }

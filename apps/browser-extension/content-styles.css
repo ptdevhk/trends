@@ -1,13 +1,108 @@
-/* Content script styles - minimal injection */
+/* Content script styles */
 
-/* Visual indicator that extension is active */
-.resume-collector-active::after {
-    content: '📋';
+.tr-sync-widget {
     position: fixed;
-    bottom: 20px;
     right: 20px;
-    font-size: 24px;
-    z-index: 99999;
-    opacity: 0.3;
+    bottom: 20px;
+    z-index: 2147483647;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    max-width: min(360px, calc(100vw - 32px));
+    padding: 12px 14px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.35);
+    font-size: 13px;
+    line-height: 1.45;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.tr-sync-widget--hidden {
+    opacity: 0;
+    transform: translateY(8px);
     pointer-events: none;
+}
+
+.tr-sync-widget__icon {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tr-sync-widget__spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: tr-sync-widget-spin 0.8s linear infinite;
+}
+
+.tr-sync-widget__content {
+    flex: 1;
+    min-width: 0;
+}
+
+.tr-sync-widget__message {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.tr-sync-widget__hint {
+    margin-top: 2px;
+    opacity: 0.88;
+}
+
+.tr-sync-widget__close {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    margin-left: 2px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: currentColor;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.tr-sync-widget__close:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.tr-sync-widget--progress {
+    background: #1e3a8a;
+    border-color: #3b82f6;
+    color: #eff6ff;
+}
+
+.tr-sync-widget--success {
+    background: #166534;
+    border-color: #4ade80;
+    color: #f0fdf4;
+}
+
+.tr-sync-widget--error {
+    background: #7f1d1d;
+    border-color: #f87171;
+    color: #fef2f2;
+    cursor: pointer;
+}
+
+@keyframes tr-sync-widget-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
 }
