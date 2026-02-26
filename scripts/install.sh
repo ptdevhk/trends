@@ -556,7 +556,7 @@ sync_convex_url_to_web() {
 sync_convex_ai_env() {
     local convex_dir="$INSTALL_DIR/packages/convex"
     local convex_env_file="$convex_dir/.env.local"
-    local keys=("AI_ANALYSIS_ENABLED" "AI_MODEL" "AI_API_KEY" "AI_API_BASE")
+    local keys=("AI_ANALYSIS_ENABLED" "AI_ANALYSIS_RESUMES_ENABLED" "AI_MODEL" "AI_API_KEY" "AI_API_BASE")
     local key=""
     local value=""
     local escaped_value=""
@@ -594,7 +594,7 @@ sync_convex_ai_env() {
     if [[ "$synced" -gt 0 ]]; then
         log_info "Synced $synced AI env var(s) to Convex deployment."
     else
-        log_warn "No AI env vars found in environment (expected AI_ANALYSIS_ENABLED/AI_MODEL/AI_API_KEY/AI_API_BASE)."
+        log_warn "No AI env vars found in environment (expected AI_ANALYSIS_ENABLED/AI_ANALYSIS_RESUMES_ENABLED/AI_MODEL/AI_API_KEY/AI_API_BASE)."
     fi
 
     if [[ "$failed" -gt 0 ]]; then

@@ -354,7 +354,7 @@ sync_convex_ai_env() {
     local value
     local synced=0
     local failed=0
-    local keys=("AI_ANALYSIS_ENABLED" "AI_MODEL" "AI_API_KEY" "AI_API_BASE")
+    local keys=("AI_ANALYSIS_ENABLED" "AI_ANALYSIS_RESUMES_ENABLED" "AI_MODEL" "AI_API_KEY" "AI_API_BASE")
 
     if [ ! -d "$convex_dir" ]; then
         return 0
@@ -394,7 +394,7 @@ sync_convex_ai_env() {
     if [ "$synced" -gt 0 ]; then
         log "CONVEX" "$GREEN" "Synced $synced AI env var(s) to Convex deployment."
     else
-        log "CONVEX" "$YELLOW" "No AI env vars found in system environment (expected AI_ANALYSIS_ENABLED/AI_MODEL/AI_API_KEY/AI_API_BASE)."
+        log "CONVEX" "$YELLOW" "No AI env vars found in system environment (expected AI_ANALYSIS_ENABLED/AI_ANALYSIS_RESUMES_ENABLED/AI_MODEL/AI_API_KEY/AI_API_BASE)."
     fi
 
     if [ "$failed" -gt 0 ]; then

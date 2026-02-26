@@ -108,6 +108,7 @@ app.get("/ai-status", (c) => {
       {
         success: true as const,
         enabled: aiConfig.enabled,
+        resumesEnabled: aiConfig.resumesEnabled,
         model: aiConfig.model,
         apiBase: aiConfig.apiBase,
         temperature: aiConfig.temperature,

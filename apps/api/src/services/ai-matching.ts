@@ -10,7 +10,7 @@ import path from "node:path";
 
 import JSON5 from "json5";
 
-import { aiConfig, validateAIConfig, getMaskedApiKey } from "./ai-config.js";
+import { aiConfig, validateResumeAIConfig, getMaskedApiKey } from "./ai-config.js";
 import { findProjectRoot } from "./db.js";
 import { localeToNaturalLanguage, resolveAIOutputLocale } from "./locale-utils.js";
 
@@ -232,7 +232,7 @@ export class AIMatchingService {
             return { available: true };
         }
 
-        const validation = validateAIConfig();
+        const validation = validateResumeAIConfig();
         if (!validation.valid) {
             return { available: false, reason: validation.error };
         }
@@ -244,6 +244,7 @@ export class AIMatchingService {
      */
     getServiceInfo(): {
         enabled: boolean;
+        resumesEnabled: boolean;
         model: string;
         apiBase: string;
         apiKeyMasked: string;
@@ -251,6 +252,7 @@ export class AIMatchingService {
     } {
         return {
             enabled: aiConfig.enabled,
+            resumesEnabled: aiConfig.resumesEnabled,
             model: aiConfig.model,
             apiBase: this.baseUrl,
             apiKeyMasked: getMaskedApiKey(),

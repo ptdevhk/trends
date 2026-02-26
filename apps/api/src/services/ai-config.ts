@@ -7,6 +7,7 @@
  *
  * Environment variables:
  * - AI_ANALYSIS_ENABLED: Enable AI features (default: false)
+ * - AI_ANALYSIS_RESUMES_ENABLED: Enable resume AI features (default: true)
  * - AI_MODEL: Model identifier in format provider/model (default: openai/gpt-4o-mini)
  * - AI_API_KEY: API key for the AI provider
  * - AI_API_BASE: Custom API base URL (e.g., https://api.poe.com/v1)
@@ -17,6 +18,7 @@
 
 export interface AIConfig {
     enabled: boolean;
+    resumesEnabled: boolean;
     model: string;
     apiKey: string;
     apiBase?: string;
@@ -29,11 +31,15 @@ export interface AIConfig {
 export function loadAIConfig(): AIConfig {
     const bonded: string[] = [];
     if (process.env.AI_ANALYSIS_ENABLED !== undefined) bonded.push("AI_ANALYSIS_ENABLED");
+    if (process.env.AI_ANALYSIS_RESUMES_ENABLED !== undefined) bonded.push("AI_ANALYSIS_RESUMES_ENABLED");
     if (process.env.AI_MODEL !== undefined) bonded.push("AI_MODEL");
     if (process.env.AI_API_KEY !== undefined) bonded.push("AI_API_KEY");
     if (process.env.AI_API_BASE !== undefined) bonded.push("AI_API_BASE");
 
     const enabled = process.env.AI_ANALYSIS_ENABLED === "true";
+    const resumesEnabled = process.env.AI_ANALYSIS_RESUMES_ENABLED !== undefined
+        ? process.env.AI_ANALYSIS_RESUMES_ENABLED === "true"
+        : true;
     const model = process.env.AI_MODEL || "openai/gpt-4o-mini";
     const apiKey = process.env.AI_API_KEY || "";
     const apiBase = process.env.AI_API_BASE || undefined;
@@ -43,6 +49,7 @@ export function loadAIConfig(): AIConfig {
 
     return {
         enabled,
+        resumesEnabled,
         model,
         apiKey,
         apiBase,
@@ -61,6 +68,25 @@ export const aiConfig = loadAIConfig();
 export function validateAIConfig(): { valid: boolean; error?: string } {
     if (!aiConfig.enabled) {
         return { valid: false, error: "AI analysis is disabled (AI_ANALYSIS_ENABLED=false)" };
+    }
+
+    if (!aiConfig.apiKey) {
+        return { valid: false, error: "Missing AI_API_KEY environment variable" };
+    }
+
+    if (!aiConfig.model.includes("/")) {
+        return { valid: false, error: `Invalid model format: ${aiConfig.model}. Should be 'provider/model' (e.g., 'openai/gpt-4o-mini')` };
+    }
+
+    return { valid: true };
+}
+
+/**
+ * Validate AI configuration for resume matching
+ */
+export function validateResumeAIConfig(): { valid: boolean; error?: string } {
+    if (!aiConfig.resumesEnabled) {
+        return { valid: false, error: "Resume AI analysis is disabled (AI_ANALYSIS_RESUMES_ENABLED=false)" };
     }
 
     if (!aiConfig.apiKey) {
