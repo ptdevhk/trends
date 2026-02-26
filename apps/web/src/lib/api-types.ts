@@ -624,6 +624,120 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit resumes (browser extension sync) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        metadata: {
+                            /** Format: uri */
+                            sourceUrl: string;
+                            keyword?: string;
+                            location?: string;
+                            searchProfileId?: string;
+                            generatedBy: string;
+                        };
+                        resumes: {
+                            resumeId?: string;
+                            perUserId?: string;
+                            name: string;
+                            age?: string;
+                            experience?: string;
+                            education?: string;
+                            location?: string;
+                            jobIntention?: string;
+                            expectedSalary?: string;
+                            selfIntro?: string;
+                            workHistory?: {
+                                raw: string;
+                            }[];
+                            profileUrl?: string;
+                            activityStatus?: string;
+                            extractedAt?: string;
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Submission result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            submitted: number;
+                            inserted: number;
+                            updated: number;
+                            unchanged: number;
+                            deduped: number;
+                        };
+                    };
+                };
+                /** @description Invalid request payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/industry/stats": {
         parameters: {
             query?: never;

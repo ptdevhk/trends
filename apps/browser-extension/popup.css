@@ -270,3 +270,56 @@ footer {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+.divider-line {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 12px 0;
+}
+
+.sync-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #aaa;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #666;
+}
+
+.dot.configured {
+  background: #4caf50;
+}
+
+.link {
+  font-size: 12px;
+  color: #64b5f6;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.sync-result {
+  margin-top: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #ddd;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+}

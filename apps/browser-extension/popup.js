@@ -20,10 +20,17 @@ const preview = /** @type {HTMLElement} */ (document.getElementById('preview'));
 const previewContent = /** @type {HTMLElement} */ (document.getElementById('preview-content'));
 const diagnostics = /** @type {HTMLDialogElement} */ (document.getElementById('diagnostics'));
 const diagnosticsOutput = /** @type {HTMLElement} */ (document.getElementById('diagnostics-output'));
+const serverDot = /** @type {HTMLElement} */ (document.getElementById('server-dot'));
+const serverStatus = /** @type {HTMLElement} */ (document.getElementById('server-status'));
+const lnkConfigureServer = /** @type {HTMLAnchorElement} */ (document.getElementById('lnk-configure-server'));
+const btnSync = /** @type {HTMLButtonElement} */ (document.getElementById('btn-sync'));
+const syncResult = /** @type {HTMLElement} */ (document.getElementById('sync-result'));
 
 // State
 let extractedData = [];
 let lastDiagnosticDownloadId = null;
+let serverConfigured = false;
+let configuredServerUrl = '';
 
 /**
  * Show status message
@@ -68,6 +75,51 @@ async function sendToContent(action, data = {}) {
     }
 }
 
+function normalizeServerUrl(value) {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    return raw ? raw.replace(/\/+$/, '') : '';
+}
+
+function getExtensionGeneratedBy() {
+    let generatedBy = 'browser-extension';
+    try {
+        const version = chrome?.runtime?.getManifest?.().version;
+        if (version) generatedBy = `browser-extension@${version}`;
+    } catch {
+        // ignore
+    }
+    return generatedBy;
+}
+
+async function getActiveTabUrl() {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+    if (!tab?.url) throw new Error('No active tab URL');
+    if (!tab.url.includes('hr.job5156.com')) {
+        throw new Error('请在 hr.job5156.com/search 页面使用');
+    }
+    return tab.url;
+}
+
+function buildSubmitMetadata(sourceUrl) {
+    const metadata = {
+        sourceUrl,
+        generatedBy: getExtensionGeneratedBy(),
+    };
+
+    try {
+        const url = new URL(sourceUrl);
+        const keyword = (url.searchParams.get('keyword') || '').trim();
+        const location = (url.searchParams.get('location') || '').trim();
+        if (keyword) metadata.keyword = keyword;
+        if (location) metadata.location = location;
+    } catch {
+        // ignore
+    }
+
+    return metadata;
+}
+
 function showDiagnostics(payload) {
     if (!diagnostics || !diagnosticsOutput) return;
     diagnosticsOutput.textContent = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2);
@@ -86,6 +138,76 @@ async function updatePaginationInfo() {
         totalItems.textContent = info.totalItems || '-';
     } catch (error) {
         console.error('Pagination error:', error);
+    }
+}
+
+async function refreshServerConfig() {
+    try {
+        const response = await sendToBackground('getServerConfig');
+        if (!response?.success) {
+            serverConfigured = false;
+            configuredServerUrl = '';
+        } else {
+            configuredServerUrl = normalizeServerUrl(response.serverUrl || '');
+            serverConfigured = !!configuredServerUrl && !!response.tokenSet;
+        }
+    } catch {
+        serverConfigured = false;
+        configuredServerUrl = '';
+    }
+
+    if (serverDot) {
+        serverDot.classList.toggle('configured', serverConfigured);
+    }
+    if (serverStatus) {
+        if (serverConfigured) serverStatus.textContent = `Server: ${configuredServerUrl}`;
+        else if (configuredServerUrl) serverStatus.textContent = 'Token 未配置';
+        else serverStatus.textContent = 'Server 未配置';
+    }
+    if (btnSync) {
+        btnSync.disabled = !serverConfigured;
+    }
+}
+
+function showSyncResultText(text) {
+    if (!syncResult) return;
+    syncResult.textContent = text;
+    syncResult.classList.remove('hidden');
+}
+
+async function handleSyncToServer() {
+    if (!btnSync) return;
+
+    btnSync.disabled = true;
+    if (syncResult) syncResult.classList.add('hidden');
+    showStatus('正在同步到服务器...', 'info');
+
+    try {
+        const extractResponse = await sendToContent('extractCurrentPage');
+        if (!extractResponse?.success) {
+            throw new Error('提取失败');
+        }
+
+        const resumes = Array.isArray(extractResponse.data) ? extractResponse.data : [];
+        const sourceUrl = await getActiveTabUrl();
+        const metadata = buildSubmitMetadata(sourceUrl);
+
+        const response = await sendToBackground('syncToServer', { metadata, resumes });
+        if (!response?.success) {
+            throw new Error(response?.error || '同步失败');
+        }
+
+        const inserted = typeof response.inserted === 'number' ? response.inserted : 0;
+        const updated = typeof response.updated === 'number' ? response.updated : 0;
+        const unchanged = typeof response.unchanged === 'number' ? response.unchanged : 0;
+        const submitted = typeof response.submitted === 'number' ? response.submitted : inserted + updated + unchanged;
+
+        showSyncResultText(`Synced: ${inserted} new, ${updated} updated, ${unchanged} unchanged (total ${submitted})`);
+        showStatus('✅ 同步完成', 'success');
+    } catch (error) {
+        showStatus(error.message, 'error');
+    } finally {
+        await refreshServerConfig();
     }
 }
 
@@ -255,10 +377,22 @@ btnJSON.addEventListener('click', handleExportJSON);
 if (btnDiagnose) btnDiagnose.addEventListener('click', handleDiagnose);
 if (btnOpenDownloadSettings) btnOpenDownloadSettings.addEventListener('click', handleOpenDownloadSettings);
 if (btnShowLastDownload) btnShowLastDownload.addEventListener('click', handleShowLastDownload);
+if (btnSync) btnSync.addEventListener('click', handleSyncToServer);
+if (lnkConfigureServer) {
+    lnkConfigureServer.addEventListener('click', (event) => {
+        event.preventDefault();
+        try {
+            chrome.runtime.openOptionsPage();
+        } catch {
+            // ignore
+        }
+    });
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     updatePaginationInfo();
+    refreshServerConfig();
 
     if (optSaveAs) {
         chrome.storage.local.get({ saveAs: false }, (items) => {

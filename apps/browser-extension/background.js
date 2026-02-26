@@ -172,6 +172,25 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function storageLocalGet(defaults) {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(defaults, (items) => resolve(items || {}));
+    });
+}
+
+function normalizeServerUrl(value) {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    return raw ? raw.replace(/\/+$/, '') : '';
+}
+
+async function getServerConfig() {
+    const items = await storageLocalGet({ serverUrl: '', serverToken: '' });
+    return {
+        serverUrl: normalizeServerUrl(items.serverUrl),
+        serverToken: typeof items.serverToken === 'string' ? items.serverToken : '',
+    };
+}
+
 async function startDownload({ content, filename, mimeType, saveAs }) {
     const safeFilename = sanitizeDownloadFilename(filename);
     const safeMimeType = typeof mimeType === 'string' && mimeType.trim() ? mimeType.trim() : 'text/plain';
@@ -342,6 +361,99 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             } catch (error) {
                 console.error('🎯 [BG] Diagnose exception:', error);
                 sendResponse({ success: false, error: error.message });
+            }
+        })();
+
+        return true;
+    }
+
+    if (request.action === 'getServerConfig') {
+        (async () => {
+            try {
+                const { serverUrl, serverToken } = await getServerConfig();
+                sendResponse({
+                    success: true,
+                    serverUrl,
+                    tokenSet: !!serverToken,
+                });
+            } catch (error) {
+                console.warn('🎯 [BG] getServerConfig failed:', error);
+                sendResponse({ success: false, error: 'Failed to read server config' });
+            }
+        })();
+        return true;
+    }
+
+    if (request.action === 'testServerConnection') {
+        (async () => {
+            try {
+                const { serverUrl } = await getServerConfig();
+                if (!serverUrl) {
+                    sendResponse({ success: false, error: 'Server URL not configured' });
+                    return;
+                }
+
+                const response = await fetch(`${serverUrl}/api/health`, {
+                    method: 'GET',
+                    headers: { Accept: 'application/json' },
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    sendResponse({ success: false, error: `Health check failed (${response.status}): ${text}` });
+                    return;
+                }
+
+                sendResponse({ success: true });
+            } catch (error) {
+                console.warn('🎯 [BG] testServerConnection failed:', error);
+                sendResponse({ success: false, error: error?.message ? String(error.message) : String(error) });
+            }
+        })();
+        return true;
+    }
+
+    if (request.action === 'syncToServer') {
+        const metadata = request?.metadata;
+        const resumes = request?.resumes;
+
+        (async () => {
+            try {
+                const { serverUrl, serverToken } = await getServerConfig();
+                if (!serverUrl) {
+                    sendResponse({ success: false, error: 'Server URL not configured' });
+                    return;
+                }
+                if (!serverToken) {
+                    sendResponse({ success: false, error: 'Server token not configured' });
+                    return;
+                }
+                if (!Array.isArray(resumes)) {
+                    sendResponse({ success: false, error: 'Invalid resumes payload' });
+                    return;
+                }
+
+                const response = await fetch(`${serverUrl}/api/resumes/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        Authorization: `Bearer ${serverToken}`,
+                    },
+                    body: JSON.stringify({ metadata, resumes }),
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    sendResponse({ success: false, error: `Submit failed (${response.status}): ${text}` });
+                    return;
+                }
+
+                const payload = await response.json();
+                sendResponse(payload);
+            } catch (error) {
+                console.error('🎯 [BG] syncToServer failed:', error);
+                sendResponse({ success: false, error: error?.message ? String(error.message) : String(error) });
             }
         })();
 

@@ -40,6 +40,23 @@
         </button>
       </div>
 
+      <div class="divider-line"></div>
+
+      <div class="sync-header">
+        <div class="sync-status">
+          <span id="server-dot" class="dot"></span>
+          <span id="server-status">Server 未配置</span>
+        </div>
+        <a id="lnk-configure-server" class="link" href="#">配置</a>
+      </div>
+
+      <button id="btn-sync" class="btn btn-primary" disabled>
+        <span class="icon">☁️</span>
+        同步到服务器
+      </button>
+
+      <div id="sync-result" class="sync-result hidden"></div>
+
       <div class="options">
         <label class="option">
           <input id="opt-save-as" type="checkbox" />

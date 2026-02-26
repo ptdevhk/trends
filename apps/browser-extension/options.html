@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resume Collector Options</title>
+    <link rel="stylesheet" href="popup.css" />
+    <style>
+      body {
+        width: auto;
+        min-width: 420px;
+      }
+
+      .form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .label {
+        font-size: 12px;
+        color: #bbb;
+      }
+
+      .input {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        outline: none;
+      }
+
+      .input::placeholder {
+        color: rgba(255, 255, 255, 0.4);
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+      }
+
+      .row .btn {
+        flex: 1;
+      }
+
+      .hint {
+        font-size: 11px;
+        color: #999;
+        line-height: 1.4;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #aaa;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #666;
+      }
+
+      .dot.connected {
+        background: #4caf50;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>⚙️ 服务器同步设置</h1>
+        <p class="subtitle">把简历直接同步到 Trends 服务端</p>
+      </header>
+
+      <div class="status-pill">
+        <span id="status-dot" class="dot"></span>
+        <span id="status-text">未测试</span>
+      </div>
+
+      <div class="form">
+        <div class="field">
+          <div class="label">Server URL</div>
+          <input id="server-url" class="input" type="url" placeholder="https://trends.pt-mes.com" />
+          <div class="hint">示例：`http://localhost:3000` 或 `https://your-domain.com`</div>
+        </div>
+
+        <div class="field">
+          <div class="label">Auth Token</div>
+          <input id="server-token" class="input" type="password" placeholder="RESUME_SUBMIT_TOKEN" />
+          <div class="hint">服务端环境变量：`RESUME_SUBMIT_TOKEN`</div>
+        </div>
+
+        <div class="row">
+          <button id="btn-test" class="btn btn-secondary">
+            <span class="icon">🔌</span>
+            测试连接
+          </button>
+          <button id="btn-save" class="btn btn-primary">
+            <span class="icon">💾</span>
+            保存
+          </button>
+        </div>
+
+        <div id="message" class="status-bar hidden">
+          <span id="message-text"></span>
+        </div>
+      </div>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>
+

@@ -36,10 +36,12 @@ const SELECTORS = {
 };
 
 const AUTO_EXPORT_PARAM = 'tr_auto_export';
+const AUTO_SYNC_PARAM = 'tr_auto_sync';
 const AUTO_SEARCH_PARAM = 'keyword';
 const AUTO_LOCATION_PARAM = 'location';
 const SAMPLE_NAME_PARAM = 'tr_sample_name';
 let autoExportTriggered = false;
+let autoSyncTriggered = false;
 const API_CAPTURE_SOURCE = 'tr-resume-api';
 const EXTERNAL_ACCESS_KEY = '__TR_RESUME_DATA__';
 
@@ -101,6 +103,7 @@ function buildExportMetadata(resumes) {
   const sampleName = sanitizeSampleName(rawSampleName).replace(/\.json$/i, '');
 
   url.searchParams.delete(AUTO_EXPORT_PARAM);
+  url.searchParams.delete(AUTO_SYNC_PARAM);
   url.searchParams.delete(SAMPLE_NAME_PARAM);
 
   const filters = {};
@@ -136,6 +139,34 @@ function buildExportMetadata(resumes) {
     totalResumes: resumes.length,
     reproduction: `Navigate to sourceUrl, then add ?${reproductionParams.toString()}`
   };
+}
+
+function buildSubmitMetadata() {
+  const url = new URL(window.location.href);
+  const keyword = normalizeKeyword(url.searchParams.get(AUTO_SEARCH_PARAM) || '');
+  const location = (url.searchParams.get(AUTO_LOCATION_PARAM) || '').trim();
+
+  url.searchParams.delete(AUTO_EXPORT_PARAM);
+  url.searchParams.delete(AUTO_SYNC_PARAM);
+  url.searchParams.delete(SAMPLE_NAME_PARAM);
+
+  let generatedBy = 'browser-extension';
+  try {
+    const version = chrome?.runtime?.getManifest?.().version;
+    if (version) generatedBy = `browser-extension@${version}`;
+  } catch {
+    // ignore
+  }
+
+  const metadata = {
+    sourceUrl: url.toString(),
+    generatedBy,
+  };
+
+  if (keyword) metadata.keyword = keyword;
+  if (location) metadata.location = location;
+
+  return metadata;
 }
 
 function getApiRowForIndex(index) {
@@ -647,6 +678,37 @@ function getAutoExportConfig() {
   }
 }
 
+function parseAutoSyncFlag(value) {
+  if (!value) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+}
+
+function getAutoSyncEnabled() {
+  const params = new URLSearchParams(window.location.search || '');
+  if (params.has(AUTO_SYNC_PARAM)) {
+    return parseAutoSyncFlag(params.get(AUTO_SYNC_PARAM));
+  }
+
+  try {
+    const localValue = window.localStorage?.getItem(AUTO_SYNC_PARAM);
+    return parseAutoSyncFlag(localValue);
+  } catch {
+    return false;
+  }
+}
+
+function setAutoSyncAttributes(status, count) {
+  try {
+    document.documentElement.setAttribute('data-tr-auto-sync', status);
+    if (typeof count === 'number') {
+      document.documentElement.setAttribute('data-tr-auto-sync-count', String(count));
+    }
+  } catch {
+    // ignore
+  }
+}
+
 function waitForResumeCards({ timeoutMs = 30000, minCount = 1 } = {}) {
   return new Promise((resolve, reject) => {
     let done = false;
@@ -1137,6 +1199,44 @@ async function runAutoExportIfEnabled() {
   }
 }
 
+async function syncCurrentPageToServer() {
+  const resumes = extractResumes();
+  const metadata = buildSubmitMetadata();
+  return chrome.runtime.sendMessage({ action: 'syncToServer', metadata, resumes });
+}
+
+async function runAutoSyncIfEnabled() {
+  if (autoSyncTriggered) return;
+  const enabled = getAutoSyncEnabled();
+  if (!enabled) {
+    setAutoSyncAttributes('skipped');
+    return;
+  }
+  autoSyncTriggered = true;
+
+  try {
+    await waitForResumeCards({});
+    try {
+      await waitForApiRows({});
+    } catch {
+      // API rows are optional; continue with DOM-only extraction
+    }
+
+    const response = await syncCurrentPageToServer();
+    if (response?.success) {
+      const submitted = typeof response.submitted === 'number' ? response.submitted : null;
+      setAutoSyncAttributes('done', submitted ?? undefined);
+      return;
+    }
+
+    console.warn('🎯 [Auto Sync] Failed:', response);
+    setAutoSyncAttributes('failed');
+  } catch (error) {
+    console.warn('🎯 [Auto Sync] Failed:', error);
+    setAutoSyncAttributes('failed');
+  }
+}
+
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extractCurrentPage') {
@@ -1214,6 +1314,7 @@ function installExternalAccessor() {
         const autoSearch = document.documentElement.getAttribute('data-tr-auto-search') || '';
         const autoLocation = document.documentElement.getAttribute('data-tr-auto-location') || '';
         const autoExport = document.documentElement.getAttribute('data-tr-auto-export') || '';
+        const autoSync = document.documentElement.getAttribute('data-tr-auto-sync') || '';
         return {
           extensionLoaded: true,
           extensionVersion: version,
@@ -1224,10 +1325,12 @@ function installExternalAccessor() {
           autoSearch,
           autoLocation,
           autoExport,
+          autoSync,
           pagination,
           timestamp: new Date().toISOString()
         };
       },
+      syncToServer: () => syncCurrentPageToServer(),
       version,
       goToNextPage: () => {
         const nextBtn = /** @type {HTMLButtonElement | null} */ (document.querySelector('.el-pagination .btn-next'));
@@ -1253,5 +1356,8 @@ autoSelectLocation()
   .then(() => autoSearchFromUrl())
   .catch((error) => console.warn('🎯 [Auto Search] Failed:', error))
   .finally(() => {
-    runAutoExportIfEnabled();
+    void (async () => {
+      await runAutoExportIfEnabled();
+      await runAutoSyncIfEnabled();
+    })();
   });

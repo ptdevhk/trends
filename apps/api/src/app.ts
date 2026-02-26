@@ -10,6 +10,7 @@ import {
   searchRoutes,
   rssRoutes,
   resumesRoutes,
+  resumeSubmitRoutes,
   industryRoutes,
   jobDescriptionsRoutes,
   sessionsRoutes,
@@ -71,6 +72,7 @@ export function createApp() {
   app.route("/", searchRoutes);
   app.route("/", rssRoutes);
   app.route("/", resumesRoutes);
+  app.route("/", resumeSubmitRoutes);
   app.route("/", industryRoutes);
   app.route("/", jobDescriptionsRoutes);
   app.route("/", sessionsRoutes);
