@@ -35,8 +35,9 @@
     return raw.replace(/\/+$/, "");
   }
 
-  async function testHealth(serverUrl) {
-    const url = normalizeServerUrl(serverUrl) || DEFAULT_SERVER_URL;
+  async function testConnection(serverUrl, serverToken) {
+    const url = normalizeServerUrl(serverUrl);
+    if (!url) return { success: false, error: "请先填写 Server URL" };
 
     try {
       const response = await fetch(`${url}/health`, {
@@ -44,12 +45,38 @@
         headers: { Accept: "application/json" },
       });
       if (!response.ok) {
-        const text = await response.text();
-        return { success: false, error: `Health check failed (${response.status}): ${text}` };
+        return { success: false, error: `服务器不可达 (${response.status})` };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `无法连接服务器: ${error?.message ? String(error.message) : String(error)}`,
+      };
+    }
+
+    const token = typeof serverToken === "string" ? serverToken.trim() : "";
+    if (!token) return { success: false, error: "请填写 Auth Token" };
+
+    try {
+      const response = await fetch(`${url}/api/resumes/verify-token`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (response.status === 401) {
+        return { success: false, error: "Token 无效" };
+      }
+      if (!response.ok) {
+        return { success: false, error: `Token 验证失败 (${response.status})` };
       }
       return { success: true };
     } catch (error) {
-      return { success: false, error: error?.message ? String(error.message) : String(error) };
+      return {
+        success: false,
+        error: `Token 验证出错: ${error?.message ? String(error.message) : String(error)}`,
+      };
     }
   }
 
@@ -79,7 +106,7 @@
       btnTest.addEventListener("click", async () => {
         if (btnTest) btnTest.disabled = true;
         showMessage("正在测试连接...", "info");
-        const result = await testHealth(serverUrlInput?.value || "");
+        const result = await testConnection(serverUrlInput?.value || "", serverTokenInput?.value || "");
         if (result.success) {
           setConnectionStatus(true, "已连接");
           showMessage("✅ 连接成功", "success");

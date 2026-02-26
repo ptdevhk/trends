@@ -235,6 +235,53 @@ const resumeSubmitRoute = createRoute({
   },
 });
 
+const verifyTokenRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/verify-token",
+  tags: ["resumes"],
+  summary: "Verify submit token",
+  responses: {
+    200: {
+      description: "Token valid",
+      content: {
+        "application/json": {
+          schema: z.object({ success: z.literal(true) }),
+        },
+      },
+    },
+    401: {
+      description: "Unauthorized",
+      content: {
+        "application/json": {
+          schema: ResumeSubmitErrorSchema,
+        },
+      },
+    },
+    500: {
+      description: "Token not configured",
+      content: {
+        "application/json": {
+          schema: ResumeSubmitErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(verifyTokenRoute, async (c) => {
+  const expectedToken = process.env.RESUME_SUBMIT_TOKEN?.trim();
+  if (!expectedToken) {
+    return c.json({ success: false as const, error: "RESUME_SUBMIT_TOKEN is not configured" }, 500);
+  }
+
+  const providedToken = normalizeBearerToken(c.req.header("Authorization"));
+  if (!providedToken || providedToken !== expectedToken) {
+    return c.json({ success: false as const, error: "Unauthorized" }, 401);
+  }
+
+  return c.json({ success: true as const }, 200);
+});
+
 app.openapi(resumeSubmitRoute, async (c) => {
   try {
     const expectedToken = process.env.RESUME_SUBMIT_TOKEN?.trim();
@@ -296,4 +343,3 @@ app.openapi(resumeSubmitRoute, async (c) => {
 });
 
 export default app;
-
