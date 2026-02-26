@@ -12,6 +12,7 @@ console.log('🎯 [BG] Resume Collector background script loading...');
 
 // Offscreen document URL
 const OFFSCREEN_URL = 'offscreen.html';
+const DEFAULT_SERVER_URL = 'https://trends.pt-mes.com';
 
 // Track if we're creating the offscreen document (prevent race conditions)
 let creatingOffscreen = null;
@@ -186,7 +187,7 @@ function normalizeServerUrl(value) {
 async function getServerConfig() {
     const items = await storageLocalGet({ serverUrl: '', serverToken: '' });
     return {
-        serverUrl: normalizeServerUrl(items.serverUrl),
+        serverUrl: normalizeServerUrl(items.serverUrl) || DEFAULT_SERVER_URL,
         serverToken: typeof items.serverToken === 'string' ? items.serverToken : '',
     };
 }

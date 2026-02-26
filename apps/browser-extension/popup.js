@@ -25,6 +25,7 @@ const serverStatus = /** @type {HTMLElement} */ (document.getElementById('server
 const lnkConfigureServer = /** @type {HTMLAnchorElement} */ (document.getElementById('lnk-configure-server'));
 const btnSync = /** @type {HTMLButtonElement} */ (document.getElementById('btn-sync'));
 const syncResult = /** @type {HTMLElement} */ (document.getElementById('sync-result'));
+const DEFAULT_SERVER_URL = 'https://trends.pt-mes.com';
 
 // State
 let extractedData = [];
@@ -148,7 +149,7 @@ async function refreshServerConfig() {
             serverConfigured = false;
             configuredServerUrl = '';
         } else {
-            configuredServerUrl = normalizeServerUrl(response.serverUrl || '');
+            configuredServerUrl = normalizeServerUrl(response.serverUrl || DEFAULT_SERVER_URL);
             serverConfigured = !!configuredServerUrl && !!response.tokenSet;
         }
     } catch {

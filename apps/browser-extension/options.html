@@ -86,7 +86,7 @@
     <div class="container">
       <header>
         <h1>⚙️ 服务器同步设置</h1>
-        <p class="subtitle">把简历直接同步到 Trends 服务端</p>
+        <p class="subtitle">输入 Auth Token 即可开始同步</p>
       </header>
 
       <div class="status-pill">
@@ -96,15 +96,15 @@
 
       <div class="form">
         <div class="field">
-          <div class="label">Server URL</div>
-          <input id="server-url" class="input" type="url" placeholder="https://trends.pt-mes.com" />
-          <div class="hint">示例：`http://localhost:3000` 或 `https://your-domain.com`</div>
-        </div>
-
-        <div class="field">
           <div class="label">Auth Token</div>
           <input id="server-token" class="input" type="password" placeholder="RESUME_SUBMIT_TOKEN" />
           <div class="hint">服务端环境变量：`RESUME_SUBMIT_TOKEN`</div>
+        </div>
+
+        <div class="field">
+          <div class="label">Server URL</div>
+          <input id="server-url" class="input" type="url" placeholder="https://trends.pt-mes.com" />
+          <div class="hint">服务器默认为 trends.pt-mes.com，无需修改</div>
         </div>
 
         <div class="row">
@@ -127,4 +127,3 @@
     <script src="options.js"></script>
   </body>
 </html>
-

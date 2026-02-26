@@ -11,6 +11,7 @@
   const statusText = /** @type {HTMLElement | null} */ ($("status-text"));
   const messageBar = /** @type {HTMLElement | null} */ ($("message"));
   const messageText = /** @type {HTMLElement | null} */ ($("message-text"));
+  const DEFAULT_SERVER_URL = "https://trends.pt-mes.com";
 
   function showMessage(text, type) {
     if (!messageBar || !messageText) return;
@@ -35,10 +36,7 @@
   }
 
   async function testHealth(serverUrl) {
-    const url = normalizeServerUrl(serverUrl);
-    if (!url) {
-      return { success: false, error: "请先填写 Server URL" };
-    }
+    const url = normalizeServerUrl(serverUrl) || DEFAULT_SERVER_URL;
 
     try {
       const response = await fetch(`${url}/health`, {
@@ -72,7 +70,7 @@
 
   document.addEventListener("DOMContentLoaded", async () => {
     const items = /** @type {{ serverUrl?: string; serverToken?: string }} */ (await loadConfig());
-    if (serverUrlInput) serverUrlInput.value = items.serverUrl || "";
+    if (serverUrlInput) serverUrlInput.value = items.serverUrl || DEFAULT_SERVER_URL;
     if (serverTokenInput) serverTokenInput.value = items.serverToken || "";
 
     setConnectionStatus(false, "未测试");
@@ -98,11 +96,6 @@
         if (btnSave) btnSave.disabled = true;
         const serverUrl = serverUrlInput?.value || "";
         const serverToken = serverTokenInput?.value || "";
-        if (!normalizeServerUrl(serverUrl)) {
-          showMessage("请填写 Server URL", "error");
-          if (btnSave) btnSave.disabled = false;
-          return;
-        }
         await saveConfig(serverUrl, serverToken);
         showMessage("✅ 已保存", "success");
         if (btnSave) btnSave.disabled = false;
