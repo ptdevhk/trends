@@ -40,6 +40,13 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
+is_truthy() {
+    case "${1:-}" in
+        1|true|yes|on|TRUE|YES|ON) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         log_error "This script must be run as root (use sudo)."
@@ -855,9 +862,15 @@ enable_units() {
 
     log_info "Enabling trends services and timer..."
     local unit
-    for unit in "${SERVICES[@]}" "$TIMER"; do
+    for unit in "${SERVICES[@]}"; do
         systemctl enable "$unit"
     done
+    if is_truthy "${DISABLE_CRAWLER_TIMER:-}"; then
+        log_warn "DISABLE_CRAWLER_TIMER enabled; not enabling $TIMER."
+        systemctl disable "$TIMER" 2>/dev/null || true
+    else
+        systemctl enable "$TIMER"
+    fi
 }
 
 restart_units() {
@@ -866,7 +879,13 @@ restart_units() {
 
     log_info "Restarting trends services..."
     systemctl restart trends-api.service trends-worker.service trends-worker-api.service trends-mcp.service
-    systemctl restart trends-crawler.timer
+    if is_truthy "${DISABLE_CRAWLER_TIMER:-}"; then
+        log_warn "DISABLE_CRAWLER_TIMER enabled; stopping/disabling $TIMER."
+        systemctl stop "$TIMER" 2>/dev/null || true
+        systemctl disable "$TIMER" 2>/dev/null || true
+    else
+        systemctl restart trends-crawler.timer
+    fi
 }
 
 start_services() {
@@ -875,7 +894,6 @@ start_services() {
         "trends-worker-api.service"
         "trends-worker.service"
         "trends-mcp.service"
-        "trends-crawler.timer"
     )
     local unit
 
@@ -900,6 +918,25 @@ start_services() {
             log_error "Inspect logs: journalctl -u $unit -n 100 --no-pager"
         fi
     done
+
+    if is_truthy "${DISABLE_CRAWLER_TIMER:-}"; then
+        log_warn "DISABLE_CRAWLER_TIMER enabled; skipping $TIMER startup."
+        return
+    fi
+
+    if systemctl start trends-crawler.timer; then
+        log_info "Started trends-crawler.timer"
+    else
+        log_error "Failed to start trends-crawler.timer"
+        log_error "Inspect logs: journalctl -u trends-crawler.timer -n 100 --no-pager"
+    fi
+
+    if systemctl is-active --quiet trends-crawler.timer; then
+        log_info "trends-crawler.timer is active."
+    else
+        log_error "trends-crawler.timer is not active."
+        log_error "Inspect logs: journalctl -u trends-crawler.timer -n 100 --no-pager"
+    fi
 }
 
 stop_port_processes() {

@@ -133,19 +133,19 @@ worker-once:
 
 # Install as systemd services (production) — seeds JDs + runs migrations
 install:
-	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh install
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" DISABLE_CRAWLER_TIMER="$${DISABLE_CRAWLER_TIMER:-1}" ./scripts/install.sh install
 
 # Install with full demo data (JDs + sample resumes + migrations)
 install-seed:
-	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=1 ./scripts/install.sh install
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" DISABLE_CRAWLER_TIMER="$${DISABLE_CRAWLER_TIMER:-1}" SEED_RESUMES=1 ./scripts/install.sh install
 
 # Pull, rebuild, and restart all production services
 deploy:
-	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" DISABLE_CRAWLER_TIMER="$${DISABLE_CRAWLER_TIMER:-1}" ./scripts/install.sh upgrade
 
 # Deploy with full demo data (re-seeds JDs + sample resumes + migrations)
 deploy-seed:
-	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=1 ./scripts/install.sh upgrade
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" DISABLE_CRAWLER_TIMER="$${DISABLE_CRAWLER_TIMER:-1}" SEED_RESUMES=1 ./scripts/install.sh upgrade
 
 # Remove systemd services
 uninstall:
