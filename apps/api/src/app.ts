@@ -76,6 +76,7 @@ export function createApp() {
   app.route("/", sessionsRoutes);
   app.route("/", actionsRoutes);
   app.route("/worker", workerRoutes);
+  app.route("/api/worker", workerRoutes);
   app.route("/api/search-profiles", searchProfilesRoutes);
   app.route("/api/search-analytics", searchAnalyticsRoutes);
   app.route("/api/scoring-evaluation", scoringEvaluationRoutes);
