@@ -653,8 +653,8 @@ export interface paths {
                             generatedBy: string;
                         };
                         resumes: {
-                            resumeId?: string;
-                            perUserId?: string;
+                            resumeId?: string | number;
+                            perUserId?: string | number;
                             name: string;
                             age?: string;
                             experience?: string;

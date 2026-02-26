@@ -41,7 +41,7 @@
     }
 
     try {
-      const response = await fetch(`${url}/api/health`, {
+      const response = await fetch(`${url}/health`, {
         method: "GET",
         headers: { Accept: "application/json" },
       });

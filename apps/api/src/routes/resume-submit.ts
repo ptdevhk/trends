@@ -21,8 +21,8 @@ const ResumeSubmitWorkHistorySchema = z.object({
 });
 
 const ResumeSubmitItemSchema = z.object({
-  resumeId: z.string().optional(),
-  perUserId: z.string().optional(),
+  resumeId: z.union([z.string(), z.number()]).pipe(z.coerce.string()).optional(),
+  perUserId: z.union([z.string(), z.number()]).pipe(z.coerce.string()).optional(),
   name: z.string(),
   age: z.string().optional(),
   experience: z.string().optional(),

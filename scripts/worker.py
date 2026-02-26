@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 import sys
 from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit
@@ -48,6 +49,11 @@ if not CONVEX_URL:
 
 # Ensure URL ends with /api
 API_URL = f"{CONVEX_URL.rstrip('/')}/api"
+
+_LAST_HEARTBEAT_WARNING_AT = 0.0
+
+def _is_connection_error(error: Exception) -> bool:
+    return isinstance(error, (httpx.RequestError, httpx.TimeoutException))
 
 def _read_str(value: Any) -> Optional[str]:
     if isinstance(value, str):
@@ -141,7 +147,10 @@ async def convex_mutation(client: httpx.AsyncClient, name: str, args: dict):
             raise Exception(f"Convex error: {data.get('errorMessage')}")
         return data["value"]
     except Exception as e:
-        logger.error(f"Mutation {name} failed: {e}")
+        if _is_connection_error(e):
+            logger.error("Mutation %s failed (Convex unreachable at %s): %s", name, CONVEX_URL, e)
+        else:
+            logger.error("Mutation %s failed: %s", name, e)
         raise
 
 async def convex_query(client: httpx.AsyncClient, name: str, args: dict):
@@ -155,7 +164,10 @@ async def convex_query(client: httpx.AsyncClient, name: str, args: dict):
             raise Exception(f"Convex error: {data.get('errorMessage')}")
         return data["value"]
     except Exception as e:
-        logger.error(f"Query {name} failed: {e}")
+        if _is_connection_error(e):
+            logger.error("Query %s failed (Convex unreachable at %s): %s", name, CONVEX_URL, e)
+        else:
+            logger.error("Query %s failed: %s", name, e)
         raise
 
 async def heartbeat(
@@ -176,7 +188,12 @@ async def heartbeat(
     try:
         await convex_mutation(client, "resume_tasks:heartbeat", payload)
     except Exception as error:
-        logger.warning("Heartbeat failed: %s", error)
+        global _LAST_HEARTBEAT_WARNING_AT
+        now = time.monotonic()
+        # Heartbeat failures are expected when Convex is down; rate-limit warnings.
+        if now - _LAST_HEARTBEAT_WARNING_AT >= 30:
+            _LAST_HEARTBEAT_WARNING_AT = now
+            logger.warning("Heartbeat failed: %s", error)
 
 async def process_task(task, client: httpx.AsyncClient):
     logger.info(f"Processing task {task['_id']}: {task['config']}")
@@ -399,6 +416,8 @@ async def worker_loop():
     async with httpx.AsyncClient() as client:
         logger.info(f"Worker {WORKER_ID} started. Polling {CONVEX_URL}...")
         await heartbeat(client, "idle")
+        connection_backoff_seconds = 5
+        last_connection_log_at = 0.0
         while True:
             try:
                 await heartbeat(client, "idle")
@@ -406,6 +425,7 @@ async def worker_loop():
                 task = await convex_mutation(client, "resume_tasks:claim", {
                     "workerId": WORKER_ID
                 })
+                connection_backoff_seconds = 5
                 
                 if task:
                     await heartbeat(client, "processing", active_task_id=task["_id"])
@@ -416,6 +436,18 @@ async def worker_loop():
             except KeyboardInterrupt:
                 break
             except Exception as e:
+                if _is_connection_error(e):
+                    now = time.monotonic()
+                    if now - last_connection_log_at >= 30:
+                        last_connection_log_at = now
+                        logger.error(
+                            "Convex is not reachable at %s (is it running?). Try `make dev` or `cd packages/convex && npx convex dev`.",
+                            CONVEX_URL,
+                        )
+                    await asyncio.sleep(connection_backoff_seconds)
+                    connection_backoff_seconds = min(connection_backoff_seconds * 2, 60)
+                    continue
+
                 logger.error(f"Loop error: {e}")
                 await heartbeat(client, "error", last_error=str(e))
                 await asyncio.sleep(5)
