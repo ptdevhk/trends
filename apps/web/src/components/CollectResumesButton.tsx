@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, ExternalLink } from 'lucide-react'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -90,7 +89,6 @@ export function CollectResumesButton({ location, keywords }: CollectResumesButto
       return
     }
 
-    toast.info(t('quickStart.collectReminder'), { duration: 6000 })
     window.open(collectUrl, '_blank', 'noopener,noreferrer')
   }
 
