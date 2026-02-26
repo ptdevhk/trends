@@ -150,15 +150,23 @@ class ErrorResponse(BaseModel):
 
 class WorkerStatus(BaseModel):
     """Worker scheduler status."""
-    
+
+    class WorkerJob(BaseModel):
+        id: str
+        name: str
+        next_run: Optional[str]
+        trigger: Optional[str] = None
+
     jobs_executed: int
     jobs_failed: int
     jobs_missed: int
     last_run: Optional[str]
     last_success: Optional[str]
     last_failure: Optional[str]
+    schedule_type: Optional[str] = None
+    schedule_value: Optional[str] = None
     running: bool
-    jobs: List[dict]
+    jobs: List[WorkerJob]
 
 
 class WorkerTriggerResponse(BaseModel):

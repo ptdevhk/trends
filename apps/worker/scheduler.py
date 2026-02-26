@@ -10,7 +10,7 @@ import logging
 import os
 import signal
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Callable
 
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -407,6 +407,54 @@ class WorkerScheduler:
             self.scheduler.shutdown(wait=True)
             logger.info("Scheduler stopped")
 
+    def _get_schedule_type(self) -> str:
+        """Return the configured primary schedule type for the crawl job."""
+        if self.cron_expression:
+            return self.SCHEDULE_CRON
+        return self.SCHEDULE_INTERVAL
+
+    def _get_schedule_value(self) -> str:
+        """Return a human-readable schedule value for the crawl job."""
+        if self.cron_expression:
+            return self.cron_expression
+        return f"{self.interval_minutes} minutes"
+
+    def _cron_trigger_to_crontab(self, trigger: CronTrigger) -> str:
+        """Convert APScheduler CronTrigger fields to a 5-part crontab expression."""
+        field_map = {field.name: str(field) for field in trigger.fields}
+        minute = field_map.get("minute", "*")
+        hour = field_map.get("hour", "*")
+        day = field_map.get("day", "*")
+        month = field_map.get("month", "*")
+        day_of_week = field_map.get("day_of_week", "*")
+        return f"{minute} {hour} {day} {month} {day_of_week}"
+
+    def _format_interval(self, interval: timedelta) -> str:
+        """Format interval duration as compact string (e.g. 30m, 6h)."""
+        total_seconds = int(interval.total_seconds())
+        if total_seconds <= 0:
+            return "0s"
+
+        if total_seconds % 86400 == 0:
+            return f"{total_seconds // 86400}d"
+        if total_seconds % 3600 == 0:
+            return f"{total_seconds // 3600}h"
+        if total_seconds % 60 == 0:
+            return f"{total_seconds // 60}m"
+        return f"{total_seconds}s"
+
+    def _format_job_trigger(self, trigger: Any) -> Optional[str]:
+        """Serialize APScheduler trigger into a compact, user-facing format."""
+        if isinstance(trigger, IntervalTrigger):
+            return f"interval:{self._format_interval(trigger.interval)}"
+        if isinstance(trigger, CronTrigger):
+            return f"cron:{self._cron_trigger_to_crontab(trigger)}"
+
+        if trigger is None:
+            return None
+
+        return str(trigger)
+
     def get_stats(self) -> Dict[str, Any]:
         """Get scheduler statistics."""
         jobs_info = []
@@ -416,10 +464,13 @@ class WorkerScheduler:
                 "id": job.id,
                 "name": job.name,
                 "next_run": next_run.isoformat() if next_run else None,
+                "trigger": self._format_job_trigger(getattr(job, "trigger", None)),
             })
             
         return {
             **self.stats,
+            "schedule_type": self._get_schedule_type(),
+            "schedule_value": self._get_schedule_value(),
             "running": self.scheduler.running,
             "jobs": jobs_info,
         }
