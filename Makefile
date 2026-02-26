@@ -90,10 +90,11 @@ dev-api-worker:
 		exit 1; \
 	fi
 
-# Start worker scheduler (runs immediately + every 30 minutes, verbose)
+# Start worker scheduler (runs immediately, verbose; interval from WORKER_INTERVAL_MINUTES or default 30)
 dev-worker:
-	@if [ -d "apps/worker" ]; then \
-		uv run python -m apps.worker --run-now --interval 30 -v; \
+	@if [ -f ".env" ]; then set -a; . ./.env; set +a; fi; \
+	if [ -d "apps/worker" ]; then \
+		uv run python -m apps.worker --run-now -v; \
 	else \
 		echo "apps/worker not found. Create it with Milestone 1 (FastAPI Wrapper)"; \
 		exit 1; \
