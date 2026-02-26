@@ -18,13 +18,13 @@ SERVICES=(
     "trends-worker.service"
     "trends-worker-api.service"
     "trends-mcp.service"
-    "trends-crawler.service"
 )
-TIMER="trends-crawler.timer"
 LEGACY_UNITS=(
     "trendradar.service"
     "trendradar.timer"
     "trendradar-mcp.service"
+    "trends-crawler.service"
+    "trends-crawler.timer"
 )
 
 RED='\033[0;31m'
@@ -39,13 +39,6 @@ GH_AUTH_HOME=""
 log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
-
-is_truthy() {
-    case "${1:-}" in
-        1|true|yes|on|TRUE|YES|ON) return 0 ;;
-        *) return 1 ;;
-    esac
-}
 
 check_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -847,7 +840,7 @@ install_systemd_units() {
     local unit
 
     log_info "Installing trends systemd unit files..."
-    for unit in "${SERVICES[@]}" "$TIMER" "trends-convex.service"; do
+    for unit in "${SERVICES[@]}" "trends-convex.service"; do
         if [[ ! -f "$source_dir/$unit" ]]; then
             log_error "Missing unit file: $source_dir/$unit"
             exit 1
@@ -860,17 +853,11 @@ enable_units() {
     log_info "Reloading systemd daemon..."
     systemctl daemon-reload
 
-    log_info "Enabling trends services and timer..."
+    log_info "Enabling trends services..."
     local unit
     for unit in "${SERVICES[@]}"; do
         systemctl enable "$unit"
     done
-    if is_truthy "${DISABLE_CRAWLER_TIMER:-}"; then
-        log_warn "DISABLE_CRAWLER_TIMER enabled; not enabling $TIMER."
-        systemctl disable "$TIMER" 2>/dev/null || true
-    else
-        systemctl enable "$TIMER"
-    fi
 }
 
 restart_units() {
@@ -878,14 +865,10 @@ restart_units() {
     systemctl daemon-reload
 
     log_info "Restarting trends services..."
-    systemctl restart trends-api.service trends-worker.service trends-worker-api.service trends-mcp.service
-    if is_truthy "${DISABLE_CRAWLER_TIMER:-}"; then
-        log_warn "DISABLE_CRAWLER_TIMER enabled; stopping/disabling $TIMER."
-        systemctl stop "$TIMER" 2>/dev/null || true
-        systemctl disable "$TIMER" 2>/dev/null || true
-    else
-        systemctl restart trends-crawler.timer
-    fi
+    local unit
+    for unit in "${SERVICES[@]}"; do
+        systemctl restart "$unit"
+    done
 }
 
 start_services() {
@@ -897,7 +880,7 @@ start_services() {
     )
     local unit
 
-    log_info "Starting trends services and timer..."
+    log_info "Starting trends services..."
     for unit in "${units[@]}"; do
         if systemctl start "$unit"; then
             log_info "Started $unit"
@@ -918,25 +901,6 @@ start_services() {
             log_error "Inspect logs: journalctl -u $unit -n 100 --no-pager"
         fi
     done
-
-    if is_truthy "${DISABLE_CRAWLER_TIMER:-}"; then
-        log_warn "DISABLE_CRAWLER_TIMER enabled; skipping $TIMER startup."
-        return
-    fi
-
-    if systemctl start trends-crawler.timer; then
-        log_info "Started trends-crawler.timer"
-    else
-        log_error "Failed to start trends-crawler.timer"
-        log_error "Inspect logs: journalctl -u trends-crawler.timer -n 100 --no-pager"
-    fi
-
-    if systemctl is-active --quiet trends-crawler.timer; then
-        log_info "trends-crawler.timer is active."
-    else
-        log_error "trends-crawler.timer is not active."
-        log_error "Inspect logs: journalctl -u trends-crawler.timer -n 100 --no-pager"
-    fi
 }
 
 stop_port_processes() {
@@ -1021,7 +985,7 @@ install_flow() {
     log_info "Installation completed."
     echo ""
     echo "Verification commands:"
-    echo "  systemctl status trends-convex trends-api trends-worker trends-worker-api trends-mcp trends-crawler.timer"
+    echo "  systemctl status trends-convex trends-api trends-worker trends-worker-api trends-mcp"
     echo "  curl -s http://127.0.0.1:3000/api/health"
     echo "  curl -s https://trends.pt-mes.com/"
     echo ""
@@ -1065,7 +1029,7 @@ upgrade_flow() {
     echo ""
     log_info "Upgrade completed. Services restarted."
     echo "Check status with:"
-    echo "  systemctl status trends-convex trends-api trends-worker trends-worker-api trends-mcp trends-crawler.timer"
+    echo "  systemctl status trends-convex trends-api trends-worker trends-worker-api trends-mcp"
 }
 
 uninstall_flow() {
@@ -1073,14 +1037,14 @@ uninstall_flow() {
     check_systemd
 
     log_info "Stopping and disabling trends services..."
-    systemctl stop trends-api.service trends-worker.service trends-worker-api.service trends-mcp.service trends-crawler.timer trends-crawler.service trends-convex.service 2>/dev/null || true
-    systemctl disable trends-api.service trends-worker.service trends-worker-api.service trends-mcp.service trends-crawler.timer trends-crawler.service trends-convex.service 2>/dev/null || true
+    systemctl stop trends-api.service trends-worker.service trends-worker-api.service trends-mcp.service trends-convex.service 2>/dev/null || true
+    systemctl disable trends-api.service trends-worker.service trends-worker-api.service trends-mcp.service trends-convex.service 2>/dev/null || true
 
     remove_legacy_units
 
     log_info "Removing trends unit files..."
     local unit
-    for unit in "${SERVICES[@]}" "$TIMER" "trends-convex.service"; do
+    for unit in "${SERVICES[@]}" "trends-convex.service"; do
         rm -f "$SYSTEMD_DIR/$unit"
     done
     systemctl daemon-reload
