@@ -35,6 +35,7 @@ from apps.worker.tasks import (
 from apps.worker.timezone import bootstrap_worker_timezone, resolve_worker_timezone
 from apps.worker.profile_loader import ProfileLoader
 from apps.worker.resume_tasks import run_resume_crawl_task
+from apps.worker.status_store import resolve_worker_status_path
 from trendradar.utils.time import get_configured_time
 
 logger = logging.getLogger(__name__)
@@ -152,7 +153,6 @@ class WorkerScheduler:
     def _save_stats(self) -> None:
         """Save scheduler statistics to file for API access."""
         import json
-        from pathlib import Path
         
         try:
             stats = self.get_stats()
@@ -164,8 +164,9 @@ class WorkerScheduler:
             if stats.get("last_failure"):
                 stats["last_failure"] = stats["last_failure"].isoformat()
 
-            output_path = Path(__file__).resolve().parent / "status.json"
-            with open(output_path, "w") as f:
+            output_path = resolve_worker_status_path()
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(stats, f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save stats: {e}")
@@ -490,6 +491,7 @@ def create_scheduler(
     - WORKER_INTERVAL_MINUTES: Default interval in minutes (default: 30)
     - WORKER_CRON: Cron expression (overrides interval)
     - WORKER_RUN_IMMEDIATELY: Set to "true" to run on start
+    - WORKER_STATUS_PATH: Optional override for status.json output path
 
     Args:
         interval_minutes: Override interval (minutes)

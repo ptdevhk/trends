@@ -339,10 +339,12 @@ clone_or_update_repo() {
         if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
             run_as_invoking_user git -C "$INSTALL_DIR" fetch --prune origin
             default_ref="$(run_as_invoking_user git -C "$INSTALL_DIR" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+            run_as_invoking_user git -C "$INSTALL_DIR" checkout -- apps/worker/status.json >/dev/null 2>&1 || true
             run_as_invoking_user git -C "$INSTALL_DIR" pull --ff-only
         else
             run_as_service_user "cd '$INSTALL_DIR' && git fetch --prune origin"
             default_ref="$(run_as_service_user "git -C '$INSTALL_DIR' symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true")"
+            run_as_service_user "cd '$INSTALL_DIR' && git checkout -- apps/worker/status.json >/dev/null 2>&1 || true"
             run_as_service_user "cd '$INSTALL_DIR' && git pull --ff-only"
         fi
 
@@ -357,9 +359,11 @@ clone_or_update_repo() {
             log_info "Aligning $INSTALL_DIR to branch $desired_branch..."
             if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
                 run_as_invoking_user git -C "$INSTALL_DIR" checkout -B "$desired_branch" "origin/$desired_branch"
+                run_as_invoking_user git -C "$INSTALL_DIR" checkout -- apps/worker/status.json >/dev/null 2>&1 || true
                 run_as_invoking_user git -C "$INSTALL_DIR" pull --ff-only
             else
                 run_as_service_user "cd '$INSTALL_DIR' && git checkout -B '$desired_branch' 'origin/$desired_branch'"
+                run_as_service_user "cd '$INSTALL_DIR' && git checkout -- apps/worker/status.json >/dev/null 2>&1 || true"
                 run_as_service_user "cd '$INSTALL_DIR' && git pull --ff-only"
             fi
         else

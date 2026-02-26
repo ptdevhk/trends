@@ -36,6 +36,7 @@ if str(project_root) not in sys.path:
 from mcp_server.services.data_service import DataService
 from mcp_server.utils.errors import DataNotFoundError
 from apps.worker.timezone import bootstrap_worker_timezone
+from apps.worker.status_store import resolve_worker_status_path
 from apps.worker.tasks import run_crawl_analyze
 from trendradar.utils.time import format_iso_offset_time
 
@@ -193,7 +194,7 @@ async def get_worker_status():
     """
     import json
 
-    status_path = project_root / "apps" / "worker" / "status.json"
+    status_path = resolve_worker_status_path()
     
     if not status_path.exists():
         # Return default empty status if file doesn't exist yet
@@ -209,7 +210,7 @@ async def get_worker_status():
         )
         
     try:
-        with open(status_path, "r") as f:
+        with open(status_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return WorkerStatus(**data)
     except Exception as e:

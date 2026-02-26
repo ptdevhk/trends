@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from apps.worker.api import app
 
 # Create dummy status file
-status_path = Path("apps/worker/status.json")
+status_path = Path("output/worker/status.json")
 dummy_data = {
     "jobs_executed": 10,
     "jobs_failed": 1,
@@ -22,6 +22,7 @@ dummy_data = {
 
 def test_api_status():
     print("Creating dummy status file...")
+    status_path.parent.mkdir(parents=True, exist_ok=True)
     with open(status_path, "w") as f:
         json.dump(dummy_data, f)
         
