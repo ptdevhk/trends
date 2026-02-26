@@ -250,6 +250,10 @@
       "failed": "失敗"
     }
   },
+  "syncNotifications": {
+    "success": "已同步 {{submitted}} 份簡歷 ({{inserted}} 新增, {{updated}} 更新)",
+    "error": "同步失敗: {{error}}"
+  },
   "quickStart": {
     "location": "位置",
     "customKeywords": "關鍵詞",

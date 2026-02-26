@@ -250,6 +250,10 @@
       "failed": "Failed"
     }
   },
+  "syncNotifications": {
+    "success": "Synced {{submitted}} resumes ({{inserted}} new, {{updated}} updated)",
+    "error": "Sync failed: {{error}}"
+  },
   "quickStart": {
     "location": "Location",
     "customKeywords": "Keywords",
