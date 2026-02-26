@@ -67,7 +67,7 @@ export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
     useEffect(() => {
         async function fetchStatus() {
             try {
-                const response = await fetch(`${apiBaseUrl}/worker/status`)
+                const response = await fetch(`${apiBaseUrl}/api/worker/status`)
                 if (!response.ok) throw new Error('Failed to fetch status')
                 const data = await response.json()
                 setStatus(data)
