@@ -80,7 +80,7 @@ Known companies in the target industry with name variations. Used for company re
 
 - FANUC [role: both] (aliases: 发那科, Fanuc)
 - SIEMENS [role: both] (aliases: 西门子, Siemens)
-- STAR [role: both] (aliases: 津上, スター精密, Star Micronics)
+- STAR [role: both] (aliases: 斯大, スター精密, Star Micronics)
 - BROTHER [role: both] (aliases: 兄弟, Brother Industries)
 - MITSUBISHI [role: both] (aliases: 三菱, Mitsubishi Electric)
 - HAAS [role: both] (aliases: 哈斯, Haas Automation)
