@@ -1,10 +1,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { useAction } from 'convex/react'
+import { useAction, useMutation } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useTranslation } from 'react-i18next'
-import { RefreshCw, Database, ChevronDown, ChevronRight } from 'lucide-react'
+import { RefreshCw, Database, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,12 +55,14 @@ export default function DebugIngest() {
   const { resumes, loading } = useConvexResumes(500)
   const backfillIngestData = useAction(api.migrations.backfillIngestData)
   const reIngestStaleSkillsVersion = useAction(api.migrations.reIngestStaleSkillsVersion)
+  const clearAnalysesMutation = useMutation(api.resumes.clearAnalyses)
 
   const [search, setSearch] = useState('')
   const [skillsVersion, setSkillsVersion] = useState<number | null>(null)
   const [versionLoading, setVersionLoading] = useState(false)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [reingesting, setReingesting] = useState(false)
+  const [clearingAnalyses, setClearingAnalyses] = useState(false)
 
   const apiBaseUrl = useMemo(() => {
     const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
@@ -149,6 +151,24 @@ export default function DebugIngest() {
     }
   }, [backfillIngestData, loadSkillsVersion, reIngestStaleSkillsVersion, t])
 
+  const clearAnalyses = useCallback(async () => {
+    setClearingAnalyses(true)
+    try {
+      const result = await clearAnalysesMutation({})
+      toast.success(
+        t('debugIngest.clearAnalysesSuccess', {
+          cleared: result.cleared,
+          defaultValue: `Cleared analyses for ${result.cleared} resumes. You can now re-run AI analysis.`,
+        })
+      )
+    } catch (error) {
+      console.error('Failed to clear analyses', error)
+      toast.error(t('debugIngest.clearAnalysesFailed', { defaultValue: 'Failed to clear analyses' }))
+    } finally {
+      setClearingAnalyses(false)
+    }
+  }, [clearAnalysesMutation, t])
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -204,6 +224,10 @@ export default function DebugIngest() {
         <Button onClick={() => void triggerReIngest()} disabled={reingesting}>
           <RefreshCw className={`mr-2 h-4 w-4 ${reingesting ? 'animate-spin' : ''}`} />
           {t('debugIngest.reingest', { defaultValue: 'Trigger Re-ingest' })}
+        </Button>
+        <Button variant="destructive" onClick={() => void clearAnalyses()} disabled={clearingAnalyses}>
+          <Trash2 className={`mr-2 h-4 w-4 ${clearingAnalyses ? 'animate-spin' : ''}`} />
+          {t('debugIngest.clearAnalyses', { defaultValue: 'Reset AI Analyses' })}
         </Button>
       </div>
 
