@@ -245,24 +245,31 @@ describe("SkillsKnowledgeService", () => {
 
       const fanuc = patterns.find((p) => p.name === "fanuc");
       expect(fanuc).toBeDefined();
+      expect(fanuc?.displayName).toBe("FANUC");
       expect(fanuc?.role).toBe("both");
       expect(fanuc?.aliases).toContain("发那科");
+      expect(fanuc?.displayAliases).toContain("发那科");
+      expect(fanuc?.displayAliases).toContain("Fanuc");
       expect(fanuc?.allNames).toContain("fanuc");
       expect(fanuc?.allNames).toContain("发那科");
 
       const star = patterns.find((p) => p.name === "star");
       expect(star).toBeDefined();
+      expect(star?.displayName).toBe("STAR");
       expect(star?.role).toBe("employer");
       expect(star?.aliases).toContain("津上");
+      expect(star?.displayAliases).toContain("Star Micronics");
       expect(star?.allNames).toContain("star");
       expect(star?.allNames).toContain("star micronics");
 
       const brother = patterns.find((p) => p.name === "brother");
       expect(brother).toBeDefined();
+      expect(brother?.displayName).toBe("BROTHER");
       expect(brother?.role).toBe("equipment");
 
       const makino = patterns.find((p) => p.name === "makino");
       expect(makino).toBeDefined();
+      expect(makino?.displayName).toBe("MAKINO");
       expect(makino?.role).toBe("both");
     } finally {
       cleanupFixtureRoot(root);

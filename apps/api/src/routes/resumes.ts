@@ -169,14 +169,18 @@ function extractSection(content: string, headings: string[]): string | undefined
   return lines.slice(startIndex, endIndex).join("\n").trim();
 }
 
-function extractSkills(jobIntention?: string): string[] | undefined {
-  if (!jobIntention) return undefined;
-  const parts = jobIntention
-    .split(/[，,、/\s]+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (parts.length === 0) return undefined;
-  return Array.from(new Set(parts)).slice(0, 12);
+function extractSkills(...texts: (string | undefined)[]): string[] | undefined {
+  const allParts: string[] = [];
+  for (const text of texts) {
+    if (!text) continue;
+    const parts = text
+      .split(/[，,、/\s]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    allParts.push(...parts);
+  }
+  if (allParts.length === 0) return undefined;
+  return Array.from(new Set(allParts)).slice(0, 20);
 }
 
 function extractCompanies(workHistory: ResumeItem["workHistory"]): string[] | undefined {
@@ -484,7 +488,7 @@ function buildAiResumePayload(item: {
     jobIntention: item.resume.jobIntention || undefined,
     workExperience: item.indexData.experienceYears ?? undefined,
     education: item.resume.education || undefined,
-    skills: item.indexData.skills.length > 0 ? item.indexData.skills : extractSkills(item.resume.jobIntention),
+    skills: item.indexData.skills.length > 0 ? item.indexData.skills : extractSkills(item.resume.jobIntention, item.resume.selfIntro),
     companies: item.indexData.companies.length > 0 ? item.indexData.companies : extractCompanies(item.resume.workHistory),
     summary: item.resume.selfIntro || undefined,
   };

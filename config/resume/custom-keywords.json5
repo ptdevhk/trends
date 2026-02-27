@@ -7,29 +7,12 @@
     { id: "seed-equipment-lathe", keyword: "车床", english: "Lathe", category: "equipment" },
     { id: "seed-role-sales", keyword: "销售", english: "Sales", category: "role" },
     { id: "seed-role-engineer", keyword: "工程师", english: "Engineer", category: "role" },
-    { id: "seed-location-dongguan", keyword: "东莞", english: "Dongguan", category: "location" },
-    { id: "seed-brand-haas", keyword: "哈斯", english: "HAAS", category: "brand" },
-    { id: "seed-brand-fanuc", keyword: "发那科", english: "FANUC", category: "brand" },
-    { id: "seed-brand-star", keyword: "斯大", english: "STAR", category: "brand" },
-    { id: "seed-brand-tsugami", keyword: "津上", english: "Tsugami", category: "brand" },
-    { id: "seed-brand-mazak", keyword: "马扎克", english: "MAZAK", category: "brand" },
-    { id: "seed-brand-dmg-mori", keyword: "德马吉森精机", english: "DMG MORI", category: "brand" },
-    { id: "seed-brand-makino", keyword: "牧野", english: "MAKINO", category: "brand" },
-    { id: "seed-brand-okuma", keyword: "大隈", english: "OKUMA", category: "brand" },
-    { id: "seed-brand-hermle", keyword: "哈默", english: "HERMLE", category: "brand" },
-    { id: "seed-brand-citizen", keyword: "西铁城", english: "CITIZEN", category: "brand" },
-    { id: "seed-brand-doosan", keyword: "斗山", english: "DOOSAN", category: "brand" },
-    { id: "seed-brand-siemens", keyword: "西门子", english: "SIEMENS", category: "brand" },
-    { id: "seed-brand-brother", keyword: "兄弟", english: "BROTHER", category: "brand" },
-    { id: "seed-brand-mitsubishi", keyword: "三菱", english: "MITSUBISHI", category: "brand" },
-    { id: "seed-brand-hardinge", keyword: "哈挺", english: "HARDINGE", category: "brand" },
-    { id: "seed-brand-jingdiao", keyword: "北京精雕", english: "JINGDIAO", category: "brand" }
+    { id: "seed-location-dongguan", keyword: "东莞", english: "Dongguan", category: "location" }
   ],
   categories: [
     { id: "equipment", name: "设备", icon: "🔧" },
     { id: "role", name: "岗位", icon: "👤" },
     { id: "location", name: "地点", icon: "📍" },
-    { id: "brand", name: "品牌", icon: "🏭" },
     { id: "custom", name: "自定义", icon: "⚙️" }
   ]
 }

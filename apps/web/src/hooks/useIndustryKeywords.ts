@@ -8,6 +8,7 @@ export type KeywordCategory =
   | "measurement"
   | "smt"
   | "3d_printing"
+  | "brand"
   | "custom";
 
 export type IndustryKeyword = {
@@ -25,6 +26,20 @@ type IndustryKeywordsResponse = {
     english?: string;
     category: "machining" | "lathe" | "edm" | "measurement" | "smt" | "3d_printing";
   }>;
+};
+
+type BrandItem = {
+  id: number;
+  nameCn: string;
+  nameEn?: string;
+  type: string;
+  origin: string;
+};
+
+type BrandsResponse = {
+  success: boolean;
+  count?: number;
+  data?: BrandItem[];
 };
 
 type CustomKeywordTag = {
@@ -46,6 +61,7 @@ export const CATEGORY_ORDER: KeywordCategory[] = [
   "measurement",
   "smt",
   "3d_printing",
+  "brand",
   "custom",
 ];
 
@@ -56,6 +72,7 @@ export const CATEGORY_LABELS: Record<KeywordCategory, string> = {
   measurement: "测量扫描",
   smt: "SMT",
   "3d_printing": "3D打印",
+  brand: "品牌",
   custom: "自定义",
 };
 
@@ -67,6 +84,7 @@ function createGroupedKeywords(): Record<KeywordCategory, IndustryKeyword[]> {
     measurement: [],
     smt: [],
     "3d_printing": [],
+    brand: [],
     custom: [],
   };
 }
@@ -79,6 +97,7 @@ function normalizeCategory(category: string): KeywordCategory {
     category === "measurement" ||
     category === "smt" ||
     category === "3d_printing" ||
+    category === "brand" ||
     category === "custom"
   ) {
     return category;
@@ -89,6 +108,7 @@ function normalizeCategory(category: string): KeywordCategory {
 export function useIndustryKeywords() {
   const [keywords, setKeywords] = useState<IndustryKeyword[]>([]);
   const [customKeywords, setCustomKeywords] = useState<IndustryKeyword[]>([]);
+  const [brandKeywords, setBrandKeywords] = useState<IndustryKeyword[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,15 +116,17 @@ export function useIndustryKeywords() {
     setLoading(true);
     setError(null);
 
-    const [industryResponse, customResponse] = await Promise.all([
+    const [industryResponse, customResponse, brandResponse] = await Promise.all([
       rawApiClient.GET<IndustryKeywordsResponse>("/api/industry/keywords"),
       rawApiClient.GET<CustomKeywordsResponse>("/api/config/custom-keywords"),
+      rawApiClient.GET<BrandsResponse>("/api/industry/brands"),
     ]);
 
     const { data: industryData, error: industryError } = industryResponse;
     if (industryError || !industryData?.success) {
       setKeywords([]);
       setCustomKeywords([]);
+      setBrandKeywords([]);
       setError("Failed to load industry keywords");
       setLoading(false);
       return;
@@ -116,25 +138,44 @@ export function useIndustryKeywords() {
     if (customError || !customData?.success) {
       console.error("Failed to load custom keywords", customError);
       setCustomKeywords([]);
-      setLoading(false);
-      return;
-    }
-
-    const mappedCustomKeywords: IndustryKeyword[] = [];
-    if (Array.isArray(customData.tags)) {
-      for (const tag of customData.tags) {
-        const keyword = tag.keyword?.trim();
-        if (!keyword) continue;
-        mappedCustomKeywords.push({
-          id: tag.id,
-          keyword,
-          english: tag.english?.trim() || undefined,
-          category: normalizeCategory(tag.category),
-        });
+    } else {
+      const mappedCustomKeywords: IndustryKeyword[] = [];
+      if (Array.isArray(customData.tags)) {
+        for (const tag of customData.tags) {
+          const keyword = tag.keyword?.trim();
+          if (!keyword) continue;
+          mappedCustomKeywords.push({
+            id: tag.id,
+            keyword,
+            english: tag.english?.trim() || undefined,
+            category: normalizeCategory(tag.category),
+          });
+        }
       }
+      setCustomKeywords(mappedCustomKeywords);
     }
 
-    setCustomKeywords(mappedCustomKeywords);
+    const { data: brandData, error: brandError } = brandResponse;
+    if (brandError || !brandData?.success) {
+      console.error("Failed to load brand keywords", brandError);
+      setBrandKeywords([]);
+    } else {
+      const mappedBrands: IndustryKeyword[] = [];
+      if (Array.isArray(brandData.data)) {
+        for (const item of brandData.data) {
+          const keyword = item.nameCn?.trim();
+          if (!keyword) continue;
+          mappedBrands.push({
+            id: item.id,
+            keyword,
+            english: item.nameEn?.trim() || undefined,
+            category: "brand",
+          });
+        }
+      }
+      setBrandKeywords(mappedBrands);
+    }
+
     setLoading(false);
   }, []);
 
@@ -142,10 +183,16 @@ export function useIndustryKeywords() {
     void fetchKeywords();
   }, [fetchKeywords]);
 
-  const allKeywords = useMemo(
-    () => [...keywords, ...customKeywords],
-    [keywords, customKeywords]
-  );
+  const allKeywords = useMemo(() => {
+    // Custom keywords take priority over brand keywords with the same text
+    const customSet = new Set(
+      customKeywords.map((item) => item.keyword.toLowerCase())
+    );
+    const deduplicatedBrands = brandKeywords.filter(
+      (item) => !customSet.has(item.keyword.toLowerCase())
+    );
+    return [...keywords, ...deduplicatedBrands, ...customKeywords];
+  }, [keywords, customKeywords, brandKeywords]);
 
   const grouped = useMemo(() => {
     const groups = createGroupedKeywords();

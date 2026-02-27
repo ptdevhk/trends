@@ -336,9 +336,37 @@ export class IndustryDataService {
     }
 
     /**
-     * Load brands from structured markdown
+     * Load brands from brands.json (primary) or structured markdown (fallback)
      */
     loadBrands(): BrandEntry[] {
+        const jsonPath = path.join(this.getIndustryDataDir(), "brands.json");
+        if (fs.existsSync(jsonPath)) {
+            const content = fs.readFileSync(jsonPath, "utf-8");
+            const parsed: unknown = JSON.parse(content);
+            if (Array.isArray(parsed)) {
+                return parsed.map((item: Record<string, unknown>): BrandEntry => {
+                    const rawOrigin = item.origin;
+                    const origin: BrandEntry["origin"] =
+                        rawOrigin === "international" || rawOrigin === "domestic" || rawOrigin === "agent"
+                            ? rawOrigin : "international";
+                    return {
+                        id: typeof item.id === "number" ? item.id : 0,
+                        nameCn: String(item.nameCn ?? ""),
+                        nameEn: item.nameEn ? String(item.nameEn) : undefined,
+                        type: String(item.type ?? ""),
+                        origin,
+                    };
+                }).filter((b) => b.nameCn);
+            }
+        }
+
+        return this.loadBrandsFromMarkdown();
+    }
+
+    /**
+     * Load brands from structured markdown (legacy fallback)
+     */
+    private loadBrandsFromMarkdown(): BrandEntry[] {
         const filePath = path.join(this.getIndustryDataDir(), "keywords-structured.md");
         if (!fs.existsSync(filePath)) return [];
 
@@ -347,7 +375,6 @@ export class IndustryDataService {
         const brands: BrandEntry[] = [];
 
         for (const { section, rows } of sections) {
-            // Section 4: Brands (but not agents section)
             if (
                 (section.includes("品牌") || section.includes("Brand")) &&
                 !section.includes("代理商") &&
@@ -362,13 +389,7 @@ export class IndustryDataService {
                     const type = row["类型 (Type)"] || row["类型"] || "";
 
                     if (nameCn) {
-                        brands.push({
-                            id,
-                            nameCn,
-                            nameEn: nameEn || undefined,
-                            type,
-                            origin,
-                        });
+                        brands.push({ id, nameCn, nameEn: nameEn || undefined, type, origin });
                     }
                 }
             }

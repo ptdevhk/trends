@@ -38,7 +38,9 @@ export interface ExperienceLevelSignals {
  */
 export interface CompanyPattern {
   name: string;
+  displayName: string;
   aliases: string[];
+  displayAliases: string[];
   allNames: string[];
   role: "employer" | "equipment" | "both";
 }
@@ -358,18 +360,20 @@ export class SkillsKnowledgeService {
         /^-\s*([^([]+?)\s*(?:\[role:\s*(employer|equipment|both)\])?\s*\(aliases:\s*([^)]+)\)$/i
       );
       if (match) {
-        const name = match[1].trim().toLowerCase();
+        const displayName = match[1].trim();
+        const name = displayName.toLowerCase();
         const rawRole = match[2]?.trim().toLowerCase();
         const role: CompanyPattern["role"] = rawRole === "employer" || rawRole === "equipment" || rawRole === "both"
           ? rawRole
           : "both";
-        const aliases = match[3]
+        const displayAliases = match[3]
           .split(",")
-          .map((a) => a.trim().toLowerCase())
+          .map((a) => a.trim())
           .filter((a) => a.length > 0);
+        const aliases = displayAliases.map((a) => a.toLowerCase());
 
         const allNames = [name, ...aliases];
-        patterns.push({ name, aliases, allNames, role });
+        patterns.push({ name, displayName, aliases, displayAliases, allNames, role });
       }
     }
 

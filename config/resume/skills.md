@@ -1,6 +1,6 @@
 ---
-version: 3
-updated_at: '2026-02-24'
+version: 4
+updated_at: '2026-02-27'
 description: >
   Curated skill taxonomy, synonyms, and domain knowledge for resume screening.
   Used by the background ingest agent for deterministic matching and pre-scoring.
@@ -84,11 +84,11 @@ Known companies in the target industry with name variations. Used for company re
 - BROTHER [role: both] (aliases: 兄弟, Brother Industries)
 - MITSUBISHI [role: both] (aliases: 三菱, Mitsubishi Electric)
 - HAAS [role: both] (aliases: 哈斯, Haas Automation)
-- MAZAK [role: both] (aliases: 马扎克, Yamazaki Mazak)
-- DMG MORI [role: both] (aliases: 德马吉森精机, DMG森精机)
+- MAZAK [role: both] (aliases: 马扎克, 山崎马扎克, Yamazaki Mazak)
+- DMG MORI [role: both] (aliases: 德马吉森精机, 德马吉, DMG森精机)
 - MAKINO [role: both] (aliases: 牧野, マキノ)
 - OKUMA [role: both] (aliases: 大隈, オークマ)
-- CITIZEN [role: both] (aliases: 西铁城, シチズン)
+- CITIZEN [role: both] (aliases: 西铁城, 宫野, シチズン, Miyano)
 - DOOSAN [role: both] (aliases: 斗山, 두산)
 - HYUNDAI WIA [role: both] (aliases: 现代威亚, 현대위아)
 - TSUGAMI [role: both] (aliases: 津上, つがみ)
@@ -101,11 +101,19 @@ Tier 1 - CNC/Machining
 - TOYODA [role: both] (aliases: 丰田工机, ジェイテクト)
 - RENISHAW [role: equipment] (aliases: 雷尼绍, レニショー)
 - TORNOS [role: both] (aliases: 特纳斯, Tornos Swiss)
-- GF MACHINING [role: both] (aliases: 乔治费歇尔, 米科朗, Mikron, AgieCharmilles)
+- GF MACHINING [role: both] (aliases: 乔治费歇尔, 米科朗, 阿奇, Mikron, AgieCharmilles)
 - OKK [role: both] (aliases: 大阪机工, オーケーケー)
 - MATSUURA [role: both] (aliases: 松浦, マツウラ)
 - HURCO [role: both] (aliases: 赫克, ハーコ)
 - KURAKI [role: both] (aliases: 仓敷, クラキ)
+- OKAMOTO [role: equipment] (aliases: 冈本, 冈本数控磨床)
+- NACHI [role: both] (aliases: 不二越, NACHi)
+- ROEDERS [role: equipment] (aliases: 罗德斯, Röders)
+- LITZ [role: both] (aliases: 丽驰)
+- TAKISAWA [role: both] (aliases: 泷泽, 台湾泷泽)
+- TAKAMATSU [role: both] (aliases: 高松)
+- NOMURA [role: both] (aliases: 野村)
+- FIDIA [role: equipment] (aliases: 菲迪亚)
 
 Tier 2 - EDM/Wire Cutting
 - SODICK [role: equipment] (aliases: 沙迪克, ソディック)
@@ -119,6 +127,8 @@ Tier 3 - Measurement/Metrology
 - WENZEL [role: equipment] (aliases: 温泽, ヴェンツェル)
 - FARO [role: equipment] (aliases: 法如, ファロ)
 - CREAFORM [role: equipment] (aliases: 形创)
+- MAHR [role: equipment] (aliases: 马尔)
+- TESA [role: equipment] (aliases: 天萨)
 
 Tier 4 - Tooling/Components
 - SANDVIK [role: equipment] (aliases: 山特维克, サンドビック)
@@ -132,6 +142,11 @@ Tier 5 - Domestic (Pearl River Delta)
 - 润星科技 [role: both] (aliases: 润星, Runxing)
 - 思瑞测量 [role: both] (aliases: 思瑞, CHOTEST)
 - 秦川机床 [role: both] (aliases: 秦川, Qinchuan)
+- 天准科技 [role: both] (aliases: 天准, TZTEK)
+- 中图仪器 [role: both] (aliases: 中图, SinoAge)
+- 纽威 [role: both] (aliases: 纽威数控, Neway)
+- 程泰 [role: both] (aliases: 程泰机械, Goodway)
+- 乔锋 [role: both] (aliases: 乔锋智能, Qiaofeng)
 
 ## Industry Context
 

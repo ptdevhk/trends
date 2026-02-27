@@ -1,4 +1,6 @@
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
 import { deriveResumeIdentity } from "./lib/resume_identity";
@@ -92,6 +94,7 @@ export const seedResumes = mutation({
     handler: async (ctx, args) => {
         let inserted = 0;
         let skipped = 0;
+        const insertedIds: Id<"resumes">[] = [];
 
         for (const resume of args.resumes) {
             const identity = deriveResumeIdentity({
@@ -136,7 +139,7 @@ export const seedResumes = mutation({
                 continue;
             }
 
-            await ctx.db.insert("resumes", {
+            const id = await ctx.db.insert("resumes", {
                 externalId: resume.externalId,
                 identityKey: identity.identityKey,
                 content: resume.content,
@@ -146,7 +149,18 @@ export const seedResumes = mutation({
                 tags: resume.tags,
                 crawledAt: Date.now(),
             });
+            insertedIds.push(id);
             inserted += 1;
+        }
+
+        // Schedule ingest agent for newly inserted resumes (compute industryTags, ruleScores, etc.)
+        if (insertedIds.length > 0) {
+            const BATCH = 50;
+            for (let i = 0; i < insertedIds.length; i += BATCH) {
+                await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
+                    resumeIds: insertedIds.slice(i, i + BATCH),
+                });
+            }
         }
 
         return { inserted, skipped };

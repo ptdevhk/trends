@@ -77,6 +77,14 @@ interface CustomKeywordFormState {
   category: string
 }
 
+interface BrandKeywordItem {
+  id: number
+  nameCn: string
+  nameEn?: string
+  type: string
+  origin: string
+}
+
 
 
 type AgentNumericField = 'batchSize' | 'parallelism' | 'timeout' | 'temperature'
@@ -406,6 +414,7 @@ export default function DebugConfig() {
   const [agentsConfig, setAgentsConfig] = useState<AgentsConfig | null>(null)
   const [customKeywordTags, setCustomKeywordTags] = useState<CustomKeywordTag[]>([])
   const [customKeywordCategories, setCustomKeywordCategories] = useState<CustomKeywordCategory[]>([])
+  const [brandKeywords, setBrandKeywords] = useState<BrandKeywordItem[]>([])
 
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null)
   const [savingCustomKeyword, setSavingCustomKeyword] = useState(false)
@@ -480,19 +489,26 @@ export default function DebugConfig() {
     setCustomKeywordCategories(parsed.categories)
   }, [requestJson])
 
+  const loadBrandKeywords = useCallback(async () => {
+    const payload = await requestJson('/api/industry/brands')
+    if (isRecord(payload) && payload.success === true && Array.isArray(payload.data)) {
+      setBrandKeywords(payload.data as BrandKeywordItem[])
+    }
+  }, [requestJson])
+
   const loadData = useCallback(async () => {
     setLoading(true)
     setLoadError(null)
 
     try {
-      await Promise.all([loadAIStatus(), loadAgentsConfig(), loadCustomKeywords()])
+      await Promise.all([loadAIStatus(), loadAgentsConfig(), loadCustomKeywords(), loadBrandKeywords()])
     } catch (error) {
       console.error('Failed to load configuration data', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
     }
-  }, [loadAIStatus, loadAgentsConfig, loadCustomKeywords, t])
+  }, [loadAIStatus, loadAgentsConfig, loadCustomKeywords, loadBrandKeywords, t])
 
   useEffect(() => {
     loadData().catch((error) => {
@@ -1048,6 +1064,52 @@ export default function DebugConfig() {
                             {t('debugConfig.deleteCustomKeyword')}
                           </Button>
                         </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle>{t('debugConfig.brandKeywords', '品牌關鍵詞')}</CardTitle>
+              <CardDescription>{t('debugConfig.brandKeywordsDescription', '從 skills.md 自動生成的設備品牌（唯讀）')}</CardDescription>
+            </div>
+            <Badge variant="secondary">{brandKeywords.length}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('debugConfig.brandKeywordNameCn', '中文名')}</TableHead>
+                  <TableHead>{t('debugConfig.brandKeywordNameEn', 'English')}</TableHead>
+                  <TableHead>{t('debugConfig.brandKeywordType', '类型')}</TableHead>
+                  <TableHead>{t('debugConfig.brandKeywordOrigin', '来源')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {brandKeywords.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                      {loading ? t('trends.loading') : t('debug.none')}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  brandKeywords.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.nameCn}</TableCell>
+                      <TableCell className="text-muted-foreground">{item.nameEn || '-'}</TableCell>
+                      <TableCell className="text-xs">{item.type}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{item.origin}</Badge>
                       </TableCell>
                     </TableRow>
                   ))
