@@ -1,4 +1,4 @@
-import { internalMutation, internalQuery, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 
@@ -405,5 +405,44 @@ export const listStaleResumes = internalQuery({
             })
             .slice(0, limit)
             .map((resume) => ({ _id: resume._id }));
+    },
+});
+
+export const clearAnalyses = mutation({
+    args: {
+        resumeIds: v.optional(v.array(v.id("resumes"))),
+        jobDescriptionId: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = args.resumeIds
+            ? await Promise.all(args.resumeIds.map((id) => ctx.db.get(id)))
+            : await ctx.db.query("resumes").collect();
+
+        let cleared = 0;
+        for (const resume of resumes) {
+            if (!resume) continue;
+            if (!resume.analysis && !resume.analyses) continue;
+
+            if (args.jobDescriptionId && resume.analyses) {
+                const analyses = { ...resume.analyses };
+                if (analyses[args.jobDescriptionId]) {
+                    delete analyses[args.jobDescriptionId];
+                    const isCurrentAnalysis = resume.analysis?.jobDescriptionId === args.jobDescriptionId;
+                    await ctx.db.patch(resume._id, {
+                        analyses,
+                        ...(isCurrentAnalysis ? { analysis: undefined } : {}),
+                    });
+                    cleared += 1;
+                }
+            } else {
+                await ctx.db.patch(resume._id, {
+                    analysis: undefined,
+                    analyses: undefined,
+                });
+                cleared += 1;
+            }
+        }
+
+        return { cleared };
     },
 });
