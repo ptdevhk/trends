@@ -93,14 +93,32 @@ export function getAiModel(): string {
 
 // Helper to normalize resume data
 export function normalizeResume(data: any) {
+    // Extract skills from selfIntro and jobIntention since resume content has no "skills" field
+    const skillTexts = [data.selfIntro, data.jobIntention].filter(Boolean);
+    const extractedSkills = skillTexts
+        .flatMap((text: string) => text.split(/[，,、/\s\n]+/).map((s: string) => s.trim()).filter(Boolean));
+    const existingSkills = Array.isArray(data.skills) ? data.skills : [];
+    const allSkills = [...new Set([...existingSkills, ...extractedSkills])];
+
+    // Extract companies from workHistory since resume content has no "companies" field
+    const historyCompanies = Array.isArray(data.workHistory)
+        ? data.workHistory.map((item: any) => typeof item === "string" ? item : item.raw).filter(Boolean)
+        : [];
+    const existingCompanies = Array.isArray(data.companies) ? data.companies : [];
+    const allCompanies = [...new Set([...existingCompanies, ...historyCompanies])];
+
+    // Parse experience: handle "11年" string format or numeric
+    const rawExp = data.experience || data.workExperience || "0";
+    const parsedExp = typeof rawExp === "string" ? parseInt(rawExp.replace(/[^0-9]/g, ""), 10) : rawExp;
+
     return {
         name: data.name || "未填写",
         jobIntention: data.jobIntention || data.desiredPosition || "未填写",
-        workExperience: parseInt(data.workExperience) || 0,
+        workExperience: parsedExp || 0,
         education: data.education || data.degree || "未填写",
-        skills: Array.isArray(data.skills) ? data.skills.join(", ") : (data.skills || "未填写"),
-        companies: Array.isArray(data.companies) ? data.companies.join(", ") : (data.companyName || "未填写"),
-        summary: data.summary || data.selfEvaluation || "无",
+        skills: allSkills.length > 0 ? allSkills.slice(0, 20).join(", ") : "未填写",
+        companies: allCompanies.length > 0 ? allCompanies.slice(0, 8).join(", ") : "未填写",
+        summary: data.selfIntro || data.summary || data.selfEvaluation || "无",
     };
 }
 

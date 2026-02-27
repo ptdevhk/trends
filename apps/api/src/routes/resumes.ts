@@ -469,7 +469,7 @@ function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex 
     experienceYears: parseExperienceYears(resume.experience),
     educationLevel: resume.education || null,
     locationCity: resume.location || null,
-    skills: extractSkills(resume.jobIntention) ?? [],
+    skills: extractSkills(resume.jobIntention, resume.selfIntro) ?? [],
     companies: extractCompanies(resume.workHistory) ?? [],
     industryTags: [],
     salaryRange: null,
