@@ -1,137 +1,124 @@
 # OpenCode
 
-OpenCode is an open-source AI-powered coding agent that runs in the terminal or as a desktop application. It provides a type-safe JavaScript/TypeScript SDK for programmatic control and supports multiple AI providers including Anthropic, OpenAI, Google, and local models. The core architecture follows a client/server model where the server exposes an OpenAPI 3.1 specification, allowing the TUI, web interface, desktop app, and custom integrations to interact with the same backend.
+OpenCode is an open-source AI coding agent that provides a terminal-based interface for AI-assisted software development. It supports 75+ LLM providers through the AI SDK and Models.dev, works with local models, and offers a client/server architecture allowing programmatic control. The project features built-in agents (Build for full development, Plan for read-only analysis), MCP (Model Context Protocol) server support for extending tool capabilities, LSP integration, and a comprehensive configuration system supporting JSON/JSONC formats.
 
-The project features built-in agents (Build for full development work, Plan for read-only analysis), MCP (Model Context Protocol) server support, LSP integration for code intelligence, and extensive customization through JSON configuration files. OpenCode can be extended with custom agents, commands, plugins, and tools, making it adaptable to various development workflows.
-
----
+The core functionality centers around session-based AI interactions where users can send prompts, execute commands, and have the AI perform file operations, run shell commands, and search codebases. OpenCode can run as a TUI (Terminal User Interface), headless server, web interface, or be controlled programmatically via the TypeScript SDK. Key features include structured JSON output, session sharing, file watching, automatic context compaction, and customizable keybinds and themes.
 
 ## Installation
 
-Install OpenCode using your preferred package manager.
+Install OpenCode using various package managers or the install script.
 
 ```bash
-# Quick install via curl
+# Quick install
 curl -fsSL https://opencode.ai/install | bash
 
-# npm/bun/pnpm/yarn
+# npm/pnpm/bun/yarn
 npm i -g opencode-ai@latest
 
 # Homebrew (macOS/Linux)
 brew install anomalyco/tap/opencode
 
-# Windows
+# Scoop/Chocolatey (Windows)
 scoop install opencode
-# or
 choco install opencode
+
+# Arch Linux
+sudo pacman -S opencode
+
+# Nix
+nix run nixpkgs#opencode
 ```
 
----
+## CLI Commands
 
-## SDK Installation
+Run OpenCode in various modes from the command line.
 
-Install the TypeScript SDK for programmatic access.
+The CLI provides commands for TUI mode, non-interactive prompts, server operation, and session management.
 
 ```bash
-npm install @opencode-ai/sdk
+# Start TUI (default)
+opencode
+
+# Continue last session
+opencode --continue
+
+# Non-interactive mode with prompt
+opencode run "Explain how closures work in JavaScript"
+
+# Attach file to prompt
+opencode run -f src/index.ts "Review this file for security issues"
+
+# Start headless server
+opencode serve --port 4096 --hostname 0.0.0.0
+
+# Start web interface
+opencode web --port 4096
+
+# Attach TUI to running server
+opencode attach http://localhost:4096
+
+# List sessions
+opencode session list --format json
+
+# Export session
+opencode export <sessionID>
+
+# Show usage stats
+opencode stats --days 30 --models 10
+
+# List available models
+opencode models anthropic
+
+# Manage authentication
+opencode auth login
+opencode auth list
+opencode auth logout
 ```
 
----
+## SDK Installation and Setup
 
-## createOpencode - Start Server and Client
+Install the TypeScript SDK to interact with OpenCode programmatically.
 
-Creates both an OpenCode server instance and a connected client for programmatic control. This is the recommended way to integrate OpenCode into applications.
-
-```typescript
-import { createOpencode } from "@opencode-ai/sdk"
-
-// Start server with default settings (localhost:4096)
-const { client, server } = await createOpencode()
-
-// Create a session and send a prompt
-const session = await client.session.create({
-  body: { title: "Code Review Session" }
-})
-
-const response = await client.session.prompt({
-  path: { id: session.data.id },
-  body: {
-    model: { providerID: "anthropic", modelID: "claude-sonnet-4-20250514" },
-    parts: [{ type: "text", text: "Analyze the error handling in this codebase" }]
-  }
-})
-
-console.log("Response:", response.data)
-
-// Clean up
-server.close()
-```
-
----
-
-## createOpencode with Configuration
-
-Start the server with custom configuration options including model selection, timeout, and inline config.
+The SDK provides a type-safe client for the OpenCode server API, supporting all server endpoints with full TypeScript definitions.
 
 ```typescript
-import { createOpencode } from "@opencode-ai/sdk"
+import { createOpencode, createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk"
+import type { Session, Message, Part } from "@opencode-ai/sdk"
 
+// Create server and client together
 const { client, server } = await createOpencode({
   hostname: "127.0.0.1",
-  port: 8080,
-  timeout: 10000, // 10 second startup timeout
+  port: 4096,
+  timeout: 5000,
   config: {
-    model: "anthropic/claude-sonnet-4-20250514",
-    small_model: "anthropic/claude-haiku-4-20250514",
-    theme: "opencode",
-    permission: {
-      edit: "allow",
-      bash: "ask"
-    }
-  }
+    model: "anthropic/claude-sonnet-4-5",
+  },
 })
 
-console.log(`OpenCode server running at ${server.url}`)
+console.log(`Server running at ${server.url}`)
 
-// Use the client...
-const sessions = await client.session.list()
-console.log(`Found ${sessions.data.length} existing sessions`)
+// Client-only (connect to existing server)
+const clientOnly = createOpencodeClient({
+  baseUrl: "http://localhost:4096",
+  throwOnError: true,
+})
 
+// Server-only
+const serverOnly = await createOpencodeServer({
+  hostname: "127.0.0.1",
+  port: 4096,
+  signal: abortController.signal,
+})
+
+// Cleanup
 server.close()
 ```
-
----
-
-## createOpencodeClient - Connect to Existing Server
-
-Creates a client instance that connects to an already running OpenCode server. Use this when the server is started separately or running remotely.
-
-```typescript
-import { createOpencodeClient } from "@opencode-ai/sdk"
-
-// Connect to a running server
-const client = createOpencodeClient({
-  baseUrl: "http://localhost:4096"
-})
-
-// List all sessions
-const sessions = await client.session.list()
-console.log("Sessions:", sessions.data)
-
-// Get current project info
-const project = await client.project.current()
-console.log("Project:", project.data.worktree)
-
-// Get VCS (Git) information
-const vcs = await client.vcs.get()
-console.log("Branch:", vcs.data.branch)
-```
-
----
 
 ## Session Management
 
-Create, list, and manage coding sessions. Sessions track conversations and file changes.
+Create and manage AI conversation sessions.
+
+Sessions are the primary unit of interaction, containing messages, context, and state for AI conversations.
 
 ```typescript
 import { createOpencodeClient } from "@opencode-ai/sdk"
@@ -140,420 +127,594 @@ const client = createOpencodeClient({ baseUrl: "http://localhost:4096" })
 
 // Create a new session
 const session = await client.session.create({
-  body: { title: "Implement User Authentication" }
+  body: { title: "Feature implementation" },
 })
-console.log("Created session:", session.data.id)
+console.log("Session ID:", session.data.id)
 
 // List all sessions
-const allSessions = await client.session.list()
-for (const s of allSessions.data) {
-  console.log(`- ${s.title} (${s.id})`)
-}
+const sessions = await client.session.list()
+sessions.data.forEach((s) => console.log(s.id, s.title))
 
-// Get session status (idle, busy, retry)
-const status = await client.session.status()
-console.log("Session statuses:", status.data)
+// Get session details
+const details = await client.session.get({
+  path: { id: session.data.id },
+})
 
 // Update session title
-const updated = await client.session.update({
+await client.session.update({
   path: { id: session.data.id },
-  body: { title: "Implement OAuth2 Authentication" }
+  body: { title: "Updated title" },
 })
 
-// Get file diffs from session
-const diffs = await client.session.diff({
-  path: { id: session.data.id }
-})
-for (const diff of diffs.data) {
-  console.log(`${diff.file}: +${diff.additions} -${diff.deletions}`)
-}
-
-// Fork a session at a specific message
+// Fork session at specific message
 const forked = await client.session.fork({
   path: { id: session.data.id },
-  body: { messageID: "msg_abc123" }
+  body: { messageID: "msg_123" },
 })
 
-// Delete a session
+// Share/unshare session
+await client.session.share({ path: { id: session.data.id } })
+await client.session.unshare({ path: { id: session.data.id } })
+
+// Abort running session
+await client.session.abort({ path: { id: session.data.id } })
+
+// Delete session
 await client.session.delete({ path: { id: session.data.id } })
 ```
 
----
-
 ## Sending Prompts
 
-Send messages to sessions and receive AI responses. Supports text, files, and structured output.
+Send messages to the AI and receive responses.
+
+The prompt API supports text messages, file attachments, model selection, and structured output formats.
 
 ```typescript
 import { createOpencodeClient } from "@opencode-ai/sdk"
 
 const client = createOpencodeClient({ baseUrl: "http://localhost:4096" })
 
-// Create session
-const session = await client.session.create({ body: { title: "Development" } })
-
-// Send a basic text prompt
-const response = await client.session.prompt({
-  path: { id: session.data.id },
+// Basic prompt
+const result = await client.session.prompt({
+  path: { id: sessionId },
   body: {
-    model: { providerID: "anthropic", modelID: "claude-sonnet-4-20250514" },
-    parts: [{ type: "text", text: "Refactor the authentication module to use JWT tokens" }]
-  }
+    parts: [{ type: "text", text: "Explain async/await in JavaScript" }],
+  },
+})
+console.log("Response:", result.data.parts)
+
+// Prompt with specific model
+const response = await client.session.prompt({
+  path: { id: sessionId },
+  body: {
+    model: { providerID: "anthropic", modelID: "claude-sonnet-4-5" },
+    parts: [{ type: "text", text: "Write a function to parse JSON safely" }],
+  },
 })
 
-console.log("Assistant response:", response.data.info)
-console.log("Parts:", response.data.parts)
-
-// Inject context without AI response (useful for plugins)
+// Inject context without triggering AI response
 await client.session.prompt({
-  path: { id: session.data.id },
+  path: { id: sessionId },
   body: {
     noReply: true,
-    parts: [{ type: "text", text: "Project uses TypeScript 5.0 with strict mode enabled." }]
-  }
+    parts: [{ type: "text", text: "You are a helpful coding assistant." }],
+  },
 })
 
-// Send with file attachment
-await client.session.prompt({
-  path: { id: session.data.id },
-  body: {
-    parts: [
-      { type: "text", text: "Review this code for security issues" },
-      { type: "file", mime: "text/typescript", url: "file:///src/auth.ts" }
-    ]
-  }
-})
-
-// Async prompt (fire and forget, returns immediately)
+// Async prompt (returns immediately)
 await client.session.promptAsync({
-  path: { id: session.data.id },
+  path: { id: sessionId },
   body: {
-    parts: [{ type: "text", text: "Generate unit tests for the utils module" }]
-  }
+    parts: [{ type: "text", text: "Refactor this codebase" }],
+  },
+})
+
+// Execute slash command
+const cmdResult = await client.session.command({
+  path: { id: sessionId },
+  body: {
+    command: "test",
+    arguments: "src/**/*.test.ts",
+  },
+})
+
+// Run shell command
+const shellResult = await client.session.shell({
+  path: { id: sessionId },
+  body: {
+    agent: "build",
+    command: "npm test",
+  },
 })
 ```
 
----
-
 ## Structured Output
 
-Request validated JSON responses matching a specific schema.
+Request validated JSON responses matching a schema.
+
+Structured output uses JSON Schema to ensure the model returns data in a specific format with automatic validation and retries.
 
 ```typescript
 import { createOpencodeClient } from "@opencode-ai/sdk"
 
 const client = createOpencodeClient({ baseUrl: "http://localhost:4096" })
-const session = await client.session.create({ body: {} })
 
-// Request structured JSON output
 const result = await client.session.prompt({
-  path: { id: session.data.id },
+  path: { id: sessionId },
   body: {
-    parts: [{ type: "text", text: "Analyze the API structure and list all endpoints" }],
+    parts: [{ type: "text", text: "Research Anthropic and provide company info" }],
     format: {
       type: "json_schema",
       schema: {
         type: "object",
         properties: {
-          endpoints: {
+          company: { type: "string", description: "Company name" },
+          founded: { type: "number", description: "Year founded" },
+          products: {
             type: "array",
-            items: {
-              type: "object",
-              properties: {
-                method: { type: "string", description: "HTTP method (GET, POST, etc.)" },
-                path: { type: "string", description: "URL path" },
-                description: { type: "string", description: "What the endpoint does" }
-              },
-              required: ["method", "path"]
-            }
+            items: { type: "string" },
+            description: "Main products",
           },
-          totalCount: { type: "number", description: "Total number of endpoints" }
+          headquarters: { type: "string", description: "HQ location" },
         },
-        required: ["endpoints", "totalCount"]
+        required: ["company", "founded", "products"],
       },
-      retryCount: 3 // Retry up to 3 times if validation fails
-    }
-  }
+      retryCount: 3,
+    },
+  },
 })
 
 // Access structured output
 const output = result.data.info.structured_output
-console.log(`Found ${output.totalCount} endpoints:`)
-for (const ep of output.endpoints) {
-  console.log(`  ${ep.method} ${ep.path} - ${ep.description}`)
+console.log(output) // { company: "Anthropic", founded: 2021, products: ["Claude"] }
+
+// Handle structured output errors
+if (result.data.info.error?.name === "StructuredOutputError") {
+  console.error("Failed:", result.data.info.error.message)
+  console.error("Attempts:", result.data.info.error.retries)
 }
 ```
 
----
-
 ## File Operations
 
-Search files, read content, and find symbols using LSP integration.
+Search, read, and list files in the project.
+
+The file API provides fuzzy search, text search with regex, symbol lookup, and file content reading.
 
 ```typescript
 import { createOpencodeClient } from "@opencode-ai/sdk"
 
 const client = createOpencodeClient({ baseUrl: "http://localhost:4096" })
 
-// Search for text in files (regex supported)
-const textMatches = await client.find.text({
-  query: { pattern: "async function.*Handler" }
+// Find files by name (fuzzy match)
+const files = await client.find.files({
+  query: { query: "*.ts", type: "file", limit: 50 },
 })
-for (const match of textMatches.data) {
-  console.log(`${match.path.text}:${match.line_number} - ${match.lines.text}`)
-}
-
-// Find files by name pattern
-const tsFiles = await client.find.files({
-  query: { query: "*.test.ts", type: "file", limit: 20 }
-})
-console.log("Test files:", tsFiles.data)
+console.log("TypeScript files:", files.data)
 
 // Find directories
 const dirs = await client.find.files({
-  query: { query: "components", type: "directory" }
+  query: { query: "components", type: "directory" },
+})
+
+// Search text in files (regex)
+const matches = await client.find.text({
+  query: { pattern: "function.*async" },
+})
+matches.data.forEach((m) => {
+  console.log(`${m.path}:${m.line_number}: ${m.lines}`)
+})
+
+// Find workspace symbols (functions, classes, etc.)
+const symbols = await client.find.symbols({
+  query: { query: "handleRequest" },
 })
 
 // Read file content
 const content = await client.file.read({
-  query: { path: "src/index.ts" }
+  query: { path: "src/index.ts" },
 })
-console.log("File type:", content.data.type) // "text" or "binary"
-console.log("Content:", content.data.content)
+console.log(content.data.content)
 
-// Get git status for tracked files
-const fileStatus = await client.file.status()
-for (const file of fileStatus.data) {
-  console.log(`${file.status}: ${file.path} (+${file.added}/-${file.removed})`)
-}
-
-// Find workspace symbols (requires LSP)
-const symbols = await client.find.symbols({
-  query: { query: "AuthService" }
+// List directory contents
+const listing = await client.file.list({
+  query: { path: "src/components" },
 })
-for (const sym of symbols.data) {
-  console.log(`${sym.name} (${sym.kind}) at ${sym.location.uri}`)
-}
+
+// Get file status (git status)
+const status = await client.file.status()
+status.data.forEach((f) => console.log(f.path, f.status))
 ```
-
----
 
 ## Event Subscription
 
-Subscribe to real-time server events using Server-Sent Events (SSE).
+Subscribe to real-time server events via SSE.
+
+Events stream provides live updates for session state, messages, tool executions, and system notifications.
 
 ```typescript
 import { createOpencodeClient } from "@opencode-ai/sdk"
 
 const client = createOpencodeClient({ baseUrl: "http://localhost:4096" })
 
-// Subscribe to events
+// Subscribe to all events
 const events = await client.event.subscribe()
 
 for await (const event of events.stream) {
+  console.log("Event type:", event.type)
+  console.log("Properties:", event.properties)
+
+  // Handle specific event types
   switch (event.type) {
     case "session.created":
-      console.log("New session:", event.properties.info.title)
+      console.log("New session:", event.properties.sessionId)
       break
-    case "session.status":
-      console.log(`Session ${event.properties.sessionID}: ${event.properties.status.type}`)
+    case "message.created":
+      console.log("New message:", event.properties.messageId)
       break
-    case "message.updated":
-      console.log("Message updated:", event.properties.info.id)
+    case "tool.started":
+      console.log("Tool running:", event.properties.toolName)
       break
-    case "message.part.updated":
-      if (event.properties.part.type === "text") {
-        process.stdout.write(event.properties.delta || "")
+    case "tool.completed":
+      console.log("Tool finished:", event.properties.result)
+      break
+  }
+}
+
+// Global events (health, version)
+const globalEvents = await client.global.event()
+```
+
+## Configuration File
+
+Configure OpenCode using JSON or JSONC files.
+
+Configuration supports models, providers, themes, tools, agents, MCP servers, permissions, and custom commands.
+
+```jsonc
+// opencode.json or opencode.jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Model configuration
+  "model": "anthropic/claude-sonnet-4-5",
+  "small_model": "anthropic/claude-haiku-4-5",
+
+  // Provider settings
+  "provider": {
+    "anthropic": {
+      "options": {
+        "timeout": 600000,
+        "baseURL": "https://api.anthropic.com/v1"
       }
-      break
-    case "permission.updated":
-      console.log("Permission requested:", event.properties.title)
-      break
-    case "file.edited":
-      console.log("File changed:", event.properties.file)
-      break
-    case "todo.updated":
-      console.log("Todos:", event.properties.todos)
-      break
-    default:
-      console.log("Event:", event.type)
+    },
+    "amazon-bedrock": {
+      "options": {
+        "region": "us-east-1",
+        "profile": "my-aws-profile"
+      }
+    }
+  },
+
+  // Tool access
+  "tools": {
+    "write": true,
+    "bash": true,
+    "edit": true
+  },
+
+  // Permission settings
+  "permission": {
+    "edit": "ask",
+    "bash": "ask",
+    "webfetch": "allow"
+  },
+
+  // Theme
+  "theme": "opencode",
+
+  // TUI settings
+  "tui": {
+    "scroll_speed": 3,
+    "diff_style": "auto"
+  },
+
+  // Server settings
+  "server": {
+    "port": 4096,
+    "hostname": "0.0.0.0",
+    "mdns": true,
+    "cors": ["http://localhost:5173"]
+  },
+
+  // Auto-update
+  "autoupdate": true,
+
+  // Sharing mode: "manual", "auto", or "disabled"
+  "share": "manual",
+
+  // Custom instructions files
+  "instructions": ["CONTRIBUTING.md", "docs/guidelines.md"],
+
+  // Disable specific providers
+  "disabled_providers": ["openai"],
+
+  // Enable only specific providers
+  "enabled_providers": ["anthropic", "opencode"]
+}
+```
+
+## Custom Agents
+
+Create specialized agents with custom prompts and tool access.
+
+Agents can be primary (main interaction) or subagents (invoked via @mention or automatically by primary agents).
+
+```jsonc
+// opencode.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "code-reviewer": {
+      "description": "Reviews code for best practices and security issues",
+      "mode": "subagent",
+      "model": "anthropic/claude-sonnet-4-5",
+      "temperature": 0.1,
+      "prompt": "You are a code reviewer. Focus on security, performance, and maintainability.",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false
+      },
+      "permission": {
+        "edit": "deny"
+      }
+    },
+    "docs-writer": {
+      "description": "Writes and maintains documentation",
+      "mode": "subagent",
+      "tools": {
+        "bash": false
+      }
+    },
+    "quick-thinker": {
+      "description": "Fast reasoning with limited iterations",
+      "steps": 5, // Max agentic iterations
+      "temperature": 0.3
+    }
+  },
+  "default_agent": "build"
+}
+```
+
+```markdown
+<!-- ~/.config/opencode/agents/security-auditor.md -->
+---
+description: Performs security audits and identifies vulnerabilities
+mode: subagent
+model: anthropic/claude-sonnet-4-5
+temperature: 0.1
+tools:
+  write: false
+  edit: false
+permission:
+  bash:
+    "*": ask
+    "grep *": allow
+---
+
+You are a security expert. Focus on identifying potential security issues.
+
+Look for:
+- Input validation vulnerabilities
+- Authentication and authorization flaws
+- Data exposure risks
+- Dependency vulnerabilities
+```
+
+## MCP Server Configuration
+
+Add external tools via Model Context Protocol servers.
+
+MCP servers extend OpenCode with custom tools that the AI can invoke alongside built-in tools.
+
+```jsonc
+// opencode.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    // Local MCP server
+    "mcp_everything": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-everything"],
+      "enabled": true,
+      "environment": {
+        "DEBUG": "true"
+      },
+      "timeout": 10000
+    },
+
+    // Remote MCP server
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true,
+      "headers": {
+        "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
+      }
+    },
+
+    // OAuth-enabled remote server
+    "sentry": {
+      "type": "remote",
+      "url": "https://mcp.sentry.dev/mcp",
+      "oauth": {}
+    },
+
+    // Pre-registered OAuth credentials
+    "my-server": {
+      "type": "remote",
+      "url": "https://mcp.example.com/mcp",
+      "oauth": {
+        "clientId": "{env:MCP_CLIENT_ID}",
+        "clientSecret": "{env:MCP_CLIENT_SECRET}",
+        "scope": "tools:read tools:execute"
+      }
+    }
+  },
+
+  // Disable MCP tools globally
+  "tools": {
+    "sentry_*": false
+  },
+
+  // Enable MCP tools per agent
+  "agent": {
+    "debug": {
+      "tools": {
+        "sentry_*": true
+      }
+    }
   }
 }
 ```
 
+```bash
+# Manage MCP authentication
+opencode mcp list
+opencode mcp auth sentry
+opencode mcp logout sentry
+opencode mcp debug sentry
+```
+
+## Custom Commands
+
+Define reusable prompt templates as slash commands.
+
+Commands provide shortcuts for common tasks with variable substitution and agent/model overrides.
+
+```jsonc
+// opencode.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "command": {
+    "test": {
+      "template": "Run the full test suite with coverage report and show any failures.\nFocus on the failing tests and suggest fixes.",
+      "description": "Run tests with coverage",
+      "agent": "build",
+      "model": "anthropic/claude-haiku-4-5"
+    },
+    "component": {
+      "template": "Create a new React component named $ARGUMENTS with TypeScript support.\nInclude proper typing, tests, and documentation.",
+      "description": "Create a new React component"
+    },
+    "review": {
+      "template": "Review the following code for security issues, performance problems, and best practices:\n$ARGUMENTS",
+      "description": "Code review",
+      "agent": "plan"
+    },
+    "doc": {
+      "template": "Generate comprehensive documentation for $ARGUMENTS including:\n- API reference\n- Usage examples\n- Common patterns",
+      "description": "Generate documentation"
+    }
+  }
+}
+```
+
+```markdown
+<!-- .opencode/commands/deploy.md -->
+---
+description: Deploy to production with safety checks
+agent: build
 ---
 
-## Provider and Authentication
+Before deploying to production:
+1. Run all tests
+2. Check for uncommitted changes
+3. Verify environment variables
+4. Deploy using: $ARGUMENTS
 
-Manage AI providers and authentication credentials.
+Report any issues encountered.
+```
+
+## Provider Authentication
+
+Configure LLM provider credentials and settings.
+
+OpenCode supports 75+ providers including Anthropic, OpenAI, Google, Amazon Bedrock, and local models.
+
+```bash
+# Interactive login
+opencode auth login
+
+# List authenticated providers
+opencode auth list
+
+# Logout from provider
+opencode auth logout
+```
 
 ```typescript
 import { createOpencodeClient } from "@opencode-ai/sdk"
 
 const client = createOpencodeClient({ baseUrl: "http://localhost:4096" })
 
-// List all providers with their models
-const providers = await client.provider.list()
-console.log("Connected providers:", providers.data.connected)
-console.log("Default models:", providers.data.default)
-
-for (const provider of providers.data.all) {
-  console.log(`\n${provider.name} (${provider.id}):`)
-  for (const [modelId, model] of Object.entries(provider.models)) {
-    console.log(`  - ${model.name} (${modelId})`)
-  }
-}
-
-// Get authentication methods for providers
-const authMethods = await client.provider.auth()
-for (const [providerId, methods] of Object.entries(authMethods.data)) {
-  console.log(`${providerId}:`, methods.map(m => m.label).join(", "))
-}
-
-// Set API key authentication
+// Set API key programmatically
 await client.auth.set({
   path: { id: "anthropic" },
-  body: { type: "api", key: "sk-ant-..." }
+  body: { type: "api", key: "sk-ant-..." },
 })
 
-// Set OAuth authentication
-await client.auth.set({
-  path: { id: "github-copilot" },
-  body: {
-    type: "oauth",
-    access: "gho_...",
-    refresh: "ghr_...",
-    expires: Date.now() + 3600000
-  }
-})
+// List providers
+const providers = await client.provider.list()
+console.log("Available:", providers.data.all)
+console.log("Connected:", providers.data.connected)
+
+// Get auth methods
+const authMethods = await client.provider.auth()
 ```
 
----
-
-## Agent Management
-
-List and use specialized AI agents with different capabilities.
-
-```typescript
-import { createOpencodeClient } from "@opencode-ai/sdk"
-
-const client = createOpencodeClient({ baseUrl: "http://localhost:4096" })
-
-// List all available agents
-const agents = await client.app.agents()
-
-for (const agent of agents.data) {
-  console.log(`\n${agent.name} (${agent.mode}):`)
-  console.log(`  Description: ${agent.description}`)
-  console.log(`  Built-in: ${agent.builtIn}`)
-  console.log(`  Color: ${agent.color}`)
-  if (agent.model) {
-    console.log(`  Model: ${agent.model.providerID}/${agent.model.modelID}`)
-  }
-  console.log(`  Permissions:`, agent.permission)
-  console.log(`  Tools:`, Object.keys(agent.tools).filter(t => agent.tools[t]))
-}
-
-// Use a specific agent in a session
-const session = await client.session.create({ body: {} })
-
-// Use the plan agent (read-only analysis)
-await client.session.prompt({
-  path: { id: session.data.id },
-  body: {
-    agent: "plan",
-    parts: [{ type: "text", text: "Analyze the architecture of this project" }]
-  }
-})
-
-// Use a custom agent
-await client.session.prompt({
-  path: { id: session.data.id },
-  body: {
-    agent: "code-reviewer",
-    parts: [{ type: "text", text: "Review the recent changes for security issues" }]
-  }
-})
-```
-
----
-
-## MCP Server Management
-
-Configure and manage Model Context Protocol servers for extended tool capabilities.
-
-```typescript
-import { createOpencodeClient } from "@opencode-ai/sdk"
-
-const client = createOpencodeClient({ baseUrl: "http://localhost:4096" })
-
-// Get MCP server status
-const mcpStatus = await client.mcp.status()
-for (const [name, status] of Object.entries(mcpStatus.data)) {
-  console.log(`${name}: ${status.status}`)
-  if (status.status === "failed") {
-    console.log(`  Error: ${status.error}`)
-  }
-}
-
-// Add a local MCP server
-await client.mcp.add({
-  body: {
-    name: "filesystem",
-    config: {
-      type: "local",
-      command: ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"],
-      enabled: true,
-      timeout: 5000
-    }
-  }
-})
-
-// Add a remote MCP server with OAuth
-await client.mcp.add({
-  body: {
-    name: "github-mcp",
-    config: {
-      type: "remote",
-      url: "https://mcp.github.com",
-      enabled: true,
-      oauth: {
-        clientId: "your-client-id",
-        scope: "repo user"
+```jsonc
+// opencode.json - Provider configuration
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "anthropic": {
+      "options": {
+        "apiKey": "{env:ANTHROPIC_API_KEY}",
+        "timeout": 600000
+      }
+    },
+    "amazon-bedrock": {
+      "options": {
+        "region": "us-east-1",
+        "profile": "my-aws-profile",
+        "endpoint": "https://bedrock-runtime.us-east-1.vpce-xxx.amazonaws.com"
+      }
+    },
+    "openai": {
+      "options": {
+        "baseURL": "https://api.openai.com/v1"
       }
     }
   }
-})
-
-// Connect/disconnect MCP servers
-await client.mcp.connect({ path: { name: "filesystem" } })
-await client.mcp.disconnect({ path: { name: "filesystem" } })
-
-// Start OAuth flow for MCP server
-const authResult = await client.mcp.auth.start({ path: { name: "github-mcp" } })
-console.log("Open this URL to authenticate:", authResult.data.authorizationUrl)
-
-// Complete OAuth after user authorization
-await client.mcp.auth.callback({
-  path: { name: "github-mcp" },
-  body: { code: "auth_code_from_callback" }
-})
+}
 ```
 
----
+## TUI Control API
 
-## TUI Control
+Control the Terminal User Interface programmatically.
 
-Control the Terminal User Interface programmatically through the server API.
+The TUI API enables remote control of the interface, useful for IDE integrations and automation.
 
 ```typescript
 import { createOpencodeClient } from "@opencode-ai/sdk"
 
 const client = createOpencodeClient({ baseUrl: "http://localhost:4096" })
 
-// Append text to the current prompt
+// Append text to prompt input
 await client.tui.appendPrompt({
-  body: { text: "Implement error handling for the API" }
+  body: { text: "Review this function" },
 })
 
 // Submit the current prompt
@@ -562,262 +723,119 @@ await client.tui.submitPrompt()
 // Clear the prompt
 await client.tui.clearPrompt()
 
-// Show a toast notification
+// Show toast notification
 await client.tui.showToast({
   body: {
-    title: "Build Complete",
-    message: "All tests passed successfully",
-    variant: "success", // "info" | "success" | "warning" | "error"
-    duration: 5000
-  }
+    title: "Success",
+    message: "Operation completed",
+    variant: "success", // success, error, warning, info
+  },
 })
 
-// Open various dialogs
+// Open dialogs
 await client.tui.openHelp()
 await client.tui.openSessions()
-await client.tui.openModels()
 await client.tui.openThemes()
+await client.tui.openModels()
 
-// Execute a TUI command
+// Execute TUI command
 await client.tui.executeCommand({
-  body: { command: "session.new" }
+  body: { command: "agent_cycle" },
+})
+
+// Control queue (for custom frontends)
+const request = await client.tui.control.next()
+await client.tui.control.response({
+  body: { /* response data */ },
 })
 ```
 
----
+## HTTP Server API
 
-## CLI Commands
+Direct HTTP API endpoints for the OpenCode server.
 
-Run OpenCode from the command line for scripting and automation.
-
-```bash
-# Start the TUI interface
-opencode
-
-# Continue last session
-opencode --continue
-
-# Use a specific model
-opencode --model anthropic/claude-sonnet-4-20250514
-
-# Run a single prompt (non-interactive)
-opencode run "Explain how closures work in JavaScript"
-
-# Run with a specific agent
-opencode run --agent plan "Analyze the project structure"
-
-# Attach file to prompt
-opencode run --file src/auth.ts "Review this code for security issues"
-
-# Continue from last session
-opencode run --continue "Now add unit tests"
-
-# Output as JSON events
-opencode run --format json "List all API endpoints"
-
-# Start headless server
-opencode serve --port 4096 --hostname 0.0.0.0
-
-# Start with web interface
-opencode web --port 4096
-
-# Attach TUI to running server
-opencode attach http://localhost:4096
-
-# List available models
-opencode models
-opencode models anthropic --verbose
-
-# Manage authentication
-opencode auth login
-opencode auth list
-opencode auth logout
-
-# Session management
-opencode session list --format json
-opencode export <sessionID>
-opencode import session.json
-
-# Statistics and usage
-opencode stats --days 30 --models 5
-```
-
----
-
-## Configuration File
-
-Configure OpenCode using `opencode.json` in your project root or `~/.config/opencode/opencode.json` globally.
-
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-
-  // Default model for all agents
-  "model": "anthropic/claude-sonnet-4-20250514",
-  "small_model": "anthropic/claude-haiku-4-20250514",
-
-  // Theme
-  "theme": "opencode",
-
-  // Auto-update settings
-  "autoupdate": true,
-
-  // TUI settings
-  "tui": {
-    "scroll_speed": 3,
-    "scroll_acceleration": { "enabled": true },
-    "diff_style": "auto"
-  },
-
-  // Server settings
-  "server": {
-    "port": 4096,
-    "hostname": "127.0.0.1",
-    "cors": ["http://localhost:5173"]
-  },
-
-  // Tool access
-  "tools": {
-    "write": true,
-    "edit": true,
-    "bash": true
-  },
-
-  // Permissions
-  "permission": {
-    "edit": "allow",
-    "bash": "ask",
-    "webfetch": "ask"
-  },
-
-  // Custom agents
-  "agent": {
-    "code-reviewer": {
-      "description": "Reviews code for best practices",
-      "mode": "subagent",
-      "model": "anthropic/claude-sonnet-4-20250514",
-      "tools": { "write": false, "edit": false },
-      "permission": { "bash": "deny" }
-    }
-  },
-
-  // Custom commands
-  "command": {
-    "test": {
-      "template": "Run tests and show failures",
-      "description": "Run test suite",
-      "agent": "build"
-    }
-  },
-
-  // Provider configuration
-  "provider": {
-    "anthropic": {
-      "options": {
-        "timeout": 600000
-      }
-    }
-  },
-
-  // MCP servers
-  "mcp": {
-    "filesystem": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
-      "enabled": true
-    }
-  },
-
-  // Additional instruction files
-  "instructions": ["CONTRIBUTING.md", "docs/guidelines.md"]
-}
-```
-
----
-
-## Creating Custom Agents via Markdown
-
-Define agents using markdown files in `.opencode/agents/` (project) or `~/.config/opencode/agents/` (global).
-
-```markdown
----
-description: Reviews code for security vulnerabilities
-mode: subagent
-model: anthropic/claude-sonnet-4-20250514
-temperature: 0.1
-tools:
-  write: false
-  edit: false
-  bash: false
-permission:
-  bash: deny
-  webfetch: deny
----
-
-You are a security auditor. Focus on identifying potential security issues:
-
-- Input validation vulnerabilities
-- Authentication and authorization flaws
-- Data exposure risks
-- Dependency vulnerabilities
-- Configuration security issues
-
-Provide detailed findings with severity levels and remediation suggestions.
-Do not modify any code - only analyze and report.
-```
-
----
-
-## HTTP API Examples
-
-Direct HTTP requests to the OpenCode server for custom integrations.
+All SDK methods map to HTTP endpoints that can be called directly with curl or any HTTP client.
 
 ```bash
+# Start server with authentication
+OPENCODE_SERVER_PASSWORD=secret opencode serve --port 4096
+
+# Health check
+curl http://localhost:4096/global/health
+
 # List sessions
 curl http://localhost:4096/session
 
-# Create a new session
+# Create session
 curl -X POST http://localhost:4096/session \
   -H "Content-Type: application/json" \
-  -d '{"title": "API Test Session"}'
+  -d '{"title": "My Session"}'
 
-# Send a prompt
-curl -X POST http://localhost:4096/session/{sessionId}/message \
+# Send prompt
+curl -X POST http://localhost:4096/session/{id}/message \
   -H "Content-Type: application/json" \
   -d '{
-    "model": {"providerID": "anthropic", "modelID": "claude-sonnet-4-20250514"},
-    "parts": [{"type": "text", "text": "Hello, analyze this codebase"}]
+    "parts": [{"type": "text", "text": "Hello!"}],
+    "model": {"providerID": "anthropic", "modelID": "claude-sonnet-4-5"}
   }'
 
-# Get session messages
-curl http://localhost:4096/session/{sessionId}/message
+# Search files
+curl "http://localhost:4096/find/file?query=*.ts&type=file&limit=20"
 
-# Search for text in files
-curl "http://localhost:4096/find?pattern=function.*test"
+# Search text
+curl "http://localhost:4096/find?pattern=function.*async"
 
-# Find files by name
-curl "http://localhost:4096/find/file?query=*.ts&type=file&limit=50"
-
-# Read file content
+# Read file
 curl "http://localhost:4096/file/content?path=src/index.ts"
 
-# Get MCP server status
-curl http://localhost:4096/mcp
+# Get OpenAPI spec
+curl http://localhost:4096/doc
 
 # Subscribe to events (SSE)
 curl -N http://localhost:4096/event
-
-# Get available agents
-curl http://localhost:4096/agent
-
-# Get OpenAPI specification
-curl http://localhost:4096/doc
 ```
 
----
+## Environment Variables
 
-## Summary
+Configure OpenCode behavior via environment variables.
 
-OpenCode provides a comprehensive platform for AI-assisted software development, supporting both interactive terminal usage and programmatic integration through its SDK and HTTP API. The primary use cases include automated code generation and refactoring, code review and security analysis, documentation generation, codebase exploration and understanding, and building custom development workflows. The SDK enables seamless integration into existing tools, CI/CD pipelines, and custom applications.
+Environment variables control features, paths, authentication, and experimental options.
 
-Integration patterns typically involve either running OpenCode as a standalone server (`opencode serve`) and connecting via the SDK or HTTP API, or using the `createOpencode()` function to spin up both server and client programmatically. The event subscription system enables real-time monitoring of sessions, while the agent system allows for specialized AI assistants with controlled tool access and permissions. Custom agents can be defined in JSON configuration or markdown files, making it easy to create purpose-built assistants for specific development tasks.
+```bash
+# Configuration
+export OPENCODE_CONFIG=/path/to/custom-config.json
+export OPENCODE_CONFIG_DIR=/path/to/config-directory
+export OPENCODE_CONFIG_CONTENT='{"model": "anthropic/claude-sonnet-4-5"}'
+
+# Server authentication
+export OPENCODE_SERVER_PASSWORD=your-password
+export OPENCODE_SERVER_USERNAME=admin
+
+# Feature flags
+export OPENCODE_AUTO_SHARE=true
+export OPENCODE_DISABLE_AUTOUPDATE=true
+export OPENCODE_DISABLE_AUTOCOMPACT=true
+export OPENCODE_DISABLE_LSP_DOWNLOAD=true
+export OPENCODE_DISABLE_DEFAULT_PLUGINS=true
+export OPENCODE_ENABLE_EXPERIMENTAL_MODELS=true
+export OPENCODE_CLIENT=my-custom-client
+
+# Provider credentials
+export ANTHROPIC_API_KEY=sk-ant-...
+export OPENAI_API_KEY=sk-...
+export AWS_PROFILE=my-profile
+export AWS_REGION=us-east-1
+
+# Experimental features
+export OPENCODE_EXPERIMENTAL=true
+export OPENCODE_EXPERIMENTAL_LSP_TOOL=true
+export OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS=60000
+export OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX=8192
+
+# Run with environment variables
+OPENCODE_AUTO_SHARE=true opencode run "Explain this code"
+```
+
+OpenCode provides a flexible architecture for AI-assisted development with support for multiple LLM providers, extensive customization options, and both interactive and programmatic interfaces. The combination of the TUI for interactive work, the CLI for scripting, and the SDK for integrations makes it adaptable to various development workflows.
+
+For building integrations, the primary patterns are: (1) using `createOpencode()` to spawn a server and get a connected client, (2) using `createOpencodeClient()` to connect to an existing server, and (3) subscribing to the event stream for real-time updates. The session-based model allows maintaining conversation context across multiple prompts, while structured output enables reliable data extraction from AI responses.
