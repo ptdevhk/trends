@@ -7,7 +7,7 @@
 		build-static build-static-fresh build-extension-zip serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
-		seed seed-full seed-force \
+		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
@@ -363,6 +363,18 @@ seed-force:
 		npx tsx scripts/seed-convex.ts --force; \
 	fi
 
+# Clear all Convex seeded data (full reset)
+seed-clear:
+	@npm --workspace @trends/convex exec convex run seed:clearAll
+
+# Clear workspace-scoped Convex data only (defaults to dev)
+seed-clear-workspace:
+	@npm --workspace @trends/convex exec convex run seed:clearWorkspaceData '{"workspaceSlug":"$(or $(WORKSPACE),dev)"}'
+
+# Shortcut: clear only dev workspace-scoped data
+seed-clear-dev:
+	@$(MAKE) seed-clear-workspace WORKSPACE=dev
+
 # Seed deterministic resume matches into output/resume_screening.db
 seed-matches:
 	@npx tsx scripts/seed-matches.ts
@@ -685,6 +697,9 @@ help:
 	@echo "  seed           Seed Convex with system job descriptions"
 	@echo "  seed-full      Seed Convex with system job descriptions + sample resumes"
 	@echo "  seed-force     Force seed Convex even if DB is not empty"
+	@echo "  seed-clear     Clear all Convex seeded data (seed:clearAll)"
+	@echo "  seed-clear-workspace WORKSPACE=<slug> Clear workspace-scoped Convex data (default: dev)"
+	@echo "  seed-clear-dev Clear workspace-scoped Convex data for dev"
 	@echo "  seed-matches   Seed deterministic resume matches for dev mode"
 	@echo "  clear-matches  Clear cached resume matches from SQLite"
 	@echo "  verify-critical-path Run critical-path smoke verification (Collection -> Search -> Analysis)"

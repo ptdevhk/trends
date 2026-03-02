@@ -605,6 +605,66 @@ export const seedWorkspaceDemoData = mutation({
     },
 });
 
+export const clearWorkspaceData = mutation({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        let customJobDescriptions = 0;
+        let searchProfiles = 0;
+        let screeningSessions = 0;
+        let workspaceConfig = 0;
+
+        const customJds = await ctx.db
+            .query("job_descriptions")
+            .filter((q) => q.eq(q.field("type"), "custom"))
+            .collect();
+        for (const jd of customJds) {
+            if (!belongsToWorkspace(jd.workspaceSlug, workspaceSlug)) {
+                continue;
+            }
+            await ctx.db.delete(jd._id);
+            customJobDescriptions += 1;
+        }
+
+        const profiles = await ctx.db.query("search_profiles").collect();
+        for (const profile of profiles) {
+            if (!belongsToWorkspace(profile.workspaceSlug, workspaceSlug)) {
+                continue;
+            }
+            await ctx.db.delete(profile._id);
+            searchProfiles += 1;
+        }
+
+        const sessions = await ctx.db.query("screening_sessions").collect();
+        for (const session of sessions) {
+            if (!belongsToWorkspace(session.workspaceSlug, workspaceSlug)) {
+                continue;
+            }
+            await ctx.db.delete(session._id);
+            screeningSessions += 1;
+        }
+
+        const configEntries = await ctx.db
+            .query("workspace_config")
+            .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
+            .collect();
+        for (const entry of configEntries) {
+            await ctx.db.delete(entry._id);
+            workspaceConfig += 1;
+        }
+
+        return {
+            workspaceSlug,
+            customJobDescriptions,
+            searchProfiles,
+            screeningSessions,
+            workspaceConfig,
+        };
+    },
+});
+
 export const clearAll = mutation({
     args: {},
     handler: async (ctx) => {
