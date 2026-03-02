@@ -147,6 +147,7 @@ export default defineSchema({
 
     analysis_tasks: defineTable({
         idempotencyKey: v.optional(v.string()),
+        jobKey: v.optional(v.string()),
         config: v.object({
             jobDescriptionId: v.optional(v.string()),
             jobDescriptionTitle: v.optional(v.string()),
@@ -176,11 +177,12 @@ export default defineSchema({
         })),
         lastStatus: v.optional(v.string()),
         error: v.optional(v.string()),
-            startedAt: v.optional(v.number()),
-            completedAt: v.optional(v.number()),
+        startedAt: v.optional(v.number()),
+        completedAt: v.optional(v.number()),
     })
         .index("by_status", ["status"])
-        .index("by_idempotency_status", ["idempotencyKey", "status"]),
+        .index("by_idempotency_status", ["idempotencyKey", "status"])
+        .index("by_job_key_status", ["jobKey", "status"]),
 
     // Persistent User Sessions
     screening_sessions: defineTable({

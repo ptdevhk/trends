@@ -281,6 +281,13 @@ export const dispatch = mutation({
         const uniqueResumeIds = Array.from(uniqueResumeIdMap.values());
         const derivedJobDescriptionId = args.jobDescriptionId
             || (normalizedKeywords.length > 0 ? buildKeywordAnalysisId(normalizedKeywords) : undefined);
+        const jobKey = buildAnalysisDispatchJobKey({
+            derivedJobDescriptionId,
+            jobDescriptionTitle: args.jobDescriptionTitle,
+            jobDescriptionContent: args.jobDescriptionContent,
+            keywords: normalizedKeywords,
+            resumeIds: uniqueResumeIds.map((resumeId) => String(resumeId)),
+        });
         const idempotencyKey = buildAnalysisDispatchIdempotencyKey({
             derivedJobDescriptionId,
             jobDescriptionTitle: args.jobDescriptionTitle,
@@ -309,8 +316,29 @@ export const dispatch = mutation({
             return existingPendingTask._id;
         }
 
+        const existingProcessingTaskByJobKey = await ctx.db
+            .query("analysis_tasks")
+            .withIndex("by_job_key_status", (q) =>
+                q.eq("jobKey", jobKey).eq("status", "processing")
+            )
+            .first();
+        if (existingProcessingTaskByJobKey) {
+            return existingProcessingTaskByJobKey._id;
+        }
+
+        const existingPendingTaskByJobKey = await ctx.db
+            .query("analysis_tasks")
+            .withIndex("by_job_key_status", (q) =>
+                q.eq("jobKey", jobKey).eq("status", "pending")
+            )
+            .first();
+        if (existingPendingTaskByJobKey) {
+            return existingPendingTaskByJobKey._id;
+        }
+
         const taskId = await ctx.db.insert("analysis_tasks", {
             idempotencyKey,
+            jobKey,
             config: {
                 jobDescriptionId: derivedJobDescriptionId,
                 jobDescriptionTitle: args.jobDescriptionTitle,

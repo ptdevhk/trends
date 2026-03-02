@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
+import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import { useConvexResumes, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useSession } from '@/hooks/useSession'
@@ -40,6 +41,39 @@ type EnrichedResume = {
   match?: MatchingResult
   ruleScore?: number
   action?: CandidateActionType | undefined
+}
+
+type AnalysisTaskDoc = Doc<'analysis_tasks'>
+
+function normalizeKeywordFingerprint(keywords: string[]): string {
+  return [...keywords]
+    .map((keyword) => keyword.trim().toLowerCase())
+    .filter((keyword) => keyword.length > 0)
+    .sort()
+    .join('|')
+}
+
+function taskMatchesCurrentSearch(
+  task: AnalysisTaskDoc,
+  jobDescriptionId: string | undefined,
+  sessionKeywords: string[]
+): boolean {
+  if (task.status !== 'pending' && task.status !== 'processing') {
+    return false
+  }
+
+  const normalizedJobDescriptionId = (jobDescriptionId ?? '').trim()
+  if (normalizedJobDescriptionId && task.config.jobDescriptionId === normalizedJobDescriptionId) {
+    return true
+  }
+
+  if (sessionKeywords.length > 0 && task.config.keywords?.length) {
+    const normalizedSessionKeywords = normalizeKeywordFingerprint(sessionKeywords)
+    const normalizedTaskKeywords = normalizeKeywordFingerprint(task.config.keywords)
+    return normalizedSessionKeywords.length > 0 && normalizedSessionKeywords === normalizedTaskKeywords
+  }
+
+  return false
 }
 
 function getExportErrorMessage(value: unknown): string | undefined {
@@ -103,6 +137,7 @@ export function useResumeListState() {
   }, [jobDescriptionId, sessionKeywords])
 
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery, jobDescriptionId)
+  const analysisTasks = useQuery(api.analysis_tasks.list)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)
   const [lastDispatchTime, setLastDispatchTime] = useState<number>(0)
@@ -113,6 +148,12 @@ export function useResumeListState() {
   }, [])
 
   const activeLoading = mode === 'ai' ? convexLoading : loading
+  const hasActiveTask = useMemo(() => {
+    if (!analysisTasks || analysisTasks.length === 0) {
+      return false
+    }
+    return analysisTasks.some((task) => taskMatchesCurrentSearch(task, jobDescriptionId, sessionKeywords))
+  }, [analysisTasks, jobDescriptionId, sessionKeywords])
 
   const filteredConvexResumes = useMemo(() => {
     let result: ScoredConvexResume[] = convexResumes
@@ -182,6 +223,10 @@ export function useResumeListState() {
   const handleAnalyzeAll = useCallback(async () => {
     if (!convexResumes.length) return
     if (!jobDescriptionId && sessionKeywords.length === 0) return
+    if (hasActiveTask) {
+      toast.info(t('aiTasks.waitForCompletion', 'Please wait for current analysis to complete.'))
+      return
+    }
 
     const now = Date.now()
     if (now - lastDispatchTime < DISPATCH_COOLDOWN_MS) {
@@ -264,6 +309,7 @@ export function useResumeListState() {
     convexResumes.length,
     dispatchAnalysis,
     filteredConvexResumes,
+    hasActiveTask,
     jobDescriptionId,
     lastDispatchTime,
     selectedSample,
@@ -527,7 +573,7 @@ export function useResumeListState() {
   }, [displayedResumes])
 
   const hasInput = Boolean(jobDescriptionId) || sessionKeywords.length > 0
-  const disableAnalyzeButton = (filteredConvexResumes.length === 0 || analyzing || !hasInput)
+  const disableAnalyzeButton = (filteredConvexResumes.length === 0 || analyzing || !hasInput || hasActiveTask)
 
   const handleQuickStartApply = useCallback(
     (config: {
@@ -578,6 +624,7 @@ export function useResumeListState() {
     error,
     activeLoading,
     analyzing,
+    hasActiveTask,
     disableAnalyzeButton,
     selectedIds,
     highScoreCount,

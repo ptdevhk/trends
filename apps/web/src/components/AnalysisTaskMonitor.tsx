@@ -128,7 +128,10 @@ function TaskItem({
 
       {task.status === 'completed' && task.results ? (
         <div className="text-xs text-muted-foreground">
-          {t('aiTasks.monitor.analyzed')}: {task.results.analyzed} | {t('aiTasks.monitor.avgScore')}: {task.results.avgScore} | {t('aiTasks.monitor.highScore')}: {task.results.highScoreCount}
+          {t('aiTasks.monitor.analyzed')}: {task.results.analyzed}
+          {task.results.failed > 0 ? ` | ${t('aiTasks.monitor.failed')}: ${task.results.failed}` : ''}
+          {' '}| {t('aiTasks.monitor.avgScore')}: {task.results.avgScore}
+          {' '}| {t('aiTasks.monitor.highScore')}: {task.results.highScoreCount}
         </div>
       ) : null}
 
