@@ -2029,6 +2029,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
                 /** @description Profile not found */
                 404: {
                     headers: {
@@ -2147,6 +2160,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
                 /** @description Profile/status not found */
                 404: {
                     headers: {
@@ -2201,6 +2227,19 @@ export interface paths {
                             profile: {
                                 [key: string]: unknown;
                             };
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
                         };
                     };
                 };
@@ -2265,6 +2304,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
                 /** @description Profile not found */
                 404: {
                     headers: {
@@ -2302,6 +2354,19 @@ export interface paths {
                         "application/json": {
                             /** @enum {boolean} */
                             success: true;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
                         };
                     };
                 };
@@ -2859,7 +2924,75 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /** Create workspace filter preset */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        id: string;
+                        name: string;
+                        category: string;
+                        filters: {
+                            minExperience?: number;
+                            maxExperience?: number | null;
+                            education?: string[];
+                            salaryRange?: {
+                                min?: number;
+                                max?: number;
+                            };
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            preset: {
+                                id: string;
+                                name: string;
+                                category: string;
+                                filters: {
+                                    minExperience?: number;
+                                    maxExperience?: number | null;
+                                    education?: string[];
+                                    salaryRange?: {
+                                        min?: number;
+                                        max?: number;
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Already exists */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -3009,9 +3142,117 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        /** Update workspace filter preset */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        category?: string;
+                        filters?: {
+                            minExperience?: number;
+                            maxExperience?: number | null;
+                            education?: string[];
+                            salaryRange?: {
+                                min?: number;
+                                max?: number;
+                            };
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            preset: {
+                                id: string;
+                                name: string;
+                                category: string;
+                                filters: {
+                                    minExperience?: number;
+                                    maxExperience?: number | null;
+                                    education?: string[];
+                                    salaryRange?: {
+                                        min?: number;
+                                        max?: number;
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         post?: never;
-        delete?: never;
+        /** Delete workspace filter preset */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;

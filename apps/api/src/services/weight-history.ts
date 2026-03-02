@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { findProjectRoot } from "./db.js";
-import { loadRuleWeightsConfig, saveRuleWeightsConfig, type RuleWeightsConfig } from "./rule-scoring.js";
+import { type RuleWeightsConfig } from "./rule-scoring.js";
+import { workspaceConfigService } from "./workspace-config-service.js";
 
 type RuleCategoryWeights = RuleWeightsConfig["categoryWeights"];
 
@@ -141,18 +142,21 @@ export class WeightHistoryService {
       .slice(0, Math.max(1, limit));
   }
 
-  rollback(entryTs: string): { restored: WeightHistoryEntry; rollbackEntry: WeightHistoryEntry } {
+  async rollback(
+    entryTs: string,
+    workspaceSlug: string
+  ): Promise<{ restored: WeightHistoryEntry; rollbackEntry: WeightHistoryEntry }> {
     const target = this.getHistory(5000).find((entry) => entry.ts === entryTs);
     if (!target) {
       throw new Error(`Weight history entry not found: ${entryTs}`);
     }
 
-    const current = loadRuleWeightsConfig(this.projectRoot);
+    const current = await workspaceConfigService.getRuleWeights(workspaceSlug);
     const rollbackConfig: RuleWeightsConfig = {
       ...current,
       categoryWeights: target.before,
     };
-    saveRuleWeightsConfig(this.projectRoot, rollbackConfig);
+    await workspaceConfigService.setWorkspaceRuleWeights(workspaceSlug, rollbackConfig);
 
     const rollbackEntry = this.appendEntry({
       reason: `rollback:${entryTs}`,

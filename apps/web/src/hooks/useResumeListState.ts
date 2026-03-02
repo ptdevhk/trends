@@ -8,14 +8,12 @@ import { useConvexResumes, type ConvexResumeItem } from '@/hooks/useConvexResume
 import { useSession } from '@/hooks/useSession'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { rawApiClient } from '@/lib/api-helpers'
-import { expandKeyword, DEFAULT_CONFIG, calculateResumeScore } from '@/lib/trendradar/parser'
+import { expandKeyword, DEFAULT_CONFIG } from '@/lib/trendradar/parser'
 import type { CandidateActionType, MatchingResult, ResumeFilters } from '@/types/resume'
 import {
   buildLearningObservation,
   buildResumeKey,
-  buildRuleScoringText,
   getAnalysisForJob,
-  getPrecomputedRuleScore,
   hasIngestData,
   isAutoFilteredAnalysis,
   toMatchBreakdown,
@@ -123,18 +121,10 @@ export function useResumeListState() {
         return !isAutoFilteredAnalysis(analysis)
       })
       .map((resume: ConvexResumeItem) => {
-        const precomputedScore = getPrecomputedRuleScore(resume, jobDescriptionId)
-        if (precomputedScore !== null) {
-          return {
-            ...resume,
-            _ruleScore: precomputedScore,
-          }
-        }
-
-        const fallbackScore = calculateResumeScore(buildRuleScoringText(resume), DEFAULT_CONFIG).score
+        // Pre-computed scores are hidden by default until explicit review.
         return {
           ...resume,
-          _ruleScore: fallbackScore,
+          _ruleScore: 0,
         }
       })
 

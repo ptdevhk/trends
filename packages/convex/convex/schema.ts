@@ -119,11 +119,15 @@ export default defineSchema({
     // Optional: Search Profiles (if we want to store user configs)
     search_profiles: defineTable({
         name: v.string(),
+        profileId: v.optional(v.string()),
         criteria: v.object({
             keywords: v.array(v.string()),
             locations: v.array(v.string()),
         }),
+        profile: v.optional(v.any()),
         lastRunAt: v.optional(v.number()),
+        createdAt: v.optional(v.number()),
+        updatedAt: v.optional(v.number()),
         workspaceSlug: v.optional(v.string()),
     }).index("by_workspace", ["workspaceSlug"]),
 

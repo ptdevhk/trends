@@ -2,19 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { findProjectRoot } from "./db.js";
-import {
-  loadRuleWeightsConfig,
-  saveRuleWeightsConfig,
-  type RuleWeightsConfig,
-} from "./rule-scoring.js";
+import { type RuleWeightsConfig } from "./rule-scoring.js";
 import {
   SearchEventAnalyzer,
   type AnalysisReport,
   type WeightValidationReport,
   type WeightAdjustmentSuggestion,
 } from "./search-event-analyzer.js";
-import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { WeightHistoryService, type WeightHistoryEntry } from "./weight-history.js";
+import { workspaceConfigService } from "./workspace-config-service.js";
 
 type RuleCategoryWeights = RuleWeightsConfig["categoryWeights"];
 type CategoryKey = keyof RuleCategoryWeights;
@@ -27,6 +23,7 @@ interface AutoTuneState {
 type FetchLike = typeof fetch;
 
 export interface ScoringAutoTuneRunOptions {
+  workspaceSlug?: string;
   dryRun?: boolean;
   periodDays?: number;
   k?: number;
@@ -183,7 +180,6 @@ function areCategoryWeightsEqual(left: RuleCategoryWeights, right: RuleCategoryW
 export class ScoringAutoTuner {
   private readonly projectRoot: string;
   private readonly analyzer: SearchEventAnalyzer;
-  private readonly skillsService: SkillsKnowledgeService;
   private readonly weightHistory: WeightHistoryService;
   private readonly fetchImpl: FetchLike;
   private readonly now: () => Date;
@@ -192,7 +188,6 @@ export class ScoringAutoTuner {
     projectRoot?: string,
     deps?: {
       analyzer?: SearchEventAnalyzer;
-      skillsService?: SkillsKnowledgeService;
       weightHistory?: WeightHistoryService;
       fetchImpl?: FetchLike;
       now?: () => Date;
@@ -200,7 +195,6 @@ export class ScoringAutoTuner {
   ) {
     this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
     this.analyzer = deps?.analyzer ?? new SearchEventAnalyzer(this.projectRoot);
-    this.skillsService = deps?.skillsService ?? new SkillsKnowledgeService(this.projectRoot);
     this.weightHistory = deps?.weightHistory ?? new WeightHistoryService(this.projectRoot);
     this.fetchImpl = deps?.fetchImpl ?? fetch;
     this.now = deps?.now ?? (() => new Date());
@@ -275,6 +269,7 @@ export class ScoringAutoTuner {
   }
 
   async run(options?: ScoringAutoTuneRunOptions): Promise<ScoringAutoTuneRunResult> {
+    const workspaceSlug = options?.workspaceSlug?.trim() || "dev";
     const dryRun = options?.dryRun === true;
     const periodDays = Math.max(1, options?.periodDays ?? 14);
     const k = Math.max(1, options?.k ?? 10);
@@ -309,7 +304,7 @@ export class ScoringAutoTuner {
       };
     }
 
-    const currentConfig = loadRuleWeightsConfig(this.projectRoot);
+    const currentConfig = await workspaceConfigService.getRuleWeights(workspaceSlug);
     const proposedCategoryWeights = this.applySuggestions(
       currentConfig.categoryWeights,
       report.suggestions.weightAdjustments
@@ -378,7 +373,7 @@ export class ScoringAutoTuner {
       ...currentConfig,
       categoryWeights: proposedCategoryWeights,
     };
-    saveRuleWeightsConfig(this.projectRoot, updatedConfig);
+    await workspaceConfigService.setWorkspaceRuleWeights(workspaceSlug, updatedConfig);
 
     const highConfidenceSynonyms = report.suggestions.synonymSuggestions
       .filter((suggestion) => suggestion.confidence >= 0.8)
@@ -386,8 +381,15 @@ export class ScoringAutoTuner {
         variant: suggestion.variant,
         canonical: suggestion.canonical,
       }));
-    const synonymsApplied = this.skillsService.applySynonymSuggestions(highConfidenceSynonyms);
-    this.skillsService.appendLearningEntry(
+    const synonymsApplied = highConfidenceSynonyms.length;
+    for (const suggestion of highConfidenceSynonyms) {
+      await workspaceConfigService.appendLearningLogEntry(
+        workspaceSlug,
+        `synonym_suggestion: ${suggestion.variant} -> ${suggestion.canonical}`
+      );
+    }
+    await workspaceConfigService.appendLearningLogEntry(
+      workspaceSlug,
       `auto_tune_weights: ndcg ${validation.current.ndcgAtK} -> ${validation.projected.ndcgAtK}`
     );
 

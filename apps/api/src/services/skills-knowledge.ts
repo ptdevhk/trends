@@ -811,73 +811,7 @@ export class SkillsKnowledgeService {
   }
 
   bumpVersion(): number {
-    const skillsPath = this.getSkillsPath();
-    if (!fs.existsSync(skillsPath)) {
-      throw new FileParseError(skillsPath, "skills.md not found");
-    }
-
-    const content = fs.readFileSync(skillsPath, "utf8");
-    const lines = content.split("\n");
-    if (lines[0]?.trim() !== "---") {
-      throw new FileParseError(skillsPath, "Invalid frontmatter: expected opening ---");
-    }
-
-    let frontmatterEnd = -1;
-    for (let index = 1; index < lines.length; index += 1) {
-      if (lines[index].trim() === "---") {
-        frontmatterEnd = index;
-        break;
-      }
-    }
-
-    if (frontmatterEnd === -1) {
-      throw new FileParseError(skillsPath, "Invalid frontmatter: no closing ---");
-    }
-
-    const frontmatterLines = lines.slice(1, frontmatterEnd);
-    const frontmatter = parseYaml(frontmatterLines.join("\n")) as unknown;
-    const currentVersion = (
-      isRecord(frontmatter)
-      && typeof frontmatter.version === "number"
-      && Number.isFinite(frontmatter.version)
-    )
-      ? Math.floor(frontmatter.version)
-      : 0;
-
-    const nextVersion = currentVersion + 1;
-    const updatedAt = new Date().toISOString().slice(0, 10);
-
-    let hasVersion = false;
-    let hasUpdatedAt = false;
-
-    const updatedFrontmatterLines = frontmatterLines.map((line) => {
-      if (/^version\s*:/.test(line)) {
-        hasVersion = true;
-        return `version: ${nextVersion}`;
-      }
-      if (/^updated_at\s*:/.test(line)) {
-        hasUpdatedAt = true;
-        return `updated_at: '${updatedAt}'`;
-      }
-      return line;
-    });
-
-    if (!hasVersion) {
-      updatedFrontmatterLines.push(`version: ${nextVersion}`);
-    }
-    if (!hasUpdatedAt) {
-      updatedFrontmatterLines.push(`updated_at: '${updatedAt}'`);
-    }
-
-    const nextLines = [
-      lines[0],
-      ...updatedFrontmatterLines,
-      ...lines.slice(frontmatterEnd),
-    ];
-
-    fs.writeFileSync(skillsPath, nextLines.join("\n"), "utf8");
-    this.clearCache();
-    return nextVersion;
+    throw new Error("skills.md is read-only at runtime");
   }
 
   appendLearningEntry(observation: string): string {
@@ -885,53 +819,7 @@ export class SkillsKnowledgeService {
     if (!normalizedObservation) {
       throw new Error("Observation cannot be empty");
     }
-
-    const skillsPath = this.getSkillsPath();
-    if (!fs.existsSync(skillsPath)) {
-      throw new FileParseError(skillsPath, "skills.md not found");
-    }
-
-    const content = fs.readFileSync(skillsPath, "utf8");
-    const lines = content.split("\n");
-    const learningLogIndex = lines.findIndex((line) =>
-      /^##\s+Learning Log(?:\s*\([^)]*\))?\s*$/i.test(line.trim())
-    );
-
-    if (learningLogIndex === -1) {
-      throw new FileParseError(skillsPath, "Learning Log section not found");
-    }
-
-    let sectionEndIndex = lines.length;
-    for (let index = learningLogIndex + 1; index < lines.length; index += 1) {
-      if (/^##\s+/.test(lines[index].trim())) {
-        sectionEndIndex = index;
-        break;
-      }
-    }
-
-    while (sectionEndIndex > learningLogIndex + 1 && lines[sectionEndIndex - 1].trim() === "") {
-      sectionEndIndex -= 1;
-    }
-
-    const date = new Date().toISOString().slice(0, 10);
-    const entry = `- ${date}: ${normalizedObservation}`;
-
-    const insertLines: string[] = [];
-    if (sectionEndIndex === learningLogIndex + 1) {
-      insertLines.push("");
-    }
-    insertLines.push(entry);
-
-    const updatedLines = [
-      ...lines.slice(0, sectionEndIndex),
-      ...insertLines,
-      ...lines.slice(sectionEndIndex),
-    ];
-
-    fs.writeFileSync(skillsPath, updatedLines.join("\n"), "utf8");
-    this.clearCache();
-
-    return entry;
+    throw new Error("skills.md is read-only at runtime");
   }
 
   applySynonymSuggestions(
@@ -940,93 +828,7 @@ export class SkillsKnowledgeService {
     if (suggestions.length === 0) {
       return 0;
     }
-
-    const skillsPath = this.getSkillsPath();
-    if (!fs.existsSync(skillsPath)) {
-      throw new FileParseError(skillsPath, "skills.md not found");
-    }
-
-    const content = fs.readFileSync(skillsPath, "utf8");
-    const lines = content.split("\n");
-    const synonymHeadingIndex = lines.findIndex((line) => /^##\s+Synonym Table\s*$/i.test(line.trim()));
-    if (synonymHeadingIndex === -1) {
-      throw new FileParseError(skillsPath, "Synonym Table section not found");
-    }
-
-    let sectionEndIndex = lines.length;
-    for (let index = synonymHeadingIndex + 1; index < lines.length; index += 1) {
-      if (/^##\s+/.test(lines[index].trim())) {
-        sectionEndIndex = index;
-        break;
-      }
-    }
-
-    const existing = new Map<string, { canonical: string; variants: Set<string> }>();
-    for (const line of lines.slice(synonymHeadingIndex + 1, sectionEndIndex)) {
-      const match = line.match(/^\s*-\s*([^:]+):\s*(.+)$/);
-      if (!match) {
-        continue;
-      }
-
-      const canonicalRaw = match[1].trim();
-      const canonical = normalizeToken(canonicalRaw);
-      if (!canonical) {
-        continue;
-      }
-
-      const variants = match[2]
-        .split(",")
-        .map((value) => normalizeToken(value))
-        .filter((value) => value.length > 0 && value !== canonical);
-      existing.set(canonical, {
-        canonical: canonicalRaw,
-        variants: new Set(variants),
-      });
-    }
-
-    let addedCount = 0;
-    for (const suggestion of suggestions) {
-      const variant = normalizeToken(suggestion.variant);
-      const canonical = normalizeToken(suggestion.canonical);
-      if (!variant || !canonical || variant === canonical) {
-        continue;
-      }
-
-      const entry = existing.get(canonical) ?? {
-        canonical,
-        variants: new Set<string>(),
-      };
-      if (!entry.variants.has(variant)) {
-        entry.variants.add(variant);
-        addedCount += 1;
-      }
-      existing.set(canonical, entry);
-    }
-
-    if (addedCount === 0) {
-      return 0;
-    }
-
-    const synonymLines = Array.from(existing.entries())
-      .map(([canonical, entry]) => ({
-        canonical,
-        variants: Array.from(entry.variants).sort((left, right) => left.localeCompare(right)),
-      }))
-      .filter((entry) => entry.variants.length > 0)
-      .sort((left, right) => left.canonical.localeCompare(right.canonical))
-      .map((entry) => `- ${entry.canonical}: ${entry.variants.join(", ")}`);
-
-    const updatedLines = [
-      ...lines.slice(0, synonymHeadingIndex + 1),
-      "",
-      ...synonymLines,
-      "",
-      ...lines.slice(sectionEndIndex),
-    ];
-
-    fs.writeFileSync(skillsPath, updatedLines.join("\n"), "utf8");
-    this.clearCache();
-    return addedCount;
+    throw new Error("skills.md is read-only at runtime");
   }
 
   /**

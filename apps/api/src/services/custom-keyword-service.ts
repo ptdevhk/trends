@@ -129,14 +129,6 @@ export class CustomKeywordService {
         return this.cache;
     }
 
-    saveConfig(config: CustomKeywordsConfig): void {
-        const normalized = normalizeConfig(config);
-        const configPath = this.getConfigPath();
-        fs.writeFileSync(configPath, JSON.stringify(normalized, null, 2), "utf8");
-        this.cache = normalized;
-        this.cacheMtimeMs = this.getConfigMtime(configPath);
-    }
-
     listTags(category?: string): CustomKeywordTag[] {
         const config = this.loadConfig();
         if (!category) return config.tags;
@@ -146,50 +138,6 @@ export class CustomKeywordService {
     getTag(id: string): CustomKeywordTag | undefined {
         const config = this.loadConfig();
         return config.tags.find((tag) => tag.id === id);
-    }
-
-    addTag(tag: CustomKeywordTag): void {
-        const config = this.loadConfig();
-        config.tags.push(tag);
-        this.saveConfig(config);
-    }
-
-    updateTag(id: string, updates: Partial<CustomKeywordTag>): CustomKeywordTag | undefined {
-        const config = this.loadConfig();
-        const index = config.tags.findIndex((tag) => tag.id === id);
-        if (index === -1) {
-            return undefined;
-        }
-
-        const nextTag: CustomKeywordTag = {
-            ...config.tags[index],
-            ...updates,
-            id: config.tags[index].id,
-        };
-
-        if (!nextTag.keyword.trim() || !nextTag.category.trim()) {
-            return undefined;
-        }
-
-        config.tags[index] = {
-            ...nextTag,
-            keyword: nextTag.keyword.trim(),
-            english: nextTag.english?.trim() || undefined,
-            category: nextTag.category.trim(),
-        };
-        this.saveConfig(config);
-        return config.tags[index];
-    }
-
-    deleteTag(id: string): boolean {
-        const config = this.loadConfig();
-        const before = config.tags.length;
-        config.tags = config.tags.filter((tag) => tag.id !== id);
-        if (config.tags.length === before) {
-            return false;
-        }
-        this.saveConfig(config);
-        return true;
     }
 
     listCategories(): CustomKeywordCategory[] {

@@ -35,6 +35,7 @@ import {
   type ExportFormat,
   type ResumeExportEntry,
 } from "../services/export-service.js";
+import { workspaceConfigService } from "../services/workspace-config-service.js";
 
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
@@ -1685,7 +1686,11 @@ app.post("/api/resumes/learning-feedback", async (c) => {
   }
 
   try {
-    const entry = skillsKnowledgeService.appendLearningEntry(parsed.data.observation);
+    const learningEntry = await workspaceConfigService.appendLearningLogEntry(
+      c.var.workspaceSlug,
+      parsed.data.observation
+    );
+    const entry = `- ${learningEntry.date}: ${learningEntry.observation}`;
     if (parsed.data.action && parsed.data.resumeId) {
       searchEventLogger.logCandidateAction({
         resumeId: parsed.data.resumeId,
@@ -1705,7 +1710,7 @@ app.post("/api/resumes/learning-feedback", async (c) => {
       | undefined;
 
     if (shouldTriggerSkillsReingest(parsed.data.observation)) {
-      bumpedVersion = skillsKnowledgeService.bumpVersion();
+      bumpedVersion = skillsKnowledgeService.getVersion();
       reingest = await triggerReingestStaleSkillsVersion(parsed.data.autoReingestLimit ?? 200);
     }
 

@@ -14,6 +14,14 @@ import {
   type FilterPresetsConfig,
   type PresetCategory,
 } from "./filter-preset-service.js";
+import {
+  loadRuleWeightsConfig,
+  mergeRuleWeights,
+  parseRuleWeightsOverrides,
+  type RuleWeightsConfig,
+  type RuleWeightsConfigOverrides,
+} from "./rule-scoring.js";
+import { skillsKnowledgeService, type LearningLogEntry } from "./skills-knowledge.js";
 
 type WorkspaceConfigEntry = {
   workspaceSlug: string;
@@ -220,9 +228,39 @@ function parseFilterPresetsConfig(value: unknown): FilterPresetsConfig {
   return { presets, categories };
 }
 
+function parseLearningLogEntry(value: unknown): LearningLogEntry | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const date = readString(value.date);
+  const observation = readString(value.observation);
+  if (!date || !observation) {
+    return null;
+  }
+
+  return { date, observation };
+}
+
+function parseLearningLogConfig(value: unknown): LearningLogEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => parseLearningLogEntry(item))
+    .filter((item): item is LearningLogEntry => item !== null);
+}
+
+function parseRuleWeightsConfig(value: unknown): RuleWeightsConfigOverrides | undefined {
+  return parseRuleWeightsOverrides(value);
+}
+
 const CUSTOM_KEYWORDS_KEY = "custom-keywords";
 const AGENT_OVERRIDES_KEY = "agent-overrides";
 const FILTER_PRESETS_KEY = "filter-presets";
+const RULE_WEIGHTS_KEY = "rule-weights";
+const LEARNING_LOG_KEY = "learning-log";
 
 export class WorkspaceConfigService {
   readonly projectRoot: string;
@@ -438,6 +476,57 @@ export class WorkspaceConfigService {
       presets: Array.from(presetsById.values()),
       categories: Array.from(categoriesById.values()),
     };
+  }
+
+  async getWorkspaceRuleWeights(workspaceSlug: string): Promise<RuleWeightsConfigOverrides | undefined> {
+    const entry = await this.getWorkspaceConfigEntry(workspaceSlug, RULE_WEIGHTS_KEY);
+    return parseRuleWeightsConfig(entry?.configValue);
+  }
+
+  async setWorkspaceRuleWeights(
+    workspaceSlug: string,
+    config: RuleWeightsConfigOverrides | RuleWeightsConfig
+  ): Promise<void> {
+    await this.upsertWorkspaceConfigEntry(workspaceSlug, RULE_WEIGHTS_KEY, config);
+  }
+
+  async getRuleWeights(workspaceSlug: string): Promise<RuleWeightsConfig> {
+    const systemConfig = loadRuleWeightsConfig(this.projectRoot);
+    const workspaceConfig = await this.getWorkspaceRuleWeights(workspaceSlug);
+    const merged = mergeUnknown(systemConfig, workspaceConfig);
+    const mergedOverrides = parseRuleWeightsConfig(merged);
+    return mergeRuleWeights(mergedOverrides);
+  }
+
+  async getWorkspaceLearningLog(workspaceSlug: string): Promise<LearningLogEntry[]> {
+    const entry = await this.getWorkspaceConfigEntry(workspaceSlug, LEARNING_LOG_KEY);
+    return parseLearningLogConfig(entry?.configValue);
+  }
+
+  async setWorkspaceLearningLog(workspaceSlug: string, entries: LearningLogEntry[]): Promise<void> {
+    await this.upsertWorkspaceConfigEntry(workspaceSlug, LEARNING_LOG_KEY, entries);
+  }
+
+  async appendLearningLogEntry(workspaceSlug: string, observation: string, date?: string): Promise<LearningLogEntry> {
+    const normalizedObservation = observation.trim();
+    if (!normalizedObservation) {
+      throw new Error("Observation cannot be empty");
+    }
+
+    const entry: LearningLogEntry = {
+      date: date?.trim() || new Date().toISOString().slice(0, 10),
+      observation: normalizedObservation,
+    };
+    const currentEntries = await this.getWorkspaceLearningLog(workspaceSlug);
+    currentEntries.push(entry);
+    await this.setWorkspaceLearningLog(workspaceSlug, currentEntries);
+    return entry;
+  }
+
+  async getLearningLog(workspaceSlug: string): Promise<LearningLogEntry[]> {
+    const systemEntries = skillsKnowledgeService.getLearningLog();
+    const workspaceEntries = await this.getWorkspaceLearningLog(workspaceSlug);
+    return [...systemEntries, ...workspaceEntries];
   }
 }
 

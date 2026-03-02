@@ -27,6 +27,14 @@ const CustomKeywordUpdateSchema = z.object({
   english: z.string().optional(),
   category: z.string().optional(),
 });
+const RuleWeightsConfigSchema = z.record(z.unknown());
+const LearningLogEntrySchema = z.object({
+  date: z.string(),
+  observation: z.string(),
+});
+const LearningLogAppendSchema = z.object({
+  observation: z.string().trim().min(1),
+});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -248,6 +256,63 @@ app.delete("/custom-keywords/:id", requireAdmin, async (c) => {
   } catch (error) {
     console.error("Failed to delete custom keyword", error);
     return c.json({ success: false as const, error: "Failed to delete custom keyword" }, 500);
+  }
+});
+
+app.get("/rule-weights", async (c) => {
+  try {
+    const config = await workspaceConfigService.getRuleWeights(c.var.workspaceSlug);
+    return c.json({ success: true as const, config }, 200);
+  } catch (error) {
+    console.error("Failed to load rule weights", error);
+    return c.json({ success: false as const, error: "Failed to load rule weights" }, 500);
+  }
+});
+
+app.put("/rule-weights", requireAdmin, async (c) => {
+  try {
+    const body: unknown = await c.req.json();
+    const parsed = RuleWeightsConfigSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ success: false as const, error: "Invalid rule weights payload" }, 400);
+    }
+
+    await workspaceConfigService.setWorkspaceRuleWeights(c.var.workspaceSlug, parsed.data);
+    const merged = await workspaceConfigService.getRuleWeights(c.var.workspaceSlug);
+    return c.json({ success: true as const, config: merged }, 200);
+  } catch (error) {
+    console.error("Failed to update rule weights", error);
+    return c.json({ success: false as const, error: "Failed to update rule weights" }, 500);
+  }
+});
+
+app.get("/learning-log", async (c) => {
+  try {
+    const entries = await workspaceConfigService.getLearningLog(c.var.workspaceSlug);
+    const parsed = z.array(LearningLogEntrySchema).safeParse(entries);
+    if (!parsed.success) {
+      return c.json({ success: false as const, error: "Invalid learning log format" }, 500);
+    }
+    return c.json({ success: true as const, entries: parsed.data }, 200);
+  } catch (error) {
+    console.error("Failed to load learning log", error);
+    return c.json({ success: false as const, error: "Failed to load learning log" }, 500);
+  }
+});
+
+app.post("/learning-log", requireAdmin, async (c) => {
+  try {
+    const body: unknown = await c.req.json();
+    const parsed = LearningLogAppendSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ success: false as const, error: "Invalid learning log payload" }, 400);
+    }
+
+    const entry = await workspaceConfigService.appendLearningLogEntry(c.var.workspaceSlug, parsed.data.observation);
+    return c.json({ success: true as const, entry }, 201);
+  } catch (error) {
+    console.error("Failed to append learning log", error);
+    return c.json({ success: false as const, error: "Failed to append learning log" }, 500);
   }
 });
 

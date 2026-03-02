@@ -1,10 +1,10 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 import { config } from "../services/config.js";
-import { loadRuleWeightsConfig } from "../services/rule-scoring.js";
 import { ScoringAutoTuner } from "../services/scoring-auto-tuner.js";
 import { SearchEventAnalyzer } from "../services/search-event-analyzer.js";
 import { WeightHistoryService } from "../services/weight-history.js";
+import { workspaceConfigService } from "../services/workspace-config-service.js";
 
 const app = new OpenAPIHono();
 const analyzer = new SearchEventAnalyzer(config.projectRoot);
@@ -202,7 +202,10 @@ const runTunerRoute = createRoute({
 app.openapi(runTunerRoute, async (c) => {
   const body = c.req.valid("json");
   try {
-    const result = await autoTuner.run(body);
+    const result = await autoTuner.run({
+      ...body,
+      workspaceSlug: c.var.workspaceSlug,
+    });
     return c.json({ success: true as const, result }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -282,11 +285,11 @@ const rollbackRoute = createRoute({
   },
 });
 
-app.openapi(rollbackRoute, (c) => {
+app.openapi(rollbackRoute, async (c) => {
   const body = c.req.valid("json");
   try {
-    const rollback = weightHistory.rollback(body.entryTs);
-    const currentCategoryWeights = loadRuleWeightsConfig(config.projectRoot).categoryWeights;
+    const rollback = await weightHistory.rollback(body.entryTs, c.var.workspaceSlug);
+    const currentCategoryWeights = (await workspaceConfigService.getRuleWeights(c.var.workspaceSlug)).categoryWeights;
     return c.json(
       {
         success: true as const,

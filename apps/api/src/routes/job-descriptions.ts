@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { jobDescriptionService } from "../services/job-description-service.js";
 import { DataNotFoundError } from "../services/errors.js";
@@ -43,6 +45,153 @@ const MatchResponseSchema = z.object({
   filterPreset: z.string().optional(),
   suggestedFilters: z.record(z.unknown()).optional(),
 });
+
+type ConvexJobDescriptionRecord = {
+  _id?: unknown;
+  title?: unknown;
+  slug?: unknown;
+  content?: unknown;
+  type?: unknown;
+  enabled?: unknown;
+  lastModified?: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function readEnvVarFromFile(filePath: string, key: string): string | null {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match || match[1] !== key) {
+      continue;
+    }
+
+    let value = match[2].trim();
+    const hasDoubleQuotes = value.startsWith("\"") && value.endsWith("\"");
+    const hasSingleQuotes = value.startsWith("'") && value.endsWith("'");
+    if (hasDoubleQuotes || hasSingleQuotes) {
+      value = value.slice(1, -1);
+    }
+
+    return value;
+  }
+
+  return null;
+}
+
+function resolveConvexUrl(): string {
+  if (process.env.CONVEX_URL) {
+    return process.env.CONVEX_URL;
+  }
+  if (process.env.VITE_CONVEX_URL) {
+    return process.env.VITE_CONVEX_URL;
+  }
+
+  const projectRoot = jobDescriptionService.projectRoot;
+  const candidateFiles = [
+    path.join(projectRoot, "packages", "convex", ".env.local"),
+    path.join(projectRoot, "apps", "web", ".env.local"),
+    path.join(projectRoot, ".env.local"),
+    path.join(projectRoot, ".env"),
+  ];
+
+  for (const filePath of candidateFiles) {
+    const direct = readEnvVarFromFile(filePath, "CONVEX_URL");
+    if (direct) {
+      return direct;
+    }
+
+    const vite = readEnvVarFromFile(filePath, "VITE_CONVEX_URL");
+    if (vite) {
+      return vite;
+    }
+  }
+
+  return "http://127.0.0.1:3210";
+}
+
+async function callConvex(
+  type: "query" | "mutation",
+  pathName: string,
+  args: Record<string, unknown>
+): Promise<unknown> {
+  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
+  const response = await fetch(`${convexUrl}/api/${type}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ path: pathName, args }),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(`Convex ${type} failed (${response.status}): ${message}`);
+  }
+
+  const payload = await response.json() as unknown;
+  if (!isRecord(payload) || payload.status !== "success") {
+    const errorMessage = isRecord(payload) ? readString(payload.errorMessage) : undefined;
+    throw new Error(errorMessage ?? `Convex ${type} failed for ${pathName}`);
+  }
+
+  return payload.value;
+}
+
+async function listConvexJobDescriptions(workspaceSlug: string): Promise<ConvexJobDescriptionRecord[]> {
+  const value = await callConvex("query", "job_descriptions:list", { workspaceSlug });
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is ConvexJobDescriptionRecord => isRecord(item));
+}
+
+function toJobDescriptionFile(item: ConvexJobDescriptionRecord): {
+  id: string;
+  name: string;
+  filename: string;
+  updatedAt: string;
+  size: number;
+  title?: string;
+  status?: string;
+} | null {
+  const id = readString(item._id ? String(item._id) : item._id) ?? readString(item.slug);
+  const content = typeof item.content === "string" ? item.content : "";
+  if (!id) {
+    return null;
+  }
+
+  const title = readString(item.title);
+  const name = readString(item.slug) ?? id;
+  const lastModified = typeof item.lastModified === "number" ? item.lastModified : Date.now();
+  const enabled = item.enabled === false ? "inactive" : "active";
+
+  return {
+    id,
+    name,
+    filename: `${name}.md`,
+    updatedAt: new Date(lastModified).toISOString(),
+    size: content.length,
+    title,
+    status: enabled,
+  };
+}
 
 // ============================================================
 // GET /api/job-descriptions
@@ -108,14 +257,35 @@ const createRouteDef = createRoute({
   },
 });
 
-app.openapi(createRouteDef, (c) => {
+app.openapi(createRouteDef, async (c) => {
   if (c.var.accessLevel !== "admin") {
     return c.json({ success: false, error: "Admin access required" }, 403);
   }
   const { name, content, overwrite } = c.req.valid("json");
   try {
-    const jd = jobDescriptionService.createFile({ name, content, overwrite });
-    return c.json({ success: true as const, item: jd, content: jd.content }, 201);
+    if (overwrite) {
+      return c.json({ success: false, error: "Overwrite is not supported for read-only system files" }, 400);
+    }
+
+    const createdId = await callConvex("mutation", "job_descriptions:create", {
+      title: name,
+      content,
+      type: "custom",
+      workspaceSlug: c.var.workspaceSlug,
+    });
+
+    const items = await listConvexJobDescriptions(c.var.workspaceSlug);
+    const created = items.find((item) => String(item._id ?? "") === String(createdId));
+    if (!created) {
+      return c.json({ success: false, error: "Created job description could not be loaded" }, 500);
+    }
+
+    const mapped = toJobDescriptionFile(created);
+    if (!mapped) {
+      return c.json({ success: false, error: "Created job description payload is invalid" }, 500);
+    }
+
+    return c.json({ success: true as const, item: mapped, content }, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes("already exists")) {
@@ -224,16 +394,40 @@ const getRoute = createRoute({
   },
 });
 
-app.openapi(getRoute, (c) => {
+app.openapi(getRoute, async (c) => {
   const { name } = c.req.valid("param");
   try {
     const jd = jobDescriptionService.loadFile(name);
     return c.json({ success: true as const, item: jd, content: jd.content }, 200);
   } catch (error) {
-    if (error instanceof DataNotFoundError) {
+    if (!(error instanceof DataNotFoundError)) {
+      throw error;
+    }
+
+    const convexItems = await listConvexJobDescriptions(c.var.workspaceSlug);
+    const convexMatch = convexItems.find((item) => {
+      const itemId = String(item._id ?? "");
+      const slug = readString(item.slug);
+      return itemId === name || slug === name;
+    });
+
+    if (!convexMatch || typeof convexMatch.content !== "string") {
       return c.json({ success: false, error: error.message }, 404);
     }
-    throw error;
+
+    const mapped = toJobDescriptionFile(convexMatch);
+    if (!mapped) {
+      return c.json({ success: false, error: `Job description not found: ${name}` }, 404);
+    }
+
+    return c.json(
+      {
+        success: true as const,
+        item: mapped,
+        content: convexMatch.content,
+      },
+      200
+    );
   }
 });
 
