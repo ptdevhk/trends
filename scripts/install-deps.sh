@@ -20,7 +20,10 @@ echo "Installing Node.js dependencies..."
 if [ "${CI:-}" = "true" ]; then
     npm install
 elif command -v bun &> /dev/null; then
-    bun install
+    if ! bun install; then
+        echo "Warning: bun install failed, falling back to npm install..."
+        npm install
+    fi
 else
     npm install
 fi
