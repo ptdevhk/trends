@@ -343,21 +343,14 @@ describe("SkillsKnowledgeService", () => {
     }
   });
 
-  it("appends learning feedback into Learning Log section", () => {
+  it("rejects appending learning feedback at runtime (skills.md read-only)", () => {
     const root = createFixtureRoot();
 
     try {
       const service = new SkillsKnowledgeService(root);
-      const entry = service.appendLearningEntry("shortlist pattern -> cnc + senior");
-
-      expect(entry).toMatch(/^- \d{4}-\d{2}-\d{2}: shortlist pattern -> cnc \+ senior$/);
-
-      const log = service.getLearningLog();
-      expect(log).toHaveLength(7);
-      expect(log[6]?.observation).toBe("shortlist pattern -> cnc + senior");
-
-      const saved = fs.readFileSync(path.join(root, "config", "resume", "skills.md"), "utf8");
-      expect(saved).toContain(entry);
+      expect(() => service.appendLearningEntry("shortlist pattern -> cnc + senior")).toThrow(
+        "skills.md is read-only at runtime"
+      );
     } finally {
       cleanupFixtureRoot(root);
     }
@@ -421,19 +414,12 @@ describe("SkillsKnowledgeService", () => {
     }
   });
 
-  it("bumps skills version and updates frontmatter timestamp", () => {
+  it("rejects bumping skills version at runtime (skills.md read-only)", () => {
     const root = createFixtureRoot();
 
     try {
       const service = new SkillsKnowledgeService(root);
-      const nextVersion = service.bumpVersion();
-
-      expect(nextVersion).toBe(2);
-      expect(service.getVersion()).toBe(2);
-
-      const saved = fs.readFileSync(path.join(root, "config", "resume", "skills.md"), "utf8");
-      expect(saved).toContain("version: 2");
-      expect(saved).toMatch(/updated_at:\s*'\d{4}-\d{2}-\d{2}'/);
+      expect(() => service.bumpVersion()).toThrow("skills.md is read-only at runtime");
     } finally {
       cleanupFixtureRoot(root);
     }
@@ -465,21 +451,17 @@ describe("SkillsKnowledgeService", () => {
     }
   });
 
-  it("applies synonym suggestions into the Synonym Table section", () => {
+  it("rejects applying synonym suggestions at runtime (skills.md read-only)", () => {
     const root = createFixtureRoot();
 
     try {
       const service = new SkillsKnowledgeService(root);
-      const added = service.applySynonymSuggestions([
-        { variant: "哈斯机台", canonical: "哈斯" },
-        { variant: "车铣复合", canonical: "车床" },
-      ]);
-
-      expect(added).toBe(2);
-
-      const synonyms = service.getSynonymTable();
-      expect(synonyms.get("哈斯机台")).toBe("哈斯");
-      expect(synonyms.get("车铣复合")).toBe("车床");
+      expect(() =>
+        service.applySynonymSuggestions([
+          { variant: "哈斯机台", canonical: "哈斯" },
+          { variant: "车铣复合", canonical: "车床" },
+        ])
+      ).toThrow("skills.md is read-only at runtime");
     } finally {
       cleanupFixtureRoot(root);
     }
