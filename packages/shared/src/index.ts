@@ -1,2 +1,2 @@
-export * from "./types";
-export * from "./workspace";
+export * from "./types.js";
+export * from "./workspace.js";
