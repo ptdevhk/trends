@@ -68,25 +68,53 @@ function parseBreakdown(value: unknown): Record<string, number> | undefined {
     return Object.keys(parsed).length > 0 ? parsed : undefined;
 }
 
-function parseLlmResult(value: unknown): AnalysisResult {
-    if (!isObject(value)) {
-        throw new Error("Invalid analysis result: expected object.");
+/**
+ * Try to locate the analysis payload from potentially nested LLM responses.
+ * Some models wrap results like `{ "result": { "score": 85, ... } }` or
+ * `{ "data": { "score": 85, ... } }`.
+ */
+function unwrapLlmResult(value: unknown): Record<string, unknown> | null {
+    if (!isObject(value)) return null;
+
+    // Top-level score → use as-is
+    if (value.score !== undefined) return value;
+
+    // Try common wrapper keys
+    for (const key of ["result", "data", "analysis", "response", "output"]) {
+        const nested = value[key];
+        if (isObject(nested) && nested.score !== undefined) return nested;
     }
 
-    const score = toNumber(value.score);
-    if (score === null) {
+    // Scan one level for any object with a `score` key
+    for (const nested of Object.values(value)) {
+        if (isObject(nested) && nested.score !== undefined) return nested;
+    }
+
+    return null;
+}
+
+function parseLlmResult(value: unknown): AnalysisResult {
+    const obj = unwrapLlmResult(value);
+    if (!obj) {
+        console.error("parseLlmResult: no score field found in LLM response:", JSON.stringify(value).slice(0, 1000));
         throw new Error("Invalid analysis result: score is missing.");
     }
 
-    const summary = typeof value.summary === "string" ? value.summary : "";
-    const recommendation = typeof value.recommendation === "string" ? value.recommendation : "potential";
+    const score = toNumber(obj.score);
+    if (score === null) {
+        console.error("parseLlmResult: score is not numeric:", JSON.stringify(obj.score), "full:", JSON.stringify(value).slice(0, 500));
+        throw new Error("Invalid analysis result: score is missing.");
+    }
+
+    const summary = typeof obj.summary === "string" ? obj.summary : "";
+    const recommendation = typeof obj.recommendation === "string" ? obj.recommendation : "potential";
 
     return {
         score,
         summary: summary || "No summary provided.",
-        highlights: toStringArray(value.highlights),
+        highlights: toStringArray(obj.highlights),
         recommendation,
-        breakdown: parseBreakdown(value.breakdown),
+        breakdown: parseBreakdown(obj.breakdown),
     };
 }
 
@@ -231,8 +259,20 @@ async function analyzeOneResume(
         { role: "user", content: prompt },
     ];
 
-    const rawResult = await callLLM(messages, apiKey);
-    return parseLlmResult(rawResult);
+    const maxAttempts = 2;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const rawResult = await callLLM(messages, apiKey);
+            return parseLlmResult(rawResult);
+        } catch (error) {
+            lastError = error;
+            if (attempt < maxAttempts) {
+                console.warn(`analyzeOneResume attempt ${attempt} failed, retrying:`, error instanceof Error ? error.message : error);
+            }
+        }
+    }
+    throw lastError;
 }
 
 export const list = query({

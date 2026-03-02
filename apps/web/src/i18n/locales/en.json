@@ -233,6 +233,7 @@
   "aiTasks": {
     "dispatched": "Analysis task dispatched",
     "dispatchFailed": "Failed to start analysis",
+    "error": "Analysis failed",
     "waitForCompletion": "Please wait for current analysis to complete.",
     "analyzing": "Analyzing...",
     "monitor": {

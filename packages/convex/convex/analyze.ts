@@ -173,8 +173,8 @@ export async function callLLM(messages: any[], apiKey: string) {
         }
         return json;
     } catch (e) {
-        console.error("Failed to parse LLM response:", content);
-        throw new Error("Invalid JSON response from AI");
+        console.error("Failed to parse LLM response (raw content):", content.slice(0, 2000));
+        throw new Error(`Invalid JSON response from AI: ${content.slice(0, 200)}`);
     }
 }
 
