@@ -81,7 +81,7 @@ const ruleWeightsSchema = z.object({
   }).partial().optional(),
 }).partial();
 
-type RuleWeightsConfigOverrides = z.infer<typeof ruleWeightsSchema>;
+export type RuleWeightsConfigOverrides = z.infer<typeof ruleWeightsSchema>;
 
 export function mergeRuleWeights(overrides: RuleWeightsConfigOverrides | undefined): RuleWeightsConfig {
   if (!overrides) {
@@ -112,6 +112,14 @@ export function mergeRuleWeights(overrides: RuleWeightsConfigOverrides | undefin
   };
 }
 
+export function parseRuleWeightsOverrides(raw: unknown): RuleWeightsConfigOverrides | undefined {
+  const parsed = ruleWeightsSchema.safeParse(raw);
+  if (!parsed.success) {
+    return undefined;
+  }
+  return parsed.data;
+}
+
 export function loadRuleWeightsConfig(projectRoot: string): RuleWeightsConfig {
   const configPath = path.join(projectRoot, "config", "resume", "rule-weights.json5");
   if (!fs.existsSync(configPath)) {
@@ -121,23 +129,17 @@ export function loadRuleWeightsConfig(projectRoot: string): RuleWeightsConfig {
   try {
     const content = fs.readFileSync(configPath, "utf8");
     const raw: unknown = JSON5.parse(content);
-    const parsed = ruleWeightsSchema.safeParse(raw);
-    if (!parsed.success) {
-      console.error("[RuleScoring] Failed to parse rule-weights.json5:", parsed.error);
+    const parsed = parseRuleWeightsOverrides(raw);
+    if (!parsed) {
+      console.error("[RuleScoring] Failed to parse rule-weights.json5");
       return DEFAULT_WEIGHTS;
     }
 
-    return mergeRuleWeights(parsed.data);
+    return mergeRuleWeights(parsed);
   } catch (error) {
     console.error("[RuleScoring] Failed to load rule-weights.json5:", error);
     return DEFAULT_WEIGHTS;
   }
-}
-
-export function saveRuleWeightsConfig(projectRoot: string, config: RuleWeightsConfig): void {
-  const configPath = path.join(projectRoot, "config", "resume", "rule-weights.json5");
-  const serialized = `${JSON5.stringify(config, null, 2)}\n`;
-  fs.writeFileSync(configPath, serialized, "utf8");
 }
 
 export interface BrandHit {

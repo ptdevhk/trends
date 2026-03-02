@@ -7,7 +7,7 @@ import path from "node:path";
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
-import { searchProfileService, type SearchProfile } from "../services/search-profile-service.js";
+import { searchProfileService, type AutoMatchResult, type SearchProfile } from "../services/search-profile-service.js";
 
 const app = new OpenAPIHono();
 
@@ -324,14 +324,243 @@ async function getCollectionTaskStatus(taskId: string): Promise<Partial<ProfileR
     const progressCurrent = readNumber(progress?.current);
     const resultCount = submitted ?? extracted ?? progressCurrent;
 
-    return {
-        taskStatus: normalizeTaskStatus(task.status),
-        completedAt: toIsoTimestamp(task.completedAt),
-        resultCount: resultCount !== undefined ? Math.round(resultCount) : undefined,
-        extracted: extracted !== undefined ? Math.round(extracted) : undefined,
-        submitted: submitted !== undefined ? Math.round(submitted) : undefined,
-        error: readString(task.error),
+  return {
+    taskStatus: normalizeTaskStatus(task.status),
+    completedAt: toIsoTimestamp(task.completedAt),
+    resultCount: resultCount !== undefined ? Math.round(resultCount) : undefined,
+    extracted: extracted !== undefined ? Math.round(extracted) : undefined,
+    submitted: submitted !== undefined ? Math.round(submitted) : undefined,
+    error: readString(task.error),
+  };
+}
+
+type ConvexSearchProfileRecord = {
+    _id?: unknown;
+    name?: unknown;
+    profile?: unknown;
+    criteria?: unknown;
+    workspaceSlug?: unknown;
+    updatedAt?: unknown;
+    createdAt?: unknown;
+};
+
+function normalizeKeywordList(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return Array.from(
+        new Set(
+            value
+                .map((item) => readString(item))
+                .filter((item): item is string => Boolean(item))
+        )
+    );
+}
+
+function toSearchProfile(record: ConvexSearchProfileRecord): SearchProfile | null {
+    const profileId = record._id ? String(record._id) : "";
+    if (!profileId) {
+        return null;
+    }
+
+    const profilePayload = isRecord(record.profile) ? record.profile : {};
+    const criteria = isRecord(record.criteria) ? record.criteria : {};
+    const criteriaKeywords = normalizeKeywordList(criteria.keywords);
+    const criteriaLocations = normalizeKeywordList(criteria.locations);
+    const fallbackLocation = criteriaLocations[0] ?? "";
+
+    const fallback: SearchProfile = {
+        id: profileId,
+        name: readString(record.name) ?? profileId,
+        status: "active",
+        location: fallbackLocation,
+        keywords: criteriaKeywords,
     };
+
+    const normalized = searchProfileService.normalizeProfileInput(
+        {
+            ...profilePayload,
+            id: profileId,
+        },
+        fallback
+    );
+
+    normalized.id = profileId;
+    if (!normalized.location && fallbackLocation) {
+        normalized.location = fallbackLocation;
+    }
+    if (normalized.keywords.length === 0 && criteriaKeywords.length > 0) {
+        normalized.keywords = criteriaKeywords;
+    }
+
+    if (!normalized.location || normalized.keywords.length === 0) {
+        return null;
+    }
+
+    return normalized;
+}
+
+async function callConvex(
+    type: "query" | "mutation",
+    pathName: string,
+    args: Record<string, unknown>
+): Promise<unknown> {
+    const convexUrl = resolveConvexUrl().replace(/\/$/, "");
+    const response = await fetch(`${convexUrl}/api/${type}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+        },
+        body: JSON.stringify({ path: pathName, args }),
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Convex ${type} failed (${response.status}): ${text}`);
+    }
+
+    const payload = await response.json() as unknown;
+    if (!isRecord(payload) || payload.status !== "success") {
+        const errorMessage = isRecord(payload) ? readString(payload.errorMessage) : undefined;
+        throw new Error(errorMessage ?? `Convex ${type} failed for ${pathName}`);
+    }
+
+    return payload.value;
+}
+
+async function listCustomProfiles(workspaceSlug: string): Promise<SearchProfile[]> {
+    const value = await callConvex("query", "search_profiles:list", { workspaceSlug });
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value
+        .filter((item): item is ConvexSearchProfileRecord => isRecord(item))
+        .map((item) => toSearchProfile(item))
+        .filter((item): item is SearchProfile => item !== null);
+}
+
+async function getCustomProfile(id: string, workspaceSlug: string): Promise<SearchProfile | null> {
+    const value = await callConvex("query", "search_profiles:getById", { id, workspaceSlug });
+    if (!isRecord(value)) {
+        return null;
+    }
+    return toSearchProfile(value);
+}
+
+async function createCustomProfile(profile: SearchProfile, workspaceSlug: string): Promise<SearchProfile> {
+    const value = await callConvex("mutation", "search_profiles:create", {
+        profile,
+        workspaceSlug,
+    });
+    if (!isRecord(value)) {
+        throw new Error("Failed to create search profile");
+    }
+
+    const created = toSearchProfile(value);
+    if (!created) {
+        throw new Error("Created search profile payload is invalid");
+    }
+    return created;
+}
+
+async function updateCustomProfile(id: string, profile: SearchProfile, workspaceSlug: string): Promise<SearchProfile> {
+    const value = await callConvex("mutation", "search_profiles:update", {
+        id,
+        profile,
+        workspaceSlug,
+    });
+    if (!isRecord(value)) {
+        throw new Error("Failed to update search profile");
+    }
+
+    const updated = toSearchProfile(value);
+    if (!updated) {
+        throw new Error("Updated search profile payload is invalid");
+    }
+    return updated;
+}
+
+async function deleteCustomProfile(id: string, workspaceSlug: string): Promise<boolean> {
+    const value = await callConvex("mutation", "search_profiles:remove", {
+        id,
+        workspaceSlug,
+    });
+    return value === true;
+}
+
+function matchProfiles(profiles: SearchProfile[], keywords: string[], location?: string): AutoMatchResult {
+    const normalizedInputKeywords = Array.from(
+        new Set(
+            keywords
+                .map((keyword) => keyword.trim().toLowerCase())
+                .filter((keyword) => keyword.length > 0)
+        )
+    );
+    if (normalizedInputKeywords.length === 0) {
+        return {
+            confidence: 0,
+            matchedKeywords: [],
+        };
+    }
+
+    let bestMatch: { profile: SearchProfile; score: number; matchedKeywords: string[] } | null = null;
+    for (const profile of profiles) {
+        if (profile.status !== "active") {
+            continue;
+        }
+
+        const profileKeywords = profile.keywords.map((keyword) => keyword.toLowerCase());
+        const matchedKeywords = normalizedInputKeywords.filter((keyword) =>
+            profileKeywords.some((profileKeyword) => profileKeyword.includes(keyword) || keyword.includes(profileKeyword))
+        );
+        let score = matchedKeywords.length / normalizedInputKeywords.length;
+
+        if (location && profile.location) {
+            const profileLocation = profile.location.toLowerCase();
+            const inputLocation = location.toLowerCase();
+            if (profileLocation.includes(inputLocation) || inputLocation.includes(profileLocation)) {
+                score += 0.2;
+            }
+        }
+
+        if (!bestMatch || score > bestMatch.score) {
+            bestMatch = {
+                profile,
+                score,
+                matchedKeywords,
+            };
+        }
+    }
+
+    if (!bestMatch || bestMatch.score <= 0.3) {
+        return {
+            confidence: 0,
+            matchedKeywords: [],
+        };
+    }
+
+    return {
+        profile: bestMatch.profile,
+        jobDescription: bestMatch.profile.jobDescription,
+        filterPreset: bestMatch.profile.filterPreset,
+        confidence: Math.min(bestMatch.score, 1),
+        matchedKeywords: bestMatch.matchedKeywords,
+    };
+}
+
+async function loadProfileById(id: string, workspaceSlug: string): Promise<SearchProfile | null> {
+    const custom = await getCustomProfile(id, workspaceSlug);
+    if (custom) {
+        return custom;
+    }
+
+    try {
+        return searchProfileService.loadProfile(id);
+    } catch {
+        return null;
+    }
 }
 
 // ============================================================
@@ -357,8 +586,14 @@ const statsRoute = createRoute({
     },
 });
 
-app.openapi(statsRoute, (c) => {
-    const stats = searchProfileService.getStats(c.var.workspaceSlug);
+app.openapi(statsRoute, async (c) => {
+    const profiles = await listCustomProfiles(c.var.workspaceSlug);
+    const stats = {
+        total: profiles.length,
+        active: profiles.filter((profile) => profile.status === "active").length,
+        paused: profiles.filter((profile) => profile.status === "paused").length,
+        archived: profiles.filter((profile) => profile.status === "archived").length,
+    };
     return c.json({ success: true, stats } as const);
 });
 
@@ -385,9 +620,18 @@ const listRoute = createRoute({
     },
 });
 
-app.openapi(listRoute, (c) => {
-    const profiles = searchProfileService.listProfiles(c.var.workspaceSlug);
-    return c.json({ success: true, profiles } as const);
+app.openapi(listRoute, async (c) => {
+    const profiles = await listCustomProfiles(c.var.workspaceSlug);
+    const summaries = profiles.map((profile) => ({
+        id: profile.id,
+        name: profile.name,
+        filename: `${profile.id}.yaml`,
+        updatedAt: profile.updatedAt ?? profile.createdAt ?? new Date().toISOString(),
+        status: profile.status,
+        location: profile.location,
+        keywords: profile.keywords,
+    }));
+    return c.json({ success: true, profiles: summaries } as const);
 });
 
 // ============================================================
@@ -422,7 +666,10 @@ const autoMatchRoute = createRoute({
 
 app.openapi(autoMatchRoute, async (c) => {
     const { keywords, location } = c.req.valid("json");
-    const result = searchProfileService.findByKeywords(keywords, location, c.var.workspaceSlug);
+    const customProfiles = await listCustomProfiles(c.var.workspaceSlug);
+    const customMatch = matchProfiles(customProfiles, keywords, location);
+    const systemMatch = searchProfileService.findByKeywords(keywords, location);
+    const result = customMatch.confidence >= systemMatch.confidence ? customMatch : systemMatch;
 
     return c.json({
         success: true,
@@ -480,7 +727,29 @@ const createProfileRoute = createRoute({
 app.openapi(createProfileRoute, async (c) => {
     try {
         const payload = c.req.valid("json");
-        const profile = searchProfileService.createProfile(payload, c.var.workspaceSlug);
+        const provisional = searchProfileService.normalizeProfileInput(payload);
+        const derivedId = provisional.id !== "profile"
+            ? provisional.id
+            : searchProfileService.normalizeProfileIdentifier(provisional.name);
+        const now = new Date().toISOString();
+        const normalizedProfile = searchProfileService.normalizeProfileInput(
+            {
+                ...provisional,
+                id: derivedId,
+                createdAt: provisional.createdAt ?? now,
+                updatedAt: now,
+            },
+            {
+                id: derivedId,
+                name: provisional.name || derivedId,
+                status: provisional.status || "active",
+                location: provisional.location,
+                keywords: provisional.keywords,
+            }
+        );
+        searchProfileService.validateProfile(normalizedProfile);
+
+        const profile = await createCustomProfile(normalizedProfile, c.var.workspaceSlug);
         return c.json({ success: true as const, profile }, 201);
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create profile";
@@ -542,6 +811,17 @@ const runProfileRoute = createRoute({
                 },
             },
         },
+        403: {
+            description: "Forbidden",
+            content: {
+                "application/json": {
+                    schema: z.object({
+                        success: z.literal(false),
+                        error: z.string(),
+                    }),
+                },
+            },
+        },
     },
 });
 
@@ -549,10 +829,8 @@ app.openapi(runProfileRoute, async (c) => {
     const { id } = c.req.valid("param");
     const workspaceSlug = c.var.workspaceSlug;
 
-    let profile: SearchProfile;
-    try {
-        profile = searchProfileService.loadProfile(id, workspaceSlug);
-    } catch {
+    const profile = await loadProfileById(id, workspaceSlug);
+    if (!profile) {
         return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
     }
 
@@ -675,6 +953,14 @@ const getProfileStatusRoute = createRoute({
                 },
             },
         },
+        403: {
+            description: "Forbidden",
+            content: {
+                "application/json": {
+                    schema: z.object({ success: z.literal(false), error: z.string() }),
+                },
+            },
+        },
     },
 });
 
@@ -682,10 +968,8 @@ app.openapi(getProfileStatusRoute, async (c) => {
     const { id } = c.req.valid("param");
     const workspaceSlug = c.var.workspaceSlug;
 
-    let profile: SearchProfile;
-    try {
-        profile = searchProfileService.loadProfile(id, workspaceSlug);
-    } catch {
+    const profile = await loadProfileById(id, workspaceSlug);
+    if (!profile) {
         return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
     }
 
@@ -749,17 +1033,27 @@ const getRoute = createRoute({
                 },
             },
         },
+        403: {
+            description: "Forbidden",
+            content: {
+                "application/json": {
+                    schema: z.object({
+                        success: z.literal(false),
+                        error: z.string(),
+                    }),
+                },
+            },
+        },
     },
 });
 
-app.openapi(getRoute, (c) => {
+app.openapi(getRoute, async (c) => {
     const { id } = c.req.valid("param");
-    try {
-        const profile = searchProfileService.loadProfile(id, c.var.workspaceSlug);
-        return c.json({ success: true as const, profile }, 200);
-    } catch {
+    const profile = await loadProfileById(id, c.var.workspaceSlug);
+    if (!profile) {
         return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
     }
+    return c.json({ success: true as const, profile }, 200);
 });
 
 // ============================================================
@@ -816,6 +1110,17 @@ const updateProfileRoute = createRoute({
                 },
             },
         },
+        403: {
+            description: "Forbidden",
+            content: {
+                "application/json": {
+                    schema: z.object({
+                        success: z.literal(false),
+                        error: z.string(),
+                    }),
+                },
+            },
+        },
     },
 });
 
@@ -824,7 +1129,30 @@ app.openapi(updateProfileRoute, async (c) => {
     const payload = c.req.valid("json");
 
     try {
-        const profile = searchProfileService.updateProfile(id, payload, c.var.workspaceSlug);
+        const existingCustom = await getCustomProfile(id, c.var.workspaceSlug);
+        if (!existingCustom) {
+            const systemProfile = await loadProfileById(id, c.var.workspaceSlug);
+            if (systemProfile) {
+                return c.json({ success: false as const, error: "System profiles are read-only" }, 403);
+            }
+            return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
+        }
+
+        const now = new Date().toISOString();
+        const normalized = searchProfileService.normalizeProfileInput(
+            {
+                ...existingCustom,
+                ...(isRecord(payload) ? payload : {}),
+                id: existingCustom.id,
+                createdAt: existingCustom.createdAt ?? now,
+                updatedAt: now,
+            },
+            existingCustom
+        );
+        normalized.id = existingCustom.id;
+        searchProfileService.validateProfile(normalized);
+
+        const profile = await updateCustomProfile(existingCustom.id, normalized, c.var.workspaceSlug);
         return c.json({ success: true as const, profile }, 200);
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update profile";
@@ -865,18 +1193,31 @@ const deleteProfileRoute = createRoute({
                 },
             },
         },
+        403: {
+            description: "Forbidden",
+            content: {
+                "application/json": {
+                    schema: z.object({ success: z.literal(false), error: z.string() }),
+                },
+            },
+        },
     },
 });
 
-app.openapi(deleteProfileRoute, (c) => {
+app.openapi(deleteProfileRoute, async (c) => {
     const { id } = c.req.valid("param");
-    const deleted = searchProfileService.deleteProfile(id, c.var.workspaceSlug);
+    const deleted = await deleteCustomProfile(id, c.var.workspaceSlug);
 
-    if (!deleted) {
-        return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
+    if (deleted) {
+        return c.json({ success: true as const }, 200);
     }
 
-    return c.json({ success: true as const }, 200);
+    const systemProfile = await loadProfileById(id, c.var.workspaceSlug);
+    if (systemProfile) {
+        return c.json({ success: false as const, error: "System profiles are read-only" }, 403);
+    }
+
+    return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
 });
 
 export default app;

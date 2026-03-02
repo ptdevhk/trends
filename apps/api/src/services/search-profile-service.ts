@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { parse as parseYaml } from "yaml";
 
 import { findProjectRoot } from "./db.js";
 import { DataNotFoundError } from "./errors.js";
@@ -436,17 +436,6 @@ export class SearchProfileService {
         return path.join(baseDir, normalizedWorkspace);
     }
 
-    private ensureProfilesDir(workspaceSlug?: string): void {
-        const profilesDir = this.getProfilesDir(workspaceSlug);
-        if (!fs.existsSync(profilesDir)) {
-            fs.mkdirSync(profilesDir, { recursive: true });
-        }
-    }
-
-    private getProfilePath(id: string, workspaceSlug?: string): string {
-        return path.join(this.getProfilesDir(workspaceSlug), `${id}.yaml`);
-    }
-
     private findExistingProfilePath(id: string, workspaceSlug?: string): string | null {
         const profilesDir = this.getProfilesDir(workspaceSlug);
         const candidates = [
@@ -551,19 +540,20 @@ export class SearchProfileService {
         }
     }
 
-    private getCacheKey(workspaceSlug: string, profileId: string): string {
-        return `${workspaceSlug}:${profileId}`;
+    normalizeProfileInput(input: unknown, fallback?: SearchProfile): SearchProfile {
+        return this.coerceProfile(input, fallback);
     }
 
-    private writeProfile(profile: SearchProfile, workspaceSlug?: string): void {
-        this.ensureProfilesDir(workspaceSlug);
-        const filePath = this.getProfilePath(profile.id, workspaceSlug);
-        const payload = stringifyYaml(profile, {
-            lineWidth: 120,
-            indent: 2,
-            minContentWidth: 20,
-        });
-        fs.writeFileSync(filePath, payload, "utf8");
+    normalizeProfileIdentifier(id: string): string {
+        return normalizeProfileId(id);
+    }
+
+    validateProfile(profile: SearchProfile): void {
+        this.ensureRequiredCoreFields(profile);
+    }
+
+    private getCacheKey(workspaceSlug: string, profileId: string): string {
+        return `${workspaceSlug}:${profileId}`;
     }
 
     /**
@@ -619,68 +609,6 @@ export class SearchProfileService {
         const profile = this.readProfileFromFile(existingPath, normalizedId);
         this.cache.set(cacheKey, profile);
         return profile;
-    }
-
-    createProfile(input: unknown, workspaceSlug?: string): SearchProfile {
-        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
-        const provisional = this.coerceProfile(input);
-        const derivedId = provisional.id !== "profile" ? provisional.id : normalizeProfileId(provisional.name);
-        const profile = this.coerceProfile({ ...provisional, id: derivedId });
-        this.ensureRequiredCoreFields(profile);
-
-        if (this.findExistingProfilePath(profile.id, normalizedWorkspace)) {
-            throw new Error(`Profile already exists: ${profile.id}`);
-        }
-
-        const now = new Date().toISOString();
-        const profileToStore: SearchProfile = {
-            ...profile,
-            createdAt: profile.createdAt ?? now,
-            updatedAt: now,
-        };
-
-        this.writeProfile(profileToStore, normalizedWorkspace);
-        this.cache.set(this.getCacheKey(normalizedWorkspace, profileToStore.id), profileToStore);
-        return profileToStore;
-    }
-
-    updateProfile(id: string, updates: unknown, workspaceSlug?: string): SearchProfile {
-        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
-        const normalizedId = normalizeProfileId(id);
-        const existing = this.loadProfile(normalizedId, normalizedWorkspace);
-
-        const mergedInput: Record<string, unknown> = {
-            ...existing,
-            ...(isRecord(updates) ? updates : {}),
-            id: normalizedId,
-        };
-        const profile = this.coerceProfile(mergedInput, existing);
-        this.ensureRequiredCoreFields(profile);
-
-        const now = new Date().toISOString();
-        const profileToStore: SearchProfile = {
-            ...profile,
-            id: normalizedId,
-            createdAt: existing.createdAt ?? profile.createdAt ?? now,
-            updatedAt: now,
-        };
-
-        this.writeProfile(profileToStore, normalizedWorkspace);
-        this.cache.set(this.getCacheKey(normalizedWorkspace, normalizedId), profileToStore);
-        return profileToStore;
-    }
-
-    deleteProfile(id: string, workspaceSlug?: string): boolean {
-        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
-        const normalizedId = normalizeProfileId(id);
-        const existingPath = this.findExistingProfilePath(normalizedId, normalizedWorkspace);
-        if (!existingPath) {
-            return false;
-        }
-
-        fs.unlinkSync(existingPath);
-        this.cache.delete(this.getCacheKey(normalizedWorkspace, normalizedId));
-        return true;
     }
 
     /**

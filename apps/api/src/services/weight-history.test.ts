@@ -2,10 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { loadRuleWeightsConfig } from "./rule-scoring";
 import { WeightHistoryService } from "./weight-history";
+import { workspaceConfigService } from "./workspace-config-service";
 
 function createFixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "weight-history-"));
@@ -81,7 +82,7 @@ describe("WeightHistoryService", () => {
     }
   });
 
-  it("rolls back weights to a previous entry", () => {
+  it("rolls back weights to a previous entry", async () => {
     const root = createFixtureRoot();
 
     try {
@@ -129,15 +130,21 @@ describe("WeightHistoryService", () => {
         "utf8"
       );
 
-      const rollback = service.rollback("2026-02-25T00:00:00.000Z");
-      expect(rollback.restored.reason).toBe("auto_tune");
+      const getRuleWeightsMock = vi.spyOn(workspaceConfigService, "getRuleWeights").mockResolvedValue(
+        loadRuleWeightsConfig(root)
+      );
+      const setRuleWeightsMock = vi.spyOn(workspaceConfigService, "setWorkspaceRuleWeights").mockResolvedValue();
 
-      const weights = loadRuleWeightsConfig(root);
-      expect(weights.categoryWeights.skillMatch).toBe(25);
-      expect(weights.categoryWeights.industryMatch).toBe(10);
+      const rollback = await service.rollback("2026-02-25T00:00:00.000Z", "dev");
+      expect(rollback.restored.reason).toBe("auto_tune");
+      expect(getRuleWeightsMock).toHaveBeenCalledWith("dev");
+      expect(setRuleWeightsMock).toHaveBeenCalledTimes(1);
 
       const history = service.getHistory();
       expect(history.some((entry) => entry.reason.startsWith("rollback:"))).toBe(true);
+
+      getRuleWeightsMock.mockRestore();
+      setRuleWeightsMock.mockRestore();
     } finally {
       cleanupFixtureRoot(root);
     }
