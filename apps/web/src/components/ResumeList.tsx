@@ -84,7 +84,7 @@ export function ResumeList() {
                 {analyzing || hasActiveTask ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    {t('aiTasks.analyzing')}
+                    {t('aiTasks.analyzing', 'Analyzing...')}
                   </>
                 ) : (
                   <>
