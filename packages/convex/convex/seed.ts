@@ -6,25 +6,76 @@ import { buildSearchText } from "./search_text";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 
 const jobDescriptionType = v.union(v.literal("system"), v.literal("custom"));
+const DEFAULT_WORKSPACE_SLUG = "dev";
+
+function normalizeWorkspaceSlug(input: string | undefined): string {
+    const normalized = input?.trim();
+    return normalized && normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_SLUG;
+}
+
+function belongsToWorkspace(recordWorkspaceSlug: string | undefined, workspaceSlug: string): boolean {
+    if (workspaceSlug === DEFAULT_WORKSPACE_SLUG) {
+        return !recordWorkspaceSlug || recordWorkspaceSlug === DEFAULT_WORKSPACE_SLUG;
+    }
+    return recordWorkspaceSlug === workspaceSlug;
+}
+
+function seedJobDescriptionKey(item: {
+    title: string;
+    type: string;
+    workspaceSlug?: string;
+}): string {
+    const scope = item.type === "custom"
+        ? normalizeWorkspaceSlug(item.workspaceSlug)
+        : "system";
+    return `${item.title}::${item.type}::${scope}`;
+}
+
+function stableSerialize(value: unknown): string {
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableSerialize(item)).join(",")}]`;
+    }
+
+    if (value && typeof value === "object") {
+        const entries = Object.entries(value as Record<string, unknown>)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([key, nested]) => `${JSON.stringify(key)}:${stableSerialize(nested)}`);
+        return `{${entries.join(",")}}`;
+    }
+
+    return JSON.stringify(value);
+}
 
 export const status = query({
     args: {},
     handler: async (ctx) => {
-        const [jobDescriptions, resumes, collectionTasks] = await Promise.all([
+        const [jobDescriptions, resumes, collectionTasks, searchProfiles, screeningSessions, workspaceConfig] = await Promise.all([
             ctx.db.query("job_descriptions").collect(),
             ctx.db.query("resumes").collect(),
             ctx.db.query("collection_tasks").collect(),
+            ctx.db.query("search_profiles").collect(),
+            ctx.db.query("screening_sessions").collect(),
+            ctx.db.query("workspace_config").collect(),
         ]);
 
         const counts = {
             jobDescriptions: jobDescriptions.length,
             resumes: resumes.length,
             collectionTasks: collectionTasks.length,
+            searchProfiles: searchProfiles.length,
+            screeningSessions: screeningSessions.length,
+            workspaceConfig: workspaceConfig.length,
         };
 
         return {
             ...counts,
-            isEmpty: counts.jobDescriptions === 0 && counts.resumes === 0 && counts.collectionTasks === 0,
+            isEmpty:
+                counts.jobDescriptions === 0
+                && counts.resumes === 0
+                && counts.collectionTasks === 0
+                && counts.searchProfiles === 0
+                && counts.screeningSessions === 0
+                && counts.workspaceConfig === 0,
         };
     },
 });
@@ -37,26 +88,49 @@ export const seedJobDescriptions = mutation({
                 slug: v.optional(v.string()),
                 content: v.string(),
                 type: jobDescriptionType,
+                workspaceSlug: v.optional(v.string()),
             })
         ),
     },
     handler: async (ctx, args) => {
         const existingJobDescriptions = await ctx.db.query("job_descriptions").collect();
-        const existingKeys = new Set(existingJobDescriptions.map((item) => `${item.title}::${item.type}`));
+        const existingByKey = new Map(existingJobDescriptions.map((item) => [seedJobDescriptionKey(item), item]));
 
         let inserted = 0;
         let skipped = 0;
         let updated = 0;
 
         for (const item of args.items) {
-            const key = `${item.title}::${item.type}`;
-            if (existingKeys.has(key)) {
-                // Update slug for existing JDs if not set
-                const existing = existingJobDescriptions.find(
-                    (jd) => jd.title === item.title && jd.type === item.type
-                );
-                if (existing && item.slug && !existing.slug) {
-                    await ctx.db.patch(existing._id, { slug: item.slug });
+            const workspaceSlug = item.type === "custom"
+                ? normalizeWorkspaceSlug(item.workspaceSlug)
+                : undefined;
+            const key = seedJobDescriptionKey({
+                title: item.title,
+                type: item.type,
+                workspaceSlug,
+            });
+            const existing = existingByKey.get(key);
+            if (existing) {
+                const patch: {
+                    slug?: string;
+                    content?: string;
+                    workspaceSlug?: string;
+                    lastModified?: number;
+                } = {};
+
+                if (item.slug && existing.slug !== item.slug) {
+                    patch.slug = item.slug;
+                }
+                if (existing.content !== item.content) {
+                    patch.content = item.content;
+                }
+                if (item.type === "custom" && existing.workspaceSlug !== workspaceSlug) {
+                    patch.workspaceSlug = workspaceSlug;
+                }
+
+                if (Object.keys(patch).length > 0) {
+                    patch.lastModified = Date.now();
+                    await ctx.db.patch(existing._id, patch);
                     updated += 1;
                 }
                 skipped += 1;
@@ -68,10 +142,10 @@ export const seedJobDescriptions = mutation({
                 slug: item.slug,
                 content: item.content,
                 type: item.type,
+                workspaceSlug,
                 enabled: true,
                 lastModified: Date.now(),
             });
-            existingKeys.add(key);
             inserted += 1;
         }
 
@@ -167,6 +241,370 @@ export const seedResumes = mutation({
     },
 });
 
+export const seedWorkspaceDemoData = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const seededAt = 1_762_000_000_000;
+        const customJobDescriptions = [
+            {
+                title: "Workspace Demo · Dev CNC Sales Architect",
+                slug: "workspace-demo-dev-cnc-sales",
+                workspaceSlug: "dev",
+                content: [
+                    "# Workspace Demo · Dev CNC Sales Architect",
+                    "",
+                    "## Must Have",
+                    "- CNC or machine-tool sales experience >= 3 years",
+                    "- Channel expansion in Dongguan, Shenzhen, or Guangzhou",
+                    "- Hands-on customer conversion and negotiation ownership",
+                    "",
+                    "## Preferred",
+                    "- Exposure to STAR, HAAS, FANUC, Mitsubishi, or Siemens",
+                    "- Demonstrated cross-language customer communication",
+                ].join("\n"),
+            },
+            {
+                title: "Workspace Demo · HR Resume Operations Specialist",
+                slug: "workspace-demo-hr-resume-ops",
+                workspaceSlug: "hr",
+                content: [
+                    "# Workspace Demo · HR Resume Operations Specialist",
+                    "",
+                    "## Must Have",
+                    "- Resume screening and shortlist operations experience",
+                    "- Familiarity with ATS workflows and hiring coordination",
+                    "- High-quality candidate communication and interview handling",
+                    "",
+                    "## Preferred",
+                    "- Recruiting analytics and hiring funnel optimization",
+                    "- Hiring support for manufacturing and equipment roles",
+                ].join("\n"),
+            },
+        ];
+
+        const searchProfiles = [
+            {
+                name: "Workspace Demo · Dev CNC Sales",
+                criteria: {
+                    keywords: ["CNC", "车床", "销售", "STAR"],
+                    locations: ["东莞", "深圳", "广州"],
+                },
+                workspaceSlug: "dev",
+                lastRunAt: seededAt - 3_600_000,
+            },
+            {
+                name: "Workspace Demo · HR Resume Ops",
+                criteria: {
+                    keywords: ["招聘", "简历", "人事", "筛选"],
+                    locations: ["东莞", "广州"],
+                },
+                workspaceSlug: "hr",
+                lastRunAt: seededAt - 1_800_000,
+            },
+        ];
+
+        const screeningSessions = [
+            {
+                sessionKey: "workspace-demo-session-dev",
+                status: "active" as const,
+                config: {
+                    location: "东莞",
+                    keywords: ["CNC", "销售"],
+                    jobDescriptionId: "workspace-demo-dev-cnc-sales",
+                    filters: {
+                        minExperience: 3,
+                        education: ["大专", "本科"],
+                    },
+                },
+                reviewedResumeIds: [] as string[],
+                workspaceSlug: "dev",
+                lastActive: seededAt - 60_000,
+            },
+            {
+                sessionKey: "workspace-demo-session-hr",
+                status: "active" as const,
+                config: {
+                    location: "东莞",
+                    keywords: ["招聘", "简历"],
+                    jobDescriptionId: "workspace-demo-hr-resume-ops",
+                    filters: {
+                        minExperience: 1,
+                        education: ["大专", "本科"],
+                    },
+                },
+                reviewedResumeIds: [] as string[],
+                workspaceSlug: "hr",
+                lastActive: seededAt - 30_000,
+            },
+        ];
+
+        const workspaceConfigs = [
+            {
+                workspaceSlug: "dev",
+                configKey: "custom-keywords",
+                configValue: {
+                    categories: [
+                        { id: "workspace-dev-brand", name: "Dev 品牌优先", icon: "factory" },
+                    ],
+                    tags: [
+                        {
+                            id: "workspace-dev-brand-star",
+                            keyword: "STAR机床",
+                            english: "STAR CNC",
+                            category: "workspace-dev-brand",
+                        },
+                        {
+                            id: "workspace-dev-brand-haas",
+                            keyword: "HAAS",
+                            english: "HAAS",
+                            category: "workspace-dev-brand",
+                        },
+                    ],
+                },
+            },
+            {
+                workspaceSlug: "hr",
+                configKey: "custom-keywords",
+                configValue: {
+                    categories: [
+                        { id: "workspace-hr-priority", name: "HR 优先标签", icon: "users" },
+                    ],
+                    tags: [
+                        {
+                            id: "workspace-hr-priority-communication",
+                            keyword: "候选人沟通",
+                            english: "Candidate Communication",
+                            category: "workspace-hr-priority",
+                        },
+                        {
+                            id: "workspace-hr-priority-coordination",
+                            keyword: "面试协调",
+                            english: "Interview Coordination",
+                            category: "workspace-hr-priority",
+                        },
+                    ],
+                },
+            },
+            {
+                workspaceSlug: "dev",
+                configKey: "filter-presets",
+                configValue: {
+                    categories: [
+                        { id: "workspace-dev", name: "Dev 专用", icon: "zap" },
+                    ],
+                    presets: [
+                        {
+                            id: "workspace-dev-fast-track-sales",
+                            name: "Dev 高潜销售",
+                            category: "workspace-dev",
+                            filters: {
+                                minExperience: 4,
+                                education: ["大专", "本科"],
+                                salaryRange: { min: 12000, max: 28000 },
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                workspaceSlug: "hr",
+                configKey: "filter-presets",
+                configValue: {
+                    categories: [
+                        { id: "workspace-hr", name: "HR 专用", icon: "briefcase" },
+                    ],
+                    presets: [
+                        {
+                            id: "workspace-hr-fast-shortlist",
+                            name: "HR 快速初筛",
+                            category: "workspace-hr",
+                            filters: {
+                                minExperience: 1,
+                                education: ["大专", "本科", "硕士"],
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                workspaceSlug: "dev",
+                configKey: "agent-overrides",
+                configValue: {
+                    agents: {
+                        defaults: {
+                            screener: { passThreshold: 58 },
+                            evaluator: { passThreshold: 74 },
+                        },
+                    },
+                },
+            },
+            {
+                workspaceSlug: "hr",
+                configKey: "agent-overrides",
+                configValue: {
+                    agents: {
+                        defaults: {
+                            screener: { passThreshold: 52 },
+                            evaluator: { passThreshold: 68 },
+                        },
+                    },
+                },
+            },
+        ];
+
+        const result = {
+            customJobDescriptions: { inserted: 0, updated: 0 },
+            searchProfiles: { inserted: 0, updated: 0 },
+            screeningSessions: { inserted: 0, updated: 0 },
+            workspaceConfig: { inserted: 0, updated: 0 },
+        };
+
+        const existingCustomJds = await ctx.db
+            .query("job_descriptions")
+            .filter((q) => q.eq(q.field("type"), "custom"))
+            .collect();
+        const existingCustomByKey = new Map(existingCustomJds.map((item) => [seedJobDescriptionKey(item), item]));
+        for (const item of customJobDescriptions) {
+            const key = seedJobDescriptionKey({
+                title: item.title,
+                type: "custom",
+                workspaceSlug: item.workspaceSlug,
+            });
+            const existing = existingCustomByKey.get(key);
+            if (existing) {
+                const needsUpdate =
+                    existing.slug !== item.slug
+                    || existing.content !== item.content
+                    || existing.workspaceSlug !== item.workspaceSlug
+                    || existing.enabled !== true;
+                if (needsUpdate) {
+                    await ctx.db.patch(existing._id, {
+                        slug: item.slug,
+                        content: item.content,
+                        workspaceSlug: item.workspaceSlug,
+                        enabled: true,
+                        lastModified: seededAt,
+                    });
+                    result.customJobDescriptions.updated += 1;
+                }
+                continue;
+            }
+            await ctx.db.insert("job_descriptions", {
+                title: item.title,
+                slug: item.slug,
+                content: item.content,
+                type: "custom",
+                workspaceSlug: item.workspaceSlug,
+                enabled: true,
+                lastModified: seededAt,
+            });
+            result.customJobDescriptions.inserted += 1;
+        }
+
+        const existingProfiles = await ctx.db.query("search_profiles").collect();
+        const profileKey = (name: string, workspaceSlug: string | undefined) =>
+            `${name}::${normalizeWorkspaceSlug(workspaceSlug)}`;
+        const existingProfilesByKey = new Map(
+            existingProfiles.map((profile) => [profileKey(profile.name, profile.workspaceSlug), profile])
+        );
+        for (const item of searchProfiles) {
+            const key = profileKey(item.name, item.workspaceSlug);
+            const existing = existingProfilesByKey.get(key);
+            if (existing) {
+                const needsUpdate =
+                    stableSerialize(existing.criteria) !== stableSerialize(item.criteria)
+                    || normalizeWorkspaceSlug(existing.workspaceSlug) !== item.workspaceSlug
+                    || existing.lastRunAt !== item.lastRunAt;
+                if (needsUpdate) {
+                    await ctx.db.patch(existing._id, {
+                        criteria: item.criteria,
+                        workspaceSlug: item.workspaceSlug,
+                        lastRunAt: item.lastRunAt,
+                    });
+                    result.searchProfiles.updated += 1;
+                }
+                continue;
+            }
+            await ctx.db.insert("search_profiles", {
+                name: item.name,
+                criteria: item.criteria,
+                workspaceSlug: item.workspaceSlug,
+                lastRunAt: item.lastRunAt,
+            });
+            result.searchProfiles.inserted += 1;
+        }
+
+        const existingSessions = await ctx.db.query("screening_sessions").collect();
+        const sessionKey = (value: string, workspaceSlug: string | undefined) =>
+            `${value}::${normalizeWorkspaceSlug(workspaceSlug)}`;
+        const existingSessionsByKey = new Map(
+            existingSessions.map((session) => [sessionKey(session.sessionKey, session.workspaceSlug), session])
+        );
+        for (const item of screeningSessions) {
+            const key = sessionKey(item.sessionKey, item.workspaceSlug);
+            const existing = existingSessionsByKey.get(key);
+            if (existing) {
+                const needsUpdate =
+                    existing.status !== item.status
+                    || stableSerialize(existing.config) !== stableSerialize(item.config)
+                    || stableSerialize(existing.reviewedResumeIds) !== stableSerialize(item.reviewedResumeIds)
+                    || !belongsToWorkspace(existing.workspaceSlug, item.workspaceSlug);
+                if (needsUpdate) {
+                    await ctx.db.patch(existing._id, {
+                        status: item.status,
+                        config: item.config,
+                        reviewedResumeIds: item.reviewedResumeIds,
+                        workspaceSlug: item.workspaceSlug,
+                        lastActive: item.lastActive,
+                    });
+                    result.screeningSessions.updated += 1;
+                }
+                continue;
+            }
+
+            await ctx.db.insert("screening_sessions", {
+                sessionKey: item.sessionKey,
+                status: item.status,
+                config: item.config,
+                reviewedResumeIds: item.reviewedResumeIds,
+                workspaceSlug: item.workspaceSlug,
+                lastActive: item.lastActive,
+            });
+            result.screeningSessions.inserted += 1;
+        }
+
+        for (const item of workspaceConfigs) {
+            const existing = await ctx.db
+                .query("workspace_config")
+                .withIndex("by_workspace_key", (q) =>
+                    q.eq("workspaceSlug", item.workspaceSlug).eq("configKey", item.configKey)
+                )
+                .unique();
+            if (existing) {
+                const configChanged = stableSerialize(existing.configValue) !== stableSerialize(item.configValue);
+                if (configChanged) {
+                    await ctx.db.patch(existing._id, {
+                        configValue: item.configValue,
+                        updatedAt: seededAt,
+                    });
+                    result.workspaceConfig.updated += 1;
+                }
+                continue;
+            }
+
+            await ctx.db.insert("workspace_config", {
+                workspaceSlug: item.workspaceSlug,
+                configKey: item.configKey,
+                configValue: item.configValue,
+                updatedAt: seededAt,
+            });
+            result.workspaceConfig.inserted += 1;
+        }
+
+        return result;
+    },
+});
+
 export const clearAll = mutation({
     args: {},
     handler: async (ctx) => {
@@ -181,6 +619,15 @@ export const clearAll = mutation({
 
         const analysisTasks = await ctx.db.query("analysis_tasks").collect();
         for (const task of analysisTasks) await ctx.db.delete(task._id);
+
+        const searchProfiles = await ctx.db.query("search_profiles").collect();
+        for (const profile of searchProfiles) await ctx.db.delete(profile._id);
+
+        const screeningSessions = await ctx.db.query("screening_sessions").collect();
+        for (const session of screeningSessions) await ctx.db.delete(session._id);
+
+        const workspaceConfig = await ctx.db.query("workspace_config").collect();
+        for (const item of workspaceConfig) await ctx.db.delete(item._id);
 
         return { success: true };
     },
