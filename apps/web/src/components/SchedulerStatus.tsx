@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatDistanceToNow } from 'date-fns'
+import { useTranslation } from 'react-i18next'
 
 interface WorkerStatus {
     jobs_executed: number
@@ -46,7 +47,7 @@ function formatAbsoluteTime(value: string | null): string {
     return date.toLocaleString()
 }
 
-function formatScheduleConfig(status: WorkerStatus): string {
+function formatScheduleConfig(status: WorkerStatus, t: (key: string) => string): string {
     if (status.schedule_type === 'interval' && status.schedule_value) {
         return `Every ${status.schedule_value}`
     }
@@ -56,10 +57,11 @@ function formatScheduleConfig(status: WorkerStatus): string {
     if (status.schedule_value) {
         return status.schedule_value
     }
-    return 'Not configured'
+    return t('debugConfig.notConfigured')
 }
 
 export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
+    const { t } = useTranslation()
     const [status, setStatus] = useState<WorkerStatus | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -109,7 +111,7 @@ export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
 
     const nextRun = status.jobs.find(j => j.id === 'crawl_analyze')?.next_run ||
         status.jobs.find(j => j.id.startsWith('crawl_profile_'))?.next_run || null
-    const scheduleConfig = formatScheduleConfig(status)
+    const scheduleConfig = formatScheduleConfig(status, t)
 
     return (
         <Card className="bg-muted/30 border-dashed">
@@ -117,25 +119,25 @@ export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="space-y-1">
                         <CardTitle className="text-lg flex items-center gap-2">
-                            Cron Scheduler
+                            {t('debugConfig.cronScheduler')}
                             <Badge variant="outline" className={`font-mono text-[10px] ${status.running ? 'bg-emerald-500/5 text-emerald-600 border-emerald-500/20' : 'bg-red-500/5 text-red-600 border-red-500/20'}`}>
-                                {status.running ? 'RUNNING' : 'STOPPED'}
+                                {status.running ? t('debugConfig.running') : t('debugConfig.stopped')}
                             </Badge>
                         </CardTitle>
                         <CardDescription>
-                            Automated crawling and analysis tasks.
+                            {t('debugConfig.cronSchedulerDescription')}
                         </CardDescription>
                     </div>
                     <div className="space-y-1 lg:text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Schedule</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t('debugConfig.schedule')}</p>
                         <p className="text-sm font-bold text-primary" title={status.schedule_value || ''}>
                             {scheduleConfig}
                         </p>
                     </div>
                     <div className="text-left lg:text-right">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Next Run</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t('debugConfig.nextRun')}</p>
                         <p className="text-sm font-bold text-primary">
-                            {formatRelativeTime(nextRun, 'Not scheduled')}
+                            {formatRelativeTime(nextRun, t('debugConfig.notScheduled'))}
                         </p>
                     </div>
                 </div>
@@ -144,39 +146,39 @@ export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
                 <div className="space-y-5">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="space-y-1 border-l-2 border-primary/20 pl-3">
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Executed</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('debugConfig.executed')}</p>
                             <p className="text-xl font-bold">{status.jobs_executed}</p>
                         </div>
                         <div className="space-y-1 border-l-2 border-emerald-500/20 pl-3">
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Last Success</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('debugConfig.lastSuccess')}</p>
                             <p className="text-sm font-medium truncate" title={status.last_success || ''}>
-                                {formatRelativeTime(status.last_success, 'Never')}
+                                {formatRelativeTime(status.last_success, t('debugConfig.never'))}
                             </p>
                         </div>
                         <div className="space-y-1 border-l-2 border-destructive/20 pl-3">
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Failed</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('debugConfig.failed')}</p>
                             <p className="text-xl font-bold text-destructive">{status.jobs_failed}</p>
                         </div>
                         <div className="space-y-1 border-l-2 border-amber-500/20 pl-3">
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Missed</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('debugConfig.missed')}</p>
                             <p className="text-xl font-bold text-amber-600">{status.jobs_missed}</p>
                         </div>
                     </div>
 
                     <div className="space-y-2">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                            Scheduled Jobs
+                            {t('debugConfig.scheduledJobs')}
                         </p>
                         {status.jobs.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No scheduled jobs</p>
+                            <p className="text-sm text-muted-foreground">{t('debugConfig.noScheduledJobs')}</p>
                         ) : (
                             <div className="rounded-md border bg-background/70">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="h-9">Job</TableHead>
-                                            <TableHead className="h-9">Trigger</TableHead>
-                                            <TableHead className="h-9">Next Run</TableHead>
+                                            <TableHead className="h-9">{t('debugConfig.job')}</TableHead>
+                                            <TableHead className="h-9">{t('debugConfig.trigger')}</TableHead>
+                                            <TableHead className="h-9">{t('debugConfig.nextRun')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -190,7 +192,7 @@ export function SchedulerStatus({ apiBaseUrl }: SchedulerStatusProps) {
                                                     <span className="text-xs font-mono">{job.trigger || 'unknown'}</span>
                                                 </TableCell>
                                                 <TableCell className="py-2" title={formatAbsoluteTime(job.next_run)}>
-                                                    {formatRelativeTime(job.next_run, 'Not scheduled')}
+                                                    {formatRelativeTime(job.next_run, t('debugConfig.notScheduled'))}
                                                 </TableCell>
                                             </TableRow>
                                         ))}

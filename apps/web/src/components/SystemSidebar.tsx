@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 interface NavItem {
     title: string
@@ -28,51 +29,53 @@ export function SystemSidebar({ onClose }: SystemSidebarProps) {
     const location = useLocation()
     const { slug } = useWorkspace()
 
+    const { t } = useTranslation()
+
     const navItems: NavItem[] = [
         {
-            title: 'Home',
+            title: t('nav.home', { defaultValue: 'Home' }),
             href: `/${slug}/resumes`,
             icon: Home,
             matches: [`/${slug}/resumes`]
         },
         {
-            title: 'System Settings',
+            title: t('nav.settings', { defaultValue: 'System Settings' }),
             href: `/${slug}/system/settings`,
             icon: Settings,
             matches: [`/${slug}/system/settings`]
         },
         {
-            title: 'Job Descriptions',
+            title: t('nav.jds', { defaultValue: 'Job Descriptions' }),
             href: `/${slug}/system/jds`,
             icon: FileText,
             matches: [`/${slug}/system/jds`]
         },
         {
-            title: 'Search Profiles',
+            title: t('searchProfiles.nav', { defaultValue: 'Search Profiles' }),
             href: `/${slug}/system/profiles`,
             icon: FileText,
             matches: [`/${slug}/system/profiles`]
         },
         {
-            title: 'AI Debugger',
+            title: t('nav.debugAi', { defaultValue: 'AI Debugger' }),
             href: `/${slug}/system/ai-debugger`,
             icon: Brain,
             matches: [`/${slug}/system/ai-debugger`]
         },
         {
-            title: 'Ingest Debug',
+            title: t('debugIngest.nav', { defaultValue: 'Ingest Debug' }),
             href: `/${slug}/system/ingest`,
             icon: Database,
             matches: [`/${slug}/system/ingest`]
         },
         {
-            title: 'Search Analytics',
+            title: t('searchAnalytics.nav', { defaultValue: 'Search Analytics' }),
             href: `/${slug}/system/search-analytics`,
             icon: BarChart3,
             matches: [`/${slug}/system/search-analytics`]
         },
         {
-            title: 'Data Inspector',
+            title: t('nav.dataInspector', { defaultValue: 'Data Inspector' }),
             href: `/${slug}/system/data`,
             icon: LayoutDashboard,
             matches: [`/${slug}/system/data`]
