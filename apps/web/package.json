@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npm run gen:api && vite",
     "dev:fast": "vite",
-    "gen:api": "npm --workspace @trends/api run openapi:gen && openapi-typescript ../api/openapi.json -o src/lib/api-types.ts",
+    "gen:api": "npm --workspace @trends/shared run build && npm --workspace @trends/api run openapi:gen && openapi-typescript ../api/openapi.json -o src/lib/api-types.ts",
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

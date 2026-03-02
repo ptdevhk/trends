@@ -1494,6 +1494,8 @@ export interface paths {
                             session: {
                                 /** @example session-123 */
                                 id: string;
+                                /** @example dev */
+                                workspaceSlug: string;
                                 /** @example user-1 */
                                 userId?: string;
                                 /** @example lathe-sales */
@@ -1555,6 +1557,8 @@ export interface paths {
                             session: {
                                 /** @example session-123 */
                                 id: string;
+                                /** @example dev */
+                                workspaceSlug: string;
                                 /** @example user-1 */
                                 userId?: string;
                                 /** @example lathe-sales */
@@ -1627,6 +1631,8 @@ export interface paths {
                             session: {
                                 /** @example session-123 */
                                 id: string;
+                                /** @example dev */
+                                workspaceSlug: string;
                                 /** @example user-1 */
                                 userId?: string;
                                 /** @example lathe-sales */

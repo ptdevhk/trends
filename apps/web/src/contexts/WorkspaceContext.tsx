@@ -15,22 +15,24 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const params = useParams()
   const teamSlug = params.teamSlug
+  const validSlug = teamSlug && isValidWorkspace(teamSlug) ? teamSlug : null
 
-  if (!teamSlug || !isValidWorkspace(teamSlug)) {
-    return <Navigate to="/dev/resumes" replace />
-  }
-
-  workspaceRef.set(teamSlug)
-
-  const workspace = WORKSPACE_TEAMS[teamSlug]
   const value = useMemo<WorkspaceContextValue>(() => {
+    const slug = validSlug ?? 'dev'
+    const workspace = WORKSPACE_TEAMS[slug]
     return {
-      slug: teamSlug,
+      slug,
       name: workspace.name,
       accessLevel: workspace.accessLevel,
       isAdmin: workspace.accessLevel === 'admin',
     }
-  }, [teamSlug, workspace])
+  }, [validSlug])
+
+  if (!validSlug) {
+    return <Navigate to="/dev/resumes" replace />
+  }
+
+  workspaceRef.set(validSlug)
 
   return (
     <WorkspaceContext.Provider value={value}>

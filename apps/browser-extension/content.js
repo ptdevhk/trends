@@ -763,11 +763,8 @@ const SyncStatusWidget = (() => {
 
   function openOptionsPage() {
     try {
-      chrome.runtime.sendMessage({ action: 'openOptionsPage' }, () => {
-        const runtimeError = chrome.runtime.lastError;
-        if (runtimeError) {
-          console.warn('🎯 [Auto Sync] Failed to open options page:', runtimeError.message);
-        }
+      void chrome.runtime.sendMessage({ action: 'openOptionsPage' }).catch((error) => {
+        console.warn('🎯 [Auto Sync] Failed to open options page:', error);
       });
     } catch (error) {
       console.warn('🎯 [Auto Sync] Failed to request options page:', error);
@@ -1419,7 +1416,7 @@ async function runAutoSyncIfEnabled() {
       SyncStatusWidget.show({
         state: 'success',
         message: `已同步 ${submitted} 份简历 (${inserted} 新增, ${updated} 更新)`,
-        autoDismiss: 5000
+        autoDismiss: true
       });
       setAutoSyncAttributes('done', submitted);
       return;
