@@ -6,6 +6,7 @@ import type { Doc } from '../../../../packages/convex/convex/_generated/dataMode
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PageHeader } from '@/components/PageHeader'
 
 const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密机械和机床行业的简历。
 你必须严格按照【纯数字 JSON】格式返回结果。
@@ -221,10 +222,10 @@ export default function DebugAI() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold">{t('debugAi.title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('debugAi.subtitle')}</p>
-      </div>
+      <PageHeader
+        title={t('debugAi.title')}
+        description={t('debugAi.subtitle')}
+      />
 
       <Card>
         <CardHeader>

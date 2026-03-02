@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-
+import { PageHeader } from '@/components/PageHeader'
 type ResumeSample = components['schemas']['ResumeSample']
 type ResumeItem = components['schemas']['ResumeItem']
 type ResumesResponse = components['schemas']['ResumesResponse']
@@ -624,16 +624,16 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">{t('debug.title')}</h1>
-            <p className="text-sm text-muted-foreground">{t('debug.subtitle')}</p>
-          </div>
-          <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-            <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-            {t('debug.refresh')}
-          </Button>
-        </div>
+        <PageHeader
+          title={t('debug.title')}
+          description={t('debug.subtitle')}
+          actions={
+            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+              <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
+              {t('debug.refresh')}
+            </Button>
+          }
+        />
 
         <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_0.6fr]">
           <SearchBar

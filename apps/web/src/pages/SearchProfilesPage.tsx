@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { PageHeader } from '@/components/PageHeader'
 
 type SearchProfileDetails = {
   id: string
@@ -453,24 +454,22 @@ export function SearchProfilesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{t('searchProfiles.title', { defaultValue: 'Search Profiles' })}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t('searchProfiles.subtitle', { defaultValue: 'Manage scheduled profile-based resume searches.' })}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => void loadProfiles()} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            {t('searchProfiles.refresh', { defaultValue: 'Refresh' })}
-          </Button>
-          <Button onClick={handleCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            {t('searchProfiles.create', { defaultValue: 'Create Profile' })}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={t('searchProfiles.title', { defaultValue: 'Search Profiles' })}
+        description={t('searchProfiles.subtitle', { defaultValue: 'Manage scheduled profile-based resume searches.' })}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => void loadProfiles()} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              {t('searchProfiles.refresh', { defaultValue: 'Refresh' })}
+            </Button>
+            <Button onClick={handleCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('searchProfiles.create', { defaultValue: 'Create Profile' })}
+            </Button>
+          </>
+        }
+      />
 
       {loading ? (
         <Card>

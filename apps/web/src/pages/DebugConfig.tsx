@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { withWorkspaceHeaders } from '@/lib/workspace-ref'
+import { PageHeader } from '@/components/PageHeader'
 
 interface AIStatus {
   enabled: boolean
@@ -745,10 +746,10 @@ export default function DebugConfig() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold">{t('debugConfig.title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('debugConfig.subtitle')}</p>
-      </div>
+      <PageHeader
+        title={t('debugConfig.title')}
+        description={t('debugConfig.subtitle')}
+      />
 
       {loadError && (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
