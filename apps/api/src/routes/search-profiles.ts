@@ -162,9 +162,13 @@ function writeRunStatusStore(store: Record<string, ProfileRunStatus>): void {
     fs.writeFileSync(filePath, JSON.stringify(store, null, 2), "utf8");
 }
 
-function upsertRunStatus(status: ProfileRunStatus): void {
+function toScopedProfileKey(workspaceSlug: string, profileId: string): string {
+    return `${workspaceSlug}:${profileId}`;
+}
+
+function upsertRunStatus(workspaceSlug: string, status: ProfileRunStatus): void {
     const store = readRunStatusStore();
-    store[status.profileId] = status;
+    store[toScopedProfileKey(workspaceSlug, status.profileId)] = status;
     writeRunStatusStore(store);
 }
 
@@ -354,7 +358,7 @@ const statsRoute = createRoute({
 });
 
 app.openapi(statsRoute, (c) => {
-    const stats = searchProfileService.getStats();
+    const stats = searchProfileService.getStats(c.var.workspaceSlug);
     return c.json({ success: true, stats } as const);
 });
 
@@ -382,7 +386,7 @@ const listRoute = createRoute({
 });
 
 app.openapi(listRoute, (c) => {
-    const profiles = searchProfileService.listProfiles();
+    const profiles = searchProfileService.listProfiles(c.var.workspaceSlug);
     return c.json({ success: true, profiles } as const);
 });
 
@@ -418,7 +422,7 @@ const autoMatchRoute = createRoute({
 
 app.openapi(autoMatchRoute, async (c) => {
     const { keywords, location } = c.req.valid("json");
-    const result = searchProfileService.findByKeywords(keywords, location);
+    const result = searchProfileService.findByKeywords(keywords, location, c.var.workspaceSlug);
 
     return c.json({
         success: true,
@@ -476,7 +480,7 @@ const createProfileRoute = createRoute({
 app.openapi(createProfileRoute, async (c) => {
     try {
         const payload = c.req.valid("json");
-        const profile = searchProfileService.createProfile(payload);
+        const profile = searchProfileService.createProfile(payload, c.var.workspaceSlug);
         return c.json({ success: true as const, profile }, 201);
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create profile";
@@ -543,10 +547,11 @@ const runProfileRoute = createRoute({
 
 app.openapi(runProfileRoute, async (c) => {
     const { id } = c.req.valid("param");
+    const workspaceSlug = c.var.workspaceSlug;
 
     let profile: SearchProfile;
     try {
-        profile = searchProfileService.loadProfile(id);
+        profile = searchProfileService.loadProfile(id, workspaceSlug);
     } catch {
         return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
     }
@@ -578,7 +583,7 @@ app.openapi(runProfileRoute, async (c) => {
             analysisTopN,
         });
         const now = new Date().toISOString();
-        upsertRunStatus({
+        upsertRunStatus(workspaceSlug, {
             profileId: profile.id,
             taskId,
             taskStatus: "pending",
@@ -675,16 +680,17 @@ const getProfileStatusRoute = createRoute({
 
 app.openapi(getProfileStatusRoute, async (c) => {
     const { id } = c.req.valid("param");
+    const workspaceSlug = c.var.workspaceSlug;
 
     let profile: SearchProfile;
     try {
-        profile = searchProfileService.loadProfile(id);
+        profile = searchProfileService.loadProfile(id, workspaceSlug);
     } catch {
         return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
     }
 
     const store = readRunStatusStore();
-    const storedStatus = store[profile.id];
+    const storedStatus = store[toScopedProfileKey(workspaceSlug, profile.id)];
     if (!storedStatus) {
         return c.json({ success: true as const, status: null }, 200);
     }
@@ -698,7 +704,7 @@ app.openapi(getProfileStatusRoute, async (c) => {
                 ...liveStatus,
                 updatedAt: new Date().toISOString(),
             };
-            upsertRunStatus(resolvedStatus);
+            upsertRunStatus(workspaceSlug, resolvedStatus);
         }
     } catch (error) {
         console.error("Failed to resolve profile run status:", error);
@@ -749,7 +755,7 @@ const getRoute = createRoute({
 app.openapi(getRoute, (c) => {
     const { id } = c.req.valid("param");
     try {
-        const profile = searchProfileService.loadProfile(id);
+        const profile = searchProfileService.loadProfile(id, c.var.workspaceSlug);
         return c.json({ success: true as const, profile }, 200);
     } catch {
         return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
@@ -818,7 +824,7 @@ app.openapi(updateProfileRoute, async (c) => {
     const payload = c.req.valid("json");
 
     try {
-        const profile = searchProfileService.updateProfile(id, payload);
+        const profile = searchProfileService.updateProfile(id, payload, c.var.workspaceSlug);
         return c.json({ success: true as const, profile }, 200);
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update profile";
@@ -864,7 +870,7 @@ const deleteProfileRoute = createRoute({
 
 app.openapi(deleteProfileRoute, (c) => {
     const { id } = c.req.valid("param");
-    const deleted = searchProfileService.deleteProfile(id);
+    const deleted = searchProfileService.deleteProfile(id, c.var.workspaceSlug);
 
     if (!deleted) {
         return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);

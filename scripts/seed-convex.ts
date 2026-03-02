@@ -10,6 +10,9 @@ type SeedStatus = {
   jobDescriptions: number;
   resumes: number;
   collectionTasks: number;
+  searchProfiles: number;
+  screeningSessions: number;
+  workspaceConfig: number;
   isEmpty: boolean;
 };
 
@@ -33,6 +36,25 @@ type SeedResult = {
   skipped: number;
 };
 
+type WorkspaceSeedResult = {
+  customJobDescriptions: {
+    inserted: number;
+    updated: number;
+  };
+  searchProfiles: {
+    inserted: number;
+    updated: number;
+  };
+  screeningSessions: {
+    inserted: number;
+    updated: number;
+  };
+  workspaceConfig: {
+    inserted: number;
+    updated: number;
+  };
+};
+
 type CliOptions = {
   withResumes: boolean;
   force: boolean;
@@ -43,6 +65,7 @@ type CliOptions = {
 const seedStatusFunction = makeFunctionReference<"query", Record<string, never>, SeedStatus>("seed:status");
 const seedJobDescriptionsFunction = makeFunctionReference<"mutation", { items: SeedJobDescription[] }, SeedResult>("seed:seedJobDescriptions");
 const seedResumesFunction = makeFunctionReference<"mutation", { resumes: SeedResume[] }, SeedResult>("seed:seedResumes");
+const seedWorkspaceDemoFunction = makeFunctionReference<"mutation", Record<string, never>, WorkspaceSeedResult>("seed:seedWorkspaceDemoData");
 
 function printUsage(): void {
   console.log("Usage: seed-convex.ts [--with-resumes] [--force] [--check-only] [--sample <name>]");
@@ -411,7 +434,7 @@ function chunkItems<T>(items: T[], chunkSize: number): T[][] {
 
 function printStatus(status: SeedStatus): void {
   console.log(
-    `Database status: jobDescriptions=${status.jobDescriptions}, resumes=${status.resumes}, collectionTasks=${status.collectionTasks}, isEmpty=${status.isEmpty}`
+    `Database status: jobDescriptions=${status.jobDescriptions}, resumes=${status.resumes}, collectionTasks=${status.collectionTasks}, searchProfiles=${status.searchProfiles}, screeningSessions=${status.screeningSessions}, workspaceConfig=${status.workspaceConfig}, isEmpty=${status.isEmpty}`
   );
 }
 
@@ -443,6 +466,15 @@ async function main(): Promise<void> {
   console.log(`Seeding ${jobDescriptions.length} job descriptions...`);
   const jdResult = await client.mutation(seedJobDescriptionsFunction, { items: jobDescriptions });
   console.log(`Job descriptions: inserted=${jdResult.inserted}, skipped=${jdResult.skipped}`);
+
+  const workspaceSeedResult = await client.mutation(seedWorkspaceDemoFunction, {});
+  console.log(
+    "Workspace fixtures:"
+    + ` customJDs(inserted=${workspaceSeedResult.customJobDescriptions.inserted}, updated=${workspaceSeedResult.customJobDescriptions.updated}),`
+    + ` profiles(inserted=${workspaceSeedResult.searchProfiles.inserted}, updated=${workspaceSeedResult.searchProfiles.updated}),`
+    + ` sessions(inserted=${workspaceSeedResult.screeningSessions.inserted}, updated=${workspaceSeedResult.screeningSessions.updated}),`
+    + ` workspaceConfig(inserted=${workspaceSeedResult.workspaceConfig.inserted}, updated=${workspaceSeedResult.workspaceConfig.updated})`
+  );
 
   if (options.withResumes) {
     const resumes = loadSampleResumes(projectRoot, options.sample);

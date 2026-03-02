@@ -351,3 +351,5 @@ HR feedback patterns and observations. New entries are appended by the feedback 
 - 2026-02-24: shortlist pattern -> machinery/cnc + unknown
 - 2026-02-24: shortlist pattern -> machinery + unknown
 - 2026-02-24: shortlist pattern -> cnc + junior
+- 2026-03-02: shortlist_pattern: sales + software + mid -> high_priority
+- 2026-03-02: shortlist_pattern: sales + software + mid -> high_priority

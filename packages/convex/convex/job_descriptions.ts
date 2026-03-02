@@ -2,9 +2,30 @@ import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+const DEFAULT_WORKSPACE_SLUG = "dev";
+
+function normalizeWorkspaceSlug(input: string | undefined): string {
+    const normalized = input?.trim();
+    return normalized && normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_SLUG;
+}
+
+function belongsToWorkspace(
+    recordWorkspaceSlug: string | undefined,
+    workspaceSlug: string
+): boolean {
+    if (workspaceSlug === DEFAULT_WORKSPACE_SLUG) {
+        return !recordWorkspaceSlug || recordWorkspaceSlug === DEFAULT_WORKSPACE_SLUG;
+    }
+    return recordWorkspaceSlug === workspaceSlug;
+}
+
 export const list = query({
-    args: { userId: v.optional(v.string()) },
+    args: {
+        userId: v.optional(v.string()),
+        workspaceSlug: v.optional(v.string()),
+    },
     handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         // Fetch all system JDs
         const systemJDs = await ctx.db
             .query("job_descriptions")
@@ -21,6 +42,8 @@ export const list = query({
             customJDs = customJDs.filter(jd => jd.userId === args.userId || !jd.userId);
         }
 
+        customJDs = customJDs.filter((jd) => belongsToWorkspace(jd.workspaceSlug, workspaceSlug));
+
         return [...systemJDs, ...customJDs].filter(jd => jd.enabled !== false).sort((a, b) => b.lastModified - a.lastModified);
     },
 });
@@ -31,13 +54,16 @@ export const create = mutation({
         content: v.string(),
         type: v.union(v.literal("system"), v.literal("custom")),
         userId: v.optional(v.string()),
+        workspaceSlug: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const id = await ctx.db.insert("job_descriptions", {
             title: args.title,
             content: args.content,
             type: args.type,
             userId: args.userId,
+            workspaceSlug,
             enabled: true,
             lastModified: Date.now(),
         });
@@ -74,32 +100,53 @@ export const get = query({
 });
 
 export const list_all = query({
-    handler: async (ctx) => {
-        return await ctx.db.query("job_descriptions").collect();
+    args: { workspaceSlug: v.optional(v.string()) },
+    handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const jds = await ctx.db.query("job_descriptions").collect();
+
+        return jds.filter((jd) => {
+            if (jd.type === "system") {
+                return true;
+            }
+            return belongsToWorkspace(jd.workspaceSlug, workspaceSlug);
+        });
     },
 });
 
 
 export const delete_jd = mutation({
-    args: { id: v.id("job_descriptions") },
+    args: {
+        id: v.id("job_descriptions"),
+        workspaceSlug: v.optional(v.string()),
+    },
     handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const jd = await ctx.db.get(args.id);
         if (!jd) throw new Error("Job description not found");
         if (jd.type === "system") throw new Error("Cannot delete system job descriptions");
+        if (!belongsToWorkspace(jd.workspaceSlug, workspaceSlug)) {
+            throw new Error("Cannot delete job descriptions from another workspace");
+        }
         await ctx.db.delete(args.id);
     },
 });
 
 export const delete_batch = mutation({
     args: {
-        ids: v.array(v.id("job_descriptions"))
+        ids: v.array(v.id("job_descriptions")),
+        workspaceSlug: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         // 1. Validate all are custom
         for (const id of args.ids) {
             const jd = await ctx.db.get(id);
             if (jd && jd.type === 'system') {
                 throw new Error(`Cannot delete System JD: ${jd.title}`);
+            }
+            if (jd && !belongsToWorkspace(jd.workspaceSlug, workspaceSlug)) {
+                throw new Error(`Cannot delete JD from another workspace: ${jd.title}`);
             }
         }
 
@@ -111,11 +158,19 @@ export const delete_batch = mutation({
 });
 
 export const list_with_usage = query({
-    handler: async (ctx) => {
+    args: { workspaceSlug: v.optional(v.string()) },
+    handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const jds = await ctx.db.query("job_descriptions").collect();
         const resumes = await ctx.db.query("resumes").collect();
+        const scopedJds = jds.filter((jd) => {
+            if (jd.type === "system") {
+                return true;
+            }
+            return belongsToWorkspace(jd.workspaceSlug, workspaceSlug);
+        });
 
-        return jds.map(jd => {
+        return scopedJds.map(jd => {
             const jdIdStr = String(jd._id);
             const jdSlug = jd.slug;
 

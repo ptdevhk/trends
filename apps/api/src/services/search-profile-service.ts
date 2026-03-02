@@ -192,6 +192,13 @@ function normalizeProfileId(rawId: string): string {
     return normalized || "profile";
 }
 
+const DEFAULT_WORKSPACE_SLUG = "dev";
+
+function normalizeWorkspaceSlug(rawSlug?: string): string {
+    const normalized = rawSlug?.trim();
+    return normalized && normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_SLUG;
+}
+
 function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
     if (!isRecord(value)) return undefined;
 
@@ -416,23 +423,32 @@ export class SearchProfileService {
         this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
     }
 
-    private getProfilesDir(): string {
+    private getProfilesBaseDir(): string {
         return path.join(this.projectRoot, "config", "search-profiles");
     }
 
-    private ensureProfilesDir(): void {
-        const profilesDir = this.getProfilesDir();
+    private getProfilesDir(workspaceSlug?: string): string {
+        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
+        const baseDir = this.getProfilesBaseDir();
+        if (normalizedWorkspace === DEFAULT_WORKSPACE_SLUG) {
+            return baseDir;
+        }
+        return path.join(baseDir, normalizedWorkspace);
+    }
+
+    private ensureProfilesDir(workspaceSlug?: string): void {
+        const profilesDir = this.getProfilesDir(workspaceSlug);
         if (!fs.existsSync(profilesDir)) {
             fs.mkdirSync(profilesDir, { recursive: true });
         }
     }
 
-    private getProfilePath(id: string): string {
-        return path.join(this.getProfilesDir(), `${id}.yaml`);
+    private getProfilePath(id: string, workspaceSlug?: string): string {
+        return path.join(this.getProfilesDir(workspaceSlug), `${id}.yaml`);
     }
 
-    private findExistingProfilePath(id: string): string | null {
-        const profilesDir = this.getProfilesDir();
+    private findExistingProfilePath(id: string, workspaceSlug?: string): string | null {
+        const profilesDir = this.getProfilesDir(workspaceSlug);
         const candidates = [
             path.join(profilesDir, `${id}.yaml`),
             path.join(profilesDir, `${id}.yml`),
@@ -535,9 +551,13 @@ export class SearchProfileService {
         }
     }
 
-    private writeProfile(profile: SearchProfile): void {
-        this.ensureProfilesDir();
-        const filePath = this.getProfilePath(profile.id);
+    private getCacheKey(workspaceSlug: string, profileId: string): string {
+        return `${workspaceSlug}:${profileId}`;
+    }
+
+    private writeProfile(profile: SearchProfile, workspaceSlug?: string): void {
+        this.ensureProfilesDir(workspaceSlug);
+        const filePath = this.getProfilePath(profile.id, workspaceSlug);
         const payload = stringifyYaml(profile, {
             lineWidth: 120,
             indent: 2,
@@ -549,8 +569,8 @@ export class SearchProfileService {
     /**
      * List all profile files
      */
-    listProfiles(): SearchProfileFile[] {
-        const dir = this.getProfilesDir();
+    listProfiles(workspaceSlug?: string): SearchProfileFile[] {
+        const dir = this.getProfilesDir(workspaceSlug);
         if (!fs.existsSync(dir)) return [];
 
         const entries = fs.readdirSync(dir)
@@ -578,34 +598,37 @@ export class SearchProfileService {
     /**
      * Load a single profile by ID
      */
-    loadProfile(id: string): SearchProfile {
+    loadProfile(id: string, workspaceSlug?: string): SearchProfile {
+        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
         const normalizedId = normalizeProfileId(id);
+        const cacheKey = this.getCacheKey(normalizedWorkspace, normalizedId);
 
-        const cachedProfile = this.cache.get(normalizedId);
+        const cachedProfile = this.cache.get(cacheKey);
         if (cachedProfile) {
             return cachedProfile;
         }
 
-        const existingPath = this.findExistingProfilePath(normalizedId);
+        const existingPath = this.findExistingProfilePath(normalizedId, normalizedWorkspace);
         if (!existingPath) {
-            const available = this.listProfiles().map((p) => p.id).join(", ");
+            const available = this.listProfiles(normalizedWorkspace).map((p) => p.id).join(", ");
             throw new DataNotFoundError(`Search profile not found: ${normalizedId}`, {
                 suggestion: available ? `Available: ${available}` : "No search profiles available",
             });
         }
 
         const profile = this.readProfileFromFile(existingPath, normalizedId);
-        this.cache.set(normalizedId, profile);
+        this.cache.set(cacheKey, profile);
         return profile;
     }
 
-    createProfile(input: unknown): SearchProfile {
+    createProfile(input: unknown, workspaceSlug?: string): SearchProfile {
+        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
         const provisional = this.coerceProfile(input);
         const derivedId = provisional.id !== "profile" ? provisional.id : normalizeProfileId(provisional.name);
         const profile = this.coerceProfile({ ...provisional, id: derivedId });
         this.ensureRequiredCoreFields(profile);
 
-        if (this.findExistingProfilePath(profile.id)) {
+        if (this.findExistingProfilePath(profile.id, normalizedWorkspace)) {
             throw new Error(`Profile already exists: ${profile.id}`);
         }
 
@@ -616,14 +639,15 @@ export class SearchProfileService {
             updatedAt: now,
         };
 
-        this.writeProfile(profileToStore);
-        this.cache.set(profileToStore.id, profileToStore);
+        this.writeProfile(profileToStore, normalizedWorkspace);
+        this.cache.set(this.getCacheKey(normalizedWorkspace, profileToStore.id), profileToStore);
         return profileToStore;
     }
 
-    updateProfile(id: string, updates: unknown): SearchProfile {
+    updateProfile(id: string, updates: unknown, workspaceSlug?: string): SearchProfile {
+        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
         const normalizedId = normalizeProfileId(id);
-        const existing = this.loadProfile(normalizedId);
+        const existing = this.loadProfile(normalizedId, normalizedWorkspace);
 
         const mergedInput: Record<string, unknown> = {
             ...existing,
@@ -641,20 +665,21 @@ export class SearchProfileService {
             updatedAt: now,
         };
 
-        this.writeProfile(profileToStore);
-        this.cache.set(normalizedId, profileToStore);
+        this.writeProfile(profileToStore, normalizedWorkspace);
+        this.cache.set(this.getCacheKey(normalizedWorkspace, normalizedId), profileToStore);
         return profileToStore;
     }
 
-    deleteProfile(id: string): boolean {
+    deleteProfile(id: string, workspaceSlug?: string): boolean {
+        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
         const normalizedId = normalizeProfileId(id);
-        const existingPath = this.findExistingProfilePath(normalizedId);
+        const existingPath = this.findExistingProfilePath(normalizedId, normalizedWorkspace);
         if (!existingPath) {
             return false;
         }
 
         fs.unlinkSync(existingPath);
-        this.cache.delete(normalizedId);
+        this.cache.delete(this.getCacheKey(normalizedWorkspace, normalizedId));
         return true;
     }
 
@@ -673,7 +698,8 @@ export class SearchProfileService {
     /**
      * Find profile by keywords (auto-match)
      */
-    findByKeywords(keywords: string[], location?: string): AutoMatchResult {
+    findByKeywords(keywords: string[], location?: string, workspaceSlug?: string): AutoMatchResult {
+        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
         const normalizedInputKeywords = normalizeKeywords(keywords.map((k) => k.toLowerCase()));
         if (normalizedInputKeywords.length === 0) {
             return {
@@ -682,12 +708,12 @@ export class SearchProfileService {
             };
         }
 
-        const profiles = this.listProfiles().filter((p) => p.status === "active");
+        const profiles = this.listProfiles(normalizedWorkspace).filter((p) => p.status === "active");
 
         let bestMatch: { profile: SearchProfile; score: number; matchedKeywords: string[] } | null = null;
 
         for (const profileFile of profiles) {
-            const profile = this.loadProfile(profileFile.id);
+            const profile = this.loadProfile(profileFile.id, normalizedWorkspace);
 
             const profileKeywords = profile.keywords.map((k) => k.toLowerCase());
             const matchedKeywords = normalizedInputKeywords.filter((keyword) =>
@@ -735,8 +761,8 @@ export class SearchProfileService {
     /**
      * Get profile count
      */
-    getStats(): { total: number; active: number; paused: number; archived: number } {
-        const profiles = this.listProfiles();
+    getStats(workspaceSlug?: string): { total: number; active: number; paused: number; archived: number } {
+        const profiles = this.listProfiles(workspaceSlug);
         return {
             total: profiles.length,
             active: profiles.filter((p) => p.status === "active").length,

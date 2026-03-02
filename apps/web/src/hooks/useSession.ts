@@ -3,21 +3,36 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../../packages/convex/convex/_generated/api';
 import type { ResumeFilters } from '@/types/resume';
 import { toast } from 'sonner';
-
-const STORAGE_KEY = 'trends.resume.sessionKey';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export function useSession() {
-  // 1. Session Key (Persistent in LocalStorage)
-  const [sessionKey] = useState(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
+  const { slug } = useWorkspace()
+  const storageKey = `trends.resume.sessionKey.${slug}`
+  const [sessionKey, setSessionKey] = useState(() => {
+    const stored = localStorage.getItem(storageKey);
     if (stored) return stored;
     const newKey = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    localStorage.setItem(STORAGE_KEY, newKey);
+    localStorage.setItem(storageKey, newKey);
     return newKey;
   });
 
+  useEffect(() => {
+    const stored = localStorage.getItem(storageKey)
+    if (stored) {
+      setSessionKey(stored)
+      return
+    }
+
+    const newKey = Math.random().toString(36).substring(2) + Date.now().toString(36)
+    localStorage.setItem(storageKey, newKey)
+    setSessionKey(newKey)
+  }, [storageKey])
+
   // 2. Convex Sync
-  const activeSession = useQuery(api.sessions.getActiveSession, { sessionKey });
+  const activeSession = useQuery(
+    api.sessions.getActiveSession,
+    sessionKey ? { sessionKey, workspaceSlug: slug } : 'skip'
+  );
   const saveSession = useMutation(api.sessions.saveSession);
   const addReviewedItem = useMutation(api.sessions.addReviewedItem);
 
@@ -28,6 +43,14 @@ export function useSession() {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [jobDescriptionId, setJobDescriptionId] = useState<string | undefined>(undefined);
   const [filters, setFilters] = useState<ResumeFilters>({});
+
+  useEffect(() => {
+    setHasRestored(false)
+    setLocation('广东')
+    setKeywords([])
+    setJobDescriptionId(undefined)
+    setFilters({})
+  }, [slug, sessionKey])
 
   // 4. Initialization (Restore from DB)
   useEffect(() => {
@@ -45,11 +68,13 @@ export function useSession() {
 
   // 5. Auto-save (Debounced)
   useEffect(() => {
+    if (!sessionKey) return
     if (!hasRestored) return;
 
     const timer = setTimeout(() => {
       saveSession({
         sessionKey,
+        workspaceSlug: slug,
         location,
         keywords,
         jobDescriptionId,
@@ -58,14 +83,15 @@ export function useSession() {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [sessionKey, location, keywords, jobDescriptionId, filters, saveSession, hasRestored]);
+  }, [sessionKey, slug, location, keywords, jobDescriptionId, filters, saveSession, hasRestored]);
 
   // 6. Helpers
   const trackReviewedResume = useCallback(
     async (resumeId: string) => {
-      await addReviewedItem({ sessionKey, resumeId });
+      if (!sessionKey) return
+      await addReviewedItem({ sessionKey, workspaceSlug: slug, resumeId });
     },
-    [sessionKey, addReviewedItem]
+    [sessionKey, slug, addReviewedItem]
   );
 
   const reviewedIdsSet = useMemo(() =>

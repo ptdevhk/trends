@@ -9,6 +9,7 @@ import {
   type ConvexJobDescriptionItem,
   type SystemJobDescriptionItem,
 } from './job-description-options'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
@@ -20,9 +21,10 @@ interface JobDescriptionSelectProps {
 
 export function JobDescriptionSelect({ value, onChange, disabled }: JobDescriptionSelectProps) {
   const { t } = useTranslation()
+  const { slug } = useWorkspace()
   const [systemJobDescriptions, setSystemJobDescriptions] = useState<SystemJobDescriptionItem[]>([])
 
-  const convexJobDescriptions = useQuery(api.job_descriptions.list, {})
+  const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
 
   const normalizedConvexJobDescriptions = useMemo<ConvexJobDescriptionItem[]>(
     () =>
@@ -68,7 +70,7 @@ export function JobDescriptionSelect({ value, onChange, disabled }: JobDescripti
       />
       {value && (
         <Link
-          to="/config/jds"
+          to={`/${slug}/system/jds`}
           className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
           title={t('resumes.jobDescription.manage')}
           aria-label={t('resumes.jobDescription.manage')}

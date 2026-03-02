@@ -11,6 +11,7 @@ const SessionStatusSchema = z.enum(["active", "completed", "archived"]);
 
 const SearchSessionSchema = z.object({
   id: z.string().openapi({ example: "session-123" }),
+  workspaceSlug: z.string().openapi({ example: "dev" }),
   userId: z.string().optional().openapi({ example: "user-1" }),
   jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),
   sampleName: z.string().optional().openapi({ example: "sample-initial" }),
@@ -68,7 +69,9 @@ const createSessionRoute = createRoute({
 
 app.openapi(createSessionRoute, (c) => {
   const body = c.req.valid("json");
+  const workspaceSlug = c.var.workspaceSlug;
   const session = sessionManager.createSession({
+    workspaceSlug,
     userId: body.userId,
     jobDescriptionId: body.jobDescriptionId,
     sampleName: body.sampleName,
@@ -98,7 +101,8 @@ const getSessionRoute = createRoute({
 
 app.openapi(getSessionRoute, (c) => {
   const { id } = c.req.valid("param");
-  const session = sessionManager.getSession(id);
+  const workspaceSlug = c.var.workspaceSlug;
+  const session = sessionManager.getSession(id, workspaceSlug);
   if (!session) {
     return c.json({ success: false, error: "Session not found" }, 404);
   }
@@ -132,6 +136,7 @@ const updateSessionRoute = createRoute({
 app.openapi(updateSessionRoute, (c) => {
   const { id } = c.req.valid("param");
   const body = c.req.valid("json");
+  const workspaceSlug = c.var.workspaceSlug;
   const session = sessionManager.updateSession(id, {
     userId: body.userId,
     jobDescriptionId: body.jobDescriptionId,
@@ -139,7 +144,7 @@ app.openapi(updateSessionRoute, (c) => {
     filters: body.filters,
     status: body.status,
     expiresAt: body.expiresAt,
-  });
+  }, workspaceSlug);
 
   if (!session) {
     return c.json({ success: false, error: "Session not found" }, 404);

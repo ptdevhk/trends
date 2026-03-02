@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { withWorkspaceHeaders } from '@/lib/workspace-ref'
 
 interface AIStatus {
   enabled: boolean
@@ -445,10 +446,10 @@ export default function DebugConfig() {
     async (path: string, init?: RequestInit): Promise<unknown> => {
       const response = await fetch(`${apiBaseUrl}${path}`, {
         ...init,
-        headers: {
+        headers: withWorkspaceHeaders({
           ...(init?.headers ?? {}),
           'Content-Type': 'application/json',
-        },
+        }),
       })
 
       if (!response.ok) {

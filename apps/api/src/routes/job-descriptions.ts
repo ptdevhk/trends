@@ -109,6 +109,9 @@ const createRouteDef = createRoute({
 });
 
 app.openapi(createRouteDef, (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false, error: "Admin access required" }, 403);
+  }
   const { name, content, overwrite } = c.req.valid("json");
   try {
     const jd = jobDescriptionService.createFile({ name, content, overwrite });

@@ -24,6 +24,7 @@ import {
   workerRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
+import { workspaceMiddleware } from "./middleware/workspace.js";
 
 export const openApiConfig = {
   openapi: "3.1.0",
@@ -64,6 +65,7 @@ export function createApp() {
   );
   app.use("*", logger());
   app.use("*", prettyJSON());
+  app.use("*", workspaceMiddleware);
 
   // Mount routes
   app.route("/", healthRoutes);
