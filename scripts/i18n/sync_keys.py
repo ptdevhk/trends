@@ -19,6 +19,8 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -27,9 +29,15 @@ import yaml
 
 
 # Configuration
-I18N_DIR = Path(__file__).parent.parent.parent / "config" / "i18n"
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+I18N_DIR = PROJECT_ROOT / "config" / "i18n"
 SOURCE_LOCALE = "zh-Hant"
 TARGET_LOCALES = ["zh-Hans", "en"]
+WEB_LOCALES_DIR = PROJECT_ROOT / "apps" / "web" / "src" / "i18n" / "locales"
+WEB_SOURCE_LOCALE = "zh-Hant"
+WEB_TARGET_LOCALES = ["zh-Hans", "en"]
+WEB_SOURCE_DIR = PROJECT_ROOT / "apps" / "web" / "src"
+TRANSLATION_CALL_PATTERN = re.compile(r"\b(?:i18n\.)?t\s*\(\s*(['\"])([^'\"\n]+)\1\s*\)")
 
 
 def flatten_keys(data: dict[str, Any], prefix: str = "") -> set[str]:
@@ -75,6 +83,15 @@ def load_locale(locale: str) -> dict[str, Any]:
         return yaml.safe_load(f) or {}
 
 
+def load_web_locale(locale: str) -> dict[str, Any]:
+    """Load a web locale JSON file."""
+    filepath = WEB_LOCALES_DIR / f"{locale}.json"
+    if not filepath.exists():
+        raise FileNotFoundError(f"Locale file not found: {filepath}")
+    with open(filepath, encoding="utf-8") as f:
+        return json.load(f) or {}
+
+
 def save_locale(locale: str, data: dict[str, Any]) -> None:
     """Save a locale YAML file."""
     filepath = I18N_DIR / f"{locale}.yaml"
@@ -105,6 +122,45 @@ def check_locale_sync(
     extra_keys = target_keys - source_keys
 
     return missing_keys, extra_keys
+
+
+def iter_web_source_files() -> list[Path]:
+    """Return all web source files that can contain translation key usage."""
+    files: list[Path] = []
+    for path in WEB_SOURCE_DIR.rglob("*"):
+        if not path.is_file():
+            continue
+        if path.suffix not in {".ts", ".tsx"}:
+            continue
+        path_str = str(path)
+        if "__tests__" in path_str or path_str.endswith(".test.ts") or path_str.endswith(".test.tsx"):
+            continue
+        files.append(path)
+    return files
+
+
+def find_static_translation_key_usages() -> tuple[set[str], dict[str, str]]:
+    """
+    Find translation keys used via one-arg static calls:
+      - t('some.key')
+      - i18n.t("some.key")
+    """
+    used_keys: set[str] = set()
+    key_locations: dict[str, str] = {}
+
+    for file_path in iter_web_source_files():
+        content = file_path.read_text(encoding="utf-8")
+        for match in TRANSLATION_CALL_PATTERN.finditer(content):
+            key = match.group(2).strip()
+            if not key:
+                continue
+            used_keys.add(key)
+            if key not in key_locations:
+                line_number = content.count("\n", 0, match.start()) + 1
+                relative = file_path.relative_to(PROJECT_ROOT)
+                key_locations[key] = f"{relative}:{line_number}"
+
+    return used_keys, key_locations
 
 
 def format_key_list(keys: set[str], max_display: int = 20) -> str:
@@ -162,9 +218,14 @@ def main() -> int:
         print(f"ERROR: i18n directory not found: {I18N_DIR}")
         return 1
 
+    if not WEB_LOCALES_DIR.exists():
+        print(f"ERROR: web locale directory not found: {WEB_LOCALES_DIR}")
+        return 1
+
     # Load source locale
     try:
         source_data = load_locale(SOURCE_LOCALE)
+        print("YAML locale parity checks")
         print(f"Source locale: {SOURCE_LOCALE}.yaml")
         source_keys = flatten_keys(source_data) - {"meta.locale", "meta.name"}
         print(f"  Total keys: {len(source_keys)}")
@@ -174,7 +235,7 @@ def main() -> int:
         return 1
 
     all_synced = True
-    results = []
+    yaml_results = []
 
     for locale in TARGET_LOCALES:
         print(f"Checking: {locale}.yaml")
@@ -213,21 +274,96 @@ def main() -> int:
         else:
             print(f"  No extra keys")
 
-        results.append({
+        yaml_results.append({
             "locale": locale,
             "missing": len(missing_keys),
             "extra": len(extra_keys),
         })
         print()
 
+    print("Web JSON locale parity checks")
+    print(f"Source locale: {WEB_SOURCE_LOCALE}.json")
+    try:
+        web_source_data = load_web_locale(WEB_SOURCE_LOCALE)
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
+        return 1
+
+    web_source_keys = flatten_keys(web_source_data)
+    print(f"  Total keys: {len(web_source_keys)}")
+    print()
+
+    web_results = []
+    for locale in WEB_TARGET_LOCALES:
+        print(f"Checking: {locale}.json")
+        try:
+            target_data = load_web_locale(locale)
+        except FileNotFoundError:
+            print("  ERROR: File not found!")
+            all_synced = False
+            continue
+
+        missing_keys, extra_keys = check_locale_sync(web_source_data, target_data, locale)
+        if missing_keys:
+            all_synced = False
+            print(f"  MISSING keys ({len(missing_keys)}):")
+            if args.verbose:
+                print(format_key_list(missing_keys))
+            else:
+                print("    Run with --verbose to see all keys")
+        else:
+            print("  No missing keys")
+
+        if extra_keys:
+            all_synced = False
+            print(f"  EXTRA keys ({len(extra_keys)}) - consider removing:")
+            if args.verbose:
+                print(format_key_list(extra_keys))
+            else:
+                print("    Run with --verbose to see all keys")
+        else:
+            print("  No extra keys")
+
+        web_results.append({
+            "locale": locale,
+            "missing": len(missing_keys),
+            "extra": len(extra_keys),
+        })
+        print()
+
+    print("Web translation key usage checks")
+    used_keys, key_locations = find_static_translation_key_usages()
+    missing_used_keys = used_keys - web_source_keys
+    print(f"Static one-arg calls found: {len(used_keys)}")
+    if missing_used_keys:
+        all_synced = False
+        print(f"MISSING keys used in code ({len(missing_used_keys)}):")
+        for key in sorted(missing_used_keys)[:20]:
+            location = key_locations.get(key, "unknown")
+            print(f"  - {key} ({location})")
+        if len(missing_used_keys) > 20:
+            print(f"  ... and {len(missing_used_keys) - 20} more")
+    else:
+        print("No missing keys used in one-arg static t()/i18n.t() calls")
+    print()
+
     # Summary
     print("=" * 60)
     print("Summary")
     print("=" * 60)
     print()
+    print("YAML locale parity")
     print(f"{'Locale':<12} {'Missing':<10} {'Extra':<10} {'Status':<10}")
     print("-" * 42)
-    for r in results:
+    for r in yaml_results:
+        status = "OK" if r["missing"] == 0 and r["extra"] == 0 else "ISSUES"
+        print(f"{r['locale']:<12} {r['missing']:<10} {r['extra']:<10} {status:<10}")
+    print()
+
+    print("Web JSON locale parity")
+    print(f"{'Locale':<12} {'Missing':<10} {'Extra':<10} {'Status':<10}")
+    print("-" * 42)
+    for r in web_results:
         status = "OK" if r["missing"] == 0 and r["extra"] == 0 else "ISSUES"
         print(f"{r['locale']:<12} {r['missing']:<10} {r['extra']:<10} {status:<10}")
     print()
