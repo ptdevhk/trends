@@ -91,6 +91,15 @@ export function getAiModel(): string {
     return process.env.AI_MODEL || process.env.OPENAI_MODEL || "gpt-4-turbo-preview";
 }
 
+export function getAiTemperature(): number {
+    const raw = process.env.AI_TEMPERATURE;
+    if (raw !== undefined && raw.trim().length > 0) {
+        const parsed = parseFloat(raw);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return 0;
+}
+
 // Helper to normalize resume data
 export function normalizeResume(data: any) {
     // Extract skills from selfIntro and jobIntention since resume content has no "skills" field
@@ -136,11 +145,10 @@ export async function callLLM(messages: any[], apiKey: string) {
             "Authorization": `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-            model: getAiModel(), // Configurable
+            model: getAiModel(),
             messages: messages,
-            temperature: 0.1,
-            // strict json mode is often supported but sometimes model-dependent
-            // response_format: { type: "json_object" }, 
+            temperature: getAiTemperature(),
+            response_format: { type: "json_object" },
         }),
     });
 

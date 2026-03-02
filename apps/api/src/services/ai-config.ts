@@ -11,7 +11,7 @@
  * - AI_MODEL: Model identifier in format provider/model (default: openai/gpt-4o-mini)
  * - AI_API_KEY: API key for the AI provider
  * - AI_API_BASE: Custom API base URL (e.g., https://api.poe.com/v1)
- * - AI_TEMPERATURE: Sampling temperature (default: 0.7)
+ * - AI_TEMPERATURE: Sampling temperature (default: 0)
  * - AI_MAX_TOKENS: Max tokens for response (default: 4000)
  * - AI_TIMEOUT: Request timeout in ms (default: 120000)
  */
@@ -43,7 +43,7 @@ export function loadAIConfig(): AIConfig {
     const model = process.env.AI_MODEL || "openai/gpt-4o-mini";
     const apiKey = process.env.AI_API_KEY || "";
     const apiBase = process.env.AI_API_BASE || undefined;
-    const temperature = parseFloat(process.env.AI_TEMPERATURE || "0.7");
+    const temperature = parseFloat(process.env.AI_TEMPERATURE || "0");
     const maxTokens = parseInt(process.env.AI_MAX_TOKENS || "4000", 10);
     const timeout = parseInt(process.env.AI_TIMEOUT || "120000", 10);
 
