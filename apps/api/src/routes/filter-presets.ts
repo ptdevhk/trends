@@ -3,7 +3,7 @@
  */
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { filterPresetService } from "../services/filter-preset-service.js";
+import { workspaceConfigService } from "../services/workspace-config-service.js";
 
 const app = new OpenAPIHono();
 
@@ -60,9 +60,12 @@ const listRoute = createRoute({
     },
 });
 
-app.openapi(listRoute, (c) => {
+app.openapi(listRoute, async (c) => {
     const { category } = c.req.valid("query");
-    const presets = filterPresetService.listPresets(category);
+    const merged = await workspaceConfigService.getFilterPresets(c.var.workspaceSlug);
+    const presets = category
+        ? merged.presets.filter((preset) => preset.category === category)
+        : merged.presets;
     return c.json({ success: true as const, presets }, 200);
 });
 
@@ -89,8 +92,9 @@ const categoriesRoute = createRoute({
     },
 });
 
-app.openapi(categoriesRoute, (c) => {
-    const categories = filterPresetService.listCategories();
+app.openapi(categoriesRoute, async (c) => {
+    const merged = await workspaceConfigService.getFilterPresets(c.var.workspaceSlug);
+    const categories = merged.categories;
     return c.json({ success: true as const, categories }, 200);
 });
 
@@ -120,8 +124,16 @@ const statsRoute = createRoute({
     },
 });
 
-app.openapi(statsRoute, (c) => {
-    const stats = filterPresetService.getStats();
+app.openapi(statsRoute, async (c) => {
+    const merged = await workspaceConfigService.getFilterPresets(c.var.workspaceSlug);
+    const byCategory: Record<string, number> = {};
+    for (const preset of merged.presets) {
+        byCategory[preset.category] = (byCategory[preset.category] || 0) + 1;
+    }
+    const stats = {
+        total: merged.presets.length,
+        byCategory,
+    };
     return c.json({ success: true as const, stats }, 200);
 });
 
@@ -154,9 +166,10 @@ const getRoute = createRoute({
     },
 });
 
-app.openapi(getRoute, (c) => {
+app.openapi(getRoute, async (c) => {
     const { id } = c.req.valid("param");
-    const preset = filterPresetService.getPreset(id);
+    const merged = await workspaceConfigService.getFilterPresets(c.var.workspaceSlug);
+    const preset = merged.presets.find((item) => item.id === id);
     if (!preset) {
         return c.json({ success: false as const, error: `Preset not found: ${id}` }, 404);
     }

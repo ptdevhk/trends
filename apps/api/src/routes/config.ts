@@ -1,10 +1,7 @@
-import fs from "node:fs";
-import path from "node:path";
 import { OpenAPIHono, z } from "@hono/zod-openapi";
-import JSON5 from "json5";
-import { findProjectRoot } from "../services/db.js";
-import { customKeywordService } from "../services/custom-keyword-service.js";
+import { requireAdmin } from "../middleware/workspace.js";
 import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-config.js";
+import { workspaceConfigService } from "../services/workspace-config-service.js";
 
 const app = new OpenAPIHono();
 
@@ -31,16 +28,41 @@ const CustomKeywordUpdateSchema = z.object({
   category: z.string().optional(),
 });
 
-function getAgentsConfigPath(): string {
-  return path.join(findProjectRoot(), "config", "resume", "agents.json5");
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-app.get("/agents", (c) => {
+function applyBondedModel(configValue: Record<string, unknown>, model: string): Record<string, unknown> {
+  const agents = configValue.agents;
+  if (!isRecord(agents) || !Array.isArray(agents.list)) {
+    return configValue;
+  }
+
+  const list = agents.list.map((item) => {
+    if (!isRecord(item)) {
+      return item;
+    }
+    return {
+      ...item,
+      model,
+      isBonded: true,
+    };
+  });
+
+  return {
+    ...configValue,
+    agents: {
+      ...agents,
+      list,
+    },
+  };
+}
+
+app.get("/agents", async (c) => {
   try {
-    const configPath = getAgentsConfigPath();
-    const content = fs.readFileSync(configPath, "utf8");
-    const parsedContent: unknown = JSON5.parse(content);
-    const parsedResult = AgentsConfigSchema.safeParse(parsedContent);
+    const workspaceSlug = c.var.workspaceSlug;
+    const mergedConfig = await workspaceConfigService.getAgentsConfig(workspaceSlug);
+    const parsedResult = AgentsConfigSchema.safeParse(mergedConfig);
 
     if (!parsedResult.success) {
       return c.json({ success: false as const, error: "Invalid agents configuration format" }, 500);
@@ -49,16 +71,8 @@ app.get("/agents", (c) => {
     const aiConfig = loadAIConfig();
     const isModelBonded = aiConfig.bonded.includes("AI_MODEL");
 
-    // Apply AI_MODEL override if bonded
-    if (isModelBonded && aiConfig.model) {
-      const configData = parsedResult.data as any;
-      if (configData.agents && Array.isArray(configData.agents.list)) {
-        configData.agents.list = configData.agents.list.map((agent: any) => ({
-          ...agent,
-          model: aiConfig.model,
-          isBonded: true
-        }));
-      }
+    if (isModelBonded && aiConfig.model && isRecord(parsedResult.data)) {
+      const configData = applyBondedModel(parsedResult.data, aiConfig.model);
       return c.json({ success: true as const, config: configData }, 200);
     }
 
@@ -69,7 +83,7 @@ app.get("/agents", (c) => {
   }
 });
 
-app.put("/agents", async (c) => {
+app.put("/agents", requireAdmin, async (c) => {
   try {
     const body: unknown = await c.req.json();
     const parsedBody = AgentsConfigSchema.safeParse(body);
@@ -78,20 +92,7 @@ app.put("/agents", async (c) => {
       return c.json({ success: false as const, error: "Invalid agents configuration payload" }, 400);
     }
 
-    const aiConfig = loadAIConfig();
-    const isModelBonded = aiConfig.bonded.includes("AI_MODEL");
-
-    // Prevent saving if model is bonded and changed? 
-    // Actually the frontend will disable it, but for safety:
-    if (isModelBonded) {
-      // We don't want to save the bonded model into agents.json5
-      // because the env var should remain the source of truth.
-      // However, we should keep the JSON clean.
-    }
-
-    const configPath = getAgentsConfigPath();
-    fs.writeFileSync(configPath, JSON.stringify(parsedBody.data, null, 2), "utf8");
-
+    await workspaceConfigService.setAgentOverrides(c.var.workspaceSlug, parsedBody.data);
     return c.json({ success: true as const, config: parsedBody.data }, 200);
   } catch (error) {
     console.error("Failed to save agents config", error);
@@ -117,7 +118,7 @@ app.get("/ai-status", (c) => {
         apiKeyMasked: getMaskedApiKey(),
         valid: validation.valid,
         validationError: validation.error,
-        bonded: aiConfig.bonded, // Expose bonded vars
+        bonded: aiConfig.bonded,
       },
       200,
     );
@@ -127,14 +128,13 @@ app.get("/ai-status", (c) => {
   }
 });
 
-app.get("/custom-keywords", (c) => {
+app.get("/custom-keywords", async (c) => {
   try {
-    const tags = customKeywordService.listTags();
-    const categories = customKeywordService.listCategories();
+    const config = await workspaceConfigService.getCustomKeywords(c.var.workspaceSlug);
     const response = CustomKeywordsResponseSchema.parse({
       success: true as const,
-      tags,
-      categories,
+      tags: config.tags,
+      categories: config.categories,
     });
     return c.json(response, 200);
   } catch (error) {
@@ -143,7 +143,7 @@ app.get("/custom-keywords", (c) => {
   }
 });
 
-app.post("/custom-keywords", async (c) => {
+app.post("/custom-keywords", requireAdmin, async (c) => {
   try {
     const body: unknown = await c.req.json();
     const parsedBody = CustomKeywordTagSchema.safeParse(body);
@@ -152,12 +152,26 @@ app.post("/custom-keywords", async (c) => {
       return c.json({ success: false as const, error: "Invalid custom keyword payload" }, 400);
     }
 
-    const existingTag = customKeywordService.getTag(parsedBody.data.id);
-    if (existingTag) {
+    const workspaceSlug = c.var.workspaceSlug;
+    const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
+    const exists = mergedConfig.tags.some((tag) => tag.id === parsedBody.data.id);
+    if (exists) {
       return c.json({ success: false as const, error: `Tag already exists: ${parsedBody.data.id}` }, 409);
     }
 
-    customKeywordService.addTag(parsedBody.data);
+    const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
+    workspaceConfig.tags.push(parsedBody.data);
+
+    const categoryExists = mergedConfig.categories.some((category) => category.id === parsedBody.data.category)
+      || workspaceConfig.categories.some((category) => category.id === parsedBody.data.category);
+    if (!categoryExists) {
+      workspaceConfig.categories.push({
+        id: parsedBody.data.category,
+        name: parsedBody.data.category,
+      });
+    }
+
+    await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
     return c.json({ success: true as const, tag: parsedBody.data }, 201);
   } catch (error) {
     console.error("Failed to add custom keyword", error);
@@ -165,7 +179,7 @@ app.post("/custom-keywords", async (c) => {
   }
 });
 
-app.put("/custom-keywords/:id", async (c) => {
+app.put("/custom-keywords/:id", requireAdmin, async (c) => {
   try {
     const id = c.req.param("id");
     const body: unknown = await c.req.json();
@@ -175,11 +189,38 @@ app.put("/custom-keywords/:id", async (c) => {
       return c.json({ success: false as const, error: "Invalid custom keyword update payload" }, 400);
     }
 
-    const updatedTag = customKeywordService.updateTag(id, parsedBody.data);
-    if (!updatedTag) {
-      return c.json({ success: false as const, error: `Tag not found: ${id}` }, 404);
+    const workspaceSlug = c.var.workspaceSlug;
+    const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
+    const index = workspaceConfig.tags.findIndex((tag) => tag.id === id);
+    if (index === -1) {
+      return c.json({ success: false as const, error: `Tag not found in workspace override: ${id}` }, 404);
     }
 
+    const existingTag = workspaceConfig.tags[index];
+    const nextKeyword = parsedBody.data.keyword?.trim() ?? existingTag.keyword;
+    const nextCategory = parsedBody.data.category?.trim() ?? existingTag.category;
+    const nextEnglish = parsedBody.data.english !== undefined
+      ? parsedBody.data.english.trim() || undefined
+      : existingTag.english;
+    if (!nextKeyword || !nextCategory) {
+      return c.json({ success: false as const, error: "Invalid custom keyword update payload" }, 400);
+    }
+
+    const updatedTag = {
+      ...existingTag,
+      keyword: nextKeyword,
+      english: nextEnglish,
+      category: nextCategory,
+    };
+
+    workspaceConfig.tags[index] = updatedTag;
+
+    const categoryExists = workspaceConfig.categories.some((category) => category.id === nextCategory);
+    if (!categoryExists) {
+      workspaceConfig.categories.push({ id: nextCategory, name: nextCategory });
+    }
+
+    await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
     return c.json({ success: true as const, tag: updatedTag }, 200);
   } catch (error) {
     console.error("Failed to update custom keyword", error);
@@ -187,14 +228,21 @@ app.put("/custom-keywords/:id", async (c) => {
   }
 });
 
-app.delete("/custom-keywords/:id", (c) => {
+app.delete("/custom-keywords/:id", requireAdmin, async (c) => {
   try {
     const id = c.req.param("id");
-    const deleted = customKeywordService.deleteTag(id);
+    const workspaceSlug = c.var.workspaceSlug;
+    const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
+    const nextTags = workspaceConfig.tags.filter((tag) => tag.id !== id);
 
-    if (!deleted) {
-      return c.json({ success: false as const, error: `Tag not found: ${id}` }, 404);
+    if (nextTags.length === workspaceConfig.tags.length) {
+      return c.json({ success: false as const, error: `Tag not found in workspace override: ${id}` }, 404);
     }
+
+    await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, {
+      ...workspaceConfig,
+      tags: nextTags,
+    });
 
     return c.json({ success: true as const }, 200);
   } catch (error) {

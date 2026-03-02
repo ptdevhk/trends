@@ -15,6 +15,7 @@ import { Doc, Id } from '../../../../packages/convex/convex/_generated/dataModel
 
 import { useTranslation } from 'react-i18next'
 import { formatInAppTimezone } from '@/lib/timezone'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 type SortColumn = 'title' | 'type' | 'lastModified' | 'usageCount'
 type SortDirection = 'asc' | 'desc'
@@ -29,7 +30,8 @@ function getUsageCount(value: unknown): number {
 
 export default function DebugJDs() {
     const { t } = useTranslation()
-    const jds = useQuery(api.job_descriptions.list_with_usage)
+    const { slug } = useWorkspace()
+    const jds = useQuery(api.job_descriptions.list_with_usage, { workspaceSlug: slug })
     const deleteJD = useMutation(api.job_descriptions.delete_jd)
     const deleteBatch = useMutation(api.job_descriptions.delete_batch)
 
@@ -85,7 +87,7 @@ export default function DebugJDs() {
     const handleDelete = async () => {
         if (deleteId) {
             try {
-                await deleteJD({ id: deleteId })
+                await deleteJD({ id: deleteId, workspaceSlug: slug })
                 setDeleteId(null)
                 setDeleteError(null)
             } catch (error) {
@@ -140,7 +142,7 @@ export default function DebugJDs() {
         if (selectedIds.size === 0) return
 
         try {
-            await deleteBatch({ ids: Array.from(selectedIds) })
+            await deleteBatch({ ids: Array.from(selectedIds), workspaceSlug: slug })
             setSelectedIds(new Set())
             setShowBulkDeleteConfirm(false)
             setDeleteError(null)

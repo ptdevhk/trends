@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { Header } from '@/components/Header'
@@ -11,6 +12,7 @@ import DebugIngest from '@/pages/DebugIngest'
 import { SearchProfilesPage } from '@/pages/SearchProfilesPage'
 import SearchAnalyticsPage from '@/pages/SearchAnalyticsPage'
 import SystemLayout from '@/layouts/SystemLayout'
+import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
 
 function MainShell() {
   return (
@@ -25,9 +27,37 @@ function MainShell() {
   )
 }
 
+function WorkspaceShell() {
+  return (
+    <WorkspaceProvider>
+      <Outlet />
+    </WorkspaceProvider>
+  )
+}
+
+function AdminGate({ children }: { children: ReactNode }) {
+  const { isAdmin, slug } = useWorkspace()
+  if (!isAdmin) {
+    return <Navigate to={`/${slug}/resumes`} replace />
+  }
+  return <>{children}</>
+}
+
+function WorkspaceDebugPage() {
+  const { slug } = useWorkspace()
+  return <DebugPage basePath={`/${slug}/system/data`} />
+}
+
 function ProfilesLegacyRedirect() {
   const location = useLocation()
-  return <Navigate to={{ pathname: '/system/profiles', search: location.search }} replace />
+  return <Navigate to={{ pathname: '/dev/system/profiles', search: location.search }} replace />
+}
+
+function LegacySystemRedirect() {
+  const location = useLocation()
+  const suffix = location.pathname.replace(/^\/system\/?/, '')
+  const pathname = suffix.length > 0 ? `/dev/system/${suffix}` : '/dev/system'
+  return <Navigate to={{ pathname, search: location.search }} replace />
 }
 
 function App() {
@@ -35,35 +65,49 @@ function App() {
     <BrowserRouter>
       <ErrorBoundary>
         <Routes>
-          {/* Dedicated System Administration Shell */}
-          <Route path="/system" element={<SystemLayout />}>
-            <Route index element={<Navigate to="settings" replace />} />
-            <Route path="settings" element={<DebugConfig />} />
-            <Route path="jds" element={<DebugJDs />} />
-            <Route path="profiles" element={<SearchProfilesPage />} />
-            <Route path="ai-debugger" element={<DebugAI />} />
-            <Route path="ingest" element={<DebugIngest />} />
-            <Route path="search-analytics" element={<SearchAnalyticsPage />} />
-            <Route path="data/*" element={<DebugPage basePath="/system/data" />} />
-          </Route>
-
-          {/* Legacy Redirects Outside Shells */}
+          <Route path="/" element={<Navigate to="/dev/resumes" replace />} />
+          <Route path="/resumes" element={<Navigate to="/dev/resumes" replace />} />
           <Route path="/profiles" element={<ProfilesLegacyRedirect />} />
+          <Route path="/system/*" element={<LegacySystemRedirect />} />
+          <Route path="/config/jds" element={<Navigate to="/dev/system/jds" replace />} />
+          <Route path="/debug/jds" element={<Navigate to="/dev/system/jds" replace />} />
+          <Route path="/debug/config" element={<Navigate to="/dev/system/settings" replace />} />
+          <Route path="/debug/ai" element={<Navigate to="/dev/system/ai-debugger" replace />} />
+          <Route path="/debug/*" element={<Navigate to="/dev/system/data" replace />} />
 
-          {/* Default App Shell */}
-          <Route element={<MainShell />}>
-            <Route path="/" element={<Navigate to="/resumes" replace />} />
-            <Route path="/resumes" element={<ResumesPage />} />
+          <Route path="/:teamSlug" element={<WorkspaceShell />}>
+            <Route index element={<Navigate to="resumes" replace />} />
 
-            {/* Legacy Redirects */}
-            <Route path="/config/jds" element={<Navigate to="/system/jds" replace />} />
-            <Route path="/debug/jds" element={<Navigate to="/system/jds" replace />} />
-            <Route path="/debug/config" element={<Navigate to="/system/settings" replace />} />
-            <Route path="/debug/ai" element={<Navigate to="/system/ai-debugger" replace />} />
-            <Route path="/debug/*" element={<Navigate to="/system/data" replace />} />
+            <Route element={<MainShell />}>
+              <Route path="resumes" element={<ResumesPage />} />
+            </Route>
 
-            <Route path="*" element={<Navigate to="/resumes" replace />} />
+            <Route
+              path="system"
+              element={
+                <AdminGate>
+                  <SystemLayout />
+                </AdminGate>
+              }
+            >
+              <Route index element={<Navigate to="settings" replace />} />
+              <Route path="settings" element={<DebugConfig />} />
+              <Route path="jds" element={<DebugJDs />} />
+              <Route path="profiles" element={<SearchProfilesPage />} />
+              <Route path="ai-debugger" element={<DebugAI />} />
+              <Route path="ingest" element={<DebugIngest />} />
+              <Route path="search-analytics" element={<SearchAnalyticsPage />} />
+              <Route path="data/*" element={<WorkspaceDebugPage />} />
+            </Route>
+
+            <Route path="config/jds" element={<Navigate to="../system/jds" replace />} />
+            <Route path="debug/jds" element={<Navigate to="../system/jds" replace />} />
+            <Route path="debug/config" element={<Navigate to="../system/settings" replace />} />
+            <Route path="debug/ai" element={<Navigate to="../system/ai-debugger" replace />} />
+            <Route path="debug/*" element={<Navigate to="../system/data" replace />} />
           </Route>
+
+          <Route path="*" element={<Navigate to="/dev/resumes" replace />} />
         </Routes>
       </ErrorBoundary>
     </BrowserRouter>

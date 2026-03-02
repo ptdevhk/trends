@@ -25,6 +25,7 @@ export type SearchSessionStatus = "active" | "completed" | "archived";
 
 export type SearchSession = {
   id: string;
+  workspaceSlug: string;
   userId?: string;
   jobDescriptionId?: string;
   sampleName?: string;
@@ -58,6 +59,7 @@ function parseJson<T>(value: unknown): T | undefined {
 function normalizeSession(row: Record<string, unknown>): SearchSession {
   return {
     id: String(row.id),
+    workspaceSlug: row.workspace_slug ? String(row.workspace_slug) : "dev",
     userId: row.user_id ? String(row.user_id) : undefined,
     jobDescriptionId: row.job_description_id ? String(row.job_description_id) : undefined,
     sampleName: row.sample_name ? String(row.sample_name) : undefined,
@@ -77,6 +79,7 @@ export class SessionManager {
   }
 
   createSession(params: {
+    workspaceSlug?: string;
     userId?: string;
     jobDescriptionId?: string;
     sampleName?: string;
@@ -84,11 +87,13 @@ export class SessionManager {
   } = {}): SearchSession {
     const id = randomUUID();
     const now = toIsoNow();
+    const workspaceSlug = params.workspaceSlug?.trim() || "dev";
 
     this.db
       .prepare(`
         INSERT INTO search_sessions (
           id,
+          workspace_slug,
           user_id,
           job_description_id,
           sample_name,
@@ -97,10 +102,11 @@ export class SessionManager {
           created_at,
           updated_at,
           expires_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         id,
+        workspaceSlug,
         params.userId ?? null,
         params.jobDescriptionId ?? null,
         params.sampleName ?? null,
@@ -113,6 +119,7 @@ export class SessionManager {
 
     return {
       id,
+      workspaceSlug,
       userId: params.userId,
       jobDescriptionId: params.jobDescriptionId,
       sampleName: params.sampleName,
@@ -123,31 +130,34 @@ export class SessionManager {
     };
   }
 
-  getSession(sessionId: string): SearchSession | null {
+  getSession(sessionId: string, workspaceSlug?: string): SearchSession | null {
+    const normalizedWorkspace = workspaceSlug?.trim() || "dev";
     const row = this.db
-      .prepare("SELECT * FROM search_sessions WHERE id = ?")
-      .get(sessionId) as Record<string, unknown> | undefined;
+      .prepare("SELECT * FROM search_sessions WHERE id = ? AND workspace_slug = ?")
+      .get(sessionId, normalizedWorkspace) as Record<string, unknown> | undefined;
 
     if (!row) return null;
     return normalizeSession(row);
   }
 
-  getOrCreateSession(userId?: string): SearchSession {
+  getOrCreateSession(userId?: string, workspaceSlug?: string): SearchSession {
+    const normalizedWorkspace = workspaceSlug?.trim() || "dev";
     if (userId) {
       const row = this.db
         .prepare(
-          "SELECT * FROM search_sessions WHERE user_id = ? AND status = 'active' ORDER BY updated_at DESC LIMIT 1"
+          "SELECT * FROM search_sessions WHERE user_id = ? AND workspace_slug = ? AND status = 'active' ORDER BY updated_at DESC LIMIT 1"
         )
-        .get(userId) as Record<string, unknown> | undefined;
+        .get(userId, normalizedWorkspace) as Record<string, unknown> | undefined;
 
       if (row) return normalizeSession(row);
     }
 
-    return this.createSession({ userId });
+    return this.createSession({ workspaceSlug: normalizedWorkspace, userId });
   }
 
-  updateSession(sessionId: string, updates: SessionUpdateInput): SearchSession | null {
-    const existing = this.getSession(sessionId);
+  updateSession(sessionId: string, updates: SessionUpdateInput, workspaceSlug?: string): SearchSession | null {
+    const normalizedWorkspace = workspaceSlug?.trim() || "dev";
+    const existing = this.getSession(sessionId, normalizedWorkspace);
     if (!existing) return null;
 
     const fields: string[] = [];
@@ -186,10 +196,10 @@ export class SessionManager {
     values.push(sessionId);
 
     this.db
-      .prepare(`UPDATE search_sessions SET ${fields.join(", ")} WHERE id = ?`)
-      .run(...values);
+      .prepare(`UPDATE search_sessions SET ${fields.join(", ")} WHERE id = ? AND workspace_slug = ?`)
+      .run(...values, normalizedWorkspace);
 
-    return this.getSession(sessionId);
+    return this.getSession(sessionId, normalizedWorkspace);
   }
 
   archiveIdleSessions(idleMinutes: number): number {
@@ -206,8 +216,8 @@ export class SessionManager {
     return result.changes ?? 0;
   }
 
-  resetSession(sessionId: string, reason: "manual" | "idle" | "completed"): SearchSession | null {
+  resetSession(sessionId: string, reason: "manual" | "idle" | "completed", workspaceSlug?: string): SearchSession | null {
     const status = reason === "completed" ? "completed" : "archived";
-    return this.updateSession(sessionId, { status });
+    return this.updateSession(sessionId, { status }, workspaceSlug);
   }
 }

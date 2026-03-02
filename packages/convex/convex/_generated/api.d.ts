@@ -21,6 +21,7 @@ import type * as search_text from "../search_text.js";
 import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
 import type * as sync_events from "../sync_events.js";
+import type * as workspace_config from "../workspace_config.js";
 
 import type {
   ApiFromModules,
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   seed: typeof seed;
   sessions: typeof sessions;
   sync_events: typeof sync_events;
+  workspace_config: typeof workspace_config;
 }>;
 
 /**

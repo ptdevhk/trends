@@ -124,7 +124,8 @@ export default defineSchema({
             locations: v.array(v.string()),
         }),
         lastRunAt: v.optional(v.number()),
-    }),
+        workspaceSlug: v.optional(v.string()),
+    }).index("by_workspace", ["workspaceSlug"]),
 
     // Custom Job Descriptions
     job_descriptions: defineTable({
@@ -133,9 +134,12 @@ export default defineSchema({
         content: v.string(), // Markdown requirements
         type: v.string(), // 'system' | 'custom'
         userId: v.optional(v.string()), // For future multi-user
+        workspaceSlug: v.optional(v.string()),
         enabled: v.boolean(),
         lastModified: v.number(),
-    }).index("by_slug", ["slug"]),
+    })
+        .index("by_slug", ["slug"])
+        .index("by_workspace", ["workspaceSlug"]),
 
     analysis_tasks: defineTable({
         idempotencyKey: v.optional(v.string()),
@@ -185,10 +189,21 @@ export default defineSchema({
             filters: v.optional(v.any()), // Stores ResumeFilters object
         }),
         reviewedResumeIds: v.array(v.string()), // IDs of resumes seen/acted upon
+        workspaceSlug: v.optional(v.string()),
         lastActive: v.number(),
     })
         .index("by_sessionKey", ["sessionKey"])
-        .index("by_status", ["status"]),
+        .index("by_status", ["status"])
+        .index("by_workspace", ["workspaceSlug"]),
+
+    workspace_config: defineTable({
+        workspaceSlug: v.string(),
+        configKey: v.string(),
+        configValue: v.any(),
+        updatedAt: v.number(),
+    })
+        .index("by_workspace_key", ["workspaceSlug", "configKey"])
+        .index("by_workspace", ["workspaceSlug"]),
 
     sync_events: defineTable({
         source: v.string(),

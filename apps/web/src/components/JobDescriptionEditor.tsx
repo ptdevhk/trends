@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { useWorkspace } from "@/contexts/WorkspaceContext"
 
 interface JobDescriptionEditorProps {
     open: boolean
@@ -21,6 +22,7 @@ interface JobDescriptionEditorProps {
 }
 
 export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSuccess }: JobDescriptionEditorProps) {
+    const { slug } = useWorkspace()
     const createJD = useMutation(api.job_descriptions.create);
     const updateJD = useMutation(api.job_descriptions.update);
 
@@ -56,7 +58,8 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                 newId = await createJD({
                     title,
                     content,
-                    type: "custom"
+                    type: "custom",
+                    workspaceSlug: slug,
                 });
             }
             onSaveSuccess?.(newId);

@@ -4,15 +4,25 @@
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./src/index.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./types": {
-      "types": "./dist/types.d.ts",
-      "import": "./dist/types.js"
+      "types": "./src/types.ts",
+      "import": "./dist/types.js",
+      "require": "./dist/types.js",
+      "default": "./dist/types.js"
+    },
+    "./workspace": {
+      "types": "./src/workspace.ts",
+      "import": "./dist/workspace.js",
+      "require": "./dist/workspace.js",
+      "default": "./dist/workspace.js"
     }
   },
   "scripts": {

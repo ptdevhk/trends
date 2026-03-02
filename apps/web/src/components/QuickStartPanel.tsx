@@ -7,6 +7,7 @@ import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { ResumeFilters } from '@/types/resume'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 const COMMON_LOCATIONS = [
   '广东', '东莞', '深圳', '广州', '佛山', '惠州', '苏州', '无锡', '常州', '昆山', '上海',
@@ -139,6 +140,7 @@ export function QuickStartPanel({
   extraActions,
 }: QuickStartPanelProps) {
   const { t } = useTranslation()
+  const { slug } = useWorkspace()
 
   const [location, setLocation] = useState(defaultLocation)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
@@ -376,7 +378,7 @@ export function QuickStartPanel({
                 {t('quickStart.useConfig', 'Use this config')}
               </Button>
               <Link
-                to={`/system/profiles?edit=${encodeURIComponent(autoMatchResult.profile.id)}`}
+                to={`/${slug}/system/profiles?edit=${encodeURIComponent(autoMatchResult.profile.id)}`}
                 className="text-xs text-primary underline-offset-4 hover:underline"
               >
                 {t('quickStart.modifyConfig', 'Modify')}

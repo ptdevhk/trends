@@ -155,6 +155,54 @@ export const reindexSearchText = mutation({
     },
 });
 
+export const backfillWorkspaceSlugs = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const defaultWorkspace = "dev";
+        let patchedJobDescriptions = 0;
+        let patchedSearchProfiles = 0;
+        let patchedScreeningSessions = 0;
+
+        const customJobDescriptions = await ctx.db
+            .query("job_descriptions")
+            .filter((q) => q.eq(q.field("type"), "custom"))
+            .collect();
+
+        for (const record of customJobDescriptions) {
+            if (typeof record.workspaceSlug === "string" && record.workspaceSlug.trim()) {
+                continue;
+            }
+            await ctx.db.patch(record._id, { workspaceSlug: defaultWorkspace });
+            patchedJobDescriptions += 1;
+        }
+
+        const searchProfiles = await ctx.db.query("search_profiles").collect();
+        for (const record of searchProfiles) {
+            if (typeof record.workspaceSlug === "string" && record.workspaceSlug.trim()) {
+                continue;
+            }
+            await ctx.db.patch(record._id, { workspaceSlug: defaultWorkspace });
+            patchedSearchProfiles += 1;
+        }
+
+        const screeningSessions = await ctx.db.query("screening_sessions").collect();
+        for (const record of screeningSessions) {
+            if (typeof record.workspaceSlug === "string" && record.workspaceSlug.trim()) {
+                continue;
+            }
+            await ctx.db.patch(record._id, { workspaceSlug: defaultWorkspace });
+            patchedScreeningSessions += 1;
+        }
+
+        return {
+            defaultWorkspace,
+            patchedJobDescriptions,
+            patchedSearchProfiles,
+            patchedScreeningSessions,
+        };
+    },
+});
+
 export const backfillIngestData = action({
     args: {
         limit: v.optional(v.number()),

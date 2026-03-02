@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 interface NavItem {
   title: string
@@ -29,62 +30,63 @@ export default function SystemLayout() {
   const { t } = useTranslation()
   const location = useLocation()
   const [open, setOpen] = useState(false)
+  const { slug } = useWorkspace()
 
   const navItems: NavItem[] = [
     {
       title: t('nav.home', { defaultValue: 'Home' }),
-      href: '/resumes',
+      href: `/${slug}/resumes`,
       icon: Home,
-      matches: ['/resumes']
+      matches: [`/${slug}/resumes`]
     },
     {
       title: t('debug.navConfig', { defaultValue: 'System Settings' }),
-      href: '/system/settings',
+      href: `/${slug}/system/settings`,
       icon: Settings,
-      matches: ['/system/settings']
+      matches: [`/${slug}/system/settings`]
     },
     {
       title: t('jdManagement.title', { defaultValue: 'Job Descriptions' }),
-      href: '/system/jds',
+      href: `/${slug}/system/jds`,
       icon: FileText,
-      matches: ['/system/jds']
+      matches: [`/${slug}/system/jds`]
     },
     {
       title: t('searchProfiles.nav', { defaultValue: 'Search Profiles' }),
-      href: '/system/profiles',
+      href: `/${slug}/system/profiles`,
       icon: FileText,
-      matches: ['/system/profiles']
+      matches: [`/${slug}/system/profiles`]
     },
     {
       title: t('debugAi.title', { defaultValue: 'AI Debugger' }),
-      href: '/system/ai-debugger',
+      href: `/${slug}/system/ai-debugger`,
       icon: Bot,
-      matches: ['/system/ai-debugger']
+      matches: [`/${slug}/system/ai-debugger`]
     },
     {
       title: t('debugIngest.nav', { defaultValue: 'Ingest Debug' }),
-      href: '/system/ingest',
+      href: `/${slug}/system/ingest`,
       icon: Database,
-      matches: ['/system/ingest']
+      matches: [`/${slug}/system/ingest`]
     },
     {
       title: t('searchAnalytics.nav', { defaultValue: 'Search Analytics' }),
-      href: '/system/search-analytics',
+      href: `/${slug}/system/search-analytics`,
       icon: BarChart3,
-      matches: ['/system/search-analytics']
+      matches: [`/${slug}/system/search-analytics`]
     },
     {
       title: t('debug.title', { defaultValue: 'Data Inspector' }),
-      href: '/system/data',
+      href: `/${slug}/system/data`,
       icon: LayoutDashboard,
-      matches: ['/system/data']
+      matches: [`/${slug}/system/data`]
     }
   ]
 
   const NavContent = () => (
     <div className="flex flex-col h-full py-4 bg-background border-r">
       <div className="px-6 mb-6 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
+        <Link to={`/${slug}/resumes`} className="flex items-center gap-2">
           <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded">ADMIN</span>
           <div className="flex items-baseline gap-1">
             <span className="font-bold text-lg">{t('app.title')}</span>

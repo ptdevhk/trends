@@ -31,6 +31,14 @@ export class ErrorBoundary extends Component<Props, State> {
 
     render() {
         if (this.state.hasError) {
+            const workspaceMatch = typeof window !== 'undefined'
+                ? window.location.pathname.match(/^\/([^/]+)/)
+                : null
+            const workspaceSlug = workspaceMatch?.[1]
+            const homeHref = workspaceSlug === 'dev' || workspaceSlug === 'hr'
+                ? `/${workspaceSlug}/resumes`
+                : '/dev/resumes'
+
             if (this.props.fallback) {
                 return this.props.fallback
             }
@@ -62,7 +70,7 @@ export class ErrorBoundary extends Component<Props, State> {
                                 Try Again
                             </button>
                             <a
-                                href="/resumes"
+                                href={homeHref}
                                 className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
                                 Go Home

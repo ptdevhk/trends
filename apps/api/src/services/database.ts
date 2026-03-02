@@ -131,6 +131,7 @@ function initSchema(db: Database.Database): void {
 
   ensureColumn(db, "resume_matches", "breakdown", "TEXT");
   ensureColumn(db, "resume_matches", "score_source", "TEXT DEFAULT 'ai'");
+  ensureColumn(db, "search_sessions", "workspace_slug", "TEXT DEFAULT 'dev'");
 }
 
 function ensureColumn(
