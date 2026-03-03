@@ -1874,7 +1874,38 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update blocked candidate reason */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        identityKey: string;
+                        reason?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Block reason updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            updated: boolean;
+                        };
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/api/candidate-status": {
