@@ -148,6 +148,15 @@ export function QuickStartPanel({
   const [autoMatchResult, setAutoMatchResult] = useState<AutoMatchedProfile | null>(null)
   const [matching, setMatching] = useState(false)
 
+  useEffect(() => {
+    setLocation(defaultLocation)
+  }, [defaultLocation])
+
+  useEffect(() => {
+    setSelectedKeywords(defaultKeywords)
+    setCustomKeyword(defaultKeywords.join(' '))
+  }, [defaultKeywords])
+
   const normalizedKeywords = useMemo(
     () => selectedKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
     [selectedKeywords]

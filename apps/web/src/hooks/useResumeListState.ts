@@ -8,6 +8,7 @@ import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import { useConvexResumes, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useSession } from '@/hooks/useSession'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
+import { useUrlSearchState, type ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import { expandKeyword, DEFAULT_CONFIG } from '@/lib/trendradar/parser'
 import type { CandidateActionType, MatchingResult, ResumeFilters } from '@/types/resume'
@@ -44,6 +45,8 @@ type EnrichedResume = {
 }
 
 type AnalysisTaskDoc = Doc<'analysis_tasks'>
+
+const DEFAULT_LOCATION = '广东'
 
 function normalizeKeywordFingerprint(keywords: string[]): string {
   return [...keywords]
@@ -90,6 +93,87 @@ function getExportErrorMessage(value: unknown): string | undefined {
   return error
 }
 
+function normalizeFilterToken(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function toggleFilterValue(currentValues: string[], value: string): string[] {
+  const normalizedValue = value.trim()
+  if (normalizedValue.length === 0) {
+    return currentValues
+  }
+
+  const normalizedKey = normalizeFilterToken(normalizedValue)
+  if (currentValues.some((item) => normalizeFilterToken(item) === normalizedKey)) {
+    return currentValues.filter((item) => normalizeFilterToken(item) !== normalizedKey)
+  }
+
+  return [...currentValues, normalizedValue]
+}
+
+function toExperienceLevel(value: string | undefined): ExperienceLevelFilter | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  const normalized = normalizeFilterToken(value)
+  if (normalized === 'senior') return 'senior'
+  if (normalized === 'mid') return 'mid'
+  if (normalized === 'junior') return 'junior'
+  return undefined
+}
+
+function parseExperienceYears(value: string | undefined): number {
+  if (!value) {
+    return 0
+  }
+
+  const matched = value.match(/\d+(?:\.\d+)?/)
+  if (!matched) {
+    return 0
+  }
+
+  const parsed = Number(matched[0])
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function parseExtractedAt(value: string | undefined): number {
+  if (!value) {
+    return 0
+  }
+
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+const EDUCATION_KEYWORDS: Record<string, string[]> = {
+  high_school: ['高中', '中专', '技校', 'high school'],
+  associate: ['大专', '专科', 'associate'],
+  bachelor: ['本科', '学士', 'bachelor'],
+  master: ['硕士', '研究生', 'master'],
+  phd: ['博士', 'phd', 'doctor'],
+}
+
+function matchesEducationFilter(educationValue: string | undefined, selectedEducation: string[]): boolean {
+  if (selectedEducation.length === 0) {
+    return true
+  }
+
+  const normalizedEducation = normalizeFilterToken(educationValue ?? '')
+  if (!normalizedEducation) {
+    return false
+  }
+
+  return selectedEducation.some((level) => {
+    const keywords = EDUCATION_KEYWORDS[level]
+    if (!keywords || keywords.length === 0) {
+      return false
+    }
+
+    return keywords.some((keyword) => normalizedEducation.includes(normalizeFilterToken(keyword)))
+  })
+}
+
 export function useResumeListState() {
   const { t } = useTranslation()
   const {
@@ -103,13 +187,42 @@ export function useResumeListState() {
     setFilters,
     reviewedIdsSet,
     trackReviewedResume,
+    applyExternalState,
   } = useSession()
 
+  const {
+    parsedState: parsedUrlState,
+    hasUrlParams,
+    hasKeywordParam,
+    hasJobDescriptionParam,
+    syncToUrl,
+  } = useUrlSearchState()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkExportFormat, setBulkExportFormat] = useState<ResumeExportFormat>('csv')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
+  const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<ExperienceLevelFilter | undefined>(undefined)
   const [mode] = useState<'ai'>('ai')
   const hydratedSessionIdRef = useRef<string | null>(null)
+  const hasInitializedUrlSyncRef = useRef(false)
+  const lastAppliedUrlStateRef = useRef<string | null>(null)
+  const skipNextUrlSyncRef = useRef(false)
   const session = useMemo(() => ({ id: 'convex', jobDescriptionId, filters }), [jobDescriptionId, filters])
+  const urlStateSignature = useMemo(
+    () => JSON.stringify({
+      hasKeywordParam,
+      hasJobDescriptionParam,
+      hasUrlParams,
+      location: parsedUrlState.location ?? '',
+      keywords: parsedUrlState.keywords,
+      jobDescriptionId: parsedUrlState.jobDescriptionId ?? '',
+      selectedTags: parsedUrlState.selectedTags,
+      selectedCompanies: parsedUrlState.selectedCompanies,
+      selectedExperienceLevel: parsedUrlState.selectedExperienceLevel ?? '',
+      filters: parsedUrlState.filters,
+    }),
+    [hasKeywordParam, hasJobDescriptionParam, hasUrlParams, parsedUrlState]
+  )
 
   const {
     resumes,
@@ -155,6 +268,101 @@ export function useResumeListState() {
     return analysisTasks.some((task) => taskMatchesCurrentSearch(task, jobDescriptionId, sessionKeywords))
   }, [analysisTasks, jobDescriptionId, sessionKeywords])
 
+  useEffect(() => {
+    if (!hasUrlParams) {
+      return
+    }
+
+    if (lastAppliedUrlStateRef.current === urlStateSignature) {
+      return
+    }
+
+    lastAppliedUrlStateRef.current = urlStateSignature
+    const jobDescriptionIdForExternalState =
+      hasJobDescriptionParam
+        ? (parsedUrlState.jobDescriptionId ?? '')
+        : hasKeywordParam
+          ? ''
+          : parsedUrlState.jobDescriptionId
+
+    console.debug('[url-hydrate]', {
+      search: window.location.search,
+      keywords: parsedUrlState.keywords,
+      location: parsedUrlState.location,
+      jobDescriptionIdForExternalState,
+    })
+    skipNextUrlSyncRef.current = true
+    applyExternalState({
+      location: parsedUrlState.location,
+      keywords: parsedUrlState.keywords,
+      jobDescriptionId: jobDescriptionIdForExternalState,
+      filters: parsedUrlState.filters,
+    })
+    setSelectedTags(parsedUrlState.selectedTags)
+    setSelectedCompanies(parsedUrlState.selectedCompanies)
+    setSelectedExperienceLevel(parsedUrlState.selectedExperienceLevel)
+  }, [
+    applyExternalState,
+    hasJobDescriptionParam,
+    hasKeywordParam,
+    hasUrlParams,
+    parsedUrlState,
+    urlStateSignature,
+  ])
+
+  useEffect(() => {
+    if (!hasUrlParams) {
+      lastAppliedUrlStateRef.current = null
+    }
+  }, [hasUrlParams])
+
+  useEffect(() => {
+    if (!hasInitializedUrlSyncRef.current) {
+      hasInitializedUrlSyncRef.current = true
+      return
+    }
+
+    if (skipNextUrlSyncRef.current) {
+      skipNextUrlSyncRef.current = false
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      const normalizedLocation = sessionLocation.trim()
+      const locationForUrl =
+        normalizedLocation.length > 0 && normalizedLocation !== DEFAULT_LOCATION
+          ? normalizedLocation
+          : undefined
+
+      console.debug('[url-sync]', {
+        currentSearch: window.location.search,
+        locationForUrl,
+        keywords: sessionKeywords,
+        jobDescriptionId,
+      })
+      syncToUrl({
+        location: locationForUrl,
+        keywords: sessionKeywords,
+        jobDescriptionId,
+        selectedTags,
+        selectedCompanies,
+        selectedExperienceLevel,
+        filters,
+      })
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    filters,
+    jobDescriptionId,
+    selectedCompanies,
+    selectedExperienceLevel,
+    selectedTags,
+    sessionKeywords,
+    sessionLocation,
+    syncToUrl,
+  ])
+
   const filteredConvexResumes = useMemo(() => {
     let result: ScoredConvexResume[] = convexResumes
       .filter((resume: ConvexResumeItem) => {
@@ -176,6 +384,22 @@ export function useResumeListState() {
       result = result.filter((resume: ScoredConvexResume) => locations.some((location) => resume.location?.includes(location)))
     }
 
+    const minExperience = filters.minExperience
+    if (typeof minExperience === 'number') {
+      result = result.filter((resume: ScoredConvexResume) => parseExperienceYears(resume.experience) >= minExperience)
+    }
+
+    const maxExperience = filters.maxExperience
+    if (typeof maxExperience === 'number') {
+      result = result.filter((resume: ScoredConvexResume) => parseExperienceYears(resume.experience) <= maxExperience)
+    }
+
+    if (filters.education?.length) {
+      result = result.filter((resume: ScoredConvexResume) =>
+        matchesEducationFilter(resume.education, filters.education ?? [])
+      )
+    }
+
     const minMatchScore = filters.minMatchScore
     if (typeof minMatchScore === 'number') {
       result = result.filter((resume: ScoredConvexResume) => {
@@ -184,8 +408,28 @@ export function useResumeListState() {
       })
     }
 
+    if (selectedTags.length > 0) {
+      const activeTagSet = new Set(selectedTags.map(normalizeFilterToken))
+      result = result.filter((resume: ScoredConvexResume) =>
+        (resume.ingestData?.industryTags ?? []).some((tag) => activeTagSet.has(normalizeFilterToken(tag)))
+      )
+    }
+
+    if (selectedCompanies.length > 0) {
+      const activeCompanySet = new Set(selectedCompanies.map(normalizeFilterToken))
+      result = result.filter((resume: ScoredConvexResume) =>
+        (resume.ingestData?.companyHits ?? []).some((company) => activeCompanySet.has(normalizeFilterToken(company)))
+      )
+    }
+
+    if (selectedExperienceLevel) {
+      result = result.filter((resume: ScoredConvexResume) =>
+        normalizeFilterToken(resume.ingestData?.experienceLevel ?? '') === selectedExperienceLevel
+      )
+    }
+
     return result
-  }, [convexResumes, filters, jobDescriptionId, sessionKeywords])
+  }, [convexResumes, filters, jobDescriptionId, selectedCompanies, selectedExperienceLevel, selectedTags, sessionKeywords])
 
   useEffect(() => {
     if (!session?.id) return
@@ -324,6 +568,39 @@ export function useResumeListState() {
     [setFilters]
   )
 
+  const handleToggleTag = useCallback((tag: string) => {
+    setSelectedTags((current) => toggleFilterValue(current, tag))
+  }, [])
+
+  const handleToggleCompany = useCallback((company: string) => {
+    setSelectedCompanies((current) => toggleFilterValue(current, company))
+  }, [])
+
+  const handleToggleExperienceLevel = useCallback((level: string | undefined) => {
+    const normalizedLevel = toExperienceLevel(level)
+    if (!normalizedLevel) {
+      return
+    }
+
+    setSelectedExperienceLevel((current) => (current === normalizedLevel ? undefined : normalizedLevel))
+  }, [])
+
+  const handleClearTagFilters = useCallback(() => {
+    setSelectedTags([])
+    setSelectedCompanies([])
+    setSelectedExperienceLevel(undefined)
+  }, [])
+
+  const activeTagFilters = useMemo(
+    () => new Set(selectedTags.map(normalizeFilterToken)),
+    [selectedTags]
+  )
+
+  const activeCompanyFilters = useMemo(
+    () => new Set(selectedCompanies.map(normalizeFilterToken)),
+    [selectedCompanies]
+  )
+
   const enrichedResumes = useMemo<EnrichedResume[]>(() => {
     if (mode === 'ai') {
       return filteredConvexResumes.map((resume: ScoredConvexResume, index: number) => {
@@ -369,12 +646,28 @@ export function useResumeListState() {
   }, [actions, filteredConvexResumes, jobDescriptionId, mode, resumes, sessionKeywords])
 
   const displayedResumes = useMemo(() => {
+    const sortBy = filters.sortBy ?? 'score'
+    const sortOrder = filters.sortOrder ?? 'desc'
+    const direction = sortOrder === 'asc' ? 1 : -1
+
     return [...enrichedResumes].sort((a, b) => {
+      if (sortBy === 'name') {
+        return a.resume.name.localeCompare(b.resume.name, 'zh-Hans-CN') * direction
+      }
+
+      if (sortBy === 'experience') {
+        return (parseExperienceYears(a.resume.experience) - parseExperienceYears(b.resume.experience)) * direction
+      }
+
+      if (sortBy === 'extractedAt') {
+        return (parseExtractedAt(a.resume.extractedAt) - parseExtractedAt(b.resume.extractedAt)) * direction
+      }
+
       const scoreA = a.match?.score ?? a.ruleScore ?? 0
       const scoreB = b.match?.score ?? b.ruleScore ?? 0
-      return scoreB - scoreA
+      return (scoreA - scoreB) * direction
     })
-  }, [enrichedResumes])
+  }, [enrichedResumes, filters.sortBy, filters.sortOrder])
 
   const displayedResumeMap = useMemo(
     () => new Map(displayedResumes.map((entry) => [entry.key, entry.resume])),
@@ -627,6 +920,11 @@ export function useResumeListState() {
     hasActiveTask,
     disableAnalyzeButton,
     selectedIds,
+    selectedTags,
+    selectedCompanies,
+    selectedExperienceLevel,
+    activeTagFilters,
+    activeCompanyFilters,
     highScoreCount,
     bulkExportFormat,
     displayedResumes,
@@ -636,6 +934,10 @@ export function useResumeListState() {
     handleQuickStartApply,
     handleJobChange,
     handleFiltersChange,
+    handleToggleTag,
+    handleToggleCompany,
+    handleToggleExperienceLevel,
+    handleClearTagFilters,
     handleSelectAll,
     handleSelectHighScore,
     handleClearSelection,

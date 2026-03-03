@@ -5,6 +5,13 @@ import type { ResumeFilters } from '@/types/resume';
 import { toast } from 'sonner';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
+export type ExternalSessionState = {
+  location?: string
+  keywords?: string[]
+  jobDescriptionId?: string
+  filters?: Partial<ResumeFilters>
+}
+
 export function useSession() {
   const { slug } = useWorkspace()
   const storageKey = `trends.resume.sessionKey.${slug}`
@@ -99,6 +106,33 @@ export function useSession() {
     [activeSession?.reviewedResumeIds]
   );
 
+  const applyExternalState = useCallback((state: ExternalSessionState) => {
+    if (state.location !== undefined) {
+      const normalizedLocation = state.location.trim()
+      if (normalizedLocation.length > 0) {
+        setLocation(normalizedLocation)
+      }
+    }
+
+    if (state.keywords !== undefined) {
+      const normalizedKeywords = state.keywords
+        .map((keyword) => keyword.trim())
+        .filter((keyword) => keyword.length > 0)
+      setKeywords(normalizedKeywords)
+    }
+
+    if (state.jobDescriptionId !== undefined) {
+      const normalizedJobDescriptionId = state.jobDescriptionId.trim()
+      setJobDescriptionId(normalizedJobDescriptionId.length > 0 ? normalizedJobDescriptionId : undefined)
+    }
+
+    if (state.filters !== undefined) {
+      setFilters(state.filters)
+    }
+
+    setHasRestored(true)
+  }, [setFilters, setJobDescriptionId, setKeywords, setLocation])
+
   return {
     location,
     setLocation,
@@ -110,6 +144,7 @@ export function useSession() {
     setFilters,
     reviewedIdsSet,
     trackReviewedResume,
+    applyExternalState,
     loading: !activeSession && !hasRestored,
   };
 }
