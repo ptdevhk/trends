@@ -236,7 +236,7 @@ export function useUrlSearchState() {
 
         setParam(nextParams, 'location', state.location?.trim())
         setParam(nextParams, 'keyword', hasKeywords ? normalizedKeywords.join(' ') : undefined)
-        setParam(nextParams, 'jd', hasKeywords ? undefined : state.jobDescriptionId?.trim())
+        setParam(nextParams, 'jd', state.jobDescriptionId?.trim())
         setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
         setParam(nextParams, 'co', normalizedCompanies.length > 0 ? normalizedCompanies.join(',') : undefined)
         setParam(nextParams, 'exp', state.selectedExperienceLevel)
