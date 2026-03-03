@@ -16,6 +16,7 @@ const PROFILE_URL_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
 const RESUME_ID_KEYS = ["resumeId", "resume_id"];
 const PER_USER_ID_KEYS = ["perUserId", "per_user_id"];
 const EXTERNAL_ID_KEYS = ["externalId", "external_id"];
+const JOB5156_HOST = "hr.job5156.com";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
@@ -37,6 +38,57 @@ function normalizeToken(value: string): string | null {
     return trimmed.toLowerCase();
 }
 
+function decodeURIComponentSafe(value: string): string {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+}
+
+function extractJob5156ResumeId(pathname: string): string | null {
+    const oldRouteMatch = pathname.match(/^\/api\/com\/resume\/([^/?#]+)/i);
+    if (oldRouteMatch && oldRouteMatch[1]) {
+        return decodeURIComponentSafe(oldRouteMatch[1]);
+    }
+
+    const viewRouteMatch = pathname.match(/^\/resume\/view\/([^/?#]+)/i);
+    if (viewRouteMatch && viewRouteMatch[1]) {
+        return decodeURIComponentSafe(viewRouteMatch[1]);
+    }
+
+    return null;
+}
+
+function normalizeJob5156ProfileUrlForIdentity(value: string): string | null {
+    const directResumeId = extractJob5156ResumeId(value);
+    if (directResumeId) {
+        return `${JOB5156_HOST}/api/com/resume/${encodeURIComponent(directResumeId)}`.toLowerCase();
+    }
+
+    let parsed: URL | null = null;
+    try {
+        parsed = new URL(value);
+    } catch {
+        try {
+            parsed = new URL(`https://${value}`);
+        } catch {
+            parsed = null;
+        }
+    }
+
+    if (!parsed || parsed.hostname.toLowerCase() !== JOB5156_HOST) {
+        return null;
+    }
+
+    const resumeId = extractJob5156ResumeId(parsed.pathname);
+    if (!resumeId) {
+        return null;
+    }
+
+    return `${JOB5156_HOST}/api/com/resume/${encodeURIComponent(resumeId)}`.toLowerCase();
+}
+
 function normalizeProfileUrl(value: string): string | null {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -46,6 +98,11 @@ function normalizeProfileUrl(value: string): string | null {
     const lowered = trimmed.toLowerCase();
     if (lowered === "javascript:;" || lowered === "javascript:void(0)" || lowered === "#") {
         return null;
+    }
+
+    const normalizedJob5156 = normalizeJob5156ProfileUrlForIdentity(trimmed);
+    if (normalizedJob5156) {
+        return normalizedJob5156;
     }
 
     let parsed: URL | null = null;

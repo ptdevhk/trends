@@ -3426,7 +3426,7 @@ export interface components {
         ResumeItem: {
             /** @example Alex Chen */
             name: string;
-            /** @example https://hr.job5156.com/resume/123 */
+            /** @example https://hr.job5156.com/resume/view/123 */
             profileUrl: string;
             /** @example Active today */
             activityStatus: string;

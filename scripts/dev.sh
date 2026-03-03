@@ -932,6 +932,8 @@ start_convex() {
     local timeout="${CONVEX_STARTUP_TIMEOUT:-60}"
     local convex_log=""
     local convex_pid=""
+    local configured_deployment=""
+    local auto_enabled_anonymous_mode="false"
     local -a convex_exec_cmd=()
 
     # Case 1: CONVEX_URL already set in system env (e.g., cloud deployment).
@@ -952,11 +954,23 @@ start_convex() {
         return 0
     fi
 
-    # Case 2: No .env.local — use CONVEX_AGENT_MODE=anonymous to bootstrap.
-    # This skips the interactive login prompt and creates a local anonymous project.
     if [ ! -f "$convex_env_local" ]; then
         log "CONVEX" "$CYAN" "No Convex .env.local found. Bootstrapping with anonymous agent mode..."
-        export CONVEX_AGENT_MODE=anonymous
+        if [ -z "${CONVEX_AGENT_MODE:-}" ]; then
+            export CONVEX_AGENT_MODE=anonymous
+            auto_enabled_anonymous_mode="true"
+        fi
+    else
+        configured_deployment="$(
+            grep -E '^[[:space:]]*CONVEX_DEPLOYMENT[[:space:]]*=' "$convex_env_local" | tail -n 1 \
+                | cut -d= -f2- \
+                | tr -d '\r'
+        )"
+        if [ -z "${CONVEX_AGENT_MODE:-}" ] && [[ "$configured_deployment" == anonymous:* ]]; then
+            export CONVEX_AGENT_MODE=anonymous
+            auto_enabled_anonymous_mode="true"
+            log "CONVEX" "$CYAN" "Detected anonymous CONVEX_DEPLOYMENT in .env.local. Enabling CONVEX_AGENT_MODE=anonymous for non-interactive startup."
+        fi
     fi
 
     # Case 3: .env.local exists (or just set agent mode for bootstrap) — start convex dev.
@@ -1079,6 +1093,11 @@ start_convex() {
             tail -n 20 "$convex_log"
         else
             log "CONVEX" "$YELLOW" "No convex log file found at $convex_log"
+        fi
+        if [ "$auto_enabled_anonymous_mode" != "true" ] && [ -z "${CONVEX_AGENT_MODE:-}" ] && [ -f "$convex_log" ] && grep -q "Could not find project with name" "$convex_log"; then
+            export CONVEX_AGENT_MODE=anonymous
+            auto_enabled_anonymous_mode="true"
+            log "CONVEX" "$YELLOW" "Detected missing Convex project reference. Enabling CONVEX_AGENT_MODE=anonymous for retry."
         fi
 
         convex_pid="${SERVICE_PIDS["convex"]:-}"

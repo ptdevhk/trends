@@ -18,7 +18,7 @@ export const ResumeWorkHistorySchema = z
 export const ResumeItemSchema = z
   .object({
     name: z.string().openapi({ example: "Alex Chen" }),
-    profileUrl: z.string().openapi({ example: "https://hr.job5156.com/resume/123" }),
+    profileUrl: z.string().openapi({ example: "https://hr.job5156.com/resume/view/123" }),
     activityStatus: z.string().openapi({ example: "Active today" }),
     age: z.string().openapi({ example: "28" }),
     experience: z.string().openapi({ example: "5 years" }),

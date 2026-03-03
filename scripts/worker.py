@@ -3,10 +3,11 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import sys
 from typing import Any, Optional
-from urllib.parse import parse_qsl, urlencode, urlsplit
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit
 
 try:
     import httpx
@@ -51,6 +52,7 @@ if not CONVEX_URL:
 API_URL = f"{CONVEX_URL.rstrip('/')}/api"
 
 _LAST_HEARTBEAT_WARNING_AT = 0.0
+JOB5156_HOST = "hr.job5156.com"
 
 def _is_connection_error(error: Exception) -> bool:
     return isinstance(error, (httpx.RequestError, httpx.TimeoutException))
@@ -69,6 +71,36 @@ def _normalize_token(value: str) -> Optional[str]:
         return None
     return trimmed.lower()
 
+def _extract_job5156_resume_id(pathname: str) -> Optional[str]:
+    old_route_match = re.match(r"^/api/com/resume/([^/?#]+)", pathname, flags=re.IGNORECASE)
+    if old_route_match:
+        return unquote(old_route_match.group(1))
+
+    view_route_match = re.match(r"^/resume/view/([^/?#]+)", pathname, flags=re.IGNORECASE)
+    if view_route_match:
+        return unquote(view_route_match.group(1))
+
+    return None
+
+def _normalize_job5156_profile_url_for_identity(value: str) -> Optional[str]:
+    direct_resume_id = _extract_job5156_resume_id(value)
+    if direct_resume_id:
+        return f"{JOB5156_HOST}/api/com/resume/{quote(direct_resume_id, safe='')}".lower()
+
+    parsed = urlsplit(value)
+    if not parsed.netloc and not parsed.scheme:
+        parsed = urlsplit(f"https://{value}")
+
+    hostname = (parsed.hostname or "").lower()
+    if hostname != JOB5156_HOST:
+        return None
+
+    resume_id = _extract_job5156_resume_id(parsed.path)
+    if not resume_id:
+        return None
+
+    return f"{JOB5156_HOST}/api/com/resume/{quote(resume_id, safe='')}".lower()
+
 def _normalize_profile_url(value: str) -> Optional[str]:
     trimmed = value.strip()
     if not trimmed:
@@ -77,6 +109,10 @@ def _normalize_profile_url(value: str) -> Optional[str]:
     lowered = trimmed.lower()
     if lowered in ("javascript:;", "javascript:void(0)", "#"):
         return None
+
+    normalized_job5156 = _normalize_job5156_profile_url_for_identity(trimmed)
+    if normalized_job5156:
+        return normalized_job5156
 
     parsed = urlsplit(trimmed)
     if not parsed.netloc and not parsed.scheme:
