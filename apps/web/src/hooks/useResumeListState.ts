@@ -962,8 +962,8 @@ export function useResumeListState() {
           }
 
           const contentDisposition = response.headers.get('content-disposition')
-          const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?$/)
-          const filename = filenameMatch?.[1] || `selected-resumes-${new Date().toISOString().replace(/[:.]/g, '-')}.${exportFormat}`
+          const filenameMatch = contentDisposition?.match(/filename="?([^";]+)"?/i)
+          const filename = (filenameMatch && filenameMatch[1]) ? filenameMatch[1] : `selected-resumes-${new Date().toISOString().replace(/[:.]/g, '-')}.${exportFormat}`
 
           const blob = await response.blob()
           const url = URL.createObjectURL(blob)
@@ -972,12 +972,13 @@ export function useResumeListState() {
           anchor.download = filename
           anchor.style.display = 'none'
           document.body.appendChild(anchor)
-          try {
-            anchor.click()
-          } finally {
+          anchor.click()
+
+          window.setTimeout(() => {
             anchor.remove()
-            window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-          }
+            URL.revokeObjectURL(url)
+          }, 1000)
+
           toast.success(t('bulk.exported', { count: exportEntries.length, defaultValue: `Exported ${exportEntries.length} resumes` }))
           return
         } catch (error) {
