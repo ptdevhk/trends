@@ -1768,6 +1768,221 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List blocked candidates */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Blocked candidate list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                _id: string;
+                                identityKey: string;
+                                workspaceSlug: string;
+                                reason?: string;
+                                blockedBy?: string;
+                                blockedAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Block candidate(s) by identity key */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        identityKey?: string;
+                        identityKeys?: string[];
+                        reason?: string;
+                        blockedBy?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Block updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            inserted?: number;
+                            updated?: number;
+                            total?: number;
+                            id?: string;
+                        };
+                    };
+                };
+            };
+        };
+        /** Unblock candidate by identity key */
+        delete: {
+            parameters: {
+                query: {
+                    identityKey: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Block removed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            removed: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/candidate-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List candidate interview statuses */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Status list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                _id: string;
+                                identityKey: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                status: "new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn";
+                                notes?: string;
+                                updatedBy?: string;
+                                updatedAt: number;
+                                history?: {
+                                    status: string;
+                                    updatedAt: number;
+                                    notes?: string;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Set candidate interview status */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        identityKey: string;
+                        /** @enum {string} */
+                        status: "new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn";
+                        notes?: string;
+                        updatedBy?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Status updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item?: {
+                                _id: string;
+                                identityKey: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                status: "new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn";
+                                notes?: string;
+                                updatedBy?: string;
+                                updatedAt: number;
+                                history?: {
+                                    status: string;
+                                    updatedAt: number;
+                                    notes?: string;
+                                }[];
+                            };
+                            learningEntry?: {
+                                date: string;
+                                observation: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/search-profiles/stats": {
         parameters: {
             query?: never;
@@ -2657,6 +2872,7 @@ export interface paths {
                         k?: number;
                         proposedCategoryWeights: {
                             skillMatch: number;
+                            roleMatch: number;
                             experienceMatch: number;
                             educationMatch: number;
                             locationMatch: number;
@@ -2846,6 +3062,7 @@ export interface paths {
                             rollbackEntry?: unknown;
                             currentCategoryWeights: {
                                 skillMatch: number;
+                                roleMatch: number;
                                 experienceMatch: number;
                                 educationMatch: number;
                                 locationMatch: number;
@@ -3467,6 +3684,8 @@ export interface components {
         MatchBreakdown: {
             /** @example 20 */
             skillMatch: number;
+            /** @example 8 */
+            roleMatch?: number;
             /** @example 18 */
             experienceMatch: number;
             /** @example 12 */
