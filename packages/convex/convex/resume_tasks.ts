@@ -25,6 +25,20 @@ function areStringArraysEqual(left: string[], right: string[]): boolean {
     return true;
 }
 
+function applyParsedAgePatch(
+    patch: { age?: number },
+    parsedAge: number | null,
+    existingAge?: number,
+): void {
+    if (parsedAge === null) {
+        return;
+    }
+    if (typeof existingAge === "number" && existingAge === parsedAge) {
+        return;
+    }
+    patch.age = parsedAge;
+}
+
 // List recent tasks for monitoring
 export const list = query({
     args: {},
@@ -386,9 +400,7 @@ export const submitResumes = mutation({
                             tags: nextTags,
                             searchText,
                         };
-                        if (parsedAge !== null) {
-                            patch.age = parsedAge;
-                        }
+                        applyParsedAgePatch(patch, parsedAge, existing.age);
                         await ctx.db.patch(existing._id, patch);
                         updated += 1;
                         updatedIds.push(existing._id);
@@ -411,9 +423,7 @@ export const submitResumes = mutation({
                     if (tagsChanged) {
                         patch.tags = nextTags;
                     }
-                    if (parsedAge !== null && existing.age !== parsedAge) {
-                        patch.age = parsedAge;
-                    }
+                    applyParsedAgePatch(patch, parsedAge, existing.age);
 
                     if (Object.keys(patch).length > 0) {
                         await ctx.db.patch(existing._id, patch);
@@ -442,9 +452,7 @@ export const submitResumes = mutation({
                         source: resume.source,
                         crawledAt: Date.now(),
                     };
-                    if (parsedAge !== null) {
-                        insertPayload.age = parsedAge;
-                    }
+                    applyParsedAgePatch(insertPayload, parsedAge);
                     const newId = await ctx.db.insert("resumes", insertPayload);
                     inserted += 1;
                     insertedIds.push(newId);

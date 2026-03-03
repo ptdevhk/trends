@@ -190,11 +190,17 @@
       "clear": "清除",
       "minExperience": "最低年限",
       "maxExperience": "最高年限",
+      "minAge": "最低年龄",
+      "maxAge": "最高年龄",
+      "minAgePlaceholder": "20",
+      "maxAgePlaceholder": "45",
       "minMatchScore": "最低匹配分",
       "skills": "技能关键词",
       "skillsPlaceholder": "例如：CNC, FANUC",
       "locations": "地点",
       "locationsPlaceholder": "例如：东莞, 深圳",
+      "status": "候选人状态",
+      "showBlocked": "显示已屏蔽候选人",
       "education": {
         "title": "学历",
         "high_school": "高中/中专",
@@ -221,6 +227,22 @@
       "star": "收藏",
       "shortlist": "入选",
       "reject": "淘汰"
+    },
+    "status": {
+      "reviewed": "已查阅",
+      "updatedAt": "更新于 {{date}}",
+      "notes": "备注",
+      "notePrompt": "为“{{status}}”添加备注（选填）",
+      "options": {
+        "new": "新候选人",
+        "contacted": "已联系",
+        "interviewing": "面试中",
+        "interviewed_pass": "面试通过",
+        "interviewed_reject": "面试淘汰",
+        "offer": "已发 Offer",
+        "hired": "已入职",
+        "withdrawn": "已放弃"
+      }
     },
     "detail": {
       "title": "简历详情",

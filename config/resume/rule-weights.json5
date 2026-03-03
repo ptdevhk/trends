@@ -8,6 +8,11 @@
     industryMatch: 10,
     brandRelevance: 10,
   },
+  roleContext: {
+    enabled: true,
+    capRatio: 0.8,
+    softGateFloorRatio: 0.2,
+  },
   brandContextWithTarget: { employer: 10, sales: 9, equipment: 7, technical: 6, general: 4 },
   brandContextNoTarget: { employer: 4, sales: 3, equipment: 2, technical: 2, general: 1 },
   brandRoleMultipliers: { employer: 1.0, equipment: 0.7, both: 1.0 },

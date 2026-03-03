@@ -68,6 +68,12 @@ jobs:
       - name: Validate resume fixtures
         run: npx tsx scripts/test-resume-fixtures.ts
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run blacklist E2E gate
+        run: npm --workspace @trends/web run test:e2e:blacklist
+
       - name: Run agent governance checks
         run: |
           make check-agent-policy

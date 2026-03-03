@@ -24,15 +24,15 @@ const EDUCATION_LEVELS = [
   { value: 'phd', labelKey: 'resumes.filters.education.phd' },
 ]
 
-const STATUS_OPTIONS: Array<{ value: CandidateStatus; label: string }> = [
-  { value: 'new', label: '新候选人' },
-  { value: 'contacted', label: '已联系' },
-  { value: 'interviewing', label: '面试中' },
-  { value: 'interviewed_pass', label: '面试通过' },
-  { value: 'interviewed_reject', label: '面试淘汰' },
-  { value: 'offer', label: '已发 Offer' },
-  { value: 'hired', label: '已入职' },
-  { value: 'withdrawn', label: '已放弃' },
+const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
+  { value: 'new', labelKey: 'resumes.status.options.new' },
+  { value: 'contacted', labelKey: 'resumes.status.options.contacted' },
+  { value: 'interviewing', labelKey: 'resumes.status.options.interviewing' },
+  { value: 'interviewed_pass', labelKey: 'resumes.status.options.interviewed_pass' },
+  { value: 'interviewed_reject', labelKey: 'resumes.status.options.interviewed_reject' },
+  { value: 'offer', labelKey: 'resumes.status.options.offer' },
+  { value: 'hired', labelKey: 'resumes.status.options.hired' },
+  { value: 'withdrawn', labelKey: 'resumes.status.options.withdrawn' },
 ]
 
 export function FilterPanel({ filters, onFiltersChange, mode = 'original', className, defaultCollapsed = false, headerAction }: FilterPanelProps) {
@@ -135,7 +135,7 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
           className="flex items-center gap-2 cursor-pointer select-none"
           onClick={() => setIsCollapsed(!isCollapsed)}
         >
-          <h3 className="text-sm font-semibold text-foreground/90">筛选条件</h3>
+          <h3 className="text-sm font-semibold text-foreground/90">{t('resumes.filters.title')}</h3>
           {isCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
         </div>
 
@@ -187,23 +187,23 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
 
               <div className="flex items-end gap-2">
                 <div className="flex-1 space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">最小年龄</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.minAge')}</label>
                   <Input
                     type="number"
                     value={minAge}
                     onChange={(event) => setMinAge(event.target.value)}
-                    placeholder="20"
+                    placeholder={t('resumes.filters.minAgePlaceholder')}
                     className="bg-background"
                   />
                 </div>
                 <span className="mb-2 text-muted-foreground">-</span>
                 <div className="flex-1 space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">最大年龄</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.maxAge')}</label>
                   <Input
                     type="number"
                     value={maxAge}
                     onChange={(event) => setMaxAge(event.target.value)}
-                    placeholder="45"
+                    placeholder={t('resumes.filters.maxAgePlaceholder')}
                     className="bg-background"
                   />
                 </div>
@@ -229,7 +229,7 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
                 <Input
                   value={skills}
                   onChange={(event) => setSkills(event.target.value)}
-                  placeholder="例如：CNC, FANUC"
+                  placeholder={t('resumes.filters.skillsPlaceholder')}
                   className="bg-background"
                 />
               </div>
@@ -238,7 +238,7 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
                 <Input
                   value={locations}
                   onChange={(event) => setLocations(event.target.value)}
-                  placeholder="例如：东莞, 深圳"
+                  placeholder={t('resumes.filters.locationsPlaceholder')}
                   className="bg-background"
                 />
               </div>
@@ -262,7 +262,7 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
 
             {/* Row 4: Status and Block Toggle */}
             <div className="space-y-3">
-              <label className="text-xs font-medium text-muted-foreground">候选人状态</label>
+              <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.status')}</label>
               <div className="flex flex-wrap gap-4">
                 {STATUS_OPTIONS.map((item) => (
                   <label key={item.value} className="flex cursor-pointer items-center gap-2 text-sm text-foreground/80 hover:text-foreground">
@@ -270,7 +270,7 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
                       checked={statusSet.has(item.value)}
                       onCheckedChange={() => toggleStatus(item.value)}
                     />
-                    {item.label}
+                    {t(item.labelKey)}
                   </label>
                 ))}
               </div>
@@ -280,7 +280,7 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
                   checked={showBlocked}
                   onCheckedChange={(checked) => setShowBlocked(checked === true)}
                 />
-                显示已屏蔽
+                {t('resumes.filters.showBlocked')}
               </label>
             </div>
           </div>

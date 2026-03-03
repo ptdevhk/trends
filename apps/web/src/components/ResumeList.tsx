@@ -215,8 +215,12 @@ export function ResumeList() {
                 onAction={(action) => handleCardAction(entry.key, action)}
                 blocked={entry.blocked}
                 candidateStatus={entry.status}
+                candidateStatusMeta={entry.statusMeta ? {
+                  notes: entry.statusMeta.notes,
+                  updatedAt: entry.statusMeta.updatedAt,
+                } : undefined}
                 onToggleBlock={() => handleToggleBlock(entry.identityKey, entry.blocked)}
-                onCandidateStatusChange={(status) => handleCandidateStatusChange(entry.identityKey, status)}
+                onCandidateStatusChange={(status, notes) => handleCandidateStatusChange(entry.identityKey, status, notes)}
                 onViewDetails={() => {
                   setDetailResume(entry.resume)
                   trackReviewedResume(entry.key)

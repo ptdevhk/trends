@@ -133,7 +133,7 @@ describe("RuleScoringService", () => {
       expect(strongScore.recommendation === "match" || strongScore.recommendation === "strong_match").toBe(true);
       expect(weakScore.recommendation === "potential" || weakScore.recommendation === "no_match").toBe(true);
       expect(strongScore.breakdown.skillMatch).toBeGreaterThan(0);
-      expect(strongScore.breakdown.roleMatch).toBe(10);
+      expect(strongScore.breakdown.roleMatch).toBe(8);
       expect(strongScore.breakdown.locationMatch).toBe(15);
       expect(strongScore.breakdown.brandRelevance).toBe(0);
     } finally {
@@ -478,9 +478,64 @@ describe("RuleScoringService", () => {
       const operatorResult = service.scoreResume(operatorCandidate, context);
       const salesResult = service.scoreResume(salesCandidate, context);
 
+      expect(operatorResult.breakdown.roleMatch).toBe(2);
+      expect(salesResult.breakdown.roleMatch).toBe(8);
+      expect(salesResult.score).toBeGreaterThan(operatorResult.score);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("supports role-context rollback via enabled=false", () => {
+    const root = createFixtureRoot();
+    fs.writeFileSync(
+      path.join(root, "config", "resume", "rule-weights.json5"),
+      `{
+  roleContext: {
+    enabled: false,
+    capRatio: 0.8,
+    softGateFloorRatio: 0.2,
+  },
+}
+`,
+      "utf8"
+    );
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContext("lathe-sales");
+
+      const operatorCandidate: ResumeIndex = {
+        resumeId: "R-rollback-operator",
+        experienceYears: 6,
+        educationLevel: "associate",
+        locationCity: "东莞",
+        workHistoryText: "2019-2025 CNC操作员 负责车床编程与设备维护",
+        skills: ["cnc", "车床", "销售"],
+        companies: ["东莞某机床厂"],
+        industryTags: ["machinery", "cnc"],
+        salaryRange: { min: 9000, max: 12000 },
+        searchText: "东莞 cnc 车床 操作 维护",
+      };
+
+      const salesCandidate: ResumeIndex = {
+        resumeId: "R-rollback-sales",
+        experienceYears: 5,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        workHistoryText: "2020-2025 机床销售工程师 负责客户开发 渠道拓展",
+        skills: ["cnc", "车床", "销售"],
+        companies: ["东莞设备公司"],
+        industryTags: ["machinery", "cnc", "sales"],
+        salaryRange: { min: 12000, max: 18000 },
+        searchText: "东莞 车床 销售 客户 渠道",
+      };
+
+      const operatorResult = service.scoreResume(operatorCandidate, context);
+      const salesResult = service.scoreResume(salesCandidate, context);
+
       expect(operatorResult.breakdown.roleMatch).toBe(0);
       expect(salesResult.breakdown.roleMatch).toBe(10);
-      expect(salesResult.score).toBeGreaterThan(operatorResult.score);
     } finally {
       cleanupFixtureRoot(root);
     }

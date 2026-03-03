@@ -40,7 +40,11 @@ interface ResumeCardProps {
   blocked?: boolean
   candidateStatus?: CandidateStatus
   onToggleBlock?: () => void
-  onCandidateStatusChange?: (status: CandidateStatus) => void
+  candidateStatusMeta?: {
+    notes?: string
+    updatedAt: number
+  }
+  onCandidateStatusChange?: (status: CandidateStatus, notes?: string) => void
   jobDescriptionId?: string
   jobDescription?: {
     id: string
@@ -55,15 +59,15 @@ function isSafeProfileUrl(value: string | undefined): value is string {
   return value.startsWith('http://') || value.startsWith('https://')
 }
 
-const STATUS_OPTIONS: Array<{ value: CandidateStatus; label: string }> = [
-  { value: 'new', label: '新候选人' },
-  { value: 'contacted', label: '已联系' },
-  { value: 'interviewing', label: '面试中' },
-  { value: 'interviewed_pass', label: '面试通过' },
-  { value: 'interviewed_reject', label: '面试淘汰' },
-  { value: 'offer', label: '已发 Offer' },
-  { value: 'hired', label: '已入职' },
-  { value: 'withdrawn', label: '已放弃' },
+const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
+  { value: 'new', labelKey: 'resumes.status.options.new' },
+  { value: 'contacted', labelKey: 'resumes.status.options.contacted' },
+  { value: 'interviewing', labelKey: 'resumes.status.options.interviewing' },
+  { value: 'interviewed_pass', labelKey: 'resumes.status.options.interviewed_pass' },
+  { value: 'interviewed_reject', labelKey: 'resumes.status.options.interviewed_reject' },
+  { value: 'offer', labelKey: 'resumes.status.options.offer' },
+  { value: 'hired', labelKey: 'resumes.status.options.hired' },
+  { value: 'withdrawn', labelKey: 'resumes.status.options.withdrawn' },
 ]
 
 const STATUS_BADGE_CLASS: Record<CandidateStatus, string> = {
@@ -109,6 +113,7 @@ export function ResumeCard({
   onSelect,
   blocked = false,
   candidateStatus = 'new',
+  candidateStatusMeta,
   onToggleBlock,
   onCandidateStatusChange,
   jobDescriptionId,
@@ -137,6 +142,11 @@ export function ResumeCard({
   const scoreSource = matchResult?.scoreSource
   const scoreLabel = recommendation ? t(`resumes.matching.recommendations.${recommendation}`) : ''
   const statusOption = STATUS_OPTIONS.find((item) => item.value === candidateStatus) ?? STATUS_OPTIONS[0]
+  const statusLabel = t(statusOption.labelKey)
+  const statusNotes = candidateStatusMeta?.notes?.trim() || ''
+  const statusUpdatedAtLabel = candidateStatusMeta?.updatedAt
+    ? t('resumes.status.updatedAt', { date: new Date(candidateStatusMeta.updatedAt).toLocaleString() })
+    : ''
 
   // Use Rule Score if AI Score is missing
   const effectiveScore = typeof score === 'number' ? score : ruleScore
@@ -352,8 +362,25 @@ export function ResumeCard({
               <Badge variant="secondary">{resume.activityStatus}</Badge>
             ) : null}
             <Badge variant="outline" className={cn('text-[10px]', STATUS_BADGE_CLASS[candidateStatus])}>
-              {statusOption.label}
+              {statusLabel}
             </Badge>
+            {statusUpdatedAtLabel ? (
+              <span className="text-[10px] text-muted-foreground">{statusUpdatedAtLabel}</span>
+            ) : null}
+            {statusNotes ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-[10px] cursor-help">
+                      {t('resumes.status.notes')}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[320px] text-xs">
+                    <p>{statusNotes}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null}
             <div className="ml-auto flex items-center gap-2">
               <div className="flex items-center gap-1">
                 <Button
@@ -389,11 +416,26 @@ export function ResumeCard({
                   value={candidateStatus}
                   onChange={(event) => {
                     const nextStatus = STATUS_OPTIONS.find((item) => item.value === event.target.value)
-                    if (nextStatus) {
-                      onCandidateStatusChange?.(nextStatus.value)
+                    if (!nextStatus || nextStatus.value === candidateStatus) {
+                      return
                     }
+
+                    if (nextStatus.value === 'interviewed_reject' || nextStatus.value === 'withdrawn') {
+                      const notePrompt = t('resumes.status.notePrompt', {
+                        status: t(nextStatus.labelKey),
+                      })
+                      const noteInput = window.prompt(notePrompt, statusNotes)
+                      if (noteInput === null) {
+                        return
+                      }
+                      const notes = noteInput.trim()
+                      onCandidateStatusChange?.(nextStatus.value, notes.length > 0 ? notes : undefined)
+                      return
+                    }
+
+                    onCandidateStatusChange?.(nextStatus.value)
                   }}
-                  options={STATUS_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
+                  options={STATUS_OPTIONS.map((item) => ({ value: item.value, label: t(item.labelKey) }))}
                   className="h-8 text-xs"
                 />
               </div>

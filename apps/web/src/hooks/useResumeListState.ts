@@ -9,7 +9,7 @@ import { useConvexResumes, type ConvexResumeItem } from '@/hooks/useConvexResume
 import { useSession } from '@/hooks/useSession'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
-import { useCandidateStatus } from '@/hooks/useCandidateStatus'
+import { useCandidateStatus, type CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import {
   hasKnownUrlSearchParams,
   parseUrlSearchState,
@@ -49,6 +49,7 @@ type EnrichedResume = {
   identityKey: string
   blocked: boolean
   status: CandidateStatus
+  statusMeta?: CandidateStatusRecord
   match?: MatchingResult
   ruleScore?: number
   action?: CandidateActionType | undefined
@@ -918,6 +919,7 @@ export function useResumeListState() {
           identityKey,
           blocked: Boolean(blocksByIdentity[identityKey]),
           status: statusByIdentity[identityKey]?.status ?? 'new',
+          statusMeta: statusByIdentity[identityKey],
           match,
           ruleScore: resume._ruleScore || 0,
           action: actions[resumeKey],
@@ -933,6 +935,7 @@ export function useResumeListState() {
         identityKey: resumeKey,
         blocked: false,
         status: 'new',
+        statusMeta: undefined,
         match: undefined,
         ruleScore: 0,
         action: actions[resumeKey],
@@ -1197,12 +1200,12 @@ export function useResumeListState() {
   )
 
   const handleCandidateStatusChange = useCallback(
-    async (identityKey: string, status: CandidateStatus) => {
+    async (identityKey: string, status: CandidateStatus, notes?: string) => {
       if (!identityKey.trim()) {
         return
       }
 
-      const success = await updateCandidateStatus(identityKey, status)
+      const success = await updateCandidateStatus(identityKey, status, notes)
       if (!success) {
         toast.error('更新候选人状态失败，请重试')
       }

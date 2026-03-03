@@ -191,11 +191,17 @@
       "clear": "Clear",
       "minExperience": "Min experience",
       "maxExperience": "Max experience",
+      "minAge": "Min age",
+      "maxAge": "Max age",
+      "minAgePlaceholder": "20",
+      "maxAgePlaceholder": "45",
       "minMatchScore": "Min match score",
       "skills": "Skills",
       "skillsPlaceholder": "e.g. CNC, FANUC",
       "locations": "Locations",
       "locationsPlaceholder": "e.g. Dongguan, Shenzhen",
+      "status": "Candidate status",
+      "showBlocked": "Show blocked candidates",
       "education": {
         "title": "Education",
         "high_school": "High school",
@@ -222,6 +228,22 @@
       "star": "Star",
       "shortlist": "Shortlist",
       "reject": "Reject"
+    },
+    "status": {
+      "reviewed": "Reviewed",
+      "updatedAt": "Updated {{date}}",
+      "notes": "Notes",
+      "notePrompt": "Add notes for \"{{status}}\" (optional)",
+      "options": {
+        "new": "New candidate",
+        "contacted": "Contacted",
+        "interviewing": "Interviewing",
+        "interviewed_pass": "Interview passed",
+        "interviewed_reject": "Interview rejected",
+        "offer": "Offer sent",
+        "hired": "Hired",
+        "withdrawn": "Withdrawn"
+      }
     },
     "detail": {
       "title": "Resume Details",

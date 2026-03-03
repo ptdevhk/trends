@@ -24,6 +24,11 @@ export interface RuleWeightsConfig {
     industryMatch: number;
     brandRelevance: number;
   };
+  roleContext: {
+    enabled: boolean;
+    capRatio: number;
+    softGateFloorRatio: number;
+  };
   brandContextWithTarget: Record<BrandContext, number>;
   brandContextNoTarget: Record<BrandContext, number>;
   brandRoleMultipliers: Record<BrandRole, number>;
@@ -44,6 +49,11 @@ const DEFAULT_WEIGHTS: RuleWeightsConfig = {
     industryMatch: 10,
     brandRelevance: 10,
   },
+  roleContext: {
+    enabled: true,
+    capRatio: 0.8,
+    softGateFloorRatio: 0.2,
+  },
   brandContextWithTarget: { employer: 10, sales: 9, equipment: 7, technical: 6, general: 4 },
   brandContextNoTarget: { employer: 4, sales: 3, equipment: 2, technical: 2, general: 1 },
   brandRoleMultipliers: { employer: 1, equipment: 0.7, both: 1 },
@@ -51,6 +61,7 @@ const DEFAULT_WEIGHTS: RuleWeightsConfig = {
 };
 
 const nonNegativeNumber = z.number().finite().min(0);
+const ratioNumber = z.number().finite().min(0).max(1);
 const brandContextWeightsSchema = z.object({
   employer: nonNegativeNumber,
   equipment: nonNegativeNumber,
@@ -74,6 +85,11 @@ const ruleWeightsSchema = z.object({
     industryMatch: nonNegativeNumber,
     brandRelevance: nonNegativeNumber,
   }).partial().optional(),
+  roleContext: z.object({
+    enabled: z.boolean(),
+    capRatio: ratioNumber,
+    softGateFloorRatio: ratioNumber,
+  }).partial().optional(),
   brandContextWithTarget: brandContextWeightsSchema.optional(),
   brandContextNoTarget: brandContextWeightsSchema.optional(),
   brandRoleMultipliers: brandRoleMultipliersSchema.optional(),
@@ -95,6 +111,10 @@ export function mergeRuleWeights(overrides: RuleWeightsConfigOverrides | undefin
     categoryWeights: {
       ...DEFAULT_WEIGHTS.categoryWeights,
       ...(overrides.categoryWeights ?? {}),
+    },
+    roleContext: {
+      ...DEFAULT_WEIGHTS.roleContext,
+      ...(overrides.roleContext ?? {}),
     },
     brandContextWithTarget: {
       ...DEFAULT_WEIGHTS.brandContextWithTarget,
@@ -613,6 +633,41 @@ export class RuleScoringService {
     return Math.round(Math.max(0, Math.min(weight, aggregate)));
   }
 
+  private applyRoleContext(
+    rawRoleMatch: number,
+    index: ResumeIndex,
+    context: RuleScoringContext,
+    skillMatch: number,
+    experienceMatch: number,
+  ): number {
+    const roleWeight = this.weights.categoryWeights.roleMatch;
+    const roleContext = this.weights.roleContext;
+    if (!roleContext.enabled || roleWeight <= 0 || context.requiredRoles.length === 0) {
+      return rawRoleMatch;
+    }
+
+    const capScore = Math.round(roleWeight * roleContext.capRatio);
+    const roleMatch = Math.min(rawRoleMatch, Math.max(0, capScore));
+    if (roleMatch > 0) {
+      return roleMatch;
+    }
+
+    const floorScore = Math.round(roleWeight * roleContext.softGateFloorRatio);
+    if (floorScore <= 0) {
+      return roleMatch;
+    }
+
+    const hasSkillEvidence = skillMatch > 0;
+    const hasExperienceEvidence =
+      (typeof index.experienceYears === "number" && index.experienceYears > 0)
+      || experienceMatch > 0;
+    if (!hasSkillEvidence && !hasExperienceEvidence) {
+      return roleMatch;
+    }
+
+    return Math.min(roleWeight, Math.max(roleMatch, floorScore));
+  }
+
   scoreResume(
     index: ResumeIndex,
     context: RuleScoringContext,
@@ -650,7 +705,7 @@ export class RuleScoringService {
     const skillMatch = context.keywords.length > 0
       ? Math.round((matchedSkills.length / context.keywords.length) * categoryWeights.skillMatch)
       : 0;
-    const roleMatch = this.scoreRoleMatch(index, context, roleSignals);
+    const rawRoleMatch = this.scoreRoleMatch(index, context, roleSignals);
 
     let experienceMatch = 0;
     if (context.minExperience === undefined) {
@@ -666,6 +721,7 @@ export class RuleScoringService {
         experienceMatch = Math.max(0, categoryWeights.experienceMatch - Math.round(gap * perYearPenalty));
       }
     }
+    const roleMatch = this.applyRoleContext(rawRoleMatch, index, context, skillMatch, experienceMatch);
 
     let educationMatch = 0;
     const resumeEducation = normalizeEducationLevel(index.educationLevel);

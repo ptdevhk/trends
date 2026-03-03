@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e:blacklist": "playwright test -c playwright.config.ts e2e/blacklist.spec.ts",
     "lint": "eslint ."
   },
   "dependencies": {

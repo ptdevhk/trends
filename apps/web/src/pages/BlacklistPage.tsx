@@ -163,11 +163,15 @@ export function BlacklistPage() {
   const hasNoFilteredResults = !isEmpty && filteredItems.length === 0
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="blacklist-page">
       <PageHeader
         title={t('settings.blocks.title', { defaultValue: 'Blacklist Management' })}
         description={t('settings.blocks.description', { defaultValue: 'View and manage blocked candidates for this workspace.' })}
-        actions={<Badge variant="secondary">{t('settings.blocks.countBadge', { defaultValue: '{{count}} blocked', count: items.length })}</Badge>}
+        actions={
+          <Badge variant="secondary" data-testid="blacklist-count-badge">
+            {t('settings.blocks.countBadge', { defaultValue: '{{count}} blocked', count: items.length })}
+          </Badge>
+        }
       />
 
       <Card>
@@ -185,12 +189,14 @@ export function BlacklistPage() {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t('settings.blocks.searchPlaceholder', { defaultValue: 'Search by candidate key or reason...' })}
                 className="w-full sm:w-72"
+                data-testid="blacklist-search-input"
               />
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => void handleBulkUnblock()}
                 disabled={selectedIdentityKeys.length === 0 || bulkUnblocking}
+                data-testid="blacklist-bulk-unblock"
               >
                 {t('settings.blocks.bulkUnblock', { defaultValue: 'Unblock Selected ({{count}})', count: selectedIdentityKeys.length })}
               </Button>
@@ -211,7 +217,7 @@ export function BlacklistPage() {
           ) : null}
 
           {!loading && !error && filteredItems.length > 0 ? (
-            <Table>
+            <Table data-testid="blacklist-table">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[42px]">
@@ -219,6 +225,7 @@ export function BlacklistPage() {
                       checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
                       onCheckedChange={(checked) => toggleAllVisible(checked === true)}
                       aria-label={t('bulkActions.selectAll', { defaultValue: 'Select all' })}
+                      data-testid="blacklist-select-all"
                     />
                   </TableHead>
                   <TableHead>{t('settings.blocks.columns.candidate', { defaultValue: 'Candidate' })}</TableHead>
@@ -235,12 +242,13 @@ export function BlacklistPage() {
                   const displayedReason = item.reason?.trim()
 
                   return (
-                    <TableRow key={item._id}>
+                    <TableRow key={item._id} data-testid="blacklist-row" data-identity-key={item.identityKey}>
                       <TableCell>
                         <Checkbox
                           checked={selectedIdentityKeys.includes(item.identityKey)}
                           onCheckedChange={(checked) => toggleOne(item.identityKey, checked === true)}
                           aria-label={item.identityKey}
+                          data-testid="blacklist-row-checkbox"
                         />
                       </TableCell>
                       <TableCell className="font-mono text-xs">{item.identityKey}</TableCell>
@@ -262,12 +270,14 @@ export function BlacklistPage() {
                             disabled={savingReason}
                             autoFocus
                             className="h-8"
+                            data-testid="blacklist-reason-input"
                           />
                         ) : (
                           <button
                             type="button"
                             onClick={() => startEditing(item.identityKey, item.reason)}
                             className="w-full text-left text-sm hover:text-foreground text-muted-foreground"
+                            data-testid="blacklist-reason-display"
                           >
                             {displayedReason || t('settings.blocks.noReason', { defaultValue: '-' })}
                           </button>
@@ -282,6 +292,7 @@ export function BlacklistPage() {
                           size="sm"
                           disabled={isRowUnblocking || bulkUnblocking}
                           onClick={() => void handleUnblock(item.identityKey)}
+                          data-testid="blacklist-row-unblock"
                         >
                           {t('settings.blocks.actions.unblock', { defaultValue: 'Unblock' })}
                         </Button>
