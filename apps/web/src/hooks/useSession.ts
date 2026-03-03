@@ -52,6 +52,7 @@ export function useSession() {
   const [filters, setFilters] = useState<ResumeFilters>({});
 
   useEffect(() => {
+    console.debug('[session-reset]', { slug, sessionKey })
     setHasRestored(false)
     setLocation('广东')
     setKeywords([])
@@ -62,6 +63,11 @@ export function useSession() {
   // 4. Initialization (Restore from DB)
   useEffect(() => {
     if (activeSession && !hasRestored) {
+      console.debug('[session-restore]', {
+        location: activeSession.config.location,
+        keywords: activeSession.config.keywords,
+        jobDescriptionId: activeSession.config.jobDescriptionId,
+      })
       setLocation(activeSession.config.location);
       setKeywords(activeSession.config.keywords);
       setJobDescriptionId(activeSession.config.jobDescriptionId);
@@ -107,6 +113,7 @@ export function useSession() {
   );
 
   const applyExternalState = useCallback((state: ExternalSessionState) => {
+    console.debug('[session-applyExternalState]', state)
     if (state.location !== undefined) {
       const normalizedLocation = state.location.trim()
       if (normalizedLocation.length > 0) {

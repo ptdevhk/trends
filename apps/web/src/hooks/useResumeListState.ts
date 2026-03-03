@@ -875,6 +875,7 @@ export function useResumeListState() {
       jobDescriptionId?: string
       filters?: Partial<ResumeFilters>
     }) => {
+      console.debug('[quickStart-applyConfig]', config)
       const normalizedKeywords = config.keywords
         .map((keyword) => keyword.trim())
         .filter((keyword) => keyword.length > 0)
@@ -888,19 +889,17 @@ export function useResumeListState() {
         setJobDescriptionId(config.jobDescriptionId)
       } else {
         setSessionKeywords(normalizedKeywords)
-        if (!config.jobDescriptionId && jobDescriptionId) {
-          setJobDescriptionId('')
-        }
+        setJobDescriptionId((current) => (current ? '' : current))
       }
 
       if (config.filters) {
-        setFilters({
-          ...filters,
+        setFilters((current) => ({
+          ...current,
           ...config.filters,
-        })
+        }))
       }
     },
-    [filters, jobDescriptionId, setFilters, setJobDescriptionId, setSessionKeywords, setSessionLocation]
+    [setFilters, setJobDescriptionId, setSessionKeywords, setSessionLocation]
   )
 
   return {
