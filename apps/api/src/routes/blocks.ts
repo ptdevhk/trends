@@ -124,12 +124,22 @@ const UpsertBlockRequestSchema = z.object({
   blockedBy: z.string().optional(),
 });
 
+const PatchBlockRequestSchema = z.object({
+  identityKey: z.string(),
+  reason: z.string().optional(),
+});
+
 const UpsertBlockResponseSchema = z.object({
   success: z.literal(true),
   inserted: z.number().int().optional(),
   updated: z.number().int().optional(),
   total: z.number().int().optional(),
   id: z.string().optional(),
+});
+
+const PatchBlockResponseSchema = z.object({
+  success: z.literal(true),
+  updated: z.boolean(),
 });
 
 const DeleteBlockQuerySchema = z.object({
@@ -235,6 +245,42 @@ app.openapi(upsertRoute, async (c) => {
     updated,
     total,
   }, 200);
+});
+
+const patchRoute = createRoute({
+  method: "patch",
+  path: "/api/blocks",
+  tags: ["actions"],
+  summary: "Update blocked candidate reason",
+  request: {
+    body: {
+      content: {
+        "application/json": { schema: PatchBlockRequestSchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: PatchBlockResponseSchema } },
+      description: "Block reason updated",
+    },
+  },
+});
+
+app.openapi(patchRoute, async (c) => {
+  const body = c.req.valid("json");
+  const identityKey = body.identityKey.trim();
+  if (!identityKey) {
+    return c.json({ success: true as const, updated: false }, 200);
+  }
+
+  const updated = await callConvex("mutation", "candidate_blocks:updateReason", {
+    workspaceSlug: c.var.workspaceSlug,
+    identityKey,
+    reason: body.reason,
+  });
+
+  return c.json({ success: true as const, updated: updated === true }, 200);
 });
 
 const deleteRoute = createRoute({

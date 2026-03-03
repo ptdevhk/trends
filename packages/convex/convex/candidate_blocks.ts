@@ -87,6 +87,38 @@ export const upsert = mutation({
     },
 });
 
+export const updateReason = mutation({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+        identityKey: v.string(),
+        reason: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const identityKey = normalizeIdentityKey(args.identityKey);
+        if (!identityKey) {
+            throw new Error("identityKey is required");
+        }
+
+        const existing = await ctx.db
+            .query("candidate_blocks")
+            .withIndex("by_workspace_identity", (q) =>
+                q.eq("workspaceSlug", workspaceSlug).eq("identityKey", identityKey)
+            )
+            .unique();
+
+        if (!existing) {
+            return false;
+        }
+
+        await ctx.db.patch(existing._id, {
+            reason: args.reason,
+        });
+
+        return true;
+    },
+});
+
 export const bulkUpsert = mutation({
     args: {
         workspaceSlug: v.optional(v.string()),

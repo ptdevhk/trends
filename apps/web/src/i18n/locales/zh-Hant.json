@@ -348,6 +348,37 @@
     "suggestionError": "儲存同義詞建議失敗",
     "noSuggestion": "暫無可用建議"
   },
+  "settings": {
+    "blocks": {
+      "nav": "黑名單",
+      "title": "黑名單管理",
+      "description": "查看並管理此工作區已封鎖候選人。",
+      "countBadge": "已封鎖 {{count}}",
+      "searchPlaceholder": "依候選人識別鍵或原因搜尋...",
+      "empty": "目前沒有已封鎖候選人。",
+      "emptySearch": "沒有符合搜尋條件的封鎖候選人。",
+      "noReason": "-",
+      "bulkUnblock": "批次解除封鎖 ({{count}})",
+      "columns": {
+        "candidate": "候選人",
+        "reason": "原因",
+        "blockedAt": "封鎖時間",
+        "blockedBy": "封鎖人",
+        "actions": "操作"
+      },
+      "actions": {
+        "unblock": "解除封鎖"
+      },
+      "toasts": {
+        "reasonUpdated": "已更新封鎖原因",
+        "reasonUpdateFailed": "更新封鎖原因失敗",
+        "unblockSuccess": "已解除封鎖候選人",
+        "unblockFailed": "解除封鎖候選人失敗",
+        "bulkUnblockSuccess": "已解除封鎖 {{count}} 位候選人",
+        "bulkUnblockFailed": "批次解除封鎖失敗"
+      }
+    }
+  },
   "debug": {
     "title": "調試控制台",
     "subtitle": "原始輸入、分析發現與處理數據",

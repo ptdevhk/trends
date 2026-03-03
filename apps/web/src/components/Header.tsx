@@ -14,6 +14,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
   const { t } = useTranslation()
   const { slug, name, isAdmin } = useWorkspace()
   const resumesPath = `/${slug}/resumes`
+  const settingsPath = `/${slug}/settings`
   const systemPath = `/${slug}/system`
 
   return (
@@ -39,6 +40,17 @@ export function Header({ leftAction }: HeaderProps = {}) {
               }
             >
               {t('nav.resumes')}
+            </NavLink>
+            <NavLink
+              to={settingsPath}
+              className={({ isActive }) =>
+                cn(
+                  'transition-colors hover:text-foreground',
+                  isActive ? 'text-foreground' : 'text-muted-foreground'
+                )
+              }
+            >
+              {t('nav.settings')}
             </NavLink>
             {isAdmin ? (
               <NavLink
@@ -71,6 +83,17 @@ export function Header({ leftAction }: HeaderProps = {}) {
               }
             >
               {t('nav.resumes')}
+            </NavLink>
+            <NavLink
+              to={settingsPath}
+              className={({ isActive }) =>
+                cn(
+                  'transition-colors hover:text-foreground',
+                  isActive ? 'text-foreground' : 'text-muted-foreground'
+                )
+              }
+            >
+              {t('nav.settings')}
             </NavLink>
             {isAdmin ? (
               <NavLink
