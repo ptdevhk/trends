@@ -51,8 +51,6 @@ type EnrichedResume = {
 
 type AnalysisTaskDoc = Doc<'analysis_tasks'>
 
-const DEFAULT_LOCATION = '广东'
-
 function normalizeKeywordFingerprint(keywords: string[]): string {
   return [...keywords]
     .map((keyword) => keyword.trim().toLowerCase())
@@ -331,11 +329,10 @@ export function useResumeListState() {
   const { actions, saveAction } = useCandidateActions(undefined)
 
   const expandedQuery = useMemo(() => {
-    if (jobDescriptionId) return undefined
     const kw = sessionKeywords.join(' ').trim()
     if (!kw) return undefined
     return expandKeyword(kw, DEFAULT_CONFIG)
-  }, [jobDescriptionId, sessionKeywords])
+  }, [sessionKeywords])
 
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery, jobDescriptionId)
   const analysisTasks = useQuery(api.analysis_tasks.list)
@@ -374,9 +371,7 @@ export function useResumeListState() {
     const jobDescriptionIdForExternalState =
       activeHasJobDescriptionParam
         ? (activeParsedUrlState.jobDescriptionId ?? '')
-        : activeHasKeywordParam
-          ? ''
-          : activeParsedUrlState.jobDescriptionId
+        : activeParsedUrlState.jobDescriptionId
 
     skipNextUrlSyncRef.current = true
     applyExternalState({
@@ -391,7 +386,6 @@ export function useResumeListState() {
   }, [
     applyExternalState,
     activeHasJobDescriptionParam,
-    activeHasKeywordParam,
     activeHasUrlParams,
     activeParsedUrlState,
     activeUrlStateSignature,
@@ -415,9 +409,7 @@ export function useResumeListState() {
     const expectedJobDescriptionId =
       activeHasJobDescriptionParam
         ? normalizeOptionalString(activeParsedUrlState.jobDescriptionId) ?? ''
-        : activeHasKeywordParam
-          ? ''
-          : normalizeOptionalString(activeParsedUrlState.jobDescriptionId) ?? ''
+        : normalizeOptionalString(activeParsedUrlState.jobDescriptionId) ?? ''
     const currentJobDescriptionId = normalizeOptionalString(jobDescriptionId) ?? ''
     if (currentJobDescriptionId !== expectedJobDescriptionId) {
       return false
@@ -438,7 +430,6 @@ export function useResumeListState() {
     return (selectedExperienceLevel ?? '') === (activeParsedUrlState.selectedExperienceLevel ?? '')
   }, [
     activeHasJobDescriptionParam,
-    activeHasKeywordParam,
     activeHasUrlParams,
     activeParsedUrlState,
     filters,
@@ -458,9 +449,7 @@ export function useResumeListState() {
     const jobDescriptionIdForExternalState =
       activeHasJobDescriptionParam
         ? (activeParsedUrlState.jobDescriptionId ?? '')
-        : activeHasKeywordParam
-          ? ''
-          : activeParsedUrlState.jobDescriptionId
+        : activeParsedUrlState.jobDescriptionId
 
     skipNextUrlSyncRef.current = true
     applyExternalState({
@@ -486,7 +475,6 @@ export function useResumeListState() {
     )
   }, [
     activeHasJobDescriptionParam,
-    activeHasKeywordParam,
     activeHasUrlParams,
     activeParsedUrlState,
     applyExternalState,
@@ -517,7 +505,7 @@ export function useResumeListState() {
     const timer = window.setTimeout(() => {
       const normalizedLocation = sessionLocation.trim()
       const locationForUrl =
-        normalizedLocation.length > 0 && normalizedLocation !== DEFAULT_LOCATION
+        normalizedLocation.length > 0
           ? normalizedLocation
           : undefined
 
@@ -620,11 +608,6 @@ export function useResumeListState() {
   }, [filters.minMatchScore, filters.skills?.length, session])
 
   useEffect(() => {
-    if (!jobDescriptionId || sessionKeywords.length === 0) return
-    setSessionKeywords([])
-  }, [jobDescriptionId, sessionKeywords, setSessionKeywords])
-
-  useEffect(() => {
     setSelectedIds(new Set())
   }, [mode, jobDescriptionId, expandedQuery])
 
@@ -638,12 +621,9 @@ export function useResumeListState() {
 
   const handleJobChange = useCallback(
     (value: string) => {
-      if (value) {
-        setSessionKeywords([])
-      }
       setJobDescriptionId(value)
     },
-    [setJobDescriptionId, setSessionKeywords]
+    [setJobDescriptionId]
   )
 
   const handleAnalyzeAll = useCallback(async () => {
@@ -1065,6 +1045,7 @@ export function useResumeListState() {
       const normalizedKeywords = config.keywords
         .map((keyword) => keyword.trim())
         .filter((keyword) => keyword.length > 0)
+      const normalizedJobDescriptionId = config.jobDescriptionId?.trim() ?? ''
       const normalizedLocation = config.location.trim()
       setSessionLocation((current) => {
         if (!normalizedLocation || current === normalizedLocation) {
@@ -1073,13 +1054,8 @@ export function useResumeListState() {
         return normalizedLocation
       })
 
-      if (config.jobDescriptionId) {
-        setSessionKeywords((current) => (current.length === 0 ? current : []))
-        setJobDescriptionId((current) => (current === config.jobDescriptionId ? current : config.jobDescriptionId))
-      } else {
-        setSessionKeywords((current) => (areKeywordListsEqual(current, normalizedKeywords) ? current : normalizedKeywords))
-        setJobDescriptionId((current) => (current ? '' : current))
-      }
+      setSessionKeywords((current) => (areKeywordListsEqual(current, normalizedKeywords) ? current : normalizedKeywords))
+      setJobDescriptionId((current) => (current === normalizedJobDescriptionId ? current : normalizedJobDescriptionId))
 
       if (config.filters) {
         setFilters((current) => ({

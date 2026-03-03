@@ -163,9 +163,7 @@ export function QuickStartPanel({
   )
 
   useEffect(() => {
-    const effectiveJobDescriptionId = normalizedKeywords.length > 0
-      ? undefined
-      : (jobDescriptionId || undefined)
+    const effectiveJobDescriptionId = jobDescriptionId || undefined
 
     const timer = setTimeout(() => {
       onApplyConfig?.({
@@ -177,15 +175,6 @@ export function QuickStartPanel({
 
     return () => clearTimeout(timer)
   }, [location, normalizedKeywords, jobDescriptionId, onApplyConfig])
-
-  useEffect(() => {
-    if (!jobDescriptionId) {
-      return
-    }
-    setSelectedKeywords([])
-    setCustomKeyword('')
-    setAutoMatchResult(null)
-  }, [jobDescriptionId])
 
   useEffect(() => {
     const trimmedLocation = location.trim()
@@ -244,18 +233,10 @@ export function QuickStartPanel({
   const handleKeywordsChange = useCallback((keywords: string[]) => {
     setSelectedKeywords(keywords)
     setCustomKeyword(keywords.join(' '))
-    if (keywords.length > 0 && jobDescriptionId) {
-      onJobChange?.('')
-    }
-  }, [jobDescriptionId, onJobChange])
+  }, [])
 
   const handleJobChange = useCallback((value: string) => {
     onJobChange?.(value)
-    if (value) {
-      setSelectedKeywords([])
-      setCustomKeyword('')
-      setAutoMatchResult(null)
-    }
   }, [onJobChange])
 
   const handleUseMatchedConfig = useCallback(() => {
@@ -321,9 +302,6 @@ export function QuickStartPanel({
                     setCustomKeyword(value)
                     const parts = value.split(/[\s,]+/).filter(Boolean)
                     setSelectedKeywords(parts)
-                    if (parts.length > 0 && jobDescriptionId) {
-                      onJobChange?.('')
-                    }
                   }}
                   placeholder={t('quickStart.customKeywordPlaceholder', '关键词 (空格分隔)...')}
                   className="h-9 w-full sm:w-64 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
