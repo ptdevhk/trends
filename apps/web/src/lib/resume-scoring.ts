@@ -18,6 +18,7 @@ export function toMatchBreakdown(value: Record<string, number> | undefined): Mat
 
   const {
     skillMatch,
+    roleMatch,
     experienceMatch,
     educationMatch,
     locationMatch,
@@ -37,6 +38,7 @@ export function toMatchBreakdown(value: Record<string, number> | undefined): Mat
 
   return {
     skillMatch,
+    roleMatch: typeof roleMatch === 'number' ? roleMatch : 0,
     experienceMatch,
     educationMatch,
     locationMatch,

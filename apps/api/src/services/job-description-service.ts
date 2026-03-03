@@ -24,6 +24,13 @@ export interface AutoMatchConfig {
   };
 }
 
+export interface RequiredRoleConfig {
+  type: string;
+  min_years?: number;
+  signals: string[];
+  verify_in?: string;
+}
+
 export interface JobDescriptionFile {
   id: string;
   name: string;
@@ -35,6 +42,7 @@ export interface JobDescriptionFile {
   status?: string;
   location?: string;
   autoMatch?: AutoMatchConfig;
+  requiredRoles?: RequiredRoleConfig[];
 }
 
 export interface JobDescriptionFull extends JobDescriptionFile {
@@ -42,6 +50,67 @@ export interface JobDescriptionFull extends JobDescriptionFile {
   department?: string;
   source?: string;
   extractedAt?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function toOptionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function parseRequiredRoles(value: unknown): RequiredRoleConfig[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const parsed = value
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const type = typeof item.type === "string" ? item.type.trim() : "";
+      if (!type) {
+        return null;
+      }
+
+      const signals = toStringArray(item.signals);
+      if (signals.length === 0) {
+        return null;
+      }
+
+      const minYears = toOptionalNumber(item.min_years);
+      const verifyIn = typeof item.verify_in === "string" && item.verify_in.trim()
+        ? item.verify_in.trim()
+        : undefined;
+
+      const role: RequiredRoleConfig = {
+        type,
+        signals,
+      };
+      if (typeof minYears === "number") {
+        role.min_years = minYears;
+      }
+      if (verifyIn) {
+        role.verify_in = verifyIn;
+      }
+      return role;
+    })
+    .filter((item): item is RequiredRoleConfig => item !== null);
+
+  return parsed.length > 0 ? parsed : undefined;
 }
 
 export interface JDMatchResult {
@@ -133,6 +202,7 @@ export class JobDescriptionService {
           status: (fm.status as string) || "active",
           location: fm.location as string | undefined,
           autoMatch: fm.auto_match as AutoMatchConfig | undefined,
+          requiredRoles: parseRequiredRoles(fm.required_roles),
         } satisfies JobDescriptionFile;
       });
 
@@ -176,6 +246,7 @@ export class JobDescriptionService {
       status: (fm.status as string) || "active",
       location: fm.location as string | undefined,
       autoMatch: fm.auto_match as AutoMatchConfig | undefined,
+      requiredRoles: parseRequiredRoles(fm.required_roles),
       content,
       department: fm.department as string | undefined,
       source: fm.source as string | undefined,

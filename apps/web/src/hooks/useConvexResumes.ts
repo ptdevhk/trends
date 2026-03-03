@@ -24,6 +24,14 @@ export type ConvexIngestData = {
     context: string
   }>
   companyHits: string[]
+  roleSignals?: Array<{
+    type: string
+    matchedSignals: string[]
+    signalCount: number
+    occurrences: number
+    years: number
+    verifyIn: string
+  }>
   ruleScores: Record<string, number>
   experienceLevel: string
   computedAt: number
@@ -32,6 +40,8 @@ export type ConvexIngestData = {
 
 export type ConvexResumeItem = ResumeItem & {
   resumeId: Doc<'resumes'>['_id']
+  identityKey?: string
+  ageNumber?: number
   externalId: string
   crawledAt: number
   analysis?: ConvexResumeAnalysis
@@ -254,6 +264,28 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
     synonymHits: toStringArray(value.synonymHits),
     brandHits: parseBrandHits(value.brandHits),
     companyHits: toStringArray(value.companyHits),
+    roleSignals: Array.isArray(value.roleSignals)
+      ? value.roleSignals
+          .map((item) => {
+            if (!isRecord(item)) {
+              return null
+            }
+            const type = toStringValue(item.type)
+            const years = toNumber(item.years)
+            if (!type || years === null) {
+              return null
+            }
+            return {
+              type,
+              matchedSignals: toStringArray(item.matchedSignals),
+              signalCount: toNumber(item.signalCount) ?? 0,
+              occurrences: toNumber(item.occurrences) ?? 0,
+              years,
+              verifyIn: toStringValue(item.verifyIn) || 'workHistory',
+            }
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null)
+      : undefined,
     ruleScores: parseRuleScores(value.ruleScores),
     experienceLevel: toStringValue(value.experienceLevel) || 'unknown',
     computedAt,
@@ -282,6 +314,8 @@ function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
     workHistory: toWorkHistory(content.workHistory),
     extractedAt: toStringValue(content.extractedAt),
     resumeId: doc._id,
+    identityKey: typeof doc.identityKey === 'string' ? doc.identityKey : undefined,
+    ageNumber: typeof doc.age === 'number' ? doc.age : undefined,
     perUserId: toStringValue(content.perUserId) || undefined,
     externalId: doc.externalId,
     crawledAt: doc.crawledAt,

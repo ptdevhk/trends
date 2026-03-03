@@ -1,9 +1,14 @@
 export type ResumeFilters = {
   minExperience?: number
   maxExperience?: number
+  minSalesYears?: number
+  minAge?: number
+  maxAge?: number
   education?: string[]
   skills?: string[]
   locations?: string[]
+  status?: CandidateStatus[]
+  showBlocked?: boolean
   minSalary?: number
   maxSalary?: number
   minMatchScore?: number
@@ -14,9 +19,19 @@ export type ResumeFilters = {
 
 export type Recommendation = 'strong_match' | 'match' | 'potential' | 'no_match'
 export type ScoreSource = 'rule' | 'ai'
+export type CandidateStatus =
+  | 'new'
+  | 'contacted'
+  | 'interviewing'
+  | 'interviewed_pass'
+  | 'interviewed_reject'
+  | 'offer'
+  | 'hired'
+  | 'withdrawn'
 
 export type MatchBreakdown = {
   skillMatch: number
+  roleMatch: number
   experienceMatch: number
   educationMatch: number
   locationMatch: number

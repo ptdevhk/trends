@@ -84,6 +84,11 @@ auto_match:
   suggested_filters:
     minExperience: 2
     education: [大专, 本科]
+required_roles:
+  - type: sales
+    min_years: 1
+    signals: [销售, 客户, 渠道, 销售经理, 销售工程师]
+    verify_in: workHistory
 ---
 
 # 车床销售工程师
@@ -254,6 +259,16 @@ describe("IngestComputeService", () => {
     expect(result.resumeId).toBe("resume-123");
     expect(result.computedAt).toBeGreaterThan(0);
     expect(result.skillsVersion).toBe(42);  // from TEST_SKILLS_MD
+  });
+
+  it("should compute role signals from work history", () => {
+    const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+
+    expect(salesRole).toBeDefined();
+    expect(salesRole?.signalCount).toBeGreaterThan(0);
+    expect(salesRole?.years).toBeGreaterThan(0);
+    expect(result.ruleScores["jd-lathe-sales"]).toBeGreaterThan(50);
   });
 
   it("should classify selfIntro brand mentions as equipment context", () => {

@@ -32,6 +32,11 @@ auto_match:
   suggested_filters:
     minExperience: 2
     education: [大专, 本科]
+required_roles:
+  - type: sales
+    min_years: 1
+    signals: [销售, 销售经理, 销售工程师, 客户, 渠道, 业务开发]
+    verify_in: workHistory
 ---
 # 职位要求\n- 2年以上车床销售经验\n`,
     "utf8"
@@ -101,6 +106,7 @@ describe("RuleScoringService", () => {
         experienceYears: 5,
         educationLevel: "bachelor",
         locationCity: "东莞",
+        workHistoryText: "2021-2025 东莞精密机械 销售经理 客户开发 渠道拓展",
         skills: ["车床", "cnc", "销售"],
         companies: ["东莞富佳机械设备有限公司"],
         industryTags: ["machinery", "cnc", "sales"],
@@ -127,6 +133,7 @@ describe("RuleScoringService", () => {
       expect(strongScore.recommendation === "match" || strongScore.recommendation === "strong_match").toBe(true);
       expect(weakScore.recommendation === "potential" || weakScore.recommendation === "no_match").toBe(true);
       expect(strongScore.breakdown.skillMatch).toBeGreaterThan(0);
+      expect(strongScore.breakdown.roleMatch).toBe(10);
       expect(strongScore.breakdown.locationMatch).toBe(15);
       expect(strongScore.breakdown.brandRelevance).toBe(0);
     } finally {
@@ -303,7 +310,7 @@ describe("RuleScoringService", () => {
       const result = service.scoreResume(index, context);
 
       expect(result.matchedSkills).toContain("数控");
-      expect(result.breakdown.skillMatch).toBe(25);
+      expect(result.breakdown.skillMatch).toBe(15);
       expect(result.breakdown.industryMatch).toBeGreaterThan(0);
     } finally {
       cleanupFixtureRoot(root);
@@ -430,6 +437,50 @@ describe("RuleScoringService", () => {
       ]);
 
       expect(bothRoleResult.breakdown.brandRelevance).toBe(10);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("penalizes resumes without required sales role signals", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContext("lathe-sales");
+
+      const operatorCandidate: ResumeIndex = {
+        resumeId: "R-operator",
+        experienceYears: 6,
+        educationLevel: "associate",
+        locationCity: "东莞",
+        workHistoryText: "2019-2025 CNC操作员 负责车床编程与设备维护",
+        skills: ["cnc", "车床", "销售"],
+        companies: ["东莞某机床厂"],
+        industryTags: ["machinery", "cnc"],
+        salaryRange: { min: 9000, max: 12000 },
+        searchText: "东莞 cnc 车床 操作 维护",
+      };
+
+      const salesCandidate: ResumeIndex = {
+        resumeId: "R-sales",
+        experienceYears: 5,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        workHistoryText: "2020-2025 机床销售工程师 负责客户开发 渠道拓展",
+        skills: ["cnc", "车床", "销售"],
+        companies: ["东莞设备公司"],
+        industryTags: ["machinery", "cnc", "sales"],
+        salaryRange: { min: 12000, max: 18000 },
+        searchText: "东莞 车床 销售 客户 渠道",
+      };
+
+      const operatorResult = service.scoreResume(operatorCandidate, context);
+      const salesResult = service.scoreResume(salesCandidate, context);
+
+      expect(operatorResult.breakdown.roleMatch).toBe(0);
+      expect(salesResult.breakdown.roleMatch).toBe(10);
+      expect(salesResult.score).toBeGreaterThan(operatorResult.score);
     } finally {
       cleanupFixtureRoot(root);
     }

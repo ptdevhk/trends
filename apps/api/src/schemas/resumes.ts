@@ -247,6 +247,7 @@ export const ScoreSourceSchema = z.enum(["rule", "ai"]);
 export const MatchBreakdownSchema = z
   .object({
     skillMatch: z.number().int().openapi({ example: 20 }),
+    roleMatch: z.number().int().optional().openapi({ example: 8 }),
     experienceMatch: z.number().int().openapi({ example: 18 }),
     educationMatch: z.number().int().openapi({ example: 12 }),
     locationMatch: z.number().int().openapi({ example: 15 }),

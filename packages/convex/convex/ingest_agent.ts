@@ -93,6 +93,7 @@ export const processNewResumes = internalAction({
           synonymHits: item.synonymHits,
           brandHits: item.brandHits || [],
           companyHits: item.companyHits || [],
+          roleSignals: item.roleSignals || [],
           ruleScores: item.ruleScores,
           experienceLevel: item.experienceLevel,
           computedAt: item.computedAt,

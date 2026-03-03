@@ -72,6 +72,7 @@ function parseJsonObject(
       : 0;
     return {
       skillMatch: Number(parsed.skillMatch),
+      roleMatch: typeof parsed.roleMatch === "number" ? Number(parsed.roleMatch) : 0,
       experienceMatch: Number(parsed.experienceMatch),
       educationMatch: Number(parsed.educationMatch),
       locationMatch: Number(parsed.locationMatch),

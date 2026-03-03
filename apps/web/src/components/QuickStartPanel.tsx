@@ -65,6 +65,14 @@ interface QuickStartPanelProps {
   defaultKeywords?: string[]
   jobDescriptionId?: string
   onJobChange?: (value: string) => void
+  quickFilters?: {
+    minSalesYears?: number
+    maxAge?: number
+  }
+  onApplyQuickFilters?: (filters: {
+    minSalesYears?: number
+    maxAge?: number
+  }) => void
   extraActions?: React.ReactNode
 }
 
@@ -137,6 +145,8 @@ export function QuickStartPanel({
   defaultKeywords = [],
   jobDescriptionId = '',
   onJobChange,
+  quickFilters,
+  onApplyQuickFilters,
   extraActions,
 }: QuickStartPanelProps) {
   const { t } = useTranslation()
@@ -145,6 +155,8 @@ export function QuickStartPanel({
   const [location, setLocation] = useState(defaultLocation)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
   const [customKeyword, setCustomKeyword] = useState(defaultKeywords.join(' '))
+  const [quickMinSalesYears, setQuickMinSalesYears] = useState(quickFilters?.minSalesYears?.toString() ?? '')
+  const [quickMaxAge, setQuickMaxAge] = useState(quickFilters?.maxAge?.toString() ?? '')
   const [autoMatchResult, setAutoMatchResult] = useState<AutoMatchedProfile | null>(null)
   const [matching, setMatching] = useState(false)
 
@@ -156,6 +168,11 @@ export function QuickStartPanel({
     setSelectedKeywords(defaultKeywords)
     setCustomKeyword(defaultKeywords.join(' '))
   }, [defaultKeywords])
+
+  useEffect(() => {
+    setQuickMinSalesYears(quickFilters?.minSalesYears?.toString() ?? '')
+    setQuickMaxAge(quickFilters?.maxAge?.toString() ?? '')
+  }, [quickFilters?.maxAge, quickFilters?.minSalesYears])
 
   const normalizedKeywords = useMemo(
     () => selectedKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
@@ -262,6 +279,15 @@ export function QuickStartPanel({
       filters: mapProfileFiltersToResumeFilters(profile.filters),
     })
   }, [autoMatchResult, location, normalizedKeywords, onApplyConfig, onJobChange])
+
+  const handleApplyQuickFilters = useCallback(() => {
+    const minSalesYears = quickMinSalesYears ? Number(quickMinSalesYears) : undefined
+    const maxAge = quickMaxAge ? Number(quickMaxAge) : undefined
+    onApplyQuickFilters?.({
+      minSalesYears: typeof minSalesYears === 'number' && Number.isFinite(minSalesYears) ? minSalesYears : undefined,
+      maxAge: typeof maxAge === 'number' && Number.isFinite(maxAge) ? maxAge : undefined,
+    })
+  }, [onApplyQuickFilters, quickMaxAge, quickMinSalesYears])
 
   return (
     <div className="rounded-lg bg-background border px-4 py-4 shadow-sm">
@@ -379,6 +405,36 @@ export function QuickStartPanel({
             {t('quickStart.hotKeywords', '热门关键词')}
           </label>
           <KeywordChips value={selectedKeywords} onChange={handleKeywordsChange} />
+        </div>
+
+        <div className="rounded-md border border-dashed border-muted-foreground/30 px-3 py-3">
+          <div className="text-sm font-medium">⚡ 快速筛选</div>
+          <div className="mt-2 flex flex-wrap items-end gap-3">
+            <label className="text-sm text-muted-foreground">
+              要求销售经验 最少
+              <input
+                type="number"
+                min={0}
+                value={quickMinSalesYears}
+                onChange={(event) => setQuickMinSalesYears(event.target.value)}
+                className="mx-2 h-8 w-20 rounded-md border border-input bg-background px-2 text-sm"
+              />
+              年
+            </label>
+            <label className="text-sm text-muted-foreground">
+              最高年龄
+              <input
+                type="number"
+                min={0}
+                value={quickMaxAge}
+                onChange={(event) => setQuickMaxAge(event.target.value)}
+                className="mx-2 h-8 w-20 rounded-md border border-input bg-background px-2 text-sm"
+              />
+            </label>
+            <Button size="sm" variant="outline" onClick={handleApplyQuickFilters}>
+              应用快速筛选
+            </Button>
+          </div>
         </div>
       </div>
     </div>

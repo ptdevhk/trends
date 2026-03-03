@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next'
-import { Star, User, XCircle, CheckCircle } from 'lucide-react'
+import { Star, User, XCircle, CheckCircle, Ban, Phone } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ResumeItem } from '@/hooks/useResumes'
-import type { CandidateActionType, MatchingResult } from '@/types/resume'
+import type { CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { cn } from '@/lib/utils'
 import {
@@ -14,9 +14,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Phone } from 'lucide-react'
 import { useState } from 'react'
 import { OutreachModal } from './OutreachModal'
+import { Select } from '@/components/ui/select'
 
 interface ResumeCardProps {
   resume: ResumeItem
@@ -37,6 +37,10 @@ interface ResumeCardProps {
   onAction?: (actionType: CandidateActionType) => void
   selected?: boolean
   onSelect?: () => void
+  blocked?: boolean
+  candidateStatus?: CandidateStatus
+  onToggleBlock?: () => void
+  onCandidateStatusChange?: (status: CandidateStatus) => void
   jobDescriptionId?: string
   jobDescription?: {
     id: string
@@ -49,6 +53,28 @@ interface ResumeCardProps {
 function isSafeProfileUrl(value: string | undefined): value is string {
   if (!value) return false
   return value.startsWith('http://') || value.startsWith('https://')
+}
+
+const STATUS_OPTIONS: Array<{ value: CandidateStatus; label: string }> = [
+  { value: 'new', label: '新候选人' },
+  { value: 'contacted', label: '已联系' },
+  { value: 'interviewing', label: '面试中' },
+  { value: 'interviewed_pass', label: '面试通过' },
+  { value: 'interviewed_reject', label: '面试淘汰' },
+  { value: 'offer', label: '已发 Offer' },
+  { value: 'hired', label: '已入职' },
+  { value: 'withdrawn', label: '已放弃' },
+]
+
+const STATUS_BADGE_CLASS: Record<CandidateStatus, string> = {
+  new: 'border-zinc-200 bg-zinc-50 text-zinc-700',
+  contacted: 'border-blue-200 bg-blue-50 text-blue-700',
+  interviewing: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+  interviewed_pass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  interviewed_reject: 'border-red-200 bg-red-50 text-red-700',
+  offer: 'border-purple-200 bg-purple-50 text-purple-700',
+  hired: 'border-green-200 bg-green-50 text-green-700',
+  withdrawn: 'border-amber-200 bg-amber-50 text-amber-700',
 }
 
 export function ResumeCardSkeleton() {
@@ -81,6 +107,10 @@ export function ResumeCard({
   onAction,
   selected,
   onSelect,
+  blocked = false,
+  candidateStatus = 'new',
+  onToggleBlock,
+  onCandidateStatusChange,
   jobDescriptionId,
   jobDescription,
   isReviewed,
@@ -106,6 +136,7 @@ export function ResumeCard({
   const recommendation = matchResult?.recommendation
   const scoreSource = matchResult?.scoreSource
   const scoreLabel = recommendation ? t(`resumes.matching.recommendations.${recommendation}`) : ''
+  const statusOption = STATUS_OPTIONS.find((item) => item.value === candidateStatus) ?? STATUS_OPTIONS[0]
 
   // Use Rule Score if AI Score is missing
   const effectiveScore = typeof score === 'number' ? score : ruleScore
@@ -180,6 +211,11 @@ export function ResumeCard({
             {t('resumes.status.reviewed', '已查阅')}
           </Badge>
         )}
+        {blocked ? (
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 text-[10px]">
+            已屏蔽
+          </Badge>
+        ) : null}
         {resume.expectedSalary ? (
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
         ) : null}
@@ -315,6 +351,9 @@ export function ResumeCard({
             {resume.activityStatus ? (
               <Badge variant="secondary">{resume.activityStatus}</Badge>
             ) : null}
+            <Badge variant="outline" className={cn('text-[10px]', STATUS_BADGE_CLASS[candidateStatus])}>
+              {statusOption.label}
+            </Badge>
             <div className="ml-auto flex items-center gap-2">
               <div className="flex items-center gap-1">
                 <Button
@@ -344,6 +383,28 @@ export function ResumeCard({
               </div>
               <Button variant="ghost" size="sm" onClick={onViewDetails}>
                 {t('resumes.actions.view')}
+              </Button>
+              <div className="w-36">
+                <Select
+                  value={candidateStatus}
+                  onChange={(event) => {
+                    const nextStatus = STATUS_OPTIONS.find((item) => item.value === event.target.value)
+                    if (nextStatus) {
+                      onCandidateStatusChange?.(nextStatus.value)
+                    }
+                  }}
+                  options={STATUS_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <Button
+                variant={blocked ? 'destructive' : 'outline'}
+                size="sm"
+                onClick={onToggleBlock}
+                className="gap-2"
+              >
+                <Ban className="h-3.5 w-3.5" />
+                {blocked ? '取消屏蔽' : '屏蔽'}
               </Button>
               <Button
                 variant="outline"

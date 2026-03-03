@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
 import { deriveResumeIdentityKey } from "./lib/resume_identity";
+import { parseAgeFromContent } from "./lib/age";
 
 const JOB5156_HOST = "hr.job5156.com";
 const JOB5156_PROFILE_DISPLAY_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
@@ -250,6 +251,29 @@ export const reindexSearchText = mutation({
             }
         }
         return `Reindexed ${count} resumes`;
+    },
+});
+
+export const backfillAge = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const resumes = await ctx.db.query("resumes").collect();
+        let updated = 0;
+
+        for (const resume of resumes) {
+            const parsedAge = parseAgeFromContent(resume.content);
+            if (parsedAge === null || resume.age === parsedAge) {
+                continue;
+            }
+
+            await ctx.db.patch(resume._id, { age: parsedAge });
+            updated += 1;
+        }
+
+        return {
+            scannedResumes: resumes.length,
+            updated,
+        };
     },
 });
 

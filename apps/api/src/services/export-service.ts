@@ -16,6 +16,7 @@ type ResumeExportPayload = {
   name?: string;
   jobIntention?: string;
   location?: string;
+  age?: string;
   experience?: string;
   education?: string;
   expectedSalary?: string;
@@ -36,6 +37,7 @@ export type ResumeExportEntry = {
   resume: ResumeExportPayload;
   match?: MatchExportPayload;
   action?: string;
+  status?: string;
   ruleScore?: number;
 };
 
@@ -46,10 +48,12 @@ type ExportRow = {
   location: string;
   experience: string;
   education: string;
+  age: number | "";
   expectedSalary: string;
   aiScore: number | "";
   ruleScore: number | "";
   recommendation: string;
+  status: string;
   scoreSource: string;
   action: string;
   industryTags: string;
@@ -135,6 +139,27 @@ function normalizeStringArray(value: string[] | undefined): string[] {
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
 }
 
+function parseAgeNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value);
+  }
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const withSuffix = value.match(/(\d+)\s*岁/u);
+  if (withSuffix && withSuffix[1]) {
+    return Number(withSuffix[1]);
+  }
+
+  const plain = value.match(/^(\d{1,3})$/u);
+  if (plain && plain[1]) {
+    return Number(plain[1]);
+  }
+
+  return null;
+}
+
 function toRow(entry: ResumeExportEntry): ExportRow {
   const workHistory = Array.isArray(entry.resume.workHistory)
     ? entry.resume.workHistory
@@ -150,10 +175,12 @@ function toRow(entry: ResumeExportEntry): ExportRow {
     location: normalizeString(entry.resume.location),
     experience: normalizeString(entry.resume.experience),
     education: normalizeString(entry.resume.education),
+    age: parseAgeNumber(entry.resume.age) ?? "",
     expectedSalary: normalizeString(entry.resume.expectedSalary),
     aiScore: typeof entry.match?.score === "number" ? entry.match.score : "",
     ruleScore: typeof entry.ruleScore === "number" ? entry.ruleScore : "",
     recommendation: normalizeString(entry.match?.recommendation),
+    status: normalizeString(entry.status),
     scoreSource: normalizeString(entry.match?.scoreSource),
     action: normalizeString(entry.action),
     industryTags: normalizeStringArray(entry.resume.ingestData?.industryTags).join(", "),
@@ -171,10 +198,12 @@ const EXCEL_COLUMNS: Array<{ header: string; key: keyof ExportRow; width: number
   { header: "Location", key: "location", width: 14 },
   { header: "Experience", key: "experience", width: 14 },
   { header: "Education", key: "education", width: 14 },
+  { header: "Age", key: "age", width: 10 },
   { header: "Expected Salary", key: "expectedSalary", width: 16 },
   { header: "AI Score", key: "aiScore", width: 10 },
   { header: "Rule Score", key: "ruleScore", width: 10 },
   { header: "Recommendation", key: "recommendation", width: 16 },
+  { header: "Status", key: "status", width: 16 },
   { header: "Score Source", key: "scoreSource", width: 12 },
   { header: "Action", key: "action", width: 12 },
   { header: "Industry Tags", key: "industryTags", width: 22 },

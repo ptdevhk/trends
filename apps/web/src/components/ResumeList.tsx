@@ -49,6 +49,7 @@ export function ResumeList() {
     handleAnalyzeAll,
     handleRefresh,
     handleQuickStartApply,
+    handleQuickConstraintApply,
     handleJobChange,
     handleFiltersChange,
     handleToggleTag,
@@ -61,6 +62,8 @@ export function ResumeList() {
     handleToggleSelect,
     handleBulkAction,
     handleCardAction,
+    handleToggleBlock,
+    handleCandidateStatusChange,
   } = useResumeListState()
   useSyncNotifications()
 
@@ -82,6 +85,11 @@ export function ResumeList() {
         onJobChange={handleJobChange}
         defaultLocation={sessionLocation}
         defaultKeywords={sessionKeywords}
+        quickFilters={{
+          minSalesYears: filters.minSalesYears,
+          maxAge: filters.maxAge,
+        }}
+        onApplyQuickFilters={handleQuickConstraintApply}
         extraActions={
           <div className="flex items-center gap-2">
             <CollectResumesButton location={sessionLocation} keywords={sessionKeywords} />
@@ -205,6 +213,10 @@ export function ResumeList() {
                 showAiScore={entry.match?.scoreSource === 'ai'}
                 actionType={entry.action}
                 onAction={(action) => handleCardAction(entry.key, action)}
+                blocked={entry.blocked}
+                candidateStatus={entry.status}
+                onToggleBlock={() => handleToggleBlock(entry.identityKey, entry.blocked)}
+                onCandidateStatusChange={(status) => handleCandidateStatusChange(entry.identityKey, status)}
                 onViewDetails={() => {
                   setDetailResume(entry.resume)
                   trackReviewedResume(entry.key)

@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { ResumeFilters } from '@/types/resume'
+import type { CandidateStatus, ResumeFilters } from '@/types/resume'
 
 interface FilterPanelProps {
   filters: ResumeFilters
@@ -24,31 +24,60 @@ const EDUCATION_LEVELS = [
   { value: 'phd', labelKey: 'resumes.filters.education.phd' },
 ]
 
+const STATUS_OPTIONS: Array<{ value: CandidateStatus; label: string }> = [
+  { value: 'new', label: '新候选人' },
+  { value: 'contacted', label: '已联系' },
+  { value: 'interviewing', label: '面试中' },
+  { value: 'interviewed_pass', label: '面试通过' },
+  { value: 'interviewed_reject', label: '面试淘汰' },
+  { value: 'offer', label: '已发 Offer' },
+  { value: 'hired', label: '已入职' },
+  { value: 'withdrawn', label: '已放弃' },
+]
+
 export function FilterPanel({ filters, onFiltersChange, mode = 'original', className, defaultCollapsed = false, headerAction }: FilterPanelProps) {
   const { t } = useTranslation()
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
 
   const [minExperience, setMinExperience] = useState('')
   const [maxExperience, setMaxExperience] = useState('')
+  const [minAge, setMinAge] = useState('')
+  const [maxAge, setMaxAge] = useState('')
   const [minMatchScore, setMinMatchScore] = useState('')
   const [skills, setSkills] = useState('')
   const [locations, setLocations] = useState('')
   const [education, setEducation] = useState<string[]>([])
+  const [status, setStatus] = useState<CandidateStatus[]>([])
+  const [showBlocked, setShowBlocked] = useState(false)
   const [clearing, setClearing] = useState(false)
 
   useEffect(() => {
     setMinExperience(filters.minExperience?.toString() ?? '')
     setMaxExperience(filters.maxExperience?.toString() ?? '')
+    setMinAge(filters.minAge?.toString() ?? '')
+    setMaxAge(filters.maxAge?.toString() ?? '')
     setMinMatchScore(filters.minMatchScore?.toString() ?? '')
     setSkills(filters.skills?.join(',') ?? '')
     setLocations(filters.locations?.join(',') ?? '')
     setEducation(filters.education ?? [])
+    setStatus(filters.status ?? [])
+    setShowBlocked(filters.showBlocked === true)
   }, [filters])
 
   const educationSet = useMemo(() => new Set(education), [education])
+  const statusSet = useMemo(() => new Set(status), [status])
 
   const toggleEducation = (value: string) => {
     setEducation((prev) => {
+      if (prev.includes(value)) {
+        return prev.filter((item) => item !== value)
+      }
+      return [...prev, value]
+    })
+  }
+
+  const toggleStatus = (value: CandidateStatus) => {
+    setStatus((prev) => {
       if (prev.includes(value)) {
         return prev.filter((item) => item !== value)
       }
@@ -62,6 +91,8 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
       ...filters,
       minExperience: minExperience ? Number(minExperience) : undefined,
       maxExperience: maxExperience ? Number(maxExperience) : undefined,
+      minAge: minAge ? Number(minAge) : undefined,
+      maxAge: maxAge ? Number(maxAge) : undefined,
       minMatchScore: mode === 'ai' && minMatchScore ? Number(minMatchScore) : undefined,
       skills: skills
         ? skills
@@ -76,6 +107,8 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
           .filter(Boolean)
         : undefined,
       education: education.length ? education : undefined,
+      status: status.length ? status : undefined,
+      showBlocked,
     })
   }
 
@@ -83,10 +116,14 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
     setClearing(true)
     setMinExperience('')
     setMaxExperience('')
+    setMinAge('')
+    setMaxAge('')
     setMinMatchScore('')
     setSkills('')
     setLocations('')
     setEducation([])
+    setStatus([])
+    setShowBlocked(false)
     onFiltersChange({})
     window.setTimeout(() => setClearing(false), 200)
   }
@@ -148,6 +185,30 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
                 </div>
               </div>
 
+              <div className="flex items-end gap-2">
+                <div className="flex-1 space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">最小年龄</label>
+                  <Input
+                    type="number"
+                    value={minAge}
+                    onChange={(event) => setMinAge(event.target.value)}
+                    placeholder="20"
+                    className="bg-background"
+                  />
+                </div>
+                <span className="mb-2 text-muted-foreground">-</span>
+                <div className="flex-1 space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">最大年龄</label>
+                  <Input
+                    type="number"
+                    value={maxAge}
+                    onChange={(event) => setMaxAge(event.target.value)}
+                    placeholder="45"
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.minMatchScore')}</label>
                 <Input
@@ -159,7 +220,6 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
                   disabled={mode !== 'ai'}
                 />
               </div>
-              {/* Spacer for 3rd column if needed or move skills here */}
             </div>
 
             {/* Row 2: Text Filters */}
@@ -198,6 +258,30 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
                   </label>
                 ))}
               </div>
+            </div>
+
+            {/* Row 4: Status and Block Toggle */}
+            <div className="space-y-3">
+              <label className="text-xs font-medium text-muted-foreground">候选人状态</label>
+              <div className="flex flex-wrap gap-4">
+                {STATUS_OPTIONS.map((item) => (
+                  <label key={item.value} className="flex cursor-pointer items-center gap-2 text-sm text-foreground/80 hover:text-foreground">
+                    <Checkbox
+                      checked={statusSet.has(item.value)}
+                      onCheckedChange={() => toggleStatus(item.value)}
+                    />
+                    {item.label}
+                  </label>
+                ))}
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground/80 hover:text-foreground">
+                <Checkbox
+                  checked={showBlocked}
+                  onCheckedChange={(checked) => setShowBlocked(checked === true)}
+                />
+                显示已屏蔽
+              </label>
             </div>
           </div>
         </div>

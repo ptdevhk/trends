@@ -64,6 +64,7 @@ export default defineSchema({
     resumes: defineTable({
         externalId: v.string(), // e.g. from job site
         identityKey: v.optional(v.string()),
+        age: v.optional(v.number()),
         content: v.any(), // JSON payload from crawler
         hash: v.string(), // Content hash for change detection
         tags: v.array(v.string()), // e.g. search profile IDs
@@ -102,6 +103,14 @@ export default defineSchema({
                 context: v.string(),
             }))),
             companyHits: v.optional(v.array(v.string())),
+            roleSignals: v.optional(v.array(v.object({
+                type: v.string(),
+                matchedSignals: v.array(v.string()),
+                signalCount: v.number(),
+                occurrences: v.number(),
+                years: v.number(),
+                verifyIn: v.string(),
+            }))),
             ruleScores: v.any(),          // Record<string, number> — JD ID → score
             experienceLevel: v.string(),  // "senior" | "mid" | "junior" | "unknown"
             computedAt: v.number(),
@@ -210,6 +219,41 @@ export default defineSchema({
     })
         .index("by_workspace_key", ["workspaceSlug", "configKey"])
         .index("by_workspace", ["workspaceSlug"]),
+
+    candidate_blocks: defineTable({
+        identityKey: v.string(),
+        workspaceSlug: v.string(),
+        reason: v.optional(v.string()),
+        blockedBy: v.optional(v.string()),
+        blockedAt: v.number(),
+    })
+        .index("by_workspace_identity", ["workspaceSlug", "identityKey"])
+        .index("by_workspace", ["workspaceSlug"]),
+
+    candidate_status: defineTable({
+        identityKey: v.string(),
+        workspaceSlug: v.string(),
+        status: v.union(
+            v.literal("new"),
+            v.literal("contacted"),
+            v.literal("interviewing"),
+            v.literal("interviewed_pass"),
+            v.literal("interviewed_reject"),
+            v.literal("offer"),
+            v.literal("hired"),
+            v.literal("withdrawn")
+        ),
+        notes: v.optional(v.string()),
+        updatedBy: v.optional(v.string()),
+        updatedAt: v.number(),
+        history: v.optional(v.array(v.object({
+            status: v.string(),
+            updatedAt: v.number(),
+            notes: v.optional(v.string()),
+        }))),
+    })
+        .index("by_workspace_identity", ["workspaceSlug", "identityKey"])
+        .index("by_workspace_status", ["workspaceSlug", "status"]),
 
     sync_events: defineTable({
         source: v.string(),
