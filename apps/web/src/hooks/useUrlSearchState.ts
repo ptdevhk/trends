@@ -142,6 +142,69 @@ function setParam(params: URLSearchParams, key: string, value: string | undefine
   params.delete(key)
 }
 
+export function hasKnownUrlSearchParams(searchParams: URLSearchParams): boolean {
+  return KNOWN_PARAM_KEYS.some((key) => searchParams.has(key))
+}
+
+export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchState {
+  const locationRaw = getFirstParam(searchParams, ['loc', 'location'])
+  const location = locationRaw?.trim() || undefined
+  const keywordRaw = getFirstParam(searchParams, ['kw', 'keyword'])
+  const keywords = normalizeUniqueValues(parseKeywordParam(keywordRaw))
+  const jobDescriptionRaw = searchParams.get('jd')
+  const jobDescriptionId = jobDescriptionRaw?.trim() || undefined
+  const selectedTags = normalizeUniqueValues(parseCsvParam(searchParams.get('tags')))
+  const selectedCompanies = normalizeUniqueValues(parseCsvParam(searchParams.get('co')))
+  const selectedExperienceLevel = parseExperienceLevel(searchParams.get('exp'))
+
+  const filters: Partial<ResumeFilters> = {}
+
+  const minExperience = parseNumberParam(searchParams.get('minExp'))
+  if (typeof minExperience === 'number') {
+    filters.minExperience = minExperience
+  }
+
+  const maxExperience = parseNumberParam(searchParams.get('maxExp'))
+  if (typeof maxExperience === 'number') {
+    filters.maxExperience = maxExperience
+  }
+
+  const education = normalizeUniqueValues(parseCsvParam(searchParams.get('edu')))
+  if (education.length > 0) {
+    filters.education = education
+  }
+
+  const minMatchScore = parseNumberParam(searchParams.get('minScore'))
+  if (typeof minMatchScore === 'number') {
+    filters.minMatchScore = minMatchScore
+  }
+
+  const locations = normalizeUniqueValues(parseCsvParam(searchParams.get('locs')))
+  if (locations.length > 0) {
+    filters.locations = locations
+  }
+
+  const sortBy = parseSortBy(searchParams.get('sort'))
+  if (sortBy) {
+    filters.sortBy = sortBy
+  }
+
+  const sortOrder = parseSortOrder(searchParams.get('order'))
+  if (sortOrder) {
+    filters.sortOrder = sortOrder
+  }
+
+  return {
+    location,
+    keywords,
+    jobDescriptionId,
+    selectedTags,
+    selectedCompanies,
+    selectedExperienceLevel,
+    filters,
+  }
+}
+
 export function useUrlSearchState() {
   const [searchParams, setSearchParams] = useSearchParams()
   const hasKeywordParam = searchParams.has('kw')
@@ -149,124 +212,71 @@ export function useUrlSearchState() {
   const hasJobDescriptionParam = searchParams.has('jd')
 
   const hasUrlParams = useMemo(
-    () => KNOWN_PARAM_KEYS.some((key) => searchParams.has(key)),
+    () => hasKnownUrlSearchParams(searchParams),
     [searchParams]
   )
 
   const parsedState = useMemo<UrlSearchState>(() => {
-    const locationRaw = getFirstParam(searchParams, ['loc', 'location'])
-    const location = locationRaw?.trim() || undefined
-    const keywordRaw = getFirstParam(searchParams, ['kw', 'keyword'])
-    const keywords = normalizeUniqueValues(parseKeywordParam(keywordRaw))
-    const jobDescriptionRaw = searchParams.get('jd')
-    const jobDescriptionId = jobDescriptionRaw?.trim() || undefined
-    const selectedTags = normalizeUniqueValues(parseCsvParam(searchParams.get('tags')))
-    const selectedCompanies = normalizeUniqueValues(parseCsvParam(searchParams.get('co')))
-    const selectedExperienceLevel = parseExperienceLevel(searchParams.get('exp'))
-
-    const filters: Partial<ResumeFilters> = {}
-
-    const minExperience = parseNumberParam(searchParams.get('minExp'))
-    if (typeof minExperience === 'number') {
-      filters.minExperience = minExperience
-    }
-
-    const maxExperience = parseNumberParam(searchParams.get('maxExp'))
-    if (typeof maxExperience === 'number') {
-      filters.maxExperience = maxExperience
-    }
-
-    const education = normalizeUniqueValues(parseCsvParam(searchParams.get('edu')))
-    if (education.length > 0) {
-      filters.education = education
-    }
-
-    const minMatchScore = parseNumberParam(searchParams.get('minScore'))
-    if (typeof minMatchScore === 'number') {
-      filters.minMatchScore = minMatchScore
-    }
-
-    const locations = normalizeUniqueValues(parseCsvParam(searchParams.get('locs')))
-    if (locations.length > 0) {
-      filters.locations = locations
-    }
-
-    const sortBy = parseSortBy(searchParams.get('sort'))
-    if (sortBy) {
-      filters.sortBy = sortBy
-    }
-
-    const sortOrder = parseSortOrder(searchParams.get('order'))
-    if (sortOrder) {
-      filters.sortOrder = sortOrder
-    }
-
-    return {
-      location,
-      keywords,
-      jobDescriptionId,
-      selectedTags,
-      selectedCompanies,
-      selectedExperienceLevel,
-      filters,
-    }
+    return parseUrlSearchState(searchParams)
   }, [searchParams])
 
   const syncToUrl = useCallback(
     (state: UrlSearchState) => {
-      const nextParams = new URLSearchParams(searchParams)
+      setSearchParams((prevParams) => {
+        const nextParams = new URLSearchParams(prevParams)
 
-      KNOWN_PARAM_KEYS.forEach((key) => {
-        nextParams.delete(key)
-      })
+        KNOWN_PARAM_KEYS.forEach((key) => {
+          nextParams.delete(key)
+        })
 
-      const normalizedKeywords = normalizeUniqueValues(state.keywords)
-      const normalizedTags = normalizeUniqueValues(state.selectedTags)
-      const normalizedCompanies = normalizeUniqueValues(state.selectedCompanies)
-      const hasKeywords = normalizedKeywords.length > 0
+        const normalizedKeywords = normalizeUniqueValues(state.keywords)
+        const normalizedTags = normalizeUniqueValues(state.selectedTags)
+        const normalizedCompanies = normalizeUniqueValues(state.selectedCompanies)
+        const hasKeywords = normalizedKeywords.length > 0
 
-      setParam(nextParams, 'location', state.location?.trim())
-      setParam(nextParams, 'keyword', hasKeywords ? normalizedKeywords.join(' ') : undefined)
-      setParam(nextParams, 'jd', hasKeywords ? undefined : state.jobDescriptionId?.trim())
-      setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
-      setParam(nextParams, 'co', normalizedCompanies.length > 0 ? normalizedCompanies.join(',') : undefined)
-      setParam(nextParams, 'exp', state.selectedExperienceLevel)
+        setParam(nextParams, 'location', state.location?.trim())
+        setParam(nextParams, 'keyword', hasKeywords ? normalizedKeywords.join(' ') : undefined)
+        setParam(nextParams, 'jd', hasKeywords ? undefined : state.jobDescriptionId?.trim())
+        setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
+        setParam(nextParams, 'co', normalizedCompanies.length > 0 ? normalizedCompanies.join(',') : undefined)
+        setParam(nextParams, 'exp', state.selectedExperienceLevel)
 
-      if (typeof state.filters.minExperience === 'number' && Number.isFinite(state.filters.minExperience)) {
-        setParam(nextParams, 'minExp', String(state.filters.minExperience))
-      }
+        if (typeof state.filters.minExperience === 'number' && Number.isFinite(state.filters.minExperience)) {
+          setParam(nextParams, 'minExp', String(state.filters.minExperience))
+        }
 
-      if (typeof state.filters.maxExperience === 'number' && Number.isFinite(state.filters.maxExperience)) {
-        setParam(nextParams, 'maxExp', String(state.filters.maxExperience))
-      }
+        if (typeof state.filters.maxExperience === 'number' && Number.isFinite(state.filters.maxExperience)) {
+          setParam(nextParams, 'maxExp', String(state.filters.maxExperience))
+        }
 
-      if (Array.isArray(state.filters.education) && state.filters.education.length > 0) {
-        setParam(nextParams, 'edu', normalizeUniqueValues(state.filters.education).join(','))
-      }
+        if (Array.isArray(state.filters.education) && state.filters.education.length > 0) {
+          setParam(nextParams, 'edu', normalizeUniqueValues(state.filters.education).join(','))
+        }
 
-      if (typeof state.filters.minMatchScore === 'number' && Number.isFinite(state.filters.minMatchScore)) {
-        setParam(nextParams, 'minScore', String(state.filters.minMatchScore))
-      }
+        if (typeof state.filters.minMatchScore === 'number' && Number.isFinite(state.filters.minMatchScore)) {
+          setParam(nextParams, 'minScore', String(state.filters.minMatchScore))
+        }
 
-      if (Array.isArray(state.filters.locations) && state.filters.locations.length > 0) {
-        setParam(nextParams, 'locs', normalizeUniqueValues(state.filters.locations).join(','))
-      }
+        if (Array.isArray(state.filters.locations) && state.filters.locations.length > 0) {
+          setParam(nextParams, 'locs', normalizeUniqueValues(state.filters.locations).join(','))
+        }
 
-      if (state.filters.sortBy) {
-        setParam(nextParams, 'sort', state.filters.sortBy)
-      }
+        if (state.filters.sortBy) {
+          setParam(nextParams, 'sort', state.filters.sortBy)
+        }
 
-      if (state.filters.sortOrder) {
-        setParam(nextParams, 'order', state.filters.sortOrder)
-      }
+        if (state.filters.sortOrder) {
+          setParam(nextParams, 'order', state.filters.sortOrder)
+        }
 
-      if (nextParams.toString() === searchParams.toString()) {
-        return
-      }
+        if (nextParams.toString() === prevParams.toString()) {
+          return prevParams
+        }
 
-      setSearchParams(nextParams, { replace: true })
+        return nextParams
+      }, { replace: true })
     },
-    [searchParams, setSearchParams]
+    [setSearchParams]
   )
 
   return {

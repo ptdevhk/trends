@@ -27,6 +27,11 @@ function MainShell() {
   )
 }
 
+function PreserveSearchNavigate({ pathname }: { pathname: string }) {
+  const location = useLocation()
+  return <Navigate to={{ pathname, search: location.search }} replace />
+}
+
 function WorkspaceShell() {
   return (
     <WorkspaceProvider>
@@ -37,8 +42,9 @@ function WorkspaceShell() {
 
 function AdminGate({ children }: { children: ReactNode }) {
   const { isAdmin, slug } = useWorkspace()
+  const location = useLocation()
   if (!isAdmin) {
-    return <Navigate to={`/${slug}/resumes`} replace />
+    return <Navigate to={{ pathname: `/${slug}/resumes`, search: location.search }} replace />
   }
   return <>{children}</>
 }
@@ -65,18 +71,18 @@ function App() {
     <BrowserRouter>
       <ErrorBoundary>
         <Routes>
-          <Route path="/" element={<Navigate to="/dev/resumes" replace />} />
-          <Route path="/resumes" element={<Navigate to="/dev/resumes" replace />} />
+          <Route path="/" element={<PreserveSearchNavigate pathname="/dev/resumes" />} />
+          <Route path="/resumes" element={<PreserveSearchNavigate pathname="/dev/resumes" />} />
           <Route path="/profiles" element={<ProfilesLegacyRedirect />} />
           <Route path="/system/*" element={<LegacySystemRedirect />} />
-          <Route path="/config/jds" element={<Navigate to="/dev/system/jds" replace />} />
-          <Route path="/debug/jds" element={<Navigate to="/dev/system/jds" replace />} />
-          <Route path="/debug/config" element={<Navigate to="/dev/system/settings" replace />} />
-          <Route path="/debug/ai" element={<Navigate to="/dev/system/ai-debugger" replace />} />
-          <Route path="/debug/*" element={<Navigate to="/dev/system/data" replace />} />
+          <Route path="/config/jds" element={<PreserveSearchNavigate pathname="/dev/system/jds" />} />
+          <Route path="/debug/jds" element={<PreserveSearchNavigate pathname="/dev/system/jds" />} />
+          <Route path="/debug/config" element={<PreserveSearchNavigate pathname="/dev/system/settings" />} />
+          <Route path="/debug/ai" element={<PreserveSearchNavigate pathname="/dev/system/ai-debugger" />} />
+          <Route path="/debug/*" element={<PreserveSearchNavigate pathname="/dev/system/data" />} />
 
           <Route path="/:teamSlug" element={<WorkspaceShell />}>
-            <Route index element={<Navigate to="resumes" replace />} />
+            <Route index element={<PreserveSearchNavigate pathname="resumes" />} />
 
             <Route element={<MainShell />}>
               <Route path="resumes" element={<ResumesPage />} />
@@ -100,14 +106,14 @@ function App() {
               <Route path="data/*" element={<WorkspaceDebugPage />} />
             </Route>
 
-            <Route path="config/jds" element={<Navigate to="../system/jds" replace />} />
-            <Route path="debug/jds" element={<Navigate to="../system/jds" replace />} />
-            <Route path="debug/config" element={<Navigate to="../system/settings" replace />} />
-            <Route path="debug/ai" element={<Navigate to="../system/ai-debugger" replace />} />
-            <Route path="debug/*" element={<Navigate to="../system/data" replace />} />
+            <Route path="config/jds" element={<PreserveSearchNavigate pathname="../system/jds" />} />
+            <Route path="debug/jds" element={<PreserveSearchNavigate pathname="../system/jds" />} />
+            <Route path="debug/config" element={<PreserveSearchNavigate pathname="../system/settings" />} />
+            <Route path="debug/ai" element={<PreserveSearchNavigate pathname="../system/ai-debugger" />} />
+            <Route path="debug/*" element={<PreserveSearchNavigate pathname="../system/data" />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/dev/resumes" replace />} />
+          <Route path="*" element={<PreserveSearchNavigate pathname="/dev/resumes" />} />
         </Routes>
       </ErrorBoundary>
     </BrowserRouter>

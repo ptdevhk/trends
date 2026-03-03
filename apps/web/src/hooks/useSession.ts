@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../../packages/convex/convex/_generated/api';
 import type { ResumeFilters } from '@/types/resume';
@@ -44,6 +44,7 @@ export function useSession() {
   const addReviewedItem = useMutation(api.sessions.addReviewedItem);
 
   const [hasRestored, setHasRestored] = useState(false);
+  const hasInitializedScopeRef = useRef(false)
 
   // 3. Local State (Initialized from Convex when available)
   const [location, setLocation] = useState('广东');
@@ -52,7 +53,11 @@ export function useSession() {
   const [filters, setFilters] = useState<ResumeFilters>({});
 
   useEffect(() => {
-    console.debug('[session-reset]', { slug, sessionKey })
+    if (!hasInitializedScopeRef.current) {
+      hasInitializedScopeRef.current = true
+      return
+    }
+
     setHasRestored(false)
     setLocation('广东')
     setKeywords([])
@@ -63,11 +68,6 @@ export function useSession() {
   // 4. Initialization (Restore from DB)
   useEffect(() => {
     if (activeSession && !hasRestored) {
-      console.debug('[session-restore]', {
-        location: activeSession.config.location,
-        keywords: activeSession.config.keywords,
-        jobDescriptionId: activeSession.config.jobDescriptionId,
-      })
       setLocation(activeSession.config.location);
       setKeywords(activeSession.config.keywords);
       setJobDescriptionId(activeSession.config.jobDescriptionId);
@@ -113,7 +113,6 @@ export function useSession() {
   );
 
   const applyExternalState = useCallback((state: ExternalSessionState) => {
-    console.debug('[session-applyExternalState]', state)
     if (state.location !== undefined) {
       const normalizedLocation = state.location.trim()
       if (normalizedLocation.length > 0) {

@@ -8,7 +8,12 @@ import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import { useConvexResumes, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useSession } from '@/hooks/useSession'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
-import { useUrlSearchState, type ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
+import {
+  hasKnownUrlSearchParams,
+  parseUrlSearchState,
+  useUrlSearchState,
+  type ExperienceLevelFilter,
+} from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import { expandKeyword, DEFAULT_CONFIG } from '@/lib/trendradar/parser'
 import type { CandidateActionType, MatchingResult, ResumeFilters } from '@/types/resume'
@@ -54,6 +59,59 @@ function normalizeKeywordFingerprint(keywords: string[]): string {
     .filter((keyword) => keyword.length > 0)
     .sort()
     .join('|')
+}
+
+function areKeywordListsEqual(left: string[], right: string[]): boolean {
+  return normalizeKeywordFingerprint(left) === normalizeKeywordFingerprint(right)
+}
+
+function normalizeOptionalNumber(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function normalizeOptionalString(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : undefined
+}
+
+function normalizeFilterList(values: string[] | undefined): string[] | undefined {
+  if (!Array.isArray(values) || values.length === 0) {
+    return undefined
+  }
+
+  const seen = new Set<string>()
+  const normalized: string[] = []
+
+  values.forEach((value) => {
+    const token = normalizeFilterToken(value)
+    if (!token || seen.has(token)) {
+      return
+    }
+    seen.add(token)
+    normalized.push(token)
+  })
+
+  return normalized.sort()
+}
+
+function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFilters> {
+  return {
+    minExperience: normalizeOptionalNumber(filters.minExperience),
+    maxExperience: normalizeOptionalNumber(filters.maxExperience),
+    education: normalizeFilterList(filters.education),
+    minMatchScore: normalizeOptionalNumber(filters.minMatchScore),
+    locations: normalizeFilterList(filters.locations),
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+  }
+}
+
+function areUrlFiltersEqual(left: Partial<ResumeFilters>, right: Partial<ResumeFilters>): boolean {
+  return JSON.stringify(normalizeUrlFilters(left)) === JSON.stringify(normalizeUrlFilters(right))
 }
 
 function taskMatchesCurrentSearch(
@@ -204,24 +262,54 @@ export function useResumeListState() {
   const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<ExperienceLevelFilter | undefined>(undefined)
   const [mode] = useState<'ai'>('ai')
   const hydratedSessionIdRef = useRef<string | null>(null)
-  const hasInitializedUrlSyncRef = useRef(false)
+  const hasInitializedUrlHydrationRef = useRef(false)
   const lastAppliedUrlStateRef = useRef<string | null>(null)
   const skipNextUrlSyncRef = useRef(false)
+  const initialWindowSearchStateRef = useRef<{
+    hasUrlParams: boolean
+    hasKeywordParam: boolean
+    hasJobDescriptionParam: boolean
+    parsedState: ReturnType<typeof parseUrlSearchState>
+  } | null>(null)
+  const [hasCompletedUrlHydration, setHasCompletedUrlHydration] = useState(false)
+
+  if (!initialWindowSearchStateRef.current) {
+    const params = new URLSearchParams(window.location.search)
+    initialWindowSearchStateRef.current = {
+      hasUrlParams: hasKnownUrlSearchParams(params),
+      hasKeywordParam: params.has('kw') || params.has('keyword'),
+      hasJobDescriptionParam: params.has('jd'),
+      parsedState: parseUrlSearchState(params),
+    }
+  }
+
+  const initialWindowSearchState = initialWindowSearchStateRef.current
   const session = useMemo(() => ({ id: 'convex', jobDescriptionId, filters }), [jobDescriptionId, filters])
-  const urlStateSignature = useMemo(
+  const activeHasUrlParams = hasUrlParams
+    || (!hasInitializedUrlHydrationRef.current && initialWindowSearchState.hasUrlParams)
+  const activeHasKeywordParam = hasUrlParams
+    ? hasKeywordParam
+    : initialWindowSearchState.hasKeywordParam
+  const activeHasJobDescriptionParam = hasUrlParams
+    ? hasJobDescriptionParam
+    : initialWindowSearchState.hasJobDescriptionParam
+  const activeParsedUrlState = hasUrlParams
+    ? parsedUrlState
+    : initialWindowSearchState.parsedState
+  const activeUrlStateSignature = useMemo(
     () => JSON.stringify({
-      hasKeywordParam,
-      hasJobDescriptionParam,
-      hasUrlParams,
-      location: parsedUrlState.location ?? '',
-      keywords: parsedUrlState.keywords,
-      jobDescriptionId: parsedUrlState.jobDescriptionId ?? '',
-      selectedTags: parsedUrlState.selectedTags,
-      selectedCompanies: parsedUrlState.selectedCompanies,
-      selectedExperienceLevel: parsedUrlState.selectedExperienceLevel ?? '',
-      filters: parsedUrlState.filters,
+      hasKeywordParam: activeHasKeywordParam,
+      hasJobDescriptionParam: activeHasJobDescriptionParam,
+      hasUrlParams: activeHasUrlParams,
+      location: activeParsedUrlState.location ?? '',
+      keywords: activeParsedUrlState.keywords,
+      jobDescriptionId: activeParsedUrlState.jobDescriptionId ?? '',
+      selectedTags: activeParsedUrlState.selectedTags,
+      selectedCompanies: activeParsedUrlState.selectedCompanies,
+      selectedExperienceLevel: activeParsedUrlState.selectedExperienceLevel ?? '',
+      filters: normalizeUrlFilters(activeParsedUrlState.filters),
     }),
-    [hasKeywordParam, hasJobDescriptionParam, hasUrlParams, parsedUrlState]
+    [activeHasJobDescriptionParam, activeHasKeywordParam, activeHasUrlParams, activeParsedUrlState]
   )
 
   const {
@@ -269,56 +357,155 @@ export function useResumeListState() {
   }, [analysisTasks, jobDescriptionId, sessionKeywords])
 
   useEffect(() => {
-    if (!hasUrlParams) {
+    if (!activeHasUrlParams) {
+      hasInitializedUrlHydrationRef.current = true
+      lastAppliedUrlStateRef.current = null
+      setHasCompletedUrlHydration(true)
       return
     }
 
-    if (lastAppliedUrlStateRef.current === urlStateSignature) {
+    if (lastAppliedUrlStateRef.current === activeUrlStateSignature) {
       return
     }
 
-    lastAppliedUrlStateRef.current = urlStateSignature
+    hasInitializedUrlHydrationRef.current = true
+    setHasCompletedUrlHydration(false)
+    lastAppliedUrlStateRef.current = activeUrlStateSignature
     const jobDescriptionIdForExternalState =
-      hasJobDescriptionParam
-        ? (parsedUrlState.jobDescriptionId ?? '')
-        : hasKeywordParam
+      activeHasJobDescriptionParam
+        ? (activeParsedUrlState.jobDescriptionId ?? '')
+        : activeHasKeywordParam
           ? ''
-          : parsedUrlState.jobDescriptionId
+          : activeParsedUrlState.jobDescriptionId
 
-    console.debug('[url-hydrate]', {
-      search: window.location.search,
-      keywords: parsedUrlState.keywords,
-      location: parsedUrlState.location,
-      jobDescriptionIdForExternalState,
-    })
     skipNextUrlSyncRef.current = true
     applyExternalState({
-      location: parsedUrlState.location,
-      keywords: parsedUrlState.keywords,
+      location: activeParsedUrlState.location,
+      keywords: activeParsedUrlState.keywords,
       jobDescriptionId: jobDescriptionIdForExternalState,
-      filters: parsedUrlState.filters,
+      filters: activeParsedUrlState.filters,
     })
-    setSelectedTags(parsedUrlState.selectedTags)
-    setSelectedCompanies(parsedUrlState.selectedCompanies)
-    setSelectedExperienceLevel(parsedUrlState.selectedExperienceLevel)
+    setSelectedTags(activeParsedUrlState.selectedTags)
+    setSelectedCompanies(activeParsedUrlState.selectedCompanies)
+    setSelectedExperienceLevel(activeParsedUrlState.selectedExperienceLevel)
   }, [
     applyExternalState,
-    hasJobDescriptionParam,
-    hasKeywordParam,
-    hasUrlParams,
-    parsedUrlState,
-    urlStateSignature,
+    activeHasJobDescriptionParam,
+    activeHasKeywordParam,
+    activeHasUrlParams,
+    activeParsedUrlState,
+    activeUrlStateSignature,
+  ])
+
+  const hasHydratedUrlState = useMemo(() => {
+    if (!activeHasUrlParams) {
+      return true
+    }
+
+    const currentLocation = normalizeOptionalString(sessionLocation)
+    const expectedLocation = normalizeOptionalString(activeParsedUrlState.location)
+    if (expectedLocation && currentLocation !== expectedLocation) {
+      return false
+    }
+
+    if (!areKeywordListsEqual(sessionKeywords, activeParsedUrlState.keywords)) {
+      return false
+    }
+
+    const expectedJobDescriptionId =
+      activeHasJobDescriptionParam
+        ? normalizeOptionalString(activeParsedUrlState.jobDescriptionId) ?? ''
+        : activeHasKeywordParam
+          ? ''
+          : normalizeOptionalString(activeParsedUrlState.jobDescriptionId) ?? ''
+    const currentJobDescriptionId = normalizeOptionalString(jobDescriptionId) ?? ''
+    if (currentJobDescriptionId !== expectedJobDescriptionId) {
+      return false
+    }
+
+    if (!areUrlFiltersEqual(filters, activeParsedUrlState.filters)) {
+      return false
+    }
+
+    if (!areKeywordListsEqual(selectedTags, activeParsedUrlState.selectedTags)) {
+      return false
+    }
+
+    if (!areKeywordListsEqual(selectedCompanies, activeParsedUrlState.selectedCompanies)) {
+      return false
+    }
+
+    return (selectedExperienceLevel ?? '') === (activeParsedUrlState.selectedExperienceLevel ?? '')
+  }, [
+    activeHasJobDescriptionParam,
+    activeHasKeywordParam,
+    activeHasUrlParams,
+    activeParsedUrlState,
+    filters,
+    jobDescriptionId,
+    selectedCompanies,
+    selectedExperienceLevel,
+    selectedTags,
+    sessionKeywords,
+    sessionLocation,
   ])
 
   useEffect(() => {
-    if (!hasUrlParams) {
-      lastAppliedUrlStateRef.current = null
+    if (!activeHasUrlParams || hasCompletedUrlHydration || hasHydratedUrlState) {
+      return
     }
-  }, [hasUrlParams])
+
+    const jobDescriptionIdForExternalState =
+      activeHasJobDescriptionParam
+        ? (activeParsedUrlState.jobDescriptionId ?? '')
+        : activeHasKeywordParam
+          ? ''
+          : activeParsedUrlState.jobDescriptionId
+
+    skipNextUrlSyncRef.current = true
+    applyExternalState({
+      location: activeParsedUrlState.location,
+      keywords: activeParsedUrlState.keywords,
+      jobDescriptionId: jobDescriptionIdForExternalState,
+      filters: activeParsedUrlState.filters,
+    })
+    setSelectedTags((current) =>
+      areKeywordListsEqual(current, activeParsedUrlState.selectedTags)
+        ? current
+        : activeParsedUrlState.selectedTags
+    )
+    setSelectedCompanies((current) =>
+      areKeywordListsEqual(current, activeParsedUrlState.selectedCompanies)
+        ? current
+        : activeParsedUrlState.selectedCompanies
+    )
+    setSelectedExperienceLevel((current) =>
+      (current ?? '') === (activeParsedUrlState.selectedExperienceLevel ?? '')
+        ? current
+        : activeParsedUrlState.selectedExperienceLevel
+    )
+  }, [
+    activeHasJobDescriptionParam,
+    activeHasKeywordParam,
+    activeHasUrlParams,
+    activeParsedUrlState,
+    applyExternalState,
+    hasCompletedUrlHydration,
+    hasHydratedUrlState,
+  ])
 
   useEffect(() => {
-    if (!hasInitializedUrlSyncRef.current) {
-      hasInitializedUrlSyncRef.current = true
+    if (hasCompletedUrlHydration) {
+      return
+    }
+
+    if (hasHydratedUrlState) {
+      setHasCompletedUrlHydration(true)
+    }
+  }, [hasCompletedUrlHydration, hasHydratedUrlState])
+
+  useEffect(() => {
+    if (!hasCompletedUrlHydration) {
       return
     }
 
@@ -334,12 +521,6 @@ export function useResumeListState() {
           ? normalizedLocation
           : undefined
 
-      console.debug('[url-sync]', {
-        currentSearch: window.location.search,
-        locationForUrl,
-        keywords: sessionKeywords,
-        jobDescriptionId,
-      })
       syncToUrl({
         location: locationForUrl,
         keywords: sessionKeywords,
@@ -354,6 +535,7 @@ export function useResumeListState() {
     return () => window.clearTimeout(timer)
   }, [
     filters,
+    hasCompletedUrlHydration,
     jobDescriptionId,
     selectedCompanies,
     selectedExperienceLevel,
@@ -867,6 +1049,7 @@ export function useResumeListState() {
 
   const hasInput = Boolean(jobDescriptionId) || sessionKeywords.length > 0
   const disableAnalyzeButton = (filteredConvexResumes.length === 0 || analyzing || !hasInput || hasActiveTask)
+  const shouldBlockQuickStartSync = activeHasUrlParams && !hasCompletedUrlHydration
 
   const handleQuickStartApply = useCallback(
     (config: {
@@ -875,20 +1058,26 @@ export function useResumeListState() {
       jobDescriptionId?: string
       filters?: Partial<ResumeFilters>
     }) => {
-      console.debug('[quickStart-applyConfig]', config)
+      if (shouldBlockQuickStartSync) {
+        return
+      }
+
       const normalizedKeywords = config.keywords
         .map((keyword) => keyword.trim())
         .filter((keyword) => keyword.length > 0)
       const normalizedLocation = config.location.trim()
-      if (normalizedLocation) {
-        setSessionLocation(normalizedLocation)
-      }
+      setSessionLocation((current) => {
+        if (!normalizedLocation || current === normalizedLocation) {
+          return current
+        }
+        return normalizedLocation
+      })
 
       if (config.jobDescriptionId) {
-        setSessionKeywords([])
-        setJobDescriptionId(config.jobDescriptionId)
+        setSessionKeywords((current) => (current.length === 0 ? current : []))
+        setJobDescriptionId((current) => (current === config.jobDescriptionId ? current : config.jobDescriptionId))
       } else {
-        setSessionKeywords(normalizedKeywords)
+        setSessionKeywords((current) => (areKeywordListsEqual(current, normalizedKeywords) ? current : normalizedKeywords))
         setJobDescriptionId((current) => (current ? '' : current))
       }
 
@@ -899,7 +1088,7 @@ export function useResumeListState() {
         }))
       }
     },
-    [setFilters, setJobDescriptionId, setSessionKeywords, setSessionLocation]
+    [setFilters, setJobDescriptionId, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
   )
 
   return {
