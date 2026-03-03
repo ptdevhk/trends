@@ -203,6 +203,7 @@ function scoreFromBreakdown(
 ): number {
   const categories: CategoryKey[] = [
     "skillMatch",
+    "roleMatch",
     "experienceMatch",
     "educationMatch",
     "locationMatch",
@@ -216,7 +217,9 @@ function scoreFromBreakdown(
     const currentWeight = current[category];
     const currentValue = category === "brandRelevance"
       ? breakdown.brandRelevance ?? 0
-      : breakdown[category];
+      : category === "roleMatch"
+        ? breakdown.roleMatch ?? 0
+        : breakdown[category];
     if (currentWeight <= 0) {
       continue;
     }

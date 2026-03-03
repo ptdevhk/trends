@@ -36,6 +36,7 @@ function parseCategoryWeights(value: unknown): RuleCategoryWeights | null {
 
   const weights: RuleCategoryWeights = {
     skillMatch: Number(value.skillMatch ?? NaN),
+    roleMatch: Number(value.roleMatch ?? 0),
     experienceMatch: Number(value.experienceMatch ?? NaN),
     educationMatch: Number(value.educationMatch ?? NaN),
     locationMatch: Number(value.locationMatch ?? NaN),

@@ -8,6 +8,8 @@ import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import { useConvexResumes, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useSession } from '@/hooks/useSession'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
+import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
+import { useCandidateStatus } from '@/hooks/useCandidateStatus'
 import {
   hasKnownUrlSearchParams,
   parseUrlSearchState,
@@ -16,7 +18,7 @@ import {
 } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import { expandKeyword, DEFAULT_CONFIG } from '@/lib/trendradar/parser'
-import type { CandidateActionType, MatchingResult, ResumeFilters } from '@/types/resume'
+import type { CandidateActionType, CandidateStatus, MatchingResult, ResumeFilters } from '@/types/resume'
 import {
   buildLearningObservation,
   buildResumeKey,
@@ -44,14 +46,15 @@ type ScoredConvexResume = ConvexResumeItem & {
 type EnrichedResume = {
   resume: ConvexResumeItem | ResumeItem
   key: string
+  identityKey: string
+  blocked: boolean
+  status: CandidateStatus
   match?: MatchingResult
   ruleScore?: number
   action?: CandidateActionType | undefined
 }
 
 type AnalysisTaskDoc = Doc<'analysis_tasks'>
-
-const DEFAULT_LOCATION = '广东'
 
 function normalizeKeywordFingerprint(keywords: string[]): string {
   return [...keywords]
@@ -102,7 +105,10 @@ function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFil
   return {
     minExperience: normalizeOptionalNumber(filters.minExperience),
     maxExperience: normalizeOptionalNumber(filters.maxExperience),
+    minAge: normalizeOptionalNumber(filters.minAge),
+    maxAge: normalizeOptionalNumber(filters.maxAge),
     education: normalizeFilterList(filters.education),
+    status: toStatusFilterList(filters.status),
     minMatchScore: normalizeOptionalNumber(filters.minMatchScore),
     locations: normalizeFilterList(filters.locations),
     sortBy: filters.sortBy,
@@ -193,6 +199,74 @@ function parseExperienceYears(value: string | undefined): number {
 
   const parsed = Number(matched[0])
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function parseAgeNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value)
+  }
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const withSuffix = value.match(/(\d+)\s*岁/)
+  if (withSuffix && withSuffix[1]) {
+    return Number(withSuffix[1])
+  }
+
+  const plain = value.match(/^(\d{1,3})$/)
+  if (plain && plain[1]) {
+    return Number(plain[1])
+  }
+
+  return null
+}
+
+function getResumeAge(resume: ConvexResumeItem): number | null {
+  if (typeof resume.ageNumber === 'number' && Number.isFinite(resume.ageNumber) && resume.ageNumber > 0) {
+    return Math.trunc(resume.ageNumber)
+  }
+
+  return parseAgeNumber(resume.age)
+}
+
+function getResumeIdentityKey(resume: ConvexResumeItem, fallback: string): string {
+  const identityKey = resume.identityKey?.trim()
+  if (identityKey) {
+    return identityKey
+  }
+  return fallback
+}
+
+function toStatusFilterList(values: CandidateStatus[] | undefined): CandidateStatus[] {
+  if (!Array.isArray(values)) {
+    return []
+  }
+
+  const unique = new Set<CandidateStatus>()
+  values.forEach((value) => {
+    if (
+      value === 'new'
+      || value === 'contacted'
+      || value === 'interviewing'
+      || value === 'interviewed_pass'
+      || value === 'interviewed_reject'
+      || value === 'offer'
+      || value === 'hired'
+      || value === 'withdrawn'
+    ) {
+      unique.add(value)
+    }
+  })
+  return Array.from(unique).sort()
+}
+
+function getSalesRoleYears(resume: ConvexResumeItem): number {
+  const roleSignal = resume.ingestData?.roleSignals?.find((signal) => normalizeFilterToken(signal.type) === 'sales')
+  if (!roleSignal || typeof roleSignal.years !== 'number' || !Number.isFinite(roleSignal.years)) {
+    return 0
+  }
+  return roleSignal.years
 }
 
 function parseExtractedAt(value: string | undefined): number {
@@ -329,13 +403,14 @@ export function useResumeListState() {
   })
 
   const { actions, saveAction } = useCandidateActions(undefined)
+  const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks()
+  const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus()
 
   const expandedQuery = useMemo(() => {
-    if (jobDescriptionId) return undefined
     const kw = sessionKeywords.join(' ').trim()
     if (!kw) return undefined
     return expandKeyword(kw, DEFAULT_CONFIG)
-  }, [jobDescriptionId, sessionKeywords])
+  }, [sessionKeywords])
 
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery, jobDescriptionId)
   const analysisTasks = useQuery(api.analysis_tasks.list)
@@ -374,9 +449,7 @@ export function useResumeListState() {
     const jobDescriptionIdForExternalState =
       activeHasJobDescriptionParam
         ? (activeParsedUrlState.jobDescriptionId ?? '')
-        : activeHasKeywordParam
-          ? ''
-          : activeParsedUrlState.jobDescriptionId
+        : activeParsedUrlState.jobDescriptionId
 
     skipNextUrlSyncRef.current = true
     applyExternalState({
@@ -391,7 +464,6 @@ export function useResumeListState() {
   }, [
     applyExternalState,
     activeHasJobDescriptionParam,
-    activeHasKeywordParam,
     activeHasUrlParams,
     activeParsedUrlState,
     activeUrlStateSignature,
@@ -415,9 +487,7 @@ export function useResumeListState() {
     const expectedJobDescriptionId =
       activeHasJobDescriptionParam
         ? normalizeOptionalString(activeParsedUrlState.jobDescriptionId) ?? ''
-        : activeHasKeywordParam
-          ? ''
-          : normalizeOptionalString(activeParsedUrlState.jobDescriptionId) ?? ''
+        : normalizeOptionalString(activeParsedUrlState.jobDescriptionId) ?? ''
     const currentJobDescriptionId = normalizeOptionalString(jobDescriptionId) ?? ''
     if (currentJobDescriptionId !== expectedJobDescriptionId) {
       return false
@@ -438,7 +508,6 @@ export function useResumeListState() {
     return (selectedExperienceLevel ?? '') === (activeParsedUrlState.selectedExperienceLevel ?? '')
   }, [
     activeHasJobDescriptionParam,
-    activeHasKeywordParam,
     activeHasUrlParams,
     activeParsedUrlState,
     filters,
@@ -458,9 +527,7 @@ export function useResumeListState() {
     const jobDescriptionIdForExternalState =
       activeHasJobDescriptionParam
         ? (activeParsedUrlState.jobDescriptionId ?? '')
-        : activeHasKeywordParam
-          ? ''
-          : activeParsedUrlState.jobDescriptionId
+        : activeParsedUrlState.jobDescriptionId
 
     skipNextUrlSyncRef.current = true
     applyExternalState({
@@ -486,7 +553,6 @@ export function useResumeListState() {
     )
   }, [
     activeHasJobDescriptionParam,
-    activeHasKeywordParam,
     activeHasUrlParams,
     activeParsedUrlState,
     applyExternalState,
@@ -517,7 +583,7 @@ export function useResumeListState() {
     const timer = window.setTimeout(() => {
       const normalizedLocation = sessionLocation.trim()
       const locationForUrl =
-        normalizedLocation.length > 0 && normalizedLocation !== DEFAULT_LOCATION
+        normalizedLocation.length > 0
           ? normalizedLocation
           : undefined
 
@@ -561,6 +627,23 @@ export function useResumeListState() {
 
     result = [...result].sort((a: ScoredConvexResume, b: ScoredConvexResume) => b._ruleScore - a._ruleScore)
 
+    const showBlocked = filters.showBlocked === true
+    if (!showBlocked) {
+      result = result.filter((resume: ScoredConvexResume) => {
+        const identityKey = getResumeIdentityKey(resume, String(resume.resumeId))
+        return !blocksByIdentity[identityKey]
+      })
+    }
+
+    if (filters.status?.length) {
+      const activeStatuses = new Set(toStatusFilterList(filters.status))
+      result = result.filter((resume: ScoredConvexResume) => {
+        const identityKey = getResumeIdentityKey(resume, String(resume.resumeId))
+        const status = statusByIdentity[identityKey]?.status ?? 'new'
+        return activeStatuses.has(status)
+      })
+    }
+
     if (filters.locations?.length) {
       const locations = filters.locations
       result = result.filter((resume: ScoredConvexResume) => locations.some((location) => resume.location?.includes(location)))
@@ -574,6 +657,27 @@ export function useResumeListState() {
     const maxExperience = filters.maxExperience
     if (typeof maxExperience === 'number') {
       result = result.filter((resume: ScoredConvexResume) => parseExperienceYears(resume.experience) <= maxExperience)
+    }
+
+    const minSalesYears = filters.minSalesYears
+    if (typeof minSalesYears === 'number') {
+      result = result.filter((resume: ScoredConvexResume) => getSalesRoleYears(resume) >= minSalesYears)
+    }
+
+    const minAge = filters.minAge
+    if (typeof minAge === 'number') {
+      result = result.filter((resume: ScoredConvexResume) => {
+        const age = getResumeAge(resume)
+        return age !== null && age >= minAge
+      })
+    }
+
+    const maxAge = filters.maxAge
+    if (typeof maxAge === 'number') {
+      result = result.filter((resume: ScoredConvexResume) => {
+        const age = getResumeAge(resume)
+        return age !== null && age <= maxAge
+      })
     }
 
     if (filters.education?.length) {
@@ -611,18 +715,23 @@ export function useResumeListState() {
     }
 
     return result
-  }, [convexResumes, filters, jobDescriptionId, selectedCompanies, selectedExperienceLevel, selectedTags, sessionKeywords])
+  }, [
+    blocksByIdentity,
+    convexResumes,
+    filters,
+    jobDescriptionId,
+    selectedCompanies,
+    selectedExperienceLevel,
+    selectedTags,
+    sessionKeywords,
+    statusByIdentity,
+  ])
 
   useEffect(() => {
     if (!session?.id) return
     if (hydratedSessionIdRef.current === session.id) return
     hydratedSessionIdRef.current = session.id
   }, [filters.minMatchScore, filters.skills?.length, session])
-
-  useEffect(() => {
-    if (!jobDescriptionId || sessionKeywords.length === 0) return
-    setSessionKeywords([])
-  }, [jobDescriptionId, sessionKeywords, setSessionKeywords])
 
   useEffect(() => {
     setSelectedIds(new Set())
@@ -638,12 +747,9 @@ export function useResumeListState() {
 
   const handleJobChange = useCallback(
     (value: string) => {
-      if (value) {
-        setSessionKeywords([])
-      }
       setJobDescriptionId(value)
     },
-    [setJobDescriptionId, setSessionKeywords]
+    [setJobDescriptionId]
   )
 
   const handleAnalyzeAll = useCallback(async () => {
@@ -787,6 +893,7 @@ export function useResumeListState() {
     if (mode === 'ai') {
       return filteredConvexResumes.map((resume: ScoredConvexResume, index: number) => {
         const resumeKey = buildResumeKey(resume, index)
+        const identityKey = getResumeIdentityKey(resume, resumeKey)
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
 
@@ -808,6 +915,9 @@ export function useResumeListState() {
         return {
           resume,
           key: resumeKey,
+          identityKey,
+          blocked: Boolean(blocksByIdentity[identityKey]),
+          status: statusByIdentity[identityKey]?.status ?? 'new',
           match,
           ruleScore: resume._ruleScore || 0,
           action: actions[resumeKey],
@@ -820,12 +930,15 @@ export function useResumeListState() {
       return {
         resume,
         key: resumeKey,
+        identityKey: resumeKey,
+        blocked: false,
+        status: 'new',
         match: undefined,
         ruleScore: 0,
         action: actions[resumeKey],
       }
     })
-  }, [actions, filteredConvexResumes, jobDescriptionId, mode, resumes, sessionKeywords])
+  }, [actions, blocksByIdentity, filteredConvexResumes, jobDescriptionId, mode, resumes, sessionKeywords, statusByIdentity])
 
   const displayedResumes = useMemo(() => {
     const sortBy = filters.sortBy ?? 'score'
@@ -920,17 +1033,30 @@ export function useResumeListState() {
   }, [])
 
   const handleBulkAction = useCallback(
-    async (action: 'shortlist' | 'reject' | 'star' | 'export', format?: ResumeExportFormat) => {
+    async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ResumeExportFormat) => {
       if (selectedIds.size === 0) return
 
       const selectedEntries = displayedResumes.filter((entry) => selectedIds.has(entry.key))
 
+      if (action === 'block') {
+        const identityKeys = selectedEntries.map((entry) => entry.identityKey)
+        const success = await blockCandidates(identityKeys, 'bulk_block')
+        if (success) {
+          toast.success(t('bulk.blocked', { count: identityKeys.length, defaultValue: `Blocked ${identityKeys.length} candidates` }))
+          setSelectedIds(new Set())
+        } else {
+          toast.error(t('bulk.blockFailed', { defaultValue: 'Bulk block failed. Please try again.' }))
+        }
+        return
+      }
+
       if (action === 'export') {
-        const exportEntries = selectedEntries.map(({ key, resume, match, action: currentAction, ruleScore }) => ({
+        const exportEntries = selectedEntries.map(({ key, resume, match, action: currentAction, ruleScore, status }) => ({
           key,
           resume,
           match,
           action: currentAction,
+          status,
           ruleScore: typeof match?.score === 'number' ? undefined : ruleScore,
         }))
         const exportFormat = format ?? bulkExportFormat
@@ -1007,7 +1133,7 @@ export function useResumeListState() {
         toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))
       }
     },
-    [apiBaseUrl, bulkExportFormat, displayedResumes, saveAction, selectedIds, sendLearningFeedback, t]
+    [apiBaseUrl, blockCandidates, bulkExportFormat, displayedResumes, saveAction, selectedIds, sendLearningFeedback, t]
   )
 
   const actionFeedbackLabels = useMemo<Partial<Record<CandidateActionType, string>>>(
@@ -1044,6 +1170,46 @@ export function useResumeListState() {
     [actionFeedbackLabels, displayedResumeMap, saveAction, sendLearningFeedback]
   )
 
+  const handleToggleBlock = useCallback(
+    async (identityKey: string, blocked: boolean) => {
+      if (!identityKey.trim()) {
+        return
+      }
+
+      if (blocked) {
+        const removed = await unblockCandidate(identityKey)
+        if (removed) {
+          toast.success('已取消屏蔽')
+        } else {
+          toast.error('取消屏蔽失败，请重试')
+        }
+        return
+      }
+
+      const success = await blockCandidates([identityKey], 'manual_block')
+      if (success) {
+        toast.success('已屏蔽候选人')
+      } else {
+        toast.error('屏蔽失败，请重试')
+      }
+    },
+    [blockCandidates, unblockCandidate]
+  )
+
+  const handleCandidateStatusChange = useCallback(
+    async (identityKey: string, status: CandidateStatus) => {
+      if (!identityKey.trim()) {
+        return
+      }
+
+      const success = await updateCandidateStatus(identityKey, status)
+      if (!success) {
+        toast.error('更新候选人状态失败，请重试')
+      }
+    },
+    [updateCandidateStatus]
+  )
+
   const highScoreCount = useMemo(() => {
     return displayedResumes.filter((entry) => (entry.match?.score ?? 0) >= 80).length
   }, [displayedResumes])
@@ -1066,6 +1232,7 @@ export function useResumeListState() {
       const normalizedKeywords = config.keywords
         .map((keyword) => keyword.trim())
         .filter((keyword) => keyword.length > 0)
+      const normalizedJobDescriptionId = config.jobDescriptionId?.trim() ?? ''
       const normalizedLocation = config.location.trim()
       setSessionLocation((current) => {
         if (!normalizedLocation || current === normalizedLocation) {
@@ -1074,13 +1241,8 @@ export function useResumeListState() {
         return normalizedLocation
       })
 
-      if (config.jobDescriptionId) {
-        setSessionKeywords((current) => (current.length === 0 ? current : []))
-        setJobDescriptionId((current) => (current === config.jobDescriptionId ? current : config.jobDescriptionId))
-      } else {
-        setSessionKeywords((current) => (areKeywordListsEqual(current, normalizedKeywords) ? current : normalizedKeywords))
-        setJobDescriptionId((current) => (current ? '' : current))
-      }
+      setSessionKeywords((current) => (areKeywordListsEqual(current, normalizedKeywords) ? current : normalizedKeywords))
+      setJobDescriptionId((current) => (current === normalizedJobDescriptionId ? current : normalizedJobDescriptionId))
 
       if (config.filters) {
         setFilters((current) => ({
@@ -1090,6 +1252,20 @@ export function useResumeListState() {
       }
     },
     [setFilters, setJobDescriptionId, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
+  )
+
+  const handleQuickConstraintApply = useCallback(
+    (constraints: {
+      minSalesYears?: number
+      maxAge?: number
+    }) => {
+      setFilters((current) => ({
+        ...current,
+        minSalesYears: constraints.minSalesYears,
+        maxAge: constraints.maxAge,
+      }))
+    },
+    [setFilters]
   )
 
   return {
@@ -1121,6 +1297,7 @@ export function useResumeListState() {
     handleAnalyzeAll,
     handleRefresh,
     handleQuickStartApply,
+    handleQuickConstraintApply,
     handleJobChange,
     handleFiltersChange,
     handleToggleTag,
@@ -1133,5 +1310,7 @@ export function useResumeListState() {
     handleToggleSelect,
     handleBulkAction,
     handleCardAction,
+    handleToggleBlock,
+    handleCandidateStatusChange,
   }
 }

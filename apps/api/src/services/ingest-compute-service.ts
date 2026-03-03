@@ -1,6 +1,6 @@
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { JobDescriptionService } from "./job-description-service.js";
-import { RuleScoringService } from "./rule-scoring.js";
+import { RuleScoringService, type RoleSignalSummary } from "./rule-scoring.js";
 import { resolveResumeId } from "./resume-id.js";
 import type { ResumeItem, ResumeWorkHistoryItem } from "../types/resume.js";
 import type { ResumeIndex } from "./resume-index.js";
@@ -25,6 +25,7 @@ export interface IngestResult {
   synonymHits: string[];
   brandHits: BrandHit[];
   companyHits: string[];
+  roleSignals: RoleSignalSummary[];
   companyAliasTokens: string;
   ruleScores: Record<string, number>;  // jdId → score (0-100)
   primaryRuleScore: number;
@@ -218,6 +219,9 @@ const BRAND_CONTEXT_WINDOW = 30;
 const EQUIPMENT_SIGNALS = ["操作", "使用", "熟练", "熟悉", "机台", "机型", "设备", "机床"];
 const SALES_SIGNALS = ["销售", "代理", "渠道", "推广", "业务", "客户"];
 const TECHNICAL_SIGNALS = ["维修", "调试", "编程", "安装", "保养", "维护"];
+const DEFAULT_ROLE_SIGNAL_LIBRARY: Record<string, string[]> = {
+  sales: ["销售", "业务开发", "客户", "大客户", "渠道", "销售经理", "销售工程师", "sales", "account"],
+};
 
 /**
  * Build a single ResumeIndex from a ResumeItem
@@ -235,6 +239,7 @@ export function buildResumeIndex(item: ResumeItem, index: number): ResumeIndex {
     experienceYears: parseExperienceYears(item.experience),
     educationLevel: normalizeEducationLevel(item.education),
     locationCity: item.location || null,
+    workHistoryText: (item.workHistory ?? []).map((entry) => entry.raw).join(" "),
     skills: [],  // Not needed for ingest - skills are in searchText
     companies,
     industryTags: [],  // Will be computed separately
@@ -273,10 +278,11 @@ export class IngestComputeService {
     // 3. Compute field-aware brandHits, then derive companyHits for backward compatibility
     const brandHits = this.computeBrandHits(item, index.companies, searchText);
     const companyHits = Array.from(new Set(brandHits.map((hit) => hit.brand)));
+    const roleSignals = this.computeRoleSignals(item.workHistory ?? []);
     const companyAliasTokens = this.buildCompanyAliasTokens(companyHits);
 
     // 4. Compute ruleScores for all active JDs
-    const ruleScores = this.computeRuleScores(index, brandHits);
+    const ruleScores = this.computeRuleScores(index, brandHits, roleSignals);
     const scoreValues = Object.values(ruleScores);
     const primaryRuleScore = scoreValues.length > 0 ? Math.max(...scoreValues) : 0;
 
@@ -292,6 +298,7 @@ export class IngestComputeService {
       synonymHits,
       brandHits,
       companyHits,
+      roleSignals,
       companyAliasTokens,
       ruleScores,
       primaryRuleScore,
@@ -351,14 +358,18 @@ export class IngestComputeService {
   /**
    * Compute rule scores for all active JDs
    */
-  private computeRuleScores(index: ResumeIndex, brandHits: BrandHit[]): Record<string, number> {
+  private computeRuleScores(
+    index: ResumeIndex,
+    brandHits: BrandHit[],
+    roleSignals: RoleSignalSummary[],
+  ): Record<string, number> {
     const jds = this.jobDescriptionService.listFiles().filter((jd) => jd.status === "active");
     const scores: Record<string, number> = {};
 
     for (const jd of jds) {
       try {
         const context = this.ruleScoringService.buildContext(jd.name);
-        const result = this.ruleScoringService.scoreResume(index, context, brandHits);
+        const result = this.ruleScoringService.scoreResume(index, context, brandHits, roleSignals);
         scores[jd.id] = result.score;
       } catch (error) {
         // Log error but don't fail the whole batch
@@ -368,6 +379,89 @@ export class IngestComputeService {
     }
 
     return scores;
+  }
+
+  private parseRoleYears(raw: string): number {
+    const text = raw.trim();
+    if (!text) {
+      return 0;
+    }
+
+    const explicitDuration = text.match(/\((\d+)\s*年(?:(\d+)\s*月)?\)/u);
+    if (explicitDuration) {
+      const years = Number(explicitDuration[1] || 0);
+      const months = Number(explicitDuration[2] || 0);
+      if (Number.isFinite(years) && Number.isFinite(months)) {
+        return years + (months / 12);
+      }
+    }
+
+    const range = text.match(/(\d{4})[-./年](\d{1,2})?.*?[~至到-]\s*(\d{4})(?:[-./年](\d{1,2}))?/u);
+    if (range) {
+      const startYear = Number(range[1]);
+      const startMonth = Number(range[2] || 1);
+      const endYear = Number(range[3]);
+      const endMonth = Number(range[4] || 1);
+
+      if ([startYear, startMonth, endYear, endMonth].every((value) => Number.isFinite(value))) {
+        const monthDiff = (endYear - startYear) * 12 + (endMonth - startMonth);
+        if (monthDiff > 0) {
+          return monthDiff / 12;
+        }
+      }
+    }
+
+    return 0;
+  }
+
+  private computeRoleSignals(workHistory: ResumeWorkHistoryItem[]): RoleSignalSummary[] {
+    if (!Array.isArray(workHistory) || workHistory.length === 0) {
+      return [];
+    }
+
+    const roleSignalAccumulators = new Map<string, {
+      signals: Set<string>;
+      occurrences: number;
+      years: number;
+    }>();
+
+    for (const entry of workHistory) {
+      const raw = entry.raw?.trim() || "";
+      if (!raw) {
+        continue;
+      }
+
+      const normalized = raw.toLowerCase();
+      const years = this.parseRoleYears(raw);
+
+      for (const [roleType, signals] of Object.entries(DEFAULT_ROLE_SIGNAL_LIBRARY)) {
+        const matchedSignals = signals.filter((signal) => normalized.includes(signal.toLowerCase()));
+        if (matchedSignals.length === 0) {
+          continue;
+        }
+
+        const existing = roleSignalAccumulators.get(roleType) ?? {
+          signals: new Set<string>(),
+          occurrences: 0,
+          years: 0,
+        };
+
+        matchedSignals.forEach((signal) => existing.signals.add(signal.toLowerCase()));
+        existing.occurrences += 1;
+        existing.years += years;
+
+        roleSignalAccumulators.set(roleType, existing);
+      }
+    }
+
+    return Array.from(roleSignalAccumulators.entries()).map(([type, value]) => ({
+      type,
+      matchedSignals: Array.from(value.signals),
+      signalCount: value.signals.size,
+      occurrences: value.occurrences,
+      years: Number(value.years.toFixed(2)),
+      verifyIn: "workHistory",
+    }));
   }
 
   /**

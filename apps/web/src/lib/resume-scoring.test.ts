@@ -63,6 +63,7 @@ describe('resume-scoring', () => {
   it('parses valid match breakdown', () => {
     const breakdown = toMatchBreakdown({
       skillMatch: 80,
+      roleMatch: 10,
       experienceMatch: 70,
       educationMatch: 90,
       locationMatch: 60,
@@ -72,6 +73,7 @@ describe('resume-scoring', () => {
 
     expect(breakdown).toEqual({
       skillMatch: 80,
+      roleMatch: 10,
       experienceMatch: 70,
       educationMatch: 90,
       locationMatch: 60,
@@ -91,6 +93,7 @@ describe('resume-scoring', () => {
       })
     ).toEqual({
       skillMatch: 80,
+      roleMatch: 0,
       experienceMatch: 70,
       educationMatch: 90,
       locationMatch: 60,
@@ -103,6 +106,7 @@ describe('resume-scoring', () => {
     expect(
       toMatchBreakdown({
         skillMatch: 80,
+        roleMatch: 4,
         experienceMatch: 70,
         educationMatch: 90,
         locationMatch: 60,

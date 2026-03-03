@@ -15,6 +15,8 @@ import {
   jobDescriptionsRoutes,
   sessionsRoutes,
   actionsRoutes,
+  blocksRoutes,
+  candidateStatusRoutes,
   searchProfilesRoutes,
   searchAnalyticsRoutes,
   scoringEvaluationRoutes,
@@ -44,6 +46,8 @@ export const openApiConfig = {
     { name: "job-descriptions", description: "Job description templates" },
     { name: "sessions", description: "Resume search sessions" },
     { name: "actions", description: "Candidate actions" },
+    { name: "blocks", description: "Candidate blocklist management" },
+    { name: "candidate-status", description: "Candidate interview status tracking" },
     { name: "Search Profiles", description: "Search profile management" },
     { name: "Search Analytics", description: "Search quality telemetry and suggestions" },
     { name: "Scoring Evaluation", description: "Scoring quality analysis, auto-tuning, and rollback" },
@@ -79,6 +83,8 @@ export function createApp() {
   app.route("/", jobDescriptionsRoutes);
   app.route("/", sessionsRoutes);
   app.route("/", actionsRoutes);
+  app.route("/", blocksRoutes);
+  app.route("/", candidateStatusRoutes);
   app.route("/worker", workerRoutes);
   app.route("/api/worker", workerRoutes);
   app.route("/api/search-profiles", searchProfilesRoutes);
@@ -117,6 +123,8 @@ export function createApp() {
         resume_matches_rescore: "/api/resumes/matches/rescore",
         sessions: "/api/sessions",
         actions: "/api/actions",
+        blocks: "/api/blocks",
+        candidate_status: "/api/candidate-status",
         industry_stats: "/api/industry/stats",
         industry_companies: "/api/industry/companies",
         industry_verify: "/api/industry/verify",

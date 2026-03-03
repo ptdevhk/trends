@@ -1,11 +1,12 @@
 {
   categoryWeights: {
-    skillMatch: 25,
+    skillMatch: 15,
+    roleMatch: 10,
     experienceMatch: 25,
     educationMatch: 15,
     locationMatch: 15,
     industryMatch: 10,
-  brandRelevance: 10,
+    brandRelevance: 10,
   },
   brandContextWithTarget: { employer: 10, sales: 9, equipment: 7, technical: 6, general: 4 },
   brandContextNoTarget: { employer: 4, sales: 3, equipment: 2, technical: 2, general: 1 },

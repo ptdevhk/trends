@@ -10,8 +10,11 @@
 
 import type * as analysis_tasks from "../analysis_tasks.js";
 import type * as analyze from "../analyze.js";
+import type * as candidate_blocks from "../candidate_blocks.js";
+import type * as candidate_status from "../candidate_status.js";
 import type * as ingest_agent from "../ingest_agent.js";
 import type * as job_descriptions from "../job_descriptions.js";
+import type * as lib_age from "../lib/age.js";
 import type * as lib_parallelism from "../lib/parallelism.js";
 import type * as lib_resume_identity from "../lib/resume_identity.js";
 import type * as migrations from "../migrations.js";
@@ -33,8 +36,11 @@ import type {
 declare const fullApi: ApiFromModules<{
   analysis_tasks: typeof analysis_tasks;
   analyze: typeof analyze;
+  candidate_blocks: typeof candidate_blocks;
+  candidate_status: typeof candidate_status;
   ingest_agent: typeof ingest_agent;
   job_descriptions: typeof job_descriptions;
+  "lib/age": typeof lib_age;
   "lib/parallelism": typeof lib_parallelism;
   "lib/resume_identity": typeof lib_resume_identity;
   migrations: typeof migrations;

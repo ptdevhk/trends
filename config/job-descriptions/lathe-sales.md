@@ -8,6 +8,12 @@ source: hr.job5156.com
 extracted_at: "2026-02-05"
 status: active
 
+required_roles:
+  - type: sales
+    min_years: 1
+    signals: [销售, 业务开发, 客户, 大客户, 渠道, 销售经理, 销售工程师]
+    verify_in: workHistory
+
 # Auto-matching configuration (NEW)
 auto_match:
   # Keywords that trigger auto-selection of this JD
@@ -70,4 +76,3 @@ auto_match:
 # 关键词 (Keywords)
 
 车床, STAR, CNC车床, 数控车床, 进口机, 机床销售, 设备销售, 大客户开发
-

@@ -108,6 +108,7 @@ const ResumeExportRequestSchema = z.object({
           name: z.string().optional(),
           jobIntention: z.string().optional(),
           location: z.string().optional(),
+          age: z.string().optional(),
           experience: z.string().optional(),
           education: z.string().optional(),
           expectedSalary: z.string().optional(),
@@ -127,6 +128,7 @@ const ResumeExportRequestSchema = z.object({
             })
             .optional(),
         }),
+        status: z.string().optional(),
       })
     )
     .min(1)

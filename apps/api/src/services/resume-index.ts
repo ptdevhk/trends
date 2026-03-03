@@ -13,6 +13,7 @@ export interface ResumeIndex {
   experienceYears: number | null;
   educationLevel: string | null;
   locationCity: string | null;
+  workHistoryText?: string;
   skills: string[];
   companies: string[];
   industryTags: string[];
@@ -316,6 +317,7 @@ export class ResumeIndexService {
         experienceYears: parseExperienceYears(item.experience),
         educationLevel: normalizeEducationLevel(item.education),
         locationCity: this.extractLocationCity(item.location || ""),
+        workHistoryText: (item.workHistory ?? []).map((entry) => entry.raw).join(" "),
         skills,
         companies,
         industryTags: this.scoreIndustryTags(tagHaystack),

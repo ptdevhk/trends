@@ -13,6 +13,7 @@ const weightHistory = new WeightHistoryService(config.projectRoot);
 
 const CategoryWeightsSchema = z.object({
   skillMatch: z.number().min(0),
+  roleMatch: z.number().min(0),
   experienceMatch: z.number().min(0),
   educationMatch: z.number().min(0),
   locationMatch: z.number().min(0),

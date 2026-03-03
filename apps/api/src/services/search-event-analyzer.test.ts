@@ -69,6 +69,7 @@ updated_at: '2026-02-25'
         summary: "r1",
         breakdown: {
           skillMatch: 24,
+          roleMatch: 8,
           experienceMatch: 20,
           educationMatch: 12,
           locationMatch: 15,
@@ -91,6 +92,7 @@ updated_at: '2026-02-25'
         summary: "r2",
         breakdown: {
           skillMatch: 14,
+          roleMatch: 3,
           experienceMatch: 13,
           educationMatch: 8,
           locationMatch: 8,
@@ -113,6 +115,7 @@ updated_at: '2026-02-25'
         summary: "r3",
         breakdown: {
           skillMatch: 22,
+          roleMatch: 7,
           experienceMatch: 18,
           educationMatch: 10,
           locationMatch: 12,
@@ -178,7 +181,8 @@ describe("SearchEventAnalyzer", () => {
         periodDays: 30,
         k: 3,
         proposedCategoryWeights: {
-          skillMatch: 27,
+          skillMatch: 17,
+          roleMatch: 9,
           experienceMatch: 24,
           educationMatch: 14,
           locationMatch: 14,

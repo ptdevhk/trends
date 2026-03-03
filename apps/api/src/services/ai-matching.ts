@@ -48,6 +48,7 @@ export interface MatchingResult {
     summary: string; // AI-generated summary in Chinese
     breakdown?: {
         skillMatch: number;
+        roleMatch?: number;
         experienceMatch: number;
         educationMatch: number;
         locationMatch: number;

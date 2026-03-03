@@ -77,6 +77,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const CATEGORY_KEYS: CategoryKey[] = [
   "skillMatch",
+  "roleMatch",
   "experienceMatch",
   "educationMatch",
   "locationMatch",
@@ -93,6 +94,10 @@ function buildWeightLimits(current: RuleCategoryWeights): Record<CategoryKey, { 
     skillMatch: {
       min: Math.max(0, current.skillMatch - 3),
       max: current.skillMatch + 3,
+    },
+    roleMatch: {
+      min: Math.max(0, current.roleMatch - 3),
+      max: current.roleMatch + 3,
     },
     experienceMatch: {
       min: Math.max(0, current.experienceMatch - 3),

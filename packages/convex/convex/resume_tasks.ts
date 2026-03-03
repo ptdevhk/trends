@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
 import { resolveSubmitResumeParallelism } from "./lib/parallelism";
 import { deriveResumeIdentity } from "./lib/resume_identity";
+import { parseAgeFromContent } from "./lib/age";
 
 const DEFAULT_WORKER_HEALTH_FRESHNESS_MS = 15_000;
 const DEFAULT_STALE_PENDING_MS = 180_000;
@@ -359,12 +360,23 @@ export const submitResumes = mutation({
                 }
 
                 const searchText = buildSearchText(resume.content);
+                const parsedAge = parseAgeFromContent(resume.content);
 
                 if (existing) {
                     const nextTags = mergeTags(existing.tags, resume.tags);
                     const tagsChanged = !areStringArraysEqual(existing.tags, nextTags);
                     if (existing.hash !== resume.hash) {
-                        await ctx.db.patch(existing._id, {
+                        const patch: {
+                            externalId: string;
+                            identityKey: string;
+                            content: unknown;
+                            hash: string;
+                            crawledAt: number;
+                            source: string;
+                            tags: string[];
+                            searchText: string;
+                            age?: number;
+                        } = {
                             externalId: resume.externalId,
                             identityKey: entry.identityKey,
                             content: resume.content,
@@ -373,7 +385,11 @@ export const submitResumes = mutation({
                             source: resume.source,
                             tags: nextTags,
                             searchText,
-                        });
+                        };
+                        if (parsedAge !== null) {
+                            patch.age = parsedAge;
+                        }
+                        await ctx.db.patch(existing._id, patch);
                         updated += 1;
                         updatedIds.push(existing._id);
                         continue;
@@ -383,6 +399,7 @@ export const submitResumes = mutation({
                         searchText?: string;
                         identityKey?: string;
                         tags?: string[];
+                        age?: number;
                     } = {};
 
                     if (!existing.searchText) {
@@ -394,6 +411,9 @@ export const submitResumes = mutation({
                     if (tagsChanged) {
                         patch.tags = nextTags;
                     }
+                    if (parsedAge !== null && existing.age !== parsedAge) {
+                        patch.age = parsedAge;
+                    }
 
                     if (Object.keys(patch).length > 0) {
                         await ctx.db.patch(existing._id, patch);
@@ -402,7 +422,17 @@ export const submitResumes = mutation({
                         unchanged += 1;
                     }
                 } else {
-                    const newId = await ctx.db.insert("resumes", {
+                    const insertPayload: {
+                        externalId: string;
+                        identityKey: string;
+                        content: unknown;
+                        hash: string;
+                        searchText: string;
+                        tags: string[];
+                        source: string;
+                        crawledAt: number;
+                        age?: number;
+                    } = {
                         externalId: resume.externalId,
                         identityKey: entry.identityKey,
                         content: resume.content,
@@ -411,7 +441,11 @@ export const submitResumes = mutation({
                         tags: resume.tags,
                         source: resume.source,
                         crawledAt: Date.now(),
-                    });
+                    };
+                    if (parsedAge !== null) {
+                        insertPayload.age = parsedAge;
+                    }
+                    const newId = await ctx.db.insert("resumes", insertPayload);
                     inserted += 1;
                     insertedIds.push(newId);
                 }
@@ -502,6 +536,16 @@ export const resetDatabase = mutation({
             await ctx.db.delete(worker._id);
         }
 
-        return { success: true, count: tasks.length + resumes.length + workers.length };
+        const blocks = await ctx.db.query("candidate_blocks").collect();
+        for (const block of blocks) {
+            await ctx.db.delete(block._id);
+        }
+
+        const statuses = await ctx.db.query("candidate_status").collect();
+        for (const status of statuses) {
+            await ctx.db.delete(status._id);
+        }
+
+        return { success: true, count: tasks.length + resumes.length + workers.length + blocks.length + statuses.length };
     },
 });

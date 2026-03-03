@@ -17,6 +17,7 @@ export type BrandRole = "employer" | "equipment" | "both";
 export interface RuleWeightsConfig {
   categoryWeights: {
     skillMatch: number;
+    roleMatch: number;
     experienceMatch: number;
     educationMatch: number;
     locationMatch: number;
@@ -35,7 +36,8 @@ export interface RuleWeightsConfig {
 
 const DEFAULT_WEIGHTS: RuleWeightsConfig = {
   categoryWeights: {
-    skillMatch: 25,
+    skillMatch: 15,
+    roleMatch: 10,
     experienceMatch: 25,
     educationMatch: 15,
     locationMatch: 15,
@@ -65,6 +67,7 @@ const brandRoleMultipliersSchema = z.object({
 const ruleWeightsSchema = z.object({
   categoryWeights: z.object({
     skillMatch: nonNegativeNumber,
+    roleMatch: nonNegativeNumber,
     experienceMatch: nonNegativeNumber,
     educationMatch: nonNegativeNumber,
     locationMatch: nonNegativeNumber,
@@ -154,6 +157,7 @@ export interface RuleScoringResult {
   recommendation: MatchingResult["recommendation"];
   breakdown: {
     skillMatch: number;
+    roleMatch: number;
     experienceMatch: number;
     educationMatch: number;
     locationMatch: number;
@@ -175,6 +179,23 @@ export interface RuleScoringContext {
   industryKeywords: string[];
   industryTags: string[];
   brandKeywords?: string[];
+  requiredRoles: RequiredRoleRequirement[];
+}
+
+export interface RequiredRoleRequirement {
+  type: string;
+  minYears?: number;
+  signals: string[];
+  verifyIn: "workHistory" | "searchText";
+}
+
+export interface RoleSignalSummary {
+  type: string;
+  matchedSignals: string[];
+  signalCount: number;
+  occurrences: number;
+  years: number;
+  verifyIn: "workHistory" | "searchText";
 }
 
 const EDUCATION_RANK: Record<string, number> = {
@@ -347,6 +368,44 @@ function getIndustryMap(skillsService?: SkillsKnowledgeService): Array<{ tag: st
   }
 }
 
+function normalizeRoleVerifyIn(value: string | undefined): "workHistory" | "searchText" {
+  if (value === "searchText") {
+    return "searchText";
+  }
+  return "workHistory";
+}
+
+function normalizeRequiredRoles(rawRoles: Array<{
+  type: string;
+  min_years?: number;
+  signals: string[];
+  verify_in?: string;
+}> | undefined): RequiredRoleRequirement[] {
+  if (!Array.isArray(rawRoles) || rawRoles.length === 0) {
+    return [];
+  }
+
+  return rawRoles
+    .map((role) => {
+      const type = role.type.trim().toLowerCase();
+      const signals = ensureKeywords(role.signals);
+      if (!type || signals.length === 0) {
+        return null;
+      }
+
+      const normalized: RequiredRoleRequirement = {
+        type,
+        signals,
+        verifyIn: normalizeRoleVerifyIn(role.verify_in),
+      };
+      if (typeof role.min_years === "number" && Number.isFinite(role.min_years) && role.min_years > 0) {
+        normalized.minYears = role.min_years;
+      }
+      return normalized;
+    })
+    .filter((role): role is RequiredRoleRequirement => role !== null);
+}
+
 export class RuleScoringService {
   private readonly jobService: JobDescriptionService;
   private readonly filterPresetService: FilterPresetService;
@@ -401,6 +460,7 @@ export class RuleScoringService {
     const industryMap = getIndustryMap(this.skillsService);
     const industryTags = this.inferIndustryTags(industryKeywords, industryMap);
     const brandKeywords = this.inferBrandKeywords(keywords);
+    const requiredRoles = normalizeRequiredRoles(jd.requiredRoles);
 
     return {
       jobDescriptionId,
@@ -412,6 +472,7 @@ export class RuleScoringService {
       industryKeywords,
       industryTags,
       brandKeywords,
+      requiredRoles,
     };
   }
 
@@ -436,6 +497,7 @@ export class RuleScoringService {
       industryKeywords: cleanKeywords,
       industryTags,
       brandKeywords,
+      requiredRoles: [],
     };
   }
 
@@ -478,7 +540,85 @@ export class RuleScoringService {
     return Array.from(matches);
   }
 
-  scoreResume(index: ResumeIndex, context: RuleScoringContext, brandHits: BrandHit[] = []): RuleScoringResult {
+  private resolveRoleSignal(
+    index: ResumeIndex,
+    role: RequiredRoleRequirement,
+    roleSignals: RoleSignalSummary[]
+  ): { signalCount: number; years: number } {
+    const normalizedType = role.type.toLowerCase();
+    const matched = roleSignals.find((signal) =>
+      signal.type.toLowerCase() === normalizedType
+      && signal.verifyIn === role.verifyIn
+    );
+
+    if (matched) {
+      return {
+        signalCount: matched.signalCount,
+        years: matched.years,
+      };
+    }
+
+    const sourceText = role.verifyIn === "workHistory"
+      ? (index.workHistoryText || "")
+      : index.searchText;
+    if (!sourceText.trim()) {
+      return { signalCount: 0, years: 0 };
+    }
+
+    const normalizedText = sourceText.toLowerCase();
+    const signalHits = role.signals.filter((signal) => normalizedText.includes(signal.toLowerCase()));
+    return {
+      signalCount: signalHits.length,
+      years: typeof index.experienceYears === "number" ? index.experienceYears : 0,
+    };
+  }
+
+  private scoreRoleMatch(
+    index: ResumeIndex,
+    context: RuleScoringContext,
+    roleSignals: RoleSignalSummary[],
+  ): number {
+    const weight = this.weights.categoryWeights.roleMatch;
+    if (weight <= 0) {
+      return 0;
+    }
+    if (!context.requiredRoles.length) {
+      return weight;
+    }
+
+    const roleScores = context.requiredRoles.map((requiredRole) => {
+      const roleSignal = this.resolveRoleSignal(index, requiredRole, roleSignals);
+      if (roleSignal.signalCount <= 0) {
+        return 0;
+      }
+
+      const baseline = roleSignal.signalCount >= 2 ? 10 : 5;
+      const baselineScore = Math.round((baseline / 10) * weight);
+      if (!requiredRole.minYears || requiredRole.minYears <= 0) {
+        return baselineScore;
+      }
+      if (roleSignal.years >= requiredRole.minYears) {
+        return baselineScore;
+      }
+
+      const yearsRatio = Math.max(0, roleSignal.years) / requiredRole.minYears;
+      return Math.round(baselineScore * Math.max(0.2, Math.min(1, yearsRatio)));
+    });
+
+    if (roleScores.length === 0) {
+      return 0;
+    }
+
+    const aggregate = roleScores.reduce((sum, value) => sum + value, 0) / roleScores.length;
+    return Math.round(Math.max(0, Math.min(weight, aggregate)));
+  }
+
+  scoreResume(
+    index: ResumeIndex,
+    context: RuleScoringContext,
+    brandHits: BrandHit[] = [],
+    roleSignals: RoleSignalSummary[] = [],
+  ): RuleScoringResult {
     const categoryWeights = this.weights.categoryWeights;
     const keywordVariantMap = new Map<string, string[]>(
       context.keywords.map((keyword) => {
@@ -510,6 +650,7 @@ export class RuleScoringService {
     const skillMatch = context.keywords.length > 0
       ? Math.round((matchedSkills.length / context.keywords.length) * categoryWeights.skillMatch)
       : 0;
+    const roleMatch = this.scoreRoleMatch(index, context, roleSignals);
 
     let experienceMatch = 0;
     if (context.minExperience === undefined) {
@@ -586,7 +727,7 @@ export class RuleScoringService {
       }, 0)
     );
 
-    const rawScore = skillMatch + experienceMatch + educationMatch + locationMatch + industryMatch + brandRelevance;
+    const rawScore = skillMatch + roleMatch + experienceMatch + educationMatch + locationMatch + industryMatch + brandRelevance;
     const score = Math.max(0, Math.min(100, rawScore));
 
     return {
@@ -594,6 +735,7 @@ export class RuleScoringService {
       recommendation: this.recommendationFromScore(score),
       breakdown: {
         skillMatch,
+        roleMatch,
         experienceMatch,
         educationMatch,
         locationMatch,
@@ -621,6 +763,11 @@ export class RuleScoringService {
 
     if (result.matchedSkills.length > 0) {
       highlights.push(`命中关键词: ${result.matchedSkills.slice(0, 6).join("、")}`);
+    }
+    if (result.breakdown.roleMatch >= 8) {
+      highlights.push("岗位职能经历匹配");
+    } else if (result.breakdown.roleMatch === 0) {
+      concerns.push("缺少目标岗位职能经历");
     }
     if (result.breakdown.experienceMatch >= 20) {
       highlights.push("经验与职位要求匹配");
@@ -671,7 +818,7 @@ export class RuleScoringService {
       recommendation: result.recommendation,
       highlights,
       concerns,
-      summary: `规则评分 ${result.score} 分，技能匹配 ${result.breakdown.skillMatch}/${this.weights.categoryWeights.skillMatch}，经验 ${result.breakdown.experienceMatch}/${this.weights.categoryWeights.experienceMatch}，品牌相关 ${result.breakdown.brandRelevance}/${this.weights.categoryWeights.brandRelevance}。`,
+      summary: `规则评分 ${result.score} 分，技能匹配 ${result.breakdown.skillMatch}/${this.weights.categoryWeights.skillMatch}，岗位匹配 ${result.breakdown.roleMatch}/${this.weights.categoryWeights.roleMatch}，经验 ${result.breakdown.experienceMatch}/${this.weights.categoryWeights.experienceMatch}，品牌相关 ${result.breakdown.brandRelevance}/${this.weights.categoryWeights.brandRelevance}。`,
       breakdown: result.breakdown,
       matchedSkills: result.matchedSkills,
       matchedCompanies: result.matchedCompanies,

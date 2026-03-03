@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import type { ResumeFilters } from '@/types/resume'
+import type { CandidateStatus, ResumeFilters } from '@/types/resume'
 
 const KNOWN_PARAM_KEYS = [
   'loc',
@@ -13,9 +13,12 @@ const KNOWN_PARAM_KEYS = [
   'exp',
   'minExp',
   'maxExp',
+  'minAge',
+  'maxAge',
   'edu',
   'minScore',
   'locs',
+  'status',
   'sort',
   'order',
 ] as const
@@ -116,6 +119,26 @@ function parseSortOrder(value: string | null): ResumeFilters['sortOrder'] | unde
   return undefined
 }
 
+function parseStatusList(value: string | null): CandidateStatus[] {
+  if (!value) {
+    return []
+  }
+
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item): item is CandidateStatus =>
+      item === 'new'
+      || item === 'contacted'
+      || item === 'interviewing'
+      || item === 'interviewed_pass'
+      || item === 'interviewed_reject'
+      || item === 'offer'
+      || item === 'hired'
+      || item === 'withdrawn'
+    )
+}
+
 function normalizeUniqueValues(values: string[]): string[] {
   const seen = new Set<string>()
   const normalized: string[] = []
@@ -174,6 +197,16 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.education = education
   }
 
+  const minAge = parseNumberParam(searchParams.get('minAge'))
+  if (typeof minAge === 'number') {
+    filters.minAge = minAge
+  }
+
+  const maxAge = parseNumberParam(searchParams.get('maxAge'))
+  if (typeof maxAge === 'number') {
+    filters.maxAge = maxAge
+  }
+
   const minMatchScore = parseNumberParam(searchParams.get('minScore'))
   if (typeof minMatchScore === 'number') {
     filters.minMatchScore = minMatchScore
@@ -182,6 +215,11 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
   const locations = normalizeUniqueValues(parseCsvParam(searchParams.get('locs')))
   if (locations.length > 0) {
     filters.locations = locations
+  }
+
+  const status = parseStatusList(searchParams.get('status'))
+  if (status.length > 0) {
+    filters.status = status
   }
 
   const sortBy = parseSortBy(searchParams.get('sort'))
@@ -236,7 +274,7 @@ export function useUrlSearchState() {
 
         setParam(nextParams, 'location', state.location?.trim())
         setParam(nextParams, 'keyword', hasKeywords ? normalizedKeywords.join(' ') : undefined)
-        setParam(nextParams, 'jd', hasKeywords ? undefined : state.jobDescriptionId?.trim())
+        setParam(nextParams, 'jd', state.jobDescriptionId?.trim())
         setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
         setParam(nextParams, 'co', normalizedCompanies.length > 0 ? normalizedCompanies.join(',') : undefined)
         setParam(nextParams, 'exp', state.selectedExperienceLevel)
@@ -249,6 +287,14 @@ export function useUrlSearchState() {
           setParam(nextParams, 'maxExp', String(state.filters.maxExperience))
         }
 
+        if (typeof state.filters.minAge === 'number' && Number.isFinite(state.filters.minAge)) {
+          setParam(nextParams, 'minAge', String(state.filters.minAge))
+        }
+
+        if (typeof state.filters.maxAge === 'number' && Number.isFinite(state.filters.maxAge)) {
+          setParam(nextParams, 'maxAge', String(state.filters.maxAge))
+        }
+
         if (Array.isArray(state.filters.education) && state.filters.education.length > 0) {
           setParam(nextParams, 'edu', normalizeUniqueValues(state.filters.education).join(','))
         }
@@ -259,6 +305,10 @@ export function useUrlSearchState() {
 
         if (Array.isArray(state.filters.locations) && state.filters.locations.length > 0) {
           setParam(nextParams, 'locs', normalizeUniqueValues(state.filters.locations).join(','))
+        }
+
+        if (Array.isArray(state.filters.status) && state.filters.status.length > 0) {
+          setParam(nextParams, 'status', normalizeUniqueValues(state.filters.status).join(','))
         }
 
         if (state.filters.sortBy) {

@@ -21,7 +21,8 @@ function createFixtureRoot(): string {
     path.join(root, "config", "resume", "rule-weights.json5"),
     `{
   categoryWeights: {
-    skillMatch: 25,
+    skillMatch: 15,
+    roleMatch: 10,
     experienceMatch: 25,
     educationMatch: 15,
     locationMatch: 15,
@@ -92,6 +93,7 @@ updated_at: '2026-02-25'
         summary: "r1",
         breakdown: {
           skillMatch: 18,
+          roleMatch: 6,
           experienceMatch: 18,
           educationMatch: 10,
           locationMatch: 12,
@@ -114,6 +116,7 @@ updated_at: '2026-02-25'
         summary: "r2",
         breakdown: {
           skillMatch: 16,
+          roleMatch: 5,
           experienceMatch: 18,
           educationMatch: 10,
           locationMatch: 12,
@@ -136,6 +139,7 @@ updated_at: '2026-02-25'
         summary: "r3",
         breakdown: {
           skillMatch: 17,
+          roleMatch: 5,
           experienceMatch: 16,
           educationMatch: 10,
           locationMatch: 12,
@@ -158,6 +162,7 @@ updated_at: '2026-02-25'
         summary: "r4",
         breakdown: {
           skillMatch: 15,
+          roleMatch: 4,
           experienceMatch: 16,
           educationMatch: 10,
           locationMatch: 12,

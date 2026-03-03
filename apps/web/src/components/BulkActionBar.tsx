@@ -6,7 +6,7 @@
 
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, XCircle, Download, Users, Star } from 'lucide-react'
+import { CheckCircle, XCircle, Download, Users, Star, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
@@ -26,7 +26,7 @@ interface BulkActionBarProps {
     onSelectAll?: () => void
     onSelectHighScore?: () => void
     onClearSelection?: () => void
-    onBulkAction?: (action: 'shortlist' | 'reject' | 'star' | 'export', format?: ExportFormat) => void
+    onBulkAction?: (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ExportFormat) => void
     disabled?: boolean
 }
 
@@ -45,7 +45,7 @@ export function BulkActionBar({
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
 
-    const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'star' | 'export') => {
+    const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export') => {
         setLoading(action)
         try {
             if (action === 'export') {
@@ -138,6 +138,16 @@ export function BulkActionBar({
                 >
                     <XCircle className={cn('mr-1 h-4 w-4', loading === 'reject' && 'animate-spin')} />
                     {t('bulkActions.reject', '批量拒绝')}
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAction('block')}
+                    disabled={disabled || selectedCount === 0 || loading !== null}
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                >
+                    <Ban className={cn('mr-1 h-4 w-4', loading === 'block' && 'animate-spin')} />
+                    {t('bulkActions.block', '批量屏蔽')}
                 </Button>
                 <Button
                     variant="outline"

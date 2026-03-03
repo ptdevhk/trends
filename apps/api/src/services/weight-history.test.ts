@@ -18,7 +18,8 @@ function createFixtureRoot(): string {
     path.join(root, "config", "resume", "rule-weights.json5"),
     `{
   categoryWeights: {
-    skillMatch: 25,
+    skillMatch: 15,
+    roleMatch: 10,
     experienceMatch: 25,
     educationMatch: 15,
     locationMatch: 15,
@@ -52,7 +53,8 @@ describe("WeightHistoryService", () => {
         reason: "auto_tune",
         jobDescriptionId: "lathe-sales",
         before: {
-          skillMatch: 25,
+          skillMatch: 15,
+          roleMatch: 10,
           experienceMatch: 25,
           educationMatch: 15,
           locationMatch: 15,
@@ -60,7 +62,8 @@ describe("WeightHistoryService", () => {
           brandRelevance: 10,
         },
         after: {
-          skillMatch: 27,
+          skillMatch: 17,
+          roleMatch: 9,
           experienceMatch: 24,
           educationMatch: 14,
           locationMatch: 14,
@@ -76,7 +79,7 @@ describe("WeightHistoryService", () => {
       const history = service.getHistory();
       expect(history).toHaveLength(1);
       expect(history[0].reason).toBe("auto_tune");
-      expect(history[0].after.skillMatch).toBe(27);
+      expect(history[0].after.skillMatch).toBe(17);
     } finally {
       cleanupFixtureRoot(root);
     }
@@ -92,7 +95,8 @@ describe("WeightHistoryService", () => {
         reason: "auto_tune",
         jobDescriptionId: "lathe-sales",
         before: {
-          skillMatch: 25,
+          skillMatch: 15,
+          roleMatch: 10,
           experienceMatch: 25,
           educationMatch: 15,
           locationMatch: 15,
@@ -100,7 +104,8 @@ describe("WeightHistoryService", () => {
           brandRelevance: 10,
         },
         after: {
-          skillMatch: 27,
+          skillMatch: 17,
+          roleMatch: 9,
           experienceMatch: 24,
           educationMatch: 14,
           locationMatch: 14,
@@ -114,7 +119,8 @@ describe("WeightHistoryService", () => {
         path.join(root, "config", "resume", "rule-weights.json5"),
         `{
   categoryWeights: {
-    skillMatch: 27,
+    skillMatch: 17,
+    roleMatch: 9,
     experienceMatch: 24,
     educationMatch: 14,
     locationMatch: 14,
