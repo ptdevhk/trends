@@ -87,6 +87,31 @@ export function useCandidateBlocks() {
     [load]
   )
 
+  const updateBlockReason = useCallback(
+    async (identityKey: string, reason?: string) => {
+      const normalized = identityKey.trim()
+      if (!normalized) {
+        return false
+      }
+
+      const { data, error: apiError } = await rawApiClient.PATCH<{ success: boolean; updated?: boolean }>('/api/blocks', {
+        body: {
+          identityKey: normalized,
+          reason,
+        },
+      })
+
+      if (apiError || !data?.success) {
+        setError('Failed to update block reason')
+        return false
+      }
+
+      await load()
+      return data.updated === true
+    },
+    [load]
+  )
+
   useEffect(() => {
     void load()
   }, [load])
@@ -107,5 +132,6 @@ export function useCandidateBlocks() {
     reload: load,
     blockCandidates,
     unblockCandidate,
+    updateBlockReason,
   }
 }

@@ -348,6 +348,37 @@
     "suggestionError": "保存同义词建议失败",
     "noSuggestion": "暂无可用建议"
   },
+  "settings": {
+    "blocks": {
+      "nav": "黑名单",
+      "title": "黑名单管理",
+      "description": "查看并管理此工作区已屏蔽候选人。",
+      "countBadge": "已屏蔽 {{count}}",
+      "searchPlaceholder": "按候选人标识键或原因搜索...",
+      "empty": "当前没有已屏蔽候选人。",
+      "emptySearch": "没有符合搜索条件的屏蔽候选人。",
+      "noReason": "-",
+      "bulkUnblock": "批量解除屏蔽 ({{count}})",
+      "columns": {
+        "candidate": "候选人",
+        "reason": "原因",
+        "blockedAt": "屏蔽时间",
+        "blockedBy": "屏蔽人",
+        "actions": "操作"
+      },
+      "actions": {
+        "unblock": "解除屏蔽"
+      },
+      "toasts": {
+        "reasonUpdated": "已更新屏蔽原因",
+        "reasonUpdateFailed": "更新屏蔽原因失败",
+        "unblockSuccess": "已解除屏蔽候选人",
+        "unblockFailed": "解除屏蔽候选人失败",
+        "bulkUnblockSuccess": "已解除屏蔽 {{count}} 位候选人",
+        "bulkUnblockFailed": "批量解除屏蔽失败"
+      }
+    }
+  },
   "debug": {
     "title": "调试控制台",
     "subtitle": "原始输入、分析发现与处理数据",

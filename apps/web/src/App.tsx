@@ -9,8 +9,10 @@ import DebugJDs from '@/pages/DebugJDs'
 import DebugAI from '@/pages/DebugAI'
 import DebugConfig from '@/pages/DebugConfig'
 import DebugIngest from '@/pages/DebugIngest'
+import { BlacklistPage } from '@/pages/BlacklistPage'
 import { SearchProfilesPage } from '@/pages/SearchProfilesPage'
 import SearchAnalyticsPage from '@/pages/SearchAnalyticsPage'
+import SettingsLayout from '@/layouts/SettingsLayout'
 import SystemLayout from '@/layouts/SystemLayout'
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
 
@@ -86,6 +88,11 @@ function App() {
 
             <Route element={<MainShell />}>
               <Route path="resumes" element={<ResumesPage />} />
+            </Route>
+
+            <Route path="settings" element={<SettingsLayout />}>
+              <Route index element={<Navigate to="blocks" replace />} />
+              <Route path="blocks" element={<BlacklistPage />} />
             </Route>
 
             <Route

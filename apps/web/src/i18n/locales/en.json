@@ -348,6 +348,37 @@
     "suggestionError": "Failed to save suggestion",
     "noSuggestion": "No suggestion available"
   },
+  "settings": {
+    "blocks": {
+      "nav": "Blacklist",
+      "title": "Blacklist Management",
+      "description": "View and manage blocked candidates for this workspace.",
+      "countBadge": "{{count}} blocked",
+      "searchPlaceholder": "Search by candidate key or reason...",
+      "empty": "No blocked candidates yet.",
+      "emptySearch": "No blocked candidates match your search.",
+      "noReason": "-",
+      "bulkUnblock": "Unblock Selected ({{count}})",
+      "columns": {
+        "candidate": "Candidate",
+        "reason": "Reason",
+        "blockedAt": "Blocked Date",
+        "blockedBy": "Blocked By",
+        "actions": "Actions"
+      },
+      "actions": {
+        "unblock": "Unblock"
+      },
+      "toasts": {
+        "reasonUpdated": "Block reason updated",
+        "reasonUpdateFailed": "Failed to update block reason",
+        "unblockSuccess": "Candidate unblocked",
+        "unblockFailed": "Failed to unblock candidate",
+        "bulkUnblockSuccess": "Unblocked {{count}} candidate(s)",
+        "bulkUnblockFailed": "Failed to unblock selected candidates"
+      }
+    }
+  },
   "debug": {
     "title": "Debug Console",
     "subtitle": "Raw inputs, findings, and process data",
