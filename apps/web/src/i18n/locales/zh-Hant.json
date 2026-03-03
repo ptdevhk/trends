@@ -225,6 +225,8 @@
     "detail": {
       "title": "簡歷詳情",
       "workHistory": "工作經歷",
+      "selfIntro": "自我介紹",
+      "extractedAt": "更新時間",
       "profileLink": "查看原始簡歷",
       "close": "關閉"
     },

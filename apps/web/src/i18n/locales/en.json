@@ -226,7 +226,9 @@
     "detail": {
       "title": "Resume Details",
       "workHistory": "Work History",
-      "profileLink": "View profile",
+      "selfIntro": "Self Introduction",
+      "extractedAt": "Updated At",
+      "profileLink": "View Original Profile",
       "close": "Close"
     }
   },

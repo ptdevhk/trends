@@ -101,6 +101,7 @@ const ResumeExportRequestSchema = z.object({
             score: z.number(),
             recommendation: z.string(),
             scoreSource: z.enum(["rule", "ai"]).optional(),
+            summary: z.string().optional(),
           })
           .optional(),
         resume: z.object({
@@ -1671,6 +1672,7 @@ app.post("/api/resumes/export", async (c) => {
         "Content-Type": file.contentType,
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store",
+        "Access-Control-Expose-Headers": "Content-Disposition",
       },
     });
   } catch (error) {
@@ -1704,11 +1706,11 @@ app.post("/api/resumes/learning-feedback", async (c) => {
     let bumpedVersion: number | undefined;
     let reingest:
       | {
-          scheduled: number;
-          batches: number;
-          currentVersion: number;
-          hasMore: boolean;
-        }
+        scheduled: number;
+        batches: number;
+        currentVersion: number;
+        hasMore: boolean;
+      }
       | undefined;
 
     if (shouldTriggerSkillsReingest(parsed.data.observation)) {

@@ -30,6 +30,7 @@ type MatchExportPayload = {
   score: number;
   recommendation: string;
   scoreSource?: "rule" | "ai";
+  summary?: string;
 };
 
 export type ResumeExportEntry = {
@@ -61,6 +62,7 @@ type ExportRow = {
   profileUrl: string;
   workHistory: string;
   selfIntro: string;
+  aiSummary: string;
 };
 
 export type ExportFile = {
@@ -188,6 +190,7 @@ function toRow(entry: ResumeExportEntry): ExportRow {
     profileUrl: normalizeJob5156ProfileUrlForDisplay(entry.resume.profileUrl),
     workHistory,
     selfIntro: normalizeString(entry.resume.selfIntro),
+    aiSummary: normalizeString(entry.match?.summary),
   };
 }
 
@@ -211,6 +214,7 @@ const EXCEL_COLUMNS: Array<{ header: string; key: keyof ExportRow; width: number
   { header: "Profile URL", key: "profileUrl", width: 28 },
   { header: "Work History", key: "workHistory", width: 44 },
   { header: "Self Intro", key: "selfIntro", width: 48 },
+  { header: "AI Summary", key: "aiSummary", width: 48 },
 ];
 
 export class ExportService {

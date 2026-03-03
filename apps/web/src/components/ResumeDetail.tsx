@@ -137,6 +137,20 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange }: Resume
           </div>
 
           <div>
+            <p className="text-sm text-muted-foreground">{t('resumes.detail.extractedAt')}</p>
+            <p className="text-sm font-medium">
+              {resume.extractedAt ? new Date(resume.extractedAt).toLocaleString() : '--'}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm text-muted-foreground">{t('resumes.detail.selfIntro')}</p>
+            <div className="mt-2 text-sm whitespace-pre-wrap">
+              {resume.selfIntro || '--'}
+            </div>
+          </div>
+
+          <div>
             <p className="text-sm text-muted-foreground">{t('resumes.detail.workHistory')}</p>
             {workHistory.length === 0 ? (
               <p className="text-sm">--</p>
