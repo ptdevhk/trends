@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
+import { PageHeader } from '@/components/PageHeader'
 function getSearchTarget(resume: ConvexResumeItem): string {
   return [
     resume.externalId,
@@ -171,17 +171,17 @@ export default function DebugIngest() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Database className="h-6 w-6 text-primary" />
-          {t('debugIngest.title', { defaultValue: 'Ingest Diagnostics' })}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t('debugIngest.subtitle', { defaultValue: 'Inspect ingestData, staleness, and trigger re-ingest tasks.' })}
-        </p>
-      </div>
+      <PageHeader
+        title={
+          <>
+            <Database className="h-6 w-6 text-primary" />
+            {t('debugIngest.title', { defaultValue: 'Ingest Diagnostics' })}
+          </>
+        }
+        description={t('debugIngest.subtitle', { defaultValue: 'Inspect ingestData, staleness, and trigger re-ingest tasks.' })}
+      />
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">{t('debugIngest.total', { defaultValue: 'Total Resumes' })}</CardTitle>

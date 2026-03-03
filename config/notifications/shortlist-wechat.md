@@ -3,7 +3,7 @@
 ## 基本信息
 
 - **候选人**: {{candidateName}}
-- **匹配度**: {{matchScore}}分 {{#if matchScore >= 90}}⭐⭐⭐{{else if matchScore >= 80}}⭐⭐{{else if matchScore >= 70}}⭐{{/if}}
+- **匹配度**: {{matchScore}}分 {{matchStars}}
 - **工作经验**: {{experience}}
 - **学历**: {{education}}
 - **期望薪资**: {{expectedSalary}}

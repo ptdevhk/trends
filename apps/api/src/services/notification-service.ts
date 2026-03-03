@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { z } from 'zod';
 
 export interface EmailOptions {
     to: string;
@@ -7,9 +8,19 @@ export interface EmailOptions {
     text?: string;
 }
 
+export interface WechatWorkMarkdownOptions {
+    content: string;
+    webhookUrl?: string;
+}
+
 export interface NotificationAdapter {
     sendEmail(options: EmailOptions): Promise<unknown>;
 }
+
+const wechatWorkWebhookResponseSchema = z.object({
+    errcode: z.number(),
+    errmsg: z.string(),
+});
 
 class EtherealAdapter implements NotificationAdapter {
     private transporter: nodemailer.Transporter | null = null;
@@ -85,6 +96,41 @@ export class NotificationService {
 
     async sendEmail(options: EmailOptions) {
         return this.adapter.sendEmail(options);
+    }
+
+    async sendWechatWorkMarkdown(options: WechatWorkMarkdownOptions) {
+        const webhookUrl = options.webhookUrl ?? process.env.WECHAT_WORK_WEBHOOK;
+        if (!webhookUrl) {
+            throw new Error("WECHAT_WORK_WEBHOOK is not set");
+        }
+
+        const response = await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                msgtype: "markdown",
+                markdown: { content: options.content },
+            }),
+        });
+
+        const rawText = await response.text();
+        let rawJson: unknown;
+        try {
+            rawJson = JSON.parse(rawText);
+        } catch {
+            throw new Error(`WeChat Work webhook returned non-JSON (HTTP ${response.status})`);
+        }
+
+        const parsed = wechatWorkWebhookResponseSchema.safeParse(rawJson);
+        if (!parsed.success) {
+            throw new Error(`WeChat Work webhook returned unexpected response (HTTP ${response.status})`);
+        }
+
+        if (!response.ok || parsed.data.errcode !== 0) {
+            throw new Error(`WeChat Work webhook error: ${parsed.data.errmsg} (errcode=${parsed.data.errcode}, HTTP ${response.status})`);
+        }
+
+        return parsed.data;
     }
 }
 

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { withWorkspaceHeaders } from '@/lib/workspace-ref'
+import { PageHeader } from '@/components/PageHeader'
 
 interface AIStatus {
   enabled: boolean
@@ -350,6 +351,7 @@ function customKeywordToForm(tag: CustomKeywordTag): CustomKeywordFormState {
 
 function SystemSummary() {
   const summary = useQuery(api.resume_tasks.getSummary)
+  const { t } = useTranslation()
 
   if (!summary) return null
 
@@ -359,15 +361,15 @@ function SystemSummary() {
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <CardTitle className="text-lg flex items-center gap-2">
-              System Diagnostics
-              <Badge variant="outline" className="font-mono text-[10px] bg-emerald-500/5 text-emerald-600 border-emerald-500/20">Live</Badge>
+              {t('debugConfig.systemDiagnostics')}
+              <Badge variant="outline" className="font-mono text-[10px] bg-emerald-500/5 text-emerald-600 border-emerald-500/20">{t('debugConfig.live')}</Badge>
             </CardTitle>
             <CardDescription>
-              Backend task heartbeat and worker synchronization.
+              {t('debugConfig.systemDiagnosticsDescription')}
             </CardDescription>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Active Workers</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t('debugConfig.activeWorkers')}</p>
             <p className="text-2xl font-bold text-primary">{summary.activeWorkers}</p>
           </div>
         </div>
@@ -375,23 +377,23 @@ function SystemSummary() {
       <CardContent className="pb-6">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="space-y-1 border-l-2 border-primary/20 pl-3">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Total</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('debugConfig.total')}</p>
             <p className="text-xl font-bold">{summary.total}</p>
           </div>
           <div className="space-y-1 border-l-2 border-blue-500/20 pl-3">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Processing</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('debugConfig.processing')}</p>
             <p className="text-xl font-bold text-blue-600">{summary.processing}</p>
           </div>
           <div className="space-y-1 border-l-2 border-amber-500/20 pl-3">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Pending</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('debugConfig.pending')}</p>
             <p className="text-xl font-bold text-amber-600">{summary.pending}</p>
           </div>
           <div className="space-y-1 border-l-2 border-emerald-500/20 pl-3">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Done</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('debugConfig.done')}</p>
             <p className="text-xl font-bold text-emerald-600">{summary.completed}</p>
           </div>
           <div className="space-y-1 border-l-2 border-destructive/20 pl-3">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Failed</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('debugConfig.failed')}</p>
             <p className="text-xl font-bold text-destructive">{summary.failed + summary.cancelled}</p>
           </div>
         </div>
@@ -745,10 +747,10 @@ export default function DebugConfig() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold">{t('debugConfig.title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('debugConfig.subtitle')}</p>
-      </div>
+      <PageHeader
+        title={t('debugConfig.title')}
+        description={t('debugConfig.subtitle')}
+      />
 
       {loadError && (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -765,33 +767,33 @@ export default function DebugConfig() {
       {/* Resume Data Collection */}
       <Card>
         <CardHeader>
-          <CardTitle>Resume Data Collection</CardTitle>
+          <CardTitle>{t('debugConfig.resumeDataCollection')}</CardTitle>
           <CardDescription>
-            Trigger heavy-lifting agent tasks to scrape resumes from external platforms.
+            {t('debugConfig.resumeDataCollectionDescription')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <label htmlFor="col-keyword" className="text-sm font-medium">Keyword</label>
+              <label htmlFor="col-keyword" className="text-sm font-medium">{t('debugConfig.keyword')}</label>
               <Input
                 id="col-keyword"
-                placeholder="e.g. 销售, 工程师"
+                placeholder={t('debugConfig.keywordPlaceholder')}
                 value={collectionKeyword}
                 onChange={(e) => setCollectionKeyword(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="col-location" className="text-sm font-medium">Location</label>
+              <label htmlFor="col-location" className="text-sm font-medium">{t('debugConfig.location')}</label>
               <Input
                 id="col-location"
-                placeholder="e.g. 广东"
+                placeholder={t('debugConfig.locationPlaceholder')}
                 value={collectionLocation}
                 onChange={(e) => setCollectionLocation(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="col-limit" className="text-sm font-medium">Limit (Total Resumes)</label>
+              <label htmlFor="col-limit" className="text-sm font-medium">{t('debugConfig.limitResumes')}</label>
               <Input
                 id="col-limit"
                 type="number"
@@ -802,7 +804,7 @@ export default function DebugConfig() {
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="col-max-pages" className="text-sm font-medium">Max Pages</label>
+              <label htmlFor="col-max-pages" className="text-sm font-medium">{t('debugConfig.maxPages')}</label>
               <Input
                 id="col-max-pages"
                 type="number"
@@ -814,7 +816,7 @@ export default function DebugConfig() {
             </div>
           </div>
           <Button onClick={handleStartCollection} className="w-full sm:w-auto">
-            Start Agent Collection
+            {t('debugConfig.startCollection')}
           </Button>
 
           <div className="mt-6">
@@ -1203,28 +1205,28 @@ export default function DebugConfig() {
 
       <Card className="border-destructive/50">
         <CardHeader>
-          <CardTitle className="text-destructive">Danger Zone</CardTitle>
+          <CardTitle className="text-destructive">{t('debugConfig.dangerZone')}</CardTitle>
           <CardDescription>
-            Irreversible actions that affect the entire system.
+            {t('debugConfig.dangerZoneDescription')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5">
             <div className="space-y-1">
-              <p className="font-medium text-destructive">Reset Database</p>
+              <p className="font-medium text-destructive">{t('debugConfig.resetDatabase')}</p>
               <p className="text-sm text-destructive/80">
-                Delete all collected resumes and tasks. This cannot be undone.
+                {t('debugConfig.resetDatabaseDescription')}
               </p>
             </div>
             <Button
               variant="destructive"
               onClick={() => {
-                if (window.confirm("Are you sure you want to delete ALL data? This cannot be undone.")) {
+                if (window.confirm(t('debugConfig.resetDatabaseConfirm'))) {
                   handleResetDatabase()
                 }
               }}
             >
-              Reset Database
+              {t('debugConfig.resetDatabase')}
             </Button>
           </div>
         </CardContent>

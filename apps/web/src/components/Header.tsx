@@ -6,7 +6,11 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { cn } from '@/lib/utils'
 
-export function Header() {
+interface HeaderProps {
+  leftAction?: React.ReactNode
+}
+
+export function Header({ leftAction }: HeaderProps = {}) {
   const { t } = useTranslation()
   const { slug, name, isAdmin } = useWorkspace()
   const resumesPath = `/${slug}/resumes`
@@ -15,7 +19,8 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center justify-between gap-4">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 sm:gap-6">
+          {leftAction}
           <Link to={resumesPath} className="flex items-center gap-2">
             <TrendingUp className="h-6 w-6 text-primary" />
             <div className="flex items-baseline gap-1">

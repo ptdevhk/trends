@@ -428,9 +428,9 @@ Curated knowledge used by the background ingest agent for deterministic matching
 - [x] E2E Testing, CI Pipeline, Session Memory, JD Enhancements (Phase 22)
 - [x] Pre-Stage: Generalized skill validation infra + Browser Extension Dev skill
 - [x] M1: Create `config/resume/skills.md` knowledge file
-- [x] M2: skills.md parser service (`skills-knowledge.ts`) — 12 tests passing
+- [x] M2: skills.md parser service (`skills-knowledge.ts`) — 18 tests passing
 - [x] CNC tokenization fix (`addScriptBoundarySpaces`) — migration pending
-- [x] M3: Background ingest agent (`IngestComputeService`, 14 tests)
+- [x] M3: Background ingest agent (`IngestComputeService`, 18 tests)
 - [x] M4: Query path uses pre-computed fields (< 2s, zero LLM)
 - [x] M5: Backfill migration code — migration pending
 - [x] M6: Learning feedback loop (append HR patterns to skills.md)
@@ -446,11 +446,12 @@ Curated knowledge used by the background ingest agent for deterministic matching
 - [x] WS-C: Search Accuracy (C1 synonym transitivity, C2 location 2-char guard, search event logger, learning log parser, auto re-ingest, analytics dashboard)
 
 #### Pending: Migration Runs
+> Note: these migrations were run locally (idempotent) on 2026-03-03; re-run in each environment as needed.
 - [ ] Run `npx convex run migrations:reindexSearchText` (CJK tokenization)
 - [ ] Run `npx convex run migrations:backfillIngestData` (process existing resumes)
 - [ ] Run `npx convex run migrations:backfillPrimaryRuleScore` (denormalized score index)
+- [ ] Run `npx convex run migrations:backfillWorkspaceSlugs` (workspace isolation)
 - [ ] End-to-end verification
-- [ ] Merge `codex/debug-1` branch to main
 
 #### Next: Post-Merge Feature Work
 - [ ] Additional job boards (BOSS直聘, 拉勾)

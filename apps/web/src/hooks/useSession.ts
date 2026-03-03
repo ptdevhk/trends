@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../../packages/convex/convex/_generated/api';
 import type { ResumeFilters } from '@/types/resume';
 import { toast } from 'sonner';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+
+export type ExternalSessionState = {
+  location?: string
+  keywords?: string[]
+  jobDescriptionId?: string
+  filters?: Partial<ResumeFilters>
+}
 
 export function useSession() {
   const { slug } = useWorkspace()
@@ -37,6 +44,7 @@ export function useSession() {
   const addReviewedItem = useMutation(api.sessions.addReviewedItem);
 
   const [hasRestored, setHasRestored] = useState(false);
+  const hasInitializedScopeRef = useRef(false)
 
   // 3. Local State (Initialized from Convex when available)
   const [location, setLocation] = useState('广东');
@@ -45,6 +53,11 @@ export function useSession() {
   const [filters, setFilters] = useState<ResumeFilters>({});
 
   useEffect(() => {
+    if (!hasInitializedScopeRef.current) {
+      hasInitializedScopeRef.current = true
+      return
+    }
+
     setHasRestored(false)
     setLocation('广东')
     setKeywords([])
@@ -99,6 +112,33 @@ export function useSession() {
     [activeSession?.reviewedResumeIds]
   );
 
+  const applyExternalState = useCallback((state: ExternalSessionState) => {
+    if (state.location !== undefined) {
+      const normalizedLocation = state.location.trim()
+      if (normalizedLocation.length > 0) {
+        setLocation(normalizedLocation)
+      }
+    }
+
+    if (state.keywords !== undefined) {
+      const normalizedKeywords = state.keywords
+        .map((keyword) => keyword.trim())
+        .filter((keyword) => keyword.length > 0)
+      setKeywords(normalizedKeywords)
+    }
+
+    if (state.jobDescriptionId !== undefined) {
+      const normalizedJobDescriptionId = state.jobDescriptionId.trim()
+      setJobDescriptionId(normalizedJobDescriptionId.length > 0 ? normalizedJobDescriptionId : undefined)
+    }
+
+    if (state.filters !== undefined) {
+      setFilters(state.filters)
+    }
+
+    setHasRestored(true)
+  }, [setFilters, setJobDescriptionId, setKeywords, setLocation])
+
   return {
     location,
     setLocation,
@@ -110,6 +150,7 @@ export function useSession() {
     setFilters,
     reviewedIdsSet,
     trackReviewedResume,
+    applyExternalState,
     loading: !activeSession && !hasRestored,
   };
 }

@@ -6,7 +6,7 @@ import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
+import { PageHeader } from '@/components/PageHeader'
 type SearchSummaryPayload = {
   totalSearches: number
   zeroResultSearches: number
@@ -159,20 +159,18 @@ export default function SearchAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{t('searchAnalytics.title', { defaultValue: 'Search Accuracy Dashboard' })}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t('searchAnalytics.subtitle', { defaultValue: 'Track query quality and curate synonym improvements.' })}
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => void loadAnalytics()} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          {t('searchAnalytics.refresh', { defaultValue: 'Refresh' })}
-        </Button>
-      </div>
+      <PageHeader
+        title={t('searchAnalytics.title', { defaultValue: 'Search Accuracy Dashboard' })}
+        description={t('searchAnalytics.subtitle', { defaultValue: 'Track query quality and curate synonym improvements.' })}
+        actions={
+          <Button variant="outline" onClick={() => void loadAnalytics()} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            {t('searchAnalytics.refresh', { defaultValue: 'Refresh' })}
+          </Button>
+        }
+      />
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">{t('searchAnalytics.metrics.totalSearches', { defaultValue: 'Total Searches' })}</CardTitle>

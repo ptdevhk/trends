@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-
+import { PageHeader } from '@/components/PageHeader'
 type ResumeSample = components['schemas']['ResumeSample']
 type ResumeItem = components['schemas']['ResumeItem']
 type ResumesResponse = components['schemas']['ResumesResponse']
@@ -624,18 +624,18 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">{t('debug.title')}</h1>
-            <p className="text-sm text-muted-foreground">{t('debug.subtitle')}</p>
-          </div>
-          <Button variant="outline" onClick={handleRefresh} disabled={loading}>
-            <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
-            {t('debug.refresh')}
-          </Button>
-        </div>
+        <PageHeader
+          title={t('debug.title')}
+          description={t('debug.subtitle')}
+          actions={
+            <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+              <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
+              {t('debug.refresh')}
+            </Button>
+          }
+        />
 
-        <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_0.6fr]">
+        <div className="grid gap-3 grid-cols-1 lg:grid-cols-[1.5fr_1fr_0.6fr]">
           <SearchBar
             onSearch={handleSearch}
             onClear={handleClearSearch}
@@ -700,7 +700,7 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
       ) : null}
 
       {(showInputs || showFindings) && (
-        <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+        <div className="grid gap-6 grid-cols-1 xl:grid-cols-[1fr_1fr]">
           {showInputs ? (
             <Card>
               <CardHeader>
@@ -721,15 +721,19 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
                 </div>
                 <div>
                   <p className="text-muted-foreground">{t('debug.inputsMetadata')}</p>
-                  <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs">
-                    {metadata ? JSON.stringify(metadata, null, 2) : t('debug.none')}
-                  </pre>
+                  <div className="w-full max-w-full overflow-hidden">
+                    <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs w-full">
+                      {metadata ? JSON.stringify(metadata, null, 2) : t('debug.none')}
+                    </pre>
+                  </div>
                 </div>
                 <div>
                   <p className="text-muted-foreground">{t('debug.inputsSamples')}</p>
-                  <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted p-3 text-xs">
-                    {samples.length ? JSON.stringify(samples, null, 2) : t('debug.none')}
-                  </pre>
+                  <div className="w-full max-w-full overflow-hidden">
+                    <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted p-3 text-xs w-full">
+                      {samples.length ? JSON.stringify(samples, null, 2) : t('debug.none')}
+                    </pre>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -814,9 +818,11 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
             </div>
             <div>
               <p className="text-muted-foreground">{t('debug.processPreview')}</p>
-              <pre className="mt-2 max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs">
-                {resumes.length ? JSON.stringify(resumes.slice(0, 3), null, 2) : t('debug.none')}
-              </pre>
+              <div className="w-full max-w-full overflow-hidden">
+                <pre className="mt-2 max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs w-full">
+                  {resumes.length ? JSON.stringify(resumes.slice(0, 3), null, 2) : t('debug.none')}
+                </pre>
+              </div>
             </div>
           </CardContent>
         </Card>

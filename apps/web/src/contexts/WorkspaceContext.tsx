@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
-import { Navigate, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useParams } from 'react-router-dom'
 import { WORKSPACE_TEAMS, isValidWorkspace, type AccessLevel, type WorkspaceSlug } from '@trends/shared'
 import { workspaceRef } from '@/lib/workspace-ref'
 
@@ -13,6 +13,7 @@ type WorkspaceContextValue = {
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const location = useLocation()
   const params = useParams()
   const teamSlug = params.teamSlug
   const validSlug = teamSlug && isValidWorkspace(teamSlug) ? teamSlug : null
@@ -29,7 +30,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [validSlug])
 
   if (!validSlug) {
-    return <Navigate to="/dev/resumes" replace />
+    return <Navigate to={{ pathname: '/dev/resumes', search: location.search }} replace />
   }
 
   workspaceRef.set(validSlug)

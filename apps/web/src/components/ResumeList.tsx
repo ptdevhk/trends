@@ -12,6 +12,8 @@ import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { CollectResumesButton } from '@/components/CollectResumesButton'
+import { ActiveTagFilters } from '@/components/ActiveTagFilters'
+import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { useResumeListState } from '@/hooks/useResumeListState'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
@@ -35,6 +37,11 @@ export function ResumeList() {
     hasActiveTask,
     disableAnalyzeButton,
     selectedIds,
+    selectedTags,
+    selectedCompanies,
+    selectedExperienceLevel,
+    activeTagFilters,
+    activeCompanyFilters,
     highScoreCount,
     bulkExportFormat,
     displayedResumes,
@@ -44,6 +51,10 @@ export function ResumeList() {
     handleQuickStartApply,
     handleJobChange,
     handleFiltersChange,
+    handleToggleTag,
+    handleToggleCompany,
+    handleToggleExperienceLevel,
+    handleClearTagFilters,
     handleSelectAll,
     handleSelectHighScore,
     handleClearSelection,
@@ -115,11 +126,22 @@ export function ResumeList() {
                 })}
               </span>
             )}
+            <ShareLinkButton />
             <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleRefresh} disabled={activeLoading}>
               <RefreshCw className={cn('h-3.5 w-3.5', activeLoading && 'animate-spin')} />
             </Button>
           </div>
         }
+      />
+
+      <ActiveTagFilters
+        selectedTags={selectedTags}
+        selectedCompanies={selectedCompanies}
+        selectedExperienceLevel={selectedExperienceLevel}
+        onRemoveTag={handleToggleTag}
+        onRemoveCompany={handleToggleCompany}
+        onRemoveExperienceLevel={handleToggleExperienceLevel}
+        onClearAll={handleClearTagFilters}
       />
 
       <div className="space-y-4">
@@ -174,6 +196,12 @@ export function ResumeList() {
                 industryTags={ingestData?.industryTags}
                 companyHits={ingestData?.companyHits}
                 experienceLevel={ingestData?.experienceLevel}
+                onTagClick={handleToggleTag}
+                onCompanyClick={handleToggleCompany}
+                onExperienceLevelClick={handleToggleExperienceLevel}
+                activeTagFilters={activeTagFilters}
+                activeCompanyFilters={activeCompanyFilters}
+                activeExperienceLevelFilter={selectedExperienceLevel}
                 showAiScore={entry.match?.scoreSource === 'ai'}
                 actionType={entry.action}
                 onAction={(action) => handleCardAction(entry.key, action)}

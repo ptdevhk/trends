@@ -12,6 +12,7 @@ import { Trash2, Edit, Plus, FileText, Check, X, Copy, ArrowUpDown, Eye, Downloa
 import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { Doc, Id } from '../../../../packages/convex/convex/_generated/dataModel'
+import { PageHeader } from '@/components/PageHeader'
 
 import { useTranslation } from 'react-i18next'
 import { formatInAppTimezone } from '@/lib/timezone'
@@ -227,36 +228,36 @@ export default function DebugJDs() {
     }
 
     return (
-        <div className="container mx-auto p-6 max-w-5xl">
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
+        <div className="space-y-6">
+            <PageHeader
+                title={
+                    <>
                         <FileText className="h-6 w-6 text-primary" />
                         {t('jdManagement.title')}
-                    </h1>
-                    <p className="text-muted-foreground mt-1">
-                        {t('jdManagement.subtitle')}
-                    </p>
-                </div>
-                <div className="flex gap-2">
-                    {selectedIds.size > 0 && (
-                        <>
-                            <Button variant="outline" onClick={handleBulkExport}>
-                                <Download className="h-4 w-4 mr-2" />
-                                {t('jdManagement.exportSelected', { count: selectedIds.size, defaultValue: 'Export selected' })}
-                            </Button>
-                            <Button variant="destructive" onClick={() => setShowBulkDeleteConfirm(true)}>
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                {t('jdManagement.deleteSelected', { count: selectedIds.size })}
-                            </Button>
-                        </>
-                    )}
-                    <Button onClick={handleCreate}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        {t('jdManagement.createNew')}
-                    </Button>
-                </div>
-            </div>
+                    </>
+                }
+                description={t('jdManagement.subtitle')}
+                actions={
+                    <>
+                        {selectedIds.size > 0 && (
+                            <>
+                                <Button variant="outline" onClick={handleBulkExport}>
+                                    <Download className="h-4 w-4 mr-2" />
+                                    {t('jdManagement.exportSelected', { count: selectedIds.size, defaultValue: 'Export selected' })}
+                                </Button>
+                                <Button variant="destructive" onClick={() => setShowBulkDeleteConfirm(true)}>
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    {t('jdManagement.deleteSelected', { count: selectedIds.size })}
+                                </Button>
+                            </>
+                        )}
+                        <Button onClick={handleCreate}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            {t('jdManagement.createNew')}
+                        </Button>
+                    </>
+                }
+            />
 
             {/* Filters */}
             <div className="flex gap-4 mb-6">

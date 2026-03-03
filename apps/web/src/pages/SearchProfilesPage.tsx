@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { PageHeader } from '@/components/PageHeader'
 
 type SearchProfileDetails = {
   id: string
@@ -165,6 +166,7 @@ export function SearchProfilesPage() {
   const [runningIds, setRunningIds] = useState<Set<string>>(new Set())
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
+  const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null)
   const [form, setForm] = useState<ProfileFormState>(DEFAULT_FORM)
 
   const pollTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({})
@@ -301,31 +303,36 @@ export function SearchProfilesPage() {
     setEditorOpen(true)
   }, [profileDetails, t])
 
-  const handleDelete = useCallback(async (profileId: string) => {
-    const confirmed = window.confirm(t('searchProfiles.deleteConfirm', { defaultValue: 'Delete this profile?' }))
-    if (!confirmed) {
+  const handleDelete = useCallback((profileId: string) => {
+    setDeletingProfileId(profileId)
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    if (!deletingProfileId) {
       return
     }
 
-    const { data } = await rawApiClient.DELETE<{ success: boolean }>(`/api/search-profiles/${profileId}`)
+    const { data } = await rawApiClient.DELETE<{ success: boolean }>(`/api/search-profiles/${deletingProfileId}`)
     if (!data?.success) {
       toast.error(t('searchProfiles.deleteError', { defaultValue: 'Failed to delete profile' }))
+      setDeletingProfileId(null)
       return
     }
 
-    clearPolling(profileId)
+    clearPolling(deletingProfileId)
     setRunningIds((previous) => {
-      if (!previous.has(profileId)) {
+      if (!previous.has(deletingProfileId)) {
         return previous
       }
       const next = new Set(previous)
-      next.delete(profileId)
+      next.delete(deletingProfileId)
       return next
     })
 
     toast.success(t('searchProfiles.deleteSuccess', { defaultValue: 'Profile deleted' }))
+    setDeletingProfileId(null)
     void loadProfiles()
-  }, [clearPolling, loadProfiles, t])
+  }, [clearPolling, deletingProfileId, loadProfiles, t])
 
   const handleRunNow = useCallback(async (profileId: string) => {
     setRunningIds((previous) => new Set(previous).add(profileId))
@@ -453,24 +460,22 @@ export function SearchProfilesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{t('searchProfiles.title', { defaultValue: 'Search Profiles' })}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t('searchProfiles.subtitle', { defaultValue: 'Manage scheduled profile-based resume searches.' })}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => void loadProfiles()} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            {t('searchProfiles.refresh', { defaultValue: 'Refresh' })}
-          </Button>
-          <Button onClick={handleCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            {t('searchProfiles.create', { defaultValue: 'Create Profile' })}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={t('searchProfiles.title', { defaultValue: 'Search Profiles' })}
+        description={t('searchProfiles.subtitle', { defaultValue: 'Manage scheduled profile-based resume searches.' })}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => void loadProfiles()} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              {t('searchProfiles.refresh', { defaultValue: 'Refresh' })}
+            </Button>
+            <Button onClick={handleCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('searchProfiles.create', { defaultValue: 'Create Profile' })}
+            </Button>
+          </>
+        }
+      />
 
       {loading ? (
         <Card>
@@ -579,6 +584,27 @@ export function SearchProfilesPage() {
               {submitting
                 ? t('searchProfiles.saving', { defaultValue: 'Saving...' })
                 : t('searchProfiles.save', { defaultValue: 'Save' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deletingProfileId} onOpenChange={(open) => !open && setDeletingProfileId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {t('searchProfiles.deleteTitle', { defaultValue: 'Confirm Deletion' })}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            {t('searchProfiles.deleteConfirm', { defaultValue: 'Delete this profile?' })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingProfileId(null)}>
+              {t('searchProfiles.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button variant="destructive" onClick={() => void confirmDelete()}>
+              {t('searchProfiles.deleteBtn', { defaultValue: 'Delete' })}
             </Button>
           </DialogFooter>
         </DialogContent>

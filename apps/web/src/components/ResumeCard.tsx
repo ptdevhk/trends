@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { CandidateActionType, MatchingResult } from '@/types/resume'
+import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { cn } from '@/lib/utils'
 import {
   Tooltip,
@@ -25,6 +26,12 @@ interface ResumeCardProps {
   industryTags?: string[]
   companyHits?: string[]
   experienceLevel?: string
+  onTagClick?: (tag: string) => void
+  onCompanyClick?: (company: string) => void
+  onExperienceLevelClick?: (experienceLevel: ExperienceLevelFilter | undefined) => void
+  activeTagFilters?: Set<string>
+  activeCompanyFilters?: Set<string>
+  activeExperienceLevelFilter?: ExperienceLevelFilter
   showAiScore?: boolean
   actionType?: CandidateActionType
   onAction?: (actionType: CandidateActionType) => void
@@ -80,6 +87,12 @@ export function ResumeCard({
   industryTags,
   companyHits,
   experienceLevel,
+  onTagClick,
+  onCompanyClick,
+  onExperienceLevelClick,
+  activeTagFilters,
+  activeCompanyFilters,
+  activeExperienceLevelFilter,
 }: ResumeCardProps) {
   const { t } = useTranslation()
   const [showOutreach, setShowOutreach] = useState(false)
@@ -122,13 +135,39 @@ export function ResumeCard({
     .filter((company) => company.trim().length > 0)
     .slice(0, 3)
   const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase()
+  const experienceLevelForClick: ExperienceLevelFilter | undefined =
+    normalizedExperienceLevel === 'senior'
+      ? 'senior'
+      : normalizedExperienceLevel === 'mid'
+        ? 'mid'
+        : normalizedExperienceLevel === 'junior'
+          ? 'junior'
+          : undefined
+  const isExperienceLevelActive =
+    Boolean(activeExperienceLevelFilter)
+    && normalizedExperienceLevel === activeExperienceLevelFilter
   const experienceBadge =
     normalizedExperienceLevel === 'senior'
-      ? { label: '资深', className: 'border-orange-200 bg-orange-50 text-orange-700' }
+      ? {
+        label: '资深',
+        className: isExperienceLevelActive
+          ? 'border-orange-700 bg-orange-600 text-white'
+          : 'border-orange-200 bg-orange-50 text-orange-700',
+      }
       : normalizedExperienceLevel === 'mid'
-        ? { label: '中级', className: 'border-teal-200 bg-teal-50 text-teal-700' }
+        ? {
+          label: '中级',
+          className: isExperienceLevelActive
+            ? 'border-teal-700 bg-teal-600 text-white'
+            : 'border-teal-200 bg-teal-50 text-teal-700',
+        }
         : normalizedExperienceLevel === 'junior'
-          ? { label: '初级', className: 'border-zinc-200 bg-zinc-50 text-zinc-600' }
+          ? {
+            label: '初级',
+            className: isExperienceLevelActive
+              ? 'border-zinc-700 bg-zinc-600 text-white'
+              : 'border-zinc-200 bg-zinc-50 text-zinc-600',
+          }
           : null
 
   return (
@@ -190,28 +229,61 @@ export function ResumeCard({
           </div>
         ) : null}
         {experienceBadge ? (
-          <Badge variant="outline" className={cn('text-[10px]', experienceBadge.className)}>
+          <Badge
+            variant="outline"
+            className={cn(
+              'text-[10px]',
+              onExperienceLevelClick && 'cursor-pointer',
+              experienceBadge.className
+            )}
+            onClick={(event) => {
+              event.stopPropagation()
+              onExperienceLevelClick?.(experienceLevelForClick)
+            }}
+          >
             {experienceBadge.label}
           </Badge>
         ) : null}
-        {visibleIndustryTags.map((tag, index) => (
-          <Badge
-            key={`${tag}-${index}`}
-            variant="outline"
-            className="text-[10px] border-violet-200 bg-violet-50 text-violet-700"
-          >
-            {tag}
-          </Badge>
-        ))}
-        {visibleCompanyHits.map((company, index) => (
-          <Badge
-            key={`co-${company}-${index}`}
-            variant="outline"
-            className="text-[10px] border-blue-200 bg-blue-50 text-blue-700"
-          >
-            {company.toUpperCase()}
-          </Badge>
-        ))}
+        {visibleIndustryTags.map((tag, index) => {
+          const isActive = activeTagFilters?.has(tag.trim().toLowerCase()) ?? false
+          return (
+            <Badge
+              key={`${tag}-${index}`}
+              variant="outline"
+              className={cn(
+                'text-[10px] border-violet-200 bg-violet-50 text-violet-700',
+                onTagClick && 'cursor-pointer',
+                isActive && 'border-violet-700 bg-violet-600 text-white'
+              )}
+              onClick={(event) => {
+                event.stopPropagation()
+                onTagClick?.(tag)
+              }}
+            >
+              {tag}
+            </Badge>
+          )
+        })}
+        {visibleCompanyHits.map((company, index) => {
+          const isActive = activeCompanyFilters?.has(company.trim().toLowerCase()) ?? false
+          return (
+            <Badge
+              key={`co-${company}-${index}`}
+              variant="outline"
+              className={cn(
+                'text-[10px] border-blue-200 bg-blue-50 text-blue-700',
+                onCompanyClick && 'cursor-pointer',
+                isActive && 'border-blue-700 bg-blue-600 text-white'
+              )}
+              onClick={(event) => {
+                event.stopPropagation()
+                onCompanyClick?.(company)
+              }}
+            >
+              {company.toUpperCase()}
+            </Badge>
+          )
+        })}
       </div>
 
       <div className="flex flex-col gap-4 p-4 lg:flex-row">

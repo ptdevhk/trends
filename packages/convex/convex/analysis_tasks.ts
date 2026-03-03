@@ -32,6 +32,13 @@ function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
 
+const WORD_NUMBERS: Record<string, number> = {
+    zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+    eight: 8, nine: 9, ten: 10, fifteen: 15, twenty: 20, twenty5: 25,
+    thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80,
+    ninety: 90, hundred: 100,
+};
+
 function toNumber(value: unknown): number | null {
     if (typeof value === "number" && Number.isFinite(value)) {
         return value;
@@ -40,6 +47,16 @@ function toNumber(value: unknown): number | null {
         const parsed = Number(value);
         if (Number.isFinite(parsed)) {
             return parsed;
+        }
+        // Handle English word numbers (e.g. "seventy", "eighty-five")
+        const lower = value.trim().toLowerCase();
+        if (WORD_NUMBERS[lower] !== undefined) {
+            return WORD_NUMBERS[lower];
+        }
+        // Handle compound like "seventy-five" or "seventy five"
+        const parts = lower.split(/[-\s]+/);
+        if (parts.length === 2 && WORD_NUMBERS[parts[0]] !== undefined && WORD_NUMBERS[parts[1]] !== undefined) {
+            return WORD_NUMBERS[parts[0]] + WORD_NUMBERS[parts[1]];
         }
     }
     return null;
