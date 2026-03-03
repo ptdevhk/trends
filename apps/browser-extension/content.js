@@ -40,6 +40,8 @@ const AUTO_SYNC_PARAM = 'tr_auto_sync';
 const AUTO_SEARCH_PARAM = 'keyword';
 const AUTO_LOCATION_PARAM = 'location';
 const SAMPLE_NAME_PARAM = 'tr_sample_name';
+const JOB5156_HOST = 'hr.job5156.com';
+const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
 let autoExportTriggered = false;
 let autoSyncTriggered = false;
 const API_CAPTURE_SOURCE = 'tr-resume-api';
@@ -197,12 +199,63 @@ function toAbsoluteHttpUrl(value) {
   }
 }
 
+function decodeURIComponentSafe(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function extractJob5156ResumeId(pathname) {
+  if (!pathname || typeof pathname !== 'string') return '';
+
+  const oldRouteMatch = pathname.match(/^\/api\/com\/resume\/([^/?#]+)/i);
+  if (oldRouteMatch && oldRouteMatch[1]) {
+    return decodeURIComponentSafe(oldRouteMatch[1]);
+  }
+
+  const viewRouteMatch = pathname.match(/^\/resume\/view\/([^/?#]+)/i);
+  if (viewRouteMatch && viewRouteMatch[1]) {
+    return decodeURIComponentSafe(viewRouteMatch[1]);
+  }
+
+  return '';
+}
+
+function normalizeJob5156ProfileUrlForExport(value) {
+  if (!value || typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  const directResumeId = extractJob5156ResumeId(trimmed);
+  if (directResumeId) {
+    return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(directResumeId)}`;
+  }
+
+  try {
+    const parsed = new URL(trimmed, window.location.origin);
+    if (parsed.hostname.toLowerCase() !== JOB5156_HOST) {
+      return parsed.href;
+    }
+
+    const resumeId = extractJob5156ResumeId(parsed.pathname);
+    if (!resumeId) {
+      return parsed.href;
+    }
+
+    return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(resumeId)}`;
+  } catch {
+    return trimmed;
+  }
+}
+
 function buildProfileUrlFromApiRow(apiRow) {
   if (!apiRow || typeof apiRow !== 'object') return '';
   const resumeId = apiRow.resumeId;
   if (resumeId === null || resumeId === undefined || resumeId === '') return '';
   const encodedId = encodeURIComponent(String(resumeId));
-  return `${window.location.origin}/api/com/resume/${encodedId}`;
+  return `${JOB5156_PROFILE_URL_PREFIX}${encodedId}`;
 }
 
 function extractProfileUrl(card, apiRow) {
@@ -219,7 +272,7 @@ function extractProfileUrl(card, apiRow) {
 
   for (const candidate of candidates) {
     const normalized = toAbsoluteHttpUrl(candidate);
-    if (normalized) return normalized;
+    if (normalized) return normalizeJob5156ProfileUrlForExport(normalized);
   }
 
   return buildProfileUrlFromApiRow(apiRow);

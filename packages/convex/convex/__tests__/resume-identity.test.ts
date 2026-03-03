@@ -17,6 +17,31 @@ describe("deriveResumeIdentityKey", () => {
         expect(key).toBe("profileUrl:hr.job5156.com/candidate/123?a=1&b=2");
     });
 
+    it("maps Job5156 old/new profile routes to the same identity key", () => {
+        const oldRouteKey = deriveResumeIdentityKey({
+            externalId: "external-old",
+            content: {
+                profileUrl: "https://hr.job5156.com/api/com/resume/123456?from=list",
+            },
+        });
+        const newRouteKey = deriveResumeIdentityKey({
+            externalId: "external-new",
+            content: {
+                profileUrl: "https://hr.job5156.com/resume/view/123456",
+            },
+        });
+        const relativeRouteKey = deriveResumeIdentityKey({
+            externalId: "external-relative",
+            content: {
+                profileUrl: "/resume/view/123456",
+            },
+        });
+
+        expect(oldRouteKey).toBe("profileUrl:hr.job5156.com/api/com/resume/123456");
+        expect(newRouteKey).toBe(oldRouteKey);
+        expect(relativeRouteKey).toBe(oldRouteKey);
+    });
+
     it("falls back with precedence resumeId -> perUserId -> externalId", () => {
         const byResumeId = deriveResumeIdentity({
             externalId: "external-1",

@@ -5,8 +5,106 @@ import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
 import { deriveResumeIdentityKey } from "./lib/resume_identity";
 
+const JOB5156_HOST = "hr.job5156.com";
+const JOB5156_PROFILE_DISPLAY_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
+const PROFILE_URL_CONTENT_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
+}
+
+function decodeURIComponentSafe(value: string): string {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+}
+
+function extractJob5156ResumeId(pathname: string): string | null {
+    const oldRouteMatch = pathname.match(/^\/api\/com\/resume\/([^/?#]+)/i);
+    if (oldRouteMatch && oldRouteMatch[1]) {
+        return decodeURIComponentSafe(oldRouteMatch[1]);
+    }
+
+    const viewRouteMatch = pathname.match(/^\/resume\/view\/([^/?#]+)/i);
+    if (viewRouteMatch && viewRouteMatch[1]) {
+        return decodeURIComponentSafe(viewRouteMatch[1]);
+    }
+
+    return null;
+}
+
+function normalizeJob5156ProfileUrlForDisplay(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const directResumeId = extractJob5156ResumeId(trimmed);
+    if (directResumeId) {
+        return `${JOB5156_PROFILE_DISPLAY_PREFIX}${encodeURIComponent(directResumeId)}`;
+    }
+
+    let parsed: URL | null = null;
+    try {
+        parsed = new URL(trimmed);
+    } catch {
+        try {
+            parsed = new URL(`https://${trimmed}`);
+        } catch {
+            parsed = null;
+        }
+    }
+
+    if (!parsed || parsed.hostname.toLowerCase() !== JOB5156_HOST) {
+        return null;
+    }
+
+    const resumeId = extractJob5156ResumeId(parsed.pathname);
+    if (!resumeId) {
+        return null;
+    }
+
+    return `${JOB5156_PROFILE_DISPLAY_PREFIX}${encodeURIComponent(resumeId)}`;
+}
+
+function rewriteJob5156ProfileUrlsInContent(content: unknown): {
+    content: Record<string, unknown> | null;
+    updatedFields: string[];
+} {
+    if (!isRecord(content)) {
+        return {
+            content: null,
+            updatedFields: [],
+        };
+    }
+
+    let nextContent: Record<string, unknown> | null = null;
+    const updatedFields: string[] = [];
+
+    for (const key of PROFILE_URL_CONTENT_KEYS) {
+        const rawValue = content[key];
+        if (typeof rawValue !== "string") {
+            continue;
+        }
+
+        const normalized = normalizeJob5156ProfileUrlForDisplay(rawValue);
+        if (!normalized || normalized === rawValue.trim()) {
+            continue;
+        }
+
+        if (!nextContent) {
+            nextContent = { ...content };
+        }
+        nextContent[key] = normalized;
+        updatedFields.push(key);
+    }
+
+    return {
+        content: nextContent,
+        updatedFields,
+    };
 }
 
 function toRuleScores(value: unknown): Record<string, number> {
@@ -260,6 +358,37 @@ export const backfillPrimaryRuleScore = mutation({
         }
 
         return `Backfilled ${updated} resumes`;
+    },
+});
+
+export const backfillJob5156ProfileUrls = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const resumes = await ctx.db.query("resumes").collect();
+        let updatedResumes = 0;
+        let updatedProfileFields = 0;
+
+        for (const resume of resumes) {
+            const rewritten = rewriteJob5156ProfileUrlsInContent(resume.content);
+            if (!rewritten.content) {
+                continue;
+            }
+
+            const searchText = buildSearchText(rewritten.content);
+            await ctx.db.patch(resume._id, {
+                content: rewritten.content,
+                searchText,
+            });
+
+            updatedResumes += 1;
+            updatedProfileFields += rewritten.updatedFields.length;
+        }
+
+        return {
+            scannedResumes: resumes.length,
+            updatedResumes,
+            updatedProfileFields,
+        };
     },
 });
 
