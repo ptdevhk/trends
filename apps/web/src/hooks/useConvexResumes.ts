@@ -41,12 +41,71 @@ export type ConvexResumeItem = ResumeItem & {
   tags: string[]
 }
 
+const JOB5156_HOST = 'hr.job5156.com'
+const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
 function toStringValue(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+function decodeURIComponentSafe(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+function extractJob5156ResumeId(pathname: string): string | null {
+  const oldRouteMatch = pathname.match(/^\/api\/com\/resume\/([^/?#]+)/i)
+  if (oldRouteMatch && oldRouteMatch[1]) {
+    return decodeURIComponentSafe(oldRouteMatch[1])
+  }
+
+  const viewRouteMatch = pathname.match(/^\/resume\/view\/([^/?#]+)/i)
+  if (viewRouteMatch && viewRouteMatch[1]) {
+    return decodeURIComponentSafe(viewRouteMatch[1])
+  }
+
+  return null
+}
+
+function normalizeJob5156ProfileUrlForDisplay(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ''
+  }
+
+  const directResumeId = extractJob5156ResumeId(trimmed)
+  if (directResumeId) {
+    return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(directResumeId)}`
+  }
+
+  let parsed: URL | null = null
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    try {
+      parsed = new URL(`https://${trimmed}`)
+    } catch {
+      parsed = null
+    }
+  }
+
+  if (!parsed || parsed.hostname.toLowerCase() !== JOB5156_HOST) {
+    return trimmed
+  }
+
+  const resumeId = extractJob5156ResumeId(parsed.pathname)
+  if (!resumeId) {
+    return trimmed
+  }
+
+  return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(resumeId)}`
 }
 
 function toStringArray(value: unknown): string[] {
@@ -204,10 +263,14 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
 
 function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
   const content = isRecord(doc.content) ? doc.content : {}
+  const rawProfileUrl = toStringValue(content.profileUrl)
+    || toStringValue(content.profile_url)
+    || toStringValue(content.profileURL)
+    || toStringValue(content.url)
 
   return {
     name: toStringValue(content.name),
-    profileUrl: toStringValue(content.profileUrl),
+    profileUrl: normalizeJob5156ProfileUrlForDisplay(rawProfileUrl),
     activityStatus: toStringValue(content.activityStatus),
     age: toStringValue(content.age),
     experience: toStringValue(content.experience),

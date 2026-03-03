@@ -451,6 +451,7 @@ Curated knowledge used by the background ingest agent for deterministic matching
 - [ ] Run `npx convex run migrations:backfillIngestData` (process existing resumes)
 - [ ] Run `npx convex run migrations:backfillPrimaryRuleScore` (denormalized score index)
 - [ ] Run `npx convex run migrations:backfillWorkspaceSlugs` (workspace isolation)
+- [ ] Run `npx convex run migrations:backfillJob5156ProfileUrls` (rewrite legacy Job5156 profile URLs to `/resume/view/{id}`)
 - [ ] End-to-end verification
 
 #### Next: Post-Merge Feature Work

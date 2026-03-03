@@ -756,6 +756,10 @@ seed_and_migrate_convex() {
     log_info "Running Convex migration: backfillIngestData..."
     run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillIngestData '{\"limit\":100}'" \
         || log_warn "backfillIngestData failed."
+
+    log_info "Running Convex migration: backfillJob5156ProfileUrls..."
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillJob5156ProfileUrls" \
+        || log_warn "backfillJob5156ProfileUrls failed."
 }
 
 resolve_env_file() {

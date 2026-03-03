@@ -65,8 +65,67 @@ export type ExportFile = {
   content: Buffer;
 };
 
+const JOB5156_HOST = "hr.job5156.com";
+const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
+
 function normalizeString(value: string | undefined): string {
   return typeof value === "string" ? value : "";
+}
+
+function decodeURIComponentSafe(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function extractJob5156ResumeId(pathname: string): string | null {
+  const oldRouteMatch = pathname.match(/^\/api\/com\/resume\/([^/?#]+)/i);
+  if (oldRouteMatch && oldRouteMatch[1]) {
+    return decodeURIComponentSafe(oldRouteMatch[1]);
+  }
+
+  const viewRouteMatch = pathname.match(/^\/resume\/view\/([^/?#]+)/i);
+  if (viewRouteMatch && viewRouteMatch[1]) {
+    return decodeURIComponentSafe(viewRouteMatch[1]);
+  }
+
+  return null;
+}
+
+function normalizeJob5156ProfileUrlForDisplay(value: string | undefined): string {
+  const normalized = normalizeString(value).trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const directResumeId = extractJob5156ResumeId(normalized);
+  if (directResumeId) {
+    return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(directResumeId)}`;
+  }
+
+  let parsed: URL | null = null;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    try {
+      parsed = new URL(`https://${normalized}`);
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!parsed || parsed.hostname.toLowerCase() !== JOB5156_HOST) {
+    return normalized;
+  }
+
+  const resumeId = extractJob5156ResumeId(parsed.pathname);
+  if (!resumeId) {
+    return normalized;
+  }
+
+  return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(resumeId)}`;
 }
 
 function normalizeStringArray(value: string[] | undefined): string[] {
@@ -99,7 +158,7 @@ function toRow(entry: ResumeExportEntry): ExportRow {
     action: normalizeString(entry.action),
     industryTags: normalizeStringArray(entry.resume.ingestData?.industryTags).join(", "),
     companyHits: normalizeStringArray(entry.resume.ingestData?.companyHits).join(", "),
-    profileUrl: normalizeString(entry.resume.profileUrl),
+    profileUrl: normalizeJob5156ProfileUrlForDisplay(entry.resume.profileUrl),
     workHistory,
     selfIntro: normalizeString(entry.resume.selfIntro),
   };
