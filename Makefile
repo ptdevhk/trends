@@ -3,7 +3,7 @@
 .PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
 		worker worker-once install install-seed deploy deploy-seed install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
-		test test-python test-node test-resume \
+		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
 		build-static build-static-fresh build-extension-zip serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
@@ -608,6 +608,34 @@ test-node:                                 ## Run TypeScript tests (bun locally,
 		echo "No TypeScript tests found (*.test.ts/*.test.tsx), skipping"; \
 	fi
 
+test-extension-keyword-mode:               ## Run extension keyword mode precedence regression
+	@echo "Running extension keyword mode regression..."
+	@if command -v bun > /dev/null 2>&1; then \
+		bun run test:extension:keyword-mode; \
+	else \
+		npm run test:extension:keyword-mode; \
+	fi
+
+test-api-search-profiles:                  ## Run search-profiles dispatch keyword route test
+	@echo "Running API search-profiles route test..."
+	@if command -v bun > /dev/null 2>&1; then \
+		bun run test:api:search-profiles; \
+	else \
+		npm run test:api:search-profiles; \
+	fi
+
+test-worker-resume-tasks:                  ## Run worker resume task keyword assembly tests
+	@echo "Running worker resume task tests..."
+	@uv run pytest tests/test_resume_tasks.py -q
+
+test-collect-url-smoke:                    ## Run quick smoke for Collect URL keyword concatenation
+	@echo "Running Collect URL smoke check..."
+	@if command -v bun > /dev/null 2>&1; then \
+		bun run test:e2e:collect-url; \
+	else \
+		npm run test:e2e:collect-url; \
+	fi
+
 test-coverage:                             ## Run Node.js tests with coverage
 	@echo "Running Node.js tests with coverage..."
 	@npm run --workspace @trends/shared build
@@ -718,6 +746,10 @@ help:
 	@echo "  test           Run all tests (Python + Node)"
 	@echo "  test-python    Run Python tests only"
 	@echo "  test-node      Run Node.js tests only"
+	@echo "  test-extension-keyword-mode Run extension keyword mode precedence regression"
+	@echo "  test-api-search-profiles Run API route test for profile-run keyword dispatch"
+	@echo "  test-worker-resume-tasks Run worker keyword assembly tests"
+	@echo "  test-collect-url-smoke Run Collect button URL smoke check"
 	@echo "  test-resume    Validate resume fixtures"
 	@echo "  clean-db       Clean local databases and environment (Convex state + SQLite)"
 	@echo "  fresh-env      Wipe everything and reinstall dependencies (nuclear option)"

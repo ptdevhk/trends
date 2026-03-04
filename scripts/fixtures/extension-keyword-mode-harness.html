@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Extension Keyword Mode Harness</title>
+  </head>
+  <body>
+    <div class="el-checkbox-group resume-search-item-list-content-block"></div>
+
+    <div class="el-autocomplete">
+      <input class="el-input__inner" type="text" />
+    </div>
+    <button class="resume-search-item-search-input-block__input-button" type="button">Search</button>
+
+    <script>
+      (() => {
+        const params = new URLSearchParams(window.location.search || '');
+        const storageMode = params.get('mock_storage_mode');
+
+        /** @type {{ keywordMode?: string }} */
+        const store = {};
+        if (storageMode) {
+          store.keywordMode = storageMode;
+        }
+
+        window.__searchClicks = 0;
+        const btn = document.querySelector('.resume-search-item-search-input-block__input-button');
+        if (btn) {
+          btn.addEventListener('click', () => {
+            window.__searchClicks += 1;
+          });
+        }
+
+        window.chrome = {
+          storage: {
+            local: {
+              get(defaults, callback) {
+                callback({ ...defaults, ...store });
+              },
+              set(items, callback) {
+                Object.assign(store, items || {});
+                if (typeof callback === 'function') callback();
+              },
+            },
+          },
+          runtime: {
+            getManifest() {
+              return { version: 'test-harness' };
+            },
+            getURL(path) {
+              return String(path || '');
+            },
+            onMessage: {
+              addListener() {
+                // no-op
+              },
+            },
+            sendMessage(_request, callback) {
+              if (typeof callback === 'function') {
+                callback({ success: true });
+              }
+            },
+            lastError: null,
+          },
+          downloads: {
+            download(_options, callback) {
+              if (typeof callback === 'function') {
+                callback(1);
+              }
+            },
+          },
+        };
+      })();
+    </script>
+  </body>
+</html>

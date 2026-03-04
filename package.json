@@ -19,6 +19,10 @@
     "check:lint": "bun run --filter '@trends/web' --filter '@trends/browser-extension' lint",
     "check:build": "bun run --filter '@trends/*' build",
     "test": "vitest run",
+    "test:extension:keyword-mode": "tsx scripts/test-extension-keyword-mode.ts",
+    "test:api:search-profiles": "vitest run apps/api/src/routes/search-profiles.test.ts",
+    "test:worker:resume-tasks": "uv run pytest tests/test_resume_tasks.py -q",
+    "test:e2e:collect-url": "tsx scripts/e2e-smoke.ts --collect-only",
     "verify:critical-path": "tsx scripts/verify-critical-path.ts",
     "e2e": "tsx scripts/e2e-smoke.ts"
   },
