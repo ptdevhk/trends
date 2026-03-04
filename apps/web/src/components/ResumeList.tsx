@@ -64,6 +64,7 @@ export function ResumeList() {
     handleCardAction,
     handleToggleBlock,
     handleCandidateStatusChange,
+    handleResetAll,
   } = useResumeListState()
   useSyncNotifications()
 
@@ -118,6 +119,7 @@ export function ResumeList() {
             <AnalysisTaskMonitor />
           </div>
         }
+        onResetAll={handleResetAll}
       />
 
       <FilterPanel
@@ -221,7 +223,7 @@ export function ResumeList() {
                   notes: entry.statusMeta.notes,
                   updatedAt: entry.statusMeta.updatedAt,
                 } : undefined}
-                onToggleBlock={() => handleToggleBlock(entry.identityKey, entry.blocked)}
+                onToggleBlock={(reason) => handleToggleBlock(entry.identityKey, entry.blocked, reason)}
                 onCandidateStatusChange={(status, notes) => handleCandidateStatusChange(entry.identityKey, status, notes)}
                 onViewDetails={() => {
                   setDetailResume(entry.resume)

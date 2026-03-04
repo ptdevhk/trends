@@ -1041,6 +1041,16 @@ export function useResumeListState() {
     )
   }, [displayedResumes])
 
+  const handleResetAll = useCallback(() => {
+    setSessionLocation('广东')
+    setSessionKeywords([])
+    setJobDescriptionId('')
+    setFilters({})
+    setSelectedTags([])
+    setSelectedCompanies([])
+    setSelectedExperienceLevel(undefined)
+  }, [setSessionLocation, setSessionKeywords, setJobDescriptionId, setFilters, setSelectedTags, setSelectedCompanies, setSelectedExperienceLevel])
+
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set())
   }, [])
@@ -1196,7 +1206,7 @@ export function useResumeListState() {
   )
 
   const handleToggleBlock = useCallback(
-    async (identityKey: string, blocked: boolean) => {
+    async (identityKey: string, blocked: boolean, reason?: string) => {
       if (!identityKey.trim()) {
         return
       }
@@ -1211,7 +1221,7 @@ export function useResumeListState() {
         return
       }
 
-      const success = await blockCandidates([identityKey], 'manual_block')
+      const success = await blockCandidates([identityKey], reason || 'manual_block')
       if (success) {
         toast.success('已屏蔽候选人')
       } else {
@@ -1340,5 +1350,6 @@ export function useResumeListState() {
     handleCardAction,
     handleToggleBlock,
     handleCandidateStatusChange,
+    handleResetAll,
   }
 }

@@ -86,6 +86,7 @@ interface QuickStartPanelProps {
     maxAge?: number
   }) => void
   extraActions?: React.ReactNode
+  onResetAll?: () => void
 }
 
 function mapProfileFiltersToResumeFilters(filters: SearchProfileFilters | undefined): Partial<ResumeFilters> | undefined {
@@ -176,6 +177,7 @@ export function QuickStartPanel({
   quickFilters,
   onApplyQuickFilters,
   extraActions,
+  onResetAll,
 }: QuickStartPanelProps) {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
@@ -343,12 +345,6 @@ export function QuickStartPanel({
     })
   }, [autoMatchResult, location, normalizedKeywords, onApplyConfig, onJobChange])
 
-  const handleResetKeywords = useCallback(() => {
-    setSelectedKeywords([])
-    setCustomKeyword('')
-    onJobChange?.('')
-  }, [onJobChange])
-
   const handleApplyQuickFilters = useCallback(() => {
     const minRoleYears = quickMinRoleYears ? Number(quickMinRoleYears) : undefined
     const maxAge = quickMaxAge ? Number(quickMaxAge) : undefined
@@ -418,6 +414,19 @@ export function QuickStartPanel({
                 />
               </div>
             </div>
+
+            {onResetAll && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 gap-1 px-3 text-sm font-medium text-foreground/80 hover:text-foreground hover:bg-muted"
+                onClick={onResetAll}
+              >
+                <RotateCcw className="h-4 w-4" />
+                {t('quickStart.resetKeywords', '重置')}
+              </Button>
+            )}
           </div>
 
           <div className="flex-shrink-0">
@@ -430,16 +439,6 @@ export function QuickStartPanel({
             <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
               {t('quickStart.hotKeywords', '热门关键词')}
             </label>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-destructive"
-              onClick={handleResetKeywords}
-            >
-              <RotateCcw className="h-3 w-3" />
-              {t('quickStart.resetKeywords', '重置')}
-            </Button>
           </div>
           <KeywordChips value={selectedKeywords} onChange={handleKeywordsChange} />
         </div>

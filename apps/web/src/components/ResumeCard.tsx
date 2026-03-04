@@ -40,7 +40,7 @@ interface ResumeCardProps {
   onSelect?: () => void
   blocked?: boolean
   candidateStatus?: CandidateStatus
-  onToggleBlock?: () => void
+  onToggleBlock?: (reason?: string) => void
   candidateStatusMeta?: {
     notes?: string
     updatedAt: number
@@ -135,6 +135,8 @@ export function ResumeCard({
   const [promptDialogOpen, setPromptDialogOpen] = useState(false)
   const [pendingStatus, setPendingStatus] = useState<CandidateStatus | null>(null)
   const [noteInput, setNoteInput] = useState('')
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false)
+  const [blockNoteInput, setBlockNoteInput] = useState('')
   const workHistory = resume.workHistory?.filter((item) => item.raw) ?? []
   const jobIntention = (resume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
   const selfIntro = resume.selfIntro || '--'
@@ -440,7 +442,14 @@ export function ResumeCard({
               <Button
                 variant={blocked ? 'destructive' : 'outline'}
                 size="sm"
-                onClick={onToggleBlock}
+                onClick={() => {
+                  if (blocked) {
+                    onToggleBlock?.()
+                  } else {
+                    setBlockNoteInput('')
+                    setBlockDialogOpen(true)
+                  }
+                }}
                 className="gap-2"
               >
                 <Ban className="h-3.5 w-3.5" />
@@ -531,6 +540,42 @@ export function ResumeCard({
                   onCandidateStatusChange?.(pendingStatus, notes.length > 0 ? notes : undefined)
                   setPromptDialogOpen(false)
                 }
+              }}
+            >
+              {t('common.confirm', 'Confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>屏蔽候选人</DialogTitle>
+            <DialogDescription>
+              为“屏蔽候选人”添加备注（选填）
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={blockNoteInput}
+            onChange={(e) => setBlockNoteInput(e.target.value)}
+            placeholder="备注"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                onToggleBlock?.(blockNoteInput.trim() || undefined)
+                setBlockDialogOpen(false)
+              }
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBlockDialogOpen(false)}>
+              {t('common.cancel', 'Cancel')}
+            </Button>
+            <Button
+              onClick={() => {
+                onToggleBlock?.(blockNoteInput.trim() || undefined)
+                setBlockDialogOpen(false)
               }}
             >
               {t('common.confirm', 'Confirm')}
