@@ -840,7 +840,7 @@ app.openapi(runProfileRoute, async (c) => {
         return c.json({ success: false as const, error: "Invalid run payload" }, 400);
     }
 
-    const keyword = parsed.data.keyword?.trim() || profile.keywords.join(" ").trim();
+    const keyword = parsed.data.keyword?.trim() || profile.keywords.join("").trim();
     const location = parsed.data.location?.trim() || profile.location;
     const limit = parsed.data.limit ?? profile.schedule?.maxCandidates ?? 120;
     const maxPages = parsed.data.maxPages ?? 10;

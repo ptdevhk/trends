@@ -39,9 +39,12 @@ const AUTO_EXPORT_PARAM = 'tr_auto_export';
 const AUTO_SYNC_PARAM = 'tr_auto_sync';
 const AUTO_SEARCH_PARAM = 'keyword';
 const AUTO_LOCATION_PARAM = 'location';
+const AUTO_KEYWORD_MODE_PARAM = 'tr_kw_mode';
 const SAMPLE_NAME_PARAM = 'tr_sample_name';
 const JOB5156_HOST = 'hr.job5156.com';
 const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
+const KEYWORD_MODE_CONCAT = 'concat';
+const KEYWORD_MODE_SPACED = 'spaced';
 let autoExportTriggered = false;
 let autoSyncTriggered = false;
 const API_CAPTURE_SOURCE = 'tr-resume-api';
@@ -80,6 +83,23 @@ function normalizeKeyword(keyword) {
     .replace(/[\u3000]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeKeywordMode(mode) {
+  return mode === KEYWORD_MODE_SPACED ? KEYWORD_MODE_SPACED : KEYWORD_MODE_CONCAT;
+}
+
+async function getKeywordMode() {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.get({ keywordMode: KEYWORD_MODE_CONCAT }, (items) => {
+        resolve(normalizeKeywordMode(items?.keywordMode));
+      });
+    } catch (error) {
+      console.warn('🎯 [Auto Search] Failed to read keyword mode from storage:', error);
+      resolve(KEYWORD_MODE_CONCAT);
+    }
+  });
 }
 
 function buildExportFilename() {
@@ -1273,7 +1293,12 @@ async function autoSelectLocation() {
 
 async function autoSearchFromUrl() {
   const params = new URLSearchParams(window.location.search || '');
-  const keyword = normalizeKeyword(params.get(AUTO_SEARCH_PARAM) || '');
+  const urlKeywordMode = params.get(AUTO_KEYWORD_MODE_PARAM);
+  const keywordMode = normalizeKeywordMode(urlKeywordMode || await getKeywordMode());
+  let keyword = normalizeKeyword(params.get(AUTO_SEARCH_PARAM) || '');
+  if (keyword && keywordMode !== KEYWORD_MODE_SPACED) {
+    keyword = keyword.replace(/\s+/g, '');
+  }
   if (!keyword) {
     setAutoSearchAttributes('skipped', '');
     return;
@@ -1289,13 +1314,16 @@ async function autoSearchFromUrl() {
     return;
   }
 
-  const currentValue = normalizeKeyword(input.value || '');
+  let currentValue = normalizeKeyword(input.value || '');
+  if (keywordMode !== KEYWORD_MODE_SPACED) {
+    currentValue = currentValue.replace(/\s+/g, '');
+  }
   if (currentValue === keyword) {
     setAutoSearchAttributes('skipped', keyword);
     return;
   }
 
-  console.log('🎯 [Auto Search] Searching for:', keyword);
+  console.log('🎯 [Auto Search] Searching for:', keyword, `(mode=${keywordMode})`);
   setInputValue(input, keyword);
   button.click();
   setAutoSearchAttributes('done', keyword);

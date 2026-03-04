@@ -48,7 +48,7 @@ export function CollectResumesButton({ location, keywords }: CollectResumesButto
     }
 
     const query = new URLSearchParams({
-      keyword: normalizedKeywords.join(' '),
+      keyword: normalizedKeywords.join(''),
       location: normalizedLocation,
       tr_auto_sync: 'true',
     })

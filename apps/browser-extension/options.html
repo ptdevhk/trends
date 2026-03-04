@@ -80,6 +80,28 @@
       .dot.connected {
         background: #4caf50;
       }
+
+      .radio-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .radio-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #ddd;
+      }
+
+      .radio-option input {
+        accent-color: #667eea;
+      }
+
+      .radio-meta {
+        color: #999;
+      }
     </style>
   </head>
   <body>
@@ -105,6 +127,20 @@
           <div class="label">Server URL</div>
           <input id="server-url" class="input" type="url" placeholder="https://trends.pt-mes.com" />
           <div class="hint">默认: trends.pt-mes.com，一般无需修改</div>
+        </div>
+
+        <div class="field">
+          <div class="label">关键词模式</div>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input id="keyword-mode-concat" type="radio" name="keyword-mode" value="concat" />
+              <span>连写 <span class="radio-meta">— CNC车床销售STAR (推荐)</span></span>
+            </label>
+            <label class="radio-option">
+              <input id="keyword-mode-spaced" type="radio" name="keyword-mode" value="spaced" />
+              <span>空格 <span class="radio-meta">— CNC 车床 销售 STAR</span></span>
+            </label>
+          </div>
         </div>
 
         <div class="row">

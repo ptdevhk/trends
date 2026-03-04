@@ -119,7 +119,7 @@ def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
 
     keywords = profile.get("keywords", [])
     if isinstance(keywords, list):
-        keyword_str = " ".join(str(item).strip() for item in keywords if str(item).strip())
+        keyword_str = "".join(str(item).strip() for item in keywords if str(item).strip())
     else:
         keyword_str = str(keywords).strip()
 

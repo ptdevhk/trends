@@ -5,6 +5,8 @@
 
   const serverUrlInput = /** @type {HTMLInputElement | null} */ ($("server-url"));
   const serverTokenInput = /** @type {HTMLInputElement | null} */ ($("server-token"));
+  const keywordModeConcatInput = /** @type {HTMLInputElement | null} */ ($("keyword-mode-concat"));
+  const keywordModeSpacedInput = /** @type {HTMLInputElement | null} */ ($("keyword-mode-spaced"));
   const btnTest = /** @type {HTMLButtonElement | null} */ ($("btn-test"));
   const btnSave = /** @type {HTMLButtonElement | null} */ ($("btn-save"));
   const statusDot = /** @type {HTMLElement | null} */ ($("status-dot"));
@@ -12,6 +14,12 @@
   const messageBar = /** @type {HTMLElement | null} */ ($("message"));
   const messageText = /** @type {HTMLElement | null} */ ($("message-text"));
   const DEFAULT_SERVER_URL = "https://trends.pt-mes.com";
+  const DEFAULT_KEYWORD_MODE = "concat";
+  const KEYWORD_MODE_SPACED = "spaced";
+
+  function normalizeKeywordMode(value) {
+    return value === KEYWORD_MODE_SPACED ? KEYWORD_MODE_SPACED : DEFAULT_KEYWORD_MODE;
+  }
 
   function showMessage(text, type) {
     if (!messageBar || !messageText) return;
@@ -82,23 +90,33 @@
 
   async function loadConfig() {
     return new Promise((resolve) => {
-      chrome.storage.local.get({ serverUrl: "", serverToken: "" }, (items) => resolve(items));
+      chrome.storage.local.get(
+        { serverUrl: "", serverToken: "", keywordMode: DEFAULT_KEYWORD_MODE },
+        (items) => resolve(items),
+      );
     });
   }
 
-  async function saveConfig(serverUrl, serverToken) {
+  async function saveConfig(serverUrl, serverToken, keywordMode) {
     return new Promise((resolve) => {
       chrome.storage.local.set(
-        { serverUrl: normalizeServerUrl(serverUrl), serverToken: String(serverToken || "") },
+        {
+          serverUrl: normalizeServerUrl(serverUrl),
+          serverToken: String(serverToken || ""),
+          keywordMode: normalizeKeywordMode(keywordMode),
+        },
         () => resolve(true),
       );
     });
   }
 
   document.addEventListener("DOMContentLoaded", async () => {
-    const items = /** @type {{ serverUrl?: string; serverToken?: string }} */ (await loadConfig());
+    const items = /** @type {{ serverUrl?: string; serverToken?: string; keywordMode?: string }} */ (await loadConfig());
+    const keywordMode = normalizeKeywordMode(items.keywordMode);
     if (serverUrlInput) serverUrlInput.value = items.serverUrl || DEFAULT_SERVER_URL;
     if (serverTokenInput) serverTokenInput.value = items.serverToken || "";
+    if (keywordModeConcatInput) keywordModeConcatInput.checked = keywordMode !== KEYWORD_MODE_SPACED;
+    if (keywordModeSpacedInput) keywordModeSpacedInput.checked = keywordMode === KEYWORD_MODE_SPACED;
 
     setConnectionStatus(false, "未测试");
 
@@ -123,7 +141,8 @@
         if (btnSave) btnSave.disabled = true;
         const serverUrl = serverUrlInput?.value || "";
         const serverToken = serverTokenInput?.value || "";
-        await saveConfig(serverUrl, serverToken);
+        const keywordMode = keywordModeSpacedInput?.checked ? KEYWORD_MODE_SPACED : DEFAULT_KEYWORD_MODE;
+        await saveConfig(serverUrl, serverToken, keywordMode);
         showMessage("✅ 已保存", "success");
         if (btnSave) btnSave.disabled = false;
       });
