@@ -27,6 +27,7 @@ export interface IngestResult {
   companyHits: string[];
   roleSignals: RoleSignalSummary[];
   tagEnvelope: TagEnvelopeEntry[];
+  taggingEnvelope: TaggingEnvelope;
   companyAliasTokens: string;
   ruleScores: Record<string, number>;  // jdId → score (0-100)
   primaryRuleScore: number;
@@ -43,6 +44,32 @@ export interface TagEnvelopeEntry {
   confidence: number;
   evidence: string[];
   version: number;
+}
+
+export type TaggingProvenanceStage =
+  | "industry_taxonomy"
+  | "synonym_expansion"
+  | "company_pattern_match"
+  | "role_signal_aggregation"
+  | "experience_signal_detection"
+  | "derived";
+
+export interface TaggingEnvelopeEntry {
+  tag: string;
+  source: TagEnvelopeSource;
+  confidence: number;
+  version: number;
+  provenance: {
+    stage: TaggingProvenanceStage;
+    generatedBy: "ingest-compute-service";
+    evidence: string[];
+  };
+}
+
+export interface TaggingEnvelope {
+  schemaVersion: number;
+  generatedAt: number;
+  entries: TaggingEnvelopeEntry[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -226,6 +253,25 @@ function createSearchText(item: ResumeItem): string {
   return normalizeText(parts.join(" "));
 }
 
+function inferTaggingStage(tag: string): TaggingProvenanceStage {
+  if (tag.startsWith("industry:")) {
+    return "industry_taxonomy";
+  }
+  if (tag.startsWith("synonym:")) {
+    return "synonym_expansion";
+  }
+  if (tag.startsWith("company:")) {
+    return "company_pattern_match";
+  }
+  if (tag.startsWith("role:")) {
+    return "role_signal_aggregation";
+  }
+  if (tag.startsWith("experience:")) {
+    return "experience_signal_detection";
+  }
+  return "derived";
+}
+
 const BRAND_CONTEXT_WINDOW = 30;
 const EQUIPMENT_SIGNALS = ["操作", "使用", "熟练", "熟悉", "机台", "机型", "设备", "机床"];
 const SALES_SIGNALS = ["销售", "代理", "渠道", "推广", "业务", "客户"];
@@ -280,6 +326,7 @@ export class IngestComputeService {
     const item = extractResumeItem(content);
     const index = buildResumeIndex(item, 0);
     const searchText = index.searchText.toLowerCase();
+    const computedAt = Date.now();
 
     // 1. Compute industryTags
     const industryTags = this.computeIndustryTags(searchText);
@@ -312,6 +359,7 @@ export class IngestComputeService {
       experienceLevel,
       skillsVersion,
     );
+    const taggingEnvelope = this.buildTaggingEnvelope(tagEnvelope, computedAt);
 
     return {
       resumeId,
@@ -321,11 +369,12 @@ export class IngestComputeService {
       companyHits,
       roleSignals,
       tagEnvelope,
+      taggingEnvelope,
       companyAliasTokens,
       ruleScores,
       primaryRuleScore,
       experienceLevel,
-      computedAt: Date.now(),
+      computedAt,
       skillsVersion,
     };
   }
@@ -616,6 +665,32 @@ export class IngestComputeService {
         return left.tag.localeCompare(right.tag);
       })
       .slice(0, 120);
+  }
+
+  private buildTaggingEnvelope(
+    tagEnvelope: TagEnvelopeEntry[],
+    generatedAt: number,
+  ): TaggingEnvelope {
+    const entries = tagEnvelope.map((entry) => {
+      const evidence = Array.from(new Set(entry.evidence.map((item) => item.trim()).filter((item) => item.length > 0)));
+      return {
+        tag: entry.tag,
+        source: entry.source,
+        confidence: entry.confidence,
+        version: entry.version,
+        provenance: {
+          stage: inferTaggingStage(entry.tag),
+          generatedBy: "ingest-compute-service" as const,
+          evidence: evidence.length > 0 ? evidence : [`tag:${entry.tag}`],
+        },
+      };
+    });
+
+    return {
+      schemaVersion: 1,
+      generatedAt,
+      entries,
+    };
   }
 
   /**

@@ -284,6 +284,21 @@ export const updateIngestData = internalMutation({
                 evidence: v.array(v.string()),
                 version: v.number(),
             }))),
+            taggingEnvelope: v.optional(v.object({
+                schemaVersion: v.number(),
+                generatedAt: v.number(),
+                entries: v.array(v.object({
+                    tag: v.string(),
+                    source: v.string(),
+                    confidence: v.number(),
+                    version: v.number(),
+                    provenance: v.object({
+                        stage: v.string(),
+                        generatedBy: v.string(),
+                        evidence: v.array(v.string()),
+                    }),
+                })),
+            })),
             ruleScores: v.any(),
             experienceLevel: v.string(),
             computedAt: v.number(),
@@ -351,6 +366,21 @@ export const updateIngestDataBatch = internalMutation({
                     evidence: v.array(v.string()),
                     version: v.number(),
                 }))),
+                taggingEnvelope: v.optional(v.object({
+                    schemaVersion: v.number(),
+                    generatedAt: v.number(),
+                    entries: v.array(v.object({
+                        tag: v.string(),
+                        source: v.string(),
+                        confidence: v.number(),
+                        version: v.number(),
+                        provenance: v.object({
+                            stage: v.string(),
+                            generatedBy: v.string(),
+                            evidence: v.array(v.string()),
+                        }),
+                    })),
+                })),
                 ruleScores: v.any(),
                 experienceLevel: v.string(),
                 computedAt: v.number(),

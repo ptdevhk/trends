@@ -118,6 +118,21 @@ export default defineSchema({
                 evidence: v.array(v.string()),
                 version: v.number(),
             }))),
+            taggingEnvelope: v.optional(v.object({
+                schemaVersion: v.number(),
+                generatedAt: v.number(),
+                entries: v.array(v.object({
+                    tag: v.string(),
+                    source: v.string(),
+                    confidence: v.number(),
+                    version: v.number(),
+                    provenance: v.object({
+                        stage: v.string(),
+                        generatedBy: v.string(),
+                        evidence: v.array(v.string()),
+                    }),
+                })),
+            })),
             ruleScores: v.any(),          // Record<string, number> — JD ID → score
             experienceLevel: v.string(),  // "senior" | "mid" | "junior" | "unknown"
             computedAt: v.number(),

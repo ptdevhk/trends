@@ -308,9 +308,15 @@ describe("IngestComputeService", () => {
     const industryTag = result.tagEnvelope.find((item) => item.tag === "industry:cnc");
     const roleTag = result.tagEnvelope.find((item) => item.tag === "role:sales");
     const companyTag = result.tagEnvelope.find((item) => item.tag === "company:star");
+    const taggingIndustryTag = result.taggingEnvelope.entries.find((item) => item.tag === "industry:cnc");
+    const taggingRoleTag = result.taggingEnvelope.entries.find((item) => item.tag === "role:sales");
+    const taggingCompanyTag = result.taggingEnvelope.entries.find((item) => item.tag === "company:star");
 
     expect(Array.isArray(result.tagEnvelope)).toBe(true);
     expect(result.tagEnvelope.length).toBeGreaterThan(0);
+    expect(result.taggingEnvelope.schemaVersion).toBe(1);
+    expect(result.taggingEnvelope.generatedAt).toBeGreaterThan(0);
+    expect(result.taggingEnvelope.entries.length).toBe(result.tagEnvelope.length);
 
     expect(industryTag).toBeDefined();
     expect(industryTag?.source).toBe("rule");
@@ -323,6 +329,11 @@ describe("IngestComputeService", () => {
 
     expect(companyTag).toBeDefined();
     expect(companyTag?.evidence.some((entry) => entry.startsWith("brandSource:"))).toBe(true);
+
+    expect(taggingIndustryTag?.provenance.stage).toBe("industry_taxonomy");
+    expect(taggingIndustryTag?.provenance.generatedBy).toBe("ingest-compute-service");
+    expect(taggingRoleTag?.provenance.stage).toBe("role_signal_aggregation");
+    expect(taggingCompanyTag?.provenance.stage).toBe("company_pattern_match");
   });
 
   it("should classify selfIntro brand mentions as equipment context", () => {

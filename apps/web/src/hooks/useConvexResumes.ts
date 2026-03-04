@@ -39,6 +39,21 @@ export type ConvexIngestData = {
     evidence: string[]
     version: number
   }>
+  taggingEnvelope?: {
+    schemaVersion: number
+    generatedAt: number
+    entries: Array<{
+      tag: string
+      source: string
+      confidence: number
+      version: number
+      provenance: {
+        stage: string
+        generatedBy: string
+        evidence: string[]
+      }
+    }>
+  }
   ruleScores: Record<string, number>
   experienceLevel: string
   computedAt: number
@@ -272,6 +287,104 @@ function parseTagEnvelope(value: unknown): ConvexIngestData['tagEnvelope'] {
   return parsed.length > 0 ? parsed : undefined
 }
 
+function inferTaggingStage(tag: string): string {
+  if (tag.startsWith('industry:')) {
+    return 'industry_taxonomy'
+  }
+  if (tag.startsWith('synonym:')) {
+    return 'synonym_expansion'
+  }
+  if (tag.startsWith('company:')) {
+    return 'company_pattern_match'
+  }
+  if (tag.startsWith('role:')) {
+    return 'role_signal_aggregation'
+  }
+  if (tag.startsWith('experience:')) {
+    return 'experience_signal_detection'
+  }
+  return 'derived'
+}
+
+function parseTaggingEnvelope(value: unknown): ConvexIngestData['taggingEnvelope'] {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const schemaVersion = toNumber(value.schemaVersion)
+  const generatedAt = toNumber(value.generatedAt)
+  if (schemaVersion === null || generatedAt === null || !Array.isArray(value.entries)) {
+    return undefined
+  }
+
+  const entries = value.entries
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null
+      }
+
+      const tag = toStringValue(item.tag).trim().toLowerCase()
+      const source = toStringValue(item.source).trim().toLowerCase()
+      const confidence = toNumber(item.confidence)
+      const version = toNumber(item.version)
+      const provenance = isRecord(item.provenance) ? item.provenance : null
+      const stage = provenance ? toStringValue(provenance.stage).trim().toLowerCase() : ''
+      const generatedBy = provenance ? toStringValue(provenance.generatedBy).trim() : ''
+
+      if (!tag || !source || confidence === null || version === null || !stage || !generatedBy) {
+        return null
+      }
+
+      return {
+        tag,
+        source,
+        confidence,
+        version,
+        provenance: {
+          stage,
+          generatedBy,
+          evidence: provenance ? toStringArray(provenance.evidence) : [],
+        },
+      }
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+
+  if (entries.length === 0) {
+    return undefined
+  }
+
+  return {
+    schemaVersion,
+    generatedAt,
+    entries,
+  }
+}
+
+function parseLegacyTaggingEnvelope(
+  tagEnvelope: ConvexIngestData['tagEnvelope'],
+  generatedAt: number
+): ConvexIngestData['taggingEnvelope'] {
+  if (!tagEnvelope || tagEnvelope.length === 0) {
+    return undefined
+  }
+
+  return {
+    schemaVersion: 1,
+    generatedAt,
+    entries: tagEnvelope.map((entry) => ({
+      tag: entry.tag,
+      source: entry.source,
+      confidence: entry.confidence,
+      version: entry.version,
+      provenance: {
+        stage: inferTaggingStage(entry.tag),
+        generatedBy: 'legacy-tag-envelope-bridge',
+        evidence: entry.evidence,
+      },
+    })),
+  }
+}
+
 function parseAnalysesMap(value: unknown): Record<string, ConvexResumeAnalysis> | undefined {
   if (!isRecord(value)) {
     return undefined
@@ -298,6 +411,10 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
   if (computedAt === null || skillsVersion === null) {
     return undefined
   }
+
+  const tagEnvelope = parseTagEnvelope(value.tagEnvelope)
+  const taggingEnvelope = parseTaggingEnvelope(value.taggingEnvelope)
+    ?? parseLegacyTaggingEnvelope(tagEnvelope, computedAt)
 
   return {
     industryTags: toStringArray(value.industryTags),
@@ -326,7 +443,8 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
           })
           .filter((item): item is NonNullable<typeof item> => item !== null)
       : undefined,
-    tagEnvelope: parseTagEnvelope(value.tagEnvelope),
+    tagEnvelope,
+    taggingEnvelope,
     ruleScores: parseRuleScores(value.ruleScores),
     experienceLevel: toStringValue(value.experienceLevel) || 'unknown',
     computedAt,

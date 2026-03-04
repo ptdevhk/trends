@@ -51,6 +51,20 @@ function toBrandLabel(value: string): string {
   return value.toUpperCase()
 }
 
+function formatTaggingEntry(entry: {
+  tag: string
+  source: string
+  confidence: number
+  provenance: {
+    stage: string
+    evidence: string[]
+  }
+}): string {
+  const evidence = entry.provenance.evidence.slice(0, 2).join(' | ')
+  const evidenceSuffix = evidence ? `; ${evidence}` : ''
+  return `${entry.tag} (${entry.source}, ${entry.confidence}, ${entry.provenance.stage}${evidenceSuffix})`
+}
+
 export default function DebugIngest() {
   const { t } = useTranslation()
   const { resumes, loading } = useConvexResumes(500)
@@ -414,6 +428,15 @@ export default function DebugIngest() {
                               <div>
                                 <span className="font-medium">{t('debugIngest.ruleScoreCount', { defaultValue: 'Rule Scores' })}:</span>{' '}
                                 {Object.keys(ingestData.ruleScores || {}).length}
+                              </div>
+                              <div className="md:col-span-2">
+                                <span className="font-medium">{t('debugIngest.taggingEnvelope', { defaultValue: 'Tagging Envelope' })}:</span>{' '}
+                                {ingestData.taggingEnvelope?.entries?.length
+                                  ? ingestData.taggingEnvelope.entries
+                                    .slice(0, 8)
+                                    .map((entry) => formatTaggingEntry(entry))
+                                    .join('; ')
+                                  : '--'}
                               </div>
                             </div>
                           ) : (
