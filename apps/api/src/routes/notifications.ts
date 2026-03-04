@@ -52,7 +52,7 @@ const templateIdSchema = z
 const templateDataSchema = z.record(z.unknown());
 
 const previewSchema = z.object({
-    channel: z.enum(["email", "wechat_work"]),
+    channel: z.enum(["email", "wechat_work", "feishu"]),
     templateId: templateIdSchema,
     data: templateDataSchema,
 });
@@ -67,6 +67,12 @@ const sendTemplateSchema = z.discriminatedUnion("channel", [
     }),
     z.object({
         channel: z.literal("wechat_work"),
+        templateId: templateIdSchema,
+        webhookUrl: z.string().url().optional(),
+        data: templateDataSchema,
+    }),
+    z.object({
+        channel: z.literal("feishu"),
         templateId: templateIdSchema,
         webhookUrl: z.string().url().optional(),
         data: templateDataSchema,
@@ -221,7 +227,15 @@ app.post(
                 return c.json({ success: true, channel: payload.channel, messageId });
             }
 
-            const result = await notificationService.sendWechatWorkMarkdown({
+            if (payload.channel === "wechat_work") {
+                const result = await notificationService.sendWechatWorkMarkdown({
+                    webhookUrl: payload.webhookUrl,
+                    content: rendered.markdown,
+                });
+                return c.json({ success: true, channel: payload.channel, ...result });
+            }
+
+            const result = await notificationService.sendFeishuText({
                 webhookUrl: payload.webhookUrl,
                 content: rendered.markdown,
             });
