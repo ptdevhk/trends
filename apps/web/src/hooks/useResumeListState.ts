@@ -106,6 +106,8 @@ function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFil
   return {
     minExperience: normalizeOptionalNumber(filters.minExperience),
     maxExperience: normalizeOptionalNumber(filters.maxExperience),
+    minRoleYears: normalizeOptionalNumber(filters.minRoleYears),
+    roleFilterType: normalizeOptionalString(filters.roleFilterType),
     minAge: normalizeOptionalNumber(filters.minAge),
     maxAge: normalizeOptionalNumber(filters.maxAge),
     education: normalizeFilterList(filters.education),

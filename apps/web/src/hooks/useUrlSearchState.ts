@@ -13,6 +13,8 @@ const KNOWN_PARAM_KEYS = [
   'exp',
   'minExp',
   'maxExp',
+  'minRoleYears',
+  'roleType',
   'minAge',
   'maxAge',
   'edu',
@@ -197,6 +199,16 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.education = education
   }
 
+  const minRoleYears = parseNumberParam(searchParams.get('minRoleYears'))
+  if (typeof minRoleYears === 'number') {
+    filters.minRoleYears = minRoleYears
+  }
+
+  const roleFilterType = searchParams.get('roleType')?.trim()
+  if (roleFilterType && roleFilterType.length > 0) {
+    filters.roleFilterType = roleFilterType
+  }
+
   const minAge = parseNumberParam(searchParams.get('minAge'))
   if (typeof minAge === 'number') {
     filters.minAge = minAge
@@ -285,6 +297,14 @@ export function useUrlSearchState() {
 
         if (typeof state.filters.maxExperience === 'number' && Number.isFinite(state.filters.maxExperience)) {
           setParam(nextParams, 'maxExp', String(state.filters.maxExperience))
+        }
+
+        if (typeof state.filters.minRoleYears === 'number' && Number.isFinite(state.filters.minRoleYears)) {
+          setParam(nextParams, 'minRoleYears', String(state.filters.minRoleYears))
+        }
+
+        if (state.filters.roleFilterType && state.filters.roleFilterType.trim().length > 0) {
+          setParam(nextParams, 'roleType', state.filters.roleFilterType.trim())
         }
 
         if (typeof state.filters.minAge === 'number' && Number.isFinite(state.filters.minAge)) {
