@@ -19,6 +19,16 @@ export type ResumeFilters = {
   sortOrder?: 'asc' | 'desc'
 }
 
+export type TagEnvelopeSource = 'rule' | 'ai'
+
+export type TagEnvelopeEntry = {
+  tag: string
+  source: TagEnvelopeSource
+  confidence: number
+  evidence: string[]
+  version: number
+}
+
 export type Recommendation = 'strong_match' | 'match' | 'potential' | 'no_match'
 export type ScoreSource = 'rule' | 'ai'
 export type CandidateStatus =

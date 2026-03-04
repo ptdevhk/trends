@@ -94,6 +94,7 @@ export const processNewResumes = internalAction({
           brandHits: item.brandHits || [],
           companyHits: item.companyHits || [],
           roleSignals: item.roleSignals || [],
+          tagEnvelope: item.tagEnvelope || [],
           ruleScores: item.ruleScores,
           experienceLevel: item.experienceLevel,
           computedAt: item.computedAt,

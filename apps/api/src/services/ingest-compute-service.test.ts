@@ -302,6 +302,29 @@ describe("IngestComputeService", () => {
     expect(engineerRole?.years).toBeGreaterThan(0);
   });
 
+  it("should build tag envelope with confidence and provenance", () => {
+    const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
+
+    const industryTag = result.tagEnvelope.find((item) => item.tag === "industry:cnc");
+    const roleTag = result.tagEnvelope.find((item) => item.tag === "role:sales");
+    const companyTag = result.tagEnvelope.find((item) => item.tag === "company:star");
+
+    expect(Array.isArray(result.tagEnvelope)).toBe(true);
+    expect(result.tagEnvelope.length).toBeGreaterThan(0);
+
+    expect(industryTag).toBeDefined();
+    expect(industryTag?.source).toBe("rule");
+    expect(industryTag?.confidence).toBeGreaterThan(0);
+    expect(industryTag?.version).toBe(42);
+
+    expect(roleTag).toBeDefined();
+    expect(roleTag?.source).toBe("rule");
+    expect(roleTag?.evidence).toEqual(expect.arrayContaining(["roleType:sales"]));
+
+    expect(companyTag).toBeDefined();
+    expect(companyTag?.evidence.some((entry) => entry.startsWith("brandSource:"))).toBe(true);
+  });
+
   it("should classify selfIntro brand mentions as equipment context", () => {
     const equipmentResume = {
       data: [
