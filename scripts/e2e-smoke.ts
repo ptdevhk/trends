@@ -1,6 +1,42 @@
 import { connectToChrome, waitForToast, DEFAULT_OPTIONS } from './e2e-utils';
 import { Page, expect } from '@playwright/test';
 
+async function runCollectUrlKeywordModeTest(page: Page) {
+    console.log('Testing Quick Start Collect URL keyword concat mode...');
+    await page.goto(
+        `${DEFAULT_OPTIONS.baseUrl}/dev/resumes?location=${encodeURIComponent('东莞')}&keyword=${encodeURIComponent('CNC 车床 销售 STAR')}`
+    );
+
+    await page.evaluate(() => {
+        const scope = window as unknown as { __openedUrls?: string[] };
+        scope.__openedUrls = [];
+        window.open = ((url?: string | URL) => {
+            if (typeof url === 'string') {
+                scope.__openedUrls?.push(url);
+            } else if (url) {
+                scope.__openedUrls?.push(String(url));
+            }
+            return null;
+        }) as typeof window.open;
+    });
+
+    await page.getByRole('button', { name: /采集|Collect/i }).click();
+
+    const openedUrls = await page.evaluate(() => {
+        const scope = window as unknown as { __openedUrls?: string[] };
+        return Array.isArray(scope.__openedUrls) ? scope.__openedUrls : [];
+    });
+
+    expect(openedUrls.length).toBeGreaterThan(0);
+    const openedUrl = new URL(openedUrls[0]);
+    expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://hr.job5156.com/search');
+    expect(openedUrl.searchParams.get('keyword')).toBe('CNC车床销售STAR');
+    expect(openedUrl.searchParams.get('location')).toBe('东莞');
+    expect(openedUrl.searchParams.get('tr_auto_sync')).toBe('true');
+
+    console.log('✅ Collect URL keyword concat test passed.');
+}
+
 async function runCollectionTest(page: Page) {
     console.log('Testing Critical Path 1: Resume Collection...');
     await page.goto(`${DEFAULT_OPTIONS.baseUrl}/system/settings`);
@@ -125,9 +161,15 @@ async function runErrorStateTest(page: Page) {
 }
 
 async function main() {
+    const collectOnly = process.argv.includes('--collect-only');
     const { browser, page } = await connectToChrome();
 
     try {
+        await runCollectUrlKeywordModeTest(page);
+        if (collectOnly) {
+            console.log('\n🌟 Collect URL smoke test passed!');
+            return;
+        }
         await runCollectionTest(page);
         await runSearchTest(page);
         await runAnalysisTest(page);
