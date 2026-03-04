@@ -221,6 +221,11 @@ type ReIngestStaleSkillsVersionResult = {
     hasMore: boolean;
 };
 
+type ReIngestAllResumesResult = {
+    scheduled: number;
+    batches: number;
+};
+
 export const backfillSearchText = mutation({
     args: {},
     handler: async (ctx) => {
@@ -424,6 +429,13 @@ export const reIngestStaleSkillsVersion = action({
         return await ctx.runAction(internal.ingest_agent.reIngestStaleResumes, {
             limit: args.limit,
         });
+    },
+});
+
+export const reIngestAllResumes = action({
+    args: {},
+    handler: async (ctx): Promise<ReIngestAllResumesResult> => {
+        return await ctx.runAction(internal.ingest_agent.reIngestAllResumes, {});
     },
 });
 
