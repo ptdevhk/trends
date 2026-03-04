@@ -266,6 +266,8 @@ export const seedWorkspaceDemoData = mutation({
                     "auto_match:",
                     "  keywords:",
                     "    - \"车床销售\"",
+                    "    - \"机床\"",
+                    "    - \"销售\"",
                     "  locations:",
                     "    - \"广东\"",
                     "  priority: 60",
@@ -286,7 +288,7 @@ export const seedWorkspaceDemoData = mutation({
                     "",
                     "# 关键词",
                     "",
-                    "车床销售",
+                    "车床销售, 机床, 销售",
                 ].join("\n"),
             },
             {
