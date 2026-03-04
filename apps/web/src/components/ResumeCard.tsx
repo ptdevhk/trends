@@ -26,6 +26,7 @@ interface ResumeCardProps {
   ruleScore?: number
   industryTags?: string[]
   companyHits?: string[]
+  roleTypes?: string[]
   experienceLevel?: string
   onTagClick?: (tag: string) => void
   onCompanyClick?: (company: string) => void
@@ -122,6 +123,7 @@ export function ResumeCard({
   isReviewed,
   industryTags,
   companyHits,
+  roleTypes,
   experienceLevel,
   onTagClick,
   onCompanyClick,
@@ -216,7 +218,11 @@ export function ResumeCard({
           : null
 
   return (
-    <div className="mb-3 overflow-hidden rounded-lg border bg-card">
+    <div
+      className="mb-3 overflow-hidden rounded-lg border bg-card"
+      data-testid="resume-card"
+      data-role-types={(roleTypes ?? []).join(',')}
+    >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b bg-muted/50 px-4 py-2 text-sm">
         <span className="text-muted-foreground">求职意向</span>
         <span className="font-medium">{jobIntention}</span>
