@@ -32,6 +32,13 @@ export type ConvexIngestData = {
     years: number
     verifyIn: string
   }>
+  tagEnvelope?: Array<{
+    tag: string
+    source: string
+    confidence: number
+    evidence: string[]
+    version: number
+  }>
   ruleScores: Record<string, number>
   experienceLevel: string
   computedAt: number
@@ -232,6 +239,39 @@ function parseBrandHits(value: unknown): ConvexIngestData['brandHits'] {
     .filter((item): item is NonNullable<typeof item> => item !== null)
 }
 
+function parseTagEnvelope(value: unknown): ConvexIngestData['tagEnvelope'] {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  const parsed = value
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null
+      }
+
+      const tag = toStringValue(item.tag).trim().toLowerCase()
+      const source = toStringValue(item.source).trim().toLowerCase()
+      const confidence = toNumber(item.confidence)
+      const version = toNumber(item.version)
+
+      if (!tag || !source || confidence === null || version === null) {
+        return null
+      }
+
+      return {
+        tag,
+        source,
+        confidence,
+        evidence: toStringArray(item.evidence),
+        version,
+      }
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+
+  return parsed.length > 0 ? parsed : undefined
+}
+
 function parseAnalysesMap(value: unknown): Record<string, ConvexResumeAnalysis> | undefined {
   if (!isRecord(value)) {
     return undefined
@@ -286,6 +326,7 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
           })
           .filter((item): item is NonNullable<typeof item> => item !== null)
       : undefined,
+    tagEnvelope: parseTagEnvelope(value.tagEnvelope),
     ruleScores: parseRuleScores(value.ruleScores),
     experienceLevel: toStringValue(value.experienceLevel) || 'unknown',
     computedAt,

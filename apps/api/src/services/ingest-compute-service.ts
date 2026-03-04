@@ -26,12 +26,23 @@ export interface IngestResult {
   brandHits: BrandHit[];
   companyHits: string[];
   roleSignals: RoleSignalSummary[];
+  tagEnvelope: TagEnvelopeEntry[];
   companyAliasTokens: string;
   ruleScores: Record<string, number>;  // jdId → score (0-100)
   primaryRuleScore: number;
   experienceLevel: string;
   computedAt: number;
   skillsVersion: number;
+}
+
+export type TagEnvelopeSource = "rule" | "ai";
+
+export interface TagEnvelopeEntry {
+  tag: string;
+  source: TagEnvelopeSource;
+  confidence: number;
+  evidence: string[];
+  version: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -292,6 +303,15 @@ export class IngestComputeService {
 
     // 6. Get skills version
     const skillsVersion = this.skillsKnowledgeService.getVersion();
+    const tagEnvelope = this.buildTagEnvelope(
+      industryTags,
+      synonymHits,
+      companyHits,
+      brandHits,
+      roleSignals,
+      experienceLevel,
+      skillsVersion,
+    );
 
     return {
       resumeId,
@@ -300,6 +320,7 @@ export class IngestComputeService {
       brandHits,
       companyHits,
       roleSignals,
+      tagEnvelope,
       companyAliasTokens,
       ruleScores,
       primaryRuleScore,
@@ -463,6 +484,138 @@ export class IngestComputeService {
       years: Number(value.years.toFixed(2)),
       verifyIn: "workHistory",
     }));
+  }
+
+  private upsertTagEnvelopeEntry(
+    entryMap: Map<string, TagEnvelopeEntry>,
+    tag: string,
+    confidence: number,
+    evidence: string[],
+    version: number,
+  ): void {
+    const normalizedTag = tag.trim().toLowerCase();
+    if (!normalizedTag) {
+      return;
+    }
+
+    const boundedConfidence = Math.max(0, Math.min(100, Math.round(confidence)));
+    const normalizedEvidence = Array.from(
+      new Set(
+        evidence
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0)
+      )
+    );
+
+    const existing = entryMap.get(normalizedTag);
+    if (!existing) {
+      entryMap.set(normalizedTag, {
+        tag: normalizedTag,
+        source: "rule",
+        confidence: boundedConfidence,
+        evidence: normalizedEvidence,
+        version,
+      });
+      return;
+    }
+
+    if (boundedConfidence > existing.confidence) {
+      existing.confidence = boundedConfidence;
+    }
+
+    existing.version = Math.max(existing.version, version);
+    existing.source = "rule";
+    for (const hint of normalizedEvidence) {
+      if (!existing.evidence.includes(hint)) {
+        existing.evidence.push(hint);
+      }
+    }
+  }
+
+  private buildTagEnvelope(
+    industryTags: string[],
+    synonymHits: string[],
+    companyHits: string[],
+    brandHits: BrandHit[],
+    roleSignals: RoleSignalSummary[],
+    experienceLevel: string,
+    skillsVersion: number,
+  ): TagEnvelopeEntry[] {
+    const envelope = new Map<string, TagEnvelopeEntry>();
+
+    for (const tag of industryTags) {
+      this.upsertTagEnvelopeEntry(
+        envelope,
+        `industry:${tag}`,
+        85,
+        [`industryTag:${tag}`],
+        skillsVersion,
+      );
+    }
+
+    for (const hit of synonymHits) {
+      this.upsertTagEnvelopeEntry(
+        envelope,
+        `synonym:${hit}`,
+        70,
+        [`synonymHit:${hit}`],
+        skillsVersion,
+      );
+    }
+
+    for (const company of companyHits) {
+      const evidence = brandHits
+        .filter((hit) => hit.brand === company)
+        .slice(0, 6)
+        .flatMap((hit) => [`brandSource:${hit.source}`, `brandContext:${hit.context}`]);
+
+      this.upsertTagEnvelopeEntry(
+        envelope,
+        `company:${company}`,
+        80,
+        evidence.length > 0 ? evidence : [`companyHit:${company}`],
+        skillsVersion,
+      );
+    }
+
+    for (const signal of roleSignals) {
+      const yearsBoost = Math.min(signal.years, 10) * 2.5;
+      const signalBoost = Math.min(signal.signalCount, 5) * 4;
+      const occurrenceBoost = Math.min(signal.occurrences, 6) * 2.5;
+      const confidence = Math.min(95, 45 + yearsBoost + signalBoost + occurrenceBoost);
+      const evidence = [
+        `roleType:${signal.type}`,
+        `verifyIn:${signal.verifyIn}`,
+        ...signal.matchedSignals.slice(0, 6).map((matched) => `signal:${matched}`),
+      ];
+
+      this.upsertTagEnvelopeEntry(
+        envelope,
+        `role:${signal.type}`,
+        confidence,
+        evidence,
+        skillsVersion,
+      );
+    }
+
+    if (experienceLevel && experienceLevel !== "unknown") {
+      this.upsertTagEnvelopeEntry(
+        envelope,
+        `experience:${experienceLevel}`,
+        75,
+        [`experienceLevel:${experienceLevel}`],
+        skillsVersion,
+      );
+    }
+
+    return Array.from(envelope.values())
+      .sort((left, right) => {
+        if (right.confidence !== left.confidence) {
+          return right.confidence - left.confidence;
+        }
+        return left.tag.localeCompare(right.tag);
+      })
+      .slice(0, 120);
   }
 
   /**
