@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
 function getSearchTarget(resume: ConvexResumeItem): string {
   return [
@@ -65,6 +66,7 @@ export default function DebugIngest() {
   const [reingesting, setReingesting] = useState(false)
   const [clearingAnalyses, setClearingAnalyses] = useState(false)
   const [resettingDatabase, setResettingDatabase] = useState(false)
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
 
   const apiBaseUrl = useMemo(() => {
     const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
@@ -172,20 +174,12 @@ export default function DebugIngest() {
   }, [clearAnalysesMutation, t])
 
   const resetDatabase = useCallback(async () => {
-    const confirmed = window.confirm(
-      t('debugIngest.resetDatabaseConfirm', {
-        defaultValue: 'Delete all resume data and task records? This cannot be undone.',
-      })
-    )
-    if (!confirmed) {
-      return
-    }
-
     setResettingDatabase(true)
     try {
       const result = await resetDatabaseMutation({})
       setSearch('')
       setExpandedIds(new Set())
+      setResetDialogOpen(false)
       toast.success(
         t('debugIngest.resetDatabaseSuccess', {
           count: result.count,
@@ -265,11 +259,59 @@ export default function DebugIngest() {
           <Trash2 className={`mr-2 h-4 w-4 ${clearingAnalyses ? 'animate-spin' : ''}`} />
           {t('debugIngest.clearAnalyses', { defaultValue: 'Reset AI Analyses' })}
         </Button>
-        <Button variant="destructive" onClick={() => void resetDatabase()} disabled={resettingDatabase}>
+        <Button variant="destructive" onClick={() => setResetDialogOpen(true)} disabled={resettingDatabase}>
           <Trash2 className={`mr-2 h-4 w-4 ${resettingDatabase ? 'animate-spin' : ''}`} />
           {t('debugIngest.resetDatabase', { defaultValue: 'Clear Resume Database' })}
         </Button>
       </div>
+
+      <Dialog
+        open={resetDialogOpen}
+        onOpenChange={(open) => {
+          if (!resettingDatabase) {
+            setResetDialogOpen(open)
+          }
+        }}
+      >
+        <DialogContent
+          onEscapeKeyDown={(event) => {
+            if (resettingDatabase) {
+              event.preventDefault()
+            }
+          }}
+          onPointerDownOutside={(event) => {
+            if (resettingDatabase) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t('debugIngest.resetDatabase', { defaultValue: 'Clear Resume Database' })}</DialogTitle>
+            <DialogDescription>
+              {t('debugIngest.resetDatabaseConfirm', {
+                defaultValue: 'Delete all resume data and task records? This cannot be undone.',
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setResetDialogOpen(false)}
+              disabled={resettingDatabase}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void resetDatabase()}
+              disabled={resettingDatabase}
+            >
+              <Trash2 className={`mr-2 h-4 w-4 ${resettingDatabase ? 'animate-spin' : ''}`} />
+              {t('debugIngest.resetDatabase', { defaultValue: 'Clear Resume Database' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="rounded-md border">
         <Table>

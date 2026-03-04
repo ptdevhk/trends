@@ -8,7 +8,7 @@ import { SchedulerStatus } from '@/components/SchedulerStatus'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { withWorkspaceHeaders } from '@/lib/workspace-ref'
@@ -421,6 +421,10 @@ export default function DebugConfig() {
 
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null)
   const [savingCustomKeyword, setSavingCustomKeyword] = useState(false)
+  const [deletingCustomKeyword, setDeletingCustomKeyword] = useState(false)
+  const [deleteCustomKeywordTargetId, setDeleteCustomKeywordTargetId] = useState<string | null>(null)
+  const [resetDatabaseDialogOpen, setResetDatabaseDialogOpen] = useState(false)
+  const [resettingDatabase, setResettingDatabase] = useState(false)
 
   const [customKeywordDialogOpen, setCustomKeywordDialogOpen] = useState(false)
   const [editingCustomKeywordId, setEditingCustomKeywordId] = useState<string | null>(null)
@@ -435,12 +439,16 @@ export default function DebugConfig() {
   const resetDatabase = useMutation(api.resume_tasks.resetDatabase)
 
   const handleResetDatabase = useCallback(async () => {
+    setResettingDatabase(true)
     try {
       await resetDatabase()
+      setResetDatabaseDialogOpen(false)
       toast.success('Database has been reset')
     } catch (error) {
       console.error('Failed to reset database', error)
       toast.error('Failed to reset database')
+    } finally {
+      setResettingDatabase(false)
     }
   }, [resetDatabase])
 
@@ -699,26 +707,26 @@ export default function DebugConfig() {
     }
   }, [buildCustomKeywordFromForm, editingCustomKeywordId, loadCustomKeywords, requestJson, t])
 
-  const handleDeleteCustomKeyword = useCallback(
-    async (tagId: string) => {
-      const confirmed = window.confirm(t('debugConfig.confirmDelete'))
-      if (!confirmed) {
-        return
-      }
+  const handleDeleteCustomKeyword = useCallback(async () => {
+    if (!deleteCustomKeywordTargetId) {
+      return
+    }
 
-      try {
-        await requestJson(`/api/config/custom-keywords/${encodeURIComponent(tagId)}`, {
-          method: 'DELETE',
-        })
-        await loadCustomKeywords()
-        toast.success(t('debugConfig.saved'))
-      } catch (error) {
-        console.error('Failed to delete custom keyword', error)
-        toast.error(t('debugConfig.saveError'))
-      }
-    },
-    [loadCustomKeywords, requestJson, t],
-  )
+    setDeletingCustomKeyword(true)
+    try {
+      await requestJson(`/api/config/custom-keywords/${encodeURIComponent(deleteCustomKeywordTargetId)}`, {
+        method: 'DELETE',
+      })
+      await loadCustomKeywords()
+      setDeleteCustomKeywordTargetId(null)
+      toast.success(t('debugConfig.saved'))
+    } catch (error) {
+      console.error('Failed to delete custom keyword', error)
+      toast.error(t('debugConfig.saveError'))
+    } finally {
+      setDeletingCustomKeyword(false)
+    }
+  }, [deleteCustomKeywordTargetId, loadCustomKeywords, requestJson, t])
 
   const handleStartCollection = useCallback(async () => {
     if (!collectionKeyword.trim()) {
@@ -1059,9 +1067,7 @@ export default function DebugConfig() {
                             variant="destructive"
                             size="sm"
                             onClick={() => {
-                              handleDeleteCustomKeyword(tag.id).catch((error) => {
-                                console.error('Unexpected handleDeleteCustomKeyword failure', error)
-                              })
+                              setDeleteCustomKeywordTargetId(tag.id)
                             }}
                           >
                             {t('debugConfig.deleteCustomKeyword')}
@@ -1203,6 +1209,53 @@ export default function DebugConfig() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={deleteCustomKeywordTargetId !== null}
+        onOpenChange={(open) => {
+          if (!open && !deletingCustomKeyword) {
+            setDeleteCustomKeywordTargetId(null)
+          }
+        }}
+      >
+        <DialogContent
+          onEscapeKeyDown={(event) => {
+            if (deletingCustomKeyword) {
+              event.preventDefault()
+            }
+          }}
+          onPointerDownOutside={(event) => {
+            if (deletingCustomKeyword) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t('debugConfig.deleteCustomKeyword')}</DialogTitle>
+            <DialogDescription>{t('debugConfig.confirmDelete')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteCustomKeywordTargetId(null)}
+              disabled={deletingCustomKeyword}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                handleDeleteCustomKeyword().catch((error) => {
+                  console.error('Unexpected handleDeleteCustomKeyword failure', error)
+                })
+              }}
+              disabled={deletingCustomKeyword}
+            >
+              {t('debugConfig.deleteCustomKeyword')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Card className="border-destructive/50">
         <CardHeader>
           <CardTitle className="text-destructive">{t('debugConfig.dangerZone')}</CardTitle>
@@ -1221,16 +1274,62 @@ export default function DebugConfig() {
             <Button
               variant="destructive"
               onClick={() => {
-                if (window.confirm(t('debugConfig.resetDatabaseConfirm'))) {
-                  handleResetDatabase()
-                }
+                setResetDatabaseDialogOpen(true)
               }}
+              disabled={resettingDatabase}
             >
               {t('debugConfig.resetDatabase')}
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={resetDatabaseDialogOpen}
+        onOpenChange={(open) => {
+          if (!resettingDatabase) {
+            setResetDatabaseDialogOpen(open)
+          }
+        }}
+      >
+        <DialogContent
+          onEscapeKeyDown={(event) => {
+            if (resettingDatabase) {
+              event.preventDefault()
+            }
+          }}
+          onPointerDownOutside={(event) => {
+            if (resettingDatabase) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t('debugConfig.resetDatabase')}</DialogTitle>
+            <DialogDescription>{t('debugConfig.resetDatabaseConfirm')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setResetDatabaseDialogOpen(false)}
+              disabled={resettingDatabase}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                handleResetDatabase().catch((error) => {
+                  console.error('Unexpected handleResetDatabase failure', error)
+                })
+              }}
+              disabled={resettingDatabase}
+            >
+              {t('debugConfig.resetDatabase')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
 
     </div>
