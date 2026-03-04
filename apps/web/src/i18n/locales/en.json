@@ -309,6 +309,12 @@
     "maxAge": "Max Age",
     "maxAgePlaceholder": "Any",
     "ageUnit": "",
+    "jdProfile": {
+      "title": "JD Profile",
+      "exp": "Exp",
+      "age": "Age",
+      "noData": "No structured fields, click edit to add"
+    },
     "location": "Location",
     "customKeywords": "Keywords",
     "manualJd": "Manual JD (Optional)",

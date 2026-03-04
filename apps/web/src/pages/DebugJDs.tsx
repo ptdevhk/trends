@@ -423,11 +423,11 @@ export default function DebugJDs() {
                                         ) : '—'}
                                     </TableCell>
                                     <TableCell className="text-sm">
-                                        {typeof jd.minExperience === 'number' ? `${jd.minExperience}年` : '—'}
+                                        {typeof jd.minExperience === 'number' ? `${jd.minExperience}${t('jdEditor.years', { defaultValue: '年' })}` : '—'}
                                     </TableCell>
                                     <TableCell className="text-sm">
                                         {(typeof jd.minAge === 'number' || typeof jd.maxAge === 'number')
-                                            ? `${typeof jd.minAge === 'number' ? jd.minAge : '—'}-${typeof jd.maxAge === 'number' ? jd.maxAge : '—'}`
+                                            ? `${typeof jd.minAge === 'number' ? jd.minAge : '—'}-${typeof jd.maxAge === 'number' ? jd.maxAge : '—'}${t('quickStart.ageUnit', { defaultValue: '岁' })}`
                                             : '—'}
                                     </TableCell>
                                     <TableCell>
