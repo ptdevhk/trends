@@ -284,6 +284,24 @@
     "success": "Synced {{submitted}} resumes ({{inserted}} new, {{updated}} updated)",
     "error": "Sync failed: {{error}}"
   },
+  "jdEditor": {
+    "createTitle": "Create Custom Job Description",
+    "editTitle": "Edit Job Description",
+    "description": "Configure role requirements with basic fields or advanced markdown.",
+    "simpleMode": "Basic Info",
+    "advancedMode": "Advanced",
+    "post": "Job Title",
+    "postPlaceholder": "e.g. Lathe Sales Engineer",
+    "location": "Location",
+    "locationPlaceholder": "e.g. Dongguan",
+    "industryTags": "Industry Tags",
+    "relatedExp": "Related Experience",
+    "years": "yrs",
+    "minAge": "Min Age",
+    "maxAge": "Max Age",
+    "defaultExp": "Default: min 1 year",
+    "contentPlaceholder": "Paste or edit JD markdown content"
+  },
   "quickStart": {
     "quickFilters": "Filters",
     "minYears": "Min",

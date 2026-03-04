@@ -284,6 +284,24 @@
     "success": "已同步 {{submitted}} 份簡歷 ({{inserted}} 新增, {{updated}} 更新)",
     "error": "同步失敗: {{error}}"
   },
+  "jdEditor": {
+    "createTitle": "建立自定義職位",
+    "editTitle": "編輯職位描述",
+    "description": "透過基本資訊或進階模式設定職位要求。",
+    "simpleMode": "基本資訊",
+    "advancedMode": "進階編輯",
+    "post": "職位名稱",
+    "postPlaceholder": "例如：車床銷售工程師",
+    "location": "工作地點",
+    "locationPlaceholder": "例如：東莞",
+    "industryTags": "行業標籤",
+    "relatedExp": "相關經驗",
+    "years": "年",
+    "minAge": "最小年齡",
+    "maxAge": "最大年齡",
+    "defaultExp": "預設最少 1 年",
+    "contentPlaceholder": "可貼上或編輯職位 Markdown 內容"
+  },
   "quickStart": {
     "quickFilters": "篩選條件",
     "minYears": "至少",

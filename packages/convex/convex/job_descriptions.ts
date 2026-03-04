@@ -55,6 +55,11 @@ export const create = mutation({
         type: v.union(v.literal("system"), v.literal("custom")),
         userId: v.optional(v.string()),
         workspaceSlug: v.optional(v.string()),
+        location: v.optional(v.string()),
+        industryTags: v.optional(v.array(v.string())),
+        minExperience: v.optional(v.number()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
@@ -66,6 +71,11 @@ export const create = mutation({
             workspaceSlug,
             enabled: true,
             lastModified: Date.now(),
+            location: args.location,
+            industryTags: args.industryTags,
+            minExperience: args.minExperience,
+            minAge: args.minAge,
+            maxAge: args.maxAge,
         });
         await ctx.scheduler.runAfter(0, internal.ingest_agent.reIngestAllResumes, {});
         return id;
@@ -78,6 +88,11 @@ export const update = mutation({
         title: v.optional(v.string()),
         content: v.optional(v.string()),
         enabled: v.optional(v.boolean()),
+        location: v.optional(v.string()),
+        industryTags: v.optional(v.array(v.string())),
+        minExperience: v.optional(v.number()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const { id, ...updates } = args;

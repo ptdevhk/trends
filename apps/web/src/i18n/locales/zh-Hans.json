@@ -284,6 +284,24 @@
     "success": "已同步 {{submitted}} 份简历 ({{inserted}} 新增, {{updated}} 更新)",
     "error": "同步失败: {{error}}"
   },
+  "jdEditor": {
+    "createTitle": "创建自定义职位",
+    "editTitle": "编辑职位描述",
+    "description": "通过基础信息或高级模式配置职位要求。",
+    "simpleMode": "基本信息",
+    "advancedMode": "高级编辑",
+    "post": "职位名称",
+    "postPlaceholder": "例如：车床销售工程师",
+    "location": "工作地点",
+    "locationPlaceholder": "例如：东莞",
+    "industryTags": "行业标签",
+    "relatedExp": "相关经验",
+    "years": "年",
+    "minAge": "最小年龄",
+    "maxAge": "最大年龄",
+    "defaultExp": "默认最少1年",
+    "contentPlaceholder": "可粘贴或编辑职位 Markdown 内容"
+  },
   "quickStart": {
     "quickFilters": "筛选条件",
     "minYears": "至少",

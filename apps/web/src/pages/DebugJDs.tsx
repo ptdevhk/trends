@@ -1,4 +1,3 @@
-
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -20,6 +19,17 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 type SortColumn = 'title' | 'type' | 'lastModified' | 'usageCount'
 type SortDirection = 'asc' | 'desc'
+type EditorData = {
+    id?: Id<"job_descriptions">
+    title: string
+    content: string
+    type: 'system' | 'custom'
+    location?: string
+    industryTags?: string[]
+    minExperience?: number
+    minAge?: number
+    maxAge?: number
+}
 
 function getUsageCount(value: unknown): number {
     if (typeof value !== 'object' || value === null || !('usageCount' in value)) {
@@ -39,7 +49,7 @@ export default function DebugJDs() {
     const [searchTerm, setSearchTerm] = useState('')
     const [typeFilter, setTypeFilter] = useState<string>('all')
     const [showEditor, setShowEditor] = useState(false)
-    const [editorData, setEditorData] = useState<{ id?: Id<"job_descriptions">, title: string, content: string, type: 'system' | 'custom' } | undefined>(undefined)
+    const [editorData, setEditorData] = useState<EditorData | undefined>(undefined)
     const [deleteError, setDeleteError] = useState<string | null>(null)
     const [sortColumn, setSortColumn] = useState<SortColumn>('lastModified')
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
@@ -101,22 +111,7 @@ export default function DebugJDs() {
     }
 
     const handleCreate = () => {
-        setEditorData({
-            title: 'New Custom JD',
-            content: `# Job Requirements
-- Education: [e.g. Bachelor's Degree]
-- Experience: [e.g. 3+ years in Sales]
-- Skills: [e.g. Communication, Negotiation]
-- Location: [City]
-
-# Key Responsibilities
-- [Responsibility 1]
-- [Responsibility 2]
-
-# Preferred Qualifications
-- [Nice-to-have skill]`,
-            type: 'custom'
-        })
+        setEditorData(undefined)
         setShowEditor(true)
     }
 
@@ -125,7 +120,12 @@ export default function DebugJDs() {
             id: jd._id,
             title: jd.title,
             content: jd.content,
-            type: jd.type as 'system' | 'custom'
+            type: jd.type === 'system' ? 'system' : 'custom',
+            location: jd.location,
+            industryTags: jd.industryTags,
+            minExperience: jd.minExperience,
+            minAge: jd.minAge,
+            maxAge: jd.maxAge,
         })
         setShowEditor(true)
     }
@@ -134,7 +134,12 @@ export default function DebugJDs() {
         setEditorData({
             title: `${jd.title} (${t('jdManagement.duplicate')})`,
             content: jd.content,
-            type: 'custom' // Always duplicate as custom
+            type: 'custom', // Always duplicate as custom
+            location: jd.location,
+            industryTags: jd.industryTags,
+            minExperience: jd.minExperience,
+            minAge: jd.minAge,
+            maxAge: jd.maxAge,
         })
         setShowEditor(true)
     }
@@ -340,6 +345,10 @@ export default function DebugJDs() {
                                     ) : <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />}
                                 </button>
                             </TableHead>
+                            <TableHead>{t('jdManagement.table.location', { defaultValue: 'Location' })}</TableHead>
+                            <TableHead>{t('jdManagement.table.industry', { defaultValue: 'Industry' })}</TableHead>
+                            <TableHead>{t('jdManagement.table.exp', { defaultValue: 'Exp' })}</TableHead>
+                            <TableHead>{t('jdManagement.table.age', { defaultValue: 'Age' })}</TableHead>
                             <TableHead>
                                 <button
                                     type="button"
@@ -360,13 +369,13 @@ export default function DebugJDs() {
                     <TableBody>
                         {!jds ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                                     {t('trends.loading')}
                                 </TableCell>
                             </TableRow>
                         ) : sortedJDs.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                                     {t('search.noResults')}
                                 </TableCell>
                             </TableRow>
@@ -398,6 +407,28 @@ export default function DebugJDs() {
                                         <Badge variant="outline" className="bg-muted text-xs">
                                             {getUsageCount(jd)} {t('jdManagement.usageSuffix', { defaultValue: 'Analysis' })}
                                         </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-sm">
+                                        {jd.location || '—'}
+                                    </TableCell>
+                                    <TableCell>
+                                        {jd.industryTags && jd.industryTags.length > 0 ? (
+                                            <div className="flex flex-wrap gap-1">
+                                                {jd.industryTags.map((tag) => (
+                                                    <Badge key={`${jd._id}-${tag}`} variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                                                        {tag}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        ) : '—'}
+                                    </TableCell>
+                                    <TableCell className="text-sm">
+                                        {typeof jd.minExperience === 'number' ? `${jd.minExperience}年` : '—'}
+                                    </TableCell>
+                                    <TableCell className="text-sm">
+                                        {(typeof jd.minAge === 'number' || typeof jd.maxAge === 'number')
+                                            ? `${typeof jd.minAge === 'number' ? jd.minAge : '—'}-${typeof jd.maxAge === 'number' ? jd.maxAge : '—'}`
+                                            : '—'}
                                     </TableCell>
                                     <TableCell>
                                         {formatInAppTimezone(jd.lastModified, { includeDate: true, includeSeconds: true })}

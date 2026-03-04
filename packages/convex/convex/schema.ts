@@ -172,6 +172,11 @@ export default defineSchema({
         workspaceSlug: v.optional(v.string()),
         enabled: v.boolean(),
         lastModified: v.number(),
+        location: v.optional(v.string()),
+        industryTags: v.optional(v.array(v.string())),
+        minExperience: v.optional(v.number()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
     })
         .index("by_slug", ["slug"])
         .index("by_workspace", ["workspaceSlug"]),

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from 'convex/react'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
 import { KeywordChips } from './KeywordChips'
 import { rawApiClient } from '@/lib/api-helpers'
@@ -9,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { api } from '../../../../packages/convex/convex/_generated/api'
 
 const COMMON_LOCATIONS = [
   '广东', '东莞', '深圳', '广州', '佛山', '惠州', '苏州', '无锡', '常州', '昆山', '上海',
@@ -186,12 +188,27 @@ export function QuickStartPanel({
   const [location, setLocation] = useState(defaultLocation)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
   const [customKeyword, setCustomKeyword] = useState(defaultKeywords.join(' '))
-  const [quickMinRoleYears, setQuickMinRoleYears] = useState(quickFilters?.minRoleYears?.toString() ?? '1')
+  const [quickMinRoleYears, setQuickMinRoleYears] = useState(quickFilters?.minRoleYears?.toString() ?? '')
   const [quickMaxAge, setQuickMaxAge] = useState(quickFilters?.maxAge?.toString() ?? '')
   const [activeRoleType, setActiveRoleType] = useState<string | undefined>(quickFilters?.roleFilterType)
   const [jdMinRoleYears, setJdMinRoleYears] = useState<number | undefined>(undefined)
+  const [jdMaxAge, setJdMaxAge] = useState<number | undefined>(undefined)
   const [autoMatchResult, setAutoMatchResult] = useState<AutoMatchedProfile | null>(null)
   const [matching, setMatching] = useState(false)
+  const lastJobDescriptionIdRef = useRef(jobDescriptionId.trim())
+
+  const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
+  const selectedConvexJobDescription = useMemo(() => {
+    const normalizedJobDescriptionId = jobDescriptionId.trim()
+    if (!normalizedJobDescriptionId || !convexJobDescriptions) {
+      return undefined
+    }
+    return convexJobDescriptions.find((item) => String(item._id) === normalizedJobDescriptionId)
+  }, [convexJobDescriptions, jobDescriptionId])
+  const selectedConvexJobDescriptionDetail = useQuery(
+    api.job_descriptions.get,
+    selectedConvexJobDescription ? { id: selectedConvexJobDescription._id } : 'skip'
+  )
 
   const effectiveDefaultMinRoleYears = jdMinRoleYears ?? 1
 
@@ -205,14 +222,67 @@ export function QuickStartPanel({
   }, [defaultKeywords])
 
   useEffect(() => {
-    setQuickMinRoleYears(quickFilters?.minRoleYears?.toString() ?? effectiveDefaultMinRoleYears.toString())
-    setQuickMaxAge(quickFilters?.maxAge?.toString() ?? '')
-  }, [quickFilters?.maxAge, quickFilters?.minRoleYears, effectiveDefaultMinRoleYears])
+    const normalizedJobDescriptionId = jobDescriptionId.trim()
+    const hasJobSelectionChanged = lastJobDescriptionIdRef.current !== normalizedJobDescriptionId
+
+    if (hasJobSelectionChanged) {
+      lastJobDescriptionIdRef.current = normalizedJobDescriptionId
+      if (normalizedJobDescriptionId) {
+        setQuickMinRoleYears(effectiveDefaultMinRoleYears.toString())
+        setQuickMaxAge(typeof jdMaxAge === 'number' ? jdMaxAge.toString() : '')
+      } else {
+        setQuickMinRoleYears('')
+        setQuickMaxAge('')
+      }
+      return
+    }
+
+    if (typeof quickFilters?.minRoleYears === 'number') {
+      setQuickMinRoleYears(quickFilters.minRoleYears.toString())
+    } else if (normalizedJobDescriptionId) {
+      setQuickMinRoleYears(effectiveDefaultMinRoleYears.toString())
+    } else {
+      setQuickMinRoleYears('')
+    }
+
+    if (typeof quickFilters?.maxAge === 'number') {
+      setQuickMaxAge(quickFilters.maxAge.toString())
+    } else if (normalizedJobDescriptionId && typeof jdMaxAge === 'number') {
+      setQuickMaxAge(jdMaxAge.toString())
+    } else {
+      setQuickMaxAge('')
+    }
+  }, [jobDescriptionId, quickFilters?.maxAge, quickFilters?.minRoleYears, effectiveDefaultMinRoleYears, jdMaxAge])
 
   useEffect(() => {
     const normalizedJobDescriptionId = jobDescriptionId.trim()
     if (!normalizedJobDescriptionId) {
       setActiveRoleType(undefined)
+      setJdMinRoleYears(undefined)
+      setJdMaxAge(undefined)
+      return
+    }
+
+    if (convexJobDescriptions === undefined) {
+      return
+    }
+
+    if (selectedConvexJobDescription) {
+      if (selectedConvexJobDescriptionDetail === undefined) {
+        return
+      }
+
+      setActiveRoleType(undefined)
+      setJdMinRoleYears(
+        typeof selectedConvexJobDescriptionDetail?.minExperience === 'number'
+          ? selectedConvexJobDescriptionDetail.minExperience
+          : 1
+      )
+      setJdMaxAge(
+        typeof selectedConvexJobDescriptionDetail?.maxAge === 'number'
+          ? selectedConvexJobDescriptionDetail.maxAge
+          : undefined
+      )
       return
     }
 
@@ -230,11 +300,13 @@ export function QuickStartPanel({
         const roleType = requiredRole?.type?.trim()
         setActiveRoleType(roleType && roleType.length > 0 ? roleType : undefined)
         setJdMinRoleYears(requiredRole?.min_years)
+        setJdMaxAge(undefined)
       } catch (error) {
         console.error('Failed to fetch role type from job description', error)
         if (!cancelled) {
           setActiveRoleType(undefined)
           setJdMinRoleYears(undefined)
+          setJdMaxAge(undefined)
         }
       }
     }
@@ -244,7 +316,7 @@ export function QuickStartPanel({
     return () => {
       cancelled = true
     }
-  }, [jobDescriptionId])
+  }, [jobDescriptionId, convexJobDescriptions, selectedConvexJobDescription, selectedConvexJobDescriptionDetail])
 
   const normalizedKeywords = useMemo(
     () => selectedKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
@@ -357,16 +429,28 @@ export function QuickStartPanel({
       const minRoleYears = quickMinRoleYears ? Number(quickMinRoleYears) : undefined
       const maxAge = quickMaxAge ? Number(quickMaxAge) : undefined
       const roleFilterType = activeRoleType?.trim()
-      
+
+      const nextMinRoleYears = typeof minRoleYears === 'number' && Number.isFinite(minRoleYears) ? minRoleYears : undefined
+      const nextRoleFilterType = roleFilterType && roleFilterType.length > 0 ? roleFilterType : undefined
+      const nextMaxAge = typeof maxAge === 'number' && Number.isFinite(maxAge) ? maxAge : undefined
+
+      if (
+        nextMinRoleYears === quickFilters?.minRoleYears
+        && nextMaxAge === quickFilters?.maxAge
+        && (nextRoleFilterType ?? undefined) === (quickFilters?.roleFilterType ?? undefined)
+      ) {
+        return
+      }
+
       onApplyQuickFilters?.({
-        minRoleYears: typeof minRoleYears === 'number' && Number.isFinite(minRoleYears) ? minRoleYears : undefined,
-        roleFilterType: roleFilterType && roleFilterType.length > 0 ? roleFilterType : undefined,
-        maxAge: typeof maxAge === 'number' && Number.isFinite(maxAge) ? maxAge : undefined,
+        minRoleYears: nextMinRoleYears,
+        roleFilterType: nextRoleFilterType,
+        maxAge: nextMaxAge,
       })
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [quickMinRoleYears, quickMaxAge, activeRoleType, onApplyQuickFilters])
+  }, [quickMinRoleYears, quickMaxAge, activeRoleType, onApplyQuickFilters, quickFilters?.minRoleYears, quickFilters?.maxAge, quickFilters?.roleFilterType])
 
   return (
     <div className="rounded-lg bg-background border px-4 py-4 shadow-sm">

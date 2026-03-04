@@ -6,6 +6,9 @@ const { getMock, postMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
   postMock: vi.fn(),
 }))
+const { useQueryMock } = vi.hoisted(() => ({
+  useQueryMock: vi.fn(),
+}))
 
 vi.mock('./JobDescriptionSelect', () => ({
   JobDescriptionSelect: ({
@@ -41,6 +44,10 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+vi.mock('convex/react', () => ({
+  useQuery: (...args: unknown[]) => useQueryMock(...args),
+}))
+
 vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: {
     GET: (...args: unknown[]) => getMock(...args),
@@ -51,6 +58,18 @@ vi.mock('@/lib/api-helpers', () => ({
 describe('QuickStartPanel role-aware quick filter label', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useQueryMock.mockImplementation((_fn: unknown, args: unknown) => {
+      if (args === 'skip') {
+        return undefined
+      }
+      if (typeof args === 'object' && args !== null && 'workspaceSlug' in args) {
+        return []
+      }
+      if (typeof args === 'object' && args !== null && 'id' in args) {
+        return null
+      }
+      return undefined
+    })
     postMock.mockResolvedValue({ data: { success: false } })
     getMock.mockImplementation(async (path: string) => {
       if (path.includes('/api/job-descriptions/lathe-sales')) {
@@ -96,7 +115,7 @@ describe('QuickStartPanel role-aware quick filter label', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('spinbutton', { name: '要求销售经验 最少 年' })).toBeInTheDocument()
+      expect(screen.getByRole('spinbutton', { name: /销售经验\s+至少\s+年/ })).toBeInTheDocument()
     })
 
     rerender(
@@ -108,7 +127,7 @@ describe('QuickStartPanel role-aware quick filter label', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('spinbutton', { name: '要求工程经验 最少 年' })).toBeInTheDocument()
+      expect(screen.getByRole('spinbutton', { name: /工程经验\s+至少\s+年/ })).toBeInTheDocument()
     })
 
     rerender(
@@ -120,7 +139,30 @@ describe('QuickStartPanel role-aware quick filter label', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('spinbutton', { name: '要求相关经验 最少 年' })).toBeInTheDocument()
+      expect(screen.getByRole('spinbutton', { name: /相关经验\s+至少\s+年/ })).toBeInTheDocument()
     })
+  })
+
+  it('does not auto-apply min years when no JD is selected', async () => {
+    const onApplyQuickFilters = vi.fn()
+
+    render(
+      <QuickStartPanel
+        defaultLocation="广东"
+        defaultKeywords={[]}
+        jobDescriptionId=""
+        onApplyQuickFilters={onApplyQuickFilters}
+        quickFilters={{ minRoleYears: undefined, maxAge: undefined }}
+      />
+    )
+
+    // Wait for the debounced auto-apply cycle to complete
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // When values are already in sync, the callback may be skipped.
+    // The key invariant: minRoleYears=1 must never be applied without a JD.
+    expect(
+      onApplyQuickFilters.mock.calls.some(([value]) => value?.minRoleYears === 1)
+    ).toBe(false)
   })
 })
