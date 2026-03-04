@@ -207,6 +207,7 @@ export function ResumeList() {
                 ruleScore={entry.ruleScore}
                 industryTags={ingestData?.industryTags}
                 companyHits={ingestData?.companyHits}
+                roleTypes={ingestData?.roleSignals?.map((signal) => signal.type) ?? []}
                 experienceLevel={ingestData?.experienceLevel}
                 onTagClick={handleToggleTag}
                 onCompanyClick={handleToggleCompany}

@@ -1,0 +1,259 @@
+import { renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import { useResumeListState } from './useResumeListState'
+
+const mockState = vi.hoisted(() => ({
+  convexResumes: [] as ConvexResumeItem[],
+  filters: {} as Record<string, unknown>,
+  setFilters: vi.fn(),
+  setLocation: vi.fn(),
+  setKeywords: vi.fn(),
+  setJobDescriptionId: vi.fn(),
+  trackReviewedResume: vi.fn(),
+  applyExternalState: vi.fn(),
+  refresh: vi.fn(async () => {}),
+  reloadSamples: vi.fn(async () => {}),
+  blockCandidates: vi.fn(async () => true),
+  unblockCandidate: vi.fn(async () => true),
+  updateStatus: vi.fn(async () => {}),
+  saveAction: vi.fn(async () => {}),
+  syncToUrl: vi.fn(),
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (_key: string, options?: string | { defaultValue?: string }) => {
+      if (typeof options === 'string') {
+        return options
+      }
+      return options?.defaultValue ?? _key
+    },
+  }),
+}))
+
+vi.mock('convex/react', () => ({
+  useQuery: () => [],
+  useMutation: () => vi.fn(async () => ({})),
+}))
+
+vi.mock('@/hooks/useSession', () => ({
+  useSession: () => ({
+    location: '广东',
+    setLocation: mockState.setLocation,
+    keywords: [],
+    setKeywords: mockState.setKeywords,
+    jobDescriptionId: undefined,
+    setJobDescriptionId: mockState.setJobDescriptionId,
+    filters: mockState.filters,
+    setFilters: mockState.setFilters,
+    reviewedIdsSet: new Set<string>(),
+    trackReviewedResume: mockState.trackReviewedResume,
+    applyExternalState: mockState.applyExternalState,
+  }),
+}))
+
+vi.mock('@/hooks/useUrlSearchState', () => ({
+  hasKnownUrlSearchParams: () => false,
+  parseUrlSearchState: () => ({
+    location: undefined,
+    keywords: [],
+    jobDescriptionId: undefined,
+    filters: {},
+    selectedTags: [],
+    selectedCompanies: [],
+    selectedExperienceLevel: undefined,
+  }),
+  useUrlSearchState: () => ({
+    parsedState: {
+      location: undefined,
+      keywords: [],
+      jobDescriptionId: undefined,
+      filters: {},
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+    },
+    hasUrlParams: false,
+    hasKeywordParam: false,
+    hasJobDescriptionParam: false,
+    syncToUrl: mockState.syncToUrl,
+  }),
+}))
+
+vi.mock('@/hooks/useResumes', () => ({
+  useResumes: () => ({
+    resumes: [],
+    summary: null,
+    loading: false,
+    error: null,
+    selectedSample: '',
+    refresh: mockState.refresh,
+    reloadSamples: mockState.reloadSamples,
+  }),
+}))
+
+vi.mock('@/hooks/useConvexResumes', () => ({
+  useConvexResumes: () => ({
+    resumes: mockState.convexResumes,
+    loading: false,
+  }),
+}))
+
+vi.mock('@/hooks/useCandidateActions', () => ({
+  useCandidateActions: () => ({
+    actions: {},
+    saveAction: mockState.saveAction,
+  }),
+}))
+
+vi.mock('@/hooks/useCandidateBlocks', () => ({
+  useCandidateBlocks: () => ({
+    blocksByIdentity: {},
+    blockCandidates: mockState.blockCandidates,
+    unblockCandidate: mockState.unblockCandidate,
+  }),
+}))
+
+vi.mock('@/hooks/useCandidateStatus', () => ({
+  useCandidateStatus: () => ({
+    statusByIdentity: {},
+    updateStatus: mockState.updateStatus,
+  }),
+}))
+
+vi.mock('@/lib/api-helpers', () => ({
+  rawApiClient: {
+    POST: vi.fn(async () => ({ data: { success: true } })),
+    GET: vi.fn(async () => ({ data: { success: true } })),
+  },
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
+}))
+
+function buildResume(params: {
+  id: string
+  name: string
+  roleSignals: Array<{
+    type: string
+    matchedSignals: string[]
+    signalCount: number
+    occurrences: number
+    years: number
+    verifyIn: string
+  }>
+}): ConvexResumeItem {
+  return {
+    resumeId: params.id as ConvexResumeItem['resumeId'],
+    externalId: `ext-${params.id}`,
+    crawledAt: 1_700_000_000_000,
+    source: 'test',
+    tags: [],
+    identityKey: params.id,
+    name: params.name,
+    profileUrl: `https://example.com/${params.id}`,
+    activityStatus: 'Active',
+    age: '30',
+    ageNumber: 30,
+    experience: '5 years',
+    education: 'Bachelor',
+    location: 'Dongguan',
+    selfIntro: 'Test intro',
+    jobIntention: 'Test role',
+    expectedSalary: '10k-20k',
+    workHistory: [{ raw: 'Test work history' }],
+    extractedAt: '2026-03-01T00:00:00.000Z',
+    ingestData: {
+      industryTags: [],
+      synonymHits: [],
+      brandHits: [],
+      companyHits: [],
+      roleSignals: params.roleSignals,
+      ruleScores: {},
+      experienceLevel: 'mid',
+      computedAt: 1_700_000_000_000,
+      skillsVersion: 1,
+    },
+  }
+}
+
+describe('useResumeListState role filter regression', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    window.history.replaceState({}, '', '/')
+
+    mockState.convexResumes = [
+      buildResume({
+        id: 'resume-engineer-strong',
+        name: 'Engineer Strong',
+        roleSignals: [
+          {
+            type: 'engineer',
+            matchedSignals: ['工程师'],
+            signalCount: 3,
+            occurrences: 3,
+            years: 4,
+            verifyIn: 'workHistory',
+          },
+        ],
+      }),
+      buildResume({
+        id: 'resume-sales-only',
+        name: 'Sales Only',
+        roleSignals: [
+          {
+            type: 'sales',
+            matchedSignals: ['销售'],
+            signalCount: 4,
+            occurrences: 4,
+            years: 6,
+            verifyIn: 'workHistory',
+          },
+        ],
+      }),
+      buildResume({
+        id: 'resume-engineer-junior',
+        name: 'Engineer Junior',
+        roleSignals: [
+          {
+            type: 'engineer',
+            matchedSignals: ['研发'],
+            signalCount: 1,
+            occurrences: 1,
+            years: 1,
+            verifyIn: 'workHistory',
+          },
+        ],
+      }),
+    ]
+  })
+
+  it('filters by minRoleYears + roleFilterType (engineer)', () => {
+    mockState.filters = {
+      minRoleYears: 2,
+      roleFilterType: 'engineer',
+    }
+
+    const { result } = renderHook(() => useResumeListState())
+    const names = result.current.displayedResumes.map((entry) => entry.resume.name)
+
+    expect(names).toEqual(['Engineer Strong'])
+  })
+
+  it('falls back to legacy minSalesYears when minRoleYears is absent', () => {
+    mockState.filters = {
+      minSalesYears: 5,
+    }
+
+    const { result } = renderHook(() => useResumeListState())
+    const names = result.current.displayedResumes.map((entry) => entry.resume.name)
+
+    expect(names).toEqual(['Sales Only'])
+  })
+})

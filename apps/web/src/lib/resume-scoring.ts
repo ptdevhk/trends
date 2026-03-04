@@ -161,6 +161,14 @@ export type ResumeWithIngestData = ResumeItem & {
       context: string
     }>
     companyHits: string[]
+    roleSignals?: Array<{
+      type: string
+      matchedSignals: string[]
+      signalCount: number
+      occurrences: number
+      years: number
+      verifyIn: string
+    }>
     ruleScores: Record<string, number>
     experienceLevel: string
     computedAt: number
