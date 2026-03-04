@@ -219,7 +219,7 @@ interface JobDescriptionEditorProps {
         content: string
         type: "system" | "custom"
     } & StructuredSeedFields
-    onSaveSuccess?: (newId: string, savedFields?: StructuredSeedFields) => void
+    onSaveSuccess?: (newId: string, savedFields?: StructuredSeedFields & { title?: string, customKeywords?: string[] }) => void
 }
 
 export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSuccess }: JobDescriptionEditorProps) {
@@ -234,6 +234,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
     const [customKeywords, setCustomKeywords] = useState<string[]>([])
     const { grouped } = useIndustryKeywords()
     const availableCustomKeywords = grouped.custom || []
+    const availableLocationKeywords = grouped.location || []
     const [minExperience, setMinExperience] = useState(String(DEFAULT_MIN_EXPERIENCE))
     const [maxExperience, setMaxExperience] = useState("")
     const [minAge, setMinAge] = useState("")
@@ -379,6 +380,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                 })
             }
             onSaveSuccess?.(newId, {
+                title: payload.title,
                 location: payload.location,
                 industryTags: payload.industryTags,
                 customKeywords: payload.customKeywords,
@@ -413,6 +415,24 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                     <div className="grid gap-2">
                         <Label htmlFor="location">{t("jdEditor.location", "Location")}</Label>
                         <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t("jdEditor.locationPlaceholder", "e.g. Dongguan")} />
+                        {availableLocationKeywords.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-1">
+                                {availableLocationKeywords.map((tagObj) => {
+                                    const tag = tagObj.keyword
+                                    const selected = location.trim() === tag
+                                    return (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            onClick={() => setLocation(selected ? "" : tag)}
+                                            className={`rounded-full border px-3 py-1 text-xs transition-colors ${selected ? "border-green-700 bg-green-600 text-white" : "border-green-300 text-green-700 hover:bg-green-50"}`}
+                                        >
+                                            {tag}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid gap-2">

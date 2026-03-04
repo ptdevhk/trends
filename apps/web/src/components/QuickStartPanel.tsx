@@ -265,6 +265,16 @@ export function QuickStartPanel({
           ? selectedConvexJobDescriptionDetail.maxAge
           : undefined
       )
+
+      if (selectedConvexJobDescriptionDetail?.location) {
+        setLocation(selectedConvexJobDescriptionDetail.location)
+      }
+
+      if (selectedConvexJobDescriptionDetail?.customKeywords && selectedConvexJobDescriptionDetail.customKeywords.length > 0) {
+        setSelectedKeywords(selectedConvexJobDescriptionDetail.customKeywords.map(k => k.trim()))
+        setCustomKeyword(selectedConvexJobDescriptionDetail.customKeywords.join(' '))
+      }
+
       return
     }
 
@@ -486,6 +496,9 @@ export function QuickStartPanel({
   }, [autoMatchResult, location, normalizedKeywords, onApplyConfig, onJobChange])
 
   const handleJdEditorSaveSuccess = useCallback((newId: string, savedFields?: {
+    location?: string
+    title?: string
+    customKeywords?: string[]
     minExperience?: number
     maxAge?: number
   }) => {
@@ -504,6 +517,23 @@ export function QuickStartPanel({
         ? savedFields.maxAge
         : (typeof fallbackMaxAge === 'number' && Number.isFinite(fallbackMaxAge) ? fallbackMaxAge : undefined)
     const nextRoleFilterType = activeRoleType?.trim()
+
+    if (savedFields) {
+      if (savedFields.location) {
+        setLocation(savedFields.location)
+      }
+
+      if (savedFields.customKeywords && savedFields.customKeywords.length > 0) {
+        setSelectedKeywords(savedFields.customKeywords.map(k => k.trim()))
+        setCustomKeyword(savedFields.customKeywords.join(' '))
+      } else if (savedFields.title) {
+        const titleWords = savedFields.title.split(/[\s-]+/).filter(Boolean)
+        if (titleWords.length > 0) {
+          setSelectedKeywords(titleWords)
+          setCustomKeyword(titleWords.join(' '))
+        }
+      }
+    }
 
     setQuickMinRoleYears(typeof nextMinRoleYears === 'number' ? String(nextMinRoleYears) : '')
     setQuickMaxAge(typeof nextMaxAge === 'number' ? String(nextMaxAge) : '')
