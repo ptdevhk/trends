@@ -17,7 +17,8 @@ import {
 import { useState } from 'react'
 import { OutreachModal } from './OutreachModal'
 import { Select } from '@/components/ui/select'
-
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 interface ResumeCardProps {
   resume: ResumeItem
   onViewDetails: () => void
@@ -131,6 +132,9 @@ export function ResumeCard({
 }: ResumeCardProps) {
   const { t } = useTranslation()
   const [showOutreach, setShowOutreach] = useState(false)
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false)
+  const [pendingStatus, setPendingStatus] = useState<CandidateStatus | null>(null)
+  const [noteInput, setNoteInput] = useState('')
   const workHistory = resume.workHistory?.filter((item) => item.raw) ?? []
   const jobIntention = (resume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
   const selfIntro = resume.selfIntro || '--'
@@ -421,15 +425,9 @@ export function ResumeCard({
                     }
 
                     if (nextStatus.value === 'interviewed_reject' || nextStatus.value === 'withdrawn') {
-                      const notePrompt = t('resumes.status.notePrompt', {
-                        status: t(nextStatus.labelKey),
-                      })
-                      const noteInput = window.prompt(notePrompt, statusNotes)
-                      if (noteInput === null) {
-                        return
-                      }
-                      const notes = noteInput.trim()
-                      onCandidateStatusChange?.(nextStatus.value, notes.length > 0 ? notes : undefined)
+                      setPendingStatus(nextStatus.value)
+                      setNoteInput(statusNotes)
+                      setPromptDialogOpen(true)
                       return
                     }
 
@@ -496,6 +494,50 @@ export function ResumeCard({
           </div>
         ) : null}
       </div>
+
+      <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pendingStatus ? t(STATUS_OPTIONS.find((item) => item.value === pendingStatus)?.labelKey ?? '') : ''}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingStatus ? t('resumes.status.notePrompt', { status: t(STATUS_OPTIONS.find((item) => item.value === pendingStatus)?.labelKey ?? '') }) : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={noteInput}
+            onChange={(e) => setNoteInput(e.target.value)}
+            placeholder={t('resumes.status.notes')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                if (pendingStatus) {
+                  const notes = noteInput.trim()
+                  onCandidateStatusChange?.(pendingStatus, notes.length > 0 ? notes : undefined)
+                  setPromptDialogOpen(false)
+                }
+              }
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>
+              {t('common.cancel', 'Cancel')}
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingStatus) {
+                  const notes = noteInput.trim()
+                  onCandidateStatusChange?.(pendingStatus, notes.length > 0 ? notes : undefined)
+                  setPromptDialogOpen(false)
+                }
+              }}
+            >
+              {t('common.confirm', 'Confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
