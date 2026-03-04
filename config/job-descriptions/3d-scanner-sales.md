@@ -7,6 +7,11 @@ location: 东莞
 source: hr.job5156.com
 extracted_at: "2026-02-05"
 status: active
+required_roles:
+  - type: sales
+    min_years: 1
+    signals: [销售, 业务开发, 客户, 大客户, 渠道, 销售经理, 销售工程师]
+    verify_in: workHistory
 ---
 
 # 职位描述 (Position Description)
@@ -32,4 +37,3 @@ status: active
 # 关键词 (Keywords)
 
 三维扫描, 3D扫描, ATOS, 测量设备, 精密测量, GOM, 逆向工程, 光学测量
-

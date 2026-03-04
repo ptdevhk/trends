@@ -1,6 +1,8 @@
 export type ResumeFilters = {
   minExperience?: number
   maxExperience?: number
+  minRoleYears?: number
+  roleFilterType?: string
   minSalesYears?: number
   minAge?: number
   maxAge?: number

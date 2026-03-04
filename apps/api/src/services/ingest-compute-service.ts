@@ -221,6 +221,7 @@ const SALES_SIGNALS = ["销售", "代理", "渠道", "推广", "业务", "客户
 const TECHNICAL_SIGNALS = ["维修", "调试", "编程", "安装", "保养", "维护"];
 const DEFAULT_ROLE_SIGNAL_LIBRARY: Record<string, string[]> = {
   sales: ["销售", "业务开发", "客户", "大客户", "渠道", "销售经理", "销售工程师", "sales", "account"],
+  engineer: ["工程师", "设计", "研发", "开发", "编程", "调试", "维修", "技术", "engineer", "developer", "design"],
 };
 
 /**
