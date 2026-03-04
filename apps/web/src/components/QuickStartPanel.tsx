@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
 import { KeywordChips } from './KeywordChips'
@@ -280,6 +281,12 @@ export function QuickStartPanel({
     })
   }, [autoMatchResult, location, normalizedKeywords, onApplyConfig, onJobChange])
 
+  const handleResetKeywords = useCallback(() => {
+    setSelectedKeywords([])
+    setCustomKeyword('')
+    onJobChange?.('')
+  }, [onJobChange])
+
   const handleApplyQuickFilters = useCallback(() => {
     const minSalesYears = quickMinSalesYears ? Number(quickMinSalesYears) : undefined
     const maxAge = quickMaxAge ? Number(quickMaxAge) : undefined
@@ -354,6 +361,25 @@ export function QuickStartPanel({
           </div>
         </div>
 
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+              {t('quickStart.hotKeywords', '热门关键词')}
+            </label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 gap-1 px-2 text-xs text-muted-foreground hover:text-destructive"
+              onClick={handleResetKeywords}
+            >
+              <RotateCcw className="h-3 w-3" />
+              {t('quickStart.resetKeywords', '重置')}
+            </Button>
+          </div>
+          <KeywordChips value={selectedKeywords} onChange={handleKeywordsChange} />
+        </div>
+
         {matching ? (
           <div className="rounded-md border border-dashed border-muted-foreground/40 px-3 py-2 text-xs text-muted-foreground">
             {t('quickStart.autoMatchLoading', 'Matching profile...')}
@@ -399,13 +425,6 @@ export function QuickStartPanel({
             </div>
           </div>
         ) : null}
-
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-            {t('quickStart.hotKeywords', '热门关键词')}
-          </label>
-          <KeywordChips value={selectedKeywords} onChange={handleKeywordsChange} />
-        </div>
 
         <div className="rounded-md border border-dashed border-muted-foreground/30 px-3 py-3">
           <div className="text-sm font-medium">⚡ 快速筛选</div>
