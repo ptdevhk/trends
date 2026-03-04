@@ -610,6 +610,7 @@ test-node:                                 ## Run TypeScript tests (bun locally,
 
 test-coverage:                             ## Run Node.js tests with coverage
 	@echo "Running Node.js tests with coverage..."
+	@npm run --workspace @trends/shared build
 	@(cd apps/web && npm run test -- --coverage)
 	@npx vitest run --coverage apps/api/src
 
