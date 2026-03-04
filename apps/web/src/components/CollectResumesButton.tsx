@@ -20,6 +20,7 @@ type ExtensionMeta = {
 interface CollectResumesButtonProps {
   location: string
   keywords: string[]
+  collectLimit?: number
 }
 
 function isExtensionMeta(value: unknown): value is ExtensionMeta {
@@ -30,7 +31,12 @@ function isExtensionMeta(value: unknown): value is ExtensionMeta {
   return typeof value.version === 'string' && value.version.trim().length > 0
 }
 
-export function CollectResumesButton({ location, keywords }: CollectResumesButtonProps) {
+function normalizeCollectLimit(value: number | undefined): number {
+  const parsed = Number.isFinite(value) ? Math.floor(value || 0) : 0
+  return parsed > 0 ? parsed : 0
+}
+
+export function CollectResumesButton({ location, keywords, collectLimit }: CollectResumesButtonProps) {
   const { t } = useTranslation()
   const [extensionVersion, setExtensionVersion] = useState<string | null>(null)
 
@@ -39,6 +45,7 @@ export function CollectResumesButton({ location, keywords }: CollectResumesButto
     () => keywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
     [keywords]
   )
+  const normalizedCollectLimit = useMemo(() => normalizeCollectLimit(collectLimit), [collectLimit])
 
   const disabled = normalizedLocation.length === 0 || normalizedKeywords.length === 0
 
@@ -52,8 +59,11 @@ export function CollectResumesButton({ location, keywords }: CollectResumesButto
       location: normalizedLocation,
       tr_auto_sync: 'true',
     })
+    if (normalizedCollectLimit > 0) {
+      query.set('tr_limit', String(normalizedCollectLimit))
+    }
     return `${JOB_BOARD_BASE_URL}?${query.toString()}`
-  }, [disabled, normalizedKeywords, normalizedLocation])
+  }, [disabled, normalizedCollectLimit, normalizedKeywords, normalizedLocation])
 
   useEffect(() => {
     let cancelled = false

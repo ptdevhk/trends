@@ -7,6 +7,8 @@
   const serverTokenInput = /** @type {HTMLInputElement | null} */ ($("server-token"));
   const keywordModeConcatInput = /** @type {HTMLInputElement | null} */ ($("keyword-mode-concat"));
   const keywordModeSpacedInput = /** @type {HTMLInputElement | null} */ ($("keyword-mode-spaced"));
+  const collectLimitInput = /** @type {HTMLInputElement | null} */ ($("collect-limit"));
+  const maxPagesInput = /** @type {HTMLInputElement | null} */ ($("max-pages"));
   const btnTest = /** @type {HTMLButtonElement | null} */ ($("btn-test"));
   const btnSave = /** @type {HTMLButtonElement | null} */ ($("btn-save"));
   const statusDot = /** @type {HTMLElement | null} */ ($("status-dot"));
@@ -19,6 +21,11 @@
 
   function normalizeKeywordMode(value) {
     return value === KEYWORD_MODE_SPACED ? KEYWORD_MODE_SPACED : DEFAULT_KEYWORD_MODE;
+  }
+
+  function normalizeCollectionLimit(value) {
+    const parsed = Number.parseInt(String(value || "").trim(), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   }
 
   function showMessage(text, type) {
@@ -91,19 +98,21 @@
   async function loadConfig() {
     return new Promise((resolve) => {
       chrome.storage.local.get(
-        { serverUrl: "", serverToken: "", keywordMode: DEFAULT_KEYWORD_MODE },
+        { serverUrl: "", serverToken: "", keywordMode: DEFAULT_KEYWORD_MODE, collectLimit: 0, maxPages: 0 },
         (items) => resolve(items),
       );
     });
   }
 
-  async function saveConfig(serverUrl, serverToken, keywordMode) {
+  async function saveConfig(serverUrl, serverToken, keywordMode, collectLimit, maxPages) {
     return new Promise((resolve) => {
       chrome.storage.local.set(
         {
           serverUrl: normalizeServerUrl(serverUrl),
           serverToken: String(serverToken || ""),
           keywordMode: normalizeKeywordMode(keywordMode),
+          collectLimit: normalizeCollectionLimit(collectLimit),
+          maxPages: normalizeCollectionLimit(maxPages),
         },
         () => resolve(true),
       );
@@ -111,12 +120,14 @@
   }
 
   document.addEventListener("DOMContentLoaded", async () => {
-    const items = /** @type {{ serverUrl?: string; serverToken?: string; keywordMode?: string }} */ (await loadConfig());
+    const items = /** @type {{ serverUrl?: string; serverToken?: string; keywordMode?: string; collectLimit?: number; maxPages?: number }} */ (await loadConfig());
     const keywordMode = normalizeKeywordMode(items.keywordMode);
     if (serverUrlInput) serverUrlInput.value = items.serverUrl || DEFAULT_SERVER_URL;
     if (serverTokenInput) serverTokenInput.value = items.serverToken || "";
     if (keywordModeConcatInput) keywordModeConcatInput.checked = keywordMode !== KEYWORD_MODE_SPACED;
     if (keywordModeSpacedInput) keywordModeSpacedInput.checked = keywordMode === KEYWORD_MODE_SPACED;
+    if (collectLimitInput) collectLimitInput.value = String(normalizeCollectionLimit(items.collectLimit));
+    if (maxPagesInput) maxPagesInput.value = String(normalizeCollectionLimit(items.maxPages));
 
     setConnectionStatus(false, "未测试");
 
@@ -142,7 +153,9 @@
         const serverUrl = serverUrlInput?.value || "";
         const serverToken = serverTokenInput?.value || "";
         const keywordMode = keywordModeSpacedInput?.checked ? KEYWORD_MODE_SPACED : DEFAULT_KEYWORD_MODE;
-        await saveConfig(serverUrl, serverToken, keywordMode);
+        const collectLimit = collectLimitInput?.value || "";
+        const maxPages = maxPagesInput?.value || "";
+        await saveConfig(serverUrl, serverToken, keywordMode, collectLimit, maxPages);
         showMessage("✅ 已保存", "success");
         if (btnSave) btnSave.disabled = false;
       });

@@ -37,6 +37,8 @@ const SELECTORS = {
 
 const AUTO_EXPORT_PARAM = 'tr_auto_export';
 const AUTO_SYNC_PARAM = 'tr_auto_sync';
+const AUTO_LIMIT_PARAM = 'tr_limit';
+const AUTO_MAX_PAGES_PARAM = 'tr_max_pages';
 const AUTO_SEARCH_PARAM = 'keyword';
 const AUTO_LOCATION_PARAM = 'location';
 const AUTO_KEYWORD_MODE_PARAM = 'tr_kw_mode';
@@ -47,6 +49,7 @@ const KEYWORD_MODE_CONCAT = 'concat';
 const KEYWORD_MODE_SPACED = 'spaced';
 let autoExportTriggered = false;
 let autoSyncTriggered = false;
+let autoSyncCancelled = false;
 const API_CAPTURE_SOURCE = 'tr-resume-api';
 const EXTERNAL_ACCESS_KEY = '__TR_RESUME_DATA__';
 
@@ -89,6 +92,11 @@ function normalizeKeywordMode(mode) {
   return mode === KEYWORD_MODE_SPACED ? KEYWORD_MODE_SPACED : KEYWORD_MODE_CONCAT;
 }
 
+function normalizeCollectionLimit(value) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
 async function getKeywordMode() {
   return new Promise((resolve) => {
     try {
@@ -98,6 +106,31 @@ async function getKeywordMode() {
     } catch (error) {
       console.warn('🎯 [Auto Search] Failed to read keyword mode from storage:', error);
       resolve(KEYWORD_MODE_CONCAT);
+    }
+  });
+}
+
+async function getCollectionLimits() {
+  const params = new URLSearchParams(window.location.search || '');
+  const hasLimitParam = params.has(AUTO_LIMIT_PARAM);
+  const hasMaxPagesParam = params.has(AUTO_MAX_PAGES_PARAM);
+  const paramLimit = normalizeCollectionLimit(params.get(AUTO_LIMIT_PARAM));
+  const paramMaxPages = normalizeCollectionLimit(params.get(AUTO_MAX_PAGES_PARAM));
+
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.get({ collectLimit: 0, maxPages: 0 }, (items) => {
+        resolve({
+          limit: hasLimitParam ? paramLimit : normalizeCollectionLimit(items?.collectLimit),
+          maxPages: hasMaxPagesParam ? paramMaxPages : normalizeCollectionLimit(items?.maxPages)
+        });
+      });
+    } catch (error) {
+      console.warn('🎯 [Auto Sync] Failed to read collection limits from storage:', error);
+      resolve({
+        limit: hasLimitParam ? paramLimit : 0,
+        maxPages: hasMaxPagesParam ? paramMaxPages : 0
+      });
     }
   });
 }
@@ -126,6 +159,8 @@ function buildExportMetadata(resumes) {
 
   url.searchParams.delete(AUTO_EXPORT_PARAM);
   url.searchParams.delete(AUTO_SYNC_PARAM);
+  url.searchParams.delete(AUTO_LIMIT_PARAM);
+  url.searchParams.delete(AUTO_MAX_PAGES_PARAM);
   url.searchParams.delete(SAMPLE_NAME_PARAM);
 
   const filters = {};
@@ -170,6 +205,8 @@ function buildSubmitMetadata() {
 
   url.searchParams.delete(AUTO_EXPORT_PARAM);
   url.searchParams.delete(AUTO_SYNC_PARAM);
+  url.searchParams.delete(AUTO_LIMIT_PARAM);
+  url.searchParams.delete(AUTO_MAX_PAGES_PARAM);
   url.searchParams.delete(SAMPLE_NAME_PARAM);
 
   let generatedBy = 'browser-extension';
@@ -652,15 +689,56 @@ function getPaginationInfo() {
   if (!pagination) return { currentPage: 1, totalPages: 1, totalItems: 0 };
 
   const totalText = pagination.textContent || '';
-  const totalMatch = totalText.match(/共\s*(\d+)\s*条/);
-  const totalItems = totalMatch ? parseInt(totalMatch[1]) : 0;
+  const totalMatch = totalText.match(/共\s*([\d,，]+)\s*条/);
+  const totalItems = totalMatch
+    ? Number.parseInt(String(totalMatch[1]).replace(/[，,]/g, ''), 10) || 0
+    : 0;
 
   const activePage = pagination.querySelector('.is-active, .active, .el-pager li.active');
-  const currentPage = activePage ? parseInt(activePage.textContent) : 1;
+  const currentPage = activePage
+    ? Number.parseInt(activePage.textContent || '', 10) || 1
+    : 1;
 
-  const totalPages = Math.ceil(totalItems / 20); // 20 items per page
+  const pagerItems = Array.from(pagination.querySelectorAll('.el-pager li'));
+  const pageNumbers = pagerItems
+    .map((item) => Number.parseInt(item.textContent || '', 10))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const totalPagesFromPager = pageNumbers.length > 0 ? Math.max(...pageNumbers) : 0;
+  const totalPagesFromTotal = totalItems > 0 ? Math.ceil(totalItems / 20) : 0;
+  const totalPages = Math.max(totalPagesFromTotal, totalPagesFromPager, currentPage);
 
   return { currentPage, totalPages, totalItems };
+}
+
+function goToNextPageInternal() {
+  const nextBtn = /** @type {HTMLElement | null} */ (document.querySelector(SELECTORS.nextPageBtn));
+  if (!nextBtn) return false;
+  if (
+    nextBtn.hasAttribute('disabled')
+    || nextBtn.classList.contains('is-disabled')
+    || nextBtn.getAttribute('aria-disabled') === 'true'
+  ) {
+    return false;
+  }
+  nextBtn.click();
+  return true;
+}
+
+function getNextPageButtonState() {
+  const nextBtn = document.querySelector(SELECTORS.nextPageBtn);
+  if (!nextBtn) {
+    return {
+      exists: false
+    };
+  }
+  return {
+    exists: true,
+    className: nextBtn.className || '',
+    disabledAttr: nextBtn.getAttribute('disabled') || '',
+    ariaDisabled: nextBtn.getAttribute('aria-disabled') || '',
+    isDisabledClass: nextBtn.classList.contains('disabled'),
+    isIsDisabledClass: nextBtn.classList.contains('is-disabled')
+  };
 }
 
 function parseAutoExportMode(value) {
@@ -771,11 +849,18 @@ function getAutoSyncEnabled() {
   }
 }
 
-function setAutoSyncAttributes(status, count) {
+function setAutoSyncAttributes(status, count, pagesProcessed) {
   try {
     document.documentElement.setAttribute('data-tr-auto-sync', status);
-    if (typeof count === 'number') {
+    if (typeof count === 'number' && Number.isFinite(count)) {
       document.documentElement.setAttribute('data-tr-auto-sync-count', String(count));
+    } else {
+      document.documentElement.removeAttribute('data-tr-auto-sync-count');
+    }
+    if (typeof pagesProcessed === 'number' && Number.isFinite(pagesProcessed)) {
+      document.documentElement.setAttribute('data-tr-auto-sync-pages', String(pagesProcessed));
+    } else {
+      document.documentElement.removeAttribute('data-tr-auto-sync-pages');
     }
   } catch {
     // ignore
@@ -859,10 +944,23 @@ const SyncStatusWidget = (() => {
         <div class="tr-sync-widget__message">${safeMessage}</div>
         ${safeHint ? `<div class="tr-sync-widget__hint">${safeHint}</div>` : ''}
       </div>
-      ${normalizedState === 'error' ? '<button type="button" class="tr-sync-widget__close" aria-label="关闭提示">×</button>' : ''}
+      ${normalizedState === 'progress'
+        ? '<button type="button" class="tr-sync-widget__cancel" aria-label="取消同步">取消</button>'
+        : normalizedState === 'error'
+          ? '<button type="button" class="tr-sync-widget__close" aria-label="关闭提示">×</button>'
+          : ''}
     `;
 
     widget.onclick = null;
+    if (normalizedState === 'progress') {
+      const cancelBtn = widget.querySelector('.tr-sync-widget__cancel');
+      cancelBtn?.addEventListener('click', (event) => {
+        event.stopPropagation();
+        autoSyncCancelled = true;
+        cancelBtn.setAttribute('disabled', 'true');
+        cancelBtn.textContent = '取消中...';
+      });
+    }
     if (normalizedState === 'error') {
       widget.onclick = (event) => {
         const target = event.target instanceof Element ? event.target : null;
@@ -966,6 +1064,78 @@ function waitForApiRows({ timeoutMs = 5000, minCount = 1 } = {}) {
     const intervalId = setInterval(check, 300);
     const observer = new MutationObserver(check);
     observer.observe(document.body, { childList: true, subtree: true });
+    check();
+  });
+}
+
+function waitForPagination({ timeoutMs = 8000 } = {}) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const deadline = Date.now() + timeoutMs;
+
+    const check = () => {
+      if (done) return;
+      const pagination = document.querySelector(SELECTORS.pagination);
+      const nextBtn = document.querySelector(SELECTORS.nextPageBtn);
+      if (pagination && nextBtn) {
+        done = true;
+        cleanup();
+        resolve(true);
+      } else if (Date.now() > deadline) {
+        done = true;
+        cleanup();
+        reject(new Error('Timed out waiting for pagination controls'));
+      }
+    };
+
+    const cleanup = () => {
+      clearInterval(intervalId);
+      observer.disconnect();
+    };
+
+    const intervalId = setInterval(check, 300);
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true });
+    check();
+  });
+}
+
+/**
+ * @param {{ expectedPage?: number; timeoutMs?: number }} options
+ */
+function waitForPageTransition(options = {}) {
+  const { expectedPage, timeoutMs = 15000 } = options;
+  return new Promise((resolve, reject) => {
+    if (!Number.isFinite(expectedPage) || expectedPage < 1) {
+      reject(new Error('Invalid expected page'));
+      return;
+    }
+
+    let done = false;
+    const deadline = Date.now() + timeoutMs;
+
+    const check = () => {
+      if (done) return;
+      const pagination = getPaginationInfo();
+      if (pagination.currentPage === expectedPage) {
+        done = true;
+        cleanup();
+        resolve(pagination.currentPage);
+      } else if (Date.now() > deadline) {
+        done = true;
+        cleanup();
+        reject(new Error(`Timed out waiting for page ${expectedPage}`));
+      }
+    };
+
+    const cleanup = () => {
+      clearInterval(intervalId);
+      observer.disconnect();
+    };
+
+    const intervalId = setInterval(check, 300);
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
     check();
   });
 }
@@ -1467,50 +1637,144 @@ async function runAutoSyncIfEnabled() {
     setAutoSyncAttributes('skipped');
     return;
   }
+
+  const { limit, maxPages } = await getCollectionLimits();
+
   autoSyncTriggered = true;
-  setAutoSyncAttributes('running');
+  autoSyncCancelled = false;
+  setAutoSyncAttributes('running', 0, 0);
+  try {
+    document.documentElement.setAttribute('data-tr-auto-sync-limit', String(limit));
+    document.documentElement.setAttribute('data-tr-auto-sync-max-pages', String(maxPages));
+  } catch {
+    // ignore
+  }
   SyncStatusWidget.show({
     state: 'progress',
-    message: '正在同步简历到服务器...'
+    message: '正在同步简历到服务器...',
+    hint: `数量上限: ${limit > 0 ? limit : '不限'} · 页数上限: ${maxPages > 0 ? maxPages : '不限'}`
   });
 
   try {
-    await waitForResumeCards({});
-    try {
-      await waitForApiRows({});
-    } catch {
-      // API rows are optional; continue with DOM-only extraction
-    }
+    let totalSubmitted = 0;
+    let totalInserted = 0;
+    let totalUpdated = 0;
+    let pagesProcessed = 0;
+    let stopReason = 'completed';
 
-    const resumes = extractResumes();
-    const resumeCount = resumes.length;
-    SyncStatusWidget.show({
-      state: 'progress',
-      message: `正在同步 ${resumeCount} 份简历...`
-    });
+    while (true) {
+      if (autoSyncCancelled) {
+        stopReason = 'cancelled';
+        break;
+      }
 
-    const response = await syncCurrentPageToServer(resumes);
-    if (response?.success) {
-      const submitted = typeof response.submitted === 'number' ? response.submitted : resumeCount;
+      const paginationBefore = getPaginationInfo();
+      const currentPage = paginationBefore.currentPage;
+      const totalPages = paginationBefore.totalPages;
+
+      await waitForResumeCards({});
+      try {
+        await waitForApiRows({});
+      } catch {
+        // API rows are optional; continue with DOM-only extraction
+      }
+
+      const remainingCapacity = limit > 0 ? Math.max(limit - totalSubmitted, 0) : 0;
+      if (limit > 0 && remainingCapacity <= 0) {
+        stopReason = 'limit-reached';
+        break;
+      }
+
+      let resumes = extractResumes();
+      if (limit > 0 && resumes.length > remainingCapacity) {
+        resumes = resumes.slice(0, remainingCapacity);
+      }
+      if (resumes.length <= 0) {
+        stopReason = 'no-resumes';
+        break;
+      }
+
+      const progressHint = limit > 0
+        ? `已采集 ${Math.min(totalSubmitted, limit)}/${limit}`
+        : `已采集 ${totalSubmitted}`;
+      SyncStatusWidget.show({
+        state: 'progress',
+        message: `正在同步第 ${currentPage}/${Math.max(totalPages, currentPage)} 页 (${resumes.length} 份)...`,
+        hint: progressHint
+      });
+
+      const response = await syncCurrentPageToServer(resumes);
+      if (!response?.success) {
+        throw response?.error || response || 'Auto sync failed';
+      }
+
+      const submitted = typeof response.submitted === 'number' ? response.submitted : resumes.length;
       const inserted = typeof response.inserted === 'number' ? response.inserted : 0;
       const updated = typeof response.updated === 'number' ? response.updated : 0;
+      totalSubmitted += submitted;
+      totalInserted += inserted;
+      totalUpdated += updated;
+      pagesProcessed += 1;
+      setAutoSyncAttributes('running', totalSubmitted, pagesProcessed);
+
+      if (autoSyncCancelled) {
+        stopReason = 'cancelled';
+        break;
+      }
+      if (limit > 0 && totalSubmitted >= limit) {
+        stopReason = 'limit-reached';
+        break;
+      }
+      if (maxPages > 0 && pagesProcessed >= maxPages) {
+        stopReason = 'max-pages-reached';
+        break;
+      }
+
+      const paginationAfter = getPaginationInfo();
+      try {
+        await waitForPagination({ timeoutMs: 8000 });
+      } catch {
+        // Some layouts render pagination late or omit it on single-page results.
+      }
+      const nextPage = paginationAfter.currentPage + 1;
+      try {
+        document.documentElement.setAttribute('data-tr-auto-sync-next-state', JSON.stringify(getNextPageButtonState()));
+      } catch {
+        // ignore
+      }
+      apiSnapshot.searchRows = null;
+      const moved = goToNextPageInternal();
+      if (!moved) {
+        stopReason = 'no-next-page';
+        break;
+      }
+      await waitForPageTransition({ expectedPage: nextPage, timeoutMs: 15000 });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    try {
+      document.documentElement.setAttribute('data-tr-auto-sync-stop-reason', stopReason);
+    } catch {
+      // ignore
+    }
+
+    if (autoSyncCancelled) {
       SyncStatusWidget.show({
         state: 'success',
-        message: `已同步 ${submitted} 份简历 (${inserted} 新增, ${updated} 更新)`,
+        message: `同步已取消，已同步 ${totalSubmitted} 份简历`,
+        hint: `${totalInserted} 新增, ${totalUpdated} 更新, 共 ${pagesProcessed} 页`,
         autoDismiss: true
       });
-      setAutoSyncAttributes('done', submitted);
+      setAutoSyncAttributes('cancelled', totalSubmitted, pagesProcessed);
       return;
     }
 
-    console.warn('🎯 [Auto Sync] Failed:', response);
-    const status = resolveAutoSyncErrorStatus(response?.error || response);
     SyncStatusWidget.show({
-      state: 'error',
-      message: status.message,
-      hint: status.hint
+      state: 'success',
+      message: `已同步 ${totalSubmitted} 份简历 (${totalInserted} 新增, ${totalUpdated} 更新), 共 ${pagesProcessed} 页`,
+      autoDismiss: true
     });
-    setAutoSyncAttributes('failed');
+    setAutoSyncAttributes('done', totalSubmitted, pagesProcessed);
   } catch (error) {
     console.warn('🎯 [Auto Sync] Failed:', error);
     const status = resolveAutoSyncErrorStatus(error);
@@ -1520,6 +1784,11 @@ async function runAutoSyncIfEnabled() {
       hint: status.hint
     });
     setAutoSyncAttributes('failed');
+    try {
+      document.documentElement.setAttribute('data-tr-auto-sync-stop-reason', 'failed');
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -1601,6 +1870,10 @@ function installExternalAccessor() {
         const autoLocation = document.documentElement.getAttribute('data-tr-auto-location') || '';
         const autoExport = document.documentElement.getAttribute('data-tr-auto-export') || '';
         const autoSync = document.documentElement.getAttribute('data-tr-auto-sync') || '';
+        const autoSyncCountRaw = document.documentElement.getAttribute('data-tr-auto-sync-count') || '';
+        const autoSyncPagesRaw = document.documentElement.getAttribute('data-tr-auto-sync-pages') || '';
+        const autoSyncCount = Number.parseInt(autoSyncCountRaw, 10);
+        const autoSyncPages = Number.parseInt(autoSyncPagesRaw, 10);
         return {
           extensionLoaded: true,
           extensionVersion: version,
@@ -1612,20 +1885,15 @@ function installExternalAccessor() {
           autoLocation,
           autoExport,
           autoSync,
+          autoSyncCount: Number.isFinite(autoSyncCount) ? autoSyncCount : 0,
+          autoSyncPages: Number.isFinite(autoSyncPages) ? autoSyncPages : 0,
           pagination,
           timestamp: new Date().toISOString()
         };
       },
       syncToServer: () => syncCurrentPageToServer(),
       version,
-      goToNextPage: () => {
-        const nextBtn = /** @type {HTMLButtonElement | null} */ (document.querySelector('.el-pagination .btn-next'));
-        if (nextBtn && !nextBtn.disabled) {
-          nextBtn.click();
-          return true;
-        }
-        return false;
-      }
+      goToNextPage: () => goToNextPageInternal()
     };
   } catch (error) {
     console.warn('🎯 [External Access] Failed to install accessor:', error);
