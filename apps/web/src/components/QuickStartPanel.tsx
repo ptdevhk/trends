@@ -617,31 +617,12 @@ export function QuickStartPanel({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-              {t('quickStart.hotKeywords', '热门关键词')}
-            </label>
-          </div>
-          {location.trim() ? (
-            <div className="flex items-center">
-              <button
-                type="button"
-                onClick={() => setLocation('')}
-                className="inline-flex items-center gap-1 rounded-full border border-green-700 bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
-              >
-                <span>📍 {location.trim()}</span>
-                <span aria-hidden="true">✕</span>
-              </button>
-            </div>
-          ) : null}
-          <KeywordChips
-            value={selectedKeywords}
-            onChange={handleKeywordsChange}
-            activeLocation={location}
-            onLocationToggle={handleLocationToggle}
-          />
-        </div>
+        <KeywordChips
+          value={selectedKeywords}
+          onChange={handleKeywordsChange}
+          activeLocation={location}
+          onLocationToggle={handleLocationToggle}
+        />
 
         {selectedConvexJobDescriptionProfile ? (
           <div className="rounded-md border border-muted/60 bg-muted/20 px-3 py-2">

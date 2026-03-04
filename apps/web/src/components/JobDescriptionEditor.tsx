@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useWorkspace } from "@/contexts/WorkspaceContext"
 import { useTranslation } from "react-i18next"
+import { useIndustryKeywords } from "@/hooks/useIndustryKeywords"
 
 const INDUSTRY_TAG_OPTIONS = ["machinery", "cnc", "sales", "automation", "metrology", "software"] as const
 const DEFAULT_MIN_EXPERIENCE = 1
@@ -20,6 +21,7 @@ type StructuredSeedFields = {
     maxExperience?: number
     minAge?: number
     maxAge?: number
+    customKeywords?: string[]
 }
 
 type JdContentFields = {
@@ -30,6 +32,7 @@ type JdContentFields = {
     maxExperience?: number
     minAge?: number
     maxAge?: number
+    customKeywords?: string[]
 }
 
 function normalizeOptionalString(value: string | undefined): string | undefined {
@@ -78,6 +81,10 @@ function hasStructuredSeedFields(fields: StructuredSeedFields | undefined): bool
     }
 
     if ((fields.industryTags?.length ?? 0) > 0) {
+        return true
+    }
+
+    if ((fields.customKeywords?.length ?? 0) > 0) {
         return true
     }
 
@@ -131,7 +138,9 @@ function generateJdContent(fields: JdContentFields): string {
     const maxExperience = fields.maxExperience
     const minAge = fields.minAge
     const maxAge = fields.maxAge
-    const keywords = extractTitleKeywords(title)
+    const baseKeywords = extractTitleKeywords(title)
+    const extraKeywords = fields.customKeywords ?? []
+    const keywords = Array.from(new Set([...baseKeywords, ...extraKeywords])).slice(0, 15)
 
     const lines: string[] = [
         "---",
@@ -222,6 +231,9 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
     const [title, setTitle] = useState("")
     const [location, setLocation] = useState("")
     const [industryTags, setIndustryTags] = useState<string[]>([])
+    const [customKeywords, setCustomKeywords] = useState<string[]>([])
+    const { grouped } = useIndustryKeywords()
+    const availableCustomKeywords = grouped.custom || []
     const [minExperience, setMinExperience] = useState(String(DEFAULT_MIN_EXPERIENCE))
     const [maxExperience, setMaxExperience] = useState("")
     const [minAge, setMinAge] = useState("")
@@ -249,6 +261,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             setTitle(initialData.title + (initialData.type === "system" ? " (Custom Copy)" : ""))
             setLocation(initialData.location ?? "")
             setIndustryTags(sanitizeIndustryTags(initialData.industryTags))
+            setCustomKeywords(initialData.customKeywords ?? [])
             setMinExperience(typeof initialData.minExperience === "number" ? String(initialData.minExperience) : defaultMinExperience)
             setMaxExperience(typeof initialData.maxExperience === "number" ? String(initialData.maxExperience) : "")
             setMinAge(typeof initialData.minAge === "number" ? String(initialData.minAge) : "")
@@ -260,6 +273,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             setTitle("")
             setLocation("")
             setIndustryTags([])
+            setCustomKeywords([])
             setMinExperience(String(DEFAULT_MIN_EXPERIENCE))
             setMaxExperience("")
             setMinAge("")
@@ -279,6 +293,15 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
         })
     }
 
+    const toggleCustomKeyword = (keyword: string) => {
+        setCustomKeywords((current) => {
+            if (current.includes(keyword)) {
+                return current.filter((item) => item !== keyword)
+            }
+            return [...current, keyword]
+        })
+    }
+
     const toggleAdvancedMode = () => {
         setAdvancedMode((current) => {
             if (!current && !advancedContentTouched) {
@@ -286,6 +309,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                     title: title.trim(),
                     location,
                     industryTags,
+                    customKeywords,
                     minExperience: normalizedMinExperience,
                     maxExperience: parsedMaxExperience,
                     minAge: parsedMinAge,
@@ -311,6 +335,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             title: normalizedTitle,
             location: normalizedLocation,
             industryTags: normalizedIndustryTags,
+            customKeywords: customKeywords,
             minExperience: normalizedMinExperience,
             maxExperience: normalizedMaxExperience,
             minAge: normalizedMinAge,
@@ -328,6 +353,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                 content: contentToSave,
                 location: normalizedLocation,
                 industryTags: normalizedIndustryTags.length > 0 ? normalizedIndustryTags : undefined,
+                customKeywords: customKeywords.length > 0 ? customKeywords : undefined,
                 minExperience: advancedMode
                     ? (typeof parsedMinExperience === "number" ? Math.max(parsedMinExperience, 0) : undefined)
                     : normalizedMinExperience,
@@ -355,6 +381,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             onSaveSuccess?.(newId, {
                 location: payload.location,
                 industryTags: payload.industryTags,
+                customKeywords: payload.customKeywords,
                 minExperience: payload.minExperience,
                 maxExperience: payload.maxExperience,
                 minAge: payload.minAge,
@@ -406,6 +433,28 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                             })}
                         </div>
                     </div>
+
+                    {availableCustomKeywords.length > 0 && (
+                        <div className="grid gap-2">
+                            <Label>{t("jdEditor.customKeywords", "自定义:")}</Label>
+                            <div className="flex flex-wrap gap-2">
+                                {availableCustomKeywords.map((tagObj) => {
+                                    const tag = tagObj.keyword
+                                    const selected = customKeywords.includes(tag)
+                                    return (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            onClick={() => toggleCustomKeyword(tag)}
+                                            className={`rounded-full border px-3 py-1 text-xs transition-colors ${selected ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+                                        >
+                                            {selected ? "✓ " : ""}{tag}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="grid gap-2">
                         <div className="grid grid-cols-2 gap-3">

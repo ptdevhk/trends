@@ -293,6 +293,7 @@
     "location": "工作地點",
     "locationPlaceholder": "例如：東莞",
     "industryTags": "行業標籤",
+    "customKeywords": "自定義:",
     "relatedExp": "相關經驗",
     "minRelatedExp": "最低相關經驗(年)",
     "maxRelatedExp": "最高相關經驗(年)",

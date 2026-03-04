@@ -293,6 +293,7 @@
     "location": "Location",
     "locationPlaceholder": "e.g. Dongguan",
     "industryTags": "Industry Tags",
+    "customKeywords": "Custom Keywords:",
     "relatedExp": "Related Experience",
     "minRelatedExp": "Min Exp (yrs)",
     "maxRelatedExp": "Max Exp (yrs)",

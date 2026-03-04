@@ -293,6 +293,7 @@
     "location": "工作地点",
     "locationPlaceholder": "例如：东莞",
     "industryTags": "行业标签",
+    "customKeywords": "自定义:",
     "relatedExp": "相关经验",
     "minRelatedExp": "最低相关经验(年)",
     "maxRelatedExp": "最高相关经验(年)",
