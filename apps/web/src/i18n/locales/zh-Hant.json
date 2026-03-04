@@ -127,7 +127,11 @@
     "companyHits": "公司命中",
     "experienceLevel": "經驗等級",
     "ruleScoreCount": "規則分數數量",
-    "noIngestData": "此簡歷尚未產生 ingest 數據。"
+    "noIngestData": "此簡歷尚未產生 ingest 數據。",
+    "resetDatabase": "清空履歷資料庫",
+    "resetDatabaseConfirm": "將刪除所有履歷資料與任務記錄，且無法復原。確定繼續嗎？",
+    "resetDatabaseSuccess": "已從履歷資料庫刪除 {{count}} 筆記錄。",
+    "resetDatabaseFailed": "清空履歷資料庫失敗"
   },
   "trends": {
     "title": "熱門話題",

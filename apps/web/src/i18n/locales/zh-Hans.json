@@ -127,7 +127,11 @@
     "companyHits": "公司命中",
     "experienceLevel": "经验等级",
     "ruleScoreCount": "规则分数量",
-    "noIngestData": "该简历尚未生成 ingest 数据。"
+    "noIngestData": "该简历尚未生成 ingest 数据。",
+    "resetDatabase": "清空简历数据库",
+    "resetDatabaseConfirm": "将删除所有简历数据及任务记录，且无法撤销。确定继续吗？",
+    "resetDatabaseSuccess": "已从简历数据库删除 {{count}} 条记录。",
+    "resetDatabaseFailed": "清空简历数据库失败"
   },
   "trends": {
     "title": "热门话题",

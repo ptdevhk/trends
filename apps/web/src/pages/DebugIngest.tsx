@@ -56,6 +56,7 @@ export default function DebugIngest() {
   const backfillIngestData = useAction(api.migrations.backfillIngestData)
   const reIngestStaleSkillsVersion = useAction(api.migrations.reIngestStaleSkillsVersion)
   const clearAnalysesMutation = useMutation(api.resumes.clearAnalyses)
+  const resetDatabaseMutation = useMutation(api.resume_tasks.resetDatabase)
 
   const [search, setSearch] = useState('')
   const [skillsVersion, setSkillsVersion] = useState<number | null>(null)
@@ -63,6 +64,7 @@ export default function DebugIngest() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [reingesting, setReingesting] = useState(false)
   const [clearingAnalyses, setClearingAnalyses] = useState(false)
+  const [resettingDatabase, setResettingDatabase] = useState(false)
 
   const apiBaseUrl = useMemo(() => {
     const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
@@ -169,6 +171,40 @@ export default function DebugIngest() {
     }
   }, [clearAnalysesMutation, t])
 
+  const resetDatabase = useCallback(async () => {
+    const confirmed = window.confirm(
+      t('debugIngest.resetDatabaseConfirm', {
+        defaultValue: 'Delete all resume data and task records? This cannot be undone.',
+      })
+    )
+    if (!confirmed) {
+      return
+    }
+
+    setResettingDatabase(true)
+    try {
+      const result = await resetDatabaseMutation({})
+      setSearch('')
+      setExpandedIds(new Set())
+      toast.success(
+        t('debugIngest.resetDatabaseSuccess', {
+          count: result.count,
+          defaultValue: `Deleted ${result.count} records from the resume database.`,
+        })
+      )
+      await loadSkillsVersion()
+    } catch (error) {
+      console.error('Failed to reset resume database', error)
+      toast.error(
+        t('debugIngest.resetDatabaseFailed', {
+          defaultValue: 'Failed to clear resume database',
+        })
+      )
+    } finally {
+      setResettingDatabase(false)
+    }
+  }, [loadSkillsVersion, resetDatabaseMutation, t])
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -228,6 +264,10 @@ export default function DebugIngest() {
         <Button variant="destructive" onClick={() => void clearAnalyses()} disabled={clearingAnalyses}>
           <Trash2 className={`mr-2 h-4 w-4 ${clearingAnalyses ? 'animate-spin' : ''}`} />
           {t('debugIngest.clearAnalyses', { defaultValue: 'Reset AI Analyses' })}
+        </Button>
+        <Button variant="destructive" onClick={() => void resetDatabase()} disabled={resettingDatabase}>
+          <Trash2 className={`mr-2 h-4 w-4 ${resettingDatabase ? 'animate-spin' : ''}`} />
+          {t('debugIngest.resetDatabase', { defaultValue: 'Clear Resume Database' })}
         </Button>
       </div>
 
