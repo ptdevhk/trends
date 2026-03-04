@@ -285,6 +285,12 @@
     "error": "同步失败: {{error}}"
   },
   "quickStart": {
+    "quickFilters": "筛选条件",
+    "minYears": "至少",
+    "years": "年",
+    "maxAge": "最高年龄",
+    "maxAgePlaceholder": "不限",
+    "ageUnit": "岁",
     "location": "位置",
     "customKeywords": "关键词",
     "manualJd": "手动职位(可选)",

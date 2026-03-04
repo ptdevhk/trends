@@ -54,6 +54,7 @@ type JobDescriptionDetailApiResponse = {
   item?: {
     requiredRoles?: Array<{
       type?: string
+      min_years?: number
     }>
   }
 }
@@ -185,11 +186,14 @@ export function QuickStartPanel({
   const [location, setLocation] = useState(defaultLocation)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
   const [customKeyword, setCustomKeyword] = useState(defaultKeywords.join(' '))
-  const [quickMinRoleYears, setQuickMinRoleYears] = useState(quickFilters?.minRoleYears?.toString() ?? '')
+  const [quickMinRoleYears, setQuickMinRoleYears] = useState(quickFilters?.minRoleYears?.toString() ?? '1')
   const [quickMaxAge, setQuickMaxAge] = useState(quickFilters?.maxAge?.toString() ?? '')
   const [activeRoleType, setActiveRoleType] = useState<string | undefined>(quickFilters?.roleFilterType)
+  const [jdMinRoleYears, setJdMinRoleYears] = useState<number | undefined>(undefined)
   const [autoMatchResult, setAutoMatchResult] = useState<AutoMatchedProfile | null>(null)
   const [matching, setMatching] = useState(false)
+
+  const effectiveDefaultMinRoleYears = jdMinRoleYears ?? 1
 
   useEffect(() => {
     setLocation(defaultLocation)
@@ -201,9 +205,9 @@ export function QuickStartPanel({
   }, [defaultKeywords])
 
   useEffect(() => {
-    setQuickMinRoleYears(quickFilters?.minRoleYears?.toString() ?? '')
+    setQuickMinRoleYears(quickFilters?.minRoleYears?.toString() ?? effectiveDefaultMinRoleYears.toString())
     setQuickMaxAge(quickFilters?.maxAge?.toString() ?? '')
-  }, [quickFilters?.maxAge, quickFilters?.minRoleYears])
+  }, [quickFilters?.maxAge, quickFilters?.minRoleYears, effectiveDefaultMinRoleYears])
 
   useEffect(() => {
     const normalizedJobDescriptionId = jobDescriptionId.trim()
@@ -222,12 +226,15 @@ export function QuickStartPanel({
         if (cancelled) {
           return
         }
-        const roleType = response.data?.item?.requiredRoles?.[0]?.type?.trim()
+        const requiredRole = response.data?.item?.requiredRoles?.[0]
+        const roleType = requiredRole?.type?.trim()
         setActiveRoleType(roleType && roleType.length > 0 ? roleType : undefined)
+        setJdMinRoleYears(requiredRole?.min_years)
       } catch (error) {
         console.error('Failed to fetch role type from job description', error)
         if (!cancelled) {
           setActiveRoleType(undefined)
+          setJdMinRoleYears(undefined)
         }
       }
     }
@@ -345,16 +352,21 @@ export function QuickStartPanel({
     })
   }, [autoMatchResult, location, normalizedKeywords, onApplyConfig, onJobChange])
 
-  const handleApplyQuickFilters = useCallback(() => {
-    const minRoleYears = quickMinRoleYears ? Number(quickMinRoleYears) : undefined
-    const maxAge = quickMaxAge ? Number(quickMaxAge) : undefined
-    const roleFilterType = activeRoleType?.trim()
-    onApplyQuickFilters?.({
-      minRoleYears: typeof minRoleYears === 'number' && Number.isFinite(minRoleYears) ? minRoleYears : undefined,
-      roleFilterType: roleFilterType && roleFilterType.length > 0 ? roleFilterType : undefined,
-      maxAge: typeof maxAge === 'number' && Number.isFinite(maxAge) ? maxAge : undefined,
-    })
-  }, [activeRoleType, onApplyQuickFilters, quickMaxAge, quickMinRoleYears])
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const minRoleYears = quickMinRoleYears ? Number(quickMinRoleYears) : undefined
+      const maxAge = quickMaxAge ? Number(quickMaxAge) : undefined
+      const roleFilterType = activeRoleType?.trim()
+      
+      onApplyQuickFilters?.({
+        minRoleYears: typeof minRoleYears === 'number' && Number.isFinite(minRoleYears) ? minRoleYears : undefined,
+        roleFilterType: roleFilterType && roleFilterType.length > 0 ? roleFilterType : undefined,
+        maxAge: typeof maxAge === 'number' && Number.isFinite(maxAge) ? maxAge : undefined,
+      })
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [quickMinRoleYears, quickMaxAge, activeRoleType, onApplyQuickFilters])
 
   return (
     <div className="rounded-lg bg-background border px-4 py-4 shadow-sm">
@@ -489,33 +501,57 @@ export function QuickStartPanel({
           </div>
         ) : null}
 
-        <div className="rounded-md border border-dashed border-muted-foreground/30 px-3 py-3">
-          <div className="text-sm font-medium">⚡ 快速筛选</div>
-          <div className="mt-2 flex flex-wrap items-end gap-3">
-            <label className="text-sm text-muted-foreground">
-              要求{getRoleLabel(activeRoleType)} 最少
-              <input
-                type="number"
-                min={0}
-                value={quickMinRoleYears}
-                onChange={(event) => setQuickMinRoleYears(event.target.value)}
-                className="mx-2 h-8 w-20 rounded-md border border-input bg-background px-2 text-sm"
-              />
-              年
-            </label>
-            <label className="text-sm text-muted-foreground">
-              最高年龄
-              <input
-                type="number"
-                min={0}
-                value={quickMaxAge}
-                onChange={(event) => setQuickMaxAge(event.target.value)}
-                className="mx-2 h-8 w-20 rounded-md border border-input bg-background px-2 text-sm"
-              />
-            </label>
-            <Button size="sm" variant="outline" onClick={handleApplyQuickFilters}>
-              应用快速筛选
-            </Button>
+        <div className="pt-3 border-t border-muted/50">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">
+                ⚡ {t('quickStart.quickFilters', '筛选条件')}
+              </span>
+              {(quickMinRoleYears || quickMaxAge) && (
+                <div className="flex items-center gap-1.5 ml-2">
+                  {quickMinRoleYears && (
+                    <Badge variant="secondary" className="font-normal text-xs px-1.5 py-0 h-5">
+                      {getRoleLabel(activeRoleType)} {quickMinRoleYears}+{t('quickStart.years', '年')}
+                    </Badge>
+                  )}
+                  {quickMaxAge && (
+                    <Badge variant="secondary" className="font-normal text-xs px-1.5 py-0 h-5">
+                      ≤{quickMaxAge}{t('quickStart.ageUnit', '岁')}
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="h-4 w-px bg-border hidden sm:block"></div>
+
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2 text-muted-foreground">
+                <span className="text-xs">{getRoleLabel(activeRoleType)} {t('quickStart.minYears', '至少')}</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={quickMinRoleYears}
+                  onChange={(event) => setQuickMinRoleYears(event.target.value)}
+                  placeholder={effectiveDefaultMinRoleYears.toString()}
+                  className="h-7 w-14 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <span className="text-xs">{t('quickStart.years', '年')}</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-muted-foreground">
+                <span className="text-xs">{t('quickStart.maxAge', '最高年龄')}</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={quickMaxAge}
+                  onChange={(event) => setQuickMaxAge(event.target.value)}
+                  placeholder={t('quickStart.maxAgePlaceholder', '不限')}
+                  className="h-7 w-14 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <span className="text-xs">{t('quickStart.ageUnit', '岁')}</span>
+              </label>
+            </div>
           </div>
         </div>
       </div>

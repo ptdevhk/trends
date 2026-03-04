@@ -285,6 +285,12 @@
     "error": "Sync failed: {{error}}"
   },
   "quickStart": {
+    "quickFilters": "Filters",
+    "minYears": "Min",
+    "years": "yrs",
+    "maxAge": "Max Age",
+    "maxAgePlaceholder": "Any",
+    "ageUnit": "",
     "location": "Location",
     "customKeywords": "Keywords",
     "manualJd": "Manual JD (Optional)",
