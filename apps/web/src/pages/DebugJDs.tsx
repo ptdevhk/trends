@@ -26,7 +26,9 @@ type EditorData = {
     type: 'system' | 'custom'
     location?: string
     industryTags?: string[]
+    customKeywords?: string[]
     minExperience?: number
+    maxExperience?: number
     minAge?: number
     maxAge?: number
 }
@@ -123,7 +125,9 @@ export default function DebugJDs() {
             type: jd.type === 'system' ? 'system' : 'custom',
             location: jd.location,
             industryTags: jd.industryTags,
+            customKeywords: jd.customKeywords,
             minExperience: jd.minExperience,
+            maxExperience: jd.maxExperience,
             minAge: jd.minAge,
             maxAge: jd.maxAge,
         })
@@ -137,7 +141,9 @@ export default function DebugJDs() {
             type: 'custom', // Always duplicate as custom
             location: jd.location,
             industryTags: jd.industryTags,
+            customKeywords: jd.customKeywords,
             minExperience: jd.minExperience,
+            maxExperience: jd.maxExperience,
             minAge: jd.minAge,
             maxAge: jd.maxAge,
         })

@@ -353,7 +353,9 @@ export function QuickStartPanel({
       content: selectedConvexJobDescriptionProfile.content,
       location: selectedConvexJobDescriptionProfile.location,
       industryTags: selectedConvexJobDescriptionProfile.industryTags,
+      customKeywords: selectedConvexJobDescriptionProfile.customKeywords,
       minExperience: selectedConvexJobDescriptionProfile.minExperience,
+      maxExperience: selectedConvexJobDescriptionProfile.maxExperience,
       minAge: selectedConvexJobDescriptionProfile.minAge,
       maxAge: selectedConvexJobDescriptionProfile.maxAge,
     }
