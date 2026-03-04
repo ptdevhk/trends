@@ -13,6 +13,11 @@ export interface WechatWorkMarkdownOptions {
     webhookUrl?: string;
 }
 
+export interface FeishuTextOptions {
+    content: string;
+    webhookUrl?: string;
+}
+
 export interface NotificationAdapter {
     sendEmail(options: EmailOptions): Promise<unknown>;
 }
@@ -21,6 +26,17 @@ const wechatWorkWebhookResponseSchema = z.object({
     errcode: z.number(),
     errmsg: z.string(),
 });
+
+const feishuWebhookResponseSchema = z.union([
+    z.object({
+        code: z.number(),
+        msg: z.string(),
+    }).passthrough(),
+    z.object({
+        StatusCode: z.number(),
+        StatusMessage: z.string(),
+    }).passthrough(),
+]);
 
 class EtherealAdapter implements NotificationAdapter {
     private transporter: nodemailer.Transporter | null = null;
@@ -131,6 +147,45 @@ export class NotificationService {
         }
 
         return parsed.data;
+    }
+
+    async sendFeishuText(options: FeishuTextOptions) {
+        const webhookUrl = options.webhookUrl ?? process.env.FEISHU_WEBHOOK_URL ?? process.env.FEISHU_WEBHOOK;
+        if (!webhookUrl) {
+            throw new Error("FEISHU_WEBHOOK_URL is not set");
+        }
+
+        const response = await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                msg_type: "text",
+                content: { text: options.content },
+            }),
+        });
+
+        const rawText = await response.text();
+        let rawJson: unknown;
+        try {
+            rawJson = JSON.parse(rawText);
+        } catch {
+            throw new Error(`Feishu webhook returned non-JSON (HTTP ${response.status})`);
+        }
+
+        const parsed = feishuWebhookResponseSchema.safeParse(rawJson);
+        if (!parsed.success) {
+            throw new Error(`Feishu webhook returned unexpected response (HTTP ${response.status})`);
+        }
+
+        const data = parsed.data;
+        const code = "code" in data ? data.code : data.StatusCode;
+        const message = "msg" in data ? data.msg : data.StatusMessage;
+
+        if (!response.ok || code !== 0) {
+            throw new Error(`Feishu webhook error: ${message} (code=${code}, HTTP ${response.status})`);
+        }
+
+        return data;
     }
 }
 
