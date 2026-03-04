@@ -245,7 +245,6 @@ function createSearchText(item: ResumeItem): string {
     item.jobIntention,
     item.selfIntro,
     item.education,
-    item.location,
     item.expectedSalary,
     ...(item.workHistory?.map((entry) => entry.raw) ?? []),
   ];

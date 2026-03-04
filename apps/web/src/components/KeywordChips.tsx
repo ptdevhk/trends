@@ -12,6 +12,8 @@ import {
 interface KeywordChipsProps {
   value: string[]
   onChange: (keywords: string[]) => void
+  activeLocation?: string
+  onLocationToggle?: (location: string) => void
 }
 
 function normalizeKeywords(values: string[]): string[] {
@@ -26,7 +28,12 @@ function normalizeKeywords(values: string[]): string[] {
   return next
 }
 
-export function KeywordChips({ value, onChange }: KeywordChipsProps) {
+export function KeywordChips({
+  value,
+  onChange,
+  activeLocation,
+  onLocationToggle,
+}: KeywordChipsProps) {
   const { t } = useTranslation()
   const { keywords, grouped, hotKeywords, loading, error } = useIndustryKeywords()
   const [expanded, setExpanded] = useState(false)
@@ -43,6 +50,21 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
     () => new Set(keywords.map((keyword) => keyword.keyword)),
     [keywords]
   )
+  const keywordCategoryMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const item of keywords) {
+      const normalizedKeyword = item.keyword.trim()
+      if (!normalizedKeyword || map.has(normalizedKeyword)) {
+        continue
+      }
+      map.set(normalizedKeyword, item.category)
+    }
+    return map
+  }, [keywords])
+  const normalizedActiveLocation = useMemo(
+    () => activeLocation?.trim() ?? '',
+    [activeLocation]
+  )
 
   const additionalSelectedKeywords = useMemo(() => {
     return selectedValues.filter((keyword) => !hotKeywordSet.has(keyword))
@@ -57,6 +79,12 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
       const normalized = keyword.trim()
       if (!normalized) return
 
+      const matchedKeyword = keywords.find((item) => item.keyword === normalized)
+      if (matchedKeyword?.category === 'location' && onLocationToggle) {
+        onLocationToggle(normalized)
+        return
+      }
+
       const next = new Set(selected)
       if (next.has(normalized)) {
         next.delete(normalized)
@@ -65,18 +93,21 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
       }
       onChange(Array.from(next))
     },
-    [onChange, selected]
+    [keywords, onChange, onLocationToggle, selected]
   )
 
-
-
   const renderChip = useCallback(
-    (keyword: string) => {
-      const selectedKeyword = selected.has(keyword)
+    (keyword: string, category?: string) => {
+      const normalizedKeyword = keyword.trim()
+      const resolvedCategory = category ?? keywordCategoryMap.get(normalizedKeyword)
+      const isLocationChip = resolvedCategory === 'location'
+      const selectedKeyword = isLocationChip
+        ? normalizedActiveLocation === normalizedKeyword
+        : selected.has(normalizedKeyword)
       return (
         <Badge
           key={keyword}
-          variant={selectedKeyword ? 'default' : 'outline'}
+          variant={isLocationChip ? 'outline' : selectedKeyword ? 'default' : 'outline'}
           onClick={() => toggleKeyword(keyword)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
@@ -88,14 +119,20 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
           tabIndex={0}
           className={cn(
             'cursor-pointer select-none rounded-full px-2.5 py-1 text-xs transition-colors',
-            selectedKeyword ? 'border-transparent' : 'hover:bg-muted'
+            isLocationChip
+              ? selectedKeyword
+                ? 'border-green-700 bg-green-600 text-white hover:bg-green-600'
+                : 'border-green-300 text-green-700 hover:bg-green-50'
+              : selectedKeyword
+                ? 'border-transparent'
+                : 'hover:bg-muted'
           )}
         >
           {keyword}
         </Badge>
       )
     },
-    [selected, toggleKeyword]
+    [keywordCategoryMap, normalizedActiveLocation, selected, toggleKeyword]
   )
 
   return (
@@ -108,8 +145,10 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
           <span className="text-xs text-muted-foreground">{t('trends.loading')}</span>
         ) : (
           <>
-            {hotKeywords.map((item) => renderChip(item.keyword))}
-            {!expanded && additionalSelectedKeywords.map((keyword) => renderChip(keyword))}
+            {hotKeywords.map((item) => renderChip(item.keyword, item.category))}
+            {!expanded && additionalSelectedKeywords.map((keyword) =>
+              renderChip(keyword, keywordCategoryMap.get(keyword.trim()))
+            )}
           </>
         )}
         <Button
@@ -133,7 +172,7 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
               <span className="text-xs font-medium text-muted-foreground">
                 {CATEGORY_LABELS[category]}:
               </span>
-              {grouped[category].map((item) => renderChip(item.keyword))}
+              {grouped[category].map((item) => renderChip(item.keyword, item.category))}
             </div>
           )
         })
@@ -142,11 +181,11 @@ export function KeywordChips({ value, onChange }: KeywordChipsProps) {
       {customSelectedKeywords.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted-foreground">{t('quickStart.customKeywords', '自定义')}:</span>
-          {customSelectedKeywords.map((keyword) => renderChip(keyword))}
+          {customSelectedKeywords.map((keyword) =>
+            renderChip(keyword, keywordCategoryMap.get(keyword.trim()))
+          )}
         </div>
       ) : null}
-
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>

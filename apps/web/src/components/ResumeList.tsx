@@ -55,6 +55,7 @@ export function ResumeList() {
     handleToggleTag,
     handleToggleCompany,
     handleToggleExperienceLevel,
+    handleClearLocation,
     handleClearTagFilters,
     handleSelectAll,
     handleSelectHighScore,
@@ -150,9 +151,11 @@ export function ResumeList() {
         selectedTags={selectedTags}
         selectedCompanies={selectedCompanies}
         selectedExperienceLevel={selectedExperienceLevel}
+        selectedLocation={sessionLocation}
         onRemoveTag={handleToggleTag}
         onRemoveCompany={handleToggleCompany}
         onRemoveExperienceLevel={handleToggleExperienceLevel}
+        onRemoveLocation={handleClearLocation}
         onClearAll={handleClearTagFilters}
       />
 

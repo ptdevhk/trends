@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from 'convex/react'
+import { isLocationMatch } from '@trends/shared'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
@@ -604,6 +605,11 @@ export function useResumeListState() {
         normalizedLocation.length > 0
           ? normalizedLocation
           : undefined
+      const locationFilters = locationForUrl ? [locationForUrl] : undefined
+      const filtersForUrl: Partial<ResumeFilters> = {
+        ...filters,
+        locations: locationFilters,
+      }
 
       syncToUrl({
         location: locationForUrl,
@@ -612,7 +618,7 @@ export function useResumeListState() {
         selectedTags,
         selectedCompanies,
         selectedExperienceLevel,
-        filters,
+        filters: filtersForUrl,
       })
     }, 300)
 
@@ -664,7 +670,9 @@ export function useResumeListState() {
 
     if (filters.locations?.length) {
       const locations = filters.locations
-      result = result.filter((resume: ScoredConvexResume) => locations.some((location) => resume.location?.includes(location)))
+      result = result.filter((resume: ScoredConvexResume) =>
+        locations.some((location) => isLocationMatch(resume.location ?? '', location))
+      )
     }
 
     const minExperience = filters.minExperience
@@ -898,11 +906,20 @@ export function useResumeListState() {
     setSelectedExperienceLevel((current) => (current === normalizedLevel ? undefined : normalizedLevel))
   }, [])
 
+  const handleClearLocation = useCallback(() => {
+    setSessionLocation('')
+    setFilters((current) => ({
+      ...current,
+      locations: [],
+    }))
+  }, [setFilters, setSessionLocation])
+
   const handleClearTagFilters = useCallback(() => {
     setSelectedTags([])
     setSelectedCompanies([])
     setSelectedExperienceLevel(undefined)
-  }, [])
+    handleClearLocation()
+  }, [handleClearLocation])
 
   const activeTagFilters = useMemo(
     () => new Set(selectedTags.map(normalizeFilterToken)),
@@ -1272,7 +1289,7 @@ export function useResumeListState() {
       const normalizedJobDescriptionId = config.jobDescriptionId?.trim() ?? ''
       const normalizedLocation = config.location.trim()
       setSessionLocation((current) => {
-        if (!normalizedLocation || current === normalizedLocation) {
+        if (current === normalizedLocation) {
           return current
         }
         return normalizedLocation
@@ -1280,13 +1297,11 @@ export function useResumeListState() {
 
       setSessionKeywords((current) => (areKeywordListsEqual(current, normalizedKeywords) ? current : normalizedKeywords))
       setJobDescriptionId((current) => (current === normalizedJobDescriptionId ? current : normalizedJobDescriptionId))
-
-      if (config.filters) {
-        setFilters((current) => ({
-          ...current,
-          ...config.filters,
-        }))
-      }
+      setFilters((current) => ({
+        ...current,
+        ...(config.filters ?? {}),
+        locations: normalizedLocation ? [normalizedLocation] : [],
+      }))
     },
     [setFilters, setJobDescriptionId, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
   )
@@ -1343,6 +1358,7 @@ export function useResumeListState() {
     handleToggleTag,
     handleToggleCompany,
     handleToggleExperienceLevel,
+    handleClearLocation,
     handleClearTagFilters,
     handleSelectAll,
     handleSelectHighScore,

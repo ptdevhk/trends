@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isLocationMatch } from "@trends/shared";
 
 import { findProjectRoot } from "./db.js";
 import { DataNotFoundError, FileParseError } from "./errors.js";
@@ -112,7 +113,6 @@ function buildSearchText(item: ResumeItem): string {
     item.jobIntention,
     item.selfIntro,
     item.education,
-    item.location,
     item.expectedSalary,
     ...(item.workHistory?.map((entry) => entry.raw) ?? []),
   ];
@@ -421,7 +421,7 @@ export class ResumeService {
 
       if (filters.locations?.length) {
         const location = item.location || "";
-        const hasLocation = filters.locations.some((target) => location.includes(target));
+        const hasLocation = filters.locations.some((target) => isLocationMatch(location, target));
         if (!hasLocation) return false;
       }
 
