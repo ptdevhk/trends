@@ -199,7 +199,7 @@ interface JobDescriptionEditorProps {
         content: string
         type: "system" | "custom"
     } & StructuredSeedFields
-    onSaveSuccess?: (newId: string) => void
+    onSaveSuccess?: (newId: string, savedFields?: StructuredSeedFields) => void
 }
 
 export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSuccess }: JobDescriptionEditorProps) {
@@ -331,7 +331,13 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                     workspaceSlug: slug,
                 })
             }
-            onSaveSuccess?.(newId)
+            onSaveSuccess?.(newId, {
+                location: payload.location,
+                industryTags: payload.industryTags,
+                minExperience: payload.minExperience,
+                minAge: payload.minAge,
+                maxAge: payload.maxAge,
+            })
             onOpenChange(false)
         } catch (error) {
             console.error("Failed to save JD", error)

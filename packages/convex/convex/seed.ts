@@ -247,20 +247,46 @@ export const seedWorkspaceDemoData = mutation({
         const seededAt = 1_762_000_000_000;
         const customJobDescriptions = [
             {
-                title: "Workspace Demo · Dev CNC Sales Architect",
+                title: "车床销售",
                 slug: "workspace-demo-dev-cnc-sales",
                 workspaceSlug: "dev",
+                location: "广东",
+                industryTags: ["machinery", "cnc", "sales"],
+                minExperience: 1,
+                maxAge: 45,
                 content: [
-                    "# Workspace Demo · Dev CNC Sales Architect",
+                    "---",
+                    "title: \"车床销售\"",
+                    "status: active",
+                    "location: \"广东\"",
+                    "industry_tags:",
+                    "  - \"machinery\"",
+                    "  - \"cnc\"",
+                    "  - \"sales\"",
+                    "auto_match:",
+                    "  keywords:",
+                    "    - \"车床销售\"",
+                    "  locations:",
+                    "    - \"广东\"",
+                    "  priority: 60",
+                    "  suggested_filters:",
+                    "    minExperience: 1",
+                    "    maxAge: 45",
+                    "---",
                     "",
-                    "## Must Have",
-                    "- CNC or machine-tool sales experience >= 3 years",
-                    "- Channel expansion in Dongguan, Shenzhen, or Guangzhou",
-                    "- Hands-on customer conversion and negotiation ownership",
+                    "# 职位描述",
                     "",
-                    "## Preferred",
-                    "- Exposure to STAR, HAAS, FANUC, Mitsubishi, or Siemens",
-                    "- Demonstrated cross-language customer communication",
+                    "请补充「车床销售」的岗位职责。",
+                    "",
+                    "# 任职要求",
+                    "",
+                    "- 相关经验：1+ 年",
+                    "- 年龄范围：--45",
+                    "- 行业方向：machinery / cnc / sales",
+                    "",
+                    "# 关键词",
+                    "",
+                    "车床销售",
                 ].join("\n"),
             },
             {
@@ -464,24 +490,38 @@ export const seedWorkspaceDemoData = mutation({
             .filter((q) => q.eq(q.field("type"), "custom"))
             .collect();
         const existingCustomByKey = new Map(existingCustomJds.map((item) => [seedJobDescriptionKey(item), item]));
+        const customSlugKey = (workspaceSlug: string | undefined, slug: string | undefined) =>
+            `${normalizeWorkspaceSlug(workspaceSlug)}::${slug ?? ""}`;
+        const existingCustomBySlug = new Map(existingCustomJds.map((item) => [customSlugKey(item.workspaceSlug, item.slug), item]));
         for (const item of customJobDescriptions) {
             const key = seedJobDescriptionKey({
                 title: item.title,
                 type: "custom",
                 workspaceSlug: item.workspaceSlug,
             });
-            const existing = existingCustomByKey.get(key);
+            const existing = existingCustomByKey.get(key)
+                ?? existingCustomBySlug.get(customSlugKey(item.workspaceSlug, item.slug));
             if (existing) {
                 const needsUpdate =
-                    existing.slug !== item.slug
+                    existing.title !== item.title
+                    || existing.slug !== item.slug
                     || existing.content !== item.content
                     || existing.workspaceSlug !== item.workspaceSlug
+                    || existing.location !== item.location
+                    || stableSerialize(existing.industryTags ?? []) !== stableSerialize(item.industryTags ?? [])
+                    || existing.minExperience !== item.minExperience
+                    || existing.maxAge !== item.maxAge
                     || existing.enabled !== true;
                 if (needsUpdate) {
                     await ctx.db.patch(existing._id, {
+                        title: item.title,
                         slug: item.slug,
                         content: item.content,
                         workspaceSlug: item.workspaceSlug,
+                        location: item.location,
+                        industryTags: item.industryTags,
+                        minExperience: item.minExperience,
+                        maxAge: item.maxAge,
                         enabled: true,
                         lastModified: seededAt,
                     });
@@ -495,6 +535,10 @@ export const seedWorkspaceDemoData = mutation({
                 content: item.content,
                 type: "custom",
                 workspaceSlug: item.workspaceSlug,
+                location: item.location,
+                industryTags: item.industryTags,
+                minExperience: item.minExperience,
+                maxAge: item.maxAge,
                 enabled: true,
                 lastModified: seededAt,
             });

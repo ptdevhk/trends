@@ -152,22 +152,6 @@ function getFilterSummary(profile: SearchProfileDetails): string {
   return 'default'
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  sales: '销售经验',
-  engineer: '工程经验',
-}
-
-function getRoleLabel(roleType: string | undefined): string {
-  if (!roleType) {
-    return '相关经验'
-  }
-  const normalized = roleType.trim().toLowerCase()
-  if (!normalized) {
-    return '相关经验'
-  }
-  return ROLE_LABELS[normalized] ?? '相关经验'
-}
-
 export function QuickStartPanel({
   onApplyConfig,
   defaultLocation = '广东',
@@ -499,11 +483,35 @@ export function QuickStartPanel({
     })
   }, [autoMatchResult, location, normalizedKeywords, onApplyConfig, onJobChange])
 
-  const handleJdEditorSaveSuccess = useCallback((newId: string) => {
+  const handleJdEditorSaveSuccess = useCallback((newId: string, savedFields?: {
+    minExperience?: number
+    maxAge?: number
+  }) => {
     if (selectedConvexJobDescriptionProfile?.type === 'system') {
       onJobChange?.(newId)
     }
-  }, [onJobChange, selectedConvexJobDescriptionProfile?.type])
+
+    const fallbackMinRoleYears = quickMinRoleYears ? Number(quickMinRoleYears) : undefined
+    const fallbackMaxAge = quickMaxAge ? Number(quickMaxAge) : undefined
+    const nextMinRoleYears =
+      typeof savedFields?.minExperience === 'number' && Number.isFinite(savedFields.minExperience)
+        ? savedFields.minExperience
+        : (typeof fallbackMinRoleYears === 'number' && Number.isFinite(fallbackMinRoleYears) ? fallbackMinRoleYears : undefined)
+    const nextMaxAge =
+      typeof savedFields?.maxAge === 'number' && Number.isFinite(savedFields.maxAge)
+        ? savedFields.maxAge
+        : (typeof fallbackMaxAge === 'number' && Number.isFinite(fallbackMaxAge) ? fallbackMaxAge : undefined)
+    const nextRoleFilterType = activeRoleType?.trim()
+
+    setQuickMinRoleYears(typeof nextMinRoleYears === 'number' ? String(nextMinRoleYears) : '')
+    setQuickMaxAge(typeof nextMaxAge === 'number' ? String(nextMaxAge) : '')
+
+    onApplyQuickFilters?.({
+      minRoleYears: nextMinRoleYears,
+      roleFilterType: nextRoleFilterType && nextRoleFilterType.length > 0 ? nextRoleFilterType : undefined,
+      maxAge: nextMaxAge,
+    })
+  }, [activeRoleType, onApplyQuickFilters, onJobChange, quickMaxAge, quickMinRoleYears, selectedConvexJobDescriptionProfile?.type])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -538,6 +546,25 @@ export function QuickStartPanel({
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4 flex-1">
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="quickstart-location"
+                className="text-sm font-medium whitespace-nowrap text-muted-foreground"
+              >
+                {t('quickStart.location', '位置')}
+              </label>
+              <div className="flex items-center gap-1">
+                <input
+                  id="quickstart-location"
+                  type="text"
+                  value={location}
+                  onChange={(event) => setLocation(event.target.value)}
+                  placeholder={t('quickStart.location', '位置')}
+                  className="h-9 w-40 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+            </div>
+
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium whitespace-nowrap text-muted-foreground">
                 {t('quickStart.customKeywords', '关键词')}
@@ -714,59 +741,6 @@ export function QuickStartPanel({
           </div>
         ) : null}
 
-        <div className="pt-3 border-t border-muted/50">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">
-                ⚡ {t('quickStart.quickFilters', '筛选条件')}
-              </span>
-              {(quickMinRoleYears || quickMaxAge) && (
-                <div className="flex items-center gap-1.5 ml-2">
-                  {quickMinRoleYears && (
-                    <Badge variant="secondary" className="font-normal text-xs px-1.5 py-0 h-5">
-                      {getRoleLabel(activeRoleType)} {quickMinRoleYears}+{t('quickStart.years', '年')}
-                    </Badge>
-                  )}
-                  {quickMaxAge && (
-                    <Badge variant="secondary" className="font-normal text-xs px-1.5 py-0 h-5">
-                      ≤{quickMaxAge}{t('quickStart.ageUnit', '岁')}
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="h-4 w-px bg-border hidden sm:block"></div>
-
-            <div className="flex flex-wrap items-center gap-4">
-              <label className="flex items-center gap-2 text-muted-foreground">
-                <span className="text-xs">{getRoleLabel(activeRoleType)} {t('quickStart.minYears', '至少')}</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={quickMinRoleYears}
-                  onChange={(event) => setQuickMinRoleYears(event.target.value)}
-                  placeholder={effectiveDefaultMinRoleYears.toString()}
-                  className="h-7 w-14 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-                <span className="text-xs">{t('quickStart.years', '年')}</span>
-              </label>
-
-              <label className="flex items-center gap-2 text-muted-foreground">
-                <span className="text-xs">{t('quickStart.maxAge', '最高年龄')}</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={quickMaxAge}
-                  onChange={(event) => setQuickMaxAge(event.target.value)}
-                  placeholder={t('quickStart.maxAgePlaceholder', '不限')}
-                  className="h-7 w-14 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-                <span className="text-xs">{t('quickStart.ageUnit', '岁')}</span>
-              </label>
-            </div>
-          </div>
-        </div>
       </div>
       <JobDescriptionEditor
         open={showJdEditor}

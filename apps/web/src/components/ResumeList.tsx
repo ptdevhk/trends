@@ -12,7 +12,6 @@ import { QuickStartPanel } from '@/components/QuickStartPanel'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { CollectResumesButton } from '@/components/CollectResumesButton'
-import { ActiveTagFilters } from '@/components/ActiveTagFilters'
 import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { useResumeListState } from '@/hooks/useResumeListState'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
@@ -37,8 +36,6 @@ export function ResumeList() {
     hasActiveTask,
     disableAnalyzeButton,
     selectedIds,
-    selectedTags,
-    selectedCompanies,
     selectedExperienceLevel,
     activeTagFilters,
     activeCompanyFilters,
@@ -55,8 +52,6 @@ export function ResumeList() {
     handleToggleTag,
     handleToggleCompany,
     handleToggleExperienceLevel,
-    handleClearLocation,
-    handleClearTagFilters,
     handleSelectAll,
     handleSelectHighScore,
     handleClearSelection,
@@ -145,18 +140,6 @@ export function ResumeList() {
             </Button>
           </div>
         }
-      />
-
-      <ActiveTagFilters
-        selectedTags={selectedTags}
-        selectedCompanies={selectedCompanies}
-        selectedExperienceLevel={selectedExperienceLevel}
-        selectedLocation={sessionLocation}
-        onRemoveTag={handleToggleTag}
-        onRemoveCompany={handleToggleCompany}
-        onRemoveExperienceLevel={handleToggleExperienceLevel}
-        onRemoveLocation={handleClearLocation}
-        onClearAll={handleClearTagFilters}
       />
 
       <div className="space-y-4">

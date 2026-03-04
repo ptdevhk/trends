@@ -16,6 +16,8 @@ interface KeywordChipsProps {
   onLocationToggle?: (location: string) => void
 }
 
+const SEED_LOCATION_CHIP_LIMIT = 4
+
 function normalizeKeywords(values: string[]): string[] {
   const next: string[] = []
   const seen = new Set<string>()
@@ -73,6 +75,19 @@ export function KeywordChips({
   const customSelectedKeywords = useMemo(() => {
     return selectedValues.filter((keyword) => !knownKeywordSet.has(keyword))
   }, [knownKeywordSet, selectedValues])
+  const displayHotKeywords = useMemo(() => {
+    let locationChipCount = 0
+    return hotKeywords.filter((item) => {
+      if (item.category !== 'location') {
+        return true
+      }
+      if (locationChipCount >= SEED_LOCATION_CHIP_LIMIT) {
+        return false
+      }
+      locationChipCount += 1
+      return true
+    })
+  }, [hotKeywords])
 
   const toggleKeyword = useCallback(
     (keyword: string) => {
@@ -145,7 +160,7 @@ export function KeywordChips({
           <span className="text-xs text-muted-foreground">{t('trends.loading')}</span>
         ) : (
           <>
-            {hotKeywords.map((item) => renderChip(item.keyword, item.category))}
+            {displayHotKeywords.map((item) => renderChip(item.keyword, item.category))}
             {!expanded && additionalSelectedKeywords.map((keyword) =>
               renderChip(keyword, keywordCategoryMap.get(keyword.trim()))
             )}
@@ -166,13 +181,16 @@ export function KeywordChips({
 
       {expanded
         ? CATEGORY_ORDER.map((category) => {
-          if (grouped[category].length === 0) return null
+          const categoryKeywords = category === 'location'
+            ? grouped[category].slice(0, SEED_LOCATION_CHIP_LIMIT)
+            : grouped[category]
+          if (categoryKeywords.length === 0) return null
           return (
             <div key={category} className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs font-medium text-muted-foreground">
                 {CATEGORY_LABELS[category]}:
               </span>
-              {grouped[category].map((item) => renderChip(item.keyword, item.category))}
+              {categoryKeywords.map((item) => renderChip(item.keyword, item.category))}
             </div>
           )
         })

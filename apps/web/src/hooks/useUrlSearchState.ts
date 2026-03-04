@@ -184,11 +184,6 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
 
   const filters: Partial<ResumeFilters> = {}
 
-  const minExperience = parseNumberParam(searchParams.get('minExp'))
-  if (typeof minExperience === 'number') {
-    filters.minExperience = minExperience
-  }
-
   const maxExperience = parseNumberParam(searchParams.get('maxExp'))
   if (typeof maxExperience === 'number') {
     filters.maxExperience = maxExperience
@@ -199,9 +194,10 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.education = education
   }
 
-  const minRoleYears = parseNumberParam(searchParams.get('minRoleYears'))
+  const minRoleYears = parseNumberParam(getFirstParam(searchParams, ['minRoleYears', 'minExp']))
   if (typeof minRoleYears === 'number') {
     filters.minRoleYears = minRoleYears
+    filters.minExperience = minRoleYears
   }
 
   const roleFilterType = searchParams.get('roleType')?.trim()
@@ -284,23 +280,26 @@ export function useUrlSearchState() {
         const normalizedCompanies = normalizeUniqueValues(state.selectedCompanies)
         const hasKeywords = normalizedKeywords.length > 0
 
-        setParam(nextParams, 'location', state.location?.trim())
+        const normalizedLocation = state.location?.trim()
+        setParam(nextParams, 'location', normalizedLocation)
         setParam(nextParams, 'keyword', hasKeywords ? normalizedKeywords.join(' ') : undefined)
         setParam(nextParams, 'jd', state.jobDescriptionId?.trim())
         setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
         setParam(nextParams, 'co', normalizedCompanies.length > 0 ? normalizedCompanies.join(',') : undefined)
         setParam(nextParams, 'exp', state.selectedExperienceLevel)
 
-        if (typeof state.filters.minExperience === 'number' && Number.isFinite(state.filters.minExperience)) {
-          setParam(nextParams, 'minExp', String(state.filters.minExperience))
-        }
-
         if (typeof state.filters.maxExperience === 'number' && Number.isFinite(state.filters.maxExperience)) {
           setParam(nextParams, 'maxExp', String(state.filters.maxExperience))
         }
 
-        if (typeof state.filters.minRoleYears === 'number' && Number.isFinite(state.filters.minRoleYears)) {
-          setParam(nextParams, 'minRoleYears', String(state.filters.minRoleYears))
+        const canonicalMinRoleYears =
+          typeof state.filters.minRoleYears === 'number' && Number.isFinite(state.filters.minRoleYears)
+            ? state.filters.minRoleYears
+            : (typeof state.filters.minExperience === 'number' && Number.isFinite(state.filters.minExperience)
+                ? state.filters.minExperience
+                : undefined)
+        if (typeof canonicalMinRoleYears === 'number') {
+          setParam(nextParams, 'minRoleYears', String(canonicalMinRoleYears))
         }
 
         if (state.filters.roleFilterType && state.filters.roleFilterType.trim().length > 0) {
@@ -324,7 +323,16 @@ export function useUrlSearchState() {
         }
 
         if (Array.isArray(state.filters.locations) && state.filters.locations.length > 0) {
-          setParam(nextParams, 'locs', normalizeUniqueValues(state.filters.locations).join(','))
+          const normalizedLocations = normalizeUniqueValues(state.filters.locations)
+          const hasRedundantSingleLocationFilter = Boolean(
+            normalizedLocation
+            && normalizedLocations.length === 1
+            && normalizedLocations[0].trim().toLowerCase() === normalizedLocation.toLowerCase()
+          )
+
+          if (!hasRedundantSingleLocationFilter) {
+            setParam(nextParams, 'locs', normalizedLocations.join(','))
+          }
         }
 
         if (Array.isArray(state.filters.status) && state.filters.status.length > 0) {

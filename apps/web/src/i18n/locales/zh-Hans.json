@@ -192,7 +192,7 @@
       "title": "筛选条件",
       "apply": "应用",
       "clear": "清除",
-      "minExperience": "最低经验(年)",
+      "minExperience": "最低相关经验(年)",
       "maxExperience": "最高经验(年)",
       "minAge": "最低年龄",
       "maxAge": "最高年龄",

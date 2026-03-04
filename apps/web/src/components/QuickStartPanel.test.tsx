@@ -59,7 +59,7 @@ vi.mock('@/lib/api-helpers', () => ({
   },
 }))
 
-describe('QuickStartPanel role-aware quick filter label', () => {
+describe('QuickStartPanel quick-filter display', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useQueryMock.mockImplementation((_fn: unknown, args: unknown) => {
@@ -109,7 +109,7 @@ describe('QuickStartPanel role-aware quick filter label', () => {
     })
   })
 
-  it('switches quick filter label between sales, engineer, and fallback', async () => {
+  it('does not render the quick-filter summary row', async () => {
     const { rerender } = render(
       <QuickStartPanel
         defaultLocation="广东"
@@ -119,8 +119,11 @@ describe('QuickStartPanel role-aware quick filter label', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('spinbutton', { name: /销售经验\s+至少\s+年/ })).toBeInTheDocument()
+      expect(getMock).toHaveBeenCalled()
     })
+    expect(screen.queryByText('筛选条件')).not.toBeInTheDocument()
+    expect(screen.queryByText(/销售经验\s*1\+年/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/≤\s*45岁/)).not.toBeInTheDocument()
 
     rerender(
       <QuickStartPanel
@@ -131,10 +134,14 @@ describe('QuickStartPanel role-aware quick filter label', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('spinbutton', { name: /工程经验\s+至少\s+年/ })).toBeInTheDocument()
+      expect(getMock).toHaveBeenCalled()
     })
+    expect(screen.queryByText('筛选条件')).not.toBeInTheDocument()
+    expect(screen.queryByText(/工程经验\s*1\+年/)).not.toBeInTheDocument()
+  })
 
-    rerender(
+  it('restores editable location input near keywords', () => {
+    render(
       <QuickStartPanel
         defaultLocation="广东"
         defaultKeywords={[]}
@@ -142,9 +149,9 @@ describe('QuickStartPanel role-aware quick filter label', () => {
       />
     )
 
-    await waitFor(() => {
-      expect(screen.getByRole('spinbutton', { name: /相关经验\s+至少\s+年/ })).toBeInTheDocument()
-    })
+    const locationInput = screen.getByRole('textbox', { name: '位置' }) as HTMLInputElement
+    expect(locationInput.value).toBe('广东')
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
   })
 
   it('does not auto-apply min years when no JD is selected', async () => {
