@@ -8,7 +8,7 @@ describe("buildSearchText", () => {
     expect(buildSearchText(null)).toBe("");
   });
 
-  it("includes key resume fields for search", () => {
+  it("includes key resume fields for search but excludes location", () => {
     const value = buildSearchText({
       name: "Alice",
       jobIntention: "CNC Sales Engineer",
@@ -20,7 +20,7 @@ describe("buildSearchText", () => {
 
     expect(value).toContain("alice");
     expect(value).toContain("cnc sales engineer");
-    expect(value).toContain("dongguan");
+    expect(value).not.toContain("dongguan");
     expect(value).toContain("fanuc");
     expect(value).toContain("sold cnc lathes for 5 years");
   });

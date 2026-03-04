@@ -8,6 +8,7 @@ export type KeywordCategory =
   | "measurement"
   | "smt"
   | "3d_printing"
+  | "location"
   | "brand"
   | "custom";
 
@@ -61,6 +62,7 @@ export const CATEGORY_ORDER: KeywordCategory[] = [
   "measurement",
   "smt",
   "3d_printing",
+  "location",
   "brand",
   "custom",
 ];
@@ -72,6 +74,7 @@ export const CATEGORY_LABELS: Record<KeywordCategory, string> = {
   measurement: "测量扫描",
   smt: "SMT",
   "3d_printing": "3D打印",
+  location: "地点",
   brand: "品牌",
   custom: "自定义",
 };
@@ -84,6 +87,7 @@ function createGroupedKeywords(): Record<KeywordCategory, IndustryKeyword[]> {
     measurement: [],
     smt: [],
     "3d_printing": [],
+    location: [],
     brand: [],
     custom: [],
   };
@@ -97,6 +101,7 @@ function normalizeCategory(category: string): KeywordCategory {
     category === "measurement" ||
     category === "smt" ||
     category === "3d_printing" ||
+    category === "location" ||
     category === "brand" ||
     category === "custom"
   ) {

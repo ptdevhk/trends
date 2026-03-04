@@ -13,10 +13,6 @@ import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
-const COMMON_LOCATIONS = [
-  '广东', '东莞', '深圳', '广州', '佛山', '惠州', '苏州', '无锡', '常州', '昆山', '上海',
-]
-
 const AUTO_MATCH_MIN_CONFIDENCE = 0.3
 
 type SearchProfileFilters = {
@@ -466,6 +462,15 @@ export function QuickStartPanel({
     setCustomKeyword(keywords.join(' '))
   }, [])
 
+  const handleLocationToggle = useCallback((nextLocation: string) => {
+    const normalizedLocation = nextLocation.trim()
+    if (!normalizedLocation) {
+      return
+    }
+
+    setLocation((current) => (current.trim() === normalizedLocation ? '' : normalizedLocation))
+  }, [])
+
   const handleJobChange = useCallback((value: string) => {
     onJobChange?.(value)
   }, [onJobChange])
@@ -534,27 +539,6 @@ export function QuickStartPanel({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4 flex-1">
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium whitespace-nowrap">
-                {t('quickStart.location', '位置')}
-              </label>
-              <div className="relative w-32 sm:w-40">
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(event) => setLocation(event.target.value)}
-                  placeholder="广东"
-                  list="location-suggestions"
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-                <datalist id="location-suggestions">
-                  {COMMON_LOCATIONS.map((loc) => (
-                    <option key={loc} value={loc} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
               <label className="text-sm font-medium whitespace-nowrap text-muted-foreground">
                 {t('quickStart.customKeywords', '关键词')}
               </label>
@@ -612,7 +596,24 @@ export function QuickStartPanel({
               {t('quickStart.hotKeywords', '热门关键词')}
             </label>
           </div>
-          <KeywordChips value={selectedKeywords} onChange={handleKeywordsChange} />
+          {location.trim() ? (
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => setLocation('')}
+                className="inline-flex items-center gap-1 rounded-full border border-green-700 bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700"
+              >
+                <span>📍 {location.trim()}</span>
+                <span aria-hidden="true">✕</span>
+              </button>
+            </div>
+          ) : null}
+          <KeywordChips
+            value={selectedKeywords}
+            onChange={handleKeywordsChange}
+            activeLocation={location}
+            onLocationToggle={handleLocationToggle}
+          />
         </div>
 
         {selectedConvexJobDescriptionProfile ? (

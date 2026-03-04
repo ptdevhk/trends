@@ -6,9 +6,11 @@ interface ActiveTagFiltersProps {
   selectedTags: string[]
   selectedCompanies: string[]
   selectedExperienceLevel?: ExperienceLevelFilter
+  selectedLocation?: string
   onRemoveTag: (tag: string) => void
   onRemoveCompany: (company: string) => void
   onRemoveExperienceLevel: (level: ExperienceLevelFilter | undefined) => void
+  onRemoveLocation?: () => void
   onClearAll: () => void
 }
 
@@ -22,12 +24,17 @@ export function ActiveTagFilters({
   selectedTags,
   selectedCompanies,
   selectedExperienceLevel,
+  selectedLocation,
   onRemoveTag,
   onRemoveCompany,
   onRemoveExperienceLevel,
+  onRemoveLocation,
   onClearAll,
 }: ActiveTagFiltersProps) {
+  const normalizedLocation = selectedLocation?.trim()
   const hasActiveFilters =
+    Boolean(normalizedLocation)
+    ||
     selectedTags.length > 0
     || selectedCompanies.length > 0
     || Boolean(selectedExperienceLevel)
@@ -39,6 +46,17 @@ export function ActiveTagFilters({
   return (
     <div className="rounded-lg border bg-card px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
+        {normalizedLocation ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-full border border-green-700 bg-green-600 px-2 py-1 text-xs font-medium text-white"
+            onClick={() => onRemoveLocation?.()}
+          >
+            📍 {normalizedLocation}
+            <X className="h-3 w-3" />
+          </button>
+        ) : null}
+
         {selectedTags.map((tag) => (
           <button
             key={`tag-${tag}`}

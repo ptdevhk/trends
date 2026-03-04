@@ -5,7 +5,6 @@ const PRIORITY_KEYS = [
     "selfIntro",
     "experience",
     "education",
-    "location",
     "expectedSalary",
     "skills",
     "workHistory",
@@ -14,6 +13,7 @@ const PRIORITY_KEYS = [
 ];
 
 const PRIORITY_KEY_SET = new Set(PRIORITY_KEYS);
+const EXCLUDED_KEYS = new Set(["location"]);
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -83,7 +83,7 @@ function collectPriorityFragments(content: UnknownRecord): string[] {
 function collectNonPriorityFragments(content: UnknownRecord): string[] {
     const remainder: UnknownRecord = {};
     for (const [key, value] of Object.entries(content)) {
-        if (!PRIORITY_KEY_SET.has(key)) {
+        if (!PRIORITY_KEY_SET.has(key) && !EXCLUDED_KEYS.has(key)) {
             remainder[key] = value;
         }
     }
