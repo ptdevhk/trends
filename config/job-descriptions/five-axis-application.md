@@ -7,6 +7,11 @@ location: 东莞
 source: hr.job5156.com
 extracted_at: "2026-02-05"
 status: active
+required_roles:
+  - type: engineer
+    min_years: 3
+    signals: [工程师, 设计, 研发, 开发, 编程, 调试, 维修, 技术]
+    verify_in: workHistory
 ---
 
 # 职位描述 (Position Description)

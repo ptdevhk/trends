@@ -86,7 +86,9 @@ export function ResumeList() {
         defaultLocation={sessionLocation}
         defaultKeywords={sessionKeywords}
         quickFilters={{
-          minSalesYears: filters.minSalesYears,
+          minRoleYears: filters.minRoleYears ?? filters.minSalesYears,
+          roleFilterType:
+            filters.roleFilterType ?? (typeof filters.minSalesYears === 'number' ? 'sales' : undefined),
           maxAge: filters.maxAge,
         }}
         onApplyQuickFilters={handleQuickConstraintApply}

@@ -262,8 +262,23 @@ function toStatusFilterList(values: CandidateStatus[] | undefined): CandidateSta
   return Array.from(unique).sort()
 }
 
-function getSalesRoleYears(resume: ConvexResumeItem): number {
-  const roleSignal = resume.ingestData?.roleSignals?.find((signal) => normalizeFilterToken(signal.type) === 'sales')
+function getRoleYears(resume: ConvexResumeItem, roleType: string): number {
+  const roleSignals = resume.ingestData?.roleSignals
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return 0
+  }
+
+  const normalizedRoleType = normalizeFilterToken(roleType)
+  if (!normalizedRoleType) {
+    return roleSignals.reduce((maxYears, signal) => {
+      if (typeof signal.years !== 'number' || !Number.isFinite(signal.years)) {
+        return maxYears
+      }
+      return Math.max(maxYears, signal.years)
+    }, 0)
+  }
+
+  const roleSignal = roleSignals.find((signal) => normalizeFilterToken(signal.type) === normalizedRoleType)
   if (!roleSignal || typeof roleSignal.years !== 'number' || !Number.isFinite(roleSignal.years)) {
     return 0
   }
@@ -660,9 +675,16 @@ export function useResumeListState() {
       result = result.filter((resume: ScoredConvexResume) => parseExperienceYears(resume.experience) <= maxExperience)
     }
 
-    const minSalesYears = filters.minSalesYears
-    if (typeof minSalesYears === 'number') {
-      result = result.filter((resume: ScoredConvexResume) => getSalesRoleYears(resume) >= minSalesYears)
+    const minRoleYears = filters.minRoleYears
+    if (typeof minRoleYears === 'number') {
+      result = result.filter((resume: ScoredConvexResume) =>
+        getRoleYears(resume, filters.roleFilterType ?? '') >= minRoleYears
+      )
+    } else {
+      const minSalesYears = filters.minSalesYears
+      if (typeof minSalesYears === 'number') {
+        result = result.filter((resume: ScoredConvexResume) => getRoleYears(resume, 'sales') >= minSalesYears)
+      }
     }
 
     const minAge = filters.minAge
@@ -1259,12 +1281,15 @@ export function useResumeListState() {
 
   const handleQuickConstraintApply = useCallback(
     (constraints: {
-      minSalesYears?: number
+      minRoleYears?: number
+      roleFilterType?: string
       maxAge?: number
     }) => {
       setFilters((current) => ({
         ...current,
-        minSalesYears: constraints.minSalesYears,
+        minRoleYears: constraints.minRoleYears,
+        roleFilterType: normalizeOptionalString(constraints.roleFilterType),
+        minSalesYears: undefined,
         maxAge: constraints.maxAge,
       }))
     },

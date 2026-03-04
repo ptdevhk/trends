@@ -182,6 +182,28 @@ const SAMPLE_RESUME_HAAS = {
   ],
 };
 
+const SAMPLE_RESUME_ENGINEER = {
+  data: [
+    {
+      name: "赵六",
+      profileUrl: "https://example.com/profile/901",
+      activityStatus: "在线中",
+      age: "30岁",
+      experience: "6年",
+      education: "本科",
+      location: "东莞市",
+      jobIntention: "机械工程师",
+      expectedSalary: "18000-22000元/月",
+      selfIntro: "具备机械设计与研发经验，熟悉设备调试和技术问题排查。",
+      workHistory: [
+        { raw: "2021-01~2025-12(4年11月)东莞自动化设备有限公司机械工程师" },
+        { raw: "2019-06~2020-12(1年6月)深圳科技有限公司研发工程师" },
+      ],
+      extractedAt: "2026-02-21T10:00:00.000Z",
+    },
+  ],
+};
+
 describe("IngestComputeService", () => {
   let tmpDir: string;
   let service: IngestComputeService;
@@ -269,6 +291,15 @@ describe("IngestComputeService", () => {
     expect(salesRole?.signalCount).toBeGreaterThan(0);
     expect(salesRole?.years).toBeGreaterThan(0);
     expect(result.ruleScores["jd-lathe-sales"]).toBeGreaterThan(50);
+  });
+
+  it("should compute engineer role signals from work history", () => {
+    const result = service.computeOne("resume-901", SAMPLE_RESUME_ENGINEER);
+    const engineerRole = result.roleSignals.find((item) => item.type === "engineer");
+
+    expect(engineerRole).toBeDefined();
+    expect(engineerRole?.matchedSignals).toEqual(expect.arrayContaining(["工程师", "研发"]));
+    expect(engineerRole?.years).toBeGreaterThan(0);
   });
 
   it("should classify selfIntro brand mentions as equipment context", () => {

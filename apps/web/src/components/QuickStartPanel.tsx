@@ -49,6 +49,15 @@ type ProfileApiResponse = {
   profile?: SearchProfileDetails
 }
 
+type JobDescriptionDetailApiResponse = {
+  success: boolean
+  item?: {
+    requiredRoles?: Array<{
+      type?: string
+    }>
+  }
+}
+
 type AutoMatchedProfile = {
   confidence: number
   matchedKeywords: string[]
@@ -67,11 +76,13 @@ interface QuickStartPanelProps {
   jobDescriptionId?: string
   onJobChange?: (value: string) => void
   quickFilters?: {
-    minSalesYears?: number
+    minRoleYears?: number
+    roleFilterType?: string
     maxAge?: number
   }
   onApplyQuickFilters?: (filters: {
-    minSalesYears?: number
+    minRoleYears?: number
+    roleFilterType?: string
     maxAge?: number
   }) => void
   extraActions?: React.ReactNode
@@ -140,6 +151,22 @@ function getFilterSummary(profile: SearchProfileDetails): string {
   return 'default'
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  sales: '销售经验',
+  engineer: '工程经验',
+}
+
+function getRoleLabel(roleType: string | undefined): string {
+  if (!roleType) {
+    return '相关经验'
+  }
+  const normalized = roleType.trim().toLowerCase()
+  if (!normalized) {
+    return '相关经验'
+  }
+  return ROLE_LABELS[normalized] ?? '相关经验'
+}
+
 export function QuickStartPanel({
   onApplyConfig,
   defaultLocation = '广东',
@@ -156,8 +183,9 @@ export function QuickStartPanel({
   const [location, setLocation] = useState(defaultLocation)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
   const [customKeyword, setCustomKeyword] = useState(defaultKeywords.join(' '))
-  const [quickMinSalesYears, setQuickMinSalesYears] = useState(quickFilters?.minSalesYears?.toString() ?? '')
+  const [quickMinRoleYears, setQuickMinRoleYears] = useState(quickFilters?.minRoleYears?.toString() ?? '')
   const [quickMaxAge, setQuickMaxAge] = useState(quickFilters?.maxAge?.toString() ?? '')
+  const [activeRoleType, setActiveRoleType] = useState<string | undefined>(quickFilters?.roleFilterType)
   const [autoMatchResult, setAutoMatchResult] = useState<AutoMatchedProfile | null>(null)
   const [matching, setMatching] = useState(false)
 
@@ -171,9 +199,43 @@ export function QuickStartPanel({
   }, [defaultKeywords])
 
   useEffect(() => {
-    setQuickMinSalesYears(quickFilters?.minSalesYears?.toString() ?? '')
+    setQuickMinRoleYears(quickFilters?.minRoleYears?.toString() ?? '')
     setQuickMaxAge(quickFilters?.maxAge?.toString() ?? '')
-  }, [quickFilters?.maxAge, quickFilters?.minSalesYears])
+  }, [quickFilters?.maxAge, quickFilters?.minRoleYears])
+
+  useEffect(() => {
+    const normalizedJobDescriptionId = jobDescriptionId.trim()
+    if (!normalizedJobDescriptionId) {
+      setActiveRoleType(undefined)
+      return
+    }
+
+    let cancelled = false
+
+    const fetchRoleType = async () => {
+      try {
+        const response = await rawApiClient.GET<JobDescriptionDetailApiResponse>(
+          `/api/job-descriptions/${encodeURIComponent(normalizedJobDescriptionId)}`
+        )
+        if (cancelled) {
+          return
+        }
+        const roleType = response.data?.item?.requiredRoles?.[0]?.type?.trim()
+        setActiveRoleType(roleType && roleType.length > 0 ? roleType : undefined)
+      } catch (error) {
+        console.error('Failed to fetch role type from job description', error)
+        if (!cancelled) {
+          setActiveRoleType(undefined)
+        }
+      }
+    }
+
+    void fetchRoleType()
+
+    return () => {
+      cancelled = true
+    }
+  }, [jobDescriptionId])
 
   const normalizedKeywords = useMemo(
     () => selectedKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
@@ -288,13 +350,15 @@ export function QuickStartPanel({
   }, [onJobChange])
 
   const handleApplyQuickFilters = useCallback(() => {
-    const minSalesYears = quickMinSalesYears ? Number(quickMinSalesYears) : undefined
+    const minRoleYears = quickMinRoleYears ? Number(quickMinRoleYears) : undefined
     const maxAge = quickMaxAge ? Number(quickMaxAge) : undefined
+    const roleFilterType = activeRoleType?.trim()
     onApplyQuickFilters?.({
-      minSalesYears: typeof minSalesYears === 'number' && Number.isFinite(minSalesYears) ? minSalesYears : undefined,
+      minRoleYears: typeof minRoleYears === 'number' && Number.isFinite(minRoleYears) ? minRoleYears : undefined,
+      roleFilterType: roleFilterType && roleFilterType.length > 0 ? roleFilterType : undefined,
       maxAge: typeof maxAge === 'number' && Number.isFinite(maxAge) ? maxAge : undefined,
     })
-  }, [onApplyQuickFilters, quickMaxAge, quickMinSalesYears])
+  }, [activeRoleType, onApplyQuickFilters, quickMaxAge, quickMinRoleYears])
 
   return (
     <div className="rounded-lg bg-background border px-4 py-4 shadow-sm">
@@ -430,12 +494,12 @@ export function QuickStartPanel({
           <div className="text-sm font-medium">⚡ 快速筛选</div>
           <div className="mt-2 flex flex-wrap items-end gap-3">
             <label className="text-sm text-muted-foreground">
-              要求销售经验 最少
+              要求{getRoleLabel(activeRoleType)} 最少
               <input
                 type="number"
                 min={0}
-                value={quickMinSalesYears}
-                onChange={(event) => setQuickMinSalesYears(event.target.value)}
+                value={quickMinRoleYears}
+                onChange={(event) => setQuickMinRoleYears(event.target.value)}
                 className="mx-2 h-8 w-20 rounded-md border border-input bg-background px-2 text-sm"
               />
               年
