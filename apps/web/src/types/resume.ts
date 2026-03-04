@@ -29,6 +29,32 @@ export type TagEnvelopeEntry = {
   version: number
 }
 
+export type TaggingProvenanceStage =
+  | 'industry_taxonomy'
+  | 'synonym_expansion'
+  | 'company_pattern_match'
+  | 'role_signal_aggregation'
+  | 'experience_signal_detection'
+  | 'derived'
+
+export type TaggingEnvelopeEntry = {
+  tag: string
+  source: TagEnvelopeSource
+  confidence: number
+  version: number
+  provenance: {
+    stage: TaggingProvenanceStage
+    generatedBy: string
+    evidence: string[]
+  }
+}
+
+export type TaggingEnvelope = {
+  schemaVersion: number
+  generatedAt: number
+  entries: TaggingEnvelopeEntry[]
+}
+
 export type Recommendation = 'strong_match' | 'match' | 'potential' | 'no_match'
 export type ScoreSource = 'rule' | 'ai'
 export type CandidateStatus =
