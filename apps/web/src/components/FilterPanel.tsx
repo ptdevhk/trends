@@ -161,49 +161,43 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
 
             {/* Row 1: Numeric Filters */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="flex items-end gap-2">
-                <div className="flex-1 space-y-1.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.minExperience')}</label>
                   <Input
                     type="number"
                     value={minExperience}
                     onChange={(event) => setMinExperience(event.target.value)}
-                    placeholder="0"
                     className="bg-background"
                   />
                 </div>
-                <span className="mb-2 text-muted-foreground">-</span>
-                <div className="flex-1 space-y-1.5">
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.maxExperience')}</label>
                   <Input
                     type="number"
                     value={maxExperience}
                     onChange={(event) => setMaxExperience(event.target.value)}
-                    placeholder="10"
                     className="bg-background"
                   />
                 </div>
               </div>
 
-              <div className="flex items-end gap-2">
-                <div className="flex-1 space-y-1.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.minAge')}</label>
                   <Input
                     type="number"
                     value={minAge}
                     onChange={(event) => setMinAge(event.target.value)}
-                    placeholder={t('resumes.filters.minAgePlaceholder')}
                     className="bg-background"
                   />
                 </div>
-                <span className="mb-2 text-muted-foreground">-</span>
-                <div className="flex-1 space-y-1.5">
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.maxAge')}</label>
                   <Input
                     type="number"
                     value={maxAge}
                     onChange={(event) => setMaxAge(event.target.value)}
-                    placeholder={t('resumes.filters.maxAgePlaceholder')}
                     className="bg-background"
                   />
                 </div>

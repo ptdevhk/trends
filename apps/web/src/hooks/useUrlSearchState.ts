@@ -14,6 +14,7 @@ const KNOWN_PARAM_KEYS = [
   'minExp',
   'maxExp',
   'minRoleYears',
+  'maxRoleYears',
   'roleType',
   'minAge',
   'maxAge',
@@ -184,7 +185,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
 
   const filters: Partial<ResumeFilters> = {}
 
-  const maxExperience = parseNumberParam(searchParams.get('maxExp'))
+  const maxExperience = parseNumberParam(getFirstParam(searchParams, ['maxRoleYears', 'maxExp']))
   if (typeof maxExperience === 'number') {
     filters.maxExperience = maxExperience
   }
@@ -289,7 +290,7 @@ export function useUrlSearchState() {
         setParam(nextParams, 'exp', state.selectedExperienceLevel)
 
         if (typeof state.filters.maxExperience === 'number' && Number.isFinite(state.filters.maxExperience)) {
-          setParam(nextParams, 'maxExp', String(state.filters.maxExperience))
+          setParam(nextParams, 'maxRoleYears', String(state.filters.maxExperience))
         }
 
         const canonicalMinRoleYears =

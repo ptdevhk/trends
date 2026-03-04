@@ -58,6 +58,7 @@ export const create = mutation({
         location: v.optional(v.string()),
         industryTags: v.optional(v.array(v.string())),
         minExperience: v.optional(v.number()),
+        maxExperience: v.optional(v.number()),
         minAge: v.optional(v.number()),
         maxAge: v.optional(v.number()),
     },
@@ -74,6 +75,7 @@ export const create = mutation({
             location: args.location,
             industryTags: args.industryTags,
             minExperience: args.minExperience,
+            maxExperience: args.maxExperience,
             minAge: args.minAge,
             maxAge: args.maxAge,
         });
@@ -91,6 +93,7 @@ export const update = mutation({
         location: v.optional(v.string()),
         industryTags: v.optional(v.array(v.string())),
         minExperience: v.optional(v.number()),
+        maxExperience: v.optional(v.number()),
         minAge: v.optional(v.number()),
         maxAge: v.optional(v.number()),
     },

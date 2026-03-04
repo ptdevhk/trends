@@ -175,6 +175,7 @@ export default defineSchema({
         location: v.optional(v.string()),
         industryTags: v.optional(v.array(v.string())),
         minExperience: v.optional(v.number()),
+        maxExperience: v.optional(v.number()),
         minAge: v.optional(v.number()),
         maxAge: v.optional(v.number()),
     })

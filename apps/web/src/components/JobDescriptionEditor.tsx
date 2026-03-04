@@ -17,6 +17,7 @@ type StructuredSeedFields = {
     location?: string
     industryTags?: string[]
     minExperience?: number
+    maxExperience?: number
     minAge?: number
     maxAge?: number
 }
@@ -26,6 +27,7 @@ type JdContentFields = {
     location?: string
     industryTags?: string[]
     minExperience?: number
+    maxExperience?: number
     minAge?: number
     maxAge?: number
 }
@@ -81,6 +83,7 @@ function hasStructuredSeedFields(fields: StructuredSeedFields | undefined): bool
 
     return (
         typeof fields.minExperience === "number"
+        || typeof fields.maxExperience === "number"
         || typeof fields.minAge === "number"
         || typeof fields.maxAge === "number"
     )
@@ -125,6 +128,7 @@ function generateJdContent(fields: JdContentFields): string {
     const location = normalizeOptionalString(fields.location)
     const industryTags = sanitizeIndustryTags(fields.industryTags)
     const minExperience = fields.minExperience ?? DEFAULT_MIN_EXPERIENCE
+    const maxExperience = fields.maxExperience
     const minAge = fields.minAge
     const maxAge = fields.maxAge
     const keywords = extractTitleKeywords(title)
@@ -158,6 +162,9 @@ function generateJdContent(fields: JdContentFields): string {
     lines.push("  priority: 60")
     lines.push("  suggested_filters:")
     lines.push(`    minExperience: ${minExperience}`)
+    if (typeof maxExperience === "number") {
+        lines.push(`    maxExperience: ${maxExperience}`)
+    }
     if (typeof minAge === "number") {
         lines.push(`    minAge: ${minAge}`)
     }
@@ -173,7 +180,11 @@ function generateJdContent(fields: JdContentFields): string {
     lines.push("")
     lines.push("# 任职要求")
     lines.push("")
-    lines.push(`- 相关经验：${minExperience}+ 年`)
+    if (typeof maxExperience === "number") {
+        lines.push(`- 相关经验：${minExperience}-${maxExperience} 年`)
+    } else {
+        lines.push(`- 相关经验：${minExperience}+ 年`)
+    }
     if (typeof minAge === "number" || typeof maxAge === "number") {
         const min = typeof minAge === "number" ? minAge : "-"
         const max = typeof maxAge === "number" ? maxAge : "-"
@@ -212,6 +223,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
     const [location, setLocation] = useState("")
     const [industryTags, setIndustryTags] = useState<string[]>([])
     const [minExperience, setMinExperience] = useState(String(DEFAULT_MIN_EXPERIENCE))
+    const [maxExperience, setMaxExperience] = useState("")
     const [minAge, setMinAge] = useState("")
     const [maxAge, setMaxAge] = useState("")
     const [content, setContent] = useState("")
@@ -220,6 +232,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
     const [advancedContentTouched, setAdvancedContentTouched] = useState(false)
 
     const parsedMinExperience = parseOptionalNumber(minExperience)
+    const parsedMaxExperience = parseOptionalNumber(maxExperience)
     const parsedMinAge = parseOptionalNumber(minAge)
     const parsedMaxAge = parseOptionalNumber(maxAge)
     const normalizedMinExperience = useMemo(() => {
@@ -237,6 +250,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             setLocation(initialData.location ?? "")
             setIndustryTags(sanitizeIndustryTags(initialData.industryTags))
             setMinExperience(typeof initialData.minExperience === "number" ? String(initialData.minExperience) : defaultMinExperience)
+            setMaxExperience(typeof initialData.maxExperience === "number" ? String(initialData.maxExperience) : "")
             setMinAge(typeof initialData.minAge === "number" ? String(initialData.minAge) : "")
             setMaxAge(typeof initialData.maxAge === "number" ? String(initialData.maxAge) : "")
             setContent(initialData.content)
@@ -247,6 +261,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             setLocation("")
             setIndustryTags([])
             setMinExperience(String(DEFAULT_MIN_EXPERIENCE))
+            setMaxExperience("")
             setMinAge("")
             setMaxAge("")
             setContent("")
@@ -272,6 +287,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                     location,
                     industryTags,
                     minExperience: normalizedMinExperience,
+                    maxExperience: parsedMaxExperience,
                     minAge: parsedMinAge,
                     maxAge: parsedMaxAge,
                 }))
@@ -288,6 +304,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
 
         const normalizedLocation = normalizeOptionalString(location)
         const normalizedIndustryTags = sanitizeIndustryTags(industryTags)
+        const normalizedMaxExperience = typeof parsedMaxExperience === "number" ? Math.max(parsedMaxExperience, 0) : undefined
         const normalizedMinAge = typeof parsedMinAge === "number" ? Math.max(parsedMinAge, 0) : undefined
         const normalizedMaxAge = typeof parsedMaxAge === "number" ? Math.max(parsedMaxAge, 0) : undefined
         const generatedContent = generateJdContent({
@@ -295,6 +312,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             location: normalizedLocation,
             industryTags: normalizedIndustryTags,
             minExperience: normalizedMinExperience,
+            maxExperience: normalizedMaxExperience,
             minAge: normalizedMinAge,
             maxAge: normalizedMaxAge,
         })
@@ -313,6 +331,9 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                 minExperience: advancedMode
                     ? (typeof parsedMinExperience === "number" ? Math.max(parsedMinExperience, 0) : undefined)
                     : normalizedMinExperience,
+                maxExperience: advancedMode
+                    ? (typeof parsedMaxExperience === "number" ? Math.max(parsedMaxExperience, 0) : undefined)
+                    : normalizedMaxExperience,
                 minAge: normalizedMinAge,
                 maxAge: normalizedMaxAge,
             }
@@ -335,6 +356,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                 location: payload.location,
                 industryTags: payload.industryTags,
                 minExperience: payload.minExperience,
+                maxExperience: payload.maxExperience,
                 minAge: payload.minAge,
                 maxAge: payload.maxAge,
             })
@@ -386,19 +408,29 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="minExperience">{t("jdEditor.relatedExp", "Related Experience")}</Label>
-                        <div className="flex items-center gap-2">
-                            <Input
-                                id="minExperience"
-                                type="number"
-                                min={0}
-                                value={minExperience}
-                                onChange={(e) => setMinExperience(e.target.value)}
-                                className="w-28"
-                            />
-                            <span className="text-sm text-muted-foreground">{t("jdEditor.years", "yrs")}</span>
-                            <span className="text-xs text-muted-foreground">{t("jdEditor.defaultExp", "Default: min 1 year")}</span>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="grid gap-2">
+                                <Label htmlFor="minExperience">{t("jdEditor.minRelatedExp", "最低相关经验(年)")}</Label>
+                                <Input
+                                    id="minExperience"
+                                    type="number"
+                                    min={0}
+                                    value={minExperience}
+                                    onChange={(e) => setMinExperience(e.target.value)}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="maxExperience">{t("jdEditor.maxRelatedExp", "最高相关经验(年)")}</Label>
+                                <Input
+                                    id="maxExperience"
+                                    type="number"
+                                    min={0}
+                                    value={maxExperience}
+                                    onChange={(e) => setMaxExperience(e.target.value)}
+                                />
+                            </div>
                         </div>
+                        <span className="text-xs text-muted-foreground">{t("jdEditor.defaultExp", "Default: min 1 year")}</span>
                     </div>
 
                     <div className="grid gap-2">
