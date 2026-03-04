@@ -34,6 +34,10 @@ vi.mock('./KeywordChips', () => ({
   KeywordChips: () => <div data-testid="keyword-chips" />,
 }))
 
+vi.mock('./JobDescriptionEditor', () => ({
+  JobDescriptionEditor: () => null,
+}))
+
 vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: 'dev' }),
 }))

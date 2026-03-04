@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { Link } from 'react-router-dom'
-import { RotateCcw } from 'lucide-react'
+import { Pencil, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from 'convex/react'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
+import { JobDescriptionEditor } from './JobDescriptionEditor'
 import { KeywordChips } from './KeywordChips'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
@@ -195,6 +196,7 @@ export function QuickStartPanel({
   const [jdMaxAge, setJdMaxAge] = useState<number | undefined>(undefined)
   const [autoMatchResult, setAutoMatchResult] = useState<AutoMatchedProfile | null>(null)
   const [matching, setMatching] = useState(false)
+  const [showJdEditor, setShowJdEditor] = useState(false)
   const lastJobDescriptionIdRef = useRef(jobDescriptionId.trim())
 
   const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
@@ -322,6 +324,74 @@ export function QuickStartPanel({
     () => selectedKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
     [selectedKeywords]
   )
+  const selectedConvexJobDescriptionProfile = useMemo(() => {
+    if (!selectedConvexJobDescription || !selectedConvexJobDescriptionDetail) {
+      return undefined
+    }
+    return selectedConvexJobDescriptionDetail
+  }, [selectedConvexJobDescription, selectedConvexJobDescriptionDetail])
+  const jdProfileHasStructuredFields = useMemo(() => {
+    if (!selectedConvexJobDescriptionProfile) {
+      return false
+    }
+    if (typeof selectedConvexJobDescriptionProfile.minExperience === 'number') {
+      return true
+    }
+    if (typeof selectedConvexJobDescriptionProfile.minAge === 'number' || typeof selectedConvexJobDescriptionProfile.maxAge === 'number') {
+      return true
+    }
+    if (selectedConvexJobDescriptionProfile.location?.trim()) {
+      return true
+    }
+    return (selectedConvexJobDescriptionProfile.industryTags?.length ?? 0) > 0
+  }, [selectedConvexJobDescriptionProfile])
+  const jdProfileAgeSummary = useMemo(() => {
+    if (!selectedConvexJobDescriptionProfile) {
+      return undefined
+    }
+    const minAge = selectedConvexJobDescriptionProfile.minAge
+    const maxAge = selectedConvexJobDescriptionProfile.maxAge
+    const ageUnit = t('quickStart.ageUnit', '岁')
+
+    if (typeof minAge === 'number' && typeof maxAge === 'number') {
+      return `${minAge}-${maxAge}${ageUnit}`
+    }
+    if (typeof maxAge === 'number') {
+      return `≤${maxAge}${ageUnit}`
+    }
+    if (typeof minAge === 'number') {
+      return `≥${minAge}${ageUnit}`
+    }
+    return undefined
+  }, [selectedConvexJobDescriptionProfile, t])
+  const editorInitialData = useMemo<ComponentProps<typeof JobDescriptionEditor>['initialData']>(() => {
+    if (!selectedConvexJobDescriptionProfile) {
+      return undefined
+    }
+    const commonFields = {
+      title: selectedConvexJobDescriptionProfile.title,
+      content: selectedConvexJobDescriptionProfile.content,
+      location: selectedConvexJobDescriptionProfile.location,
+      industryTags: selectedConvexJobDescriptionProfile.industryTags,
+      minExperience: selectedConvexJobDescriptionProfile.minExperience,
+      minAge: selectedConvexJobDescriptionProfile.minAge,
+      maxAge: selectedConvexJobDescriptionProfile.maxAge,
+    }
+    if (selectedConvexJobDescriptionProfile.type === 'custom') {
+      return {
+        ...commonFields,
+        id: selectedConvexJobDescriptionProfile._id,
+        type: 'custom',
+      }
+    }
+    if (selectedConvexJobDescriptionProfile.type === 'system') {
+      return {
+        ...commonFields,
+        type: 'system',
+      }
+    }
+    return undefined
+  }, [selectedConvexJobDescriptionProfile])
 
   useEffect(() => {
     const effectiveJobDescriptionId = jobDescriptionId || undefined
@@ -423,6 +493,12 @@ export function QuickStartPanel({
       filters: mapProfileFiltersToResumeFilters(profile.filters),
     })
   }, [autoMatchResult, location, normalizedKeywords, onApplyConfig, onJobChange])
+
+  const handleJdEditorSaveSuccess = useCallback((newId: string) => {
+    if (selectedConvexJobDescriptionProfile?.type === 'system') {
+      onJobChange?.(newId)
+    }
+  }, [onJobChange, selectedConvexJobDescriptionProfile?.type])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -539,6 +615,58 @@ export function QuickStartPanel({
           <KeywordChips value={selectedKeywords} onChange={handleKeywordsChange} />
         </div>
 
+        {selectedConvexJobDescriptionProfile ? (
+          <div className="rounded-md border border-muted/60 bg-muted/20 px-3 py-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span aria-hidden>📋</span>
+                  <span>{t('quickStart.jdProfile.title', 'JD Profile')}</span>
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <span className="text-sm font-medium">{selectedConvexJobDescriptionProfile.title}</span>
+                  {selectedConvexJobDescriptionProfile.location ? (
+                    <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                      {selectedConvexJobDescriptionProfile.location}
+                    </Badge>
+                  ) : null}
+                  {selectedConvexJobDescriptionProfile.industryTags?.map((tag) => (
+                    <Badge key={`${selectedConvexJobDescriptionProfile._id}-${tag}`} variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+                      {tag}
+                    </Badge>
+                  ))}
+                  {typeof selectedConvexJobDescriptionProfile.minExperience === 'number' ? (
+                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+                      {t('quickStart.jdProfile.exp', 'Exp')} {selectedConvexJobDescriptionProfile.minExperience}+{t('quickStart.years', '年')}
+                    </Badge>
+                  ) : null}
+                  {jdProfileAgeSummary ? (
+                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+                      {t('quickStart.jdProfile.age', 'Age')} {jdProfileAgeSummary}
+                    </Badge>
+                  ) : null}
+                </div>
+                {!jdProfileHasStructuredFields ? (
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    {t('quickStart.jdProfile.noData', 'No structured fields, click edit to add')}
+                  </p>
+                ) : null}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => setShowJdEditor(true)}
+                aria-label={t('jdEditor.editTitle', 'Edit Job Description')}
+                title={t('jdEditor.editTitle', 'Edit Job Description')}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {matching ? (
           <div className="rounded-md border border-dashed border-muted-foreground/40 px-3 py-2 text-xs text-muted-foreground">
             {t('quickStart.autoMatchLoading', 'Matching profile...')}
@@ -639,6 +767,12 @@ export function QuickStartPanel({
           </div>
         </div>
       </div>
+      <JobDescriptionEditor
+        open={showJdEditor}
+        onOpenChange={setShowJdEditor}
+        initialData={editorInitialData}
+        onSaveSuccess={handleJdEditorSaveSuccess}
+      />
     </div>
   )
 }
