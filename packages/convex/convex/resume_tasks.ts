@@ -554,6 +554,44 @@ export const resetDatabase = mutation({
             await ctx.db.delete(status._id);
         }
 
-        return { success: true, count: tasks.length + resumes.length + workers.length + blocks.length + statuses.length };
+        const analysisTasks = await ctx.db.query("analysis_tasks").collect();
+        for (const analysisTask of analysisTasks) {
+            await ctx.db.delete(analysisTask._id);
+        }
+
+        const screeningSessions = await ctx.db.query("screening_sessions").collect();
+        for (const session of screeningSessions) {
+            await ctx.db.delete(session._id);
+        }
+
+        const syncEvents = await ctx.db.query("sync_events").collect();
+        for (const event of syncEvents) {
+            await ctx.db.delete(event._id);
+        }
+
+        const count =
+            tasks.length
+            + resumes.length
+            + workers.length
+            + blocks.length
+            + statuses.length
+            + analysisTasks.length
+            + screeningSessions.length
+            + syncEvents.length;
+
+        return {
+            success: true,
+            count,
+            deleted: {
+                collectionTasks: tasks.length,
+                resumes: resumes.length,
+                collectionWorkers: workers.length,
+                candidateBlocks: blocks.length,
+                candidateStatus: statuses.length,
+                analysisTasks: analysisTasks.length,
+                screeningSessions: screeningSessions.length,
+                syncEvents: syncEvents.length,
+            },
+        };
     },
 });

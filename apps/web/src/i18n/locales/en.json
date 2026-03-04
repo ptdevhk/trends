@@ -127,7 +127,11 @@
     "companyHits": "Company Hits",
     "experienceLevel": "Experience Level",
     "ruleScoreCount": "Rule Scores",
-    "noIngestData": "No ingest data yet for this resume."
+    "noIngestData": "No ingest data yet for this resume.",
+    "resetDatabase": "Clear Resume Database",
+    "resetDatabaseConfirm": "Delete all resume data and task records? This cannot be undone.",
+    "resetDatabaseSuccess": "Deleted {{count}} records from the resume database.",
+    "resetDatabaseFailed": "Failed to clear resume database"
   },
   "trends": {
     "title": "Trending Topics",
