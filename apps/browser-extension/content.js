@@ -154,6 +154,7 @@ function buildExportMetadata(resumes) {
   const url = new URL(window.location.href);
   const keyword = normalizeKeyword(url.searchParams.get(AUTO_SEARCH_PARAM) || '');
   const location = (url.searchParams.get(AUTO_LOCATION_PARAM) || '').trim();
+  const locationArray = location ? location.split(/[\s,]+/).filter(Boolean) : [];
   const rawSampleName = url.searchParams.get(SAMPLE_NAME_PARAM) || '';
   const sampleName = sanitizeSampleName(rawSampleName).replace(/\.json$/i, '');
 
@@ -187,7 +188,7 @@ function buildExportMetadata(resumes) {
     sourceUrl: url.toString(),
     searchCriteria: {
       keyword,
-      location,
+      location: locationArray.length > 0 ? locationArray : '',
       filters: Object.keys(filters).length ? filters : {}
     },
     generatedAt: new Date().toISOString(),
@@ -201,7 +202,8 @@ function buildExportMetadata(resumes) {
 function buildSubmitMetadata() {
   const url = new URL(window.location.href);
   const keyword = normalizeKeyword(url.searchParams.get(AUTO_SEARCH_PARAM) || '');
-  const location = (url.searchParams.get(AUTO_LOCATION_PARAM) || '').trim();
+  const locationRaw = (url.searchParams.get(AUTO_LOCATION_PARAM) || '').trim();
+  const location = locationRaw ? locationRaw.split(/[\s,]+/).filter(Boolean).join(',') : '';
 
   url.searchParams.delete(AUTO_EXPORT_PARAM);
   url.searchParams.delete(AUTO_SYNC_PARAM);
@@ -1353,13 +1355,15 @@ function setInputValue(input, value) {
 
 async function autoSelectLocation() {
   const params = new URLSearchParams(window.location.search || '');
-  const location = (params.get(AUTO_LOCATION_PARAM) || '').trim();
-  if (!location) {
+  const locationRaw = (params.get(AUTO_LOCATION_PARAM) || '').trim();
+  const locations = locationRaw.split(/[\s,]+/).filter(Boolean);
+
+  if (locations.length === 0) {
     setAutoLocationAttributes('skipped', '');
     return;
   }
 
-  console.log('🎯 [Auto Location] Selecting location:', location);
+  console.log('🎯 [Auto Location] Selecting locations:', locations);
 
   let modal = document.querySelector(SELECTORS.areaModal);
   if (!isElementVisible(modal)) {
@@ -1390,75 +1394,116 @@ async function autoSelectLocation() {
     return;
   }
 
-  const selectAllDistrictAndConfirm = async () => {
+  const selectAllDistrictAndConfirm = async (loc) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
     const { block: districtBlock } = await waitForAreaItems(SELECTORS.areaDistrictBlock, {
       itemSelector: SELECTORS.areaDistrictItem,
       timeoutMs: 5000
     });
-    const selectAllDistrict = findAreaItemByText(districtBlock, `全${location}`)
+    const selectAllDistrict = findAreaItemByText(districtBlock, `全${loc}`)
       || districtBlock.querySelector(SELECTORS.areaDistrictItem);
     if (!selectAllDistrict) return false;
     selectAllDistrict.click();
-    confirmBtn.click();
-    setAutoLocationAttributes('done', location);
     return true;
   };
 
-  const provinceMatch = findAreaItemByText(provinceBlock, location);
-  if (provinceMatch) {
-    provinceMatch.click();
-    try {
-      const { block: cityBlock } = await waitForAreaItems(SELECTORS.areaCityBlock, {
-        itemSelector: SELECTORS.areaItem,
-        timeoutMs: 5000
-      });
-      const selectAllCity = findAreaItemByText(cityBlock, location)
-        || cityBlock.querySelector(SELECTORS.areaItem);
-      if (selectAllCity) selectAllCity.click();
-      if (await selectAllDistrictAndConfirm()) return;
-    } catch {
-      // Continue to city-level fallback.
-    }
-  }
-
-  const tryCityFlow = async () => {
+  const tryCityFlow = async (loc) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
     const { block: cityBlock } = await waitForAreaItems(SELECTORS.areaCityBlock, {
       itemSelector: SELECTORS.areaItem,
       timeoutMs: 5000
     });
-    const cityMatch = findAreaItemByText(cityBlock, location);
+    const cityMatch = findAreaItemByText(cityBlock, loc);
     if (!cityMatch) return false;
     cityMatch.click();
-    return selectAllDistrictAndConfirm();
+
+    if (cityMatch.textContent.trim().startsWith('全')) {
+      return true;
+    }
+
+    return await selectAllDistrictAndConfirm(loc);
   };
 
-  const hotCities = findAreaItemByText(provinceBlock, '热门城市');
-  if (hotCities) {
-    hotCities.click();
-    try {
-      if (await tryCityFlow()) return;
-    } catch {
-      // Continue to province scan fallback.
+  // Keep track of which locations we've successfully selected
+  const successLocations = [];
+  const failedLocations = [];
+
+  for (const location of locations) {
+    let found = false;
+    const provinceMatch = findAreaItemByText(provinceBlock, location);
+
+    if (provinceMatch) {
+      provinceMatch.click();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      try {
+        const { block: cityBlock } = await waitForAreaItems(SELECTORS.areaCityBlock, {
+          itemSelector: SELECTORS.areaItem,
+          timeoutMs: 5000
+        });
+        const selectAllCity = findAreaItemByText(cityBlock, location)
+          || cityBlock.querySelector(SELECTORS.areaItem);
+        if (selectAllCity) {
+          selectAllCity.click();
+          if (selectAllCity.textContent.trim().startsWith('全')) {
+            found = true;
+          } else if (await selectAllDistrictAndConfirm(location)) {
+            found = true;
+          }
+        }
+      } catch {
+        // Continue to city-level fallback.
+      }
+    }
+
+    if (!found) {
+      const hotCities = findAreaItemByText(provinceBlock, '热门城市');
+      if (hotCities) {
+        hotCities.click();
+        try {
+          if (await tryCityFlow(location)) {
+            found = true;
+          }
+        } catch {
+          // Continue to province scan fallback.
+        }
+      }
+    }
+
+    if (!found) {
+      const provinceItems = Array.from(provinceBlock.querySelectorAll(SELECTORS.areaItem));
+      for (const province of provinceItems) {
+        const hotCities = findAreaItemByText(provinceBlock, '热门城市');
+        if (hotCities && province === hotCities) continue;
+        const provinceEl = asHTMLElement(province);
+        if (!provinceEl) continue;
+        provinceEl.click();
+        try {
+          if (await tryCityFlow(location)) {
+            found = true;
+            break;
+          }
+        } catch {
+          // Continue scanning other provinces.
+        }
+      }
+    }
+
+    if (found) {
+      successLocations.push(location);
+    } else {
+      failedLocations.push(location);
+      console.warn('🎯 [Auto Location] Location not found:', location);
     }
   }
 
-  const provinceItems = Array.from(provinceBlock.querySelectorAll(SELECTORS.areaItem));
-  for (const province of provinceItems) {
-    if (hotCities && province === hotCities) continue;
-    const provinceEl = asHTMLElement(province);
-    if (!provinceEl) continue;
-    provinceEl.click();
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    try {
-      if (await tryCityFlow()) return;
-    } catch {
-      // Continue scanning other provinces.
-    }
+  // Final confirmation step
+  if (successLocations.length > 0) {
+    confirmBtn.click();
+    setAutoLocationAttributes('done', successLocations.join(','));
+  } else {
+    cancelBtn.click();
+    setAutoLocationAttributes('failed', locationRaw);
   }
-
-  cancelBtn.click();
-  setAutoLocationAttributes('failed', location);
-  console.warn('🎯 [Auto Location] Location not found:', location);
 }
 
 async function autoSearchFromUrl() {

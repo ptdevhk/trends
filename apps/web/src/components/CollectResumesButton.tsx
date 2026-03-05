@@ -55,8 +55,8 @@ export function CollectResumesButton({ location, keywords, collectLimit }: Colle
     }
 
     const query = new URLSearchParams({
-      keyword: normalizedKeywords.join(''),
-      location: normalizedLocation,
+      keyword: normalizedKeywords.join(' '),
+      location: normalizedLocation, // will be parsed by extension
       tr_auto_sync: 'true',
     })
     if (normalizedCollectLimit > 0) {
