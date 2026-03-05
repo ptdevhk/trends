@@ -97,6 +97,34 @@ function normalizeCollectionLimit(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+const PROVINCE_TOKENS = new Set([
+  '北京', '天津', '上海', '重庆',
+  '河北', '山西', '辽宁', '吉林', '黑龙江',
+  '江苏', '浙江', '安徽', '福建', '江西', '山东',
+  '河南', '湖北', '湖南', '广东', '海南',
+  '四川', '贵州', '云南', '陕西', '甘肃', '青海',
+  '台湾', '内蒙古', '广西', '西藏', '宁夏', '新疆',
+  '香港', '澳门'
+]);
+
+function normalizeProvinceToken(value) {
+  if (!value) return '';
+  return value
+    .trim()
+    .replace(/特别行政区$/g, '')
+    .replace(/壮族自治区$/g, '')
+    .replace(/回族自治区$/g, '')
+    .replace(/维吾尔自治区$/g, '')
+    .replace(/自治区$/g, '')
+    .replace(/省$/g, '')
+    .replace(/市$/g, '');
+}
+
+function isProvinceToken(value) {
+  const normalized = normalizeProvinceToken(value);
+  return normalized ? PROVINCE_TOKENS.has(normalized) : false;
+}
+
 async function getKeywordMode() {
   return new Promise((resolve) => {
     try {
@@ -1356,14 +1384,21 @@ function setInputValue(input, value) {
 async function autoSelectLocation() {
   const params = new URLSearchParams(window.location.search || '');
   const locationRaw = (params.get(AUTO_LOCATION_PARAM) || '').trim();
-  const locations = locationRaw.split(/[\s,]+/).filter(Boolean);
+  const parsedLocations = Array.from(
+    new Set(
+      locationRaw
+        .split(/[\s,，、]+/)
+        .map((location) => location.trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 10);
 
-  if (locations.length === 0) {
+  if (parsedLocations.length === 0) {
     setAutoLocationAttributes('skipped', '');
     return;
   }
 
-  console.log('🎯 [Auto Location] Selecting locations:', locations);
+  console.log('🎯 [Auto Location] Selecting locations:', parsedLocations);
 
   let modal = document.querySelector(SELECTORS.areaModal);
   if (!isElementVisible(modal)) {
@@ -1371,7 +1406,7 @@ async function autoSelectLocation() {
     try {
       trigger = await waitForAreaTrigger({});
     } catch {
-      setAutoLocationAttributes('failed', location);
+      setAutoLocationAttributes('failed', locationRaw);
       console.warn('🎯 [Auto Location] Trigger not found');
       return;
     }
@@ -1379,7 +1414,7 @@ async function autoSelectLocation() {
     try {
       modal = await waitForAreaModal({});
     } catch (error) {
-      setAutoLocationAttributes('failed', location);
+      setAutoLocationAttributes('failed', locationRaw);
       console.warn('🎯 [Auto Location] Area selector not ready:', error);
       return;
     }
@@ -1389,10 +1424,14 @@ async function autoSelectLocation() {
   const confirmBtn = asHTMLElement(modal.querySelector(SELECTORS.areaConfirmBtn));
   const cancelBtn = asHTMLElement(modal.querySelector(SELECTORS.areaCancelBtn));
   if (!provinceBlock || !confirmBtn || !cancelBtn) {
-    setAutoLocationAttributes('failed', location);
+    setAutoLocationAttributes('failed', locationRaw);
     console.warn('🎯 [Auto Location] Missing modal controls');
     return;
   }
+  const locationsToSelect = parsedLocations.filter((location, index) => {
+    const next = parsedLocations[index + 1];
+    return !(next && isProvinceToken(location) && !isProvinceToken(next));
+  });
 
   const selectAllDistrictAndConfirm = async (loc) => {
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -1400,8 +1439,9 @@ async function autoSelectLocation() {
       itemSelector: SELECTORS.areaDistrictItem,
       timeoutMs: 5000
     });
+    const districtItems = Array.from(districtBlock.querySelectorAll(SELECTORS.areaDistrictItem));
     const selectAllDistrict = findAreaItemByText(districtBlock, `全${loc}`)
-      || districtBlock.querySelector(SELECTORS.areaDistrictItem);
+      || asHTMLElement(districtItems.find((item) => getAreaItemText(item).startsWith('全')) || null);
     if (!selectAllDistrict) return false;
     selectAllDistrict.click();
     return true;
@@ -1428,7 +1468,7 @@ async function autoSelectLocation() {
   const successLocations = [];
   const failedLocations = [];
 
-  for (const location of locations) {
+  for (const location of locationsToSelect) {
     let found = false;
     const provinceMatch = findAreaItemByText(provinceBlock, location);
 
@@ -1440,8 +1480,10 @@ async function autoSelectLocation() {
           itemSelector: SELECTORS.areaItem,
           timeoutMs: 5000
         });
-        const selectAllCity = findAreaItemByText(cityBlock, location)
-          || cityBlock.querySelector(SELECTORS.areaItem);
+        const cityItems = Array.from(cityBlock.querySelectorAll(SELECTORS.areaItem));
+        const selectAllCity = findAreaItemByText(cityBlock, `全${location}`)
+          || findAreaItemByText(cityBlock, location)
+          || asHTMLElement(cityItems.find((item) => getAreaItemText(item).startsWith('全')) || null);
         if (selectAllCity) {
           selectAllCity.click();
           if (selectAllCity.textContent.trim().startsWith('全')) {
