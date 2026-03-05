@@ -19,6 +19,8 @@ const AUTO_MATCH_MIN_CONFIDENCE = 0.3
 type SearchProfileFilters = {
   minExperience?: number
   maxExperience?: number | null
+  minAge?: number
+  maxAge?: number
   education?: string[]
   salaryRange?: {
     min?: number
@@ -101,6 +103,12 @@ function mapProfileFiltersToResumeFilters(filters: SearchProfileFilters | undefi
   }
   if (typeof filters.maxExperience === 'number') {
     mapped.maxExperience = filters.maxExperience
+  }
+  if (typeof filters.minAge === 'number') {
+    mapped.minAge = filters.minAge
+  }
+  if (typeof filters.maxAge === 'number') {
+    mapped.maxAge = filters.maxAge
   }
   if (Array.isArray(filters.education) && filters.education.length > 0) {
     mapped.education = filters.education

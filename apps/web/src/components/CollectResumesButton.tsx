@@ -21,6 +21,8 @@ interface CollectResumesButtonProps {
   location: string
   keywords: string[]
   collectLimit?: number
+  minAge?: number
+  maxAge?: number
 }
 
 function isExtensionMeta(value: unknown): value is ExtensionMeta {
@@ -36,7 +38,12 @@ function normalizeCollectLimit(value: number | undefined): number {
   return parsed > 0 ? parsed : 0
 }
 
-export function CollectResumesButton({ location, keywords, collectLimit }: CollectResumesButtonProps) {
+function normalizeAgeBound(value: number | undefined): number | undefined {
+  const parsed = Number.isFinite(value) ? Math.floor(value || 0) : 0
+  return parsed > 0 ? parsed : undefined
+}
+
+export function CollectResumesButton({ location, keywords, collectLimit, minAge, maxAge }: CollectResumesButtonProps) {
   const { t } = useTranslation()
   const [extensionVersion, setExtensionVersion] = useState<string | null>(null)
 
@@ -46,6 +53,8 @@ export function CollectResumesButton({ location, keywords, collectLimit }: Colle
     [keywords]
   )
   const normalizedCollectLimit = useMemo(() => normalizeCollectLimit(collectLimit), [collectLimit])
+  const normalizedMinAge = useMemo(() => normalizeAgeBound(minAge), [minAge])
+  const normalizedMaxAge = useMemo(() => normalizeAgeBound(maxAge), [maxAge])
 
   const disabled = normalizedKeywords.length === 0
 
@@ -66,8 +75,17 @@ export function CollectResumesButton({ location, keywords, collectLimit }: Colle
     if (normalizedCollectLimit > 0) {
       query.set('tr_limit', String(normalizedCollectLimit))
     }
+
+    if (typeof normalizedMinAge === 'number') {
+      query.set('tr_min_age', String(normalizedMinAge))
+    }
+
+    if (typeof normalizedMaxAge === 'number') {
+      query.set('tr_max_age', String(normalizedMaxAge))
+    }
+
     return `${JOB_BOARD_BASE_URL}?${query.toString()}`
-  }, [disabled, normalizedCollectLimit, normalizedKeywords, normalizedLocation])
+  }, [disabled, normalizedCollectLimit, normalizedKeywords, normalizedLocation, normalizedMinAge, normalizedMaxAge])
 
   useEffect(() => {
     let cancelled = false

@@ -91,7 +91,12 @@ export function ResumeList() {
         onApplyQuickFilters={handleQuickConstraintApply}
         extraActions={
           <div className="flex items-center gap-2">
-            <CollectResumesButton location={sessionLocation} keywords={sessionKeywords} />
+            <CollectResumesButton
+              location={sessionLocation}
+              keywords={sessionKeywords}
+              minAge={filters.minAge}
+              maxAge={filters.maxAge}
+            />
             {!selectedIds.size && (
               <Button
                 onClick={handleAnalyzeAll}
