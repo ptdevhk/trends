@@ -8,6 +8,7 @@ import { JobDescriptionEditor } from './JobDescriptionEditor'
 import { KeywordChips } from './KeywordChips'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -458,14 +459,25 @@ export function QuickStartPanel({
     setCustomKeyword(keywords.join(' '))
   }, [])
 
-  const handleLocationToggle = useCallback((nextLocation: string) => {
-    const normalizedLocation = nextLocation.trim()
-    if (!normalizedLocation) {
-      return
-    }
+  const handleLocationToggle = useCallback(
+    (toggleLocation: string) => {
+      const parts = location.split(/[\s,]+/).filter(Boolean)
+      const nextParts = new Set(parts)
 
-    setLocation((current) => (current.trim() === normalizedLocation ? '' : normalizedLocation))
-  }, [])
+      if (nextParts.has(toggleLocation)) {
+        nextParts.delete(toggleLocation)
+      } else {
+        if (nextParts.size >= 10) {
+          toast.warning(t('quickStart.maxLocations', '最多选择10个位置'))
+          return
+        }
+        nextParts.add(toggleLocation)
+      }
+
+      setLocation(Array.from(nextParts).join(','))
+    },
+    [location, setLocation, t]
+  )
 
   const handleJobChange = useCallback((value: string) => {
     onJobChange?.(value)
@@ -591,7 +603,8 @@ export function QuickStartPanel({
                   type="text"
                   value={location}
                   onChange={(event) => setLocation(event.target.value)}
-                  placeholder={t('quickStart.location', '位置')}
+                  placeholder={t('quickStart.locationTooltip', '位置 (逗号分隔)')}
+                  title={t('quickStart.locationTooltip', '支持多个位置，用逗号分隔，最多10个')}
                   className="h-9 w-40 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
@@ -652,7 +665,7 @@ export function QuickStartPanel({
         <KeywordChips
           value={selectedKeywords}
           onChange={handleKeywordsChange}
-          activeLocation={location}
+          activeLocations={location.split(/[\s,]+/).filter(Boolean)}
           onLocationToggle={handleLocationToggle}
         />
 

@@ -12,7 +12,7 @@ import {
 interface KeywordChipsProps {
   value: string[]
   onChange: (keywords: string[]) => void
-  activeLocation?: string
+  activeLocations?: string[]
   onLocationToggle?: (location: string) => void
 }
 
@@ -33,7 +33,7 @@ function normalizeKeywords(values: string[]): string[] {
 export function KeywordChips({
   value,
   onChange,
-  activeLocation,
+  activeLocations,
   onLocationToggle,
 }: KeywordChipsProps) {
   const { t } = useTranslation()
@@ -63,9 +63,9 @@ export function KeywordChips({
     }
     return map
   }, [keywords])
-  const normalizedActiveLocation = useMemo(
-    () => activeLocation?.trim() ?? '',
-    [activeLocation]
+  const activeLocationSet = useMemo(
+    () => new Set(activeLocations?.map((loc) => loc.trim()).filter(Boolean) || []),
+    [activeLocations]
   )
 
   const additionalSelectedKeywords = useMemo(() => {
@@ -117,7 +117,7 @@ export function KeywordChips({
       const resolvedCategory = category ?? keywordCategoryMap.get(normalizedKeyword)
       const isLocationChip = resolvedCategory === 'location'
       const selectedKeyword = isLocationChip
-        ? normalizedActiveLocation === normalizedKeyword
+        ? activeLocationSet.has(normalizedKeyword)
         : selected.has(normalizedKeyword)
       return (
         <Badge
@@ -147,7 +147,7 @@ export function KeywordChips({
         </Badge>
       )
     },
-    [keywordCategoryMap, normalizedActiveLocation, selected, toggleKeyword]
+    [keywordCategoryMap, activeLocationSet, selected, toggleKeyword]
   )
 
   return (

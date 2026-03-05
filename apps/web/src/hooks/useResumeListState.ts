@@ -605,7 +605,9 @@ export function useResumeListState() {
         normalizedLocation.length > 0
           ? normalizedLocation
           : undefined
-      const locationFilters = locationForUrl ? [locationForUrl] : undefined
+      const locationFilters = locationForUrl
+        ? locationForUrl.split(/[\s,]+/).filter(Boolean)
+        : undefined
       const filtersForUrl: Partial<ResumeFilters> = {
         ...filters,
         locations: locationFilters,
@@ -1300,7 +1302,7 @@ export function useResumeListState() {
       setFilters((current) => ({
         ...current,
         ...(config.filters ?? {}),
-        locations: normalizedLocation ? [normalizedLocation] : [],
+        locations: normalizedLocation ? normalizedLocation.split(/[\s,]+/).filter(Boolean) : [],
       }))
     },
     [setFilters, setJobDescriptionId, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
