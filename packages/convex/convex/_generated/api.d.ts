@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as ai_tagging_results from "../ai_tagging_results.js";
 import type * as analysis_tasks from "../analysis_tasks.js";
 import type * as analyze from "../analyze.js";
 import type * as candidate_blocks from "../candidate_blocks.js";
@@ -34,6 +35,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  ai_tagging_results: typeof ai_tagging_results;
   analysis_tasks: typeof analysis_tasks;
   analyze: typeof analyze;
   candidate_blocks: typeof candidate_blocks;
