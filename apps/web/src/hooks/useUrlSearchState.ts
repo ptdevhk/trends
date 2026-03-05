@@ -59,6 +59,17 @@ function parseKeywordParam(value: string | null): string[] {
     .filter((item) => item.length > 0)
 }
 
+function parseLocationParam(value: string | undefined): string[] {
+  if (!value) {
+    return []
+  }
+
+  return value
+    .split(/[\s,，、]+/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+}
+
 function parseCsvParam(value: string | null): string[] {
   if (!value) {
     return []
@@ -174,7 +185,13 @@ export function hasKnownUrlSearchParams(searchParams: URLSearchParams): boolean 
 
 export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchState {
   const locationRaw = getFirstParam(searchParams, ['loc', 'location'])
-  const location = locationRaw?.trim() || undefined
+  const normalizedLocation = locationRaw?.trim() || ''
+  const locationFromLocationParam = normalizeUniqueValues(parseLocationParam(normalizedLocation))
+  const locationFromLocsParam = normalizeUniqueValues(parseCsvParam(searchParams.get('locs')))
+  const effectiveLocations = locationFromLocsParam.length > 0
+    ? locationFromLocsParam
+    : locationFromLocationParam
+  const location = normalizedLocation || (effectiveLocations.length > 0 ? effectiveLocations.join(',') : undefined)
   const keywordRaw = getFirstParam(searchParams, ['kw', 'keyword'])
   const keywords = normalizeUniqueValues(parseKeywordParam(keywordRaw))
   const jobDescriptionRaw = searchParams.get('jd')
@@ -221,9 +238,8 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.minMatchScore = minMatchScore
   }
 
-  const locations = normalizeUniqueValues(parseCsvParam(searchParams.get('locs')))
-  if (locations.length > 0) {
-    filters.locations = locations
+  if (effectiveLocations.length > 0) {
+    filters.locations = effectiveLocations
   }
 
   const status = parseStatusList(searchParams.get('status'))
@@ -282,7 +298,17 @@ export function useUrlSearchState() {
         const hasKeywords = normalizedKeywords.length > 0
 
         const normalizedLocation = state.location?.trim()
-        setParam(nextParams, 'location', normalizedLocation)
+        const normalizedLocations = Array.isArray(state.filters.locations)
+          ? normalizeUniqueValues(state.filters.locations)
+          : []
+        const locationFromField = normalizeUniqueValues(parseLocationParam(normalizedLocation))
+        const locationForUrlParts = locationFromField.length > 0
+          ? locationFromField
+          : normalizedLocations
+        const locationForUrl = locationForUrlParts.length > 0
+          ? locationForUrlParts.join(',')
+          : normalizedLocation
+        setParam(nextParams, 'location', locationForUrl)
         setParam(nextParams, 'keyword', hasKeywords ? normalizedKeywords.join(' ') : undefined)
         setParam(nextParams, 'jd', state.jobDescriptionId?.trim())
         setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
@@ -321,19 +347,6 @@ export function useUrlSearchState() {
 
         if (typeof state.filters.minMatchScore === 'number' && Number.isFinite(state.filters.minMatchScore)) {
           setParam(nextParams, 'minScore', String(state.filters.minMatchScore))
-        }
-
-        if (Array.isArray(state.filters.locations) && state.filters.locations.length > 0) {
-          const normalizedLocations = normalizeUniqueValues(state.filters.locations)
-          const hasRedundantSingleLocationFilter = Boolean(
-            normalizedLocation
-            && normalizedLocations.length === 1
-            && normalizedLocations[0].trim().toLowerCase() === normalizedLocation.toLowerCase()
-          )
-
-          if (!hasRedundantSingleLocationFilter) {
-            setParam(nextParams, 'locs', normalizedLocations.join(','))
-          }
         }
 
         if (Array.isArray(state.filters.status) && state.filters.status.length > 0) {
