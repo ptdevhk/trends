@@ -17,15 +17,26 @@ const CustomKeywordCategorySchema = z.object({
   name: z.string(),
   icon: z.string().optional(),
 });
+const SystemLocationItemSchema = z.object({
+  id: z.string(),
+  keyword: z.string(),
+  level: z.enum(["province", "city"]),
+  parentKeyword: z.string().optional(),
+  visible: z.boolean(),
+});
 const CustomKeywordsResponseSchema = z.object({
   success: z.literal(true),
   tags: z.array(CustomKeywordTagSchema),
   categories: z.array(CustomKeywordCategorySchema),
+  systemLocations: z.array(SystemLocationItemSchema),
 });
 const CustomKeywordUpdateSchema = z.object({
   keyword: z.string().optional(),
   english: z.string().optional(),
   category: z.string().optional(),
+});
+const SystemLocationVisibilityUpdateSchema = z.object({
+  visible: z.boolean(),
 });
 const RuleWeightsConfigSchema = z.record(z.unknown());
 const LearningLogEntrySchema = z.object({
@@ -143,11 +154,50 @@ app.get("/custom-keywords", async (c) => {
       success: true as const,
       tags: config.tags,
       categories: config.categories,
+      systemLocations: config.systemLocations,
     });
     return c.json(response, 200);
   } catch (error) {
     console.error("Failed to load custom keywords", error);
     return c.json({ success: false as const, error: "Failed to load custom keywords" }, 500);
+  }
+});
+
+app.put("/custom-keywords/system-locations/:id", requireAdmin, async (c) => {
+  try {
+    const id = c.req.param("id");
+    const body: unknown = await c.req.json();
+    const parsedBody = SystemLocationVisibilityUpdateSchema.safeParse(body);
+
+    if (!parsedBody.success) {
+      return c.json({ success: false as const, error: "Invalid system location payload" }, 400);
+    }
+
+    const workspaceSlug = c.var.workspaceSlug;
+    const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
+    const matched = mergedConfig.systemLocations.find((item) => item.id === id);
+    if (!matched) {
+      return c.json({ success: false as const, error: `System location not found: ${id}` }, 404);
+    }
+
+    const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
+    const index = workspaceConfig.systemLocations.findIndex((item) => item.id === id);
+    const updatedItem = {
+      ...matched,
+      visible: parsedBody.data.visible,
+    };
+
+    if (index === -1) {
+      workspaceConfig.systemLocations.push(updatedItem);
+    } else {
+      workspaceConfig.systemLocations[index] = updatedItem;
+    }
+
+    await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
+    return c.json({ success: true as const, item: updatedItem }, 200);
+  } catch (error) {
+    console.error("Failed to update system location visibility", error);
+    return c.json({ success: false as const, error: "Failed to update system location visibility" }, 500);
   }
 });
 

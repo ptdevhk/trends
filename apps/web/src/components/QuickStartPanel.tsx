@@ -153,6 +153,25 @@ function getFilterSummary(profile: SearchProfileDetails): string {
   return 'default'
 }
 
+function parseLocationParts(value: string): string[] {
+  const seen = new Set<string>()
+  const parts: string[] = []
+
+  value
+    .split(/[\s,，、]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((item) => {
+      if (seen.has(item)) {
+        return
+      }
+      seen.add(item)
+      parts.push(item)
+    })
+
+  return parts
+}
+
 export function QuickStartPanel({
   onApplyConfig,
   defaultLocation = '广东',
@@ -461,7 +480,7 @@ export function QuickStartPanel({
 
   const handleLocationToggle = useCallback(
     (toggleLocation: string) => {
-      const parts = location.split(/[\s,]+/).filter(Boolean)
+      const parts = parseLocationParts(location)
       const nextParts = new Set(parts)
 
       if (nextParts.has(toggleLocation)) {
@@ -665,7 +684,7 @@ export function QuickStartPanel({
         <KeywordChips
           value={selectedKeywords}
           onChange={handleKeywordsChange}
-          activeLocations={location.split(/[\s,]+/).filter(Boolean)}
+          activeLocations={parseLocationParts(location)}
           onLocationToggle={handleLocationToggle}
         />
 

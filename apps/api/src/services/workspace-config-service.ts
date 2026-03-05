@@ -7,6 +7,7 @@ import {
   type CustomKeywordCategory,
   type CustomKeywordsConfig,
   type CustomKeywordTag,
+  type SystemLocationItem,
 } from "./custom-keyword-service.js";
 import {
   filterPresetService,
@@ -123,9 +124,26 @@ function parseCustomKeywordCategory(value: unknown): CustomKeywordCategory | nul
   return { id, name, icon };
 }
 
+function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = readString(value.id);
+  const keyword = readString(value.keyword);
+  const level = value.level === "province" || value.level === "city" ? value.level : null;
+  const visible = typeof value.visible === "boolean" ? value.visible : null;
+  if (!id || !keyword || !level || visible === null) {
+    return null;
+  }
+
+  const parentKeyword = readString(value.parentKeyword) ?? undefined;
+  return { id, keyword, level, parentKeyword, visible };
+}
+
 function parseCustomKeywordsConfig(value: unknown): CustomKeywordsConfig {
   if (!isRecord(value)) {
-    return { tags: [], categories: [] };
+    return { tags: [], categories: [], systemLocations: [] };
   }
 
   const tags = Array.isArray(value.tags)
@@ -140,7 +158,13 @@ function parseCustomKeywordsConfig(value: unknown): CustomKeywordsConfig {
         .filter((item): item is CustomKeywordCategory => item !== null)
     : [];
 
-  return { tags, categories };
+  const systemLocations = Array.isArray(value.systemLocations)
+    ? value.systemLocations
+        .map((item) => parseSystemLocationItem(item))
+        .filter((item): item is SystemLocationItem => item !== null)
+    : [];
+
+  return { tags, categories, systemLocations };
 }
 
 function parseFilterPreset(value: unknown): FilterPreset | null {
@@ -415,6 +439,7 @@ export class WorkspaceConfigService {
     const systemConfig: CustomKeywordsConfig = {
       tags: customKeywordService.listTags(),
       categories: customKeywordService.listCategories(),
+      systemLocations: customKeywordService.listSystemLocations(),
     };
     const workspaceConfig = await this.getWorkspaceCustomKeywords(workspaceSlug);
 
@@ -434,9 +459,18 @@ export class WorkspaceConfigService {
       tagsById.set(tag.id, tag);
     }
 
+    const locationsById = new Map<string, SystemLocationItem>();
+    for (const item of systemConfig.systemLocations) {
+      locationsById.set(item.id, item);
+    }
+    for (const item of workspaceConfig.systemLocations) {
+      locationsById.set(item.id, item);
+    }
+
     return {
       categories: Array.from(categoriesById.values()),
       tags: Array.from(tagsById.values()),
+      systemLocations: Array.from(locationsById.values()),
     };
   }
 

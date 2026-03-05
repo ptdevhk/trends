@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
+  type IndustryKeyword,
   useIndustryKeywords,
 } from '@/hooks/useIndustryKeywords'
 
@@ -17,6 +18,7 @@ interface KeywordChipsProps {
 }
 
 const SEED_LOCATION_CHIP_LIMIT = 4
+const SYNTHETIC_LOCATION_ID_PREFIX = '__active_location__'
 
 function normalizeKeywords(values: string[]): string[] {
   const next: string[] = []
@@ -28,6 +30,14 @@ function normalizeKeywords(values: string[]): string[] {
     next.push(normalized)
   }
   return next
+}
+
+function createSyntheticLocationKeyword(keyword: string): IndustryKeyword {
+  return {
+    id: `${SYNTHETIC_LOCATION_ID_PREFIX}:${keyword}`,
+    keyword,
+    category: 'location',
+  }
 }
 
 export function KeywordChips({
@@ -63,9 +73,13 @@ export function KeywordChips({
     }
     return map
   }, [keywords])
-  const activeLocationSet = useMemo(
-    () => new Set(activeLocations?.map((loc) => loc.trim()).filter(Boolean) || []),
+  const normalizedActiveLocations = useMemo(
+    () => normalizeKeywords(activeLocations ?? []),
     [activeLocations]
+  )
+  const activeLocationSet = useMemo(
+    () => new Set(normalizedActiveLocations),
+    [normalizedActiveLocations]
   )
 
   const additionalSelectedKeywords = useMemo(() => {
@@ -76,18 +90,67 @@ export function KeywordChips({
     return selectedValues.filter((keyword) => !knownKeywordSet.has(keyword))
   }, [knownKeywordSet, selectedValues])
   const displayHotKeywords = useMemo(() => {
+    const result: IndustryKeyword[] = []
+    const seen = new Set<string>()
     let locationChipCount = 0
-    return hotKeywords.filter((item) => {
-      if (item.category !== 'location') {
-        return true
+
+    const pushUnique = (item: IndustryKeyword) => {
+      const keyword = item.keyword.trim()
+      if (!keyword || seen.has(keyword)) {
+        return
       }
+      seen.add(keyword)
+      result.push({
+        ...item,
+        keyword,
+      })
+    }
+
+    hotKeywords.forEach((item) => {
+      if (item.category !== 'location') {
+        pushUnique(item)
+        return
+      }
+
       if (locationChipCount >= SEED_LOCATION_CHIP_LIMIT) {
-        return false
+        return
       }
       locationChipCount += 1
-      return true
+      pushUnique(item)
     })
-  }, [hotKeywords])
+
+    normalizedActiveLocations.forEach((location) => {
+      pushUnique(createSyntheticLocationKeyword(location))
+    })
+
+    return result
+  }, [hotKeywords, normalizedActiveLocations])
+
+  const locationCategoryKeywords = useMemo(() => {
+    const result: IndustryKeyword[] = []
+    const seen = new Set<string>()
+
+    const pushUnique = (item: IndustryKeyword) => {
+      const keyword = item.keyword.trim()
+      if (!keyword || seen.has(keyword)) {
+        return
+      }
+      seen.add(keyword)
+      result.push({
+        ...item,
+        keyword,
+      })
+    }
+
+    grouped.location.forEach((item) => {
+      pushUnique(item)
+    })
+    normalizedActiveLocations.forEach((location) => {
+      pushUnique(createSyntheticLocationKeyword(location))
+    })
+
+    return result
+  }, [grouped.location, normalizedActiveLocations])
 
   const toggleKeyword = useCallback(
     (keyword: string) => {
@@ -182,7 +245,7 @@ export function KeywordChips({
       {expanded
         ? CATEGORY_ORDER.map((category) => {
           const categoryKeywords = category === 'location'
-            ? grouped[category].slice(0, SEED_LOCATION_CHIP_LIMIT)
+            ? locationCategoryKeywords
             : grouped[category]
           if (categoryKeywords.length === 0) return null
           return (
