@@ -74,6 +74,9 @@ dev-crawl:
 # Start web frontend only (React + Vite on port 5173)
 dev-web:
 	@if [ -d "apps/web" ]; then \
+		if [ -f "apps/browser-extension/manifest.json" ] && command -v zip >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then \
+			./scripts/build-extension-zip.sh || echo "Warning: build-extension-zip failed; /extension download may be stale."; \
+		fi; \
 		cd apps/web && npm run dev; \
 	else \
 		echo "apps/web not found. Create it with Milestone 3 (React Frontend)"; \
