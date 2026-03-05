@@ -34,7 +34,15 @@ dev:
 	@if [ "$${SKIP_MATCH_SEED:-false}" = "true" ]; then \
 		echo "Skipping seed-matches (SKIP_MATCH_SEED=true)"; \
 	else \
-		npx tsx scripts/seed-matches.ts; \
+		if command -v node >/dev/null 2>&1 && [ -d "node_modules/better-sqlite3" ]; then \
+			if ! node -e "const Database=require('better-sqlite3'); const db=new Database(':memory:'); db.prepare('select 1').get(); db.close();" >/dev/null 2>&1; then \
+				echo "Detected better-sqlite3 ABI mismatch; rebuilding (npm rebuild better-sqlite3)..."; \
+				npm rebuild better-sqlite3 || echo "Warning: npm rebuild better-sqlite3 failed; continuing dev startup."; \
+			fi; \
+		fi; \
+		if ! npx tsx scripts/seed-matches.ts; then \
+			echo "Warning: seed-matches failed; continuing dev startup. (Set SKIP_MATCH_SEED=true to skip)"; \
+		fi; \
 	fi
 	./scripts/dev.sh $(ARGS)
 
@@ -377,10 +385,22 @@ seed-clear-dev:
 
 # Seed deterministic resume matches into output/resume_screening.db
 seed-matches:
+	@if command -v node >/dev/null 2>&1 && [ -d "node_modules/better-sqlite3" ]; then \
+		if ! node -e "const Database=require('better-sqlite3'); const db=new Database(':memory:'); db.prepare('select 1').get(); db.close();" >/dev/null 2>&1; then \
+			echo "Detected better-sqlite3 ABI mismatch; rebuilding (npm rebuild better-sqlite3)..."; \
+			npm rebuild better-sqlite3; \
+		fi; \
+	fi
 	@npx tsx scripts/seed-matches.ts
 
 # Clear cached resume matches from output/resume_screening.db
 clear-matches:
+	@if command -v node >/dev/null 2>&1 && [ -d "node_modules/better-sqlite3" ]; then \
+		if ! node -e "const Database=require('better-sqlite3'); const db=new Database(':memory:'); db.prepare('select 1').get(); db.close();" >/dev/null 2>&1; then \
+			echo "Detected better-sqlite3 ABI mismatch; rebuilding (npm rebuild better-sqlite3)..."; \
+			npm rebuild better-sqlite3; \
+		fi; \
+	fi
 	@npx tsx scripts/clear-matches.ts
 
 # Verify critical path (Collection -> Search -> Analysis)
