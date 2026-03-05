@@ -52,6 +52,8 @@ const RunProfileRequestSchema = z.object({
     maxPages: z.number().int().min(1).max(50).optional(),
     autoAnalyze: z.boolean().optional(),
     analysisTopN: z.number().int().min(1).max(100).optional(),
+    minAge: z.number().int().min(1).max(120).optional(),
+    maxAge: z.number().int().min(1).max(120).optional(),
 });
 
 const RunProfileResponseSchema = z.object({
@@ -63,6 +65,8 @@ const RunProfileResponseSchema = z.object({
         location: z.string(),
         limit: z.number(),
         maxPages: z.number(),
+        minAge: z.number().optional(),
+        maxAge: z.number().optional(),
         autoAnalyze: z.boolean(),
         analysisTopN: z.number(),
         convexUrl: z.string(),
@@ -238,6 +242,8 @@ async function dispatchCollectionTask(args: {
     location: string;
     limit: number;
     maxPages: number;
+    minAge?: number;
+    maxAge?: number;
     autoAnalyze: boolean;
     analysisTopN: number;
 }): Promise<{ taskId: string; convexUrl: string }> {
@@ -273,6 +279,17 @@ async function dispatchCollectionTask(args: {
         taskId: String(payload.value),
         convexUrl,
     };
+}
+
+function normalizePositiveInt(value: unknown): number | undefined {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        return undefined;
+    }
+    const truncated = Math.trunc(value);
+    if (truncated <= 0) {
+        return undefined;
+    }
+    return truncated;
 }
 
 async function getCollectionTaskStatus(taskId: string): Promise<Partial<ProfileRunStatus> | null> {
@@ -846,6 +863,12 @@ app.openapi(runProfileRoute, async (c) => {
     const maxPages = parsed.data.maxPages ?? 10;
     const autoAnalyze = parsed.data.autoAnalyze ?? Boolean(profile.ai);
     const analysisTopN = parsed.data.analysisTopN ?? 10;
+    const minAge = normalizePositiveInt(parsed.data.minAge ?? profile.filters?.minAge);
+    const maxAge = normalizePositiveInt(parsed.data.maxAge ?? profile.filters?.maxAge);
+
+    if (typeof minAge === "number" && typeof maxAge === "number" && minAge > maxAge) {
+        return c.json({ success: false as const, error: "minAge cannot be greater than maxAge" }, 400);
+    }
 
     if (!keyword || !location) {
         return c.json({ success: false as const, error: "Profile keyword/location is required to run" }, 400);
@@ -857,6 +880,8 @@ app.openapi(runProfileRoute, async (c) => {
             location,
             limit,
             maxPages,
+            minAge,
+            maxAge,
             autoAnalyze,
             analysisTopN,
         });
@@ -878,6 +903,8 @@ app.openapi(runProfileRoute, async (c) => {
                 location,
                 limit,
                 maxPages,
+                minAge,
+                maxAge,
                 autoAnalyze,
                 analysisTopN,
                 convexUrl,

@@ -65,6 +65,15 @@ def _read_str(value: Any) -> Optional[str]:
         return str(value)
     return None
 
+def _to_optional_positive_int(value: Any) -> Optional[int]:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
+
 def _normalize_token(value: str) -> Optional[str]:
     trimmed = value.strip()
     if not trimmed:
@@ -241,13 +250,19 @@ async def process_task(task, client: httpx.AsyncClient):
     keyword = str(config["keyword"]).strip()
     location = str(config["location"]).strip()
     auto_analyze = bool(config.get("autoAnalyze"))
+    min_age = _to_optional_positive_int(config.get("minAge"))
+    max_age = _to_optional_positive_int(config.get("maxAge"))
     try:
         analysis_top_n = max(1, int(config.get("analysisTopN", 10)))
     except (TypeError, ValueError):
         analysis_top_n = 10
     
     # Build search URL
-    search_url = build_search_url(keyword, location)
+    if min_age is not None and max_age is not None and min_age > max_age:
+        raise RuntimeError(f"Invalid age range (minAge={min_age} maxAge={max_age})")
+
+    search_url = build_search_url(keyword, location, min_age=min_age, max_age=max_age)
+    logger.info("Search filters: keyword=%s location=%s minAge=%s maxAge=%s", keyword, location, min_age, max_age)
     
     async def on_progress(count, page):
         status_msg = f"Scraping page {page}..." if page > 0 else "Initializing..."

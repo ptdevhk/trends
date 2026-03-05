@@ -39,6 +39,17 @@ function applyParsedAgePatch(
     patch.age = parsedAge;
 }
 
+function normalizeOptionalPositiveInt(value: number | undefined): number | undefined {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        return undefined;
+    }
+    const truncated = Math.trunc(value);
+    if (truncated <= 0) {
+        return undefined;
+    }
+    return truncated;
+}
+
 // List recent tasks for monitoring
 export const list = query({
     args: {},
@@ -57,16 +68,26 @@ export const dispatch = mutation({
         location: v.string(),
         limit: v.number(),
         maxPages: v.optional(v.number()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
         autoAnalyze: v.optional(v.boolean()),
         analysisTopN: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        const minAge = normalizeOptionalPositiveInt(args.minAge);
+        const maxAge = normalizeOptionalPositiveInt(args.maxAge);
+        if (typeof minAge === "number" && typeof maxAge === "number" && minAge > maxAge) {
+            throw new Error("minAge cannot be greater than maxAge");
+        }
+
         const taskId = await ctx.db.insert("collection_tasks", {
             config: {
                 keyword: args.keyword,
                 location: args.location,
                 limit: args.limit,
                 maxPages: args.maxPages ?? 10,
+                minAge,
+                maxAge,
                 autoAnalyze: args.autoAnalyze,
                 analysisTopN: args.analysisTopN,
             },

@@ -34,6 +34,8 @@ export interface SearchProfile {
     filters?: {
         minExperience?: number;
         maxExperience?: number | null;
+        minAge?: number;
+        maxAge?: number;
         education?: string[];
         salaryRange?: {
             min?: number;
@@ -205,6 +207,8 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
     const minExperience = readNumber(value.minExperience);
     const maxExperienceRaw = value.maxExperience;
     const maxExperience = maxExperienceRaw === null ? null : readNumber(maxExperienceRaw);
+    const minAge = readNumber(value.minAge);
+    const maxAge = readNumber(value.maxAge);
     const education = readStringArray(value.education);
     const locations = readStringArray(value.locations);
 
@@ -229,6 +233,8 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
         minExperience === undefined
         && maxExperience === undefined
         && maxExperienceRaw !== null
+        && minAge === undefined
+        && maxAge === undefined
         && !education
         && !locations
         && !salaryRange
@@ -239,6 +245,8 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
     return {
         minExperience,
         maxExperience,
+        minAge,
+        maxAge,
         education,
         salaryRange,
         locations,

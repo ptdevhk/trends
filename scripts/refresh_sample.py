@@ -56,10 +56,19 @@ def sanitize_sample_name(value: str) -> str:
     return cleaned[:80]
 
 
-def build_search_url(keyword: str, location: str = "") -> str:
+def build_search_url(
+    keyword: str,
+    location: str = "",
+    min_age: int | None = None,
+    max_age: int | None = None,
+) -> str:
     params = {"keyword": keyword}
     if location:
         params["location"] = location
+    if isinstance(min_age, int) and min_age > 0:
+        params["tr_min_age"] = str(min_age)
+    if isinstance(max_age, int) and max_age > 0:
+        params["tr_max_age"] = str(max_age)
     return "https://hr.job5156.com/search?" + urllib.parse.urlencode(params)
 
 
@@ -524,6 +533,8 @@ async def run():
     parser = argparse.ArgumentParser()
     parser.add_argument("--keyword", default=DEFAULT_KEYWORD, help="Search keyword")
     parser.add_argument("--location", default="", help="Search location filter (e.g. 广东)")
+    parser.add_argument("--min-age", type=int, default=None, help="Minimum age filter (inclusive)")
+    parser.add_argument("--max-age", type=int, default=None, help="Maximum age filter (inclusive)")
     parser.add_argument("--limit", type=int, default=200, help="Max total resumes to scrape")
     parser.add_argument("--max-pages", type=int, default=10, help="Max pages to scrape")
     parser.add_argument("--sample", default=DEFAULT_SAMPLE, help="Sample file name")
@@ -541,7 +552,15 @@ async def run():
     if not sample_name:
         sample_name = "sample"
 
-    search_url = build_search_url(args.keyword, args.location)
+    if args.min_age is not None and args.max_age is not None and args.min_age > args.max_age:
+        raise CDPError("Invalid age range (min-age cannot be greater than max-age).")
+
+    search_url = build_search_url(
+        args.keyword,
+        args.location,
+        min_age=args.min_age,
+        max_age=args.max_age,
+    )
 
     async with open_cdp_session(args.port, search_url) as (client, context_id):
         # We might need to ensure navigation if the page wasn't already on the right URL

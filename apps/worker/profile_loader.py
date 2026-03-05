@@ -49,6 +49,7 @@ class ProfileLoader:
                     "limit": schedule.get("limit", 50),
                     "location": data.get("location"),
                     "keywords": data.get("keywords", []),
+                    "filters": data.get("filters"),
                     "job_description": data.get("jobDescription"),
                     "filepath": filepath
                 }

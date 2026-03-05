@@ -2235,6 +2235,8 @@ export interface paths {
                         maxPages?: number;
                         autoAnalyze?: boolean;
                         analysisTopN?: number;
+                        minAge?: number;
+                        maxAge?: number;
                     };
                 };
             };
@@ -2255,6 +2257,8 @@ export interface paths {
                                 location: string;
                                 limit: number;
                                 maxPages: number;
+                                minAge?: number;
+                                maxAge?: number;
                                 autoAnalyze: boolean;
                                 analysisTopN: number;
                                 convexUrl: string;

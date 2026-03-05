@@ -154,4 +154,51 @@ describe('search-profiles run route', () => {
     const dispatchCall = getDispatchCall(calls)
     expect(dispatchCall.args.keyword).toBe('CNC 车床 销售 STAR')
   })
+
+  it('passes age range overrides to Convex dispatch when provided', async () => {
+    const calls: ConvexCall[] = []
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+
+      if (call.pathName === 'search_profiles:getById') {
+        return convexSuccess(null)
+      }
+      if (call.pathName === 'resume_tasks:dispatch') {
+        return convexSuccess('task-age-range')
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles/dongguan-lathe-sales/run', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'dev',
+      },
+      body: JSON.stringify({
+        minAge: 25,
+        maxAge: 40,
+      }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const payload = await response.json()
+    expect(payload).toMatchObject({
+      success: true,
+      taskId: 'task-age-range',
+      dispatch: {
+        minAge: 25,
+        maxAge: 40,
+      },
+    })
+
+    const dispatchCall = getDispatchCall(calls)
+    expect(dispatchCall.args.minAge).toBe(25)
+    expect(dispatchCall.args.maxAge).toBe(40)
+  })
 })

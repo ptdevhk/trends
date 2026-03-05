@@ -39,6 +39,8 @@ const AUTO_EXPORT_PARAM = 'tr_auto_export';
 const AUTO_SYNC_PARAM = 'tr_auto_sync';
 const AUTO_LIMIT_PARAM = 'tr_limit';
 const AUTO_MAX_PAGES_PARAM = 'tr_max_pages';
+const AUTO_MIN_AGE_PARAM = 'tr_min_age';
+const AUTO_MAX_AGE_PARAM = 'tr_max_age';
 const AUTO_SEARCH_PARAM = 'keyword';
 const AUTO_LOCATION_PARAM = 'location';
 const AUTO_KEYWORD_MODE_PARAM = 'tr_kw_mode';
@@ -95,6 +97,63 @@ function normalizeKeywordMode(mode) {
 function normalizeCollectionLimit(value) {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function normalizeOptionalPositiveInt(value) {
+  const parsed = Number.parseInt(String(value ?? '').trim(), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function parseAgeNumber(value) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value);
+  }
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const withSuffix = trimmed.match(/(\d+)\s*岁/u);
+  if (withSuffix && withSuffix[1]) {
+    const parsed = Number.parseInt(withSuffix[1], 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  const plainNumber = trimmed.match(/^(\d{1,3})$/u);
+  if (plainNumber && plainNumber[1]) {
+    const parsed = Number.parseInt(plainNumber[1], 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  return null;
+}
+
+function getAgeRangeFromUrl() {
+  const params = new URLSearchParams(window.location.search || '');
+  const minAge = normalizeOptionalPositiveInt(params.get(AUTO_MIN_AGE_PARAM));
+  const maxAge = normalizeOptionalPositiveInt(params.get(AUTO_MAX_AGE_PARAM));
+  const enabled = minAge !== null || maxAge !== null;
+  return {
+    enabled,
+    minAge: minAge !== null ? minAge : undefined,
+    maxAge: maxAge !== null ? maxAge : undefined,
+  };
+}
+
+function filterResumesByAgeRange(resumes) {
+  const range = getAgeRangeFromUrl();
+  if (!range.enabled) return resumes;
+
+  const minAge = range.minAge;
+  const maxAge = range.maxAge;
+
+  return resumes.filter((resume) => {
+    const age = parseAgeNumber(resume?.age);
+    if (age === null) return false;
+    if (typeof minAge === 'number' && age < minAge) return false;
+    if (typeof maxAge === 'number' && age > maxAge) return false;
+    return true;
+  });
 }
 
 const PROVINCE_TOKENS = new Set([
@@ -574,7 +633,7 @@ function extractResumes() {
     }
   });
 
-  return resumes;
+  return filterResumesByAgeRange(resumes);
 }
 
 /**
@@ -1746,7 +1805,7 @@ async function runAutoSyncIfEnabled() {
     let totalSubmitted = 0;
     let totalInserted = 0;
     let totalUpdated = 0;
-    let pagesProcessed = 0;
+    let pagesVisited = 0;
     let stopReason = 'completed';
 
     while (true) {
@@ -1766,6 +1825,8 @@ async function runAutoSyncIfEnabled() {
         // API rows are optional; continue with DOM-only extraction
       }
 
+      pagesVisited += 1;
+
       const remainingCapacity = limit > 0 ? Math.max(limit - totalSubmitted, 0) : 0;
       if (limit > 0 && remainingCapacity <= 0) {
         stopReason = 'limit-reached';
@@ -1777,8 +1838,51 @@ async function runAutoSyncIfEnabled() {
         resumes = resumes.slice(0, remainingCapacity);
       }
       if (resumes.length <= 0) {
-        stopReason = 'no-resumes';
-        break;
+        const progressHint = limit > 0
+          ? `已采集 ${Math.min(totalSubmitted, limit)}/${limit}`
+          : `已采集 ${totalSubmitted}`;
+        const ageRange = getAgeRangeFromUrl();
+        const ageHint = ageRange.enabled
+          ? ` · 年龄: ${typeof ageRange.minAge === 'number' ? ageRange.minAge : '—'}-${typeof ageRange.maxAge === 'number' ? ageRange.maxAge : '—'}`
+          : '';
+
+        SyncStatusWidget.show({
+          state: 'progress',
+          message: `第 ${currentPage}/${Math.max(totalPages, currentPage)} 页无符合条件的简历，继续...`,
+          hint: `${progressHint}${ageHint}`
+        });
+        setAutoSyncAttributes('running', totalSubmitted, pagesVisited);
+
+        if (autoSyncCancelled) {
+          stopReason = 'cancelled';
+          break;
+        }
+        if (maxPages > 0 && pagesVisited >= maxPages) {
+          stopReason = 'max-pages-reached';
+          break;
+        }
+
+        const paginationAfter = getPaginationInfo();
+        try {
+          await waitForPagination({ timeoutMs: 8000 });
+        } catch {
+          // Some layouts render pagination late or omit it on single-page results.
+        }
+        const nextPage = paginationAfter.currentPage + 1;
+        try {
+          document.documentElement.setAttribute('data-tr-auto-sync-next-state', JSON.stringify(getNextPageButtonState()));
+        } catch {
+          // ignore
+        }
+        apiSnapshot.searchRows = null;
+        const moved = goToNextPageInternal();
+        if (!moved) {
+          stopReason = 'no-next-page';
+          break;
+        }
+        await waitForPageTransition({ expectedPage: nextPage, timeoutMs: 15000 });
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        continue;
       }
 
       const progressHint = limit > 0
@@ -1801,8 +1905,7 @@ async function runAutoSyncIfEnabled() {
       totalSubmitted += submitted;
       totalInserted += inserted;
       totalUpdated += updated;
-      pagesProcessed += 1;
-      setAutoSyncAttributes('running', totalSubmitted, pagesProcessed);
+      setAutoSyncAttributes('running', totalSubmitted, pagesVisited);
 
       if (autoSyncCancelled) {
         stopReason = 'cancelled';
@@ -1812,7 +1915,7 @@ async function runAutoSyncIfEnabled() {
         stopReason = 'limit-reached';
         break;
       }
-      if (maxPages > 0 && pagesProcessed >= maxPages) {
+      if (maxPages > 0 && pagesVisited >= maxPages) {
         stopReason = 'max-pages-reached';
         break;
       }
@@ -1849,19 +1952,19 @@ async function runAutoSyncIfEnabled() {
       SyncStatusWidget.show({
         state: 'success',
         message: `同步已取消，已同步 ${totalSubmitted} 份简历`,
-        hint: `${totalInserted} 新增, ${totalUpdated} 更新, 共 ${pagesProcessed} 页`,
+        hint: `${totalInserted} 新增, ${totalUpdated} 更新, 共 ${pagesVisited} 页`,
         autoDismiss: true
       });
-      setAutoSyncAttributes('cancelled', totalSubmitted, pagesProcessed);
+      setAutoSyncAttributes('cancelled', totalSubmitted, pagesVisited);
       return;
     }
 
     SyncStatusWidget.show({
       state: 'success',
-      message: `已同步 ${totalSubmitted} 份简历 (${totalInserted} 新增, ${totalUpdated} 更新), 共 ${pagesProcessed} 页`,
+      message: `已同步 ${totalSubmitted} 份简历 (${totalInserted} 新增, ${totalUpdated} 更新), 共 ${pagesVisited} 页`,
       autoDismiss: true
     });
-    setAutoSyncAttributes('done', totalSubmitted, pagesProcessed);
+    setAutoSyncAttributes('done', totalSubmitted, pagesVisited);
   } catch (error) {
     console.warn('🎯 [Auto Sync] Failed:', error);
     const status = resolveAutoSyncErrorStatus(error);
@@ -1952,6 +2055,7 @@ function installExternalAccessor() {
       isLoggedIn: () => isLoggedIn(),
       status: () => {
         const pagination = getPaginationInfo();
+        const ageRange = getAgeRangeFromUrl();
         const cardCount = document.querySelectorAll(SELECTORS.resumeCard).length;
         const autoSearch = document.documentElement.getAttribute('data-tr-auto-search') || '';
         const autoLocation = document.documentElement.getAttribute('data-tr-auto-location') || '';
@@ -1967,6 +2071,12 @@ function installExternalAccessor() {
           apiSnapshotCount: Array.isArray(apiSnapshot.searchRows) ? apiSnapshot.searchRows.length : 0,
           domReady: document.querySelector(SELECTORS.listContainer) !== null,
           loggedIn: isLoggedIn(),
+          ageRange: ageRange.enabled
+            ? {
+              minAge: typeof ageRange.minAge === 'number' ? ageRange.minAge : null,
+              maxAge: typeof ageRange.maxAge === 'number' ? ageRange.maxAge : null,
+            }
+            : null,
           cardCount,
           autoSearch,
           autoLocation,
