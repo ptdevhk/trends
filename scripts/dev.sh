@@ -807,6 +807,28 @@ start_web() {
             return 0
         fi
 
+        local extension_manifest="$PROJECT_ROOT/apps/browser-extension/manifest.json"
+        local extension_meta="$PROJECT_ROOT/apps/web/public/extension/extension-meta.json"
+        if [ -f "$extension_manifest" ] && command -v zip >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+            local extension_manifest_version
+            extension_manifest_version="$(
+                node -e "const fs=require('node:fs'); console.log(JSON.parse(fs.readFileSync(process.argv[1],'utf8')).version)" "$extension_manifest" 2>/dev/null || true
+            )"
+            local extension_meta_version=""
+            if [ -f "$extension_meta" ]; then
+                extension_meta_version="$(
+                    node -e "const fs=require('node:fs'); const v=JSON.parse(fs.readFileSync(process.argv[1],'utf8')).version; console.log(typeof v==='string' ? v : '')" "$extension_meta" 2>/dev/null || true
+                )"
+            fi
+
+            if [ -n "$extension_manifest_version" ] && [ "$extension_manifest_version" != "$extension_meta_version" ]; then
+                log "WEB" "$BLUE" "Building browser extension zip (v$extension_manifest_version) for /extension download..."
+                if ! "$PROJECT_ROOT/scripts/build-extension-zip.sh"; then
+                    log "WEB" "$YELLOW" "Failed to build extension zip; download link may be stale. (Run: make build-extension-zip)"
+                fi
+            fi
+        fi
+
         local runner
         local web_dev_script="dev"
         runner="$(local_js_runner)"
