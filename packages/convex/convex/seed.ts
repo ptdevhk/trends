@@ -252,6 +252,7 @@ export const seedWorkspaceDemoData = mutation({
                 workspaceSlug: "dev",
                 location: "广东",
                 industryTags: ["machinery", "cnc", "sales"],
+                customKeywords: ["车床销售", "机床", "销售"],
                 minExperience: 1,
                 maxAge: 45,
                 content: [
@@ -511,6 +512,7 @@ export const seedWorkspaceDemoData = mutation({
                     || existing.workspaceSlug !== item.workspaceSlug
                     || existing.location !== item.location
                     || stableSerialize(existing.industryTags ?? []) !== stableSerialize(item.industryTags ?? [])
+                    || stableSerialize(existing.customKeywords ?? []) !== stableSerialize(item.customKeywords ?? [])
                     || existing.minExperience !== item.minExperience
                     || existing.maxAge !== item.maxAge
                     || existing.enabled !== true;
@@ -522,6 +524,7 @@ export const seedWorkspaceDemoData = mutation({
                         workspaceSlug: item.workspaceSlug,
                         location: item.location,
                         industryTags: item.industryTags,
+                        customKeywords: item.customKeywords,
                         minExperience: item.minExperience,
                         maxAge: item.maxAge,
                         enabled: true,
@@ -539,6 +542,7 @@ export const seedWorkspaceDemoData = mutation({
                 workspaceSlug: item.workspaceSlug,
                 location: item.location,
                 industryTags: item.industryTags,
+                customKeywords: item.customKeywords,
                 minExperience: item.minExperience,
                 maxAge: item.maxAge,
                 enabled: true,
