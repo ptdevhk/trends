@@ -47,7 +47,7 @@ export function CollectResumesButton({ location, keywords, collectLimit }: Colle
   )
   const normalizedCollectLimit = useMemo(() => normalizeCollectLimit(collectLimit), [collectLimit])
 
-  const disabled = normalizedLocation.length === 0 || normalizedKeywords.length === 0
+  const disabled = normalizedKeywords.length === 0
 
   const collectUrl = useMemo(() => {
     if (disabled) {
@@ -55,10 +55,14 @@ export function CollectResumesButton({ location, keywords, collectLimit }: Colle
     }
 
     const query = new URLSearchParams({
-      keyword: normalizedKeywords.join(''),
-      location: normalizedLocation,
+      keyword: normalizedKeywords.join(' '),
       tr_auto_sync: 'true',
     })
+
+    if (normalizedLocation.length > 0) {
+      query.set('location', normalizedLocation) // will be parsed by extension
+    }
+
     if (normalizedCollectLimit > 0) {
       query.set('tr_limit', String(normalizedCollectLimit))
     }
@@ -91,7 +95,7 @@ export function CollectResumesButton({ location, keywords, collectLimit }: Colle
   }, [])
 
   const tooltipText = disabled
-    ? t('quickStart.collectDisabledHint', 'Enter location and keywords first')
+    ? t('quickStart.collectDisabledHint', 'Enter keywords first')
     : t('quickStart.collectTooltip', 'Opens job board with auto-sync. Requires extension + login.')
 
   const handleClick = () => {

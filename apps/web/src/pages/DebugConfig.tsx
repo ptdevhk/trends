@@ -72,6 +72,14 @@ interface CustomKeywordCategory {
   icon?: string
 }
 
+interface SystemLocationItem {
+  id: string
+  keyword: string
+  level: 'province' | 'city'
+  parentKeyword?: string
+  visible: boolean
+}
+
 interface CustomKeywordFormState {
   id: string
   keyword: string
@@ -311,7 +319,32 @@ function parseCustomKeywordCategory(value: unknown): CustomKeywordCategory | nul
   }
 }
 
-function parseCustomKeywordsPayload(payload: unknown): { tags: CustomKeywordTag[]; categories: CustomKeywordCategory[] } | null {
+function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const id = readString(value.id)
+  const keyword = readString(value.keyword)
+  const level = value.level === 'province' || value.level === 'city' ? value.level : null
+  const visible = typeof value.visible === 'boolean' ? value.visible : null
+  if (!id || !keyword || !level || visible === null) {
+    return null
+  }
+
+  const parentKeyword = readString(value.parentKeyword) ?? undefined
+  return {
+    id,
+    keyword,
+    level,
+    parentKeyword,
+    visible,
+  }
+}
+
+function parseCustomKeywordsPayload(
+  payload: unknown
+): { tags: CustomKeywordTag[]; categories: CustomKeywordCategory[]; systemLocations: SystemLocationItem[] } | null {
   if (!isRecord(payload) || payload.success !== true) {
     return null
   }
@@ -328,7 +361,13 @@ function parseCustomKeywordsPayload(payload: unknown): { tags: CustomKeywordTag[
     .map((item) => parseCustomKeywordCategory(item))
     .filter((item): item is CustomKeywordCategory => item !== null)
 
-  return { tags, categories }
+  const systemLocations = Array.isArray(payload.systemLocations)
+    ? payload.systemLocations
+      .map((item) => parseSystemLocationItem(item))
+      .filter((item): item is SystemLocationItem => item !== null)
+    : []
+
+  return { tags, categories, systemLocations }
 }
 
 function createEmptyCustomKeywordForm(): CustomKeywordFormState {
@@ -417,10 +456,12 @@ export default function DebugConfig() {
   const [agentsConfig, setAgentsConfig] = useState<AgentsConfig | null>(null)
   const [customKeywordTags, setCustomKeywordTags] = useState<CustomKeywordTag[]>([])
   const [customKeywordCategories, setCustomKeywordCategories] = useState<CustomKeywordCategory[]>([])
+  const [systemLocationItems, setSystemLocationItems] = useState<SystemLocationItem[]>([])
   const [brandKeywords, setBrandKeywords] = useState<BrandKeywordItem[]>([])
 
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null)
   const [savingCustomKeyword, setSavingCustomKeyword] = useState(false)
+  const [savingSystemLocationId, setSavingSystemLocationId] = useState<string | null>(null)
   const [deletingCustomKeyword, setDeletingCustomKeyword] = useState(false)
   const [deleteCustomKeywordTargetId, setDeleteCustomKeywordTargetId] = useState<string | null>(null)
   const [resetDatabaseDialogOpen, setResetDatabaseDialogOpen] = useState(false)
@@ -429,6 +470,7 @@ export default function DebugConfig() {
   const [customKeywordDialogOpen, setCustomKeywordDialogOpen] = useState(false)
   const [editingCustomKeywordId, setEditingCustomKeywordId] = useState<string | null>(null)
   const [customKeywordForm, setCustomKeywordForm] = useState<CustomKeywordFormState>(createEmptyCustomKeywordForm)
+  const [systemLocationQuery, setSystemLocationQuery] = useState('')
 
   // Agent Collection State
   const [collectionKeyword, setCollectionKeyword] = useState('')
@@ -498,6 +540,7 @@ export default function DebugConfig() {
     }
     setCustomKeywordTags(parsed.tags)
     setCustomKeywordCategories(parsed.categories)
+    setSystemLocationItems(parsed.systemLocations)
   }, [requestJson])
 
   const loadBrandKeywords = useCallback(async () => {
@@ -526,6 +569,34 @@ export default function DebugConfig() {
       console.error('Unexpected loadData failure', error)
     })
   }, [loadData])
+
+  const visibleSystemLocationCount = useMemo(
+    () => systemLocationItems.filter((item) => item.visible).length,
+    [systemLocationItems]
+  )
+
+  const filteredSystemLocationItems = useMemo(() => {
+    const query = systemLocationQuery.trim().toLowerCase()
+    return [...systemLocationItems]
+      .filter((item) => {
+        if (!query) {
+          return true
+        }
+        const keyword = item.keyword.toLowerCase()
+        const parent = item.parentKeyword?.toLowerCase() ?? ''
+        const level = item.level.toLowerCase()
+        return keyword.includes(query) || parent.includes(query) || level.includes(query)
+      })
+      .sort((left, right) => {
+        if (left.visible !== right.visible) {
+          return left.visible ? -1 : 1
+        }
+        if (left.level !== right.level) {
+          return left.level === 'province' ? -1 : 1
+        }
+        return left.keyword.localeCompare(right.keyword, 'zh-Hans-CN')
+      })
+  }, [systemLocationItems, systemLocationQuery])
 
   const updateAgentTextField = useCallback((agentId: string, field: 'name' | 'model', value: string) => {
     setAgentsConfig((current) => {
@@ -727,6 +798,29 @@ export default function DebugConfig() {
       setDeletingCustomKeyword(false)
     }
   }, [deleteCustomKeywordTargetId, loadCustomKeywords, requestJson, t])
+
+  const handleToggleSystemLocationVisibility = useCallback(async (item: SystemLocationItem) => {
+    setSavingSystemLocationId(item.id)
+    try {
+      await requestJson(`/api/config/custom-keywords/system-locations/${encodeURIComponent(item.id)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ visible: !item.visible }),
+      })
+      setSystemLocationItems((current) =>
+        current.map((entry) =>
+          entry.id === item.id
+            ? { ...entry, visible: !item.visible }
+            : entry
+        )
+      )
+      toast.success(t('debugConfig.saved'))
+    } catch (error) {
+      console.error('Failed to toggle system location visibility', error)
+      toast.error(t('debugConfig.saveError'))
+    } finally {
+      setSavingSystemLocationId(null)
+    }
+  }, [requestJson, t])
 
   const handleStartCollection = useCallback(async () => {
     if (!collectionKeyword.trim()) {
@@ -1011,6 +1105,87 @@ export default function DebugConfig() {
               )
             })
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle>{t('debugConfig.systemLocationConfigTitle', { defaultValue: '系统地点配置' })}</CardTitle>
+              <CardDescription>
+                {t('debugConfig.systemLocationConfigDescription', {
+                  defaultValue: '来源于 Job5156 地区数据，可配置展开标签显示或隐藏',
+                })}
+              </CardDescription>
+            </div>
+            <Badge variant="secondary">{visibleSystemLocationCount}/{systemLocationItems.length}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input
+            value={systemLocationQuery}
+            onChange={(event) => setSystemLocationQuery(event.target.value)}
+            placeholder={t('debugConfig.systemLocationSearchPlaceholder', {
+              defaultValue: '搜索地点（名称/上级/层级）',
+            })}
+          />
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('debugConfig.systemLocationKeyword', { defaultValue: '地点' })}</TableHead>
+                  <TableHead>{t('debugConfig.systemLocationLevel', { defaultValue: '层级' })}</TableHead>
+                  <TableHead>{t('debugConfig.systemLocationParent', { defaultValue: '上级' })}</TableHead>
+                  <TableHead>{t('debugConfig.systemLocationVisible', { defaultValue: '状态' })}</TableHead>
+                  <TableHead className="text-right">{t('resumes.actions.view')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredSystemLocationItems.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                      {loading ? t('trends.loading') : t('debug.none')}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredSystemLocationItems.map((item) => {
+                    const isSaving = savingSystemLocationId === item.id
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.keyword}</TableCell>
+                        <TableCell>{item.level === 'province' ? '省级' : '城市'}</TableCell>
+                        <TableCell>{item.parentKeyword || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant={item.visible ? 'default' : 'secondary'}>
+                            {item.visible ? 'show' : 'hidden'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end">
+                            <Button
+                              variant={item.visible ? 'outline' : 'default'}
+                              size="sm"
+                              disabled={isSaving}
+                              onClick={() => {
+                                handleToggleSystemLocationVisibility(item).catch((error) => {
+                                  console.error('Unexpected handleToggleSystemLocationVisibility failure', error)
+                                })
+                              }}
+                            >
+                              {isSaving
+                                ? `${t('debugConfig.save')}...`
+                                : (item.visible ? 'hidden' : 'show')}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

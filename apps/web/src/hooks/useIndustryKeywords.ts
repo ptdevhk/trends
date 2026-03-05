@@ -50,10 +50,40 @@ type CustomKeywordTag = {
   category: string;
 };
 
+type SystemLocationItem = {
+  id: string;
+  keyword: string;
+  level: "province" | "city";
+  parentKeyword?: string;
+  visible: boolean;
+};
+
 type CustomKeywordsResponse = {
   success: boolean;
   tags?: CustomKeywordTag[];
+  systemLocations?: SystemLocationItem[];
 };
+
+function deduplicateKeywords(items: IndustryKeyword[]): IndustryKeyword[] {
+  const seen = new Set<string>();
+  const deduplicated: IndustryKeyword[] = [];
+  for (const item of items) {
+    const keyword = item.keyword.trim();
+    if (!keyword) {
+      continue;
+    }
+    const dedupeKey = `${item.category}:${keyword.toLowerCase()}`;
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+    seen.add(dedupeKey);
+    deduplicated.push({
+      ...item,
+      keyword,
+    });
+  }
+  return deduplicated;
+}
 
 export const CATEGORY_ORDER: KeywordCategory[] = [
   "machining",
@@ -113,6 +143,7 @@ function normalizeCategory(category: string): KeywordCategory {
 export function useIndustryKeywords() {
   const [keywords, setKeywords] = useState<IndustryKeyword[]>([]);
   const [customKeywords, setCustomKeywords] = useState<IndustryKeyword[]>([]);
+  const [systemLocationKeywords, setSystemLocationKeywords] = useState<IndustryKeyword[]>([]);
   const [brandKeywords, setBrandKeywords] = useState<IndustryKeyword[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +162,7 @@ export function useIndustryKeywords() {
     if (industryError || !industryData?.success) {
       setKeywords([]);
       setCustomKeywords([]);
+      setSystemLocationKeywords([]);
       setBrandKeywords([]);
       setError("Failed to load industry keywords");
       setLoading(false);
@@ -143,6 +175,7 @@ export function useIndustryKeywords() {
     if (customError || !customData?.success) {
       console.error("Failed to load custom keywords", customError);
       setCustomKeywords([]);
+      setSystemLocationKeywords([]);
     } else {
       const mappedCustomKeywords: IndustryKeyword[] = [];
       if (Array.isArray(customData.tags)) {
@@ -158,6 +191,20 @@ export function useIndustryKeywords() {
         }
       }
       setCustomKeywords(mappedCustomKeywords);
+
+      const mappedSystemLocationKeywords: IndustryKeyword[] = [];
+      if (Array.isArray(customData.systemLocations)) {
+        for (const item of customData.systemLocations) {
+          const keyword = item.keyword?.trim();
+          if (!keyword || !item.visible) continue;
+          mappedSystemLocationKeywords.push({
+            id: item.id,
+            keyword,
+            category: "location",
+          });
+        }
+      }
+      setSystemLocationKeywords(mappedSystemLocationKeywords);
     }
 
     const { data: brandData, error: brandError } = brandResponse;
@@ -196,8 +243,13 @@ export function useIndustryKeywords() {
     const deduplicatedBrands = brandKeywords.filter(
       (item) => !customSet.has(item.keyword.toLowerCase())
     );
-    return [...keywords, ...deduplicatedBrands, ...customKeywords];
-  }, [keywords, customKeywords, brandKeywords]);
+    return deduplicateKeywords([
+      ...keywords,
+      ...deduplicatedBrands,
+      ...customKeywords,
+      ...systemLocationKeywords,
+    ]);
+  }, [keywords, customKeywords, brandKeywords, systemLocationKeywords]);
 
   const grouped = useMemo(() => {
     const groups = createGroupedKeywords();
