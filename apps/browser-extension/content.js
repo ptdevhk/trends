@@ -1429,6 +1429,24 @@ function setAutoLocationAttributes(status, location) {
   }
 }
 
+function setAutoAgeAttributes(status, minAge, maxAge) {
+  try {
+    document.documentElement.setAttribute('data-tr-auto-age', status);
+    const normalizedMin = typeof minAge === 'number' && Number.isFinite(minAge) ? Math.trunc(minAge) : null;
+    const normalizedMax = typeof maxAge === 'number' && Number.isFinite(maxAge) ? Math.trunc(maxAge) : null;
+    if (normalizedMin !== null || normalizedMax !== null) {
+      document.documentElement.setAttribute(
+        'data-tr-age-range',
+        `${normalizedMin !== null ? normalizedMin : ''}-${normalizedMax !== null ? normalizedMax : ''}`
+      );
+    } else {
+      document.documentElement.removeAttribute('data-tr-age-range');
+    }
+  } catch {
+    // ignore
+  }
+}
+
 function setInputValue(input, value) {
   const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
   if (descriptor?.set) {
@@ -1438,6 +1456,115 @@ function setInputValue(input, value) {
   }
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function fireMouseEvent(target, type) {
+  try {
+    target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+  } catch {
+    // ignore
+  }
+}
+
+function findAgeFilterBlock() {
+  const titles = document.querySelectorAll('.base-input-block__title__text');
+  const label = Array.from(titles).find((node) => (node.textContent || '').replace(/\s+/g, '').trim() === '年龄');
+  return label ? label.closest('.base-input-block') : null;
+}
+
+function openAgeFilterDropdown(ageBlock) {
+  const title = ageBlock.querySelector('.base-input-block__title') || ageBlock;
+  ['mouseenter', 'mouseover', 'mousedown', 'mouseup', 'click'].forEach((type) => fireMouseEvent(title, type));
+}
+
+async function waitForAgeFilterDropdown(ageBlock, { timeoutMs = 4000 } = {}) {
+  const selectBox = ageBlock.querySelector('.base-input-block__select_box');
+  if (!selectBox) {
+    return null;
+  }
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (isElementVisible(selectBox)) {
+      return selectBox;
+    }
+    openAgeFilterDropdown(ageBlock);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+
+  return isElementVisible(selectBox) ? selectBox : null;
+}
+
+function resolveAgeFilterActions(selectBox) {
+  const minInput = selectBox.querySelector('input[placeholder="最低"]');
+  const maxInput = selectBox.querySelector('input[placeholder="最高"]');
+  const buttons = Array.from(selectBox.querySelectorAll('button'));
+  const confirmButton = buttons.find((button) => {
+    const text = (button.textContent || '').replace(/\s+/g, '').trim();
+    return text === '确定' || text === '確定';
+  });
+  const cancelButton = buttons.find((button) => {
+    const text = (button.textContent || '').replace(/\s+/g, '').trim();
+    return text === '取消';
+  });
+
+  return { minInput, maxInput, confirmButton, cancelButton };
+}
+
+async function autoApplyAgeFilterFromUrl() {
+  const range = getAgeRangeFromUrl();
+  if (!range.enabled) {
+    setAutoAgeAttributes('skipped');
+    return;
+  }
+
+  const minAge = range.minAge;
+  const maxAge = range.maxAge;
+  if (typeof minAge === 'number' && typeof maxAge === 'number' && minAge > maxAge) {
+    setAutoAgeAttributes('failed', minAge, maxAge);
+    console.warn('🎯 [Auto Age] Invalid age range (minAge > maxAge):', { minAge, maxAge });
+    return;
+  }
+
+  const ageBlock = findAgeFilterBlock();
+  if (!ageBlock) {
+    setAutoAgeAttributes('failed', minAge, maxAge);
+    console.warn('🎯 [Auto Age] Age filter control not found; skipping native age filter apply.');
+    return;
+  }
+
+  const selectBox = await waitForAgeFilterDropdown(ageBlock, { timeoutMs: 5000 });
+  if (!selectBox) {
+    setAutoAgeAttributes('failed', minAge, maxAge);
+    console.warn('🎯 [Auto Age] Failed to open age filter dropdown.');
+    return;
+  }
+
+  const { minInput, maxInput, confirmButton, cancelButton } = resolveAgeFilterActions(selectBox);
+  if (!minInput || !maxInput || !confirmButton) {
+    setAutoAgeAttributes('failed', minAge, maxAge);
+    if (cancelButton) {
+      cancelButton.click();
+    }
+    console.warn('🎯 [Auto Age] Age filter inputs/buttons not found; skipping native age filter apply.');
+    return;
+  }
+
+  setInputValue(minInput, typeof minAge === 'number' ? String(minAge) : '');
+  setInputValue(maxInput, typeof maxAge === 'number' ? String(maxAge) : '');
+  confirmButton.click();
+  setAutoAgeAttributes('done', minAge, maxAge);
+
+  try {
+    await waitForResumeCards({ timeoutMs: 15000 });
+    try {
+      await waitForApiRows({ timeoutMs: 15000 });
+    } catch {
+      // API rows are optional
+    }
+  } catch (error) {
+    console.warn('🎯 [Auto Age] Applied age filter, but waiting for results timed out:', error);
+  }
 }
 
 async function autoSelectLocation() {
@@ -2106,6 +2233,8 @@ autoSelectLocation()
   .catch((error) => console.warn('🎯 [Auto Location] Failed:', error))
   .then(() => autoSearchFromUrl())
   .catch((error) => console.warn('🎯 [Auto Search] Failed:', error))
+  .then(() => autoApplyAgeFilterFromUrl())
+  .catch((error) => console.warn('🎯 [Auto Age] Failed:', error))
   .finally(() => {
     void (async () => {
       await runAutoExportIfEnabled();
