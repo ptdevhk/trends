@@ -352,9 +352,9 @@ export const seedWorkspaceDemoData = mutation({
 
     const searchProfiles = [
       {
-        name: "车床销售-Demo",
+        name: "CNC销售-Demo",
         criteria: {
-          keywords: ["CNC", "车床", "销售"],
+          keywords: ["CNC", "销售"],
           locations: ["广东,江苏"],
         },
         workspaceSlug: "dev",
