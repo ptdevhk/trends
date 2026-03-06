@@ -1071,7 +1071,7 @@ export function useResumeListState() {
   }, [displayedResumes])
 
   const handleResetAll = useCallback(() => {
-    setSessionLocation('广东')
+    setSessionLocation('')
     setSessionKeywords([])
     setJobDescriptionId('')
     setFilters({})

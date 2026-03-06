@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../../packages/convex/convex/_generated/api';
 import type { ResumeFilters } from '@/types/resume';
-import { toast } from 'sonner';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export type ExternalSessionState = {
@@ -11,6 +10,9 @@ export type ExternalSessionState = {
   jobDescriptionId?: string
   filters?: Partial<ResumeFilters>
 }
+
+const AUTO_RESTORE_SCREENING_SESSION = false
+const DEFAULT_SESSION_LOCATION = ''
 
 export function useSession() {
   const { slug } = useWorkspace()
@@ -43,11 +45,11 @@ export function useSession() {
   const saveSession = useMutation(api.sessions.saveSession);
   const addReviewedItem = useMutation(api.sessions.addReviewedItem);
 
-  const [hasRestored, setHasRestored] = useState(false);
+  const [hasHydratedInitialState, setHasHydratedInitialState] = useState(false);
   const hasInitializedScopeRef = useRef(false)
 
   // 3. Local State (Initialized from Convex when available)
-  const [location, setLocation] = useState('广东');
+  const [location, setLocation] = useState(DEFAULT_SESSION_LOCATION);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [jobDescriptionId, setJobDescriptionId] = useState<string | undefined>(undefined);
   const [filters, setFilters] = useState<ResumeFilters>({});
@@ -58,31 +60,35 @@ export function useSession() {
       return
     }
 
-    setHasRestored(false)
-    setLocation('广东')
+    setHasHydratedInitialState(false)
+    setLocation(DEFAULT_SESSION_LOCATION)
     setKeywords([])
     setJobDescriptionId(undefined)
     setFilters({})
   }, [slug, sessionKey])
 
-  // 4. Initialization (Restore from DB)
+  // 4. Initialization
   useEffect(() => {
-    if (activeSession && !hasRestored) {
+    if (!AUTO_RESTORE_SCREENING_SESSION) {
+      if (!hasHydratedInitialState) {
+        setHasHydratedInitialState(true)
+      }
+      return
+    }
+
+    if (activeSession && !hasHydratedInitialState) {
       setLocation(activeSession.config.location);
       setKeywords(activeSession.config.keywords);
       setJobDescriptionId(activeSession.config.jobDescriptionId);
       setFilters(activeSession.config.filters || {});
-      setHasRestored(true);
-      toast.info('已恢复之前的筛选会话', {
-        description: `${activeSession.config.location} · ${activeSession.config.keywords.join(', ')}`,
-      });
+      setHasHydratedInitialState(true);
     }
-  }, [activeSession, hasRestored]);
+  }, [activeSession, hasHydratedInitialState]);
 
   // 5. Auto-save (Debounced)
   useEffect(() => {
     if (!sessionKey) return
-    if (!hasRestored) return;
+    if (!hasHydratedInitialState) return;
 
     const timer = setTimeout(() => {
       saveSession({
@@ -96,7 +102,7 @@ export function useSession() {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [sessionKey, slug, location, keywords, jobDescriptionId, filters, saveSession, hasRestored]);
+  }, [sessionKey, slug, location, keywords, jobDescriptionId, filters, saveSession, hasHydratedInitialState]);
 
   // 6. Helpers
   const trackReviewedResume = useCallback(
@@ -136,7 +142,7 @@ export function useSession() {
       setFilters(state.filters)
     }
 
-    setHasRestored(true)
+    setHasHydratedInitialState(true)
   }, [setFilters, setJobDescriptionId, setKeywords, setLocation])
 
   return {
@@ -151,6 +157,6 @@ export function useSession() {
     reviewedIdsSet,
     trackReviewedResume,
     applyExternalState,
-    loading: !activeSession && !hasRestored,
+    loading: !hasHydratedInitialState,
   };
 }
