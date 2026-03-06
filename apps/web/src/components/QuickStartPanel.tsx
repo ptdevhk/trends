@@ -136,12 +136,61 @@ function mapProfileFiltersToResumeFilters(filters: SearchProfileFilters | undefi
   return Object.keys(mapped).length > 0 ? mapped : undefined
 }
 
-function getFilterSummary(profile: SearchProfileDetails): string {
+function formatExperienceSummary(filters: SearchProfileFilters | undefined, yearsLabel: string): string | undefined {
+  if (!filters) {
+    return undefined
+  }
+
+  const suffix = yearsLabel
+    ? `${yearsLabel.length > 1 ? ' ' : ''}${yearsLabel}`
+    : ''
+  if (typeof filters.minExperience === 'number' && typeof filters.maxExperience === 'number') {
+    return `${filters.minExperience}-${filters.maxExperience}${suffix}`
+  }
+  if (typeof filters.minExperience === 'number') {
+    return `${filters.minExperience}+${suffix}`
+  }
+  if (typeof filters.maxExperience === 'number') {
+    return `<=${filters.maxExperience}${suffix}`
+  }
+  return undefined
+}
+
+function formatAgeSummary(filters: SearchProfileFilters | undefined, ageUnit: string): string | undefined {
+  if (!filters) {
+    return undefined
+  }
+
+  if (typeof filters.minAge === 'number' && typeof filters.maxAge === 'number') {
+    return ageUnit
+      ? `${filters.minAge}-${filters.maxAge}${ageUnit}`
+      : `Age ${filters.minAge}-${filters.maxAge}`
+  }
+  if (typeof filters.minAge === 'number') {
+    return ageUnit
+      ? `≥${filters.minAge}${ageUnit}`
+      : `Age >=${filters.minAge}`
+  }
+  if (typeof filters.maxAge === 'number') {
+    return ageUnit
+      ? `≤${filters.maxAge}${ageUnit}`
+      : `Age <=${filters.maxAge}`
+  }
+  return undefined
+}
+
+function getFilterSummary(profile: SearchProfileDetails, yearsLabel: string, ageUnit: string): string {
   const summaryParts: string[] = []
   const filters = profile.filters
 
-  if (typeof filters?.minExperience === 'number') {
-    summaryParts.push(`${filters.minExperience}+ yrs`)
+  const experienceSummary = formatExperienceSummary(filters, yearsLabel)
+  if (experienceSummary) {
+    summaryParts.push(experienceSummary)
+  }
+
+  const ageSummary = formatAgeSummary(filters, ageUnit)
+  if (ageSummary) {
+    summaryParts.push(ageSummary)
   }
 
   if (Array.isArray(filters?.education) && filters.education.length > 0) {
@@ -203,6 +252,8 @@ export function QuickStartPanel({
 }: QuickStartPanelProps) {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
+  const yearsLabel = t('quickStart.years', 'yrs')
+  const ageUnit = t('quickStart.ageUnit', '')
 
   const [location, setLocation] = useState(defaultLocation)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
@@ -612,6 +663,23 @@ export function QuickStartPanel({
     })
   }, [activeRoleType, onApplyQuickFilters, onJobChange, quickMaxAge, quickMinRoleYears, selectedConvexJobDescriptionProfile?.type])
 
+  const handleProfileEditorSaved = useCallback((profile?: SearchProfileDetails) => {
+    if (!profile) {
+      return
+    }
+
+    setAutoMatchResult((previous) => {
+      if (!previous || previous.profile.id !== profile.id) {
+        return previous
+      }
+
+      return {
+        ...previous,
+        profile,
+      }
+    })
+  }, [])
+
   useEffect(() => {
     const timer = setTimeout(() => {
       const minRoleYears = quickMinRoleYears ? Number(quickMinRoleYears) : undefined
@@ -800,7 +868,7 @@ export function QuickStartPanel({
                 {t('quickStart.autoMatchJd', 'JD')}: {autoMatchResult.profile.jobDescription || '--'}
               </div>
               <div>
-                {t('quickStart.autoMatchFilters', 'Filters')}: {getFilterSummary(autoMatchResult.profile)}
+                {t('quickStart.autoMatchFilters', 'Filters')}: {getFilterSummary(autoMatchResult.profile, yearsLabel, ageUnit)}
               </div>
               {autoMatchResult.matchedKeywords.length > 0 ? (
                 <div>
@@ -837,6 +905,7 @@ export function QuickStartPanel({
           onOpenChange={setShowProfileEditor}
           profileId={autoMatchResult.profile.id}
           initialData={autoMatchResult.profile as any}
+          onSaved={handleProfileEditorSaved}
         />
       )}
     </div>

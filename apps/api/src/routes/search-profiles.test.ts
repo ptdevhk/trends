@@ -62,6 +62,14 @@ function getDispatchCall(calls: ConvexCall[]): ConvexCall {
   return dispatchCall
 }
 
+function getUpdateCall(calls: ConvexCall[]): ConvexCall {
+  const updateCall = calls.find((call) => call.pathName === 'search_profiles:update')
+  if (!updateCall) {
+    throw new Error('Expected search_profiles:update call')
+  }
+  return updateCall
+}
+
 describe('search-profiles run route', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -200,5 +208,108 @@ describe('search-profiles run route', () => {
     const dispatchCall = getDispatchCall(calls)
     expect(dispatchCall.args.minAge).toBe(25)
     expect(dispatchCall.args.maxAge).toBe(40)
+  })
+})
+
+describe('search-profiles update route', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('clears optional job description linkage and filters when the editor sends explicit nulls', async () => {
+    const calls: ConvexCall[] = []
+    const existingCreatedAt = Date.now() - 1000
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+
+      if (call.pathName === 'search_profiles:getById') {
+        return convexSuccess({
+          _id: 'custom-profile-1',
+          name: 'CNC销售-Demo',
+          criteria: {
+            keywords: ['销售', 'CNC'],
+            locations: ['广东'],
+          },
+          profile: {
+            id: 'custom-profile-1',
+            name: 'CNC销售-Demo',
+            status: 'active',
+            location: '广东',
+            keywords: ['销售', 'CNC'],
+            jobDescription: 'js7bbr2wheavb7krrycbz2gvn182d88y',
+            filters: {
+              minExperience: 1,
+              maxAge: 40,
+            },
+            schedule: {
+              enabled: true,
+              cron: '0 9 * * 1-5',
+            },
+          },
+          workspaceSlug: 'dev',
+          createdAt: existingCreatedAt,
+          updatedAt: existingCreatedAt,
+        })
+      }
+
+      if (call.pathName === 'search_profiles:update') {
+        if (!isRecord(call.args.profile)) {
+          throw new Error('Expected updated profile payload')
+        }
+
+        return convexSuccess({
+          _id: 'custom-profile-1',
+          name: call.args.profile.name,
+          criteria: {
+            keywords: call.args.profile.keywords,
+            locations: [call.args.profile.location],
+          },
+          profile: call.args.profile,
+          workspaceSlug: 'dev',
+          createdAt: existingCreatedAt,
+          updatedAt: Date.now(),
+        })
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles/custom-profile-1', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'dev',
+      },
+      body: JSON.stringify({
+        name: 'CNC销售-Demo',
+        location: '广东',
+        keywords: ['销售', 'CNC'],
+        status: 'active',
+        jobDescription: null,
+        filters: null,
+        schedule: {
+          enabled: true,
+          cron: '0 9 * * 1-5',
+        },
+      }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const payload = await response.json()
+    expect(payload.success).toBe(true)
+    expect(payload.profile.jobDescription).toBeUndefined()
+    expect(payload.profile.filters).toBeUndefined()
+
+    const updateCall = getUpdateCall(calls)
+    expect(isRecord(updateCall.args.profile)).toBe(true)
+    if (!isRecord(updateCall.args.profile)) {
+      throw new Error('Expected record payload')
+    }
+    expect('jobDescription' in updateCall.args.profile).toBe(false)
+    expect('filters' in updateCall.args.profile).toBe(false)
   })
 })
