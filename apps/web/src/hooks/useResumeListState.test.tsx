@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useResumeListState } from './useResumeListState'
@@ -255,5 +255,22 @@ describe('useResumeListState role filter regression', () => {
     const names = result.current.displayedResumes.map((entry) => entry.resume.name)
 
     expect(names).toEqual(['Sales Only'])
+  })
+
+  it('reset clears location instead of restoring the Guangdong default', () => {
+    mockState.filters = {
+      minRoleYears: 2,
+      roleFilterType: 'engineer',
+    }
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleResetAll()
+    })
+
+    expect(mockState.setLocation).toHaveBeenCalledWith('')
+    expect(mockState.setKeywords).toHaveBeenCalledWith([])
+    expect(mockState.setFilters).toHaveBeenCalledWith({})
   })
 })

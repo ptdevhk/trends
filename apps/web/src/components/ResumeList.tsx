@@ -27,10 +27,6 @@ export function ResumeList() {
     filters,
     reviewedIdsSet,
     trackReviewedResume,
-    summary,
-    resumes,
-    convexResumes,
-    selectedSample,
     error,
     activeLoading,
     analyzing,
@@ -132,16 +128,7 @@ export function ResumeList() {
         className=""
         defaultCollapsed={true}
         headerAction={
-          <div className="flex items-center gap-4">
-            {summary && !error && (
-              <span className="text-xs text-muted-foreground">
-                {t('resumes.summary', {
-                  returned: displayedResumes.length,
-                  total: convexResumes.length || summary.total || resumes.length,
-                  sample: selectedSample || '--',
-                })}
-              </span>
-            )}
+          <div className="flex items-center gap-2">
             <ShareLinkButton />
             <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleRefresh} disabled={activeLoading}>
               <RefreshCw className={cn('h-3.5 w-3.5', activeLoading && 'animate-spin')} />

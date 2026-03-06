@@ -36,7 +36,14 @@ const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
   { value: 'withdrawn', labelKey: 'resumes.status.options.withdrawn' },
 ]
 
-export function FilterPanel({ filters, onFiltersChange, mode = 'original', className, defaultCollapsed = false, headerAction }: FilterPanelProps) {
+export function FilterPanel({
+  filters,
+  onFiltersChange,
+  mode = 'original',
+  className,
+  defaultCollapsed = false,
+  headerAction,
+}: FilterPanelProps) {
   const { t } = useTranslation()
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
 
@@ -162,46 +169,53 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
     window.setTimeout(() => setClearing(false), 200)
   }
 
+  const toolbarButtonClassName = 'h-8 text-xs'
+
   return (
     <div className={cn("rounded-lg border bg-card shadow-sm transition-all duration-200", className)}>
-      <div className="flex items-center justify-between p-4">
-        <div
-          className="flex flex-1 items-center gap-2 cursor-pointer select-none overflow-hidden"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-        >
-          <h3 className="text-sm font-semibold text-foreground/90 whitespace-nowrap">{t('resumes.filters.title')}</h3>
-          {isCollapsed ? <ChevronDown className="h-4 w-4 shrink-0 px-0 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />}
+      <div className="px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <button
+            type="button"
+            aria-expanded={!isCollapsed}
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden whitespace-nowrap text-left"
+          >
+            <h3 className="shrink-0 text-sm font-semibold text-foreground/90">{t('resumes.filters.title')}</h3>
+            {isCollapsed ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />}
+            {activeFilterBadges.length > 0 && (
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-muted-foreground">
+                {activeFilterBadges.map((badge, i) => (
+                  <Badge key={i} variant="secondary" className="font-normal text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 border-transparent bg-muted/60 text-muted-foreground whitespace-nowrap">
+                    {badge}
+                  </Badge>
+                ))}
+              </span>
+            )}
+          </button>
 
-          {isCollapsed && activeFilterBadges.length > 0 && (
-            <div className="flex items-center gap-1.5 ml-2 flex-wrap overflow-hidden h-5">
-              {activeFilterBadges.map((badge, i) => (
-                <Badge key={i} variant="secondary" className="font-normal text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 border-transparent bg-muted/60 text-muted-foreground whitespace-nowrap">
-                  {badge}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-4 ml-4 shrink-0">
-          {headerAction}
-
-          {!isCollapsed && (
-            <div className="flex items-center gap-2 border-l pl-4 ml-2">
-              <Button size="sm" variant="ghost" onClick={handleClear} disabled={clearing} className="h-8 text-xs text-muted-foreground hover:text-foreground">
-                {t('resumes.filters.clear')}
-              </Button>
-              <Button size="sm" onClick={handleApply} disabled={clearing} className="h-8 text-xs">
-                {t('resumes.filters.apply')}
-              </Button>
-            </div>
-          )}
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            {headerAction}
+            {headerAction && <div className="hidden h-5 w-px bg-border sm:block" aria-hidden="true" />}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleClear}
+              disabled={clearing}
+              className={cn(toolbarButtonClassName, 'text-muted-foreground hover:text-foreground')}
+            >
+              {t('resumes.filters.clear')}
+            </Button>
+            <Button size="sm" onClick={handleApply} disabled={clearing} className={toolbarButtonClassName}>
+              {t('resumes.filters.apply')}
+            </Button>
+          </div>
         </div>
       </div>
 
       {!isCollapsed && (
-        <div className="px-4 pb-4 pt-0 border-t mt-2">
-          <div className="grid gap-6 py-4">
+        <div className="border-t px-4 pb-4 pt-4">
+          <div className="grid gap-6 pt-2">
 
             {/* Row 1: Numeric Filters */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">

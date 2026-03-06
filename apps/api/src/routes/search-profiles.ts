@@ -410,7 +410,7 @@ function toSearchProfile(record: ConvexSearchProfileRecord): SearchProfile | nul
         normalized.keywords = criteriaKeywords;
     }
 
-    if (!normalized.location || normalized.keywords.length === 0) {
+    if (normalized.keywords.length === 0) {
         return null;
     }
 

@@ -41,4 +41,25 @@ describe('SearchProfileService explicit clear semantics', () => {
       cron: '0 9 * * 1-5',
     })
   })
+
+  it('preserves an explicit empty location instead of restoring the previous one', () => {
+    const service = new SearchProfileService()
+    const existingProfile: SearchProfile = {
+      id: 'custom-profile-1',
+      name: 'CNC销售-Demo',
+      status: 'active',
+      location: '广东,江苏',
+      keywords: ['销售', 'CNC'],
+    }
+
+    const normalized = service.normalizeProfileInput(
+      {
+        location: '',
+      },
+      existingProfile,
+    )
+
+    expect(normalized.location).toBe('')
+    expect(() => service.validateProfile(normalized)).not.toThrow()
+  })
 })

@@ -152,6 +152,20 @@ function readOptionalStringField(
     return readString(record[key]);
 }
 
+function readClearableStringField(
+    record: Record<string, unknown>,
+    key: string,
+    fallback = ""
+): string {
+    if (!hasOwn(record, key)) {
+        return fallback;
+    }
+    if (typeof record[key] !== "string") {
+        return "";
+    }
+    return record[key].trim();
+}
+
 function readBoolean(value: unknown): boolean | undefined {
     if (typeof value === "boolean") return value;
     if (typeof value === "string") {
@@ -481,8 +495,8 @@ export class SearchProfileService {
         const fallbackName = fallback?.name;
         const name = readString(record.name) ?? fallbackName ?? id;
 
-        const fallbackLocation = fallback?.location;
-        const location = readString(record.location) ?? fallbackLocation ?? "";
+        const fallbackLocation = fallback?.location ?? "";
+        const location = readClearableStringField(record, "location", fallbackLocation);
 
         const inputKeywords = readStringArray(record.keywords);
         const keywords = normalizeKeywords(inputKeywords ?? fallback?.keywords ?? []);
@@ -550,9 +564,6 @@ export class SearchProfileService {
         }
         if (!profile.name) {
             throw new Error("Profile name is required");
-        }
-        if (!profile.location) {
-            throw new Error("Profile location is required");
         }
         if (!Array.isArray(profile.keywords) || profile.keywords.length === 0) {
             throw new Error("Profile keywords must contain at least one value");

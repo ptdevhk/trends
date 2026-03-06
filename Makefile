@@ -1,7 +1,7 @@
 # TrendRadar Development Makefile
 
 .PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
-		worker worker-once install install-seed deploy deploy-seed install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
+		worker worker-once install install-seed deploy deploy-check deploy-seed install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
 		build-static build-static-fresh build-extension-zip serve-static \
@@ -153,11 +153,15 @@ install-seed:
 
 # Pull, rebuild, and restart all production services
 deploy:
-	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade
+
+# Show whether deploy would skip, refresh env only, or run a full upgrade
+deploy-check:
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade-check
 
 # Deploy with full demo data (re-seeds JDs + sample resumes + migrations)
 deploy-seed:
-	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=1 ./scripts/install.sh upgrade
+	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE=1 ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=1 ./scripts/install.sh upgrade
 
 # Remove systemd services
 uninstall:
@@ -701,7 +705,8 @@ help:
 	@echo ""
 	@echo "Deployment:"
 	@echo "  install        Install as systemd services (requires sudo)"
-	@echo "  deploy         Pull latest code, rebuild, and restart services (requires sudo)"
+	@echo "  deploy         Precheck deployed SHA/env, then skip, env-refresh, or full upgrade (requires sudo)"
+	@echo "  deploy-check   Dry run deploy precheck without rebuilding"
 	@echo "  refresh-env    Refresh /etc/trends/env from .env.production and restart services (no rebuild)"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "  docker         Start Docker containers"
@@ -779,9 +784,10 @@ help:
 	@echo "  help           Show this help message"
 	@echo ""
 	@echo "Environment Variables:"
-	@echo "  ENV_FILE       Env file path (install default: .env.production; deploy default: keep existing env)"
+	@echo "  ENV_FILE       Env file path (install/deploy default: .env.production; set ENV_FILE= to keep existing deploy env)"
 	@echo "  WORKSPACE_DIR  Workspace root used to resolve relative ENV_FILE paths (auto-set by make)"
 	@echo "  INSTALL_BRANCH Git branch to deploy into /opt/trends (default: repo default branch)"
+	@echo "  FORCE          Set 1/true to bypass deploy precheck and force a full upgrade"
 	@echo "  ALLOW_NODE_DOWNGRADE Set 1/true to allow installer to downgrade Node to v22 when a newer Node is already installed"
 	@echo "  SKIP_MATCH_SEED Set to true to skip automatic seed-matches in make dev"
 	@echo "  SERVICE_PROFILE Default service profile when running scripts/dev.sh (full|critical|fast-ui|backend)"

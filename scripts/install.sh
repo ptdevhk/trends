@@ -35,10 +35,21 @@ NC='\033[0m'
 APT_UPDATED=0
 REPO_AUTHENTICATED_WITH_GH=0
 GH_AUTH_HOME=""
+UPGRADE_ACTION=""
+UPGRADE_DEPLOYED_SHA=""
+UPGRADE_TARGET_SHA=""
+UPGRADE_TARGET_BRANCH=""
+UPGRADE_ENV_CHANGED=0
+UPGRADE_TRACKED_DRIFT=0
+UPGRADE_RESOLVED_ENV_PATH=""
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+
+is_truthy() {
+    [[ "${1:-}" =~ ^(1|true|yes)$ ]]
+}
 
 check_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -76,6 +87,13 @@ apt_install() {
 ensure_base_dependencies() {
     require_apt
     apt_install ca-certificates curl git gnupg zip
+}
+
+require_git() {
+    if ! command -v git >/dev/null 2>&1; then
+        log_error "git is required but not found."
+        exit 1
+    fi
 }
 
 ensure_node_22() {
@@ -319,12 +337,69 @@ resolve_repo_url() {
     exit 1
 }
 
+run_git_as_service_user() {
+    local escaped_args=()
+    local arg=""
+
+    for arg in "$@"; do
+        escaped_args+=("$(shell_escape "$arg")")
+    done
+
+    run_as_service_user "git ${escaped_args[*]}"
+}
+
+run_install_repo_git() {
+    if id "$SERVICE_USER" >/dev/null 2>&1; then
+        run_git_as_service_user -C "$INSTALL_DIR" "$@"
+        return
+    fi
+
+    git -C "$INSTALL_DIR" "$@"
+}
+
+run_remote_git() {
+    if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
+        run_as_invoking_user git "$@"
+        return
+    fi
+
+    if id "$SERVICE_USER" >/dev/null 2>&1; then
+        run_git_as_service_user "$@"
+        return
+    fi
+
+    git "$@"
+}
+
+resolve_desired_branch() {
+    local repo_url="$1"
+    local desired_branch="${INSTALL_BRANCH:-}"
+    local remote_head=""
+
+    if [[ -n "$desired_branch" ]]; then
+        printf '%s' "$desired_branch"
+        return 0
+    fi
+
+    remote_head="$(run_remote_git ls-remote --symref "$repo_url" HEAD 2>/dev/null | awk '/^ref:/ { sub("refs/heads/", "", $2); print $2; exit }')"
+    if [[ -n "$remote_head" ]]; then
+        printf '%s' "$remote_head"
+        return 0
+    fi
+
+    remote_head="$(run_install_repo_git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    if [[ "$remote_head" == origin/* ]]; then
+        remote_head="${remote_head#origin/}"
+    fi
+
+    printf '%s' "$remote_head"
+}
+
 clone_or_update_repo() {
     local repo_url repo_git_owner repo_git_group
-    local desired_branch="${INSTALL_BRANCH:-}"
-    local default_ref=""
-    local default_branch=""
+    local desired_branch=""
     repo_url="$(resolve_repo_url)"
+    desired_branch="$(resolve_desired_branch "$repo_url" || true)"
     repo_git_owner="$SERVICE_USER"
     repo_git_group="$SERVICE_GROUP"
     if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
@@ -338,21 +413,8 @@ clone_or_update_repo() {
     if [[ -d "$INSTALL_DIR/.git" ]]; then
         if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
             run_as_invoking_user git -C "$INSTALL_DIR" fetch --prune origin
-            default_ref="$(run_as_invoking_user git -C "$INSTALL_DIR" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-            run_as_invoking_user git -C "$INSTALL_DIR" checkout -- . >/dev/null 2>&1 || true
-            run_as_invoking_user git -C "$INSTALL_DIR" pull --ff-only
         else
             run_as_service_user "cd '$INSTALL_DIR' && git fetch --prune origin"
-            default_ref="$(run_as_service_user "git -C '$INSTALL_DIR' symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true")"
-            run_as_service_user "cd '$INSTALL_DIR' && git checkout -- . >/dev/null 2>&1 || true"
-            run_as_service_user "cd '$INSTALL_DIR' && git pull --ff-only"
-        fi
-
-        if [[ -z "$desired_branch" && -n "$default_ref" && "$default_ref" == origin/* ]]; then
-            default_branch="${default_ref#origin/}"
-            if [[ -n "$default_branch" && "$default_branch" != "HEAD" ]]; then
-                desired_branch="$default_branch"
-            fi
         fi
 
         if [[ -n "$desired_branch" ]]; then
@@ -367,7 +429,14 @@ clone_or_update_repo() {
                 run_as_service_user "cd '$INSTALL_DIR' && git pull --ff-only"
             fi
         else
-            log_warn "Could not resolve desired branch (INSTALL_BRANCH unset, origin/HEAD missing). Keeping existing branch."
+            log_warn "Could not resolve desired branch (INSTALL_BRANCH unset, origin/HEAD missing). Pulling the current branch."
+            if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
+                run_as_invoking_user git -C "$INSTALL_DIR" checkout -- . >/dev/null 2>&1 || true
+                run_as_invoking_user git -C "$INSTALL_DIR" pull --ff-only
+            else
+                run_as_service_user "cd '$INSTALL_DIR' && git checkout -- . >/dev/null 2>&1 || true"
+                run_as_service_user "cd '$INSTALL_DIR' && git pull --ff-only"
+            fi
         fi
 
         chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
@@ -398,6 +467,95 @@ clone_or_update_repo() {
         fi
     fi
     chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
+}
+
+plan_upgrade_action() {
+    local repo_url=""
+    local desired_branch=""
+    local deployed_sha=""
+    local target_sha=""
+    local tracked_drift=0
+    local env_changed=0
+    local resolved_env_path=""
+    local dirty_status=""
+
+    repo_url="$(resolve_repo_url)"
+    desired_branch="$(resolve_desired_branch "$repo_url" || true)"
+    deployed_sha="$(run_install_repo_git rev-parse HEAD 2>/dev/null || true)"
+    dirty_status="$(run_install_repo_git status --porcelain --untracked-files=no 2>/dev/null || true)"
+    target_sha=""
+
+    if [[ -n "$desired_branch" ]]; then
+        target_sha="$(run_remote_git ls-remote "$repo_url" "refs/heads/$desired_branch" 2>/dev/null | awk 'NR == 1 { print $1; exit }')"
+    fi
+
+    if [[ -n "$dirty_status" ]]; then
+        tracked_drift=1
+    fi
+
+    if [[ -n "${ENV_FILE:-}" ]]; then
+        resolved_env_path="$(resolve_env_file)"
+        if [[ ! -f "$CONFIG_DIR/env" ]] || ! cmp -s "$resolved_env_path" "$CONFIG_DIR/env"; then
+            env_changed=1
+        fi
+    fi
+
+    UPGRADE_ACTION="full"
+    if [[ -n "${SEED_RESUMES:-}" ]]; then
+        UPGRADE_ACTION="full"
+    elif is_truthy "${FORCE:-}"; then
+        UPGRADE_ACTION="full"
+    elif [[ -n "$deployed_sha" && -n "$target_sha" && "$deployed_sha" == "$target_sha" && "$tracked_drift" -eq 0 ]]; then
+        if [[ "$env_changed" -eq 1 ]]; then
+            UPGRADE_ACTION="env-only"
+        else
+            UPGRADE_ACTION="skip"
+        fi
+    fi
+
+    UPGRADE_DEPLOYED_SHA="$deployed_sha"
+    UPGRADE_TARGET_SHA="$target_sha"
+    UPGRADE_TARGET_BRANCH="$desired_branch"
+    UPGRADE_ENV_CHANGED="$env_changed"
+    UPGRADE_TRACKED_DRIFT="$tracked_drift"
+    UPGRADE_RESOLVED_ENV_PATH="$resolved_env_path"
+}
+
+print_upgrade_plan() {
+    echo ""
+    log_info "Upgrade precheck summary:"
+    echo "  target branch: ${UPGRADE_TARGET_BRANCH:-<unresolved>}"
+    echo "  deployed sha: ${UPGRADE_DEPLOYED_SHA:-<unknown>}"
+    echo "  target sha: ${UPGRADE_TARGET_SHA:-<unresolved>}"
+    echo "  tracked drift: $([[ "$UPGRADE_TRACKED_DRIFT" -eq 1 ]] && echo yes || echo no)"
+    if [[ -n "${ENV_FILE:-}" ]]; then
+        echo "  env file: ${UPGRADE_RESOLVED_ENV_PATH:-<unresolved>}"
+        echo "  env changed: $([[ "$UPGRADE_ENV_CHANGED" -eq 1 ]] && echo yes || echo no)"
+    else
+        echo "  env file: unchanged (ENV_FILE empty)"
+    fi
+    if [[ -n "${SEED_RESUMES:-}" ]]; then
+        echo "  seed resumes: yes"
+    fi
+    if is_truthy "${FORCE:-}"; then
+        echo "  force: yes"
+    fi
+    echo "  action: $UPGRADE_ACTION"
+}
+
+env_only_upgrade_flow() {
+    ensure_node_22
+    ensure_uv
+    create_service_user
+    sync_service_user_gh_credentials
+    deploy_env_file
+    setup_convex
+    restart_units
+
+    echo ""
+    log_info "Environment updated. Services restarted without rebuilding artifacts."
+    echo "Check status with:"
+    echo "  systemctl status trends-convex trends-api trends-worker trends-worker-api trends-mcp"
 }
 
 sync_service_user_gh_credentials() {
@@ -1009,9 +1167,7 @@ install_flow() {
 upgrade_flow() {
     check_root
     check_systemd
-    ensure_base_dependencies
-    ensure_node_22
-    ensure_uv
+    require_git
     ensure_repo_access
 
     if [[ ! -d "$INSTALL_DIR/.git" ]]; then
@@ -1020,9 +1176,23 @@ upgrade_flow() {
     fi
 
     create_service_user
+    plan_upgrade_action
+    print_upgrade_plan
+
+    if [[ "$UPGRADE_ACTION" == "skip" ]]; then
+        log_info "No update required. Deployed code and environment already match the target."
+        return 0
+    fi
+
+    if [[ "$UPGRADE_ACTION" == "env-only" ]]; then
+        env_only_upgrade_flow
+        return 0
+    fi
+
+    ensure_node_22
+    ensure_uv
     sync_service_user_gh_credentials
     clone_or_update_repo
-
     sync_dependencies
     if [[ -n "$ENV_FILE" ]]; then
         deploy_env_file
@@ -1041,6 +1211,30 @@ upgrade_flow() {
     log_info "Upgrade completed. Services restarted."
     echo "Check status with:"
     echo "  systemctl status trends-convex trends-api trends-worker trends-worker-api trends-mcp"
+}
+
+upgrade_check_flow() {
+    check_root
+    check_systemd
+    require_git
+    ensure_repo_access
+
+    if [[ ! -d "$INSTALL_DIR/.git" ]]; then
+        log_error "$INSTALL_DIR is not a git repository. Run install first."
+        exit 1
+    fi
+
+    create_service_user
+    plan_upgrade_action
+    print_upgrade_plan
+
+    if [[ "$UPGRADE_ACTION" == "skip" ]]; then
+        log_info "No update required."
+    elif [[ "$UPGRADE_ACTION" == "env-only" ]]; then
+        log_info "Deploy would refresh environment and restart services."
+    else
+        log_info "Deploy would run a full upgrade."
+    fi
 }
 
 uninstall_flow() {
@@ -1079,11 +1273,14 @@ main() {
         upgrade)
             upgrade_flow
             ;;
+        upgrade-check)
+            upgrade_check_flow
+            ;;
         uninstall)
             uninstall_flow
             ;;
         *)
-            echo "Usage: $0 [install|upgrade|uninstall]"
+            echo "Usage: $0 [install|upgrade|upgrade-check|uninstall]"
             exit 1
             ;;
     esac
