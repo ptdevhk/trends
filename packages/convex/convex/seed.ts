@@ -291,7 +291,7 @@ export const seedWorkspaceDemoData = mutation({
         workspaceSlug: "dev",
         location: "广东",
         industryTags: ["machinery", "cnc", "sales"],
-        customKeywords: ["车床销售", "机床", "销售"],
+        customKeywords: ["机床", "销售"],
         minExperience: 1,
         maxAge: 45,
         content: [
@@ -305,7 +305,6 @@ export const seedWorkspaceDemoData = mutation({
           '  - "sales"',
           "auto_match:",
           "  keywords:",
-          '    - "车床销售"',
           '    - "机床"',
           '    - "销售"',
           "  locations:",
@@ -328,7 +327,7 @@ export const seedWorkspaceDemoData = mutation({
           "",
           "# 关键词",
           "",
-          "车床销售, 机床, 销售",
+          "机床, 销售",
         ].join("\n"),
       },
       {
@@ -563,9 +562,9 @@ export const seedWorkspaceDemoData = mutation({
           existing.workspaceSlug !== item.workspaceSlug ||
           existing.location !== item.location ||
           stableSerialize(existing.industryTags ?? []) !==
-            stableSerialize(item.industryTags ?? []) ||
+          stableSerialize(item.industryTags ?? []) ||
           stableSerialize(existing.customKeywords ?? []) !==
-            stableSerialize(item.customKeywords ?? []) ||
+          stableSerialize(item.customKeywords ?? []) ||
           existing.minExperience !== item.minExperience ||
           existing.maxAge !== item.maxAge ||
           existing.enabled !== true;
@@ -619,9 +618,9 @@ export const seedWorkspaceDemoData = mutation({
       if (existing) {
         const needsUpdate =
           stableSerialize(existing.criteria) !==
-            stableSerialize(item.criteria) ||
+          stableSerialize(item.criteria) ||
           normalizeWorkspaceSlug(existing.workspaceSlug) !==
-            item.workspaceSlug ||
+          item.workspaceSlug ||
           existing.lastRunAt !== item.lastRunAt;
         if (needsUpdate) {
           await ctx.db.patch(existing._id, {
@@ -659,7 +658,7 @@ export const seedWorkspaceDemoData = mutation({
           existing.status !== item.status ||
           stableSerialize(existing.config) !== stableSerialize(item.config) ||
           stableSerialize(existing.reviewedResumeIds) !==
-            stableSerialize(item.reviewedResumeIds) ||
+          stableSerialize(item.reviewedResumeIds) ||
           !belongsToWorkspace(existing.workspaceSlug, item.workspaceSlug);
         if (needsUpdate) {
           await ctx.db.patch(existing._id, {

@@ -358,6 +358,7 @@ export function useResumeListState() {
   const hasInitializedUrlHydrationRef = useRef(false)
   const lastAppliedUrlStateRef = useRef<string | null>(null)
   const skipNextUrlSyncRef = useRef(false)
+  const isUrlPushingRef = useRef(false)
   const initialWindowSearchStateRef = useRef<{
     hasUrlParams: boolean
     hasKeywordParam: boolean
@@ -455,6 +456,12 @@ export function useResumeListState() {
       hasInitializedUrlHydrationRef.current = true
       lastAppliedUrlStateRef.current = null
       setHasCompletedUrlHydration(true)
+      return
+    }
+
+    if (isUrlPushingRef.current) {
+      isUrlPushingRef.current = false
+      lastAppliedUrlStateRef.current = activeUrlStateSignature
       return
     }
 
@@ -613,6 +620,7 @@ export function useResumeListState() {
         locations: locationFilters,
       }
 
+      isUrlPushingRef.current = true
       syncToUrl({
         location: locationForUrl,
         keywords: sessionKeywords,

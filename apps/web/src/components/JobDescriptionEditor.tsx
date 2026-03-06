@@ -101,36 +101,6 @@ function toYamlString(value: string): string {
     return JSON.stringify(value)
 }
 
-function extractTitleKeywords(title: string): string[] {
-    const normalized = title.trim()
-    if (!normalized) {
-        return []
-    }
-
-    const parts = normalized
-        .split(/[\s,，、|/()（）]+/)
-        .map((part) => part.trim())
-        .filter((part) => part.length > 0)
-    const unique = new Set<string>()
-
-    parts.forEach((part) => {
-        if (/^[a-z0-9#+.-]+$/i.test(part)) {
-            unique.add(part.toUpperCase())
-            return
-        }
-
-        if (part.length >= 2) {
-            unique.add(part)
-        }
-    })
-
-    if (unique.size === 0) {
-        unique.add(normalized)
-    }
-
-    return Array.from(unique).slice(0, 8)
-}
-
 function generateJdContent(fields: JdContentFields): string {
     const title = fields.title.trim()
     const locationStr = normalizeOptionalString(fields.location)
@@ -140,9 +110,8 @@ function generateJdContent(fields: JdContentFields): string {
     const maxExperience = fields.maxExperience
     const minAge = fields.minAge
     const maxAge = fields.maxAge
-    const baseKeywords = extractTitleKeywords(title)
     const extraKeywords = fields.customKeywords ?? []
-    const keywords = Array.from(new Set([...baseKeywords, ...extraKeywords])).slice(0, 15)
+    const keywords = Array.from(new Set(extraKeywords)).slice(0, 15)
 
     const lines: string[] = [
         "---",
