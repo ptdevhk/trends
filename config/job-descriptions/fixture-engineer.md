@@ -12,6 +12,21 @@ required_roles:
     min_years: 2
     signals: [工程师, 设计, 研发, 开发, 编程, 调试, 维修, 技术]
     verify_in: workHistory
+
+auto_match:
+  keywords:
+    - 夹具
+    - 工装
+    - 夹具设计
+    - 工装夹具
+    - 液压夹具
+    - 气动夹具
+    - 机械设计
+  locations:
+    - 东莞
+  priority: 50
+  suggested_filters:
+    minExperience: 2
 ---
 
 # 职位描述 (Position Description)

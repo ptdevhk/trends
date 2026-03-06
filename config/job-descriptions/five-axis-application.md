@@ -12,6 +12,24 @@ required_roles:
     min_years: 3
     signals: [工程师, 设计, 研发, 开发, 编程, 调试, 维修, 技术]
     verify_in: workHistory
+
+auto_match:
+  keywords:
+    - 五轴
+    - 5轴
+    - 加工中心
+    - 编程
+    - FANUC
+    - Siemens
+    - Mazak
+    - 数控
+    - CNC
+    - 应用工程师
+  locations:
+    - 东莞
+  priority: 60
+  suggested_filters:
+    minExperience: 3
 ---
 
 # 职位描述 (Position Description)

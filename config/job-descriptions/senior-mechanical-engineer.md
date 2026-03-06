@@ -12,6 +12,22 @@ required_roles:
     min_years: 5
     signals: [工程师, 设计, 研发, 开发, 编程, 调试, 维修, 技术]
     verify_in: workHistory
+
+auto_match:
+  keywords:
+    - 机械工程师
+    - 机械设计
+    - CAD
+    - CAM
+    - SolidWorks
+    - UG
+    - 精密机械
+    - 研发
+  locations:
+    - 东莞
+  priority: 50
+  suggested_filters:
+    minExperience: 5
 ---
 
 # 职位描述 (Position Description)

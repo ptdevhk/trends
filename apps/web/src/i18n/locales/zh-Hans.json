@@ -60,6 +60,9 @@
     "shortlist": "批量入围",
     "star": "批量标星",
     "reject": "批量拒绝",
+    "block": "批量屏蔽",
+    "blocked": "屏蔽",
+    "manageBlocked": "管理",
     "export": "导出"
   },
   "debugAi": {

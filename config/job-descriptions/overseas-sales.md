@@ -12,6 +12,22 @@ required_roles:
     min_years: 1
     signals: [销售, 业务开发, 客户, 大客户, 渠道, 销售经理, 销售工程师]
     verify_in: workHistory
+
+auto_match:
+  keywords:
+    - 海外销售
+    - 外贸
+    - 越南
+    - 泰国
+    - 马来西亚
+    - 东南亚
+    - 英语
+  locations:
+    - 东莞
+    - 海外
+  priority: 60
+  suggested_filters:
+    minExperience: 1
 ---
 
 # 职位描述 (Position Description)

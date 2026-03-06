@@ -59,6 +59,11 @@ type ProfileApiResponse = {
 type JobDescriptionDetailApiResponse = {
   success: boolean
   item?: {
+    location?: string
+    autoMatch?: {
+      keywords?: string[]
+      locations?: string[]
+    }
     requiredRoles?: Array<{
       type?: string
       min_years?: number
@@ -327,6 +332,23 @@ export function QuickStartPanel({
         setActiveRoleType(roleType && roleType.length > 0 ? roleType : undefined)
         setJdMinRoleYears(requiredRole?.min_years)
         setJdMaxAge(undefined)
+
+        if (!selectedConvexJobDescriptionDetail && response.data?.item) {
+          const itemLocation = response.data.item.location
+          const autoMatchKeywords = response.data.item.autoMatch?.keywords
+
+          if (itemLocation) {
+            setLocation(itemLocation)
+          }
+
+          if (autoMatchKeywords && autoMatchKeywords.length > 0) {
+            setSelectedKeywords(autoMatchKeywords.map(k => k.trim()))
+            setCustomKeyword(autoMatchKeywords.join(' '))
+          } else {
+            setSelectedKeywords([])
+            setCustomKeyword('')
+          }
+        }
       } catch (error) {
         console.error('Failed to fetch role type from job description', error)
         if (!cancelled) {

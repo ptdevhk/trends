@@ -1278,6 +1278,8 @@ export function useResumeListState() {
     return displayedResumes.filter((entry) => (entry.match?.score ?? 0) >= 80).length
   }, [displayedResumes])
 
+  const blockedCount = useMemo(() => Object.keys(blocksByIdentity).length, [blocksByIdentity])
+
   const hasInput = Boolean(jobDescriptionId) || sessionKeywords.length > 0
   const disableAnalyzeButton = (filteredConvexResumes.length === 0 || analyzing || !hasInput || hasActiveTask)
   const shouldBlockQuickStartSync = activeHasUrlParams && !hasCompletedUrlHydration
@@ -1357,6 +1359,7 @@ export function useResumeListState() {
     activeTagFilters,
     activeCompanyFilters,
     highScoreCount,
+    blockedCount,
     bulkExportFormat,
     displayedResumes,
     setBulkExportFormat,
