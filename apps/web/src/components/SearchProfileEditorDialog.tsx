@@ -121,8 +121,8 @@ export function SearchProfileEditorDialog({
 
     const handleSave = useCallback(async () => {
         const keywords = parseKeywords(form.keywordsText)
-        if (!form.name.trim() || !form.location.trim() || keywords.length === 0) {
-            toast.error(t('searchProfiles.validationError', { defaultValue: 'Name, location and keywords are required' }))
+        if (!form.name.trim() || keywords.length === 0) {
+            toast.error(t('searchProfiles.validationError', { defaultValue: 'Name and keywords are required' }))
             return
         }
 
@@ -189,7 +189,7 @@ export function SearchProfileEditorDialog({
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="profile-location">{t('searchProfiles.fields.location', { defaultValue: 'Location' })}</Label>
+                        <Label htmlFor="profile-location">{t('searchProfiles.fields.location', { defaultValue: '地区:' })}</Label>
                         <LocationSelector
                             id="profile-location"
                             value={form.location}
@@ -198,7 +198,7 @@ export function SearchProfileEditorDialog({
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="profile-keywords">{t('searchProfiles.fields.keywords', { defaultValue: 'Keywords' })}</Label>
+                        <Label htmlFor="profile-keywords">{t('searchProfiles.fields.keywords', { defaultValue: '关键词:' })}</Label>
                         <KeywordInput
                             id="profile-keywords"
                             value={form.keywordsText}

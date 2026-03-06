@@ -133,7 +133,8 @@ function extractTitleKeywords(title: string): string[] {
 
 function generateJdContent(fields: JdContentFields): string {
     const title = fields.title.trim()
-    const location = normalizeOptionalString(fields.location)
+    const locationStr = normalizeOptionalString(fields.location)
+    const locationsList = locationStr ? locationStr.split(/[\s,，、]+/).map(v => v.trim()).filter(Boolean) : []
     const industryTags = sanitizeIndustryTags(fields.industryTags)
     const minExperience = fields.minExperience ?? DEFAULT_MIN_EXPERIENCE
     const maxExperience = fields.maxExperience
@@ -149,8 +150,8 @@ function generateJdContent(fields: JdContentFields): string {
         "status: active",
     ]
 
-    if (location) {
-        lines.push(`location: ${toYamlString(location)}`)
+    if (locationsList.length > 0) {
+        lines.push(`location: ${toYamlString(locationsList.join(","))}`)
     }
 
     if (industryTags.length > 0) {
@@ -166,9 +167,9 @@ function generateJdContent(fields: JdContentFields): string {
         lines.push(`    - ${toYamlString(keyword)}`)
     })
     lines.push("  locations:")
-    if (location) {
-        lines.push(`    - ${toYamlString(location)}`)
-    }
+    locationsList.forEach((loc) => {
+        lines.push(`    - ${toYamlString(loc)}`)
+    })
     lines.push("  priority: 60")
     lines.push("  suggested_filters:")
     lines.push(`    minExperience: ${minExperience}`)
@@ -411,7 +412,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="location">{t("jdEditor.location", "Location")}</Label>
+                        <Label htmlFor="location">{t("jdEditor.location", "地区:")}</Label>
                         <LocationSelector
                             id="location"
                             value={location}
@@ -440,7 +441,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                     </div>
 
                     <div className="grid gap-2">
-                        <Label>{t("jdEditor.customKeywords", "自定义:")}</Label>
+                        <Label>{t("jdEditor.customKeywords", "关键词:")}</Label>
                         <KeywordInput
                             value={customKeywordsText}
                             onChange={setCustomKeywordsText}

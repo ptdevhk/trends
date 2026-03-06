@@ -1112,7 +1112,7 @@ export default function DebugConfig() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <CardTitle>{t('debugConfig.systemLocationConfigTitle', { defaultValue: '系统地点配置' })}</CardTitle>
+              <CardTitle>{t('debugConfig.systemLocationConfigTitle', { defaultValue: '系统地区配置' })}</CardTitle>
               <CardDescription>
                 {t('debugConfig.systemLocationConfigDescription', {
                   defaultValue: '来源于 Job5156 地区数据，可配置展开标签显示或隐藏',
@@ -1127,14 +1127,14 @@ export default function DebugConfig() {
             value={systemLocationQuery}
             onChange={(event) => setSystemLocationQuery(event.target.value)}
             placeholder={t('debugConfig.systemLocationSearchPlaceholder', {
-              defaultValue: '搜索地点（名称/上级/层级）',
+              defaultValue: '搜索地区（名称/上级/层级）',
             })}
           />
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('debugConfig.systemLocationKeyword', { defaultValue: '地点' })}</TableHead>
+                  <TableHead>{t('debugConfig.systemLocationKeyword', { defaultValue: '地区' })}</TableHead>
                   <TableHead>{t('debugConfig.systemLocationLevel', { defaultValue: '层级' })}</TableHead>
                   <TableHead>{t('debugConfig.systemLocationParent', { defaultValue: '上级' })}</TableHead>
                   <TableHead>{t('debugConfig.systemLocationVisible', { defaultValue: '状态' })}</TableHead>

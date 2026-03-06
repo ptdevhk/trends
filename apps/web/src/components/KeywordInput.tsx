@@ -60,8 +60,10 @@ export function KeywordInput({ value, onChange, placeholder, id }: KeywordInputP
                     </Button>
                 )}
             </div>
-            {availableCustomKeywords.length > 0 && expanded && (
-                <div className="flex flex-wrap gap-2 mt-1">
+            {availableCustomKeywords.length > 0 && (
+                <div
+                    className={`flex flex-wrap gap-2 mt-1 relative overflow-hidden transition-[max-height] duration-200 ease-in-out ${expanded ? "max-h-[500px]" : "max-h-[30px]"}`}
+                >
                     {availableCustomKeywords.map((tagObj) => {
                         const tag = tagObj.keyword
                         const selected = activeKeywords.includes(tag)

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronUp } from "lucide-react"
@@ -15,6 +15,29 @@ export function LocationSelector({ value, onChange, placeholder, id }: LocationS
     const { grouped } = useIndustryKeywords()
     const availableLocationKeywords = grouped.location || []
     const [expanded, setExpanded] = useState(false)
+
+    const activeLocations = useMemo(() => {
+        return value
+            .split(/[\s,，、]+/)
+            .map((loc) => loc.trim())
+            .filter((loc) => loc.length > 0)
+    }, [value])
+
+    const toggleLocation = (locationTag: string) => {
+        if (activeLocations.includes(locationTag)) {
+            const newLocations = activeLocations.filter((l) => l !== locationTag)
+            onChange(newLocations.join(","))
+        } else {
+            const suffix = value.trim().length > 0 ? "," : ""
+            let newValue = value.trim()
+            if (newValue.endsWith(',') || newValue.endsWith('，') || newValue.endsWith('、')) {
+                newValue = newValue + locationTag
+            } else {
+                newValue = newValue + suffix + locationTag
+            }
+            onChange(newValue)
+        }
+    }
 
     return (
         <div className="grid gap-2">
@@ -37,16 +60,18 @@ export function LocationSelector({ value, onChange, placeholder, id }: LocationS
                     </Button>
                 )}
             </div>
-            {availableLocationKeywords.length > 0 && expanded && (
-                <div className="flex flex-wrap gap-2 mt-1">
+            {availableLocationKeywords.length > 0 && (
+                <div
+                    className={`flex flex-wrap gap-2 mt-1 relative overflow-hidden transition-[max-height] duration-200 ease-in-out ${expanded ? "max-h-[500px]" : "max-h-[30px]"}`}
+                >
                     {availableLocationKeywords.map((tagObj) => {
                         const tag = tagObj.keyword
-                        const selected = value.trim() === tag
+                        const selected = activeLocations.includes(tag)
                         return (
                             <button
                                 key={tag}
                                 type="button"
-                                onClick={() => onChange(selected ? "" : tag)}
+                                onClick={() => toggleLocation(tag)}
                                 className={`rounded-full border px-3 py-1 text-xs transition-colors ${selected ? "border-green-700 bg-green-600 text-white" : "border-green-300 text-green-700 hover:bg-green-50"}`}
                             >
                                 {tag}
