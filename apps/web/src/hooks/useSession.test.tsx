@@ -1,5 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
-import { act } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useSession } from './useSession'
