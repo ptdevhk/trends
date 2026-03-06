@@ -34,6 +34,8 @@ export interface SearchProfile {
     filters?: {
         minExperience?: number;
         maxExperience?: number | null;
+        minAge?: number;
+        maxAge?: number;
         education?: string[];
         salaryRange?: {
             min?: number;
@@ -139,6 +141,17 @@ function readString(value: unknown): string | undefined {
     return normalized ? normalized : undefined;
 }
 
+function readOptionalStringField(
+    record: Record<string, unknown>,
+    key: string,
+    fallback?: string
+): string | undefined {
+    if (!hasOwn(record, key)) {
+        return fallback;
+    }
+    return readString(record[key]);
+}
+
 function readBoolean(value: unknown): boolean | undefined {
     if (typeof value === "boolean") return value;
     if (typeof value === "string") {
@@ -205,6 +218,8 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
     const minExperience = readNumber(value.minExperience);
     const maxExperienceRaw = value.maxExperience;
     const maxExperience = maxExperienceRaw === null ? null : readNumber(maxExperienceRaw);
+    const minAge = readNumber(value.minAge);
+    const maxAge = readNumber(value.maxAge);
     const education = readStringArray(value.education);
     const locations = readStringArray(value.locations);
 
@@ -229,6 +244,8 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
         minExperience === undefined
         && maxExperience === undefined
         && maxExperienceRaw !== null
+        && minAge === undefined
+        && maxAge === undefined
         && !education
         && !locations
         && !salaryRange
@@ -239,6 +256,8 @@ function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
     return {
         minExperience,
         maxExperience,
+        minAge,
+        maxAge,
         education,
         salaryRange,
         locations,
@@ -474,12 +493,12 @@ export class SearchProfileService {
                 ? inputStatus
                 : (fallback?.status ?? "active");
 
-        const description = readString(record.description) ?? fallback?.description;
+        const description = readOptionalStringField(record, "description", fallback?.description);
         const createdAt = readString(record.createdAt) ?? fallback?.createdAt;
         const updatedAt = readString(record.updatedAt) ?? fallback?.updatedAt;
 
-        const jobDescription = readString(record.jobDescription) ?? fallback?.jobDescription;
-        const filterPreset = readString(record.filterPreset) ?? fallback?.filterPreset;
+        const jobDescription = readOptionalStringField(record, "jobDescription", fallback?.jobDescription);
+        const filterPreset = readOptionalStringField(record, "filterPreset", fallback?.filterPreset);
 
         const filters = hasOwn(record, "filters") ? parseFilters(record.filters) : fallback?.filters;
         const schedule = hasOwn(record, "schedule") ? parseSchedule(record.schedule) : fallback?.schedule;

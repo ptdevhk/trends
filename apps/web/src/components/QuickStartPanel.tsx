@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
-import { Link } from 'react-router-dom'
 import { Pencil, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from 'convex/react'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
 import { JobDescriptionEditor } from './JobDescriptionEditor'
 import { KeywordChips } from './KeywordChips'
+import { SearchProfileEditorDialog } from './SearchProfileEditorDialog'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -19,6 +19,8 @@ const AUTO_MATCH_MIN_CONFIDENCE = 0.3
 type SearchProfileFilters = {
   minExperience?: number
   maxExperience?: number | null
+  minAge?: number
+  maxAge?: number
   education?: string[]
   salaryRange?: {
     min?: number
@@ -30,11 +32,16 @@ type SearchProfileFilters = {
 type SearchProfileDetails = {
   id: string
   name: string
+  status: 'active' | 'paused' | 'archived'
   location: string
   keywords: string[]
   jobDescription?: string
   filterPreset?: string
   filters?: SearchProfileFilters
+  schedule?: {
+    enabled: boolean
+    cron?: string
+  }
 }
 
 type AutoMatchApiResponse = {
@@ -52,6 +59,11 @@ type ProfileApiResponse = {
 type JobDescriptionDetailApiResponse = {
   success: boolean
   item?: {
+    location?: string
+    autoMatch?: {
+      keywords?: string[]
+      locations?: string[]
+    }
     requiredRoles?: Array<{
       type?: string
       min_years?: number
@@ -102,6 +114,12 @@ function mapProfileFiltersToResumeFilters(filters: SearchProfileFilters | undefi
   if (typeof filters.maxExperience === 'number') {
     mapped.maxExperience = filters.maxExperience
   }
+  if (typeof filters.minAge === 'number') {
+    mapped.minAge = filters.minAge
+  }
+  if (typeof filters.maxAge === 'number') {
+    mapped.maxAge = filters.maxAge
+  }
   if (Array.isArray(filters.education) && filters.education.length > 0) {
     mapped.education = filters.education
   }
@@ -118,12 +136,61 @@ function mapProfileFiltersToResumeFilters(filters: SearchProfileFilters | undefi
   return Object.keys(mapped).length > 0 ? mapped : undefined
 }
 
-function getFilterSummary(profile: SearchProfileDetails): string {
+function formatExperienceSummary(filters: SearchProfileFilters | undefined, yearsLabel: string): string | undefined {
+  if (!filters) {
+    return undefined
+  }
+
+  const suffix = yearsLabel
+    ? `${yearsLabel.length > 1 ? ' ' : ''}${yearsLabel}`
+    : ''
+  if (typeof filters.minExperience === 'number' && typeof filters.maxExperience === 'number') {
+    return `${filters.minExperience}-${filters.maxExperience}${suffix}`
+  }
+  if (typeof filters.minExperience === 'number') {
+    return `${filters.minExperience}+${suffix}`
+  }
+  if (typeof filters.maxExperience === 'number') {
+    return `<=${filters.maxExperience}${suffix}`
+  }
+  return undefined
+}
+
+function formatAgeSummary(filters: SearchProfileFilters | undefined, ageUnit: string): string | undefined {
+  if (!filters) {
+    return undefined
+  }
+
+  if (typeof filters.minAge === 'number' && typeof filters.maxAge === 'number') {
+    return ageUnit
+      ? `${filters.minAge}-${filters.maxAge}${ageUnit}`
+      : `Age ${filters.minAge}-${filters.maxAge}`
+  }
+  if (typeof filters.minAge === 'number') {
+    return ageUnit
+      ? `≥${filters.minAge}${ageUnit}`
+      : `Age >=${filters.minAge}`
+  }
+  if (typeof filters.maxAge === 'number') {
+    return ageUnit
+      ? `≤${filters.maxAge}${ageUnit}`
+      : `Age <=${filters.maxAge}`
+  }
+  return undefined
+}
+
+function getFilterSummary(profile: SearchProfileDetails, yearsLabel: string, ageUnit: string): string {
   const summaryParts: string[] = []
   const filters = profile.filters
 
-  if (typeof filters?.minExperience === 'number') {
-    summaryParts.push(`${filters.minExperience}+ yrs`)
+  const experienceSummary = formatExperienceSummary(filters, yearsLabel)
+  if (experienceSummary) {
+    summaryParts.push(experienceSummary)
+  }
+
+  const ageSummary = formatAgeSummary(filters, ageUnit)
+  if (ageSummary) {
+    summaryParts.push(ageSummary)
   }
 
   if (Array.isArray(filters?.education) && filters.education.length > 0) {
@@ -172,6 +239,52 @@ function parseLocationParts(value: string): string[] {
   return parts
 }
 
+function normalizeProfileKeywords(profile: SearchProfileDetails): string[] {
+  return profile.keywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0)
+}
+
+function getProfileQuickConstraints(profile: SearchProfileDetails): {
+  minRoleYears?: number
+  maxAge?: number
+} {
+  return {
+    minRoleYears: typeof profile.filters?.minExperience === 'number' ? profile.filters.minExperience : undefined,
+    maxAge: typeof profile.filters?.maxAge === 'number' ? profile.filters.maxAge : undefined,
+  }
+}
+
+async function fetchAutoMatchedProfile(
+  inputLocation: string,
+  inputKeywords: string[],
+): Promise<AutoMatchedProfile | null> {
+  const trimmedLocation = inputLocation.trim()
+  if (!trimmedLocation || inputKeywords.length === 0) {
+    return null
+  }
+
+  const autoMatch = await rawApiClient.POST<AutoMatchApiResponse>('/api/search-profiles/auto-match', {
+    body: {
+      keywords: inputKeywords,
+      location: trimmedLocation,
+    },
+  })
+
+  if (!autoMatch.data?.success || !autoMatch.data.profileId || autoMatch.data.confidence <= AUTO_MATCH_MIN_CONFIDENCE) {
+    return null
+  }
+
+  const profileDetail = await rawApiClient.GET<ProfileApiResponse>(`/api/search-profiles/${autoMatch.data.profileId}`)
+  if (!profileDetail.data?.success || !profileDetail.data.profile) {
+    return null
+  }
+
+  return {
+    confidence: autoMatch.data.confidence,
+    matchedKeywords: autoMatch.data.matchedKeywords,
+    profile: profileDetail.data.profile,
+  }
+}
+
 export function QuickStartPanel({
   onApplyConfig,
   defaultLocation = '广东',
@@ -185,6 +298,8 @@ export function QuickStartPanel({
 }: QuickStartPanelProps) {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
+  const yearsLabel = t('quickStart.years', 'yrs')
+  const ageUnit = t('quickStart.ageUnit', '')
 
   const [location, setLocation] = useState(defaultLocation)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
@@ -197,6 +312,7 @@ export function QuickStartPanel({
   const [autoMatchResult, setAutoMatchResult] = useState<AutoMatchedProfile | null>(null)
   const [matching, setMatching] = useState(false)
   const [showJdEditor, setShowJdEditor] = useState(false)
+  const [showProfileEditor, setShowProfileEditor] = useState(false)
   const lastJobDescriptionIdRef = useRef(jobDescriptionId.trim())
 
   const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
@@ -313,6 +429,23 @@ export function QuickStartPanel({
         setActiveRoleType(roleType && roleType.length > 0 ? roleType : undefined)
         setJdMinRoleYears(requiredRole?.min_years)
         setJdMaxAge(undefined)
+
+        if (!selectedConvexJobDescriptionDetail && response.data?.item) {
+          const itemLocation = response.data.item.location
+          const autoMatchKeywords = response.data.item.autoMatch?.keywords
+
+          if (itemLocation) {
+            setLocation(itemLocation)
+          }
+
+          if (autoMatchKeywords && autoMatchKeywords.length > 0) {
+            setSelectedKeywords(autoMatchKeywords.map(k => k.trim()))
+            setCustomKeyword(autoMatchKeywords.join(' '))
+          } else {
+            setSelectedKeywords([])
+            setCustomKeyword('')
+          }
+        }
       } catch (error) {
         console.error('Failed to fetch role type from job description', error)
         if (!cancelled) {
@@ -420,8 +553,7 @@ export function QuickStartPanel({
   }, [location, normalizedKeywords, jobDescriptionId, onApplyConfig])
 
   useEffect(() => {
-    const trimmedLocation = location.trim()
-    if (!trimmedLocation || normalizedKeywords.length === 0) {
+    if (!location.trim() || normalizedKeywords.length === 0) {
       setAutoMatchResult(null)
       setMatching(false)
       return
@@ -432,29 +564,10 @@ export function QuickStartPanel({
       setMatching(true)
 
       try {
-        const autoMatch = await rawApiClient.POST<AutoMatchApiResponse>('/api/search-profiles/auto-match', {
-          body: {
-            keywords: normalizedKeywords,
-            location: trimmedLocation,
-          },
-        })
-
-        if (cancelled || !autoMatch.data?.success || !autoMatch.data.profileId || autoMatch.data.confidence <= AUTO_MATCH_MIN_CONFIDENCE) {
-          setAutoMatchResult(null)
-          return
+        const nextAutoMatchResult = await fetchAutoMatchedProfile(location, normalizedKeywords)
+        if (!cancelled) {
+          setAutoMatchResult(nextAutoMatchResult)
         }
-
-        const profileDetail = await rawApiClient.GET<ProfileApiResponse>(`/api/search-profiles/${autoMatch.data.profileId}`)
-        if (cancelled || !profileDetail.data?.success || !profileDetail.data.profile) {
-          setAutoMatchResult(null)
-          return
-        }
-
-        setAutoMatchResult({
-          confidence: autoMatch.data.confidence,
-          matchedKeywords: autoMatch.data.matchedKeywords,
-          profile: profileDetail.data.profile,
-        })
       } catch (error) {
         console.error('Failed to auto-match search profile', error)
         if (!cancelled) {
@@ -502,29 +615,41 @@ export function QuickStartPanel({
     onJobChange?.(value)
   }, [onJobChange])
 
+  const applyProfileToLiveSearch = useCallback((profile: SearchProfileDetails) => {
+    const profileLocation = profile.location.trim()
+    const profileKeywords = normalizeProfileKeywords(profile)
+    const nextJobDescriptionId = profile.jobDescription?.trim() || ''
+    const quickConstraints = getProfileQuickConstraints(profile)
+
+    setLocation(profileLocation)
+    setSelectedKeywords(profileKeywords)
+    setCustomKeyword(profileKeywords.join(' '))
+    setQuickMinRoleYears(
+      typeof quickConstraints.minRoleYears === 'number' ? String(quickConstraints.minRoleYears) : ''
+    )
+    setQuickMaxAge(typeof quickConstraints.maxAge === 'number' ? String(quickConstraints.maxAge) : '')
+
+    onJobChange?.(nextJobDescriptionId)
+    onApplyConfig?.({
+      location: profileLocation,
+      keywords: profileKeywords,
+      jobDescriptionId: nextJobDescriptionId || undefined,
+      filters: mapProfileFiltersToResumeFilters(profile.filters),
+    })
+    onApplyQuickFilters?.({
+      minRoleYears: quickConstraints.minRoleYears,
+      roleFilterType: undefined,
+      maxAge: quickConstraints.maxAge,
+    })
+  }, [onApplyConfig, onApplyQuickFilters, onJobChange])
+
   const handleUseMatchedConfig = useCallback(() => {
     if (!autoMatchResult) {
       return
     }
 
-    const profile = autoMatchResult.profile
-    const profileKeywords = profile.keywords.length > 0 ? profile.keywords : normalizedKeywords
-
-    setLocation(profile.location || location)
-    setSelectedKeywords(profileKeywords)
-    setCustomKeyword(profileKeywords.join(' '))
-
-    if (profile.jobDescription) {
-      onJobChange?.(profile.jobDescription)
-    }
-
-    onApplyConfig?.({
-      location: profile.location || location,
-      keywords: profileKeywords,
-      jobDescriptionId: profile.jobDescription,
-      filters: mapProfileFiltersToResumeFilters(profile.filters),
-    })
-  }, [autoMatchResult, location, normalizedKeywords, onApplyConfig, onJobChange])
+    applyProfileToLiveSearch(autoMatchResult.profile)
+  }, [applyProfileToLiveSearch, autoMatchResult])
 
   const handleJdEditorSaveSuccess = useCallback((newId: string, savedFields?: {
     location?: string
@@ -575,6 +700,22 @@ export function QuickStartPanel({
       maxAge: nextMaxAge,
     })
   }, [activeRoleType, onApplyQuickFilters, onJobChange, quickMaxAge, quickMinRoleYears, selectedConvexJobDescriptionProfile?.type])
+
+  const handleProfileEditorSaved = useCallback((profile?: SearchProfileDetails) => {
+    if (!profile) {
+      return
+    }
+
+    applyProfileToLiveSearch(profile)
+    setAutoMatchResult((previous) => (
+      previous && previous.profile.id === profile.id
+        ? {
+            ...previous,
+            profile,
+          }
+        : previous
+    ))
+  }, [applyProfileToLiveSearch])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -764,7 +905,7 @@ export function QuickStartPanel({
                 {t('quickStart.autoMatchJd', 'JD')}: {autoMatchResult.profile.jobDescription || '--'}
               </div>
               <div>
-                {t('quickStart.autoMatchFilters', 'Filters')}: {getFilterSummary(autoMatchResult.profile)}
+                {t('quickStart.autoMatchFilters', 'Filters')}: {getFilterSummary(autoMatchResult.profile, yearsLabel, ageUnit)}
               </div>
               {autoMatchResult.matchedKeywords.length > 0 ? (
                 <div>
@@ -776,12 +917,13 @@ export function QuickStartPanel({
               <Button size="sm" onClick={handleUseMatchedConfig}>
                 {t('quickStart.useConfig', 'Use this config')}
               </Button>
-              <Link
-                to={`/${slug}/system/profiles?edit=${encodeURIComponent(autoMatchResult.profile.id)}`}
-                className="text-xs text-primary underline-offset-4 hover:underline"
+              <Button
+                variant="link"
+                className="h-auto p-0 text-xs text-primary underline-offset-4 hover:underline"
+                onClick={() => setShowProfileEditor(true)}
               >
                 {t('quickStart.modifyConfig', 'Modify')}
-              </Link>
+              </Button>
             </div>
           </div>
         ) : null}
@@ -793,6 +935,16 @@ export function QuickStartPanel({
         initialData={editorInitialData}
         onSaveSuccess={handleJdEditorSaveSuccess}
       />
+
+      {autoMatchResult?.profile.id && (
+        <SearchProfileEditorDialog
+          open={showProfileEditor}
+          onOpenChange={setShowProfileEditor}
+          profileId={autoMatchResult.profile.id}
+          initialData={autoMatchResult.profile as any}
+          onSaved={handleProfileEditorSaved}
+        />
+      )}
     </div>
   )
 }

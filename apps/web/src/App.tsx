@@ -9,6 +9,7 @@ import DebugJDs from '@/pages/DebugJDs'
 import DebugAI from '@/pages/DebugAI'
 import DebugConfig from '@/pages/DebugConfig'
 import DebugIngest from '@/pages/DebugIngest'
+import DebugAiTaggingResults from '@/pages/DebugAiTaggingResults'
 import { BlacklistPage } from '@/pages/BlacklistPage'
 import { SearchProfilesPage } from '@/pages/SearchProfilesPage'
 import SearchAnalyticsPage from '@/pages/SearchAnalyticsPage'
@@ -108,6 +109,7 @@ function App() {
               <Route path="jds" element={<DebugJDs />} />
               <Route path="profiles" element={<SearchProfilesPage />} />
               <Route path="ai-debugger" element={<DebugAI />} />
+              <Route path="ai-tagging" element={<DebugAiTaggingResults />} />
               <Route path="ingest" element={<DebugIngest />} />
               <Route path="search-analytics" element={<SearchAnalyticsPage />} />
               <Route path="data/*" element={<WorkspaceDebugPage />} />

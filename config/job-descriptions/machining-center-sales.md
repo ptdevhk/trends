@@ -12,6 +12,19 @@ required_roles:
     min_years: 1
     signals: [销售, 业务开发, 客户, 大客户, 渠道, 销售经理, 销售工程师]
     verify_in: workHistory
+
+auto_match:
+  keywords:
+    - 加工中心
+    - CNC
+    - 数控加工中心
+    - 机床销售
+    - 铣床
+  locations:
+    - 东莞
+  priority: 70
+  suggested_filters:
+    minExperience: 1
 ---
 
 # 职位描述 (Position Description)

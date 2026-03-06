@@ -15,6 +15,7 @@ import { CollectResumesButton } from '@/components/CollectResumesButton'
 import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { useResumeListState } from '@/hooks/useResumeListState'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
 
 export function ResumeList() {
@@ -40,6 +41,7 @@ export function ResumeList() {
     activeTagFilters,
     activeCompanyFilters,
     highScoreCount,
+    blockedCount,
     bulkExportFormat,
     displayedResumes,
     setBulkExportFormat,
@@ -63,6 +65,7 @@ export function ResumeList() {
     handleResetAll,
   } = useResumeListState()
   useSyncNotifications()
+  const { slug: workspaceSlug } = useWorkspace()
 
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
 
@@ -91,7 +94,12 @@ export function ResumeList() {
         onApplyQuickFilters={handleQuickConstraintApply}
         extraActions={
           <div className="flex items-center gap-2">
-            <CollectResumesButton location={sessionLocation} keywords={sessionKeywords} />
+            <CollectResumesButton
+              location={sessionLocation}
+              keywords={sessionKeywords}
+              minAge={filters.minAge}
+              maxAge={filters.maxAge}
+            />
             {!selectedIds.size && (
               <Button
                 onClick={handleAnalyzeAll}
@@ -154,6 +162,8 @@ export function ResumeList() {
             onSelectHighScore={handleSelectHighScore}
             onClearSelection={handleClearSelection}
             onBulkAction={handleBulkAction}
+            blockedCount={blockedCount}
+            blocksSettingsPath={`/${workspaceSlug}/settings/blocks`}
           />
         </div>
       </div>

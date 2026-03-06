@@ -9,6 +9,8 @@ export default defineSchema({
             location: v.string(),
             limit: v.number(),
             maxPages: v.optional(v.number()),
+            minAge: v.optional(v.number()),
+            maxAge: v.optional(v.number()),
             autoAnalyze: v.optional(v.boolean()),
             analysisTopN: v.optional(v.number()),
         }),
@@ -221,6 +223,68 @@ export default defineSchema({
         .index("by_status", ["status"])
         .index("by_idempotency_status", ["idempotencyKey", "status"])
         .index("by_job_key_status", ["jobKey", "status"]),
+
+    ai_tagging_results: defineTable({
+        resumeId: v.id("resumes"),
+        identityKey: v.optional(v.string()),
+        workspaceSlug: v.string(),
+
+        profileKey: v.string(),
+        evidenceHash: v.string(),
+        promptVersion: v.string(),
+        model: v.string(),
+        idempotencyKey: v.string(),
+        workId: v.optional(v.string()),
+
+        status: v.union(
+            v.literal("pending"),
+            v.literal("processing"),
+            v.literal("completed"),
+            v.literal("failed")
+        ),
+
+        baseline: v.optional(v.object({
+            jobDescriptionId: v.optional(v.string()),
+            ruleScore: v.number(),
+            breakdown: v.optional(v.any()),
+            roleSignals: v.optional(v.array(v.object({
+                type: v.string(),
+                matchedSignals: v.array(v.string()),
+                signalCount: v.number(),
+                occurrences: v.number(),
+                years: v.number(),
+                verifyIn: v.string(),
+            }))),
+            skillsVersion: v.optional(v.number()),
+            computedAt: v.number(),
+        })),
+
+        result: v.optional(v.object({
+            roleFit: v.string(),
+            recommendation: v.string(),
+            confidence: v.number(),
+            tags: v.array(v.string()),
+            evidenceLines: v.array(v.string()),
+        })),
+
+        metrics: v.optional(v.object({
+            latencyMs: v.optional(v.number()),
+            tokensIn: v.optional(v.number()),
+            tokensOut: v.optional(v.number()),
+            costUsd: v.optional(v.number()),
+            attempts: v.optional(v.number()),
+        })),
+
+        error: v.optional(v.string()),
+        createdAt: v.number(),
+        completedAt: v.optional(v.number()),
+    })
+        .index("by_resume_profile", ["resumeId", "profileKey"])
+        .index("by_idempotency", ["idempotencyKey"])
+        .index("by_profile_status", ["profileKey", "status"])
+        .index("by_workspace_profile", ["workspaceSlug", "profileKey"])
+        .index("by_workspace_profile_status", ["workspaceSlug", "profileKey", "status"])
+        .index("by_workspace_idempotency", ["workspaceSlug", "idempotencyKey"]),
 
     // Persistent User Sessions
     screening_sessions: defineTable({

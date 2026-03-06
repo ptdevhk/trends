@@ -60,6 +60,9 @@
     "shortlist": "批量入围",
     "star": "批量标星",
     "reject": "批量拒绝",
+    "block": "批量屏蔽",
+    "blocked": "屏蔽",
+    "manageBlocked": "管理",
     "export": "导出"
   },
   "debugAi": {
@@ -83,7 +86,7 @@
       "skills": "技能",
       "industryDb": "行业库",
       "education": "学历",
-      "location": "地点"
+      "location": "地区"
     }
   },
   "debugIngest": {
@@ -96,7 +99,7 @@
     "skillsVersion": "技能版本",
     "computedAt": "计算时间",
     "status": "状态",
-    "searchPlaceholder": "按姓名 / 意向 / 地点搜索...",
+    "searchPlaceholder": "按姓名 / 意向 / 地区搜索...",
     "reingest": "触发重算",
     "reingestSuccess": "已调度 {{scheduled}} 份简历进行 ingest",
     "reingestFailed": "触发重算失败",
@@ -199,7 +202,7 @@
       "minMatchScore": "最低匹配分",
       "skills": "技能关键词",
       "skillsPlaceholder": "例如：CNC, FANUC",
-      "locations": "地点",
+      "locations": "地区",
       "locationsPlaceholder": "例如：东莞, 深圳",
       "status": "候选人状态",
       "showBlocked": "显示已屏蔽候选人",
@@ -290,10 +293,10 @@
     "advancedMode": "高级编辑",
     "post": "职位名称",
     "postPlaceholder": "例如：车床销售工程师",
-    "location": "工作地点",
+    "location": "地区",
     "locationPlaceholder": "例如：东莞",
     "industryTags": "行业标签",
-    "customKeywords": "自定义:",
+    "customKeywords": "关键词",
     "relatedExp": "相关经验",
     "minRelatedExp": "最低相关经验(年)",
     "maxRelatedExp": "最高相关经验(年)",
@@ -355,7 +358,7 @@
     "deleteConfirm": "确定删除该配置吗？",
     "deleteSuccess": "配置已删除",
     "deleteError": "删除配置失败",
-    "validationError": "名称、地点和关键词为必填项",
+    "validationError": "名称和关键词为必填项",
     "emptyTitle": "暂无配置",
     "emptyDescription": "创建首个配置后即可进行一键或定时运行。",
     "createTitle": "新建配置",
@@ -365,7 +368,7 @@
     "cancel": "取消",
     "fields": {
       "name": "名称",
-      "location": "地点",
+      "location": "地区",
       "keywords": "关键词",
       "keywordsPlaceholder": "例如：车床 销售 CNC",
       "jobDescription": "职位描述",

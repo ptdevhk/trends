@@ -5,13 +5,16 @@ from typing import Any
 from apps.worker import resume_tasks
 
 
-def _make_profile(keywords: Any) -> dict[str, Any]:
-    return {
+def _make_profile(keywords: Any, filters: Any = None) -> dict[str, Any]:
+    profile = {
         "id": "profile-1",
         "location": "东莞",
         "keywords": keywords,
         "schedule": {"maxCandidates": 120},
     }
+    if filters is not None:
+        profile["filters"] = filters
+    return profile
 
 
 def test_run_resume_crawl_task_concatenates_keyword_list(monkeypatch) -> None:
@@ -90,3 +93,23 @@ def test_run_resume_crawl_task_returns_false_for_empty_keyword(monkeypatch) -> N
 
     assert ok is False
     assert called["mutation"] is False
+
+
+def test_run_resume_crawl_task_passes_age_range_filters(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
+
+    def fake_mutation(_convex_url: str, _mutation_path: str, args: dict[str, Any]) -> str:
+        captured["args"] = args
+        return "task-004"
+
+    monkeypatch.setattr(resume_tasks, "_convex_mutation", fake_mutation)
+
+    ok = resume_tasks.run_resume_crawl_task(
+        _make_profile(["CNC", "车床", "销售"], filters={"minAge": 25, "maxAge": 40})
+    )
+
+    assert ok is True
+    assert captured["args"]["minAge"] == 25
+    assert captured["args"]["maxAge"] == 40

@@ -3,6 +3,8 @@ type EnvSource = Record<string, string | undefined>;
 
 export const DEFAULT_ANALYSIS_PARALLELISM = 4;
 export const MAX_ANALYSIS_PARALLELISM = 12;
+export const DEFAULT_AI_TAGGING_PARALLELISM = 2;
+export const MAX_AI_TAGGING_PARALLELISM = 8;
 export const DEFAULT_SUBMIT_RESUME_PARALLELISM = 8;
 export const MAX_SUBMIT_RESUME_PARALLELISM = 24;
 
@@ -28,6 +30,12 @@ export function resolveAnalysisParallelism(totalCandidates: number, env: EnvSour
     const configured = parsePositiveInt(env.AI_ANALYSIS_PARALLELISM ?? env.AI_PARALLELISM)
         ?? DEFAULT_ANALYSIS_PARALLELISM;
     return clampParallelism(totalCandidates, configured, MAX_ANALYSIS_PARALLELISM);
+}
+
+export function resolveAiTaggingParallelism(totalCandidates: number, env: EnvSource = process.env): number {
+    const configured = parsePositiveInt(env.AI_TAGGING_PARALLELISM)
+        ?? DEFAULT_AI_TAGGING_PARALLELISM;
+    return clampParallelism(totalCandidates, configured, MAX_AI_TAGGING_PARALLELISM);
 }
 
 export function resolveSubmitResumeParallelism(totalResumes: number, env: EnvSource = process.env): number {

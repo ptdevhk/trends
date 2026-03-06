@@ -358,6 +358,7 @@ export function useResumeListState() {
   const hasInitializedUrlHydrationRef = useRef(false)
   const lastAppliedUrlStateRef = useRef<string | null>(null)
   const skipNextUrlSyncRef = useRef(false)
+  const isUrlPushingRef = useRef(false)
   const initialWindowSearchStateRef = useRef<{
     hasUrlParams: boolean
     hasKeywordParam: boolean
@@ -455,6 +456,12 @@ export function useResumeListState() {
       hasInitializedUrlHydrationRef.current = true
       lastAppliedUrlStateRef.current = null
       setHasCompletedUrlHydration(true)
+      return
+    }
+
+    if (isUrlPushingRef.current) {
+      isUrlPushingRef.current = false
+      lastAppliedUrlStateRef.current = activeUrlStateSignature
       return
     }
 
@@ -613,6 +620,7 @@ export function useResumeListState() {
         locations: locationFilters,
       }
 
+      isUrlPushingRef.current = true
       syncToUrl({
         location: locationForUrl,
         keywords: sessionKeywords,
@@ -1270,6 +1278,8 @@ export function useResumeListState() {
     return displayedResumes.filter((entry) => (entry.match?.score ?? 0) >= 80).length
   }, [displayedResumes])
 
+  const blockedCount = useMemo(() => Object.keys(blocksByIdentity).length, [blocksByIdentity])
+
   const hasInput = Boolean(jobDescriptionId) || sessionKeywords.length > 0
   const disableAnalyzeButton = (filteredConvexResumes.length === 0 || analyzing || !hasInput || hasActiveTask)
   const shouldBlockQuickStartSync = activeHasUrlParams && !hasCompletedUrlHydration
@@ -1349,6 +1359,7 @@ export function useResumeListState() {
     activeTagFilters,
     activeCompanyFilters,
     highScoreCount,
+    blockedCount,
     bulkExportFormat,
     displayedResumes,
     setBulkExportFormat,

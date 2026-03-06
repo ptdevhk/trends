@@ -63,6 +63,12 @@ export function SystemSidebar({ onClose }: SystemSidebarProps) {
             matches: [`/${slug}/system/ai-debugger`]
         },
         {
+            title: t('nav.aiTaggingCompare', { defaultValue: 'AI Tagging (Compare)' }),
+            href: `/${slug}/system/ai-tagging`,
+            icon: Brain,
+            matches: [`/${slug}/system/ai-tagging`]
+        },
+        {
             title: t('debugIngest.nav', { defaultValue: 'Ingest Debug' }),
             href: `/${slug}/system/ingest`,
             icon: Database,

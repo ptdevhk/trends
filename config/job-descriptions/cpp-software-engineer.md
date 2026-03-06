@@ -12,6 +12,21 @@ required_roles:
     min_years: 1
     signals: [工程师, 设计, 研发, 开发, 编程, 调试, 维修, 技术]
     verify_in: workHistory
+
+auto_match:
+  keywords:
+    - C++
+    - C#
+    - MFC
+    - WPF
+    - WINFORM
+    - 自动化设备
+    - 软件开发
+  locations:
+    - 东莞
+  priority: 50
+  suggested_filters:
+    minExperience: 1
 ---
 
 # 职位描述 (Position Description)

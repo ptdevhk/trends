@@ -12,6 +12,22 @@ required_roles:
     min_years: 1
     signals: [销售, 业务开发, 客户, 大客户, 渠道, 销售经理, 销售工程师]
     verify_in: workHistory
+
+auto_match:
+  keywords:
+    - 三维扫描
+    - 3D扫描
+    - ATOS
+    - 测量设备
+    - 精密测量
+    - GOM
+    - 逆向工程
+    - 光学测量
+  locations:
+    - 东莞
+  priority: 60
+  suggested_filters:
+    minExperience: 1
 ---
 
 # 职位描述 (Position Description)

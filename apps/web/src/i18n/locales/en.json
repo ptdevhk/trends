@@ -60,6 +60,9 @@
     "shortlist": "Bulk shortlist",
     "star": "Bulk star",
     "reject": "Bulk reject",
+    "block": "Bulk block",
+    "blocked": "Blocked",
+    "manageBlocked": "Manage",
     "export": "Export"
   },
   "debugAi": {

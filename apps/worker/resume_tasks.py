@@ -106,6 +106,16 @@ def _to_positive_int(value: Any, fallback: int) -> int:
         return fallback
 
 
+def _to_optional_positive_int(value: Any) -> Optional[int]:
+    try:
+        parsed = int(value)
+        if parsed <= 0:
+            return None
+        return parsed
+    except (TypeError, ValueError):
+        return None
+
+
 def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
     """
     Dispatch a collection task to Convex for a specific search profile.
@@ -137,6 +147,22 @@ def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
     max_pages = _to_positive_int(profile.get("maxPages"), 10)
     analysis_top_n = _to_positive_int(profile.get("analysisTopN"), 10)
 
+    filters = profile.get("filters")
+    min_age = None
+    max_age = None
+    if isinstance(filters, dict):
+        min_age = _to_optional_positive_int(filters.get("minAge"))
+        max_age = _to_optional_positive_int(filters.get("maxAge"))
+
+    if min_age is not None and max_age is not None and min_age > max_age:
+        logger.error(
+            "[Task] Profile %s has invalid age range; skipping dispatch (minAge=%s maxAge=%s)",
+            profile_id,
+            min_age,
+            max_age,
+        )
+        return False
+
     if not keyword_str:
         logger.error("[Task] Profile %s missing keywords; skipping dispatch", profile_id)
         return False
@@ -160,17 +186,23 @@ def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
     )
 
     try:
+        mutation_args: Dict[str, Any] = {
+            "keyword": keyword_str,
+            "location": location,
+            "limit": limit,
+            "maxPages": max_pages,
+            "autoAnalyze": auto_analyze,
+            "analysisTopN": analysis_top_n,
+        }
+        if min_age is not None:
+            mutation_args["minAge"] = min_age
+        if max_age is not None:
+            mutation_args["maxAge"] = max_age
+
         task_id = _convex_mutation(
             convex_url,
             "resume_tasks:dispatch",
-            {
-                "keyword": keyword_str,
-                "location": location,
-                "limit": limit,
-                "maxPages": max_pages,
-                "autoAnalyze": auto_analyze,
-                "analysisTopN": analysis_top_n,
-            },
+            mutation_args,
         )
         logger.info("[Task] Profile %s dispatched collection task %s", profile_id, task_id)
         return True

@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { QuickStartPanel } from './QuickStartPanel'
 
@@ -6,8 +7,11 @@ const { getMock, postMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
   postMock: vi.fn(),
 }))
-const { useQueryMock } = vi.hoisted(() => ({
+const { useQueryMock, profileEditorMockState } = vi.hoisted(() => ({
   useQueryMock: vi.fn(),
+  profileEditorMockState: {
+    current: undefined as Record<string, unknown> | undefined,
+  },
 }))
 
 vi.mock('./JobDescriptionSelect', () => ({
@@ -38,6 +42,27 @@ vi.mock('./JobDescriptionEditor', () => ({
   JobDescriptionEditor: () => null,
 }))
 
+vi.mock('./SearchProfileEditorDialog', () => ({
+  SearchProfileEditorDialog: ({
+    open,
+    onSaved,
+  }: {
+    open: boolean
+    onSaved?: (profile?: Record<string, unknown>) => void
+  }) => (
+    open
+      ? (
+        <button
+          data-testid="mock-profile-editor-save"
+          onClick={() => onSaved?.(profileEditorMockState.current)}
+        >
+          Save edited profile
+        </button>
+        )
+      : null
+  ),
+}))
+
 vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: 'dev' }),
 }))
@@ -62,6 +87,7 @@ vi.mock('@/lib/api-helpers', () => ({
 describe('QuickStartPanel quick-filter display', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    profileEditorMockState.current = undefined
     useQueryMock.mockImplementation((_fn: unknown, args: unknown) => {
       if (args === 'skip') {
         return undefined
@@ -175,5 +201,88 @@ describe('QuickStartPanel quick-filter display', () => {
     expect(
       onApplyQuickFilters.mock.calls.some(([value]) => value?.minRoleYears === 1)
     ).toBe(false)
+  })
+
+  it('refreshes the matched profile card after saving edits from the fast editor', async () => {
+    const user = userEvent.setup()
+
+    const initialProfile = {
+      id: 'profile-1',
+      name: 'CNC销售-Demo',
+      status: 'active' as const,
+      location: '广东',
+      keywords: ['CNC', '销售'],
+      jobDescription: 'old-jd',
+      filters: {
+        minExperience: 1,
+      },
+    }
+
+    const updatedProfile = {
+      id: 'profile-1',
+      name: 'CNC销售-Demo',
+      status: 'active' as const,
+      location: '广东',
+      keywords: ['CNC', '销售', '车床'],
+      jobDescription: undefined,
+      filters: {
+        minExperience: 1,
+        maxAge: 45,
+      },
+    }
+
+    postMock.mockImplementation(async () => ({
+      data: {
+        success: true,
+        profileId: 'profile-1',
+        confidence: profileEditorMockState.current ? 0.67 : 0.91,
+        matchedKeywords: profileEditorMockState.current ? ['cnc', '销售', '车床'] : ['cnc', '销售'],
+      },
+    }))
+    getMock.mockImplementation(async (path: string) => {
+      if (path.includes('/api/search-profiles/profile-1')) {
+        return {
+          data: {
+            success: true,
+            profile: profileEditorMockState.current ? updatedProfile : initialProfile,
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+          item: {
+            requiredRoles: [],
+          },
+        },
+      }
+    })
+
+    render(
+      <QuickStartPanel
+        defaultLocation="广东"
+        defaultKeywords={['CNC', '销售']}
+        jobDescriptionId=""
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('JD: old-jd')).toBeInTheDocument()
+      expect(screen.getByText('Matched: cnc, 销售')).toBeInTheDocument()
+    })
+
+    profileEditorMockState.current = updatedProfile
+
+    await user.click(screen.getByRole('button', { name: 'Modify' }))
+    await user.click(screen.getByTestId('mock-profile-editor-save'))
+
+    expect(screen.getByDisplayValue('CNC 销售 车床')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(screen.getByText('JD: --')).toBeInTheDocument()
+      expect(screen.getByText('Filters: 1+ yrs | Age <=45')).toBeInTheDocument()
+      expect(screen.getByText('Matched: cnc, 销售, 车床')).toBeInTheDocument()
+    })
   })
 })

@@ -6,6 +6,7 @@
 
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { CheckCircle, XCircle, Download, Users, Star, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
@@ -27,6 +28,8 @@ interface BulkActionBarProps {
     onSelectHighScore?: () => void
     onClearSelection?: () => void
     onBulkAction?: (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ExportFormat) => void
+    blockedCount?: number
+    blocksSettingsPath?: string
     disabled?: boolean
 }
 
@@ -40,6 +43,8 @@ export function BulkActionBar({
     onSelectHighScore,
     onClearSelection,
     onBulkAction,
+    blockedCount = 0,
+    blocksSettingsPath,
     disabled = false,
 }: BulkActionBarProps) {
     const { t } = useTranslation()
@@ -70,6 +75,27 @@ export function BulkActionBar({
                     {selectedCount} / {totalCount}
                 </span>
             </div>
+
+            {blockedCount > 0 && (
+                <>
+                    <div className="h-6 w-px bg-border" />
+                    <div className="flex items-center gap-1 text-sm">
+                        <Ban className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-muted-foreground">
+                            {t('bulkActions.blocked', '屏蔽')}:
+                        </span>
+                        <span className="font-medium text-red-600">{blockedCount}</span>
+                        {blocksSettingsPath && (
+                            <Link
+                                to={blocksSettingsPath}
+                                className="ml-1 text-xs text-muted-foreground underline-offset-4 hover:underline hover:text-foreground"
+                            >
+                                {t('bulkActions.manageBlocked', '管理')}
+                            </Link>
+                        )}
+                    </div>
+                </>
+            )}
 
             {/* Divider */}
             <div className="h-6 w-px bg-border" />

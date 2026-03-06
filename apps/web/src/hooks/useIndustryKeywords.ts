@@ -104,7 +104,7 @@ export const CATEGORY_LABELS: Record<KeywordCategory, string> = {
   measurement: "测量扫描",
   smt: "SMT",
   "3d_printing": "3D打印",
-  location: "地点",
+  location: "地区",
   brand: "品牌",
   custom: "自定义",
 };
