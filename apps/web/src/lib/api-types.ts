@@ -1211,11 +1211,16 @@ export interface paths {
                                 titleEn?: string;
                                 status?: string;
                                 location?: string;
+                                filterPreset?: string;
+                                suggestedFilters?: {
+                                    minExperience?: number;
+                                    maxExperience?: number;
+                                    minAge?: number;
+                                    maxAge?: number;
+                                    education?: string[];
+                                };
                                 autoMatch?: {
                                     keywords: string[];
-                                    locations: string[];
-                                    priority: number;
-                                    filter_preset?: string;
                                 };
                             }[];
                         };
@@ -1261,11 +1266,16 @@ export interface paths {
                                 titleEn?: string;
                                 status?: string;
                                 location?: string;
+                                filterPreset?: string;
+                                suggestedFilters?: {
+                                    minExperience?: number;
+                                    maxExperience?: number;
+                                    minAge?: number;
+                                    maxAge?: number;
+                                    education?: string[];
+                                };
                                 autoMatch?: {
                                     keywords: string[];
-                                    locations: string[];
-                                    priority: number;
-                                    filter_preset?: string;
                                 };
                             };
                             content: string;
@@ -1426,11 +1436,16 @@ export interface paths {
                                 titleEn?: string;
                                 status?: string;
                                 location?: string;
+                                filterPreset?: string;
+                                suggestedFilters?: {
+                                    minExperience?: number;
+                                    maxExperience?: number;
+                                    minAge?: number;
+                                    maxAge?: number;
+                                    education?: string[];
+                                };
                                 autoMatch?: {
                                     keywords: string[];
-                                    locations: string[];
-                                    priority: number;
-                                    filter_preset?: string;
                                 };
                             };
                             content: string;

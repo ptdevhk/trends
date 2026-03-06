@@ -1,4 +1,5 @@
-import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 
 const DEFAULT_WORKSPACE_SLUG = "dev";
@@ -70,6 +71,41 @@ function normalizeCriteria(profile: unknown): { keywords: string[]; locations: s
   };
 }
 
+const jobDescriptionSyncSchema = v.object({
+  id: v.string(),
+  content: v.string(),
+  customKeywords: v.array(v.string()),
+});
+
+async function syncLinkedCustomJobDescription(
+  ctx: MutationCtx,
+  workspaceSlug: string,
+  jobDescriptionSync: { id: string; content: string; customKeywords: string[] } | undefined,
+): Promise<void> {
+  if (!jobDescriptionSync) {
+    return;
+  }
+
+  const jobDescriptions = await ctx.db.query("job_descriptions").collect();
+  const linked = jobDescriptions.find((record) => String(record._id) === jobDescriptionSync.id);
+  if (!linked) {
+    return;
+  }
+  if (!belongsToWorkspace(linked.workspaceSlug, workspaceSlug)) {
+    throw new Error("Cannot update linked job description from another workspace");
+  }
+  if (linked.type !== "custom") {
+    return;
+  }
+
+  await ctx.db.patch(linked._id, {
+    content: jobDescriptionSync.content,
+    customKeywords: jobDescriptionSync.customKeywords,
+    lastModified: Date.now(),
+  });
+  await ctx.scheduler.runAfter(0, internal.ingest_agent.reIngestAllResumes, {});
+}
+
 export const list = query({
   args: {
     workspaceSlug: v.optional(v.string()),
@@ -110,6 +146,7 @@ export const create = mutation({
   args: {
     profile: v.any(),
     workspaceSlug: v.optional(v.string()),
+    jobDescriptionSync: v.optional(jobDescriptionSyncSchema),
   },
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
@@ -129,6 +166,8 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    await syncLinkedCustomJobDescription(ctx, workspaceSlug, args.jobDescriptionSync);
+
     return await ctx.db.get(id);
   },
 });
@@ -138,6 +177,7 @@ export const update = mutation({
     id: v.string(),
     profile: v.any(),
     workspaceSlug: v.optional(v.string()),
+    jobDescriptionSync: v.optional(jobDescriptionSyncSchema),
   },
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
@@ -163,6 +203,8 @@ export const update = mutation({
       profile: profile ?? {},
       updatedAt: now,
     });
+
+    await syncLinkedCustomJobDescription(ctx, workspaceSlug, args.jobDescriptionSync);
 
     return await ctx.db.get(existing._id);
   },

@@ -1290,8 +1290,10 @@ export function useResumeListState() {
       keywords: string[]
       jobDescriptionId?: string
       filters?: Partial<ResumeFilters>
+    }, options?: {
+      source?: 'auto-sync' | 'profile'
     }) => {
-      if (shouldBlockQuickStartSync) {
+      if (shouldBlockQuickStartSync && options?.source !== 'profile') {
         return
       }
 

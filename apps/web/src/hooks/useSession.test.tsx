@@ -1,4 +1,5 @@
 import { renderHook, waitFor } from '@testing-library/react'
+import { act } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useSession } from './useSession'
@@ -61,5 +62,29 @@ describe('useSession', () => {
     expect(result.current.filters).toEqual({})
     expect(result.current.reviewedIdsSet.has('resume-1')).toBe(true)
     expect(toastInfoMock).not.toHaveBeenCalled()
+  })
+
+  it('clears location when external state explicitly provides an empty location', async () => {
+    const { result } = renderHook(() => useSession())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    act(() => {
+      result.current.setLocation('广东')
+    })
+
+    expect(result.current.location).toBe('广东')
+
+    act(() => {
+      result.current.applyExternalState({
+        location: '',
+        keywords: ['CNC', '销售'],
+      })
+    })
+
+    expect(result.current.location).toBe('')
+    expect(result.current.keywords).toEqual(['CNC', '销售'])
   })
 })

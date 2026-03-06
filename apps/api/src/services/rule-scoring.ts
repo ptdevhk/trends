@@ -451,23 +451,18 @@ export class RuleScoringService {
   buildContext(jobDescriptionId: string): RuleScoringContext {
     const jd = this.jobService.loadFile(jobDescriptionId);
     const autoMatch = jd.autoMatch;
+    const requiredRoles = normalizeRequiredRoles(jd.requiredRoles);
 
     const keywords = ensureKeywords(autoMatch?.keywords ?? []);
-    const targetLocations = Array.from(
-      new Set([
-        ...(autoMatch?.locations ?? []),
-        ...(jd.location ? [jd.location] : []),
-      ]
-        .map((item) => item.trim())
-        .filter(Boolean))
-    );
-
-    const presetId = autoMatch?.filter_preset;
+    const targetLocations = jd.location?.trim() ? [jd.location.trim()] : [];
+    const presetId = jd.filterPreset;
     const preset = presetId ? this.filterPresetService.getPreset(presetId) : undefined;
 
-    const minExperience = autoMatch?.suggested_filters?.minExperience ?? preset?.filters.minExperience;
+    const minExperience = jd.suggestedFilters?.minExperience
+      ?? requiredRoles.map((role) => role.minYears).find((value): value is number => typeof value === "number")
+      ?? preset?.filters.minExperience;
     const educationRequirements = [
-      ...(autoMatch?.suggested_filters?.education ?? []),
+      ...(jd.suggestedFilters?.education ?? []),
       ...(preset?.filters.education ?? []),
     ];
 
@@ -480,7 +475,6 @@ export class RuleScoringService {
     const industryMap = getIndustryMap(this.skillsService);
     const industryTags = this.inferIndustryTags(industryKeywords, industryMap);
     const brandKeywords = this.inferBrandKeywords(keywords);
-    const requiredRoles = normalizeRequiredRoles(jd.requiredRoles);
 
     return {
       jobDescriptionId,

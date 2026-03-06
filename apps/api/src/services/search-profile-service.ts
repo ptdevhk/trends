@@ -207,6 +207,61 @@ function normalizeKeywords(keywords: string[]): string[] {
     );
 }
 
+export function matchSearchProfilesByKeywords(
+    profiles: SearchProfile[],
+    keywords: string[],
+    location?: string
+): AutoMatchResult {
+    const normalizedInputKeywords = normalizeKeywords(keywords.map((keyword) => keyword.toLowerCase()));
+    if (normalizedInputKeywords.length === 0) {
+        return {
+            confidence: 0,
+            matchedKeywords: [],
+        };
+    }
+
+    let bestMatch: { profile: SearchProfile; score: number; matchedKeywords: string[] } | null = null;
+
+    for (const profile of profiles) {
+        if (profile.status !== "active") {
+            continue;
+        }
+
+        const profileKeywords = profile.keywords.map((keyword) => keyword.toLowerCase());
+        const matchedKeywords = normalizedInputKeywords.filter((keyword) =>
+            profileKeywords.some((profileKeyword) => profileKeyword.includes(keyword) || keyword.includes(profileKeyword))
+        );
+        let score = matchedKeywords.length / normalizedInputKeywords.length;
+
+        if (location && profile.location) {
+            const profileLocation = profile.location.toLowerCase();
+            const inputLocation = location.toLowerCase();
+            if (profileLocation.includes(inputLocation) || inputLocation.includes(profileLocation)) {
+                score += 0.2;
+            }
+        }
+
+        if (!bestMatch || score > bestMatch.score) {
+            bestMatch = { profile, score, matchedKeywords };
+        }
+    }
+
+    if (bestMatch && bestMatch.score > 0.3) {
+        return {
+            profile: bestMatch.profile,
+            jobDescription: bestMatch.profile.jobDescription,
+            filterPreset: bestMatch.profile.filterPreset,
+            confidence: Math.min(bestMatch.score, 1),
+            matchedKeywords: bestMatch.matchedKeywords,
+        };
+    }
+
+    return {
+        confidence: 0,
+        matchedKeywords: [],
+    };
+}
+
 function normalizeProfileId(rawId: string): string {
     const normalized = rawId
         .trim()
@@ -658,55 +713,11 @@ export class SearchProfileService {
      */
     findByKeywords(keywords: string[], location?: string, workspaceSlug?: string): AutoMatchResult {
         const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
-        const normalizedInputKeywords = normalizeKeywords(keywords.map((k) => k.toLowerCase()));
-        if (normalizedInputKeywords.length === 0) {
-            return {
-                confidence: 0,
-                matchedKeywords: [],
-            };
-        }
+        const profiles = this.listProfiles(normalizedWorkspace)
+            .filter((p) => p.status === "active")
+            .map((profileFile) => this.loadProfile(profileFile.id, normalizedWorkspace));
 
-        const profiles = this.listProfiles(normalizedWorkspace).filter((p) => p.status === "active");
-
-        let bestMatch: { profile: SearchProfile; score: number; matchedKeywords: string[] } | null = null;
-
-        for (const profileFile of profiles) {
-            const profile = this.loadProfile(profileFile.id, normalizedWorkspace);
-
-            const profileKeywords = profile.keywords.map((k) => k.toLowerCase());
-            const matchedKeywords = normalizedInputKeywords.filter((keyword) =>
-                profileKeywords.some((profileKeyword) => profileKeyword.includes(keyword) || keyword.includes(profileKeyword))
-            );
-
-            let score = matchedKeywords.length / normalizedInputKeywords.length;
-
-            if (location && profile.location) {
-                const profileLocation = profile.location.toLowerCase();
-                const inputLocation = location.toLowerCase();
-                if (profileLocation.includes(inputLocation) || inputLocation.includes(profileLocation)) {
-                    score += 0.2;
-                }
-            }
-
-            if (!bestMatch || score > bestMatch.score) {
-                bestMatch = { profile, score, matchedKeywords };
-            }
-        }
-
-        if (bestMatch && bestMatch.score > 0.3) {
-            return {
-                profile: bestMatch.profile,
-                jobDescription: bestMatch.profile.jobDescription,
-                filterPreset: bestMatch.profile.filterPreset,
-                confidence: Math.min(bestMatch.score, 1),
-                matchedKeywords: bestMatch.matchedKeywords,
-            };
-        }
-
-        return {
-            confidence: 0,
-            matchedKeywords: [],
-        };
+        return matchSearchProfilesByKeywords(profiles, keywords, location);
     }
 
     /**

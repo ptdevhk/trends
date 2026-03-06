@@ -228,16 +228,16 @@ export class ResumeIndexService {
 
     for (const jd of jds) {
       const autoMatch = jd.autoMatch;
-      if (!autoMatch) continue;
+      if (!autoMatch && !jd.location) continue;
 
-      for (const keyword of autoMatch.keywords ?? []) {
+      for (const keyword of autoMatch?.keywords ?? []) {
         const normalized = keyword.toLowerCase().trim();
         if (normalized.length >= 2) {
           this.jdKeywordVocabulary.add(normalized);
         }
       }
 
-      for (const location of autoMatch.locations ?? []) {
+      for (const location of jd.location ? [jd.location] : []) {
         const normalized = location.trim();
         if (normalized) {
           locations.add(normalized);

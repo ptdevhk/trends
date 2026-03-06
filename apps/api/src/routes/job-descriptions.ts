@@ -17,11 +17,16 @@ const JobDescriptionFileSchema = z.object({
   titleEn: z.string().optional(),
   status: z.string().optional(),
   location: z.string().optional(),
+  filterPreset: z.string().optional(),
+  suggestedFilters: z.object({
+    minExperience: z.number().optional(),
+    maxExperience: z.number().optional(),
+    minAge: z.number().optional(),
+    maxAge: z.number().optional(),
+    education: z.array(z.string()).optional(),
+  }).optional(),
   autoMatch: z.object({
     keywords: z.array(z.string()),
-    locations: z.array(z.string()),
-    priority: z.number(),
-    filter_preset: z.string().optional(),
   }).optional(),
 });
 
@@ -54,6 +59,12 @@ type ConvexJobDescriptionRecord = {
   type?: unknown;
   enabled?: unknown;
   lastModified?: unknown;
+  location?: unknown;
+  customKeywords?: unknown;
+  minExperience?: unknown;
+  maxExperience?: unknown;
+  minAge?: unknown;
+  maxAge?: unknown;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -170,6 +181,16 @@ function toJobDescriptionFile(item: ConvexJobDescriptionRecord): {
   size: number;
   title?: string;
   status?: string;
+  location?: string;
+  suggestedFilters?: {
+    minExperience?: number;
+    maxExperience?: number;
+    minAge?: number;
+    maxAge?: number;
+  };
+  autoMatch?: {
+    keywords: string[];
+  };
 } | null {
   const id = readString(item._id ? String(item._id) : item._id) ?? readString(item.slug);
   const content = typeof item.content === "string" ? item.content : "";
@@ -181,6 +202,21 @@ function toJobDescriptionFile(item: ConvexJobDescriptionRecord): {
   const name = readString(item.slug) ?? id;
   const lastModified = typeof item.lastModified === "number" ? item.lastModified : Date.now();
   const enabled = item.enabled === false ? "inactive" : "active";
+  const customKeywords = Array.isArray(item.customKeywords)
+    ? item.customKeywords.filter((keyword): keyword is string => typeof keyword === "string" && keyword.trim().length > 0)
+    : [];
+  const minExperience = typeof item.minExperience === "number" ? item.minExperience : undefined;
+  const maxExperience = typeof item.maxExperience === "number" ? item.maxExperience : undefined;
+  const minAge = typeof item.minAge === "number" ? item.minAge : undefined;
+  const maxAge = typeof item.maxAge === "number" ? item.maxAge : undefined;
+  const suggestedFilters = (
+    minExperience !== undefined
+    || maxExperience !== undefined
+    || minAge !== undefined
+    || maxAge !== undefined
+  )
+    ? { minExperience, maxExperience, minAge, maxAge }
+    : undefined;
 
   return {
     id,
@@ -190,6 +226,9 @@ function toJobDescriptionFile(item: ConvexJobDescriptionRecord): {
     size: content.length,
     title,
     status: enabled,
+    location: readString(item.location),
+    suggestedFilters,
+    autoMatch: customKeywords.length > 0 ? { keywords: customKeywords } : undefined,
   };
 }
 
@@ -350,8 +389,8 @@ const matchRoute = createRoute({
 });
 
 app.openapi(matchRoute, async (c) => {
-  const { keywords, location } = c.req.valid("json");
-  const result = jobDescriptionService.findMatch(keywords, location);
+  const { keywords } = c.req.valid("json");
+  const result = jobDescriptionService.findMatch(keywords);
 
   return c.json({
     success: true as const,
@@ -360,7 +399,7 @@ app.openapi(matchRoute, async (c) => {
     confidence: result.confidence,
     matchedKeywords: result.matchedKeywords,
     filterPreset: result.filterPreset,
-    suggestedFilters: result.suggestedFilters as Record<string, unknown>,
+    suggestedFilters: result.suggestedFilters as Record<string, unknown> | undefined,
   }, 200);
 });
 

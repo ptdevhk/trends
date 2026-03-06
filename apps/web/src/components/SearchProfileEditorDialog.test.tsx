@@ -154,15 +154,14 @@ describe('SearchProfileEditorDialog JD hydration', () => {
         item: {
           title: '车床销售工程师',
           location: '东莞',
+          suggestedFilters: {
+            minExperience: 3,
+            maxExperience: 6,
+            minAge: 24,
+            maxAge: 40,
+          },
           autoMatch: {
             keywords: ['车床', '销售'],
-            locations: ['广东', '江苏'],
-            suggested_filters: {
-              minExperience: 3,
-              maxExperience: 6,
-              minAge: 24,
-              maxAge: 40,
-            },
           },
           requiredRoles: [{ min_years: 4 }],
         },
@@ -234,7 +233,7 @@ describe('SearchProfileEditorDialog JD hydration', () => {
 
     await waitFor(() => {
       expect(getMock).toHaveBeenCalledWith('/api/job-descriptions/lathe-sales')
-      expect(screen.getByLabelText('地区:')).toHaveValue('广东,江苏')
+      expect(screen.getByLabelText('地区:')).toHaveValue('东莞')
       expect(screen.getByLabelText('关键词:')).toHaveValue('车床 销售')
       expect(screen.getByLabelText('最低相关经验(年)')).toHaveValue(4)
       expect(screen.getByLabelText('最高相关经验(年)')).toHaveValue(6)

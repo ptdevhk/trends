@@ -13,15 +13,14 @@ import { DataNotFoundError } from "./errors.js";
 // Types
 export interface AutoMatchConfig {
   keywords: string[];
-  locations: string[];
-  priority: number;
-  filter_preset?: string;
-  suggested_filters?: {
-    minExperience?: number;
-    maxExperience?: number;
-    education?: string[];
-    salaryRange?: { min?: number; max?: number };
-  };
+}
+
+export interface SuggestedFiltersConfig {
+  minExperience?: number;
+  maxExperience?: number;
+  minAge?: number;
+  maxAge?: number;
+  education?: string[];
 }
 
 export interface RequiredRoleConfig {
@@ -42,6 +41,8 @@ export interface JobDescriptionFile {
   status?: string;
   location?: string;
   autoMatch?: AutoMatchConfig;
+  filterPreset?: string;
+  suggestedFilters?: SuggestedFiltersConfig;
   requiredRoles?: RequiredRoleConfig[];
 }
 
@@ -68,6 +69,85 @@ function toStringArray(value: unknown): string[] {
 
 function toOptionalNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function parseSuggestedFilters(frontmatter: Record<string, unknown>): SuggestedFiltersConfig | undefined {
+  const autoMatch = isRecord(frontmatter.auto_match) ? frontmatter.auto_match : null;
+  const legacySuggestedFilters = autoMatch && isRecord(autoMatch.suggested_filters)
+    ? autoMatch.suggested_filters
+    : null;
+
+  const minExperience = toOptionalNumber(
+    frontmatter.min_experience
+    ?? frontmatter.minExperience
+    ?? legacySuggestedFilters?.minExperience
+    ?? legacySuggestedFilters?.min_experience,
+  );
+  const maxExperience = toOptionalNumber(
+    frontmatter.max_experience
+    ?? frontmatter.maxExperience
+    ?? legacySuggestedFilters?.maxExperience
+    ?? legacySuggestedFilters?.max_experience,
+  );
+  const minAge = toOptionalNumber(
+    frontmatter.min_age
+    ?? frontmatter.minAge
+    ?? legacySuggestedFilters?.minAge
+    ?? legacySuggestedFilters?.min_age,
+  );
+  const maxAge = toOptionalNumber(
+    frontmatter.max_age
+    ?? frontmatter.maxAge
+    ?? legacySuggestedFilters?.maxAge
+    ?? legacySuggestedFilters?.max_age,
+  );
+  const education = toStringArray(
+    frontmatter.education_requirements
+    ?? frontmatter.educationRequirements
+    ?? legacySuggestedFilters?.education,
+  );
+
+  if (
+    minExperience === undefined
+    && maxExperience === undefined
+    && minAge === undefined
+    && maxAge === undefined
+    && education.length === 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    minExperience,
+    maxExperience,
+    minAge,
+    maxAge,
+    ...(education.length > 0 ? { education } : {}),
+  };
+}
+
+function parseFilterPreset(frontmatter: Record<string, unknown>): string | undefined {
+  const autoMatch = isRecord(frontmatter.auto_match) ? frontmatter.auto_match : null;
+  return readOptionalString(frontmatter.filter_preset)
+    ?? readOptionalString(frontmatter.filterPreset)
+    ?? readOptionalString(autoMatch?.filter_preset);
+}
+
+function parseAutoMatchConfig(value: unknown): AutoMatchConfig | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const keywords = toStringArray(value.keywords);
+  if (keywords.length === 0) {
+    return undefined;
+  }
+
+  return { keywords };
 }
 
 function parseRequiredRoles(value: unknown): RequiredRoleConfig[] | undefined {
@@ -118,7 +198,7 @@ export interface JDMatchResult {
   confidence: number;
   matchedKeywords: string[];
   filterPreset?: string;
-  suggestedFilters?: AutoMatchConfig["suggested_filters"];
+  suggestedFilters?: SuggestedFiltersConfig;
 }
 
 export class JobDescriptionService {
@@ -201,7 +281,9 @@ export class JobDescriptionService {
           titleEn: fm.title_en as string | undefined,
           status: (fm.status as string) || "active",
           location: fm.location as string | undefined,
-          autoMatch: fm.auto_match as AutoMatchConfig | undefined,
+          autoMatch: parseAutoMatchConfig(fm.auto_match),
+          filterPreset: parseFilterPreset(fm),
+          suggestedFilters: parseSuggestedFilters(fm),
           requiredRoles: parseRequiredRoles(fm.required_roles),
         } satisfies JobDescriptionFile;
       });
@@ -245,7 +327,9 @@ export class JobDescriptionService {
       titleEn: fm.title_en as string | undefined,
       status: (fm.status as string) || "active",
       location: fm.location as string | undefined,
-      autoMatch: fm.auto_match as AutoMatchConfig | undefined,
+      autoMatch: parseAutoMatchConfig(fm.auto_match),
+      filterPreset: parseFilterPreset(fm),
+      suggestedFilters: parseSuggestedFilters(fm),
       requiredRoles: parseRequiredRoles(fm.required_roles),
       content,
       department: fm.department as string | undefined,
@@ -258,9 +342,9 @@ export class JobDescriptionService {
   }
 
   /**
-   * Auto-match JD based on keywords and location
+   * Auto-match JD based on keywords only
    */
-  findMatch(keywords: string[], location?: string): JDMatchResult {
+  findMatch(keywords: string[]): JDMatchResult {
     const jds = this.listFiles()
       .filter((jd) => jd.status === "active" && jd.autoMatch);
 
@@ -269,7 +353,16 @@ export class JobDescriptionService {
     for (const jd of jds) {
       const autoMatch = jd.autoMatch!;
       const jdKeywords = autoMatch.keywords.map((k) => k.toLowerCase());
-      const inputKeywords = keywords.map((k) => k.toLowerCase());
+      const inputKeywords = Array.from(
+        new Set(
+          keywords
+            .map((k) => k.trim().toLowerCase())
+            .filter((k) => k.length > 0),
+        ),
+      );
+      if (inputKeywords.length === 0) {
+        continue;
+      }
 
       // Calculate keyword match
       const matchedKeywords: string[] = [];
@@ -283,22 +376,8 @@ export class JobDescriptionService {
       }
 
       let score = matchedKeywords.length > 0
-        ? (matchedKeywords.length / inputKeywords.length) * 0.7  // 70% weight for keywords
+        ? matchedKeywords.length / inputKeywords.length
         : 0;
-
-      // Location bonus (30% weight)
-      if (location && autoMatch.locations) {
-        const jdLocations = autoMatch.locations.map((l) => l.toLowerCase());
-        const inputLocation = location.toLowerCase();
-        if (jdLocations.some((l) => l.includes(inputLocation) || inputLocation.includes(l))) {
-          score += 0.3;
-        }
-      }
-
-      // Priority bonus
-      if (autoMatch.priority) {
-        score += autoMatch.priority / 1000;  // Small boost for priority
-      }
 
       if ((!bestMatch || score > bestMatch.score) && score > 0) {
         bestMatch = { jd, score, matchedKeywords: [...new Set(matchedKeywords)] };
@@ -310,8 +389,8 @@ export class JobDescriptionService {
         matched: bestMatch.jd,
         confidence: Math.min(bestMatch.score, 1),
         matchedKeywords: bestMatch.matchedKeywords,
-        filterPreset: bestMatch.jd.autoMatch?.filter_preset,
-        suggestedFilters: bestMatch.jd.autoMatch?.suggested_filters,
+        filterPreset: bestMatch.jd.filterPreset,
+        suggestedFilters: bestMatch.jd.suggestedFilters,
       };
     }
 

@@ -62,7 +62,6 @@ type JobDescriptionDetailApiResponse = {
     location?: string
     autoMatch?: {
       keywords?: string[]
-      locations?: string[]
     }
     requiredRoles?: Array<{
       type?: string
@@ -78,12 +77,17 @@ type AutoMatchedProfile = {
 }
 
 interface QuickStartPanelProps {
-  onApplyConfig?: (config: {
-    location: string
-    keywords: string[]
-    jobDescriptionId?: string
-    filters?: Partial<ResumeFilters>
-  }) => void
+  onApplyConfig?: (
+    config: {
+      location: string
+      keywords: string[]
+      jobDescriptionId?: string
+      filters?: Partial<ResumeFilters>
+    },
+    options?: {
+      source?: 'auto-sync' | 'profile'
+    }
+  ) => void
   defaultLocation?: string
   defaultKeywords?: string[]
   jobDescriptionId?: string
@@ -258,14 +262,14 @@ async function fetchAutoMatchedProfile(
   inputKeywords: string[],
 ): Promise<AutoMatchedProfile | null> {
   const trimmedLocation = inputLocation.trim()
-  if (!trimmedLocation || inputKeywords.length === 0) {
+  if (inputKeywords.length === 0) {
     return null
   }
 
   const autoMatch = await rawApiClient.POST<AutoMatchApiResponse>('/api/search-profiles/auto-match', {
     body: {
       keywords: inputKeywords,
-      location: trimmedLocation,
+      ...(trimmedLocation ? { location: trimmedLocation } : {}),
     },
   })
 
@@ -546,14 +550,14 @@ export function QuickStartPanel({
         location,
         keywords: normalizedKeywords,
         jobDescriptionId: effectiveJobDescriptionId,
-      })
+      }, { source: 'auto-sync' })
     }, 500)
 
     return () => clearTimeout(timer)
   }, [location, normalizedKeywords, jobDescriptionId, onApplyConfig])
 
   useEffect(() => {
-    if (!location.trim() || normalizedKeywords.length === 0) {
+    if (normalizedKeywords.length === 0) {
       setAutoMatchResult(null)
       setMatching(false)
       return
@@ -635,7 +639,7 @@ export function QuickStartPanel({
       keywords: profileKeywords,
       jobDescriptionId: nextJobDescriptionId || undefined,
       filters: mapProfileFiltersToResumeFilters(profile.filters),
-    })
+    }, { source: 'profile' })
     onApplyQuickFilters?.({
       minRoleYears: quickConstraints.minRoleYears,
       roleFilterType: undefined,
