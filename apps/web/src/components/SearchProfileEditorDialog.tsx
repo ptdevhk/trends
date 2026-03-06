@@ -19,6 +19,12 @@ export type SearchProfileDetails = {
     keywords: string[]
     jobDescription?: string
     filterPreset?: string
+    filters?: {
+        minExperience?: number
+        maxExperience?: number | null
+        minAge?: number
+        maxAge?: number
+    }
     schedule?: {
         enabled: boolean
         cron?: string
@@ -35,6 +41,10 @@ type ProfileFormState = {
     location: string
     keywordsText: string
     jobDescription: string
+    minExperience: string
+    maxExperience: string
+    minAge: string
+    maxAge: string
     cron: string
     enabled: boolean
 }
@@ -44,8 +54,19 @@ const DEFAULT_FORM: ProfileFormState = {
     location: '东莞',
     keywordsText: '',
     jobDescription: '',
+    minExperience: '1',
+    maxExperience: '',
+    minAge: '',
+    maxAge: '',
     cron: '0 9 * * 1-5',
     enabled: true,
+}
+
+function parseOptionalNumber(value: string): number | undefined {
+    const normalized = value.trim()
+    if (!normalized) return undefined
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined
 }
 
 function parseKeywords(value: string): string[] {
@@ -61,6 +82,10 @@ function toFormState(profile: SearchProfileDetails): ProfileFormState {
         location: profile.location,
         keywordsText: profile.keywords.join(' '),
         jobDescription: profile.jobDescription || '',
+        minExperience: typeof profile.filters?.minExperience === 'number' ? String(profile.filters.minExperience) : '1',
+        maxExperience: typeof profile.filters?.maxExperience === 'number' ? String(profile.filters.maxExperience) : '',
+        minAge: typeof profile.filters?.minAge === 'number' ? String(profile.filters.minAge) : '',
+        maxAge: typeof profile.filters?.maxAge === 'number' ? String(profile.filters.maxAge) : '',
         cron: profile.schedule?.cron || '',
         enabled: profile.status === 'active',
     }
@@ -126,12 +151,25 @@ export function SearchProfileEditorDialog({
             return
         }
 
+        const parsedMinExp = parseOptionalNumber(form.minExperience)
+        const parsedMaxExp = parseOptionalNumber(form.maxExperience)
+        const parsedMinAge = parseOptionalNumber(form.minAge)
+        const parsedMaxAge = parseOptionalNumber(form.maxAge)
+
+        const hasFilters = parsedMinExp !== undefined || parsedMaxExp !== undefined || parsedMinAge !== undefined || parsedMaxAge !== undefined
+
         const payload = {
             name: form.name.trim(),
             location: form.location.trim(),
             keywords,
             status: form.enabled ? 'active' : 'paused',
             jobDescription: form.jobDescription.trim() || undefined,
+            filters: hasFilters ? {
+                minExperience: parsedMinExp,
+                maxExperience: parsedMaxExp,
+                minAge: parsedMinAge,
+                maxAge: parsedMaxAge,
+            } : undefined,
             schedule: {
                 enabled: form.enabled,
                 cron: form.cron.trim() || undefined,
@@ -213,6 +251,57 @@ export function SearchProfileEditorDialog({
                             value={form.jobDescription}
                             onChange={(value) => setForm((previous) => ({ ...previous, jobDescription: value }))}
                         />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="grid gap-2">
+                                <Label htmlFor="profile-minExperience">{t('jdEditor.minRelatedExp', { defaultValue: '最低相关经验(年)' })}</Label>
+                                <Input
+                                    id="profile-minExperience"
+                                    type="number"
+                                    min={0}
+                                    value={form.minExperience}
+                                    onChange={(event) => setForm((previous) => ({ ...previous, minExperience: event.target.value }))}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="profile-maxExperience">{t('jdEditor.maxRelatedExp', { defaultValue: '最高相关经验(年)' })}</Label>
+                                <Input
+                                    id="profile-maxExperience"
+                                    type="number"
+                                    min={0}
+                                    value={form.maxExperience}
+                                    onChange={(event) => setForm((previous) => ({ ...previous, maxExperience: event.target.value }))}
+                                />
+                            </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{t('jdEditor.defaultExp', { defaultValue: 'Default: min 1 year' })}</span>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="grid gap-2">
+                                <Label htmlFor="profile-minAge">{t('jdEditor.minAge', { defaultValue: '最低年龄' })}</Label>
+                                <Input
+                                    id="profile-minAge"
+                                    type="number"
+                                    min={0}
+                                    value={form.minAge}
+                                    onChange={(event) => setForm((previous) => ({ ...previous, minAge: event.target.value }))}
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="profile-maxAge">{t('jdEditor.maxAge', { defaultValue: '最高年龄' })}</Label>
+                                <Input
+                                    id="profile-maxAge"
+                                    type="number"
+                                    min={0}
+                                    value={form.maxAge}
+                                    onChange={(event) => setForm((previous) => ({ ...previous, maxAge: event.target.value }))}
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <div className="grid gap-2">
