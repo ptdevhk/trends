@@ -945,7 +945,7 @@ export function QuickStartPanel({
           open={showProfileEditor}
           onOpenChange={setShowProfileEditor}
           profileId={autoMatchResult.profile.id}
-          initialData={autoMatchResult.profile as any}
+          initialData={autoMatchResult.profile}
           onSaved={handleProfileEditorSaved}
         />
       )}

@@ -363,17 +363,6 @@ export const seedWorkspaceDemoData = mutation({
             maxAge: 35,
           },
         },
-        profile: {
-          name: "CNC销售-Demo",
-          status: "active" as const,
-          location: "广东,江苏",
-          keywords: ["CNC", "销售"],
-          filters: {
-            minExperience: 1,
-            minAge: 25,
-            maxAge: 35,
-          },
-        },
         workspaceSlug: "dev",
         lastRunAt: seededAt - 3_600_000,
       },
