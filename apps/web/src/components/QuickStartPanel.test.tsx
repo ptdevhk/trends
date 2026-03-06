@@ -206,49 +206,24 @@ describe('QuickStartPanel quick-filter display', () => {
   it('refreshes the matched profile card after saving edits from the fast editor', async () => {
     const user = userEvent.setup()
 
-    postMock.mockResolvedValue({
-      data: {
-        success: true,
-        profileId: 'profile-1',
-        confidence: 0.91,
-        matchedKeywords: ['销售'],
-      },
-    })
-    getMock.mockResolvedValue({
-      data: {
-        success: true,
-        profile: {
-          id: 'profile-1',
-          name: 'CNC销售-Demo',
-          status: 'active',
-          location: '广东',
-          keywords: ['销售'],
-          jobDescription: 'old-jd',
-          filters: {
-            minExperience: 1,
-          },
-        },
-      },
-    })
-
-    render(
-      <QuickStartPanel
-        defaultLocation="广东"
-        defaultKeywords={['销售']}
-        jobDescriptionId=""
-      />
-    )
-
-    await waitFor(() => {
-      expect(screen.getByText('JD: old-jd')).toBeInTheDocument()
-    })
-
-    profileEditorMockState.current = {
+    const initialProfile = {
       id: 'profile-1',
       name: 'CNC销售-Demo',
-      status: 'active',
+      status: 'active' as const,
       location: '广东',
-      keywords: ['销售'],
+      keywords: ['CNC', '销售'],
+      jobDescription: 'old-jd',
+      filters: {
+        minExperience: 1,
+      },
+    }
+
+    const updatedProfile = {
+      id: 'profile-1',
+      name: 'CNC销售-Demo',
+      status: 'active' as const,
+      location: '广东',
+      keywords: ['CNC', '销售', '车床'],
       jobDescription: undefined,
       filters: {
         minExperience: 1,
@@ -256,10 +231,58 @@ describe('QuickStartPanel quick-filter display', () => {
       },
     }
 
+    postMock.mockImplementation(async () => ({
+      data: {
+        success: true,
+        profileId: 'profile-1',
+        confidence: profileEditorMockState.current ? 0.67 : 0.91,
+        matchedKeywords: profileEditorMockState.current ? ['cnc', '销售', '车床'] : ['cnc', '销售'],
+      },
+    }))
+    getMock.mockImplementation(async (path: string) => {
+      if (path.includes('/api/search-profiles/profile-1')) {
+        return {
+          data: {
+            success: true,
+            profile: profileEditorMockState.current ? updatedProfile : initialProfile,
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+          item: {
+            requiredRoles: [],
+          },
+        },
+      }
+    })
+
+    render(
+      <QuickStartPanel
+        defaultLocation="广东"
+        defaultKeywords={['CNC', '销售']}
+        jobDescriptionId=""
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('JD: old-jd')).toBeInTheDocument()
+      expect(screen.getByText('Matched: cnc, 销售')).toBeInTheDocument()
+    })
+
+    profileEditorMockState.current = updatedProfile
+
     await user.click(screen.getByRole('button', { name: 'Modify' }))
     await user.click(screen.getByTestId('mock-profile-editor-save'))
 
-    expect(screen.getByText('JD: --')).toBeInTheDocument()
-    expect(screen.getByText('Filters: 1+ yrs | Age <=45')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('CNC 销售 车床')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(screen.getByText('JD: --')).toBeInTheDocument()
+      expect(screen.getByText('Filters: 1+ yrs | Age <=45')).toBeInTheDocument()
+      expect(screen.getByText('Matched: cnc, 销售, 车床')).toBeInTheDocument()
+    })
   })
 })

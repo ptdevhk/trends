@@ -239,6 +239,52 @@ function parseLocationParts(value: string): string[] {
   return parts
 }
 
+function normalizeProfileKeywords(profile: SearchProfileDetails): string[] {
+  return profile.keywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0)
+}
+
+function getProfileQuickConstraints(profile: SearchProfileDetails): {
+  minRoleYears?: number
+  maxAge?: number
+} {
+  return {
+    minRoleYears: typeof profile.filters?.minExperience === 'number' ? profile.filters.minExperience : undefined,
+    maxAge: typeof profile.filters?.maxAge === 'number' ? profile.filters.maxAge : undefined,
+  }
+}
+
+async function fetchAutoMatchedProfile(
+  inputLocation: string,
+  inputKeywords: string[],
+): Promise<AutoMatchedProfile | null> {
+  const trimmedLocation = inputLocation.trim()
+  if (!trimmedLocation || inputKeywords.length === 0) {
+    return null
+  }
+
+  const autoMatch = await rawApiClient.POST<AutoMatchApiResponse>('/api/search-profiles/auto-match', {
+    body: {
+      keywords: inputKeywords,
+      location: trimmedLocation,
+    },
+  })
+
+  if (!autoMatch.data?.success || !autoMatch.data.profileId || autoMatch.data.confidence <= AUTO_MATCH_MIN_CONFIDENCE) {
+    return null
+  }
+
+  const profileDetail = await rawApiClient.GET<ProfileApiResponse>(`/api/search-profiles/${autoMatch.data.profileId}`)
+  if (!profileDetail.data?.success || !profileDetail.data.profile) {
+    return null
+  }
+
+  return {
+    confidence: autoMatch.data.confidence,
+    matchedKeywords: autoMatch.data.matchedKeywords,
+    profile: profileDetail.data.profile,
+  }
+}
+
 export function QuickStartPanel({
   onApplyConfig,
   defaultLocation = '广东',
@@ -507,8 +553,7 @@ export function QuickStartPanel({
   }, [location, normalizedKeywords, jobDescriptionId, onApplyConfig])
 
   useEffect(() => {
-    const trimmedLocation = location.trim()
-    if (!trimmedLocation || normalizedKeywords.length === 0) {
+    if (!location.trim() || normalizedKeywords.length === 0) {
       setAutoMatchResult(null)
       setMatching(false)
       return
@@ -519,29 +564,10 @@ export function QuickStartPanel({
       setMatching(true)
 
       try {
-        const autoMatch = await rawApiClient.POST<AutoMatchApiResponse>('/api/search-profiles/auto-match', {
-          body: {
-            keywords: normalizedKeywords,
-            location: trimmedLocation,
-          },
-        })
-
-        if (cancelled || !autoMatch.data?.success || !autoMatch.data.profileId || autoMatch.data.confidence <= AUTO_MATCH_MIN_CONFIDENCE) {
-          setAutoMatchResult(null)
-          return
+        const nextAutoMatchResult = await fetchAutoMatchedProfile(location, normalizedKeywords)
+        if (!cancelled) {
+          setAutoMatchResult(nextAutoMatchResult)
         }
-
-        const profileDetail = await rawApiClient.GET<ProfileApiResponse>(`/api/search-profiles/${autoMatch.data.profileId}`)
-        if (cancelled || !profileDetail.data?.success || !profileDetail.data.profile) {
-          setAutoMatchResult(null)
-          return
-        }
-
-        setAutoMatchResult({
-          confidence: autoMatch.data.confidence,
-          matchedKeywords: autoMatch.data.matchedKeywords,
-          profile: profileDetail.data.profile,
-        })
       } catch (error) {
         console.error('Failed to auto-match search profile', error)
         if (!cancelled) {
@@ -589,29 +615,41 @@ export function QuickStartPanel({
     onJobChange?.(value)
   }, [onJobChange])
 
+  const applyProfileToLiveSearch = useCallback((profile: SearchProfileDetails) => {
+    const profileLocation = profile.location.trim()
+    const profileKeywords = normalizeProfileKeywords(profile)
+    const nextJobDescriptionId = profile.jobDescription?.trim() || ''
+    const quickConstraints = getProfileQuickConstraints(profile)
+
+    setLocation(profileLocation)
+    setSelectedKeywords(profileKeywords)
+    setCustomKeyword(profileKeywords.join(' '))
+    setQuickMinRoleYears(
+      typeof quickConstraints.minRoleYears === 'number' ? String(quickConstraints.minRoleYears) : ''
+    )
+    setQuickMaxAge(typeof quickConstraints.maxAge === 'number' ? String(quickConstraints.maxAge) : '')
+
+    onJobChange?.(nextJobDescriptionId)
+    onApplyConfig?.({
+      location: profileLocation,
+      keywords: profileKeywords,
+      jobDescriptionId: nextJobDescriptionId || undefined,
+      filters: mapProfileFiltersToResumeFilters(profile.filters),
+    })
+    onApplyQuickFilters?.({
+      minRoleYears: quickConstraints.minRoleYears,
+      roleFilterType: undefined,
+      maxAge: quickConstraints.maxAge,
+    })
+  }, [onApplyConfig, onApplyQuickFilters, onJobChange])
+
   const handleUseMatchedConfig = useCallback(() => {
     if (!autoMatchResult) {
       return
     }
 
-    const profile = autoMatchResult.profile
-    const profileKeywords = profile.keywords.length > 0 ? profile.keywords : normalizedKeywords
-
-    setLocation(profile.location || location)
-    setSelectedKeywords(profileKeywords)
-    setCustomKeyword(profileKeywords.join(' '))
-
-    if (profile.jobDescription) {
-      onJobChange?.(profile.jobDescription)
-    }
-
-    onApplyConfig?.({
-      location: profile.location || location,
-      keywords: profileKeywords,
-      jobDescriptionId: profile.jobDescription,
-      filters: mapProfileFiltersToResumeFilters(profile.filters),
-    })
-  }, [autoMatchResult, location, normalizedKeywords, onApplyConfig, onJobChange])
+    applyProfileToLiveSearch(autoMatchResult.profile)
+  }, [applyProfileToLiveSearch, autoMatchResult])
 
   const handleJdEditorSaveSuccess = useCallback((newId: string, savedFields?: {
     location?: string
@@ -668,17 +706,16 @@ export function QuickStartPanel({
       return
     }
 
-    setAutoMatchResult((previous) => {
-      if (!previous || previous.profile.id !== profile.id) {
-        return previous
-      }
-
-      return {
-        ...previous,
-        profile,
-      }
-    })
-  }, [])
+    applyProfileToLiveSearch(profile)
+    setAutoMatchResult((previous) => (
+      previous && previous.profile.id === profile.id
+        ? {
+            ...previous,
+            profile,
+          }
+        : previous
+    ))
+  }, [applyProfileToLiveSearch])
 
   useEffect(() => {
     const timer = setTimeout(() => {
