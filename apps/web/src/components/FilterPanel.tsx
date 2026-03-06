@@ -185,11 +185,11 @@ export function FilterPanel({
             {isCollapsed ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />}
             {activeFilterBadges.length > 0 && (
               <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-muted-foreground">
-              {activeFilterBadges.map((badge, i) => (
-                <Badge key={i} variant="secondary" className="font-normal text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 border-transparent bg-muted/60 text-muted-foreground whitespace-nowrap">
-                  {badge}
-                </Badge>
-              ))}
+                {activeFilterBadges.map((badge, i) => (
+                  <Badge key={i} variant="secondary" className="font-normal text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 border-transparent bg-muted/60 text-muted-foreground whitespace-nowrap">
+                    {badge}
+                  </Badge>
+                ))}
               </span>
             )}
           </button>
