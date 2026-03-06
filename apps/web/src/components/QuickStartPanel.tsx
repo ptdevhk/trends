@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
-import { Link } from 'react-router-dom'
 import { Pencil, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from 'convex/react'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
 import { JobDescriptionEditor } from './JobDescriptionEditor'
 import { KeywordChips } from './KeywordChips'
+import { SearchProfileEditorDialog } from './SearchProfileEditorDialog'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -32,11 +32,16 @@ type SearchProfileFilters = {
 type SearchProfileDetails = {
   id: string
   name: string
+  status: 'active' | 'paused' | 'archived'
   location: string
   keywords: string[]
   jobDescription?: string
   filterPreset?: string
   filters?: SearchProfileFilters
+  schedule?: {
+    enabled: boolean
+    cron?: string
+  }
 }
 
 type AutoMatchApiResponse = {
@@ -205,6 +210,7 @@ export function QuickStartPanel({
   const [autoMatchResult, setAutoMatchResult] = useState<AutoMatchedProfile | null>(null)
   const [matching, setMatching] = useState(false)
   const [showJdEditor, setShowJdEditor] = useState(false)
+  const [showProfileEditor, setShowProfileEditor] = useState(false)
   const lastJobDescriptionIdRef = useRef(jobDescriptionId.trim())
 
   const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
@@ -784,12 +790,13 @@ export function QuickStartPanel({
               <Button size="sm" onClick={handleUseMatchedConfig}>
                 {t('quickStart.useConfig', 'Use this config')}
               </Button>
-              <Link
-                to={`/${slug}/system/profiles?edit=${encodeURIComponent(autoMatchResult.profile.id)}`}
-                className="text-xs text-primary underline-offset-4 hover:underline"
+              <Button
+                variant="link"
+                className="h-auto p-0 text-xs text-primary underline-offset-4 hover:underline"
+                onClick={() => setShowProfileEditor(true)}
               >
                 {t('quickStart.modifyConfig', 'Modify')}
-              </Link>
+              </Button>
             </div>
           </div>
         ) : null}
@@ -801,6 +808,15 @@ export function QuickStartPanel({
         initialData={editorInitialData}
         onSaveSuccess={handleJdEditorSaveSuccess}
       />
+
+      {autoMatchResult?.profile.id && (
+        <SearchProfileEditorDialog
+          open={showProfileEditor}
+          onOpenChange={setShowProfileEditor}
+          profileId={autoMatchResult.profile.id}
+          initialData={autoMatchResult.profile as any}
+        />
+      )}
     </div>
   )
 }

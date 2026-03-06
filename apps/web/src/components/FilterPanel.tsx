@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CandidateStatus, ResumeFilters } from '@/types/resume'
@@ -63,6 +64,39 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
     setStatus(filters.status ?? [])
     setShowBlocked(filters.showBlocked === true)
   }, [filters])
+
+  const activeFilterBadges = useMemo(() => {
+    const items: string[] = []
+
+    if (filters.minExperience || filters.maxExperience) {
+      if (filters.minExperience && filters.maxExperience) items.push(`${filters.minExperience}-${filters.maxExperience}年`)
+      else if (filters.minExperience) items.push(`≥${filters.minExperience}年`)
+      else items.push(`≤${filters.maxExperience}年`)
+    }
+
+    if (filters.minAge || filters.maxAge) {
+      if (filters.minAge && filters.maxAge) items.push(`${filters.minAge}-${filters.maxAge}岁`)
+      else if (filters.minAge) items.push(`≥${filters.minAge}岁`)
+      else items.push(`≤${filters.maxAge}岁`)
+    }
+
+    if (filters.minMatchScore) items.push(`≥${filters.minMatchScore}分`)
+
+    if (filters.skills?.length) items.push(filters.skills.join(', '))
+    if (filters.locations?.length) items.push(filters.locations.join(', '))
+
+    if (filters.education?.length) {
+      items.push(filters.education.map(e => t(EDUCATION_LEVELS.find(l => l.value === e)?.labelKey || '')).join(', '))
+    }
+
+    if (filters.status?.length) {
+      items.push(filters.status.map(s => t(STATUS_OPTIONS.find(o => o.value === s)?.labelKey || '')).join(', '))
+    }
+
+    if (filters.showBlocked) items.push(t('resumes.filters.showBlocked'))
+
+    return items
+  }, [filters, t])
 
   const educationSet = useMemo(() => new Set(education), [education])
   const statusSet = useMemo(() => new Set(status), [status])
@@ -132,14 +166,24 @@ export function FilterPanel({ filters, onFiltersChange, mode = 'original', class
     <div className={cn("rounded-lg border bg-card shadow-sm transition-all duration-200", className)}>
       <div className="flex items-center justify-between p-4">
         <div
-          className="flex items-center gap-2 cursor-pointer select-none"
+          className="flex flex-1 items-center gap-2 cursor-pointer select-none overflow-hidden"
           onClick={() => setIsCollapsed(!isCollapsed)}
         >
-          <h3 className="text-sm font-semibold text-foreground/90">{t('resumes.filters.title')}</h3>
-          {isCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+          <h3 className="text-sm font-semibold text-foreground/90 whitespace-nowrap">{t('resumes.filters.title')}</h3>
+          {isCollapsed ? <ChevronDown className="h-4 w-4 shrink-0 px-0 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />}
+
+          {isCollapsed && activeFilterBadges.length > 0 && (
+            <div className="flex items-center gap-1.5 ml-2 flex-wrap overflow-hidden h-5">
+              {activeFilterBadges.map((badge, i) => (
+                <Badge key={i} variant="secondary" className="font-normal text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 border-transparent bg-muted/60 text-muted-foreground whitespace-nowrap">
+                  {badge}
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 ml-4 shrink-0">
           {headerAction}
 
           {!isCollapsed && (
