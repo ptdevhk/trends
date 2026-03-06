@@ -294,4 +294,47 @@ describe('SearchProfileEditorDialog JD hydration', () => {
       keywords: ['销售', 'CNC'],
     })
   })
+
+  it('sends an explicit empty location when the editor clears all location tags', async () => {
+    const user = userEvent.setup()
+
+    putMock.mockResolvedValueOnce({
+      data: {
+        success: true,
+        profile: {
+          id: 'custom-profile-1',
+          name: 'CNC销售-Demo',
+          status: 'active',
+          location: '',
+          keywords: ['销售', 'CNC'],
+        },
+      },
+    })
+
+    render(
+      <SearchProfileEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        profileId="custom-profile-1"
+        initialData={{
+          id: 'custom-profile-1',
+          name: 'CNC销售-Demo',
+          status: 'active',
+          location: '广东,江苏',
+          keywords: ['销售', 'CNC'],
+        }}
+      />
+    )
+
+    await user.clear(screen.getByLabelText('地区:'))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(putMock).toHaveBeenCalledWith('/api/search-profiles/custom-profile-1', {
+        body: expect.objectContaining({
+          location: '',
+        }),
+      })
+    })
+  })
 })

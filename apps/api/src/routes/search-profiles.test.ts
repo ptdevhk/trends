@@ -312,4 +312,84 @@ describe('search-profiles update route', () => {
     expect('jobDescription' in updateCall.args.profile).toBe(false)
     expect('filters' in updateCall.args.profile).toBe(false)
   })
+
+  it('allows saving an explicitly empty location without restoring the previous one', async () => {
+    const calls: ConvexCall[] = []
+    const existingCreatedAt = Date.now() - 1000
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+
+      if (call.pathName === 'search_profiles:getById') {
+        return convexSuccess({
+          _id: 'custom-profile-1',
+          name: 'CNC销售-Demo',
+          criteria: {
+            keywords: ['销售', 'CNC'],
+            locations: ['广东,江苏'],
+          },
+          profile: {
+            id: 'custom-profile-1',
+            name: 'CNC销售-Demo',
+            status: 'active',
+            location: '广东,江苏',
+            keywords: ['销售', 'CNC'],
+          },
+          workspaceSlug: 'dev',
+          createdAt: existingCreatedAt,
+          updatedAt: existingCreatedAt,
+        })
+      }
+
+      if (call.pathName === 'search_profiles:update') {
+        if (!isRecord(call.args.profile)) {
+          throw new Error('Expected updated profile payload')
+        }
+
+        return convexSuccess({
+          _id: 'custom-profile-1',
+          name: call.args.profile.name,
+          criteria: {
+            keywords: call.args.profile.keywords,
+            locations: [],
+          },
+          profile: call.args.profile,
+          workspaceSlug: 'dev',
+          createdAt: existingCreatedAt,
+          updatedAt: Date.now(),
+        })
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles/custom-profile-1', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'dev',
+      },
+      body: JSON.stringify({
+        name: 'CNC销售-Demo',
+        location: '',
+        keywords: ['销售', 'CNC'],
+        status: 'active',
+      }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const payload = await response.json()
+    expect(payload.success).toBe(true)
+    expect(payload.profile.location).toBe('')
+
+    const updateCall = getUpdateCall(calls)
+    expect(isRecord(updateCall.args.profile)).toBe(true)
+    if (!isRecord(updateCall.args.profile)) {
+      throw new Error('Expected record payload')
+    }
+    expect(updateCall.args.profile.location).toBe('')
+  })
 })

@@ -356,6 +356,17 @@ export const seedWorkspaceDemoData = mutation({
           keywords: ["CNC", "销售"],
           locations: ["广东,江苏"],
         },
+        profile: {
+          name: "CNC销售-Demo",
+          status: "active" as const,
+          location: "广东,江苏",
+          keywords: ["CNC", "销售"],
+          filters: {
+            minExperience: 1,
+            minAge: 25,
+            maxAge: 35,
+          },
+        },
         workspaceSlug: "dev",
         lastRunAt: seededAt - 3_600_000,
       },
@@ -364,6 +375,17 @@ export const seedWorkspaceDemoData = mutation({
         criteria: {
           keywords: ["招聘", "简历", "人事", "筛选"],
           locations: ["东莞", "广州"],
+        },
+        profile: {
+          name: "Workspace Demo · HR Resume Ops",
+          status: "active" as const,
+          location: "东莞,广州",
+          keywords: ["招聘", "简历", "人事", "筛选"],
+          filters: {
+            minExperience: 1,
+            minAge: 25,
+            maxAge: 35,
+          },
         },
         workspaceSlug: "hr",
         lastRunAt: seededAt - 1_800_000,
@@ -619,12 +641,15 @@ export const seedWorkspaceDemoData = mutation({
         const needsUpdate =
           stableSerialize(existing.criteria) !==
           stableSerialize(item.criteria) ||
+          stableSerialize(existing.profile ?? {}) !==
+          stableSerialize(item.profile ?? {}) ||
           normalizeWorkspaceSlug(existing.workspaceSlug) !==
           item.workspaceSlug ||
           existing.lastRunAt !== item.lastRunAt;
         if (needsUpdate) {
           await ctx.db.patch(existing._id, {
             criteria: item.criteria,
+            profile: item.profile,
             workspaceSlug: item.workspaceSlug,
             lastRunAt: item.lastRunAt,
           });
@@ -635,6 +660,7 @@ export const seedWorkspaceDemoData = mutation({
       await ctx.db.insert("search_profiles", {
         name: item.name,
         criteria: item.criteria,
+        profile: item.profile,
         workspaceSlug: item.workspaceSlug,
         lastRunAt: item.lastRunAt,
       });
