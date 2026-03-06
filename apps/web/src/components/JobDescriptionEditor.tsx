@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useWorkspace } from "@/contexts/WorkspaceContext"
 import { useTranslation } from "react-i18next"
-import { useIndustryKeywords } from "@/hooks/useIndustryKeywords"
+import { LocationSelector } from "@/components/LocationSelector"
+import { KeywordInput } from "@/components/KeywordInput"
 
 const INDUSTRY_TAG_OPTIONS = ["machinery", "cnc", "sales", "automation", "metrology", "software"] as const
 const DEFAULT_MIN_EXPERIENCE = 1
@@ -231,10 +232,14 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
     const [title, setTitle] = useState("")
     const [location, setLocation] = useState("")
     const [industryTags, setIndustryTags] = useState<string[]>([])
-    const [customKeywords, setCustomKeywords] = useState<string[]>([])
-    const { grouped } = useIndustryKeywords()
-    const availableCustomKeywords = grouped.custom || []
-    const availableLocationKeywords = grouped.location || []
+    const [customKeywordsText, setCustomKeywordsText] = useState("")
+    const customKeywords = useMemo(() => {
+        return customKeywordsText
+            .split(/[\s,，、]+/)
+            .map((keyword) => keyword.trim())
+            .filter((keyword) => keyword.length > 0)
+    }, [customKeywordsText])
+
     const [minExperience, setMinExperience] = useState(String(DEFAULT_MIN_EXPERIENCE))
     const [maxExperience, setMaxExperience] = useState("")
     const [minAge, setMinAge] = useState("")
@@ -262,7 +267,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             setTitle(initialData.title + (initialData.type === "system" ? " (Custom Copy)" : ""))
             setLocation(initialData.location ?? "")
             setIndustryTags(sanitizeIndustryTags(initialData.industryTags))
-            setCustomKeywords(initialData.customKeywords ?? [])
+            setCustomKeywordsText((initialData.customKeywords ?? []).join(" "))
             setMinExperience(typeof initialData.minExperience === "number" ? String(initialData.minExperience) : defaultMinExperience)
             setMaxExperience(typeof initialData.maxExperience === "number" ? String(initialData.maxExperience) : "")
             setMinAge(typeof initialData.minAge === "number" ? String(initialData.minAge) : "")
@@ -274,7 +279,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             setTitle("")
             setLocation("")
             setIndustryTags([])
-            setCustomKeywords([])
+            setCustomKeywordsText("")
             setMinExperience(String(DEFAULT_MIN_EXPERIENCE))
             setMaxExperience("")
             setMinAge("")
@@ -294,14 +299,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
         })
     }
 
-    const toggleCustomKeyword = (keyword: string) => {
-        setCustomKeywords((current) => {
-            if (current.includes(keyword)) {
-                return current.filter((item) => item !== keyword)
-            }
-            return [...current, keyword]
-        })
-    }
+
 
     const toggleAdvancedMode = () => {
         setAdvancedMode((current) => {
@@ -399,7 +397,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{initialData?.type === "custom" ? t("jdEditor.editTitle", "Edit Job Description") : t("jdEditor.createTitle", "Create Custom Job Description")}</DialogTitle>
                     <DialogDescription>
@@ -414,25 +412,12 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
 
                     <div className="grid gap-2">
                         <Label htmlFor="location">{t("jdEditor.location", "Location")}</Label>
-                        <Input id="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder={t("jdEditor.locationPlaceholder", "e.g. Dongguan")} />
-                        {availableLocationKeywords.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mt-1">
-                                {availableLocationKeywords.map((tagObj) => {
-                                    const tag = tagObj.keyword
-                                    const selected = location.trim() === tag
-                                    return (
-                                        <button
-                                            key={tag}
-                                            type="button"
-                                            onClick={() => setLocation(selected ? "" : tag)}
-                                            className={`rounded-full border px-3 py-1 text-xs transition-colors ${selected ? "border-green-700 bg-green-600 text-white" : "border-green-300 text-green-700 hover:bg-green-50"}`}
-                                        >
-                                            {tag}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        )}
+                        <LocationSelector
+                            id="location"
+                            value={location}
+                            onChange={setLocation}
+                            placeholder={t("jdEditor.locationPlaceholder", "e.g. Dongguan")}
+                        />
                     </div>
 
                     <div className="grid gap-2">
@@ -454,27 +439,14 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                         </div>
                     </div>
 
-                    {availableCustomKeywords.length > 0 && (
-                        <div className="grid gap-2">
-                            <Label>{t("jdEditor.customKeywords", "自定义:")}</Label>
-                            <div className="flex flex-wrap gap-2">
-                                {availableCustomKeywords.map((tagObj) => {
-                                    const tag = tagObj.keyword
-                                    const selected = customKeywords.includes(tag)
-                                    return (
-                                        <button
-                                            key={tag}
-                                            type="button"
-                                            onClick={() => toggleCustomKeyword(tag)}
-                                            className={`rounded-full border px-3 py-1 text-xs transition-colors ${selected ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
-                                        >
-                                            {selected ? "✓ " : ""}{tag}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )}
+                    <div className="grid gap-2">
+                        <Label>{t("jdEditor.customKeywords", "自定义:")}</Label>
+                        <KeywordInput
+                            value={customKeywordsText}
+                            onChange={setCustomKeywordsText}
+                            placeholder="e.g. 机床 车床"
+                        />
+                    </div>
 
                     <div className="grid gap-2">
                         <div className="grid grid-cols-2 gap-3">

@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { rawApiClient } from '@/lib/api-helpers'
 import { JobDescriptionSelect } from '@/components/JobDescriptionSelect'
+import { LocationSelector } from '@/components/LocationSelector'
+import { KeywordInput } from '@/components/KeywordInput'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -167,7 +169,7 @@ export function SearchProfileEditorDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>
                         {profileId
@@ -188,19 +190,19 @@ export function SearchProfileEditorDialog({
 
                     <div className="grid gap-2">
                         <Label htmlFor="profile-location">{t('searchProfiles.fields.location', { defaultValue: 'Location' })}</Label>
-                        <Input
+                        <LocationSelector
                             id="profile-location"
                             value={form.location}
-                            onChange={(event) => setForm((previous) => ({ ...previous, location: event.target.value }))}
+                            onChange={(location) => setForm((previous) => ({ ...previous, location }))}
                         />
                     </div>
 
                     <div className="grid gap-2">
                         <Label htmlFor="profile-keywords">{t('searchProfiles.fields.keywords', { defaultValue: 'Keywords' })}</Label>
-                        <Input
+                        <KeywordInput
                             id="profile-keywords"
                             value={form.keywordsText}
-                            onChange={(event) => setForm((previous) => ({ ...previous, keywordsText: event.target.value }))}
+                            onChange={(keywordsText) => setForm((previous) => ({ ...previous, keywordsText }))}
                             placeholder={t('searchProfiles.fields.keywordsPlaceholder', { defaultValue: 'e.g. 车床 销售 CNC' })}
                         />
                     </div>
