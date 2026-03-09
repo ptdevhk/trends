@@ -76,7 +76,7 @@ function normalizeStringList(values: string[] | undefined): string[] {
   return normalized
 }
 
-export function useSession() {
+export function useSession(loadSearchHistory = false) {
   const { slug } = useWorkspace()
   const storageKey = `trends.resume.sessionKey.${slug}`
   const [sessionKey, setSessionKey] = useState(() => {
@@ -103,7 +103,10 @@ export function useSession() {
     api.sessions.getActiveSession,
     sessionKey ? { sessionKey, workspaceSlug: slug } : 'skip'
   )
-  const historyRecords = useQuery(api.sessions.listSearchHistory, { workspaceSlug: slug })
+  const historyRecords = useQuery(
+    api.sessions.listSearchHistory,
+    loadSearchHistory ? { workspaceSlug: slug } : 'skip'
+  )
   const saveSession = useMutation(api.sessions.saveSession)
   const addReviewedItem = useMutation(api.sessions.addReviewedItem)
   const saveSearchHistoryMutation = useMutation(api.sessions.saveSearchHistory)
@@ -265,7 +268,7 @@ export function useSession() {
     trackReviewedResume,
     applyExternalState,
     searchHistory,
-    searchHistoryLoading: historyRecords === undefined,
+    searchHistoryLoading: loadSearchHistory && historyRecords === undefined,
     saveSearchHistory,
     markSearchHistoryOpened,
     loading: !hasHydratedInitialState,

@@ -61,6 +61,15 @@ export const list = query({
     },
 });
 
+export const getById = query({
+    args: {
+        taskId: v.id("collection_tasks"),
+    },
+    handler: async (ctx, args) => {
+        return await ctx.db.get(args.taskId);
+    },
+});
+
 // Dispatch a new collection task
 export const dispatch = mutation({
     args: {

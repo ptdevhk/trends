@@ -1,9 +1,9 @@
-import { useMemo } from 'react'
 import { History, Loader2, MapPin, Tags } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { formatInAppTimezone } from '@/lib/timezone'
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,7 @@ function formatTimestamp(value: number | undefined): string {
     return '—'
   }
 
-  return new Date(value).toLocaleString()
+  return formatInAppTimezone(value, { includeDate: true })
 }
 
 export function SearchHistoryDialog({
@@ -36,14 +36,6 @@ export function SearchHistoryDialog({
   onApply,
 }: SearchHistoryDialogProps) {
   const { t } = useTranslation()
-
-  const orderedItems = useMemo(() => {
-    return [...items].sort((left, right) => {
-      const leftTime = left.lastOpenedAt ?? left.createdAt
-      const rightTime = right.lastOpenedAt ?? right.createdAt
-      return rightTime - leftTime
-    })
-  }, [items])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -60,13 +52,13 @@ export function SearchHistoryDialog({
             <Loader2 className="h-4 w-4 animate-spin" />
             {t('quickStart.history.loading', 'Loading history...')}
           </div>
-        ) : orderedItems.length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
             {t('quickStart.history.empty', 'No saved searches yet.')}
           </div>
         ) : (
           <div className="space-y-3">
-            {orderedItems.map((item) => (
+            {items.map((item) => (
               <div key={item.id} className="rounded-lg border px-4 py-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1 space-y-2">

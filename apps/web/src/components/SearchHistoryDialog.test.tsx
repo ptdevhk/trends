@@ -44,7 +44,7 @@ describe('SearchHistoryDialog', () => {
     vi.clearAllMocks()
   })
 
-  it('renders saved search entries ordered by last opened timestamp', () => {
+  it('renders saved search entries in the provided order', () => {
     render(
       <SearchHistoryDialog
         open
@@ -52,14 +52,14 @@ describe('SearchHistoryDialog', () => {
         onApply={vi.fn()}
         items={[
           buildItem({
-            id: 'history-older' as SearchHistoryItem['id'],
-            title: '较早搜索',
-            lastOpenedAt: Date.UTC(2026, 2, 9, 8, 30, 0),
-          }),
-          buildItem({
             id: 'history-newer' as SearchHistoryItem['id'],
             title: '较新搜索',
             lastOpenedAt: Date.UTC(2026, 2, 9, 10, 0, 0),
+          }),
+          buildItem({
+            id: 'history-older' as SearchHistoryItem['id'],
+            title: '较早搜索',
+            lastOpenedAt: Date.UTC(2026, 2, 9, 8, 30, 0),
           }),
         ]}
       />

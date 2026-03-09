@@ -352,18 +352,16 @@ describe('search-profiles status route', () => {
         })
       }
 
-      if (call.pathName === 'resume_tasks:list') {
-        return convexSuccess([
-          {
-            _id: 'task-hr',
-            status: 'processing',
-            progress: {
-              current: 3,
-              total: 10,
-              page: 1,
-            },
+      if (call.pathName === 'resume_tasks:getById') {
+        return convexSuccess({
+          _id: 'task-hr',
+          status: 'processing',
+          progress: {
+            current: 3,
+            total: 10,
+            page: 1,
           },
-        ])
+        })
       }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`)
@@ -385,8 +383,10 @@ describe('search-profiles status route', () => {
       },
     })
     expect(calls[1]).toMatchObject({
-      pathName: 'resume_tasks:list',
-      args: {},
+      pathName: 'resume_tasks:getById',
+      args: {
+        taskId: 'task-hr',
+      },
     })
 
     expect(await response.json()).toEqual({

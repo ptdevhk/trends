@@ -21,6 +21,7 @@ import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
 
 export function ResumeList() {
   const { t } = useTranslation()
+  const [historyRequested, setHistoryRequested] = useState(false)
   const {
     sessionLocation,
     sessionKeywords,
@@ -64,7 +65,7 @@ export function ResumeList() {
     handleToggleBlock,
     handleCandidateStatusChange,
     handleResetAll,
-  } = useResumeListState()
+  } = useResumeListState(historyRequested)
   useSyncNotifications()
   const { slug: workspaceSlug } = useWorkspace()
 
@@ -101,7 +102,10 @@ export function ResumeList() {
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={() => setHistoryOpen(true)}
+              onClick={() => {
+                setHistoryRequested(true)
+                setHistoryOpen(true)
+              }}
             >
               <History className="h-4 w-4" />
               {t('quickStart.history.button', 'History')}
@@ -263,7 +267,12 @@ export function ResumeList() {
 
       <SearchHistoryDialog
         open={historyOpen}
-        onOpenChange={setHistoryOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setHistoryRequested(true)
+          }
+          setHistoryOpen(open)
+        }}
         items={searchHistory}
         loading={searchHistoryLoading}
         onApply={handleApplySearchHistory}

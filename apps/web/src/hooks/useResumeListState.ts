@@ -336,7 +336,7 @@ function matchesEducationFilter(educationValue: string | undefined, selectedEduc
   })
 }
 
-export function useResumeListState() {
+export function useResumeListState(loadSearchHistory = false) {
   const { t } = useTranslation()
   const {
     location: sessionLocation,
@@ -354,7 +354,7 @@ export function useResumeListState() {
     searchHistoryLoading,
     saveSearchHistory,
     markSearchHistoryOpened,
-  } = useSession()
+  } = useSession(loadSearchHistory)
 
   const {
     parsedState: parsedUrlState,

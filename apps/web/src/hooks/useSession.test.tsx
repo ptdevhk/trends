@@ -112,7 +112,7 @@ describe('useSession', () => {
     expect(toastInfoMock).not.toHaveBeenCalled()
   })
 
-  it('normalizes explicit search history records from Convex', async () => {
+  it('loads and normalizes explicit search history records from Convex when requested', async () => {
     useQueryMock.mockImplementation((query) => {
       if (query === 'list-history-query') {
         return [
@@ -147,7 +147,7 @@ describe('useSession', () => {
       }
     })
 
-    const { result } = renderHook(() => useSession())
+    const { result } = renderHook(() => useSession(true))
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false)
@@ -170,12 +170,18 @@ describe('useSession', () => {
     ])
   })
 
+  it('does not load explicit search history until requested', async () => {
+    renderHook(() => useSession())
+
+    expect(useQueryMock).toHaveBeenCalledWith('list-history-query', 'skip')
+  })
+
   it('uses workspace-scoped session storage and mutation payloads for hr', async () => {
     workspaceMock.slug = 'hr'
     localStorage.setItem('trends.resume.sessionKey.hr', 'hr-session-key')
     localStorage.setItem('trends.resume.sessionKey.dev', 'dev-session-key')
 
-    const { result } = renderHook(() => useSession())
+    const { result } = renderHook(() => useSession(true))
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false)
