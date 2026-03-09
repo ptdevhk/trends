@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh",
+            "type": "command",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/autopilot-keep-running.sh",
+            "type": "command",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "AUTOPILOT_KEEP_RUNNING_DISABLED": "0",
+    "CLAUDE_AUTOPILOT_MAX_TURNS": "20"
+  }
+}

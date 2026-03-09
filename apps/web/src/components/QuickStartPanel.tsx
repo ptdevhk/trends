@@ -5,7 +5,7 @@ import { useQuery } from 'convex/react'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
 import { JobDescriptionEditor } from './JobDescriptionEditor'
 import { KeywordChips } from './KeywordChips'
-import { SearchProfileEditorDialog } from './SearchProfileEditorDialog'
+import { SearchProfileEditorDialog, type SearchProfileDetails, type SearchProfileFilters } from './SearchProfileEditorDialog'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -15,34 +15,6 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
 const AUTO_MATCH_MIN_CONFIDENCE = 0.3
-
-type SearchProfileFilters = {
-  minExperience?: number
-  maxExperience?: number | null
-  minAge?: number
-  maxAge?: number
-  education?: string[]
-  salaryRange?: {
-    min?: number
-    max?: number
-  }
-  locations?: string[]
-}
-
-type SearchProfileDetails = {
-  id: string
-  name: string
-  status: 'active' | 'paused' | 'archived'
-  location: string
-  keywords: string[]
-  jobDescription?: string
-  filterPreset?: string
-  filters?: SearchProfileFilters
-  schedule?: {
-    enabled: boolean
-    cron?: string
-  }
-}
 
 type AutoMatchApiResponse = {
   success: boolean
@@ -84,9 +56,7 @@ interface QuickStartPanelProps {
       jobDescriptionId?: string
       filters?: Partial<ResumeFilters>
     },
-    options?: {
-      source?: 'auto-sync' | 'profile'
-    }
+    applyDuringUrlHydration?: boolean
   ) => void
   defaultLocation?: string
   defaultKeywords?: string[]
@@ -550,7 +520,7 @@ export function QuickStartPanel({
         location,
         keywords: normalizedKeywords,
         jobDescriptionId: effectiveJobDescriptionId,
-      }, { source: 'auto-sync' })
+      })
     }, 500)
 
     return () => clearTimeout(timer)
@@ -639,7 +609,7 @@ export function QuickStartPanel({
       keywords: profileKeywords,
       jobDescriptionId: nextJobDescriptionId || undefined,
       filters: mapProfileFiltersToResumeFilters(profile.filters),
-    }, { source: 'profile' })
+    }, true)
     onApplyQuickFilters?.({
       minRoleYears: quickConstraints.minRoleYears,
       roleFilterType: undefined,

@@ -9,21 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
-import { SearchProfileEditorDialog } from '@/components/SearchProfileEditorDialog'
-
-type SearchProfileDetails = {
-  id: string
-  name: string
-  status: 'active' | 'paused' | 'archived'
-  location: string
-  keywords: string[]
-  jobDescription?: string
-  filterPreset?: string
-  schedule?: {
-    enabled: boolean
-    cron?: string
-  }
-}
+import { SearchProfileEditorDialog, type SearchProfileDetails } from '@/components/SearchProfileEditorDialog'
 
 type ListProfilesResponse = {
   success: boolean

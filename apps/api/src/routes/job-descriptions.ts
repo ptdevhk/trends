@@ -32,7 +32,6 @@ const JobDescriptionFileSchema = z.object({
 
 const MatchRequestSchema = z.object({
   keywords: z.array(z.string()).min(1),
-  location: z.string().optional(),
 });
 
 const CreateRequestSchema = z.object({

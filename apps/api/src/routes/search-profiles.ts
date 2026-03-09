@@ -307,8 +307,8 @@ async function getCollectionTaskStatus(taskId: string): Promise<Partial<ProfileR
             Accept: "application/json",
         },
         body: JSON.stringify({
-            path: "resume_tasks:list",
-            args: {},
+            path: "resume_tasks:getById",
+            args: { taskId },
         }),
     });
 
@@ -327,18 +327,11 @@ async function getCollectionTaskStatus(taskId: string): Promise<Partial<ProfileR
         throw new Error(payload.errorMessage || "Convex query failed.");
     }
 
-    if (!Array.isArray(payload.value)) {
+    if (!isRecord(payload.value)) {
         return null;
     }
 
-    const task = payload.value.find((item) => {
-        if (!isRecord(item)) return false;
-        return String(item._id ?? "") === taskId;
-    });
-
-    if (!isRecord(task)) {
-        return null;
-    }
+    const task = payload.value;
 
     const results = isRecord(task.results) ? task.results : undefined;
     const progress = isRecord(task.progress) ? task.progress : undefined;

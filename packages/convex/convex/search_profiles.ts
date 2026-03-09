@@ -1,4 +1,5 @@
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 
@@ -71,6 +72,18 @@ function normalizeCriteria(profile: unknown): { keywords: string[]; locations: s
   };
 }
 
+function areStringArraysEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const jobDescriptionSyncSchema = v.object({
   id: v.string(),
   content: v.string(),
@@ -86,8 +99,7 @@ async function syncLinkedCustomJobDescription(
     return;
   }
 
-  const jobDescriptions = await ctx.db.query("job_descriptions").collect();
-  const linked = jobDescriptions.find((record) => String(record._id) === jobDescriptionSync.id);
+  const linked = await ctx.db.get(jobDescriptionSync.id as Id<"job_descriptions">);
   if (!linked) {
     return;
   }
@@ -98,9 +110,17 @@ async function syncLinkedCustomJobDescription(
     return;
   }
 
+  const nextCustomKeywords = readStringArray(jobDescriptionSync.customKeywords);
+  const currentCustomKeywords = readStringArray(linked.customKeywords);
+  const contentChanged = linked.content !== jobDescriptionSync.content;
+  const keywordsChanged = !areStringArraysEqual(currentCustomKeywords, nextCustomKeywords);
+  if (!contentChanged && !keywordsChanged) {
+    return;
+  }
+
   await ctx.db.patch(linked._id, {
     content: jobDescriptionSync.content,
-    customKeywords: jobDescriptionSync.customKeywords,
+    customKeywords: nextCustomKeywords,
     lastModified: Date.now(),
   });
   await ctx.scheduler.runAfter(0, internal.ingest_agent.reIngestAllResumes, {});

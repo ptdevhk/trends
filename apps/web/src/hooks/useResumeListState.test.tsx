@@ -311,9 +311,7 @@ describe('useResumeListState role filter regression', () => {
         filters: {
           minExperience: 1,
         },
-      }, {
-        source: 'profile',
-      })
+      }, true)
     })
 
     expect(mockState.setLocation).toHaveBeenCalledTimes(1)

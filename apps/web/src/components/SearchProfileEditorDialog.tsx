@@ -14,6 +14,19 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
+export type SearchProfileFilters = {
+    minExperience?: number
+    maxExperience?: number | null
+    minAge?: number
+    maxAge?: number
+    education?: string[]
+    salaryRange?: {
+        min?: number
+        max?: number
+    }
+    locations?: string[]
+}
+
 export type SearchProfileDetails = {
     id: string
     name: string
@@ -22,12 +35,7 @@ export type SearchProfileDetails = {
     keywords: string[]
     jobDescription?: string
     filterPreset?: string
-    filters?: {
-        minExperience?: number
-        maxExperience?: number | null
-        minAge?: number
-        maxAge?: number
-    }
+    filters?: SearchProfileFilters
     schedule?: {
         enabled: boolean
         cron?: string

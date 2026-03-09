@@ -345,6 +345,20 @@ export class JobDescriptionService {
    * Auto-match JD based on keywords only
    */
   findMatch(keywords: string[]): JDMatchResult {
+    const inputKeywords = Array.from(
+      new Set(
+        keywords
+          .map((k) => k.trim().toLowerCase())
+          .filter((k) => k.length > 0),
+      ),
+    );
+    if (inputKeywords.length === 0) {
+      return {
+        confidence: 0,
+        matchedKeywords: [],
+      };
+    }
+
     const jds = this.listFiles()
       .filter((jd) => jd.status === "active" && jd.autoMatch);
 
@@ -353,16 +367,6 @@ export class JobDescriptionService {
     for (const jd of jds) {
       const autoMatch = jd.autoMatch!;
       const jdKeywords = autoMatch.keywords.map((k) => k.toLowerCase());
-      const inputKeywords = Array.from(
-        new Set(
-          keywords
-            .map((k) => k.trim().toLowerCase())
-            .filter((k) => k.length > 0),
-        ),
-      );
-      if (inputKeywords.length === 0) {
-        continue;
-      }
 
       // Calculate keyword match
       const matchedKeywords: string[] = [];
