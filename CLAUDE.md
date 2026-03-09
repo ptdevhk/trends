@@ -63,10 +63,14 @@ English-first guidance; Chinese notes are short clarifications.
 Required flow:
 1. Create branch: `git checkout -b <type>/<scope>`
 2. Implement focused change set.
-3. Run scoped validation.
-4. Commit with clear message.
-5. Push branch and open PR.
-6. Wait for explicit merge approval.
+3. If you make code changes, run `make check` after completing the task and fix failures before handoff.
+4. After `make check`, if code changes remain or Codex review is in progress, run a simplify workflow explicitly:
+   - Use `/simplify` if the current agent/runtime supports it.
+   - Otherwise use the portable `$simplify` skill or the agent's equivalent simplify workflow.
+5. Run any additional scoped validation needed for touched areas.
+6. Commit with clear message.
+7. Push branch and open PR.
+8. Wait for explicit merge approval.
 
 ## Runbook Commands (Authoritative)
 
