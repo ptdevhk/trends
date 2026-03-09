@@ -59,6 +59,9 @@ English-first guidance; Chinese notes are short clarifications.
 - No direct push to `main` or `master`.
 - No PR merge without explicit user approval.
 - Never force-push protected branches.
+- Never use `gh pr merge --delete-branch`; the web app relies on preserved branches for merged-task git diffs.
+- Preferred merge command: `gh pr merge <number> --squash --auto`.
+- Do not use `--admin` unless explicitly requested.
 
 Required flow:
 1. Create branch: `git checkout -b <type>/<scope>`
