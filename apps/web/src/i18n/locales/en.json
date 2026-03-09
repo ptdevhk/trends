@@ -340,7 +340,22 @@
     "autoMatchFilters": "Filters",
     "autoMatchKeywords": "Matched",
     "useConfig": "Use this config",
-    "modifyConfig": "Modify"
+    "modifyConfig": "Modify",
+    "history": {
+      "button": "History",
+      "save": "Save search",
+      "title": "Search history",
+      "description": "Open a previously saved search without silently restoring it on page load.",
+      "loading": "Loading history...",
+      "empty": "No saved searches yet.",
+      "open": "Open",
+      "createdAt": "Created",
+      "lastOpened": "Last opened",
+      "noLocation": "No location",
+      "saveSuccess": "Saved to search history",
+      "saveError": "Failed to save search history",
+      "applySuccess": "Applied saved search"
+    }
   },
   "searchProfiles": {
     "nav": "Search Profiles",

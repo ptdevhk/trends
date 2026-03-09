@@ -374,6 +374,15 @@ function normalizeKeywordList(value: unknown): string[] {
     );
 }
 
+function buildProfileRunKeyword(value: string | undefined, profileKeywords: string[]): string {
+    const explicitKeyword = readString(value);
+    if (explicitKeyword) {
+        return explicitKeyword;
+    }
+
+    return normalizeKeywordList(profileKeywords).join(" ");
+}
+
 function toSearchProfile(record: ConvexSearchProfileRecord): SearchProfile | null {
     const profileId = record._id ? String(record._id) : "";
     if (!profileId) {
@@ -857,8 +866,8 @@ app.openapi(runProfileRoute, async (c) => {
         return c.json({ success: false as const, error: "Invalid run payload" }, 400);
     }
 
-    const keyword = parsed.data.keyword?.trim() || profile.keywords.join("").trim();
-    const location = parsed.data.location?.trim() || profile.location;
+    const keyword = buildProfileRunKeyword(parsed.data.keyword, profile.keywords);
+    const location = readString(parsed.data.location) ?? profile.location;
     const limit = parsed.data.limit ?? profile.schedule?.maxCandidates ?? 120;
     const maxPages = parsed.data.maxPages ?? 10;
     const autoAnalyze = parsed.data.autoAnalyze ?? Boolean(profile.ai);

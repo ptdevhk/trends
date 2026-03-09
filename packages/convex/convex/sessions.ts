@@ -8,6 +8,31 @@ function normalizeWorkspaceSlug(input: string | undefined): string {
     return normalized && normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_SLUG;
 }
 
+function normalizeOptionalString(input: string | undefined): string | undefined {
+    const normalized = input?.trim();
+    return normalized && normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeStringList(values: string[] | undefined): string[] {
+    if (!Array.isArray(values) || values.length === 0) {
+        return [];
+    }
+
+    const seen = new Set<string>();
+    const normalized: string[] = [];
+
+    values.forEach((value) => {
+        const token = value.trim();
+        if (!token || seen.has(token)) {
+            return;
+        }
+        seen.add(token);
+        normalized.push(token);
+    });
+
+    return normalized;
+}
+
 function belongsToWorkspace(
     recordWorkspaceSlug: string | undefined,
     workspaceSlug: string
@@ -16,6 +41,13 @@ function belongsToWorkspace(
         return !recordWorkspaceSlug || recordWorkspaceSlug === DEFAULT_WORKSPACE_SLUG;
     }
     return recordWorkspaceSlug === workspaceSlug;
+}
+
+function buildHistoryTitle(location: string, keywords: string[]): string {
+    const normalizedLocation = location.trim();
+    const normalizedKeywords = normalizeStringList(keywords);
+    const parts = [normalizedLocation, normalizedKeywords.join(" ")].filter((value) => value.length > 0);
+    return parts.join(" · ") || "Untitled search";
 }
 
 /**
@@ -146,5 +178,95 @@ export const archiveSession = mutation({
             await ctx.db.patch(session._id, { status: "archived" });
         }
         return null;
+    },
+});
+
+export const listSearchHistory = query({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const records = await ctx.db
+            .query("search_history")
+            .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
+            .collect();
+
+        return records.sort((left, right) => {
+            const leftTimestamp = left.lastOpenedAt ?? left.createdAt;
+            const rightTimestamp = right.lastOpenedAt ?? right.createdAt;
+            return rightTimestamp - leftTimestamp;
+        });
+    },
+});
+
+export const saveSearchHistory = mutation({
+    args: {
+        sessionKey: v.string(),
+        workspaceSlug: v.optional(v.string()),
+        title: v.optional(v.string()),
+        location: v.string(),
+        keywords: v.array(v.string()),
+        jobDescriptionId: v.optional(v.string()),
+        filters: v.optional(v.any()),
+        selectedTags: v.optional(v.array(v.string())),
+        selectedCompanies: v.optional(v.array(v.string())),
+        selectedExperienceLevel: v.optional(v.string()),
+        collectionTaskId: v.optional(v.string()),
+        analysisTaskId: v.optional(v.string()),
+        notes: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const location = args.location.trim();
+        const keywords = normalizeStringList(args.keywords);
+        const title = normalizeOptionalString(args.title) ?? buildHistoryTitle(location, keywords);
+        const jobDescriptionId = normalizeOptionalString(args.jobDescriptionId);
+        const selectedTags = normalizeStringList(args.selectedTags);
+        const selectedCompanies = normalizeStringList(args.selectedCompanies);
+        const selectedExperienceLevel = normalizeOptionalString(args.selectedExperienceLevel);
+        const collectionTaskId = normalizeOptionalString(args.collectionTaskId);
+        const analysisTaskId = normalizeOptionalString(args.analysisTaskId);
+        const notes = normalizeOptionalString(args.notes);
+        const now = Date.now();
+
+        return await ctx.db.insert("search_history", {
+            sessionKey: args.sessionKey,
+            title,
+            location,
+            keywords,
+            jobDescriptionId,
+            filters: args.filters,
+            selectedTags,
+            selectedCompanies,
+            selectedExperienceLevel,
+            collectionTaskId,
+            analysisTaskId,
+            notes,
+            workspaceSlug,
+            createdAt: now,
+            lastOpenedAt: undefined,
+        });
+    },
+});
+
+export const markSearchHistoryOpened = mutation({
+    args: {
+        id: v.id("search_history"),
+        workspaceSlug: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const record = await ctx.db.get(args.id);
+
+        if (!record || !belongsToWorkspace(record.workspaceSlug, workspaceSlug)) {
+            return null;
+        }
+
+        await ctx.db.patch(record._id, {
+            lastOpenedAt: Date.now(),
+        });
+
+        return record._id;
     },
 });

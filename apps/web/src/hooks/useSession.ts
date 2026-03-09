@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery } from 'convex/react';
-import { api } from '../../../../packages/convex/convex/_generated/api';
-import type { ResumeFilters } from '@/types/resume';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery } from 'convex/react'
+import { api } from '../../../../packages/convex/convex/_generated/api'
+import type { Id } from '../../../../packages/convex/convex/_generated/dataModel'
+import type { ResumeFilters } from '@/types/resume'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 export type ExternalSessionState = {
   location?: string
@@ -11,19 +12,80 @@ export type ExternalSessionState = {
   filters?: Partial<ResumeFilters>
 }
 
+export type SearchHistoryItem = {
+  id: Id<'search_history'>
+  sessionKey: string
+  title: string
+  location: string
+  keywords: string[]
+  jobDescriptionId?: string
+  filters: Partial<ResumeFilters>
+  selectedTags: string[]
+  selectedCompanies: string[]
+  selectedExperienceLevel?: string
+  collectionTaskId?: string
+  analysisTaskId?: string
+  notes?: string
+  createdAt: number
+  lastOpenedAt?: number
+}
+
+type SaveSearchHistoryInput = {
+  title?: string
+  notes?: string
+  location?: string
+  keywords?: string[]
+  jobDescriptionId?: string
+  filters?: Partial<ResumeFilters>
+  selectedTags?: string[]
+  selectedCompanies?: string[]
+  selectedExperienceLevel?: string
+  collectionTaskId?: string
+  analysisTaskId?: string
+}
+
 const AUTO_RESTORE_SCREENING_SESSION = false
 const DEFAULT_SESSION_LOCATION = ''
+
+function normalizeOptionalString(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : undefined
+}
+
+function normalizeStringList(values: string[] | undefined): string[] {
+  if (!Array.isArray(values) || values.length === 0) {
+    return []
+  }
+
+  const seen = new Set<string>()
+  const normalized: string[] = []
+
+  values.forEach((value) => {
+    const token = value.trim()
+    if (!token || seen.has(token)) {
+      return
+    }
+    seen.add(token)
+    normalized.push(token)
+  })
+
+  return normalized
+}
 
 export function useSession() {
   const { slug } = useWorkspace()
   const storageKey = `trends.resume.sessionKey.${slug}`
   const [sessionKey, setSessionKey] = useState(() => {
-    const stored = localStorage.getItem(storageKey);
-    if (stored) return stored;
-    const newKey = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    localStorage.setItem(storageKey, newKey);
-    return newKey;
-  });
+    const stored = localStorage.getItem(storageKey)
+    if (stored) return stored
+    const newKey = Math.random().toString(36).substring(2) + Date.now().toString(36)
+    localStorage.setItem(storageKey, newKey)
+    return newKey
+  })
 
   useEffect(() => {
     const stored = localStorage.getItem(storageKey)
@@ -37,22 +99,23 @@ export function useSession() {
     setSessionKey(newKey)
   }, [storageKey])
 
-  // 2. Convex Sync
   const activeSession = useQuery(
     api.sessions.getActiveSession,
     sessionKey ? { sessionKey, workspaceSlug: slug } : 'skip'
-  );
-  const saveSession = useMutation(api.sessions.saveSession);
-  const addReviewedItem = useMutation(api.sessions.addReviewedItem);
+  )
+  const historyRecords = useQuery(api.sessions.listSearchHistory, { workspaceSlug: slug })
+  const saveSession = useMutation(api.sessions.saveSession)
+  const addReviewedItem = useMutation(api.sessions.addReviewedItem)
+  const saveSearchHistoryMutation = useMutation(api.sessions.saveSearchHistory)
+  const markSearchHistoryOpenedMutation = useMutation(api.sessions.markSearchHistoryOpened)
 
-  const [hasHydratedInitialState, setHasHydratedInitialState] = useState(false);
+  const [hasHydratedInitialState, setHasHydratedInitialState] = useState(false)
   const hasInitializedScopeRef = useRef(false)
 
-  // 3. Local State (Initialized from Convex when available)
-  const [location, setLocation] = useState(DEFAULT_SESSION_LOCATION);
-  const [keywords, setKeywords] = useState<string[]>([]);
-  const [jobDescriptionId, setJobDescriptionId] = useState<string | undefined>(undefined);
-  const [filters, setFilters] = useState<ResumeFilters>({});
+  const [location, setLocation] = useState(DEFAULT_SESSION_LOCATION)
+  const [keywords, setKeywords] = useState<string[]>([])
+  const [jobDescriptionId, setJobDescriptionId] = useState<string | undefined>(undefined)
+  const [filters, setFilters] = useState<ResumeFilters>({})
 
   useEffect(() => {
     if (!hasInitializedScopeRef.current) {
@@ -67,7 +130,6 @@ export function useSession() {
     setFilters({})
   }, [slug, sessionKey])
 
-  // 4. Initialization
   useEffect(() => {
     if (!AUTO_RESTORE_SCREENING_SESSION) {
       if (!hasHydratedInitialState) {
@@ -77,53 +139,48 @@ export function useSession() {
     }
 
     if (activeSession && !hasHydratedInitialState) {
-      setLocation(activeSession.config.location);
-      setKeywords(activeSession.config.keywords);
-      setJobDescriptionId(activeSession.config.jobDescriptionId);
-      setFilters(activeSession.config.filters || {});
-      setHasHydratedInitialState(true);
+      setLocation(activeSession.config.location)
+      setKeywords(activeSession.config.keywords)
+      setJobDescriptionId(activeSession.config.jobDescriptionId)
+      setFilters(activeSession.config.filters || {})
+      setHasHydratedInitialState(true)
     }
-  }, [activeSession, hasHydratedInitialState]);
+  }, [activeSession, hasHydratedInitialState])
 
-  // 5. Auto-save (Debounced)
   useEffect(() => {
     if (!sessionKey) return
-    if (!hasHydratedInitialState) return;
+    if (!hasHydratedInitialState) return
 
     const timer = setTimeout(() => {
-      saveSession({
+      void saveSession({
         sessionKey,
         workspaceSlug: slug,
         location,
         keywords,
         jobDescriptionId,
         filters,
-      });
-    }, 1000);
+      })
+    }, 1000)
 
-    return () => clearTimeout(timer);
-  }, [sessionKey, slug, location, keywords, jobDescriptionId, filters, saveSession, hasHydratedInitialState]);
+    return () => clearTimeout(timer)
+  }, [sessionKey, slug, location, keywords, jobDescriptionId, filters, saveSession, hasHydratedInitialState])
 
-  // 6. Helpers
   const trackReviewedResume = useCallback(
     async (resumeId: string) => {
       if (!sessionKey) return
-      await addReviewedItem({ sessionKey, workspaceSlug: slug, resumeId });
+      await addReviewedItem({ sessionKey, workspaceSlug: slug, resumeId })
     },
     [sessionKey, slug, addReviewedItem]
-  );
+  )
 
-  const reviewedIdsSet = useMemo(() =>
-    new Set(activeSession?.reviewedResumeIds || []),
+  const reviewedIdsSet = useMemo(
+    () => new Set(activeSession?.reviewedResumeIds || []),
     [activeSession?.reviewedResumeIds]
-  );
+  )
 
   const applyExternalState = useCallback((state: ExternalSessionState) => {
     if (state.location !== undefined) {
-      const normalizedLocation = state.location.trim()
-      if (normalizedLocation.length > 0) {
-        setLocation(normalizedLocation)
-      }
+      setLocation(state.location.trim())
     }
 
     if (state.keywords !== undefined) {
@@ -145,6 +202,56 @@ export function useSession() {
     setHasHydratedInitialState(true)
   }, [setFilters, setJobDescriptionId, setKeywords, setLocation])
 
+  const searchHistory = useMemo<SearchHistoryItem[]>(() => {
+    if (!historyRecords) {
+      return []
+    }
+
+    return historyRecords.map((record) => ({
+      id: record._id,
+      sessionKey: record.sessionKey,
+      title: record.title,
+      location: record.location,
+      keywords: record.keywords,
+      jobDescriptionId: record.jobDescriptionId,
+      filters: (record.filters ?? {}) as Partial<ResumeFilters>,
+      selectedTags: normalizeStringList(record.selectedTags),
+      selectedCompanies: normalizeStringList(record.selectedCompanies),
+      selectedExperienceLevel: normalizeOptionalString(record.selectedExperienceLevel),
+      collectionTaskId: normalizeOptionalString(record.collectionTaskId),
+      analysisTaskId: normalizeOptionalString(record.analysisTaskId),
+      notes: normalizeOptionalString(record.notes),
+      createdAt: record.createdAt,
+      lastOpenedAt: record.lastOpenedAt,
+    }))
+  }, [historyRecords])
+
+  const saveSearchHistory = useCallback(async (input: SaveSearchHistoryInput = {}) => {
+    if (!sessionKey) {
+      return null
+    }
+
+    return await saveSearchHistoryMutation({
+      sessionKey,
+      workspaceSlug: slug,
+      title: normalizeOptionalString(input.title),
+      notes: normalizeOptionalString(input.notes),
+      location: input.location ?? location,
+      keywords: input.keywords ?? keywords,
+      jobDescriptionId: input.jobDescriptionId ?? jobDescriptionId,
+      filters: input.filters ?? filters,
+      selectedTags: normalizeStringList(input.selectedTags ?? []),
+      selectedCompanies: normalizeStringList(input.selectedCompanies ?? []),
+      selectedExperienceLevel: normalizeOptionalString(input.selectedExperienceLevel),
+      collectionTaskId: normalizeOptionalString(input.collectionTaskId),
+      analysisTaskId: normalizeOptionalString(input.analysisTaskId),
+    })
+  }, [filters, jobDescriptionId, keywords, location, saveSearchHistoryMutation, sessionKey, slug])
+
+  const markSearchHistoryOpened = useCallback(async (id: Id<'search_history'>) => {
+    await markSearchHistoryOpenedMutation({ id, workspaceSlug: slug })
+  }, [markSearchHistoryOpenedMutation, slug])
+
   return {
     location,
     setLocation,
@@ -157,6 +264,10 @@ export function useSession() {
     reviewedIdsSet,
     trackReviewedResume,
     applyExternalState,
+    searchHistory,
+    searchHistoryLoading: historyRecords === undefined,
+    saveSearchHistory,
+    markSearchHistoryOpened,
     loading: !hasHydratedInitialState,
-  };
+  }
 }

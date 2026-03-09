@@ -12,6 +12,7 @@ type SeedStatus = {
   collectionTasks: number;
   searchProfiles: number;
   screeningSessions: number;
+  searchHistory: number;
   workspaceConfig: number;
   isEmpty: boolean;
 };
@@ -46,6 +47,10 @@ type WorkspaceSeedResult = {
     updated: number;
   };
   screeningSessions: {
+    inserted: number;
+    updated: number;
+  };
+  searchHistory: {
     inserted: number;
     updated: number;
   };
@@ -172,19 +177,23 @@ function resolveConvexUrl(projectRoot: string): string {
     return process.env.VITE_CONVEX_URL;
   }
 
-  const webEnvPath = path.join(projectRoot, "apps", "web", ".env.local");
-  const packageEnvPath = path.join(projectRoot, "packages", "convex", ".env.local");
+  const candidateFiles = [
+    path.join(projectRoot, "packages", "convex", ".env.local"),
+    path.join(projectRoot, "apps", "web", ".env.local"),
+    path.join(projectRoot, ".env.local"),
+    path.join(projectRoot, ".env"),
+  ];
 
-  const webEnvUrl = readEnvVarFromFile(webEnvPath, "VITE_CONVEX_URL")
-    ?? readEnvVarFromFile(webEnvPath, "CONVEX_URL");
-  if (webEnvUrl) {
-    return webEnvUrl;
-  }
+  for (const filePath of candidateFiles) {
+    const directUrl = readEnvVarFromFile(filePath, "CONVEX_URL");
+    if (directUrl) {
+      return directUrl;
+    }
 
-  const packageEnvUrl = readEnvVarFromFile(packageEnvPath, "CONVEX_URL")
-    ?? readEnvVarFromFile(packageEnvPath, "VITE_CONVEX_URL");
-  if (packageEnvUrl) {
-    return packageEnvUrl;
+    const viteUrl = readEnvVarFromFile(filePath, "VITE_CONVEX_URL");
+    if (viteUrl) {
+      return viteUrl;
+    }
   }
 
   return "http://127.0.0.1:3210";
@@ -434,7 +443,7 @@ function chunkItems<T>(items: T[], chunkSize: number): T[][] {
 
 function printStatus(status: SeedStatus): void {
   console.log(
-    `Database status: jobDescriptions=${status.jobDescriptions}, resumes=${status.resumes}, collectionTasks=${status.collectionTasks}, searchProfiles=${status.searchProfiles}, screeningSessions=${status.screeningSessions}, workspaceConfig=${status.workspaceConfig}, isEmpty=${status.isEmpty}`
+    `Database status: jobDescriptions=${status.jobDescriptions}, resumes=${status.resumes}, collectionTasks=${status.collectionTasks}, searchProfiles=${status.searchProfiles}, screeningSessions=${status.screeningSessions}, searchHistory=${status.searchHistory}, workspaceConfig=${status.workspaceConfig}, isEmpty=${status.isEmpty}`
   );
 }
 
@@ -473,6 +482,7 @@ async function main(): Promise<void> {
     + ` customJDs(inserted=${workspaceSeedResult.customJobDescriptions.inserted}, updated=${workspaceSeedResult.customJobDescriptions.updated}),`
     + ` profiles(inserted=${workspaceSeedResult.searchProfiles.inserted}, updated=${workspaceSeedResult.searchProfiles.updated}),`
     + ` sessions(inserted=${workspaceSeedResult.screeningSessions.inserted}, updated=${workspaceSeedResult.screeningSessions.updated}),`
+    + ` history(inserted=${workspaceSeedResult.searchHistory.inserted}, updated=${workspaceSeedResult.searchHistory.updated}),`
     + ` workspaceConfig(inserted=${workspaceSeedResult.workspaceConfig.inserted}, updated=${workspaceSeedResult.workspaceConfig.updated})`
   );
 

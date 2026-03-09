@@ -289,6 +289,7 @@ export const backfillWorkspaceSlugs = mutation({
         let patchedJobDescriptions = 0;
         let patchedSearchProfiles = 0;
         let patchedScreeningSessions = 0;
+        let patchedSearchHistory = 0;
 
         const customJobDescriptions = await ctx.db
             .query("job_descriptions")
@@ -321,11 +322,21 @@ export const backfillWorkspaceSlugs = mutation({
             patchedScreeningSessions += 1;
         }
 
+        const searchHistory = await ctx.db.query("search_history").collect();
+        for (const record of searchHistory) {
+            if (typeof record.workspaceSlug === "string" && record.workspaceSlug.trim()) {
+                continue;
+            }
+            await ctx.db.patch(record._id, { workspaceSlug: defaultWorkspace });
+            patchedSearchHistory += 1;
+        }
+
         return {
             defaultWorkspace,
             patchedJobDescriptions,
             patchedSearchProfiles,
             patchedScreeningSessions,
+            patchedSearchHistory,
         };
     },
 });

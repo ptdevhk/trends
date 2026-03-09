@@ -17,7 +17,7 @@ def _make_profile(keywords: Any, filters: Any = None) -> dict[str, Any]:
     return profile
 
 
-def test_run_resume_crawl_task_concatenates_keyword_list(monkeypatch) -> None:
+def test_run_resume_crawl_task_normalizes_keyword_list_with_spaces(monkeypatch) -> None:
     captured: dict[str, Any] = {}
 
     monkeypatch.setattr(resume_tasks, "_resolve_convex_url", lambda: "http://127.0.0.1:3210")
@@ -37,7 +37,7 @@ def test_run_resume_crawl_task_concatenates_keyword_list(monkeypatch) -> None:
     assert ok is True
     assert captured["convex_url"] == "http://127.0.0.1:3210"
     assert captured["mutation_path"] == "resume_tasks:dispatch"
-    assert captured["args"]["keyword"] == "CNC车床销售STAR"
+    assert captured["args"]["keyword"] == "CNC 车床 销售 STAR"
     assert captured["args"]["location"] == "东莞"
     assert captured["args"]["limit"] == 120
 
@@ -58,7 +58,7 @@ def test_run_resume_crawl_task_trims_and_skips_empty_keyword_items(monkeypatch) 
     )
 
     assert ok is True
-    assert captured["args"]["keyword"] == "CNC车床销售"
+    assert captured["args"]["keyword"] == "CNC 车床 销售"
 
 
 def test_run_resume_crawl_task_keeps_non_list_keyword_string(monkeypatch) -> None:
