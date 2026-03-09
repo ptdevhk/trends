@@ -2,9 +2,12 @@ import { internal } from "./_generated/api";
 import { action, mutation } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { buildWorkHistoryEvidence } from "@trends/shared";
+
 import { buildSearchText } from "./search_text";
 import { deriveResumeIdentityKey } from "./lib/resume_identity";
 import { parseAgeFromContent } from "./lib/age";
+import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 
 const JOB5156_HOST = "hr.job5156.com";
 const JOB5156_PROFILE_DISPLAY_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
@@ -285,10 +288,11 @@ export const backfillAge = mutation({
 export const backfillWorkspaceSlugs = mutation({
     args: {},
     handler: async (ctx) => {
-        const defaultWorkspace = "dev";
+        const defaultWorkspace = DEFAULT_WORKSPACE_SLUG;
         let patchedJobDescriptions = 0;
         let patchedSearchProfiles = 0;
         let patchedScreeningSessions = 0;
+        let patchedSearchHistory = 0;
 
         const customJobDescriptions = await ctx.db
             .query("job_descriptions")
@@ -321,11 +325,21 @@ export const backfillWorkspaceSlugs = mutation({
             patchedScreeningSessions += 1;
         }
 
+        const searchHistory = await ctx.db.query("search_history").collect();
+        for (const record of searchHistory) {
+            if (typeof record.workspaceSlug === "string" && record.workspaceSlug.trim()) {
+                continue;
+            }
+            await ctx.db.patch(record._id, { workspaceSlug: defaultWorkspace });
+            patchedSearchHistory += 1;
+        }
+
         return {
             defaultWorkspace,
             patchedJobDescriptions,
             patchedSearchProfiles,
             patchedScreeningSessions,
+            patchedSearchHistory,
         };
     },
 });
@@ -387,6 +401,33 @@ export const backfillPrimaryRuleScore = mutation({
         }
 
         return `Backfilled ${updated} resumes`;
+    },
+});
+
+export const backfillEvidenceText = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const resumes = await ctx.db.query("resumes").collect();
+        let patched = 0;
+
+        for (const resume of resumes) {
+            if (!resume.ingestData || typeof resume.ingestData.evidenceText === "string") {
+                continue;
+            }
+
+            await ctx.db.patch(resume._id, {
+                ingestData: {
+                    ...resume.ingestData,
+                    evidenceText: buildWorkHistoryEvidence(resume.content).text,
+                },
+            });
+            patched += 1;
+        }
+
+        return {
+            scannedResumes: resumes.length,
+            patched,
+        };
     },
 });
 

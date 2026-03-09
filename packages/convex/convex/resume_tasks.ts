@@ -594,6 +594,11 @@ export const resetDatabase = mutation({
             await ctx.db.delete(session._id);
         }
 
+        const searchHistory = await ctx.db.query("search_history").collect();
+        for (const entry of searchHistory) {
+            await ctx.db.delete(entry._id);
+        }
+
         const syncEvents = await ctx.db.query("sync_events").collect();
         for (const event of syncEvents) {
             await ctx.db.delete(event._id);
@@ -607,6 +612,7 @@ export const resetDatabase = mutation({
             + statuses.length
             + analysisTasks.length
             + screeningSessions.length
+            + searchHistory.length
             + syncEvents.length;
 
         return {
@@ -620,6 +626,7 @@ export const resetDatabase = mutation({
                 candidateStatus: statuses.length,
                 analysisTasks: analysisTasks.length,
                 screeningSessions: screeningSessions.length,
+                searchHistory: searchHistory.length,
                 syncEvents: syncEvents.length,
             },
         };

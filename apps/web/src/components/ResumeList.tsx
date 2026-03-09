@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RefreshCw, FileText, AlertTriangle } from 'lucide-react'
+import { RefreshCw, FileText, AlertTriangle, History } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import type { ResumeItem } from '@/hooks/useResumes'
 import { ResumeCard, ResumeCardSkeleton } from '@/components/ResumeCard'
@@ -13,6 +13,7 @@ import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { CollectResumesButton } from '@/components/CollectResumesButton'
 import { ShareLinkButton } from '@/components/ShareLinkButton'
+import { SearchHistoryDialog } from '@/components/SearchHistoryDialog'
 import { useResumeListState } from '@/hooks/useResumeListState'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -20,6 +21,7 @@ import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
 
 export function ResumeList() {
   const { t } = useTranslation()
+  const [historyRequested, setHistoryRequested] = useState(false)
   const {
     sessionLocation,
     sessionKeywords,
@@ -40,11 +42,15 @@ export function ResumeList() {
     blockedCount,
     bulkExportFormat,
     displayedResumes,
+    searchHistory,
+    searchHistoryLoading,
     setBulkExportFormat,
     handleAnalyzeAll,
     handleRefresh,
     handleQuickStartApply,
     handleQuickConstraintApply,
+    handleSaveCurrentSearch,
+    handleApplySearchHistory,
     handleJobChange,
     handleFiltersChange,
     handleToggleTag,
@@ -59,11 +65,12 @@ export function ResumeList() {
     handleToggleBlock,
     handleCandidateStatusChange,
     handleResetAll,
-  } = useResumeListState()
+  } = useResumeListState(historyRequested)
   useSyncNotifications()
   const { slug: workspaceSlug } = useWorkspace()
 
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const detailMatch = useMemo(() => {
     if (!detailResume) {
@@ -90,6 +97,31 @@ export function ResumeList() {
         onApplyQuickFilters={handleQuickConstraintApply}
         extraActions={
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => {
+                setHistoryRequested(true)
+                setHistoryOpen(true)
+              }}
+            >
+              <History className="h-4 w-4" />
+              {t('quickStart.history.button', 'History')}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => {
+                void handleSaveCurrentSearch()
+              }}
+            >
+              <History className="h-4 w-4" />
+              {t('quickStart.history.save', 'Save search')}
+            </Button>
             <CollectResumesButton
               location={sessionLocation}
               keywords={sessionKeywords}
@@ -231,6 +263,19 @@ export function ResumeList() {
             setDetailResume(null)
           }
         }}
+      />
+
+      <SearchHistoryDialog
+        open={historyOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setHistoryRequested(true)
+          }
+          setHistoryOpen(open)
+        }}
+        items={searchHistory}
+        loading={searchHistoryLoading}
+        onApply={handleApplySearchHistory}
       />
     </div>
   )

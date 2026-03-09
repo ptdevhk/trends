@@ -1,3 +1,5 @@
+import { buildWorkHistoryEvidence } from "@trends/shared";
+
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { RuleScoringService, type RoleSignalSummary } from "./rule-scoring.js";
@@ -21,6 +23,7 @@ export interface BrandHit {
 
 export interface IngestResult {
   resumeId: string;
+  evidenceText: string;
   industryTags: string[];
   synonymHits: string[];
   brandHits: BrandHit[];
@@ -288,6 +291,7 @@ export function buildResumeIndex(item: ResumeItem, index: number): ResumeIndex {
   const resumeId = resolveResumeId(item, index);
   const searchText = createSearchText(item);
   const companies = extractCompanies(item.workHistory ?? []);
+  const evidenceText = buildWorkHistoryEvidence(item.workHistory).text;
 
   // For ingest compute, we don't need full skill extraction
   // We just need the basic fields for rule scoring
@@ -296,7 +300,7 @@ export function buildResumeIndex(item: ResumeItem, index: number): ResumeIndex {
     experienceYears: parseExperienceYears(item.experience),
     educationLevel: normalizeEducationLevel(item.education),
     locationCity: item.location || null,
-    workHistoryText: (item.workHistory ?? []).map((entry) => entry.raw).join(" "),
+    evidenceText,
     skills: [],  // Not needed for ingest - skills are in searchText
     companies,
     industryTags: [],  // Will be computed separately
@@ -362,6 +366,7 @@ export class IngestComputeService {
 
     return {
       resumeId,
+      evidenceText: index.evidenceText || "",
       industryTags,
       synonymHits,
       brandHits,

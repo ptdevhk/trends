@@ -57,8 +57,12 @@ English-first guidance; Chinese notes are short clarifications.
 ## Dev Cycle Rules (Major)
 - No direct commit to `main` or `master`.
 - No direct push to `main` or `master`.
-- No PR merge without explicit user approval.
+- Default PR completion behavior is to enable auto-merge with `gh pr merge <number> --squash --auto` after opening the PR.
+- If the user explicitly requests not to merge, do not enable auto-merge and wait for further approval.
 - Never force-push protected branches.
+- Never use `gh pr merge --delete-branch`; the web app relies on preserved branches for merged-task git diffs.
+- Preferred merge command: `gh pr merge <number> --squash --auto`.
+- Do not use `--admin` unless explicitly requested.
 
 Required flow:
 1. Create branch: `git checkout -b <type>/<scope>`
@@ -70,7 +74,7 @@ Required flow:
 5. Run any additional scoped validation needed for touched areas.
 6. Commit with clear message.
 7. Push branch and open PR.
-8. Wait for explicit merge approval.
+8. Unless the user explicitly requests not to merge, enable auto-merge with `gh pr merge <number> --squash --auto`.
 
 ## Runbook Commands (Authoritative)
 

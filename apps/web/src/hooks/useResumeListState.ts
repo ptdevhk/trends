@@ -19,6 +19,7 @@ import {
 } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import { expandKeyword, DEFAULT_CONFIG } from '@/lib/trendradar/parser'
+import type { SearchHistoryItem } from '@/hooks/useSession'
 import type { CandidateActionType, CandidateStatus, MatchingResult, ResumeFilters } from '@/types/resume'
 import {
   buildLearningObservation,
@@ -118,6 +119,16 @@ function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFil
     sortBy: filters.sortBy,
     sortOrder: filters.sortOrder,
   }
+}
+
+function buildSearchHistoryTitle(location: string, keywords: string[]): string {
+  const normalizedLocation = location.trim()
+  const normalizedKeywords = keywords
+    .map((keyword) => keyword.trim())
+    .filter((keyword) => keyword.length > 0)
+
+  const parts = [normalizedLocation, normalizedKeywords.join(' ')].filter((value) => value.length > 0)
+  return parts.join(' · ') || 'Untitled search'
 }
 
 function areUrlFiltersEqual(left: Partial<ResumeFilters>, right: Partial<ResumeFilters>): boolean {
@@ -325,7 +336,7 @@ function matchesEducationFilter(educationValue: string | undefined, selectedEduc
   })
 }
 
-export function useResumeListState() {
+export function useResumeListState(loadSearchHistory = false) {
   const { t } = useTranslation()
   const {
     location: sessionLocation,
@@ -339,7 +350,11 @@ export function useResumeListState() {
     reviewedIdsSet,
     trackReviewedResume,
     applyExternalState,
-  } = useSession()
+    searchHistory,
+    searchHistoryLoading,
+    saveSearchHistory,
+    markSearchHistoryOpened,
+  } = useSession(loadSearchHistory)
 
   const {
     parsedState: parsedUrlState,
@@ -1336,6 +1351,41 @@ export function useResumeListState() {
     [setFilters]
   )
 
+  const handleSaveCurrentSearch = useCallback(async () => {
+    const title = buildSearchHistoryTitle(sessionLocation, sessionKeywords)
+    const saved = await saveSearchHistory({
+      title,
+      location: sessionLocation,
+      keywords: sessionKeywords,
+      jobDescriptionId,
+      filters,
+      selectedTags,
+      selectedCompanies,
+      selectedExperienceLevel,
+    })
+
+    if (saved) {
+      toast.success(t('quickStart.history.saveSuccess', 'Saved to search history'))
+    } else {
+      toast.error(t('quickStart.history.saveError', 'Failed to save search history'))
+    }
+  }, [filters, jobDescriptionId, saveSearchHistory, selectedCompanies, selectedExperienceLevel, selectedTags, sessionKeywords, sessionLocation, t])
+
+  const handleApplySearchHistory = useCallback(async (entry: SearchHistoryItem) => {
+    skipNextUrlSyncRef.current = true
+    applyExternalState({
+      location: entry.location,
+      keywords: entry.keywords,
+      jobDescriptionId: entry.jobDescriptionId ?? '',
+      filters: entry.filters,
+    })
+    setSelectedTags(entry.selectedTags)
+    setSelectedCompanies(entry.selectedCompanies)
+    setSelectedExperienceLevel(toExperienceLevel(entry.selectedExperienceLevel))
+    await markSearchHistoryOpened(entry.id)
+    toast.success(t('quickStart.history.applySuccess', 'Applied saved search'))
+  }, [applyExternalState, markSearchHistoryOpened, t])
+
   return {
     sessionLocation,
     sessionKeywords,
@@ -1362,11 +1412,15 @@ export function useResumeListState() {
     blockedCount,
     bulkExportFormat,
     displayedResumes,
+    searchHistory,
+    searchHistoryLoading,
     setBulkExportFormat,
     handleAnalyzeAll,
     handleRefresh,
     handleQuickStartApply,
     handleQuickConstraintApply,
+    handleSaveCurrentSearch,
+    handleApplySearchHistory,
     handleJobChange,
     handleFiltersChange,
     handleToggleTag,

@@ -137,13 +137,8 @@ function getRunStatusFilePath(): string {
 }
 
 function readRunStatusStore(): Record<string, ProfileRunStatus> {
-    const filePath = getRunStatusFilePath();
-    if (!fs.existsSync(filePath)) {
-        return {};
-    }
-
     try {
-        const content = fs.readFileSync(filePath, "utf8");
+        const content = fs.readFileSync(getRunStatusFilePath(), "utf8");
         const parsed = JSON.parse(content) as unknown;
         if (!isRecord(parsed)) {
             return {};
@@ -165,10 +160,7 @@ function readRunStatusStore(): Record<string, ProfileRunStatus> {
 
 function writeRunStatusStore(store: Record<string, ProfileRunStatus>): void {
     const filePath = getRunStatusFilePath();
-    const outputDir = path.dirname(filePath);
-    if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir, { recursive: true });
-    }
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, JSON.stringify(store, null, 2), "utf8");
 }
 
@@ -400,6 +392,15 @@ function normalizeKeywordList(value: unknown): string[] {
                 .filter((item): item is string => Boolean(item))
         )
     );
+}
+
+function buildProfileRunKeyword(value: string | undefined, profileKeywords: string[]): string {
+    const explicitKeyword = readString(value);
+    if (explicitKeyword) {
+        return explicitKeyword;
+    }
+
+    return normalizeKeywordList(profileKeywords).join(" ");
 }
 
 function toSearchProfile(record: ConvexSearchProfileRecord): SearchProfile | null {
@@ -896,8 +897,8 @@ app.openapi(runProfileRoute, async (c) => {
         return c.json({ success: false as const, error: "Invalid run payload" }, 400);
     }
 
-    const keyword = parsed.data.keyword?.trim() || profile.keywords.join("").trim();
-    const location = parsed.data.location?.trim() || profile.location;
+    const keyword = buildProfileRunKeyword(parsed.data.keyword, profile.keywords);
+    const location = readString(parsed.data.location) ?? profile.location;
     const limit = parsed.data.limit ?? profile.schedule?.maxCandidates ?? 120;
     const maxPages = parsed.data.maxPages ?? 10;
     const autoAnalyze = parsed.data.autoAnalyze ?? Boolean(profile.ai);

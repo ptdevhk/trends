@@ -1,5 +1,18 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "feedbackSurveyState": {
+    "lastShownTime": 1754013974739
+  },
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [],
+    "defaultMode": "bypassPermissions",
+    "deny": [
+      "Bash(gh pr merge * --delete-branch*)",
+      "Bash(gh pr merge * --admin*)"
+    ]
+  },
+  "skipDangerousModePermissionPrompt": true,
   "hooks": {
     "SessionStart": [
       {
@@ -25,9 +38,5 @@
         ]
       }
     ]
-  },
-  "env": {
-    "AUTOPILOT_KEEP_RUNNING_DISABLED": "0",
-    "CLAUDE_AUTOPILOT_MAX_TURNS": "20"
   }
 }

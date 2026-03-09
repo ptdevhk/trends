@@ -5,8 +5,9 @@ import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 
+import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
+
 const jobDescriptionType = v.union(v.literal("system"), v.literal("custom"));
-const DEFAULT_WORKSPACE_SLUG = "dev";
 
 function normalizeWorkspaceSlug(input: string | undefined): string {
   const normalized = input?.trim();
@@ -65,6 +66,7 @@ export const status = query({
       collectionTasks,
       searchProfiles,
       screeningSessions,
+      searchHistory,
       workspaceConfig,
     ] = await Promise.all([
       ctx.db.query("job_descriptions").collect(),
@@ -72,6 +74,7 @@ export const status = query({
       ctx.db.query("collection_tasks").collect(),
       ctx.db.query("search_profiles").collect(),
       ctx.db.query("screening_sessions").collect(),
+      ctx.db.query("search_history").collect(),
       ctx.db.query("workspace_config").collect(),
     ]);
 
@@ -81,6 +84,7 @@ export const status = query({
       collectionTasks: collectionTasks.length,
       searchProfiles: searchProfiles.length,
       screeningSessions: screeningSessions.length,
+      searchHistory: searchHistory.length,
       workspaceConfig: workspaceConfig.length,
     };
 
@@ -92,6 +96,7 @@ export const status = query({
         counts.collectionTasks === 0 &&
         counts.searchProfiles === 0 &&
         counts.screeningSessions === 0 &&
+        counts.searchHistory === 0 &&
         counts.workspaceConfig === 0,
     };
   },
@@ -423,6 +428,43 @@ export const seedWorkspaceDemoData = mutation({
       },
     ];
 
+    const searchHistory = [
+      {
+        sessionKey: "workspace-demo-session-dev",
+        title: "东莞 · CNC 销售",
+        location: "东莞",
+        keywords: ["CNC", "销售"],
+        jobDescriptionId: "workspace-demo-dev-cnc-sales",
+        filters: {
+          minExperience: 3,
+          education: ["大专", "本科"],
+        },
+        selectedTags: ["STAR机床"],
+        selectedCompanies: ["深圳市星晨精密设备有限公司"],
+        selectedExperienceLevel: "mid",
+        workspaceSlug: "dev",
+        createdAt: seededAt - 300_000,
+        lastOpenedAt: seededAt - 120_000,
+      },
+      {
+        sessionKey: "workspace-demo-session-hr",
+        title: "东莞 · 招聘 简历",
+        location: "东莞",
+        keywords: ["招聘", "简历"],
+        jobDescriptionId: "workspace-demo-hr-resume-ops",
+        filters: {
+          minExperience: 1,
+          education: ["大专", "本科"],
+        },
+        selectedTags: ["招聘运营"],
+        selectedCompanies: ["东莞市智聘人力资源有限公司"],
+        selectedExperienceLevel: "junior",
+        workspaceSlug: "hr",
+        createdAt: seededAt - 240_000,
+        lastOpenedAt: seededAt - 90_000,
+      },
+    ];
+
     const workspaceConfigs = [
       {
         workspaceSlug: "dev",
@@ -543,6 +585,7 @@ export const seedWorkspaceDemoData = mutation({
       customJobDescriptions: { inserted: 0, updated: 0 },
       searchProfiles: { inserted: 0, updated: 0 },
       screeningSessions: { inserted: 0, updated: 0 },
+      searchHistory: { inserted: 0, updated: 0 },
       workspaceConfig: { inserted: 0, updated: 0 },
     };
 
@@ -631,7 +674,8 @@ export const seedWorkspaceDemoData = mutation({
       ]),
     );
     for (const item of searchProfiles) {
-      const key = profileKey(item.name, item.workspaceSlug);
+      const targetWorkspaceSlug = normalizeWorkspaceSlug(item.workspaceSlug);
+      const key = profileKey(item.name, targetWorkspaceSlug);
       const existing = existingProfilesByKey.get(key);
       if (existing) {
         const needsUpdate =
@@ -639,14 +683,13 @@ export const seedWorkspaceDemoData = mutation({
           stableSerialize(item.criteria) ||
           stableSerialize(existing.profile ?? {}) !==
           stableSerialize(item.profile ?? {}) ||
-          normalizeWorkspaceSlug(existing.workspaceSlug) !==
-          item.workspaceSlug ||
+          existing.workspaceSlug !== targetWorkspaceSlug ||
           existing.lastRunAt !== item.lastRunAt;
         if (needsUpdate) {
           await ctx.db.patch(existing._id, {
             criteria: item.criteria,
             profile: item.profile,
-            workspaceSlug: item.workspaceSlug,
+            workspaceSlug: targetWorkspaceSlug,
             lastRunAt: item.lastRunAt,
           });
           result.searchProfiles.updated += 1;
@@ -657,7 +700,7 @@ export const seedWorkspaceDemoData = mutation({
         name: item.name,
         criteria: item.criteria,
         profile: item.profile,
-        workspaceSlug: item.workspaceSlug,
+        workspaceSlug: targetWorkspaceSlug,
         lastRunAt: item.lastRunAt,
       });
       result.searchProfiles.inserted += 1;
@@ -673,7 +716,8 @@ export const seedWorkspaceDemoData = mutation({
       ]),
     );
     for (const item of screeningSessions) {
-      const key = sessionKey(item.sessionKey, item.workspaceSlug);
+      const targetWorkspaceSlug = normalizeWorkspaceSlug(item.workspaceSlug);
+      const key = sessionKey(item.sessionKey, targetWorkspaceSlug);
       const existing = existingSessionsByKey.get(key);
       if (existing) {
         const needsUpdate =
@@ -681,13 +725,14 @@ export const seedWorkspaceDemoData = mutation({
           stableSerialize(existing.config) !== stableSerialize(item.config) ||
           stableSerialize(existing.reviewedResumeIds) !==
           stableSerialize(item.reviewedResumeIds) ||
-          !belongsToWorkspace(existing.workspaceSlug, item.workspaceSlug);
+          existing.workspaceSlug !== targetWorkspaceSlug ||
+          existing.lastActive !== item.lastActive;
         if (needsUpdate) {
           await ctx.db.patch(existing._id, {
             status: item.status,
             config: item.config,
             reviewedResumeIds: item.reviewedResumeIds,
-            workspaceSlug: item.workspaceSlug,
+            workspaceSlug: targetWorkspaceSlug,
             lastActive: item.lastActive,
           });
           result.screeningSessions.updated += 1;
@@ -700,10 +745,70 @@ export const seedWorkspaceDemoData = mutation({
         status: item.status,
         config: item.config,
         reviewedResumeIds: item.reviewedResumeIds,
-        workspaceSlug: item.workspaceSlug,
+        workspaceSlug: targetWorkspaceSlug,
         lastActive: item.lastActive,
       });
       result.screeningSessions.inserted += 1;
+    }
+
+    const existingSearchHistory = await ctx.db.query("search_history").collect();
+    const searchHistoryKey = (sessionKeyValue: string, title: string, workspaceSlug: string | undefined) =>
+      `${sessionKeyValue}::${title}::${normalizeWorkspaceSlug(workspaceSlug)}`;
+    const existingSearchHistoryByKey = new Map(
+      existingSearchHistory.map((entry) => [
+        searchHistoryKey(entry.sessionKey, entry.title, entry.workspaceSlug),
+        entry,
+      ]),
+    );
+    for (const item of searchHistory) {
+      const targetWorkspaceSlug = normalizeWorkspaceSlug(item.workspaceSlug);
+      const key = searchHistoryKey(item.sessionKey, item.title, targetWorkspaceSlug);
+      const existing = existingSearchHistoryByKey.get(key);
+      if (existing) {
+        const needsUpdate =
+          existing.location !== item.location ||
+          stableSerialize(existing.keywords) !== stableSerialize(item.keywords) ||
+          existing.jobDescriptionId !== item.jobDescriptionId ||
+          stableSerialize(existing.filters ?? {}) !== stableSerialize(item.filters ?? {}) ||
+          stableSerialize(existing.selectedTags ?? []) !== stableSerialize(item.selectedTags ?? []) ||
+          stableSerialize(existing.selectedCompanies ?? []) !== stableSerialize(item.selectedCompanies ?? []) ||
+          existing.selectedExperienceLevel !== item.selectedExperienceLevel ||
+          existing.workspaceSlug !== targetWorkspaceSlug ||
+          existing.createdAt !== item.createdAt ||
+          existing.lastOpenedAt !== item.lastOpenedAt;
+        if (needsUpdate) {
+          await ctx.db.patch(existing._id, {
+            location: item.location,
+            keywords: item.keywords,
+            jobDescriptionId: item.jobDescriptionId,
+            filters: item.filters,
+            selectedTags: item.selectedTags,
+            selectedCompanies: item.selectedCompanies,
+            selectedExperienceLevel: item.selectedExperienceLevel,
+            workspaceSlug: targetWorkspaceSlug,
+            createdAt: item.createdAt,
+            lastOpenedAt: item.lastOpenedAt,
+          });
+          result.searchHistory.updated += 1;
+        }
+        continue;
+      }
+
+      await ctx.db.insert("search_history", {
+        sessionKey: item.sessionKey,
+        title: item.title,
+        location: item.location,
+        keywords: item.keywords,
+        jobDescriptionId: item.jobDescriptionId,
+        filters: item.filters,
+        selectedTags: item.selectedTags,
+        selectedCompanies: item.selectedCompanies,
+        selectedExperienceLevel: item.selectedExperienceLevel,
+        workspaceSlug: targetWorkspaceSlug,
+        createdAt: item.createdAt,
+        lastOpenedAt: item.lastOpenedAt,
+      });
+      result.searchHistory.inserted += 1;
     }
 
     for (const item of workspaceConfigs) {
@@ -751,6 +856,7 @@ export const clearWorkspaceData = mutation({
     let customJobDescriptions = 0;
     let searchProfiles = 0;
     let screeningSessions = 0;
+    let searchHistory = 0;
     let workspaceConfig = 0;
 
     const customJds = await ctx.db
@@ -783,6 +889,15 @@ export const clearWorkspaceData = mutation({
       screeningSessions += 1;
     }
 
+    const historyEntries = await ctx.db.query("search_history").collect();
+    for (const entry of historyEntries) {
+      if (!belongsToWorkspace(entry.workspaceSlug, workspaceSlug)) {
+        continue;
+      }
+      await ctx.db.delete(entry._id);
+      searchHistory += 1;
+    }
+
     const configEntries = await ctx.db
       .query("workspace_config")
       .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
@@ -797,6 +912,7 @@ export const clearWorkspaceData = mutation({
       customJobDescriptions,
       searchProfiles,
       screeningSessions,
+      searchHistory,
       workspaceConfig,
     };
   },
@@ -824,6 +940,9 @@ export const clearAll = mutation({
       .query("screening_sessions")
       .collect();
     for (const session of screeningSessions) await ctx.db.delete(session._id);
+
+    const searchHistory = await ctx.db.query("search_history").collect();
+    for (const entry of searchHistory) await ctx.db.delete(entry._id);
 
     const workspaceConfig = await ctx.db.query("workspace_config").collect();
     for (const item of workspaceConfig) await ctx.db.delete(item._id);

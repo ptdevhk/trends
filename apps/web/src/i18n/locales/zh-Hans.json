@@ -340,7 +340,22 @@
     "autoMatchFilters": "筛选",
     "autoMatchKeywords": "命中词",
     "useConfig": "使用此配置",
-    "modifyConfig": "修改配置"
+    "modifyConfig": "修改配置",
+    "history": {
+      "button": "历史",
+      "save": "保存搜索",
+      "title": "搜索历史",
+      "description": "显式打开已保存的搜索，而不是在页面加载时静默恢复。",
+      "loading": "正在加载历史...",
+      "empty": "暂无已保存搜索。",
+      "open": "打开",
+      "createdAt": "创建时间",
+      "lastOpened": "上次打开",
+      "noLocation": "未设置位置",
+      "saveSuccess": "已保存到搜索历史",
+      "saveError": "保存搜索历史失败",
+      "applySuccess": "已应用保存的搜索"
+    }
   },
   "searchProfiles": {
     "nav": "搜索配置",

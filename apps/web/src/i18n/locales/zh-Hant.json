@@ -340,7 +340,22 @@
     "autoMatchFilters": "篩選",
     "autoMatchKeywords": "命中詞",
     "useConfig": "使用此配置",
-    "modifyConfig": "修改配置"
+    "modifyConfig": "修改配置",
+    "history": {
+      "button": "歷史",
+      "save": "保存搜尋",
+      "title": "搜尋歷史",
+      "description": "顯式開啟已保存的搜尋，而不是在頁面載入時靜默恢復。",
+      "loading": "正在載入歷史...",
+      "empty": "尚無已保存搜尋。",
+      "open": "開啟",
+      "createdAt": "建立時間",
+      "lastOpened": "上次開啟",
+      "noLocation": "未設定位置",
+      "saveSuccess": "已保存到搜尋歷史",
+      "saveError": "保存搜尋歷史失敗",
+      "applySuccess": "已套用已保存搜尋"
+    }
   },
   "searchProfiles": {
     "nav": "搜尋配置",

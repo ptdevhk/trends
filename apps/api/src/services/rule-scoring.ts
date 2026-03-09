@@ -573,7 +573,7 @@ export class RuleScoringService {
     }
 
     const sourceText = role.verifyIn === "workHistory"
-      ? (index.workHistoryText || "")
+      ? (index.evidenceText || "")
       : index.searchText;
     if (!sourceText.trim()) {
       return { signalCount: 0, years: 0 };

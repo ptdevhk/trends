@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { buildWorkHistoryEvidence } from "@trends/shared";
+
 import { findProjectRoot } from "./db.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
@@ -13,7 +15,7 @@ export interface ResumeIndex {
   experienceYears: number | null;
   educationLevel: string | null;
   locationCity: string | null;
-  workHistoryText?: string;
+  evidenceText?: string;
   skills: string[];
   companies: string[];
   industryTags: string[];
@@ -312,12 +314,14 @@ export class ResumeIndexService {
       const skills = this.extractSkills(item, searchText);
       const tagHaystack = [searchText, ...skills, ...companies].join(" ").toLowerCase();
 
+      const evidenceText = buildWorkHistoryEvidence(item.workHistory).text;
+
       nextMap.set(resumeId, {
         resumeId,
         experienceYears: parseExperienceYears(item.experience),
         educationLevel: normalizeEducationLevel(item.education),
         locationCity: this.extractLocationCity(item.location || ""),
-        workHistoryText: (item.workHistory ?? []).map((entry) => entry.raw).join(" "),
+        evidenceText,
         skills,
         companies,
         industryTags: this.scoreIndustryTags(tagHaystack),

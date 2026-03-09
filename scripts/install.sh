@@ -267,6 +267,23 @@ run_as_service_user() {
     fi
 }
 
+run_convex_migration() {
+    local convex_dir="$1"
+    local migration_name="$2"
+    local migration_args="${3:-}"
+    local migration_suffix=""
+    local command="set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:$migration_name"
+
+    if [[ -n "$migration_args" ]]; then
+        migration_suffix=" $migration_args"
+        command="$command '$migration_args'"
+    fi
+
+    log_info "Running Convex migration: $migration_name..."
+    run_as_service_user "$command" \
+        || log_warn "$migration_name failed.$migration_suffix"
+}
+
 create_service_user() {
     if id "$SERVICE_USER" >/dev/null 2>&1; then
         log_info "User $SERVICE_USER already exists."
@@ -903,21 +920,12 @@ seed_and_migrate_convex() {
     run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$INSTALL_DIR' && npx tsx '$seed_script' $seed_args" \
         || log_warn "Convex seed failed. Continuing with migrations."
 
-    log_info "Running Convex migration: reindexSearchText..."
-    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:reindexSearchText" \
-        || log_warn "reindexSearchText failed."
-
-    log_info "Running Convex migration: backfillPrimaryRuleScore..."
-    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillPrimaryRuleScore" \
-        || log_warn "backfillPrimaryRuleScore failed."
-
-    log_info "Running Convex migration: backfillIngestData..."
-    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillIngestData '{\"limit\":100}'" \
-        || log_warn "backfillIngestData failed."
-
-    log_info "Running Convex migration: backfillJob5156ProfileUrls..."
-    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:backfillJob5156ProfileUrls" \
-        || log_warn "backfillJob5156ProfileUrls failed."
+    run_convex_migration "$convex_dir" "reindexSearchText"
+    run_convex_migration "$convex_dir" "backfillPrimaryRuleScore"
+    run_convex_migration "$convex_dir" "backfillEvidenceText"
+    run_convex_migration "$convex_dir" "backfillWorkspaceSlugs"
+    run_convex_migration "$convex_dir" "backfillIngestData" '{"limit":100}'
+    run_convex_migration "$convex_dir" "backfillJob5156ProfileUrls"
 }
 
 resolve_env_file() {

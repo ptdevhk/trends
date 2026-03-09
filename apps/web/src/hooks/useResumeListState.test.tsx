@@ -15,6 +15,8 @@ const mockState = vi.hoisted(() => ({
   setJobDescriptionId: vi.fn(),
   trackReviewedResume: vi.fn(),
   applyExternalState: vi.fn(),
+  saveSearchHistory: vi.fn(async () => 'history-1'),
+  markSearchHistoryOpened: vi.fn(async () => {}),
   refresh: vi.fn(async () => {}),
   reloadSamples: vi.fn(async () => {}),
   blockCandidates: vi.fn(async () => true),
@@ -65,6 +67,10 @@ vi.mock('@/hooks/useSession', () => ({
     reviewedIdsSet: new Set<string>(),
     trackReviewedResume: mockState.trackReviewedResume,
     applyExternalState: mockState.applyExternalState,
+    searchHistory: [],
+    searchHistoryLoading: false,
+    saveSearchHistory: mockState.saveSearchHistory,
+    markSearchHistoryOpened: mockState.markSearchHistoryOpened,
   }),
 }))
 
@@ -169,6 +175,7 @@ function buildResume(params: {
     workHistory: [{ raw: 'Test work history' }],
     extractedAt: '2026-03-01T00:00:00.000Z',
     ingestData: {
+      evidenceText: 'test work history',
       industryTags: [],
       synonymHits: [],
       brandHits: [],
@@ -286,6 +293,57 @@ describe('useResumeListState role filter regression', () => {
     expect(mockState.setLocation).toHaveBeenCalledWith('')
     expect(mockState.setKeywords).toHaveBeenCalledWith([])
     expect(mockState.setFilters).toHaveBeenCalledWith({})
+  })
+
+  it('saves current search into explicit history', async () => {
+    mockState.filters = {
+      minRoleYears: 2,
+      roleFilterType: 'engineer',
+    }
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleSaveCurrentSearch()
+    })
+
+    expect(mockState.saveSearchHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: '广东',
+        location: '广东',
+        keywords: [],
+        filters: mockState.filters,
+      })
+    )
+  })
+
+  it('applies saved search history and updates opened timestamp', async () => {
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleApplySearchHistory({
+        id: 'history-1' as never,
+        sessionKey: 'session-1',
+        title: 'Saved search',
+        location: '苏州',
+        keywords: ['CNC', '销售'],
+        jobDescriptionId: 'lathe-sales',
+        filters: { minAge: 28 },
+        selectedTags: ['STAR'],
+        selectedCompanies: ['Acme'],
+        selectedExperienceLevel: 'mid',
+        createdAt: 1,
+        lastOpenedAt: 2,
+      })
+    })
+
+    expect(mockState.applyExternalState).toHaveBeenCalledWith({
+      location: '苏州',
+      keywords: ['CNC', '销售'],
+      jobDescriptionId: 'lathe-sales',
+      filters: { minAge: 28 },
+    })
+    expect(mockState.markSearchHistoryOpened).toHaveBeenCalledWith('history-1')
   })
 
   it('allows manual profile apply to bypass the URL hydration guard', () => {

@@ -19,20 +19,35 @@ For resume search, the expected mental model is closer to:
 - Google search history: explicit prior searches, not surprise query replay
 - Chat history: explicit thread/session list, not silent overwrite of the current draft
 
-## Follow-Up Direction
+## Current Status
 
-Current `screening_sessions` is only an active-session bucket keyed by anonymous `sessionKey`.
+That follow-up has now landed.
 
-The next design should move to explicit history records with:
+- `screening_sessions` remains the active-session bucket keyed by anonymous `sessionKey`
+- explicit saved searches now live in workspace-scoped `search_history` records
+- the resume UI exposes explicit save/open actions instead of silent page-load restore
+- opening a saved history item applies the saved draft state and updates `lastOpenedAt`
 
-- `sessionKey` as the browser/thread identity
-- optional `taskId` linkage for collection / deep-search runs
-- explicit timestamps and titles
-- optional user notes
-- explicit "open this history item" behavior instead of auto-restore on page load
+Current saved history records include:
+
+- `workspaceSlug`
+- `sessionKey`
+- `title`
+- `location`
+- `keywords`
+- `jobDescriptionId`
+- `filters`
+- `selectedTags`
+- `selectedCompanies`
+- `selectedExperienceLevel`
+- optional `collectionTaskId` / `analysisTaskId`
+- optional `notes`
+- `createdAt` and `lastOpenedAt`
 
 ## Affected Paths
 
 - `apps/web/src/hooks/useSession.ts`
+- `apps/web/src/hooks/useResumeListState.ts`
+- `apps/web/src/components/SearchHistoryDialog.tsx`
 - `packages/convex/convex/sessions.ts`
 - `packages/convex/convex/schema.ts`

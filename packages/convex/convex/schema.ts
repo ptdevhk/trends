@@ -96,6 +96,7 @@ export default defineSchema({
 
         // Pre-computed Ingest Data (M3)
         ingestData: v.optional(v.object({
+            evidenceText: v.optional(v.string()),
             industryTags: v.array(v.string()),
             synonymHits: v.array(v.string()),
             brandHits: v.optional(v.array(v.object({
@@ -303,6 +304,26 @@ export default defineSchema({
         .index("by_sessionKey", ["sessionKey"])
         .index("by_status", ["status"])
         .index("by_workspace", ["workspaceSlug"]),
+
+    search_history: defineTable({
+        sessionKey: v.string(),
+        title: v.string(),
+        location: v.string(),
+        keywords: v.array(v.string()),
+        jobDescriptionId: v.optional(v.string()),
+        filters: v.optional(v.any()),
+        selectedTags: v.optional(v.array(v.string())),
+        selectedCompanies: v.optional(v.array(v.string())),
+        selectedExperienceLevel: v.optional(v.string()),
+        collectionTaskId: v.optional(v.string()),
+        analysisTaskId: v.optional(v.string()),
+        notes: v.optional(v.string()),
+        workspaceSlug: v.optional(v.string()),
+        createdAt: v.number(),
+        lastOpenedAt: v.optional(v.number()),
+    })
+        .index("by_workspace", ["workspaceSlug"])
+        .index("by_sessionKey", ["sessionKey"]),
 
     workspace_config: defineTable({
         workspaceSlug: v.string(),

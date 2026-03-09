@@ -89,6 +89,7 @@ export const processNewResumes = internalAction({
       const updates = result.results.map((item: any) => ({
         resumeId: item.resumeId as Id<"resumes">,
         ingestData: {
+          evidenceText: item.evidenceText || "",
           industryTags: item.industryTags,
           synonymHits: item.synonymHits,
           brandHits: item.brandHits || [],
