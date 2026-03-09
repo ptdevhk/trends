@@ -460,6 +460,121 @@ describe('search-profiles update route', () => {
     vi.restoreAllMocks()
   })
 
+  it('syncs linked custom JD auto_match keywords without moving other filters under auto_match', async () => {
+    const calls: ConvexCall[] = []
+    const existingCreatedAt = Date.now() - 1000
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+
+      if (call.pathName === 'search_profiles:getById') {
+        return convexSuccess({
+          _id: 'custom-profile-1',
+          name: 'CNC销售-Demo',
+          criteria: {
+            keywords: ['销售', 'CNC'],
+            locations: ['广东'],
+          },
+          profile: {
+            id: 'custom-profile-1',
+            name: 'CNC销售-Demo',
+            status: 'active',
+            location: '广东',
+            keywords: ['销售', 'CNC'],
+            jobDescription: 'custom-jd-1',
+            filters: {
+              minExperience: 1,
+              maxAge: 45,
+            },
+          },
+          workspaceSlug: 'dev',
+          createdAt: existingCreatedAt,
+          updatedAt: existingCreatedAt,
+        })
+      }
+
+      if (call.pathName === 'job_descriptions:get') {
+        return convexSuccess({
+          _id: 'custom-jd-1',
+          type: 'custom',
+          title: '车床销售',
+          workspaceSlug: 'dev',
+          location: '广东',
+          industryTags: ['machinery', 'cnc', 'sales'],
+          minExperience: 1,
+          maxAge: 45,
+        })
+      }
+
+      if (call.pathName === 'search_profiles:update') {
+        return convexSuccess({
+          _id: 'custom-profile-1',
+          name: 'CNC销售-Demo',
+          criteria: {
+            keywords: ['销售', 'CNC', '车床'],
+            locations: ['广东'],
+          },
+          profile: {
+            id: 'custom-profile-1',
+            name: 'CNC销售-Demo',
+            status: 'active',
+            location: '广东',
+            keywords: ['销售', 'CNC', '车床'],
+            jobDescription: 'custom-jd-1',
+            filters: {
+              minExperience: 1,
+              maxAge: 45,
+            },
+          },
+          workspaceSlug: 'dev',
+          createdAt: existingCreatedAt,
+          updatedAt: Date.now(),
+        })
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles/custom-profile-1', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'dev',
+      },
+      body: JSON.stringify({
+        name: 'CNC销售-Demo',
+        location: '广东',
+        keywords: ['销售', 'CNC', '车床'],
+        status: 'active',
+        jobDescription: 'custom-jd-1',
+        filters: {
+          minExperience: 1,
+          maxAge: 45,
+        },
+      }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const updateCall = getUpdateCall(calls)
+    expect(updateCall.args.jobDescriptionSync).toMatchObject({
+      id: 'custom-jd-1',
+      customKeywords: ['销售', 'CNC', '车床'],
+    })
+    if (!isRecord(updateCall.args.jobDescriptionSync)) {
+      throw new Error('Expected jobDescriptionSync payload')
+    }
+    expect(typeof updateCall.args.jobDescriptionSync.content).toBe('string')
+    expect(updateCall.args.jobDescriptionSync.content).toContain('auto_match:')
+    expect(updateCall.args.jobDescriptionSync.content).toContain('  keywords:')
+    expect(updateCall.args.jobDescriptionSync.content).toContain('min_experience: 1')
+    expect(updateCall.args.jobDescriptionSync.content).toContain('max_age: 45')
+    expect(updateCall.args.jobDescriptionSync.content).not.toContain('  locations:')
+    expect(updateCall.args.jobDescriptionSync.content).not.toContain('suggested_filters:')
+  })
+
   it('clears optional job description linkage and filters when the editor sends explicit nulls', async () => {
     const calls: ConvexCall[] = []
     const existingCreatedAt = Date.now() - 1000

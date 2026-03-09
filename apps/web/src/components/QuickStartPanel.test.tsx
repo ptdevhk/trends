@@ -285,4 +285,63 @@ describe('QuickStartPanel quick-filter display', () => {
       expect(screen.getByText('Matched: cnc, 销售, 车床')).toBeInTheDocument()
     })
   })
+
+  it('shows auto-match with keywords only when location is blank', async () => {
+    postMock.mockResolvedValue({
+      data: {
+        success: true,
+        profileId: 'profile-1',
+        confidence: 1,
+        matchedKeywords: ['销售', 'cnc'],
+      },
+    })
+    getMock.mockImplementation(async (path: string) => {
+      if (path.includes('/api/search-profiles/profile-1')) {
+        return {
+          data: {
+            success: true,
+            profile: {
+              id: 'profile-1',
+              name: 'CNC销售-Demo',
+              status: 'active' as const,
+              location: '广东,江苏',
+              keywords: ['CNC', '销售'],
+              filters: {
+                minExperience: 1,
+                minAge: 25,
+                maxAge: 35,
+              },
+            },
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+          item: {
+            requiredRoles: [],
+          },
+        },
+      }
+    })
+
+    render(
+      <QuickStartPanel
+        defaultLocation=""
+        defaultKeywords={['销售', 'CNC']}
+        jobDescriptionId=""
+      />
+    )
+
+    await waitFor(() => {
+      expect(postMock).toHaveBeenCalledWith('/api/search-profiles/auto-match', {
+        body: {
+          keywords: ['销售', 'CNC'],
+        },
+      })
+      expect(screen.getByText('CNC销售-Demo')).toBeInTheDocument()
+      expect(screen.getByText('100%')).toBeInTheDocument()
+    })
+  })
 })

@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useSession } from './useSession'
@@ -215,5 +215,29 @@ describe('useSession', () => {
       id: 'history-hr',
       workspaceSlug: 'hr',
     })
+  })
+
+  it('clears location when external state explicitly provides an empty location', async () => {
+    const { result } = renderHook(() => useSession())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    act(() => {
+      result.current.setLocation('广东')
+    })
+
+    expect(result.current.location).toBe('广东')
+
+    act(() => {
+      result.current.applyExternalState({
+        location: '',
+        keywords: ['CNC', '销售'],
+      })
+    })
+
+    expect(result.current.location).toBe('')
+    expect(result.current.keywords).toEqual(['CNC', '销售'])
   })
 })

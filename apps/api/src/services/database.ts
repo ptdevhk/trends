@@ -9,6 +9,33 @@ const DEFAULT_DB_FILENAME = "resume_screening.db";
 
 let cachedDb: Database.Database | null = null;
 
+function getSqliteErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined;
+  }
+
+  const { code } = error;
+  return typeof code === "string" ? code : undefined;
+}
+
+function configureResumeScreeningDb(db: Database.Database): void {
+  db.pragma("busy_timeout = 5000");
+
+  try {
+    const currentJournalMode = db.pragma("journal_mode", { simple: true });
+    if (String(currentJournalMode).toLowerCase() !== "wal") {
+      db.pragma("journal_mode = WAL");
+    }
+  } catch (error) {
+    console.error("Failed to enable WAL for resume screening DB", error);
+    if (getSqliteErrorCode(error) !== "SQLITE_BUSY") {
+      throw error;
+    }
+  }
+
+  db.pragma("foreign_keys = ON");
+}
+
 export function getResumeScreeningDb(projectRoot?: string): Database.Database {
   if (cachedDb) return cachedDb;
 
@@ -20,8 +47,7 @@ export function getResumeScreeningDb(projectRoot?: string): Database.Database {
 
   const dbPath = path.join(outputDir, DEFAULT_DB_FILENAME);
   const db = new Database(dbPath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
+  configureResumeScreeningDb(db);
 
   initSchema(db);
   cachedDb = db;

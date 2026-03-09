@@ -6,8 +6,14 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { generateStructuredJobDescriptionContent } from "@trends/shared";
 
-import { searchProfileService, type AutoMatchResult, type SearchProfile } from "../services/search-profile-service.js";
+import {
+    matchSearchProfilesByKeywords,
+    searchProfileService,
+    type AutoMatchResult,
+    type SearchProfile,
+} from "../services/search-profile-service.js";
 
 const app = new OpenAPIHono();
 
@@ -346,6 +352,35 @@ type ConvexSearchProfileRecord = {
     createdAt?: unknown;
 };
 
+type ConvexJobDescriptionRecord = {
+    _id?: unknown;
+    type?: unknown;
+    title?: unknown;
+    workspaceSlug?: unknown;
+    location?: unknown;
+    industryTags?: unknown;
+    minExperience?: unknown;
+    maxExperience?: unknown;
+    minAge?: unknown;
+    maxAge?: unknown;
+};
+
+type JobDescriptionSyncPayload = {
+    id: string;
+    content: string;
+    customKeywords: string[];
+};
+
+const DEFAULT_WORKSPACE_SLUG = "dev";
+
+function belongsToWorkspace(recordWorkspaceSlug: unknown, workspaceSlug: string): boolean {
+    const normalizedRecordWorkspace = readString(recordWorkspaceSlug);
+    if (workspaceSlug === DEFAULT_WORKSPACE_SLUG) {
+        return !normalizedRecordWorkspace || normalizedRecordWorkspace === DEFAULT_WORKSPACE_SLUG;
+    }
+    return normalizedRecordWorkspace === workspaceSlug;
+}
+
 function normalizeKeywordList(value: unknown): string[] {
     if (!Array.isArray(value)) {
         return [];
@@ -460,10 +495,70 @@ async function getCustomProfile(id: string, workspaceSlug: string): Promise<Sear
     return toSearchProfile(value);
 }
 
-async function createCustomProfile(profile: SearchProfile, workspaceSlug: string): Promise<SearchProfile> {
+async function getLinkedCustomJobDescription(
+    id: string,
+    workspaceSlug: string
+): Promise<ConvexJobDescriptionRecord | null> {
+    let value: unknown;
+    try {
+        value = await callConvex("query", "job_descriptions:get", { id });
+    } catch {
+        return null;
+    }
+    if (!isRecord(value)) {
+        return null;
+    }
+    if (readString(value.type) !== "custom") {
+        return null;
+    }
+    if (!belongsToWorkspace(value.workspaceSlug, workspaceSlug)) {
+        return null;
+    }
+    return value;
+}
+
+async function buildJobDescriptionSyncPayload(
+    profile: SearchProfile,
+    workspaceSlug: string
+): Promise<JobDescriptionSyncPayload | undefined> {
+    const jobDescriptionId = profile.jobDescription?.trim();
+    if (!jobDescriptionId) {
+        return undefined;
+    }
+
+    const jobDescription = await getLinkedCustomJobDescription(jobDescriptionId, workspaceSlug);
+    if (!jobDescription) {
+        return undefined;
+    }
+
+    const title = readString(jobDescription.title) ?? profile.name;
+    const content = generateStructuredJobDescriptionContent({
+        title,
+        location: readString(jobDescription.location),
+        industryTags: normalizeKeywordList(jobDescription.industryTags),
+        minExperience: readNumber(jobDescription.minExperience),
+        maxExperience: readNumber(jobDescription.maxExperience),
+        minAge: readNumber(jobDescription.minAge),
+        maxAge: readNumber(jobDescription.maxAge),
+        customKeywords: profile.keywords,
+    });
+
+    return {
+        id: jobDescriptionId,
+        content,
+        customKeywords: profile.keywords,
+    };
+}
+
+async function createCustomProfile(
+    profile: SearchProfile,
+    workspaceSlug: string,
+    jobDescriptionSync?: JobDescriptionSyncPayload
+): Promise<SearchProfile> {
     const value = await callConvex("mutation", "search_profiles:create", {
         profile,
         workspaceSlug,
+        jobDescriptionSync,
     });
     if (!isRecord(value)) {
         throw new Error("Failed to create search profile");
@@ -476,11 +571,17 @@ async function createCustomProfile(profile: SearchProfile, workspaceSlug: string
     return created;
 }
 
-async function updateCustomProfile(id: string, profile: SearchProfile, workspaceSlug: string): Promise<SearchProfile> {
+async function updateCustomProfile(
+    id: string,
+    profile: SearchProfile,
+    workspaceSlug: string,
+    jobDescriptionSync?: JobDescriptionSyncPayload
+): Promise<SearchProfile> {
     const value = await callConvex("mutation", "search_profiles:update", {
         id,
         profile,
         workspaceSlug,
+        jobDescriptionSync,
     });
     if (!isRecord(value)) {
         throw new Error("Failed to update search profile");
@@ -502,63 +603,7 @@ async function deleteCustomProfile(id: string, workspaceSlug: string): Promise<b
 }
 
 function matchProfiles(profiles: SearchProfile[], keywords: string[], location?: string): AutoMatchResult {
-    const normalizedInputKeywords = Array.from(
-        new Set(
-            keywords
-                .map((keyword) => keyword.trim().toLowerCase())
-                .filter((keyword) => keyword.length > 0)
-        )
-    );
-    if (normalizedInputKeywords.length === 0) {
-        return {
-            confidence: 0,
-            matchedKeywords: [],
-        };
-    }
-
-    let bestMatch: { profile: SearchProfile; score: number; matchedKeywords: string[] } | null = null;
-    for (const profile of profiles) {
-        if (profile.status !== "active") {
-            continue;
-        }
-
-        const profileKeywords = profile.keywords.map((keyword) => keyword.toLowerCase());
-        const matchedKeywords = normalizedInputKeywords.filter((keyword) =>
-            profileKeywords.some((profileKeyword) => profileKeyword.includes(keyword) || keyword.includes(profileKeyword))
-        );
-        let score = matchedKeywords.length / normalizedInputKeywords.length;
-
-        if (location && profile.location) {
-            const profileLocation = profile.location.toLowerCase();
-            const inputLocation = location.toLowerCase();
-            if (profileLocation.includes(inputLocation) || inputLocation.includes(profileLocation)) {
-                score += 0.2;
-            }
-        }
-
-        if (!bestMatch || score > bestMatch.score) {
-            bestMatch = {
-                profile,
-                score,
-                matchedKeywords,
-            };
-        }
-    }
-
-    if (!bestMatch || bestMatch.score <= 0.3) {
-        return {
-            confidence: 0,
-            matchedKeywords: [],
-        };
-    }
-
-    return {
-        profile: bestMatch.profile,
-        jobDescription: bestMatch.profile.jobDescription,
-        filterPreset: bestMatch.profile.filterPreset,
-        confidence: Math.min(bestMatch.score, 1),
-        matchedKeywords: bestMatch.matchedKeywords,
-    };
+    return matchSearchProfilesByKeywords(profiles, keywords, location);
 }
 
 async function loadProfileById(id: string, workspaceSlug: string): Promise<SearchProfile | null> {
@@ -760,7 +805,8 @@ app.openapi(createProfileRoute, async (c) => {
         );
         searchProfileService.validateProfile(normalizedProfile);
 
-        const profile = await createCustomProfile(normalizedProfile, c.var.workspaceSlug);
+        const jobDescriptionSync = await buildJobDescriptionSyncPayload(normalizedProfile, c.var.workspaceSlug);
+        const profile = await createCustomProfile(normalizedProfile, c.var.workspaceSlug, jobDescriptionSync);
         return c.json({ success: true as const, profile }, 201);
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create profile";
@@ -1173,7 +1219,8 @@ app.openapi(updateProfileRoute, async (c) => {
         normalized.id = existingCustom.id;
         searchProfileService.validateProfile(normalized);
 
-        const profile = await updateCustomProfile(existingCustom.id, normalized, c.var.workspaceSlug);
+        const jobDescriptionSync = await buildJobDescriptionSyncPayload(normalized, c.var.workspaceSlug);
+        const profile = await updateCustomProfile(existingCustom.id, normalized, c.var.workspaceSlug, jobDescriptionSync);
         return c.json({ success: true as const, profile }, 200);
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update profile";

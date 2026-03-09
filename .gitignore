@@ -59,6 +59,9 @@ node_modules/
 package-lock.json
 *.tsbuildinfo
 bin/
+coverage/
+apps/web/coverage/
+apps/web/test-results/
 
 # Allow web app lib folder (overrides Python lib/ ignore)
 !apps/web/src/lib/

@@ -6,6 +6,9 @@ import { useResumeListState } from './useResumeListState'
 const mockState = vi.hoisted(() => ({
   convexResumes: [] as ConvexResumeItem[],
   filters: {} as Record<string, unknown>,
+  sessionLocation: '广东',
+  sessionKeywords: [] as string[],
+  sessionJobDescriptionId: undefined as string | undefined,
   setFilters: vi.fn(),
   setLocation: vi.fn(),
   setKeywords: vi.fn(),
@@ -21,6 +24,18 @@ const mockState = vi.hoisted(() => ({
   updateStatus: vi.fn(async () => {}),
   saveAction: vi.fn(async () => {}),
   syncToUrl: vi.fn(),
+  urlParsedState: {
+    location: undefined as string | undefined,
+    keywords: [] as string[],
+    jobDescriptionId: undefined as string | undefined,
+    filters: {} as Record<string, unknown>,
+    selectedTags: [] as string[],
+    selectedCompanies: [] as string[],
+    selectedExperienceLevel: undefined as 'senior' | 'mid' | 'junior' | undefined,
+  },
+  urlHasParams: false,
+  urlHasKeywordParam: false,
+  urlHasJobDescriptionParam: false,
 }))
 
 vi.mock('react-i18next', () => ({
@@ -41,11 +56,11 @@ vi.mock('convex/react', () => ({
 
 vi.mock('@/hooks/useSession', () => ({
   useSession: () => ({
-    location: '广东',
+    location: mockState.sessionLocation,
     setLocation: mockState.setLocation,
-    keywords: [],
+    keywords: mockState.sessionKeywords,
     setKeywords: mockState.setKeywords,
-    jobDescriptionId: undefined,
+    jobDescriptionId: mockState.sessionJobDescriptionId,
     setJobDescriptionId: mockState.setJobDescriptionId,
     filters: mockState.filters,
     setFilters: mockState.setFilters,
@@ -61,28 +76,12 @@ vi.mock('@/hooks/useSession', () => ({
 
 vi.mock('@/hooks/useUrlSearchState', () => ({
   hasKnownUrlSearchParams: () => false,
-  parseUrlSearchState: () => ({
-    location: undefined,
-    keywords: [],
-    jobDescriptionId: undefined,
-    filters: {},
-    selectedTags: [],
-    selectedCompanies: [],
-    selectedExperienceLevel: undefined,
-  }),
+  parseUrlSearchState: () => mockState.urlParsedState,
   useUrlSearchState: () => ({
-    parsedState: {
-      location: undefined,
-      keywords: [],
-      jobDescriptionId: undefined,
-      filters: {},
-      selectedTags: [],
-      selectedCompanies: [],
-      selectedExperienceLevel: undefined,
-    },
-    hasUrlParams: false,
-    hasKeywordParam: false,
-    hasJobDescriptionParam: false,
+    parsedState: mockState.urlParsedState,
+    hasUrlParams: mockState.urlHasParams,
+    hasKeywordParam: mockState.urlHasKeywordParam,
+    hasJobDescriptionParam: mockState.urlHasJobDescriptionParam,
     syncToUrl: mockState.syncToUrl,
   }),
 }))
@@ -193,6 +192,21 @@ describe('useResumeListState role filter regression', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.history.replaceState({}, '', '/')
+    mockState.sessionLocation = '广东'
+    mockState.sessionKeywords = []
+    mockState.sessionJobDescriptionId = undefined
+    mockState.urlParsedState = {
+      location: undefined,
+      keywords: [],
+      jobDescriptionId: undefined,
+      filters: {},
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+    }
+    mockState.urlHasParams = false
+    mockState.urlHasKeywordParam = false
+    mockState.urlHasJobDescriptionParam = false
 
     mockState.convexResumes = [
       buildResume({
@@ -329,5 +343,39 @@ describe('useResumeListState role filter regression', () => {
       filters: { minAge: 28 },
     })
     expect(mockState.markSearchHistoryOpened).toHaveBeenCalledWith('history-1')
+  })
+
+  it('allows manual profile apply to bypass the URL hydration guard', () => {
+    mockState.sessionLocation = ''
+    mockState.urlParsedState = {
+      location: '广东',
+      keywords: ['CNC'],
+      jobDescriptionId: undefined,
+      filters: {},
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+    }
+    mockState.urlHasParams = true
+    mockState.urlHasKeywordParam = true
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleQuickStartApply({
+        location: '江苏',
+        keywords: ['CNC', '销售'],
+        filters: {
+          minExperience: 1,
+        },
+      }, true)
+    })
+
+    expect(mockState.setLocation).toHaveBeenCalledTimes(1)
+    const setLocationArg = mockState.setLocation.mock.calls[0]?.[0]
+    expect(typeof setLocationArg).toBe('function')
+    expect(setLocationArg('')).toBe('江苏')
+    expect(mockState.setKeywords).toHaveBeenCalledWith(expect.any(Function))
+    expect(mockState.setFilters).toHaveBeenCalledWith(expect.any(Function))
   })
 })
