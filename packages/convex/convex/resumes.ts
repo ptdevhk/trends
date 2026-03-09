@@ -260,6 +260,7 @@ export const updateIngestData = internalMutation({
     args: {
         resumeId: v.id("resumes"),
         ingestData: v.object({
+            evidenceText: v.optional(v.string()),
             industryTags: v.array(v.string()),
             synonymHits: v.array(v.string()),
             brandHits: v.optional(v.array(v.object({
@@ -342,6 +343,7 @@ export const updateIngestDataBatch = internalMutation({
         updates: v.array(v.object({
             resumeId: v.id("resumes"),
             ingestData: v.object({
+                evidenceText: v.optional(v.string()),
                 industryTags: v.array(v.string()),
                 synonymHits: v.array(v.string()),
                 brandHits: v.optional(v.array(v.object({

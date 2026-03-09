@@ -4,7 +4,9 @@ import path from "node:path";
 
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
-import { IngestComputeService } from "./ingest-compute-service";
+import { buildWorkHistoryEvidence } from "@trends/shared";
+
+import { IngestComputeService, buildResumeIndex } from "./ingest-compute-service";
 
 const TEST_SKILLS_MD = `---
 version: 42
@@ -494,8 +496,24 @@ describe("IngestComputeService", () => {
 
     const result = service.computeOne("resume-789", noHistory);
 
+    expect(result.evidenceText).toBe("");
     expect(result.industryTags).toBeDefined();
     expect(result.ruleScores).toBeDefined();
+  });
+
+  it("should build evidenceText with the shared evidence helper", () => {
+    const item = {
+      ...SAMPLE_RESUME_JUNIOR.data[0],
+      workHistory: [
+        { raw: "  2020-2025   Sales   Engineer  " },
+        { raw: " CNC 机床 " },
+      ],
+    };
+
+    const index = buildResumeIndex(item, 0);
+
+    expect(index.evidenceText).toBe(buildWorkHistoryEvidence(item).text);
+    expect(index.evidenceText).toBe("2020-2025 sales engineer\ncnc 机床");
   });
 
   it("should throw error for invalid content", () => {

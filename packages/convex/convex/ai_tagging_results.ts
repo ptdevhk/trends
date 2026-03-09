@@ -1,4 +1,5 @@
 /// <reference path="./convex-env.d.ts" />
+import { buildWorkHistoryEvidence } from "@trends/shared";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
@@ -34,9 +35,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function normalizeWhitespace(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
-}
 
 export function stableHash(seed: string): string {
   let hash = 2166136261;
@@ -69,37 +67,23 @@ function toStringArray(value: unknown): string[] {
     .filter((item) => item.length > 0);
 }
 
-function readWorkHistoryLines(content: unknown): string[] {
-  if (!isRecord(content)) {
-    return [];
+function readStoredEvidenceText(value: unknown): { lines: string[]; text: string } | null {
+  if (typeof value !== "string") {
+    return null;
   }
+  const text = value.trim();
+  return {
+    lines: text ? text.split("\n").filter((line) => line.length > 0) : [],
+    text,
+  };
+}
 
-  const raw = content.workHistory;
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  const lines: string[] = [];
-  for (const entry of raw) {
-    if (typeof entry === "string") {
-      const normalized = normalizeWhitespace(entry);
-      if (normalized) lines.push(normalized);
-      continue;
-    }
-    if (isRecord(entry) && typeof entry.raw === "string") {
-      const normalized = normalizeWhitespace(entry.raw);
-      if (normalized) lines.push(normalized);
-    }
-  }
-
-  return lines;
+export function resolveAiTaggingEvidence(resume: Pick<Doc<"resumes">, "content" | "ingestData">): { lines: string[]; text: string } | null {
+  return readStoredEvidenceText(resume.ingestData?.evidenceText);
 }
 
 export function buildEvidenceTextFromWorkHistory(content: unknown): { lines: string[]; text: string } {
-  const lines = readWorkHistoryLines(content);
-  const normalizedLines = lines.map((line) => normalizeWhitespace(line)).filter(Boolean);
-  const text = normalizedLines.join("\n").toLowerCase();
-  return { lines: normalizedLines, text };
+  return buildWorkHistoryEvidence(content);
 }
 
 export function buildAiTaggingIdentity(input: {
@@ -411,7 +395,11 @@ export const enqueueBatch = mutation({
         continue;
       }
 
-      const evidence = buildEvidenceTextFromWorkHistory(resume.content);
+      const evidence = resolveAiTaggingEvidence(resume);
+      if (!evidence) {
+        continue;
+      }
+
       const identity = buildAiTaggingIdentity({
         profileKey,
         evidenceText: evidence.text,
@@ -746,11 +734,11 @@ export const drainQueue = internalAction({
           return;
         }
 
-        const evidence = buildEvidenceTextFromWorkHistory(resume.content);
-        if (evidence.lines.length === 0) {
+        const evidence = resolveAiTaggingEvidence(resume);
+        if (!evidence || evidence.lines.length === 0) {
           await ctx.runMutation(internal.ai_tagging_results.markFailed, {
             id: row._id,
-            error: "Missing workHistory evidence (strict mode requires work history lines).",
+            error: "Missing ingestData.evidenceText (run backfillEvidenceText before strict AI tagging).",
             metrics: { latencyMs: Date.now() - start },
           });
           return;

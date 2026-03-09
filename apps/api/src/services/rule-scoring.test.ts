@@ -102,7 +102,7 @@ describe("RuleScoringService", () => {
         experienceYears: 5,
         educationLevel: "bachelor",
         locationCity: "东莞",
-        workHistoryText: "2021-2025 东莞精密机械 销售经理 客户开发 渠道拓展",
+        evidenceText: "2021-2025 东莞精密机械 销售经理 客户开发 渠道拓展",
         skills: ["车床", "cnc", "销售"],
         companies: ["东莞富佳机械设备有限公司"],
         industryTags: ["machinery", "cnc", "sales"],
@@ -450,7 +450,7 @@ describe("RuleScoringService", () => {
         experienceYears: 6,
         educationLevel: "associate",
         locationCity: "东莞",
-        workHistoryText: "2019-2025 CNC操作员 负责车床编程与设备维护",
+        evidenceText: "2019-2025 cnc操作员 负责车床编程与设备维护",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞某机床厂"],
         industryTags: ["machinery", "cnc"],
@@ -463,7 +463,7 @@ describe("RuleScoringService", () => {
         experienceYears: 5,
         educationLevel: "bachelor",
         locationCity: "东莞",
-        workHistoryText: "2020-2025 机床销售工程师 负责客户开发 渠道拓展",
+        evidenceText: "2020-2025 机床销售工程师 负责客户开发 渠道拓展",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞设备公司"],
         industryTags: ["machinery", "cnc", "sales"],
@@ -477,6 +477,62 @@ describe("RuleScoringService", () => {
       expect(operatorResult.breakdown.roleMatch).toBe(2);
       expect(salesResult.breakdown.roleMatch).toBe(8);
       expect(salesResult.score).toBeGreaterThan(operatorResult.score);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("ignores job intention and self intro for strict work-history role checks", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContext("lathe-sales");
+
+      const retrievalOnlySalesCandidate: ResumeIndex = {
+        resumeId: "R-retrieval-only-sales",
+        experienceYears: 5,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        evidenceText: "2020-2025 cnc操作员 负责车床编程与设备维护",
+        skills: ["cnc", "车床", "销售"],
+        companies: ["东莞设备厂"],
+        industryTags: ["machinery", "cnc"],
+        salaryRange: { min: 10000, max: 15000 },
+        searchText: "东莞 cnc 车床 销售 客户 渠道 机床销售工程师 熟悉star fanuc品牌 大客户资源",
+      };
+
+      const result = service.scoreResume(retrievalOnlySalesCandidate, context);
+
+      expect(result.breakdown.roleMatch).toBe(2);
+      expect(result.recommendation).not.toBe("strong_match");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("requires explicit evidenceText for strict work-history role checks", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContext("lathe-sales");
+
+      const legacyOnlyCandidate: ResumeIndex = {
+        resumeId: "R-legacy-work-history-only",
+        experienceYears: 5,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        skills: ["cnc", "车床", "销售"],
+        companies: ["东莞设备厂"],
+        industryTags: ["machinery", "cnc", "sales"],
+        salaryRange: { min: 10000, max: 15000 },
+        searchText: "东莞 cnc 车床 销售 客户 渠道",
+      };
+
+      const result = service.scoreResume(legacyOnlyCandidate, context);
+
+      expect(result.breakdown.roleMatch).toBe(2);
     } finally {
       cleanupFixtureRoot(root);
     }
@@ -506,7 +562,7 @@ describe("RuleScoringService", () => {
         experienceYears: 6,
         educationLevel: "associate",
         locationCity: "东莞",
-        workHistoryText: "2019-2025 CNC操作员 负责车床编程与设备维护",
+        evidenceText: "2019-2025 CNC操作员 负责车床编程与设备维护",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞某机床厂"],
         industryTags: ["machinery", "cnc"],
@@ -519,7 +575,7 @@ describe("RuleScoringService", () => {
         experienceYears: 5,
         educationLevel: "bachelor",
         locationCity: "东莞",
-        workHistoryText: "2020-2025 机床销售工程师 负责客户开发 渠道拓展",
+        evidenceText: "2020-2025 机床销售工程师 负责客户开发 渠道拓展",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞设备公司"],
         industryTags: ["machinery", "cnc", "sales"],

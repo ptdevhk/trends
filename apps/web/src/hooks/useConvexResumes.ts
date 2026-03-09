@@ -15,6 +15,7 @@ export type ConvexResumeAnalysis = {
 }
 
 export type ConvexIngestData = {
+  evidenceText?: string
   industryTags: string[]
   synonymHits: string[]
   brandHits: Array<{
@@ -417,6 +418,7 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
     ?? parseLegacyTaggingEnvelope(tagEnvelope, computedAt)
 
   return {
+    evidenceText: toStringValue(value.evidenceText) || undefined,
     industryTags: toStringArray(value.industryTags),
     synonymHits: toStringArray(value.synonymHits),
     brandHits: parseBrandHits(value.brandHits),

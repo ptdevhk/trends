@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
-const DEFAULT_WORKSPACE_SLUG = "dev";
+import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 const DEFAULT_STATUS = "new";
 
 function normalizeWorkspaceSlug(input: string | undefined): string {

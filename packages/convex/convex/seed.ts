@@ -5,8 +5,9 @@ import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 
+import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
+
 const jobDescriptionType = v.union(v.literal("system"), v.literal("custom"));
-const DEFAULT_WORKSPACE_SLUG = "dev";
 
 function normalizeWorkspaceSlug(input: string | undefined): string {
   const normalized = input?.trim();

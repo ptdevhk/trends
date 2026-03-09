@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAiTaggingIdentity, buildEvidenceTextFromWorkHistory, stableHash } from "../ai_tagging_results";
+import { buildWorkHistoryEvidence } from "@trends/shared";
+
+import { buildAiTaggingIdentity, buildEvidenceTextFromWorkHistory, resolveAiTaggingEvidence, stableHash } from "../ai_tagging_results";
 
 describe("buildEvidenceTextFromWorkHistory", () => {
     it("normalizes whitespace and preserves line boundaries", () => {
@@ -32,6 +34,77 @@ describe("buildEvidenceTextFromWorkHistory", () => {
         });
 
         expect(stableHash(a.text)).toBe(stableHash(b.text));
+    });
+
+    it("matches the shared helper output", () => {
+        const input = {
+            workHistory: ["  Sales   Engineer ", { raw: " CNC 机床 " }],
+        };
+
+        expect(buildEvidenceTextFromWorkHistory(input)).toEqual(buildWorkHistoryEvidence(input));
+    });
+});
+
+describe("resolveAiTaggingEvidence", () => {
+    it("uses persisted ingestData.evidenceText as the canonical strict evidence lane", () => {
+        expect(resolveAiTaggingEvidence({
+            content: {
+                workHistory: [{ raw: "Sales narrative from content should not be used" }],
+            },
+            ingestData: {
+                evidenceText: "2020-2025 sales engineer\ncnc 机床",
+                industryTags: [],
+                synonymHits: [],
+                ruleScores: {},
+                experienceLevel: "unknown",
+                computedAt: 1,
+                skillsVersion: 1,
+            },
+        })).toEqual({
+            lines: ["2020-2025 sales engineer", "cnc 机床"],
+            text: "2020-2025 sales engineer\ncnc 机床",
+        });
+    });
+
+    it("does not fall back to resume.content when persisted evidence is missing", () => {
+        expect(resolveAiTaggingEvidence({
+            content: {
+                workHistory: [{ raw: "Sales narrative from content should not be used" }],
+            },
+            ingestData: undefined,
+        })).toBeNull();
+    });
+
+    it("matches legacy backfill output for stable queue identity", () => {
+        const evidenceText = buildWorkHistoryEvidence({
+            workHistory: [
+                { raw: " 2020-2025 Sales Engineer " },
+                { raw: " CNC 机床 " },
+            ],
+        }).text;
+
+        const resolved = resolveAiTaggingEvidence({
+            content: {
+                workHistory: [{ raw: "new content should not matter after backfill" }],
+            },
+            ingestData: {
+                evidenceText,
+                industryTags: [],
+                synonymHits: [],
+                ruleScores: {},
+                experienceLevel: "unknown",
+                computedAt: 1,
+                skillsVersion: 1,
+            },
+        });
+
+        expect(resolved?.text).toBe(evidenceText);
+        expect(buildAiTaggingIdentity({
+            profileKey: "cnc-sales-strict",
+            evidenceText: resolved?.text ?? "",
+            promptVersion: "v1",
+            model: "gpt-test",
+        }).evidenceHash).toBe(stableHash(evidenceText));
     });
 });
 

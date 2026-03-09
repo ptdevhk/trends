@@ -25,6 +25,7 @@ type TestResume = {
   resumeId?: string
   perUserId?: string
   ingestData?: {
+    evidenceText?: string
     industryTags: string[]
     synonymHits: string[]
     companyHits: string[]
@@ -124,6 +125,7 @@ describe('resume-scoring', () => {
     const score = getPrecomputedRuleScore(
       createResume({
         ingestData: {
+          evidenceText: 'sales engineer cnc lathe',
           industryTags: [],
           synonymHits: [],
           companyHits: [],
@@ -141,6 +143,7 @@ describe('resume-scoring', () => {
   it('detects ingest data and builds learning observation', () => {
     const resume = createResume({
       ingestData: {
+        evidenceText: 'lathe operator evidence',
         industryTags: ['cnc', 'lathe'],
         synonymHits: [],
         companyHits: [],

@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { buildWorkHistoryEvidence } from "@trends/shared";
+
 import { ResumeIndexService } from "./resume-index";
 
 import type { ResumeItem } from "../types/resume";
@@ -78,6 +80,7 @@ describe("ResumeIndexService", () => {
       expect(entry?.companies.some((company) => company.includes("机械设备"))).toBe(true);
       expect(entry?.industryTags).toContain("machinery");
       expect(entry?.industryTags).toContain("sales");
+      expect(entry?.evidenceText).toBe(buildWorkHistoryEvidence(resumes[0]?.workHistory).text);
       expect(entry?.salaryRange?.min).toBe(12000);
       expect(entry?.salaryRange?.max).toBe(18000);
     } finally {

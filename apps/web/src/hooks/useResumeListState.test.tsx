@@ -175,6 +175,7 @@ function buildResume(params: {
     workHistory: [{ raw: 'Test work history' }],
     extractedAt: '2026-03-01T00:00:00.000Z',
     ingestData: {
+      evidenceText: 'test work history',
       industryTags: [],
       synonymHits: [],
       brandHits: [],

@@ -153,6 +153,7 @@ export function getPrecomputedRuleScore(
 
 export type ResumeWithIngestData = ResumeItem & {
   ingestData: {
+    evidenceText?: string
     industryTags: string[]
     brandHits?: Array<{
       brand: string
@@ -200,7 +201,8 @@ export function hasIngestData(resume: unknown): resume is ResumeWithIngestData {
   }
 
   return (
-    isStringArray(ingestData.industryTags)
+    (ingestData.evidenceText === undefined || typeof ingestData.evidenceText === 'string')
+    && isStringArray(ingestData.industryTags)
     && isStringArray(ingestData.companyHits)
     && typeof ingestData.experienceLevel === 'string'
     && typeof ingestData.computedAt === 'number'
