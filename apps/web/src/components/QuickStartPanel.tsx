@@ -5,7 +5,7 @@ import { useQuery } from 'convex/react'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
 import { JobDescriptionEditor } from './JobDescriptionEditor'
 import { KeywordChips } from './KeywordChips'
-import { SearchProfileEditorDialog } from './SearchProfileEditorDialog'
+import { SearchProfileEditorDialog, type SearchProfileDetails, type SearchProfileFilters } from './SearchProfileEditorDialog'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -15,34 +15,6 @@ import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
 const AUTO_MATCH_MIN_CONFIDENCE = 0.3
-
-type SearchProfileFilters = {
-  minExperience?: number
-  maxExperience?: number | null
-  minAge?: number
-  maxAge?: number
-  education?: string[]
-  salaryRange?: {
-    min?: number
-    max?: number
-  }
-  locations?: string[]
-}
-
-type SearchProfileDetails = {
-  id: string
-  name: string
-  status: 'active' | 'paused' | 'archived'
-  location: string
-  keywords: string[]
-  jobDescription?: string
-  filterPreset?: string
-  filters?: SearchProfileFilters
-  schedule?: {
-    enabled: boolean
-    cron?: string
-  }
-}
 
 type AutoMatchApiResponse = {
   success: boolean
@@ -62,7 +34,6 @@ type JobDescriptionDetailApiResponse = {
     location?: string
     autoMatch?: {
       keywords?: string[]
-      locations?: string[]
     }
     requiredRoles?: Array<{
       type?: string
@@ -78,12 +49,15 @@ type AutoMatchedProfile = {
 }
 
 interface QuickStartPanelProps {
-  onApplyConfig?: (config: {
-    location: string
-    keywords: string[]
-    jobDescriptionId?: string
-    filters?: Partial<ResumeFilters>
-  }) => void
+  onApplyConfig?: (
+    config: {
+      location: string
+      keywords: string[]
+      jobDescriptionId?: string
+      filters?: Partial<ResumeFilters>
+    },
+    applyDuringUrlHydration?: boolean
+  ) => void
   defaultLocation?: string
   defaultKeywords?: string[]
   jobDescriptionId?: string
@@ -258,14 +232,14 @@ async function fetchAutoMatchedProfile(
   inputKeywords: string[],
 ): Promise<AutoMatchedProfile | null> {
   const trimmedLocation = inputLocation.trim()
-  if (!trimmedLocation || inputKeywords.length === 0) {
+  if (inputKeywords.length === 0) {
     return null
   }
 
   const autoMatch = await rawApiClient.POST<AutoMatchApiResponse>('/api/search-profiles/auto-match', {
     body: {
       keywords: inputKeywords,
-      location: trimmedLocation,
+      ...(trimmedLocation ? { location: trimmedLocation } : {}),
     },
   })
 
@@ -553,7 +527,7 @@ export function QuickStartPanel({
   }, [location, normalizedKeywords, jobDescriptionId, onApplyConfig])
 
   useEffect(() => {
-    if (!location.trim() || normalizedKeywords.length === 0) {
+    if (normalizedKeywords.length === 0) {
       setAutoMatchResult(null)
       setMatching(false)
       return
@@ -635,7 +609,7 @@ export function QuickStartPanel({
       keywords: profileKeywords,
       jobDescriptionId: nextJobDescriptionId || undefined,
       filters: mapProfileFiltersToResumeFilters(profile.filters),
-    })
+    }, true)
     onApplyQuickFilters?.({
       minRoleYears: quickConstraints.minRoleYears,
       roleFilterType: undefined,
@@ -941,7 +915,7 @@ export function QuickStartPanel({
           open={showProfileEditor}
           onOpenChange={setShowProfileEditor}
           profileId={autoMatchResult.profile.id}
-          initialData={autoMatchResult.profile as any}
+          initialData={autoMatchResult.profile}
           onSaved={handleProfileEditorSaved}
         />
       )}

@@ -120,10 +120,7 @@ export function useSession() {
 
   const applyExternalState = useCallback((state: ExternalSessionState) => {
     if (state.location !== undefined) {
-      const normalizedLocation = state.location.trim()
-      if (normalizedLocation.length > 0) {
-        setLocation(normalizedLocation)
-      }
+      setLocation(state.location.trim())
     }
 
     if (state.keywords !== undefined) {

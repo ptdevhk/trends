@@ -24,10 +24,9 @@ function createFixtureRoot(): string {
 id: jd-lathe-sales
 title: 车床销售工程师
 status: active
+location: 东莞
 auto_match:
   keywords: [车床, CNC, 销售]
-  locations: [东莞, 广州]
-  priority: 90
 ---
 # 职位要求\n- 2年以上经验\n`,
     "utf8"

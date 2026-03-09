@@ -11,38 +11,16 @@ import { useWorkspace } from "@/contexts/WorkspaceContext"
 import { useTranslation } from "react-i18next"
 import { LocationSelector } from "@/components/LocationSelector"
 import { KeywordInput } from "@/components/KeywordInput"
+import {
+    DEFAULT_MIN_EXPERIENCE,
+    generateStructuredJobDescriptionContent,
+    normalizeOptionalString,
+    type StructuredJobDescriptionSeedFields,
+} from "@trends/shared"
 
 const INDUSTRY_TAG_OPTIONS = ["machinery", "cnc", "sales", "automation", "metrology", "software"] as const
-const DEFAULT_MIN_EXPERIENCE = 1
 
-type StructuredSeedFields = {
-    location?: string
-    industryTags?: string[]
-    minExperience?: number
-    maxExperience?: number
-    minAge?: number
-    maxAge?: number
-    customKeywords?: string[]
-}
-
-type JdContentFields = {
-    title: string
-    location?: string
-    industryTags?: string[]
-    minExperience?: number
-    maxExperience?: number
-    minAge?: number
-    maxAge?: number
-    customKeywords?: string[]
-}
-
-function normalizeOptionalString(value: string | undefined): string | undefined {
-    if (!value) {
-        return undefined
-    }
-    const normalized = value.trim()
-    return normalized.length > 0 ? normalized : undefined
-}
+type StructuredSeedFields = StructuredJobDescriptionSeedFields
 
 function parseOptionalNumber(value: string): number | undefined {
     const normalized = value.trim()
@@ -95,90 +73,6 @@ function hasStructuredSeedFields(fields: StructuredSeedFields | undefined): bool
         || typeof fields.minAge === "number"
         || typeof fields.maxAge === "number"
     )
-}
-
-function toYamlString(value: string): string {
-    return JSON.stringify(value)
-}
-
-function generateJdContent(fields: JdContentFields): string {
-    const title = fields.title.trim()
-    const locationStr = normalizeOptionalString(fields.location)
-    const locationsList = locationStr ? locationStr.split(/[\s,，、]+/).map(v => v.trim()).filter(Boolean) : []
-    const industryTags = sanitizeIndustryTags(fields.industryTags)
-    const minExperience = fields.minExperience ?? DEFAULT_MIN_EXPERIENCE
-    const maxExperience = fields.maxExperience
-    const minAge = fields.minAge
-    const maxAge = fields.maxAge
-    const extraKeywords = fields.customKeywords ?? []
-    const keywords = Array.from(new Set(extraKeywords)).slice(0, 15)
-
-    const lines: string[] = [
-        "---",
-        `title: ${toYamlString(title)}`,
-        "status: active",
-    ]
-
-    if (locationsList.length > 0) {
-        lines.push(`location: ${toYamlString(locationsList.join(","))}`)
-    }
-
-    if (industryTags.length > 0) {
-        lines.push("industry_tags:")
-        industryTags.forEach((tag) => {
-            lines.push(`  - ${toYamlString(tag)}`)
-        })
-    }
-
-    lines.push("auto_match:")
-    lines.push("  keywords:")
-    keywords.forEach((keyword) => {
-        lines.push(`    - ${toYamlString(keyword)}`)
-    })
-    lines.push("  locations:")
-    locationsList.forEach((loc) => {
-        lines.push(`    - ${toYamlString(loc)}`)
-    })
-    lines.push("  priority: 60")
-    lines.push("  suggested_filters:")
-    lines.push(`    minExperience: ${minExperience}`)
-    if (typeof maxExperience === "number") {
-        lines.push(`    maxExperience: ${maxExperience}`)
-    }
-    if (typeof minAge === "number") {
-        lines.push(`    minAge: ${minAge}`)
-    }
-    if (typeof maxAge === "number") {
-        lines.push(`    maxAge: ${maxAge}`)
-    }
-
-    lines.push("---")
-    lines.push("")
-    lines.push("# 职位描述")
-    lines.push("")
-    lines.push(`请补充「${title}」的岗位职责。`)
-    lines.push("")
-    lines.push("# 任职要求")
-    lines.push("")
-    if (typeof maxExperience === "number") {
-        lines.push(`- 相关经验：${minExperience}-${maxExperience} 年`)
-    } else {
-        lines.push(`- 相关经验：${minExperience}+ 年`)
-    }
-    if (typeof minAge === "number" || typeof maxAge === "number") {
-        const min = typeof minAge === "number" ? minAge : "-"
-        const max = typeof maxAge === "number" ? maxAge : "-"
-        lines.push(`- 年龄范围：${min}-${max}`)
-    }
-    if (industryTags.length > 0) {
-        lines.push(`- 行业方向：${industryTags.join(" / ")}`)
-    }
-    lines.push("")
-    lines.push("# 关键词")
-    lines.push("")
-    lines.push(keywords.join(", "))
-
-    return lines.join("\n")
 }
 
 interface JobDescriptionEditorProps {
@@ -274,7 +168,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
     const toggleAdvancedMode = () => {
         setAdvancedMode((current) => {
             if (!current && !advancedContentTouched) {
-                setContent(generateJdContent({
+                setContent(generateStructuredJobDescriptionContent({
                     title: title.trim(),
                     location,
                     industryTags,
@@ -300,7 +194,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
         const normalizedMaxExperience = typeof parsedMaxExperience === "number" ? Math.max(parsedMaxExperience, 0) : undefined
         const normalizedMinAge = typeof parsedMinAge === "number" ? Math.max(parsedMinAge, 0) : undefined
         const normalizedMaxAge = typeof parsedMaxAge === "number" ? Math.max(parsedMaxAge, 0) : undefined
-        const generatedContent = generateJdContent({
+        const generatedContent = generateStructuredJobDescriptionContent({
             title: normalizedTitle,
             location: normalizedLocation,
             industryTags: normalizedIndustryTags,
@@ -338,6 +232,13 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
                 await updateJD({
                     id: initialData.id,
                     ...payload,
+                    location: payload.location ?? null,
+                    industryTags: payload.industryTags ?? null,
+                    customKeywords: payload.customKeywords ?? null,
+                    minExperience: payload.minExperience ?? null,
+                    maxExperience: payload.maxExperience ?? null,
+                    minAge: payload.minAge ?? null,
+                    maxAge: payload.maxAge ?? null,
                 })
                 newId = initialData.id
             } else {

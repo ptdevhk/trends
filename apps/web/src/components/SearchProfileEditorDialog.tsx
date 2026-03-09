@@ -14,6 +14,19 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
+export type SearchProfileFilters = {
+    minExperience?: number
+    maxExperience?: number | null
+    minAge?: number
+    maxAge?: number
+    education?: string[]
+    salaryRange?: {
+        min?: number
+        max?: number
+    }
+    locations?: string[]
+}
+
 export type SearchProfileDetails = {
     id: string
     name: string
@@ -22,12 +35,7 @@ export type SearchProfileDetails = {
     keywords: string[]
     jobDescription?: string
     filterPreset?: string
-    filters?: {
-        minExperience?: number
-        maxExperience?: number | null
-        minAge?: number
-        maxAge?: number
-    }
+    filters?: SearchProfileFilters
     schedule?: {
         enabled: boolean
         cron?: string
@@ -44,15 +52,14 @@ type JobDescriptionDetailApiResponse = {
     item?: {
         title?: string
         location?: string
+        suggestedFilters?: {
+            minExperience?: number
+            maxExperience?: number
+            minAge?: number
+            maxAge?: number
+        }
         autoMatch?: {
             keywords?: string[]
-            locations?: string[]
-            suggested_filters?: {
-                minExperience?: number
-                maxExperience?: number
-                minAge?: number
-                maxAge?: number
-            }
         }
         requiredRoles?: Array<{
             min_years?: number
@@ -275,9 +282,9 @@ export function SearchProfileEditorDialog({
                     return
                 }
 
-                const suggestedFilters = item.autoMatch?.suggested_filters
+                const suggestedFilters = item.suggestedFilters
                 const keywordsText = toKeywordsText(item.autoMatch?.keywords, item.title)
-                const location = toLocationText(item.autoMatch?.locations, item.location)
+                const location = toLocationText(undefined, item.location)
                 const minExperience = typeof item.requiredRoles?.[0]?.min_years === 'number'
                     ? item.requiredRoles[0].min_years
                     : suggestedFilters?.minExperience

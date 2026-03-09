@@ -1290,8 +1290,8 @@ export function useResumeListState() {
       keywords: string[]
       jobDescriptionId?: string
       filters?: Partial<ResumeFilters>
-    }) => {
-      if (shouldBlockQuickStartSync) {
+    }, applyDuringUrlHydration?: boolean) => {
+      if (shouldBlockQuickStartSync && !applyDuringUrlHydration) {
         return
       }
 
