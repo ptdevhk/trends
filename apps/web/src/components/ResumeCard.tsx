@@ -163,9 +163,9 @@ export function ResumeCard({
     ? t('resumes.status.updatedAt', { date: new Date(candidateStatusMeta.updatedAt).toLocaleString() })
     : ''
 
-  // Use Rule Score if AI Score is missing
-  const effectiveScore = typeof score === 'number' ? score : ruleScore
-  const isRuleScore = typeof score !== 'number' && typeof ruleScore === 'number'
+  // Rule score is the primary deterministic score; AI score is secondary
+  const effectiveScore = typeof ruleScore === 'number' && ruleScore > 0 ? ruleScore : score
+  const isRuleScore = typeof ruleScore === 'number' && ruleScore > 0
 
   const scoreClassName =
     typeof effectiveScore === 'number'
@@ -248,7 +248,16 @@ export function ResumeCard({
         {resume.expectedSalary ? (
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
         ) : null}
-        {showAiScore && typeof score === 'number' ? (
+        {isRuleScore && effectiveScore && effectiveScore > 0 ? (
+          <div className="flex items-center gap-2">
+            <Badge className={cn('border', scoreClassName)}>
+              {t('resumes.matching.scoreLabel', { score: effectiveScore })}
+            </Badge>
+            <Badge variant="outline" className="text-[10px] uppercase tracking-wide border-amber-200 text-amber-600">
+              Rule
+            </Badge>
+          </div>
+        ) : showAiScore && typeof score === 'number' ? (
           <div className="flex items-center gap-2">
             <TooltipProvider>
               <Tooltip>
@@ -291,15 +300,6 @@ export function ResumeCard({
                 onSelect={(sentiment) => onAiFeedback('ai_score', sentiment)}
               />
             ) : null}
-          </div>
-        ) : isRuleScore && effectiveScore && effectiveScore > 0 ? (
-          <div className="flex items-center gap-2">
-            <Badge className={cn('border', scoreClassName)}>
-              Rule Score: {effectiveScore}
-            </Badge>
-            <Badge variant="outline" className="text-[10px] uppercase tracking-wide border-amber-200 text-amber-600">
-              Pre-Score
-            </Badge>
           </div>
         ) : null}
         {experienceBadge ? (
