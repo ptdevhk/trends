@@ -28,6 +28,7 @@ import { JobDescriptionService } from "../services/job-description-service.js";
 import { RuleScoringService } from "../services/rule-scoring.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { IngestComputeService } from "../services/ingest-compute-service.js";
+import { buildWorkHistoryEvidence } from "@trends/shared";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { SearchEventLogger } from "../services/search-event-logger.js";
 import {
@@ -481,14 +482,6 @@ function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex 
   };
 }
 
-function formatWorkHistoryForAI(workHistory: Array<{ raw?: string }> | undefined): string {
-  if (!workHistory || workHistory.length === 0) return "";
-  return workHistory
-    .map((entry) => entry.raw?.trim() || "")
-    .filter((raw) => raw.length > 0)
-    .join("\n");
-}
-
 function buildAiResumePayload(item: {
   resume: ResumeItem;
   resumeId: string;
@@ -501,7 +494,7 @@ function buildAiResumePayload(item: {
     education: item.resume.education || undefined,
     skills: item.indexData.skills.length > 0 ? item.indexData.skills : extractSkills(item.resume.jobIntention, item.resume.selfIntro),
     companies: item.indexData.companies.length > 0 ? item.indexData.companies : extractCompanies(item.resume.workHistory),
-    workHistory: formatWorkHistoryForAI(item.resume.workHistory) || undefined,
+    workHistory: buildWorkHistoryEvidence(item.resume.workHistory).lines.join("\n") || undefined,
   };
 }
 
