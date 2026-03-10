@@ -684,10 +684,9 @@ export function useResumeListState(loadSearchHistory = false) {
         return !isAutoFilteredAnalysis(analysis)
       })
       .map((resume: ConvexResumeItem) => {
-        // Pre-computed scores are hidden by default until explicit review.
         return {
           ...resume,
-          _ruleScore: 0,
+          _ruleScore: resume.primaryRuleScore ?? 0,
         }
       })
 

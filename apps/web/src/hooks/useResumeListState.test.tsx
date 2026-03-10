@@ -156,6 +156,7 @@ function buildResume(params: {
     signalCount: number
     occurrences: number
     years: number
+    industryVerifiedYears: number
     verifyIn: string
   }>
 }): ConvexResumeItem {
@@ -246,6 +247,7 @@ describe('useResumeListState role filter regression', () => {
             signalCount: 3,
             occurrences: 3,
             years: 4,
+            industryVerifiedYears: 0,
             verifyIn: 'workHistory',
           },
         ],
@@ -260,6 +262,7 @@ describe('useResumeListState role filter regression', () => {
             signalCount: 4,
             occurrences: 4,
             years: 6,
+            industryVerifiedYears: 0,
             verifyIn: 'workHistory',
           },
         ],
@@ -274,6 +277,7 @@ describe('useResumeListState role filter regression', () => {
             signalCount: 1,
             occurrences: 1,
             years: 1,
+            industryVerifiedYears: 0,
             verifyIn: 'workHistory',
           },
         ],

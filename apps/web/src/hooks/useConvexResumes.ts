@@ -31,6 +31,7 @@ export type ConvexIngestData = {
     signalCount: number
     occurrences: number
     years: number
+    industryVerifiedYears: number
     verifyIn: string
   }>
   tagEnvelope?: Array<{
@@ -70,6 +71,7 @@ export type ConvexResumeItem = ResumeItem & {
   analysis?: ConvexResumeAnalysis
   analyses?: Record<string, ConvexResumeAnalysis>
   ingestData?: ConvexIngestData
+  primaryRuleScore?: number
   source: string
   tags: string[]
 }
@@ -440,6 +442,7 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
               signalCount: toNumber(item.signalCount) ?? 0,
               occurrences: toNumber(item.occurrences) ?? 0,
               years,
+              industryVerifiedYears: toNumber(item.industryVerifiedYears) ?? 0,
               verifyIn: toStringValue(item.verifyIn) || 'workHistory',
             }
           })
@@ -483,6 +486,7 @@ function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
     analysis: parseAnalysis(doc.analysis),
     analyses: parseAnalysesMap(doc.analyses),
     ingestData: parseIngestData(doc.ingestData),
+    primaryRuleScore: typeof doc.primaryRuleScore === 'number' ? doc.primaryRuleScore : undefined,
     source: doc.source,
     tags: doc.tags,
   }
