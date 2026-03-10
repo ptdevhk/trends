@@ -85,6 +85,36 @@ describe("RuleScoringService", () => {
       expect(context.keywords).toEqual(["cnc", "车床"]);
       expect(context.targetLocations).toEqual(["广东"]);
       expect(context.industryTags).toEqual(["cnc"]);
+      expect(context.requiredRoles).toEqual([]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("does not apply strict role gating for keyword-only searches", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["车床", "销售"], "东莞");
+
+      const operatorCandidate: ResumeIndex = {
+        resumeId: "R-keyword-only-operator",
+        experienceYears: 6,
+        educationLevel: "associate",
+        locationCity: "东莞",
+        evidenceText: "2019-2025 cnc操作员 负责车床编程与设备维护",
+        skills: ["cnc", "车床", "销售"],
+        companies: ["东莞某机床厂"],
+        industryTags: ["machinery", "cnc"],
+        salaryRange: { min: 9000, max: 12000 },
+        searchText: "东莞 cnc 车床 操作 维护",
+      };
+
+      const result = service.scoreResume(operatorCandidate, context);
+
+      expect(context.requiredRoles).toEqual([]);
+      expect(result.breakdown.roleMatch).toBe(10);
     } finally {
       cleanupFixtureRoot(root);
     }
