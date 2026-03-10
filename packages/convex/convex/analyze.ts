@@ -48,12 +48,10 @@ export const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配�
 
 ## 候选人信息
 **姓名**: {candidateName}
-**求职意向**: {jobIntention}
 **工作经验**: {workExperience}年
 **学历**: {education}
-**技能**: {skills}
-**曾任职公司**: {companies}
-**简介**: {summary}
+**工作经历证据**:
+{evidenceText}
 
 请以JSON格式返回分析结果，确保 score 为数字类型：
 {
@@ -102,12 +100,7 @@ export function getAiTemperature(): number {
 
 // Helper to normalize resume data
 export function normalizeResume(data: any) {
-    // Extract skills from selfIntro and jobIntention since resume content has no "skills" field
-    const skillTexts = [data.selfIntro, data.jobIntention].filter(Boolean);
-    const extractedSkills = skillTexts
-        .flatMap((text: string) => text.split(/[，,、/\s\n]+/).map((s: string) => s.trim()).filter(Boolean));
-    const existingSkills = Array.isArray(data.skills) ? data.skills : [];
-    const allSkills = [...new Set([...existingSkills, ...extractedSkills])];
+    // NOTE: Strict evidence lane — do not derive analysis inputs from selfIntro/jobIntention.
 
     // Extract companies from workHistory since resume content has no "companies" field
     const historyCompanies = Array.isArray(data.workHistory)
@@ -120,14 +113,16 @@ export function normalizeResume(data: any) {
     const rawExp = data.experience || data.workExperience || "0";
     const parsedExp = typeof rawExp === "string" ? parseInt(rawExp.replace(/[^0-9]/g, ""), 10) : rawExp;
 
+    const evidenceText = typeof data.ingestData?.evidenceText === "string"
+        ? data.ingestData.evidenceText
+        : "";
+
     return {
         name: data.name || "未填写",
-        jobIntention: data.jobIntention || data.desiredPosition || "未填写",
         workExperience: parsedExp || 0,
         education: data.education || data.degree || "未填写",
-        skills: allSkills.length > 0 ? allSkills.slice(0, 20).join(", ") : "未填写",
         companies: allCompanies.length > 0 ? allCompanies.slice(0, 8).join(", ") : "未填写",
-        summary: data.selfIntro || data.summary || data.selfEvaluation || "无",
+        evidenceText: evidenceText.trim() || "未填写",
     };
 }
 
@@ -222,12 +217,10 @@ export const analyzeResume = action({
             .replace("{requirements}", jd.requirements)
             .replace("{matchingRules}", matchingRules)
             .replace("{candidateName}", norm.name)
-            .replace("{jobIntention}", norm.jobIntention)
             .replace("{workExperience}", String(norm.workExperience))
             .replace("{education}", norm.education)
-            .replace("{skills}", norm.skills)
-            .replace("{companies}", norm.companies)
-            .replace("{summary}", norm.summary);
+            .replace("{evidenceText}", norm.evidenceText)
+            .replace("{companies}", norm.companies);
 
         const messages = [
             { role: "system", content: buildSystemPrompt(resolveAIOutputLocale()) },
