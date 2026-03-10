@@ -9,6 +9,7 @@ import {
     callLLM,
     getAiApiKey,
     getUserPromptTemplate,
+    hydrateUserPrompt,
     normalizeResume,
     resolveAIOutputLocale,
 } from "./analyze";
@@ -261,15 +262,11 @@ async function analyzeOneResume(
     const locale = resolveAIOutputLocale();
     const normalizedResume = normalizeResume(resume);
 
-    const prompt = getUserPromptTemplate(locale)
-        .replace("{jobTitle}", jobTitle)
-        .replace("{requirements}", requirements)
-        .replace("{matchingRules}", matchingRules)
-        .replace("{candidateName}", normalizedResume.name)
-        .replace("{workExperience}", String(normalizedResume.workExperience))
-        .replace("{education}", normalizedResume.education)
-        .replace("{evidenceText}", normalizedResume.evidenceText)
-        .replace("{companies}", normalizedResume.companies);
+    const prompt = hydrateUserPrompt(
+        getUserPromptTemplate(locale),
+        { title: jobTitle, requirements, matchingRules },
+        normalizedResume,
+    );
 
     const messages: Message[] = [
         { role: "system", content: buildSystemPrompt(locale) },

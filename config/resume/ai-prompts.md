@@ -39,8 +39,14 @@ description: >
 **姓名**: {candidateName}
 **工作经验**: {workExperience}年
 **学历**: {education}
+**行业数据库验证公司**: {verifiedCompanies}
 **工作经历证据**:
 {evidenceText}
+
+## industry_db 评分规则 (重要)
+- `breakdown.industry_db` 分数必须且只能基于"行业数据库验证公司"字段。
+- 如果"行业数据库验证公司"为"无"，则 `industry_db` 必须为 0。
+- 不要根据公司名称自行推测是否属于行业数据库，只以上方提供的验证结果为准。
 
 ## 总结与判断要求
 - summary/highlights/concerns 必须优先围绕候选人的岗位角色、行业背景、与职位直接相关的工作经历展开。
@@ -79,6 +85,7 @@ description: >
 - `{education}`: 候选人学历。
 - `{evidenceText}`: 从工作经历提取出的严格证据文本。
 - `{companies}`: 候选人公司名汇总；当前模板未直接展示，但保留供兼容替换链路使用。
+- `{verifiedCompanies}`: 行业数据库验证通过的公司列表；无匹配时显示"无"。
 
 ## Notes
 

@@ -29,6 +29,27 @@ export function getUserPromptTemplate(locale: string): string {
     return getResumeAiUserPromptTemplate(locale);
 }
 
+const VERIFIED_COMPANIES_NONE_LABEL = "无";
+
+export function hydrateUserPrompt(
+    template: string,
+    job: { title: string; requirements: string; matchingRules: string },
+    resume: ReturnType<typeof normalizeResume>,
+): string {
+    return template
+        .replace("{jobTitle}", job.title)
+        .replace("{requirements}", job.requirements)
+        .replace("{matchingRules}", job.matchingRules)
+        .replace("{candidateName}", resume.name)
+        .replace("{workExperience}", String(resume.workExperience))
+        .replace("{education}", resume.education)
+        .replace("{evidenceText}", resume.evidenceText)
+        .replace("{companies}", resume.companies)
+        .replace("{verifiedCompanies}", resume.verifiedCompanies.length > 0
+            ? resume.verifiedCompanies.join(", ")
+            : VERIFIED_COMPANIES_NONE_LABEL);
+}
+
 export function buildKeywordRequirements(keywords: string[]): string {
     return `候选人需具备以下关键技能/经验:\n${keywords.map((keyword) => `- ${keyword}`).join("\n")}`;
 }
@@ -100,6 +121,12 @@ export function normalizeResume(data: unknown) {
         ? ingestData.evidenceText
         : "";
 
+    const companyHits = Array.isArray(ingestData?.companyHits)
+        ? ingestData.companyHits.filter(
+              (item: unknown): item is string => typeof item === "string" && item.length > 0
+          )
+        : [];
+
     return {
         name: typeof content.name === "string" ? content.name : "未填写",
         workExperience: Number.isFinite(parsedExp) ? parsedExp : 0,
@@ -108,6 +135,7 @@ export function normalizeResume(data: unknown) {
             : (typeof content.degree === "string" ? content.degree : "未填写"),
         companies: allCompanies.length > 0 ? allCompanies.slice(0, 8).join(", ") : "未填写",
         evidenceText: evidenceText.trim() || "未填写",
+        verifiedCompanies: companyHits,
     };
 }
 
@@ -198,16 +226,11 @@ export const analyzeResume = action({
         // 2. Prepare Prompt
         const locale = resolveAIOutputLocale();
         const norm = normalizeResume(resume);
-        const promptTemplate = getUserPromptTemplate(locale);
-        const prompt = promptTemplate
-            .replace("{jobTitle}", jd.title)
-            .replace("{requirements}", jd.requirements)
-            .replace("{matchingRules}", matchingRules)
-            .replace("{candidateName}", norm.name)
-            .replace("{workExperience}", String(norm.workExperience))
-            .replace("{education}", norm.education)
-            .replace("{evidenceText}", norm.evidenceText)
-            .replace("{companies}", norm.companies);
+        const prompt = hydrateUserPrompt(
+            getUserPromptTemplate(locale),
+            { title: jd.title, requirements: jd.requirements, matchingRules },
+            norm,
+        );
 
         const messages = [
             { role: "system", content: buildSystemPrompt(locale) },
