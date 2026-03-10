@@ -1,5 +1,6 @@
 import { buildWorkHistoryEvidence } from "@trends/shared";
 
+import { IndustryDataService } from "./industry-data-service.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { RuleScoringService, type RoleSignalSummary } from "./rule-scoring.js";
@@ -219,23 +220,29 @@ function normalizeCompanyName(raw: string): string {
     .trim();
 }
 
+const COMPANY_PATTERN = /([\u4e00-\u9fa5A-Za-z0-9()（）·.&\-]{2,40}(?:公司|集团|科技|机械|设备|自动化|股份|有限|厂|行))/;
+
+function extractCompanyFromEntry(raw: string): string {
+  const cleaned = normalizeCompanyName(raw);
+  if (!cleaned) return "";
+
+  const companyMatch = cleaned.match(COMPANY_PATTERN);
+  if (companyMatch) {
+    return companyMatch[1];
+  }
+
+  const firstToken = cleaned.split(/\s+/g).find((token) => token.length >= 2);
+  return firstToken || "";
+}
+
 function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
   if (!workHistory.length) return [];
 
   const companies: string[] = [];
   for (const item of workHistory) {
-    const cleaned = normalizeCompanyName(item.raw);
-    if (!cleaned) continue;
-
-    const companyMatch = cleaned.match(/([\u4e00-\u9fa5A-Za-z0-9()（）·.&\-]{2,40}(?:公司|集团|科技|机械|设备|自动化|股份|有限|厂))/);
-    if (companyMatch) {
-      companies.push(companyMatch[1]);
-      continue;
-    }
-
-    const firstToken = cleaned.split(/\s+/g).find((token) => token.length >= 2);
-    if (firstToken) {
-      companies.push(firstToken);
+    const company = extractCompanyFromEntry(item.raw);
+    if (company) {
+      companies.push(company);
     }
   }
 
@@ -313,6 +320,7 @@ export class IngestComputeService {
   private readonly ruleScoringService: RuleScoringService;
   private readonly skillsKnowledgeService: SkillsKnowledgeService;
   private readonly jobDescriptionService: JobDescriptionService;
+  private readonly industryDataService: IndustryDataService;
   private readonly projectRoot?: string;
 
   constructor(projectRoot?: string) {
@@ -320,6 +328,7 @@ export class IngestComputeService {
     this.ruleScoringService = new RuleScoringService(projectRoot);
     this.skillsKnowledgeService = new SkillsKnowledgeService(projectRoot);
     this.jobDescriptionService = new JobDescriptionService(projectRoot);
+    this.industryDataService = new IndustryDataService(projectRoot);
   }
 
   /**
@@ -498,6 +507,7 @@ export class IngestComputeService {
       signals: Set<string>;
       occurrences: number;
       years: number;
+      industryVerifiedYears: number;
     }>();
 
     for (const entry of workHistory) {
@@ -509,6 +519,10 @@ export class IngestComputeService {
       const normalized = raw.toLowerCase();
       const years = this.parseRoleYears(raw);
 
+      // Extract company name and verify industry
+      const companyName = extractCompanyFromEntry(raw);
+      const industryVerification = this.industryDataService.verifyCompanyIndustry(companyName);
+
       for (const [roleType, signals] of Object.entries(DEFAULT_ROLE_SIGNAL_LIBRARY)) {
         const matchedSignals = signals.filter((signal) => normalized.includes(signal.toLowerCase()));
         if (matchedSignals.length === 0) {
@@ -519,11 +533,17 @@ export class IngestComputeService {
           signals: new Set<string>(),
           occurrences: 0,
           years: 0,
+          industryVerifiedYears: 0,
         };
 
         matchedSignals.forEach((signal) => existing.signals.add(signal.toLowerCase()));
         existing.occurrences += 1;
         existing.years += years;
+
+        // Only count years toward industryVerifiedYears if company is in CNC industry
+        if (industryVerification.verified) {
+          existing.industryVerifiedYears += years;
+        }
 
         roleSignalAccumulators.set(roleType, existing);
       }
@@ -535,6 +555,7 @@ export class IngestComputeService {
       signalCount: value.signals.size,
       occurrences: value.occurrences,
       years: Number(value.years.toFixed(2)),
+      industryVerifiedYears: Number(value.industryVerifiedYears.toFixed(2)),
       verifyIn: "workHistory",
     }));
   }

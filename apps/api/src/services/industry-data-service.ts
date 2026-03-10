@@ -34,6 +34,13 @@ export interface VerificationResult {
     matches?: Array<CompanyEntry | KeywordEntry | BrandEntry>;
 }
 
+export interface CompanyIndustryVerificationResult {
+    verified: boolean;
+    confidence: number;
+    matchType: "known_company" | "keyword_match" | "none";
+    matchedKeywords: string[];
+}
+
 export interface IndustryData {
     companies: CompanyEntry[];
     keywords: KeywordEntry[];
@@ -176,6 +183,13 @@ function mapBrandOrigin(sectionName: string): BrandEntry["origin"] {
     if (lower.includes("代理") || lower.includes("agent")) return "agent";
     return "international"; // default
 }
+
+// Pre-lowercased CNC industry patterns for fallback matching
+const CNC_INDUSTRY_PATTERNS = [
+    "机床", "数控", "cnc", "加工中心", "车床", "铣床", "磨床",
+    "机械", "模具", "精密", "自动化", "五金", "金属加工",
+    "刀具", "夹具", "量具", "测量", "三坐标",
+].map((p) => p.toLowerCase());
 
 export class IndustryDataService {
     private readonly projectRoot: string;
@@ -521,6 +535,78 @@ export class IndustryDataService {
      */
     getStats(): IndustryData["metadata"] {
         return this.loadAll().metadata;
+    }
+
+    /**
+     * Verify if a company is in the CNC/machinery industry.
+     * Uses two-tier verification:
+     * 1. Check against known companies via verifyCompany()
+     * 2. Fall back to keyword matching on company name
+     */
+    verifyCompanyIndustry(companyName: string): CompanyIndustryVerificationResult {
+        if (!companyName || !companyName.trim()) {
+            return {
+                verified: false,
+                confidence: 0,
+                matchType: "none",
+                matchedKeywords: [],
+            };
+        }
+
+        // Tier 1: Check against known companies
+        const knownCompanyResult = this.verifyCompany(companyName);
+        if (knownCompanyResult.verified) {
+            return {
+                verified: true,
+                confidence: knownCompanyResult.confidence,
+                matchType: "known_company",
+                matchedKeywords: [],
+            };
+        }
+
+        // Tier 2: Check for industry keywords in company name
+        const keywordMatches = this.matchKeywords(companyName);
+        if (keywordMatches.length > 0) {
+            return {
+                verified: true,
+                confidence: 0.6,
+                matchType: "keyword_match",
+                matchedKeywords: keywordMatches.map((k) => k.keyword),
+            };
+        }
+
+        // Tier 3: Check for brand names in company name
+        const brandMatches = this.matchBrands(companyName);
+        if (brandMatches.length > 0) {
+            return {
+                verified: true,
+                confidence: 0.5,
+                matchType: "keyword_match",
+                matchedKeywords: brandMatches.map((b) => b.nameCn),
+            };
+        }
+
+        // Tier 4: Check for common CNC industry patterns not in keyword list
+        const normalizedName = companyName.toLowerCase();
+        const patternMatches = CNC_INDUSTRY_PATTERNS.filter((pattern) =>
+            normalizedName.includes(pattern)
+        );
+
+        if (patternMatches.length > 0) {
+            return {
+                verified: true,
+                confidence: 0.4,
+                matchType: "keyword_match",
+                matchedKeywords: patternMatches,
+            };
+        }
+
+        return {
+            verified: false,
+            confidence: 0.1,
+            matchType: "none",
+            matchedKeywords: [],
+        };
     }
 
     /**
