@@ -276,6 +276,7 @@ export const updateIngestData = internalMutation({
                 signalCount: v.number(),
                 occurrences: v.number(),
                 years: v.number(),
+                industryVerifiedYears: v.optional(v.number()),
                 verifyIn: v.string(),
             }))),
             tagEnvelope: v.optional(v.array(v.object({
@@ -359,6 +360,7 @@ export const updateIngestDataBatch = internalMutation({
                     signalCount: v.number(),
                     occurrences: v.number(),
                     years: v.number(),
+                    industryVerifiedYears: v.optional(v.number()),
                     verifyIn: v.string(),
                 }))),
                 tagEnvelope: v.optional(v.array(v.object({
