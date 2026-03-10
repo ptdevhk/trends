@@ -8,20 +8,24 @@ describe("buildSearchText", () => {
     expect(buildSearchText(null)).toBe("");
   });
 
-  it("includes key resume fields for search but excludes location", () => {
+  it("includes allowed resume fields for search while excluding noisy header fields", () => {
     const value = buildSearchText({
       name: "Alice",
+      experience: "10 years",
       jobIntention: "CNC Sales Engineer",
       location: "Dongguan",
       selfIntro: "FANUC and STAR machine sales",
+      summary: "Precision machine tool sales background",
       workHistory: [{ raw: "Sold CNC lathes for 5 years" }],
       tags: ["precision", "lathe"],
     });
 
     expect(value).toContain("alice");
-    expect(value).toContain("cnc sales engineer");
     expect(value).not.toContain("dongguan");
-    expect(value).toContain("fanuc");
+    expect(value).not.toContain("cnc sales engineer");
+    expect(value).not.toContain("fanuc");
+    expect(value).not.toContain("10 years");
+    expect(value).toContain("precision machine tool sales background");
     expect(value).toContain("sold cnc lathes for 5 years");
   });
 
@@ -48,8 +52,7 @@ describe("buildSearchText", () => {
 
   it("splits cjk and ascii boundaries for mixed-script search tokens", () => {
     const result = buildSearchText({
-      jobIntention: "东莞CNC编程",
-      selfIntro: "熟悉cnc操作和车床CNC技术员",
+      summary: "东莞CNC编程 熟悉cnc操作和车床CNC技术员",
     });
 
     expect(result).toContain("东莞 cnc 编程");
@@ -59,11 +62,11 @@ describe("buildSearchText", () => {
 
   it("keeps cnc parity stable for mixed-case mixed-script variants", () => {
     const variantA = buildSearchText({
-      selfIntro: "精通CNC车床与编程",
+      summary: "精通CNC车床与编程",
       workHistory: [{ raw: "负责cnc设备调试" }],
     });
     const variantB = buildSearchText({
-      selfIntro: "精通cnc车床与编程",
+      summary: "精通cnc车床与编程",
       workHistory: [{ raw: "负责CNC设备调试" }],
     });
 

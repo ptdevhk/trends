@@ -10,7 +10,7 @@ const PRIORITY_KEYS = [
 ];
 
 const PRIORITY_KEY_SET = new Set(PRIORITY_KEYS);
-const EXCLUDED_KEYS = new Set(["location"]);
+const EXCLUDED_KEYS = new Set(["location", "experience", "jobIntention", "selfIntro"]);
 
 type UnknownRecord = Record<string, unknown>;
 

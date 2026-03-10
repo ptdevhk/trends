@@ -78,7 +78,7 @@ B2B sales requires technical knowledge and customer relationship management.
 - 2026-02-10: STAR + 渠道客户优先
 - 2026-02-15: 车床经验5年+更匹配
 - 2026-02-18: synonym_suggestion: 哈斯设备 -> 哈斯
-- 2026-02-19: shortlist_pattern: star + 渠道客户 -> high_priority
+- 2026-02-19: shortlist_pattern: star + 渠道客户 -> high_priority (3x)
 - 2026-02-20: reject_pattern: 培训岗 -> negative_signal
 - 2026-02-21: domain_expansion: machinery -> 哈斯
 `;
@@ -365,6 +365,7 @@ describe("SkillsKnowledgeService", () => {
 
       expect(patterns).toHaveLength(4);
       expect(patterns[0]).toEqual({
+        count: 1,
         type: "synonym_suggestion",
         date: "2026-02-18",
         raw: "synonym_suggestion: 哈斯设备 -> 哈斯",
@@ -372,6 +373,7 @@ describe("SkillsKnowledgeService", () => {
         canonical: "哈斯",
       });
       expect(patterns[1]).toEqual({
+        count: 3,
         type: "shortlist_pattern",
         date: "2026-02-19",
         raw: "shortlist_pattern: star + 渠道客户 -> high_priority",
@@ -379,6 +381,7 @@ describe("SkillsKnowledgeService", () => {
         priority: "high_priority",
       });
       expect(patterns[2]).toEqual({
+        count: 1,
         type: "reject_pattern",
         date: "2026-02-20",
         raw: "reject_pattern: 培训岗 -> negative_signal",
@@ -386,6 +389,7 @@ describe("SkillsKnowledgeService", () => {
         negativeSignal: "negative_signal",
       });
       expect(patterns[3]).toEqual({
+        count: 1,
         type: "domain_expansion",
         date: "2026-02-21",
         raw: "domain_expansion: machinery -> 哈斯",

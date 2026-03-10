@@ -35,7 +35,7 @@ updated_at: '2026-02-25'
 
 ## Learning Log (Append Only)
 
-- 2026-02-20: shortlist_pattern: fanuc + 渠道客户 -> high_priority
+- 2026-02-20: shortlist_pattern: fanuc + 渠道客户 -> high_priority (4x)
 - 2026-02-21: reject_pattern: 培训岗 -> low_quality
 `,
     "utf8"
@@ -155,6 +155,7 @@ describe("SearchEventAnalyzer", () => {
       expect(report.queryMetrics.find((item) => item.query === "cnc 东莞")?.actions).toBe(3);
       expect(report.suggestions.synonymSuggestions.length).toBeGreaterThan(0);
       expect(report.learningPatterns.shortlistPatterns.length).toBeGreaterThan(0);
+      expect(report.learningPatterns.shortlistPatterns[0]?.count).toBe(4);
     } finally {
       cleanupFixtureRoot(root);
     }
