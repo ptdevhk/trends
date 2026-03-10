@@ -27,6 +27,7 @@ interface ResumeCardProps {
   ruleScore?: number
   industryTags?: string[]
   companyHits?: string[]
+  brandDisplayResolve?: (brandId: string) => string
   roleTypes?: string[]
   experienceLevel?: string
   onTagClick?: (tag: string) => void
@@ -58,6 +59,8 @@ interface ResumeCardProps {
   aiScoreFeedback?: AiFeedbackSentiment
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
 }
+
+const defaultBrandDisplayResolve = (brandId: string) => brandId.toUpperCase()
 
 function isSafeProfileUrl(value: string | undefined): value is string {
   if (!value) return false
@@ -128,6 +131,7 @@ export function ResumeCard({
   onAiFeedback,
   industryTags,
   companyHits,
+  brandDisplayResolve,
   roleTypes,
   experienceLevel,
   onTagClick,
@@ -149,6 +153,7 @@ export function ResumeCard({
   const selfIntro = resume.selfIntro || '--'
   const profileUrl = resume.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
+  const brandDisplayResolveFn = brandDisplayResolve ?? defaultBrandDisplayResolve
 
   const score = matchResult?.score
   const recommendation = matchResult?.recommendation
@@ -352,7 +357,7 @@ export function ResumeCard({
                 onCompanyClick?.(company)
               }}
             >
-              {company.toUpperCase()}
+              {brandDisplayResolveFn(company)}
             </Badge>
           )
         })}

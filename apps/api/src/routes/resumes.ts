@@ -31,6 +31,7 @@ import { IngestComputeService } from "../services/ingest-compute-service.js";
 import { buildWorkHistoryEvidence } from "@trends/shared";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { SearchEventLogger } from "../services/search-event-logger.js";
+import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 import {
   ExportService,
   type ExportFormat,
@@ -52,7 +53,7 @@ const ruleScoringService = new RuleScoringService(config.projectRoot);
 const ingestComputeService = new IngestComputeService(config.projectRoot);
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
 const searchEventLogger = new SearchEventLogger(config.projectRoot);
-const exportService = new ExportService();
+const exportService = new ExportService(new BrandDisplayResolver(config.projectRoot));
 
 const DEFAULT_AI_TOP_N = 20;
 

@@ -1,6 +1,8 @@
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
 
+import type { BrandDisplayResolver } from "./brand-display-resolver.js";
+
 export type ExportFormat = "csv" | "xlsx";
 
 type ResumeWorkHistoryItem = {
@@ -166,13 +168,18 @@ function parseAgeNumber(value: unknown): number | null {
   return null;
 }
 
-function toRow(entry: ResumeExportEntry): ExportRow {
+function toRow(entry: ResumeExportEntry, brandDisplayResolver?: BrandDisplayResolver): ExportRow {
   const workHistory = Array.isArray(entry.resume.workHistory)
     ? entry.resume.workHistory
       .map((item) => item.raw)
       .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
       .join(" | ")
     : "";
+
+  const companyHitIds = normalizeStringArray(entry.resume.ingestData?.companyHits);
+  const companyHits = brandDisplayResolver
+    ? companyHitIds.map((hit) => brandDisplayResolver.resolveZhHans(hit)).join(", ")
+    : companyHitIds.join(", ");
 
   return {
     resumeId: entry.key,
@@ -190,7 +197,7 @@ function toRow(entry: ResumeExportEntry): ExportRow {
     scoreSource: normalizeString(entry.match?.scoreSource),
     action: normalizeString(entry.action),
     industryTags: normalizeStringArray(entry.resume.ingestData?.industryTags).join(", "),
-    companyHits: normalizeStringArray(entry.resume.ingestData?.companyHits).join(", "),
+    companyHits,
     profileUrl: normalizeJob5156ProfileUrlForDisplay(entry.resume.profileUrl),
     workHistory,
     selfIntro: normalizeString(entry.resume.selfIntro),
@@ -243,12 +250,20 @@ function applyBatchMeta(row: ExportRow, batchMeta?: ExportBatchMeta): ExportRow 
 }
 
 export class ExportService {
+  private readonly brandDisplayResolver?: BrandDisplayResolver;
+
+  constructor(brandDisplayResolver?: BrandDisplayResolver) {
+    this.brandDisplayResolver = brandDisplayResolver;
+  }
+
   async exportResumes(
     format: ExportFormat,
     entries: ResumeExportEntry[],
     batchMeta?: ExportBatchMeta
   ): Promise<ExportFile> {
-    const rows = entries.map((entry) => applyBatchMeta(toRow(entry), batchMeta));
+    const rows = entries.map((entry) =>
+      applyBatchMeta(toRow(entry, this.brandDisplayResolver), batchMeta)
+    );
     if (format === "xlsx") {
       const content = await this.toXlsx(rows);
       return {

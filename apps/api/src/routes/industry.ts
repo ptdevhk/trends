@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { IndustryDataService } from "../services/industry-data-service.js";
 import { config } from "../services/config.js";
+import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 
 const app = new OpenAPIHono();
 const industryService = new IndustryDataService(config.projectRoot);
@@ -28,6 +29,13 @@ const BrandEntrySchema = z.object({
     type: z.string(),
     origin: z.enum(["international", "domestic", "agent"]),
 });
+
+const BrandDisplayMapSchema = z.record(
+    z.object({
+        displayName: z.string(),
+        zhHans: z.string(),
+    })
+);
 
 const StatsResponseSchema = z.object({
     success: z.literal(true),
@@ -185,6 +193,26 @@ app.openapi(keywordsRoute, (c) => {
     return c.json({ success: true as const, count: keywords.length, data: keywords }, 200);
 });
 
+// GET /api/industry/brand-display-map
+const brandDisplayMapRoute = createRoute({
+    method: "get",
+    path: "/api/industry/brand-display-map",
+    tags: ["industry"],
+    summary: "Get brand display mapping for company hit tags",
+    description: "Returns a mapping of brandId → { displayName, zhHans } for rendering company hit tags in zh-Hans",
+    responses: {
+        200: {
+            content: { "application/json": { schema: BrandDisplayMapSchema } },
+            description: "Brand display map",
+        },
+    },
+});
+
+app.openapi(brandDisplayMapRoute, (c) => {
+    const resolver = new BrandDisplayResolver(config.projectRoot);
+    return c.json(resolver.toJSON(), 200);
+});
+
 // GET /api/industry/brands
 const brandsRoute = createRoute({
     method: "get",
@@ -195,6 +223,7 @@ const brandsRoute = createRoute({
     request: {
         query: z.object({
             origin: z.enum(["international", "domestic", "agent"]).optional(),
+            q: z.string().optional(),
         }),
     },
     responses: {
@@ -206,11 +235,20 @@ const brandsRoute = createRoute({
 });
 
 app.openapi(brandsRoute, (c) => {
-    const { origin } = c.req.valid("query");
+    const { origin, q } = c.req.valid("query");
     let brands = industryService.loadBrands();
 
     if (origin) {
         brands = brands.filter((b) => b.origin === origin);
+    }
+
+    if (q) {
+        const query = q.toLowerCase();
+        brands = brands.filter(
+            (b) =>
+                b.nameCn.toLowerCase().includes(query) ||
+                (b.nameEn && b.nameEn.toLowerCase().includes(query))
+        );
     }
 
     return c.json({ success: true as const, count: brands.length, data: brands }, 200);
