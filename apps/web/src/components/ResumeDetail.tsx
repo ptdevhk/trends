@@ -3,15 +3,19 @@ import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import type { ResumeItem } from '@/hooks/useResumes'
 
-import type { MatchingResult } from '@/types/resume'
+import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
 
 interface ResumeDetailProps {
   resume: ResumeItem | null
   matchResult?: MatchingResult
   open: boolean
   onOpenChange: (open: boolean) => void
+  aiScoreFeedback?: AiFeedbackSentiment
+  aiSummaryFeedback?: AiFeedbackSentiment
+  onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
 }
 
 function isSafeProfileUrl(value: string | undefined): value is string {
@@ -19,7 +23,7 @@ function isSafeProfileUrl(value: string | undefined): value is string {
   return value.startsWith('http://') || value.startsWith('https://')
 }
 
-export function ResumeDetail({ resume, matchResult, open, onOpenChange }: ResumeDetailProps) {
+export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreFeedback, aiSummaryFeedback, onAiFeedback }: ResumeDetailProps) {
   const { t } = useTranslation()
 
   const workHistory = useMemo(() => {
@@ -52,13 +56,32 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange }: Resume
                   <Badge variant={matchResult.score >= 80 ? 'default' : matchResult.score >= 60 ? 'secondary' : 'outline'}>
                     {matchResult.score} 分
                   </Badge>
+                  {onAiFeedback ? (
+                    <AiFeedbackButtons
+                      feedback={aiScoreFeedback}
+                      label="AI score"
+                      testId="detail-ai-score-feedback"
+                      onSelect={(sentiment) => onAiFeedback('ai_score', sentiment)}
+                    />
+                  ) : null}
                 </h3>
                 <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">
                   {matchResult.recommendation?.replace('_', ' ')}
                 </span>
               </div>
 
-              <p className="text-sm text-foreground mb-3">{matchResult.summary}</p>
+              <div className="flex items-start gap-2 mb-3">
+                <p className="text-sm text-foreground flex-1">{matchResult.summary}</p>
+                {onAiFeedback ? (
+                  <AiFeedbackButtons
+                    feedback={aiSummaryFeedback}
+                    label="AI summary"
+                    testId="detail-ai-summary-feedback"
+                    className="shrink-0"
+                    onSelect={(sentiment) => onAiFeedback('ai_summary', sentiment)}
+                  />
+                ) : null}
+              </div>
 
               <div className="grid grid-cols-2 gap-4 mb-3">
                 {matchResult.highlights && matchResult.highlights.length > 0 && (

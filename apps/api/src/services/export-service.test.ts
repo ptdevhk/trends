@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { ExportService } from "./export-service";
 
-import type { ResumeExportEntry } from "./export-service";
+import type { ResumeExportEntry, ExportBatchMeta } from "./export-service";
 
 function buildEntry(age: string | undefined): ResumeExportEntry {
   return {
@@ -64,5 +64,61 @@ describe("ExportService", () => {
     expect(sheet?.getRow(1).values).toContain("Age");
     expect(sheet?.getCell("G2").value).toBe(31);
     expect(sheet?.getCell("G3").value).toBe("");
+  });
+
+  it("includes per-entry userComment and referenceNote in CSV", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("25"),
+      userComment: "Excellent candidate",
+      referenceNote: "Referred by HR dept",
+    };
+    const file = await service.exportResumes("csv", [entry]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.userComment).toBe("Excellent candidate");
+    expect(parsed.data[0]?.referenceNote).toBe("Referred by HR dept");
+  });
+
+  it("applies batch-level userComment/referenceNote to every exported row", async () => {
+    const service = new ExportService();
+    const entryWithComment: ResumeExportEntry = {
+      ...buildEntry("28"),
+      userComment: "Per-entry comment",
+      referenceNote: "Per-entry note",
+    };
+    const entryWithout: ResumeExportEntry = buildEntry("30");
+    const batchMeta: ExportBatchMeta = {
+      userComment: "Batch comment",
+      referenceNote: "Batch ref note",
+    };
+
+    const file = await service.exportResumes("csv", [entryWithComment, entryWithout], batchMeta);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.userComment).toBe("Batch comment");
+    expect(parsed.data[0]?.referenceNote).toBe("Batch ref note");
+    expect(parsed.data[1]?.userComment).toBe("Batch comment");
+    expect(parsed.data[1]?.referenceNote).toBe("Batch ref note");
+  });
+
+  it("includes User Comment and Reference Note columns in XLSX header", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("26"),
+      userComment: "Test comment",
+      referenceNote: "Test note",
+    };
+    const file = await service.exportResumes("xlsx", [entry]);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.content);
+    const sheet = workbook.getWorksheet("Resumes");
+
+    expect(sheet).toBeDefined();
+    const headers = sheet?.getRow(1).values as unknown[];
+    expect(headers).toContain("User Comment");
+    expect(headers).toContain("Reference Note");
   });
 });

@@ -65,6 +65,8 @@ export function ResumeList() {
     handleToggleBlock,
     handleCandidateStatusChange,
     handleResetAll,
+    handleAiFeedback,
+    getAiFeedback,
   } = useResumeListState(historyRequested)
   useSyncNotifications()
   const { slug: workspaceSlug } = useWorkspace()
@@ -72,13 +74,15 @@ export function ResumeList() {
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
 
+  const detailKey = useMemo(() => {
+    if (!detailResume) return undefined
+    return buildResumeKey(detailResume, 0)
+  }, [detailResume])
+
   const detailMatch = useMemo(() => {
-    if (!detailResume) {
-      return undefined
-    }
-    const detailKey = buildResumeKey(detailResume, 0)
+    if (!detailKey) return undefined
     return displayedResumes.find((entry) => entry.key === detailKey)?.match
-  }, [detailResume, displayedResumes])
+  }, [detailKey, displayedResumes])
 
   return (
     <div className="flex flex-col gap-4">
@@ -248,6 +252,8 @@ export function ResumeList() {
                 selected={selectedIds.has(entry.key)}
                 onSelect={() => handleToggleSelect(entry.key)}
                 isReviewed={reviewedIdsSet.has(entry.key)}
+                aiScoreFeedback={getAiFeedback(entry.key, 'ai_score')}
+                onAiFeedback={(target, sentiment) => handleAiFeedback(entry.key, target, sentiment)}
               />
             )
           })
@@ -263,6 +269,9 @@ export function ResumeList() {
             setDetailResume(null)
           }
         }}
+        aiScoreFeedback={detailKey ? getAiFeedback(detailKey, 'ai_score') : undefined}
+        aiSummaryFeedback={detailKey ? getAiFeedback(detailKey, 'ai_summary') : undefined}
+        onAiFeedback={detailKey ? (target, sentiment) => handleAiFeedback(detailKey, target, sentiment) : undefined}
       />
 
       <SearchHistoryDialog

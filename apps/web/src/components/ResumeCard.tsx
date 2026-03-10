@@ -4,8 +4,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import type { ResumeItem } from '@/hooks/useResumes'
-import type { CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
+import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { cn } from '@/lib/utils'
 import {
@@ -54,6 +55,8 @@ interface ResumeCardProps {
     requirements?: string
   }
   isReviewed?: boolean
+  aiScoreFeedback?: AiFeedbackSentiment
+  onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
 }
 
 function isSafeProfileUrl(value: string | undefined): value is string {
@@ -121,6 +124,8 @@ export function ResumeCard({
   jobDescriptionId,
   jobDescription,
   isReviewed,
+  aiScoreFeedback,
+  onAiFeedback,
   industryTags,
   companyHits,
   roleTypes,
@@ -274,6 +279,15 @@ export function ResumeCard({
               <Badge className={cn('border text-[10px] uppercase tracking-wide', scoreSourceClassName)}>
                 {scoreSource === 'ai' ? 'AI' : 'Rule'}
               </Badge>
+            ) : null}
+            {onAiFeedback && scoreSource === 'ai' ? (
+              <AiFeedbackButtons
+                feedback={aiScoreFeedback}
+                label="AI score"
+                testId="ai-score-feedback"
+                stopPropagation
+                onSelect={(sentiment) => onAiFeedback('ai_score', sentiment)}
+              />
             ) : null}
           </div>
         ) : isRuleScore && effectiveScore && effectiveScore > 0 ? (

@@ -20,7 +20,15 @@ import {
 import { rawApiClient } from '@/lib/api-helpers'
 import { expandKeyword, DEFAULT_CONFIG } from '@/lib/trendradar/parser'
 import type { SearchHistoryItem } from '@/hooks/useSession'
-import type { CandidateActionType, CandidateStatus, MatchingResult, ResumeFilters } from '@/types/resume'
+import {
+  aiFeedbackToActionType,
+  type AiFeedbackSentiment,
+  type AiFeedbackTarget,
+  type CandidateActionType,
+  type CandidateStatus,
+  type MatchingResult,
+  type ResumeFilters,
+} from '@/types/resume'
 import {
   buildLearningObservation,
   buildResumeKey,
@@ -437,7 +445,16 @@ export function useResumeListState(loadSearchHistory = false) {
     jobDescriptionId,
   })
 
-  const { actions, saveAction } = useCandidateActions(undefined)
+  const sessionActionScope = useMemo(() => {
+    const normalizedJobDescriptionId = jobDescriptionId?.trim()
+    const normalizedKeywords = sessionKeywords
+      .map((keyword) => keyword.trim())
+      .filter((keyword) => keyword.length > 0)
+      .sort()
+    return normalizedJobDescriptionId || normalizedKeywords.join('|') || 'global'
+  }, [jobDescriptionId, sessionKeywords])
+
+  const { actions, saveAction, getAiFeedback } = useCandidateActions(sessionActionScope, jobDescriptionId)
   const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks()
   const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus()
 
@@ -1112,7 +1129,7 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [])
 
   const handleBulkAction = useCallback(
-    async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ResumeExportFormat) => {
+    async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ResumeExportFormat, exportMeta?: { userComment: string; referenceNote: string }) => {
       if (selectedIds.size === 0) return
 
       const selectedEntries = displayedResumes.filter((entry) => selectedIds.has(entry.key))
@@ -1149,6 +1166,8 @@ export function useResumeListState(loadSearchHistory = false) {
             body: JSON.stringify({
               format: exportFormat,
               entries: exportEntries,
+              userComment: exportMeta?.userComment ?? '',
+              referenceNote: exportMeta?.referenceNote ?? '',
             }),
           })
 
@@ -1247,6 +1266,32 @@ export function useResumeListState(loadSearchHistory = false) {
         })
     },
     [actionFeedbackLabels, displayedResumeMap, saveAction, sendLearningFeedback]
+  )
+
+  const handleAiFeedback = useCallback(
+    (resumeId: string, target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => {
+      void saveAction({
+        resumeId,
+        actionType: aiFeedbackToActionType(target, sentiment),
+        actionData: {
+          target,
+          sentiment,
+          jobDescriptionId: jobDescriptionId ?? undefined,
+        },
+      })
+        .then((result) => {
+          if (result) {
+            toast.success(t('feedback.saved', { defaultValue: 'Feedback saved' }))
+          } else {
+            toast.error(t('feedback.failed', { defaultValue: 'Failed to save feedback' }))
+          }
+        })
+        .catch((error: unknown) => {
+          console.error('AI feedback save failed', error)
+          toast.error(t('feedback.failed', { defaultValue: 'Failed to save feedback' }))
+        })
+    },
+    [jobDescriptionId, saveAction, t]
   )
 
   const handleToggleBlock = useCallback(
@@ -1434,6 +1479,8 @@ export function useResumeListState(loadSearchHistory = false) {
     handleToggleSelect,
     handleBulkAction,
     handleCardAction,
+    handleAiFeedback,
+    getAiFeedback,
     handleToggleBlock,
     handleCandidateStatusChange,
     handleResetAll,
