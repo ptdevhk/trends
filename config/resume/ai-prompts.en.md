@@ -39,8 +39,14 @@ Please analyze how well the following candidate matches the job:
 **Name**: {candidateName}
 **Work Experience**: {workExperience} years
 **Education**: {education}
+**Industry Database Verified Companies**: {verifiedCompanies}
 **Work-History Evidence**:
 {evidenceText}
+
+## industry_db Scoring Rule (Important)
+- The `breakdown.industry_db` score must be based solely on the "Industry Database Verified Companies" field above.
+- If "Industry Database Verified Companies" is "无" (none), then `industry_db` must be 0.
+- Do not guess whether a company belongs to the industry database based on its name alone; use only the verification result provided above.
 
 ## Summary and Judgment Requirements
 - summary/highlights/concerns must prioritize the candidate's role focus, industry background, and directly relevant work history.
@@ -79,6 +85,7 @@ Return the analysis as JSON and ensure score is numeric:
 - `{education}`: Candidate education level.
 - `{evidenceText}`: Strict work-history evidence extracted from resume history.
 - `{companies}`: Candidate company summary; currently preserved for compatibility even though the template does not render it directly.
+- `{verifiedCompanies}`: Companies verified against the industry database; shows "无" (none) when no matches exist.
 
 ## Notes
 
