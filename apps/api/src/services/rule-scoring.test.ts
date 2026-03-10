@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { RuleScoringService } from "./rule-scoring";
+import { RuleScoringService, type RoleSignalSummary } from "./rule-scoring";
 
 import type { ResumeIndex } from "./resume-index";
 
@@ -70,6 +70,17 @@ updated_at: '2026-02-24'
 
 function cleanupFixtureRoot(root: string): void {
   fs.rmSync(root, { recursive: true, force: true });
+}
+
+function createSalesRoleSignal(years: number, matchedSignals: string[] = ["销售经理", "客户", "渠道"]): RoleSignalSummary {
+  return {
+    type: "sales",
+    matchedSignals,
+    signalCount: matchedSignals.length,
+    occurrences: 1,
+    years,
+    verifyIn: "workHistory",
+  };
 }
 
 describe("RuleScoringService", () => {
@@ -152,7 +163,7 @@ describe("RuleScoringService", () => {
         searchText: "北京 文员 客服",
       };
 
-      const strongScore = service.scoreResume(strongCandidate, context);
+      const strongScore = service.scoreResume(strongCandidate, context, [], [createSalesRoleSignal(5)]);
       const weakScore = service.scoreResume(weakCandidate, context);
 
       expect(strongScore.score).toBeGreaterThan(weakScore.score);
@@ -502,10 +513,12 @@ describe("RuleScoringService", () => {
       };
 
       const operatorResult = service.scoreResume(operatorCandidate, context);
-      const salesResult = service.scoreResume(salesCandidate, context);
+      const salesResult = service.scoreResume(salesCandidate, context, [], [createSalesRoleSignal(5)]);
 
       expect(operatorResult.breakdown.roleMatch).toBe(2);
+      expect(operatorResult.breakdown.experienceMatch).toBe(0);
       expect(salesResult.breakdown.roleMatch).toBe(8);
+      expect(salesResult.breakdown.experienceMatch).toBe(25);
       expect(salesResult.score).toBeGreaterThan(operatorResult.score);
     } finally {
       cleanupFixtureRoot(root);
@@ -532,9 +545,12 @@ describe("RuleScoringService", () => {
         searchText: "东莞 cnc 车床 销售 客户 渠道 机床销售工程师 熟悉star fanuc品牌 大客户资源",
       };
 
-      const result = service.scoreResume(retrievalOnlySalesCandidate, context);
+      const result = service.scoreResume(retrievalOnlySalesCandidate, context, [
+        { brand: "fanuc", role: "both", source: "selfIntro", context: "equipment" },
+      ]);
 
       expect(result.breakdown.roleMatch).toBe(2);
+      expect(result.breakdown.brandRelevance).toBe(0);
       expect(result.recommendation).not.toBe("strong_match");
     } finally {
       cleanupFixtureRoot(root);
@@ -563,6 +579,47 @@ describe("RuleScoringService", () => {
       const result = service.scoreResume(legacyOnlyCandidate, context);
 
       expect(result.breakdown.roleMatch).toBe(2);
+      expect(result.breakdown.experienceMatch).toBe(0);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("uses work-history brand hits when required roles exist", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContext("lathe-sales");
+      const candidate: ResumeIndex = {
+        resumeId: "R-brand-work-history-only",
+        experienceYears: 5,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        evidenceText: "2020-2025 机床销售工程师 负责客户开发 渠道拓展",
+        skills: ["cnc", "车床", "销售"],
+        companies: ["东莞设备公司"],
+        industryTags: ["machinery", "cnc", "sales"],
+        salaryRange: { min: 12000, max: 18000 },
+        searchText: "东莞 车床 销售 客户 渠道 熟悉fanuc品牌",
+      };
+
+      const selfIntroOnlyResult = service.scoreResume(
+        candidate,
+        context,
+        [{ brand: "fanuc", role: "both", source: "selfIntro", context: "equipment" }],
+        [createSalesRoleSignal(5)]
+      );
+      const workHistoryResult = service.scoreResume(
+        candidate,
+        context,
+        [{ brand: "fanuc", role: "both", source: "workHistory", context: "employer" }],
+        [createSalesRoleSignal(5)]
+      );
+
+      expect(selfIntroOnlyResult.breakdown.brandRelevance).toBe(0);
+      expect(workHistoryResult.breakdown.brandRelevance).toBe(4);
+      expect(workHistoryResult.score).toBeGreaterThan(selfIntroOnlyResult.score);
     } finally {
       cleanupFixtureRoot(root);
     }
@@ -614,7 +671,7 @@ describe("RuleScoringService", () => {
       };
 
       const operatorResult = service.scoreResume(operatorCandidate, context);
-      const salesResult = service.scoreResume(salesCandidate, context);
+      const salesResult = service.scoreResume(salesCandidate, context, [], [createSalesRoleSignal(5)]);
 
       expect(operatorResult.breakdown.roleMatch).toBe(0);
       expect(salesResult.breakdown.roleMatch).toBe(10);
