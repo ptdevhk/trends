@@ -264,12 +264,10 @@ async function analyzeOneResume(
         .replace("{requirements}", requirements)
         .replace("{matchingRules}", matchingRules)
         .replace("{candidateName}", normalizedResume.name)
-        .replace("{jobIntention}", normalizedResume.jobIntention)
         .replace("{workExperience}", String(normalizedResume.workExperience))
         .replace("{education}", normalizedResume.education)
-        .replace("{skills}", normalizedResume.skills)
-        .replace("{companies}", normalizedResume.companies)
-        .replace("{summary}", normalizedResume.summary);
+        .replace("{evidenceText}", normalizedResume.evidenceText)
+        .replace("{companies}", normalizedResume.companies);
 
     const messages: Message[] = [
         { role: "system", content: SYSTEM_PROMPT },
