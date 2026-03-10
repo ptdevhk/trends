@@ -609,10 +609,12 @@ sync_dependencies() {
     run_as_service_user "cd '$INSTALL_DIR' && npm install"
 }
 
-build_artifacts() {
+build_shared_artifact() {
     log_info "Building @trends/shared..."
     run_as_service_user "cd '$INSTALL_DIR' && npm run --workspace @trends/shared build"
+}
 
+build_artifacts() {
     log_info "Building @trends/api..."
     run_as_service_user "cd '$INSTALL_DIR' && npm run --workspace @trends/api build"
 
@@ -1149,6 +1151,7 @@ install_flow() {
     clone_or_update_repo
     sync_dependencies
     deploy_env_file
+    build_shared_artifact
     setup_convex
     build_artifacts
     seed_and_migrate_convex
@@ -1207,6 +1210,7 @@ upgrade_flow() {
     else
         log_info "ENV_FILE is empty; keeping existing $CONFIG_DIR/env unchanged."
     fi
+    build_shared_artifact
     setup_convex
     build_artifacts
     seed_and_migrate_convex
