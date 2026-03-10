@@ -169,6 +169,7 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
   const [industryView, setIndustryView] = useState<'companies' | 'keywords' | 'brands'>('companies')
   const [industryFilter, setIndustryFilter] = useState('')
   const [industrySearch, setIndustrySearch] = useState('')
+  const debouncedIndustrySearch = useDebouncedValue(industrySearch, 300)
   const [industryLimit, setIndustryLimit] = useState(1000)
   const [industryItems, setIndustryItems] = useState<Array<IndustryCompany | IndustryKeyword | IndustryBrand>>([])
   const [industryCount, setIndustryCount] = useState(0)
@@ -468,6 +469,9 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
     if (industryFilter) {
       params.set(industryView === 'brands' ? 'origin' : 'category', industryFilter)
     }
+    if (debouncedIndustrySearch.trim()) {
+      params.set('q', debouncedIndustrySearch.trim())
+    }
 
     const path = industryView === 'companies'
       ? `/api/industry/companies?${params.toString()}`
@@ -488,7 +492,7 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
     return () => {
       mounted = false
     }
-  }, [fetchJson, industryFilter, industryView, showIndustry])
+  }, [debouncedIndustrySearch, fetchJson, industryFilter, industryView, showIndustry])
 
   useEffect(() => {
     if (!showIndustry || !showAllIndustry) return

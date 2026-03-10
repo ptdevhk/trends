@@ -18,6 +18,7 @@ import { useResumeListState } from '@/hooks/useResumeListState'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
+import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 
 export function ResumeList() {
   const { t } = useTranslation()
@@ -70,6 +71,7 @@ export function ResumeList() {
   } = useResumeListState(historyRequested)
   useSyncNotifications()
   const { slug: workspaceSlug } = useWorkspace()
+  const { resolve: brandDisplayResolve } = useBrandDisplayMap()
 
   const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -226,6 +228,7 @@ export function ResumeList() {
                 ruleScore={entry.ruleScore}
                 industryTags={ingestData?.industryTags}
                 companyHits={ingestData?.companyHits}
+                brandDisplayResolve={brandDisplayResolve}
                 roleTypes={ingestData?.roleSignals?.map((signal) => signal.type) ?? []}
                 experienceLevel={ingestData?.experienceLevel}
                 onTagClick={handleToggleTag}

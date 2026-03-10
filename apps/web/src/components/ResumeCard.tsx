@@ -27,6 +27,7 @@ interface ResumeCardProps {
   ruleScore?: number
   industryTags?: string[]
   companyHits?: string[]
+  brandDisplayResolve?: (brandId: string) => string
   roleTypes?: string[]
   experienceLevel?: string
   onTagClick?: (tag: string) => void
@@ -128,6 +129,7 @@ export function ResumeCard({
   onAiFeedback,
   industryTags,
   companyHits,
+  brandDisplayResolve,
   roleTypes,
   experienceLevel,
   onTagClick,
@@ -352,7 +354,7 @@ export function ResumeCard({
                 onCompanyClick?.(company)
               }}
             >
-              {company.toUpperCase()}
+              {(brandDisplayResolve ?? ((id: string) => id.toUpperCase()))(company)}
             </Badge>
           )
         })}

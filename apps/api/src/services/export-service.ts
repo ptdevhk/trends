@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
+import type { BrandDisplayResolver } from "./brand-display-resolver.js";
 
 export type ExportFormat = "csv" | "xlsx";
 
@@ -166,7 +167,7 @@ function parseAgeNumber(value: unknown): number | null {
   return null;
 }
 
-function toRow(entry: ResumeExportEntry): ExportRow {
+function toRow(entry: ResumeExportEntry, brandDisplayResolver?: BrandDisplayResolver): ExportRow {
   const workHistory = Array.isArray(entry.resume.workHistory)
     ? entry.resume.workHistory
       .map((item) => item.raw)
@@ -190,7 +191,9 @@ function toRow(entry: ResumeExportEntry): ExportRow {
     scoreSource: normalizeString(entry.match?.scoreSource),
     action: normalizeString(entry.action),
     industryTags: normalizeStringArray(entry.resume.ingestData?.industryTags).join(", "),
-    companyHits: normalizeStringArray(entry.resume.ingestData?.companyHits).join(", "),
+    companyHits: normalizeStringArray(entry.resume.ingestData?.companyHits)
+      .map((brandId) => (brandDisplayResolver ? brandDisplayResolver.resolveZhHans(brandId) : brandId.toUpperCase()))
+      .join(", "),
     profileUrl: normalizeJob5156ProfileUrlForDisplay(entry.resume.profileUrl),
     workHistory,
     selfIntro: normalizeString(entry.resume.selfIntro),
@@ -243,12 +246,14 @@ function applyBatchMeta(row: ExportRow, batchMeta?: ExportBatchMeta): ExportRow 
 }
 
 export class ExportService {
+  constructor(private readonly brandDisplayResolver?: BrandDisplayResolver) {}
+
   async exportResumes(
     format: ExportFormat,
     entries: ResumeExportEntry[],
     batchMeta?: ExportBatchMeta
   ): Promise<ExportFile> {
-    const rows = entries.map((entry) => applyBatchMeta(toRow(entry), batchMeta));
+    const rows = entries.map((entry) => applyBatchMeta(toRow(entry, this.brandDisplayResolver), batchMeta));
     if (format === "xlsx") {
       const content = await this.toXlsx(rows);
       return {
