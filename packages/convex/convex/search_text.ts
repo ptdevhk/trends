@@ -1,9 +1,6 @@
 const PRIORITY_KEYS = [
     "name",
-    "jobIntention",
     "desiredPosition",
-    "selfIntro",
-    "experience",
     "education",
     "expectedSalary",
     "skills",

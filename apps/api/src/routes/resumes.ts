@@ -467,8 +467,6 @@ function computeStats(
 function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex {
   const text = [
     resume.name,
-    resume.jobIntention,
-    resume.selfIntro,
     resume.location,
     resume.education,
     ...(resume.workHistory ?? []).map((item) => item.raw),
@@ -476,14 +474,15 @@ function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex 
 
   return {
     resumeId,
-    experienceYears: parseExperienceYears(resume.experience),
+    experienceYears: null,
     educationLevel: resume.education || null,
     locationCity: resume.location || null,
-    skills: extractSkills(resume.jobIntention, resume.selfIntro) ?? [],
+    skills: [],
     companies: extractCompanies(resume.workHistory) ?? [],
     industryTags: [],
     salaryRange: null,
     searchText: text,
+    evidenceText: buildWorkHistoryEvidence(resume.workHistory).text,
   };
 }
 
@@ -497,7 +496,7 @@ function buildAiResumePayload(item: {
     name: item.resume.name || "未命名",
     workExperience: item.indexData.experienceYears ?? undefined,
     education: item.resume.education || undefined,
-    skills: item.indexData.skills.length > 0 ? item.indexData.skills : extractSkills(item.resume.jobIntention, item.resume.selfIntro),
+    skills: item.indexData.skills,
     companies: item.indexData.companies.length > 0 ? item.indexData.companies : extractCompanies(item.resume.workHistory),
     workHistory: buildWorkHistoryEvidence(item.resume.workHistory).lines.join("\n") || undefined,
   };

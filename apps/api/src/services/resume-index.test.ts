@@ -73,14 +73,16 @@ describe("ResumeIndexService", () => {
       const entry = index.get("R1001");
 
       expect(entry).toBeDefined();
-      expect(entry?.experienceYears).toBe(5);
+      expect(entry?.experienceYears).toBeCloseTo(3, 5);
       expect(entry?.educationLevel).toBe("bachelor");
       expect(entry?.locationCity).toBe("东莞");
-      expect(entry?.skills.some((skill) => skill.includes("cnc") || skill.includes("车床"))).toBe(true);
+      expect(entry?.skills.some((skill) => skill.includes("销售") || skill.includes("车床"))).toBe(true);
       expect(entry?.companies.some((company) => company.includes("机械设备"))).toBe(true);
       expect(entry?.industryTags).toContain("machinery");
       expect(entry?.industryTags).toContain("sales");
       expect(entry?.evidenceText).toBe(buildWorkHistoryEvidence(resumes[0]?.workHistory).text);
+      expect(entry?.searchText).not.toContain("熟悉cnc车床和设备销售");
+      expect(entry?.searchText).not.toContain("东莞 车床 销售 cnc");
       expect(entry?.salaryRange?.min).toBe(12000);
       expect(entry?.salaryRange?.max).toBe(18000);
     } finally {
