@@ -583,7 +583,7 @@ export class RuleScoringService {
     const signalHits = role.signals.filter((signal) => normalizedText.includes(signal.toLowerCase()));
     return {
       signalCount: signalHits.length,
-      years: typeof index.experienceYears === "number" ? index.experienceYears : 0,
+      years: 0,
     };
   }
 
@@ -625,6 +625,23 @@ export class RuleScoringService {
 
     const aggregate = roleScores.reduce((sum, value) => sum + value, 0) / roleScores.length;
     return Math.round(Math.max(0, Math.min(weight, aggregate)));
+  }
+
+  private computeRelevantRoleYears(
+    requiredRoles: RequiredRoleRequirement[],
+    roleSignals: RoleSignalSummary[]
+  ): number {
+    const matchedYears = requiredRoles
+      .map((required) => {
+        const matched = roleSignals.find(
+          (signal) => signal.type.toLowerCase() === required.type.toLowerCase()
+            && signal.verifyIn === required.verifyIn
+        );
+        return matched?.years ?? 0;
+      })
+      .filter((years) => years > 0);
+
+    return matchedYears.length > 0 ? Math.max(...matchedYears) : 0;
   }
 
   private applyRoleContext(
@@ -700,9 +717,22 @@ export class RuleScoringService {
       ? Math.round((matchedSkills.length / context.keywords.length) * categoryWeights.skillMatch)
       : 0;
     const rawRoleMatch = this.scoreRoleMatch(index, context, roleSignals);
+    const hasRequiredRoles = context.requiredRoles.length > 0;
 
     let experienceMatch = 0;
-    if (context.minExperience === undefined) {
+    if (hasRequiredRoles) {
+      const relevantRoleYears = this.computeRelevantRoleYears(context.requiredRoles, roleSignals);
+      const effectiveMinExperience = context.minExperience ?? context.requiredRoles[0]?.minYears ?? 0;
+
+      if (relevantRoleYears >= effectiveMinExperience) {
+        experienceMatch = categoryWeights.experienceMatch;
+      } else if (relevantRoleYears > 0) {
+        const ratio = relevantRoleYears / Math.max(1, effectiveMinExperience);
+        experienceMatch = Math.round(categoryWeights.experienceMatch * Math.min(1, ratio));
+      } else {
+        experienceMatch = 0;
+      }
+    } else if (context.minExperience === undefined) {
       experienceMatch = index.experienceYears === null
         ? Math.round((categoryWeights.experienceMatch * 8) / DEFAULT_WEIGHTS.categoryWeights.experienceMatch)
         : categoryWeights.experienceMatch;
@@ -759,10 +789,13 @@ export class RuleScoringService {
     const normalizedBrandKeywords = (context.brandKeywords ?? [])
       .map((brand) => brand.toLowerCase())
       .filter((brand) => brand.length > 0);
+    const scoringBrandHits = hasRequiredRoles
+      ? brandHits.filter((hit) => hit.source === "workHistory")
+      : brandHits;
     const hasBrandKeywordTargets = normalizedBrandKeywords.length > 0;
     const matchedBrandHits = hasBrandKeywordTargets
-      ? brandHits.filter((hit) => normalizedBrandKeywords.includes(hit.brand.toLowerCase()))
-      : brandHits;
+      ? scoringBrandHits.filter((hit) => normalizedBrandKeywords.includes(hit.brand.toLowerCase()))
+      : scoringBrandHits;
 
     const contextWeights = hasBrandKeywordTargets
       ? this.weights.brandContextWithTarget
