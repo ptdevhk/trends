@@ -19,12 +19,11 @@ export interface MatchingRequest {
     resume: {
         id: string;
         name: string;
-        jobIntention?: string;
         workExperience?: number;
         education?: string;
         skills?: string[];
         companies?: string[];
-        summary?: string;
+        workHistory?: string;
     };
     jobDescription: {
         title: string;
@@ -149,14 +148,19 @@ const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
 
 ## 候选人信息
 **姓名**: {candidateName}
-**求职意向**: {jobIntention}
 **工作经验**: {workExperience}年
 **学历**: {education}
 **技能**: {skills}
 **曾任职公司**: {companies}
-**简介**: {summary}
+**工作经历**:
+{workHistory}
 
 {additionalCriteria}
+
+重要评估规则：
+- 只根据"工作经历"中的实际岗位和职责来判断候选人是否有相关经验
+- 不要根据候选人的求职意向或自我介绍来推断其能力
+- 如果工作经历中没有相关岗位经验，即使总工作年限很长也应给予较低评分
 
 请以JSON格式返回分析结果，包含以下字段：
 {
@@ -470,12 +474,11 @@ Return strictly valid JSON:
         return USER_PROMPT_TEMPLATE.replace("{jobTitle}", jobDescription.title)
             .replace("{requirements}", jobDescription.requirements)
             .replace("{candidateName}", resume.name)
-            .replace("{jobIntention}", resume.jobIntention || "未填写")
             .replace("{workExperience}", String(resume.workExperience || 0))
             .replace("{education}", resume.education || "未填写")
             .replace("{skills}", resume.skills?.join(", ") || "未填写")
             .replace("{companies}", resume.companies?.join(", ") || "未填写")
-            .replace("{summary}", resume.summary || "无")
+            .replace("{workHistory}", resume.workHistory || "无工作经历")
             .replace("{additionalCriteria}", additionalCriteria);
     }
 

@@ -481,6 +481,14 @@ function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex 
   };
 }
 
+function formatWorkHistoryForAI(workHistory: Array<{ raw?: string }> | undefined): string {
+  if (!workHistory || workHistory.length === 0) return "";
+  return workHistory
+    .map((entry) => entry.raw?.trim() || "")
+    .filter((raw) => raw.length > 0)
+    .join("\n");
+}
+
 function buildAiResumePayload(item: {
   resume: ResumeItem;
   resumeId: string;
@@ -489,12 +497,11 @@ function buildAiResumePayload(item: {
   return {
     id: item.resumeId,
     name: item.resume.name || "未命名",
-    jobIntention: item.resume.jobIntention || undefined,
     workExperience: item.indexData.experienceYears ?? undefined,
     education: item.resume.education || undefined,
     skills: item.indexData.skills.length > 0 ? item.indexData.skills : extractSkills(item.resume.jobIntention, item.resume.selfIntro),
     companies: item.indexData.companies.length > 0 ? item.indexData.companies : extractCompanies(item.resume.workHistory),
-    summary: item.resume.selfIntro || undefined,
+    workHistory: formatWorkHistoryForAI(item.resume.workHistory) || undefined,
   };
 }
 
