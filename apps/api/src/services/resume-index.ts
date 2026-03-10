@@ -7,6 +7,7 @@ import { findProjectRoot } from "./db.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { resolveResumeId } from "./resume-id.js";
+import { computeWorkHistoryYears } from "./work-history.js";
 
 import type { ResumeItem, ResumeWorkHistoryItem } from "../types/resume.js";
 
@@ -64,19 +65,6 @@ function normalizeEducationLevel(value: string): string | null {
   return null;
 }
 
-function parseExperienceYears(value: string): number | null {
-  if (!value) return null;
-  const normalized = value.trim();
-  if (!normalized) return null;
-  if (/应届|无经验/.test(normalized)) return 0;
-  const match = normalized.match(/(\d+)(?:\s*[-~到至]\s*(\d+))?/);
-  if (!match) return null;
-  const min = Number(match[1]);
-  const max = match[2] ? Number(match[2]) : min;
-  if (Number.isNaN(max)) return null;
-  return max;
-}
-
 function parseSalaryRange(value: string): { min?: number; max?: number } | null {
   if (!value) return null;
   const normalized = value.replace(/\s+/g, "").toLowerCase();
@@ -99,15 +87,6 @@ function parseSalaryRange(value: string): { min?: number; max?: number } | null 
   }
 
   return { min, max };
-}
-
-function extractTokenCandidates(text: string): string[] {
-  if (!text.trim()) return [];
-  const segments = text.match(/[\u4e00-\u9fa5]{2,}|[a-z0-9+#.-]{2,}/gi) ?? [];
-  return segments
-    .map((item) => item.toLowerCase())
-    .filter((item) => item.length >= 2)
-    .filter((item) => item.length <= 24);
 }
 
 function normalizeCompanyName(raw: string): string {
@@ -143,8 +122,6 @@ function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
 function createSearchText(item: ResumeItem): string {
   const parts = [
     item.name,
-    item.jobIntention,
-    item.selfIntro,
     item.education,
     item.location,
     item.expectedSalary,
@@ -273,17 +250,8 @@ export class ResumeIndexService {
     return fallback?.[0] ?? null;
   }
 
-  private extractSkills(item: ResumeItem, searchText: string): string[] {
+  private extractSkills(searchText: string): string[] {
     const skills = new Set<string>();
-
-    const intentionTokens = extractTokenCandidates(item.jobIntention || "");
-    const summaryTokens = extractTokenCandidates(item.selfIntro || "");
-    for (const token of intentionTokens.slice(0, 30)) {
-      skills.add(token);
-    }
-    for (const token of summaryTokens.slice(0, 30)) {
-      skills.add(token);
-    }
 
     for (const keyword of this.skillVocabulary) {
       if (searchText.includes(keyword)) {
@@ -311,14 +279,14 @@ export class ResumeIndexService {
       const resumeId = resolveResumeId(item, i);
       const searchText = createSearchText(item);
       const companies = extractCompanies(item.workHistory ?? []);
-      const skills = this.extractSkills(item, searchText);
+      const skills = this.extractSkills(searchText);
       const tagHaystack = [searchText, ...skills, ...companies].join(" ").toLowerCase();
 
       const evidenceText = buildWorkHistoryEvidence(item.workHistory).text;
 
       nextMap.set(resumeId, {
         resumeId,
-        experienceYears: parseExperienceYears(item.experience),
+        experienceYears: computeWorkHistoryYears(item.workHistory ?? []),
         educationLevel: normalizeEducationLevel(item.education),
         locationCity: this.extractLocationCity(item.location || ""),
         evidenceText,

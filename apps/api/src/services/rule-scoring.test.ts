@@ -337,6 +337,7 @@ describe("RuleScoringService", () => {
         experienceYears: 3,
         educationLevel: "bachelor",
         locationCity: "东莞",
+        evidenceText: "cnc 车床 销售",
         skills: ["cnc"],
         companies: [],
         industryTags: ["cnc"],
@@ -620,6 +621,50 @@ describe("RuleScoringService", () => {
       expect(selfIntroOnlyResult.breakdown.brandRelevance).toBe(0);
       expect(workHistoryResult.breakdown.brandRelevance).toBe(4);
       expect(workHistoryResult.score).toBeGreaterThan(selfIntroOnlyResult.score);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("does not reward cnc mentions that appear only in self intro", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["cnc", "车床", "销售"], "东莞");
+      const misleadingCandidate: ResumeIndex = {
+        resumeId: "R-chen-regression",
+        experienceYears: 1,
+        educationLevel: "associate",
+        locationCity: "东莞",
+        evidenceText: "2024-2025 普通贸易公司 跟单员 客户维护",
+        skills: [],
+        companies: ["普通贸易公司"],
+        industryTags: [],
+        salaryRange: { min: 7000, max: 9000 },
+        searchText: "东莞 cnc 车床 销售 熟悉cnc加工与star fanuc品牌",
+      };
+      const verifiedCandidate: ResumeIndex = {
+        resumeId: "R-verified-cnc",
+        experienceYears: 3,
+        educationLevel: "associate",
+        locationCity: "东莞",
+        evidenceText: "2021-2024 东莞机床公司 销售工程师 负责cnc车床销售与客户开发",
+        skills: ["cnc", "车床", "销售"],
+        companies: ["东莞机床公司"],
+        industryTags: ["cnc", "sales"],
+        salaryRange: { min: 9000, max: 12000 },
+        searchText: "东莞 cnc 车床 销售",
+      };
+
+      const misleadingResult = service.scoreResume(misleadingCandidate, context);
+      const verifiedResult = service.scoreResume(verifiedCandidate, context);
+
+      expect(misleadingResult.breakdown.skillMatch).toBe(0);
+      expect(misleadingResult.breakdown.industryMatch).toBe(0);
+      expect(verifiedResult.breakdown.skillMatch).toBeGreaterThan(misleadingResult.breakdown.skillMatch);
+      expect(verifiedResult.breakdown.industryMatch).toBeGreaterThan(misleadingResult.breakdown.industryMatch);
+      expect(verifiedResult.score).toBeGreaterThan(misleadingResult.score);
     } finally {
       cleanupFixtureRoot(root);
     }

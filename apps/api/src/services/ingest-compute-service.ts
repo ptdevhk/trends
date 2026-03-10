@@ -5,6 +5,7 @@ import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { RuleScoringService, type RoleSignalSummary } from "./rule-scoring.js";
 import { resolveResumeId } from "./resume-id.js";
+import { computeWorkHistoryYears, parseRoleYears } from "./work-history.js";
 import type { ResumeItem, ResumeWorkHistoryItem } from "../types/resume.js";
 import type { ResumeIndex } from "./resume-index.js";
 
@@ -176,19 +177,6 @@ function normalizeEducationLevel(value: string): string | null {
   return null;
 }
 
-function parseExperienceYears(value: string): number | null {
-  if (!value) return null;
-  const normalized = value.trim();
-  if (!normalized) return null;
-  if (/应届|无经验/.test(normalized)) return 0;
-  const match = normalized.match(/(\d+)(?:\s*[-~到至]\s*(\d+))?/);
-  if (!match) return null;
-  const min = Number(match[1]);
-  const max = match[2] ? Number(match[2]) : min;
-  if (Number.isNaN(max)) return null;
-  return max;
-}
-
 function parseSalaryRange(value: string): { min?: number; max?: number } | null {
   if (!value) return null;
   const normalized = value.replace(/\s+/g, "").toLowerCase();
@@ -252,8 +240,6 @@ function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
 function createSearchText(item: ResumeItem): string {
   const parts = [
     item.name,
-    item.jobIntention,
-    item.selfIntro,
     item.education,
     item.expectedSalary,
     ...(item.workHistory?.map((entry) => entry.raw) ?? []),
@@ -304,7 +290,7 @@ export function buildResumeIndex(item: ResumeItem, index: number): ResumeIndex {
   // We just need the basic fields for rule scoring
   return {
     resumeId,
-    experienceYears: parseExperienceYears(item.experience),
+    experienceYears: computeWorkHistoryYears(item.workHistory),
     educationLevel: normalizeEducationLevel(item.education),
     locationCity: item.location || null,
     evidenceText,
@@ -465,38 +451,6 @@ export class IngestComputeService {
     return scores;
   }
 
-  private parseRoleYears(raw: string): number {
-    const text = raw.trim();
-    if (!text) {
-      return 0;
-    }
-
-    const explicitDuration = text.match(/\((\d+)\s*年(?:(\d+)\s*月)?\)/u);
-    if (explicitDuration) {
-      const years = Number(explicitDuration[1] || 0);
-      const months = Number(explicitDuration[2] || 0);
-      if (Number.isFinite(years) && Number.isFinite(months)) {
-        return years + (months / 12);
-      }
-    }
-
-    const range = text.match(/(\d{4})[-./年](\d{1,2})?.*?[~至到-]\s*(\d{4})(?:[-./年](\d{1,2}))?/u);
-    if (range) {
-      const startYear = Number(range[1]);
-      const startMonth = Number(range[2] || 1);
-      const endYear = Number(range[3]);
-      const endMonth = Number(range[4] || 1);
-
-      if ([startYear, startMonth, endYear, endMonth].every((value) => Number.isFinite(value))) {
-        const monthDiff = (endYear - startYear) * 12 + (endMonth - startMonth);
-        if (monthDiff > 0) {
-          return monthDiff / 12;
-        }
-      }
-    }
-
-    return 0;
-  }
 
   private computeRoleSignals(workHistory: ResumeWorkHistoryItem[]): RoleSignalSummary[] {
     if (!Array.isArray(workHistory) || workHistory.length === 0) {
@@ -517,7 +471,7 @@ export class IngestComputeService {
       }
 
       const normalized = raw.toLowerCase();
-      const years = this.parseRoleYears(raw);
+      const years = parseRoleYears(raw);
 
       // Extract company name and verify industry
       const companyName = extractCompanyFromEntry(raw);
@@ -823,23 +777,6 @@ export class IngestComputeService {
       if (!aliases.some((alias) => normalizedSearchText.includes(alias))) {
         continue;
       }
-
-      collectFromSource(
-        "selfIntro",
-        item.selfIntro || "",
-        normalizedCompanies,
-        pattern.name.toLowerCase(),
-        pattern.role,
-        aliases
-      );
-      collectFromSource(
-        "jobIntention",
-        item.jobIntention || "",
-        normalizedCompanies,
-        pattern.name.toLowerCase(),
-        pattern.role,
-        aliases
-      );
 
       for (const entry of item.workHistory || []) {
         const entryCompanies = extractCompanies([entry])

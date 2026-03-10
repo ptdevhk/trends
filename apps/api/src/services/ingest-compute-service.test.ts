@@ -232,25 +232,25 @@ describe("IngestComputeService", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("should compute industryTags for CNC sales resume", () => {
+  it("should compute industryTags from work history evidence only", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
-    expect(result.industryTags).toContain("machinery");
     expect(result.industryTags).toContain("cnc");
     expect(result.industryTags).toContain("sales");
+    expect(result.industryTags).not.toContain("machinery");
   });
 
-  it("should compute synonymHits for CNC sales resume", () => {
+  it("should compute synonymHits from work history evidence only", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
     expect(result.synonymHits).toEqual(expect.arrayContaining([
-      "车床",
-      "cnc车床",
-      "数控车床",
       "销售",
       "业务",
       "商务",
     ]));
+    expect(result.synonymHits).not.toContain("车床");
+    expect(result.synonymHits).not.toContain("cnc车床");
+    expect(result.synonymHits).not.toContain("数控车床");
   });
 
   it("should compute ruleScores for all active JDs", () => {
@@ -265,10 +265,10 @@ describe("IngestComputeService", () => {
     expect(result.primaryRuleScore).toBe(maxScore);
   });
 
-  it("should detect senior experience level", () => {
+  it("should not derive senior experience level from selfIntro", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
-    expect(result.experienceLevel).toBe("senior");  // has "团队管理", "大客户"
+    expect(result.experienceLevel).toBe("unknown");
   });
 
   it("should detect junior experience level", () => {
@@ -285,13 +285,15 @@ describe("IngestComputeService", () => {
     expect(result.skillsVersion).toBe(42);  // from TEST_SKILLS_MD
   });
 
-  it("should compute role signals from work history", () => {
+  it("should compute role signals and experience years from work history", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
     const salesRole = result.roleSignals.find((item) => item.type === "sales");
+    const index = buildResumeIndex(SAMPLE_RESUME_CNC_SALES.data[0], 0);
 
     expect(salesRole).toBeDefined();
     expect(salesRole?.signalCount).toBeGreaterThan(0);
     expect(salesRole?.years).toBeGreaterThan(0);
+    expect(index.experienceYears).toBeCloseTo(6.5, 1);
     expect(result.ruleScores["jd-lathe-sales"]).toBeGreaterThan(50);
   });
 
@@ -329,16 +331,15 @@ describe("IngestComputeService", () => {
     expect(roleTag?.source).toBe("rule");
     expect(roleTag?.evidence).toEqual(expect.arrayContaining(["roleType:sales"]));
 
-    expect(companyTag).toBeDefined();
-    expect(companyTag?.evidence.some((entry) => entry.startsWith("brandSource:"))).toBe(true);
+    expect(companyTag).toBeUndefined();
 
     expect(taggingIndustryTag?.provenance.stage).toBe("industry_taxonomy");
     expect(taggingIndustryTag?.provenance.generatedBy).toBe("ingest-compute-service");
     expect(taggingRoleTag?.provenance.stage).toBe("role_signal_aggregation");
-    expect(taggingCompanyTag?.provenance.stage).toBe("company_pattern_match");
+    expect(taggingCompanyTag).toBeUndefined();
   });
 
-  it("should classify selfIntro brand mentions as equipment context", () => {
+  it("should ignore selfIntro brand mentions in processing", () => {
     const equipmentResume = {
       data: [
         {
@@ -351,12 +352,7 @@ describe("IngestComputeService", () => {
     };
     const result = service.computeOne("resume-equipment", equipmentResume);
 
-    expect(result.brandHits).toContainEqual({
-      brand: "fanuc",
-      role: "both",
-      source: "selfIntro",
-      context: "equipment",
-    });
+    expect(result.brandHits).toEqual([]);
   });
 
   it("should classify workHistory brand mentions as employer context", () => {
@@ -381,7 +377,7 @@ describe("IngestComputeService", () => {
     });
   });
 
-  it("should classify STAR sales mention as sales context", () => {
+  it("should ignore selfIntro sales brand mentions in processing", () => {
     const salesResume = {
       data: [
         {
@@ -394,15 +390,10 @@ describe("IngestComputeService", () => {
     };
     const result = service.computeOne("resume-sales", salesResume);
 
-    expect(result.brandHits).toContainEqual({
-      brand: "star",
-      role: "both",
-      source: "selfIntro",
-      context: "sales",
-    });
+    expect(result.brandHits).toEqual([]);
   });
 
-  it("should dedupe repeated brand mentions in same source/context", () => {
+  it("should not emit brand hits from selfIntro only content", () => {
     const dedupeResume = {
       data: [
         {
@@ -414,25 +405,22 @@ describe("IngestComputeService", () => {
     };
     const result = service.computeOne("resume-dedupe", dedupeResume);
 
-    const fanucEquipmentHits = result.brandHits.filter((hit) =>
-      hit.brand === "fanuc" && hit.source === "selfIntro" && hit.context === "equipment"
-    );
-    expect(fanucEquipmentHits).toHaveLength(1);
+    expect(result.brandHits).toEqual([]);
   });
 
-  it("should compute companyHits and alias tokens from STAR mention", () => {
+  it("should not compute companyHits from selfIntro-only brand mentions", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
-    expect(result.companyHits).toContain("star");
+    expect(result.companyHits).toEqual([]);
     expect(result.companyHits).toEqual(Array.from(new Set(result.brandHits.map((hit) => hit.brand))));
-    expect(result.companyAliasTokens).toContain("スター精密");
+    expect(result.companyAliasTokens).toBe("");
   });
 
-  it("should match HAAS aliases across languages", () => {
+  it("should not match HAAS aliases from excluded fields", () => {
     const result = service.computeOne("resume-789", SAMPLE_RESUME_HAAS);
 
-    expect(result.companyHits).toContain("haas");
-    expect(result.companyAliasTokens).toContain("haas automation");
+    expect(result.companyHits).toEqual([]);
+    expect(result.companyAliasTokens).toBe("");
   });
 
   it("should return empty company matches for unknown brands", () => {
@@ -461,7 +449,7 @@ describe("IngestComputeService", () => {
     expect(results).toHaveLength(2);
     expect(results[0].resumeId).toBe("resume-123");
     expect(results[1].resumeId).toBe("resume-456");
-    expect(results[0].experienceLevel).toBe("senior");
+    expect(results[0].experienceLevel).toBe("unknown");
     expect(results[1].experienceLevel).toBe("junior");
     expect(results.every((item) => Array.isArray(item.brandHits))).toBe(true);
     expect(results.every((item) => Array.isArray(item.companyHits))).toBe(true);
@@ -495,8 +483,10 @@ describe("IngestComputeService", () => {
     };
 
     const result = service.computeOne("resume-789", noHistory);
+    const index = buildResumeIndex(noHistory.data[0], 0);
 
     expect(result.evidenceText).toBe("");
+    expect(index.experienceYears).toBeNull();
     expect(result.industryTags).toBeDefined();
     expect(result.ruleScores).toBeDefined();
   });
@@ -514,6 +504,8 @@ describe("IngestComputeService", () => {
 
     expect(index.evidenceText).toBe(buildWorkHistoryEvidence(item).text);
     expect(index.evidenceText).toBe("2020-2025 sales engineer\ncnc 机床");
+    expect(index.searchText).not.toContain("应届毕业生");
+    expect(index.searchText).not.toContain("机械助理");
   });
 
   it("should throw error for invalid content", () => {

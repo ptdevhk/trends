@@ -187,7 +187,7 @@ function mapBrandOrigin(sectionName: string): BrandEntry["origin"] {
 // Pre-lowercased CNC industry patterns for fallback matching
 const CNC_INDUSTRY_PATTERNS = [
     "机床", "数控", "cnc", "加工中心", "车床", "铣床", "磨床",
-    "机械", "模具", "精密", "自动化", "五金", "金属加工",
+    "机械", "模具", "自动化", "金属加工",
     "刀具", "夹具", "量具", "测量", "三坐标",
 ].map((p) => p.toLowerCase());
 

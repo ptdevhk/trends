@@ -1,6 +1,6 @@
 ---
-version: 4
-updated_at: '2026-02-27'
+version: 5
+updated_at: '2026-03-10'
 description: >
   Curated skill taxonomy, synonyms, and domain knowledge for resume screening.
   Used by the background ingest agent for deterministic matching and pre-scoring.
@@ -353,3 +353,4 @@ HR feedback patterns and observations. New entries are appended by the feedback 
 - 2026-02-24: shortlist pattern -> cnc + junior
 - 2026-03-02: shortlist_pattern: sales + software + mid -> high_priority
 - 2026-03-02: shortlist_pattern: sales + software + mid -> high_priority
+- 2026-03-10: processing pipeline now excludes selfIntro, jobIntention, and header experience from strict matching; work history is the sole evidence source for experience and scoring.

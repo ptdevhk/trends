@@ -732,10 +732,15 @@ export class RuleScoringService {
       })
     );
 
+    const scoringText = (index.evidenceText || "").toLowerCase();
+    const scoringTokens = compactText(scoringText)
+      .split(/\s+/)
+      .filter((token) => token.length > 0);
+
     const matchedSkills = context.keywords.filter((keyword) => {
       const variants = keywordVariantMap.get(keyword) ?? [keyword];
       return variants.some((variant) =>
-        index.searchText.includes(variant) || index.skills.some((skill) => skill.includes(variant))
+        scoringText.includes(variant) || index.skills.some((skill) => skill.includes(variant))
       );
     });
 
@@ -802,12 +807,13 @@ export class RuleScoringService {
 
     const matchedIndustryKeywords = context.industryKeywords.filter((keyword) => {
       const variants = industryKeywordVariantMap.get(keyword) ?? [keyword];
-      return variants.some((variant) => index.searchText.includes(variant));
+      return variants.some((variant) => scoringText.includes(variant));
     });
     const keywordRatioBase = Math.max(1, Math.min(context.industryKeywords.length, 10));
     const keywordRatio = matchedIndustryKeywords.length / keywordRatioBase;
+    const localIndustryTags = inferIndustryTags(scoringTokens);
     const tagRatio = context.industryTags.length > 0
-      ? index.industryTags.filter((tag) => context.industryTags.includes(tag)).length / context.industryTags.length
+      ? localIndustryTags.filter((tag) => context.industryTags.includes(tag)).length / context.industryTags.length
       : 0;
     const industryRatio = Math.max(keywordRatio, tagRatio);
     const industryMatch = Math.round(Math.min(1, industryRatio) * categoryWeights.industryMatch);
