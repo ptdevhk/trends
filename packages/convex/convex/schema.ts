@@ -112,6 +112,7 @@ export default defineSchema({
                 signalCount: v.number(),
                 occurrences: v.number(),
                 years: v.number(),
+                industryVerifiedYears: v.optional(v.number()),
                 verifyIn: v.string(),
             }))),
             tagEnvelope: v.optional(v.array(v.object({
@@ -254,6 +255,7 @@ export default defineSchema({
                 signalCount: v.number(),
                 occurrences: v.number(),
                 years: v.number(),
+                industryVerifiedYears: v.optional(v.number()),
                 verifyIn: v.string(),
             }))),
             skillsVersion: v.optional(v.number()),
