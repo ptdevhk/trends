@@ -34,6 +34,7 @@ import { SearchEventLogger } from "../services/search-event-logger.js";
 import {
   ExportService,
   type ExportFormat,
+  type ExportBatchMeta,
   type ResumeExportEntry,
 } from "../services/export-service.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
@@ -91,6 +92,8 @@ const TriggerReingestRequestSchema = z.object({
 });
 const ResumeExportRequestSchema = z.object({
   format: z.enum(["csv", "xlsx"]).default("csv"),
+  userComment: z.string().optional(),
+  referenceNote: z.string().optional(),
   entries: z
     .array(
       z.object({
@@ -129,6 +132,8 @@ const ResumeExportRequestSchema = z.object({
             })
             .optional(),
         }),
+        userComment: z.string().optional(),
+        referenceNote: z.string().optional(),
         status: z.string().optional(),
       })
     )
@@ -1660,9 +1665,13 @@ app.post("/api/resumes/export", async (c) => {
 
   const format: ExportFormat = parsed.data.format;
   const entries: ResumeExportEntry[] = parsed.data.entries;
+  const batchMeta: ExportBatchMeta = {
+    userComment: parsed.data.userComment,
+    referenceNote: parsed.data.referenceNote,
+  };
 
   try {
-    const file = await exportService.exportResumes(format, entries);
+    const file = await exportService.exportResumes(format, entries, batchMeta);
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `resumes-export-${timestamp}.${file.extension}`;
 

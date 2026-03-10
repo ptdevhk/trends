@@ -111,7 +111,9 @@ vi.mock('@/hooks/useConvexResumes', () => ({
 vi.mock('@/hooks/useCandidateActions', () => ({
   useCandidateActions: () => ({
     actions: {},
+    aiFeedbackByResume: {},
     saveAction: mockState.saveAction,
+    getAiFeedback: () => undefined,
   }),
 }))
 

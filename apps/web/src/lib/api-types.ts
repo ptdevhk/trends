@@ -1692,6 +1692,7 @@ export interface paths {
             parameters: {
                 query: {
                     sessionId: string;
+                    jobDescriptionId?: string;
                     latestOnly?: string;
                 };
                 header?: never;
@@ -1715,7 +1716,7 @@ export interface paths {
                                 sessionId?: string;
                                 resumeId: string;
                                 /** @enum {string} */
-                                actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact";
+                                actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact" | "ai_score_like" | "ai_score_unlike" | "ai_summary_like" | "ai_summary_unlike";
                                 actionData?: {
                                     [key: string]: unknown;
                                 };
@@ -1742,7 +1743,7 @@ export interface paths {
                         sessionId?: string;
                         resumeId: string;
                         /** @enum {string} */
-                        actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact";
+                        actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact" | "ai_score_like" | "ai_score_unlike" | "ai_summary_like" | "ai_summary_unlike";
                         actionData?: {
                             [key: string]: unknown;
                         };
@@ -1765,7 +1766,7 @@ export interface paths {
                                 sessionId?: string;
                                 resumeId: string;
                                 /** @enum {string} */
-                                actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact";
+                                actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact" | "ai_score_like" | "ai_score_unlike" | "ai_summary_like" | "ai_summary_unlike";
                                 actionData?: {
                                     [key: string]: unknown;
                                 };

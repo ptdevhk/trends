@@ -40,6 +40,8 @@ export type ResumeExportEntry = {
   action?: string;
   status?: string;
   ruleScore?: number;
+  userComment?: string;
+  referenceNote?: string;
 };
 
 type ExportRow = {
@@ -63,6 +65,8 @@ type ExportRow = {
   workHistory: string;
   selfIntro: string;
   aiSummary: string;
+  userComment: string;
+  referenceNote: string;
 };
 
 export type ExportFile = {
@@ -191,6 +195,8 @@ function toRow(entry: ResumeExportEntry): ExportRow {
     workHistory,
     selfIntro: normalizeString(entry.resume.selfIntro),
     aiSummary: normalizeString(entry.match?.summary),
+    userComment: normalizeString(entry.userComment),
+    referenceNote: normalizeString(entry.referenceNote),
   };
 }
 
@@ -215,11 +221,34 @@ const EXCEL_COLUMNS: Array<{ header: string; key: keyof ExportRow; width: number
   { header: "Work History", key: "workHistory", width: 44 },
   { header: "Self Intro", key: "selfIntro", width: 48 },
   { header: "AI Summary", key: "aiSummary", width: 48 },
+  { header: "User Comment", key: "userComment", width: 36 },
+  { header: "Reference Note", key: "referenceNote", width: 36 },
 ];
 
+export type ExportBatchMeta = {
+  userComment?: string;
+  referenceNote?: string;
+};
+
+function applyBatchMeta(row: ExportRow, batchMeta?: ExportBatchMeta): ExportRow {
+  if (!batchMeta) {
+    return row;
+  }
+
+  return {
+    ...row,
+    userComment: batchMeta.userComment ?? row.userComment,
+    referenceNote: batchMeta.referenceNote ?? row.referenceNote,
+  };
+}
+
 export class ExportService {
-  async exportResumes(format: ExportFormat, entries: ResumeExportEntry[]): Promise<ExportFile> {
-    const rows = entries.map((entry) => toRow(entry));
+  async exportResumes(
+    format: ExportFormat,
+    entries: ResumeExportEntry[],
+    batchMeta?: ExportBatchMeta
+  ): Promise<ExportFile> {
+    const rows = entries.map((entry) => applyBatchMeta(toRow(entry), batchMeta));
     if (format === "xlsx") {
       const content = await this.toXlsx(rows);
       return {

@@ -99,7 +99,60 @@ export type MatchStats = {
   processingTimeMs?: number
 }
 
-export type CandidateActionType = 'star' | 'shortlist' | 'reject' | 'archive' | 'note' | 'contact'
+export type AiFeedbackTarget = 'ai_score' | 'ai_summary'
+export type AiFeedbackSentiment = 'like' | 'unlike'
+
+export type AiFeedbackState = {
+  score?: AiFeedbackSentiment
+  summary?: AiFeedbackSentiment
+}
+
+export type CandidateActionType =
+  | 'star'
+  | 'shortlist'
+  | 'reject'
+  | 'archive'
+  | 'note'
+  | 'contact'
+  | 'ai_score_like'
+  | 'ai_score_unlike'
+  | 'ai_summary_like'
+  | 'ai_summary_unlike'
+
+export const AI_FEEDBACK_ACTION_TYPES = {
+  ai_score: {
+    like: 'ai_score_like',
+    unlike: 'ai_score_unlike',
+  },
+  ai_summary: {
+    like: 'ai_summary_like',
+    unlike: 'ai_summary_unlike',
+  },
+} as const satisfies Record<AiFeedbackTarget, Record<AiFeedbackSentiment, CandidateActionType>>
+
+export function actionToAiFeedback(
+  actionType: CandidateActionType
+): { target: AiFeedbackTarget; sentiment: AiFeedbackSentiment } | null {
+  switch (actionType) {
+    case 'ai_score_like':
+      return { target: 'ai_score', sentiment: 'like' }
+    case 'ai_score_unlike':
+      return { target: 'ai_score', sentiment: 'unlike' }
+    case 'ai_summary_like':
+      return { target: 'ai_summary', sentiment: 'like' }
+    case 'ai_summary_unlike':
+      return { target: 'ai_summary', sentiment: 'unlike' }
+    default:
+      return null
+  }
+}
+
+export function aiFeedbackToActionType(
+  target: AiFeedbackTarget,
+  sentiment: AiFeedbackSentiment
+): CandidateActionType {
+  return AI_FEEDBACK_ACTION_TYPES[target][sentiment]
+}
 
 export type CandidateAction = {
   id: number

@@ -6,7 +6,18 @@ import { ActionStorage } from "../services/action-storage.js";
 const app = new OpenAPIHono();
 const actionStorage = new ActionStorage(config.projectRoot);
 
-const ActionTypeSchema = z.enum(["star", "shortlist", "reject", "archive", "note", "contact"]);
+const ActionTypeSchema = z.enum([
+  "star",
+  "shortlist",
+  "reject",
+  "archive",
+  "note",
+  "contact",
+  "ai_score_like",
+  "ai_score_unlike",
+  "ai_summary_like",
+  "ai_summary_unlike",
+]);
 
 const CandidateActionSchema = z.object({
   id: z.number().int(),
@@ -38,6 +49,10 @@ const CreateActionSchema = z.object({
 
 const ActionsQuerySchema = z.object({
   sessionId: z.string().openapi({ param: { name: "sessionId", in: "query" }, example: "session-123" }),
+  jobDescriptionId: z
+    .string()
+    .optional()
+    .openapi({ param: { name: "jobDescriptionId", in: "query" }, example: "lathe-sales" }),
   latestOnly: z
     .string()
     .optional()
@@ -94,10 +109,11 @@ const listActionsRoute = createRoute({
 });
 
 app.openapi(listActionsRoute, (c) => {
-  const { sessionId, latestOnly } = c.req.valid("query");
+  const { sessionId, jobDescriptionId, latestOnly } = c.req.valid("query");
+  const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined;
   const actions = latestOnly
-    ? actionStorage.getLatestActionsForSession(sessionId)
-    : actionStorage.getActionsForSession(sessionId);
+    ? actionStorage.getLatestActionsForSession(sessionId, normalizedJobDescriptionId)
+    : actionStorage.getActionsForSession(sessionId, normalizedJobDescriptionId);
   return c.json({ success: true as const, actions }, 200);
 });
 
