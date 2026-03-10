@@ -957,6 +957,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/industry/brand-display-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get brand display name map (zh-Hans primary)
+         * @description Returns a mapping of brandId (lowercase English) to displayName + zh-Hans name for UI/export rendering
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Brand display map */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: {
+                                displayName: string;
+                                zhHans: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/industry/brands": {
         parameters: {
             query?: never;
@@ -972,6 +1016,7 @@ export interface paths {
             parameters: {
                 query?: {
                     origin?: "international" | "domestic" | "agent";
+                    q?: string;
                 };
                 header?: never;
                 path?: never;

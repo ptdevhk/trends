@@ -38,6 +38,7 @@ import {
   type ResumeExportEntry,
 } from "../services/export-service.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
+import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
@@ -52,7 +53,7 @@ const ruleScoringService = new RuleScoringService(config.projectRoot);
 const ingestComputeService = new IngestComputeService(config.projectRoot);
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
 const searchEventLogger = new SearchEventLogger(config.projectRoot);
-const exportService = new ExportService();
+const exportService = new ExportService(new BrandDisplayResolver(config.projectRoot));
 
 const DEFAULT_AI_TOP_N = 20;
 

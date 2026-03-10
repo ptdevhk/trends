@@ -74,5 +74,8 @@
   { "id": 73, "nameCn": "庆鸿", "nameEn": "CHMER", "type": "火花机/线切割", "origin": "domestic" },
   { "id": 74, "nameCn": "台正", "nameEn": "TAIZHENG", "type": "加工中心/火花机", "origin": "domestic" },
   { "id": 75, "nameCn": "领威科技", "nameEn": "LINGWEI", "type": "加工中心/数控车床", "origin": "domestic" },
-  { "id": 76, "nameCn": "雄群数控", "nameEn": "XIONGQUN", "type": "加工中心/数控车床", "origin": "domestic" }
+  { "id": 76, "nameCn": "雄群数控", "nameEn": "XIONGQUN", "type": "加工中心/数控车床", "origin": "domestic" },
+  { "id": 77, "nameCn": "精雕", "nameEn": "JINGDIAO", "type": "加工中心/数控车床", "origin": "domestic" },
+  { "id": 78, "nameCn": "不二越", "nameEn": "NACHI", "type": "工业机器人/刀具", "origin": "international" },
+  { "id": 79, "nameCn": "法如", "nameEn": "FARO", "type": "测量扫描", "origin": "international" }
 ]

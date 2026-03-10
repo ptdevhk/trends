@@ -1,9 +1,11 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { IndustryDataService } from "../services/industry-data-service.js";
 import { config } from "../services/config.js";
+import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 
 const app = new OpenAPIHono();
 const industryService = new IndustryDataService(config.projectRoot);
+const brandDisplayResolver = new BrandDisplayResolver(config.projectRoot);
 
 // Schemas
 const CompanyEntrySchema = z.object({
@@ -56,6 +58,13 @@ const BrandsResponseSchema = z.object({
     count: z.number(),
     data: z.array(BrandEntrySchema),
 });
+
+const BrandDisplayEntrySchema = z.object({
+    displayName: z.string(),
+    zhHans: z.string(),
+});
+
+const BrandDisplayMapResponseSchema = z.record(BrandDisplayEntrySchema);
 
 const VerifyRequestSchema = z.object({
     type: z.enum(["company", "keyword", "brand"]),
@@ -185,6 +194,25 @@ app.openapi(keywordsRoute, (c) => {
     return c.json({ success: true as const, count: keywords.length, data: keywords }, 200);
 });
 
+// GET /api/industry/brand-display-map
+const brandDisplayMapRoute = createRoute({
+    method: "get",
+    path: "/api/industry/brand-display-map",
+    tags: ["industry"],
+    summary: "Get brand display name map (zh-Hans primary)",
+    description: "Returns a mapping of brandId (lowercase English) to displayName + zh-Hans name for UI/export rendering",
+    responses: {
+        200: {
+            content: { "application/json": { schema: BrandDisplayMapResponseSchema } },
+            description: "Brand display map",
+        },
+    },
+});
+
+app.openapi(brandDisplayMapRoute, (c) => {
+    return c.json(brandDisplayResolver.toJSON(), 200);
+});
+
 // GET /api/industry/brands
 const brandsRoute = createRoute({
     method: "get",
@@ -195,6 +223,7 @@ const brandsRoute = createRoute({
     request: {
         query: z.object({
             origin: z.enum(["international", "domestic", "agent"]).optional(),
+            q: z.string().optional(),
         }),
     },
     responses: {
@@ -206,11 +235,20 @@ const brandsRoute = createRoute({
 });
 
 app.openapi(brandsRoute, (c) => {
-    const { origin } = c.req.valid("query");
+    const { origin, q } = c.req.valid("query");
     let brands = industryService.loadBrands();
 
     if (origin) {
         brands = brands.filter((b) => b.origin === origin);
+    }
+
+    if (q) {
+        const query = q.toLowerCase();
+        brands = brands.filter(
+            (b) =>
+                b.nameCn.toLowerCase().includes(query) ||
+                (b.nameEn && b.nameEn.toLowerCase().includes(query))
+        );
     }
 
     return c.json({ success: true as const, count: brands.length, data: brands }, 200);
