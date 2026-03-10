@@ -61,35 +61,33 @@ export interface LearningLogEntry {
   observation: string;
 }
 
+type ActionableLearningPatternBase = {
+  count: number;
+  date: string;
+  raw: string;
+};
+
 export type ActionableLearningPattern =
-  | {
+  | (ActionableLearningPatternBase & {
       type: "synonym_suggestion";
-      date: string;
-      raw: string;
       variant: string;
       canonical: string;
-    }
-  | {
+    })
+  | (ActionableLearningPatternBase & {
       type: "shortlist_pattern";
-      date: string;
-      raw: string;
       keywords: string[];
       priority: string;
-    }
-  | {
+    })
+  | (ActionableLearningPatternBase & {
       type: "reject_pattern";
-      date: string;
-      raw: string;
       keyword: string;
       negativeSignal: string;
-    }
-  | {
+    })
+  | (ActionableLearningPatternBase & {
       type: "domain_expansion";
-      date: string;
-      raw: string;
       tag: string;
       newKeyword: string;
-    };
+    });
 
 export interface SynonymSuggestion {
   query: string;
@@ -122,6 +120,20 @@ function normalizeToken(value: string): string {
 
 function normalizeQuery(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function extractObservationFrequency(value: string): { normalized: string; count: number } {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(.*?)(?:\s*\((\d+)x\))$/i);
+  if (!match) {
+    return { normalized: trimmed, count: 1 };
+  }
+
+  const count = Number.parseInt(match[2] || "", 10);
+  return {
+    normalized: match[1]?.trim() || trimmed,
+    count: Number.isFinite(count) && count > 0 ? count : 1,
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -655,7 +667,8 @@ export class SkillsKnowledgeService {
     const patterns: ActionableLearningPattern[] = [];
 
     for (const entry of sourceEntries) {
-      const raw = entry.observation.trim();
+      const observation = extractObservationFrequency(entry.observation);
+      const raw = observation.normalized;
       if (!raw) {
         continue;
       }
@@ -666,6 +679,7 @@ export class SkillsKnowledgeService {
         const canonical = normalizeToken(synonymMatch[2]);
         if (variant && canonical) {
           patterns.push({
+            count: observation.count,
             type: "synonym_suggestion",
             date: entry.date,
             raw,
@@ -685,6 +699,7 @@ export class SkillsKnowledgeService {
         const priority = shortlistMatch[2].trim();
         if (keywords.length > 0 && priority) {
           patterns.push({
+            count: observation.count,
             type: "shortlist_pattern",
             date: entry.date,
             raw,
@@ -701,6 +716,7 @@ export class SkillsKnowledgeService {
         const negativeSignal = rejectMatch[2].trim();
         if (keyword && negativeSignal) {
           patterns.push({
+            count: observation.count,
             type: "reject_pattern",
             date: entry.date,
             raw,
@@ -717,6 +733,7 @@ export class SkillsKnowledgeService {
         const newKeyword = normalizeToken(expansionMatch[2]);
         if (tag && newKeyword) {
           patterns.push({
+            count: observation.count,
             type: "domain_expansion",
             date: entry.date,
             raw,

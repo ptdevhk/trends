@@ -540,12 +540,12 @@ export class SearchEventAnalyzer {
         const key = `${pattern.keywords.join("+")}=>${pattern.priority}`;
         const existing = shortlistPatterns.get(key);
         if (existing) {
-          existing.count += 1;
+          existing.count += pattern.count;
         } else {
           shortlistPatterns.set(key, {
             keywords: pattern.keywords,
             priority: pattern.priority,
-            count: 1,
+            count: pattern.count,
           });
         }
       }
@@ -554,12 +554,12 @@ export class SearchEventAnalyzer {
         const key = `${pattern.keyword}=>${pattern.negativeSignal}`;
         const existing = rejectPatterns.get(key);
         if (existing) {
-          existing.count += 1;
+          existing.count += pattern.count;
         } else {
           rejectPatterns.set(key, {
             keyword: pattern.keyword,
             negativeSignal: pattern.negativeSignal,
-            count: 1,
+            count: pattern.count,
           });
         }
       }
