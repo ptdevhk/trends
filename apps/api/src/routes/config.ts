@@ -1,6 +1,7 @@
 import { OpenAPIHono, z } from "@hono/zod-openapi";
 import { requireAdmin } from "../middleware/workspace.js";
 import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-config.js";
+import { configSourceInspector, UnknownConfigSourceError } from "../services/config-source-inspector.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 
 const app = new OpenAPIHono();
@@ -45,6 +46,28 @@ const LearningLogEntrySchema = z.object({
 });
 const LearningLogAppendSchema = z.object({
   observation: z.string().trim().min(1),
+});
+const ConfigSourceMetadataSchema = z.object({
+  version: z.number().optional(),
+  updatedAt: z.string().optional(),
+  description: z.string().optional(),
+  locale: z.string().optional(),
+  requestedLocale: z.string().optional(),
+  resolvedSourceLocale: z.string().optional(),
+  fallbackToZhHans: z.boolean().optional(),
+});
+const ConfigSourceSummarySchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  relativePath: z.string(),
+  type: z.enum(["markdown", "json5", "text"]),
+  readOnly: z.literal(true),
+  metadata: ConfigSourceMetadataSchema.optional(),
+  parseError: z.string().optional(),
+});
+const ConfigSourceDetailSchema = ConfigSourceSummarySchema.extend({
+  rawSource: z.string(),
+  parsedPreview: z.unknown(),
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -363,6 +386,39 @@ app.post("/learning-log", requireAdmin, async (c) => {
   } catch (error) {
     console.error("Failed to append learning log", error);
     return c.json({ success: false as const, error: "Failed to append learning log" }, 500);
+  }
+});
+
+app.get("/sources", async (c) => {
+  try {
+    const requestedLocale = c.req.query("locale");
+    const summaries = configSourceInspector.listSources(requestedLocale);
+    const parsed = z.array(ConfigSourceSummarySchema).safeParse(summaries);
+    if (!parsed.success) {
+      return c.json({ success: false as const, error: "Invalid config sources response" }, 500);
+    }
+    return c.json({ success: true as const, sources: parsed.data }, 200);
+  } catch (error) {
+    console.error("Failed to list config sources", error);
+    return c.json({ success: false as const, error: "Failed to list config sources" }, 500);
+  }
+});
+
+app.get("/sources/:key", async (c) => {
+  try {
+    const requestedLocale = c.req.query("locale");
+    const detail = configSourceInspector.getSource(c.req.param("key"), requestedLocale);
+    const parsed = ConfigSourceDetailSchema.safeParse(detail);
+    if (!parsed.success) {
+      return c.json({ success: false as const, error: "Invalid config source response" }, 500);
+    }
+    return c.json({ success: true as const, source: parsed.data }, 200);
+  } catch (error) {
+    if (error instanceof UnknownConfigSourceError) {
+      return c.json({ success: false as const, error: error.message }, 404);
+    }
+    console.error("Failed to load config source", error);
+    return c.json({ success: false as const, error: "Failed to load config source" }, 500);
   }
 });
 

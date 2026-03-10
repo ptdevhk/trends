@@ -3,3 +3,4 @@ export * from "./workspace.js";
 export * from "./location-tree.js";
 export * from "./job-description-content.js";
 export * from "./work-history-evidence.js";
+export * from "./generated/resume-ai-prompts.js";

@@ -3,13 +3,14 @@ import type { Doc } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import {
-    SYSTEM_PROMPT,
-    USER_PROMPT_TEMPLATE,
     buildKeywordMatchingRules,
     buildKeywordRequirements,
+    buildSystemPrompt,
     callLLM,
     getAiApiKey,
+    getUserPromptTemplate,
     normalizeResume,
+    resolveAIOutputLocale,
 } from "./analyze";
 import { resolveAnalysisParallelism } from "./lib/parallelism";
 
@@ -257,9 +258,10 @@ async function analyzeOneResume(
     const matchingRules = useKeywordPath
         ? buildKeywordMatchingRules(normalizedKeywords)
         : "使用默认评分标准";
-    const normalizedResume = normalizeResume(resume.content);
+    const locale = resolveAIOutputLocale();
+    const normalizedResume = normalizeResume(resume);
 
-    const prompt = USER_PROMPT_TEMPLATE
+    const prompt = getUserPromptTemplate(locale)
         .replace("{jobTitle}", jobTitle)
         .replace("{requirements}", requirements)
         .replace("{matchingRules}", matchingRules)
@@ -270,7 +272,7 @@ async function analyzeOneResume(
         .replace("{companies}", normalizedResume.companies);
 
     const messages: Message[] = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: buildSystemPrompt(locale) },
         { role: "user", content: prompt },
     ];
 
