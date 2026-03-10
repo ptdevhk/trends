@@ -8,3 +8,5 @@ Files:
 - filter-presets.json5: Quick filter bundles.
 - skills_words.txt: Legacy keyword groups (used by parser.ts).
 - skills.md: Curated skill taxonomy, synonyms, experience signals (used by background ingest agent).
+- ai-prompts.md: Canonical zh-Hans resume AI prompt source used to generate the shared runtime artifact.
+- ai-prompts.en.md: English locale variant for the generated resume AI prompt runtime.

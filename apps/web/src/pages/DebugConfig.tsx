@@ -95,7 +95,32 @@ interface BrandKeywordItem {
   origin: string
 }
 
+type ConfigSourceType = 'markdown' | 'json5' | 'text'
 
+interface ConfigSourceMetadata {
+  version?: number
+  updatedAt?: string
+  description?: string
+  locale?: string
+  requestedLocale?: string
+  resolvedSourceLocale?: string
+  fallbackToZhHans?: boolean
+}
+
+interface ConfigSourceSummary {
+  key: string
+  label: string
+  relativePath: string
+  type: ConfigSourceType
+  readOnly: true
+  metadata?: ConfigSourceMetadata
+  parseError?: string
+}
+
+interface ConfigSourceDetail extends ConfigSourceSummary {
+  rawSource: string
+  parsedPreview: unknown
+}
 
 type AgentNumericField = 'batchSize' | 'parallelism' | 'timeout' | 'temperature'
 
@@ -370,6 +395,107 @@ function parseCustomKeywordsPayload(
   return { tags, categories, systemLocations }
 }
 
+function parseConfigSourceMetadata(value: unknown): ConfigSourceMetadata | undefined {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const version = readNumber(value.version) ?? undefined
+  const updatedAt = readString(value.updatedAt) ?? undefined
+  const description = readString(value.description) ?? undefined
+  const locale = readString(value.locale) ?? undefined
+  const requestedLocale = readString(value.requestedLocale) ?? undefined
+  const resolvedSourceLocale = readString(value.resolvedSourceLocale) ?? undefined
+  const fallbackToZhHans = typeof value.fallbackToZhHans === 'boolean' ? value.fallbackToZhHans : undefined
+
+  if (
+    version === undefined
+    && updatedAt === undefined
+    && description === undefined
+    && locale === undefined
+    && requestedLocale === undefined
+    && resolvedSourceLocale === undefined
+    && fallbackToZhHans === undefined
+  ) {
+    return undefined
+  }
+
+  return {
+    version,
+    updatedAt,
+    description,
+    locale,
+    requestedLocale,
+    resolvedSourceLocale,
+    fallbackToZhHans,
+  }
+}
+
+function parseConfigSourceSummary(value: unknown): ConfigSourceSummary | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const key = readString(value.key)
+  const label = readString(value.label)
+  const relativePath = readString(value.relativePath)
+  const type = value.type === 'markdown' || value.type === 'json5' || value.type === 'text' ? value.type : null
+  const readOnly = value.readOnly === true ? true : null
+  if (!key || !label || !relativePath || !type || readOnly === null) {
+    return null
+  }
+
+  return {
+    key,
+    label,
+    relativePath,
+    type,
+    readOnly,
+    metadata: parseConfigSourceMetadata(value.metadata),
+    parseError: readString(value.parseError) ?? undefined,
+  }
+}
+
+function parseConfigSourceDetail(value: unknown): ConfigSourceDetail | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const summary = parseConfigSourceSummary(value)
+  if (!summary) {
+    return null
+  }
+
+  const rawSource = readString(value.rawSource)
+  if (rawSource === null) {
+    return null
+  }
+
+  return {
+    ...summary,
+    rawSource,
+    parsedPreview: value.parsedPreview,
+  }
+}
+
+function parseConfigSourcesPayload(payload: unknown): ConfigSourceSummary[] | null {
+  if (!isRecord(payload) || payload.success !== true || !Array.isArray(payload.sources)) {
+    return null
+  }
+
+  return payload.sources
+    .map((item) => parseConfigSourceSummary(item))
+    .filter((item): item is ConfigSourceSummary => item !== null)
+}
+
+function parseConfigSourceDetailPayload(payload: unknown): ConfigSourceDetail | null {
+  if (!isRecord(payload) || payload.success !== true) {
+    return null
+  }
+
+  return parseConfigSourceDetail(payload.source)
+}
+
 function createEmptyCustomKeywordForm(): CustomKeywordFormState {
   return {
     id: '',
@@ -458,6 +584,9 @@ export default function DebugConfig() {
   const [customKeywordCategories, setCustomKeywordCategories] = useState<CustomKeywordCategory[]>([])
   const [systemLocationItems, setSystemLocationItems] = useState<SystemLocationItem[]>([])
   const [brandKeywords, setBrandKeywords] = useState<BrandKeywordItem[]>([])
+  const [configSources, setConfigSources] = useState<ConfigSourceSummary[]>([])
+  const [selectedConfigSourceKey, setSelectedConfigSourceKey] = useState<string | null>(null)
+  const [selectedConfigSourceDetail, setSelectedConfigSourceDetail] = useState<ConfigSourceDetail | null>(null)
 
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null)
   const [savingCustomKeyword, setSavingCustomKeyword] = useState(false)
@@ -550,25 +679,82 @@ export default function DebugConfig() {
     }
   }, [requestJson])
 
+  const loadConfigSourceDetail = useCallback(async (key: string) => {
+    const payload = await requestJson(`/api/config/sources/${encodeURIComponent(key)}`)
+    const parsed = parseConfigSourceDetailPayload(payload)
+    if (!parsed) {
+      throw new Error('Invalid config source detail response')
+    }
+    return parsed
+  }, [requestJson])
+
+  const loadConfigSources = useCallback(async () => {
+    const payload = await requestJson('/api/config/sources')
+    const parsed = parseConfigSourcesPayload(payload)
+    if (!parsed) {
+      throw new Error('Invalid config sources response')
+    }
+
+    setConfigSources(parsed)
+    return parsed
+  }, [requestJson])
+
   const loadData = useCallback(async () => {
     setLoading(true)
     setLoadError(null)
 
     try {
-      await Promise.all([loadAIStatus(), loadAgentsConfig(), loadCustomKeywords(), loadBrandKeywords()])
+      await Promise.all([loadAIStatus(), loadAgentsConfig(), loadCustomKeywords(), loadBrandKeywords(), loadConfigSources()])
     } catch (error) {
       console.error('Failed to load configuration data', error)
       setLoadError(t('resumes.error'))
     } finally {
       setLoading(false)
     }
-  }, [loadAIStatus, loadAgentsConfig, loadCustomKeywords, loadBrandKeywords, t])
+  }, [loadAIStatus, loadAgentsConfig, loadCustomKeywords, loadBrandKeywords, loadConfigSources, t])
 
   useEffect(() => {
     loadData().catch((error) => {
       console.error('Unexpected loadData failure', error)
     })
   }, [loadData])
+
+  useEffect(() => {
+    const nextSelectedKey = configSources.some((source) => source.key === selectedConfigSourceKey)
+      ? selectedConfigSourceKey
+      : (configSources[0]?.key ?? null)
+
+    if (nextSelectedKey !== selectedConfigSourceKey) {
+      setSelectedConfigSourceKey(nextSelectedKey)
+      return
+    }
+
+    if (!nextSelectedKey) {
+      setSelectedConfigSourceDetail(null)
+      return
+    }
+
+    let cancelled = false
+
+    loadConfigSourceDetail(nextSelectedKey)
+      .then((detail) => {
+        if (!cancelled) {
+          setSelectedConfigSourceDetail(detail)
+        }
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return
+        }
+        console.error('Failed to load config source detail', error)
+        setSelectedConfigSourceDetail(null)
+        toast.error(t('debugConfig.configSourcesLoadError'))
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [configSources, selectedConfigSourceKey, loadConfigSourceDetail, t])
 
   const visibleSystemLocationCount = useMemo(
     () => systemLocationItems.filter((item) => item.visible).length,
@@ -597,6 +783,22 @@ export default function DebugConfig() {
         return left.keyword.localeCompare(right.keyword, 'zh-Hans-CN')
       })
   }, [systemLocationItems, systemLocationQuery])
+
+  const selectedConfigSourcePreview = useMemo(() => {
+    if (!selectedConfigSourceDetail) {
+      return ''
+    }
+
+    if (typeof selectedConfigSourceDetail.parsedPreview === 'string') {
+      return selectedConfigSourceDetail.parsedPreview
+    }
+
+    return JSON.stringify(selectedConfigSourceDetail.parsedPreview, null, 2) ?? ''
+  }, [selectedConfigSourceDetail])
+
+  const handleSelectConfigSource = useCallback((key: string) => {
+    setSelectedConfigSourceKey(key)
+  }, [])
 
   const updateAgentTextField = useCallback((agentId: string, field: 'name' | 'model', value: string) => {
     setAgentsConfig((current) => {
@@ -1185,6 +1387,167 @@ export default function DebugConfig() {
                 )}
               </TableBody>
             </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle>{t('debugConfig.configSources')}</CardTitle>
+              <CardDescription>{t('debugConfig.configSourcesDescription')}</CardDescription>
+            </div>
+            <Badge variant="secondary">{configSources.length}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('debugConfig.configSourceLabel')}</TableHead>
+                    <TableHead>{t('debugConfig.configSourceType')}</TableHead>
+                    <TableHead>{t('debugConfig.configSourcePath')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {configSources.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
+                        {loading ? t('trends.loading') : t('debug.none')}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    configSources.map((source) => (
+                      <TableRow
+                        key={source.key}
+                        className={selectedConfigSourceKey === source.key ? 'bg-muted/50' : undefined}
+                      >
+                        <TableCell>
+                          <button
+                            type="button"
+                            className="space-y-1 text-left"
+                            onClick={() => {
+                              handleSelectConfigSource(source.key)
+                            }}
+                          >
+                            <div className="font-medium">{source.label}</div>
+                            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                              <Badge variant="outline" className="font-normal">{t('debugConfig.readOnly')}</Badge>
+                              {source.metadata?.locale && (
+                                <Badge variant="secondary" className="font-normal">{source.metadata.locale}</Badge>
+                              )}
+                              {source.metadata?.version !== undefined && (
+                                <span>{t('debugConfig.configSourceVersion', { version: source.metadata.version })}</span>
+                              )}
+                            </div>
+                            {source.parseError && (
+                              <p className="text-xs text-destructive">{source.parseError}</p>
+                            )}
+                          </button>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{source.type}</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{source.relativePath}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="space-y-4">
+              {!selectedConfigSourceDetail ? (
+                <div className="rounded-md border p-6 text-sm text-muted-foreground">
+                  {loading ? t('trends.loading') : t('debug.none')}
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-md border p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-semibold">{selectedConfigSourceDetail.label}</h3>
+                        <p className="font-mono text-xs text-muted-foreground">{selectedConfigSourceDetail.relativePath}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">{t('debugConfig.readOnly')}</Badge>
+                        <Badge variant="secondary">{selectedConfigSourceDetail.type}</Badge>
+                        {selectedConfigSourceDetail.metadata?.locale && (
+                          <Badge variant="secondary">{selectedConfigSourceDetail.metadata.locale}</Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                      <div>
+                        <p className="text-muted-foreground">{t('debugConfig.configSourcePath')}</p>
+                        <p className="font-mono text-xs">{selectedConfigSourceDetail.relativePath}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">{t('debugConfig.configSourceType')}</p>
+                        <p className="font-medium">{selectedConfigSourceDetail.type}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">{t('debugConfig.configSourceVersionLabel')}</p>
+                        <p className="font-medium">{selectedConfigSourceDetail.metadata?.version ?? '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">{t('debugConfig.configSourceUpdatedAt')}</p>
+                        <p className="font-medium">{selectedConfigSourceDetail.metadata?.updatedAt ?? '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">{t('debugConfig.configSourceRequestedLocale')}</p>
+                        <p className="font-medium">{selectedConfigSourceDetail.metadata?.requestedLocale ?? '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">{t('debugConfig.configSourceResolvedLocale')}</p>
+                        <p className="font-medium">{selectedConfigSourceDetail.metadata?.resolvedSourceLocale ?? '-'}</p>
+                      </div>
+                    </div>
+
+                    {selectedConfigSourceDetail.metadata?.description && (
+                      <div className="mt-4 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+                        {selectedConfigSourceDetail.metadata.description}
+                      </div>
+                    )}
+
+                    {selectedConfigSourceDetail.metadata?.fallbackToZhHans !== undefined && (
+                      <div className="mt-3">
+                        <Badge variant={selectedConfigSourceDetail.metadata.fallbackToZhHans ? 'secondary' : 'outline'}>
+                          {selectedConfigSourceDetail.metadata.fallbackToZhHans
+                            ? t('debugConfig.configSourceFallbackEnabled')
+                            : t('debugConfig.configSourceFallbackDisabled')}
+                        </Badge>
+                      </div>
+                    )}
+
+                    {selectedConfigSourceDetail.parseError && (
+                      <p className="mt-4 rounded border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
+                        {selectedConfigSourceDetail.parseError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">{t('debugConfig.configSourceRaw')}</p>
+                      <pre className="max-h-[480px] overflow-auto rounded-md border bg-muted/30 p-4 text-xs leading-5">
+                        <code>{selectedConfigSourceDetail.rawSource}</code>
+                      </pre>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">{t('debugConfig.configSourceParsedPreview')}</p>
+                      <pre className="max-h-[480px] overflow-auto rounded-md border bg-muted/30 p-4 text-xs leading-5">
+                        <code>{selectedConfigSourcePreview}</code>
+                      </pre>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

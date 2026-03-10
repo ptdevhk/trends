@@ -1,73 +1,33 @@
 /// <reference path="./convex-env.d.ts" />
-import { action } from "./_generated/server";
-import { internal } from "./_generated/api";
+import {
+    DEFAULT_RESUME_AI_PROMPT_LOCALE,
+    buildResumeAiSystemPrompt,
+    getResumeAiPromptDefinition,
+    getResumeAiUserPromptTemplate,
+    resolveResumeAiPromptLocale,
+} from "@trends/shared";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
+import { action } from "./_generated/server";
 
-export const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密机械和机床行业的简历。
-你必须严格按照【纯数字 JSON】格式返回结果。
-1. 绝对不要包含 markdown 标记 (如 \`\`\`json ... \`\`\`)。
-2. 所有评分字段（score, breakdown.*）必须是【JSON Number 类型】，绝对禁止使用字符串或中文数字（如 "30", "三十", thirty）。
-3. 正确示例: "score": 85
-4. 错误示例: "score": "85", "score": "eighty-five"
-5. 如果无法确切评分，请基于现有信息估算一个数字。`;
+const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
 
-const DEFAULT_AI_OUTPUT_LOCALE = "zh-Hans";
-
-const LOCALE_TO_NATURAL: Record<string, string> = {
-    "zh-Hans": "Simplified Chinese",
-    "zh-Hant": "Traditional Chinese",
-    en: "English",
-    ja: "Japanese",
-    ko: "Korean",
-};
+export const SYSTEM_PROMPT = getResumeAiPromptDefinition(DEFAULT_AI_OUTPUT_LOCALE).sections.systemPrompt;
+export const USER_PROMPT_TEMPLATE = getResumeAiUserPromptTemplate(DEFAULT_AI_OUTPUT_LOCALE);
 
 // For Convex deployments, set AI_OUTPUT_LOCALE via the dashboard or `convex env set`.
 export function resolveAIOutputLocale(): string {
     const locale = process.env.AI_OUTPUT_LOCALE?.trim();
-    return locale && locale.length > 0 ? locale : DEFAULT_AI_OUTPUT_LOCALE;
-}
-
-export function localeToNaturalLanguage(locale: string): string {
-    return LOCALE_TO_NATURAL[locale] ?? locale;
+    return resolveResumeAiPromptLocale(locale).requestedLocale;
 }
 
 export function buildSystemPrompt(locale: string): string {
-    const naturalLanguage = localeToNaturalLanguage(locale);
-    return `${SYSTEM_PROMPT}\nPlease respond entirely in ${naturalLanguage}.`;
+    return buildResumeAiSystemPrompt(locale);
 }
 
-export const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
-
-## 职位信息
-**职位名称**: {jobTitle}
-**职位要求**:
-{requirements}
-
-## 评分规则 (权重与标准)
-{matchingRules}
-
-## 候选人信息
-**姓名**: {candidateName}
-**工作经验**: {workExperience}年
-**学历**: {education}
-**工作经历证据**:
-{evidenceText}
-
-请以JSON格式返回分析结果，确保 score 为数字类型：
-{
-  "score": 30, // 必须是0-100的整数数字 (Number)，不要加引号
-  "breakdown": {
-    "experience": 10, // 数字
-    "skills": 5, // 数字
-    "industry_db": 5, // 数字
-    "education": 5, // 数字
-    "location": 5 // 数字
-  },
-  "recommendation": "strong_match" | "match" | "potential" | "no_match",
-  "highlights": ["匹配亮点1", ...],
-  "concerns": ["不足之处1", ...],
-  "summary": "中文总结"
-}`;
+export function getUserPromptTemplate(locale: string): string {
+    return getResumeAiUserPromptTemplate(locale);
+}
 
 export function buildKeywordRequirements(keywords: string[]): string {
     return `候选人需具备以下关键技能/经验:\n${keywords.map((keyword) => `- ${keyword}`).join("\n")}`;
@@ -98,29 +58,54 @@ export function getAiTemperature(): number {
     return 0;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
 // Helper to normalize resume data
-export function normalizeResume(data: any) {
+export function normalizeResume(data: unknown) {
     // NOTE: Strict evidence lane — do not derive analysis inputs from selfIntro/jobIntention.
+    const root = isRecord(data) ? data : {};
+    const content = isRecord(root.content) ? root.content : root;
+    const ingestData = isRecord(root.ingestData)
+        ? root.ingestData
+        : (isRecord(content.ingestData) ? content.ingestData : undefined);
 
     // Extract companies from workHistory since resume content has no "companies" field
-    const historyCompanies = Array.isArray(data.workHistory)
-        ? data.workHistory.map((item: any) => typeof item === "string" ? item : item.raw).filter(Boolean)
+    const historyCompanies = Array.isArray(content.workHistory)
+        ? content.workHistory
+            .map((item) => {
+                if (typeof item === "string") {
+                    return item;
+                }
+                if (isRecord(item) && typeof item.raw === "string") {
+                    return item.raw;
+                }
+                return "";
+            })
+            .filter((item): item is string => item.length > 0)
         : [];
-    const existingCompanies = Array.isArray(data.companies) ? data.companies : [];
+    const existingCompanies = Array.isArray(content.companies)
+        ? content.companies.filter((item): item is string => typeof item === "string" && item.length > 0)
+        : [];
     const allCompanies = [...new Set([...existingCompanies, ...historyCompanies])];
 
     // Parse experience: handle "11年" string format or numeric
-    const rawExp = data.experience || data.workExperience || "0";
-    const parsedExp = typeof rawExp === "string" ? parseInt(rawExp.replace(/[^0-9]/g, ""), 10) : rawExp;
+    const rawExp = content.experience ?? content.workExperience ?? "0";
+    const parsedExp = typeof rawExp === "string"
+        ? parseInt(rawExp.replace(/[^0-9]/g, ""), 10)
+        : (typeof rawExp === "number" ? rawExp : 0);
 
-    const evidenceText = typeof data.ingestData?.evidenceText === "string"
-        ? data.ingestData.evidenceText
+    const evidenceText = typeof ingestData?.evidenceText === "string"
+        ? ingestData.evidenceText
         : "";
 
     return {
-        name: data.name || "未填写",
-        workExperience: parsedExp || 0,
-        education: data.education || data.degree || "未填写",
+        name: typeof content.name === "string" ? content.name : "未填写",
+        workExperience: Number.isFinite(parsedExp) ? parsedExp : 0,
+        education: typeof content.education === "string"
+            ? content.education
+            : (typeof content.degree === "string" ? content.degree : "未填写"),
         companies: allCompanies.length > 0 ? allCompanies.slice(0, 8).join(", ") : "未填写",
         evidenceText: evidenceText.trim() || "未填写",
     };
@@ -211,8 +196,10 @@ export const analyzeResume = action({
         const matchingRules = args.matchingRules ? JSON.stringify(args.matchingRules, null, 2) : "使用默认评分标准";
 
         // 2. Prepare Prompt
-        const norm = normalizeResume(resume.content);
-        let prompt = USER_PROMPT_TEMPLATE
+        const locale = resolveAIOutputLocale();
+        const norm = normalizeResume(resume);
+        const promptTemplate = getUserPromptTemplate(locale);
+        const prompt = promptTemplate
             .replace("{jobTitle}", jd.title)
             .replace("{requirements}", jd.requirements)
             .replace("{matchingRules}", matchingRules)
@@ -223,7 +210,7 @@ export const analyzeResume = action({
             .replace("{companies}", norm.companies);
 
         const messages = [
-            { role: "system", content: buildSystemPrompt(resolveAIOutputLocale()) },
+            { role: "system", content: buildSystemPrompt(locale) },
             { role: "user", content: prompt },
         ];
 

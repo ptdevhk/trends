@@ -12,6 +12,7 @@
 		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
+		sync-resume-ai-prompts check-resume-ai-prompts \
 		clean-db fresh-env refresh-env
 
 # Default target
@@ -272,6 +273,22 @@ check-agent-policy:
 		bunx tsx scripts/agent-governance/sync-policy.ts --check; \
 	else \
 		npx tsx scripts/agent-governance/sync-policy.ts --check; \
+	fi
+
+# Sync generated resume AI prompt runtime artifact from canonical markdown prompts
+sync-resume-ai-prompts:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/resume/sync-ai-prompts.ts; \
+	else \
+		npx tsx scripts/resume/sync-ai-prompts.ts; \
+	fi
+
+# Validate generated resume AI prompt runtime artifact is up to date
+check-resume-ai-prompts:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/resume/sync-ai-prompts.ts --check; \
+	else \
+		npx tsx scripts/resume/sync-ai-prompts.ts --check; \
 	fi
 
 # Install repo governance skill into ${CODEX_HOME:-$HOME/.codex}/skills
@@ -587,6 +604,7 @@ check-python:
 # Node/TypeScript checks (uses Bun locally when available, npm in CI)
 check-node:
 	@echo "Running Node.js checks..."
+	@npm run check:resume-ai-prompts
 	@npm --workspace @trends/web run gen:api
 	@git diff --exit-code apps/web/src/lib/api-types.ts >/dev/null || ( \
 		echo "apps/web/src/lib/api-types.ts is out of date. Run 'npm --workspace @trends/web run gen:api' and commit changes."; \
