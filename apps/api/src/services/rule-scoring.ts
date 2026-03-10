@@ -215,6 +215,7 @@ export interface RoleSignalSummary {
   signalCount: number;
   occurrences: number;
   years: number;
+  industryVerifiedYears: number;
   verifyIn: "workHistory" | "searchText";
 }
 
@@ -225,6 +226,13 @@ const EDUCATION_RANK: Record<string, number> = {
   master: 4,
   phd: 5,
 };
+
+// Role types that require industry-verified years for accurate scoring
+const INDUSTRY_VERIFIED_ROLE_TYPES = new Set(["sales"]);
+
+function requiresIndustryVerification(roleType: string): boolean {
+  return INDUSTRY_VERIFIED_ROLE_TYPES.has(roleType.toLowerCase());
+}
 
 const INDUSTRY_MAP: Array<{ tag: string; keywords: string[] }> = [
   { tag: "machinery", keywords: ["机床", "车床", "机械", "设备", "夹具", "五轴", "加工中心", "lathe", "machining"] },
@@ -558,7 +566,7 @@ export class RuleScoringService {
     index: ResumeIndex,
     role: RequiredRoleRequirement,
     roleSignals: RoleSignalSummary[]
-  ): { signalCount: number; years: number } {
+  ): { signalCount: number; years: number; industryVerifiedYears: number } {
     const normalizedType = role.type.toLowerCase();
     const matched = roleSignals.find((signal) =>
       signal.type.toLowerCase() === normalizedType
@@ -569,6 +577,7 @@ export class RuleScoringService {
       return {
         signalCount: matched.signalCount,
         years: matched.years,
+        industryVerifiedYears: matched.industryVerifiedYears ?? matched.years,
       };
     }
 
@@ -576,7 +585,7 @@ export class RuleScoringService {
       ? (index.evidenceText || "")
       : index.searchText;
     if (!sourceText.trim()) {
-      return { signalCount: 0, years: 0 };
+      return { signalCount: 0, years: 0, industryVerifiedYears: 0 };
     }
 
     const normalizedText = sourceText.toLowerCase();
@@ -584,6 +593,7 @@ export class RuleScoringService {
     return {
       signalCount: signalHits.length,
       years: 0,
+      industryVerifiedYears: 0,
     };
   }
 
@@ -606,16 +616,28 @@ export class RuleScoringService {
         return 0;
       }
 
+      // Use industry-verified years for roles that require CNC industry experience
+      const needsIndustryVerification = requiresIndustryVerification(requiredRole.type);
+      const effectiveYears = needsIndustryVerification
+        ? roleSignal.industryVerifiedYears
+        : roleSignal.years;
+
+      // Penalize if signals found but no industry-verified years for roles requiring verification
+      if (needsIndustryVerification && roleSignal.industryVerifiedYears === 0) {
+        // Role signals found but not in CNC industry - cap at low score
+        return Math.round((2 / 10) * weight);
+      }
+
       const baseline = roleSignal.signalCount >= 2 ? 10 : 5;
       const baselineScore = Math.round((baseline / 10) * weight);
       if (!requiredRole.minYears || requiredRole.minYears <= 0) {
         return baselineScore;
       }
-      if (roleSignal.years >= requiredRole.minYears) {
+      if (effectiveYears >= requiredRole.minYears) {
         return baselineScore;
       }
 
-      const yearsRatio = Math.max(0, roleSignal.years) / requiredRole.minYears;
+      const yearsRatio = Math.max(0, effectiveYears) / requiredRole.minYears;
       return Math.round(baselineScore * Math.max(0.2, Math.min(1, yearsRatio)));
     });
 
@@ -637,7 +659,11 @@ export class RuleScoringService {
           (signal) => signal.type.toLowerCase() === required.type.toLowerCase()
             && signal.verifyIn === required.verifyIn
         );
-        return matched?.years ?? 0;
+        if (!matched) return 0;
+        // Use industry-verified years for roles requiring CNC industry experience
+        return requiresIndustryVerification(required.type)
+          ? (matched.industryVerifiedYears ?? matched.years)
+          : matched.years;
       })
       .filter((years) => years > 0);
 
