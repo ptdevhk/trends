@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import { useResumeListState } from './useResumeListState'
 
 const mockState = vi.hoisted(() => ({
@@ -9,6 +10,8 @@ const mockState = vi.hoisted(() => ({
   sessionLocation: '广东',
   sessionKeywords: [] as string[],
   sessionJobDescriptionId: undefined as string | undefined,
+  blocksByIdentity: {} as Record<string, { identityKey: string }>,
+  statusByIdentity: {} as Record<string, CandidateStatusRecord>,
   setFilters: vi.fn(),
   setLocation: vi.fn(),
   setKeywords: vi.fn(),
@@ -114,7 +117,7 @@ vi.mock('@/hooks/useCandidateActions', () => ({
 
 vi.mock('@/hooks/useCandidateBlocks', () => ({
   useCandidateBlocks: () => ({
-    blocksByIdentity: {},
+    blocksByIdentity: mockState.blocksByIdentity,
     blockCandidates: mockState.blockCandidates,
     unblockCandidate: mockState.unblockCandidate,
   }),
@@ -122,7 +125,7 @@ vi.mock('@/hooks/useCandidateBlocks', () => ({
 
 vi.mock('@/hooks/useCandidateStatus', () => ({
   useCandidateStatus: () => ({
-    statusByIdentity: {},
+    statusByIdentity: mockState.statusByIdentity,
     updateStatus: mockState.updateStatus,
   }),
 }))
@@ -189,13 +192,34 @@ function buildResume(params: {
   }
 }
 
+function buildCandidateStatusRecord(
+  identityKey: string,
+  status: CandidateStatusRecord['status']
+): CandidateStatusRecord {
+  return {
+    _id: `status-${identityKey}`,
+    identityKey,
+    workspaceSlug: 'default',
+    status,
+    updatedAt: 1,
+  }
+}
+
+function getDisplayedResumeNames(): string[] {
+  const { result } = renderHook(() => useResumeListState())
+  return result.current.displayedResumes.map((entry) => entry.resume.name)
+}
+
 describe('useResumeListState role filter regression', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.history.replaceState({}, '', '/')
+    mockState.filters = {}
     mockState.sessionLocation = '广东'
     mockState.sessionKeywords = []
     mockState.sessionJobDescriptionId = undefined
+    mockState.blocksByIdentity = {}
+    mockState.statusByIdentity = {}
     mockState.urlParsedState = {
       location: undefined,
       keywords: [],
@@ -261,10 +285,7 @@ describe('useResumeListState role filter regression', () => {
       roleFilterType: 'engineer',
     }
 
-    const { result } = renderHook(() => useResumeListState())
-    const names = result.current.displayedResumes.map((entry) => entry.resume.name)
-
-    expect(names).toEqual(['Engineer Strong'])
+    expect(getDisplayedResumeNames()).toEqual(['Engineer Strong'])
   })
 
   it('falls back to legacy minSalesYears when minRoleYears is absent', () => {
@@ -272,10 +293,52 @@ describe('useResumeListState role filter regression', () => {
       minSalesYears: 5,
     }
 
-    const { result } = renderHook(() => useResumeListState())
-    const names = result.current.displayedResumes.map((entry) => entry.resume.name)
+    expect(getDisplayedResumeNames()).toEqual(['Sales Only'])
+  })
 
-    expect(names).toEqual(['Sales Only'])
+  it('hides blocked candidates by default', () => {
+    mockState.blocksByIdentity = {
+      'resume-sales-only': { identityKey: 'resume-sales-only' },
+    }
+
+    expect(getDisplayedResumeNames()).toEqual(['Engineer Strong', 'Engineer Junior'])
+  })
+
+  it('includes blocked candidates when showBlocked is enabled', () => {
+    mockState.filters = {
+      showBlocked: true,
+    }
+    mockState.blocksByIdentity = {
+      'resume-sales-only': { identityKey: 'resume-sales-only' },
+    }
+
+    expect(getDisplayedResumeNames()).toEqual(['Engineer Strong', 'Sales Only', 'Engineer Junior'])
+  })
+
+  it('filters by interviewed_reject status', () => {
+    mockState.filters = {
+      status: ['interviewed_reject'],
+    }
+    mockState.statusByIdentity = {
+      'resume-sales-only': buildCandidateStatusRecord('resume-sales-only', 'interviewed_reject'),
+    }
+
+    expect(getDisplayedResumeNames()).toEqual(['Sales Only'])
+  })
+
+  it('applies showBlocked together with interviewed_reject status filtering', () => {
+    mockState.filters = {
+      showBlocked: true,
+      status: ['interviewed_reject'],
+    }
+    mockState.blocksByIdentity = {
+      'resume-sales-only': { identityKey: 'resume-sales-only' },
+    }
+    mockState.statusByIdentity = {
+      'resume-sales-only': buildCandidateStatusRecord('resume-sales-only', 'interviewed_reject'),
+    }
+
+    expect(getDisplayedResumeNames()).toEqual(['Sales Only'])
   })
 
   it('reset clears location instead of restoring the Guangdong default', () => {
