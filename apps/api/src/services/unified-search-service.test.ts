@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { SkillsKnowledgeService } from "./skills-knowledge";
 import { UnifiedSearchService } from "./unified-search-service";
 
 import type { ResumeItem } from "../types/resume";
@@ -46,7 +47,8 @@ describe("UnifiedSearchService", () => {
     const root = createFixtureRoot();
 
     try {
-      const service = new UnifiedSearchService(root);
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
       const expansion = service.expandKeyword("销售");
 
       expect(expansion.groups).toEqual([
@@ -72,7 +74,8 @@ describe("UnifiedSearchService", () => {
     const root = createFixtureRoot();
 
     try {
-      const service = new UnifiedSearchService(root);
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
       const expansion = service.expandKeyword("销售 CNC");
 
       expect(expansion.mode).toBe("AND");
@@ -96,7 +99,8 @@ describe("UnifiedSearchService", () => {
     const root = createFixtureRoot();
 
     try {
-      const service = new UnifiedSearchService(root);
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
       const resume: ResumeItem = {
         name: "周祥富",
         profileUrl: "https://example.com/1",
@@ -151,7 +155,8 @@ describe("UnifiedSearchService", () => {
     const root = createFixtureRoot();
 
     try {
-      const service = new UnifiedSearchService(root);
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
       const salesResume: ResumeItem = {
         name: "销售候选人",
         profileUrl: "https://example.com/1",

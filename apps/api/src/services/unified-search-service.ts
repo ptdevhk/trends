@@ -1,10 +1,7 @@
-import path from "node:path";
-
-import { findProjectRoot } from "./db.js";
 import { parseSearchQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
-import { SkillsKnowledgeService } from "./skills-knowledge.js";
 
+import type { SkillsKnowledgeService } from "./skills-knowledge.js";
 import type { ResumeIndex } from "./resume-index.js";
 import type { ResumeItem } from "../types/resume.js";
 
@@ -78,12 +75,10 @@ function dedupeProvenance(items: UnifiedSearchProvenance[]): UnifiedSearchProven
 }
 
 export class UnifiedSearchService {
-  readonly projectRoot: string;
   private readonly skillsService: SkillsKnowledgeService;
 
-  constructor(projectRoot?: string) {
-    this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
-    this.skillsService = new SkillsKnowledgeService(this.projectRoot);
+  constructor(skillsService: SkillsKnowledgeService) {
+    this.skillsService = skillsService;
   }
 
   expandKeyword(keyword: string): UnifiedKeywordExpansion {

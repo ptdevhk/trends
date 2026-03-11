@@ -198,7 +198,7 @@ export class ResumeService {
     this.indexService = new ResumeIndexService(this.projectRoot);
     this.industryService = new IndustryDataService(this.projectRoot);
     this.skillsService = new SkillsKnowledgeService(this.projectRoot);
-    this.unifiedSearchService = new UnifiedSearchService(this.projectRoot);
+    this.unifiedSearchService = new UnifiedSearchService(this.skillsService);
   }
 
   private getSamplesDir(): string {
