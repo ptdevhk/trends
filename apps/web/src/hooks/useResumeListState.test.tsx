@@ -4,6 +4,18 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import { useResumeListState } from './useResumeListState'
 
+const fetchMock = vi.fn(async (...args: [RequestInfo | URL, RequestInit?]) => {
+  void args
+  return new Response(new Blob(['resumeId,name\n1,Alice']), {
+    status: 200,
+    headers: {
+      'Content-Disposition': 'attachment; filename="resumes-export-test.csv"',
+    },
+  })
+})
+const createObjectURLMock = vi.fn(() => 'blob:test-export')
+const revokeObjectURLMock = vi.fn()
+
 const mockState = vi.hoisted(() => ({
   convexResumes: [] as ConvexResumeItem[],
   filters: {} as Record<string, unknown>,
@@ -139,6 +151,16 @@ vi.mock('@/lib/api-helpers', () => ({
   },
 }))
 
+vi.stubGlobal('fetch', fetchMock)
+Object.defineProperty(globalThis.URL, 'createObjectURL', {
+  writable: true,
+  value: createObjectURLMock,
+})
+Object.defineProperty(globalThis.URL, 'revokeObjectURL', {
+  writable: true,
+  value: revokeObjectURLMock,
+})
+
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -227,6 +249,7 @@ describe('useResumeListState role filter regression', () => {
     mockState.sessionJobDescriptionId = undefined
     mockState.blocksByIdentity = {}
     mockState.statusByIdentity = {}
+    document.body.innerHTML = ''
     mockState.urlParsedState = {
       location: undefined,
       keywords: [],
@@ -528,6 +551,50 @@ describe('useResumeListState role filter regression', () => {
         filters: mockState.filters,
       })
     )
+  })
+
+  it('exports candidate status notes into the userComment field', async () => {
+    mockState.statusByIdentity = {
+      'resume-ideal-cnc-sales': {
+        ...buildCandidateStatusRecord('resume-ideal-cnc-sales', 'contacted'),
+        notes: 'Call back tomorrow',
+      },
+    }
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleToggleSelect('resume-ideal-cnc-sales')
+    })
+
+    await act(async () => {
+      await result.current.handleBulkAction('export', 'csv')
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/resumes/export',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+    )
+
+    const requestCall = fetchMock.mock.calls[0]
+    expect(requestCall).toBeDefined()
+    const requestInit = requestCall?.[1] as RequestInit | undefined
+    expect(requestInit?.body).toBeDefined()
+    const parsedBody = JSON.parse(String(requestInit?.body)) as {
+      entries: Array<{ key: string; userComment?: string; status?: string }>
+      format: string
+    }
+    expect(parsedBody.format).toBe('csv')
+    expect(parsedBody.entries).toContainEqual(expect.objectContaining({
+      key: 'resume-ideal-cnc-sales',
+      status: 'contacted',
+      userComment: 'Call back tomorrow',
+    }))
   })
 
   it('applies saved search history and updates opened timestamp', async () => {
