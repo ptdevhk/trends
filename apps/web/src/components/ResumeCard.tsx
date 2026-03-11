@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Star, User, XCircle, CheckCircle, Ban, Phone } from 'lucide-react'
+import { User, CheckCircle, XCircle, Phone, Star, Ban, MessageSquare } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -146,6 +146,8 @@ export function ResumeCard({
   const [noteInput, setNoteInput] = useState('')
   const [blockDialogOpen, setBlockDialogOpen] = useState(false)
   const [blockNoteInput, setBlockNoteInput] = useState('')
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false)
+  const [commentNoteInput, setCommentNoteInput] = useState('')
   const workHistory = resume.workHistory?.filter((item) => item.raw) ?? []
   const jobIntention = (resume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
   const selfIntro = resume.selfIntro || '--'
@@ -481,12 +483,23 @@ export function ResumeCard({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowOutreach(true)}
+                onClick={() => {
+                  setCommentNoteInput(statusNotes)
+                  setCommentDialogOpen(true)
+                }}
                 className="gap-2"
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                {t('resumes.status.notes')}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setShowOutreach(true)}
+                aria-label={t('resumes.actions.contact', 'Contact')}
                 disabled={!matchResult}
               >
                 <Phone className="h-3.5 w-3.5" />
-                Contact
               </Button>
             </div>
 
@@ -602,6 +615,44 @@ export function ResumeCard({
               }}
             >
               {t('common.confirm', 'Confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={commentDialogOpen} onOpenChange={setCommentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>备注 (Notes)</DialogTitle>
+            <DialogDescription>
+              为候选人“{resume.name || '--'}”添加备注。
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={commentNoteInput}
+            onChange={(e) => setCommentNoteInput(e.target.value)}
+            placeholder="输入备注..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                const notes = commentNoteInput.trim()
+                onCandidateStatusChange?.(candidateStatus || 'new', notes.length > 0 ? notes : undefined)
+                setCommentDialogOpen(false)
+              }
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCommentDialogOpen(false)}>
+              {t('common.cancel', '取消')}
+            </Button>
+            <Button
+              onClick={() => {
+                const notes = commentNoteInput.trim()
+                onCandidateStatusChange?.(candidateStatus || 'new', notes.length > 0 ? notes : undefined)
+                setCommentDialogOpen(false)
+              }}
+            >
+              {t('common.confirm', '确认')}
             </Button>
           </DialogFooter>
         </DialogContent>

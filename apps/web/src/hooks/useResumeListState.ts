@@ -26,6 +26,7 @@ import {
   type CandidateActionType,
   type CandidateStatus,
   type MatchingResult,
+  type ResumeExportFormat,
   type ResumeFilters,
 } from '@/types/resume'
 import {
@@ -45,8 +46,6 @@ type JobDescriptionApiResponse = {
   }
   content?: string
 }
-
-type ResumeExportFormat = 'csv' | 'xlsx'
 
 type ScoredConvexResume = ConvexResumeItem & {
   _ruleScore: number
@@ -1127,7 +1126,7 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [])
 
   const handleBulkAction = useCallback(
-    async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ResumeExportFormat, exportMeta?: { userComment: string; referenceNote: string }) => {
+    async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ResumeExportFormat) => {
       if (selectedIds.size === 0) return
 
       const selectedEntries = displayedResumes.filter((entry) => selectedIds.has(entry.key))
@@ -1164,8 +1163,6 @@ export function useResumeListState(loadSearchHistory = false) {
             body: JSON.stringify({
               format: exportFormat,
               entries: exportEntries,
-              userComment: exportMeta?.userComment ?? '',
-              referenceNote: exportMeta?.referenceNote ?? '',
             }),
           })
 

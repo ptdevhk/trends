@@ -57,6 +57,7 @@ export type TaggingEnvelope = {
 
 export type Recommendation = 'strong_match' | 'match' | 'potential' | 'no_match'
 export type ScoreSource = 'rule' | 'ai'
+export type ResumeExportFormat = 'csv' | 'xlsx'
 export type CandidateStatus =
   | 'new'
   | 'contacted'

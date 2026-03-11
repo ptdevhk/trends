@@ -9,19 +9,20 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { CheckCircle, XCircle, Download, Users, Star, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { ExportDialog, type ExportBatchMeta, type ExportDialogResult, type ExportFormat } from '@/components/ExportDialog'
+import type { ResumeExportFormat } from '@/types/resume'
 
 interface BulkActionBarProps {
     totalCount: number
     selectedCount: number
     highScoreCount: number
-    exportFormat?: ExportFormat
-    onExportFormatChange?: (format: ExportFormat) => void
+    exportFormat?: ResumeExportFormat
+    onExportFormatChange?: (format: ResumeExportFormat) => void
     onSelectAll?: () => void
     onSelectHighScore?: () => void
     onClearSelection?: () => void
-    onBulkAction?: (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ExportFormat, exportMeta?: ExportBatchMeta) => void
+    onBulkAction?: (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ResumeExportFormat) => void
     blockedCount?: number
     blocksSettingsPath?: string
     disabled?: boolean
@@ -43,33 +44,19 @@ export function BulkActionBar({
 }: BulkActionBarProps) {
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
-    const [exportDialogOpen, setExportDialogOpen] = useState(false)
 
     const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export') => {
-        if (action === 'export') {
-            setExportDialogOpen(true)
-            return
-        }
         setLoading(action)
         try {
-            await onBulkAction?.(action)
+            if (action === 'export') {
+                await onBulkAction?.('export', exportFormat)
+            } else {
+                await onBulkAction?.(action)
+            }
         } finally {
             setLoading(null)
         }
-    }, [onBulkAction])
-
-    const handleExportConfirm = useCallback(async (result: ExportDialogResult) => {
-        setLoading('export')
-        try {
-            onExportFormatChange?.(result.format)
-            await onBulkAction?.('export', result.format, {
-                userComment: result.userComment,
-                referenceNote: result.referenceNote,
-            })
-        } finally {
-            setLoading(null)
-        }
-    }, [onBulkAction, onExportFormatChange])
+    }, [onBulkAction, exportFormat])
 
     return (
         <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-muted/50 border">
@@ -183,24 +170,31 @@ export function BulkActionBar({
                     <Ban className={cn('mr-1 h-4 w-4', loading === 'block' && 'animate-spin')} />
                     {t('bulkActions.block', '批量屏蔽')}
                 </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleAction('export')}
-                    disabled={disabled || selectedCount === 0 || loading !== null}
-                >
-                    <Download className={cn('mr-1 h-4 w-4', loading === 'export' && 'animate-spin')} />
-                    {t('bulkActions.export', '导出')}
-                </Button>
+                <div className="flex items-center gap-1">
+                    <Select
+                        value={exportFormat}
+                        onChange={(e) => {
+                            const val = e.target.value
+                            const format = val === 'xlsx' ? 'xlsx' : 'csv'
+                            onExportFormatChange?.(format)
+                        }}
+                        options={[
+                            { value: 'csv', label: 'CSV' },
+                            { value: 'xlsx', label: 'XLSX' },
+                        ]}
+                        className="h-8 w-[100px] text-xs border-r-0 rounded-r-none focus:ring-0"
+                    />
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAction('export')}
+                        disabled={disabled || selectedCount === 0 || loading !== null}
+                        className="rounded-l-none border-l-0 px-2.5"
+                    >
+                        <Download className={cn('h-4 w-4', loading === 'export' && 'animate-spin')} />
+                    </Button>
+                </div>
             </div>
-
-            <ExportDialog
-                open={exportDialogOpen}
-                onOpenChange={setExportDialogOpen}
-                selectedCount={selectedCount}
-                defaultFormat={exportFormat}
-                onConfirm={handleExportConfirm}
-            />
         </div>
     )
 }
