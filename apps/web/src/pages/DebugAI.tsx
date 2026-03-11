@@ -113,7 +113,7 @@ function parseBreakdownCandidate(candidate: unknown): ScoreBreakdown | null {
   }
 
   return {
-    experience: clampScore(toScore(rawBreakdown['experience']) ?? 0),
+    experience: clampScore(toScore(rawBreakdown['related_exp'] ?? rawBreakdown['experience']) ?? 0),
     skills: clampScore(toScore(rawBreakdown['skills']) ?? 0),
     industry_db: clampScore(toScore(rawBreakdown['industry_db']) ?? 0),
     education: clampScore(toScore(rawBreakdown['education']) ?? 0),
