@@ -61,29 +61,25 @@ describe('resume-scoring', () => {
     expect(toRecommendation('unknown')).toBe('potential')
   })
 
-  it('parses valid match breakdown', () => {
+  it('passes through valid breakdown with AI prompt keys', () => {
     const breakdown = toMatchBreakdown({
-      skillMatch: 80,
-      roleMatch: 10,
-      experienceMatch: 70,
-      educationMatch: 90,
-      locationMatch: 60,
-      industryMatch: 50,
-      brandRelevance: 6,
+      experience: 10,
+      skills: 5,
+      industry_db: 5,
+      education: 5,
+      location: 5,
     })
 
     expect(breakdown).toEqual({
-      skillMatch: 80,
-      roleMatch: 10,
-      experienceMatch: 70,
-      educationMatch: 90,
-      locationMatch: 60,
-      industryMatch: 50,
-      brandRelevance: 6,
+      experience: 10,
+      skills: 5,
+      industry_db: 5,
+      education: 5,
+      location: 5,
     })
   })
 
-  it('fills missing brand relevance with 0 for backward compatibility', () => {
+  it('passes through legacy camelCase breakdown keys', () => {
     expect(
       toMatchBreakdown({
         skillMatch: 80,
@@ -94,25 +90,16 @@ describe('resume-scoring', () => {
       })
     ).toEqual({
       skillMatch: 80,
-      roleMatch: 0,
       experienceMatch: 70,
       educationMatch: 90,
       locationMatch: 60,
       industryMatch: 50,
-      brandRelevance: 0,
     })
   })
 
-  it('returns undefined for incomplete breakdown payload', () => {
-    expect(
-      toMatchBreakdown({
-        skillMatch: 80,
-        roleMatch: 4,
-        experienceMatch: 70,
-        educationMatch: 90,
-        locationMatch: 60,
-      })
-    ).toBeUndefined()
+  it('returns undefined for empty breakdown', () => {
+    expect(toMatchBreakdown({})).toBeUndefined()
+    expect(toMatchBreakdown(undefined)).toBeUndefined()
   })
 
   it('prefers resumeId then perUserId then profileUrl for resume key', () => {

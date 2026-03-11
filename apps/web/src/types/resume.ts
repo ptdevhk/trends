@@ -67,15 +67,7 @@ export type CandidateStatus =
   | 'hired'
   | 'withdrawn'
 
-export type MatchBreakdown = {
-  skillMatch: number
-  roleMatch: number
-  experienceMatch: number
-  educationMatch: number
-  locationMatch: number
-  industryMatch: number
-  brandRelevance: number
-}
+export type MatchBreakdown = Record<string, number>
 
 export type MatchingResult = {
   resumeId: string

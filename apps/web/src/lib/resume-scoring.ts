@@ -14,37 +14,8 @@ export function toRecommendation(value: string): Recommendation {
 }
 
 export function toMatchBreakdown(value: Record<string, number> | undefined): MatchBreakdown | undefined {
-  if (!value) return undefined
-
-  const {
-    skillMatch,
-    roleMatch,
-    experienceMatch,
-    educationMatch,
-    locationMatch,
-    industryMatch,
-    brandRelevance,
-  } = value
-
-  if (
-    typeof skillMatch !== 'number'
-    || typeof experienceMatch !== 'number'
-    || typeof educationMatch !== 'number'
-    || typeof locationMatch !== 'number'
-    || typeof industryMatch !== 'number'
-  ) {
-    return undefined
-  }
-
-  return {
-    skillMatch,
-    roleMatch: typeof roleMatch === 'number' ? roleMatch : 0,
-    experienceMatch,
-    educationMatch,
-    locationMatch,
-    industryMatch,
-    brandRelevance: typeof brandRelevance === 'number' ? brandRelevance : 0,
-  }
+  if (!value || Object.keys(value).length === 0) return undefined
+  return value
 }
 
 export function getAnalysisForJob(
