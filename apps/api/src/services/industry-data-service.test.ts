@@ -17,6 +17,8 @@ const fixtureMarkdown = `
 | 2 | 上海发那科机器人有限公司 | FANUC | key_company |
 | 3 | 秦川机床集团股份公司 | QINCHUAN | key_company |
 | 4 | 润星科技集团 | RUNXING | key_company |
+| 5 | 泽钿精密 | | key_company |
+| 6 | 宝力机械有限公司 | | key_company |
 
 ## 2. ITES Shenzhen Industrial Exhibition Exhibitors
 
@@ -89,6 +91,30 @@ describe("IndustryDataService", () => {
             });
             expect(service.verifyCompany("岑巩县思瑞高级中学")).toMatchObject({
                 verified: false,
+            });
+        } finally {
+            cleanupFixtureRoot(root);
+        }
+    });
+
+    it("matches real companies after stripping city prefixes and legal suffixes", () => {
+        const root = createFixtureRoot();
+        try {
+            const service = new IndustryDataService(root);
+
+            expect(service.verifyCompany("东莞市泽钿精密机械有限公司")).toMatchObject({
+                verified: true,
+                confidence: 0.7,
+                match: expect.objectContaining({
+                    nameCn: "泽钿精密",
+                }),
+            });
+            expect(service.verifyCompany("东莞市宝力机械科技有限公司")).toMatchObject({
+                verified: true,
+                confidence: 0.7,
+                match: expect.objectContaining({
+                    nameCn: "宝力机械有限公司",
+                }),
             });
         } finally {
             cleanupFixtureRoot(root);

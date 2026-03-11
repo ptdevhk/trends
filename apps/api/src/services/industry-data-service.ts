@@ -192,7 +192,21 @@ const CNC_INDUSTRY_PATTERNS = [
     "刀具", "夹具", "量具", "测量", "三坐标",
 ].map((p) => p.toLowerCase());
 
-const EXACT_ONLY_COMPANY_NAME_LENGTH = 4;
+const CITY_PREFIXES = [
+    "东莞市", "深圳市", "广州市", "惠州市", "中山市", "佛山市", "珠海市",
+    "苏州市", "无锡市", "杭州市", "宁波市", "南京市", "武汉市",
+    "北京", "上海", "天津", "重庆",
+    "东莞", "深圳", "广州", "惠州", "中山", "佛山", "珠海",
+    "苏州", "无锡", "杭州", "宁波", "南京", "武汉",
+    "广东", "浙江", "江苏", "山东", "四川",
+].map((prefix) => prefix.toLowerCase());
+
+const LEGAL_SUFFIXES = [
+    "股份有限公司", "有限责任公司", "集团股份公司", "集团有限公司",
+    "有限公司", "股份公司", "集团", "公司",
+].map((suffix) => suffix.toLowerCase());
+
+const MIN_CORE_COMPANY_NAME_LENGTH = 4;
 const MIN_PARTIAL_MATCH_OVERLAP_RATIO = 0.5;
 
 export class IndustryDataService {
@@ -220,6 +234,26 @@ export class IndustryDataService {
         return Array.from(value.replace(/\s+/g, "")).length;
     }
 
+    private extractCoreCompanyName(value: string): string {
+        let core = this.normalizeCompanyMatchValue(value);
+
+        for (const prefix of CITY_PREFIXES) {
+            if (core.startsWith(prefix)) {
+                core = core.slice(prefix.length);
+                break;
+            }
+        }
+
+        for (const suffix of LEGAL_SUFFIXES) {
+            if (core.endsWith(suffix)) {
+                core = core.slice(0, -suffix.length);
+                break;
+            }
+        }
+
+        return core.trim();
+    }
+
     private isQualifiedPartialMatch(candidateName: string | undefined, normalizedName: string): boolean {
         if (!candidateName) {
             return false;
@@ -230,24 +264,35 @@ export class IndustryDataService {
             return false;
         }
 
-        const candidateLength = this.getComparisonLength(normalizedCandidate);
-        const inputLength = this.getComparisonLength(normalizedName);
+        const candidateCore = this.extractCoreCompanyName(normalizedCandidate);
+        const inputCore = this.extractCoreCompanyName(normalizedName);
+        if (!candidateCore || !inputCore) {
+            return false;
+        }
+
+        if (candidateCore === inputCore) {
+            return true;
+        }
+
+        const candidateLength = this.getComparisonLength(candidateCore);
+        const inputLength = this.getComparisonLength(inputCore);
         if (candidateLength === 0 || inputLength === 0) {
             return false;
         }
 
-        if (candidateLength <= EXACT_ONLY_COMPANY_NAME_LENGTH) {
+        const shorterLength = Math.min(candidateLength, inputLength);
+        if (shorterLength < MIN_CORE_COMPANY_NAME_LENGTH) {
             return false;
         }
 
         const hasSubstringMatch =
-            normalizedCandidate.includes(normalizedName) ||
-            normalizedName.includes(normalizedCandidate);
+            candidateCore.includes(inputCore) ||
+            inputCore.includes(candidateCore);
         if (!hasSubstringMatch) {
             return false;
         }
 
-        const overlapRatio = Math.min(candidateLength, inputLength) / Math.max(candidateLength, inputLength);
+        const overlapRatio = shorterLength / Math.max(candidateLength, inputLength);
         return overlapRatio >= MIN_PARTIAL_MATCH_OVERLAP_RATIO;
     }
 
