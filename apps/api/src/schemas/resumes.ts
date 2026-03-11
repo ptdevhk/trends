@@ -206,11 +206,49 @@ export const ResumesResponseSchema = z
         total: z.number().int(),
         returned: z.number().int(),
         query: z.string().optional(),
+        expandedTo: z.array(z.string()).optional(),
+        mode: z.enum(["AND", "OR"]).optional(),
       })
       .optional(),
     data: z.array(ResumeItemSchema),
   })
   .openapi("ResumesResponse");
+
+const KeywordGroupSchema = z.object({
+  original: z.string(),
+  variants: z.array(z.string()),
+});
+
+export const ResumeKeywordExpansionQuerySchema = z.object({
+  q: z
+    .string()
+    .optional()
+    .transform((value) => {
+      if (typeof value !== "string") return value;
+      const normalized = value
+        .replace(/[\u3000]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      return normalized || undefined;
+    })
+    .openapi({
+      param: { name: "q", in: "query" },
+      example: "销售",
+    }),
+});
+
+export const ResumeKeywordExpansionResponseSchema = z
+  .object({
+    success: z.literal(true),
+    summary: z.object({
+      keyword: z.string().optional(),
+      groups: z.array(KeywordGroupSchema),
+      mode: z.enum(["AND", "OR"]),
+      expandedTo: z.array(z.string()),
+      sourceMapping: z.record(z.string()),
+    }),
+  })
+  .openapi("ResumeKeywordExpansionResponse");
 
 export const ResumeSamplesResponseSchema = z
   .object({

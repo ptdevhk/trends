@@ -399,7 +399,7 @@ export class IngestComputeService {
         searchText.includes(keyword.toLowerCase())
       );
       if (hasKeyword) {
-        tags.push(domain.tag);
+        tags.push(domain.displayName);
       }
     }
 

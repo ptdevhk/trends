@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 import {
   ResumesQuerySchema,
   ResumesResponseSchema,
+  ResumeKeywordExpansionQuerySchema,
+  ResumeKeywordExpansionResponseSchema,
   ResumeSamplesResponseSchema,
   MatchRequestSchema,
   MatchResponseSchema,
@@ -533,6 +535,43 @@ app.openapi(listSamplesRoute, (c) => {
   }, 200);
 });
 
+const getResumeKeywordExpansionRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/keyword-expansion",
+  tags: ["resumes"],
+  summary: "Expand resume keyword query with synonyms",
+  description: "Returns the backend-expanded keyword variants used for unified resume search",
+  request: {
+    query: ResumeKeywordExpansionQuerySchema,
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ResumeKeywordExpansionResponseSchema,
+        },
+      },
+      description: "Successful response",
+    },
+  },
+});
+
+app.openapi(getResumeKeywordExpansionRoute, (c) => {
+  const { q } = c.req.valid("query");
+  const expansion = resumeService.expandSearchQuery(q);
+
+  return c.json({
+    success: true as const,
+    summary: {
+      keyword: q,
+      groups: expansion?.groups ?? [],
+      mode: expansion?.mode ?? "AND",
+      expandedTo: expansion?.flatTerms ?? [],
+      sourceMapping: expansion?.sourceMapping ?? {},
+    },
+  }, 200);
+});
+
 const getResumesRoute = createRoute({
   method: "get",
   path: "/api/resumes",
@@ -576,6 +615,7 @@ app.openapi(getResumesRoute, (c) => {
   } = c.req.valid("query");
   const sampleName = sample?.trim() || undefined;
   const keyword = q?.trim() || undefined;
+  const keywordExpansion = resumeService.expandSearchQuery(keyword);
 
   try {
     const { items, sample: sampleInfo, metadata, indexes } = resumeService.loadSample(sampleName);
@@ -696,6 +736,8 @@ app.openapi(getResumesRoute, (c) => {
         total: working.length,
         returned: limited.length,
         query: keyword,
+        expandedTo: keywordExpansion?.flatTerms,
+        mode: keywordExpansion?.mode,
       },
       data: limited,
     }, 200);

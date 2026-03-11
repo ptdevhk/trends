@@ -299,6 +299,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/keyword-expansion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Expand resume keyword query with synonyms
+         * @description Returns the backend-expanded keyword variants used for unified resume search
+         */
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeKeywordExpansionResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes": {
         parameters: {
             query?: never;
@@ -3702,6 +3743,23 @@ export interface components {
             success: true;
             samples: components["schemas"]["ResumeSample"][];
         };
+        ResumeKeywordExpansionResponse: {
+            /** @enum {boolean} */
+            success: true;
+            summary: {
+                keyword?: string;
+                groups: {
+                    original: string;
+                    variants: string[];
+                }[];
+                /** @enum {string} */
+                mode: "AND" | "OR";
+                expandedTo: string[];
+                sourceMapping: {
+                    [key: string]: string;
+                };
+            };
+        };
         ResumeSearchCriteria: {
             /** @example 销售 */
             keyword?: string;
@@ -3773,6 +3831,9 @@ export interface components {
                 total: number;
                 returned: number;
                 query?: string;
+                expandedTo?: string[];
+                /** @enum {string} */
+                mode?: "AND" | "OR";
             };
             data: components["schemas"]["ResumeItem"][];
         };

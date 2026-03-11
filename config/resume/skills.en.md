@@ -2,21 +2,20 @@
 version: 6
 updated_at: '2026-03-11'
 description: >
-  简历筛选技能知识库（zh-Hans 主文件）。
-  用于背景计算代理的确定性匹配、同义词扩展与预评分。
-  该文件整合了规则评分、简历索引与行业词库配置。
+  English locale variant for the resume skills knowledge.
+  Maintained alongside the zh-Hans canonical source for localized authoring.
 ---
 
-# 技能知识库
+# Skills Knowledge
 
-本文件提供用于自动化简历筛选的结构化领域知识。`skills-knowledge.ts` 会解析该文件，供背景 ingest 代理在简历入库时预计算匹配信号。
+This file provides structured domain knowledge for automated resume screening. `skills-knowledge.ts` parses the zh-Hans canonical file at runtime, while this English variant is kept in sync for localized authoring and review.
 
-## 领域分类
+## Domain Taxonomy
 
-技能按领域标签组织。每个领域都包含 canonical tag、展示名称与关键词。
+Skills are organized by domain tags. Each domain includes a canonical tag, display name, and keyword set.
 
 ### machinery
-- displayName: 机械
+- displayName: Machinery
 - keywords: 机床, 车床, 加工中心, 机械, 设备, 五轴, 夹具, 治具, lathe, machining, milling
 
 ### cnc
@@ -24,24 +23,24 @@ description: >
 - keywords: cnc, 数控, fanuc, siemens, star, brother, mitsubishi
 
 ### sales
-- displayName: 销售
+- displayName: Sales
 - keywords: 销售, 业务, 客户, 大客户, 渠道, sales, account, bd, market, engineer
 
 ### automation
-- displayName: 自动化
+- displayName: Automation
 - keywords: 自动化, 机器人, plc, 伺服, automation
 
 ### metrology
-- displayName: 测量
+- displayName: Metrology
 - keywords: 测量, 三维扫描, 3d, cmm, metrology, scan
 
 ### software
-- displayName: 软件
+- displayName: Software
 - keywords: c++, c#, mfc, qt, 软件, 开发, algorithm, python
 
-## 同义词表
+## Synonym Table
 
-将变体术语映射到标准形式，用于搜索扩展与匹配归一化。
+Maps variant terms to canonical forms for search expansion and matching normalization.
 
 - 机床: 机械设备, 加工设备
 - 车床: CNC车床, 数控车床
@@ -58,25 +57,25 @@ description: >
 - CMM: 三坐标, 三坐标测量机
 - 软件: software, 程序, 应用
 
-## 经验等级信号
+## Experience Signals
 
-用于识别候选人经验层级的关键词信号，供 ingest 代理做确定性分层。
+Keyword signals used to infer candidate experience level during ingest.
 
 ### senior
-- displayName: 资深
+- displayName: Senior Level
 - keywords: 团队管理, 大客户, 渠道拓展, 主管, 经理, manager, lead, director, 带团队, 培训, 项目管理
 
 ### mid
-- displayName: 中级
+- displayName: Mid Level
 - keywords: 独立, 熟练, 精通, 负责, 专员, specialist, coordinator, 项目, 方案
 
 ### junior
-- displayName: 初级
+- displayName: Junior Level
 - keywords: 应届, 实习, 助理, assistant, trainee, intern, 学习, 协助, 初级
 
-## 公司数据库
+## Company Patterns
 
-目标行业内的重点公司与品牌别名，用于公司识别与行业背景验证。
+Key companies and brand aliases used for company recognition and industry verification.
 
 - FANUC [role: both] (aliases: 发那科, Fanuc)
 - SIEMENS [role: both] (aliases: 西门子, Siemens)
@@ -94,7 +93,7 @@ description: >
 - TSUGAMI [role: both] (aliases: 津上, つがみ)
 - JINGDIAO [role: both] (aliases: 北京精雕, 精雕科技, 精雕集团)
 
-第一梯队 - CNC / 加工
+Tier 1 - CNC / Machining
 - HARDINGE [role: both] (aliases: 哈挺, Hardinge)
 - YASDA [role: both] (aliases: 安田, ヤスダ)
 - HERMLE [role: both] (aliases: 哈默, 赫姆勒)
@@ -115,11 +114,11 @@ description: >
 - NOMURA [role: both] (aliases: 野村)
 - FIDIA [role: equipment] (aliases: 菲迪亚)
 
-第二梯队 - EDM / 线切割
+Tier 2 - EDM / Wire Cutting
 - SODICK [role: equipment] (aliases: 沙迪克, ソディック)
 - CHARMILLES [role: equipment] (aliases: 夏米尔, GF AgieCharmilles)
 
-第三梯队 - 测量 / 计量
+Tier 3 - Measurement / Metrology
 - HEXAGON [role: equipment] (aliases: 海克斯康, ヘキサゴン)
 - ZEISS [role: equipment] (aliases: 蔡司, 卡尔蔡司, Carl Zeiss)
 - KEYENCE [role: equipment] (aliases: 基恩士, キーエンス)
@@ -130,12 +129,12 @@ description: >
 - MAHR [role: equipment] (aliases: 马尔)
 - TESA [role: equipment] (aliases: 天萨)
 
-第四梯队 - 刀具 / 零部件
+Tier 4 - Tooling / Components
 - SANDVIK [role: equipment] (aliases: 山特维克, サンドビック)
 - MARPOSS [role: equipment] (aliases: 马波斯, マーポス)
 - HEIDENHAIN [role: equipment] (aliases: 海德汉, ハイデンハイン)
 
-第五梯队 - 国产 / 珠三角
+Tier 5 - Domestic / Pearl River Delta
 - 创世纪 [role: both] (aliases: 深圳创世纪, CGJ)
 - 台群 [role: both] (aliases: 台群精机, Taiqun)
 - 沈阳机床 [role: both] (aliases: 沈机, SMTCL)
@@ -148,31 +147,31 @@ description: >
 - 程泰 [role: both] (aliases: 程泰机械, Goodway)
 - 乔锋 [role: both] (aliases: 乔锋智能, Qiaofeng)
 
-## 行业背景
+## Industry Context
 
-供 AI 提示增强与领域理解使用的行业背景说明。
+Background notes used for AI prompt enrichment and domain understanding.
 
-### CNC 加工领域
-CNC（Computer Numerical Control，计算机数控）加工是通过程序控制机床执行自动化加工。核心品牌包括 FANUC、SIEMENS、STAR、BROTHER 与 MITSUBISHI。常见设备类型包括车床、加工中心与五轴系统。
+### CNC Machining Domain
+CNC (Computer Numerical Control) machining uses programmed commands to automate machine tools. Core brands include FANUC, SIEMENS, STAR, BROTHER, and MITSUBISHI. Common machine types include lathes, machining centers, and multi-axis systems.
 
-### 销售与业务拓展
-制造业设备 B2B 销售通常需要设备技术理解、客户关系管理与渠道开发能力。典型关键词包括大客户、渠道与业务拓展。
+### Sales and Business Development
+B2B sales for manufacturing equipment usually requires technical product knowledge, customer relationship management, and channel development capability. Typical keywords include key accounts, channels, and business development.
 
-### 测量与质量
-精密测量通常依赖 CMM（三坐标测量机）、3D 扫描与质量检测流程，是制造业 QA/QC 的关键环节。
+### Metrology and Quality
+Precision measurement relies on CMM (Coordinate Measuring Machine), 3D scanning, and quality inspection workflows, which are critical to manufacturing QA/QC.
 
-### 自动化
-工业自动化场景常涉及 PLC、伺服系统与机器人，广泛应用于工厂自动化与智能制造。
+### Automation
+Industrial automation commonly involves PLCs, servo systems, and robotics across factory automation and smart manufacturing scenarios.
 
-## 排除模式
+## Exclusion Patterns
 
-表示无关内容（如广告、推广）的 token。命中后会被标记为需复核。
+Tokens indicating irrelevant content such as ads and promotions. Matching resumes are flagged for review.
 
 - exclude: ad, promo, 广告, 推广, 招商, 加盟, spam
 
-## 学习日志（压缩版）
+## Learning Log (Compacted)
 
-HR 反馈模式与观察记录。已于 2026-03-10 从 174 条原始 shortlist 记录压缩为 50 个唯一模式。带 `(Nx)` 后缀的 `shortlist_pattern` 仍保持机器可读，用于表示信号强度。
+HR feedback patterns and observations. On 2026-03-10, 174 raw shortlist entries were compacted into 50 unique patterns. `shortlist_pattern` entries with `(Nx)` suffixes remain machine-readable as weighted signals.
 
 - 2026-03-10: shortlist_pattern: sales + mid -> high_priority (22x)
 - 2026-03-10: shortlist_pattern: sales + senior -> high_priority (19x)

@@ -522,4 +522,86 @@ updated_at: '2026-02-21'
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("parses zh-Hans section headings from canonical skills.md", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "skills-zh-"));
+    fs.mkdirSync(path.join(root, "config", "resume"), { recursive: true });
+
+    const zhSkills = `---
+version: 6
+updated_at: '2026-03-11'
+description: 测试技能知识文件
+---
+
+# 技能知识库
+
+## 领域分类
+
+### machinery
+- displayName: 机械
+- keywords: 机床, lathe
+
+## 同义词表
+
+- 销售: sales, 业务
+
+## 经验等级信号
+
+### senior
+- displayName: 资深
+- keywords: 经理, lead
+
+## 公司数据库
+
+- FANUC [role: both] (aliases: 发那科, Fanuc)
+
+## 行业背景
+
+### 机械销售
+需要行业经验。
+
+## 排除模式
+
+- exclude: 广告, spam
+
+## 学习日志
+
+- 2026-03-11: 测试记录
+`;
+
+    fs.writeFileSync(path.join(root, "config", "resume", "skills.md"), zhSkills, "utf8");
+    fs.writeFileSync(path.join(root, "pyproject.toml"), "", "utf8");
+    fs.mkdirSync(path.join(root, "output"), { recursive: true });
+
+    try {
+      const service = new SkillsKnowledgeService(root);
+
+      expect(service.getIndustryTaxonomy()).toEqual([
+        {
+          tag: "machinery",
+          displayName: "机械",
+          keywords: ["机床", "lathe"],
+        },
+      ]);
+      expect(service.getSynonymTable().get("sales")).toBe("销售");
+      expect(service.getExperienceSignals()).toEqual([
+        {
+          level: "senior",
+          displayName: "资深",
+          keywords: ["经理", "lead"],
+        },
+      ]);
+      expect(service.getCompanyPatterns()).toHaveLength(1);
+      expect(service.getIndustryContext()).toBe("### 机械销售\n需要行业经验。");
+      expect(service.getExclusionTokens()).toEqual(["广告", "spam"]);
+      expect(service.getLearningLog()).toEqual([
+        {
+          date: "2026-03-11",
+          observation: "测试记录",
+        },
+      ]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

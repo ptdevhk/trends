@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
+import { rawApiClient } from '@/lib/api-helpers'
 import type { ResumeItem } from './useResumes'
 
 export type ConvexResumeAnalysis = {
@@ -74,6 +76,35 @@ export type ConvexResumeItem = ResumeItem & {
   primaryRuleScore?: number
   source: string
   tags: string[]
+  _provenance?: Array<{
+    term: string
+    source: 'searchText' | 'industryTags' | 'companyHits' | 'synonymHits'
+    expandedFrom?: string
+  }>
+}
+
+type KeywordExpansionSummary = {
+  groups: Array<{
+    original: string
+    variants: string[]
+  }>
+  mode: 'AND' | 'OR'
+  expandedTo: string[]
+  sourceMapping: Record<string, string>
+}
+
+function buildFallbackKeywordExpansion(query: string): KeywordExpansionSummary {
+  const terms = query
+    .split(/\s+/)
+    .map((term) => term.trim().toLowerCase())
+    .filter((term) => term.length > 0)
+
+  return {
+    groups: terms.map((term) => ({ original: term, variants: [term] })),
+    mode: 'AND',
+    expandedTo: terms,
+    sourceMapping: {},
+  }
 }
 
 const JOB5156_HOST = 'hr.job5156.com'
@@ -494,24 +525,109 @@ function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
 
 export function useConvexResumes(limit: number = 200, query?: string, jobDescriptionId?: string) {
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
+  const normalizedQuery = query?.trim() || undefined
+  const [keywordExpansion, setKeywordExpansion] = useState<KeywordExpansionSummary | null>(null)
+  const [expansionLoading, setExpansionLoading] = useState(false)
+
+  useEffect(() => {
+    let active = true
+
+    if (!normalizedQuery) {
+      setKeywordExpansion(null)
+      setExpansionLoading(false)
+      return () => {
+        active = false
+      }
+    }
+
+    setExpansionLoading(true)
+    void rawApiClient
+      .GET<{
+        success: boolean
+        summary?: {
+          groups?: Array<{
+            original: string
+            variants: string[]
+          }>
+          mode?: 'AND' | 'OR'
+          expandedTo?: string[]
+          sourceMapping?: Record<string, string>
+        }
+      }>('/api/resumes/keyword-expansion', {
+        params: {
+          query: {
+            q: normalizedQuery,
+          },
+        },
+      })
+      .then(({ data, error }) => {
+        if (!active) {
+          return
+        }
+
+        if (error || !data?.success) {
+          setKeywordExpansion(buildFallbackKeywordExpansion(normalizedQuery))
+          return
+        }
+
+        setKeywordExpansion({
+          groups: data.summary?.groups ?? [],
+          mode: data.summary?.mode ?? 'AND',
+          expandedTo: data.summary?.expandedTo ?? [],
+          sourceMapping: data.summary?.sourceMapping ?? {},
+        })
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to load keyword expansion', error)
+        if (!active) {
+          return
+        }
+        setKeywordExpansion(buildFallbackKeywordExpansion(normalizedQuery))
+      })
+      .finally(() => {
+        if (active) {
+          setExpansionLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [normalizedQuery])
 
   const searchResults = useQuery(
-    api.resumes.searchWithIngestData,
-    query ? { query, limit, jobDescriptionId: normalizedJobDescriptionId } : 'skip'
+    api.resumes.searchWithTagExpansion,
+    normalizedQuery && keywordExpansion
+      ? {
+          query: normalizedQuery,
+          keywordGroups: keywordExpansion.groups,
+          mode: keywordExpansion.mode,
+          sourceMappings: Object.entries(keywordExpansion.sourceMapping).map(([term, expandedFrom]) => ({
+            term,
+            expandedFrom,
+          })),
+          limit,
+          jobDescriptionId: normalizedJobDescriptionId,
+        }
+      : 'skip'
   )
 
   const listResults = useQuery(
     api.resumes.listWithIngestData,
-    query ? 'skip' : { limit, jobDescriptionId: normalizedJobDescriptionId }
+    normalizedQuery ? 'skip' : { limit, jobDescriptionId: normalizedJobDescriptionId }
   )
 
-  const convexResumes = query ? searchResults : listResults
-
-  const mappedResumes = (convexResumes ?? []).map(mapResumeDoc)
+  const mappedResumes = normalizedQuery
+    ? (searchResults?.results ?? []).map((entry) => ({
+        ...mapResumeDoc(entry.resume),
+        _provenance: entry.provenance,
+      }))
+    : (listResults ?? []).map(mapResumeDoc)
 
   return {
     resumes: mappedResumes,
-    loading: convexResumes === undefined,
+    loading: normalizedQuery ? (expansionLoading || searchResults === undefined) : listResults === undefined,
     jobDescriptionId: normalizedJobDescriptionId,
+    expansion: searchResults?.expansion,
   }
 }
