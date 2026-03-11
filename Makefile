@@ -175,8 +175,8 @@ refresh-env:
 	current_vite="$$(mktemp)"; \
 	next_vite="$$(mktemp)"; \
 	trap 'rm -f "$$current_vite" "$$next_vite"' EXIT; \
-	if [ -f /opt/trends/.env.production ]; then \
-		grep -E '^[[:space:]]*VITE_[A-Za-z0-9_]*=' /opt/trends/.env.production | sort > "$$current_vite" || true; \
+	if sudo test -f /opt/trends/.env.production; then \
+		sudo grep -E '^[[:space:]]*VITE_[A-Za-z0-9_]*=' /opt/trends/.env.production | sort > "$$current_vite" || true; \
 	else \
 		frontend_changed=1; \
 	fi; \
