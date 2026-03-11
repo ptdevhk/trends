@@ -163,9 +163,10 @@ export function ResumeCard({
     ? t('resumes.status.updatedAt', { date: new Date(candidateStatusMeta.updatedAt).toLocaleString() })
     : ''
 
-  // Rule score is the primary deterministic score; AI score is secondary
-  const effectiveScore = typeof ruleScore === 'number' && ruleScore > 0 ? ruleScore : score
-  const isRuleScore = typeof ruleScore === 'number' && ruleScore > 0
+  // AI score is primary when available; rule score is deterministic fallback
+  const hasAiScore = typeof score === 'number' && score > 0
+  const effectiveScore = hasAiScore ? score : (typeof ruleScore === 'number' && ruleScore > 0 ? ruleScore : score)
+  const isRuleScore = !hasAiScore && typeof ruleScore === 'number' && ruleScore > 0
 
   const scoreClassName =
     typeof effectiveScore === 'number'

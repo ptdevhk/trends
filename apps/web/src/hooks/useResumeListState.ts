@@ -1047,8 +1047,9 @@ export function useResumeListState(loadSearchHistory = false) {
         return (parseExtractedAt(a.resume.extractedAt) - parseExtractedAt(b.resume.extractedAt)) * direction
       }
 
-      const scoreA = a.ruleScore || (a.match?.score ?? 0)
-      const scoreB = b.ruleScore || (b.match?.score ?? 0)
+      // AI score takes priority; fall back to rule score
+      const scoreA = a.match?.score ?? a.ruleScore ?? 0
+      const scoreB = b.match?.score ?? b.ruleScore ?? 0
       return (scoreA - scoreB) * direction
     })
   }, [enrichedResumes, filters.sortBy, filters.sortOrder])
