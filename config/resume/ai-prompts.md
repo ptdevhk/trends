@@ -71,9 +71,9 @@ description: >
 ```
 
 ### breakdown 字段说明
-- `related_exp`: 基于"工作经历证据"评估候选人与目标岗位的相关经验匹配度（0-100）。
-- `industry_db`: 基于"行业数据库验证公司"评估候选人的行业数据库命中情况（0-100）。
-- `score` = `related_exp` + `industry_db`，不得包含其他未提供数据支撑的维度。
+- `related_exp`: 基于"工作经历证据"评估候选人与目标岗位的相关经验匹配度（0-50）。最高 50 分。
+- `industry_db`: 基于"行业数据库验证公司"评估候选人的行业数据库命中情况（0-50）。最高 50 分。
+- `score` = `related_exp` + `industry_db`（0-100），不得包含其他未提供数据支撑的维度。
 
 ## Prompt Variables
 
