@@ -37,8 +37,6 @@ Please analyze how well the following candidate matches the job:
 
 ## Candidate Information
 **Name**: {candidateName}
-**Work Experience**: {workExperience} years
-**Education**: {education}
 **Industry Database Verified Companies**: {verifiedCompanies}
 **Work-History Evidence**:
 {evidenceText}
@@ -62,11 +60,8 @@ Return the analysis as JSON and ensure score is numeric:
 {
   "score": 30,
   "breakdown": {
-    "experience": 10,
-    "skills": 5,
-    "industry_db": 5,
-    "education": 5,
-    "location": 5
+    "related_exp": 20,
+    "industry_db": 10
   },
   "recommendation": "strong_match" | "match" | "potential" | "no_match",
   "highlights": ["Matching highlight 1", "Matching highlight 2"],
@@ -75,17 +70,22 @@ Return the analysis as JSON and ensure score is numeric:
 }
 ```
 
+### breakdown Field Descriptions
+- `related_exp`: Scores how well the candidate's work-history evidence matches the target role (0-100).
+- `industry_db`: Scores the candidate's industry database company verification hits (0-100).
+- `score` = `related_exp` + `industry_db`. Do not include dimensions without grounded data.
+
 ## Prompt Variables
 
 - `{jobTitle}`: Current job title.
 - `{requirements}`: Current job requirements or keyword-derived requirement text.
 - `{matchingRules}`: Scoring rules, either default scoring guidance or keyword-specific guidance.
 - `{candidateName}`: Candidate name.
-- `{workExperience}`: Candidate total years of work experience.
-- `{education}`: Candidate education level.
 - `{evidenceText}`: Strict work-history evidence extracted from resume history.
-- `{companies}`: Candidate company summary; currently preserved for compatibility even though the template does not render it directly.
 - `{verifiedCompanies}`: Companies verified against the industry database; shows "无" (none) when no matches exist.
+- `{workExperience}`: (kept in hydration chain, not in template) Candidate total years of work experience.
+- `{education}`: (kept in hydration chain, not in template) Candidate education level.
+- `{companies}`: (kept in hydration chain, not in template) Candidate company summary.
 
 ## Notes
 

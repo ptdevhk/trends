@@ -37,8 +37,6 @@ description: >
 
 ## 候选人信息
 **姓名**: {candidateName}
-**工作经验**: {workExperience}年
-**学历**: {education}
 **行业数据库验证公司**: {verifiedCompanies}
 **工作经历证据**:
 {evidenceText}
@@ -62,11 +60,8 @@ description: >
 {
   "score": 30,
   "breakdown": {
-    "experience": 10,
-    "skills": 5,
-    "industry_db": 5,
-    "education": 5,
-    "location": 5
+    "related_exp": 20,
+    "industry_db": 10
   },
   "recommendation": "strong_match" | "match" | "potential" | "no_match",
   "highlights": ["匹配亮点1", "匹配亮点2"],
@@ -75,17 +70,22 @@ description: >
 }
 ```
 
+### breakdown 字段说明
+- `related_exp`: 基于"工作经历证据"评估候选人与目标岗位的相关经验匹配度（0-100）。
+- `industry_db`: 基于"行业数据库验证公司"评估候选人的行业数据库命中情况（0-100）。
+- `score` = `related_exp` + `industry_db`，不得包含其他未提供数据支撑的维度。
+
 ## Prompt Variables
 
 - `{jobTitle}`: 当前职位名称。
 - `{requirements}`: 当前职位要求或关键词构造出的要求文本。
 - `{matchingRules}`: 评分规则说明，可能是默认规则或关键词匹配规则。
 - `{candidateName}`: 候选人姓名。
-- `{workExperience}`: 候选人总工作年限。
-- `{education}`: 候选人学历。
 - `{evidenceText}`: 从工作经历提取出的严格证据文本。
-- `{companies}`: 候选人公司名汇总；当前模板未直接展示，但保留供兼容替换链路使用。
 - `{verifiedCompanies}`: 行业数据库验证通过的公司列表；无匹配时显示"无"。
+- `{workExperience}`: (保留于替换链路，模板不展示) 候选人总工作年限。
+- `{education}`: (保留于替换链路，模板不展示) 候选人学历。
+- `{companies}`: (保留于替换链路，模板不展示) 候选人公司名汇总。
 
 ## Notes
 

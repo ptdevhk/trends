@@ -63,6 +63,7 @@ English-first guidance; Chinese notes are short clarifications.
 - Never use `gh pr merge --delete-branch`; the web app relies on preserved branches for merged-task git diffs.
 - Preferred merge command: `gh pr merge <number> --squash --auto`.
 - Do not use `--admin` unless explicitly requested.
+- **NO manual PR creation from cmux task sandboxes** — if `CMUX_TASK_RUN_JWT` is set, do not run `gh pr create`; cmux creates or updates the task PR automatically.
 
 Required flow:
 1. Create branch: `git checkout -b <type>/<scope>`
@@ -73,8 +74,10 @@ Required flow:
    - Otherwise use the portable `$simplify` skill or the agent's equivalent simplify workflow.
 5. Run any additional scoped validation needed for touched areas.
 6. Commit with clear message.
-7. Push branch and open PR.
-8. Unless the user explicitly requests not to merge, enable auto-merge with `gh pr merge <number> --squash --auto`.
+7. Push branch.
+8. If `CMUX_TASK_RUN_JWT` is unset, create PR manually: `gh pr create --base main`.
+9. If `CMUX_TASK_RUN_JWT` is set, stop after pushing and let cmux create or update the PR.
+10. Unless the user explicitly requests not to merge, enable auto-merge with `gh pr merge <number> --squash --auto` (skip if cmux manages the PR).
 
 ## Runbook Commands (Authoritative)
 
