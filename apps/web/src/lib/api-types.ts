@@ -591,6 +591,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import resumes from a first-party payload */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResumeImportRequest"];
+                };
+            };
+            responses: {
+                /** @description Import result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeSubmitSummary"];
+                    };
+                };
+                /** @description Invalid request payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Import failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/matches/rescore": {
         parameters: {
             query?: never;
@@ -750,32 +829,8 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        metadata: {
-                            /** Format: uri */
-                            sourceUrl: string;
-                            keyword?: string;
-                            location?: string;
-                            searchProfileId?: string;
-                            generatedBy: string;
-                        };
-                        resumes: {
-                            resumeId?: string | number;
-                            perUserId?: string | number;
-                            name: string;
-                            age?: string;
-                            experience?: string;
-                            education?: string;
-                            location?: string;
-                            jobIntention?: string;
-                            expectedSalary?: string;
-                            selfIntro?: string;
-                            workHistory?: {
-                                raw: string;
-                            }[];
-                            profileUrl?: string;
-                            activityStatus?: string;
-                            extractedAt?: string;
-                        }[];
+                        metadata: components["schemas"]["ResumeImportMetadata"];
+                        resumes: components["schemas"]["ResumeImportItem"][];
                     };
                 };
             };
@@ -786,15 +841,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            submitted: number;
-                            inserted: number;
-                            updated: number;
-                            unchanged: number;
-                            deduped: number;
-                        };
+                        "application/json": components["schemas"]["ResumeSubmitSummary"];
                     };
                 };
                 /** @description Invalid request payload */
@@ -3821,6 +3868,12 @@ export interface components {
             resumeId?: string;
             /** @example U987654 */
             perUserId?: string;
+            /** @example 503033454 */
+            profileId?: string;
+            /** @example seek */
+            profileType?: string;
+            /** @example seek:profile:503033454 */
+            externalId?: string;
         };
         ResumesResponse: {
             /** @enum {boolean} */
@@ -3986,6 +4039,88 @@ export interface components {
             /** @enum {boolean} */
             success: true;
             runs: components["schemas"]["MatchRun"][];
+        };
+        ResumeSubmitSummary: {
+            /** @enum {boolean} */
+            success: true;
+            submitted: number;
+            inserted: number;
+            updated: number;
+            unchanged: number;
+            deduped: number;
+        };
+        ResumeImportCollectionContext: {
+            captureMode?: string;
+            operation?: string;
+            jobId?: string | number;
+            searchId?: string;
+            pageNumber?: number | null;
+            language?: string;
+            profileType?: string;
+        };
+        ResumeImportMetadata: {
+            /**
+             * Format: uri
+             * @example https://hr.job5156.com/search?keyword=销售
+             */
+            sourceUrl: string;
+            /** @example browser-extension@1.0.0 */
+            generatedBy: string;
+            /** @example seek */
+            sourceKey?: string;
+            /** @example hk.employer.seek.com */
+            sourceHost?: string;
+            /** @example 销售 */
+            keyword?: string;
+            /** @example 东莞 */
+            location?: string;
+            /** @example sales-engineer */
+            searchProfileId?: string;
+            collectionContext?: components["schemas"]["ResumeImportCollectionContext"];
+            searchCriteria?: components["schemas"]["ResumeSearchCriteria"];
+            /** @example 2026-02-03T09:27:52.152Z */
+            generatedAt?: string;
+            /** @example 1 */
+            totalPages?: number;
+            /** @example 20 */
+            totalResumes?: number;
+            /** @example Navigate to sourceUrl, then add ?tr_auto_export=json */
+            reproduction?: string;
+        };
+        ResumeImportItem: {
+            resumeId?: string | number;
+            perUserId?: string | number;
+            profileId?: string | number;
+            profileType?: string;
+            externalId?: string;
+            /** @example Alex Chen */
+            name: string;
+            /** @example 28 */
+            age?: string;
+            /** @example 5 years */
+            experience?: string;
+            /** @example Bachelor */
+            education?: string;
+            /** @example Shenzhen */
+            location?: string;
+            /** @example Sales Manager */
+            jobIntention?: string;
+            /** @example 10-15K */
+            expectedSalary?: string;
+            /** @example 认真敬业，具备团队协作精神 */
+            selfIntro?: string;
+            workHistory?: components["schemas"]["ResumeWorkHistory"][];
+            /** @example https://hr.job5156.com/resume/view/123 */
+            profileUrl?: string;
+            /** @example Active today */
+            activityStatus?: string;
+            /** @example 2026-02-03T10:00:00.000Z */
+            extractedAt?: string;
+        };
+        ResumeImportRequest: {
+            metadata: components["schemas"]["ResumeImportMetadata"];
+            resumes?: components["schemas"]["ResumeImportItem"][];
+            data?: components["schemas"]["ResumeImportItem"][];
         };
         ResumeFilters: {
             minExperience?: number;
