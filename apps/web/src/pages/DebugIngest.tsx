@@ -67,7 +67,7 @@ function formatTaggingEntry(entry: {
 
 export default function DebugIngest() {
   const { t } = useTranslation()
-  const { resumes, loading } = useConvexResumes(500)
+  const { resumes, loading } = useConvexResumes(2000)
   const backfillIngestData = useAction(api.migrations.backfillIngestData)
   const reIngestStaleSkillsVersion = useAction(api.migrations.reIngestStaleSkillsVersion)
   const clearAnalysesMutation = useMutation(api.resumes.clearAnalyses)
