@@ -748,6 +748,36 @@ export class IngestComputeService {
           if (mentionIndex < 0) {
             break;
           }
+          const mentionEnd = mentionIndex + normalizedAlias.length;
+          const appearsInsideEmployerName =
+            source === "workHistory" &&
+            candidateCompanies.some((company) => {
+              if (!company || !normalizedText.includes(company)) {
+                return false;
+              }
+
+              let companyOffset = 0;
+              while (companyOffset <= normalizedText.length - company.length) {
+                const companyIndex = normalizedText.indexOf(company, companyOffset);
+                if (companyIndex < 0) {
+                  break;
+                }
+
+                const companyEnd = companyIndex + company.length;
+                if (mentionIndex >= companyIndex && mentionEnd <= companyEnd) {
+                  return true;
+                }
+
+                companyOffset = companyIndex + company.length;
+              }
+
+              return false;
+            });
+          if (appearsInsideEmployerName) {
+            offset = mentionEnd;
+            continue;
+          }
+
           const context = this.classifyBrandContext(
             source,
             normalizedText,

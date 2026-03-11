@@ -192,6 +192,9 @@ const CNC_INDUSTRY_PATTERNS = [
     "刀具", "夹具", "量具", "测量", "三坐标",
 ].map((p) => p.toLowerCase());
 
+const EXACT_ONLY_COMPANY_NAME_LENGTH = 4;
+const MIN_PARTIAL_MATCH_OVERLAP_RATIO = 0.5;
+
 export class IndustryDataService {
     private readonly projectRoot: string;
     private cachedData: IndustryData | null = null;
@@ -207,6 +210,45 @@ export class IndustryDataService {
         // Prefer tokens that look like acronyms/brands, not numeric IDs.
         if (!/[A-Za-z]/.test(trimmed)) return false;
         return true;
+    }
+
+    private normalizeCompanyMatchValue(value: string): string {
+        return value.toLowerCase().replace(/\s+/g, " ").trim();
+    }
+
+    private getComparisonLength(value: string): number {
+        return Array.from(value.replace(/\s+/g, "")).length;
+    }
+
+    private isQualifiedPartialMatch(candidateName: string | undefined, normalizedName: string): boolean {
+        if (!candidateName) {
+            return false;
+        }
+
+        const normalizedCandidate = this.normalizeCompanyMatchValue(candidateName);
+        if (!normalizedCandidate || normalizedCandidate === normalizedName) {
+            return false;
+        }
+
+        const candidateLength = this.getComparisonLength(normalizedCandidate);
+        const inputLength = this.getComparisonLength(normalizedName);
+        if (candidateLength === 0 || inputLength === 0) {
+            return false;
+        }
+
+        if (candidateLength <= EXACT_ONLY_COMPANY_NAME_LENGTH) {
+            return false;
+        }
+
+        const hasSubstringMatch =
+            normalizedCandidate.includes(normalizedName) ||
+            normalizedName.includes(normalizedCandidate);
+        if (!hasSubstringMatch) {
+            return false;
+        }
+
+        const overlapRatio = Math.min(candidateLength, inputLength) / Math.max(candidateLength, inputLength);
+        return overlapRatio >= MIN_PARTIAL_MATCH_OVERLAP_RATIO;
     }
 
     /**
@@ -471,13 +513,13 @@ export class IndustryDataService {
             return { verified: false, confidence: 0.0 };
         }
 
-        const normalizedName = name.toLowerCase().trim();
+        const normalizedName = this.normalizeCompanyMatchValue(name);
 
         // Exact match
         const exactMatch = data.companies.find(
             (c) =>
-                c.nameCn.toLowerCase() === normalizedName ||
-                (c.nameEn && c.nameEn.toLowerCase() === normalizedName)
+                this.normalizeCompanyMatchValue(c.nameCn) === normalizedName ||
+                (c.nameEn && this.normalizeCompanyMatchValue(c.nameEn) === normalizedName)
         );
 
         if (exactMatch) {
@@ -487,9 +529,8 @@ export class IndustryDataService {
         // Partial match (contains)
         const partialMatches = data.companies.filter(
             (c) =>
-                c.nameCn.toLowerCase().includes(normalizedName) ||
-                normalizedName.includes(c.nameCn.toLowerCase()) ||
-                (c.nameEn && c.nameEn.toLowerCase().includes(normalizedName))
+                this.isQualifiedPartialMatch(c.nameCn, normalizedName) ||
+                this.isQualifiedPartialMatch(c.nameEn, normalizedName)
         );
 
         if (partialMatches.length > 0) {

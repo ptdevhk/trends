@@ -13,7 +13,10 @@ const fixtureMarkdown = `
 
 | ID | 公司名称 (Company Name) | 英文名称 (English Name) | 类型 (Type) |
 |----|------------------------|------------------------|-------------|
-| 1 | Core Machines Co | | |
+| 1 | 北京精雕科技集团有限公司 | JINGDIAO | key_company |
+| 2 | 上海发那科机器人有限公司 | FANUC | key_company |
+| 3 | 秦川机床集团股份公司 | QINCHUAN | key_company |
+| 4 | 润星科技集团 | RUNXING | key_company |
 
 ## 2. ITES Shenzhen Industrial Exhibition Exhibitors
 
@@ -22,6 +25,16 @@ const fixtureMarkdown = `
 | ID | 公司名称 (Company Name) | 英文名称 (English Name) | 类型 (Type) |
 |----|------------------------|------------------------|-------------|
 | 1 | Test Exhibitor Co | | Metal Cutting |
+
+## 4.3 Import Agents
+
+### 4.3.1 Measurement Agents
+
+| ID | 代理商名称 (Agent Name) | 英文名称 (English Name) | 类型 (Type) |
+|----|------------------------|------------------------|-------------|
+| 1 | 秦川 | | 测量扫描代理 |
+| 2 | 润星 | | 测量扫描代理 |
+| 3 | 思瑞 | | 测量扫描代理 |
 `;
 
 const createFixtureRoot = (): string => {
@@ -58,6 +71,49 @@ describe("IndustryDataService", () => {
 
             expect(result.verified).toBe(false);
             expect(result.confidence).toBe(0);
+        } finally {
+            cleanupFixtureRoot(root);
+        }
+    });
+
+    it("rejects ambiguous short-fragment partial matches for longer employer names", () => {
+        const root = createFixtureRoot();
+        try {
+            const service = new IndustryDataService(root);
+
+            expect(service.verifyCompany("东莞市秦川电力设备有限公司")).toMatchObject({
+                verified: false,
+            });
+            expect(service.verifyCompany("珠海润星泰电器有限公司")).toMatchObject({
+                verified: false,
+            });
+            expect(service.verifyCompany("岑巩县思瑞高级中学")).toMatchObject({
+                verified: false,
+            });
+        } finally {
+            cleanupFixtureRoot(root);
+        }
+    });
+
+    it("keeps exact and qualified near-exact matches for known companies", () => {
+        const root = createFixtureRoot();
+        try {
+            const service = new IndustryDataService(root);
+
+            expect(service.verifyCompany("北京精雕科技集团有限公司")).toMatchObject({
+                verified: true,
+                confidence: 1,
+                match: expect.objectContaining({
+                    nameCn: "北京精雕科技集团有限公司",
+                }),
+            });
+            expect(service.verifyCompany("秦川机床集团")).toMatchObject({
+                verified: true,
+                confidence: 0.7,
+                match: expect.objectContaining({
+                    nameCn: "秦川机床集团股份公司",
+                }),
+            });
         } finally {
             cleanupFixtureRoot(root);
         }

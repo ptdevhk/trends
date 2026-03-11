@@ -57,6 +57,9 @@ description: Test skills knowledge file
 - FANUC [role: both] (aliases: 发那科, ファナック)
 - HAAS [role: equipment] (aliases: 哈斯, Haas Automation)
 - MAZAK [role: both] (aliases: 马扎克, Yamazaki Mazak)
+- 润星科技 [role: both] (aliases: 润星, Runxing)
+- 思瑞测量 [role: both] (aliases: 思瑞, CHOTEST)
+- 秦川机床 [role: both] (aliases: 秦川, Qinchuan)
 
 ## Industry Context
 
@@ -128,6 +131,18 @@ const TEST_KEYWORDS_STRUCTURED_MD = `
 | 1 | 北京精雕科技集团有限公司 | JINGDIAO | key_company |
 | 2 | 东莞精雕机械科技有限公司 |  | key_company |
 | 3 | 上海发那科机器人有限公司 | FANUC | key_company |
+| 4 | 秦川机床集团股份公司 | QINCHUAN | key_company |
+| 5 | 润星科技集团 | RUNXING | key_company |
+
+## 4.3 进口代理商 (Import Agents)
+
+### 4.3.4 三坐标/测量扫描代理商 (CMM/Measurement Scanning Agents)
+
+| ID | 代理商名称 (Agent Name) | 英文名称 (English Name) | 类型 (Type) |
+| --- | --- | --- | --- |
+| 1 | 秦川 |  | 测量扫描代理 |
+| 2 | 润星 |  | 测量扫描代理 |
+| 3 | 思瑞 |  | 测量扫描代理 |
 `;
 
 const SAMPLE_RESUME_CNC_SALES = {
@@ -424,6 +439,45 @@ describe("IngestComputeService", () => {
 			source: "workHistory",
 			context: "employer",
 			companyId: 1,
+		});
+	});
+
+	it("should reject ambiguous short employer substrings while preserving qualified near-exact company hits", () => {
+		const falsePositiveResume = {
+			data: [
+				{
+					...SAMPLE_RESUME_JUNIOR.data[0],
+					workHistory: [
+						{ raw: "2020-01~2022-12(2年11月)东莞市秦川电力设备有限公司销售工程师" },
+						{ raw: "2018-01~2019-12(1年11月)珠海润星泰电器有限公司业务员" },
+						{ raw: "2016-01~2017-12(1年11月)岑巩县思瑞高级中学教师" },
+					],
+				},
+			],
+		};
+		const truePositiveResume = {
+			data: [
+				{
+					...SAMPLE_RESUME_JUNIOR.data[0],
+					workHistory: [
+						{ raw: "2020-01~2024-12(4年11月)秦川机床集团销售工程师" },
+					],
+				},
+			],
+		};
+
+		const falsePositiveResult = service.computeOne("resume-partial-false-positive", falsePositiveResume);
+		expect(falsePositiveResult.brandHits).toEqual([]);
+		expect(falsePositiveResult.companyHits).toEqual([]);
+
+		const truePositiveResult = service.computeOne("resume-qinchuan", truePositiveResume);
+		expect(truePositiveResult.companyHits).toContain("qinchuan");
+		expect(truePositiveResult.brandHits).toContainEqual({
+			brand: "qinchuan",
+			role: "employer",
+			source: "workHistory",
+			context: "employer",
+			companyId: 4,
 		});
 	});
 
