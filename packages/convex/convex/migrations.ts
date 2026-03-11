@@ -4,7 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { buildWorkHistoryEvidence } from "@trends/shared";
 
-import { buildSearchText } from "./search_text";
+import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 import { deriveResumeIdentityKey } from "./lib/resume_identity";
 import { parseAgeFromContent } from "./lib/age";
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
@@ -237,7 +237,11 @@ export const backfillSearchText = mutation({
         for (const resume of resumes) {
             if (resume.searchText) continue;
 
-            const searchText = buildSearchText(resume.content);
+            const searchText = mergeSearchTextWithIngestData(buildSearchText(resume.content), {
+                industryTags: resume.ingestData?.industryTags,
+                synonymHits: resume.ingestData?.synonymHits,
+                companyHits: resume.ingestData?.companyHits,
+            });
 
             await ctx.db.patch(resume._id, { searchText });
             count++;
@@ -252,7 +256,11 @@ export const reindexSearchText = mutation({
         const resumes = await ctx.db.query("resumes").collect();
         let count = 0;
         for (const resume of resumes) {
-            const searchText = buildSearchText(resume.content);
+            const searchText = mergeSearchTextWithIngestData(buildSearchText(resume.content), {
+                industryTags: resume.ingestData?.industryTags,
+                synonymHits: resume.ingestData?.synonymHits,
+                companyHits: resume.ingestData?.companyHits,
+            });
             if (searchText !== resume.searchText) {
                 await ctx.db.patch(resume._id, { searchText });
                 count++;

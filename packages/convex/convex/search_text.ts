@@ -32,6 +32,66 @@ function addScriptBoundarySpaces(text: string): string {
         .replace(new RegExp(`(${ASCII_WORD})(${CJK_CHAR})`, "g"), "$1 $2");
 }
 
+function toNormalizedSearchTokens(values: readonly string[] | undefined): string[] {
+    if (!Array.isArray(values) || values.length === 0) {
+        return [];
+    }
+
+    return Array.from(
+        new Set(
+            values
+                .map((value) => normalizeWhitespace(value).toLowerCase())
+                .filter((value) => value.length >= 2)
+        )
+    );
+}
+
+export function appendMissingSearchTokens(existingSearchText: string, tokens: readonly string[]): string {
+    const normalizedTokens = toNormalizedSearchTokens(tokens);
+    if (normalizedTokens.length === 0) {
+        return existingSearchText;
+    }
+
+    const normalizedExisting = existingSearchText.toLowerCase();
+    const missingTokens = normalizedTokens.filter((token) => !normalizedExisting.includes(token));
+    if (missingTokens.length === 0) {
+        return existingSearchText;
+    }
+
+    return existingSearchText
+        ? `${existingSearchText} ${missingTokens.join(" ")}`
+        : missingTokens.join(" ");
+}
+
+type IngestSearchTextOptions = {
+    industryTags?: readonly string[];
+    synonymHits?: readonly string[];
+    companyHits?: readonly string[];
+    companyAliasTokens?: string;
+};
+
+export function buildIngestSearchTokens(options: IngestSearchTextOptions): string[] {
+    const aliasTokens = typeof options.companyAliasTokens === "string"
+        ? options.companyAliasTokens.split(/\s+/)
+        : [];
+
+    return Array.from(
+        new Set([
+            ...toNormalizedSearchTokens(options.industryTags),
+            ...toNormalizedSearchTokens(options.synonymHits),
+            ...toNormalizedSearchTokens(options.companyHits),
+            ...toNormalizedSearchTokens(aliasTokens),
+        ])
+    );
+}
+
+export function mergeSearchTextWithIngestData(
+    existingSearchText: string,
+    options: IngestSearchTextOptions
+): string {
+    return appendMissingSearchTokens(existingSearchText, buildIngestSearchTokens(options));
+}
+
 function toTextFragments(value: unknown): string[] {
     if (value === null || value === undefined) {
         return [];
