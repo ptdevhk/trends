@@ -231,7 +231,8 @@
       "view": "查看",
       "star": "收藏",
       "shortlist": "入选",
-      "reject": "淘汰"
+      "reject": "淘汰",
+      "contact": "联系"
     },
     "status": {
       "reviewed": "已查阅",

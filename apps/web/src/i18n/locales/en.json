@@ -232,7 +232,8 @@
       "view": "View",
       "star": "Star",
       "shortlist": "Shortlist",
-      "reject": "Reject"
+      "reject": "Reject",
+      "contact": "Contact"
     },
     "status": {
       "reviewed": "Reviewed",
