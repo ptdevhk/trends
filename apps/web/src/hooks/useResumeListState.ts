@@ -848,7 +848,7 @@ export function useResumeListState(loadSearchHistory = false) {
     try {
       const candidatesToAnalyze = filteredConvexResumes
         .filter((resume: ConvexResumeItem) => !getAnalysisForJob(resume, jobDescriptionId, sessionKeywords))
-        .slice(0, 10)
+        .slice(0, Number(import.meta.env.VITE_ANALYSIS_TOP_N) || 10)
 
       if (candidatesToAnalyze.length === 0) {
         toast.info(t('aiTasks.noNewCandidates', 'No new candidates to analyze among top matches.'))
