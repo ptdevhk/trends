@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { useAction, useMutation } from 'convex/react'
+import { useAction, useMutation, useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
@@ -68,6 +68,7 @@ function formatTaggingEntry(entry: {
 export default function DebugIngest() {
   const { t } = useTranslation()
   const { resumes, loading } = useConvexResumes(2000)
+  const totalCount = useQuery(api.resumes.count)
   const backfillIngestData = useAction(api.migrations.backfillIngestData)
   const reIngestStaleSkillsVersion = useAction(api.migrations.reIngestStaleSkillsVersion)
   const clearAnalysesMutation = useMutation(api.resumes.clearAnalyses)
@@ -230,7 +231,14 @@ export default function DebugIngest() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">{t('debugIngest.total', { defaultValue: 'Total Resumes' })}</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{resumes.length}</CardContent>
+          <CardContent>
+            <span className="text-2xl font-semibold">{totalCount ?? '...'}</span>
+            {totalCount !== undefined && totalCount > resumes.length && (
+              <span className="ml-2 text-sm text-muted-foreground">
+                ({t('debugIngest.showing', { count: resumes.length, defaultValue: `showing ${resumes.length}` })})
+              </span>
+            )}
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
