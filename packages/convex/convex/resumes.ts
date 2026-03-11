@@ -276,6 +276,7 @@ export const updateIngestData = internalMutation({
                 role: v.string(),
                 source: v.string(),
                 context: v.string(),
+                companyId: v.optional(v.number()),
             }))),
             companyHits: v.optional(v.array(v.string())),
             roleSignals: v.optional(v.array(v.object({
@@ -360,6 +361,7 @@ export const updateIngestDataBatch = internalMutation({
                     role: v.string(),
                     source: v.string(),
                     context: v.string(),
+                    companyId: v.optional(v.number()),
                 }))),
                 companyHits: v.optional(v.array(v.string())),
                 roleSignals: v.optional(v.array(v.object({
