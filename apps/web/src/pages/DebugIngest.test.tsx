@@ -6,6 +6,7 @@ import DebugIngest from './DebugIngest'
 const resetMutation = vi.fn(async () => ({ count: 0, cleared: 0 }))
 
 vi.mock('convex/react', () => ({
+  useQuery: () => undefined,
   useAction: () => vi.fn(async () => ({ scheduled: 0 })),
   useMutation: () => resetMutation,
 }))
