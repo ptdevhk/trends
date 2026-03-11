@@ -95,6 +95,14 @@ function appendMissingTokens(existingSearchText: string, tokens: string[]): stri
         : missingTokens.join(" ");
 }
 
+export const count = query({
+    args: {},
+    handler: async (ctx) => {
+        const docs = await ctx.db.query("resumes").collect();
+        return docs.length;
+    },
+});
+
 export const list = query({
     args: { limit: v.optional(v.number()) },
     handler: async (ctx, args) => {
