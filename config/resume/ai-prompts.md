@@ -37,8 +37,6 @@ description: >
 
 ## 候选人信息
 **姓名**: {candidateName}
-**工作经验**: {workExperience}年
-**学历**: {education}
 **行业数据库验证公司**: {verifiedCompanies}
 **工作经历证据**:
 {evidenceText}
@@ -83,11 +81,11 @@ description: >
 - `{requirements}`: 当前职位要求或关键词构造出的要求文本。
 - `{matchingRules}`: 评分规则说明，可能是默认规则或关键词匹配规则。
 - `{candidateName}`: 候选人姓名。
-- `{workExperience}`: 候选人总工作年限。
-- `{education}`: 候选人学历。
 - `{evidenceText}`: 从工作经历提取出的严格证据文本。
-- `{companies}`: 候选人公司名汇总；当前模板未直接展示，但保留供兼容替换链路使用。
 - `{verifiedCompanies}`: 行业数据库验证通过的公司列表；无匹配时显示"无"。
+- `{workExperience}`: (保留于替换链路，模板不展示) 候选人总工作年限。
+- `{education}`: (保留于替换链路，模板不展示) 候选人学历。
+- `{companies}`: (保留于替换链路，模板不展示) 候选人公司名汇总。
 
 ## Notes
 
