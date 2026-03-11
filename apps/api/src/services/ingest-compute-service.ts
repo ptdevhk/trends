@@ -21,6 +21,7 @@ export interface BrandHit {
   role: "employer" | "equipment" | "both";
   source: "workHistory" | "selfIntro" | "jobIntention";
   context: BrandContext;
+  companyId?: number;
 }
 
 export interface IngestResult {
@@ -751,23 +752,30 @@ export class IngestComputeService {
             source,
             normalizedText,
             mentionIndex,
-            normalizedAlias,
-            candidateCompanies
+            normalizedAlias
           );
-          const key = `${patternName}|${source}|${context}`;
-          if (!dedupe.has(key)) {
-            dedupe.add(key);
-            hits.push({
-              brand: patternName,
-              role,
-              source,
-              context,
-            });
+          // Employer verification is handled by the strict Industry DB pass below.
+          if (context !== "employer") {
+            const key = `${patternName}|${source}|${context}`;
+            if (!dedupe.has(key)) {
+              dedupe.add(key);
+              hits.push({
+                brand: patternName,
+                role,
+                source,
+                context,
+              });
+            }
           }
           offset = mentionIndex + normalizedAlias.length;
         }
       }
     };
+
+    const workHistory = item.workHistory || [];
+
+    // Pre-extract company names per work-history entry so both loops below share the result.
+    const extractedByEntry = workHistory.map((entry) => extractCompanies([entry]));
 
     for (const pattern of patterns) {
       const aliases = pattern.allNames
@@ -778,8 +786,9 @@ export class IngestComputeService {
         continue;
       }
 
-      for (const entry of item.workHistory || []) {
-        const entryCompanies = extractCompanies([entry])
+      for (let i = 0; i < workHistory.length; i++) {
+        const entry = workHistory[i];
+        const entryCompanies = extractedByEntry[i]
           .map((company) => company.trim().toLowerCase())
           .filter((company) => company.length > 0);
         const candidateCompanies = Array.from(new Set([...normalizedCompanies, ...entryCompanies]));
@@ -794,6 +803,31 @@ export class IngestComputeService {
       }
     }
 
+    // Strict employer matching against Industry DB companies (Tier 1 only).
+    for (let i = 0; i < workHistory.length; i++) {
+      const employerNames = extractedByEntry[i];
+      for (const employerName of employerNames) {
+        const verification = this.industryDataService.verifyCompanyIndustry(employerName);
+        if (verification.matchType !== "known_company" || !verification.company) {
+          continue;
+        }
+
+        const companyKey = this.industryDataService.getCompanyKey(verification.company);
+        const key = `${companyKey}|workHistory|employer`;
+        if (dedupe.has(key)) {
+          continue;
+        }
+        dedupe.add(key);
+        hits.push({
+          brand: companyKey,
+          source: "workHistory",
+          context: "employer",
+          role: "employer",
+          companyId: verification.company.id,
+        });
+      }
+    }
+
     return hits;
   }
 
@@ -801,18 +835,8 @@ export class IngestComputeService {
     source: BrandHit["source"],
     text: string,
     mentionIndex: number,
-    mention: string,
-    companies: string[]
+    mention: string
   ): BrandContext {
-    if (source === "workHistory") {
-      const employerMatch = companies.some((company) =>
-        company.includes(mention) || mention.includes(company)
-      );
-      if (employerMatch) {
-        return "employer";
-      }
-    }
-
     const windowStart = Math.max(0, mentionIndex - BRAND_CONTEXT_WINDOW);
     const windowEnd = Math.min(text.length, mentionIndex + mention.length + BRAND_CONTEXT_WINDOW);
     const nearbyText = text.slice(windowStart, windowEnd);
@@ -833,7 +857,10 @@ export class IngestComputeService {
     if (source === "jobIntention") {
       return "general";
     }
-    return "employer";
+    if (source === "workHistory") {
+      return "equipment";
+    }
+    return "general";
   }
 
   /**
