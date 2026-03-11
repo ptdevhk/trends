@@ -92,7 +92,7 @@ Known companies in the target industry with name variations. Used for company re
 - DOOSAN [role: both] (aliases: 斗山, 두산)
 - HYUNDAI WIA [role: both] (aliases: 现代威亚, 현대위아)
 - TSUGAMI [role: both] (aliases: 津上, つがみ)
-- JINGDIAO [role: both] (aliases: 北京精雕, 精雕)
+- JINGDIAO [role: both] (aliases: 北京精雕, 精雕科技, 精雕集团)
 
 Tier 1 - CNC/Machining
 - HARDINGE [role: both] (aliases: 哈挺, Hardinge)
