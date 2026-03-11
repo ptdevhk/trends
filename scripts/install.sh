@@ -40,6 +40,7 @@ UPGRADE_DEPLOYED_SHA=""
 UPGRADE_TARGET_SHA=""
 UPGRADE_TARGET_BRANCH=""
 UPGRADE_ENV_CHANGED=0
+UPGRADE_FRONTEND_ENV_CHANGED=0
 UPGRADE_TRACKED_DRIFT=0
 UPGRADE_RESOLVED_ENV_PATH=""
 
@@ -493,6 +494,7 @@ plan_upgrade_action() {
     local target_sha=""
     local tracked_drift=0
     local env_changed=0
+    local frontend_env_changed_flag=0
     local resolved_env_path=""
     local dirty_status=""
 
@@ -515,6 +517,9 @@ plan_upgrade_action() {
         if [[ ! -f "$CONFIG_DIR/env" ]] || ! cmp -s "$resolved_env_path" "$CONFIG_DIR/env"; then
             env_changed=1
         fi
+        if frontend_env_changed "$INSTALL_DIR/.env.production" "$resolved_env_path"; then
+            frontend_env_changed_flag=1
+        fi
     fi
 
     UPGRADE_ACTION="full"
@@ -523,7 +528,9 @@ plan_upgrade_action() {
     elif is_truthy "${FORCE:-}"; then
         UPGRADE_ACTION="full"
     elif [[ -n "$deployed_sha" && -n "$target_sha" && "$deployed_sha" == "$target_sha" && "$tracked_drift" -eq 0 ]]; then
-        if [[ "$env_changed" -eq 1 ]]; then
+        if [[ "$frontend_env_changed_flag" -eq 1 ]]; then
+            UPGRADE_ACTION="full"
+        elif [[ "$env_changed" -eq 1 ]]; then
             UPGRADE_ACTION="env-only"
         else
             UPGRADE_ACTION="skip"
@@ -534,6 +541,7 @@ plan_upgrade_action() {
     UPGRADE_TARGET_SHA="$target_sha"
     UPGRADE_TARGET_BRANCH="$desired_branch"
     UPGRADE_ENV_CHANGED="$env_changed"
+    UPGRADE_FRONTEND_ENV_CHANGED="$frontend_env_changed_flag"
     UPGRADE_TRACKED_DRIFT="$tracked_drift"
     UPGRADE_RESOLVED_ENV_PATH="$resolved_env_path"
 }
@@ -548,6 +556,7 @@ print_upgrade_plan() {
     if [[ -n "${ENV_FILE:-}" ]]; then
         echo "  env file: ${UPGRADE_RESOLVED_ENV_PATH:-<unresolved>}"
         echo "  env changed: $([[ "$UPGRADE_ENV_CHANGED" -eq 1 ]] && echo yes || echo no)"
+        echo "  frontend env changed: $([[ "$UPGRADE_FRONTEND_ENV_CHANGED" -eq 1 ]] && echo yes || echo no)"
     else
         echo "  env file: unchanged (ENV_FILE empty)"
     fi
@@ -657,6 +666,40 @@ read_env_var_from_file() {
     fi
 
     printf '%s' "$value"
+}
+
+write_prefixed_env_snapshot() {
+    local source_path="$1"
+    local prefix="$2"
+    local output_path="$3"
+
+    : > "$output_path"
+    if [[ ! -f "$source_path" ]]; then
+        return
+    fi
+
+    grep -E "^[[:space:]]*${prefix}[A-Za-z0-9_]*=" "$source_path" | sort > "$output_path" || true
+}
+
+frontend_env_changed() {
+    local current_env_path="$1"
+    local next_env_path="$2"
+    local current_snapshot=""
+    local next_snapshot=""
+
+    current_snapshot="$(mktemp)"
+    next_snapshot="$(mktemp)"
+
+    write_prefixed_env_snapshot "$current_env_path" "VITE_" "$current_snapshot"
+    write_prefixed_env_snapshot "$next_env_path" "VITE_" "$next_snapshot"
+
+    if cmp -s "$current_snapshot" "$next_snapshot"; then
+        rm -f "$current_snapshot" "$next_snapshot"
+        return 1
+    fi
+
+    rm -f "$current_snapshot" "$next_snapshot"
+    return 0
 }
 
 resolve_runtime_env_var() {

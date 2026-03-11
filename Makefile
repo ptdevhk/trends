@@ -168,19 +168,38 @@ deploy-seed:
 uninstall:
 	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" ./scripts/install.sh uninstall
 
-# Refresh /etc/trends/env from .env.production and restart services (no rebuild)
+# Refresh runtime env and rebuild frontend when VITE_* values change
 refresh-env:
 	@if [ ! -f .env.production ]; then echo "Error: .env.production not found"; exit 1; fi
-	sudo cp .env.production /etc/trends/env
-	sudo chmod 600 /etc/trends/env
-	sudo chown trends:trends /etc/trends/env
-	sudo systemctl daemon-reload
-	sudo systemctl restart trends-api trends-worker trends-worker-api trends-mcp
-	@echo "✅ Environment refreshed and services restarted"
-	@sudo systemctl is-active --quiet trends-api && echo "  trends-api: active" || echo "  trends-api: FAILED"
-	@sudo systemctl is-active --quiet trends-worker && echo "  trends-worker: active" || echo "  trends-worker: FAILED"
-	@sudo systemctl is-active --quiet trends-worker-api && echo "  trends-worker-api: active" || echo "  trends-worker-api: FAILED"
-	@sudo systemctl is-active --quiet trends-mcp && echo "  trends-mcp: active" || echo "  trends-mcp: FAILED"
+	@frontend_changed=0; \
+	current_vite="$$(mktemp)"; \
+	next_vite="$$(mktemp)"; \
+	trap 'rm -f "$$current_vite" "$$next_vite"' EXIT; \
+	if [ -f /opt/trends/.env.production ]; then \
+		grep -E '^[[:space:]]*VITE_[A-Za-z0-9_]*=' /opt/trends/.env.production | sort > "$$current_vite" || true; \
+	else \
+		frontend_changed=1; \
+	fi; \
+	grep -E '^[[:space:]]*VITE_[A-Za-z0-9_]*=' .env.production | sort > "$$next_vite" || true; \
+	if [ "$$frontend_changed" -eq 0 ] && ! cmp -s "$$current_vite" "$$next_vite"; then \
+		frontend_changed=1; \
+	fi; \
+	sudo cp .env.production /etc/trends/env; \
+	sudo cp .env.production /opt/trends/.env.production; \
+	sudo chmod 600 /etc/trends/env; \
+	sudo chmod 600 /opt/trends/.env.production; \
+	sudo chown trends:trends /etc/trends/env /opt/trends/.env.production; \
+	if [ "$$frontend_changed" -eq 1 ]; then \
+		echo "Frontend VITE_* env changed; rebuilding web bundle..."; \
+		sudo -u trends -H sh -lc 'cd /opt/trends && npm run --workspace @trends/web build'; \
+	fi; \
+	sudo systemctl daemon-reload; \
+	sudo systemctl restart trends-api trends-worker trends-worker-api trends-mcp; \
+	echo "✅ Environment refreshed and services restarted"; \
+	sudo systemctl is-active --quiet trends-api && echo "  trends-api: active" || echo "  trends-api: FAILED"; \
+	sudo systemctl is-active --quiet trends-worker && echo "  trends-worker: active" || echo "  trends-worker: FAILED"; \
+	sudo systemctl is-active --quiet trends-worker-api && echo "  trends-worker-api: active" || echo "  trends-worker-api: FAILED"; \
+	sudo systemctl is-active --quiet trends-mcp && echo "  trends-mcp: active" || echo "  trends-mcp: FAILED"
 
 # Docker: start containers
 docker:
