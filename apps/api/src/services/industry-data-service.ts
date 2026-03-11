@@ -39,6 +39,7 @@ export interface CompanyIndustryVerificationResult {
     confidence: number;
     matchType: "known_company" | "keyword_match" | "none";
     matchedKeywords: string[];
+    company?: CompanyEntry;
 }
 
 export interface IndustryData {
@@ -197,6 +198,41 @@ export class IndustryDataService {
 
     constructor(projectRoot?: string) {
         this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
+    }
+
+    private isSingleWordAsciiToken(value: string): boolean {
+        const trimmed = value.trim();
+        if (!trimmed) return false;
+        if (/\s/.test(trimmed)) return false;
+        if (!/^[A-Za-z0-9]+$/.test(trimmed)) return false;
+        // Prefer tokens that look like acronyms/brands, not numeric IDs.
+        if (!/[A-Za-z]/.test(trimmed)) return false;
+        return true;
+    }
+
+    /**
+     * Stable identifier used for `companyHits[]` and `co=` filtering.
+     * - Prefer `nameEn` when it looks like a single-word brand/acronym.
+     * - Otherwise fall back to a sanitized `nameCn` slug.
+     */
+    getCompanyKey(company: CompanyEntry): string {
+        const en = company.nameEn?.trim();
+        if (en && this.isSingleWordAsciiToken(en)) {
+            return en.toLowerCase();
+        }
+
+        const cn = company.nameCn.trim();
+        if (!cn) {
+            return String(company.id);
+        }
+
+        // Keep CJK letters as-is; just strip separators/punctuation for URL filter stability.
+        const slug = cn
+            .normalize("NFKC")
+            .replace(/[\s\u00A0]+/g, "")
+            .replace(/[^\p{L}\p{N}]+/gu, "");
+
+        return slug.toLowerCase() || cn.toLowerCase();
     }
 
     private getIndustryDataDir(): string {
@@ -556,11 +592,16 @@ export class IndustryDataService {
         // Tier 1: Check against known companies
         const knownCompanyResult = this.verifyCompany(companyName);
         if (knownCompanyResult.verified) {
+            const companyMatch =
+                knownCompanyResult.match && "nameCn" in knownCompanyResult.match
+                    ? (knownCompanyResult.match as CompanyEntry)
+                    : undefined;
             return {
                 verified: true,
                 confidence: knownCompanyResult.confidence,
                 matchType: "known_company",
                 matchedKeywords: [],
+                company: companyMatch,
             };
         }
 

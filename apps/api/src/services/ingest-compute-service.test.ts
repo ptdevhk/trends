@@ -116,8 +116,18 @@ auto_match:
 
 ## 职位要求
 
-- 熟悉CNC编程
-- 懂FANUC系统
+	- 熟悉CNC编程
+	- 懂FANUC系统
+	`;
+
+const TEST_KEYWORDS_STRUCTURED_MD = `
+## 重点企业 (Key Companies)
+
+| ID | 公司名称 (Company Name) | 英文名称 (English Name) | 类型 (Type) |
+| --- | --- | --- | --- |
+| 1 | 北京精雕科技集团有限公司 | JINGDIAO | key_company |
+| 2 | 东莞精雕机械科技有限公司 |  | key_company |
+| 3 | 上海发那科机器人有限公司 | FANUC | key_company |
 `;
 
 const SAMPLE_RESUME_CNC_SALES = {
@@ -210,23 +220,26 @@ describe("IngestComputeService", () => {
   let tmpDir: string;
   let service: IngestComputeService;
 
-  beforeEach(() => {
-    // Create temp project structure
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-test-"));
+	beforeEach(() => {
+		// Create temp project structure
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-test-"));
 
-    const configResumeDir = path.join(tmpDir, "config", "resume");
-    const configJdDir = path.join(tmpDir, "config", "job-descriptions");
+		const configResumeDir = path.join(tmpDir, "config", "resume");
+		const configJdDir = path.join(tmpDir, "config", "job-descriptions");
+		const configIndustryDataDir = path.join(tmpDir, "config", "industry-data");
 
-    fs.mkdirSync(configResumeDir, { recursive: true });
-    fs.mkdirSync(configJdDir, { recursive: true });
+		fs.mkdirSync(configResumeDir, { recursive: true });
+		fs.mkdirSync(configJdDir, { recursive: true });
+		fs.mkdirSync(configIndustryDataDir, { recursive: true });
 
-    // Write test files
-    fs.writeFileSync(path.join(configResumeDir, "skills.md"), TEST_SKILLS_MD);
-    fs.writeFileSync(path.join(configJdDir, "jd-lathe-sales.md"), TEST_JD_LATHE_SALES);
-    fs.writeFileSync(path.join(configJdDir, "jd-cnc-engineer.md"), TEST_JD_CNC_ENGINEER);
+		// Write test files
+		fs.writeFileSync(path.join(configResumeDir, "skills.md"), TEST_SKILLS_MD);
+		fs.writeFileSync(path.join(configJdDir, "jd-lathe-sales.md"), TEST_JD_LATHE_SALES);
+		fs.writeFileSync(path.join(configJdDir, "jd-cnc-engineer.md"), TEST_JD_CNC_ENGINEER);
+		fs.writeFileSync(path.join(configIndustryDataDir, "keywords-structured.md"), TEST_KEYWORDS_STRUCTURED_MD);
 
-    service = new IngestComputeService(tmpDir);
-  });
+		service = new IngestComputeService(tmpDir);
+	});
 
   afterEach(() => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -355,27 +368,64 @@ describe("IngestComputeService", () => {
     expect(result.brandHits).toEqual([]);
   });
 
-  it("should classify workHistory brand mentions as employer context", () => {
-    const employerResume = {
-      data: [
-        {
-          ...SAMPLE_RESUME_JUNIOR.data[0],
-          selfIntro: "负责机器人自动化项目交付。",
-          workHistory: [
-            { raw: "2020-01~2023-12(3年11月)上海发那科机器人有限公司销售工程师" },
-          ],
-        },
-      ],
-    };
-    const result = service.computeOne("resume-employer", employerResume);
+	it("should classify workHistory brand mentions as employer context", () => {
+		const employerResume = {
+			data: [
+				{
+					...SAMPLE_RESUME_JUNIOR.data[0],
+					selfIntro: "负责机器人自动化项目交付。",
+					workHistory: [
+						{ raw: "2020-01~2023-12(3年11月)上海发那科机器人有限公司销售工程师" },
+					],
+				},
+			],
+		};
+		const result = service.computeOne("resume-employer", employerResume);
 
-    expect(result.brandHits).toContainEqual({
-      brand: "fanuc",
-      role: "both",
-      source: "workHistory",
-      context: "employer",
-    });
-  });
+		expect(result.brandHits).toContainEqual({
+			brand: "fanuc",
+			role: "employer",
+			source: "workHistory",
+			context: "employer",
+			companyId: 3,
+		});
+	});
+
+	it("should not match loose skills aliases as employer brands; should match Tier-1 industry DB companies", () => {
+		const falsePositiveResume = {
+			data: [
+				{
+					...SAMPLE_RESUME_JUNIOR.data[0],
+					workHistory: [
+						{ raw: "2016-06~2021-11(5年5月)东莞精雕机械科技有限公司" },
+					],
+				},
+			],
+		};
+		const truePositiveResume = {
+			data: [
+				{
+					...SAMPLE_RESUME_JUNIOR.data[0],
+					workHistory: [
+						{ raw: "2016-06~2021-11(5年5月)北京精雕科技集团有限公司" },
+					],
+				},
+			],
+		};
+
+		const falsePositiveResult = service.computeOne("resume-dg-jingdiao", falsePositiveResume);
+		expect(falsePositiveResult.companyHits).not.toContain("jingdiao");
+
+		const truePositiveResult = service.computeOne("resume-bj-jingdiao", truePositiveResume);
+		expect(truePositiveResult.companyHits).toContain("jingdiao");
+		expect(truePositiveResult.brandHits).toContainEqual({
+			brand: "jingdiao",
+			role: "employer",
+			source: "workHistory",
+			context: "employer",
+			companyId: 1,
+		});
+	});
 
   it("should ignore selfIntro sales brand mentions in processing", () => {
     const salesResume = {

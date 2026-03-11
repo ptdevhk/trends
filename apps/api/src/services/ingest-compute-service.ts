@@ -21,6 +21,7 @@ export interface BrandHit {
   role: "employer" | "equipment" | "both";
   source: "workHistory" | "selfIntro" | "jobIntention";
   context: BrandContext;
+  companyId?: number;
 }
 
 export interface IngestResult {
@@ -754,15 +755,18 @@ export class IngestComputeService {
             normalizedAlias,
             candidateCompanies
           );
-          const key = `${patternName}|${source}|${context}`;
-          if (!dedupe.has(key)) {
-            dedupe.add(key);
-            hits.push({
-              brand: patternName,
-              role,
-              source,
-              context,
-            });
+          // Employer verification is handled by the strict Industry DB pass below.
+          if (context !== "employer") {
+            const key = `${patternName}|${source}|${context}`;
+            if (!dedupe.has(key)) {
+              dedupe.add(key);
+              hits.push({
+                brand: patternName,
+                role,
+                source,
+                context,
+              });
+            }
           }
           offset = mentionIndex + normalizedAlias.length;
         }
@@ -791,6 +795,31 @@ export class IngestComputeService {
           pattern.role,
           aliases
         );
+      }
+    }
+
+    // Strict employer matching against Industry DB companies (Tier 1 only).
+    for (const entry of item.workHistory || []) {
+      const employerNames = extractCompanies([entry]);
+      for (const employerName of employerNames) {
+        const verification = this.industryDataService.verifyCompanyIndustry(employerName);
+        if (verification.matchType !== "known_company" || !verification.company) {
+          continue;
+        }
+
+        const companyKey = this.industryDataService.getCompanyKey(verification.company);
+        const key = `${companyKey}|workHistory|employer`;
+        if (dedupe.has(key)) {
+          continue;
+        }
+        dedupe.add(key);
+        hits.push({
+          brand: companyKey,
+          source: "workHistory",
+          context: "employer",
+          role: "employer",
+          companyId: verification.company.id,
+        });
       }
     }
 
@@ -833,7 +862,10 @@ export class IngestComputeService {
     if (source === "jobIntention") {
       return "general";
     }
-    return "employer";
+    if (source === "workHistory") {
+      return "equipment";
+    }
+    return "general";
   }
 
   /**
