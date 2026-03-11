@@ -37,8 +37,6 @@ Please analyze how well the following candidate matches the job:
 
 ## Candidate Information
 **Name**: {candidateName}
-**Work Experience**: {workExperience} years
-**Education**: {education}
 **Industry Database Verified Companies**: {verifiedCompanies}
 **Work-History Evidence**:
 {evidenceText}
@@ -83,11 +81,11 @@ Return the analysis as JSON and ensure score is numeric:
 - `{requirements}`: Current job requirements or keyword-derived requirement text.
 - `{matchingRules}`: Scoring rules, either default scoring guidance or keyword-specific guidance.
 - `{candidateName}`: Candidate name.
-- `{workExperience}`: Candidate total years of work experience.
-- `{education}`: Candidate education level.
 - `{evidenceText}`: Strict work-history evidence extracted from resume history.
-- `{companies}`: Candidate company summary; currently preserved for compatibility even though the template does not render it directly.
 - `{verifiedCompanies}`: Companies verified against the industry database; shows "无" (none) when no matches exist.
+- `{workExperience}`: (kept in hydration chain, not in template) Candidate total years of work experience.
+- `{education}`: (kept in hydration chain, not in template) Candidate education level.
+- `{companies}`: (kept in hydration chain, not in template) Candidate company summary.
 
 ## Notes
 
