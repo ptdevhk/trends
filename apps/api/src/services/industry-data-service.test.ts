@@ -121,6 +121,7 @@ describe("IndustryDataService", () => {
         }
     });
 
+
     it("keeps exact and qualified near-exact matches for known companies", () => {
         const root = createFixtureRoot();
         try {

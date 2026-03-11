@@ -254,6 +254,7 @@ export class IndustryDataService {
         return core.trim();
     }
 
+
     private isQualifiedPartialMatch(candidateName: string | undefined, normalizedName: string): boolean {
         if (!candidateName) {
             return false;
