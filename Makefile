@@ -168,31 +168,21 @@ deploy-seed:
 uninstall:
 	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" ./scripts/install.sh uninstall
 
-# Refresh runtime env and rebuild frontend when VITE_* values change
+# Refresh runtime env and rebuild the production frontend bundle
 refresh-env:
 	@if [ ! -f .env.production ]; then echo "Error: .env.production not found"; exit 1; fi
-	@frontend_changed=0; \
-	current_vite="$$(mktemp)"; \
-	next_vite="$$(mktemp)"; \
-	trap 'rm -f "$$current_vite" "$$next_vite"' EXIT; \
-	if sudo test -f /opt/trends/.env.production; then \
-		sudo grep -E '^[[:space:]]*VITE_[A-Za-z0-9_]*=' /opt/trends/.env.production | sort > "$$current_vite" || true; \
-	else \
-		frontend_changed=1; \
-	fi; \
-	grep -E '^[[:space:]]*VITE_[A-Za-z0-9_]*=' .env.production | sort > "$$next_vite" || true; \
-	if [ "$$frontend_changed" -eq 0 ] && ! cmp -s "$$current_vite" "$$next_vite"; then \
-		frontend_changed=1; \
-	fi; \
 	sudo cp .env.production /etc/trends/env; \
 	sudo cp .env.production /opt/trends/.env.production; \
 	sudo chmod 600 /etc/trends/env; \
 	sudo chmod 600 /opt/trends/.env.production; \
 	sudo chown trends:trends /etc/trends/env /opt/trends/.env.production; \
-	if [ "$$frontend_changed" -eq 1 ]; then \
-		echo "Frontend VITE_* env changed; rebuilding web bundle..."; \
-		sudo -u trends -H sh -lc 'cd /opt/trends && npm run --workspace @trends/web build'; \
-	fi; \
+	sudo mkdir -p /opt/trends/apps/web; \
+	sudo sh -lc "grep -E '^[[:space:]]*VITE_[A-Za-z0-9_]*=' /opt/trends/.env.production | sort > /opt/trends/apps/web/.env.production || true"; \
+	sudo chmod 600 /opt/trends/apps/web/.env.production; \
+	sudo chown trends:trends /opt/trends/apps/web/.env.production; \
+	sudo -u trends -H sh -lc 'set -a && [ -f /etc/trends/env ] && . /etc/trends/env && set +a && cd /opt/trends && ./scripts/sync-convex-env.sh'; \
+	echo "Rebuilding web bundle..."; \
+	sudo -u trends -H sh -lc 'cd /opt/trends && npm run --workspace @trends/web build'; \
 	sudo systemctl daemon-reload; \
 	sudo systemctl restart trends-api trends-worker trends-worker-api trends-mcp; \
 	echo "✅ Environment refreshed and services restarted"; \
@@ -744,7 +734,7 @@ help:
 	@echo "  install        Install as systemd services (requires sudo)"
 	@echo "  deploy         Precheck deployed SHA/env, then skip, env-refresh, or full upgrade (requires sudo)"
 	@echo "  deploy-check   Dry run deploy precheck without rebuilding"
-	@echo "  refresh-env    Refresh /etc/trends/env from .env.production and restart services (no rebuild)"
+	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "  docker         Start Docker containers"
 	@echo "  docker-build   Build and start Docker containers"

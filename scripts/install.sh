@@ -780,6 +780,22 @@ sync_convex_url_to_web() {
     run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$INSTALL_DIR' && '$sync_script'"
 }
 
+sync_web_build_env() {
+    local web_dir="$INSTALL_DIR/apps/web"
+    local source_env="$INSTALL_DIR/.env.production"
+    local web_env="$web_dir/.env.production"
+
+    if [[ ! -d "$web_dir" ]]; then
+        return 0
+    fi
+
+    log_info "Syncing VITE_* env vars to apps/web/.env.production..."
+    mkdir -p "$web_dir"
+    write_prefixed_env_snapshot "$source_env" "VITE_" "$web_env"
+    chmod 600 "$web_env"
+    chown "$SERVICE_USER:$SERVICE_GROUP" "$web_env"
+}
+
 sync_convex_ai_env() {
     local convex_dir="$INSTALL_DIR/packages/convex"
     local convex_env_file="$convex_dir/.env.local"
@@ -1194,6 +1210,7 @@ install_flow() {
     clone_or_update_repo
     sync_dependencies
     deploy_env_file
+    sync_web_build_env
     build_shared_artifact
     setup_convex
     build_artifacts
@@ -1250,6 +1267,7 @@ upgrade_flow() {
     sync_dependencies
     if [[ -n "$ENV_FILE" ]]; then
         deploy_env_file
+        sync_web_build_env
     else
         log_info "ENV_FILE is empty; keeping existing $CONFIG_DIR/env unchanged."
     fi
