@@ -2,6 +2,8 @@ import { internalMutation, internalQuery, mutation, query } from "./_generated/s
 import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 
+import { mergeSearchTextWithIngestData } from "./search_text";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
@@ -63,36 +65,6 @@ function matchesAllTokens(searchText: string | undefined, tokens: string[]): boo
     }
     const normalizedText = (searchText || "").toLowerCase();
     return tokens.every((token) => normalizedText.includes(token));
-}
-
-function toNormalizedTokens(values: string[] | undefined): string[] {
-    if (!Array.isArray(values) || values.length === 0) {
-        return [];
-    }
-
-    return Array.from(
-        new Set(
-            values
-                .map((value) => value.trim().toLowerCase())
-                .filter((value) => value.length >= 2)
-        )
-    );
-}
-
-function appendMissingTokens(existingSearchText: string, tokens: string[]): string {
-    if (tokens.length === 0) {
-        return existingSearchText;
-    }
-
-    const normalizedExisting = existingSearchText.toLowerCase();
-    const missingTokens = tokens.filter((token) => !normalizedExisting.includes(token));
-    if (missingTokens.length === 0) {
-        return existingSearchText;
-    }
-
-    return existingSearchText
-        ? `${existingSearchText} ${missingTokens.join(" ")}`
-        : missingTokens.join(" ");
 }
 
 type MatchSource = "searchText" | "industryTags" | "companyHits" | "synonymHits";
@@ -331,17 +303,19 @@ export const searchWithTagExpansion = query({
             (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
         );
         const provenanceByResumeId = new Map<string, SearchProvenance[]>();
-        const textMatchesById = new Map<string, Doc<"resumes">>();
+        const matchedDocsById = new Map<string, Doc<"resumes">>();
+        const fetchLimit = Math.max(limit * Math.max(keywordGroups.length, 2), 100);
 
         for (const term of expandedTerms) {
             const matches = await ctx.db
                 .query("resumes")
                 .withSearchIndex("search_body", (q) => q.search("searchText", term))
-                .take(Math.max(limit * 2, 100));
+                .take(fetchLimit);
 
             for (const match of matches) {
-                textMatchesById.set(String(match._id), match);
-                addProvenance(provenanceByResumeId, String(match._id), {
+                const matchId = String(match._id);
+                matchedDocsById.set(matchId, match);
+                addProvenance(provenanceByResumeId, matchId, {
                     term,
                     source: "searchText",
                     expandedFrom: sourceMapping[term],
@@ -349,67 +323,11 @@ export const searchWithTagExpansion = query({
             }
         }
 
-        const allResumes = await ctx.db.query("resumes").collect();
-        const allMatchedDocs: Doc<"resumes">[] = Array.from(textMatchesById.values());
-        const seenDocIds = new Set(allMatchedDocs.map((doc) => String(doc._id)));
-
-        for (const doc of allResumes) {
-            const industryTags = toNormalizedTokens(doc.ingestData?.industryTags);
-            const companyHits = toNormalizedTokens(doc.ingestData?.companyHits);
-            const synonymHits = toNormalizedTokens(doc.ingestData?.synonymHits);
-            const matchedTerms = expandedTerms.filter((term) =>
-                industryTags.includes(term)
-                || companyHits.includes(term)
-                || synonymHits.includes(term)
-            );
-
-            if (matchedTerms.length === 0) {
-                continue;
-            }
-
-            for (const term of matchedTerms) {
-                if (industryTags.includes(term)) {
-                    addProvenance(provenanceByResumeId, String(doc._id), {
-                        term,
-                        source: "industryTags",
-                        expandedFrom: sourceMapping[term],
-                    });
-                }
-                if (companyHits.includes(term)) {
-                    addProvenance(provenanceByResumeId, String(doc._id), {
-                        term,
-                        source: "companyHits",
-                        expandedFrom: sourceMapping[term],
-                    });
-                }
-                if (synonymHits.includes(term)) {
-                    addProvenance(provenanceByResumeId, String(doc._id), {
-                        term,
-                        source: "synonymHits",
-                        expandedFrom: sourceMapping[term],
-                    });
-                }
-            }
-
-            if (!seenDocIds.has(String(doc._id))) {
-                allMatchedDocs.push(doc);
-                seenDocIds.add(String(doc._id));
-            }
-        }
-
-        const filteredDocs = allMatchedDocs.filter((doc) => {
+        const filteredDocs = Array.from(matchedDocsById.values()).filter((doc) => {
             const normalizedSearchText = (doc.searchText || "").toLowerCase();
-            const industryTags = toNormalizedTokens(doc.ingestData?.industryTags);
-            const companyHits = toNormalizedTokens(doc.ingestData?.companyHits);
-            const synonymHits = toNormalizedTokens(doc.ingestData?.synonymHits);
 
             const groupMatched = (group: { variants: string[] }): boolean =>
-                group.variants.some((variant) =>
-                    normalizedSearchText.includes(variant)
-                    || industryTags.includes(variant)
-                    || companyHits.includes(variant)
-                    || synonymHits.includes(variant)
-                );
+                group.variants.some((variant) => normalizedSearchText.includes(variant));
 
             return mode === "AND"
                 ? keywordGroups.every(groupMatched)
@@ -571,17 +489,12 @@ export const updateIngestData = internalMutation({
         };
 
         const existingSearchText = resume.searchText || "";
-        let nextSearchText = existingSearchText;
-
-        const aliasTokens = args.companyAliasTokens?.trim().toLowerCase();
-        if (aliasTokens) {
-            nextSearchText = appendMissingTokens(nextSearchText, [aliasTokens]);
-        }
-
-        const synonymTokens = toNormalizedTokens(args.ingestData.synonymHits);
-        if (synonymTokens.length > 0) {
-            nextSearchText = appendMissingTokens(nextSearchText, synonymTokens);
-        }
+        const nextSearchText = mergeSearchTextWithIngestData(existingSearchText, {
+            industryTags: args.ingestData.industryTags,
+            synonymHits: args.ingestData.synonymHits,
+            companyHits: args.ingestData.companyHits,
+            companyAliasTokens: args.companyAliasTokens?.trim().toLowerCase(),
+        });
 
         if (nextSearchText !== existingSearchText) {
             patch.searchText = nextSearchText;
@@ -658,17 +571,12 @@ export const updateIngestDataBatch = internalMutation({
             };
 
             const existingSearchText = resume.searchText || "";
-            let nextSearchText = existingSearchText;
-
-            const aliasTokens = update.companyAliasTokens?.trim().toLowerCase();
-            if (aliasTokens) {
-                nextSearchText = appendMissingTokens(nextSearchText, [aliasTokens]);
-            }
-
-            const synonymTokens = toNormalizedTokens(update.ingestData.synonymHits);
-            if (synonymTokens.length > 0) {
-                nextSearchText = appendMissingTokens(nextSearchText, synonymTokens);
-            }
+            const nextSearchText = mergeSearchTextWithIngestData(existingSearchText, {
+                industryTags: update.ingestData.industryTags,
+                synonymHits: update.ingestData.synonymHits,
+                companyHits: update.ingestData.companyHits,
+                companyAliasTokens: update.companyAliasTokens?.trim().toLowerCase(),
+            });
 
             if (nextSearchText !== existingSearchText) {
                 patch.searchText = nextSearchText;
