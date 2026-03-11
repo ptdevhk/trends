@@ -62,11 +62,8 @@ description: >
 {
   "score": 30,
   "breakdown": {
-    "experience": 10,
-    "skills": 5,
-    "industry_db": 5,
-    "education": 5,
-    "location": 5
+    "related_exp": 20,
+    "industry_db": 10
   },
   "recommendation": "strong_match" | "match" | "potential" | "no_match",
   "highlights": ["匹配亮点1", "匹配亮点2"],
@@ -74,6 +71,11 @@ description: >
   "summary": "中文总结"
 }
 ```
+
+### breakdown 字段说明
+- `related_exp`: 基于"工作经历证据"评估候选人与目标岗位的相关经验匹配度（0-100）。
+- `industry_db`: 基于"行业数据库验证公司"评估候选人的行业数据库命中情况（0-100）。
+- `score` = `related_exp` + `industry_db`，不得包含其他未提供数据支撑的维度。
 
 ## Prompt Variables
 
