@@ -203,7 +203,6 @@ export class IndustryDataService {
     private isSingleWordAsciiToken(value: string): boolean {
         const trimmed = value.trim();
         if (!trimmed) return false;
-        if (/\s/.test(trimmed)) return false;
         if (!/^[A-Za-z0-9]+$/.test(trimmed)) return false;
         // Prefer tokens that look like acronyms/brands, not numeric IDs.
         if (!/[A-Za-z]/.test(trimmed)) return false;
@@ -592,9 +591,10 @@ export class IndustryDataService {
         // Tier 1: Check against known companies
         const knownCompanyResult = this.verifyCompany(companyName);
         if (knownCompanyResult.verified) {
+            const match = knownCompanyResult.match;
             const companyMatch =
-                knownCompanyResult.match && "nameCn" in knownCompanyResult.match
-                    ? (knownCompanyResult.match as CompanyEntry)
+                match && "category" in match && "type" in match
+                    ? (match as CompanyEntry)
                     : undefined;
             return {
                 verified: true,
