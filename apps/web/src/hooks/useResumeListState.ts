@@ -763,6 +763,10 @@ export function useResumeListState(loadSearchHistory = false) {
     const minMatchScore = filters.minMatchScore
     if (typeof minMatchScore === 'number') {
       result = result.filter((resume: ScoredConvexResume) => {
+        const rScore = resume._ruleScore
+        if (rScore > 0) {
+          return rScore >= minMatchScore
+        }
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
         return (analysis?.score ?? 0) >= minMatchScore
       })
@@ -1043,8 +1047,8 @@ export function useResumeListState(loadSearchHistory = false) {
         return (parseExtractedAt(a.resume.extractedAt) - parseExtractedAt(b.resume.extractedAt)) * direction
       }
 
-      const scoreA = a.match?.score ?? a.ruleScore ?? 0
-      const scoreB = b.match?.score ?? b.ruleScore ?? 0
+      const scoreA = a.ruleScore || (a.match?.score ?? 0)
+      const scoreB = b.ruleScore || (b.match?.score ?? 0)
       return (scoreA - scoreB) * direction
     })
   }, [enrichedResumes, filters.sortBy, filters.sortOrder])
