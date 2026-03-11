@@ -19,7 +19,7 @@ description: Test skills knowledge file
 ## Domain Taxonomy
 
 ### machinery
-- displayName: Machinery
+- displayName: 机械
 - keywords: 机床, 车床, lathe, machining
 
 ### cnc
@@ -27,7 +27,7 @@ description: Test skills knowledge file
 - keywords: cnc, 数控, fanuc, star
 
 ### sales
-- displayName: Sales
+- displayName: 销售
 - keywords: 销售, 客户, sales, account
 
 ## Synonym Table
@@ -263,9 +263,9 @@ describe("IngestComputeService", () => {
   it("should compute industryTags from work history evidence only", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
-    expect(result.industryTags).toContain("cnc");
-    expect(result.industryTags).toContain("sales");
-    expect(result.industryTags).not.toContain("machinery");
+    expect(result.industryTags).toContain("CNC");
+    expect(result.industryTags).toContain("销售");
+    expect(result.industryTags).not.toContain("机械");
   });
 
   it("should compute synonymHits from work history evidence only", () => {

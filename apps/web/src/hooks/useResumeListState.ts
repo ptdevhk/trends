@@ -18,7 +18,6 @@ import {
   type ExperienceLevelFilter,
 } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
-import { expandKeyword, DEFAULT_CONFIG } from '@/lib/trendradar/parser'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import {
   aiFeedbackToActionType,
@@ -77,6 +76,15 @@ function normalizeKeywordFingerprint(keywords: string[]): string {
 
 function areKeywordListsEqual(left: string[], right: string[]): boolean {
   return normalizeKeywordFingerprint(left) === normalizeKeywordFingerprint(right)
+}
+
+function appendKeywordToken(current: string[], token: string): string[] {
+  const normalizedToken = token.trim()
+  if (!normalizedToken) {
+    return current
+  }
+
+  return [...current, normalizedToken]
 }
 
 function normalizeOptionalNumber(value: number | undefined): number | undefined {
@@ -182,20 +190,6 @@ function getExportErrorMessage(value: unknown): string | undefined {
 
 function normalizeFilterToken(value: string): string {
   return value.trim().toLowerCase()
-}
-
-function toggleFilterValue(currentValues: string[], value: string): string[] {
-  const normalizedValue = value.trim()
-  if (normalizedValue.length === 0) {
-    return currentValues
-  }
-
-  const normalizedKey = normalizeFilterToken(normalizedValue)
-  if (currentValues.some((item) => normalizeFilterToken(item) === normalizedKey)) {
-    return currentValues.filter((item) => normalizeFilterToken(item) !== normalizedKey)
-  }
-
-  return [...currentValues, normalizedValue]
 }
 
 function toExperienceLevel(value: string | undefined): ExperienceLevelFilter | undefined {
@@ -461,7 +455,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const expandedQuery = useMemo(() => {
     const kw = sessionKeywords.join(' ').trim()
     if (!kw) return undefined
-    return expandKeyword(kw, DEFAULT_CONFIG)
+    return kw
   }, [sessionKeywords])
 
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery, jobDescriptionId)
@@ -935,12 +929,12 @@ export function useResumeListState(loadSearchHistory = false) {
   )
 
   const handleToggleTag = useCallback((tag: string) => {
-    setSelectedTags((current) => toggleFilterValue(current, tag))
-  }, [])
+    setSessionKeywords((current) => appendKeywordToken(current, tag))
+  }, [setSessionKeywords])
 
   const handleToggleCompany = useCallback((company: string) => {
-    setSelectedCompanies((current) => toggleFilterValue(current, company))
-  }, [])
+    setSessionKeywords((current) => appendKeywordToken(current, company))
+  }, [setSessionKeywords])
 
   const handleToggleExperienceLevel = useCallback((level: string | undefined) => {
     const normalizedLevel = toExperienceLevel(level)

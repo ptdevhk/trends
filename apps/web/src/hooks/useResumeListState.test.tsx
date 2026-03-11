@@ -603,6 +603,25 @@ describe('useResumeListState role filter regression', () => {
     expect(getDisplayedResumeNames()).toEqual(['Zhou Jingdiao Hit'])
   })
 
+  it('appends clicked tags and companies into session keywords', () => {
+    mockState.sessionKeywords = ['销售']
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleToggleTag('sales')
+      result.current.handleToggleCompany('FANUC')
+    })
+
+    expect(mockState.setKeywords).toHaveBeenCalledTimes(2)
+
+    const tagUpdater = mockState.setKeywords.mock.calls[0]?.[0] as (current: string[]) => string[]
+    const companyUpdater = mockState.setKeywords.mock.calls[1]?.[0] as (current: string[]) => string[]
+
+    expect(tagUpdater(['销售'])).toEqual(['销售', 'sales'])
+    expect(companyUpdater(['销售', 'sales'])).toEqual(['销售', 'sales', 'FANUC'])
+  })
+
   it('industryVerifiedYears=0 scores low even with total sales years', () => {
     const { result } = renderHook(() => useResumeListState())
     const nonCnc = result.current.displayedResumes.find(

@@ -95,6 +95,103 @@ function appendMissingTokens(existingSearchText: string, tokens: string[]): stri
         : missingTokens.join(" ");
 }
 
+type MatchSource = "searchText" | "industryTags" | "companyHits" | "synonymHits";
+
+type SearchProvenance = {
+    term: string;
+    source: MatchSource;
+    expandedFrom?: string;
+};
+
+function dedupeProvenance(items: SearchProvenance[]): SearchProvenance[] {
+    const seen = new Set<string>();
+    const deduped: SearchProvenance[] = [];
+
+    for (const item of items) {
+        const key = `${item.source}|${item.term}|${item.expandedFrom ?? ""}`;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        deduped.push(item);
+    }
+
+    return deduped;
+}
+
+function addProvenance(
+    target: Map<string, SearchProvenance[]>,
+    key: string,
+    provenance: SearchProvenance
+): void {
+    const existing = target.get(key);
+    if (existing) {
+        existing.push(provenance);
+        return;
+    }
+    target.set(key, [provenance]);
+}
+
+function compareResumes(
+    left: Doc<"resumes">,
+    right: Doc<"resumes">,
+    jobDescriptionId: string | undefined
+): number {
+    const ruleDiff = getIngestRuleScore(right, jobDescriptionId) - getIngestRuleScore(left, jobDescriptionId);
+    if (ruleDiff !== 0) {
+        return ruleDiff;
+    }
+
+    const primaryRuleDiff = (right.primaryRuleScore || 0) - (left.primaryRuleScore || 0);
+    if (primaryRuleDiff !== 0) {
+        return primaryRuleDiff;
+    }
+
+    return right.crawledAt - left.crawledAt;
+}
+
+function mergeResumeDocs(
+    docs: Doc<"resumes">[],
+    provenanceByResumeId: Map<string, SearchProvenance[]>,
+    jobDescriptionId: string | undefined,
+    limit: number
+): Array<{ resume: Doc<"resumes">; provenance: SearchProvenance[] }> {
+    const merged = new Map<string, { resume: Doc<"resumes">; provenance: SearchProvenance[] }>();
+
+    for (const doc of docs) {
+        const identityKey = typeof doc.identityKey === "string" && doc.identityKey.trim().length > 0
+            ? doc.identityKey
+            : String(doc._id);
+        const incomingProvenance = provenanceByResumeId.get(String(doc._id)) ?? [];
+        const existing = merged.get(identityKey);
+
+        if (!existing) {
+            merged.set(identityKey, {
+                resume: doc,
+                provenance: dedupeProvenance(incomingProvenance),
+            });
+            continue;
+        }
+
+        const preferredResume = compareResumes(existing.resume, doc, jobDescriptionId) <= 0
+            ? existing.resume
+            : doc;
+        merged.set(identityKey, {
+            resume: preferredResume,
+            provenance: dedupeProvenance([...existing.provenance, ...incomingProvenance]),
+        });
+    }
+
+    return Array.from(merged.values())
+        .sort((left, right) => {
+            if (right.provenance.length !== left.provenance.length) {
+                return right.provenance.length - left.provenance.length;
+            }
+            return compareResumes(left.resume, right.resume, jobDescriptionId);
+        })
+        .slice(0, limit);
+}
+
 export const count = query({
     args: {},
     handler: async (ctx) => {
@@ -182,6 +279,152 @@ export const searchWithIngestData = query({
         }
 
         return sortByIngestRuleScore(filtered, jobDescriptionId).slice(0, limit);
+    },
+});
+
+export const searchWithTagExpansion = query({
+    args: {
+        query: v.string(),
+        keywordGroups: v.array(v.object({
+            original: v.string(),
+            variants: v.array(v.string()),
+        })),
+        mode: v.optional(v.union(v.literal("AND"), v.literal("OR"))),
+        sourceMappings: v.optional(v.array(v.object({
+            term: v.string(),
+            expandedFrom: v.string(),
+        }))),
+        limit: v.optional(v.number()),
+        jobDescriptionId: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const limit = args.limit || 50;
+        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+        const mode = args.mode ?? "AND";
+        const keywordGroups = args.keywordGroups
+            .map((group) => ({
+                original: group.original.trim().toLowerCase(),
+                variants: Array.from(
+                    new Set(
+                        group.variants
+                            .map((term) => term.trim().toLowerCase())
+                            .filter((term) => term.length >= 2)
+                    )
+                ),
+            }))
+            .filter((group) => group.original.length >= 1 && group.variants.length > 0);
+        const expandedTerms = Array.from(new Set(keywordGroups.flatMap((group) => group.variants)));
+
+        if (expandedTerms.length === 0 || keywordGroups.length === 0) {
+            return {
+                expansion: {
+                    original: args.query,
+                    expanded: [],
+                    groups: [],
+                    mode,
+                },
+                results: [],
+            };
+        }
+
+        const sourceMapping = Object.fromEntries(
+            (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
+        );
+        const provenanceByResumeId = new Map<string, SearchProvenance[]>();
+        const textMatchesById = new Map<string, Doc<"resumes">>();
+
+        for (const term of expandedTerms) {
+            const matches = await ctx.db
+                .query("resumes")
+                .withSearchIndex("search_body", (q) => q.search("searchText", term))
+                .take(Math.max(limit * 2, 100));
+
+            for (const match of matches) {
+                textMatchesById.set(String(match._id), match);
+                addProvenance(provenanceByResumeId, String(match._id), {
+                    term,
+                    source: "searchText",
+                    expandedFrom: sourceMapping[term],
+                });
+            }
+        }
+
+        const allResumes = await ctx.db.query("resumes").collect();
+        const allMatchedDocs: Doc<"resumes">[] = Array.from(textMatchesById.values());
+        const seenDocIds = new Set(allMatchedDocs.map((doc) => String(doc._id)));
+
+        for (const doc of allResumes) {
+            const industryTags = toNormalizedTokens(doc.ingestData?.industryTags);
+            const companyHits = toNormalizedTokens(doc.ingestData?.companyHits);
+            const synonymHits = toNormalizedTokens(doc.ingestData?.synonymHits);
+            const matchedTerms = expandedTerms.filter((term) =>
+                industryTags.includes(term)
+                || companyHits.includes(term)
+                || synonymHits.includes(term)
+            );
+
+            if (matchedTerms.length === 0) {
+                continue;
+            }
+
+            for (const term of matchedTerms) {
+                if (industryTags.includes(term)) {
+                    addProvenance(provenanceByResumeId, String(doc._id), {
+                        term,
+                        source: "industryTags",
+                        expandedFrom: sourceMapping[term],
+                    });
+                }
+                if (companyHits.includes(term)) {
+                    addProvenance(provenanceByResumeId, String(doc._id), {
+                        term,
+                        source: "companyHits",
+                        expandedFrom: sourceMapping[term],
+                    });
+                }
+                if (synonymHits.includes(term)) {
+                    addProvenance(provenanceByResumeId, String(doc._id), {
+                        term,
+                        source: "synonymHits",
+                        expandedFrom: sourceMapping[term],
+                    });
+                }
+            }
+
+            if (!seenDocIds.has(String(doc._id))) {
+                allMatchedDocs.push(doc);
+                seenDocIds.add(String(doc._id));
+            }
+        }
+
+        const filteredDocs = allMatchedDocs.filter((doc) => {
+            const normalizedSearchText = (doc.searchText || "").toLowerCase();
+            const industryTags = toNormalizedTokens(doc.ingestData?.industryTags);
+            const companyHits = toNormalizedTokens(doc.ingestData?.companyHits);
+            const synonymHits = toNormalizedTokens(doc.ingestData?.synonymHits);
+
+            const groupMatched = (group: { variants: string[] }): boolean =>
+                group.variants.some((variant) =>
+                    normalizedSearchText.includes(variant)
+                    || industryTags.includes(variant)
+                    || companyHits.includes(variant)
+                    || synonymHits.includes(variant)
+                );
+
+            return mode === "AND"
+                ? keywordGroups.every(groupMatched)
+                : keywordGroups.some(groupMatched);
+        });
+
+        return {
+            expansion: {
+                original: args.query,
+                expanded: expandedTerms,
+                groups: keywordGroups,
+                mode,
+            },
+            results: mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, limit),
+        };
     },
 });
 

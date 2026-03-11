@@ -9,6 +9,7 @@ import { parseSearchQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
 import { ResumeIndexService } from "./resume-index.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
+import { UnifiedSearchService, type UnifiedKeywordExpansion } from "./unified-search-service.js";
 
 import type { ResumeItem, ResumeSampleFile, ResumeWorkHistoryItem } from "../types/resume.js";
 import type { ResumeIndex } from "./resume-index.js";
@@ -190,12 +191,14 @@ export class ResumeService {
   private readonly indexService: ResumeIndexService;
   private readonly industryService: IndustryDataService;
   private readonly skillsService: SkillsKnowledgeService;
+  private readonly unifiedSearchService: UnifiedSearchService;
 
   constructor(projectRoot?: string) {
     this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
     this.indexService = new ResumeIndexService(this.projectRoot);
     this.industryService = new IndustryDataService(this.projectRoot);
     this.skillsService = new SkillsKnowledgeService(this.projectRoot);
+    this.unifiedSearchService = new UnifiedSearchService(this.projectRoot);
   }
 
   private getSamplesDir(): string {
@@ -285,7 +288,7 @@ export class ResumeService {
     }
 
     const keywordSets = parsedQuery.keywords.map((keyword) => {
-      const expanded = this.skillsService.expandQueryWithSynonyms([keyword]);
+      const expanded = this.unifiedSearchService.expandKeyword(keyword).flatTerms;
       const variants = Array.from(
         new Set(
           [keyword, ...expanded]
@@ -401,6 +404,13 @@ export class ResumeService {
     }
 
     return results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  }
+
+  expandSearchQuery(query?: string): UnifiedKeywordExpansion | undefined {
+    if (!query || !query.trim()) {
+      return undefined;
+    }
+    return this.unifiedSearchService.expandKeyword(query);
   }
 
   filterResumes<T extends ResumeItem>(items: T[], filters?: ResumeFilters): T[] {

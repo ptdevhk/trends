@@ -113,9 +113,22 @@ export interface SkillsKnowledge {
 }
 
 const SEARCH_TOKEN_SPLIT_RE = /[\s,，、;；|/]+/;
+const SECTION_HEADING_ALIASES = {
+  domainTaxonomy: ["Domain Taxonomy", "领域分类"],
+  synonymTable: ["Synonym Table", "同义词表"],
+  experienceSignals: ["Experience Signals", "经验等级信号"],
+  companyPatterns: ["Company Patterns", "公司数据库"],
+  industryContext: ["Industry Context", "行业背景"],
+  exclusionPatterns: ["Exclusion Patterns", "排除模式"],
+  learningLog: ["Learning Log", "学习日志"],
+} as const;
 
 function normalizeToken(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function matchesSectionHeading(value: string, aliases: readonly string[]): boolean {
+  return aliases.some((alias) => value.startsWith(alias));
 }
 
 function normalizeQuery(value: string): string {
@@ -234,19 +247,19 @@ export class SkillsKnowledgeService {
       if (!trimmed) continue;
 
       // Identify section by heading
-      if (trimmed.startsWith("Domain Taxonomy")) {
+      if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.domainTaxonomy)) {
         knowledge.domains = this.parseDomainTaxonomy(trimmed);
-      } else if (trimmed.startsWith("Synonym Table")) {
+      } else if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.synonymTable)) {
         knowledge.synonyms = this.parseSynonymTable(trimmed);
-      } else if (trimmed.startsWith("Experience Signals")) {
+      } else if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.experienceSignals)) {
         knowledge.experienceLevels = this.parseExperienceSignals(trimmed);
-      } else if (trimmed.startsWith("Company Patterns")) {
+      } else if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.companyPatterns)) {
         knowledge.companyPatterns = this.parseCompanyPatterns(trimmed);
-      } else if (trimmed.startsWith("Industry Context")) {
+      } else if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.industryContext)) {
         knowledge.industryContext = this.parseIndustryContext(trimmed);
-      } else if (trimmed.startsWith("Exclusion Patterns")) {
+      } else if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.exclusionPatterns)) {
         knowledge.exclusionTokens = this.parseExclusionPatterns(trimmed);
-      } else if (trimmed.startsWith("Learning Log")) {
+      } else if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.learningLog)) {
         knowledge.learningLog = this.parseLearningLog(trimmed);
       }
     }
@@ -264,7 +277,7 @@ export class SkillsKnowledgeService {
 
     for (const sub of subsections) {
       const trimmed = sub.trim();
-      if (!trimmed || trimmed.startsWith("Domain Taxonomy")) continue;
+      if (!trimmed || matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.domainTaxonomy)) continue;
 
       const lines = trimmed.split("\n");
       const tag = lines[0].trim();
@@ -328,7 +341,7 @@ export class SkillsKnowledgeService {
 
     for (const sub of subsections) {
       const trimmed = sub.trim();
-      if (!trimmed || trimmed.startsWith("Experience Signals")) continue;
+      if (!trimmed || matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.experienceSignals)) continue;
 
       const lines = trimmed.split("\n");
       const level = lines[0].trim();
@@ -401,7 +414,7 @@ export class SkillsKnowledgeService {
 
     for (const sub of subsections) {
       const trimmed = sub.trim();
-      if (!trimmed || trimmed.startsWith("Industry Context")) continue;
+      if (!trimmed || matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.industryContext)) continue;
 
       const lines = trimmed.split("\n");
       const heading = lines[0].trim();
