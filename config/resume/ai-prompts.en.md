@@ -62,11 +62,8 @@ Return the analysis as JSON and ensure score is numeric:
 {
   "score": 30,
   "breakdown": {
-    "experience": 10,
-    "skills": 5,
-    "industry_db": 5,
-    "education": 5,
-    "location": 5
+    "related_exp": 20,
+    "industry_db": 10
   },
   "recommendation": "strong_match" | "match" | "potential" | "no_match",
   "highlights": ["Matching highlight 1", "Matching highlight 2"],
@@ -74,6 +71,11 @@ Return the analysis as JSON and ensure score is numeric:
   "summary": "English summary"
 }
 ```
+
+### breakdown Field Descriptions
+- `related_exp`: Scores how well the candidate's work-history evidence matches the target role (0-100).
+- `industry_db`: Scores the candidate's industry database company verification hits (0-100).
+- `score` = `related_exp` + `industry_db`. Do not include dimensions without grounded data.
 
 ## Prompt Variables
 
