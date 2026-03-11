@@ -8,6 +8,8 @@ import {
   ResumeKeywordExpansionQuerySchema,
   ResumeKeywordExpansionResponseSchema,
   ResumeSamplesResponseSchema,
+  ResumeImportRequestSchema,
+  ResumeSubmitSummarySchema,
   MatchRequestSchema,
   MatchResponseSchema,
   ResumeMatchesResponseSchema,
@@ -39,6 +41,7 @@ import {
   type ExportBatchMeta,
   type ResumeExportEntry,
 } from "../services/export-service.js";
+import { submitResumeImport } from "../services/resume-import-service.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 
@@ -120,6 +123,7 @@ const ResumeExportRequestSchema = z.object({
           education: z.string().optional(),
           expectedSalary: z.string().optional(),
           profileUrl: z.string().optional(),
+          source: z.string().optional(),
           selfIntro: z.string().optional(),
           workHistory: z
             .array(
@@ -142,6 +146,10 @@ const ResumeExportRequestSchema = z.object({
     )
     .min(1)
     .max(2000),
+});
+const ResumeImportErrorSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
 });
 
 function stripFrontMatter(content: string): string {
@@ -1601,6 +1609,56 @@ const rescoreResumeMatchesRoute = createRoute({
       description: "Session or data not found",
     },
   },
+});
+
+const importResumesRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/import",
+  tags: ["resumes"],
+  summary: "Import resumes from a first-party payload",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: ResumeImportRequestSchema,
+        },
+      },
+      required: true,
+    },
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: ResumeSubmitSummarySchema } },
+      description: "Import result",
+    },
+    400: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Invalid request payload",
+    },
+    403: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Admin access required",
+    },
+    500: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Import failed",
+    },
+  },
+});
+
+app.openapi(importResumesRoute, async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+
+  try {
+    const payload = c.req.valid("json");
+    const result = await submitResumeImport(payload);
+    return c.json(result, 200);
+  } catch (error) {
+    console.error("Failed to import resumes", error);
+    return c.json({ success: false as const, error: "Failed to import resumes" }, 500);
+  }
 });
 
 app.openapi(rescoreResumeMatchesRoute, (c) => {
