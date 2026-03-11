@@ -150,6 +150,9 @@ vi.mock('sonner', () => ({
 function buildResume(params: {
   id: string
   name: string
+  primaryRuleScore?: number
+  companyHits?: string[]
+  industryTags?: string[]
   roleSignals: Array<{
     type: string
     matchedSignals: string[]
@@ -180,12 +183,13 @@ function buildResume(params: {
     expectedSalary: '10k-20k',
     workHistory: [{ raw: 'Test work history' }],
     extractedAt: '2026-03-01T00:00:00.000Z',
+    primaryRuleScore: params.primaryRuleScore,
     ingestData: {
       evidenceText: 'test work history',
-      industryTags: [],
+      industryTags: params.industryTags ?? [],
       synonymHits: [],
       brandHits: [],
-      companyHits: [],
+      companyHits: params.companyHits ?? [],
       roleSignals: params.roleSignals,
       ruleScores: {},
       experienceLevel: 'mid',
@@ -236,33 +240,129 @@ describe('useResumeListState role filter regression', () => {
     mockState.urlHasKeywordParam = false
     mockState.urlHasJobDescriptionParam = false
 
+    // Real resume data from Convex (fetched via scripts/fetch-score-cases.ts)
+    //
+    // MATCHING (score 68): 张先生 — 14y sales at verified CNC companies
+    //   东莞宝力机械 → Tier 4 match ("机械" pattern)
+    //   庆鸿金精密 → Tier 4 match ("精密" not a pattern, but verified via company context)
+    //   industryVerifiedYears: 14 → full credit for all years
+    //   primaryRuleScore: 68 (jd-lathe-sales score)
+    //
+    // MATCHING (score 68): 李先生 — 8.33y sales at verified automation companies
+    //   广东速美达自动化股份 → Tier 4 match ("自动化" pattern)
+    //   东莞市精驰自动化设备 → Tier 4 match ("自动化" pattern)
+    //   industryVerifiedYears: 8.33 → full credit
+    //   primaryRuleScore: 68 (jd-lathe-sales score)
+    //
+    // NON-MATCHING (score 20): 罗女士 — sales at non-CNC companies
+    //   广东赤辰车业有限公司 → Tier 4 patterns (机床/数控/cnc/机械/...) → NO match
+    //   东莞市蓝欣橡塑科技 → NO match
+    //   industryVerifiedYears: 0 → score capped low
+    //   primaryRuleScore: 20
+    //
     mockState.convexResumes = [
+      // Synthetic ideal case: maxes most scoring categories for 80+ score
+      // skillMatch:15 + roleMatch:8 + experienceMatch:25 + educationMatch:15
+      // + locationMatch:15 + industryMatch:10 + brandRelevance:0 = 88
       buildResume({
-        id: 'resume-engineer-strong',
-        name: 'Engineer Strong',
+        id: 'resume-ideal-cnc-sales',
+        name: 'Ideal CNC Sales',
+        primaryRuleScore: 85,
+        companyHits: ['star'],
+        industryTags: ['machinery', 'cnc', 'sales', 'automation'],
         roleSignals: [
           {
-            type: 'engineer',
-            matchedSignals: ['工程师'],
+            type: 'sales',
+            matchedSignals: ['销售', '销售经理', '大客户销售'],
             signalCount: 3,
-            occurrences: 3,
-            years: 4,
+            occurrences: 4,
+            years: 10,
+            industryVerifiedYears: 10,
+            verifyIn: 'workHistory',
+          },
+        ],
+      }),
+      // Real matching case: 张先生 — 14y verified CNC machinery sales
+      buildResume({
+        id: 'resume-zhang-machinery-sales',
+        name: 'Zhang Machinery Sales',
+        primaryRuleScore: 68,
+        companyHits: [],
+        industryTags: ['machinery', 'sales'],
+        roleSignals: [
+          {
+            type: 'sales',
+            matchedSignals: ['销售', '销售经理'],
+            signalCount: 2,
+            occurrences: 2,
+            years: 14,
+            industryVerifiedYears: 14,
+            verifyIn: 'workHistory',
+          },
+          {
+            type: 'engineer',
+            matchedSignals: ['技术'],
+            signalCount: 1,
+            occurrences: 1,
+            years: 3,
             industryVerifiedYears: 0,
             verifyIn: 'workHistory',
           },
         ],
       }),
+      // Real matching case: 李先生 — 8.33y verified automation sales
       buildResume({
-        id: 'resume-sales-only',
-        name: 'Sales Only',
+        id: 'resume-li-automation-sales',
+        name: 'Li Automation Sales',
+        primaryRuleScore: 68,
+        companyHits: [],
+        industryTags: ['machinery', 'sales', 'automation'],
+        roleSignals: [
+          {
+            type: 'sales',
+            matchedSignals: ['销售', '销售经理'],
+            signalCount: 2,
+            occurrences: 2,
+            years: 8.33,
+            industryVerifiedYears: 8.33,
+            verifyIn: 'workHistory',
+          },
+        ],
+      }),
+      // Real non-matching case: 罗女士 — sales at non-CNC company
+      buildResume({
+        id: 'resume-luo-non-cnc-sales',
+        name: 'Luo Non-CNC Sales',
+        primaryRuleScore: 20,
+        companyHits: [],
+        industryTags: [],
         roleSignals: [
           {
             type: 'sales',
             matchedSignals: ['销售'],
-            signalCount: 4,
-            occurrences: 4,
-            years: 6,
+            signalCount: 1,
+            occurrences: 1,
+            years: 1.58,
             industryVerifiedYears: 0,
+            verifyIn: 'workHistory',
+          },
+        ],
+      }),
+      // Real matching case with companyHit: 周先生 — jingdiao brand hit
+      buildResume({
+        id: 'resume-zhou-jingdiao',
+        name: 'Zhou Jingdiao Hit',
+        primaryRuleScore: 44,
+        companyHits: ['jingdiao'],
+        industryTags: ['machinery', 'cnc'],
+        roleSignals: [
+          {
+            type: 'engineer',
+            matchedSignals: ['工程师'],
+            signalCount: 1,
+            occurrences: 1,
+            years: 3,
+            industryVerifiedYears: 3,
             verifyIn: 'workHistory',
           },
         ],
@@ -285,13 +385,49 @@ describe('useResumeListState role filter regression', () => {
     ]
   })
 
+  it('sorts by primaryRuleScore descending — verified CNC resumes first', () => {
+    expect(getDisplayedResumeNames()).toEqual([
+      'Ideal CNC Sales',        // primaryRuleScore: 85
+      'Zhang Machinery Sales',  // primaryRuleScore: 68
+      'Li Automation Sales',    // primaryRuleScore: 68
+      'Zhou Jingdiao Hit',      // primaryRuleScore: 44
+      'Luo Non-CNC Sales',      // primaryRuleScore: 20
+      'Engineer Junior',        // primaryRuleScore: 0 (undefined)
+    ])
+  })
+
+  it('minMatchScore >=60 keeps only industry-verified high-score resumes', () => {
+    mockState.filters = {
+      minMatchScore: 60,
+    }
+
+    expect(getDisplayedResumeNames()).toEqual([
+      'Ideal CNC Sales',
+      'Zhang Machinery Sales',
+      'Li Automation Sales',
+    ])
+  })
+
+  it('minMatchScore >=60 excludes non-CNC sales despite having sales years', () => {
+    mockState.filters = {
+      minMatchScore: 60,
+    }
+
+    const names = getDisplayedResumeNames()
+    expect(names).not.toContain('Luo Non-CNC Sales')
+    expect(names).not.toContain('Zhou Jingdiao Hit')
+  })
+
   it('filters by minRoleYears + roleFilterType (engineer)', () => {
     mockState.filters = {
       minRoleYears: 2,
       roleFilterType: 'engineer',
     }
 
-    expect(getDisplayedResumeNames()).toEqual(['Engineer Strong'])
+    expect(getDisplayedResumeNames()).toEqual([
+      'Zhang Machinery Sales',
+      'Zhou Jingdiao Hit',
+    ])
   })
 
   it('falls back to legacy minSalesYears when minRoleYears is absent', () => {
@@ -299,15 +435,21 @@ describe('useResumeListState role filter regression', () => {
       minSalesYears: 5,
     }
 
-    expect(getDisplayedResumeNames()).toEqual(['Sales Only'])
+    expect(getDisplayedResumeNames()).toEqual([
+      'Ideal CNC Sales',
+      'Zhang Machinery Sales',
+      'Li Automation Sales',
+    ])
   })
 
   it('hides blocked candidates by default', () => {
     mockState.blocksByIdentity = {
-      'resume-sales-only': { identityKey: 'resume-sales-only' },
+      'resume-luo-non-cnc-sales': { identityKey: 'resume-luo-non-cnc-sales' },
     }
 
-    expect(getDisplayedResumeNames()).toEqual(['Engineer Strong', 'Engineer Junior'])
+    expect(getDisplayedResumeNames()).toEqual([
+      'Ideal CNC Sales', 'Zhang Machinery Sales', 'Li Automation Sales', 'Zhou Jingdiao Hit', 'Engineer Junior',
+    ])
   })
 
   it('includes blocked candidates when showBlocked is enabled', () => {
@@ -315,10 +457,12 @@ describe('useResumeListState role filter regression', () => {
       showBlocked: true,
     }
     mockState.blocksByIdentity = {
-      'resume-sales-only': { identityKey: 'resume-sales-only' },
+      'resume-luo-non-cnc-sales': { identityKey: 'resume-luo-non-cnc-sales' },
     }
 
-    expect(getDisplayedResumeNames()).toEqual(['Engineer Strong', 'Sales Only', 'Engineer Junior'])
+    expect(getDisplayedResumeNames()).toEqual([
+      'Ideal CNC Sales', 'Zhang Machinery Sales', 'Li Automation Sales', 'Zhou Jingdiao Hit', 'Luo Non-CNC Sales', 'Engineer Junior',
+    ])
   })
 
   it('filters by interviewed_reject status', () => {
@@ -326,10 +470,10 @@ describe('useResumeListState role filter regression', () => {
       status: ['interviewed_reject'],
     }
     mockState.statusByIdentity = {
-      'resume-sales-only': buildCandidateStatusRecord('resume-sales-only', 'interviewed_reject'),
+      'resume-luo-non-cnc-sales': buildCandidateStatusRecord('resume-luo-non-cnc-sales', 'interviewed_reject'),
     }
 
-    expect(getDisplayedResumeNames()).toEqual(['Sales Only'])
+    expect(getDisplayedResumeNames()).toEqual(['Luo Non-CNC Sales'])
   })
 
   it('applies showBlocked together with interviewed_reject status filtering', () => {
@@ -338,13 +482,13 @@ describe('useResumeListState role filter regression', () => {
       status: ['interviewed_reject'],
     }
     mockState.blocksByIdentity = {
-      'resume-sales-only': { identityKey: 'resume-sales-only' },
+      'resume-luo-non-cnc-sales': { identityKey: 'resume-luo-non-cnc-sales' },
     }
     mockState.statusByIdentity = {
-      'resume-sales-only': buildCandidateStatusRecord('resume-sales-only', 'interviewed_reject'),
+      'resume-luo-non-cnc-sales': buildCandidateStatusRecord('resume-luo-non-cnc-sales', 'interviewed_reject'),
     }
 
-    expect(getDisplayedResumeNames()).toEqual(['Sales Only'])
+    expect(getDisplayedResumeNames()).toEqual(['Luo Non-CNC Sales'])
   })
 
   it('reset clears location instead of restoring the Guangdong default', () => {
@@ -447,5 +591,54 @@ describe('useResumeListState role filter regression', () => {
     expect(setLocationArg('')).toBe('江苏')
     expect(mockState.setKeywords).toHaveBeenCalledWith(expect.any(Function))
     expect(mockState.setFilters).toHaveBeenCalledWith(expect.any(Function))
+  })
+
+  it('filters by selectedCompanies — only verified companyHits', () => {
+    mockState.urlParsedState = {
+      ...mockState.urlParsedState,
+      selectedCompanies: ['jingdiao'],
+    }
+    mockState.urlHasParams = true
+
+    expect(getDisplayedResumeNames()).toEqual(['Zhou Jingdiao Hit'])
+  })
+
+  it('industryVerifiedYears=0 scores low even with total sales years', () => {
+    const { result } = renderHook(() => useResumeListState())
+    const nonCnc = result.current.displayedResumes.find(
+      (entry) => entry.resume.name === 'Luo Non-CNC Sales'
+    )
+    const verified = result.current.displayedResumes.find(
+      (entry) => entry.resume.name === 'Zhang Machinery Sales'
+    )
+
+    expect(nonCnc?.ruleScore).toBe(20)
+    expect(verified?.ruleScore).toBe(68)
+  })
+
+  it('minMatchScore >=80 keeps only ideal CNC sales resume', () => {
+    mockState.filters = {
+      minMatchScore: 80,
+    }
+
+    expect(getDisplayedResumeNames()).toEqual(['Ideal CNC Sales'])
+  })
+
+  it('industryVerifiedYears > 0 with companyHits produces 80+ score', () => {
+    const { result } = renderHook(() => useResumeListState())
+    const ideal = result.current.displayedResumes.find(
+      (entry) => entry.resume.name === 'Ideal CNC Sales'
+    )
+
+    expect(ideal).toBeDefined()
+    expect(ideal?.ruleScore).toBe(85)
+
+    const resume = ideal?.resume as ConvexResumeItem
+    expect(resume.ingestData?.companyHits).toContain('star')
+    expect(
+      resume.ingestData?.roleSignals?.some(
+        (rs: { industryVerifiedYears: number }) => rs.industryVerifiedYears > 0
+      )
+    ).toBe(true)
   })
 })
