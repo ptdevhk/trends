@@ -1,18 +1,13 @@
-# 發版說明：v0.1.0 評分規則調整
+## v0.1.0
 
-Date: 2026-03-12
-Area: Resume Screening Scoring
+此版本為 Trends 重新整理後的首個正式發版，並將後續版本管理基線統一為 `v0.1.0`。
 
-## 版本說明
+### 主要更新
 
-此版本將專案 release 與 tag 基線重設為 `v0.1.0`，後續版本將從這個起點開始管理。
+- 調整 `Detailed Breakdown` 評分規則為 50/50 等權重。
+- `Industry DB` 佔總分 50%，用於衡量候選人在產業資料庫中的匹配程度。
+- `Related Experience` 佔總分 50%，用於衡量候選人與職務需求相關的實際工作經驗程度。
 
-## 主要變更
+### 說明
 
-- 調整 `Detailed Breakdown` 的評分規則為 50/50 等權重。
-- `Industry DB` 分數佔總分 50%，用於衡量候選人的產業資料庫匹配程度。
-- `Related Experience` 分數佔總分 50%，用於衡量候選人的相關工作經驗匹配程度。
-
-## 發版訊息
-
-`Detailed Breakdown` 現在會以兩個同等重要的維度計分：`Industry DB` 佔 50%，代表候選人在產業資料庫中的匹配程度；`Related Experience` 佔 50%，代表候選人與目標職務相關的實際工作經驗程度。
+`Detailed Breakdown` 現在會以兩個同等重要的維度進行評分，讓結果更容易理解，也更方便對照候選人的產業背景與相關經驗。
