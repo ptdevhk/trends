@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { buildWorkHistoryEvidence } from "@trends/shared";
+import { buildWorkHistoryEvidence, FALLBACK_INDUSTRY_KEYWORDS, normalizeIndustryTags, type CanonicalIndustryTag } from "@trends/shared";
 
 import { findProjectRoot } from "./db.js";
 import { JobDescriptionService } from "./job-description-service.js";
@@ -24,28 +24,7 @@ export interface ResumeIndex {
   searchText: string;
 }
 
-type IndustryTag = "machinery" | "cnc" | "sales" | "automation" | "metrology" | "software";
-
-const INDUSTRY_KEYWORDS: Record<IndustryTag, string[]> = {
-  machinery: [
-    "机床",
-    "车床",
-    "加工中心",
-    "机械",
-    "设备",
-    "五轴",
-    "夹具",
-    "治具",
-    "lathe",
-    "machining",
-    "milling",
-  ],
-  cnc: ["cnc", "数控", "fanuc", "siemens", "star", "brother", "mitsubishi"],
-  sales: ["销售", "业务", "客户", "大客户", "渠道", "sales", "account", "bd", "market"],
-  automation: ["自动化", "机器人", "plc", "伺服", "automation"],
-  metrology: ["测量", "三维扫描", "3d", "cmm", "metrology", "scan"],
-  software: ["c++", "c#", "mfc", "qt", "软件", "开发", "algorithm", "python"],
-};
+const INDUSTRY_KEYWORDS: Record<CanonicalIndustryTag, string[]> = FALLBACK_INDUSTRY_KEYWORDS;
 
 function normalizeText(value: string | undefined): string {
   return (value || "")
@@ -140,7 +119,7 @@ function scoreIndustryTagsLegacy(haystack: string): string[] {
     }
   }
 
-  return tags;
+  return normalizeIndustryTags(tags);
 }
 
 export class ResumeIndexService {
@@ -314,8 +293,9 @@ export class ResumeIndexService {
         }
       }
 
-      if (tags.length > 0) {
-        return tags;
+      const normalizedTags = normalizeIndustryTags(tags);
+      if (normalizedTags.length > 0) {
+        return normalizedTags;
       }
     } catch {
       // Fall through to legacy

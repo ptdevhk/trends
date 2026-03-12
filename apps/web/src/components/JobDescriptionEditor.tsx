@@ -12,13 +12,15 @@ import { useTranslation } from "react-i18next"
 import { LocationSelector } from "@/components/LocationSelector"
 import { KeywordInput } from "@/components/KeywordInput"
 import {
+    CANONICAL_INDUSTRY_TAGS,
     DEFAULT_MIN_EXPERIENCE,
     generateStructuredJobDescriptionContent,
+    normalizeIndustryTags,
     normalizeOptionalString,
     type StructuredJobDescriptionSeedFields,
 } from "@trends/shared"
 
-const INDUSTRY_TAG_OPTIONS = ["machinery", "cnc", "sales", "automation", "metrology", "software"] as const
+const INDUSTRY_TAG_OPTIONS = CANONICAL_INDUSTRY_TAGS
 
 type StructuredSeedFields = StructuredJobDescriptionSeedFields
 
@@ -35,19 +37,7 @@ function parseOptionalNumber(value: string): number | undefined {
 }
 
 function sanitizeIndustryTags(values: string[] | undefined): string[] {
-    if (!Array.isArray(values)) {
-        return []
-    }
-
-    const allowed = new Set<string>(INDUSTRY_TAG_OPTIONS)
-    const selected = new Set<string>()
-    values.forEach((value) => {
-        const token = value.trim()
-        if (allowed.has(token)) {
-            selected.add(token)
-        }
-    })
-    return Array.from(selected)
+    return normalizeIndustryTags(values)
 }
 
 function hasStructuredSeedFields(fields: StructuredSeedFields | undefined): boolean {

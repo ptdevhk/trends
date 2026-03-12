@@ -5,7 +5,7 @@ import { appendMissingSearchTokens, buildIngestSearchTokens, mergeSearchTextWith
 describe("buildIngestSearchTokens", () => {
     it("normalizes and deduplicates ingest metadata tokens", () => {
         expect(buildIngestSearchTokens({
-            industryTags: [" Machinery ", "cnc"],
+            industryTags: [" Machinery ", "machinery"],
             synonymHits: ["CNC", "sales engineer"],
             companyHits: ["FANUC", "fanuc"],
             companyAliasTokens: "  Fanuc 发那科  ",

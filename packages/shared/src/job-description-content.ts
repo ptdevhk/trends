@@ -1,4 +1,36 @@
 export const DEFAULT_MIN_EXPERIENCE = 1;
+export const CANONICAL_INDUSTRY_TAGS = ["machinery", "sales", "metrology", "software"] as const;
+export type CanonicalIndustryTag = (typeof CANONICAL_INDUSTRY_TAGS)[number];
+export const FALLBACK_INDUSTRY_KEYWORDS: Record<CanonicalIndustryTag, string[]> = {
+  machinery: [
+    "机床",
+    "车床",
+    "加工中心",
+    "机械",
+    "设备",
+    "五轴",
+    "夹具",
+    "治具",
+    "lathe",
+    "machining",
+    "milling",
+    "cnc",
+    "数控",
+    "fanuc",
+    "siemens",
+    "star",
+    "brother",
+    "mitsubishi",
+  ],
+  sales: ["销售", "业务", "客户", "大客户", "渠道", "sales", "account", "bd", "market"],
+  metrology: ["测量", "三维扫描", "3d", "cmm", "metrology", "scan"],
+  software: ["c++", "c#", "mfc", "qt", "软件", "开发", "algorithm", "python"],
+};
+
+const LEGACY_INDUSTRY_TAG_MAP: Record<string, string | null> = {
+  cnc: "machinery",
+  automation: null,
+};
 
 export type StructuredJobDescriptionSeedFields = {
   location?: string;
@@ -46,6 +78,28 @@ function normalizeUniqueStringList(values: string[] | null | undefined): string[
   return normalized;
 }
 
+export function normalizeIndustryTags(values: string[] | null | undefined): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const allowed = new Set<string>(CANONICAL_INDUSTRY_TAGS);
+  const selected = new Set<string>();
+
+  values.forEach((value) => {
+    const token = normalizeOptionalString(value)?.toLowerCase();
+    if (!token) {
+      return;
+    }
+    const normalized = token in LEGACY_INDUSTRY_TAG_MAP ? LEGACY_INDUSTRY_TAG_MAP[token] : token;
+    if (normalized && allowed.has(normalized)) {
+      selected.add(normalized);
+    }
+  });
+
+  return Array.from(selected);
+}
+
 function splitLocationTokens(value: string | undefined): string[] {
   if (!value) {
     return [];
@@ -71,7 +125,7 @@ export function generateStructuredJobDescriptionContent(
   const title = fields.title.trim();
   const locationStr = normalizeOptionalString(fields.location);
   const locationsList = splitLocationTokens(locationStr);
-  const industryTags = normalizeUniqueStringList(fields.industryTags);
+  const industryTags = normalizeIndustryTags(fields.industryTags);
   const extraKeywords = normalizeUniqueStringList(fields.customKeywords);
   const minExperience = fields.minExperience ?? DEFAULT_MIN_EXPERIENCE;
   const maxExperience = fields.maxExperience;

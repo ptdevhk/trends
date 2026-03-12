@@ -17,19 +17,11 @@ description: >
 
 ### machinery
 - displayName: 机械
-- keywords: 机床, 车床, 加工中心, 机械, 设备, 五轴, 夹具, 治具, lathe, machining, milling
-
-### cnc
-- displayName: CNC
-- keywords: cnc, 数控, fanuc, siemens, star, brother, mitsubishi
+- keywords: 机床, 车床, 加工中心, 机械, 设备, 五轴, 夹具, 治具, lathe, machining, milling, cnc, 数控, fanuc, siemens, star, brother, mitsubishi
 
 ### sales
 - displayName: 销售
-- keywords: 销售, 业务, 客户, 大客户, 渠道, sales, account, bd, market, engineer
-
-### automation
-- displayName: 自动化
-- keywords: 自动化, 机器人, plc, 伺服, automation
+- keywords: 销售, 业务, 客户, 大客户, 渠道, 销售工程师, 业务拓展, sales, account, key account, bd, business development
 
 ### metrology
 - displayName: 测量
@@ -44,14 +36,15 @@ description: >
 将变体术语映射到标准形式，用于搜索扩展与匹配归一化。
 
 - 机床: 机械设备, 加工设备
-- 车床: CNC车床, 数控车床
-- 加工中心: machining center, machining-center, 加工设备
+- 车床: CNC车床, 数控车床, cnc lathe
+- 加工中心: machining center, machining-center, 加工设备, machine tool
 - 五轴: 5-axis, 五轴联动
 - 夹具: 治具, fixture
-- 数控: CNC, Computer Numerical Control
+- 数控: CNC, Computer Numerical Control, 数控加工
 - 销售: 业务, 商务, 销售员
+- 销售工程师: sales engineer, 售前销售, 技术销售
 - 大客户: 渠道客户, key account, 关键客户
-- 自动化: automation, 工业自动化
+- 机床销售: 车床销售, cnc销售, 数控机床销售
 - 机器人: robot, 工业机器人
 - 测量: 计量, measurement, 质量检测
 - 三维扫描: 3D扫描, 3d-scan, 三维测量
@@ -152,17 +145,14 @@ description: >
 
 供 AI 提示增强与领域理解使用的行业背景说明。
 
-### CNC 加工领域
-CNC（Computer Numerical Control，计算机数控）加工是通过程序控制机床执行自动化加工。核心品牌包括 FANUC、SIEMENS、STAR、BROTHER 与 MITSUBISHI。常见设备类型包括车床、加工中心与五轴系统。
+### 机械加工领域
+机械加工场景包含 CNC（Computer Numerical Control，计算机数控）机床、加工中心、车床与五轴系统。核心品牌包括 FANUC、SIEMENS、STAR、BROTHER 与 MITSUBISHI，相关数控信号统一归入 machinery 领域。
 
 ### 销售与业务拓展
-制造业设备 B2B 销售通常需要设备技术理解、客户关系管理与渠道开发能力。典型关键词包括大客户、渠道与业务拓展。
+制造业设备 B2B 销售通常需要设备技术理解、客户关系管理与渠道开发能力。优先关注销售工程师、大客户与业务拓展等复合角色表达，避免将泛化 engineer 词汇直接视为销售信号。
 
 ### 测量与质量
 精密测量通常依赖 CMM（三坐标测量机）、3D 扫描与质量检测流程，是制造业 QA/QC 的关键环节。
-
-### 自动化
-工业自动化场景常涉及 PLC、伺服系统与机器人，广泛应用于工厂自动化与智能制造。
 
 ## 排除模式
 
@@ -178,11 +168,11 @@ HR 反馈模式与观察记录。已于 2026-03-10 从 174 条原始 shortlist �
 - 2026-03-10: shortlist_pattern: sales + senior -> high_priority (19x)
 - 2026-03-10: shortlist_pattern: sales/software + senior -> high_priority (16x)
 - 2026-03-10: shortlist_pattern: sales/software + mid -> high_priority (14x)
-- 2026-03-10: shortlist_pattern: machinery/cnc + unknown -> medium_priority (10x)
-- 2026-03-10: shortlist_pattern: machinery/cnc + mid -> medium_priority (7x)
-- 2026-03-10: shortlist_pattern: cnc + mid -> medium_priority (5x)
+- 2026-03-10: shortlist_pattern: machinery + unknown -> medium_priority (10x)
+- 2026-03-10: shortlist_pattern: machinery + mid -> medium_priority (7x)
+- 2026-03-10: shortlist_pattern: machinery + mid -> medium_priority (5x)
 - 2026-03-10: shortlist_pattern: machinery + unknown -> medium_priority (5x)
 - 2026-03-10: shortlist_pattern: machinery/sales/software + senior -> medium_priority (5x)
-- 2026-03-10: shortlist_pattern: cnc + unknown -> medium_priority (5x)
+- 2026-03-10: shortlist_pattern: machinery + unknown -> medium_priority (5x)
 - 2026-03-10: learning_log_compaction: aggregated 174 raw shortlist entries into 50 unique patterns for durable signal storage.
 - 2026-03-10: processing pipeline now excludes selfIntro, jobIntention, and header experience from strict matching; work history is the sole evidence source for experience and scoring.
