@@ -66,6 +66,8 @@ describe("ResumeIndexService", () => {
               companyName: "东莞富佳机械设备有限公司",
               jobTitle: "销售经理",
               description: "负责 CNC 车床客户开发",
+              startDate: "2022-01",
+              endDate: "2025-01",
             },
           ],
           profileEducation: [

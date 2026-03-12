@@ -1,3 +1,4 @@
+import { buildWorkHistoryEntryText } from '@trends/shared'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeAnalysis } from '@/hooks/useConvexResumes'
 import type { MatchBreakdown, Recommendation } from '@/types/resume'
@@ -91,7 +92,7 @@ export function buildRuleScoringText(resume: {
   experience?: string
   location?: string
   selfIntro?: string
-  workHistory?: Array<{ raw?: string }>
+  workHistory?: ResumeItem['workHistory']
   tags?: string[]
 }): string {
   return [
@@ -101,7 +102,7 @@ export function buildRuleScoringText(resume: {
     resume.experience,
     resume.location,
     resume.selfIntro,
-    ...(resume.workHistory || []).map((work) => work.raw),
+    ...(resume.workHistory || []).map((work) => buildWorkHistoryEntryText(work)),
     resume.tags?.join(' '),
   ]
     .filter((item): item is string => Boolean(item))

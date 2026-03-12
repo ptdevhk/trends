@@ -11,7 +11,13 @@
     "jobIntention": "cnc engineer",
     "expectedSalary": "8000-12000",
     "workHistory": [
-      { "raw": "2020-2024 Example Tech Co. CNC Engineer" }
+      {
+        "raw": "2020-2024 Example Tech Co. CNC Engineer",
+        "companyName": "Example Tech Co.",
+        "jobTitle": "CNC Engineer",
+        "startDate": "2020",
+        "endDate": "2024"
+      }
     ],
     "extractedAt": "2026-02-05T08:30:00.000Z",
     "resumeId": "1001",

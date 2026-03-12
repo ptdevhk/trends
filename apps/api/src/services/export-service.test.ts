@@ -140,4 +140,29 @@ describe("ExportService", () => {
 
     expect(parsed.data[0]?.profileUrl).toBe("https://hk.employer.seek.com/candidates/503033454");
   });
+
+  it("renders structured work history fields in export output", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("27"),
+      resume: {
+        ...buildEntry("27").resume,
+        workHistory: [
+          {
+            raw: "2021-03 ~ 2023-08 Example Co. Sales Manager",
+            companyName: "Example Co.",
+            jobTitle: "Sales Manager",
+            startDate: "2021-03",
+            endDate: "2023-08",
+          },
+        ],
+      },
+    };
+
+    const file = await service.exportResumes("csv", [entry]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.workHistory).toContain("2021-03 ~ 2023-08 Example Co. Sales Manager");
+  });
 });

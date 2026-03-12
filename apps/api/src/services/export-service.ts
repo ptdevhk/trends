@@ -1,11 +1,15 @@
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
-import { normalizeProfileUrlForDisplay } from "@trends/shared";
+import {
+  buildWorkHistoryEntryText,
+  normalizeProfileUrlForDisplay,
+  type ResumeWorkHistoryItem as SharedResumeWorkHistoryItem,
+} from "@trends/shared";
 import type { BrandDisplayResolver } from "./brand-display-resolver.js";
 
 export type ExportFormat = "csv" | "xlsx";
 
-type ResumeWorkHistoryItem = {
+type ResumeWorkHistoryItem = Partial<SharedResumeWorkHistoryItem> & {
   raw?: string;
 };
 
@@ -113,8 +117,8 @@ function parseAgeNumber(value: unknown): number | null {
 function toRow(entry: ResumeExportEntry, brandDisplayResolver?: BrandDisplayResolver): ExportRow {
   const workHistory = Array.isArray(entry.resume.workHistory)
     ? entry.resume.workHistory
-      .map((item) => item.raw)
-      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .map((item) => buildWorkHistoryEntryText(item))
+      .filter((item) => item.trim().length > 0)
       .join(" | ")
     : "";
 

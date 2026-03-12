@@ -1,5 +1,8 @@
+import { buildWorkHistoryEntryText } from "@trends/shared";
+
 import { parseSearchQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
+import { extractCompanyFromWorkHistory } from "./work-history.js";
 
 import type { SkillsKnowledgeService } from "./skills-knowledge.js";
 import type { ResumeIndex } from "./resume-index.js";
@@ -46,16 +49,9 @@ function buildSearchText(item: ResumeItem): string {
     item.selfIntro,
     item.education,
     item.expectedSalary,
-    ...(item.workHistory?.map((entry) => entry.raw) ?? []),
+    ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
   ];
   return parts.join(" ").toLowerCase();
-}
-
-function extractCompanyName(raw: string): string {
-  return raw
-    .replace(/^[\d\-~至今年月日()（）.\s]+/, "")
-    .replace(/[\s,，。;；]+/g, " ")
-    .trim();
 }
 
 function dedupeProvenance(items: UnifiedSearchProvenance[]): UnifiedSearchProvenance[] {
@@ -164,7 +160,7 @@ export class UnifiedSearchService {
       const resumeId = resolveResumeId(item, i);
       const index = options?.indexMap?.get(resumeId);
       const searchText = index?.searchText || buildSearchText(item);
-      const companies = index?.companies ?? (item.workHistory?.map((entry) => extractCompanyName(entry.raw)) || []);
+      const companies = index?.companies ?? (item.workHistory?.map((entry) => extractCompanyFromWorkHistory(entry)) || []);
       const industryTags = index?.industryTags ?? [];
       const provenance: UnifiedSearchProvenance[] = [];
       let matchedGroupCount = 0;

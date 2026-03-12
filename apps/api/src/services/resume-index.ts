@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { buildWorkHistoryEvidence } from "@trends/shared";
+import { buildWorkHistoryEntryText, buildWorkHistoryEvidence } from "@trends/shared";
 
 import { findProjectRoot } from "./db.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { resolveResumeId } from "./resume-id.js";
-import { computeWorkHistoryYears } from "./work-history.js";
+import { computeWorkHistoryYears, extractCompanyFromWorkHistory } from "./work-history.js";
 
 import type { ResumeItem, ResumeWorkHistoryItem } from "../types/resume.js";
 
@@ -89,32 +89,12 @@ function parseSalaryRange(value: string): { min?: number; max?: number } | null 
   return { min, max };
 }
 
-function normalizeCompanyName(raw: string): string {
-  return raw
-    .replace(/^[\d\-~至今年月日()（）.\s]+/, "")
-    .replace(/[\s,，。;；]+/g, " ")
-    .trim();
-}
-
 function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
   if (!workHistory.length) return [];
 
-  const companies: string[] = [];
-  for (const item of workHistory) {
-    const cleaned = normalizeCompanyName(item.raw);
-    if (!cleaned) continue;
-
-    const companyMatch = cleaned.match(/([\u4e00-\u9fa5A-Za-z0-9()（）·.&\-]{2,40}(?:公司|集团|科技|机械|设备|自动化|股份|有限|厂))/);
-    if (companyMatch) {
-      companies.push(companyMatch[1]);
-      continue;
-    }
-
-    const firstToken = cleaned.split(/\s+/g).find((token) => token.length >= 2);
-    if (firstToken) {
-      companies.push(firstToken);
-    }
-  }
+  const companies = workHistory
+    .map((item) => extractCompanyFromWorkHistory(item))
+    .filter((company) => company.length > 0);
 
   return Array.from(new Set(companies)).slice(0, 20);
 }
@@ -125,7 +105,7 @@ function createSearchText(item: ResumeItem): string {
     item.education,
     item.location,
     item.expectedSalary,
-    ...(item.workHistory?.map((entry) => entry.raw) ?? []),
+    ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
   ];
 
   return normalizeText(parts.join(" "));

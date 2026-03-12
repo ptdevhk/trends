@@ -17,7 +17,7 @@ const SELECTORS = {
   topRow: '.list-content__li__up-block',
   topRowText: '.up-block__look-text',
   workHistory: '.work-block',
-  workItem: '.work-item, .school-item',
+  workItem: '.work-item',
   pagination: '.el-pagination',
   nextPageBtn: '.el-pagination .btn-next',
   searchInput: '.el-autocomplete input.el-input__inner',
@@ -421,6 +421,54 @@ function buildSeekProfileEducationItem(item) {
   return {
     institution: institution || undefined,
     qualification: qualification || undefined,
+    endDate: endDate || undefined,
+  };
+}
+
+function normalizeResumeText(value) {
+  return typeof value === 'string' ? value.replace(/[\u3000\s]+/g, ' ').trim() : '';
+}
+
+function buildWorkHistoryRawParts(parts) {
+  return parts.filter(Boolean).join(' · ');
+}
+
+function buildJob5156WorkHistoryItem(item) {
+  if (!(item instanceof Element)) return null;
+
+  const startDate = normalizeResumeText(item.querySelector('.work-time > span:first-child')?.textContent);
+  const durationLabel = normalizeResumeText(item.querySelector('.work-time-other')?.textContent);
+  const companyName = normalizeResumeText(item.querySelector('.work-company')?.textContent);
+  const jobTitle = normalizeResumeText(item.querySelector('.work-position')?.textContent);
+  const description = normalizeResumeText(item.querySelector('.work-desc, .work-detail, .work-content, .work-responsibility, .work-duty')?.textContent);
+  const endDate = startDate.includes('~') ? normalizeResumeText(startDate.split('~').slice(1).join('~')) : '';
+  const raw = buildWorkHistoryRawParts([startDate, durationLabel, companyName, jobTitle, description]);
+
+  if (!raw) return null;
+
+  return {
+    raw,
+    companyName: companyName || undefined,
+    jobTitle: jobTitle || undefined,
+    description: description || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  };
+}
+
+function buildJob5156EducationItem(item) {
+  if (!(item instanceof Element)) return null;
+
+  const institution = normalizeResumeText(item.querySelector('.school-name')?.textContent);
+  const qualification = normalizeResumeText(item.querySelector('.school-major')?.textContent);
+  const degree = normalizeResumeText(item.querySelector('.school-degree')?.textContent);
+  const endDate = normalizeResumeText(item.querySelector('.school-time')?.textContent);
+
+  if (!institution && !qualification && !degree && !endDate) return null;
+
+  return {
+    institution: institution || undefined,
+    qualification: [qualification, degree].filter(Boolean).join(' · ') || undefined,
     endDate: endDate || undefined,
   };
 }
@@ -959,25 +1007,37 @@ function extractSingleResume(card, apiRow = null) {
   const workHistoryContainer = card.querySelector(SELECTORS.workHistory)
     || card.querySelector('.list-content__li__down-right-center');
   let workItems = [];
+  let educationItems = [];
   if (workHistoryContainer) {
     const primary = workHistoryContainer.querySelectorAll(SELECTORS.workItem);
     if (primary.length > 0) {
       workItems = Array.from(primary);
+      educationItems = Array.from(workHistoryContainer.querySelectorAll('.school-item'));
     } else {
       workItems = Array.from(workHistoryContainer.querySelectorAll('div[class*="history"]'));
     }
   }
 
-  const seen = new Set();
+  const seenWorkHistory = new Set();
   const workHistory = workItems
-    .map((item) => item.textContent.trim())
-    .filter((text) => text && text.length > 5)
-    .filter((text) => {
-      if (seen.has(text)) return false;
-      seen.add(text);
+    .map((item) => buildJob5156WorkHistoryItem(item))
+    .filter((item) => item && item.raw.length > 5)
+    .filter((item) => {
+      if (!item || seenWorkHistory.has(item.raw)) return false;
+      seenWorkHistory.add(item.raw);
       return true;
-    })
-    .map((text) => ({ raw: text }));
+    });
+
+  const seenEducation = new Set();
+  const profileEducation = educationItems
+    .map((item) => buildJob5156EducationItem(item))
+    .filter((item) => item && [item.institution, item.qualification, item.endDate].some(Boolean))
+    .filter((item) => {
+      const signature = [item.institution || '', item.qualification || '', item.endDate || ''].join('|');
+      if (seenEducation.has(signature)) return false;
+      seenEducation.add(signature);
+      return true;
+    });
 
   return {
     name: getText(SELECTORS.name),
@@ -991,6 +1051,7 @@ function extractSingleResume(card, apiRow = null) {
     expectedSalary,
     selfIntro,
     workHistory,
+    profileEducation: profileEducation.length > 0 ? profileEducation : undefined,
     extractedAt: new Date().toISOString(),
     source: JOB5156_HOST,
   };
