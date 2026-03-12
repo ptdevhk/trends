@@ -29,7 +29,6 @@ const syncResult = /** @type {HTMLElement} */ (document.getElementById('sync-res
 const DEFAULT_SERVER_URL = 'https://trends.pt-mes.com';
 
 // State
-let extractedData = [];
 let lastDiagnosticDownloadId = null;
 let serverConfigured = false;
 let configuredServerUrl = '';
@@ -273,9 +272,9 @@ async function handleExtract() {
         const response = await sendToContent('extractCurrentPage');
 
         if (response.success) {
-            extractedData = response.data;
+            const resumes = Array.isArray(response.data) ? response.data : [];
             showStatus(`✅ 成功提取 ${response.count} 条简历`, 'success');
-            showPreview(extractedData);
+            showPreview(resumes);
 
             if (response.pagination) {
                 pageCurrent.textContent = response.pagination.currentPage || '-';
