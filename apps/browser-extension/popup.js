@@ -82,47 +82,6 @@ function normalizeServerUrl(value) {
     return raw ? raw.replace(/\/+$/, '') : '';
 }
 
-function getExtensionGeneratedBy() {
-    let generatedBy = 'browser-extension';
-    try {
-        const version = chrome?.runtime?.getManifest?.().version;
-        if (version) generatedBy = `browser-extension@${version}`;
-    } catch {
-        // ignore
-    }
-    return generatedBy;
-}
-
-async function getActiveTabUrl() {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const tab = tabs[0];
-    if (!tab?.url) throw new Error('No active tab URL');
-    if (!tab.url.includes('hr.job5156.com') && !tab.url.includes('.employer.seek.com')) {
-        throw new Error('请在 Job5156 或 Seek 招聘页面使用');
-    }
-    return tab.url;
-}
-
-function buildSubmitMetadata(sourceUrl) {
-    const metadata = {
-        sourceUrl,
-        generatedBy: getExtensionGeneratedBy(),
-    };
-
-    try {
-        const url = new URL(sourceUrl);
-        metadata.sourceHost = url.hostname.toLowerCase();
-        metadata.sourceKey = url.hostname.toLowerCase().endsWith('.employer.seek.com') ? 'seek' : 'job5156';
-        const keyword = (url.searchParams.get('keyword') || '').trim();
-        const location = (url.searchParams.get('location') || '').trim();
-        if (keyword) metadata.keyword = keyword;
-        if (location) metadata.location = location;
-    } catch {
-        // ignore
-    }
-
-    return metadata;
-}
 
 function showDiagnostics(payload) {
     if (!diagnostics || !diagnosticsOutput) return;
@@ -193,8 +152,13 @@ async function handleSyncToServer() {
         }
 
         const resumes = Array.isArray(extractResponse.data) ? extractResponse.data : [];
-        const sourceUrl = await getActiveTabUrl();
-        const metadata = buildSubmitMetadata(sourceUrl);
+        const metadata = extractResponse?.metadata && typeof extractResponse.metadata === 'object' && !Array.isArray(extractResponse.metadata)
+            ? extractResponse.metadata
+            : null;
+
+        if (!metadata) {
+            throw new Error('无法读取页面同步元数据，请刷新页面后重试');
+        }
 
         const response = await sendToBackground('syncToServer', { metadata, resumes });
         if (!response?.success) {

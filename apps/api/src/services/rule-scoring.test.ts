@@ -131,6 +131,45 @@ describe("RuleScoringService", () => {
     }
   });
 
+  it("keeps CNC 数控车床 销售 keyword searches free of JD role gating", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const keywordContext = service.buildContextFromKeywords(["CNC", "数控车床", "销售"], "东莞");
+      const jdContext = service.buildContext("lathe-sales");
+
+      const cncSalesCandidate: ResumeIndex = {
+        resumeId: "R-keyword-only-cnc-sales",
+        experienceYears: 4,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        evidenceText: "2021-2025 东莞机床公司 数控车床销售工程师 负责CNC设备客户开发",
+        skills: ["cnc", "数控车床", "销售"],
+        companies: ["东莞机床公司"],
+        industryTags: ["cnc", "sales"],
+        salaryRange: { min: 12000, max: 18000 },
+        searchText: "东莞 cnc 数控车床 销售 客户开发",
+      };
+
+      const keywordResult = service.scoreResume(cncSalesCandidate, keywordContext);
+      const jdResult = service.scoreResume(cncSalesCandidate, jdContext);
+
+      expect(keywordContext.keywords).toEqual(["cnc", "数控车床", "销售"]);
+      expect(keywordContext.requiredRoles).toEqual([]);
+      expect(keywordResult.breakdown.skillMatch).toBeGreaterThan(0);
+      expect(keywordResult.breakdown.roleMatch).toBe(10);
+      expect(keywordResult.recommendation).toBe("strong_match");
+
+      expect(jdContext.requiredRoles).toHaveLength(1);
+      expect(jdResult.breakdown.roleMatch).toBe(2);
+      expect(jdResult.breakdown.experienceMatch).toBe(0);
+      expect(keywordResult.score).toBeGreaterThan(jdResult.score);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
   it("scores strong candidate higher than weak candidate", () => {
     const root = createFixtureRoot();
 

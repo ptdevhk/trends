@@ -38,6 +38,8 @@ export type ResumeFilters = {
 
 type ResumeMetadata = {
   sourceUrl?: string;
+  sourceHost?: string;
+  sourceKey?: string;
   searchCriteria?: {
     keyword?: string;
     location?: string;
@@ -84,7 +86,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function normalizeResumeItem(item: unknown): ResumeItem {
+function inferResumeSource(metadata?: ResumeMetadata): string | undefined {
+  const sourceHost = toStringValue(metadata?.sourceHost).toLowerCase();
+  if (sourceHost) {
+    return sourceHost;
+  }
+
+  const sourceUrl = toStringValue(metadata?.sourceUrl);
+  if (sourceUrl) {
+    try {
+      return new URL(sourceUrl).hostname.toLowerCase();
+    } catch {
+      // ignore
+    }
+  }
+
+  const sourceKey = toStringValue(metadata?.sourceKey).toLowerCase();
+  if (sourceKey === "job5156") {
+    return "hr.job5156.com";
+  }
+  if (sourceKey === "seek") {
+    return "seek";
+  }
+
+  return undefined;
+}
+
+function normalizeResumeItem(item: unknown, source?: string): ResumeItem {
   const record = isRecord(item) ? item : {};
 
   const resumeId = toStringValue(record.resumeId);
@@ -103,7 +131,7 @@ function normalizeResumeItem(item: unknown): ResumeItem {
     jobIntention: toStringValue(record.jobIntention),
     expectedSalary: toStringValue(record.expectedSalary),
     extractedAt: toStringValue(record.extractedAt),
-    ...normalizeSharedResumeFields(record, "hr.job5156.com"),
+    ...normalizeSharedResumeFields(record, source),
     resumeId: resumeId || undefined,
     perUserId: perUserId || undefined,
     profileId: profileId || undefined,
@@ -125,7 +153,9 @@ function normalizePayload(payload: ResumePayload, filepath: string): ResumeItem[
     throw new FileParseError(filepath, "Expected a JSON array of resumes");
   }
 
-  return list.map((item) => normalizeResumeItem(item));
+  const metadata = !Array.isArray(payload) && payload ? payload.metadata : undefined;
+  const source = inferResumeSource(metadata);
+  return list.map((item) => normalizeResumeItem(item, source));
 }
 
 export class ResumeService {
