@@ -61,8 +61,28 @@ describe("ResumeIndexService", () => {
           jobIntention: "东莞 车床 销售 CNC",
           expectedSalary: "12000-18000元/月",
           workHistory: [
-            { raw: "2022-01~2025-01 东莞富佳机械设备有限公司 销售经理" },
+            {
+              raw: "2022-01~2025-01 东莞富佳机械设备有限公司 销售经理",
+              companyName: "东莞富佳机械设备有限公司",
+              jobTitle: "销售经理",
+              description: "负责 CNC 车床客户开发",
+            },
           ],
+          profileEducation: [
+            {
+              institution: "华南理工大学",
+              qualification: "机械工程本科",
+            },
+          ],
+          skills: ["CNC", { name: "Key account management", yearsOfExperience: 3 }],
+          languages: ["中文", { name: "English", proficiency: "professional" }],
+          licences: [{ name: "C1" }],
+          resumeSnippet: { text: "有机床设备销售经验" },
+          currentIndustry: { name: "工业机械" },
+          currentSubindustry: "数控机床",
+          rightToWork: { status: "citizen" },
+          digitalIdentity: { linkedinUrl: "https://www.linkedin.com/in/example" },
+          noticePeriodDays: 30,
           extractedAt: "2026-02-11T00:00:00.000Z",
           resumeId: "R1001",
           perUserId: "U1001",
@@ -83,6 +103,9 @@ describe("ResumeIndexService", () => {
       expect(entry?.evidenceText).toBe(buildWorkHistoryEvidence(resumes[0]?.workHistory).text);
       expect(entry?.searchText).not.toContain("熟悉cnc车床和设备销售");
       expect(entry?.searchText).not.toContain("东莞 车床 销售 cnc");
+      expect(resumes[0]?.profileEducation?.[0]?.institution).toBe("华南理工大学");
+      expect(resumes[0]?.currentIndustry).toEqual({ name: "工业机械" });
+      expect(resumes[0]?.noticePeriodDays).toBe(30);
       expect(entry?.salaryRange?.min).toBe(12000);
       expect(entry?.salaryRange?.max).toBe(18000);
     } finally {

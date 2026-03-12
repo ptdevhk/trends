@@ -46,7 +46,14 @@ const AUTO_LOCATION_PARAM = 'location';
 const AUTO_KEYWORD_MODE_PARAM = 'tr_kw_mode';
 const SAMPLE_NAME_PARAM = 'tr_sample_name';
 const JOB5156_HOST = 'hr.job5156.com';
+const SEEK_HOST_SUFFIX = '.employer.seek.com';
 const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
+const SOURCE_KEYS = {
+  JOB5156: 'job5156',
+  SEEK: 'seek',
+  UNKNOWN: 'unknown'
+};
+const SEEK_PROFILE_TYPE = 'seek';
 const KEYWORD_MODE_CONCAT = 'concat';
 const KEYWORD_MODE_SPACED = 'spaced';
 let autoExportTriggered = false;
@@ -54,15 +61,24 @@ let autoSyncTriggered = false;
 let autoSyncCancelled = false;
 const API_CAPTURE_SOURCE = 'tr-resume-api';
 const EXTERNAL_ACCESS_KEY = '__TR_RESUME_DATA__';
+const PAGE_BRIDGE_REQUEST_EVENT = 'trResumeBridgeRequest';
+const PAGE_BRIDGE_RESPONSE_EVENT = 'trResumeBridgeResponse';
+const PAGE_BRIDGE_REQUEST_ATTR = 'data-tr-resume-bridge-request';
+const PAGE_BRIDGE_RESPONSE_ATTR = 'data-tr-resume-bridge-response';
 
 const apiSnapshot = {
   searchRows: null,
   attachInfo: null,
   chatInfo: null,
   insightInfo: null,
+  seekRecommendedCandidates: null,
+  seekProfile: null,
+  seekRequest: null,
   lastUpdatedAt: null,
   lastSearchAt: null,
-  lastUrl: null
+  lastUrl: null,
+  lastSourceKey: null,
+  lastOperationName: null
 };
 
 function sanitizeSampleName(value) {
@@ -286,8 +302,54 @@ function buildExportMetadata(resumes) {
   };
 }
 
+function getCurrentSourceKey() {
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname === JOB5156_HOST) return SOURCE_KEYS.JOB5156;
+  if (hostname.endsWith(SEEK_HOST_SUFFIX)) return SOURCE_KEYS.SEEK;
+  return SOURCE_KEYS.UNKNOWN;
+}
+
+function getApiSnapshotCount() {
+  if (Array.isArray(apiSnapshot.searchRows)) {
+    return apiSnapshot.searchRows.length;
+  }
+  if (Array.isArray(apiSnapshot.seekRecommendedCandidates)) {
+    return apiSnapshot.seekRecommendedCandidates.length;
+  }
+  return 0;
+}
+
+function isSeekSnapshotReady() {
+  return Array.isArray(apiSnapshot.seekRecommendedCandidates);
+}
+
+function getSeekCandidateIdentity(candidate) {
+  const profileId = candidate?.profileId != null ? String(candidate.profileId) : '';
+  return {
+    profileId,
+    profileType: typeof candidate?.profileType === 'string' ? candidate.profileType : SEEK_PROFILE_TYPE
+  };
+}
+
+function buildSeekCollectionContext() {
+  const requestInput = apiSnapshot.seekRequest?.variables?.input;
+  const language = apiSnapshot.seekRequest?.variables?.language;
+  const pageNumberFromUrl = normalizeOptionalPositiveInt(new URL(window.location.href).searchParams.get('pageNumber'));
+
+  return {
+    captureMode: 'graphql-list',
+    operation: apiSnapshot.lastOperationName || 'GetTalentSearchRecommendedCandidates',
+    jobId: requestInput?.jobId != null ? String(requestInput.jobId) : undefined,
+    searchId: typeof requestInput?.searchId === 'string' ? requestInput.searchId : undefined,
+    pageNumber: typeof requestInput?.page === 'number' ? requestInput.page : pageNumberFromUrl ?? undefined,
+    language: typeof language === 'string' ? language : undefined,
+    profileType: SEEK_PROFILE_TYPE,
+  };
+}
+
 function buildSubmitMetadata() {
   const url = new URL(window.location.href);
+  const sourceKey = getCurrentSourceKey();
   const keyword = normalizeKeyword(url.searchParams.get(AUTO_SEARCH_PARAM) || '');
   const locationRaw = (url.searchParams.get(AUTO_LOCATION_PARAM) || '').trim();
   const location = locationRaw ? locationRaw.split(/[\s,]+/).filter(Boolean).join(',') : '';
@@ -307,12 +369,17 @@ function buildSubmitMetadata() {
   }
 
   const metadata = {
+    sourceKey,
+    sourceHost: url.hostname.toLowerCase(),
     sourceUrl: url.toString(),
     generatedBy,
   };
 
   if (keyword) metadata.keyword = keyword;
   if (location) metadata.location = location;
+  if (sourceKey === SOURCE_KEYS.SEEK) {
+    metadata.collectionContext = buildSeekCollectionContext();
+  }
 
   return metadata;
 }
@@ -404,6 +471,31 @@ function buildProfileUrlFromApiRow(apiRow) {
   return `${JOB5156_PROFILE_URL_PREFIX}${encodedId}`;
 }
 
+function getSeekPayloadData(payload, kind) {
+  if (!payload) return null;
+
+  if (Array.isArray(payload)) {
+    const entry = payload.find((item) => {
+      const data = item?.data;
+      if (!data || typeof data !== 'object') return false;
+      if (kind === 'seekRecommendedCandidates') {
+        return !!(data.talentSearchRecommendedCandidatesV2 || data.getTalentSearchRecommendedCandidates);
+      }
+      if (kind === 'seekProfile') {
+        return !!(data.talentSearchProfileV2 || data.talentSearchProfileCompleteV2 || data.getTalentSearchProfileCompleteV2);
+      }
+      return false;
+    });
+    return entry?.data || null;
+  }
+
+  if (payload && typeof payload === 'object') {
+    return payload.data && typeof payload.data === 'object' ? payload.data : payload;
+  }
+
+  return null;
+}
+
 function extractProfileUrl(card, apiRow) {
   const nameLink = card.querySelector(SELECTORS.name);
   if (!nameLink) return buildProfileUrlFromApiRow(apiRow);
@@ -424,13 +516,19 @@ function extractProfileUrl(card, apiRow) {
   return buildProfileUrlFromApiRow(apiRow);
 }
 
-function updateApiSnapshot(kind, payload, url) {
+function updateApiSnapshot(message) {
+  const { kind, payload, url, sourceKey, operationName, request } = message;
   apiSnapshot.lastUpdatedAt = new Date().toISOString();
   if (url) apiSnapshot.lastUrl = url;
+  apiSnapshot.lastSourceKey = sourceKey || null;
+  apiSnapshot.lastOperationName = operationName || null;
 
   try {
     document.documentElement.setAttribute('data-tr-api-last', kind);
     document.documentElement.setAttribute('data-tr-api-updated', apiSnapshot.lastUpdatedAt);
+    if (sourceKey) {
+      document.documentElement.setAttribute('data-tr-source-key', sourceKey);
+    }
   } catch {
     // ignore
   }
@@ -441,7 +539,7 @@ function updateApiSnapshot(kind, payload, url) {
       apiSnapshot.searchRows = rows;
       apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
       try {
-        document.documentElement.setAttribute('data-tr-api-rows', String(rows.length));
+        document.documentElement.setAttribute('data-tr-api-rows', String(getApiSnapshotCount()));
       } catch {
         // ignore
       }
@@ -458,6 +556,33 @@ function updateApiSnapshot(kind, payload, url) {
   }
   if (kind === 'insight') {
     apiSnapshot.insightInfo = payload?.data?.talentInsightInfo || payload?.data || null;
+    return;
+  }
+  if (kind === 'seekRecommendedCandidates') {
+    const data = getSeekPayloadData(payload, kind);
+    const candidates = data?.talentSearchRecommendedCandidatesV2?.items
+      || data?.getTalentSearchRecommendedCandidates?.candidates;
+    if (Array.isArray(candidates)) {
+      apiSnapshot.seekRecommendedCandidates = candidates;
+      apiSnapshot.seekRequest = request || null;
+      apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
+      try {
+        document.documentElement.setAttribute('data-tr-api-rows', String(getApiSnapshotCount()));
+      } catch {
+        // ignore
+      }
+    }
+    return;
+  }
+  if (kind === 'seekProfile') {
+    const data = getSeekPayloadData(payload, kind);
+    apiSnapshot.seekProfile = data?.talentSearchProfileV2
+      || data?.talentSearchProfileCompleteV2
+      || data?.getTalentSearchProfileCompleteV2
+      || data
+      || null;
+    apiSnapshot.seekRequest = request || apiSnapshot.seekRequest || null;
+    return;
   }
 }
 
@@ -497,7 +622,75 @@ window.addEventListener('message', (event) => {
   if (event.source !== window) return;
   const msg = event.data;
   if (!msg || msg.source !== API_CAPTURE_SOURCE) return;
-  updateApiSnapshot(msg.kind, msg.payload, msg.url);
+  updateApiSnapshot(msg);
+});
+
+window.addEventListener(PAGE_BRIDGE_REQUEST_EVENT, async () => {
+  const requestPayload = document.documentElement.getAttribute(PAGE_BRIDGE_REQUEST_ATTR);
+  if (!requestPayload) return;
+
+  let response = {
+    id: null,
+    ok: false,
+    error: 'Invalid bridge request',
+    value: undefined
+  };
+
+  try {
+    const request = JSON.parse(requestPayload);
+    const requestId = request?.id ?? null;
+    const method = typeof request?.method === 'string' ? request.method : '';
+    const args = Array.isArray(request?.args) ? request.args : [];
+
+    response.id = requestId;
+
+    switch (method) {
+      case 'extract':
+        response = { id: requestId, ok: true, error: '', value: extractResumes() };
+        break;
+      case 'extractRaw':
+        response = { id: requestId, ok: true, error: '', value: extractResumesRaw(args[0]) };
+        break;
+      case 'getApiSnapshot':
+        response = { id: requestId, ok: true, error: '', value: apiSnapshot };
+        break;
+      case 'getPaginationInfo':
+        response = { id: requestId, ok: true, error: '', value: getPaginationInfo() };
+        break;
+      case 'isReady':
+        response = { id: requestId, ok: true, error: '', value: document.querySelector(SELECTORS.listContainer) !== null };
+        break;
+      case 'isLoggedIn':
+        response = { id: requestId, ok: true, error: '', value: isLoggedIn() };
+        break;
+      case 'status':
+        response = { id: requestId, ok: true, error: '', value: window[EXTERNAL_ACCESS_KEY]?.status?.() };
+        break;
+      case 'syncToServer':
+        response = { id: requestId, ok: true, error: '', value: await syncCurrentPageToServer(args[0]) };
+        break;
+      case 'goToNextPage':
+        response = { id: requestId, ok: true, error: '', value: goToNextPageInternal() };
+        break;
+      default:
+        response = {
+          id: requestId,
+          ok: false,
+          error: method ? `Unsupported bridge method: ${method}` : 'Missing bridge method',
+          value: undefined
+        };
+        break;
+    }
+  } catch (error) {
+    response = {
+      ...response,
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+
+  document.documentElement.setAttribute(PAGE_BRIDGE_RESPONSE_ATTR, JSON.stringify(response));
+  window.dispatchEvent(new CustomEvent(PAGE_BRIDGE_RESPONSE_EVENT));
 });
 
 /**
@@ -606,7 +799,8 @@ function extractSingleResume(card, apiRow = null) {
     expectedSalary,
     selfIntro,
     workHistory,
-    extractedAt: new Date().toISOString()
+    extractedAt: new Date().toISOString(),
+    source: JOB5156_HOST,
   };
 }
 
@@ -614,7 +808,64 @@ function extractSingleResume(card, apiRow = null) {
  * Extract all resumes from current page
  * @returns {Array} - Array of resume objects
  */
+function extractSeekResumes() {
+  const candidates = Array.isArray(apiSnapshot.seekRecommendedCandidates) ? apiSnapshot.seekRecommendedCandidates : [];
+  const requestInput = apiSnapshot.seekRequest?.variables?.input;
+  const language = apiSnapshot.seekRequest?.variables?.language;
+  const currentPage = typeof requestInput?.page === 'number'
+    ? requestInput.page
+    : normalizeOptionalPositiveInt(new URL(window.location.href).searchParams.get('pageNumber')) || 1;
+
+  return candidates.map((candidate, index) => {
+    const { profileId, profileType } = getSeekCandidateIdentity(candidate);
+    const firstName = typeof candidate?.firstName === 'string' ? candidate.firstName.trim() : '';
+    const lastName = typeof candidate?.lastName === 'string' ? candidate.lastName.trim() : '';
+    const currentJobTitle = typeof candidate?.currentJobTitle === 'string' ? candidate.currentJobTitle.trim() : '';
+    const currentLocation = typeof candidate?.currentLocation === 'string' ? candidate.currentLocation.trim() : '';
+    const lastModifiedDate = typeof candidate?.lastModifiedDate === 'string' ? candidate.lastModifiedDate : '';
+    const salary = candidate?.salary;
+    const salaryParts = [salary?.minLabel, salary?.maxLabel].filter((value) => typeof value === 'string' && value.trim());
+    const workHistory = Array.isArray(candidate?.workHistories)
+      ? candidate.workHistories
+          .map((item) => {
+            const title = typeof item?.jobTitle === 'string' ? item.jobTitle.trim() : '';
+            const company = typeof item?.companyName === 'string' ? item.companyName.trim() : '';
+            const raw = [title, company].filter(Boolean).join(' · ');
+            return raw ? { raw } : null;
+          })
+          .filter(Boolean)
+      : [];
+
+    return {
+      profileId,
+      profileType,
+      externalId: profileId ? `${window.location.hostname.toLowerCase()}:profile:${profileId}` : '',
+      name: [firstName, lastName].filter(Boolean).join(' ').trim(),
+      profileUrl: profileId ? `https://${window.location.hostname.toLowerCase()}/candidates/${encodeURIComponent(profileId)}` : '',
+      activityStatus: lastModifiedDate,
+      age: '',
+      experience: '',
+      education: '',
+      location: currentLocation,
+      jobIntention: currentJobTitle,
+      expectedSalary: salaryParts.join(' - '),
+      selfIntro: '',
+      workHistory,
+      extractedAt: new Date().toISOString(),
+      pageIndex: index + 1,
+      source: window.location.hostname.toLowerCase(),
+      searchProfileId: typeof requestInput?.searchId === 'string' ? requestInput.searchId : '',
+      language: typeof language === 'string' ? language : '',
+      pageNumber: currentPage,
+    };
+  });
+}
+
 function extractResumes() {
+  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK && Array.isArray(apiSnapshot.seekRecommendedCandidates)) {
+    return extractSeekResumes();
+  }
+
   const cards = document.querySelectorAll(SELECTORS.resumeCard);
   const resumes = [];
 
@@ -643,6 +894,37 @@ function extractResumes() {
  * @returns {Object} - Raw payload
  */
 function extractResumesRaw({ includePage = false } = {}) {
+  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK && Array.isArray(apiSnapshot.seekRecommendedCandidates)) {
+    const payload = {
+      url: window.location.href,
+      extractedAt: new Date().toISOString(),
+      count: apiSnapshot.seekRecommendedCandidates.length,
+      cards: apiSnapshot.seekRecommendedCandidates.map((candidate, index) => {
+        const { profileId, profileType } = getSeekCandidateIdentity(candidate);
+        return {
+          index: index + 1,
+          profileId,
+          profileType,
+          text: JSON.stringify(candidate, null, 2),
+        };
+      }),
+      api: {
+        lastSearchAt: apiSnapshot.lastSearchAt,
+        lastUpdatedAt: apiSnapshot.lastUpdatedAt,
+        searchRowCount: apiSnapshot.seekRecommendedCandidates.length,
+        sourceKey: SOURCE_KEYS.SEEK,
+        operationName: apiSnapshot.lastOperationName,
+        request: apiSnapshot.seekRequest,
+      }
+    };
+
+    if (includePage) {
+      payload.pageHtml = document.documentElement.outerHTML;
+    }
+
+    return payload;
+  }
+
   const cards = document.querySelectorAll(SELECTORS.resumeCard);
   const items = Array.from(cards).map((card, index) => {
     const el = /** @type {HTMLElement} */ (card);
@@ -773,9 +1055,39 @@ async function downloadFile(content, filename, mimeType, saveAs = false) {
  * Get pagination info
  * @returns {Object} - Current page, total pages, total items
  */
+function getSeekCardCount() {
+  return document.querySelectorAll('a[href*="/talentsearch/profile/"][href*="profilePosition="]').length;
+}
+
+function getSeekPaginationInfo() {
+  const currentPage = normalizeOptionalPositiveInt(new URL(window.location.href).searchParams.get('pageNumber')) || 1;
+  const pagination = document.querySelector('nav[aria-label="Pagination of results"]');
+  if (!pagination) {
+    return { currentPage, totalPages: currentPage, totalItems: 0, hasNextPage: false };
+  }
+
+  const links = Array.from(pagination.querySelectorAll('a'));
+  const pageNumbers = links
+    .map((item) => {
+      const label = item.getAttribute('aria-label') || '';
+      const text = item.textContent || '';
+      const match = label.match(/page\s+(\d+)/i) || text.trim().match(/^(\d+)$/);
+      return match ? Number.parseInt(match[1], 10) : 0;
+    })
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const hasNextPage = links.some((item) => /next/i.test((item.textContent || '').trim()));
+  const totalPages = Math.max(pageNumbers.length > 0 ? Math.max(...pageNumbers) : 0, currentPage);
+
+  return { currentPage, totalPages, totalItems: 0, hasNextPage };
+}
+
 function getPaginationInfo() {
+  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
+    return getSeekPaginationInfo();
+  }
+
   const pagination = document.querySelector(SELECTORS.pagination);
-  if (!pagination) return { currentPage: 1, totalPages: 1, totalItems: 0 };
+  if (!pagination) return { currentPage: 1, totalPages: 1, totalItems: 0, hasNextPage: false };
 
   const totalText = pagination.textContent || '';
   const totalMatch = totalText.match(/共\s*([\d,，]+)\s*条/);
@@ -796,7 +1108,7 @@ function getPaginationInfo() {
   const totalPagesFromTotal = totalItems > 0 ? Math.ceil(totalItems / 20) : 0;
   const totalPages = Math.max(totalPagesFromTotal, totalPagesFromPager, currentPage);
 
-  return { currentPage, totalPages, totalItems };
+  return { currentPage, totalPages, totalItems, hasNextPage: totalPages > currentPage };
 }
 
 function goToNextPageInternal() {
@@ -1133,7 +1445,7 @@ function waitForApiRows({ timeoutMs = 5000, minCount = 1 } = {}) {
 
     const check = () => {
       if (done) return;
-      const count = Array.isArray(apiSnapshot.searchRows) ? apiSnapshot.searchRows.length : 0;
+      const count = getApiSnapshotCount();
       if (count >= minCount) {
         done = true;
         cleanup();
@@ -2160,14 +2472,60 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 function getExtensionVersion() {
   try {
-    return chrome?.runtime?.getManifest?.().version || 'unknown';
+    return chrome?.runtime?.getManifest?.().version || SOURCE_KEYS.UNKNOWN;
   } catch {
-    return 'unknown';
+    return SOURCE_KEYS.UNKNOWN;
   }
 }
 
 function isLoggedIn() {
   return !document.querySelector('.login-btn, [href*="login"]');
+}
+
+function getExternalAccessorStatus() {
+  const version = getExtensionVersion();
+  const pagination = getPaginationInfo();
+  const ageRange = getAgeRangeFromUrl();
+  const sourceKey = getCurrentSourceKey();
+  const apiSnapshotCount = getApiSnapshotCount();
+  const cardCount = sourceKey === SOURCE_KEYS.SEEK
+    ? Math.max(apiSnapshotCount, getSeekCardCount())
+    : document.querySelectorAll(SELECTORS.resumeCard).length;
+  const autoSearch = document.documentElement.getAttribute('data-tr-auto-search') || '';
+  const autoLocation = document.documentElement.getAttribute('data-tr-auto-location') || '';
+  const autoExport = document.documentElement.getAttribute('data-tr-auto-export') || '';
+  const autoSync = document.documentElement.getAttribute('data-tr-auto-sync') || '';
+  const autoSyncCountRaw = document.documentElement.getAttribute('data-tr-auto-sync-count') || '';
+  const autoSyncPagesRaw = document.documentElement.getAttribute('data-tr-auto-sync-pages') || '';
+  const autoSyncCount = Number.parseInt(autoSyncCountRaw, 10);
+  const autoSyncPages = Number.parseInt(autoSyncPagesRaw, 10);
+
+  return {
+    extensionLoaded: true,
+    extensionVersion: version,
+    sourceKey,
+    apiSnapshotCount,
+    domReady: sourceKey === SOURCE_KEYS.SEEK
+      ? isSeekSnapshotReady()
+      : document.querySelector(SELECTORS.listContainer) !== null,
+    loggedIn: isLoggedIn(),
+    ageRange: ageRange.enabled
+      ? {
+          minAge: typeof ageRange.minAge === 'number' ? ageRange.minAge : null,
+          maxAge: typeof ageRange.maxAge === 'number' ? ageRange.maxAge : null,
+        }
+      : null,
+    cardCount,
+    autoSearch,
+    autoLocation,
+    autoExport,
+    autoSync,
+    autoSyncCount: Number.isFinite(autoSyncCount) ? autoSyncCount : 0,
+    autoSyncPages: Number.isFinite(autoSyncPages) ? autoSyncPages : 0,
+    pagination,
+    lastOperationName: apiSnapshot.lastOperationName,
+    timestamp: new Date().toISOString()
+  };
 }
 
 function installExternalAccessor() {
@@ -2180,41 +2538,7 @@ function installExternalAccessor() {
       getPaginationInfo: () => getPaginationInfo(),
       isReady: () => document.querySelector(SELECTORS.listContainer) !== null,
       isLoggedIn: () => isLoggedIn(),
-      status: () => {
-        const pagination = getPaginationInfo();
-        const ageRange = getAgeRangeFromUrl();
-        const cardCount = document.querySelectorAll(SELECTORS.resumeCard).length;
-        const autoSearch = document.documentElement.getAttribute('data-tr-auto-search') || '';
-        const autoLocation = document.documentElement.getAttribute('data-tr-auto-location') || '';
-        const autoExport = document.documentElement.getAttribute('data-tr-auto-export') || '';
-        const autoSync = document.documentElement.getAttribute('data-tr-auto-sync') || '';
-        const autoSyncCountRaw = document.documentElement.getAttribute('data-tr-auto-sync-count') || '';
-        const autoSyncPagesRaw = document.documentElement.getAttribute('data-tr-auto-sync-pages') || '';
-        const autoSyncCount = Number.parseInt(autoSyncCountRaw, 10);
-        const autoSyncPages = Number.parseInt(autoSyncPagesRaw, 10);
-        return {
-          extensionLoaded: true,
-          extensionVersion: version,
-          apiSnapshotCount: Array.isArray(apiSnapshot.searchRows) ? apiSnapshot.searchRows.length : 0,
-          domReady: document.querySelector(SELECTORS.listContainer) !== null,
-          loggedIn: isLoggedIn(),
-          ageRange: ageRange.enabled
-            ? {
-              minAge: typeof ageRange.minAge === 'number' ? ageRange.minAge : null,
-              maxAge: typeof ageRange.maxAge === 'number' ? ageRange.maxAge : null,
-            }
-            : null,
-          cardCount,
-          autoSearch,
-          autoLocation,
-          autoExport,
-          autoSync,
-          autoSyncCount: Number.isFinite(autoSyncCount) ? autoSyncCount : 0,
-          autoSyncPages: Number.isFinite(autoSyncPages) ? autoSyncPages : 0,
-          pagination,
-          timestamp: new Date().toISOString()
-        };
-      },
+      status: () => getExternalAccessorStatus(),
       syncToServer: () => syncCurrentPageToServer(),
       version,
       goToNextPage: () => goToNextPageInternal()
