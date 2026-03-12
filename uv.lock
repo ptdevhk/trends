@@ -2688,7 +2688,7 @@ wheels = [
 
 [[package]]
 name = "trends"
-version = "5.4.0"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
