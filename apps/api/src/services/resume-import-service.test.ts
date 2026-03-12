@@ -1,55 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { convexSuccess, parseConvexCall, type ConvexCall } from "../test-helpers";
 import { normalizeResumeImportPayload, submitResumeImport } from "./resume-import-service";
-
-type ConvexCall = {
-  pathName: string;
-  args: Record<string, unknown>;
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
-  const requestUrl = typeof input === "string"
-    ? input
-    : input instanceof URL
-      ? input.toString()
-      : input.url;
-
-  if (!requestUrl.includes("/api/mutation")) {
-    throw new Error(`Unexpected request URL: ${requestUrl}`);
-  }
-
-  const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
-  if (!isRecord(body)) {
-    throw new Error("Missing convex request body");
-  }
-
-  const pathName = typeof body.path === "string" ? body.path : "";
-  const args = isRecord(body.args) ? body.args : {};
-  if (!pathName) {
-    throw new Error("Missing convex path in request body");
-  }
-
-  return { pathName, args };
-}
-
-function convexSuccess(value: unknown): Response {
-  return new Response(
-    JSON.stringify({
-      status: "success",
-      value,
-    }),
-    {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    },
-  );
-}
 
 describe("resume-import-service", () => {
   afterEach(() => {
@@ -108,7 +60,7 @@ describe("resume-import-service", () => {
     const calls: ConvexCall[] = [];
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-      const call = parseConvexCall(input, init);
+      const call = parseConvexCall(input, init, "mutation");
       calls.push(call);
 
       if (call.pathName === "resume_tasks:submitResumes") {
