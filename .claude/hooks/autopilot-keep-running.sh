@@ -27,7 +27,18 @@ SESSION_ID="${SESSION_ID:-default}"
 
 # Helper: clean up the blocked flag so downstream hooks know autopilot is done
 cleanup_blocked_flag() {
-  rm -f "/tmp/claude-autopilot-blocked-${SESSION_ID}"
+  local cleanup_session_id="${1:-$SESSION_ID}"
+
+  rm -f "/tmp/claude-autopilot-blocked-${cleanup_session_id}"
+  rm -f "/tmp/claude-autopilot-state-${cleanup_session_id}"
+  rm -f "/tmp/claude-autopilot-idle-${cleanup_session_id}"
+
+  # Record session activity end (if in cmux sandbox with JWT)
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [ -f "$script_dir/session-activity-capture.sh" ]; then
+    "$script_dir/session-activity-capture.sh" end "$cleanup_session_id" 2>/dev/null || true
+  fi
 }
 
 # Clean up any stale completed marker from a previous cycle where codex-review
@@ -53,9 +64,9 @@ if [ -f "$CURRENT_SID_FILE" ]; then
     CURRENT_STOP_FILE="/tmp/claude-autopilot-stop-${CURRENT_SID}"
     if [ -f "$CURRENT_STOP_FILE" ]; then
       rm -f "$CURRENT_STOP_FILE"
-      # Clean up blocked flags for BOTH session IDs to avoid stale flags
+      # Clean up tracked temp files for BOTH session IDs to avoid stale state
       cleanup_blocked_flag
-      rm -f "/tmp/claude-autopilot-blocked-${CURRENT_SID}"
+      cleanup_blocked_flag "$CURRENT_SID"
       echo "Autopilot stop file detected for current-session ${CURRENT_SID}" >&2
       exit 0
     fi
@@ -84,6 +95,44 @@ if [ -f "$TURN_FILE" ]; then
 fi
 TURN_COUNT=$((TURN_COUNT + 1))
 echo "$TURN_COUNT" > "$TURN_FILE"
+
+# Idle detection via git state fingerprinting
+IDLE_THRESHOLD="${CLAUDE_AUTOPILOT_IDLE_THRESHOLD:-3}"
+STATE_FILE="/tmp/claude-autopilot-state-${SESSION_ID}"
+IDLE_COUNT_FILE="/tmp/claude-autopilot-idle-${SESSION_ID}"
+
+# Compute current git state
+CURRENT_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+HAS_UNCOMMITTED=$(git status --porcelain 2>/dev/null | grep -q . && echo "1" || echo "0")
+if [ "$HAS_UNCOMMITTED" = "1" ]; then
+  DIRTY_HASH=$({ git diff 2>/dev/null; git diff --cached 2>/dev/null; } | shasum -a 256 | cut -c1-8)
+else
+  DIRTY_HASH="clean"
+fi
+CURRENT_STATE="${CURRENT_HEAD}:${DIRTY_HASH}"
+
+# Compare with previous turn
+PREV_STATE=""
+[ -f "$STATE_FILE" ] && PREV_STATE=$(cat "$STATE_FILE" 2>/dev/null || echo "")
+echo "$CURRENT_STATE" > "$STATE_FILE"
+
+# Track consecutive idle turns
+IDLE_COUNT=0
+[ -f "$IDLE_COUNT_FILE" ] && IDLE_COUNT=$(cat "$IDLE_COUNT_FILE" 2>/dev/null || echo "0")
+
+if [ "$CURRENT_STATE" = "$PREV_STATE" ] && [ -n "$PREV_STATE" ]; then
+  IDLE_COUNT=$((IDLE_COUNT + 1))
+  echo "$IDLE_COUNT" > "$IDLE_COUNT_FILE"
+
+  if [ "$IDLE_COUNT" -ge "$IDLE_THRESHOLD" ]; then
+    echo "[Autopilot] No activity for $IDLE_COUNT turns, allowing stop" >&2
+    cleanup_blocked_flag
+    rm -f "$TURN_FILE"
+    exit 0
+  fi
+else
+  rm -f "$IDLE_COUNT_FILE"
+fi
 
 # Check turn limit
 if ! is_infinite_mode && [ "$TURN_COUNT" -ge "$MAX_TURNS" ]; then
