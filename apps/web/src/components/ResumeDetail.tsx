@@ -57,7 +57,7 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
 
         <div className="grid gap-4">
           <div className="text-sm relative">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 pr-20">
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.name')}</p>
                 <p className="font-medium">{resume.name || '--'}</p>
@@ -81,10 +81,6 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
           {isInfoExpanded && (
             <div className="grid grid-cols-2 gap-4 text-sm pt-2 border-t">
               <div>
-                <p className="text-muted-foreground">{t('resumes.columns.experience')}</p>
-                <p className="font-medium">{resume.experience || '--'}</p>
-              </div>
-              <div>
                 <p className="text-muted-foreground">{t('resumes.columns.education')}</p>
                 <p className="font-medium">{resume.education || '--'}</p>
               </div>
@@ -96,15 +92,11 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
                 <p className="text-muted-foreground">{t('resumes.columns.salary')}</p>
                 <p className="font-medium">{resume.expectedSalary || '--'}</p>
               </div>
-              <div className="col-span-2">
-                <p className="text-muted-foreground">{t('resumes.columns.intention')}</p>
-                <p className="font-medium">{resume.jobIntention || '--'}</p>
-              </div>
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.activity')}</p>
                 <p className="font-medium">{resume.activityStatus || '--'}</p>
               </div>
-              <div>
+              <div className="col-span-2">
                 <p className="text-muted-foreground">ID</p>
                 <p className="font-medium">
                   {[resume.resumeId, resume.perUserId].filter(Boolean).join(' / ') || '--'}
@@ -116,14 +108,6 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
                   <p className="font-medium">
                     {new Date(resume.extractedAt).toLocaleString()}
                   </p>
-                </div>
-              )}
-              {resume.selfIntro && (
-                <div className="col-span-2">
-                  <p className="text-muted-foreground">{t('resumes.detail.selfIntro')}</p>
-                  <div className="mt-1 whitespace-pre-wrap">
-                    {resume.selfIntro}
-                  </div>
                 </div>
               )}
             </div>

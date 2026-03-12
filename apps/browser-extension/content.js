@@ -301,6 +301,11 @@ function getCurrentSourceKey() {
   return SOURCE_KEYS.UNKNOWN;
 }
 
+function isJob5156DetailPage() {
+  return getCurrentSourceKey() === SOURCE_KEYS.JOB5156
+    && /^\/resume\/view\//i.test(window.location.pathname);
+}
+
 function getApiSnapshotCount() {
   if (Array.isArray(apiSnapshot.searchRows)) {
     return apiSnapshot.searchRows.length;
@@ -334,10 +339,59 @@ function isSeekSnapshotReady() {
   return getSeekSnapshotCount() > 0;
 }
 
+function getJob5156DetailRoot() {
+  const candidates = [
+    '.resume-detail',
+    '.resume-detail-content',
+    '.resume-detail-main',
+    '.resume-view-content',
+    '.resume-content',
+    '.detail-content',
+    '.main-content',
+    '[class*="resume-detail"]',
+    '[class*="resumeDetail"]',
+    '[class*="resume-view"]',
+    '[class*="resumeView"]',
+    'main'
+  ];
+
+  for (const selector of candidates) {
+    const el = document.querySelector(selector);
+    if (el instanceof Element && normalizeResumeText(el.textContent || '').length > 40) {
+      return el;
+    }
+  }
+
+  return document.body;
+}
+
+function getJob5156DetailHeaderText() {
+  const root = getJob5156DetailRoot();
+  const header = root.querySelector('h1, .name, .resume-name, .basic-name, [class*="name"]');
+  return normalizeResumeText(
+    header?.textContent
+    || root.querySelector('.basic-line, .resume-basic-info, [class*="basic"], .resume-view-item__block.resume-basic')?.textContent
+    || ''
+  );
+}
+
+function isJob5156DetailReady() {
+  if (!isJob5156DetailPage()) return false;
+  const resumeId = extractJob5156ResumeId(window.location.pathname);
+  if (!resumeId) return false;
+  const root = getJob5156DetailRoot();
+  const rootText = normalizeResumeText(root?.textContent || '');
+  return root instanceof Element && rootText.length > 80 && getJob5156DetailHeaderText().length > 0;
+}
+
 function isExtractionReady() {
-  return getCurrentSourceKey() === SOURCE_KEYS.SEEK
-    ? isSeekSnapshotReady()
-    : document.querySelector(SELECTORS.listContainer) !== null;
+  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
+    return isSeekSnapshotReady();
+  }
+  if (isJob5156DetailPage()) {
+    return isJob5156DetailReady();
+  }
+  return document.querySelector(SELECTORS.listContainer) !== null;
 }
 
 function getSeekCandidateIdentity(candidate) {
@@ -433,6 +487,33 @@ function buildWorkHistoryRawParts(parts) {
   return parts.filter(Boolean).join(' · ');
 }
 
+function parseJob5156BasicInfoItems(items, locationOverride = '') {
+  const basicInfo = Array.isArray(items)
+    ? items.map((item) => normalizeResumeText(item)).filter(Boolean)
+    : [];
+
+  let age = '';
+  let experience = '';
+  let education = '';
+  let location = '';
+  if (basicInfo.length >= 4) {
+    [age, experience, education, location] = basicInfo;
+  } else {
+    basicInfo.forEach((item) => {
+      if (!age && item.includes('岁')) age = item;
+      else if (!experience && item.includes('年') && !item.includes('元')) experience = item;
+      else if (!education && /(中专|高中|大专|本科|硕|博|研究生|MBA|EMBA)/.test(item)) education = item;
+      else if (!location && !item.includes('元')) location = item;
+    });
+  }
+
+  if (locationOverride) {
+    location = normalizeResumeText(locationOverride);
+  }
+
+  return { age, experience, education, location };
+}
+
 function buildJob5156WorkHistoryItem(item) {
   if (!(item instanceof Element)) return null;
 
@@ -459,6 +540,27 @@ function buildJob5156WorkHistoryItem(item) {
 function buildJob5156EducationItem(item) {
   if (!(item instanceof Element)) return null;
 
+  const liveEducationText = normalizeResumeText(item.textContent);
+  if (item.classList.contains('resume-education__info') || item.closest('.resume-education')) {
+    const institution = normalizeResumeText(item.querySelector('.flex.w-full > div:last-child')?.textContent);
+    const rowText = Array.from(item.querySelectorAll('.flex.w-full > div'))
+      .map((node) => normalizeResumeText(node.textContent))
+      .filter(Boolean);
+    const endDate = rowText.find((value) => /^\d{4}(~|-)/.test(value)) || '';
+    const qualification = rowText
+      .filter((value) => value !== institution && value !== endDate)
+      .join(' · ');
+
+    if (!institution && !qualification && !endDate && !liveEducationText) return null;
+
+    return {
+      institution: institution || undefined,
+      qualification: qualification || undefined,
+      endDate: endDate || undefined,
+      description: liveEducationText || undefined,
+    };
+  }
+
   const institution = normalizeResumeText(item.querySelector('.school-name')?.textContent);
   const qualification = normalizeResumeText(item.querySelector('.school-major')?.textContent);
   const degree = normalizeResumeText(item.querySelector('.school-degree')?.textContent);
@@ -471,6 +573,284 @@ function buildJob5156EducationItem(item) {
     qualification: [qualification, degree].filter(Boolean).join(' · ') || undefined,
     endDate: endDate || undefined,
   };
+}
+
+function buildJob5156DetailWorkHistoryItem(item) {
+  if (!(item instanceof Element)) return null;
+
+  if (item.classList.contains('resume-work__info') || item.closest('.resume-work')) {
+    const row1 = item.querySelector('.resume-work__row-1');
+    const row2 = item.querySelector('.resume-work__row-2');
+    const row3 = item.querySelector('.resume-work__row-3');
+    const row4 = item.querySelector('.resume-work__row-4');
+    const companyName = normalizeResumeText(row1?.querySelector('.flex.flex-1 > span.pointer')?.textContent);
+    const jobTitle = normalizeResumeText(row1?.querySelector('.flex.flex-1 > span:not(.pointer):not(.cut)')?.textContent);
+    const periodText = normalizeResumeText(row1?.querySelector('.time-diff')?.textContent);
+    const periodMatch = periodText.match(/^(.+?)(?:（(.+)）)?$/u);
+    const dateRange = normalizeResumeText(periodMatch?.[1] || periodText);
+    const durationLabel = normalizeResumeText(periodMatch?.[2] || '');
+    const startDate = dateRange.includes('~') ? normalizeResumeText(dateRange.split('~')[0]) : dateRange;
+    const endDate = dateRange.includes('~') ? normalizeResumeText(dateRange.split('~').slice(1).join('~')) : '';
+    const companyMeta = normalizeResumeText(row2?.textContent);
+    const description = normalizeResumeText(row3?.querySelector('pre')?.textContent || row3?.textContent);
+    const reasonText = normalizeResumeText(row4?.textContent).replace(/^离职原因[:：]?\s*/u, '');
+    const raw = buildWorkHistoryRawParts([
+      dateRange,
+      durationLabel ? `(${durationLabel})` : '',
+      companyName,
+      jobTitle,
+      companyMeta ? `公司信息：${companyMeta}` : '',
+      description,
+      reasonText ? `离职原因：${reasonText}` : ''
+    ]);
+
+    if (!raw && !description && !companyName && !jobTitle) return null;
+
+    return {
+      raw: raw || description || buildWorkHistoryRawParts([companyName, jobTitle, dateRange]),
+      companyName: companyName || undefined,
+      jobTitle: jobTitle || undefined,
+      description: [description, reasonText ? `离职原因：${reasonText}` : ''].filter(Boolean).join('\n') || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    };
+  }
+
+  const getText = (selectors) => {
+    for (const selector of selectors) {
+      const value = normalizeResumeText(item.querySelector(selector)?.textContent);
+      if (value) return value;
+    }
+    return '';
+  };
+
+  const getOwnText = (selectors) => {
+    for (const selector of selectors) {
+      const node = item.querySelector(selector);
+      if (!(node instanceof Element)) continue;
+      const text = normalizeResumeText(Array.from(node.childNodes)
+        .filter((child) => child.nodeType === Node.TEXT_NODE)
+        .map((child) => child.textContent || '')
+        .join(' '));
+      if (text) return text;
+    }
+    return '';
+  };
+
+  const getLines = (selectors) => {
+    for (const selector of selectors) {
+      const nodes = item.querySelectorAll(selector);
+      const values = Array.from(nodes)
+        .map((node) => normalizeResumeText(node.textContent))
+        .filter(Boolean);
+      if (values.length > 0) return values;
+    }
+    return [];
+  };
+
+  const periodText = getText([
+    '.work-time',
+    '.time',
+    '.date',
+    '.work-date',
+    '.job-time',
+    '[class*="work-time"]',
+    '[class*="job-time"]'
+  ]);
+  const startDate = periodText.includes('~') ? normalizeResumeText(periodText.split('~')[0]) : periodText;
+  const endDate = periodText.includes('~') ? normalizeResumeText(periodText.split('~').slice(1).join('~')) : '';
+  const durationLabel = getText([
+    '.work-time-other',
+    '.time-other',
+    '.duration',
+    '[class*="duration"]'
+  ]);
+  const companyName = getText([
+    '.work-company',
+    '.company-name',
+    '.company',
+    '[class*="company"]'
+  ]);
+  const jobTitle = getText([
+    '.work-position',
+    '.job-title',
+    '.position-name',
+    '.position',
+    '[class*="position"]',
+    '[class*="job-title"]'
+  ]);
+  const department = getText([
+    '.work-department',
+    '.department',
+    '[class*="department"]'
+  ]);
+  const companyMeta = getText([
+    '.company-other',
+    '.company-info',
+    '.company-meta',
+    '[class*="company-other"]',
+    '[class*="company-info"]'
+  ]);
+  const reasonText = getText([
+    '.work-reason',
+    '.leave-reason',
+    '[class*="leave-reason"]',
+    '[class*="reason"]'
+  ]).replace(/^离职原因[:：]?\s*/u, '');
+  const ownDescription = getOwnText([
+    '.work-desc',
+    '.work-detail',
+    '.work-content',
+    '.work-responsibility',
+    '.work-duty',
+    '[class*="work-desc"]',
+    '[class*="responsibility"]',
+    '[class*="duty"]'
+  ]);
+  const descriptionLines = getLines([
+    '.work-desc p, .work-detail p, .work-content p, .work-responsibility p, .work-duty p',
+    '.work-desc li, .work-detail li, .work-content li, .work-responsibility li, .work-duty li',
+    '[class*="work-desc"] p, [class*="responsibility"] p, [class*="duty"] p',
+    '[class*="work-desc"] li, [class*="responsibility"] li, [class*="duty"] li'
+  ]);
+  const description = [
+    ownDescription,
+    descriptionLines.length > 0 ? descriptionLines.join('\n') : '',
+    department ? `部门：${department}` : '',
+    companyMeta ? `公司信息：${companyMeta}` : '',
+    reasonText ? `离职原因：${reasonText}` : ''
+  ].filter(Boolean).join('\n');
+  const raw = buildWorkHistoryRawParts([
+    periodText,
+    durationLabel,
+    companyName,
+    jobTitle,
+    department ? `部门：${department}` : '',
+    companyMeta ? `公司信息：${companyMeta}` : '',
+    ownDescription,
+    descriptionLines.join('；'),
+    reasonText ? `离职原因：${reasonText}` : ''
+  ]);
+
+  if (!raw && !description) return null;
+
+  return {
+    raw: raw || description,
+    companyName: companyName || undefined,
+    jobTitle: jobTitle || undefined,
+    description: description || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  };
+}
+
+function collectSectionItemsByHeading(root, headingPattern) {
+  if (!(root instanceof Element)) return [];
+
+  const sections = Array.from(root.querySelectorAll('section, .section, .resume-section, .module, .card, .block, .resume-view-layout, [class*="section"], [class*="module"], [class*="block"]'));
+  for (const section of sections) {
+    const heading = normalizeResumeText(
+      section.querySelector('h1, h2, h3, h4, .title, .section-title, .module-title, .resume-view-layout__title, [class*="title"]')?.textContent
+    );
+    if (heading && headingPattern.test(heading)) {
+      return Array.from(section.querySelectorAll('.resume-work__info, .resume-education__info, .work-item, .school-item, li, .item, [class*="item"]'));
+    }
+  }
+
+  return [];
+}
+
+function extractJob5156DetailResume() {
+  if (!isJob5156DetailPage() || !isJob5156DetailReady()) return [];
+
+  const root = getJob5156DetailRoot();
+  const readText = (selectors, scopedRoot = root) => {
+    for (const selector of selectors) {
+      const value = normalizeResumeText(scopedRoot.querySelector(selector)?.textContent);
+      if (value) return value;
+    }
+    return '';
+  };
+  const resumeId = extractJob5156ResumeId(window.location.pathname);
+  const profileUrl = normalizeJob5156ProfileUrlForExport(window.location.href);
+  const basicTextNodes = Array.from(root.querySelectorAll('.basic-line__text, .basic-line span, .resume-basic-info span, [class*="basic"] span, .info-item, .label-value, .tag'))
+    .map((node) => node.textContent || '');
+  const filteredBasicTextNodes = basicTextNodes.filter((item) => !/求职状态|沟通中|更新时间/.test(item));
+  const {
+    age,
+    experience,
+    education,
+    location
+  } = parseJob5156BasicInfoItems(filteredBasicTextNodes);
+
+  const workItems = collectSectionItemsByHeading(root, /工作经历|工作经验|工作履历/u);
+  const educationItems = collectSectionItemsByHeading(root, /教育经历|教育背景|学习经历/u);
+  const seenWorkHistory = new Set();
+  const workHistory = workItems
+    .map((item) => buildJob5156DetailWorkHistoryItem(item))
+    .filter((item) => item && (item.raw.length > 5 || item.description))
+    .filter((item) => {
+      const signature = [item.companyName || '', item.jobTitle || '', item.startDate || '', item.endDate || '', item.raw || ''].join('|');
+      if (seenWorkHistory.has(signature)) return false;
+      seenWorkHistory.add(signature);
+      return true;
+    });
+
+  const seenEducation = new Set();
+  const profileEducation = educationItems
+    .map((item) => buildJob5156EducationItem(item))
+    .filter((item) => item && [item.institution, item.qualification, item.endDate].some(Boolean))
+    .filter((item) => {
+      const signature = [item.institution || '', item.qualification || '', item.endDate || ''].join('|');
+      if (seenEducation.has(signature)) return false;
+      seenEducation.add(signature);
+      return true;
+    });
+
+  const activityStatus = readText([
+    '.date-type-diff-text-block',
+    '.resume-status',
+    '.active-status',
+    '[class*="status"]'
+  ]);
+  const intentionSection = root.querySelector('.resume-view-layout.resume-interview');
+  const intentionItems = Array.from(intentionSection?.querySelectorAll('.resume-interview-info') || []);
+  const jobIntention = intentionItems
+    .map((item) => normalizeResumeText(item.querySelector('.pos-name')?.textContent))
+    .filter(Boolean)
+    .join(' / ');
+  const expectedSalary = normalizeResumeText(intentionItems[0]?.textContent)
+    .replace(/^.+?\s(\d[^\s]*元\/[月天年]).*$/u, '$1');
+  const selfIntro = normalizeResumeText(
+    root.querySelector('.resume-view-layout.resume-advantages .resume-advantages_skill pre')?.textContent
+    || root.querySelector('.resume-view-layout.resume-advantages .resume-advantages_skill')?.textContent
+    || ''
+  );
+  const name = readText([
+    '.resume-name',
+    '.basic-name',
+    '.name',
+    '.resume-view-item__block.resume-basic',
+    'h1'
+  ]);
+
+  return [{
+    resumeId,
+    name,
+    profileUrl,
+    activityStatus,
+    age,
+    experience,
+    education,
+    location,
+    jobIntention,
+    expectedSalary,
+    selfIntro,
+    workHistory,
+    profileEducation: profileEducation.length > 0 ? profileEducation : undefined,
+    extractedAt: new Date().toISOString(),
+    source: JOB5156_HOST,
+  }];
 }
 
 function extractSeekProfileResume() {
@@ -963,25 +1343,13 @@ function extractSingleResume(card, apiRow = null) {
     )
     : [];
 
-  const basicInfo = Array.from(basicInfoSpans)
-    .map((span) => span.textContent.trim())
-    .filter(Boolean);
-
-  let age = '';
-  let experience = '';
-  let education = '';
-  let location = '';
-  if (basicInfo.length >= 4) {
-    [age, experience, education, location] = basicInfo;
-  } else {
-    basicInfo.forEach((item) => {
-      if (item.includes('岁')) age = item;
-      else if (item.includes('年') && !item.includes('元')) experience = item;
-      else if (/(中专|高中|大专|本科|硕|博|研究生|MBA|EMBA)/.test(item)) education = item;
-      else if (!item.includes('元')) location = item;
-    });
-  }
-  if (locationFromCard) location = locationFromCard;
+  const basicInfo = Array.from(basicInfoSpans).map((span) => span.textContent || '');
+  const {
+    age,
+    experience,
+    education,
+    location
+  } = parseJob5156BasicInfoItems(basicInfo, locationFromCard);
 
   // Extract top row (job intention, salary)
   const topRow = card.querySelector(SELECTORS.topRowText) || card.querySelector(SELECTORS.topRow);
@@ -1127,6 +1495,10 @@ function extractResumes() {
     }
   }
 
+  if (isJob5156DetailPage()) {
+    return filterResumesByAgeRange(extractJob5156DetailResume());
+  }
+
   const cards = document.querySelectorAll(SELECTORS.resumeCard);
   const resumes = [];
 
@@ -1202,17 +1574,27 @@ function extractResumesRaw(options = {}) {
     }
   }
 
-  const cards = document.querySelectorAll(SELECTORS.resumeCard);
-  const items = Array.from(cards).map((card, index) => {
-    const el = /** @type {HTMLElement} */ (card);
-    return {
-      index: index + 1,
-      resumeId: getApiRowForIndex(index)?.resumeId ?? '',
-      perUserId: getApiRowForIndex(index)?.perUserId ?? '',
-      html: el.outerHTML,
-      text: el.innerText
-    };
-  });
+  const detailResumes = isJob5156DetailPage() ? extractJob5156DetailResume() : [];
+  const detailRoot = getJob5156DetailRoot();
+  const detailRootElement = detailRoot instanceof HTMLElement ? detailRoot : null;
+  const items = detailResumes.length > 0
+    ? [{
+        index: 1,
+        resumeId: detailResumes[0]?.resumeId || '',
+        perUserId: '',
+        html: detailRoot?.outerHTML || '',
+        text: detailRootElement?.innerText || detailRoot?.textContent || ''
+      }]
+    : Array.from(document.querySelectorAll(SELECTORS.resumeCard)).map((card, index) => {
+        const el = /** @type {HTMLElement} */ (card);
+        return {
+          index: index + 1,
+          resumeId: getApiRowForIndex(index)?.resumeId ?? '',
+          perUserId: getApiRowForIndex(index)?.perUserId ?? '',
+          html: el.outerHTML,
+          text: el.innerText
+        };
+      });
 
   const payload = {
     url: window.location.href,
@@ -1361,6 +1743,10 @@ function getSeekPaginationInfo() {
 function getPaginationInfo() {
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     return getSeekPaginationInfo();
+  }
+
+  if (isJob5156DetailPage()) {
+    return { currentPage: 1, totalPages: 1, totalItems: isJob5156DetailReady() ? 1 : 0, hasNextPage: false };
   }
 
   const pagination = document.querySelector(SELECTORS.pagination);
@@ -2776,7 +3162,9 @@ function getExternalAccessorStatus() {
   const apiSnapshotCount = getApiSnapshotCount();
   const cardCount = sourceKey === SOURCE_KEYS.SEEK
     ? Math.max(apiSnapshotCount, getSeekCardCount())
-    : document.querySelectorAll(SELECTORS.resumeCard).length;
+    : isJob5156DetailPage()
+      ? (isJob5156DetailReady() ? 1 : 0)
+      : document.querySelectorAll(SELECTORS.resumeCard).length;
   const autoSearch = document.documentElement.getAttribute('data-tr-auto-search') || '';
   const autoLocation = document.documentElement.getAttribute('data-tr-auto-location') || '';
   const autoExport = document.documentElement.getAttribute('data-tr-auto-export') || '';
