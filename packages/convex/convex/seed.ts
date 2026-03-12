@@ -207,6 +207,7 @@ export const seedResumes = mutation({
       const identity = deriveResumeIdentity({
         content: resume.content,
         externalId: resume.externalId,
+        source: resume.source,
       });
       let existing = await ctx.db
         .query("resumes")

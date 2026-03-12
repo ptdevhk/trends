@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { isLocationMatch } from "@trends/shared";
+import { isLocationMatch, normalizeProfileUrlForDisplay, normalizeSharedResumeFields } from "@trends/shared";
 
 import { findProjectRoot } from "./db.js";
 import { DataNotFoundError, FileParseError } from "./errors.js";
@@ -11,7 +11,19 @@ import { ResumeIndexService } from "./resume-index.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { UnifiedSearchService, type UnifiedKeywordExpansion } from "./unified-search-service.js";
 
-import type { ResumeItem, ResumeSampleFile, ResumeWorkHistoryItem } from "../types/resume.js";
+import type {
+  ResumeDigitalIdentity,
+  ResumeIndustry,
+  ResumeItem,
+  ResumeLanguageDetail,
+  ResumeLicenceDetail,
+  ResumeProfileEducationItem,
+  ResumeRightToWork,
+  ResumeSampleFile,
+  ResumeSkillDetail,
+  ResumeSnippet,
+  ResumeWorkHistoryItem,
+} from "../types/resume.js";
 import type { ResumeIndex } from "./resume-index.js";
 
 export type ResumeFilters = {
@@ -26,6 +38,8 @@ export type ResumeFilters = {
 
 type ResumeMetadata = {
   sourceUrl?: string;
+  sourceHost?: string;
+  sourceKey?: string;
   searchCriteria?: {
     keyword?: string;
     location?: string;
@@ -39,73 +53,28 @@ type ResumeMetadata = {
 };
 
 type ResumePayload = ResumeItem[] | { data?: ResumeItem[]; resumes?: ResumeItem[]; metadata?: ResumeMetadata };
-const JOB5156_HOST = "hr.job5156.com";
-const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
-
 function toStringValue(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (value === null || value === undefined) return "";
   return String(value);
 }
 
-function decodeURIComponentSafe(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) return 0;
 
-function extractJob5156ResumeId(pathname: string): string | null {
-  const oldRouteMatch = pathname.match(/^\/api\/com\/resume\/([^/?#]+)/i);
-  if (oldRouteMatch && oldRouteMatch[1]) {
-    return decodeURIComponentSafe(oldRouteMatch[1]);
-  }
+  let count = 0;
+  let startIndex = 0;
 
-  const viewRouteMatch = pathname.match(/^\/resume\/view\/([^/?#]+)/i);
-  if (viewRouteMatch && viewRouteMatch[1]) {
-    return decodeURIComponentSafe(viewRouteMatch[1]);
-  }
-
-  return null;
-}
-
-function normalizeJob5156ProfileUrlForDisplay(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-
-  const directResumeId = extractJob5156ResumeId(trimmed);
-  if (directResumeId) {
-    return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(directResumeId)}`;
-  }
-
-  let parsed: URL | null = null;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    try {
-      parsed = new URL(`https://${trimmed}`);
-    } catch {
-      parsed = null;
+  while (startIndex < haystack.length) {
+    const matchIndex = haystack.indexOf(needle, startIndex);
+    if (matchIndex === -1) {
+      return count;
     }
+    count += 1;
+    startIndex = matchIndex + needle.length;
   }
 
-  if (!parsed || parsed.hostname.toLowerCase() !== JOB5156_HOST) {
-    return trimmed;
-  }
-
-  const resumeId = extractJob5156ResumeId(parsed.pathname);
-  if (!resumeId) {
-    return trimmed;
-  }
-
-  return `${JOB5156_PROFILE_URL_PREFIX}${encodeURIComponent(resumeId)}`;
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return count;
 }
 
 function buildSearchText(item: ResumeItem): string {
@@ -127,34 +96,46 @@ function extractCompanyName(raw: string): string {
     .trim();
 }
 
-function normalizeWorkHistory(value: unknown): ResumeWorkHistoryItem[] {
-  if (typeof value === "string") {
-    const raw = value.trim();
-    return raw ? [{ raw }] : [];
-  }
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .map((entry) => {
-      if (typeof entry === "string") return { raw: entry.trim() };
-      if (entry && typeof entry === "object") {
-        const raw = toStringValue((entry as { raw?: unknown }).raw);
-        return raw ? { raw } : null;
-      }
-      return null;
-    })
-    .filter((item): item is ResumeWorkHistoryItem => Boolean(item && item.raw));
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
-function normalizeResumeItem(item: unknown): ResumeItem {
-  const record = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+function inferResumeSource(metadata?: ResumeMetadata): string | undefined {
+  const sourceHost = toStringValue(metadata?.sourceHost).toLowerCase();
+  if (sourceHost) {
+    return sourceHost;
+  }
+
+  const sourceUrl = toStringValue(metadata?.sourceUrl);
+  if (sourceUrl) {
+    try {
+      return new URL(sourceUrl).hostname.toLowerCase();
+    } catch {
+      // ignore
+    }
+  }
+
+  const sourceKey = toStringValue(metadata?.sourceKey).toLowerCase();
+  if (sourceKey === "job5156") {
+    return "hr.job5156.com";
+  }
+  if (sourceKey === "seek") {
+    return "seek";
+  }
+
+  return undefined;
+}
+
+function normalizeResumeItem(item: unknown, source?: string): ResumeItem {
+  const record = isRecord(item) ? item : {};
 
   const resumeId = toStringValue(record.resumeId);
   const perUserId = toStringValue(record.perUserId);
+  const profileId = toStringValue(record.profileId);
+  const externalId = toStringValue(record.externalId);
 
   return {
     name: toStringValue(record.name),
-    profileUrl: normalizeJob5156ProfileUrlForDisplay(toStringValue(record.profileUrl)),
     activityStatus: toStringValue(record.activityStatus),
     age: toStringValue(record.age),
     experience: toStringValue(record.experience),
@@ -163,10 +144,13 @@ function normalizeResumeItem(item: unknown): ResumeItem {
     selfIntro: toStringValue(record.selfIntro),
     jobIntention: toStringValue(record.jobIntention),
     expectedSalary: toStringValue(record.expectedSalary),
-    workHistory: normalizeWorkHistory(record.workHistory),
     extractedAt: toStringValue(record.extractedAt),
+    ...normalizeSharedResumeFields(record, source),
     resumeId: resumeId || undefined,
     perUserId: perUserId || undefined,
+    profileId: profileId || undefined,
+    profileType: toStringValue(record.profileType) || undefined,
+    externalId: externalId || undefined,
   };
 }
 
@@ -183,7 +167,9 @@ function normalizePayload(payload: ResumePayload, filepath: string): ResumeItem[
     throw new FileParseError(filepath, "Expected a JSON array of resumes");
   }
 
-  return list.map((item) => normalizeResumeItem(item));
+  const metadata = !Array.isArray(payload) && payload ? payload.metadata : undefined;
+  const source = inferResumeSource(metadata);
+  return list.map((item) => normalizeResumeItem(item, source));
 }
 
 export class ResumeService {
@@ -365,7 +351,7 @@ export class ResumeService {
           }
 
           hasTextMatch = true;
-          occurrences += (searchText.match(new RegExp(escapeRegex(variant), "g")) || []).length;
+          occurrences += countOccurrences(searchText, variant);
         }
         if (hasTextMatch) {
           score += 10;

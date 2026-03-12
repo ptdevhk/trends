@@ -101,18 +101,20 @@ function toWorkHistory(value: unknown): ResumeWorkHistoryItem[] {
     .filter((item): item is ResumeWorkHistoryItem => item !== null);
 }
 
+function toOptionalId(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return undefined;
+}
+
 function toResumeItem(value: unknown): ResumeItem | null {
   if (!isRecord(value)) {
     return null;
   }
-
-  const perUserId = value.perUserId;
-  const normalizedPerUserId =
-    typeof perUserId === "string"
-      ? perUserId
-      : typeof perUserId === "number" && Number.isFinite(perUserId)
-        ? String(perUserId)
-        : undefined;
 
   return {
     name: toStringValue(value.name),
@@ -128,7 +130,10 @@ function toResumeItem(value: unknown): ResumeItem | null {
     workHistory: toWorkHistory(value.workHistory),
     extractedAt: toStringValue(value.extractedAt),
     resumeId: toStringValue(value.resumeId) || undefined,
-    perUserId: normalizedPerUserId,
+    perUserId: toOptionalId(value.perUserId),
+    profileId: toOptionalId(value.profileId),
+    profileType: toStringValue(value.profileType) || undefined,
+    externalId: toStringValue(value.externalId) || undefined,
   };
 }
 
@@ -140,6 +145,8 @@ function hasResumeSignal(item: ResumeItem): boolean {
     || item.profileUrl
     || item.resumeId
     || item.perUserId
+    || item.profileId
+    || item.externalId
     || item.workHistory.length > 0
   );
 }

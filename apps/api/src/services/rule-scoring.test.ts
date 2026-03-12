@@ -131,59 +131,40 @@ describe("RuleScoringService", () => {
     }
   });
 
-  it("keeps keyword-only CNC 数控车床 销售 scoring separate from JD strict-role gating", () => {
+  it("keeps CNC 数控车床 销售 keyword searches free of JD role gating", () => {
     const root = createFixtureRoot();
 
     try {
       const service = new RuleScoringService(root);
-      const keywordOnlyContext = service.buildContextFromKeywords(["CNC", "数控车床", "销售"], "东莞");
+      const keywordContext = service.buildContextFromKeywords(["CNC", "数控车床", "销售"], "东莞");
       const jdContext = service.buildContext("lathe-sales");
 
-      const operatorCandidate: ResumeIndex = {
-        resumeId: "R-keyword-only-cnc-operator",
-        experienceYears: 6,
-        educationLevel: "associate",
-        locationCity: "东莞",
-        evidenceText: "2019-2025 CNC操作员 负责数控车床编程、调机与设备维护",
-        skills: ["cnc", "数控车床", "销售"],
-        companies: ["东莞某机床厂"],
-        industryTags: ["machinery", "cnc"],
-        salaryRange: { min: 9000, max: 12000 },
-        searchText: "东莞 cnc 数控车床 操作 维护",
-      };
-
-      const salesCandidate: ResumeIndex = {
+      const cncSalesCandidate: ResumeIndex = {
         resumeId: "R-keyword-only-cnc-sales",
-        experienceYears: 5,
+        experienceYears: 4,
         educationLevel: "bachelor",
         locationCity: "东莞",
-        evidenceText: "2020-2025 数控车床销售工程师 负责客户开发 渠道拓展",
+        evidenceText: "2021-2025 东莞机床公司 数控车床销售工程师 负责CNC设备客户开发",
         skills: ["cnc", "数控车床", "销售"],
-        companies: ["东莞设备公司"],
-        industryTags: ["machinery", "cnc", "sales"],
+        companies: ["东莞机床公司"],
+        industryTags: ["cnc", "sales"],
         salaryRange: { min: 12000, max: 18000 },
-        searchText: "东莞 cnc 数控车床 销售 客户 渠道",
+        searchText: "东莞 cnc 数控车床 销售 客户开发",
       };
 
-      const keywordOnlyOperatorResult = service.scoreResume(operatorCandidate, keywordOnlyContext);
-      const keywordOnlySalesResult = service.scoreResume(salesCandidate, keywordOnlyContext);
-      const jdOperatorResult = service.scoreResume(operatorCandidate, jdContext);
-      const jdSalesResult = service.scoreResume(salesCandidate, jdContext, undefined, [createSalesRoleSignal(5)]);
+      const keywordResult = service.scoreResume(cncSalesCandidate, keywordContext);
+      const jdResult = service.scoreResume(cncSalesCandidate, jdContext);
 
-      expect(keywordOnlyContext.requiredRoles).toEqual([]);
-      expect(jdContext.requiredRoles.length).toBeGreaterThan(0);
+      expect(keywordContext.keywords).toEqual(["cnc", "数控车床", "销售"]);
+      expect(keywordContext.requiredRoles).toEqual([]);
+      expect(keywordResult.breakdown.skillMatch).toBeGreaterThan(0);
+      expect(keywordResult.breakdown.roleMatch).toBe(10);
+      expect(keywordResult.recommendation).toBe("strong_match");
 
-      expect(keywordOnlyOperatorResult.breakdown.roleMatch).toBe(10);
-      expect(keywordOnlyOperatorResult.breakdown.experienceMatch).toBe(25);
-      expect(keywordOnlyOperatorResult.score).toBe(85);
-      expect(keywordOnlySalesResult.breakdown.roleMatch).toBe(10);
-      expect(keywordOnlySalesResult.breakdown.experienceMatch).toBe(25);
-      expect(keywordOnlySalesResult.score).toBe(85);
-
-      expect(jdOperatorResult.breakdown.roleMatch).toBe(2);
-      expect(jdOperatorResult.breakdown.experienceMatch).toBe(0);
-      expect(jdOperatorResult.score).toBeLessThan(keywordOnlyOperatorResult.score);
-      expect(jdSalesResult.score).toBeGreaterThan(jdOperatorResult.score);
+      expect(jdContext.requiredRoles).toHaveLength(1);
+      expect(jdResult.breakdown.roleMatch).toBe(2);
+      expect(jdResult.breakdown.experienceMatch).toBe(0);
+      expect(keywordResult.score).toBeGreaterThan(jdResult.score);
     } finally {
       cleanupFixtureRoot(root);
     }

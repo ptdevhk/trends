@@ -3,6 +3,7 @@ export type ResumeIdentitySource = "profileUrl" | "resumeId" | "perUserId" | "ex
 export type ResumeIdentityInput = {
     content: unknown;
     externalId: string;
+    source?: string;
 };
 
 export type ResumeIdentity = {
@@ -17,6 +18,7 @@ const RESUME_ID_KEYS = ["resumeId", "resume_id"];
 const PER_USER_ID_KEYS = ["perUserId", "per_user_id"];
 const EXTERNAL_ID_KEYS = ["externalId", "external_id"];
 const JOB5156_HOST = "hr.job5156.com";
+const SEEK_HOST_SUFFIX = ".employer.seek.com";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
@@ -89,42 +91,20 @@ function normalizeJob5156ProfileUrlForIdentity(value: string): string | null {
     return `${JOB5156_HOST}/api/com/resume/${encodeURIComponent(resumeId)}`.toLowerCase();
 }
 
-function normalizeProfileUrl(value: string): string | null {
-    const trimmed = value.trim();
-    if (!trimmed) {
-        return null;
-    }
-
-    const lowered = trimmed.toLowerCase();
-    if (lowered === "javascript:;" || lowered === "javascript:void(0)" || lowered === "#") {
-        return null;
-    }
-
-    const normalizedJob5156 = normalizeJob5156ProfileUrlForIdentity(trimmed);
-    if (normalizedJob5156) {
-        return normalizedJob5156;
-    }
-
-    let parsed: URL | null = null;
+function parseUrlLike(value: string): URL | null {
     try {
-        parsed = new URL(trimmed);
+        return new URL(value);
     } catch (error) {
         try {
-            parsed = new URL(`https://${trimmed}`);
+            return new URL(`https://${value}`);
         } catch (fallbackError) {
             console.error("Failed to normalize profile URL for resume identity.", error, fallbackError);
-            parsed = null;
+            return null;
         }
     }
+}
 
-    if (!parsed) {
-        const fallback = lowered
-            .replace(/^https?:\/\//, "")
-            .replace(/#.*$/, "")
-            .replace(/\/+$/, "");
-        return fallback || null;
-    }
-
+function normalizeUrlForIdentity(parsed: URL): string {
     const path = parsed.pathname.replace(/\/+$/, "") || "/";
     const sortedParams = Array.from(parsed.searchParams.entries())
         .filter(([key]) => !key.toLowerCase().startsWith("utm_"))
@@ -142,6 +122,60 @@ function normalizeProfileUrl(value: string): string | null {
         : "";
 
     return `${parsed.hostname.toLowerCase()}${path}${query}`.toLowerCase();
+}
+
+function normalizeSeekProfileUrlForIdentity(value: string, source: string | undefined): string | null {
+    const parsed = parseUrlLike(value);
+    if (!parsed) {
+        return null;
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+    const normalizedSource = source?.trim().toLowerCase();
+    const isSeekHost = hostname.endsWith(SEEK_HOST_SUFFIX) || normalizedSource?.endsWith(SEEK_HOST_SUFFIX);
+    if (!isSeekHost) {
+        return null;
+    }
+
+    const profileIdMatch = parsed.pathname.match(/\/candidates\/(?:profiles\/)?(\d+)(?:\/|$)/i);
+    if (profileIdMatch && profileIdMatch[1]) {
+        return `${hostname}/candidates/${profileIdMatch[1]}`.toLowerCase();
+    }
+
+    return normalizeUrlForIdentity(parsed);
+}
+
+function normalizeProfileUrl(value: string, source?: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const lowered = trimmed.toLowerCase();
+    if (lowered === "javascript:;" || lowered === "javascript:void(0)" || lowered === "#") {
+        return null;
+    }
+
+    const normalizedJob5156 = normalizeJob5156ProfileUrlForIdentity(trimmed);
+    if (normalizedJob5156) {
+        return normalizedJob5156;
+    }
+
+    const normalizedSeek = normalizeSeekProfileUrlForIdentity(trimmed, source);
+    if (normalizedSeek) {
+        return normalizedSeek;
+    }
+
+    const parsed = parseUrlLike(trimmed);
+    if (!parsed) {
+        const fallback = lowered
+            .replace(/^https?:\/\//, "")
+            .replace(/#.*$/, "")
+            .replace(/\/+$/, "");
+        return fallback || null;
+    }
+
+    return normalizeUrlForIdentity(parsed);
 }
 
 function readCandidate(record: Record<string, unknown>, keys: string[]): string | null {
@@ -180,7 +214,7 @@ function readIdentityCandidates(content: unknown): {
 export function deriveResumeIdentity(input: ResumeIdentityInput): ResumeIdentity {
     const candidates = readIdentityCandidates(input.content);
 
-    const normalizedProfileUrl = candidates.profileUrl ? normalizeProfileUrl(candidates.profileUrl) : null;
+    const normalizedProfileUrl = candidates.profileUrl ? normalizeProfileUrl(candidates.profileUrl, input.source) : null;
     if (normalizedProfileUrl) {
         return {
             identityKey: `profileUrl:${normalizedProfileUrl}`,

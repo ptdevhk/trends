@@ -591,6 +591,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import resumes from a first-party payload */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResumeImportRequest"];
+                };
+            };
+            responses: {
+                /** @description Import result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeSubmitSummary"];
+                    };
+                };
+                /** @description Invalid request payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Import failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/matches/rescore": {
         parameters: {
             query?: never;
@@ -750,32 +829,8 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        metadata: {
-                            /** Format: uri */
-                            sourceUrl: string;
-                            keyword?: string;
-                            location?: string;
-                            searchProfileId?: string;
-                            generatedBy: string;
-                        };
-                        resumes: {
-                            resumeId?: string | number;
-                            perUserId?: string | number;
-                            name: string;
-                            age?: string;
-                            experience?: string;
-                            education?: string;
-                            location?: string;
-                            jobIntention?: string;
-                            expectedSalary?: string;
-                            selfIntro?: string;
-                            workHistory?: {
-                                raw: string;
-                            }[];
-                            profileUrl?: string;
-                            activityStatus?: string;
-                            extractedAt?: string;
-                        }[];
+                        metadata: components["schemas"]["ResumeImportMetadata"];
+                        resumes: components["schemas"]["ResumeImportItem"][];
                     };
                 };
             };
@@ -786,15 +841,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            submitted: number;
-                            inserted: number;
-                            updated: number;
-                            unchanged: number;
-                            deduped: number;
-                        };
+                        "application/json": components["schemas"]["ResumeSubmitSummary"];
                     };
                 };
                 /** @description Invalid request payload */
@@ -3792,6 +3839,80 @@ export interface components {
         ResumeWorkHistory: {
             /** @example 2021-03 ~ 2023-08 Example Co. - Sales Manager */
             raw: string;
+            /** @example Example Co. */
+            companyName?: string;
+            /** @example Sales Manager */
+            jobTitle?: string;
+            /** @example Managed CNC machine tool accounts across the region. */
+            description?: string;
+            /** @example 2021-03 */
+            startDate?: string;
+            /** @example 2023-08 */
+            endDate?: string;
+        };
+        ResumeImportProfileEducation: {
+            /** @example Universiti Malaya */
+            institution?: string;
+            /** @example Bachelor of Engineering */
+            qualification?: string;
+            /** @example Mechanical Engineering */
+            fieldOfStudy?: string;
+            /** @example Focused on mechanical design and manufacturing systems. */
+            description?: string;
+            /** @example 2014 */
+            startDate?: string;
+            /** @example 2018 */
+            endDate?: string;
+        };
+        ResumeImportSkillDetail: {
+            /** @example CNC */
+            name: string;
+            /** @example advanced */
+            level?: string;
+            /** @example 5 */
+            yearsOfExperience?: number | string;
+        };
+        ResumeImportLanguageDetail: {
+            /** @example English */
+            name: string;
+            /** @example professional */
+            proficiency?: string;
+        };
+        ResumeImportLicenceDetail: {
+            /** @example Class D */
+            name: string;
+            /** @example JPJ */
+            authority?: string;
+            /** @example 2020-01 */
+            issuedAt?: string;
+            /** @example 2030-01 */
+            expiresAt?: string;
+        };
+        ResumeImportSnippet: {
+            /** @example Experienced sales engineer covering machine tools. */
+            text: string;
+        };
+        ResumeImportIndustry: {
+            /** @example Industrial machinery */
+            name: string;
+            /** @example industrial-machinery */
+            code?: string;
+        };
+        ResumeImportRightToWork: {
+            /** @example citizen */
+            status: string;
+            /** @example Eligible to work in Malaysia without sponsorship. */
+            details?: string;
+        };
+        ResumeImportDigitalIdentity: {
+            /** @example https://www.linkedin.com/in/example */
+            linkedinUrl?: string;
+            /** @example https://hk.employer.seek.com/candidates/503033454 */
+            seekProfileUrl?: string;
+            /** @example https://example.com/portfolio */
+            portfolioUrl?: string;
+            /** @example https://example.com */
+            websiteUrl?: string;
         };
         ResumeItem: {
             /** @example Alex Chen */
@@ -3815,12 +3936,28 @@ export interface components {
             /** @example 10-15K */
             expectedSalary: string;
             workHistory: components["schemas"]["ResumeWorkHistory"][];
+            profileEducation?: components["schemas"]["ResumeImportProfileEducation"][];
+            skills?: (string | components["schemas"]["ResumeImportSkillDetail"])[];
+            languages?: (string | components["schemas"]["ResumeImportLanguageDetail"])[];
+            licences?: (string | components["schemas"]["ResumeImportLicenceDetail"])[];
+            resumeSnippet?: string | components["schemas"]["ResumeImportSnippet"];
+            currentIndustry?: string | components["schemas"]["ResumeImportIndustry"];
+            currentSubindustry?: string | components["schemas"]["ResumeImportIndustry"];
+            rightToWork?: string | boolean | components["schemas"]["ResumeImportRightToWork"];
+            digitalIdentity?: string | components["schemas"]["ResumeImportDigitalIdentity"];
+            noticePeriodDays?: number;
             /** @example 2026-02-03T10:00:00.000Z */
             extractedAt: string;
             /** @example R123456 */
             resumeId?: string;
             /** @example U987654 */
             perUserId?: string;
+            /** @example 503033454 */
+            profileId?: string;
+            /** @example seek */
+            profileType?: string;
+            /** @example seek:profile:503033454 */
+            externalId?: string;
         };
         ResumesResponse: {
             /** @enum {boolean} */
@@ -3986,6 +4123,112 @@ export interface components {
             /** @enum {boolean} */
             success: true;
             runs: components["schemas"]["MatchRun"][];
+        };
+        ResumeSubmitSummary: {
+            /** @enum {boolean} */
+            success: true;
+            submitted: number;
+            inserted: number;
+            updated: number;
+            unchanged: number;
+            deduped: number;
+        };
+        ResumeImportCollectionContext: {
+            captureMode?: string;
+            operation?: string;
+            jobId?: string | number;
+            searchId?: string;
+            pageNumber?: number | null;
+            language?: string;
+            profileType?: string;
+        };
+        ResumeImportMetadata: {
+            /**
+             * Format: uri
+             * @example https://hr.job5156.com/search?keyword=销售
+             */
+            sourceUrl: string;
+            /** @example browser-extension@1.0.0 */
+            generatedBy: string;
+            /** @example seek */
+            sourceKey?: string;
+            /** @example hk.employer.seek.com */
+            sourceHost?: string;
+            /** @example 销售 */
+            keyword?: string;
+            /** @example 东莞 */
+            location?: string;
+            /** @example sales-engineer */
+            searchProfileId?: string;
+            collectionContext?: components["schemas"]["ResumeImportCollectionContext"];
+            searchCriteria?: components["schemas"]["ResumeSearchCriteria"];
+            /** @example 2026-02-03T09:27:52.152Z */
+            generatedAt?: string;
+            /** @example 1 */
+            totalPages?: number;
+            /** @example 20 */
+            totalResumes?: number;
+            /** @example Navigate to sourceUrl, then add ?tr_auto_export=json */
+            reproduction?: string;
+        };
+        ResumeImportWorkHistory: {
+            /** @example 2021-03 ~ 2023-08 Example Co. - Sales Manager */
+            raw?: string;
+            /** @example Example Co. */
+            companyName?: string;
+            /** @example Sales Manager */
+            jobTitle?: string;
+            /** @example Managed CNC machine tool accounts across the region. */
+            description?: string;
+            /** @example 2021-03 */
+            startDate?: string;
+            /** @example 2023-08 */
+            endDate?: string;
+        };
+        ResumeImportItem: {
+            resumeId?: string | number;
+            perUserId?: string | number;
+            profileId?: string | number;
+            profileType?: string;
+            externalId?: string;
+            /** @example Alex Chen */
+            name: string;
+            /** @example 28 */
+            age?: string;
+            /** @example 5 years */
+            experience?: string;
+            /** @example Bachelor */
+            education?: string;
+            /** @example Shenzhen */
+            location?: string;
+            /** @example Sales Manager */
+            jobIntention?: string;
+            /** @example 10-15K */
+            expectedSalary?: string;
+            /** @example 认真敬业，具备团队协作精神 */
+            selfIntro?: string;
+            workHistory?: components["schemas"]["ResumeImportWorkHistory"][];
+            profileEducation?: components["schemas"]["ResumeImportProfileEducation"][];
+            skills?: (string | components["schemas"]["ResumeImportSkillDetail"])[];
+            languages?: (string | components["schemas"]["ResumeImportLanguageDetail"])[];
+            licences?: (string | components["schemas"]["ResumeImportLicenceDetail"])[];
+            resumeSnippet?: string | components["schemas"]["ResumeImportSnippet"];
+            currentIndustry?: string | components["schemas"]["ResumeImportIndustry"];
+            currentSubindustry?: string | components["schemas"]["ResumeImportIndustry"];
+            rightToWork?: string | boolean | components["schemas"]["ResumeImportRightToWork"];
+            digitalIdentity?: string | components["schemas"]["ResumeImportDigitalIdentity"];
+            noticePeriodDays?: number | null;
+            /** @example https://hr.job5156.com/resume/view/123 */
+            profileUrl?: string;
+            /** @example Active today */
+            activityStatus?: string;
+            /** @example 2026-02-03T10:00:00.000Z */
+            extractedAt?: string;
+        };
+        ResumeImportRequest: {
+            metadata: components["schemas"]["ResumeImportMetadata"];
+            resumes?: components["schemas"]["ResumeImportItem"][];
+            data?: components["schemas"]["ResumeImportItem"][];
         };
         ResumeFilters: {
             minExperience?: number;

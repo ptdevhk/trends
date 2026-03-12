@@ -9,11 +9,103 @@ const CsvStringArraySchema = z.preprocess((value) => {
   return parts.length > 0 ? parts : undefined;
 }, z.array(z.string()).optional());
 
+const ResumeWorkHistoryDetailShape = {
+  companyName: z.string().optional().openapi({ example: "Example Co." }),
+  jobTitle: z.string().optional().openapi({ example: "Sales Manager" }),
+  description: z.string().optional().openapi({ example: "Managed CNC machine tool accounts across the region." }),
+  startDate: z.string().optional().openapi({ example: "2021-03" }),
+  endDate: z.string().optional().openapi({ example: "2023-08" }),
+};
+
 export const ResumeWorkHistorySchema = z
   .object({
     raw: z.string().openapi({ example: "2021-03 ~ 2023-08 Example Co. - Sales Manager" }),
+    ...ResumeWorkHistoryDetailShape,
   })
   .openapi("ResumeWorkHistory");
+
+const ResumeImportWorkHistorySchema = z
+  .object({
+    raw: z.string().optional().openapi({ example: "2021-03 ~ 2023-08 Example Co. - Sales Manager" }),
+    ...ResumeWorkHistoryDetailShape,
+  })
+  .openapi("ResumeImportWorkHistory");
+
+const ResumeImportProfileEducationSchema = z
+  .object({
+    institution: z.string().optional().openapi({ example: "Universiti Malaya" }),
+    qualification: z.string().optional().openapi({ example: "Bachelor of Engineering" }),
+    fieldOfStudy: z.string().optional().openapi({ example: "Mechanical Engineering" }),
+    description: z.string().optional().openapi({ example: "Focused on mechanical design and manufacturing systems." }),
+    startDate: z.string().optional().openapi({ example: "2014" }),
+    endDate: z.string().optional().openapi({ example: "2018" }),
+  })
+  .openapi("ResumeImportProfileEducation");
+
+const ResumeImportSkillDetailSchema = z
+  .object({
+    name: z.string().openapi({ example: "CNC" }),
+    level: z.string().optional().openapi({ example: "advanced" }),
+    yearsOfExperience: z.union([z.number().int(), z.string()]).optional().openapi({ example: 5 }),
+  })
+  .openapi("ResumeImportSkillDetail");
+
+const ResumeImportLanguageDetailSchema = z
+  .object({
+    name: z.string().openapi({ example: "English" }),
+    proficiency: z.string().optional().openapi({ example: "professional" }),
+  })
+  .openapi("ResumeImportLanguageDetail");
+
+const ResumeImportLicenceDetailSchema = z
+  .object({
+    name: z.string().openapi({ example: "Class D" }),
+    authority: z.string().optional().openapi({ example: "JPJ" }),
+    issuedAt: z.string().optional().openapi({ example: "2020-01" }),
+    expiresAt: z.string().optional().openapi({ example: "2030-01" }),
+  })
+  .openapi("ResumeImportLicenceDetail");
+
+const ResumeImportSnippetSchema = z
+  .object({
+    text: z.string().openapi({ example: "Experienced sales engineer covering machine tools." }),
+  })
+  .openapi("ResumeImportSnippet");
+
+const ResumeImportIndustrySchema = z
+  .object({
+    name: z.string().openapi({ example: "Industrial machinery" }),
+    code: z.string().optional().openapi({ example: "industrial-machinery" }),
+  })
+  .openapi("ResumeImportIndustry");
+
+const ResumeImportRightToWorkSchema = z
+  .object({
+    status: z.string().openapi({ example: "citizen" }),
+    details: z.string().optional().openapi({ example: "Eligible to work in Malaysia without sponsorship." }),
+  })
+  .openapi("ResumeImportRightToWork");
+
+const ResumeImportDigitalIdentitySchema = z
+  .object({
+    linkedinUrl: z.string().optional().openapi({ example: "https://www.linkedin.com/in/example" }),
+    seekProfileUrl: z.string().optional().openapi({ example: "https://hk.employer.seek.com/candidates/503033454" }),
+    portfolioUrl: z.string().optional().openapi({ example: "https://example.com/portfolio" }),
+    websiteUrl: z.string().optional().openapi({ example: "https://example.com" }),
+  })
+  .openapi("ResumeImportDigitalIdentity");
+
+const ResumeStructuredDetailsShape = {
+  profileEducation: z.array(ResumeImportProfileEducationSchema).optional(),
+  skills: z.array(z.union([z.string(), ResumeImportSkillDetailSchema])).optional(),
+  languages: z.array(z.union([z.string(), ResumeImportLanguageDetailSchema])).optional(),
+  licences: z.array(z.union([z.string(), ResumeImportLicenceDetailSchema])).optional(),
+  resumeSnippet: z.union([z.string(), ResumeImportSnippetSchema]).optional(),
+  currentIndustry: z.union([z.string(), ResumeImportIndustrySchema]).optional(),
+  currentSubindustry: z.union([z.string(), ResumeImportIndustrySchema]).optional(),
+  rightToWork: z.union([z.string(), z.boolean(), ResumeImportRightToWorkSchema]).optional(),
+  digitalIdentity: z.union([z.string(), ResumeImportDigitalIdentitySchema]).optional(),
+};
 
 export const ResumeItemSchema = z
   .object({
@@ -28,9 +120,14 @@ export const ResumeItemSchema = z
     jobIntention: z.string().openapi({ example: "Sales Manager" }),
     expectedSalary: z.string().openapi({ example: "10-15K" }),
     workHistory: z.array(ResumeWorkHistorySchema),
+    ...ResumeStructuredDetailsShape,
+    noticePeriodDays: z.number().int().optional(),
     extractedAt: z.string().openapi({ example: "2026-02-03T10:00:00.000Z" }),
     resumeId: z.string().optional().openapi({ example: "R123456" }),
     perUserId: z.string().optional().openapi({ example: "U987654" }),
+    profileId: z.string().optional().openapi({ example: "503033454" }),
+    profileType: z.string().optional().openapi({ example: "seek" }),
+    externalId: z.string().optional().openapi({ example: "seek:profile:503033454" }),
   })
   .openapi("ResumeItem");
 
@@ -62,6 +159,88 @@ export const ResumeMetadataSchema = z
     reproduction: z.string().optional().openapi({ example: "Navigate to sourceUrl, then add ?tr_auto_export=json" }),
   })
   .openapi("ResumeMetadata");
+
+export const ResumeImportCollectionContextSchema = z
+  .object({
+    captureMode: z.string().optional(),
+    operation: z.string().optional(),
+    jobId: z.union([z.string(), z.number()]).pipe(z.coerce.string()).optional(),
+    searchId: z.string().optional(),
+    pageNumber: z.coerce.number().int().optional(),
+    language: z.string().optional(),
+    profileType: z.string().optional(),
+  })
+  .openapi("ResumeImportCollectionContext");
+
+export const ResumeImportMetadataSchema = z
+  .object({
+    sourceUrl: z.string().url().openapi({ example: "https://hr.job5156.com/search?keyword=销售" }),
+    generatedBy: z.string().openapi({ example: "browser-extension@1.0.0" }),
+    sourceKey: z.string().optional().openapi({ example: "seek" }),
+    sourceHost: z.string().optional().openapi({ example: "hk.employer.seek.com" }),
+    keyword: z.string().optional().openapi({ example: "销售" }),
+    location: z.string().optional().openapi({ example: "东莞" }),
+    searchProfileId: z.string().optional().openapi({ example: "sales-engineer" }),
+    collectionContext: ResumeImportCollectionContextSchema.optional(),
+    searchCriteria: ResumeSearchCriteriaSchema.optional(),
+    generatedAt: z.string().optional().openapi({ example: "2026-02-03T09:27:52.152Z" }),
+    totalPages: z.number().int().optional().openapi({ example: 1 }),
+    totalResumes: z.number().int().optional().openapi({ example: 20 }),
+    reproduction: z.string().optional().openapi({ example: "Navigate to sourceUrl, then add ?tr_auto_export=json" }),
+  })
+  .openapi("ResumeImportMetadata");
+
+export const ResumeImportItemSchema = z
+  .object({
+    resumeId: z.union([z.string(), z.number()]).pipe(z.coerce.string()).optional(),
+    perUserId: z.union([z.string(), z.number()]).pipe(z.coerce.string()).optional(),
+    profileId: z.union([z.string(), z.number()]).pipe(z.coerce.string()).optional(),
+    profileType: z.string().optional(),
+    externalId: z.string().optional(),
+    name: z.string().openapi({ example: "Alex Chen" }),
+    age: z.string().optional().openapi({ example: "28" }),
+    experience: z.string().optional().openapi({ example: "5 years" }),
+    education: z.string().optional().openapi({ example: "Bachelor" }),
+    location: z.string().optional().openapi({ example: "Shenzhen" }),
+    jobIntention: z.string().optional().openapi({ example: "Sales Manager" }),
+    expectedSalary: z.string().optional().openapi({ example: "10-15K" }),
+    selfIntro: z.string().optional().openapi({ example: "认真敬业，具备团队协作精神" }),
+    workHistory: z.array(ResumeImportWorkHistorySchema).optional(),
+    ...ResumeStructuredDetailsShape,
+    noticePeriodDays: z.coerce.number().int().optional(),
+    profileUrl: z.string().optional().openapi({ example: "https://hr.job5156.com/resume/view/123" }),
+    activityStatus: z.string().optional().openapi({ example: "Active today" }),
+    extractedAt: z.string().optional().openapi({ example: "2026-02-03T10:00:00.000Z" }),
+  })
+  .openapi("ResumeImportItem");
+
+export const ResumeImportRequestSchema = z
+  .object({
+    metadata: ResumeImportMetadataSchema,
+    resumes: z.array(ResumeImportItemSchema).optional(),
+    data: z.array(ResumeImportItemSchema).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.resumes && !value.data) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Expected resumes or data array",
+        path: ["resumes"],
+      });
+    }
+  })
+  .openapi("ResumeImportRequest");
+
+export const ResumeSubmitSummarySchema = z
+  .object({
+    success: z.literal(true),
+    submitted: z.number().int(),
+    inserted: z.number().int(),
+    updated: z.number().int(),
+    unchanged: z.number().int(),
+    deduped: z.number().int(),
+  })
+  .openapi("ResumeSubmitSummary");
 
 export const ResumesQuerySchema = z.object({
   sample: z

@@ -15,6 +15,7 @@ function buildEntry(age: string | undefined): ResumeExportEntry {
       experience: "5年",
       education: "本科",
       location: "东莞",
+      source: "hr.job5156.com",
       profileUrl: "https://example.com/resume-1",
       workHistory: [{ raw: "Test work history" }],
       selfIntro: "Test intro",
@@ -120,5 +121,23 @@ describe("ExportService", () => {
     const headers = sheet?.getRow(1).values as unknown[];
     expect(headers).toContain("User Comment");
     expect(headers).toContain("Reference Note");
+  });
+
+  it("keeps non-Job5156 profile URLs unchanged during export", async () => {
+    const service = new ExportService();
+    const entry: ResumeExportEntry = {
+      ...buildEntry("27"),
+      resume: {
+        ...buildEntry("27").resume,
+        source: "hk.employer.seek.com",
+        profileUrl: "https://hk.employer.seek.com/candidates/503033454",
+      },
+    };
+
+    const file = await service.exportResumes("csv", [entry]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.profileUrl).toBe("https://hk.employer.seek.com/candidates/503033454");
   });
 });

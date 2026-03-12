@@ -6,13 +6,52 @@
 
   const SOURCE = 'tr-resume-api';
   const EXTERNAL_ACCESS_KEY = '__TR_RESUME_DATA__';
+  const PAGE_BRIDGE_REQUEST_EVENT = 'trResumeBridgeRequest';
+  const PAGE_BRIDGE_RESPONSE_EVENT = 'trResumeBridgeResponse';
+  const PAGE_BRIDGE_REQUEST_ATTR = 'data-tr-resume-bridge-request';
+  const PAGE_BRIDGE_RESPONSE_ATTR = 'data-tr-resume-bridge-response';
 
-  const classify = (url) => {
+  let pageBridgeRequestCount = 0;
+
+  const getGraphqlOperations = (requestBody) => {
+    if (Array.isArray(requestBody)) {
+      return requestBody.filter((entry) => entry && typeof entry === 'object');
+    }
+    if (requestBody && typeof requestBody === 'object') {
+      return [requestBody];
+    }
+    return [];
+  };
+
+  const findGraphqlOperation = (requestBody, expectedOperationName) => getGraphqlOperations(requestBody)
+    .find((entry) => entry?.operationName === expectedOperationName) || null;
+
+  const classify = (url, requestBody) => {
     if (!url) return null;
-    if (url.includes('/api/search/resume/v2/attach/resume/info')) return 'attach';
-    if (url.includes('/api/search/resume/v2/chat/info')) return 'chat';
-    if (url.includes('/api/search/resume/v2/talent/insight/info')) return 'insight';
-    if (url.includes('/api/search/resume/v2')) return 'search';
+    if (url.includes('/api/search/resume/v2/attach/resume/info')) return { kind: 'attach', sourceKey: 'job5156' };
+    if (url.includes('/api/search/resume/v2/chat/info')) return { kind: 'chat', sourceKey: 'job5156' };
+    if (url.includes('/api/search/resume/v2/talent/insight/info')) return { kind: 'insight', sourceKey: 'job5156' };
+    if (url.includes('/api/search/resume/v2')) return { kind: 'search', sourceKey: 'job5156' };
+    if (url.includes('/graphql')) {
+      const recommendedOperation = findGraphqlOperation(requestBody, 'GetTalentSearchRecommendedCandidates');
+      if (recommendedOperation) {
+        return {
+          kind: 'seekRecommendedCandidates',
+          sourceKey: 'seek',
+          operationName: 'GetTalentSearchRecommendedCandidates',
+          operation: recommendedOperation,
+        };
+      }
+      const profileOperation = findGraphqlOperation(requestBody, 'GetTalentSearchProfileCompleteV2');
+      if (profileOperation) {
+        return {
+          kind: 'seekProfile',
+          sourceKey: 'seek',
+          operationName: 'GetTalentSearchProfileCompleteV2',
+          operation: profileOperation,
+        };
+      }
+    }
     return null;
   };
 
@@ -25,22 +64,172 @@
     }
   };
 
-  const post = (kind, url, payload) => {
+  const parseJsonString = (value) => {
+    if (typeof value !== 'string') {
+      return null;
+    }
     try {
-      window.postMessage({ source: SOURCE, kind, url, payload }, '*');
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  };
+
+  const post = (message) => {
+    try {
+      window.postMessage({ source: SOURCE, ...message }, '*');
     } catch {
       // ignore
     }
   };
 
-  const capture = (url, payload) => {
-    const kind = classify(url);
-    if (!kind || !payload) return;
-    post(kind, url, payload);
+  const sanitizeSeekRequestBody = (operation) => {
+    if (!operation || typeof operation !== 'object') return null;
+    const input = operation.variables?.input;
+    const language = operation.variables?.language;
+    return {
+      operationName: typeof operation.operationName === 'string' ? operation.operationName : '',
+      variables: {
+        input: input && typeof input === 'object'
+          ? {
+              jobId: input.jobId,
+              page: input.page,
+              size: input.size,
+              userSessionId: input.userSessionId,
+              searchId: input.searchId,
+              countryCode: input.countryCode,
+              profileId: input.profileId,
+              keywords: input.keywords,
+            }
+          : undefined,
+        language: typeof language === 'string' ? language : undefined,
+      },
+    };
+  };
+
+  const capture = (classification, url, payload) => {
+    if (!classification || !payload) return;
+    post({
+      kind: classification.kind,
+      sourceKey: classification.sourceKey,
+      operationName: classification.operationName || '',
+      url,
+      payload,
+      request: classification.sourceKey === 'seek'
+        ? sanitizeSeekRequestBody(classification.operation)
+        : undefined,
+    });
   };
 
   const readAttr = (name) => document.documentElement.getAttribute(name) || '';
+  const getSourceKey = () => {
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname === 'hr.job5156.com') return 'job5156';
+    if (hostname.endsWith('.employer.seek.com')) return 'seek';
+    return 'unknown';
+  };
+  const parsePositiveInt = (value) => {
+    const parsed = Number.parseInt(String(value || '').trim(), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+  const parseBridgeResponse = () => {
+    const raw = readAttr(PAGE_BRIDGE_RESPONSE_ATTR);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+  const dispatchBridgeRequest = (method, args = []) => {
+    const requestId = `${Date.now()}-${pageBridgeRequestCount += 1}`;
+    document.documentElement.setAttribute(PAGE_BRIDGE_REQUEST_ATTR, JSON.stringify({ id: requestId, method, args }));
+    document.documentElement.removeAttribute(PAGE_BRIDGE_RESPONSE_ATTR);
+    window.dispatchEvent(new CustomEvent(PAGE_BRIDGE_REQUEST_EVENT));
+    return requestId;
+  };
+  const cleanupBridgeAttributes = () => {
+    document.documentElement.removeAttribute(PAGE_BRIDGE_REQUEST_ATTR);
+    document.documentElement.removeAttribute(PAGE_BRIDGE_RESPONSE_ATTR);
+  };
+  const requestContentScriptSync = (method, args = []) => {
+    const requestId = dispatchBridgeRequest(method, args);
+    const payload = parseBridgeResponse();
+    cleanupBridgeAttributes();
+
+    if (!payload || payload.id !== requestId) {
+      throw new Error(`Bridge unavailable: ${method}`);
+    }
+    if (!payload.ok) {
+      throw new Error(payload.error || `Bridge call failed: ${method}`);
+    }
+    return payload.value;
+  };
+  const requestContentScriptAsync = (method, args = []) => new Promise((resolve, reject) => {
+    let requestId = null;
+
+    const cleanup = () => {
+      window.removeEventListener(PAGE_BRIDGE_RESPONSE_EVENT, onResponse);
+      clearTimeout(timeoutId);
+      cleanupBridgeAttributes();
+    };
+
+    const onResponse = () => {
+      const payload = parseBridgeResponse();
+      if (!payload || payload.id !== requestId) return;
+      cleanup();
+      if (payload.ok) {
+        resolve(payload.value);
+        return;
+      }
+      reject(new Error(payload.error || `Bridge call failed: ${method}`));
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      reject(new Error(`Bridge timeout: ${method}`));
+    }, 5000);
+
+    window.addEventListener(PAGE_BRIDGE_RESPONSE_EVENT, onResponse);
+    requestId = dispatchBridgeRequest(method, args);
+  });
+  const getSeekCardCount = () => document.querySelectorAll('a[href*="/talentsearch/profile/"][href*="profilePosition="]').length;
+  const getSeekPaginationInfo = () => {
+    const currentPage = parsePositiveInt(new URL(window.location.href).searchParams.get('pageNumber')) || 1;
+    const pagination = document.querySelector('nav[aria-label="Pagination of results"]');
+    if (!pagination) {
+      return {
+        currentPage,
+        totalPages: currentPage,
+        hasNextPage: false,
+        totalItems: 0
+      };
+    }
+
+    const links = Array.from(pagination.querySelectorAll('a'));
+    const pageNumbers = links
+      .map((node) => {
+        const label = node.getAttribute('aria-label') || '';
+        const text = node.textContent?.trim() || '';
+        const match = label.match(/page\s+(\d+)/i) || text.match(/^(\d+)$/);
+        return match ? Number(match[1]) : 0;
+      })
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const totalPages = Math.max(pageNumbers.length > 0 ? Math.max(...pageNumbers) : 0, currentPage);
+    const hasNextPage = links.some((node) => (node.textContent || '').trim().toLowerCase() === 'next');
+
+    return {
+      currentPage,
+      totalPages,
+      hasNextPage,
+      totalItems: 0
+    };
+  };
   const getPaginationInfo = () => {
+    if (getSourceKey() === 'seek') {
+      return getSeekPaginationInfo();
+    }
+
     const pagination = document.querySelector('.el-pagination');
     if (!pagination) {
       return {
@@ -68,33 +257,77 @@
       totalItems: 0
     };
   };
+  const buildFallbackStatus = () => {
+    const sourceKey = getSourceKey();
+    const apiSnapshotCount = Number(readAttr('data-tr-api-rows') || '0') || 0;
+    const cardCount = sourceKey === 'seek'
+      ? Math.max(apiSnapshotCount, getSeekCardCount())
+      : document.querySelectorAll('.list-content__li_part').length;
+
+    return {
+      extensionLoaded: readAttr('data-tr-resume-hook') === 'true',
+      extensionVersion: 'page-bridge',
+      sourceKey,
+      apiSnapshotCount,
+      domReady: sourceKey === 'seek'
+        ? apiSnapshotCount > 0
+        : document.querySelector('.el-checkbox-group.resume-search-item-list-content-block') !== null,
+      loggedIn: !document.querySelector('.login-btn, [href*="login"]'),
+      cardCount,
+      autoSearch: readAttr('data-tr-auto-search'),
+      autoLocation: readAttr('data-tr-auto-location'),
+      autoExport: readAttr('data-tr-auto-export'),
+      pagination: getPaginationInfo(),
+      timestamp: new Date().toISOString()
+    };
+  };
 
   if (!trWindow[EXTERNAL_ACCESS_KEY]) {
-    trWindow[EXTERNAL_ACCESS_KEY] = {
-      status: () => ({
-        extensionLoaded: readAttr('data-tr-resume-hook') === 'true',
-        extensionVersion: 'page-bridge',
-        apiSnapshotCount: Number(readAttr('data-tr-api-rows') || '0') || 0,
-        domReady: document.querySelector('.el-checkbox-group.resume-search-item-list-content-block') !== null,
-        loggedIn: !document.querySelector('.login-btn, [href*="login"]'),
-        cardCount: document.querySelectorAll('.list-content__li_part').length,
-        autoSearch: readAttr('data-tr-auto-search'),
-        autoLocation: readAttr('data-tr-auto-location'),
-        autoExport: readAttr('data-tr-auto-export'),
-        pagination: getPaginationInfo(),
-        timestamp: new Date().toISOString()
-      })
+    const accessor = {
+      extract: () => requestContentScriptSync('extract'),
+      extractRaw: (options) => requestContentScriptSync('extractRaw', [options]),
+      getApiSnapshot: () => requestContentScriptSync('getApiSnapshot'),
+      getPaginationInfo: () => requestContentScriptSync('getPaginationInfo'),
+      isReady: () => requestContentScriptSync('isReady'),
+      isLoggedIn: () => requestContentScriptSync('isLoggedIn'),
+      status: () => {
+        try {
+          return requestContentScriptSync('status');
+        } catch {
+          return buildFallbackStatus();
+        }
+      },
+      syncToServer: (resumesOverride) => requestContentScriptAsync('syncToServer', [resumesOverride]),
+      goToNextPage: () => requestContentScriptSync('goToNextPage')
     };
+
+    Object.defineProperty(accessor, 'version', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        try {
+          return requestContentScriptSync('status')?.extensionVersion || 'page-bridge';
+        } catch {
+          return 'page-bridge';
+        }
+      }
+    });
+
+    trWindow[EXTERNAL_ACCESS_KEY] = accessor;
   }
 
   if (trWindow.fetch) {
     const originalFetch = trWindow.fetch;
     trWindow.fetch = function(...args) {
+      const requestUrl = normalizeUrl(args[0]);
+      const requestInit = args[1];
+      const requestBody = parseJsonString(requestInit?.body);
+
       return originalFetch.apply(this, args).then((res) => {
         try {
-          const url = normalizeUrl(args[0]);
-          if (classify(url)) {
-            res.clone().json().then((data) => capture(url, data)).catch(() => {});
+          const classification = classify(requestUrl, requestBody);
+          if (classification) {
+            res.clone().json().then((data) => capture(classification, requestUrl, data)).catch(() => {});
           }
         } catch {
           // ignore
@@ -107,14 +340,19 @@
   const originalOpen = XMLHttpRequest.prototype.open;
   const originalSend = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-    /** @type {XMLHttpRequest & { __tr_url?: string }} */ (this).__tr_url = url;
+    /** @type {XMLHttpRequest & { __tr_url?: string, __tr_body?: unknown }} */ (this).__tr_url = url;
     return originalOpen.call(this, method, url, ...rest);
   };
   XMLHttpRequest.prototype.send = function(...args) {
+    const body = args[0];
+    /** @type {XMLHttpRequest & { __tr_body?: unknown }} */ (this).__tr_body = parseJsonString(body);
+
     this.addEventListener('load', function() {
       try {
-        const url = normalizeUrl(/** @type {XMLHttpRequest & { __tr_url?: string }} */ (this).__tr_url);
-        if (!classify(url)) return;
+        const request = /** @type {XMLHttpRequest & { __tr_url?: string, __tr_body?: unknown }} */ (this);
+        const url = normalizeUrl(request.__tr_url);
+        const classification = classify(url, request.__tr_body);
+        if (!classification) return;
         let data = null;
         if (this.responseType === 'json' && this.response) {
           data = this.response;
@@ -125,7 +363,7 @@
           }
         }
         if (!data) return;
-        capture(url, data);
+        capture(classification, url, data);
       } catch {
         // ignore
       }
