@@ -28,6 +28,14 @@ export type ConvexIngestData = {
     context: string
   }>
   companyHits: string[]
+  industryDbV2Raw?: number
+  industryDbV2RawComponents?: {
+    companyScore: number
+    brandScore: number
+    weightedBrandUnits: number
+    uniqueCompanies: number
+    brandUnitCount: number
+  }
   roleSignals?: Array<{
     type: string
     matchedSignals: string[]
@@ -389,6 +397,16 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
     synonymHits: toStringArray(value.synonymHits),
     brandHits: parseBrandHits(value.brandHits),
     companyHits: toStringArray(value.companyHits),
+    industryDbV2Raw: toNumber(value.industryDbV2Raw) ?? undefined,
+    industryDbV2RawComponents: isRecord(value.industryDbV2RawComponents)
+      ? {
+          companyScore: toNumber(value.industryDbV2RawComponents.companyScore) ?? 0,
+          brandScore: toNumber(value.industryDbV2RawComponents.brandScore) ?? 0,
+          weightedBrandUnits: toNumber(value.industryDbV2RawComponents.weightedBrandUnits) ?? 0,
+          uniqueCompanies: toNumber(value.industryDbV2RawComponents.uniqueCompanies) ?? 0,
+          brandUnitCount: toNumber(value.industryDbV2RawComponents.brandUnitCount) ?? 0,
+        }
+      : undefined,
     roleSignals: Array.isArray(value.roleSignals)
       ? value.roleSignals
           .map((item) => {

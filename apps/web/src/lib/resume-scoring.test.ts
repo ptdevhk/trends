@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   buildLearningObservation,
   buildResumeKey,
+  computeNormalizedIndustryDbScore,
   getPrecomputedRuleScore,
   hasIngestData,
   isAutoFilteredAnalysis,
+  overrideIndustryDbBreakdown,
   toMatchBreakdown,
   toRecommendation,
 } from '@/lib/resume-scoring'
@@ -157,5 +159,44 @@ describe('resume-scoring', () => {
         breakdown: { keyword_match: 10 },
       })
     ).toBe(true)
+  })
+
+  it('normalizes industry_db score from frozen cohort stats', () => {
+    expect(computeNormalizedIndustryDbScore(20, {
+      size: 50,
+      p80: 20,
+      histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
+    })).toBe(40)
+  })
+
+  it('falls back to raw industry_db score for weak cohorts', () => {
+    expect(computeNormalizedIndustryDbScore(12, {
+      size: 10,
+      p80: 4,
+      histogram50: Array.from({ length: 51 }, () => 0),
+    })).toBe(12)
+  })
+
+  it('overrides AI breakdown and recomputes total score', () => {
+    expect(overrideIndustryDbBreakdown({
+      score: 45,
+      summary: 'Good match',
+      highlights: [],
+      recommendation: 'match',
+      breakdown: {
+        related_exp: 30,
+        industry_db: 15,
+      },
+    }, 20, {
+      size: 50,
+      p80: 20,
+      histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
+    })).toEqual(expect.objectContaining({
+      score: 70,
+      breakdown: {
+        related_exp: 30,
+        industry_db: 40,
+      },
+    }))
   })
 })

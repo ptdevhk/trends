@@ -4,6 +4,7 @@ import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Id } from '../../../../packages/convex/convex/_generated/dataModel'
 import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { toIndustryDbV2Stats, type IndustryDbV2Stats } from '@/lib/resume-scoring'
 
 export type ExternalSessionState = {
   location?: string
@@ -26,6 +27,7 @@ export type SearchHistoryItem = {
   collectionTaskId?: string
   analysisTaskId?: string
   notes?: string
+  industryDbV2Stats?: IndustryDbV2Stats
   createdAt: number
   lastOpenedAt?: number
 }
@@ -42,6 +44,7 @@ type SaveSearchHistoryInput = {
   selectedExperienceLevel?: string
   collectionTaskId?: string
   analysisTaskId?: string
+  resumeIds?: string[]
 }
 
 const AUTO_RESTORE_SCREENING_SESSION = false
@@ -224,6 +227,7 @@ export function useSession(loadSearchHistory = false) {
       collectionTaskId: normalizeOptionalString(record.collectionTaskId),
       analysisTaskId: normalizeOptionalString(record.analysisTaskId),
       notes: normalizeOptionalString(record.notes),
+      industryDbV2Stats: toIndustryDbV2Stats(record.industryDbV2Stats),
       createdAt: record.createdAt,
       lastOpenedAt: record.lastOpenedAt,
     }))
@@ -248,6 +252,7 @@ export function useSession(loadSearchHistory = false) {
       selectedExperienceLevel: normalizeOptionalString(input.selectedExperienceLevel),
       collectionTaskId: normalizeOptionalString(input.collectionTaskId),
       analysisTaskId: normalizeOptionalString(input.analysisTaskId),
+      resumeIds: normalizeStringList(input.resumeIds),
     })
   }, [filters, jobDescriptionId, keywords, location, saveSearchHistoryMutation, sessionKey, slug])
 

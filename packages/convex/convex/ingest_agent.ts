@@ -94,6 +94,8 @@ export const processNewResumes = internalAction({
           synonymHits: item.synonymHits,
           brandHits: item.brandHits || [],
           companyHits: item.companyHits || [],
+          industryDbV2Raw: item.industryDbV2Raw,
+          industryDbV2RawComponents: item.industryDbV2RawComponents || undefined,
           roleSignals: item.roleSignals || [],
           tagEnvelope: item.tagEnvelope || [],
           taggingEnvelope: item.taggingEnvelope || undefined,

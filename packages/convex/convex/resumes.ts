@@ -440,6 +440,14 @@ export const updateIngestData = internalMutation({
                 companyId: v.optional(v.number()),
             }))),
             companyHits: v.optional(v.array(v.string())),
+            industryDbV2Raw: v.optional(v.number()),
+            industryDbV2RawComponents: v.optional(v.object({
+                companyScore: v.number(),
+                brandScore: v.number(),
+                weightedBrandUnits: v.number(),
+                uniqueCompanies: v.number(),
+                brandUnitCount: v.number(),
+            })),
             roleSignals: v.optional(v.array(v.object({
                 type: v.string(),
                 matchedSignals: v.array(v.string()),

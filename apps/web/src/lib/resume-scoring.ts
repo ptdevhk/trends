@@ -3,6 +3,12 @@ import type { ConvexResumeAnalysis } from '@/hooks/useConvexResumes'
 import type { MatchBreakdown, Recommendation } from '@/types/resume'
 import { deriveAnalysisLookupKey } from '@/lib/analysis-utils'
 
+export type IndustryDbV2Stats = {
+  size: number
+  p80: number
+  histogram50: number[]
+}
+
 const VALID_RECOMMENDATIONS: Recommendation[] = ['strong_match', 'match', 'potential', 'no_match']
 
 export function isRecommendation(value: string): value is Recommendation {
@@ -154,6 +160,104 @@ function isStringArray(value: unknown): value is string[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function normalizeHistogram50(histogram50: number[]): number[] {
+  return Array.from({ length: 51 }, (_, score) => {
+    const count = histogram50[score]
+    return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0
+  })
+}
+
+function countHistogramSamples(histogram50: number[]): number {
+  return histogram50.reduce((total, count) => total + count, 0)
+}
+
+function percentileRankFromHistogram(histogram50: number[], raw: number): number {
+  const total = countHistogramSamples(histogram50)
+  if (total <= 1) {
+    return 1
+  }
+
+  const roundedRaw = Math.round(clamp(raw, 0, 50))
+  let lowerBound = 0
+  let upperBound = 0
+
+  histogram50.forEach((count, score) => {
+    if (score < roundedRaw) {
+      lowerBound += count
+      upperBound += count
+      return
+    }
+
+    if (score === roundedRaw) {
+      upperBound += count
+    }
+  })
+
+  if (upperBound === 0) {
+    return 0
+  }
+
+  if (lowerBound === total) {
+    return 1
+  }
+
+  const midpoint = (lowerBound + upperBound - 1) / 2
+  return midpoint / (total - 1)
+}
+
+export function toIndustryDbV2Stats(value: unknown): IndustryDbV2Stats | undefined {
+  if (!isRecord(value) || !Array.isArray(value.histogram50)) {
+    return undefined
+  }
+
+  return {
+    size: typeof value.size === 'number' && Number.isFinite(value.size) ? Math.max(0, Math.floor(value.size)) : 0,
+    p80: typeof value.p80 === 'number' && Number.isFinite(value.p80) ? value.p80 : 0,
+    histogram50: normalizeHistogram50(value.histogram50),
+  }
+}
+
+export function computeNormalizedIndustryDbScore(raw: number | undefined, stats: IndustryDbV2Stats | undefined): number {
+  const safeRaw = typeof raw === 'number' && Number.isFinite(raw) ? clamp(raw, 0, 50) : 0
+  if (!stats || stats.size < 30 || stats.p80 <= 5) {
+    return Math.round(safeRaw)
+  }
+
+  const histogram50 = normalizeHistogram50(stats.histogram50)
+  const sampleSize = countHistogramSamples(histogram50)
+  if (sampleSize < 30) {
+    return Math.round(safeRaw)
+  }
+
+  const rank = percentileRankFromHistogram(histogram50, safeRaw)
+  const base = 40 * clamp(safeRaw / Math.max(stats.p80, 1), 0, 1)
+  const bonus = 10 * clamp((rank - 0.8) / 0.2, 0, 1)
+  return Math.round(Math.min(50, base + bonus))
+}
+
+export function overrideIndustryDbBreakdown(
+  analysis: ConvexResumeAnalysis,
+  raw: number | undefined,
+  stats: IndustryDbV2Stats | undefined
+): ConvexResumeAnalysis {
+  const normalizedIndustryDb = computeNormalizedIndustryDbScore(raw, stats)
+  const nextBreakdown: MatchBreakdown = {
+    ...(analysis.breakdown ?? {}),
+    industry_db: normalizedIndustryDb,
+  }
+  const relatedExp = typeof nextBreakdown.related_exp === 'number' ? nextBreakdown.related_exp : 0
+
+  return {
+    ...analysis,
+    score: relatedExp + normalizedIndustryDb,
+    breakdown: nextBreakdown,
+  }
 }
 
 export function hasIngestData(resume: unknown): resume is ResumeWithIngestData {

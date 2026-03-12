@@ -32,6 +32,7 @@ const mockState = vi.hoisted(() => ({
   applyExternalState: vi.fn(),
   saveSearchHistory: vi.fn(async () => 'history-1'),
   markSearchHistoryOpened: vi.fn(async () => {}),
+  searchHistory: [] as Array<Record<string, unknown>>,
   refresh: vi.fn(async () => {}),
   reloadSamples: vi.fn(async () => {}),
   blockCandidates: vi.fn(async () => true),
@@ -82,7 +83,7 @@ vi.mock('@/hooks/useSession', () => ({
     reviewedIdsSet: new Set<string>(),
     trackReviewedResume: mockState.trackReviewedResume,
     applyExternalState: mockState.applyExternalState,
-    searchHistory: [],
+    searchHistory: mockState.searchHistory,
     searchHistoryLoading: false,
     saveSearchHistory: mockState.saveSearchHistory,
     markSearchHistoryOpened: mockState.markSearchHistoryOpened,
@@ -175,6 +176,8 @@ function buildResume(params: {
   primaryRuleScore?: number
   companyHits?: string[]
   industryTags?: string[]
+  industryDbV2Raw?: number
+  analysis?: ConvexResumeItem['analysis']
   roleSignals: Array<{
     type: string
     matchedSignals: string[]
@@ -216,12 +219,14 @@ function buildResume(params: {
     noticePeriodDays: 30,
     extractedAt: '2026-03-01T00:00:00.000Z',
     primaryRuleScore: params.primaryRuleScore,
+    analysis: params.analysis,
     ingestData: {
       evidenceText: 'test work history',
       industryTags: params.industryTags ?? [],
       synonymHits: [],
       brandHits: [],
       companyHits: params.companyHits ?? [],
+      industryDbV2Raw: params.industryDbV2Raw ?? 0,
       roleSignals: params.roleSignals,
       ruleScores: {},
       experienceLevel: 'mid',
@@ -278,6 +283,7 @@ describe('useResumeListState role filter regression', () => {
     mockState.sessionJobDescriptionId = undefined
     mockState.blocksByIdentity = {}
     mockState.statusByIdentity = {}
+    mockState.searchHistory = []
     document.body.innerHTML = ''
     mockState.urlParsedState = {
       location: undefined,
@@ -627,6 +633,27 @@ describe('useResumeListState role filter regression', () => {
   })
 
   it('applies saved search history and updates opened timestamp', async () => {
+    mockState.searchHistory = [
+      {
+        id: 'history-1',
+        sessionKey: 'session-1',
+        title: 'Saved search',
+        location: '苏州',
+        keywords: ['CNC', '销售'],
+        jobDescriptionId: 'lathe-sales',
+        filters: { minAge: 28 },
+        selectedTags: ['STAR'],
+        selectedCompanies: ['Acme'],
+        selectedExperienceLevel: 'mid',
+        industryDbV2Stats: {
+          size: 50,
+          p80: 25,
+          histogram50: Array.from({ length: 51 }, (_, index) => (index === 25 ? 50 : 0)),
+        },
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
     const { result } = renderHook(() => useResumeListState())
 
     await act(async () => {
@@ -653,6 +680,81 @@ describe('useResumeListState role filter regression', () => {
       filters: { minAge: 28 },
     })
     expect(mockState.markSearchHistoryOpened).toHaveBeenCalledWith('history-1')
+    expect(result.current.appliedSearchHistoryId).toBe('history-1')
+  })
+
+  it('passes current convex resume ids when saving search history', async () => {
+    mockState.saveSearchHistory.mockClear()
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleSaveCurrentSearch()
+    })
+
+    expect(mockState.saveSearchHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resumeIds: [
+          'resume-ideal-cnc-sales',
+          'resume-zhang-machinery-sales',
+          'resume-li-automation-sales',
+          'resume-zhou-jingdiao',
+          'resume-luo-non-cnc-sales',
+          'resume-engineer-junior',
+        ],
+      })
+    )
+  })
+
+  it('overrides AI industry_db score from applied search history cohort stats', async () => {
+    mockState.convexResumes = [
+      buildResume({
+        id: 'resume-ai-1',
+        name: 'AI Resume',
+        industryDbV2Raw: 20,
+        analysis: {
+          score: 45,
+          summary: 'Good match',
+          highlights: ['summary'],
+          recommendation: 'match',
+          breakdown: {
+            related_exp: 30,
+            industry_db: 15,
+          },
+          jobDescriptionId: 'lathe-sales',
+        },
+        roleSignals: [],
+      }),
+    ]
+    mockState.searchHistory = [
+      {
+        id: 'history-ai',
+        sessionKey: 'session-1',
+        title: 'AI Saved search',
+        location: '苏州',
+        keywords: ['CNC'],
+        jobDescriptionId: 'lathe-sales',
+        filters: {},
+        selectedTags: [],
+        selectedCompanies: [],
+        selectedExperienceLevel: undefined,
+        industryDbV2Stats: {
+          size: 50,
+          p80: 20,
+          histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
+        },
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
+    })
+
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(40)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(70)
   })
 
   it('allows manual profile apply to bypass the URL hydration guard', () => {

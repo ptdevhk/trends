@@ -24,6 +24,14 @@ export interface BrandHit {
   companyId?: number;
 }
 
+export interface IndustryDbV2RawComponents {
+  companyScore: number;
+  brandScore: number;
+  weightedBrandUnits: number;
+  uniqueCompanies: number;
+  brandUnitCount: number;
+}
+
 export interface IngestResult {
   resumeId: string;
   evidenceText: string;
@@ -31,6 +39,8 @@ export interface IngestResult {
   synonymHits: string[];
   brandHits: BrandHit[];
   companyHits: string[];
+  industryDbV2Raw: number;
+  industryDbV2RawComponents: IndustryDbV2RawComponents;
   roleSignals: RoleSignalSummary[];
   tagEnvelope: TagEnvelopeEntry[];
   taggingEnvelope: TaggingEnvelope;
@@ -275,10 +285,89 @@ function inferTaggingStage(tag: string): TaggingProvenanceStage {
   return "derived";
 }
 
+function computeIndustryDbV2Raw(
+  companyHits: string[],
+  brandHits: BrandHit[]
+): { raw: number; components: IndustryDbV2RawComponents } {
+  const uniqueCompanies = Array.from(
+    new Set(
+      companyHits
+        .map((company) => company.trim().toLowerCase())
+        .filter((company) => company.length > 0)
+    )
+  );
+
+  const companyScore = Math.min(
+    INDUSTRY_DB_V2_COMPANY_SCORE_CAP,
+    uniqueCompanies.length * INDUSTRY_DB_V2_COMPANY_SCORE_PER_HIT
+  );
+
+  const dedupedBrandKeys = new Set<string>();
+  let weightedBrandUnits = 0;
+  let brandUnitCount = 0;
+
+  for (const hit of brandHits) {
+    if (hit.context === "employer") {
+      continue;
+    }
+
+    const brand = hit.brand.trim().toLowerCase();
+    if (!brand) {
+      continue;
+    }
+
+    const dedupeKey = `${brand}|${hit.context}`;
+    if (dedupedBrandKeys.has(dedupeKey)) {
+      continue;
+    }
+    dedupedBrandKeys.add(dedupeKey);
+
+    const weight = INDUSTRY_DB_V2_CONTEXT_WEIGHTS[hit.context];
+    if (typeof weight !== "number") {
+      continue;
+    }
+
+    weightedBrandUnits += weight;
+    brandUnitCount += 1;
+  }
+
+  const roundedWeightedBrandUnits = Number(weightedBrandUnits.toFixed(2));
+  const brandScore = Math.min(
+    INDUSTRY_DB_V2_BRAND_SCORE_CAP,
+    Number((roundedWeightedBrandUnits * INDUSTRY_DB_V2_BRAND_SCORE_PER_UNIT).toFixed(2))
+  );
+  const raw = Math.min(
+    INDUSTRY_DB_V2_TOTAL_CAP,
+    Number((companyScore + brandScore).toFixed(2))
+  );
+
+  return {
+    raw,
+    components: {
+      companyScore,
+      brandScore,
+      weightedBrandUnits: roundedWeightedBrandUnits,
+      uniqueCompanies: uniqueCompanies.length,
+      brandUnitCount,
+    },
+  };
+}
+
 const BRAND_CONTEXT_WINDOW = 30;
 const EQUIPMENT_SIGNALS = ["操作", "使用", "熟练", "熟悉", "机台", "机型", "设备", "机床"];
 const SALES_SIGNALS = ["销售", "代理", "渠道", "推广", "业务", "客户"];
 const TECHNICAL_SIGNALS = ["维修", "调试", "编程", "安装", "保养", "维护"];
+const INDUSTRY_DB_V2_COMPANY_SCORE_PER_HIT = 10;
+const INDUSTRY_DB_V2_COMPANY_SCORE_CAP = 20;
+const INDUSTRY_DB_V2_BRAND_SCORE_PER_UNIT = 10;
+const INDUSTRY_DB_V2_BRAND_SCORE_CAP = 30;
+const INDUSTRY_DB_V2_TOTAL_CAP = 50;
+const INDUSTRY_DB_V2_CONTEXT_WEIGHTS: Record<Exclude<BrandContext, "employer">, number> = {
+  sales: 1,
+  equipment: 0.8,
+  technical: 0.6,
+  general: 0.3,
+};
 const DEFAULT_ROLE_SIGNAL_LIBRARY: Record<string, string[]> = {
   sales: ["销售", "业务开发", "客户", "大客户", "渠道", "销售经理", "销售工程师", "sales", "account"],
   engineer: ["工程师", "设计", "研发", "开发", "编程", "调试", "维修", "技术", "engineer", "developer", "design"],
@@ -342,7 +431,17 @@ export class IngestComputeService {
 
     // 3. Compute field-aware brandHits, then derive companyHits for backward compatibility
     const brandHits = this.computeBrandHits(item, index.companies, searchText);
-    const companyHits = Array.from(new Set(brandHits.map((hit) => hit.brand)));
+    const companyHits = Array.from(
+      new Set(
+        brandHits
+          .filter((hit) => hit.context === "employer")
+          .map((hit) => hit.brand)
+      )
+    );
+    const { raw: industryDbV2Raw, components: industryDbV2RawComponents } = computeIndustryDbV2Raw(
+      companyHits,
+      brandHits
+    );
     const roleSignals = this.computeRoleSignals(item.workHistory ?? []);
     const companyAliasTokens = this.buildCompanyAliasTokens(companyHits);
 
@@ -374,6 +473,8 @@ export class IngestComputeService {
       synonymHits,
       brandHits,
       companyHits,
+      industryDbV2Raw,
+      industryDbV2RawComponents,
       roleSignals,
       tagEnvelope,
       taggingEnvelope,
