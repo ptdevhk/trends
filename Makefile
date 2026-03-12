@@ -8,6 +8,7 @@
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
+		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
@@ -416,6 +417,10 @@ seed-clear-workspace:
 seed-clear-dev:
 	@$(MAKE) seed-clear-workspace WORKSPACE=dev
 
+# Clear resume-related Convex collections via resetDatabase
+clear-resumes:
+	@npm --workspace @trends/convex exec convex run resume_tasks:resetDatabase
+
 # Seed deterministic resume matches into output/resume_screening.db
 seed-matches:
 	@if command -v node >/dev/null 2>&1 && [ -d "node_modules/better-sqlite3" ]; then \
@@ -784,6 +789,7 @@ help:
 	@echo "  seed-clear     Clear all Convex seeded data (seed:clearAll)"
 	@echo "  seed-clear-workspace WORKSPACE=<slug> Clear workspace-scoped Convex data (default: dev)"
 	@echo "  seed-clear-dev Clear workspace-scoped Convex data for dev"
+	@echo "  clear-resumes  Clear resume-related Convex collections"
 	@echo "  seed-matches   Seed deterministic resume matches for dev mode"
 	@echo "  clear-matches  Clear cached resume matches from SQLite"
 	@echo "  verify-critical-path Run critical-path smoke verification (Collection -> Search -> Analysis)"
