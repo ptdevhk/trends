@@ -35,6 +35,7 @@ import {
   getAnalysisForJob,
   hasIngestData,
   isAutoFilteredAnalysis,
+  overrideIndustryDbBreakdown,
   toMatchBreakdown,
   toRecommendation,
 } from '@/lib/resume-scoring'
@@ -369,6 +370,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
   const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<ExperienceLevelFilter | undefined>(undefined)
+  const [appliedSearchHistoryId, setAppliedSearchHistoryId] = useState<string | undefined>(undefined)
   const [mode] = useState<'ai'>('ai')
   const hydratedSessionIdRef = useRef<string | null>(null)
   const hasInitializedUrlHydrationRef = useRef(false)
@@ -969,6 +971,11 @@ export function useResumeListState(loadSearchHistory = false) {
     [selectedCompanies]
   )
 
+  const appliedSearchHistory = useMemo(
+    () => searchHistory.find((entry) => entry.id === appliedSearchHistoryId),
+    [appliedSearchHistoryId, searchHistory]
+  )
+
   const enrichedResumes = useMemo<EnrichedResume[]>(() => {
     if (mode === 'ai') {
       return filteredConvexResumes.map((resume: ScoredConvexResume, index: number) => {
@@ -976,19 +983,26 @@ export function useResumeListState(loadSearchHistory = false) {
         const identityKey = getResumeIdentityKey(resume, resumeKey)
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
+        const normalizedAnalysis = analysis && isAnalysisValid
+          ? overrideIndustryDbBreakdown(
+              analysis,
+              resume.ingestData?.industryDbV2Raw,
+              appliedSearchHistory?.industryDbV2Stats
+            )
+          : undefined
 
-        const match: MatchingResult | undefined = analysis && isAnalysisValid
+        const match: MatchingResult | undefined = normalizedAnalysis
           ? {
             resumeId: resumeKey,
-            score: analysis.score,
-            summary: analysis.summary,
-            highlights: analysis.highlights,
-            recommendation: toRecommendation(analysis.recommendation),
-            concerns: analysis.concerns ?? [],
-            breakdown: toMatchBreakdown(analysis.breakdown),
+            score: normalizedAnalysis.score,
+            summary: normalizedAnalysis.summary,
+            highlights: normalizedAnalysis.highlights,
+            recommendation: toRecommendation(normalizedAnalysis.recommendation),
+            concerns: normalizedAnalysis.concerns ?? [],
+            breakdown: toMatchBreakdown(normalizedAnalysis.breakdown),
             scoreSource: 'ai',
             matchedAt: new Date().toISOString(),
-            jobDescriptionId: analysis.jobDescriptionId,
+            jobDescriptionId: normalizedAnalysis.jobDescriptionId,
           }
           : undefined
 
@@ -1020,7 +1034,7 @@ export function useResumeListState(loadSearchHistory = false) {
         action: actions[resumeKey],
       }
     })
-  }, [actions, blocksByIdentity, filteredConvexResumes, jobDescriptionId, mode, resumes, sessionKeywords, statusByIdentity])
+  }, [actions, appliedSearchHistory?.industryDbV2Stats, blocksByIdentity, filteredConvexResumes, jobDescriptionId, mode, resumes, sessionKeywords, statusByIdentity])
 
   const displayedResumes = useMemo(() => {
     const sortBy = filters.sortBy ?? 'score'
@@ -1100,6 +1114,7 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [displayedResumes])
 
   const handleResetAll = useCallback(() => {
+    setAppliedSearchHistoryId(undefined)
     setSessionLocation('')
     setSessionKeywords([])
     setJobDescriptionId('')
@@ -1403,6 +1418,7 @@ export function useResumeListState(loadSearchHistory = false) {
       selectedTags,
       selectedCompanies,
       selectedExperienceLevel,
+      resumeIds: filteredConvexResumes.map((resume) => String(resume.resumeId)),
     })
 
     if (saved) {
@@ -1410,7 +1426,7 @@ export function useResumeListState(loadSearchHistory = false) {
     } else {
       toast.error(t('quickStart.history.saveError', 'Failed to save search history'))
     }
-  }, [filters, jobDescriptionId, saveSearchHistory, selectedCompanies, selectedExperienceLevel, selectedTags, sessionKeywords, sessionLocation, t])
+  }, [filteredConvexResumes, filters, jobDescriptionId, saveSearchHistory, selectedCompanies, selectedExperienceLevel, selectedTags, sessionKeywords, sessionLocation, t])
 
   const handleApplySearchHistory = useCallback(async (entry: SearchHistoryItem) => {
     skipNextUrlSyncRef.current = true
@@ -1420,6 +1436,7 @@ export function useResumeListState(loadSearchHistory = false) {
       jobDescriptionId: entry.jobDescriptionId ?? '',
       filters: entry.filters,
     })
+    setAppliedSearchHistoryId(entry.id)
     setSelectedTags(entry.selectedTags)
     setSelectedCompanies(entry.selectedCompanies)
     setSelectedExperienceLevel(toExperienceLevel(entry.selectedExperienceLevel))
@@ -1431,6 +1448,7 @@ export function useResumeListState(loadSearchHistory = false) {
     sessionLocation,
     sessionKeywords,
     jobDescriptionId,
+    appliedSearchHistoryId,
     filters,
     reviewedIdsSet,
     trackReviewedResume,

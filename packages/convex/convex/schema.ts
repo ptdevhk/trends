@@ -107,6 +107,14 @@ export default defineSchema({
                 companyId: v.optional(v.number()),
             }))),
             companyHits: v.optional(v.array(v.string())),
+            industryDbV2Raw: v.optional(v.number()),
+            industryDbV2RawComponents: v.optional(v.object({
+                companyScore: v.number(),
+                brandScore: v.number(),
+                weightedBrandUnits: v.number(),
+                uniqueCompanies: v.number(),
+                brandUnitCount: v.number(),
+            })),
             roleSignals: v.optional(v.array(v.object({
                 type: v.string(),
                 matchedSignals: v.array(v.string()),
@@ -327,6 +335,17 @@ export default defineSchema({
     })
         .index("by_workspace", ["workspaceSlug"])
         .index("by_sessionKey", ["sessionKey"]),
+
+    industry_db_cohorts: defineTable({
+        searchHistoryId: v.id("search_history"),
+        workspaceSlug: v.string(),
+        computedAt: v.number(),
+        size: v.number(),
+        p80: v.number(),
+        histogram50: v.array(v.number()),
+    })
+        .index("by_searchHistoryId", ["searchHistoryId"])
+        .index("by_workspace", ["workspaceSlug"]),
 
     workspace_config: defineTable({
         workspaceSlug: v.string(),

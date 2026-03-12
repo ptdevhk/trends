@@ -516,8 +516,8 @@ describe("IngestComputeService", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
     expect(result.companyHits).toEqual([]);
-    expect(result.companyHits).toEqual(Array.from(new Set(result.brandHits.map((hit) => hit.brand))));
     expect(result.companyAliasTokens).toBe("");
+    expect(result.industryDbV2RawComponents.companyScore).toBe(0);
   });
 
   it("should not match HAAS aliases from excluded fields", () => {
@@ -525,6 +525,53 @@ describe("IngestComputeService", () => {
 
     expect(result.companyHits).toEqual([]);
     expect(result.companyAliasTokens).toBe("");
+  });
+
+  it("should compute deterministic industry_db v2 raw scores from employer and brand evidence", () => {
+    const result = service.computeOne("resume-employer-brand", {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2020-01~2024-12(4年11月)上海发那科机器人有限公司销售工程师，负责STAR车床销售、FANUC系统调试。" },
+            { raw: "2018-01~2019-12(1年11月)北京精雕科技集团有限公司销售工程师，负责STAR设备销售。" },
+          ],
+        },
+      ],
+    });
+
+    expect(result.companyHits).toEqual(expect.arrayContaining(["fanuc", "jingdiao"]));
+    expect(result.industryDbV2RawComponents).toEqual({
+      companyScore: 20,
+      brandScore: 20,
+      weightedBrandUnits: 2,
+      uniqueCompanies: 2,
+      brandUnitCount: 2,
+    });
+    expect(result.industryDbV2Raw).toBe(40);
+  });
+
+  it("should dedupe repeated brand mentions by brand and context for industry_db v2 raw scoring", () => {
+    const result = service.computeOne("resume-brand-dedupe", {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2020-01~2024-12(4年11月)某设备公司销售工程师，负责STAR销售、STAR销售、STAR设备使用、STAR设备使用、STAR编程调试。" },
+          ],
+        },
+      ],
+    });
+
+    expect(result.companyHits).toEqual([]);
+    expect(result.industryDbV2RawComponents).toEqual({
+      companyScore: 0,
+      brandScore: 10,
+      weightedBrandUnits: 1,
+      uniqueCompanies: 0,
+      brandUnitCount: 1,
+    });
+    expect(result.industryDbV2Raw).toBe(10);
   });
 
   it("should return empty company matches for unknown brands", () => {

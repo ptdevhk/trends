@@ -130,6 +130,11 @@ describe('useSession', () => {
             collectionTaskId: '  task-1  ',
             analysisTaskId: '   ',
             notes: '  saved note  ',
+            industryDbV2Stats: {
+              size: 42,
+              p80: 18,
+              histogram50: Array.from({ length: 51 }, (_, index) => (index === 18 ? 42 : 0)),
+            },
             createdAt: 1,
             lastOpenedAt: 2,
           },
@@ -166,6 +171,11 @@ describe('useSession', () => {
         collectionTaskId: 'task-1',
         analysisTaskId: undefined,
         notes: 'saved note',
+        industryDbV2Stats: {
+          size: 42,
+          p80: 18,
+          histogram50: Array.from({ length: 51 }, (_, index) => (index === 18 ? 42 : 0)),
+        },
       }),
     ])
   })
@@ -192,6 +202,7 @@ describe('useSession', () => {
       title: 'HR saved search',
       location: '东莞',
       keywords: ['招聘', '简历'],
+      resumeIds: ['resume-1', 'resume-2'],
     })
     await result.current.markSearchHistoryOpened('history-hr' as never)
 
@@ -209,6 +220,7 @@ describe('useSession', () => {
         title: 'HR saved search',
         location: '东莞',
         keywords: ['招聘', '简历'],
+        resumeIds: ['resume-1', 'resume-2'],
       })
     )
     expect(markSearchHistoryOpenedMutationMock).toHaveBeenCalledWith({

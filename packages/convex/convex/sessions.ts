@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 
 export const DEFAULT_WORKSPACE_SLUG = "dev";
 
@@ -48,6 +48,58 @@ function buildHistoryTitle(location: string, keywords: string[]): string {
     const normalizedKeywords = normalizeStringList(keywords);
     const parts = [normalizedLocation, normalizedKeywords.join(" ")].filter((value) => value.length > 0);
     return parts.join(" · ") || "Untitled search";
+}
+
+const INDUSTRY_DB_V2_COHORT_MAX_SIZE = 2000;
+const INDUSTRY_DB_V2_HISTOGRAM_SIZE = 51;
+
+function clampIndustryDbV2RawScore(value: number): number {
+    if (!Number.isFinite(value)) {
+        return 0;
+    }
+    return Math.max(0, Math.min(50, value));
+}
+
+function quantile(sorted: number[], q: number): number {
+    if (sorted.length === 0) {
+        return 0;
+    }
+
+    const clampedQ = Math.max(0, Math.min(1, q));
+    const position = (sorted.length - 1) * clampedQ;
+    const lowerIndex = Math.floor(position);
+    const upperIndex = Math.ceil(position);
+    if (lowerIndex === upperIndex) {
+        return sorted[lowerIndex];
+    }
+
+    const weight = position - lowerIndex;
+    return sorted[lowerIndex] * (1 - weight) + sorted[upperIndex] * weight;
+}
+
+async function buildIndustryDbV2Cohort(
+    ctx: MutationCtx,
+    resumeIds: string[],
+): Promise<{ size: number; p80: number; histogram50: number[] } | null> {
+    const limitedResumeIds = normalizeStringList(resumeIds).slice(0, INDUSTRY_DB_V2_COHORT_MAX_SIZE);
+    if (limitedResumeIds.length === 0) {
+        return null;
+    }
+
+    const resumes = await Promise.all(limitedResumeIds.map((resumeId) => ctx.db.get(resumeId as never)));
+    const sorted = resumes
+        .map((resume) => clampIndustryDbV2RawScore((resume as { ingestData?: { industryDbV2Raw?: number } } | null)?.ingestData?.industryDbV2Raw ?? 0))
+        .sort((left: number, right: number) => left - right);
+    const histogram50 = Array.from({ length: INDUSTRY_DB_V2_HISTOGRAM_SIZE }, () => 0);
+    sorted.forEach((score: number) => {
+        histogram50[Math.round(score)] += 1;
+    });
+
+    return {
+        size: sorted.length,
+        p80: Number(quantile(sorted, 0.8).toFixed(2)),
+        histogram50,
+    };
 }
 
 /**
@@ -192,11 +244,31 @@ export const listSearchHistory = query({
             .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
             .collect();
 
-        return records.sort((left, right) => {
-            const leftTimestamp = left.lastOpenedAt ?? left.createdAt;
-            const rightTimestamp = right.lastOpenedAt ?? right.createdAt;
-            return rightTimestamp - leftTimestamp;
-        });
+        const cohorts = await ctx.db
+            .query("industry_db_cohorts")
+            .withIndex("by_workspace", (q) => q.eq("workspaceSlug", workspaceSlug))
+            .collect();
+        const cohortBySearchHistoryId = new Map(cohorts.map((cohort) => [String(cohort.searchHistoryId), cohort]));
+
+        return records
+            .map((record) => {
+                const cohort = cohortBySearchHistoryId.get(String(record._id));
+                return {
+                    ...record,
+                    industryDbV2Stats: cohort
+                        ? {
+                            size: cohort.size,
+                            p80: cohort.p80,
+                            histogram50: cohort.histogram50,
+                        }
+                        : undefined,
+                };
+            })
+            .sort((left, right) => {
+                const leftTimestamp = left.lastOpenedAt ?? left.createdAt;
+                const rightTimestamp = right.lastOpenedAt ?? right.createdAt;
+                return rightTimestamp - leftTimestamp;
+            });
     },
 });
 
@@ -215,6 +287,7 @@ export const saveSearchHistory = mutation({
         collectionTaskId: v.optional(v.string()),
         analysisTaskId: v.optional(v.string()),
         notes: v.optional(v.string()),
+        resumeIds: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
@@ -230,7 +303,7 @@ export const saveSearchHistory = mutation({
         const notes = normalizeOptionalString(args.notes);
         const now = Date.now();
 
-        return await ctx.db.insert("search_history", {
+        const searchHistoryId = await ctx.db.insert("search_history", {
             sessionKey: args.sessionKey,
             title,
             location,
@@ -247,6 +320,20 @@ export const saveSearchHistory = mutation({
             createdAt: now,
             lastOpenedAt: undefined,
         });
+
+        const cohort = await buildIndustryDbV2Cohort(ctx, args.resumeIds ?? []);
+        if (cohort) {
+            await ctx.db.insert("industry_db_cohorts", {
+                searchHistoryId,
+                workspaceSlug,
+                computedAt: now,
+                size: cohort.size,
+                p80: cohort.p80,
+                histogram50: cohort.histogram50,
+            });
+        }
+
+        return searchHistoryId;
     },
 });
 
