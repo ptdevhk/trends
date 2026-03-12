@@ -89,4 +89,44 @@ describe("deriveResumeIdentityKey", () => {
 
         expect(first).toBe(second);
     });
+
+    it("normalizes Seek candidate profile URLs with source awareness", () => {
+        const directProfile = deriveResumeIdentityKey({
+            externalId: "hk.employer.seek.com:profile:503033454",
+            source: "hk.employer.seek.com",
+            content: {
+                profileUrl: "https://hk.employer.seek.com/candidates/503033454?x=1&utm_source=extension",
+            },
+        });
+        const nestedProfile = deriveResumeIdentityKey({
+            externalId: "my.employer.seek.com:profile:503033454",
+            source: "my.employer.seek.com",
+            content: {
+                profileUrl: "https://my.employer.seek.com/candidates/profiles/503033454/overview",
+            },
+        });
+
+        expect(directProfile).toBe("profileUrl:hk.employer.seek.com/candidates/503033454");
+        expect(nestedProfile).toBe("profileUrl:my.employer.seek.com/candidates/503033454");
+    });
+
+    it("keeps same numeric ids distinct across different sources", () => {
+        const seekIdentity = deriveResumeIdentityKey({
+            externalId: "hk.employer.seek.com:profile:123456",
+            source: "hk.employer.seek.com",
+            content: {
+                profileUrl: "https://hk.employer.seek.com/candidates/123456",
+            },
+        });
+        const job5156Identity = deriveResumeIdentityKey({
+            externalId: "hr.job5156.com:resume:123456",
+            source: "hr.job5156.com",
+            content: {
+                profileUrl: "https://hr.job5156.com/resume/view/123456",
+            },
+        });
+
+        expect(seekIdentity).not.toBe(job5156Identity);
+        expect(job5156Identity).toBe("profileUrl:hr.job5156.com/api/com/resume/123456");
+    });
 });

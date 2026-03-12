@@ -353,6 +353,7 @@ export const submitResumes = mutation({
             const identity = deriveResumeIdentity({
                 content: resume.content,
                 externalId: resume.externalId,
+                source: resume.source,
             });
             if (dedupedResumes.has(identity.identityKey)) {
                 identityDeduped += 1;

@@ -1,20 +1,11 @@
-import { OpenAPIHono } from "@hono/zod-openapi";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import resumesRoutes from "./resumes";
-import { workspaceMiddleware } from "../middleware/workspace";
+import { createApp } from "../app";
 
 type ConvexCall = {
   pathName: string;
   args: Record<string, unknown>;
 };
-
-function createTestApp() {
-  const app = new OpenAPIHono();
-  app.use("*", workspaceMiddleware);
-  app.route("/", resumesRoutes);
-  return app;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -56,53 +47,30 @@ function convexSuccess(value: unknown): Response {
       headers: {
         "Content-Type": "application/json",
       },
-    },
+    }
   );
 }
 
-describe("resume import route", () => {
+describe("resume submit route", () => {
+  const originalSubmitToken = process.env.RESUME_SUBMIT_TOKEN;
+
   afterEach(() => {
     vi.restoreAllMocks();
+    if (typeof originalSubmitToken === "string") {
+      process.env.RESUME_SUBMIT_TOKEN = originalSubmitToken;
+    } else {
+      delete process.env.RESUME_SUBMIT_TOKEN;
+    }
   });
 
-  it("blocks hr workspace users from importing resumes", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const app = createTestApp();
-
-    const response = await app.request("/api/resumes/import", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Workspace-Slug": "hr",
-      },
-      body: JSON.stringify({
-        metadata: {
-          sourceUrl: "https://hr.job5156.com/search?keyword=%E9%94%80%E5%94%AE",
-          generatedBy: "manual-import@1.0.0",
-        },
-        resumes: [
-          {
-            resumeId: "R123456",
-            name: "Alex Chen",
-          },
-        ],
-      }),
-    });
-
-    expect(response.status).toBe(403);
-    expect(await response.json()).toEqual({
-      success: false,
-      error: "Admin access required",
-    });
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("allows dev admin import for legacy payloads", async () => {
+  it("keeps legacy Job5156 payloads compatible", async () => {
+    process.env.RESUME_SUBMIT_TOKEN = "test-token";
     const calls: ConvexCall[] = [];
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
+
       if (call.pathName === "resume_tasks:submitResumes") {
         return convexSuccess({
           submitted: 1,
@@ -112,42 +80,38 @@ describe("resume import route", () => {
           unchanged: 0,
         });
       }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createTestApp();
-    const response = await app.request("/api/resumes/import", {
+    const app = createApp();
+    const response = await app.request("/api/resumes/submit", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "dev",
+        Authorization: "Bearer test-token",
       },
       body: JSON.stringify({
         metadata: {
           sourceUrl: "https://hr.job5156.com/search?keyword=%E9%94%80%E5%94%AE",
-          generatedBy: "manual-import@1.0.0",
-          searchCriteria: {
-            keyword: "销售",
-            location: "东莞",
-            filters: {},
-          },
+          keyword: "销售",
+          generatedBy: "browser-extension@1.0.0",
         },
-        data: [
+        resumes: [
           {
-            resumeId: 1079188,
-            perUserId: 1079188,
-            name: "骆先生",
-            profileUrl: "javascript:;",
-            activityStatus: "在线中",
-            age: "42岁",
-            experience: "20年",
-            education: "高中",
-            location: "东莞石碣镇",
-            jobIntention: "东莞石碣镇机械制图员",
-            expectedSalary: "6000-7999元/月",
-            selfIntro: "...",
-            workHistory: [{ raw: "2018-01 ~ 至今 Example Co." }],
-            extractedAt: "2026-02-11T13:01:41.009Z",
+            resumeId: "R123456",
+            name: "Alex Chen",
+            profileUrl: "https://hr.job5156.com/resume/view/123456",
+            activityStatus: "Active today",
+            age: "28",
+            experience: "5 years",
+            education: "Bachelor",
+            location: "Shenzhen",
+            selfIntro: "认真敬业",
+            jobIntention: "Sales Manager",
+            expectedSalary: "10-15K",
+            workHistory: [{ raw: "2021-03 ~ 2023-08 Example Co. - Sales Manager" }],
+            extractedAt: "2026-03-12T01:02:03.000Z",
           },
         ],
       }),
@@ -162,24 +126,32 @@ describe("resume import route", () => {
       unchanged: 0,
       deduped: 0,
     });
+
     expect(calls).toHaveLength(1);
+    expect(calls[0]?.pathName).toBe("resume_tasks:submitResumes");
     expect(calls[0]?.args).toMatchObject({
       resumes: [
         {
-          externalId: "hr.job5156.com:resume:1079188",
+          externalId: "hr.job5156.com:resume:R123456",
           source: "hr.job5156.com",
           tags: ["销售"],
+          content: expect.objectContaining({
+            resumeId: "R123456",
+            name: "Alex Chen",
+          }),
         },
       ],
     });
   });
 
-  it("accepts source-aware payloads for admin imports", async () => {
+  it("accepts source-aware Seek payloads", async () => {
+    process.env.RESUME_SUBMIT_TOKEN = "test-token";
     const calls: ConvexCall[] = [];
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
+
       if (call.pathName === "resume_tasks:submitResumes") {
         return convexSuccess({
           submitted: 1,
@@ -189,15 +161,16 @@ describe("resume import route", () => {
           unchanged: 0,
         });
       }
+
       throw new Error(`Unexpected convex path: ${call.pathName}`);
     });
 
-    const app = createTestApp();
-    const response = await app.request("/api/resumes/import", {
+    const app = createApp();
+    const response = await app.request("/api/resumes/submit", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Workspace-Slug": "dev",
+        Authorization: "Bearer test-token",
       },
       body: JSON.stringify({
         metadata: {
@@ -205,11 +178,12 @@ describe("resume import route", () => {
           sourceHost: "hk.employer.seek.com",
           sourceUrl: "https://hk.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=2",
           keyword: "sales engineer",
-          generatedBy: "manual-import@1.0.0",
+          generatedBy: "browser-extension@1.1.0",
           collectionContext: {
-            captureMode: "json-upload",
-            operation: "manual-import",
+            captureMode: "graphql-list",
+            operation: "GetTalentSearchRecommendedCandidates",
             jobId: 90842915,
+            searchId: "c51c7af1-4b0f-4d3b-8435-75b886a56872",
             pageNumber: 2,
             language: "en",
             profileType: "seek",
@@ -222,8 +196,13 @@ describe("resume import route", () => {
             name: "yap kae wen",
             profileUrl: "https://hk.employer.seek.com/candidates/503033454",
             activityStatus: "Updated recently",
+            age: "",
+            experience: "",
+            education: "",
             location: "Shah Alam, Selangor, MY",
+            selfIntro: "",
             jobIntention: "Senior Sales Engineer",
+            expectedSalary: "",
             workHistory: [
               {
                 raw: "Senior Sales Engineer · Example Co.",
@@ -264,7 +243,9 @@ describe("resume import route", () => {
       unchanged: 0,
       deduped: 0,
     });
+
     expect(calls).toHaveLength(1);
+    expect(calls[0]?.pathName).toBe("resume_tasks:submitResumes");
     expect(calls[0]?.args).toMatchObject({
       resumes: [
         {
@@ -272,6 +253,9 @@ describe("resume import route", () => {
           source: "hk.employer.seek.com",
           tags: ["sales engineer"],
           content: expect.objectContaining({
+            profileId: "503033454",
+            profileType: "seek",
+            name: "yap kae wen",
             profileEducation: [
               {
                 institution: "Universiti Malaya",

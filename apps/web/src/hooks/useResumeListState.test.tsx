@@ -203,7 +203,17 @@ function buildResume(params: {
     selfIntro: 'Test intro',
     jobIntention: 'Test role',
     expectedSalary: '10k-20k',
-    workHistory: [{ raw: 'Test work history' }],
+    workHistory: [{ raw: 'Test work history', companyName: 'Example Co.', jobTitle: 'Sales Engineer' }],
+    profileEducation: [{ institution: 'Example University', qualification: 'Bachelor' }],
+    skills: ['CNC', { name: 'Account management', yearsOfExperience: 3 }],
+    languages: ['English', { name: 'Mandarin', proficiency: 'professional' }],
+    licences: [{ name: 'Class D' }],
+    resumeSnippet: { text: 'Experienced sales engineer covering machine tools.' },
+    currentIndustry: { name: 'Industrial machinery' },
+    currentSubindustry: 'Machine tools',
+    rightToWork: { status: 'citizen' },
+    digitalIdentity: { linkedinUrl: 'https://www.linkedin.com/in/example' },
+    noticePeriodDays: 30,
     extractedAt: '2026-03-01T00:00:00.000Z',
     primaryRuleScore: params.primaryRuleScore,
     ingestData: {
@@ -240,6 +250,25 @@ function getDisplayedResumeNames(): string[] {
 }
 
 describe('useResumeListState role filter regression', () => {
+  it('preserves richer imported resume fields on convex resumes', () => {
+    mockState.convexResumes = [
+      buildResume({
+        id: 'rich-1',
+        name: 'Rich Resume',
+        roleSignals: [],
+      }),
+    ]
+
+    const { result } = renderHook(() => useResumeListState())
+    const resume = result.current.displayedResumes[0]?.resume as ConvexResumeItem | undefined
+
+    expect(resume?.profileEducation?.[0]?.institution).toBe('Example University')
+    expect(resume?.skills?.[1]).toEqual({ name: 'Account management', yearsOfExperience: 3 })
+    expect(resume?.resumeSnippet).toEqual({ text: 'Experienced sales engineer covering machine tools.' })
+    expect(resume?.currentIndustry).toEqual({ name: 'Industrial machinery' })
+    expect(resume?.noticePeriodDays).toBe(30)
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     window.history.replaceState({}, '', '/')

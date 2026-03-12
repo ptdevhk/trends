@@ -66,8 +66,8 @@ async function sendToContent(action, data = {}) {
         throw new Error('No active tab');
     }
 
-    if (!tab.url?.includes('hr.job5156.com')) {
-        throw new Error('请在 hr.job5156.com/search 页面使用');
+    if (!tab.url?.includes('hr.job5156.com') && !tab.url?.includes('.employer.seek.com')) {
+        throw new Error('请在 Job5156 或 Seek 招聘页面使用');
     }
 
     try {
@@ -97,8 +97,8 @@ async function getActiveTabUrl() {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const tab = tabs[0];
     if (!tab?.url) throw new Error('No active tab URL');
-    if (!tab.url.includes('hr.job5156.com')) {
-        throw new Error('请在 hr.job5156.com/search 页面使用');
+    if (!tab.url.includes('hr.job5156.com') && !tab.url.includes('.employer.seek.com')) {
+        throw new Error('请在 Job5156 或 Seek 招聘页面使用');
     }
     return tab.url;
 }
@@ -111,6 +111,8 @@ function buildSubmitMetadata(sourceUrl) {
 
     try {
         const url = new URL(sourceUrl);
+        metadata.sourceHost = url.hostname.toLowerCase();
+        metadata.sourceKey = url.hostname.toLowerCase().endsWith('.employer.seek.com') ? 'seek' : 'job5156';
         const keyword = (url.searchParams.get('keyword') || '').trim();
         const location = (url.searchParams.get('location') || '').trim();
         if (keyword) metadata.keyword = keyword;
@@ -406,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     sendToContent('ping').catch(() => {
-        showStatus('请刷新 hr.job5156.com 页面', 'error');
+        showStatus('请刷新 Job5156 或 Seek 页面', 'error');
     });
 });
 })();

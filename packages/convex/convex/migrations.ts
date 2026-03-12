@@ -140,6 +140,7 @@ function resumeIdentityKey(resume: Doc<"resumes">): string {
     return resume.identityKey ?? deriveResumeIdentityKey({
         content: resume.content,
         externalId: resume.externalId,
+        source: resume.source,
     });
 }
 
