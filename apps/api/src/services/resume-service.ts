@@ -59,8 +59,22 @@ function toStringValue(value: unknown): string {
   return String(value);
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) return 0;
+
+  let count = 0;
+  let startIndex = 0;
+
+  while (startIndex < haystack.length) {
+    const matchIndex = haystack.indexOf(needle, startIndex);
+    if (matchIndex === -1) {
+      return count;
+    }
+    count += 1;
+    startIndex = matchIndex + needle.length;
+  }
+
+  return count;
 }
 
 function buildSearchText(item: ResumeItem): string {
@@ -337,7 +351,7 @@ export class ResumeService {
           }
 
           hasTextMatch = true;
-          occurrences += (searchText.match(new RegExp(escapeRegex(variant), "g")) || []).length;
+          occurrences += countOccurrences(searchText, variant);
         }
         if (hasTextMatch) {
           score += 10;

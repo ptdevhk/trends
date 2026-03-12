@@ -274,14 +274,6 @@ function buildExportMetadata(resumes) {
     filters[key] = value;
   }
 
-  let generatedBy = 'browser-extension';
-  try {
-    const version = chrome?.runtime?.getManifest?.().version;
-    if (version) generatedBy = `browser-extension@${version}`;
-  } catch {
-    // ignore
-  }
-
   const pagination = getPaginationInfo();
   const reproductionParams = new URLSearchParams();
   reproductionParams.set(AUTO_EXPORT_PARAM, 'json');
@@ -295,7 +287,7 @@ function buildExportMetadata(resumes) {
       filters: Object.keys(filters).length ? filters : {}
     },
     generatedAt: new Date().toISOString(),
-    generatedBy,
+    generatedBy: getExtensionGeneratedBy(),
     totalPages: pagination.totalPages,
     totalResumes: resumes.length,
     reproduction: `Navigate to sourceUrl, then add ?${reproductionParams.toString()}`
@@ -537,6 +529,17 @@ function buildSeekCollectionContext() {
   };
 }
 
+function getExtensionGeneratedBy() {
+  let generatedBy = 'browser-extension';
+  try {
+    const version = chrome?.runtime?.getManifest?.().version;
+    if (version) generatedBy = `browser-extension@${version}`;
+  } catch {
+    // ignore
+  }
+  return generatedBy;
+}
+
 function buildSubmitMetadata() {
   const url = new URL(window.location.href);
   const sourceKey = getCurrentSourceKey();
@@ -550,19 +553,11 @@ function buildSubmitMetadata() {
   url.searchParams.delete(AUTO_MAX_PAGES_PARAM);
   url.searchParams.delete(SAMPLE_NAME_PARAM);
 
-  let generatedBy = 'browser-extension';
-  try {
-    const version = chrome?.runtime?.getManifest?.().version;
-    if (version) generatedBy = `browser-extension@${version}`;
-  } catch {
-    // ignore
-  }
-
   const metadata = {
     sourceKey,
     sourceHost: url.hostname.toLowerCase(),
     sourceUrl: url.toString(),
-    generatedBy,
+    generatedBy: getExtensionGeneratedBy(),
   };
 
   if (keyword) metadata.keyword = keyword;
@@ -1038,7 +1033,7 @@ function extractSeekResumes() {
       profileType,
       externalId: profileId ? `${window.location.hostname.toLowerCase()}:profile:${profileId}` : '',
       name: [firstName, lastName].filter(Boolean).join(' ').trim(),
-      profileUrl: profileId ? `https://${window.location.hostname.toLowerCase()}/candidates/${encodeURIComponent(profileId)}` : '',
+      profileUrl: buildSeekProfileUrl(profileId),
       activityStatus: lastModifiedDate,
       age: '',
       experience: '',
