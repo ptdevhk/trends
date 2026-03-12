@@ -20,6 +20,7 @@ async function runCollectUrlKeywordModeTest(page: Page) {
         }) as typeof window.open;
     });
 
+    await page.getByLabel(/采集页数上限|採集頁數上限|Collect page limit/i).fill('3');
     await page.getByRole('button', { name: /采集|Collect/i }).click();
 
     const openedUrls = await page.evaluate(() => {
@@ -30,9 +31,10 @@ async function runCollectUrlKeywordModeTest(page: Page) {
     expect(openedUrls.length).toBeGreaterThan(0);
     const openedUrl = new URL(openedUrls[0]);
     expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://hr.job5156.com/search');
-    expect(openedUrl.searchParams.get('keyword')).toBe('CNC车床销售STAR');
+    expect(openedUrl.searchParams.get('keyword')).toBe('CNC 车床 销售 STAR');
     expect(openedUrl.searchParams.get('location')).toBe('东莞');
     expect(openedUrl.searchParams.get('tr_auto_sync')).toBe('true');
+    expect(openedUrl.searchParams.get('tr_max_pages')).toBe('3');
 
     console.log('✅ Collect URL keyword concat test passed.');
 }

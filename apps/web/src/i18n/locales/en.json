@@ -325,6 +325,8 @@
     "collectResumes": "Collect",
     "collectTooltip": "Opens job board with auto-sync. Requires extension + login.",
     "collectDisabledHint": "Enter location and keywords first",
+    "collectMaxPagesLabel": "Collect page limit",
+    "collectMaxPagesPlaceholder": "Pages",
     "downloadExtension": "Download Extension v{{version}}",
     "matchDetails": "Current Match Details",
     "labelJd": "JD",
