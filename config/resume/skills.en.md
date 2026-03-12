@@ -16,19 +16,11 @@ Skills are organized by domain tags. Each domain includes a canonical tag, displ
 
 ### machinery
 - displayName: Machinery
-- keywords: 机床, 车床, 加工中心, 机械, 设备, 五轴, 夹具, 治具, lathe, machining, milling
-
-### cnc
-- displayName: CNC
-- keywords: cnc, 数控, fanuc, siemens, star, brother, mitsubishi
+- keywords: 机床, 车床, 加工中心, 机械, 设备, 五轴, 夹具, 治具, lathe, machining, milling, cnc, 数控, fanuc, siemens, star, brother, mitsubishi
 
 ### sales
 - displayName: Sales
-- keywords: 销售, 业务, 客户, 大客户, 渠道, sales, account, bd, market, engineer
-
-### automation
-- displayName: Automation
-- keywords: 自动化, 机器人, plc, 伺服, automation
+- keywords: 销售, 业务, 客户, 大客户, 渠道, 销售工程师, 业务拓展, sales, account, key account, bd, business development
 
 ### metrology
 - displayName: Metrology
@@ -43,14 +35,15 @@ Skills are organized by domain tags. Each domain includes a canonical tag, displ
 Maps variant terms to canonical forms for search expansion and matching normalization.
 
 - 机床: 机械设备, 加工设备
-- 车床: CNC车床, 数控车床
-- 加工中心: machining center, machining-center, 加工设备
+- 车床: CNC车床, 数控车床, cnc lathe
+- 加工中心: machining center, machining-center, 加工设备, machine tool
 - 五轴: 5-axis, 五轴联动
 - 夹具: 治具, fixture
-- 数控: CNC, Computer Numerical Control
+- 数控: CNC, Computer Numerical Control, 数控加工
 - 销售: 业务, 商务, 销售员
+- 销售工程师: sales engineer, 售前销售, 技术销售
 - 大客户: 渠道客户, key account, 关键客户
-- 自动化: automation, 工业自动化
+- 机床销售: 车床销售, cnc销售, 数控机床销售
 - 机器人: robot, 工业机器人
 - 测量: 计量, measurement, 质量检测
 - 三维扫描: 3D扫描, 3d-scan, 三维测量
@@ -151,17 +144,14 @@ Tier 5 - Domestic / Pearl River Delta
 
 Background notes used for AI prompt enrichment and domain understanding.
 
-### CNC Machining Domain
-CNC (Computer Numerical Control) machining uses programmed commands to automate machine tools. Core brands include FANUC, SIEMENS, STAR, BROTHER, and MITSUBISHI. Common machine types include lathes, machining centers, and multi-axis systems.
+### Machinery and Machining Domain
+Machining covers CNC (Computer Numerical Control) machine tools, machining centers, lathes, and multi-axis systems. Core brands include FANUC, SIEMENS, STAR, BROTHER, and MITSUBISHI, and related CNC signals now resolve through the surviving machinery domain.
 
 ### Sales and Business Development
-B2B sales for manufacturing equipment usually requires technical product knowledge, customer relationship management, and channel development capability. Typical keywords include key accounts, channels, and business development.
+B2B sales for manufacturing equipment usually requires technical product knowledge, customer relationship management, and channel development capability. Prefer composite role phrases such as sales engineer, key account, and business development instead of treating bare engineer as a sales signal.
 
 ### Metrology and Quality
 Precision measurement relies on CMM (Coordinate Measuring Machine), 3D scanning, and quality inspection workflows, which are critical to manufacturing QA/QC.
-
-### Automation
-Industrial automation commonly involves PLCs, servo systems, and robotics across factory automation and smart manufacturing scenarios.
 
 ## Exclusion Patterns
 
@@ -177,11 +167,11 @@ HR feedback patterns and observations. On 2026-03-10, 174 raw shortlist entries 
 - 2026-03-10: shortlist_pattern: sales + senior -> high_priority (19x)
 - 2026-03-10: shortlist_pattern: sales/software + senior -> high_priority (16x)
 - 2026-03-10: shortlist_pattern: sales/software + mid -> high_priority (14x)
-- 2026-03-10: shortlist_pattern: machinery/cnc + unknown -> medium_priority (10x)
-- 2026-03-10: shortlist_pattern: machinery/cnc + mid -> medium_priority (7x)
-- 2026-03-10: shortlist_pattern: cnc + mid -> medium_priority (5x)
+- 2026-03-10: shortlist_pattern: machinery + unknown -> medium_priority (10x)
+- 2026-03-10: shortlist_pattern: machinery + mid -> medium_priority (7x)
+- 2026-03-10: shortlist_pattern: machinery + mid -> medium_priority (5x)
 - 2026-03-10: shortlist_pattern: machinery + unknown -> medium_priority (5x)
 - 2026-03-10: shortlist_pattern: machinery/sales/software + senior -> medium_priority (5x)
-- 2026-03-10: shortlist_pattern: cnc + unknown -> medium_priority (5x)
+- 2026-03-10: shortlist_pattern: machinery + unknown -> medium_priority (5x)
 - 2026-03-10: learning_log_compaction: aggregated 174 raw shortlist entries into 50 unique patterns for durable signal storage.
 - 2026-03-10: processing pipeline now excludes selfIntro, jobIntention, and header experience from strict matching; work history is the sole evidence source for experience and scoring.

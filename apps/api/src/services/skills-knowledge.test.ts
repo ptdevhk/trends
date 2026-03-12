@@ -18,23 +18,20 @@ description: Test skills knowledge file
 
 ### machinery
 - displayName: Machinery
-- keywords: 机床, 车床, lathe, machining
-
-### cnc
-- displayName: CNC
-- keywords: cnc, 数控, fanuc, star
+- keywords: 机床, 车床, lathe, machining, cnc, 数控, fanuc, star
 
 ### sales
 - displayName: Sales
-- keywords: 销售, 客户, sales, account
+- keywords: 销售, 客户, 销售工程师, sales, account, key account
 
 ## Synonym Table
 
 - 机床: 机械设备, 加工设备
-- 车床: CNC车床, 数控车床
+- 车床: CNC车床, 数控车床, cnc lathe
 - 数控: CNC, Computer Numerical Control
 - 销售: 业务, 商务
-- 机床销售: 车床销售
+- 销售工程师: sales engineer, 技术销售
+- 机床销售: 车床销售, cnc销售
 - 销售岗位: 机床销售
 - 哈斯: 哈斯机床
 - 循环A: 循环B
@@ -63,8 +60,8 @@ description: Test skills knowledge file
 
 ## Industry Context
 
-### CNC Machining Domain
-CNC machining involves automated control of machine tools. Key brands include FANUC and STAR.
+### Machinery and Machining Domain
+Machining involves CNC-controlled machine tools. Key brands include FANUC and STAR.
 
 ### Sales and Business Development
 B2B sales requires technical knowledge and customer relationship management.
@@ -108,7 +105,7 @@ describe("SkillsKnowledgeService", () => {
       const service = new SkillsKnowledgeService(root);
       const taxonomy = service.getIndustryTaxonomy();
 
-      expect(taxonomy).toHaveLength(3);
+      expect(taxonomy).toHaveLength(2);
 
       const machinery = taxonomy.find((d) => d.tag === "machinery");
       expect(machinery).toBeDefined();
@@ -117,11 +114,8 @@ describe("SkillsKnowledgeService", () => {
       expect(machinery?.keywords).toContain("车床");
       expect(machinery?.keywords).toContain("lathe");
 
-      const cnc = taxonomy.find((d) => d.tag === "cnc");
-      expect(cnc).toBeDefined();
-      expect(cnc?.displayName).toBe("CNC");
-      expect(cnc?.keywords).toContain("cnc");
-      expect(cnc?.keywords).toContain("fanuc");
+      expect(machinery?.keywords).toContain("cnc");
+      expect(machinery?.keywords).toContain("fanuc");
 
       const sales = taxonomy.find((d) => d.tag === "sales");
       expect(sales).toBeDefined();
@@ -193,6 +187,7 @@ describe("SkillsKnowledgeService", () => {
       expect(vocab.has("机床")).toBe(true);
       expect(vocab.has("车床")).toBe(true);
       expect(vocab.has("cnc")).toBe(true);
+      expect(vocab.has("销售工程师")).toBe(true);
       expect(vocab.has("销售")).toBe(true);
 
       // Synonym variants
@@ -301,8 +296,8 @@ describe("SkillsKnowledgeService", () => {
       const service = new SkillsKnowledgeService(root);
       const context = service.getIndustryContext();
 
-      expect(context).toContain("CNC Machining Domain");
-      expect(context).toContain("automated control");
+      expect(context).toContain("Machinery and Machining Domain");
+      expect(context).toContain("CNC-controlled machine tools");
       expect(context).toContain("Sales and Business Development");
       expect(context).toContain("customer relationship");
     } finally {
@@ -437,7 +432,7 @@ describe("SkillsKnowledgeService", () => {
 
       // First call parses and caches
       const taxonomy1 = service.getIndustryTaxonomy();
-      expect(taxonomy1).toHaveLength(3);
+      expect(taxonomy1).toHaveLength(2);
 
       // Second call uses cache (should be same reference)
       const taxonomy2 = service.getIndustryTaxonomy();
@@ -448,7 +443,7 @@ describe("SkillsKnowledgeService", () => {
 
       // Third call re-parses
       const taxonomy3 = service.getIndustryTaxonomy();
-      expect(taxonomy3).toHaveLength(3);
+      expect(taxonomy3).toHaveLength(2);
       expect(taxonomy3).not.toBe(taxonomy1);
     } finally {
       cleanupFixtureRoot(root);

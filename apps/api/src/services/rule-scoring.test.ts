@@ -49,9 +49,9 @@ updated_at: '2026-02-24'
 
 ## Domain Taxonomy
 
-### cnc
-- displayName: CNC
-- keywords: cnc, 数控, fanuc
+### machinery
+- displayName: Machinery
+- keywords: 车床, cnc, 数控, fanuc
 
 ## Synonym Table
 
@@ -95,7 +95,7 @@ describe("RuleScoringService", () => {
       expect(context.title).toBe("cnc, 车床");
       expect(context.keywords).toEqual(["cnc", "车床"]);
       expect(context.targetLocations).toEqual(["广东"]);
-      expect(context.industryTags).toEqual(["cnc"]);
+      expect(context.industryTags).toEqual(["machinery"]);
       expect(context.requiredRoles).toEqual([]);
     } finally {
       cleanupFixtureRoot(root);
@@ -117,7 +117,7 @@ describe("RuleScoringService", () => {
         evidenceText: "2019-2025 cnc操作员 负责车床编程与设备维护",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞某机床厂"],
-        industryTags: ["machinery", "cnc"],
+        industryTags: ["machinery"],
         salaryRange: { min: 9000, max: 12000 },
         searchText: "东莞 cnc 车床 操作 维护",
       };
@@ -147,7 +147,7 @@ describe("RuleScoringService", () => {
         evidenceText: "2021-2025 东莞机床公司 数控车床销售工程师 负责CNC设备客户开发",
         skills: ["cnc", "数控车床", "销售"],
         companies: ["东莞机床公司"],
-        industryTags: ["cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         salaryRange: { min: 12000, max: 18000 },
         searchText: "东莞 cnc 数控车床 销售 客户开发",
       };
@@ -156,6 +156,7 @@ describe("RuleScoringService", () => {
       const jdResult = service.scoreResume(cncSalesCandidate, jdContext);
 
       expect(keywordContext.keywords).toEqual(["cnc", "数控车床", "销售"]);
+      expect(keywordContext.industryTags).toEqual(["machinery"]);
       expect(keywordContext.requiredRoles).toEqual([]);
       expect(keywordResult.breakdown.skillMatch).toBeGreaterThan(0);
       expect(keywordResult.breakdown.roleMatch).toBe(10);
@@ -185,7 +186,7 @@ describe("RuleScoringService", () => {
         evidenceText: "2021-2025 东莞精密机械 销售经理 客户开发 渠道拓展",
         skills: ["车床", "cnc", "销售"],
         companies: ["东莞富佳机械设备有限公司"],
-        industryTags: ["machinery", "cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         salaryRange: { min: 10000, max: 20000 },
         searchText: "东莞 车床 cnc 销售 机械设备 大客户",
       };
@@ -227,7 +228,7 @@ describe("RuleScoringService", () => {
         educationLevel: "bachelor",
         skills: ["cnc"],
         companies: [],
-        industryTags: ["cnc"],
+        industryTags: ["machinery"],
         salaryRange: { min: 8000, max: 15000 },
         searchText: "cnc 销售 北京 东莞",
       };
@@ -281,7 +282,7 @@ describe("RuleScoringService", () => {
         educationLevel: "bachelor",
         skills: ["cnc"],
         companies: [],
-        industryTags: ["cnc"],
+        industryTags: ["machinery"],
         salaryRange: { min: 8000, max: 15000 },
         searchText: "cnc 销售",
       };
@@ -335,7 +336,7 @@ describe("RuleScoringService", () => {
         locationCity: "东莞",
         skills: ["cnc"],
         companies: [],
-        industryTags: ["cnc"],
+        industryTags: ["machinery"],
         salaryRange: { min: 8000, max: 15000 },
         searchText: "cnc 销售",
       };
@@ -370,6 +371,7 @@ describe("RuleScoringService", () => {
     try {
       const service = new RuleScoringService(root);
       const context = service.buildContextFromKeywords(["数控"]);
+      expect(context.industryTags).toEqual(["machinery"]);
 
       const index: ResumeIndex = {
         resumeId: "R-synonym",
@@ -379,7 +381,7 @@ describe("RuleScoringService", () => {
         evidenceText: "cnc 车床 销售",
         skills: ["cnc"],
         companies: [],
-        industryTags: ["cnc"],
+        industryTags: ["machinery"],
         salaryRange: { min: 8000, max: 15000 },
         searchText: "cnc 车床 销售",
       };
@@ -408,7 +410,7 @@ describe("RuleScoringService", () => {
         locationCity: "东莞",
         skills: ["销售", "cnc"],
         companies: ["上海发那科机器人有限公司"],
-        industryTags: ["cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         salaryRange: { min: 10000, max: 18000 },
         searchText: "东莞 发那科 销售 cnc",
       };
@@ -442,7 +444,7 @@ describe("RuleScoringService", () => {
         locationCity: "东莞",
         skills: ["销售", "cnc"],
         companies: [],
-        industryTags: ["cnc"],
+        industryTags: ["machinery"],
         salaryRange: { min: 9000, max: 16000 },
         searchText: "东莞 cnc 销售",
       };
@@ -470,7 +472,7 @@ describe("RuleScoringService", () => {
         locationCity: "东莞",
         skills: ["销售", "cnc"],
         companies: ["上海发那科机器人有限公司"],
-        industryTags: ["cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         salaryRange: { min: 10000, max: 18000 },
         searchText: "东莞 发那科 销售 cnc",
       };
@@ -504,7 +506,7 @@ describe("RuleScoringService", () => {
         locationCity: "东莞",
         skills: ["销售", "cnc"],
         companies: ["上海发那科机器人有限公司"],
-        industryTags: ["cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         salaryRange: { min: 10000, max: 18000 },
         searchText: "东莞 发那科 销售 cnc",
       };
@@ -534,7 +536,7 @@ describe("RuleScoringService", () => {
         evidenceText: "2019-2025 cnc操作员 负责车床编程与设备维护",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞某机床厂"],
-        industryTags: ["machinery", "cnc"],
+        industryTags: ["machinery"],
         salaryRange: { min: 9000, max: 12000 },
         searchText: "东莞 cnc 车床 操作 维护",
       };
@@ -547,7 +549,7 @@ describe("RuleScoringService", () => {
         evidenceText: "2020-2025 机床销售工程师 负责客户开发 渠道拓展",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞设备公司"],
-        industryTags: ["machinery", "cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         salaryRange: { min: 12000, max: 18000 },
         searchText: "东莞 车床 销售 客户 渠道",
       };
@@ -580,7 +582,7 @@ describe("RuleScoringService", () => {
         evidenceText: "2020-2025 cnc操作员 负责车床编程与设备维护",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞设备厂"],
-        industryTags: ["machinery", "cnc"],
+        industryTags: ["machinery"],
         salaryRange: { min: 10000, max: 15000 },
         searchText: "东莞 cnc 车床 销售 客户 渠道 机床销售工程师 熟悉star fanuc品牌 大客户资源",
       };
@@ -611,7 +613,7 @@ describe("RuleScoringService", () => {
         locationCity: "东莞",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞设备厂"],
-        industryTags: ["machinery", "cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         salaryRange: { min: 10000, max: 15000 },
         searchText: "东莞 cnc 车床 销售 客户 渠道",
       };
@@ -639,7 +641,7 @@ describe("RuleScoringService", () => {
         evidenceText: "2020-2025 机床销售工程师 负责客户开发 渠道拓展",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞设备公司"],
-        industryTags: ["machinery", "cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         salaryRange: { min: 12000, max: 18000 },
         searchText: "东莞 车床 销售 客户 渠道 熟悉fanuc品牌",
       };
@@ -691,7 +693,7 @@ describe("RuleScoringService", () => {
         evidenceText: "2021-2024 东莞机床公司 销售工程师 负责cnc车床销售与客户开发",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞机床公司"],
-        industryTags: ["cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         salaryRange: { min: 9000, max: 12000 },
         searchText: "东莞 cnc 车床 销售",
       };
@@ -736,7 +738,7 @@ describe("RuleScoringService", () => {
         evidenceText: "2019-2025 CNC操作员 负责车床编程与设备维护",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞某机床厂"],
-        industryTags: ["machinery", "cnc"],
+        industryTags: ["machinery"],
         salaryRange: { min: 9000, max: 12000 },
         searchText: "东莞 cnc 车床 操作 维护",
       };
@@ -749,7 +751,7 @@ describe("RuleScoringService", () => {
         evidenceText: "2020-2025 机床销售工程师 负责客户开发 渠道拓展",
         skills: ["cnc", "车床", "销售"],
         companies: ["东莞设备公司"],
-        industryTags: ["machinery", "cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         salaryRange: { min: 12000, max: 18000 },
         searchText: "东莞 车床 销售 客户 渠道",
       };
