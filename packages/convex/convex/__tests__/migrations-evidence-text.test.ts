@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { backfillEvidenceText } from '../migrations'
+import { backfillEvidenceText, backfillJob5156WorkHistoryEducation } from '../migrations'
 
 type BackfillEvidenceTextResult = {
   scannedResumes: number
@@ -14,6 +14,11 @@ type ConvexHandler<TArgs, TResult> = {
 const backfillEvidenceTextHandler = (backfillEvidenceText as unknown as ConvexHandler<
   Record<string, never>,
   BackfillEvidenceTextResult
+>)._handler
+
+const backfillJob5156WorkHistoryEducationHandler = (backfillJob5156WorkHistoryEducation as unknown as ConvexHandler<
+  Record<string, never>,
+  { scannedResumes: number; updatedResumes: number; movedEducationEntries: number }
 >)._handler
 
 type ResumeRecord = {
@@ -123,5 +128,90 @@ describe('backfillEvidenceText', () => {
 
     expect(ctx.patches.some((entry) => entry.id === 'already-backed-filled')).toBe(false)
     expect(ctx.patches.some((entry) => entry.id === 'not-yet-ingested')).toBe(false)
+  })
+})
+
+describe('backfillJob5156WorkHistoryEducation', () => {
+  it('moves Job5156 education-like work history into profileEducation and refreshes derived fields', async () => {
+    const records: ResumeRecord[] = [
+      {
+        _id: 'job5156-legacy',
+        content: {
+          source: 'hr.job5156.com',
+          profileUrl: 'https://hr.job5156.com/resume/view/123',
+          workHistory: [
+            { raw: '2015-01~2020-01 东莞精密机械有限公司 销售工程师' },
+            { raw: '2010-09~2013-06 广西现代职业技术学院 数控技术 大专' },
+          ],
+        },
+        ingestData: {
+          evidenceText: 'stale evidence',
+          industryTags: ['machinery'],
+          synonymHits: [],
+          ruleScores: { jd1: 80 },
+          experienceLevel: 'mid',
+          computedAt: 1_700_000_000_000,
+          skillsVersion: 1,
+        },
+      },
+      {
+        _id: 'seek-legacy',
+        content: {
+          source: 'seek',
+          profileUrl: 'https://seek.com/candidates/1',
+          workHistory: [{ raw: '2010-09~2013-06 广西现代职业技术学院 数控技术 大专' }],
+        },
+        ingestData: {
+          evidenceText: 'seek stale evidence',
+          industryTags: ['machinery'],
+          synonymHits: [],
+          ruleScores: { jd1: 80 },
+          experienceLevel: 'mid',
+          computedAt: 1_700_000_000_000,
+          skillsVersion: 1,
+        },
+      },
+    ]
+
+    const ctx = createResumesDb(records)
+    const result = await backfillJob5156WorkHistoryEducationHandler(ctx as never, {})
+
+    expect(result).toEqual({
+      scannedResumes: 2,
+      updatedResumes: 1,
+      movedEducationEntries: 1,
+    })
+
+    expect(ctx.patches).toContainEqual({
+      id: 'job5156-legacy',
+      patch: {
+        content: {
+          source: 'hr.job5156.com',
+          profileUrl: 'https://hr.job5156.com/resume/view/123',
+          workHistory: [
+            { raw: '2015-01~2020-01 东莞精密机械有限公司 销售工程师' },
+          ],
+          profileEducation: [
+            {
+              institution: '2010-09~2013-06 广西现代职业技术学院 数控技术 大专',
+              qualification: undefined,
+              endDate: undefined,
+            },
+          ],
+        },
+        searchText: '2015-01~2020-01 东莞精密机械有限公司 销售工程师 2010-09~2013-06 广西现代职业技术学院 数控技术 大专 https://hr.job5156.com/resume/view/123 hr.job5156.com',
+        ingestData: {
+          evidenceText: '2015-01~2020-01 东莞精密机械有限公司 销售工程师',
+          industryTags: ['machinery'],
+          synonymHits: [],
+          ruleScores: { jd1: 80 },
+          experienceLevel: 'mid',
+          computedAt: 1_700_000_000_000,
+          skillsVersion: 1,
+        },
+      },
+    })
+
+    expect(ctx.patches.some((entry) => entry.id === 'seek-legacy')).toBe(false)
   })
 })

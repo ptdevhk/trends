@@ -18,7 +18,13 @@
       "jobIntention": "machining center operator",
       "expectedSalary": "9000-14000",
       "workHistory": [
-        { "raw": "2016-2024 Precision Works Co. Operator" }
+        {
+          "raw": "2016-2024 Precision Works Co. Operator",
+          "companyName": "Precision Works Co.",
+          "jobTitle": "Operator",
+          "startDate": "2016",
+          "endDate": "2024"
+        }
       ],
       "extractedAt": "2026-02-05T09:05:00.000Z",
       "resumeId": "1003",

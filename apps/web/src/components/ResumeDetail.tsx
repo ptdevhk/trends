@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { buildWorkHistoryDateRange, normalizeWorkHistoryEntry } from '@trends/shared'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,7 +31,7 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
 
   const workHistory = useMemo(() => {
     if (!resume?.workHistory?.length) return []
-    return resume.workHistory.filter((item) => item.raw)
+    return resume.workHistory.filter((item) => normalizeWorkHistoryEntry(item) !== null)
   }, [resume])
   const profileUrl = resume?.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
@@ -134,11 +135,21 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
               <p className="text-sm">--</p>
             ) : (
               <ul className="space-y-2 text-sm">
-                {workHistory.map((item, index) => (
-                  <li key={`${resume.name}-${index}`} className="rounded-md border border-border p-3">
-                    {item.raw}
-                  </li>
-                ))}
+                {workHistory.map((item, index) => {
+                  const dateRange = buildWorkHistoryDateRange(item.startDate, item.endDate)
+                  const heading = [item.companyName, item.jobTitle].filter(Boolean).join(' · ')
+                  return (
+                    <li key={`${resume.name}-${index}`} className="rounded-md border border-border p-3 space-y-1">
+                      {heading ? <div className="font-medium">{heading}</div> : null}
+                      {dateRange ? <div className="text-xs text-muted-foreground">{dateRange}</div> : null}
+                      {item.description ? <div className="whitespace-pre-wrap">{item.description}</div> : null}
+                      {!heading && !dateRange && !item.description ? <div>{item.raw}</div> : null}
+                      {item.raw && (heading || dateRange || item.description) ? (
+                        <div className="text-xs text-muted-foreground whitespace-pre-wrap">{item.raw}</div>
+                      ) : null}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>

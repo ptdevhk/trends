@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { isLocationMatch, normalizeProfileUrlForDisplay, normalizeSharedResumeFields } from "@trends/shared";
+import {
+  buildWorkHistoryEntryText,
+  isLocationMatch,
+  normalizeProfileUrlForDisplay,
+  normalizeSharedResumeFields,
+} from "@trends/shared";
 
 import { findProjectRoot } from "./db.js";
 import { DataNotFoundError, FileParseError } from "./errors.js";
@@ -8,6 +13,7 @@ import { IndustryDataService } from "./industry-data-service.js";
 import { parseSearchQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
 import { ResumeIndexService } from "./resume-index.js";
+import { extractCompanyFromWorkHistory } from "./work-history.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { UnifiedSearchService, type UnifiedKeywordExpansion } from "./unified-search-service.js";
 
@@ -84,16 +90,9 @@ function buildSearchText(item: ResumeItem): string {
     item.selfIntro,
     item.education,
     item.expectedSalary,
-    ...(item.workHistory?.map((entry) => entry.raw) ?? []),
+    ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
   ];
   return parts.join(" ").toLowerCase();
-}
-
-function extractCompanyName(raw: string): string {
-  return raw
-    .replace(/^[\d\-~至今年月日()（）.\s]+/, "")
-    .replace(/[\s,，。;；]+/g, " ")
-    .trim();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -300,7 +299,7 @@ export class ResumeService {
       const name = (item.name || "").toLowerCase();
       const jobIntention = (item.jobIntention || "").toLowerCase();
       const searchText = index?.searchText || buildSearchText(item);
-      const companies = index?.companies ?? (item.workHistory?.map(wh => extractCompanyName(wh.raw)) || []);
+      const companies = index?.companies ?? (item.workHistory?.map((wh) => extractCompanyFromWorkHistory(wh)) || []);
 
       const perKeywordScores = keywordSets.map(({ original, variants }) => {
         let score = 0;

@@ -1,4 +1,5 @@
 
+import { buildWorkHistoryEntryText } from "@trends/shared";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,7 +63,7 @@ export function OutreachModal({
                         workExperience: parseInt(resume.experience) || 0,
                         education: resume.education,
                         jobIntention: resume.jobIntention,
-                        companies: resume.workHistory?.map(w => w.raw) ?? [],
+                        companies: resume.workHistory?.map((work) => buildWorkHistoryEntryText(work)).filter((item) => item.length > 0) ?? [],
                     },
                     jobDescription,
                     analysis,

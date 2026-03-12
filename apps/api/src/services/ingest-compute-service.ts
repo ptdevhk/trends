@@ -1,11 +1,11 @@
-import { buildWorkHistoryEvidence } from "@trends/shared";
+import { buildWorkHistoryEntryText, buildWorkHistoryEvidence, normalizeWorkHistoryEntry } from "@trends/shared";
 
 import { IndustryDataService } from "./industry-data-service.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { RuleScoringService, type RoleSignalSummary } from "./rule-scoring.js";
 import { resolveResumeId } from "./resume-id.js";
-import { computeWorkHistoryYears, parseRoleYears } from "./work-history.js";
+import { computeEntryRoleYears, computeWorkHistoryYears, extractCompanyFromWorkHistory } from "./work-history.js";
 import type { ResumeItem, ResumeWorkHistoryItem } from "../types/resume.js";
 import type { ResumeIndex } from "./resume-index.js";
 
@@ -102,12 +102,7 @@ function toWorkHistory(value: unknown): ResumeWorkHistoryItem[] {
   }
 
   return value
-    .map((item) => {
-      if (!isRecord(item)) return null;
-      const raw = toStringValue(item.raw).trim();
-      if (!raw) return null;
-      return { raw };
-    })
+    .map((item) => normalizeWorkHistoryEntry(item))
     .filter((item): item is ResumeWorkHistoryItem => item !== null);
 }
 
@@ -219,34 +214,12 @@ function parseSalaryRange(value: string): { min?: number; max?: number } | null 
   return { min, max };
 }
 
-function normalizeCompanyName(raw: string): string {
-  return raw
-    .replace(/^[\d\-~至今年月日()（）.\s]+/, "")
-    .replace(/[\s,，。;；]+/g, " ")
-    .trim();
-}
-
-const COMPANY_PATTERN = /([\u4e00-\u9fa5A-Za-z0-9()（）·.&\-]{2,40}(?:公司|集团|科技|机械|设备|自动化|股份|有限|厂|行))/;
-
-function extractCompanyFromEntry(raw: string): string {
-  const cleaned = normalizeCompanyName(raw);
-  if (!cleaned) return "";
-
-  const companyMatch = cleaned.match(COMPANY_PATTERN);
-  if (companyMatch) {
-    return companyMatch[1];
-  }
-
-  const firstToken = cleaned.split(/\s+/g).find((token) => token.length >= 2);
-  return firstToken || "";
-}
-
 function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
   if (!workHistory.length) return [];
 
   const companies: string[] = [];
   for (const item of workHistory) {
-    const company = extractCompanyFromEntry(item.raw);
+    const company = extractCompanyFromWorkHistory(item);
     if (company) {
       companies.push(company);
     }
@@ -260,7 +233,7 @@ function createSearchText(item: ResumeItem): string {
     item.name,
     item.education,
     item.expectedSalary,
-    ...(item.workHistory?.map((entry) => entry.raw) ?? []),
+    ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
   ];
 
   return normalizeText(parts.join(" "));
@@ -574,16 +547,16 @@ export class IngestComputeService {
     }>();
 
     for (const entry of workHistory) {
-      const raw = entry.raw?.trim() || "";
-      if (!raw) {
+      const workHistoryText = buildWorkHistoryEntryText(entry);
+      if (!workHistoryText) {
         continue;
       }
 
-      const normalized = raw.toLowerCase();
-      const years = parseRoleYears(raw);
+      const normalized = workHistoryText.toLowerCase();
+      const years = computeEntryRoleYears(entry);
 
       // Extract company name and verify industry
-      const companyName = extractCompanyFromEntry(raw);
+      const companyName = extractCompanyFromWorkHistory(entry);
       const industryVerification = this.industryDataService.verifyCompanyIndustry(companyName);
 
       for (const [roleType, signals] of Object.entries(DEFAULT_ROLE_SIGNAL_LIBRARY)) {
@@ -932,7 +905,7 @@ export class IngestComputeService {
         const candidateCompanies = Array.from(new Set([...normalizedCompanies, ...entryCompanies]));
         collectFromSource(
           "workHistory",
-          entry.raw || "",
+          buildWorkHistoryEntryText(entry),
           candidateCompanies,
           pattern.name.toLowerCase(),
           pattern.role,

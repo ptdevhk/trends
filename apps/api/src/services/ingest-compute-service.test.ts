@@ -659,6 +659,28 @@ describe("IngestComputeService", () => {
     expect(index.searchText).not.toContain("机械助理");
   });
 
+  it("should use structured work history dates and company names", () => {
+    const item = {
+      ...SAMPLE_RESUME_JUNIOR.data[0],
+      workHistory: [
+        {
+          raw: "2021-03 ~ 2023-08 Example Co. Sales Manager",
+          companyName: "Example Co.",
+          jobTitle: "Sales Manager",
+          startDate: "2021-03",
+          endDate: "2023-08",
+        },
+      ],
+    };
+
+    const index = buildResumeIndex(item, 0);
+    const result = service.computeOne("resume-structured", { data: [item] });
+
+    expect(index.experienceYears).toBeCloseTo(2.4, 1);
+    expect(index.companies).toContain("Example");
+    expect(result.evidenceText).toContain("example co.");
+  });
+
   it("should throw error for invalid content", () => {
     expect(() => {
       service.computeOne("resume-bad", {});

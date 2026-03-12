@@ -114,7 +114,11 @@ describe("UnifiedSearchService", () => {
         expectedSalary: "6000-7999",
         workHistory: [
           {
-            raw: "2015-12~2020-07(4年7月)东莞市泽钿精密机械有限公司销售工程师",
+            raw: "legacy fallback line",
+            companyName: "东莞市泽钿精密机械有限公司",
+            jobTitle: "销售工程师",
+            startDate: "2015-12",
+            endDate: "2020-07",
           },
         ],
         extractedAt: "2026-03-11T00:00:00.000Z",

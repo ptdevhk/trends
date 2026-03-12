@@ -987,6 +987,7 @@ seed_and_migrate_convex() {
     run_convex_migration "$convex_dir" "backfillWorkspaceSlugs"
     run_convex_migration "$convex_dir" "backfillIngestData" '{"limit":100}'
     run_convex_migration "$convex_dir" "backfillJob5156ProfileUrls"
+    run_convex_migration "$convex_dir" "backfillJob5156WorkHistoryEducation"
 }
 
 resolve_env_file() {

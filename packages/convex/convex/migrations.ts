@@ -2,7 +2,7 @@ import { internal } from "./_generated/api";
 import { action, mutation } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { buildWorkHistoryEvidence } from "@trends/shared";
+import { buildWorkHistoryEvidence, normalizeWorkHistoryEntry } from "@trends/shared";
 
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 import { deriveResumeIdentityKey } from "./lib/resume_identity";
@@ -440,6 +440,79 @@ export const backfillEvidenceText = mutation({
     },
 });
 
+function looksLikeJob5156EducationEntry(value: unknown): boolean {
+    const normalized = normalizeWorkHistoryEntry(value);
+    if (!normalized) {
+        return false;
+    }
+
+    const raw = normalized.raw.toLowerCase();
+    const companyName = (normalized.companyName || "").toLowerCase();
+    return raw.includes("学院") || raw.includes("大学") || raw.includes("学历") || companyName.includes("学院") || companyName.includes("大学");
+}
+
+function rewriteJob5156WorkHistoryContent(content: unknown): {
+    content: Record<string, unknown> | null;
+    movedEducationEntries: number;
+} {
+    if (!isRecord(content) || !Array.isArray(content.workHistory)) {
+        return {
+            content: null,
+            movedEducationEntries: 0,
+        };
+    }
+
+    const source = typeof content.source === "string" ? content.source.toLowerCase() : "";
+    const profileUrl = typeof content.profileUrl === "string" ? content.profileUrl.toLowerCase() : "";
+    const isJob5156 = source === JOB5156_HOST || profileUrl.includes(JOB5156_HOST);
+    if (!isJob5156) {
+        return {
+            content: null,
+            movedEducationEntries: 0,
+        };
+    }
+
+    const nextWorkHistory: unknown[] = [];
+    const nextProfileEducation = Array.isArray(content.profileEducation) ? [...content.profileEducation] : [];
+    let movedEducationEntries = 0;
+
+    for (const entry of content.workHistory) {
+        const normalized = normalizeWorkHistoryEntry(entry);
+        if (!normalized) {
+            nextWorkHistory.push(entry);
+            continue;
+        }
+
+        if (looksLikeJob5156EducationEntry(normalized)) {
+            nextProfileEducation.push({
+                institution: normalized.companyName || normalized.raw || undefined,
+                qualification: normalized.jobTitle || undefined,
+                endDate: normalized.endDate || normalized.startDate || undefined,
+            });
+            movedEducationEntries += 1;
+            continue;
+        }
+
+        nextWorkHistory.push(entry);
+    }
+
+    if (movedEducationEntries === 0) {
+        return {
+            content: null,
+            movedEducationEntries: 0,
+        };
+    }
+
+    return {
+        content: {
+            ...content,
+            workHistory: nextWorkHistory,
+            profileEducation: nextProfileEducation,
+        },
+        movedEducationEntries,
+    };
+}
+
 export const backfillJob5156ProfileUrls = mutation({
     args: {},
     handler: async (ctx) => {
@@ -467,6 +540,42 @@ export const backfillJob5156ProfileUrls = mutation({
             scannedResumes: resumes.length,
             updatedResumes,
             updatedProfileFields,
+        };
+    },
+});
+
+export const backfillJob5156WorkHistoryEducation = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const resumes = await ctx.db.query("resumes").collect();
+        let updatedResumes = 0;
+        let movedEducationEntries = 0;
+
+        for (const resume of resumes) {
+            const rewritten = rewriteJob5156WorkHistoryContent(resume.content);
+            if (!rewritten.content) {
+                continue;
+            }
+
+            const searchText = buildSearchText(rewritten.content);
+            await ctx.db.patch(resume._id, {
+                content: rewritten.content,
+                searchText,
+                ingestData: resume.ingestData
+                    ? {
+                        ...resume.ingestData,
+                        evidenceText: buildWorkHistoryEvidence(rewritten.content).text,
+                    }
+                    : resume.ingestData,
+            });
+            updatedResumes += 1;
+            movedEducationEntries += rewritten.movedEducationEntries;
+        }
+
+        return {
+            scannedResumes: resumes.length,
+            updatedResumes,
+            movedEducationEntries,
         };
     },
 });

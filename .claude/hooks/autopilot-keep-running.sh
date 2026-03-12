@@ -25,20 +25,28 @@ SESSION_ID="${SESSION_ID:-default}"
 # autopilot to ~1 effective block per cycle. MAX_TURNS provides sufficient
 # loop protection instead.
 
-# Helper: clean up the blocked flag so downstream hooks know autopilot is done
-cleanup_blocked_flag() {
+# Helper: clean up temp files for a session so downstream hooks know autopilot is done
+cleanup_autopilot_state() {
   local cleanup_session_id="${1:-$SESSION_ID}"
 
   rm -f "/tmp/claude-autopilot-blocked-${cleanup_session_id}"
   rm -f "/tmp/claude-autopilot-state-${cleanup_session_id}"
   rm -f "/tmp/claude-autopilot-idle-${cleanup_session_id}"
+}
 
-  # Record session activity end (if in cmux sandbox with JWT)
+record_session_activity_end() {
+  local finished_session_id="${1:-$SESSION_ID}"
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   if [ -f "$script_dir/session-activity-capture.sh" ]; then
-    "$script_dir/session-activity-capture.sh" end "$cleanup_session_id" 2>/dev/null || true
+    "$script_dir/session-activity-capture.sh" end "$finished_session_id" 2>/dev/null || true
   fi
+}
+
+finish_autopilot_session() {
+  local finished_session_id="${1:-$SESSION_ID}"
+  cleanup_autopilot_state "$finished_session_id"
+  record_session_activity_end "$finished_session_id"
 }
 
 # Clean up any stale completed marker from a previous cycle where codex-review
@@ -49,7 +57,7 @@ rm -f "/tmp/claude-autopilot-completed-${SESSION_ID}"
 SESSION_STOP_FILE="/tmp/claude-autopilot-stop-${SESSION_ID}"
 if [ -f "$SESSION_STOP_FILE" ]; then
   rm -f "$SESSION_STOP_FILE"
-  cleanup_blocked_flag
+  finish_autopilot_session
   echo "Autopilot stop file detected for session ${SESSION_ID}" >&2
   exit 0
 fi
@@ -65,8 +73,8 @@ if [ -f "$CURRENT_SID_FILE" ]; then
     if [ -f "$CURRENT_STOP_FILE" ]; then
       rm -f "$CURRENT_STOP_FILE"
       # Clean up tracked temp files for BOTH session IDs to avoid stale state
-      cleanup_blocked_flag
-      cleanup_blocked_flag "$CURRENT_SID"
+      finish_autopilot_session
+      finish_autopilot_session "$CURRENT_SID"
       echo "Autopilot stop file detected for current-session ${CURRENT_SID}" >&2
       exit 0
     fi
@@ -75,7 +83,7 @@ fi
 
 # External stop file (for agent-autopilot.sh integration)
 if [ -n "${CLAUDE_AUTOPILOT_STOP_FILE:-}" ] && [ -f "$CLAUDE_AUTOPILOT_STOP_FILE" ]; then
-  cleanup_blocked_flag
+  finish_autopilot_session
   echo "Autopilot external stop file detected: $CLAUDE_AUTOPILOT_STOP_FILE" >&2
   exit 0
 fi
@@ -126,7 +134,7 @@ if [ "$CURRENT_STATE" = "$PREV_STATE" ] && [ -n "$PREV_STATE" ]; then
 
   if [ "$IDLE_COUNT" -ge "$IDLE_THRESHOLD" ]; then
     echo "[Autopilot] No activity for $IDLE_COUNT turns, allowing stop" >&2
-    cleanup_blocked_flag
+    finish_autopilot_session
     rm -f "$TURN_FILE"
     exit 0
   fi
@@ -139,7 +147,7 @@ if ! is_infinite_mode && [ "$TURN_COUNT" -ge "$MAX_TURNS" ]; then
   # Write completed marker before deleting turn file so codex-review can detect autopilot ran
   echo "$TURN_COUNT" > "/tmp/claude-autopilot-completed-${SESSION_ID}"
   rm -f "$TURN_FILE"
-  cleanup_blocked_flag
+  finish_autopilot_session
   echo "Autopilot max turns reached ($MAX_TURNS) for session ${SESSION_ID}" >&2
   exit 0
 fi

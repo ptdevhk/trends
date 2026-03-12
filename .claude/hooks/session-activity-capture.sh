@@ -26,6 +26,85 @@ get_current_commit() {
   git rev-parse HEAD 2>/dev/null || echo "unknown"
 }
 
+build_commit_stats_json() {
+  local start_commit="$1"
+  local end_commit="$2"
+
+  git log --format='{"sha":"%H","message":"%s","timestamp":"%aI"}' "${start_commit}..${end_commit}" 2>/dev/null | \
+    jq -s 'map(. + {filesChanged: 0, additions: 0, deletions: 0})' 2>/dev/null || echo "[]"
+}
+
+build_file_status_json() {
+  local start_commit="$1"
+  local end_commit="$2"
+
+  python3 - "$start_commit" "$end_commit" <<'PY'
+import json
+import subprocess
+import sys
+
+start_commit, end_commit = sys.argv[1], sys.argv[2]
+name_status = subprocess.run(
+    ["git", "diff", "--name-status", "--diff-filter=AMDRT", "-z", f"{start_commit}..{end_commit}"],
+    capture_output=True,
+    text=False,
+    check=False,
+)
+numstat = subprocess.run(
+    ["git", "diff", "--numstat", "--diff-filter=AMDRT", "-z", f"{start_commit}..{end_commit}"],
+    capture_output=True,
+    text=False,
+    check=False,
+)
+
+status_by_path: dict[str, str] = {}
+parts = [part.decode("utf-8", errors="replace") for part in name_status.stdout.split(b"\0") if part]
+index = 0
+while index < len(parts):
+    status_token = parts[index]
+    index += 1
+    if not status_token:
+        continue
+    code = status_token[0]
+    if code == "R":
+        if index + 1 >= len(parts):
+            break
+        old_path = parts[index]
+        new_path = parts[index + 1]
+        index += 2
+        status_by_path[old_path] = "renamed"
+        status_by_path[new_path] = "renamed"
+    else:
+        if index >= len(parts):
+            break
+        path = parts[index]
+        index += 1
+        status_by_path[path] = {
+            "A": "added",
+            "D": "deleted",
+            "M": "modified",
+            "T": "modified",
+        }.get(code, "modified")
+
+entries: list[dict[str, object]] = []
+parts = [part.decode("utf-8", errors="replace") for part in numstat.stdout.split(b"\0") if part]
+index = 0
+while index + 2 < len(parts):
+    additions, deletions, path = parts[index:index + 3]
+    index += 3
+    if not path:
+        continue
+    entries.append({
+        "path": path,
+        "additions": 0 if additions == "-" else int(additions),
+        "deletions": 0 if deletions == "-" else int(deletions),
+        "status": status_by_path.get(path, "modified"),
+    })
+
+print(json.dumps(entries, ensure_ascii=False))
+PY
+}
+
 # Record session start
 record_start() {
   local start_commit
@@ -61,48 +140,10 @@ record_end() {
 
   # Collect commits since start
   local commits_json="[]"
-  if [ "$start_commit" != "unknown" ] && [ "$end_commit" != "unknown" ] && [ "$start_commit" != "$end_commit" ]; then
-    # Get commits between start and end
-    commits_json=$(git log --format='{"sha":"%H","message":"%s","timestamp":"%aI"}' "${start_commit}..${end_commit}" 2>/dev/null | \
-      jq -s 'map(. + {filesChanged: 0, additions: 0, deletions: 0})' 2>/dev/null || echo "[]")
-
-    # Add file stats to each commit
-    local enriched_commits="[]"
-    while IFS= read -r sha; do
-      if [ -n "$sha" ]; then
-        local stats
-        stats=$(git show --stat --format="" "$sha" 2>/dev/null | tail -1 | \
-          sed -n 's/.* \([0-9]*\) file.* \([0-9]*\) insertion.* \([0-9]*\) deletion.*/{"f":\1,"a":\2,"d":\3}/p' 2>/dev/null || echo '{"f":0,"a":0,"d":0}')
-        if [ -z "$stats" ]; then
-          stats='{"f":0,"a":0,"d":0}'
-        fi
-        enriched_commits=$(echo "$commits_json" | jq --arg sha "$sha" --argjson stats "$stats" \
-          'map(if .sha == $sha then . + {filesChanged: $stats.f, additions: $stats.a, deletions: $stats.d} else . end)' 2>/dev/null || echo "$commits_json")
-        commits_json="$enriched_commits"
-      fi
-    done < <(git log --format="%H" "${start_commit}..${end_commit}" 2>/dev/null)
-  fi
-
-  # Collect file changes
   local files_json="[]"
   if [ "$start_commit" != "unknown" ] && [ "$end_commit" != "unknown" ] && [ "$start_commit" != "$end_commit" ]; then
-    files_json=$(git diff --numstat --diff-filter=AMDRT "${start_commit}..${end_commit}" 2>/dev/null | \
-      while IFS=$'\t' read -r add del path; do
-        [ -z "$path" ] && continue
-        # Determine status from first commit that touched this file
-        local status="modified"
-        if git diff --name-status "${start_commit}..${end_commit}" 2>/dev/null | grep -q "^A.*${path}$"; then
-          status="added"
-        elif git diff --name-status "${start_commit}..${end_commit}" 2>/dev/null | grep -q "^D.*${path}$"; then
-          status="deleted"
-        elif git diff --name-status "${start_commit}..${end_commit}" 2>/dev/null | grep -q "^R.*${path}$"; then
-          status="renamed"
-        fi
-        # Handle binary files (- for add/del)
-        [ "$add" = "-" ] && add=0
-        [ "$del" = "-" ] && del=0
-        printf '{"path":"%s","additions":%d,"deletions":%d,"status":"%s"}\n' "$path" "$add" "$del" "$status"
-      done | jq -s '.' 2>/dev/null || echo "[]")
+    commits_json=$(build_commit_stats_json "$start_commit" "$end_commit")
+    files_json=$(build_file_status_json "$start_commit" "$end_commit" 2>/dev/null || echo "[]")
   fi
 
   # For now, skip PRs merged detection (would need gh CLI and repo context)

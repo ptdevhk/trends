@@ -7,6 +7,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import type { ResumeWorkHistoryItem } from "@trends/shared";
+
 const projectRoot = process.cwd();
 const fixturesDir = path.join(projectRoot, "tests", "fixtures", "resumes");
 
@@ -84,8 +86,22 @@ for (const filename of files) {
     if (workHistory !== undefined) {
       if (Array.isArray(workHistory)) {
         workHistory.forEach((entry, idx) => {
-          if (!entry || typeof entry !== "object" || typeof (entry as { raw?: unknown }).raw !== "string") {
+          if (!entry || typeof entry !== "object") {
             console.error(`❌ ${filename}: item ${index + 1} workHistory[${idx}] invalid`);
+            issues += 1;
+            return;
+          }
+          const workEntry = entry as Partial<Record<keyof ResumeWorkHistoryItem, unknown>>;
+          const hasStructuredField = [
+            workEntry.companyName,
+            workEntry.jobTitle,
+            workEntry.description,
+            workEntry.startDate,
+            workEntry.endDate,
+          ].some((value) => typeof value === "string" && value.trim());
+          const hasRaw = typeof workEntry.raw === "string" && workEntry.raw.trim();
+          if (!hasRaw && !hasStructuredField) {
+            console.error(`❌ ${filename}: item ${index + 1} workHistory[${idx}] missing raw/structured fields`);
             issues += 1;
           }
         });

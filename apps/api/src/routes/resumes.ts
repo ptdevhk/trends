@@ -32,7 +32,7 @@ import { JobDescriptionService } from "../services/job-description-service.js";
 import { RuleScoringService } from "../services/rule-scoring.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { IngestComputeService } from "../services/ingest-compute-service.js";
-import { buildWorkHistoryEvidence } from "@trends/shared";
+import { buildWorkHistoryEntryText, buildWorkHistoryEvidence, normalizeWorkHistoryEntry } from "@trends/shared";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { SearchEventLogger } from "../services/search-event-logger.js";
 import {
@@ -129,6 +129,11 @@ const ResumeExportRequestSchema = z.object({
             .array(
               z.object({
                 raw: z.string().optional(),
+                companyName: z.string().optional(),
+                jobTitle: z.string().optional(),
+                description: z.string().optional(),
+                startDate: z.string().optional(),
+                endDate: z.string().optional(),
               })
             )
             .optional(),
@@ -207,7 +212,10 @@ function extractSkills(...texts: (string | undefined)[]): string[] | undefined {
 function extractCompanies(workHistory: ResumeItem["workHistory"]): string[] | undefined {
   if (!workHistory?.length) return undefined;
   const entries = workHistory
-    .map((item) => item.raw)
+    .map((item) => {
+      const normalized = normalizeWorkHistoryEntry(item);
+      return normalized?.companyName || buildWorkHistoryEntryText(item);
+    })
     .filter(Boolean)
     .map((raw) => raw.replace(/^\d[\d\-~至今()年月日\s]*?/g, "").trim())
     .filter(Boolean);
@@ -480,7 +488,7 @@ function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex 
     resume.name,
     resume.location,
     resume.education,
-    ...(resume.workHistory ?? []).map((item) => item.raw),
+    ...(resume.workHistory ?? []).map((item) => buildWorkHistoryEntryText(item)),
   ].join(" ").toLowerCase();
 
   return {

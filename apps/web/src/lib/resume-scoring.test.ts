@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildLearningObservation,
   buildResumeKey,
+  buildRuleScoringText,
   computeNormalizedIndustryDbScore,
   getPrecomputedRuleScore,
   hasIngestData,
@@ -22,7 +23,14 @@ type TestResume = {
   selfIntro: string
   jobIntention: string
   expectedSalary: string
-  workHistory: Array<{ raw: string }>
+  workHistory: Array<{
+    raw: string
+    companyName?: string
+    jobTitle?: string
+    description?: string
+    startDate?: string
+    endDate?: string
+  }>
   extractedAt: string
   resumeId?: string
   perUserId?: string
@@ -143,11 +151,31 @@ describe('resume-scoring', () => {
       },
     })
 
-	    expect(hasIngestData(resume)).toBe(true)
-	    if (hasIngestData(resume)) {
-	      expect(buildLearningObservation('shortlist', resume)).toBe('shortlist_pattern: cnc + lathe + senior -> high_priority')
-	    }
-	  })
+    expect(hasIngestData(resume)).toBe(true)
+    if (hasIngestData(resume)) {
+      expect(buildLearningObservation('shortlist', resume)).toBe('shortlist_pattern: cnc + lathe + senior -> high_priority')
+    }
+  })
+
+  it('builds rule scoring text from structured work history entries', () => {
+    const resume = createResume({
+      workHistory: [
+        {
+          raw: '2021-03 ~ 2023-08 Example Co. Sales Engineer',
+        },
+        {
+          raw: 'legacy fallback line',
+          companyName: 'Precision Works',
+          jobTitle: 'CNC Sales',
+          startDate: '2019-01',
+          endDate: '2021-02',
+        },
+      ],
+    })
+
+    expect(buildRuleScoringText(resume)).toContain('Precision Works CNC Sales')
+    expect(buildRuleScoringText(resume)).toContain('2019-01 ~ 2021-02')
+  })
 
   it('flags auto-filtered analyses', () => {
     expect(

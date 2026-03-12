@@ -268,17 +268,21 @@ function ensureKeywords(value: string[]): string[] {
   );
 }
 
-function inferIndustryTags(tokens: string[]): string[] {
+function inferIndustryTagsForMap(tokens: string[], industryMap: Array<{ tag: string; keywords: string[] }>): string[] {
   const haystack = tokens.join(" ").toLowerCase();
   const tags = new Set<string>();
 
-  for (const item of INDUSTRY_MAP) {
+  for (const item of industryMap) {
     if (item.keywords.some((keyword) => haystack.includes(keyword.toLowerCase()))) {
       tags.add(item.tag);
     }
   }
 
   return normalizeIndustryTags(Array.from(tags));
+}
+
+function inferIndustryTags(tokens: string[]): string[] {
+  return inferIndustryTagsForMap(tokens, INDUSTRY_MAP);
 }
 
 function getMinEducationRank(requirements: string[]): number | null {
@@ -520,16 +524,7 @@ export class RuleScoringService {
   }
 
   private inferIndustryTags(tokens: string[], industryMap: Array<{ tag: string; keywords: string[] }>): string[] {
-    const haystack = tokens.join(" ").toLowerCase();
-    const tags = new Set<string>();
-
-    for (const item of industryMap) {
-      if (item.keywords.some((keyword) => haystack.includes(keyword.toLowerCase()))) {
-        tags.add(item.tag);
-      }
-    }
-
-    return normalizeIndustryTags(Array.from(tags));
+    return inferIndustryTagsForMap(tokens, industryMap);
   }
 
   private inferBrandKeywords(tokens: string[]): string[] {
