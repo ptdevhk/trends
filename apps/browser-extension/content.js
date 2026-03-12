@@ -274,14 +274,6 @@ function buildExportMetadata(resumes) {
     filters[key] = value;
   }
 
-  let generatedBy = 'browser-extension';
-  try {
-    const version = chrome?.runtime?.getManifest?.().version;
-    if (version) generatedBy = `browser-extension@${version}`;
-  } catch {
-    // ignore
-  }
-
   const pagination = getPaginationInfo();
   const reproductionParams = new URLSearchParams();
   reproductionParams.set(AUTO_EXPORT_PARAM, 'json');
@@ -295,7 +287,7 @@ function buildExportMetadata(resumes) {
       filters: Object.keys(filters).length ? filters : {}
     },
     generatedAt: new Date().toISOString(),
-    generatedBy,
+    generatedBy: getExtensionGeneratedBy(),
     totalPages: pagination.totalPages,
     totalResumes: resumes.length,
     reproduction: `Navigate to sourceUrl, then add ?${reproductionParams.toString()}`
@@ -313,14 +305,39 @@ function getApiSnapshotCount() {
   if (Array.isArray(apiSnapshot.searchRows)) {
     return apiSnapshot.searchRows.length;
   }
-  if (Array.isArray(apiSnapshot.seekRecommendedCandidates)) {
-    return apiSnapshot.seekRecommendedCandidates.length;
+  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
+    return getSeekSnapshotCount();
   }
   return 0;
 }
 
-function isSeekSnapshotReady() {
+function isSeekProfilePage() {
+  return window.location.pathname.includes('/talentsearch/profile/');
+}
+
+function hasSeekProfileSnapshot() {
+  return !!(apiSnapshot.seekProfile && typeof apiSnapshot.seekProfile === 'object');
+}
+
+function hasSeekListSnapshot() {
   return Array.isArray(apiSnapshot.seekRecommendedCandidates);
+}
+
+function getSeekSnapshotCount() {
+  if (isSeekProfilePage()) {
+    return hasSeekProfileSnapshot() ? 1 : 0;
+  }
+  return hasSeekListSnapshot() ? apiSnapshot.seekRecommendedCandidates.length : 0;
+}
+
+function isSeekSnapshotReady() {
+  return getSeekSnapshotCount() > 0;
+}
+
+function isExtractionReady() {
+  return getCurrentSourceKey() === SOURCE_KEYS.SEEK
+    ? isSeekSnapshotReady()
+    : document.querySelector(SELECTORS.listContainer) !== null;
 }
 
 function getSeekCandidateIdentity(candidate) {
@@ -331,20 +348,196 @@ function getSeekCandidateIdentity(candidate) {
   };
 }
 
+function buildSeekProfileUrl(profileId) {
+  return profileId ? `https://${window.location.hostname.toLowerCase()}/candidates/${encodeURIComponent(profileId)}` : '';
+}
+
+function formatSeekExpectedSalary(expectedSalary) {
+  if (!expectedSalary || typeof expectedSalary !== 'object') return '';
+
+  const amounts = Array.isArray(expectedSalary.amount) ? expectedSalary.amount : [];
+  const preferredFrequencies = ['MONTHLY', 'ANNUAL', 'HOURLY'];
+  const amount = preferredFrequencies
+    .map((frequency) => amounts.find((entry) => entry?.frequency === frequency))
+    .find(Boolean) || amounts[0];
+
+  if (!amount || typeof amount !== 'object') return '';
+
+  const value = typeof amount.value === 'number' ? amount.value : Number(amount.value);
+  const formattedValue = Number.isFinite(value)
+    ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value)
+    : '';
+  const currency = typeof expectedSalary.currency === 'string' ? expectedSalary.currency.trim() : '';
+  const period = amount.frequency === 'ANNUAL'
+    ? '/year'
+    : amount.frequency === 'HOURLY'
+      ? '/hour'
+      : amount.frequency === 'DAILY'
+        ? '/day'
+        : '/month';
+
+  const prefix = [currency, formattedValue].filter(Boolean).join(' ');
+  return prefix ? `${prefix}${period}` : '';
+}
+
+function buildSeekWorkHistoryItem(item) {
+  if (!item || typeof item !== 'object') return null;
+
+  const companyName = typeof item.companyName === 'string' ? item.companyName.trim() : '';
+  const jobTitle = typeof item.jobTitle === 'string' ? item.jobTitle.trim() : '';
+  const description = typeof item.description === 'string' ? item.description.trim() : '';
+  const startDate = typeof item.startDate === 'string' ? item.startDate.trim() : '';
+  const endDate = typeof item.endDate === 'string' ? item.endDate.trim() : '';
+  const durationLabel = typeof item.durationLabel === 'string' ? item.durationLabel.trim() : '';
+  const raw = [jobTitle, companyName, durationLabel].filter(Boolean).join(' · ');
+
+  if (!raw && !description) return null;
+
+  return {
+    raw: raw || description,
+    companyName: companyName || undefined,
+    jobTitle: jobTitle || undefined,
+    description: description || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  };
+}
+
+function buildSeekProfileEducationItem(item) {
+  if (!item || typeof item !== 'object') return null;
+
+  const institution = typeof item.institutionName === 'string' ? item.institutionName.trim() : '';
+  const qualification = typeof item.qualificationName === 'string' ? item.qualificationName.trim() : '';
+  const completionYear = Number.isFinite(item.completionYear) ? String(item.completionYear) : '';
+  const completionMonth = Number.isFinite(item.completionMonth) && item.completionMonth > 0
+    ? String(item.completionMonth).padStart(2, '0')
+    : '';
+  const endDate = completionYear
+    ? (completionMonth ? `${completionYear}-${completionMonth}` : completionYear)
+    : '';
+
+  if (!institution && !qualification && !endDate) return null;
+
+  return {
+    institution: institution || undefined,
+    qualification: qualification || undefined,
+    endDate: endDate || undefined,
+  };
+}
+
+function extractSeekProfileResume() {
+  const profile = apiSnapshot.seekProfile;
+  if (!profile || typeof profile !== 'object') return [];
+
+  const requestInput = apiSnapshot.seekRequest?.variables?.input;
+  const language = apiSnapshot.seekRequest?.variables?.language;
+  const { profileId, profileType } = getSeekCandidateIdentity(profile);
+  const firstName = typeof profile.firstName === 'string' ? profile.firstName.trim() : '';
+  const lastName = typeof profile.lastName === 'string' ? profile.lastName.trim() : '';
+  const currentJobTitle = typeof profile.currentJobTitle === 'string' ? profile.currentJobTitle.trim() : '';
+  const currentLocation = typeof profile.currentLocation === 'string' ? profile.currentLocation.trim() : '';
+  const lastModifiedDate = typeof profile.lastModifiedDate === 'string' ? profile.lastModifiedDate : '';
+  const workHistory = Array.isArray(profile.workHistories)
+    ? profile.workHistories.map((item) => buildSeekWorkHistoryItem(item)).filter(Boolean)
+    : [];
+  const profileEducation = Array.isArray(profile.profileEducation)
+    ? profile.profileEducation.map((item) => buildSeekProfileEducationItem(item)).filter(Boolean)
+    : [];
+  const licences = Array.isArray(profile.licences)
+    ? profile.licences
+        .map((item) => {
+          if (!item || typeof item !== 'object') return null;
+          const name = typeof item.name === 'string' ? item.name.trim() : '';
+          const authority = typeof item.issuingOrganisationName === 'string' ? item.issuingOrganisationName.trim() : '';
+          if (!name && !authority) return null;
+          return {
+            name,
+            authority: authority || undefined,
+          };
+        })
+        .filter(Boolean)
+    : [];
+  const skills = Array.isArray(profile.skills)
+    ? profile.skills.filter((item) => typeof item === 'string' && item.trim())
+    : [];
+  const languages = Array.isArray(profile.languages)
+    ? profile.languages.filter((item) => typeof item === 'string' && item.trim())
+    : [];
+  const resumeSnippet = typeof profile.resumeSnippet === 'string' ? profile.resumeSnippet.trim() : '';
+  const currentIndustry = typeof profile.currentIndustry === 'string' ? profile.currentIndustry.trim() : '';
+  const currentSubindustry = typeof profile.currentSubindustry === 'string' ? profile.currentSubindustry.trim() : '';
+  const rightToWork = typeof profile.rightToWork?.label === 'string' ? profile.rightToWork.label.trim() : '';
+  const education = profileEducation[0]?.qualification || '';
+  const pageNumber = normalizeOptionalPositiveInt(new URL(window.location.href).searchParams.get('pageNumber')) || 1;
+
+  return [{
+    profileId,
+    profileType,
+    externalId: profileId ? `${window.location.hostname.toLowerCase()}:profile:${profileId}` : '',
+    name: [firstName, lastName].filter(Boolean).join(' ').trim(),
+    profileUrl: buildSeekProfileUrl(profileId),
+    activityStatus: lastModifiedDate,
+    age: '',
+    experience: '',
+    education,
+    location: currentLocation,
+    jobIntention: currentJobTitle,
+    expectedSalary: formatSeekExpectedSalary(profile.salary?.expected),
+    selfIntro: resumeSnippet,
+    workHistory,
+    profileEducation: profileEducation.length > 0 ? profileEducation : undefined,
+    skills: skills.length > 0 ? skills : undefined,
+    languages: languages.length > 0 ? languages : undefined,
+    licences: licences.length > 0 ? licences : undefined,
+    resumeSnippet: resumeSnippet || undefined,
+    currentIndustry: currentIndustry || undefined,
+    currentSubindustry: currentSubindustry || undefined,
+    rightToWork: rightToWork || undefined,
+    noticePeriodDays: Number.isFinite(profile.noticePeriodDays) ? profile.noticePeriodDays : undefined,
+    extractedAt: new Date().toISOString(),
+    pageIndex: 1,
+    source: window.location.hostname.toLowerCase(),
+    searchProfileId: typeof requestInput?.searchId === 'string' ? requestInput.searchId : '',
+    language: typeof language === 'string' ? language : '',
+    pageNumber,
+  }];
+}
+
 function buildSeekCollectionContext() {
   const requestInput = apiSnapshot.seekRequest?.variables?.input;
   const language = apiSnapshot.seekRequest?.variables?.language;
-  const pageNumberFromUrl = normalizeOptionalPositiveInt(new URL(window.location.href).searchParams.get('pageNumber'));
+  const url = new URL(window.location.href);
+  const pageNumberFromUrl = normalizeOptionalPositiveInt(url.searchParams.get('pageNumber'));
+  const jobIdFromUrl = normalizeOptionalPositiveInt(url.searchParams.get('jobId'));
+  const captureMode = isSeekProfilePage() && apiSnapshot.seekProfile ? 'graphql-profile' : 'graphql-list';
+  const defaultOperation = captureMode === 'graphql-profile'
+    ? 'GetTalentSearchProfileCompleteV2'
+    : 'GetTalentSearchRecommendedCandidates';
 
   return {
-    captureMode: 'graphql-list',
-    operation: apiSnapshot.lastOperationName || 'GetTalentSearchRecommendedCandidates',
-    jobId: requestInput?.jobId != null ? String(requestInput.jobId) : undefined,
+    captureMode,
+    operation: apiSnapshot.lastOperationName || defaultOperation,
+    jobId: requestInput?.jobId != null
+      ? String(requestInput.jobId)
+      : jobIdFromUrl != null
+        ? String(jobIdFromUrl)
+        : undefined,
     searchId: typeof requestInput?.searchId === 'string' ? requestInput.searchId : undefined,
     pageNumber: typeof requestInput?.page === 'number' ? requestInput.page : pageNumberFromUrl ?? undefined,
     language: typeof language === 'string' ? language : undefined,
     profileType: SEEK_PROFILE_TYPE,
   };
+}
+
+function getExtensionGeneratedBy() {
+  let generatedBy = 'browser-extension';
+  try {
+    const version = chrome?.runtime?.getManifest?.().version;
+    if (version) generatedBy = `browser-extension@${version}`;
+  } catch {
+    // ignore
+  }
+  return generatedBy;
 }
 
 function buildSubmitMetadata() {
@@ -360,19 +553,11 @@ function buildSubmitMetadata() {
   url.searchParams.delete(AUTO_MAX_PAGES_PARAM);
   url.searchParams.delete(SAMPLE_NAME_PARAM);
 
-  let generatedBy = 'browser-extension';
-  try {
-    const version = chrome?.runtime?.getManifest?.().version;
-    if (version) generatedBy = `browser-extension@${version}`;
-  } catch {
-    // ignore
-  }
-
   const metadata = {
     sourceKey,
     sourceHost: url.hostname.toLowerCase(),
     sourceUrl: url.toString(),
-    generatedBy,
+    generatedBy: getExtensionGeneratedBy(),
   };
 
   if (keyword) metadata.keyword = keyword;
@@ -564,6 +749,7 @@ function updateApiSnapshot(message) {
       || data?.getTalentSearchRecommendedCandidates?.candidates;
     if (Array.isArray(candidates)) {
       apiSnapshot.seekRecommendedCandidates = candidates;
+      apiSnapshot.seekProfile = null;
       apiSnapshot.seekRequest = request || null;
       apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
       try {
@@ -581,7 +767,13 @@ function updateApiSnapshot(message) {
       || data?.getTalentSearchProfileCompleteV2
       || data
       || null;
+    apiSnapshot.seekRecommendedCandidates = null;
     apiSnapshot.seekRequest = request || apiSnapshot.seekRequest || null;
+    try {
+      document.documentElement.setAttribute('data-tr-api-rows', String(getApiSnapshotCount()));
+    } catch {
+      // ignore
+    }
     return;
   }
 }
@@ -658,7 +850,7 @@ window.addEventListener(PAGE_BRIDGE_REQUEST_EVENT, async () => {
         response = { id: requestId, ok: true, error: '', value: getPaginationInfo() };
         break;
       case 'isReady':
-        response = { id: requestId, ok: true, error: '', value: document.querySelector(SELECTORS.listContainer) !== null };
+        response = { id: requestId, ok: true, error: '', value: isExtractionReady() };
         break;
       case 'isLoggedIn':
         response = { id: requestId, ok: true, error: '', value: isLoggedIn() };
@@ -841,7 +1033,7 @@ function extractSeekResumes() {
       profileType,
       externalId: profileId ? `${window.location.hostname.toLowerCase()}:profile:${profileId}` : '',
       name: [firstName, lastName].filter(Boolean).join(' ').trim(),
-      profileUrl: profileId ? `https://${window.location.hostname.toLowerCase()}/candidates/${encodeURIComponent(profileId)}` : '',
+      profileUrl: buildSeekProfileUrl(profileId),
       activityStatus: lastModifiedDate,
       age: '',
       experience: '',
@@ -862,8 +1054,16 @@ function extractSeekResumes() {
 }
 
 function extractResumes() {
-  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK && Array.isArray(apiSnapshot.seekRecommendedCandidates)) {
-    return extractSeekResumes();
+  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
+    if (isSeekProfilePage()) {
+      if (hasSeekProfileSnapshot()) {
+        return extractSeekProfileResume();
+      }
+      return [];
+    }
+    if (hasSeekListSnapshot()) {
+      return extractSeekResumes();
+    }
   }
 
   const cards = document.querySelectorAll(SELECTORS.resumeCard);
@@ -893,36 +1093,52 @@ function extractResumes() {
  * @param {boolean} [options.includePage=false] - Include full page HTML
  * @returns {Object} - Raw payload
  */
-function extractResumesRaw({ includePage = false } = {}) {
-  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK && Array.isArray(apiSnapshot.seekRecommendedCandidates)) {
-    const payload = {
-      url: window.location.href,
-      extractedAt: new Date().toISOString(),
-      count: apiSnapshot.seekRecommendedCandidates.length,
-      cards: apiSnapshot.seekRecommendedCandidates.map((candidate, index) => {
-        const { profileId, profileType } = getSeekCandidateIdentity(candidate);
-        return {
-          index: index + 1,
-          profileId,
-          profileType,
-          text: JSON.stringify(candidate, null, 2),
-        };
-      }),
-      api: {
-        lastSearchAt: apiSnapshot.lastSearchAt,
-        lastUpdatedAt: apiSnapshot.lastUpdatedAt,
-        searchRowCount: apiSnapshot.seekRecommendedCandidates.length,
-        sourceKey: SOURCE_KEYS.SEEK,
-        operationName: apiSnapshot.lastOperationName,
-        request: apiSnapshot.seekRequest,
+function extractResumesRaw(options = {}) {
+  const includePage = !!(options && typeof options === 'object' && options.includePage);
+
+  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
+    const seekProfile = isSeekProfilePage() && hasSeekProfileSnapshot() ? apiSnapshot.seekProfile : null;
+    const seekProfileIdentity = seekProfile ? getSeekCandidateIdentity(seekProfile) : null;
+    const candidates = !seekProfile && hasSeekListSnapshot() ? apiSnapshot.seekRecommendedCandidates : [];
+    const cards = seekProfile
+      ? [{
+          index: 1,
+          profileId: seekProfileIdentity?.profileId || '',
+          profileType: seekProfileIdentity?.profileType || SEEK_PROFILE_TYPE,
+          text: JSON.stringify(seekProfile, null, 2),
+        }]
+      : candidates.map((candidate, index) => {
+          const { profileId, profileType } = getSeekCandidateIdentity(candidate);
+          return {
+            index: index + 1,
+            profileId,
+            profileType,
+            text: JSON.stringify(candidate, null, 2),
+          };
+        });
+
+    if (seekProfile || candidates.length > 0) {
+      const payload = {
+        url: window.location.href,
+        extractedAt: new Date().toISOString(),
+        count: cards.length,
+        cards,
+        api: {
+          lastSearchAt: apiSnapshot.lastSearchAt,
+          lastUpdatedAt: apiSnapshot.lastUpdatedAt,
+          searchRowCount: cards.length,
+          sourceKey: SOURCE_KEYS.SEEK,
+          operationName: apiSnapshot.lastOperationName,
+          request: apiSnapshot.seekRequest,
+        }
+      };
+
+      if (includePage) {
+        payload.pageHtml = document.documentElement.outerHTML;
       }
-    };
 
-    if (includePage) {
-      payload.pageHtml = document.documentElement.outerHTML;
+      return payload;
     }
-
-    return payload;
   }
 
   const cards = document.querySelectorAll(SELECTORS.resumeCard);
@@ -1469,6 +1685,28 @@ function waitForApiRows({ timeoutMs = 5000, minCount = 1 } = {}) {
   });
 }
 
+async function waitForExtractionData({ timeoutMs = 30000, minCount = 1 } = {}) {
+  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
+    return waitForApiRows({ timeoutMs, minCount });
+  }
+
+  const count = await waitForResumeCards({ timeoutMs, minCount });
+  try {
+    await waitForApiRows({ timeoutMs, minCount });
+  } catch {
+    // API rows are optional for Job5156 DOM extraction.
+  }
+  return count;
+}
+
+function clearCapturedResultsForNextPage() {
+  apiSnapshot.searchRows = null;
+  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
+    apiSnapshot.seekRecommendedCandidates = null;
+    apiSnapshot.seekRequest = null;
+  }
+}
+
 function waitForPagination({ timeoutMs = 8000 } = {}) {
   return new Promise((resolve, reject) => {
     let done = false;
@@ -1868,12 +2106,7 @@ async function autoApplyAgeFilterFromUrl() {
   setAutoAgeAttributes('done', minAge, maxAge);
 
   try {
-    await waitForResumeCards({ timeoutMs: 15000 });
-    try {
-      await waitForApiRows({ timeoutMs: 15000 });
-    } catch {
-      // API rows are optional
-    }
+    await waitForExtractionData({ timeoutMs: 15000 });
   } catch (error) {
     console.warn('🎯 [Auto Age] Applied age filter, but waiting for results timed out:', error);
   }
@@ -2084,7 +2317,7 @@ async function autoSearchFromUrl() {
   setAutoSearchAttributes('done', keyword);
 
   try {
-    const count = await waitForResumeCards({});
+    const count = await waitForExtractionData({});
     console.log('🎯 [Auto Search] Done, found', count, 'results');
   } catch (error) {
     console.warn('🎯 [Auto Search] Search triggered, waiting for results timed out:', error);
@@ -2098,12 +2331,7 @@ async function runAutoExportIfEnabled() {
   autoExportTriggered = true;
 
   try {
-    await waitForResumeCards({});
-    try {
-      await waitForApiRows({});
-    } catch {
-      // API rows are optional; continue with DOM-only extraction
-    }
+    await waitForExtractionData({});
     const resumes = extractResumes();
     if (config.logStructured) {
       console.log('🎯 [Auto Export] Extracted resumes', {
@@ -2257,12 +2485,7 @@ async function runAutoSyncIfEnabled() {
       const currentPage = paginationBefore.currentPage;
       const totalPages = paginationBefore.totalPages;
 
-      await waitForResumeCards({});
-      try {
-        await waitForApiRows({});
-      } catch {
-        // API rows are optional; continue with DOM-only extraction
-      }
+      await waitForExtractionData({});
 
       pagesVisited += 1;
 
@@ -2313,7 +2536,7 @@ async function runAutoSyncIfEnabled() {
         } catch {
           // ignore
         }
-        apiSnapshot.searchRows = null;
+        clearCapturedResultsForNextPage();
         const moved = goToNextPageInternal();
         if (!moved) {
           stopReason = 'no-next-page';
@@ -2371,7 +2594,7 @@ async function runAutoSyncIfEnabled() {
       } catch {
         // ignore
       }
-      apiSnapshot.searchRows = null;
+      clearCapturedResultsForNextPage();
       const moved = goToNextPageInternal();
       if (!moved) {
         stopReason = 'no-next-page';
@@ -2426,11 +2649,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extractCurrentPage') {
     const resumes = extractResumes();
     const pagination = getPaginationInfo();
+    const metadata = buildSubmitMetadata();
     sendResponse({
       success: true,
       data: resumes,
       count: resumes.length,
-      pagination
+      pagination,
+      metadata
     });
   }
   else if (request.action === 'downloadCSV') {
@@ -2505,9 +2730,7 @@ function getExternalAccessorStatus() {
     extensionVersion: version,
     sourceKey,
     apiSnapshotCount,
-    domReady: sourceKey === SOURCE_KEYS.SEEK
-      ? isSeekSnapshotReady()
-      : document.querySelector(SELECTORS.listContainer) !== null,
+    domReady: isExtractionReady(),
     loggedIn: isLoggedIn(),
     ageRange: ageRange.enabled
       ? {
@@ -2536,7 +2759,7 @@ function installExternalAccessor() {
       extractRaw: (options) => extractResumesRaw(options),
       getApiSnapshot: () => apiSnapshot,
       getPaginationInfo: () => getPaginationInfo(),
-      isReady: () => document.querySelector(SELECTORS.listContainer) !== null,
+      isReady: () => isExtractionReady(),
       isLoggedIn: () => isLoggedIn(),
       status: () => getExternalAccessorStatus(),
       syncToServer: () => syncCurrentPageToServer(),
