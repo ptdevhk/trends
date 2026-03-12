@@ -2,6 +2,8 @@ import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+import { normalizeIndustryTags } from "@trends/shared";
+
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 
 function normalizeWorkspaceSlug(input: string | undefined): string {
@@ -17,6 +19,19 @@ function belongsToWorkspace(
         return !recordWorkspaceSlug || recordWorkspaceSlug === DEFAULT_WORKSPACE_SLUG;
     }
     return recordWorkspaceSlug === workspaceSlug;
+}
+
+function sanitizeIndustryTags(input: string[] | undefined | null): string[] | undefined {
+    const normalized = normalizeIndustryTags(input);
+    return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeJobDescriptionRecord<T extends { industryTags?: string[] | undefined }>(record: T): T {
+    const industryTags = sanitizeIndustryTags(record.industryTags);
+    return {
+        ...record,
+        industryTags,
+    };
 }
 
 export const list = query({
@@ -44,7 +59,10 @@ export const list = query({
 
         customJDs = customJDs.filter((jd) => belongsToWorkspace(jd.workspaceSlug, workspaceSlug));
 
-        return [...systemJDs, ...customJDs].filter(jd => jd.enabled !== false).sort((a, b) => b.lastModified - a.lastModified);
+        return [...systemJDs, ...customJDs]
+            .filter(jd => jd.enabled !== false)
+            .map(normalizeJobDescriptionRecord)
+            .sort((a, b) => b.lastModified - a.lastModified);
     },
 });
 
@@ -74,7 +92,7 @@ export const create = mutation({
             enabled: true,
             lastModified: Date.now(),
             location: args.location,
-            industryTags: args.industryTags,
+            industryTags: sanitizeIndustryTags(args.industryTags),
             customKeywords: args.customKeywords,
             minExperience: args.minExperience,
             maxExperience: args.maxExperience,
@@ -107,7 +125,7 @@ export const update = mutation({
             ...(updates.content !== undefined ? { content: updates.content } : {}),
             ...(updates.enabled !== undefined ? { enabled: updates.enabled } : {}),
             ...(updates.location !== undefined ? { location: updates.location ?? undefined } : {}),
-            ...(updates.industryTags !== undefined ? { industryTags: updates.industryTags ?? undefined } : {}),
+            ...(updates.industryTags !== undefined ? { industryTags: sanitizeIndustryTags(updates.industryTags) } : {}),
             ...(updates.customKeywords !== undefined ? { customKeywords: updates.customKeywords ?? undefined } : {}),
             ...(updates.minExperience !== undefined ? { minExperience: updates.minExperience ?? undefined } : {}),
             ...(updates.maxExperience !== undefined ? { maxExperience: updates.maxExperience ?? undefined } : {}),
@@ -125,7 +143,8 @@ export const update = mutation({
 export const get = query({
     args: { id: v.id("job_descriptions") },
     handler: async (ctx, args) => {
-        return await ctx.db.get(args.id);
+        const record = await ctx.db.get(args.id);
+        return record ? normalizeJobDescriptionRecord(record) : record;
     },
 });
 
@@ -135,12 +154,14 @@ export const list_all = query({
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
         const jds = await ctx.db.query("job_descriptions").collect();
 
-        return jds.filter((jd) => {
-            if (jd.type === "system") {
-                return true;
-            }
-            return belongsToWorkspace(jd.workspaceSlug, workspaceSlug);
-        });
+        return jds
+            .filter((jd) => {
+                if (jd.type === "system") {
+                    return true;
+                }
+                return belongsToWorkspace(jd.workspaceSlug, workspaceSlug);
+            })
+            .map(normalizeJobDescriptionRecord);
     },
 });
 
@@ -206,19 +227,17 @@ export const list_with_usage = query({
 
             const usageCount = resumes.filter(r => {
                 const analysisJdId = r.analysis?.jobDescriptionId;
-                // Check in legacy analysis field - match by Convex _id or by slug
                 if (analysisJdId === jdIdStr) return true;
                 if (jdSlug && analysisJdId === jdSlug) return true;
-                // Check in multi-JD analyses map - match by Convex _id or by slug
                 if (r.analyses && r.analyses[jdIdStr]) return true;
                 if (jdSlug && r.analyses && r.analyses[jdSlug]) return true;
                 return false;
             }).length;
 
-            return {
+            return normalizeJobDescriptionRecord({
                 ...jd,
-                usageCount
-            };
+                usageCount,
+            });
         });
     }
 });

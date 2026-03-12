@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import JSON5 from "json5";
+import { FALLBACK_INDUSTRY_KEYWORDS, normalizeIndustryTags } from "@trends/shared";
 import { z } from "zod";
 
 import { findProjectRoot } from "./db.js";
@@ -234,14 +235,9 @@ function requiresIndustryVerification(roleType: string): boolean {
   return INDUSTRY_VERIFIED_ROLE_TYPES.has(roleType.toLowerCase());
 }
 
-const INDUSTRY_MAP: Array<{ tag: string; keywords: string[] }> = [
-  { tag: "machinery", keywords: ["机床", "车床", "机械", "设备", "夹具", "五轴", "加工中心", "lathe", "machining"] },
-  { tag: "cnc", keywords: ["cnc", "数控", "fanuc", "siemens", "star"] },
-  { tag: "sales", keywords: ["销售", "客户", "大客户", "业务", "sales", "account"] },
-  { tag: "automation", keywords: ["自动化", "机器人", "plc", "automation"] },
-  { tag: "metrology", keywords: ["测量", "三维", "扫描", "cmm", "metrology"] },
-  { tag: "software", keywords: ["软件", "c++", "c#", "qt", "mfc", "开发"] },
-];
+const INDUSTRY_MAP: Array<{ tag: string; keywords: string[] }> = Object.entries(FALLBACK_INDUSTRY_KEYWORDS).map(
+  ([tag, keywords]) => ({ tag, keywords })
+);
 
 const LOCATION_PROXIMITY_GROUPS: Record<string, string[]> = {
   pearlRiverDelta: ["东莞", "深圳", "广州", "佛山", "惠州", "中山", "珠海", "江门"],
@@ -272,17 +268,21 @@ function ensureKeywords(value: string[]): string[] {
   );
 }
 
-function inferIndustryTags(tokens: string[]): string[] {
+function inferIndustryTagsForMap(tokens: string[], industryMap: Array<{ tag: string; keywords: string[] }>): string[] {
   const haystack = tokens.join(" ").toLowerCase();
   const tags = new Set<string>();
 
-  for (const item of INDUSTRY_MAP) {
+  for (const item of industryMap) {
     if (item.keywords.some((keyword) => haystack.includes(keyword.toLowerCase()))) {
       tags.add(item.tag);
     }
   }
 
-  return Array.from(tags);
+  return normalizeIndustryTags(Array.from(tags));
+}
+
+function inferIndustryTags(tokens: string[]): string[] {
+  return inferIndustryTagsForMap(tokens, INDUSTRY_MAP);
 }
 
 function getMinEducationRank(requirements: string[]): number | null {
@@ -524,16 +524,7 @@ export class RuleScoringService {
   }
 
   private inferIndustryTags(tokens: string[], industryMap: Array<{ tag: string; keywords: string[] }>): string[] {
-    const haystack = tokens.join(" ").toLowerCase();
-    const tags = new Set<string>();
-
-    for (const item of industryMap) {
-      if (item.keywords.some((keyword) => haystack.includes(keyword.toLowerCase()))) {
-        tags.add(item.tag);
-      }
-    }
-
-    return Array.from(tags);
+    return inferIndustryTagsForMap(tokens, industryMap);
   }
 
   private inferBrandKeywords(tokens: string[]): string[] {

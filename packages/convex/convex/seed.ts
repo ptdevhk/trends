@@ -2,12 +2,14 @@ import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { generateStructuredJobDescriptionContent } from "@trends/shared";
 import { buildSearchText } from "./search_text";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 
 const jobDescriptionType = v.union(v.literal("system"), v.literal("custom"));
+const WORKSPACE_DEMO_DEV_MACHINERY_SALES_SLUG = "workspace-demo-dev-machinery-sales";
 
 function normalizeWorkspaceSlug(input: string | undefined): string {
   const normalized = input?.trim();
@@ -293,44 +295,21 @@ export const seedWorkspaceDemoData = mutation({
     const customJobDescriptions = [
       {
         title: "车床销售",
-        slug: "workspace-demo-dev-cnc-sales",
+        slug: WORKSPACE_DEMO_DEV_MACHINERY_SALES_SLUG,
         workspaceSlug: "dev",
         location: "广东",
-        industryTags: ["machinery", "cnc", "sales"],
+        industryTags: ["machinery", "sales"],
         customKeywords: ["机床", "销售"],
         minExperience: 1,
         maxAge: 45,
-        content: [
-          "---",
-          'title: "车床销售"',
-          "status: active",
-          'location: "广东"',
-          "min_experience: 1",
-          "max_age: 45",
-          "industry_tags:",
-          '  - "machinery"',
-          '  - "cnc"',
-          '  - "sales"',
-          "auto_match:",
-          "  keywords:",
-          '    - "机床"',
-          '    - "销售"',
-          "---",
-          "",
-          "# 职位描述",
-          "",
-          "请补充「车床销售」的岗位职责。",
-          "",
-          "# 任职要求",
-          "",
-          "- 相关经验：1+ 年",
-          "- 年龄范围：--45",
-          "- 行业方向：machinery / cnc / sales",
-          "",
-          "# 关键词",
-          "",
-          "机床, 销售",
-        ].join("\n"),
+        content: generateStructuredJobDescriptionContent({
+          title: "车床销售",
+          location: "广东",
+          industryTags: ["machinery", "sales"],
+          customKeywords: ["机床", "销售"],
+          minExperience: 1,
+          maxAge: 45,
+        }),
       },
       {
         title: "Workspace Demo · HR Resume Operations Specialist",
@@ -353,16 +332,16 @@ export const seedWorkspaceDemoData = mutation({
 
     const searchProfiles = [
       {
-        name: "CNC销售-Demo",
+        name: "机械销售-Demo",
         criteria: {
-          keywords: ["CNC", "销售"],
+          keywords: ["机床", "销售"],
           locations: [""],
         },
         profile: {
-          name: "CNC销售-Demo",
+          name: "机械销售-Demo",
           status: "active" as const,
           location: "",
-          keywords: ["CNC", "销售"],
+          keywords: ["机床", "销售"],
           filters: {
             minExperience: 1,
             minAge: 25,
@@ -400,8 +379,8 @@ export const seedWorkspaceDemoData = mutation({
         status: "active" as const,
         config: {
           location: "东莞",
-          keywords: ["CNC", "销售"],
-          jobDescriptionId: "workspace-demo-dev-cnc-sales",
+          keywords: ["机床", "销售"],
+          jobDescriptionId: WORKSPACE_DEMO_DEV_MACHINERY_SALES_SLUG,
           filters: {
             minExperience: 3,
             education: ["大专", "本科"],
@@ -432,10 +411,10 @@ export const seedWorkspaceDemoData = mutation({
     const searchHistory = [
       {
         sessionKey: "workspace-demo-session-dev",
-        title: "东莞 · CNC 销售",
+        title: "东莞 · 机械 销售",
         location: "东莞",
-        keywords: ["CNC", "销售"],
-        jobDescriptionId: "workspace-demo-dev-cnc-sales",
+        keywords: ["机床", "销售"],
+        jobDescriptionId: WORKSPACE_DEMO_DEV_MACHINERY_SALES_SLUG,
         filters: {
           minExperience: 3,
           education: ["大专", "本科"],
@@ -482,7 +461,7 @@ export const seedWorkspaceDemoData = mutation({
             {
               id: "workspace-dev-brand-star",
               keyword: "STAR机床",
-              english: "STAR CNC",
+              english: "STAR 机床",
               category: "workspace-dev-brand",
             },
             {
