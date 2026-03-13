@@ -66,19 +66,24 @@ export function appendMissingSearchTokens(existingSearchText: string, tokens: re
 type IngestSearchTextOptions = {
     industryTags?: readonly string[];
     synonymHits?: readonly string[];
+    brandHits?: readonly { brand: string }[];
     companyHits?: readonly string[];
-    companyAliasTokens?: string;
+    companyPatternAliasTokens?: string;
 };
 
 export function buildIngestSearchTokens(options: IngestSearchTextOptions): string[] {
-    const aliasTokens = typeof options.companyAliasTokens === "string"
-        ? options.companyAliasTokens.split(/\s+/)
+    const aliasTokens = typeof options.companyPatternAliasTokens === "string"
+        ? options.companyPatternAliasTokens.split(/\s+/)
+        : [];
+    const brandTokens = Array.isArray(options.brandHits)
+        ? options.brandHits.map((hit) => hit.brand)
         : [];
 
     return Array.from(
         new Set([
             ...toNormalizedSearchTokens(options.industryTags),
             ...toNormalizedSearchTokens(options.synonymHits),
+            ...toNormalizedSearchTokens(brandTokens),
             ...toNormalizedSearchTokens(options.companyHits),
             ...toNormalizedSearchTokens(aliasTokens),
         ])

@@ -110,7 +110,7 @@ export const processNewResumes = internalAction({
           computedAt: item.computedAt,
           skillsVersion: item.skillsVersion,
         },
-        companyAliasTokens: item.companyAliasTokens || "",
+        companyPatternAliasTokens: item.companyPatternAliasTokens || "",
         primaryRuleScore: typeof item.primaryRuleScore === "number" ? item.primaryRuleScore : 0,
       }));
 

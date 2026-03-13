@@ -244,6 +244,7 @@ export const backfillSearchText = mutation({
             const searchText = mergeSearchTextWithIngestData(buildSearchText(resume.content), {
                 industryTags: resume.ingestData?.industryTags,
                 synonymHits: resume.ingestData?.synonymHits,
+                brandHits: resume.ingestData?.brandHits,
                 companyHits: resume.ingestData?.companyHits,
             });
 
@@ -272,6 +273,7 @@ export const reindexSearchText = mutation({
             const searchText = mergeSearchTextWithIngestData(buildSearchText(resume.content), {
                 industryTags: resume.ingestData?.industryTags,
                 synonymHits: resume.ingestData?.synonymHits,
+                brandHits: resume.ingestData?.brandHits,
                 companyHits: resume.ingestData?.companyHits,
             });
             if (searchText !== resume.searchText) {

@@ -27,6 +27,10 @@ description: Test skills knowledge file
 ## Synonym Table
 
 - 销售: 业务, 商务, 销售员, sales
+
+## Company Patterns
+
+- MITSUBISHI [role: both] (aliases: 三菱, 三菱系统)
 `;
 
 function createFixtureRoot(): string {
@@ -90,6 +94,30 @@ describe("UnifiedSearchService", () => {
         },
       ]);
       expect(expansion.flatTerms).toEqual(["销售", "业务", "商务", "销售员", "sales", "cnc"]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("expands company-pattern aliases to canonical and alternate brand terms", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
+      const expansion = service.expandKeyword("三菱");
+
+      expect(expansion.groups).toEqual([
+        {
+          original: "三菱",
+          variants: ["三菱", "mitsubishi", "三菱系统"],
+        },
+      ]);
+      expect(expansion.flatTerms).toEqual(["三菱", "mitsubishi", "三菱系统"]);
+      expect(expansion.sourceMapping).toEqual({
+        "mitsubishi": "三菱",
+        "三菱系统": "三菱",
+      });
     } finally {
       cleanupFixtureRoot(root);
     }
