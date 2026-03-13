@@ -764,7 +764,7 @@ export const updateIngestData = internalMutation({
             computedAt: v.number(),
             skillsVersion: v.number(),
         }),
-        companyAliasTokens: v.optional(v.string()),
+        companyPatternAliasTokens: v.optional(v.string()),
         primaryRuleScore: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
@@ -780,8 +780,9 @@ export const updateIngestData = internalMutation({
         const nextSearchText = mergeSearchTextWithIngestData(existingSearchText, {
             industryTags: args.ingestData.industryTags,
             synonymHits: args.ingestData.synonymHits,
+            brandHits: args.ingestData.brandHits,
             companyHits: args.ingestData.companyHits,
-            companyAliasTokens: args.companyAliasTokens?.trim().toLowerCase(),
+            companyPatternAliasTokens: args.companyPatternAliasTokens?.trim().toLowerCase(),
         });
 
         if (nextSearchText !== existingSearchText) {
@@ -861,7 +862,7 @@ export const updateIngestDataBatch = internalMutation({
                 computedAt: v.number(),
                 skillsVersion: v.number(),
             }),
-            companyAliasTokens: v.optional(v.string()),
+            companyPatternAliasTokens: v.optional(v.string()),
             primaryRuleScore: v.optional(v.number()),
         })),
     },
@@ -879,8 +880,9 @@ export const updateIngestDataBatch = internalMutation({
             const nextSearchText = mergeSearchTextWithIngestData(existingSearchText, {
                 industryTags: update.ingestData.industryTags,
                 synonymHits: update.ingestData.synonymHits,
+                brandHits: update.ingestData.brandHits,
                 companyHits: update.ingestData.companyHits,
-                companyAliasTokens: update.companyAliasTokens?.trim().toLowerCase(),
+                companyPatternAliasTokens: update.companyPatternAliasTokens?.trim().toLowerCase(),
             });
 
             if (nextSearchText !== existingSearchText) {

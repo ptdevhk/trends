@@ -7,12 +7,19 @@ describe("buildIngestSearchTokens", () => {
         expect(buildIngestSearchTokens({
             industryTags: [" Machinery ", "machinery"],
             synonymHits: ["CNC", "sales engineer"],
+            brandHits: [
+                { brand: " 三菱 " },
+                { brand: "三菱" },
+                { brand: "MITSUBISHI" },
+            ],
             companyHits: ["FANUC", "fanuc"],
-            companyAliasTokens: "  Fanuc 发那科  ",
+            companyPatternAliasTokens: "  Fanuc 发那科 Mitsubishi 三菱  ",
         })).toEqual([
             "machinery",
             "cnc",
             "sales engineer",
+            "三菱",
+            "mitsubishi",
             "fanuc",
             "发那科",
         ]);
@@ -28,12 +35,16 @@ describe("appendMissingSearchTokens", () => {
 });
 
 describe("mergeSearchTextWithIngestData", () => {
-    it("augments search text with industry tags, companies, synonyms, and aliases", () => {
-        expect(mergeSearchTextWithIngestData("销售 cnc", {
+    it("augments search text with industry tags, brands, companies, synonyms, and aliases", () => {
+        expect(mergeSearchTextWithIngestData("销售 cnc 三菱", {
             industryTags: ["machinery", "sales"],
             synonymHits: ["sales engineer", "cnc"],
+            brandHits: [
+                { brand: "三菱" },
+                { brand: "MITSUBISHI" },
+            ],
             companyHits: ["fanuc"],
-            companyAliasTokens: "fanuc 发那科",
-        })).toBe("销售 cnc machinery sales sales engineer fanuc 发那科");
+            companyPatternAliasTokens: "fanuc 发那科 mitsubishi 三菱",
+        })).toBe("销售 cnc 三菱 machinery sales sales engineer mitsubishi fanuc 发那科");
     });
 });

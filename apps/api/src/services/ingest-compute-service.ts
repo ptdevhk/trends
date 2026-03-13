@@ -1,7 +1,7 @@
 import { buildWorkHistoryEntryText, buildWorkHistoryEvidence, normalizeWorkHistoryEntry } from "@trends/shared";
 
 import { IndustryDataService } from "./industry-data-service.js";
-import { SkillsKnowledgeService } from "./skills-knowledge.js";
+import { normalizeCompanyPatternIdentifier, SkillsKnowledgeService } from "./skills-knowledge.js";
 import { JobDescriptionService } from "./job-description-service.js";
 import { RuleScoringService, type MatchedWorkEntry, type RoleSignalSummary } from "./rule-scoring.js";
 import { resolveResumeId } from "./resume-id.js";
@@ -44,7 +44,7 @@ export interface IngestResult {
   roleSignals: RoleSignalSummary[];
   tagEnvelope: TagEnvelopeEntry[];
   taggingEnvelope: TaggingEnvelope;
-  companyAliasTokens: string;
+  companyPatternAliasTokens: string;
   ruleScores: Record<string, number>;  // jdId → score (0-100)
   primaryRuleScore: number;
   experienceLevel: string;
@@ -432,7 +432,7 @@ export class IngestComputeService {
       brandHits
     );
     const roleSignals = this.computeRoleSignals(item.workHistory ?? []);
-    const companyAliasTokens = this.buildCompanyAliasTokens(companyHits);
+    const companyPatternAliasTokens = this.buildCompanyAliasTokens(companyHits, brandHits);
 
     // 4. Compute ruleScores for all active JDs
     const ruleScores = this.computeRuleScores(index, brandHits, roleSignals);
@@ -467,7 +467,7 @@ export class IngestComputeService {
       roleSignals,
       tagEnvelope,
       taggingEnvelope,
-      companyAliasTokens,
+      companyPatternAliasTokens,
       ruleScores,
       primaryRuleScore,
       experienceLevel,
@@ -1131,27 +1131,31 @@ export class IngestComputeService {
   }
 
   /**
-   * Build alias tokens for matched companies so Convex searchText can match cross-language aliases.
+   * Build alias tokens for matched brands so Convex searchText can match cross-language aliases.
    */
-  private buildCompanyAliasTokens(companyHits: string[]): string {
-    if (companyHits.length === 0) {
+  private buildCompanyAliasTokens(companyHits: string[], brandHits: BrandHit[]): string {
+    const matchedBrands = new Set<string>([
+      ...companyHits,
+      ...brandHits.map((hit) => hit.brand),
+    ]);
+    if (matchedBrands.size === 0) {
       return "";
     }
 
     const patterns = this.skillsKnowledgeService.getCompanyPatterns();
     const patternByName = new Map(
-      patterns.map((pattern) => [pattern.name.toLowerCase(), pattern])
+      patterns.map((pattern) => [normalizeCompanyPatternIdentifier(pattern.name), pattern])
     );
 
     const aliasTokens = new Set<string>();
-    for (const companyHit of companyHits) {
-      const pattern = patternByName.get(companyHit.toLowerCase());
+    for (const matchedBrand of matchedBrands) {
+      const pattern = patternByName.get(normalizeCompanyPatternIdentifier(matchedBrand));
       if (!pattern) {
         continue;
       }
 
       for (const candidate of pattern.allNames) {
-        const normalizedCandidate = candidate.toLowerCase().trim();
+        const normalizedCandidate = normalizeCompanyPatternIdentifier(candidate);
         if (normalizedCandidate) {
           aliasTokens.add(normalizedCandidate);
         }

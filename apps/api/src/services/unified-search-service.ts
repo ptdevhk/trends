@@ -4,6 +4,8 @@ import { parseSearchQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
 import { extractCompanyFromWorkHistory } from "./work-history.js";
 
+import { buildCompanyPatternAliasLookup } from "./skills-knowledge.js";
+
 import type { SkillsKnowledgeService } from "./skills-knowledge.js";
 import type { ResumeIndex } from "./resume-index.js";
 import type { ResumeItem } from "../types/resume.js";
@@ -72,9 +74,16 @@ function dedupeProvenance(items: UnifiedSearchProvenance[]): UnifiedSearchProven
 
 export class UnifiedSearchService {
   private readonly skillsService: SkillsKnowledgeService;
+  private readonly companyPatternAliasLookup: Map<string, string>;
+  private readonly companyPatternsByCanonicalId: Map<string, ReturnType<SkillsKnowledgeService["getCompanyPatterns"]>[number]>;
 
   constructor(skillsService: SkillsKnowledgeService) {
     this.skillsService = skillsService;
+    const companyPatterns = this.skillsService.getCompanyPatterns();
+    this.companyPatternAliasLookup = buildCompanyPatternAliasLookup(companyPatterns);
+    this.companyPatternsByCanonicalId = new Map(
+      companyPatterns.map((pattern) => [pattern.name.toLowerCase(), pattern])
+    );
   }
 
   expandKeyword(keyword: string): UnifiedKeywordExpansion {
@@ -118,6 +127,17 @@ export class UnifiedSearchService {
       const expanded = this.skillsService.expandQueryWithSynonyms([original]);
       for (const term of expanded) {
         pushVariant(term);
+      }
+
+      const canonicalCompanyId = this.companyPatternAliasLookup.get(original);
+      if (canonicalCompanyId) {
+        pushVariant(canonicalCompanyId);
+        const pattern = this.companyPatternsByCanonicalId.get(canonicalCompanyId);
+        if (pattern) {
+          for (const alias of pattern.allNames) {
+            pushVariant(alias);
+          }
+        }
       }
 
       if (variants.length > 0) {

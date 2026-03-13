@@ -55,6 +55,7 @@ description: Test skills knowledge file
 
 - STAR [role: both] (aliases: 星, STAR机床, スター精密)
 - FANUC [role: both] (aliases: 发那科, ファナック)
+- MITSUBISHI [role: both] (aliases: 三菱, 三菱系统)
 - HAAS [role: equipment] (aliases: 哈斯, Haas Automation)
 - MAZAK [role: both] (aliases: 马扎克, Yamazaki Mazak)
 - 润星科技 [role: both] (aliases: 润星, Runxing)
@@ -620,11 +621,22 @@ describe("IngestComputeService", () => {
     expect(result.brandHits).toEqual([]);
   });
 
-  it("should not compute companyHits from selfIntro-only brand mentions", () => {
-    const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
+  it("should compute alias tokens from non-employer brand mentions", () => {
+    const result = service.computeOne("resume-brand-aliases", {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2020-01~2024-12(4年11月)某设备公司销售工程师，负责三菱系统调试、发那科设备维护。" },
+          ],
+        },
+      ],
+    });
 
     expect(result.companyHits).toEqual([]);
-    expect(result.companyAliasTokens).toBe("");
+    expect(result.brandHits.map((hit) => hit.brand)).toEqual(expect.arrayContaining(["mitsubishi", "fanuc"]));
+    expect(result.companyPatternAliasTokens).toContain("mitsubishi");
+    expect(result.companyPatternAliasTokens).toContain("三菱");
     expect(result.industryDbV2RawComponents.companyScore).toBe(0);
   });
 
@@ -632,7 +644,26 @@ describe("IngestComputeService", () => {
     const result = service.computeOne("resume-789", SAMPLE_RESUME_HAAS);
 
     expect(result.companyHits).toEqual([]);
-    expect(result.companyAliasTokens).toBe("");
+    expect(result.companyPatternAliasTokens).toBe("");
+  });
+
+  it("should include aliases for employer and non-employer brand matches without duplication", () => {
+    const result = service.computeOne("resume-brand-aliases", {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2020-01~2024-12(4年11月)上海发那科机器人有限公司销售工程师，负责三菱系统调试、发那科设备维护。" },
+          ],
+        },
+      ],
+    });
+
+    expect(result.companyHits).toEqual(["fanuc"]);
+    expect(result.brandHits.map((hit) => hit.brand)).toEqual(expect.arrayContaining(["fanuc", "mitsubishi"]));
+    const aliasTokens = result.companyPatternAliasTokens.split(/\s+/).filter(Boolean);
+    expect(aliasTokens).toEqual(expect.arrayContaining(["fanuc", "发那科", "mitsubishi", "三菱"]));
+    expect(aliasTokens.filter((token) => token === "三菱")).toHaveLength(1);
   });
 
   it("should compute deterministic industry_db v2 raw scores from employer and brand evidence", () => {
@@ -686,7 +717,7 @@ describe("IngestComputeService", () => {
     const result = service.computeOne("resume-456", SAMPLE_RESUME_JUNIOR);
 
     expect(result.companyHits).toEqual([]);
-    expect(result.companyAliasTokens).toBe("");
+    expect(result.companyPatternAliasTokens).toBe("");
   });
 
   it("should accept direct ResumeItem payloads from Convex storage", () => {
@@ -712,7 +743,7 @@ describe("IngestComputeService", () => {
     expect(results[1].experienceLevel).toBe("junior");
     expect(results.every((item) => Array.isArray(item.brandHits))).toBe(true);
     expect(results.every((item) => Array.isArray(item.companyHits))).toBe(true);
-    expect(results.every((item) => typeof item.companyAliasTokens === "string")).toBe(true);
+    expect(results.every((item) => typeof item.companyPatternAliasTokens === "string")).toBe(true);
   });
 
   it("should clear skills cache before each computeBatch call", () => {
