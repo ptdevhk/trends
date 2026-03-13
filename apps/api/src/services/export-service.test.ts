@@ -224,6 +224,56 @@ describe("ExportService", () => {
     expect(parsed.data[0]?.brandHits).toBe("zh-fanuc");
   });
 
+  it("summarizes brand hits as deduped names-only evidence with alias expansion", async () => {
+    const service = new ExportService(
+      {
+        resolveZhHans: (brandId: string) => {
+          if (brandId.toLowerCase() === "fanuc") return "发那科";
+          if (brandId.toLowerCase() === "mitsubishi") return "三菱";
+          return brandId.toUpperCase();
+        },
+        toJSON: () => ({}),
+      },
+      [
+        {
+          name: "fanuc",
+          displayName: "FANUC",
+          aliases: ["发那科", "宝力机械有限公司"],
+          displayAliases: ["发那科", "宝力机械有限公司"],
+          allNames: ["fanuc", "发那科", "宝力机械有限公司"],
+          role: "both",
+        },
+        {
+          name: "mitsubishi",
+          displayName: "MITSUBISHI",
+          aliases: ["三菱"],
+          displayAliases: ["三菱"],
+          allNames: ["mitsubishi", "三菱"],
+          role: "both",
+        },
+      ]
+    );
+    const entry = buildEntry("27");
+    entry.resume.ingestData = {
+      ...entry.resume.ingestData,
+      brandHits: [
+        { brand: "fanuc", role: "equipment", source: "workHistory", context: "equipment" },
+        { brand: "宝力机械有限公司", role: "equipment", source: "selfIntro", context: "sales" },
+        { brand: "mitsubishi", role: "equipment", source: "workHistory", context: "technical" },
+        { brand: "fanuc", role: "employer", source: "workHistory", context: "employer" },
+      ],
+    };
+
+    const file = await service.exportResumes("csv", [entry]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.brandHits).toBe("发那科, 三菱");
+    expect(parsed.data[0]?.brandHits).not.toContain("source");
+    expect(parsed.data[0]?.brandHits).not.toContain("context");
+    expect(parsed.data[0]?.brandHits).not.toContain("role");
+  });
+
   it("keeps CSV and XLSX headers aligned", async () => {
     const service = new ExportService();
     const csvFile = await service.exportResumes("csv", [buildEntry("27")]);

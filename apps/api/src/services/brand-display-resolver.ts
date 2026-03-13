@@ -1,5 +1,9 @@
 import { IndustryDataService, type BrandEntry } from "./industry-data-service.js";
-import { SkillsKnowledgeService, type CompanyPattern } from "./skills-knowledge.js";
+import {
+  SkillsKnowledgeService,
+  buildCompanyPatternAliasLookup,
+  normalizeCompanyPatternIdentifier,
+} from "./skills-knowledge.js";
 
 export type BrandDisplayEntry = {
   displayName: string;
@@ -12,7 +16,7 @@ function hasChinese(value: string): boolean {
 }
 
 function normalizeBrandId(value: string): string {
-  return value.trim().toLowerCase();
+  return normalizeCompanyPatternIdentifier(value);
 }
 
 function pickPreferredZhHansFromAliases(aliases: string[]): string | null {
@@ -35,15 +39,16 @@ function brandEntryToDisplay(brand: BrandEntry): BrandDisplayEntry {
 export class BrandDisplayResolver {
   private readonly map: Map<string, BrandDisplayEntry>;
 
-  constructor(projectRoot: string) {
+  constructor(projectRoot: string, companyPatterns?: ReturnType<SkillsKnowledgeService["getCompanyPatterns"]>) {
     const skills = new SkillsKnowledgeService(projectRoot);
     const industry = new IndustryDataService(projectRoot);
 
-    const patterns = skills.getCompanyPatterns();
+    const patterns = companyPatterns ?? skills.getCompanyPatterns();
     const brands = industry.loadBrands();
 
     this.map = new Map<string, BrandDisplayEntry>();
 
+    const aliasLookup = buildCompanyPatternAliasLookup(patterns);
     const brandsByEn = new Map<string, BrandDisplayEntry>();
     for (const brand of brands) {
       const nameEn = typeof brand.nameEn === "string" ? brand.nameEn.trim() : "";
@@ -61,7 +66,7 @@ export class BrandDisplayResolver {
 
     // Overlay skills.md company patterns (preferred source for stable IDs + alias selection).
     for (const pattern of patterns) {
-      const brandId = normalizeBrandId(pattern.name);
+      const brandId = aliasLookup.get(normalizeBrandId(pattern.name)) ?? normalizeBrandId(pattern.name);
       if (!brandId) continue;
 
       const displayName = pattern.displayName.trim() || pattern.name.trim();

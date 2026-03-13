@@ -177,6 +177,67 @@ describe("resume export route", () => {
     expect(parsed.data[1]?.brandHits).toBe("发那科");
   });
 
+  it("exports sample-backed brand hits as names-only summaries with alias dedupe", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [
+        buildSampleResume({
+          resumeId: "resume-brand",
+          name: "Brand Candidate",
+          ingestData: {
+            industryTags: ["sales"],
+            brandHits: [
+              {
+                brand: "fanuc",
+                role: "equipment",
+                source: "workHistory",
+                context: "equipment",
+              },
+              {
+                brand: "发那科",
+                role: "equipment",
+                source: "selfIntro",
+                context: "sales",
+              },
+              {
+                brand: "mitsubishi",
+                role: "equipment",
+                source: "workHistory",
+                context: "technical",
+              },
+            ],
+            companyHits: ["fanuc"],
+          },
+        }),
+      ],
+      sample: {
+        name: "sample-test",
+        filename: "sample-test.json",
+        updatedAt: "2026-03-01T00:00:00.000Z",
+        size: 1,
+      },
+      metadata: undefined,
+      indexes: new Map(),
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/export", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        format: "csv",
+        source: "sample",
+        sample: "sample-test",
+        entries: [{ resumeId: "resume-brand", status: "new" }],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
+    expect(parsed.data[0]?.brandHits).toBe("发那科, 三菱");
+  });
+
   it("exports convex-backed requests via server-side Convex resolution", async () => {
     const calls: ConvexCall[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -206,6 +267,12 @@ describe("resume export route", () => {
                     role: "equipment",
                     source: "workHistory",
                     context: "equipment",
+                  },
+                  {
+                    brand: "发那科",
+                    role: "equipment",
+                    source: "selfIntro",
+                    context: "sales",
                   },
                 ],
                 companyHits: ["fanuc"],
@@ -341,6 +408,12 @@ describe("resume export route", () => {
                     role: "equipment",
                     source: "selfIntro",
                     context: "sales",
+                  },
+                  {
+                    brand: "哈斯",
+                    role: "equipment",
+                    source: "workHistory",
+                    context: "technical",
                   },
                 ],
                 companyHits: ["haas"],

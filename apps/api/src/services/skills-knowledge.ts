@@ -127,6 +127,28 @@ function normalizeToken(value: string): string {
   return value.trim().toLowerCase();
 }
 
+export function normalizeCompanyPatternIdentifier(value: string): string {
+  return normalizeToken(value);
+}
+
+export function buildCompanyPatternAliasLookup(companyPatterns: CompanyPattern[]): Map<string, string> {
+  const lookup = new Map<string, string>();
+  for (const pattern of companyPatterns) {
+    const canonicalId = normalizeCompanyPatternIdentifier(pattern.name);
+    if (!canonicalId) {
+      continue;
+    }
+    lookup.set(canonicalId, canonicalId);
+    for (const alias of pattern.allNames) {
+      const normalizedAlias = normalizeCompanyPatternIdentifier(alias);
+      if (normalizedAlias) {
+        lookup.set(normalizedAlias, canonicalId);
+      }
+    }
+  }
+  return lookup;
+}
+
 function matchesSectionHeading(value: string, aliases: readonly string[]): boolean {
   return aliases.some((alias) => value.startsWith(alias));
 }

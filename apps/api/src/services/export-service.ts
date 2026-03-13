@@ -6,7 +6,12 @@ import {
   type ResumeWorkHistoryItem as SharedResumeWorkHistoryItem,
 } from "@trends/shared";
 import type { BrandDisplayResolver } from "./brand-display-resolver.js";
-import type { ResumeIngestBrandHit, ResumeIngestData } from "../types/resume.js";
+import {
+  buildCompanyPatternAliasLookup,
+  normalizeCompanyPatternIdentifier,
+  type CompanyPattern,
+} from "./skills-knowledge.js";
+import type { ResumeIngestData } from "../types/resume.js";
 
 export type ExportFormat = "csv" | "xlsx";
 
@@ -181,22 +186,41 @@ function resolveBrandDisplayName(
     : normalizedBrandId.toUpperCase();
 }
 
-function formatBrandHits(
+function summarizeBrandHits(
   brandHits: ResumeIngestData["brandHits"],
-  brandDisplayResolver?: BrandDisplayResolver
+  brandDisplayResolver?: BrandDisplayResolver,
+  companyPatternAliasLookup?: Map<string, string>
 ): string {
   if (!Array.isArray(brandHits) || brandHits.length === 0) {
     return "";
   }
 
-  const formattedHits = brandHits
-    .map((hit) => resolveBrandDisplayName(hit.brand, brandDisplayResolver))
-    .filter((hit) => hit.length > 0);
+  const displayNames = new Set<string>();
+  for (const hit of brandHits) {
+    if (hit.context === "employer") {
+      continue;
+    }
 
-  return Array.from(new Set(formattedHits)).join(" | ");
+    const normalizedBrandId = normalizeCompanyPatternIdentifier(normalizeString(hit.brand));
+    if (!normalizedBrandId) {
+      continue;
+    }
+
+    const canonicalBrandId = companyPatternAliasLookup?.get(normalizedBrandId) ?? normalizedBrandId;
+    const displayName = resolveBrandDisplayName(canonicalBrandId, brandDisplayResolver);
+    if (displayName) {
+      displayNames.add(displayName);
+    }
+  }
+
+  return Array.from(displayNames).join(", ");
 }
 
-function toRow(entry: ResumeExportEntry, brandDisplayResolver?: BrandDisplayResolver): ExportRow {
+function toRow(
+  entry: ResumeExportEntry,
+  brandDisplayResolver?: BrandDisplayResolver,
+  companyPatternAliasLookup?: Map<string, string>
+): ExportRow {
   const workHistory = Array.isArray(entry.resume.workHistory)
     ? entry.resume.workHistory
       .map((item) => buildWorkHistoryEntryText(item))
@@ -220,7 +244,11 @@ function toRow(entry: ResumeExportEntry, brandDisplayResolver?: BrandDisplayReso
     scoreSource: normalizeString(entry.match?.scoreSource),
     action: normalizeString(entry.action),
     industryTags: normalizeStringArray(entry.resume.ingestData?.industryTags).join(", "),
-    brandHits: formatBrandHits(entry.resume.ingestData?.brandHits, brandDisplayResolver),
+    brandHits: summarizeBrandHits(
+      entry.resume.ingestData?.brandHits,
+      brandDisplayResolver,
+      companyPatternAliasLookup
+    ),
     companyHits: normalizeStringArray(entry.resume.ingestData?.companyHits)
       .map((brandId) => resolveBrandDisplayName(brandId, brandDisplayResolver))
       .join(", "),
@@ -281,14 +309,28 @@ function applyBatchMeta(row: ExportRow, batchMeta?: ExportBatchMeta): ExportRow 
 }
 
 export class ExportService {
-  constructor(private readonly brandDisplayResolver?: BrandDisplayResolver) {}
+  private readonly companyPatternAliasLookup: Map<string, string>;
+
+  constructor(
+    private readonly brandDisplayResolver?: BrandDisplayResolver,
+    companyPatternsOrAliasLookup: CompanyPattern[] | Map<string, string> = []
+  ) {
+    this.companyPatternAliasLookup = companyPatternsOrAliasLookup instanceof Map
+      ? companyPatternsOrAliasLookup
+      : buildCompanyPatternAliasLookup(companyPatternsOrAliasLookup);
+  }
 
   async exportResumes(
     format: ExportFormat,
     entries: ResumeExportEntry[],
     batchMeta?: ExportBatchMeta
   ): Promise<ExportFile> {
-    const rows = entries.map((entry) => applyBatchMeta(toRow(entry, this.brandDisplayResolver), batchMeta));
+    const rows = entries.map((entry) =>
+      applyBatchMeta(
+        toRow(entry, this.brandDisplayResolver, this.companyPatternAliasLookup),
+        batchMeta
+      )
+    );
     if (format === "xlsx") {
       const content = await this.toXlsx(rows);
       return {
