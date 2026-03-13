@@ -13,6 +13,7 @@ import {
   ResumeExportCanonicalRequestSchema,
   ResumeExportLegacyRequestSchema,
   ResumeExportLegacyResumeSchema,
+  ResumeExportResolvedResumeSchema,
   ResumeExportRequestSchema,
   MatchRequestSchema,
   MatchResponseSchema,
@@ -281,7 +282,7 @@ async function resolveConvexExportResumeMap(
       return;
     }
     const resumeId = item.resumeId;
-    const parsedResume = ResumeExportLegacyResumeSchema.safeParse(item.resume);
+    const parsedResume = ResumeExportResolvedResumeSchema.safeParse(item.resume);
     if (!parsedResume.success) {
       return;
     }

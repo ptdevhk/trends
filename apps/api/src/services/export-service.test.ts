@@ -221,7 +221,7 @@ describe("ExportService", () => {
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
     expect(parsed.meta.fields).toContain("brandHits");
-    expect(parsed.data[0]?.brandHits).toBe("zh-fanuc · source=workHistory · context=equipment");
+    expect(parsed.data[0]?.brandHits).toBe("zh-fanuc");
   });
 
   it("keeps CSV and XLSX headers aligned", async () => {

@@ -580,7 +580,7 @@ const ResumeExportLegacyBrandHitSchema = z.object({
   companyId: z.number().optional(),
 });
 
-export const ResumeExportLegacyResumeSchema = z.object({
+export const ResumeExportResolvedResumeSchema = z.object({
   name: z.string().optional(),
   jobIntention: z.string().optional(),
   location: z.string().optional(),
@@ -601,6 +601,8 @@ export const ResumeExportLegacyResumeSchema = z.object({
     })
     .optional(),
 });
+
+export const ResumeExportLegacyResumeSchema = ResumeExportResolvedResumeSchema;
 
 export const ResumeExportLegacyRequestSchema = z
   .object({
