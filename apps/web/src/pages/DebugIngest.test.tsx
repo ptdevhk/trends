@@ -3,7 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DebugIngest from './DebugIngest'
 
-const resetMutation = vi.fn(async () => ({ count: 0, cleared: 0 }))
+const resetDatabaseMutation = vi.fn(async () => ({ count: 0 }))
+const clearAnalysesMutation = vi.fn(async () => ({ cleared: 0 }))
+const hardResetMutation = vi.fn(async () => ({ cleared: 0 }))
+const backfillIngestDataAction = vi.fn(async () => ({ scheduled: 0 }))
+const reIngestStaleSkillsVersionAction = vi.fn(async () => ({ scheduled: 0 }))
 const loadMore = vi.fn()
 type PaginatedQueryMockResult = {
   results: Array<Record<string, unknown>>
@@ -19,10 +23,21 @@ const usePaginatedQueryMock = vi.fn<() => PaginatedQueryMockResult>(() => ({
   loadMore,
 }))
 
+let actionHookCallCount = 0
+let mutationHookCallCount = 0
+
 vi.mock('convex/react', () => ({
   usePaginatedQuery: () => usePaginatedQueryMock(),
-  useAction: () => vi.fn(async () => ({ scheduled: 0 })),
-  useMutation: () => resetMutation,
+  useAction: () => {
+    const action = [backfillIngestDataAction, reIngestStaleSkillsVersionAction][actionHookCallCount % 2]
+    actionHookCallCount += 1
+    return action
+  },
+  useMutation: () => {
+    const mutation = [clearAnalysesMutation, hardResetMutation, resetDatabaseMutation][mutationHookCallCount % 3]
+    mutationHookCallCount += 1
+    return mutation
+  },
 }))
 
 vi.mock('react-i18next', () => ({
@@ -46,20 +61,19 @@ vi.mock('sonner', () => ({
 describe('DebugIngest reset database dialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    actionHookCallCount = 0
+    mutationHookCallCount = 0
     usePaginatedQueryMock.mockReturnValue({
       results: [],
       status: 'Exhausted',
       isLoading: false,
       loadMore,
     })
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        json: async () => ({ success: true, version: 1 }),
-      }))
-    )
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, version: 1 }),
+    })) as unknown as typeof fetch
   })
 
   it('renders loaded counts and loads more results when available', async () => {
@@ -145,11 +159,57 @@ describe('DebugIngest reset database dialog', () => {
     await user.click(dialogConfirmButton)
 
     await waitFor(() => {
-      expect(resetMutation).toHaveBeenCalledTimes(1)
+      expect(resetDatabaseMutation).toHaveBeenCalledTimes(1)
     })
     await waitFor(() => {
       expect(
         screen.queryByText('Delete all resume data and task records? This cannot be undone.')
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  it('opens a hard reset confirmation dialog and avoids native confirm', async () => {
+    const user = userEvent.setup()
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    render(<DebugIngest />)
+
+    await user.click(screen.getByRole('button', { name: 'Hard Reset & Re-ingest' }))
+
+    expect(
+      screen.getByText(
+        'Clear all computed ingest and AI analysis data, then schedule full re-ingest for up to 500 resumes? This cannot be undone.'
+      )
+    ).toBeInTheDocument()
+    expect(confirmSpy).not.toHaveBeenCalled()
+  })
+
+  it('hard resets computed data and schedules re-ingest after confirmation', async () => {
+    const user = userEvent.setup()
+    hardResetMutation.mockResolvedValueOnce({ cleared: 12 })
+    backfillIngestDataAction.mockResolvedValueOnce({ scheduled: 12 })
+
+    render(<DebugIngest />)
+
+    await user.click(screen.getByRole('button', { name: 'Hard Reset & Re-ingest' }))
+    const confirmButtons = screen.getAllByRole('button', { name: 'Hard Reset & Re-ingest' })
+    const dialogConfirmButton = confirmButtons[confirmButtons.length - 1]
+    if (!dialogConfirmButton) {
+      throw new Error('Expected hard reset confirmation button in dialog')
+    }
+
+    await user.click(dialogConfirmButton)
+
+    await waitFor(() => {
+      expect(hardResetMutation).toHaveBeenCalledWith({})
+    })
+    await waitFor(() => {
+      expect(backfillIngestDataAction).toHaveBeenCalledWith({ limit: 500 })
+    })
+    await waitFor(() => {
+      expect(
+        screen.queryByText(
+          'Clear all computed ingest and AI analysis data, then schedule full re-ingest for up to 500 resumes? This cannot be undone.'
+        )
       ).not.toBeInTheDocument()
     })
   })
