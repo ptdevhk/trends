@@ -181,10 +181,6 @@ function resolveBrandDisplayName(
     : normalizedBrandId.toUpperCase();
 }
 
-function formatBrandHit(hit: ResumeIngestBrandHit, brandDisplayResolver?: BrandDisplayResolver): string {
-  return resolveBrandDisplayName(hit.brand, brandDisplayResolver);
-}
-
 function formatBrandHits(
   brandHits: ResumeIngestData["brandHits"],
   brandDisplayResolver?: BrandDisplayResolver
@@ -194,7 +190,7 @@ function formatBrandHits(
   }
 
   const formattedHits = brandHits
-    .map((hit) => formatBrandHit(hit, brandDisplayResolver))
+    .map((hit) => resolveBrandDisplayName(hit.brand, brandDisplayResolver))
     .filter((hit) => hit.length > 0);
 
   return Array.from(new Set(formattedHits)).join(" | ");
