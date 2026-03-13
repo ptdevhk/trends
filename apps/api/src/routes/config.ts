@@ -1,10 +1,29 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { OpenAPIHono, z } from "@hono/zod-openapi";
+import {
+  APP_SURFACE_IDENTITY,
+  DEBUG_AI_BREAKDOWN_LABELS,
+  DEBUG_AI_KEYWORD_PROMPT_VARIANT,
+  DEBUG_PAGE_SECTION_DEFINITIONS,
+  INGEST_BRAND_CONTEXT_LABELS,
+  INGEST_BRAND_ROLE_LABELS,
+  INGEST_BRAND_SOURCE_LABELS,
+  SETTINGS_NAV_ITEMS,
+  SYSTEM_CAPABILITY_DESCRIPTORS,
+  SYSTEM_NAV_ITEMS,
+} from "@trends/shared";
 import { requireAdmin } from "../middleware/workspace.js";
 import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-config.js";
 import { configSourceInspector, UnknownConfigSourceError } from "../services/config-source-inspector.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 
 const app = new OpenAPIHono();
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const API_ROOT = path.resolve(MODULE_DIR, "../..");
+const REPO_ROOT = path.resolve(API_ROOT, "../..");
 
 const AgentsConfigSchema = z.record(z.unknown());
 const CustomKeywordTagSchema = z.object({
@@ -61,6 +80,8 @@ const ConfigSourceSummarySchema = z.object({
   label: z.string(),
   relativePath: z.string(),
   type: z.enum(["markdown", "json5", "text"]),
+  group: z.enum(["prompt", "config", "project-notes"]),
+  audience: z.enum(["developer", "admin", "app"]),
   readOnly: z.literal(true),
   metadata: ConfigSourceMetadataSchema.optional(),
   parseError: z.string().optional(),
@@ -69,9 +90,120 @@ const ConfigSourceDetailSchema = ConfigSourceSummarySchema.extend({
   rawSource: z.string(),
   parsedPreview: z.unknown(),
 });
+const SourceGroupSummarySchema = z.object({
+  key: z.enum(["prompt", "config", "project-notes"]),
+  label: z.string(),
+  description: z.string(),
+  audience: z.enum(["developer", "admin", "app"]),
+  sources: z.array(ConfigSourceSummarySchema),
+});
+const SurfaceNavItemSchema = z.object({
+  id: z.string(),
+  titleKey: z.string(),
+  defaultTitle: z.string(),
+  hrefSuffix: z.string(),
+  matchesSuffixes: z.array(z.string()).optional(),
+});
+const CapabilityDescriptorSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  category: z.enum(["inspect", "debug", "settings", "navigation", "cli"]),
+  audience: z.enum(["developer", "admin", "app"]),
+  relatedSourceGroups: z.array(z.enum(["prompt", "config", "project-notes"])).optional(),
+});
+const BreakdownLabelSchema = z.object({
+  key: z.string(),
+  aliases: z.array(z.string()),
+  labelKey: z.string(),
+  defaultLabel: z.string(),
+});
+const LabelDescriptorSchema = z.object({
+  value: z.string(),
+  labelKey: z.string(),
+  defaultLabel: z.string(),
+});
+const SystemIdentitySchema = z.object({
+  appName: z.string(),
+  homeTitle: z.string(),
+  systemTitle: z.string(),
+  settingsTitle: z.string(),
+  adminBadgeLabel: z.string(),
+  settingsBadgeLabel: z.string(),
+  appVersion: z.string(),
+  apiVersion: z.string(),
+  webVersion: z.string(),
+});
+const SystemMetadataSchema = z.object({
+  identity: SystemIdentitySchema,
+  navigation: z.object({
+    system: z.array(SurfaceNavItemSchema),
+    settings: z.array(SurfaceNavItemSchema),
+    debugPage: z.array(SurfaceNavItemSchema),
+  }),
+  labels: z.object({
+    aiBreakdown: z.array(BreakdownLabelSchema),
+    ingestBrandSource: z.array(LabelDescriptorSchema),
+    ingestBrandContext: z.array(LabelDescriptorSchema),
+    ingestBrandRole: z.array(LabelDescriptorSchema),
+  }),
+  prompt: z.object({
+    keywordVariantTitle: z.string(),
+    keywordVariantBody: z.string(),
+  }),
+  capabilities: z.array(CapabilityDescriptorSchema),
+});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readPackageVersion(relativePath: string): string {
+  const packageJsonPath = path.resolve(REPO_ROOT, relativePath);
+  try {
+    const raw = fs.readFileSync(packageJsonPath, "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (isRecord(parsed) && typeof parsed.version === "string" && parsed.version.trim()) {
+      return parsed.version.trim();
+    }
+  } catch (error) {
+    console.error(`Failed to read package version from ${relativePath}`, error);
+  }
+  return "unknown";
+}
+
+const SYSTEM_METADATA_VERSIONS = {
+  appVersion: readPackageVersion("package.json"),
+  apiVersion: readPackageVersion("apps/api/package.json"),
+  webVersion: readPackageVersion("apps/web/package.json"),
+};
+
+function buildSystemMetadata() {
+  return {
+    identity: {
+      ...APP_SURFACE_IDENTITY,
+      ...SYSTEM_METADATA_VERSIONS,
+    },
+    navigation: {
+      system: SYSTEM_NAV_ITEMS,
+      settings: SETTINGS_NAV_ITEMS,
+      debugPage: DEBUG_PAGE_SECTION_DEFINITIONS.map((section) => ({
+        ...section,
+        matchesSuffixes: section.hrefSuffix ? [section.hrefSuffix] : [""],
+      })),
+    },
+    labels: {
+      aiBreakdown: DEBUG_AI_BREAKDOWN_LABELS,
+      ingestBrandSource: INGEST_BRAND_SOURCE_LABELS,
+      ingestBrandContext: INGEST_BRAND_CONTEXT_LABELS,
+      ingestBrandRole: INGEST_BRAND_ROLE_LABELS,
+    },
+    prompt: {
+      keywordVariantTitle: DEBUG_AI_KEYWORD_PROMPT_VARIANT.title,
+      keywordVariantBody: DEBUG_AI_KEYWORD_PROMPT_VARIANT.body,
+    },
+    capabilities: SYSTEM_CAPABILITY_DESCRIPTORS,
+  };
 }
 
 function applyBondedModel(configValue: Record<string, unknown>, model: string): Record<string, unknown> {
@@ -389,10 +521,27 @@ app.post("/learning-log", requireAdmin, async (c) => {
   }
 });
 
+app.get("/system-metadata", async (c) => {
+  try {
+    const payload = buildSystemMetadata();
+    const parsed = SystemMetadataSchema.safeParse(payload);
+    if (!parsed.success) {
+      return c.json({ success: false as const, error: "Invalid system metadata response" }, 500);
+    }
+    return c.json({ success: true as const, metadata: parsed.data }, 200);
+  } catch (error) {
+    console.error("Failed to load system metadata", error);
+    return c.json({ success: false as const, error: "Failed to load system metadata" }, 500);
+  }
+});
+
 app.get("/sources", async (c) => {
   try {
     const requestedLocale = c.req.query("locale");
-    const summaries = configSourceInspector.listSources(requestedLocale);
+    const group = c.req.query("group");
+    const summaries = group === "prompt" || group === "config" || group === "project-notes"
+      ? configSourceInspector.getSourcesByGroup(group, requestedLocale)
+      : configSourceInspector.listSources(requestedLocale);
     const parsed = z.array(ConfigSourceSummarySchema).safeParse(summaries);
     if (!parsed.success) {
       return c.json({ success: false as const, error: "Invalid config sources response" }, 500);
@@ -401,6 +550,21 @@ app.get("/sources", async (c) => {
   } catch (error) {
     console.error("Failed to list config sources", error);
     return c.json({ success: false as const, error: "Failed to list config sources" }, 500);
+  }
+});
+
+app.get("/source-groups", async (c) => {
+  try {
+    const requestedLocale = c.req.query("locale");
+    const groups = configSourceInspector.listSourceGroups(requestedLocale);
+    const parsed = z.array(SourceGroupSummarySchema).safeParse(groups);
+    if (!parsed.success) {
+      return c.json({ success: false as const, error: "Invalid config source groups response" }, 500);
+    }
+    return c.json({ success: true as const, groups: parsed.data }, 200);
+  } catch (error) {
+    console.error("Failed to list config source groups", error);
+    return c.json({ success: false as const, error: "Failed to list config source groups" }, 500);
   }
 });
 

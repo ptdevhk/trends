@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { DEBUG_PAGE_SECTION_DEFINITIONS } from '@trends/shared'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
@@ -381,15 +382,18 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
     // Robust detection: strip trailing slash and check prefix
     const current = location.pathname.endsWith('/') ? location.pathname.slice(0, -1) : location.pathname
     const base = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+    const allowed = DEBUG_PAGE_SECTION_DEFINITIONS.map((section) => section.id)
+    type DebugSectionId = (typeof allowed)[number]
 
-    if (current === base) return 'all'
+    if (current === base) return 'all' as DebugSectionId
 
     if (current.startsWith(base + '/')) {
       const next = current.slice(base.length + 1).split('/')[0]
-      const allowed = new Set(['all', 'inputs', 'findings', 'process', 'raw', 'industry', 'jobs', 'config', 'ai'])
-      if (next && allowed.has(next)) return next
+      if (next && allowed.includes(next as DebugSectionId)) {
+        return next as DebugSectionId
+      }
     }
-    return 'all'
+    return 'all' as DebugSectionId
   }, [location.pathname, basePath])
 
   const showAll = activeSection === 'all'
@@ -401,17 +405,11 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
   const showJobs = showAll || activeSection === 'jobs'
 
   const navLinks = useMemo(
-    () => [
-      { key: 'all', label: t('debug.navAll'), href: basePath },
-      { key: 'inputs', label: t('debug.navInputs'), href: `${basePath}/inputs` },
-      { key: 'findings', label: t('debug.navFindings'), href: `${basePath}/findings` },
-      { key: 'process', label: t('debug.navProcess'), href: `${basePath}/process` },
-      { key: 'raw', label: t('debug.navRaw'), href: `${basePath}/raw` },
-      { key: 'industry', label: t('debug.navIndustry'), href: `${basePath}/industry` },
-      { key: 'jobs', label: t('debug.navJobs'), href: `${basePath}/jobs` },
-      { key: 'config', label: t('debug.navConfig'), href: `${basePath}/config` },
-      { key: 'ai', label: t('debug.navAi'), href: `${basePath}/ai` },
-    ],
+    () => DEBUG_PAGE_SECTION_DEFINITIONS.map((section) => ({
+      key: section.id,
+      label: t(section.titleKey, { defaultValue: section.defaultTitle }),
+      href: section.hrefSuffix ? `${basePath}${section.hrefSuffix}` : basePath,
+    })),
     [t, basePath]
   )
 
