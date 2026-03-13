@@ -239,6 +239,7 @@ function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
     source: undefined,
     selfIntro: resume.selfIntro,
     workHistory: resume.workHistory,
+    ingestData: resume.ingestData,
   };
 }
 

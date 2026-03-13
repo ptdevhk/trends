@@ -22,6 +22,20 @@ function buildEntry(age: string | undefined): ResumeExportEntry {
       ingestData: {
         industryTags: ["cnc"],
         companyHits: ["FANUC"],
+        brandHits: [
+          {
+            brand: "fanuc",
+            role: "equipment",
+            source: "workHistory",
+            context: "equipment",
+          },
+          {
+            brand: "fanuc",
+            role: "equipment",
+            source: "workHistory",
+            context: "equipment",
+          },
+        ],
         roleSignals: [
           {
             type: "sales",
@@ -195,6 +209,19 @@ describe("ExportService", () => {
     expect(parsed.data[0]?.roleEvidence).toContain("verified 3.5y");
     expect(parsed.data[0]?.matchedWorkEntries).toContain("sales · Example Co. · Sales Engineer");
     expect(parsed.data[0]?.matchedWorkEntries).toContain("verified");
+  });
+
+  it("formats brand hits into a dedicated export column", async () => {
+    const service = new ExportService({
+      resolveZhHans: (brandId: string) => `zh-${brandId.toLowerCase()}`,
+      toJSON: () => ({}),
+    });
+    const file = await service.exportResumes("csv", [buildEntry("27")]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.meta.fields).toContain("brandHits");
+    expect(parsed.data[0]?.brandHits).toBe("zh-fanuc · source=workHistory · context=equipment");
   });
 
   it("keeps CSV and XLSX headers aligned", async () => {

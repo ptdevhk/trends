@@ -85,6 +85,7 @@ function buildSampleResume(overrides: Partial<ResumeItem> & { resumeId: string; 
     rightToWork: overrides.rightToWork,
     digitalIdentity: overrides.digitalIdentity,
     noticePeriodDays: overrides.noticePeriodDays,
+    ingestData: overrides.ingestData,
   };
 }
 
@@ -103,6 +104,15 @@ function expectAttachmentHeaders(response: Response, extension: "csv" | "xlsx") 
   expect(response.headers.get("content-length")).toBeTruthy();
 }
 
+function findColumnIndex(sheet: ExcelJS.Worksheet | undefined, header: string): number {
+  if (!sheet) {
+    return -1;
+  }
+
+  const headers = (sheet.getRow(1).values as unknown[]) ?? [];
+  return headers.findIndex((value) => value === header);
+}
+
 describe("resume export route", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -111,7 +121,22 @@ describe("resume export route", () => {
   it("exports sample-backed requests by resumeId and preserves request order", async () => {
     vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
       items: [
-        buildSampleResume({ resumeId: "resume-a", name: "Alice" }),
+        buildSampleResume({
+          resumeId: "resume-a",
+          name: "Alice",
+          ingestData: {
+            industryTags: ["sales"],
+            brandHits: [
+              {
+                brand: "fanuc",
+                role: "equipment",
+                source: "workHistory",
+                context: "equipment",
+              },
+            ],
+            companyHits: ["fanuc"],
+          },
+        }),
         buildSampleResume({ resumeId: "resume-b", name: "Bob" }),
       ],
       sample: {
@@ -149,6 +174,7 @@ describe("resume export route", () => {
     expect(parsed.data[0]?.userComment).toBe("Call Bob");
     expect(parsed.data[1]?.resumeId).toBe("resume-a");
     expect(parsed.data[1]?.name).toBe("Alice");
+    expect(parsed.data[1]?.brandHits).toBe("发那科 · source=workHistory · context=equipment");
   });
 
   it("exports convex-backed requests via server-side Convex resolution", async () => {
@@ -172,6 +198,18 @@ describe("resume export route", () => {
               profileUrl: "https://example.com/a",
               source: "seek",
               workHistory: [{ raw: "Alice history" }],
+              ingestData: {
+                industryTags: ["machinery"],
+                brandHits: [
+                  {
+                    brand: "fanuc",
+                    role: "equipment",
+                    source: "workHistory",
+                    context: "equipment",
+                  },
+                ],
+                companyHits: ["fanuc"],
+              },
             },
           },
           {
@@ -224,10 +262,13 @@ describe("resume export route", () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
     const sheet = workbook.getWorksheet("Resumes");
+    const brandHitsColumn = findColumnIndex(sheet, "Brand Hits");
     expect(sheet?.getCell("A2").value).toBe("convex-b");
     expect(sheet?.getCell("B2").value).toBe("Bob");
     expect(sheet?.getCell("A3").value).toBe("convex-a");
     expect(sheet?.getCell("B3").value).toBe("Alice");
+    expect(brandHitsColumn).toBeGreaterThan(0);
+    expect(sheet?.getRow(3).getCell(brandHitsColumn).value).toBe("发那科 · source=workHistory · context=equipment");
   });
 
   it("returns a clear 404 when any requested resume cannot be resolved", async () => {
@@ -292,6 +333,18 @@ describe("resume export route", () => {
               profileUrl: "https://example.com/legacy-1",
               source: "seek",
               workHistory: [{ raw: "Legacy history" }],
+              ingestData: {
+                industryTags: ["sales"],
+                brandHits: [
+                  {
+                    brand: "haas",
+                    role: "equipment",
+                    source: "selfIntro",
+                    context: "sales",
+                  },
+                ],
+                companyHits: ["haas"],
+              },
             },
           },
         ],
@@ -303,5 +356,6 @@ describe("resume export route", () => {
     const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
     expect(parsed.data[0]?.resumeId).toBe("legacy-1");
     expect(parsed.data[0]?.name).toBe("Legacy Alice");
+    expect(parsed.data[0]?.brandHits).toBe("哈斯 · source=selfIntro · context=sales");
   });
 });

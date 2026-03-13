@@ -6,31 +6,12 @@ import {
   type ResumeWorkHistoryItem as SharedResumeWorkHistoryItem,
 } from "@trends/shared";
 import type { BrandDisplayResolver } from "./brand-display-resolver.js";
+import type { ResumeIngestBrandHit, ResumeIngestData } from "../types/resume.js";
 
 export type ExportFormat = "csv" | "xlsx";
 
 type ResumeWorkHistoryItem = Partial<SharedResumeWorkHistoryItem> & {
   raw?: string;
-};
-
-type ResumeIngestData = {
-  industryTags?: string[];
-  companyHits?: string[];
-  roleSignals?: Array<{
-    type: string;
-    matchedSignals: string[];
-    years: number;
-    industryVerifiedYears?: number;
-    roleRelevantYears?: number;
-    industryVerifiedRelevantYears?: number;
-    matchedWorkEntries?: Array<{
-      companyName?: string;
-      jobTitle?: string;
-      years: number;
-      industryVerified: boolean;
-      matchedSignals: string[];
-    }>;
-  }>;
 };
 
 type ResumeExportPayload = {
@@ -82,6 +63,7 @@ type ExportRow = {
   scoreSource: string;
   action: string;
   industryTags: string;
+  brandHits: string;
   companyHits: string;
   roleEvidence: string;
   matchedWorkEntries: string;
@@ -185,6 +167,51 @@ function parseAgeNumber(value: unknown): number | null {
   return null;
 }
 
+function resolveBrandDisplayName(
+  brandId: string | undefined,
+  brandDisplayResolver?: BrandDisplayResolver
+): string {
+  const normalizedBrandId = normalizeString(brandId).trim();
+  if (!normalizedBrandId) {
+    return "";
+  }
+
+  return brandDisplayResolver
+    ? brandDisplayResolver.resolveZhHans(normalizedBrandId)
+    : normalizedBrandId.toUpperCase();
+}
+
+function formatBrandHit(hit: ResumeIngestBrandHit, brandDisplayResolver?: BrandDisplayResolver): string {
+  const displayName = resolveBrandDisplayName(hit.brand, brandDisplayResolver);
+  if (!displayName) {
+    return "";
+  }
+
+  const source = normalizeString(hit.source).trim();
+  const context = normalizeString(hit.context).trim();
+  const qualifiers = [
+    source ? `source=${source}` : "",
+    context ? `context=${context}` : "",
+  ].filter(Boolean);
+
+  return [displayName, ...qualifiers].join(" · ");
+}
+
+function formatBrandHits(
+  brandHits: ResumeIngestData["brandHits"],
+  brandDisplayResolver?: BrandDisplayResolver
+): string {
+  if (!Array.isArray(brandHits) || brandHits.length === 0) {
+    return "";
+  }
+
+  const formattedHits = brandHits
+    .map((hit) => formatBrandHit(hit, brandDisplayResolver))
+    .filter((hit) => hit.length > 0);
+
+  return Array.from(new Set(formattedHits)).join(" | ");
+}
+
 function toRow(entry: ResumeExportEntry, brandDisplayResolver?: BrandDisplayResolver): ExportRow {
   const workHistory = Array.isArray(entry.resume.workHistory)
     ? entry.resume.workHistory
@@ -209,8 +236,9 @@ function toRow(entry: ResumeExportEntry, brandDisplayResolver?: BrandDisplayReso
     scoreSource: normalizeString(entry.match?.scoreSource),
     action: normalizeString(entry.action),
     industryTags: normalizeStringArray(entry.resume.ingestData?.industryTags).join(", "),
+    brandHits: formatBrandHits(entry.resume.ingestData?.brandHits, brandDisplayResolver),
     companyHits: normalizeStringArray(entry.resume.ingestData?.companyHits)
-      .map((brandId) => (brandDisplayResolver ? brandDisplayResolver.resolveZhHans(brandId) : brandId.toUpperCase()))
+      .map((brandId) => resolveBrandDisplayName(brandId, brandDisplayResolver))
       .join(", "),
     roleEvidence: formatRoleEvidence(entry.resume.ingestData?.roleSignals),
     matchedWorkEntries: formatMatchedWorkEntries(entry.resume.ingestData?.roleSignals),
@@ -239,6 +267,7 @@ const EXCEL_COLUMNS: Array<{ header: string; key: keyof ExportRow; width: number
   { header: "Score Source", key: "scoreSource", width: 12 },
   { header: "Action", key: "action", width: 12 },
   { header: "Industry Tags", key: "industryTags", width: 22 },
+  { header: "Brand Hits", key: "brandHits", width: 34 },
   { header: "Company Hits", key: "companyHits", width: 22 },
   { header: "Role Evidence", key: "roleEvidence", width: 34 },
   { header: "Matched Work Entries", key: "matchedWorkEntries", width: 44 },

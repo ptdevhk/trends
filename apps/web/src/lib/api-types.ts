@@ -4383,6 +4383,13 @@ export interface components {
                     }[];
                     ingestData?: {
                         industryTags?: string[];
+                        brandHits?: {
+                            brand: string;
+                            role: string;
+                            source: string;
+                            context: string;
+                            companyId?: number;
+                        }[];
                         companyHits?: string[];
                         roleSignals?: {
                             type: string;
