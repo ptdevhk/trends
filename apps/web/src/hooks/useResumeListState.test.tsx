@@ -621,12 +621,14 @@ describe('useResumeListState role filter regression', () => {
     const requestInit = requestCall?.[1] as RequestInit | undefined
     expect(requestInit?.body).toBeDefined()
     const parsedBody = JSON.parse(String(requestInit?.body)) as {
-      entries: Array<{ key: string; userComment?: string; status?: string }>
+      source: string
+      entries: Array<{ resumeId: string; userComment?: string; status?: string }>
       format: string
     }
     expect(parsedBody.format).toBe('csv')
+    expect(parsedBody.source).toBe('convex')
     expect(parsedBody.entries).toContainEqual(expect.objectContaining({
-      key: 'resume-ideal-cnc-sales',
+      resumeId: 'resume-ideal-cnc-sales',
       status: 'contacted',
       userComment: 'Call back tomorrow',
     }))

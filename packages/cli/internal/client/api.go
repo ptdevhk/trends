@@ -12,12 +12,21 @@ import (
 type ResumeItem struct {
 	ResumeID       string `json:"resumeId"`
 	PerUserID      string `json:"perUserId"`
+	ProfileID      string `json:"profileId"`
+	ExternalID     string `json:"externalId"`
 	Name           string `json:"name"`
 	JobIntention   string `json:"jobIntention"`
 	Location       string `json:"location"`
 	Experience     string `json:"experience"`
 	Education      string `json:"education"`
 	ExpectedSalary string `json:"expectedSalary"`
+}
+
+type ResumeSample struct {
+	Name      string `json:"name"`
+	Filename  string `json:"filename"`
+	UpdatedAt string `json:"updatedAt"`
+	Size      int64  `json:"size"`
 }
 
 type ResumesSummary struct {
@@ -29,6 +38,7 @@ type ResumesSummary struct {
 type ResumesResponse struct {
 	Success bool           `json:"success"`
 	Data    []ResumeItem   `json:"data"`
+	Sample  *ResumeSample  `json:"sample,omitempty"`
 	Summary ResumesSummary `json:"summary"`
 }
 
@@ -58,13 +68,14 @@ type CreateJobDescriptionResponse struct {
 }
 
 type ResumeExportEntry struct {
-	Key       string     `json:"key"`
-	Resume    ResumeItem `json:"resume"`
+	ResumeID  string     `json:"resumeId"`
 	RuleScore *float64   `json:"ruleScore,omitempty"`
 }
 
 type ResumeExportRequest struct {
 	Format  string              `json:"format"`
+	Source  string              `json:"source"`
+	Sample  string              `json:"sample,omitempty"`
 	Entries []ResumeExportEntry `json:"entries"`
 }
 

@@ -74,6 +74,12 @@ func TestExportResumesUsesBinaryEndpoint(t *testing.T) {
 		if payload.Format != "csv" {
 			t.Fatalf("expected default format csv, got %q", payload.Format)
 		}
+		if payload.Source != "sample" {
+			t.Fatalf("expected source sample, got %q", payload.Source)
+		}
+		if len(payload.Entries) != 1 || payload.Entries[0].ResumeID != "r1" {
+			t.Fatalf("unexpected export entries: %+v", payload.Entries)
+		}
 
 		w.Header().Set("Content-Disposition", `attachment; filename="out.csv"`)
 		_, _ = w.Write([]byte("x,y\n"))
@@ -84,8 +90,9 @@ func TestExportResumesUsesBinaryEndpoint(t *testing.T) {
 	c.HTTP = server.Client()
 
 	content, disposition, err := c.ExportResumes(context.Background(), ResumeExportRequest{
+		Source: "sample",
 		Entries: []ResumeExportEntry{
-			{Key: "r1", Resume: ResumeItem{Name: "Alice"}},
+			{ResumeID: "r1"},
 		},
 	})
 	if err != nil {

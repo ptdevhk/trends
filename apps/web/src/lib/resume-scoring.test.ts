@@ -34,6 +34,8 @@ type TestResume = {
   extractedAt: string
   resumeId?: string
   perUserId?: string
+  profileId?: string
+  externalId?: string
   ingestData?: {
     evidenceText?: string
     industryTags: string[]
@@ -112,10 +114,13 @@ describe('resume-scoring', () => {
     expect(toMatchBreakdown(undefined)).toBeUndefined()
   })
 
-  it('prefers resumeId then perUserId then profileUrl for resume key', () => {
+  it('matches the API resume id fallback order for resume keys', () => {
     expect(buildResumeKey(createResume({ resumeId: 'r-1', perUserId: 'u-1', profileUrl: 'https://a.com' }), 0)).toBe('r-1')
     expect(buildResumeKey(createResume({ resumeId: undefined, perUserId: 'u-1', profileUrl: 'https://a.com' }), 0)).toBe('u-1')
+    expect(buildResumeKey(createResume({ resumeId: undefined, perUserId: undefined, profileId: 'p-1', profileUrl: 'https://a.com' }), 0)).toBe('p-1')
+    expect(buildResumeKey(createResume({ resumeId: undefined, perUserId: undefined, profileId: undefined, externalId: 'ext-1', profileUrl: 'https://a.com' }), 0)).toBe('ext-1')
     expect(buildResumeKey(createResume({ resumeId: undefined, perUserId: undefined, profileUrl: 'https://a.com' }), 0)).toBe('https://a.com')
+    expect(buildResumeKey(createResume({ resumeId: undefined, perUserId: undefined, profileUrl: '', extractedAt: '2026-03-01T00:00:00.000Z', name: 'Alice' }), 0)).toBe('Alice-2026-03-01T00:00:00.000Z')
   })
 
   it('reads precomputed rule score from ingest data', () => {

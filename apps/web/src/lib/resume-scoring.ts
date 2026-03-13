@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText } from '@trends/shared'
+import { buildWorkHistoryEntryText, resolveResumeId } from '@trends/shared'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeAnalysis } from '@/hooks/useConvexResumes'
 import type { MatchBreakdown, Recommendation } from '@/types/resume'
@@ -134,16 +134,7 @@ export function isSafeProfileUrl(value: string | undefined): value is string {
 }
 
 export function buildResumeKey(resume: ResumeItem, index: number): string {
-  if (resume.resumeId) {
-    return resume.resumeId
-  }
-  if (resume.perUserId) {
-    return resume.perUserId
-  }
-  if (isSafeProfileUrl(resume.profileUrl)) {
-    return resume.profileUrl
-  }
-  return `${resume.name}-${resume.extractedAt || index}`
+  return resolveResumeId(resume, index)
 }
 
 export function buildRuleScoringText(resume: {

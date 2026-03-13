@@ -19,6 +19,11 @@ function toStringValue(value: unknown): string {
     return String(value).trim();
 }
 
+function toOptionalStringValue(value: unknown): string | undefined {
+    const normalized = toStringValue(value);
+    return normalized.length > 0 ? normalized : undefined;
+}
+
 function toRuleScores(value: unknown): Record<string, number> {
     if (!isRecord(value)) {
         return {};
@@ -560,6 +565,44 @@ export const getResume = internalQuery({
     args: { resumeId: v.id("resumes") },
     handler: async (ctx, args) => {
         return await ctx.db.get(args.resumeId);
+    },
+});
+
+export const getByIdsForExport = query({
+    args: {
+        resumeIds: v.array(v.id("resumes")),
+    },
+    handler: async (ctx, args) => {
+        const docs = await Promise.all(args.resumeIds.map((resumeId) => ctx.db.get(resumeId)));
+        return docs
+            .filter((doc): doc is NonNullable<typeof doc> => doc !== null)
+            .map((doc) => {
+                const content = isRecord(doc.content) ? doc.content : {};
+                return {
+                    resumeId: String(doc._id),
+                    resume: {
+                        name: toOptionalStringValue(content.name),
+                        jobIntention: toOptionalStringValue(content.jobIntention),
+                        location: toOptionalStringValue(content.location),
+                        age: toOptionalStringValue(content.age) ?? (typeof doc.age === "number" ? String(doc.age) : undefined),
+                        experience: toOptionalStringValue(content.experience),
+                        education: toOptionalStringValue(content.education),
+                        expectedSalary: toOptionalStringValue(content.expectedSalary),
+                        profileUrl: toOptionalStringValue(content.profileUrl)
+                            ?? toOptionalStringValue(content.profile_url)
+                            ?? toOptionalStringValue(content.profileURL)
+                            ?? toOptionalStringValue(content.url),
+                        source: doc.source,
+                        selfIntro: toOptionalStringValue(content.selfIntro),
+                        workHistory: Array.isArray(content.workHistory) ? content.workHistory : undefined,
+                        ingestData: doc.ingestData ? {
+                            industryTags: doc.ingestData.industryTags,
+                            companyHits: doc.ingestData.companyHits,
+                            roleSignals: doc.ingestData.roleSignals,
+                        } : undefined,
+                    },
+                };
+            });
     },
 });
 

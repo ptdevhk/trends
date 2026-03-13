@@ -490,6 +490,140 @@ export const ResumeMatchSchema = z
   })
   .openapi("ResumeMatch");
 
+export const ResumeExportSourceSchema = z.enum(["sample", "convex"]).openapi("ResumeExportSource");
+
+export const ResumeExportMatchSchema = z
+  .object({
+    score: z.number().openapi({ example: 88 }),
+    recommendation: RecommendationSchema.openapi({ example: "strong_match" }),
+    scoreSource: ScoreSourceSchema.optional().openapi({ example: "ai" }),
+    summary: z.string().optional().openapi({ example: "Strong CNC sales fit." }),
+  })
+  .openapi("ResumeExportMatch");
+
+export const ResumeExportEntryContextSchema = z
+  .object({
+    resumeId: z.string().min(1).openapi({ example: "resume-1" }),
+    ruleScore: z.number().optional().openapi({ example: 72 }),
+    action: z.string().optional().openapi({ example: "shortlist" }),
+    match: ResumeExportMatchSchema.optional(),
+    userComment: z.string().optional().openapi({ example: "Call back tomorrow" }),
+    referenceNote: z.string().optional().openapi({ example: "Referred by HR" }),
+    status: z.string().optional().openapi({ example: "contacted" }),
+  })
+  .openapi("ResumeExportEntryContext");
+
+export const ResumeExportCanonicalRequestSchema = z
+  .object({
+    format: z.enum(["csv", "xlsx"]).default("csv").openapi({ example: "csv" }),
+    source: ResumeExportSourceSchema,
+    sample: z.string().optional().openapi({ example: "sample-initial" }),
+    userComment: z.string().optional().openapi({ example: "Batch note" }),
+    referenceNote: z.string().optional().openapi({ example: "Internal export" }),
+    entries: z.array(ResumeExportEntryContextSchema).min(1).max(2000),
+  })
+  .superRefine((value, ctx) => {
+    if (value.source === "sample" && !value.sample?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "sample is required when source is sample",
+        path: ["sample"],
+      });
+    }
+    if (value.source === "convex" && value.sample !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "sample is only allowed when source is sample",
+        path: ["sample"],
+      });
+    }
+  })
+  .openapi("ResumeExportCanonicalRequest");
+
+const ResumeExportLegacyWorkHistorySchema = z.object({
+  raw: z.string().optional(),
+  companyName: z.string().optional(),
+  jobTitle: z.string().optional(),
+  description: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+
+const ResumeExportLegacyRoleSignalSchema = z.object({
+  type: z.string(),
+  matchedSignals: z.array(z.string()),
+  signalCount: z.number().optional(),
+  occurrences: z.number().optional(),
+  years: z.number(),
+  industryVerifiedYears: z.number().optional(),
+  roleRelevantYears: z.number().optional(),
+  industryVerifiedRelevantYears: z.number().optional(),
+  matchedWorkEntries: z
+    .array(
+      z.object({
+        companyName: z.string().optional(),
+        jobTitle: z.string().optional(),
+        years: z.number(),
+        industryVerified: z.boolean(),
+        matchedSignals: z.array(z.string()),
+      })
+    )
+    .optional(),
+  verifyIn: z.string().optional(),
+});
+
+export const ResumeExportLegacyResumeSchema = z.object({
+  name: z.string().optional(),
+  jobIntention: z.string().optional(),
+  location: z.string().optional(),
+  age: z.string().optional(),
+  experience: z.string().optional(),
+  education: z.string().optional(),
+  expectedSalary: z.string().optional(),
+  profileUrl: z.string().optional(),
+  source: z.string().optional(),
+  selfIntro: z.string().optional(),
+  workHistory: z.array(ResumeExportLegacyWorkHistorySchema).optional(),
+  ingestData: z
+    .object({
+      industryTags: z.array(z.string()).optional(),
+      companyHits: z.array(z.string()).optional(),
+      roleSignals: z.array(ResumeExportLegacyRoleSignalSchema).optional(),
+    })
+    .optional(),
+});
+
+export const ResumeExportLegacyRequestSchema = z
+  .object({
+    format: z.enum(["csv", "xlsx"]).default("csv"),
+    userComment: z.string().optional(),
+    referenceNote: z.string().optional(),
+    entries: z
+      .array(
+        z.object({
+          key: z.string().min(1),
+          ruleScore: z.number().optional(),
+          action: z.string().optional(),
+          match: ResumeExportMatchSchema.optional(),
+          resume: ResumeExportLegacyResumeSchema,
+          userComment: z.string().optional(),
+          referenceNote: z.string().optional(),
+          status: z.string().optional(),
+        })
+      )
+      .min(1)
+      .max(2000),
+  })
+  .openapi("ResumeExportLegacyRequest");
+
+export const ResumeExportRequestSchema = z
+  .union([ResumeExportCanonicalRequestSchema, ResumeExportLegacyRequestSchema])
+  .openapi("ResumeExportRequest");
+
+export const ResumeExportBinaryResponseSchema = z
+  .string()
+  .openapi({ format: "binary" });
+
 export const MatchRequestSchema = z
   .object({
     sessionId: z.string().optional().openapi({ example: "session-123" }),
