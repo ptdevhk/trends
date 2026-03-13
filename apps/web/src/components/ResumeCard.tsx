@@ -1,3 +1,4 @@
+import { buildWorkHistoryEntryText } from '@trends/shared'
 import { useTranslation } from 'react-i18next'
 import { User, CheckCircle, XCircle, Phone, Star, Ban, MessageSquare } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -9,6 +10,7 @@ import type { ResumeItem } from '@/hooks/useResumes'
 import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { cn } from '@/lib/utils'
+import { isSafeProfileUrl } from '@/lib/resume-scoring'
 import {
   Tooltip,
   TooltipContent,
@@ -58,11 +60,6 @@ interface ResumeCardProps {
   isReviewed?: boolean
   aiScoreFeedback?: AiFeedbackSentiment
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
-}
-
-function isSafeProfileUrl(value: string | undefined): value is string {
-  if (!value) return false
-  return value.startsWith('http://') || value.startsWith('https://')
 }
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
@@ -148,6 +145,15 @@ export function ResumeCard({
   const [blockNoteInput, setBlockNoteInput] = useState('')
   const [commentDialogOpen, setCommentDialogOpen] = useState(false)
   const [commentNoteInput, setCommentNoteInput] = useState('')
+  const workHistory = (resume.workHistory ?? [])
+    .slice(0, 3)
+    .map((item) => ({
+      item,
+      text: buildWorkHistoryEntryText(item),
+    }))
+    .filter(({ text }) => text.length > 0)
+  const jobIntention = (resume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
+  const selfIntro = resume.selfIntro || '--'
   const profileUrl = resume.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
 
@@ -233,6 +239,8 @@ export function ResumeCard({
       data-role-types={(roleTypes ?? []).join(',')}
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b bg-muted/50 px-4 py-2 text-sm">
+        <span className="text-muted-foreground">求职意向</span>
+        <span className="font-medium">{jobIntention}</span>
         {isReviewed && (
           <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px]">
             {t('resumes.status.reviewed', '已查阅')}
@@ -515,10 +523,24 @@ export function ResumeCard({
             />
           </div>
           <div className="text-sm text-muted-foreground">
-            {resume.age || '--'} | {resume.education || '--'} | {resume.location || '--'}
+            {resume.age || '--'} | {resume.experience || '--'} | {resume.education || '--'} |{' '}
+            {resume.location || '--'}
           </div>
+          <div className="text-sm text-muted-foreground line-clamp-2">{selfIntro}</div>
         </div>
 
+        {workHistory.length > 0 ? (
+          <div className="min-w-0 space-y-1 text-sm lg:w-[420px]">
+            {workHistory.map(({ item, text }, index) => (
+              <div key={`${resume.name}-${index}`} className="flex gap-2">
+                <span className="text-muted-foreground">●</span>
+                <span className="truncate" title={item.raw || text}>
+                  {text}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
