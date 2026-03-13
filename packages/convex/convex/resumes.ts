@@ -957,3 +957,34 @@ export const clearAnalyses = mutation({
         return { cleared };
     },
 });
+
+export const hardResetIngestData = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const resumes = await ctx.db.query("resumes").collect();
+        let cleared = 0;
+
+        for (const resume of resumes) {
+            const hasComputedFields = resume.ingestData !== undefined
+                || resume.analysis !== undefined
+                || resume.analyses !== undefined
+                || resume.primaryRuleScore !== undefined
+                || resume.searchText !== undefined;
+
+            if (!hasComputedFields) {
+                continue;
+            }
+
+            await ctx.db.patch(resume._id, {
+                ingestData: undefined,
+                analysis: undefined,
+                analyses: undefined,
+                primaryRuleScore: undefined,
+                searchText: undefined,
+            });
+            cleared += 1;
+        }
+
+        return { cleared };
+    },
+});

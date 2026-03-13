@@ -105,6 +105,7 @@ export default function DebugIngest() {
   const backfillIngestData = useAction(api.migrations.backfillIngestData)
   const reIngestStaleSkillsVersion = useAction(api.migrations.reIngestStaleSkillsVersion)
   const clearAnalysesMutation = useMutation(api.resumes.clearAnalyses)
+  const hardResetIngestDataMutation = useMutation(api.resumes.hardResetIngestData)
   const resetDatabaseMutation = useMutation(api.resume_tasks.resetDatabase)
 
   const [search, setSearch] = useState('')
@@ -113,7 +114,9 @@ export default function DebugIngest() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [reingesting, setReingesting] = useState(false)
   const [clearingAnalyses, setClearingAnalyses] = useState(false)
+  const [hardResetting, setHardResetting] = useState(false)
   const [resettingDatabase, setResettingDatabase] = useState(false)
+  const [hardResetDialogOpen, setHardResetDialogOpen] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
 
   const apiBaseUrl = useMemo(() => {
@@ -226,6 +229,32 @@ export default function DebugIngest() {
     }
   }, [clearAnalysesMutation, t])
 
+  const hardResetAndReIngest = useCallback(async () => {
+    setHardResetting(true)
+    try {
+      const result = await hardResetIngestDataMutation({})
+      const backfillResult = await backfillIngestData({ limit: 500 })
+      setHardResetDialogOpen(false)
+      toast.success(
+        t('debugIngest.hardResetSuccess', {
+          cleared: result.cleared,
+          scheduled: backfillResult.scheduled,
+          defaultValue: `Cleared computed data for ${result.cleared} resumes and scheduled ${backfillResult.scheduled} resumes for re-ingest.`,
+        })
+      )
+      await loadSkillsVersion()
+    } catch (error) {
+      console.error('Failed to hard reset ingest data', error)
+      toast.error(
+        t('debugIngest.hardResetFailed', {
+          defaultValue: 'Failed to hard reset resumes and schedule re-ingest',
+        })
+      )
+    } finally {
+      setHardResetting(false)
+    }
+  }, [backfillIngestData, hardResetIngestDataMutation, loadSkillsVersion, t])
+
   const resetDatabase = useCallback(async () => {
     setResettingDatabase(true)
     try {
@@ -319,11 +348,63 @@ export default function DebugIngest() {
           <Trash2 className={`mr-2 h-4 w-4 ${clearingAnalyses ? 'animate-spin' : ''}`} />
           {t('debugIngest.clearAnalyses', { defaultValue: 'Reset AI Analyses' })}
         </Button>
+        <Button variant="destructive" onClick={() => setHardResetDialogOpen(true)} disabled={hardResetting}>
+          <Trash2 className={`mr-2 h-4 w-4 ${hardResetting ? 'animate-spin' : ''}`} />
+          {t('debugIngest.hardReset', { defaultValue: 'Hard Reset & Re-ingest' })}
+        </Button>
         <Button variant="destructive" onClick={() => setResetDialogOpen(true)} disabled={resettingDatabase}>
           <Trash2 className={`mr-2 h-4 w-4 ${resettingDatabase ? 'animate-spin' : ''}`} />
           {t('debugIngest.resetDatabase', { defaultValue: 'Clear Resume Database' })}
         </Button>
       </div>
+
+      <Dialog
+        open={hardResetDialogOpen}
+        onOpenChange={(open) => {
+          if (!hardResetting) {
+            setHardResetDialogOpen(open)
+          }
+        }}
+      >
+        <DialogContent
+          onEscapeKeyDown={(event) => {
+            if (hardResetting) {
+              event.preventDefault()
+            }
+          }}
+          onPointerDownOutside={(event) => {
+            if (hardResetting) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t('debugIngest.hardReset', { defaultValue: 'Hard Reset & Re-ingest' })}</DialogTitle>
+            <DialogDescription>
+              {t('debugIngest.hardResetConfirm', {
+                defaultValue: 'Clear all computed ingest and AI analysis data, then schedule full re-ingest for up to 500 resumes? This cannot be undone.',
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setHardResetDialogOpen(false)}
+              disabled={hardResetting}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void hardResetAndReIngest()}
+              disabled={hardResetting}
+            >
+              <Trash2 className={`mr-2 h-4 w-4 ${hardResetting ? 'animate-spin' : ''}`} />
+              {t('debugIngest.hardReset', { defaultValue: 'Hard Reset & Re-ingest' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={resetDialogOpen}
