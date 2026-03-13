@@ -23,8 +23,21 @@
     return [];
   };
 
-  const findGraphqlOperation = (requestBody, expectedOperationName) => getGraphqlOperations(requestBody)
-    .find((entry) => entry?.operationName === expectedOperationName) || null;
+  const findGraphqlOperation = (requestBody, matcher) => getGraphqlOperations(requestBody)
+    .find((entry) => {
+      if (!entry || typeof entry !== 'object') return false;
+      if (typeof matcher === 'string') {
+        return entry.operationName === matcher;
+      }
+      return matcher(entry);
+    }) || null;
+
+  const isSeekRecommendedCandidatesOperation = (entry) => {
+    const operationName = typeof entry?.operationName === 'string' ? entry.operationName : '';
+    if (operationName === 'GetTalentSearchRecommendedCandidates') return true;
+    const query = typeof entry?.query === 'string' ? entry.query : '';
+    return query.includes('talentSearchRecommendedCandidatesV2');
+  };
 
   const classify = (url, requestBody) => {
     if (!url) return null;
@@ -33,12 +46,14 @@
     if (url.includes('/api/search/resume/v2/talent/insight/info')) return { kind: 'insight', sourceKey: 'job5156' };
     if (url.includes('/api/search/resume/v2')) return { kind: 'search', sourceKey: 'job5156' };
     if (url.includes('/graphql')) {
-      const recommendedOperation = findGraphqlOperation(requestBody, 'GetTalentSearchRecommendedCandidates');
+      const recommendedOperation = findGraphqlOperation(requestBody, isSeekRecommendedCandidatesOperation);
       if (recommendedOperation) {
         return {
           kind: 'seekRecommendedCandidates',
           sourceKey: 'seek',
-          operationName: 'GetTalentSearchRecommendedCandidates',
+          operationName: typeof recommendedOperation.operationName === 'string'
+            ? recommendedOperation.operationName
+            : 'GetTalentSearchRecommendedCandidates',
           operation: recommendedOperation,
         };
       }
@@ -73,6 +88,21 @@
     } catch {
       return null;
     }
+  };
+
+  const isGraphqlRequest = (url) => url.includes('/graphql');
+
+  const parseRequestBody = async (input, init) => {
+    const initBody = parseJsonString(init?.body);
+    if (initBody) return initBody;
+    if (typeof Request !== 'undefined' && input instanceof Request) {
+      try {
+        return parseJsonString(await input.clone().text());
+      } catch {
+        return null;
+      }
+    }
+    return null;
   };
 
   const post = (message) => {
@@ -320,20 +350,23 @@
     const originalFetch = trWindow.fetch;
     trWindow.fetch = function(...args) {
       const requestUrl = normalizeUrl(args[0]);
-      const requestInit = args[1];
-      const requestBody = parseJsonString(requestInit?.body);
+      if (!isGraphqlRequest(requestUrl)) {
+        return originalFetch.apply(this, args);
+      }
 
-      return originalFetch.apply(this, args).then((res) => {
-        try {
-          const classification = classify(requestUrl, requestBody);
-          if (classification) {
-            res.clone().json().then((data) => capture(classification, requestUrl, data)).catch(() => {});
+      return Promise.resolve(parseRequestBody(args[0], args[1])).then((requestBody) => (
+        originalFetch.apply(this, args).then((res) => {
+          try {
+            const classification = classify(requestUrl, requestBody);
+            if (classification) {
+              res.clone().json().then((data) => capture(classification, requestUrl, data)).catch(() => {});
+            }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
-        }
-        return res;
-      });
+          return res;
+        })
+      ));
     };
   }
 
