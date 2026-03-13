@@ -1,6 +1,6 @@
 ---
-version: 6
-updated_at: '2026-03-11'
+version: 7
+updated_at: '2026-03-13'
 description: >
   简历筛选技能知识库（zh-Hans 主文件）。
   用于背景计算代理的确定性匹配、同义词扩展与预评分。
@@ -17,11 +17,11 @@ description: >
 
 ### machinery
 - displayName: 机械
-- keywords: 机床, 车床, 加工中心, 机械, 设备, 五轴, 夹具, 治具, lathe, machining, milling, cnc, 数控, fanuc, siemens, star, brother, mitsubishi
+- keywords: 机床, 车床, 加工中心, 机械, 设备, cnc, 数控
 
 ### sales
 - displayName: 销售
-- keywords: 销售, 业务, 客户, 大客户, 渠道, 销售工程师, 业务拓展, sales, account, key account, bd, business development
+- keywords: 销售, 业务, 销售工程师, 业务拓展, sales, account, key account, bd, business development
 
 ### metrology
 - displayName: 测量

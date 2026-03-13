@@ -72,7 +72,7 @@ function cleanupFixtureRoot(root: string): void {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-function createSalesRoleSignal(years: number, matchedSignals: string[] = ["销售经理", "客户", "渠道"]): RoleSignalSummary {
+function createSalesRoleSignal(years: number, matchedSignals: string[] = ["销售经理", "渠道"]): RoleSignalSummary {
   return {
     type: "sales",
     matchedSignals,

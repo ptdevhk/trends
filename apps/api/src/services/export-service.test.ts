@@ -25,7 +25,7 @@ function buildEntry(age: string | undefined): ResumeExportEntry {
         roleSignals: [
           {
             type: "sales",
-            matchedSignals: ["销售工程师", "客户"],
+            matchedSignals: ["销售工程师"],
             years: 4.5,
             industryVerifiedYears: 3.5,
             roleRelevantYears: 4.5,
@@ -36,7 +36,7 @@ function buildEntry(age: string | undefined): ResumeExportEntry {
                 jobTitle: "Sales Engineer",
                 years: 3.5,
                 industryVerified: true,
-                matchedSignals: ["销售工程师", "客户"],
+                matchedSignals: ["销售工程师"],
               },
             ],
           },
