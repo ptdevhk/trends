@@ -126,11 +126,21 @@ export type IngestDiagnosticsRow = {
     };
 };
 
+export type ResumeScanRow = {
+    _id: Doc<"resumes">["_id"];
+    content: Doc<"resumes">["content"];
+    ingestData: Doc<"resumes">["ingestData"];
+    primaryRuleScore: Doc<"resumes">["primaryRuleScore"];
+    searchText: Doc<"resumes">["searchText"];
+};
+
 const DEFAULT_RESUME_LIMIT = 50;
 export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 200;
 export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 400;
 const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
 const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
+const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
+const MAX_RESUME_SCAN_BATCH_SIZE = 50;
 
 function dedupeProvenance(items: SearchProvenance[]): SearchProvenance[] {
     const seen = new Set<string>();
@@ -216,6 +226,13 @@ export function resolveListWithIngestWindow(requestedLimit: number | undefined):
         limit,
         overfetchLimit: Math.min(Math.max(limit * 3, limit), MAX_SAFE_LIST_WITH_INGEST_OVERFETCH),
     };
+}
+
+export function resolveResumeScanBatchSize(requestedLimit: number | undefined): number {
+    const normalizedLimit = typeof requestedLimit === "number" && Number.isFinite(requestedLimit)
+        ? Math.trunc(requestedLimit)
+        : DEFAULT_RESUME_SCAN_BATCH_SIZE;
+    return Math.min(Math.max(normalizedLimit, 1), MAX_RESUME_SCAN_BATCH_SIZE);
 }
 
 function normalizeTagExpansionKeywordGroups(
@@ -831,49 +848,31 @@ export const updateIngestDataBatch = internalMutation({
     },
 });
 
-export const listUnprocessed = internalQuery({
+export const listResumeScanBatch = internalQuery({
     args: {
+        cursor: v.optional(v.string()),
         limit: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
-        const limit = args.limit || 100;
-        const resumes = await ctx.db
+        const page = await ctx.db
             .query("resumes")
-            .filter((q) => q.eq(q.field("ingestData"), undefined))
-            .take(limit);
-        return resumes;
-    },
-});
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.limit),
+            });
 
-export const listProcessedIds = internalQuery({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
-        return resumes
-            .filter((resume) => resume.ingestData !== undefined)
-            .map((resume) => resume._id);
-    },
-});
-
-export const listStaleResumes = internalQuery({
-    args: {
-        currentVersion: v.number(),
-        limit: v.optional(v.number()),
-    },
-    handler: async (ctx, args) => {
-        const limit = args.limit || 100;
-        const resumes = await ctx.db
-            .query("resumes")
-            .filter((q) => q.neq(q.field("ingestData"), undefined))
-            .collect();
-
-        return resumes
-            .filter((resume) => {
-                const version = resume.ingestData?.skillsVersion;
-                return typeof version !== "number" || version < args.currentVersion;
-            })
-            .slice(0, limit)
-            .map((resume) => ({ _id: resume._id }));
+        return {
+            continueCursor: page.continueCursor,
+            isDone: page.isDone,
+            page: page.page.map((resume): ResumeScanRow => ({
+                _id: resume._id,
+                content: resume.content,
+                ingestData: resume.ingestData,
+                primaryRuleScore: resume.primaryRuleScore,
+                searchText: resume.searchText,
+            })),
+        };
     },
 });
 

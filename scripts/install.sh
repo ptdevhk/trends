@@ -272,17 +272,81 @@ run_convex_migration() {
     local convex_dir="$1"
     local migration_name="$2"
     local migration_args="${3:-}"
-    local migration_suffix=""
-    local command="set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:$migration_name"
+    local cursor=""
+    local iteration=1
 
-    if [[ -n "$migration_args" ]]; then
-        migration_suffix=" $migration_args"
-        command="$command '$migration_args'"
-    fi
+    while true; do
+        local call_args=""
+        local command="set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex run migrations:$migration_name"
 
-    log_info "Running Convex migration: $migration_name..."
-    run_as_service_user "$command" \
-        || log_warn "$migration_name failed.$migration_suffix"
+        call_args="$(node - "$migration_args" "$cursor" <<'NODE'
+const baseArgs = process.argv[2] ? JSON.parse(process.argv[2]) : {};
+const cursor = process.argv[3];
+if (cursor) {
+  baseArgs.cursor = cursor;
+}
+process.stdout.write(JSON.stringify(baseArgs));
+NODE
+)"
+
+        if [[ "$call_args" != "{}" ]]; then
+            command="$command '$call_args'"
+        fi
+
+        if [[ "$iteration" -eq 1 ]]; then
+            log_info "Running Convex migration: $migration_name..."
+        else
+            log_info "Running Convex migration: $migration_name (batch $iteration)..."
+        fi
+
+        local output=""
+        if ! output="$(run_as_service_user "$command" 2>&1)"; then
+            printf '%s\n' "$output"
+            log_warn "$migration_name failed.${call_args:+ $call_args}"
+            return 1
+        fi
+        printf '%s\n' "$output"
+
+        local progress=""
+        progress="$(node - "$output" <<'NODE'
+const vm = require('node:vm');
+const source = (process.argv[2] ?? '').trim();
+let hasMore = 0;
+let cursor = '';
+
+try {
+  const value = vm.runInNewContext(`(${source})`);
+  if (value && typeof value === 'object' && !Array.isArray(value) && value.hasMore === true) {
+    hasMore = 1;
+    cursor = typeof value.cursor === 'string' ? value.cursor : '';
+  }
+} catch {
+  hasMore = 0;
+}
+
+process.stdout.write(`${hasMore}\t${Buffer.from(cursor, 'utf8').toString('base64')}`);
+NODE
+)"
+
+        local has_more="${progress%%$'\t'*}"
+        local cursor_b64="${progress#*$'\t'}"
+
+        if [[ "$has_more" != "1" ]]; then
+            break
+        fi
+
+        if [[ -n "$cursor_b64" ]]; then
+            cursor="$(printf '%s' "$cursor_b64" | base64 --decode)"
+        else
+            cursor=""
+        fi
+        iteration=$((iteration + 1))
+
+        if [[ "$iteration" -gt 10000 ]]; then
+            log_warn "$migration_name exceeded the maximum batch iterations."
+            break
+        fi
+    done
 }
 
 create_service_user() {

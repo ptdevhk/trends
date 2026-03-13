@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { projectIngestDiagnosticsRow, resolveListWithIngestWindow } from "../resumes";
+import { projectIngestDiagnosticsRow, resolveListWithIngestWindow, resolveResumeScanBatchSize } from "../resumes";
 
 describe("resolveListWithIngestWindow", () => {
     it("uses the default list window when no limit is provided", () => {
@@ -15,6 +15,16 @@ describe("resolveListWithIngestWindow", () => {
             limit: 200,
             overfetchLimit: 400,
         });
+    });
+});
+
+describe("resolveResumeScanBatchSize", () => {
+    it("uses the default scan size when no limit is provided", () => {
+        expect(resolveResumeScanBatchSize(undefined)).toBe(25);
+    });
+
+    it("clamps oversized scan batches to the safe maximum", () => {
+        expect(resolveResumeScanBatchSize(5_000)).toBe(50);
     });
 });
 
