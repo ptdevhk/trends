@@ -63,8 +63,12 @@ const jobService = new JobDescriptionService(config.projectRoot);
 const ruleScoringService = new RuleScoringService(config.projectRoot);
 const ingestComputeService = new IngestComputeService(config.projectRoot);
 const skillsKnowledgeService = new SkillsKnowledgeService(config.projectRoot);
+const companyPatterns = skillsKnowledgeService.getCompanyPatterns();
 const searchEventLogger = new SearchEventLogger(config.projectRoot);
-const exportService = new ExportService(new BrandDisplayResolver(config.projectRoot));
+const exportService = new ExportService(
+  new BrandDisplayResolver(config.projectRoot, companyPatterns),
+  companyPatterns
+);
 
 const DEFAULT_AI_TOP_N = 20;
 
