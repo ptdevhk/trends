@@ -274,6 +274,8 @@ run_convex_migration() {
     local migration_args="${3:-}"
     local cursor=""
     local iteration=1
+    local consecutive_noop=0
+    local max_consecutive_noop=3
 
     while true; do
         local call_args=""
@@ -313,25 +315,47 @@ const vm = require('node:vm');
 const source = (process.argv[2] ?? '').trim();
 let hasMore = 0;
 let cursor = '';
+let updated = -1;
 
 try {
   const value = vm.runInNewContext(`(${source})`);
-  if (value && typeof value === 'object' && !Array.isArray(value) && value.hasMore === true) {
-    hasMore = 1;
-    cursor = typeof value.cursor === 'string' ? value.cursor : '';
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    if (value.hasMore === true) {
+      hasMore = 1;
+      cursor = typeof value.cursor === 'string' ? value.cursor : '';
+    }
+    for (const key of Object.keys(value)) {
+      if (/^(updated|updatedResumes|count)$/.test(key) && typeof value[key] === 'number') {
+        updated = value[key];
+        break;
+      }
+    }
   }
 } catch {
   hasMore = 0;
 }
 
-process.stdout.write(`${hasMore}\t${Buffer.from(cursor, 'utf8').toString('base64')}`);
+process.stdout.write(`${hasMore}\t${Buffer.from(cursor, 'utf8').toString('base64')}\t${updated}`);
 NODE
 )"
 
         local has_more="${progress%%$'\t'*}"
-        local cursor_b64="${progress#*$'\t'}"
+        local rest="${progress#*$'\t'}"
+        local cursor_b64="${rest%%$'\t'*}"
+        local batch_updated="${rest#*$'\t'}"
 
         if [[ "$has_more" != "1" ]]; then
+            break
+        fi
+
+        if [[ "$batch_updated" == "0" ]]; then
+            consecutive_noop=$((consecutive_noop + 1))
+        else
+            consecutive_noop=0
+        fi
+
+        if [[ "$consecutive_noop" -ge "$max_consecutive_noop" ]]; then
+            log_info "$migration_name: $consecutive_noop consecutive batches with 0 updates, skipping remaining."
             break
         fi
 
