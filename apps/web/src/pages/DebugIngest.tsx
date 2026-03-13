@@ -232,14 +232,20 @@ export default function DebugIngest() {
   const hardResetAndReIngest = useCallback(async () => {
     setHardResetting(true)
     try {
-      const result = await hardResetIngestDataMutation({})
+      let totalCleared = 0
+      let cursor: string | undefined
+      do {
+        const result = await hardResetIngestDataMutation({ cursor })
+        totalCleared += result.cleared
+        cursor = result.hasMore ? (result.cursor ?? undefined) : undefined
+      } while (cursor)
       const backfillResult = await backfillIngestData({ limit: 500 })
       setHardResetDialogOpen(false)
       toast.success(
         t('debugIngest.hardResetSuccess', {
-          cleared: result.cleared,
+          cleared: totalCleared,
           scheduled: backfillResult.scheduled,
-          defaultValue: `Cleared computed data for ${result.cleared} resumes and scheduled ${backfillResult.scheduled} resumes for re-ingest.`,
+          defaultValue: `Cleared computed data for ${totalCleared} resumes and scheduled ${backfillResult.scheduled} resumes for re-ingest.`,
         })
       )
       await loadSkillsVersion()

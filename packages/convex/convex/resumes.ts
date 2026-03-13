@@ -959,12 +959,21 @@ export const clearAnalyses = mutation({
 });
 
 export const hardResetIngestData = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
         let cleared = 0;
 
-        for (const resume of resumes) {
+        for (const resume of resumes.page) {
             const hasComputedFields = resume.ingestData !== undefined
                 || resume.analysis !== undefined
                 || resume.analyses !== undefined
@@ -985,6 +994,10 @@ export const hardResetIngestData = mutation({
             cleared += 1;
         }
 
-        return { cleared };
+        return {
+            cleared,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
     },
 });
