@@ -17,7 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { OutreachModal } from './OutreachModal'
 import { Select } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -225,6 +225,7 @@ export function ResumeCard({
   const visibleCompanyHits = (companyHits ?? [])
     .filter((company) => company.trim().length > 0)
     .slice(0, 3)
+  const resolveBrand = brandDisplayResolve ?? ((brandId: string) => brandId.toUpperCase())
   // Non-employer brand hits grouped by brand name with context labels
   const brandSummary = useMemo(() => {
     if (!brandHits || brandHits.length === 0) return []
@@ -241,8 +242,14 @@ export function ResumeCard({
     return Array.from(groups.entries())
       .sort(([, a], [, b]) => b.count - a.count)
       .slice(0, 4)
-      .map(([brand, { contexts, count }]) => ({ brand, contexts: Array.from(contexts), count }))
-  }, [brandHits])
+      .map(([brand, { contexts }]) => {
+        const contextValues = Array.from(contexts)
+        return {
+          brand,
+          contextLabels: contextValues.map((context) => t(`debugIngest.brandContext.${context}`, { defaultValue: context })),
+        }
+      })
+  }, [brandHits, t])
   const primaryRoleSignal = selectPrimaryRoleSignal(roleSignals)
   const verifiedRoleYears = primaryRoleSignal ? getRoleVerifiedYears(primaryRoleSignal) : 0
   const roleRelevantYears = primaryRoleSignal ? getRoleRelevantYears(primaryRoleSignal) : 0
@@ -453,10 +460,21 @@ export function ResumeCard({
                 onCompanyClick?.(company)
               }}
             >
-              {(brandDisplayResolve ?? ((id: string) => id.toUpperCase()))(company)}
+              {resolveBrand(company)}
             </Badge>
           )
         })}
+        {brandSummary.map(({ brand, contextLabels }) => (
+          <Badge
+            key={`brand-${brand}`}
+            variant="outline"
+            className="text-[10px] border-amber-200 bg-amber-50 text-amber-700"
+            title={contextLabels.join(' / ')}
+          >
+            {resolveBrand(brand)}
+            {contextLabels.length > 0 ? ` · ${contextLabels.join('/')}` : ''}
+          </Badge>
+        ))}
       </div>
 
       <div className="flex flex-col gap-4 p-4 lg:flex-row">

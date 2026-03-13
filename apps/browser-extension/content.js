@@ -1730,14 +1730,7 @@ function extractSeekResumes() {
     const salary = candidate?.salary;
     const salaryParts = [salary?.minLabel, salary?.maxLabel].filter((value) => typeof value === 'string' && value.trim());
     const workHistory = Array.isArray(candidate?.workHistories)
-      ? candidate.workHistories
-          .map((item) => {
-            const title = typeof item?.jobTitle === 'string' ? item.jobTitle.trim() : '';
-            const company = typeof item?.companyName === 'string' ? item.companyName.trim() : '';
-            const raw = [title, company].filter(Boolean).join(' · ');
-            return raw ? { raw } : null;
-          })
-          .filter(Boolean)
+      ? candidate.workHistories.map((item) => buildSeekWorkHistoryItem(item)).filter(Boolean)
       : [];
 
     return {

@@ -229,6 +229,7 @@ export function ResumeList() {
                 ruleScore={entry.ruleScore}
                 industryTags={ingestData?.industryTags}
                 companyHits={ingestData?.companyHits}
+                brandHits={ingestData?.brandHits}
                 roleSignals={ingestData?.roleSignals}
                 brandDisplayResolve={brandDisplayResolve}
                 roleTypes={ingestData?.roleSignals?.map((signal) => signal.type) ?? []}
