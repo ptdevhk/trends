@@ -129,15 +129,20 @@ func newResumeExportCmd() *cobra.Command {
 			entries := make([]client.ResumeExportEntry, 0, len(resumes.Data))
 			for index, item := range resumes.Data {
 				entries = append(entries, client.ResumeExportEntry{
-					Key:    resumeIdentifier(item, index),
-					Resume: item,
+					ResumeID: resumeIdentifier(item, index),
 				})
 			}
 
-			payload, disposition, err := newAPIClient().ExportResumes(context.Background(), client.ResumeExportRequest{
+			request := client.ResumeExportRequest{
 				Format:  format,
+				Source:  "sample",
 				Entries: entries,
-			})
+			}
+			if resumes.Sample != nil && strings.TrimSpace(resumes.Sample.Name) != "" {
+				request.Sample = resumes.Sample.Name
+			}
+
+			payload, disposition, err := newAPIClient().ExportResumes(context.Background(), request)
 			if err != nil {
 				return err
 			}
@@ -182,6 +187,12 @@ func resumeIdentifier(item client.ResumeItem, index int) string {
 	}
 	if strings.TrimSpace(item.PerUserID) != "" {
 		return item.PerUserID
+	}
+	if strings.TrimSpace(item.ProfileID) != "" {
+		return item.ProfileID
+	}
+	if strings.TrimSpace(item.ExternalID) != "" {
+		return item.ExternalID
 	}
 	return fmt.Sprintf("resume-%d", index+1)
 }

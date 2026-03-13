@@ -1,0 +1,289 @@
+import ExcelJS from "exceljs";
+import Papa from "papaparse";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createApp } from "../app";
+import { ResumeService } from "../services/resume-service";
+
+import type { ResumeItem } from "../types/resume";
+
+type ConvexCall = {
+  pathName: string;
+  args: Record<string, unknown>;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+  const requestUrl = typeof input === "string"
+    ? input
+    : input instanceof URL
+      ? input.toString()
+      : input.url;
+
+  if (!requestUrl.includes("/api/query")) {
+    throw new Error(`Unexpected request URL: ${requestUrl}`);
+  }
+
+  const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+  if (!isRecord(body)) {
+    throw new Error("Missing convex request body");
+  }
+
+  const pathName = typeof body.path === "string" ? body.path : "";
+  const args = isRecord(body.args) ? body.args : {};
+  if (!pathName) {
+    throw new Error("Missing convex path in request body");
+  }
+
+  return { pathName, args };
+}
+
+function convexSuccess(value: unknown): Response {
+  return new Response(
+    JSON.stringify({
+      status: "success",
+      value,
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+}
+
+function buildSampleResume(overrides: Partial<ResumeItem> & { resumeId: string; name: string }): ResumeItem {
+  return {
+    resumeId: overrides.resumeId,
+    name: overrides.name,
+    profileUrl: overrides.profileUrl ?? `https://example.com/${overrides.resumeId}`,
+    activityStatus: overrides.activityStatus ?? "Active",
+    age: overrides.age ?? "30",
+    experience: overrides.experience ?? "5 years",
+    education: overrides.education ?? "Bachelor",
+    location: overrides.location ?? "Dongguan",
+    selfIntro: overrides.selfIntro ?? "Test intro",
+    jobIntention: overrides.jobIntention ?? "Sales Engineer",
+    expectedSalary: overrides.expectedSalary ?? "10k-20k",
+    workHistory: overrides.workHistory ?? [{ raw: "Test work history" }],
+    extractedAt: overrides.extractedAt ?? "2026-03-01T00:00:00.000Z",
+    perUserId: overrides.perUserId,
+    profileId: overrides.profileId,
+    profileType: overrides.profileType,
+    externalId: overrides.externalId,
+    profileEducation: overrides.profileEducation,
+    skills: overrides.skills,
+    languages: overrides.languages,
+    licences: overrides.licences,
+    resumeSnippet: overrides.resumeSnippet,
+    currentIndustry: overrides.currentIndustry,
+    currentSubindustry: overrides.currentSubindustry,
+    rightToWork: overrides.rightToWork,
+    digitalIdentity: overrides.digitalIdentity,
+    noticePeriodDays: overrides.noticePeriodDays,
+  };
+}
+
+describe("resume export route", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("exports sample-backed requests by resumeId and preserves request order", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [
+        buildSampleResume({ resumeId: "resume-a", name: "Alice" }),
+        buildSampleResume({ resumeId: "resume-b", name: "Bob" }),
+      ],
+      sample: {
+        name: "sample-test",
+        filename: "sample-test.json",
+        updatedAt: "2026-03-01T00:00:00.000Z",
+        size: 1,
+      },
+      metadata: undefined,
+      indexes: new Map(),
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/export", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        format: "csv",
+        source: "sample",
+        sample: "sample-test",
+        entries: [
+          { resumeId: "resume-b", status: "contacted", userComment: "Call Bob" },
+          { resumeId: "resume-a", status: "new" },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
+    expect(parsed.data[0]?.resumeId).toBe("resume-b");
+    expect(parsed.data[0]?.name).toBe("Bob");
+    expect(parsed.data[0]?.userComment).toBe("Call Bob");
+    expect(parsed.data[1]?.resumeId).toBe("resume-a");
+    expect(parsed.data[1]?.name).toBe("Alice");
+  });
+
+  it("exports convex-backed requests via server-side Convex resolution", async () => {
+    const calls: ConvexCall[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "resumes:getByIdsForExport") {
+        return convexSuccess([
+          {
+            resumeId: "convex-a",
+            resume: {
+              name: "Alice",
+              age: "30",
+              experience: "5 years",
+              education: "Bachelor",
+              location: "Dongguan",
+              jobIntention: "Sales",
+              expectedSalary: "10k-20k",
+              selfIntro: "Intro A",
+              profileUrl: "https://example.com/a",
+              source: "seek",
+              workHistory: [{ raw: "Alice history" }],
+            },
+          },
+          {
+            resumeId: "convex-b",
+            resume: {
+              name: "Bob",
+              age: "32",
+              experience: "6 years",
+              education: "Bachelor",
+              location: "Shenzhen",
+              jobIntention: "Sales",
+              expectedSalary: "12k-24k",
+              selfIntro: "Intro B",
+              profileUrl: "https://example.com/b",
+              source: "seek",
+              workHistory: [{ raw: "Bob history" }],
+            },
+          },
+        ]);
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/export", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        format: "xlsx",
+        source: "convex",
+        entries: [
+          { resumeId: "convex-b", status: "contacted" },
+          { resumeId: "convex-a", status: "new" },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      pathName: "resumes:getByIdsForExport",
+      args: {
+        resumeIds: ["convex-b", "convex-a"],
+      },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
+    const sheet = workbook.getWorksheet("Resumes");
+    expect(sheet?.getCell("A2").value).toBe("convex-b");
+    expect(sheet?.getCell("B2").value).toBe("Bob");
+    expect(sheet?.getCell("A3").value).toBe("convex-a");
+    expect(sheet?.getCell("B3").value).toBe("Alice");
+  });
+
+  it("returns a clear 404 when any requested resume cannot be resolved", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [buildSampleResume({ resumeId: "resume-a", name: "Alice" })],
+      sample: {
+        name: "sample-test",
+        filename: "sample-test.json",
+        updatedAt: "2026-03-01T00:00:00.000Z",
+        size: 1,
+      },
+      metadata: undefined,
+      indexes: new Map(),
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/export", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        format: "csv",
+        source: "sample",
+        sample: "sample-test",
+        entries: [
+          { resumeId: "resume-a" },
+          { resumeId: "missing-resume" },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({
+      success: false,
+      error: "Unable to resolve resumes for export: missing-resume",
+    });
+  });
+
+  it("keeps legacy embedded-resume payloads working during migration", async () => {
+    const app = createApp();
+    const response = await app.request("/api/resumes/export", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        format: "csv",
+        entries: [
+          {
+            key: "legacy-1",
+            status: "new",
+            resume: {
+              name: "Legacy Alice",
+              age: "29",
+              experience: "4 years",
+              education: "Bachelor",
+              location: "Dongguan",
+              jobIntention: "Sales",
+              expectedSalary: "10k-15k",
+              selfIntro: "Legacy intro",
+              profileUrl: "https://example.com/legacy-1",
+              source: "seek",
+              workHistory: [{ raw: "Legacy history" }],
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
+    expect(parsed.data[0]?.resumeId).toBe("legacy-1");
+    expect(parsed.data[0]?.name).toBe("Legacy Alice");
+  });
+});

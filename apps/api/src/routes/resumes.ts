@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { randomUUID } from "node:crypto";
 import {
@@ -10,6 +8,11 @@ import {
   ResumeSamplesResponseSchema,
   ResumeImportRequestSchema,
   ResumeSubmitSummarySchema,
+  ResumeExportBinaryResponseSchema,
+  ResumeExportCanonicalRequestSchema,
+  ResumeExportLegacyRequestSchema,
+  ResumeExportLegacyResumeSchema,
+  ResumeExportRequestSchema,
   MatchRequestSchema,
   MatchResponseSchema,
   ResumeMatchesResponseSchema,
@@ -20,6 +23,7 @@ import {
 import { config } from "../services/config.js";
 import { ResumeService, parseExperienceYears } from "../services/resume-service.js";
 import { DataNotFoundError } from "../services/errors.js";
+import { resolveConvexUrl } from "../services/resume-import-service.js";
 import { AIMatchingService, type MatchingRequest, type MatchingResult } from "../services/ai-matching.js";
 import {
   MatchStorage,
@@ -96,88 +100,16 @@ const LearningFeedbackRequestSchema = z.object({
 const TriggerReingestRequestSchema = z.object({
   limit: z.number().int().min(1).max(1000).optional(),
 });
-const ResumeExportRequestSchema = z.object({
-  format: z.enum(["csv", "xlsx"]).default("csv"),
-  userComment: z.string().optional(),
-  referenceNote: z.string().optional(),
-  entries: z
-    .array(
-      z.object({
-        key: z.string().min(1),
-        ruleScore: z.number().optional(),
-        action: z.string().optional(),
-        match: z
-          .object({
-            score: z.number(),
-            recommendation: z.string(),
-            scoreSource: z.enum(["rule", "ai"]).optional(),
-            summary: z.string().optional(),
-          })
-          .optional(),
-        resume: z.object({
-          name: z.string().optional(),
-          jobIntention: z.string().optional(),
-          location: z.string().optional(),
-          age: z.string().optional(),
-          experience: z.string().optional(),
-          education: z.string().optional(),
-          expectedSalary: z.string().optional(),
-          profileUrl: z.string().optional(),
-          source: z.string().optional(),
-          selfIntro: z.string().optional(),
-          workHistory: z
-            .array(
-              z.object({
-                raw: z.string().optional(),
-                companyName: z.string().optional(),
-                jobTitle: z.string().optional(),
-                description: z.string().optional(),
-                startDate: z.string().optional(),
-                endDate: z.string().optional(),
-              })
-            )
-            .optional(),
-          ingestData: z
-            .object({
-              industryTags: z.array(z.string()).optional(),
-              companyHits: z.array(z.string()).optional(),
-              roleSignals: z.array(
-                z.object({
-                  type: z.string(),
-                  matchedSignals: z.array(z.string()),
-                  signalCount: z.number(),
-                  occurrences: z.number(),
-                  years: z.number(),
-                  industryVerifiedYears: z.number().optional(),
-                  roleRelevantYears: z.number().optional(),
-                  industryVerifiedRelevantYears: z.number().optional(),
-                  matchedWorkEntries: z.array(
-                    z.object({
-                      companyName: z.string().optional(),
-                      jobTitle: z.string().optional(),
-                      years: z.number(),
-                      industryVerified: z.boolean(),
-                      matchedSignals: z.array(z.string()),
-                    })
-                  ).optional(),
-                  verifyIn: z.string(),
-                })
-              ).optional(),
-            })
-            .optional(),
-        }),
-        userComment: z.string().optional(),
-        referenceNote: z.string().optional(),
-        status: z.string().optional(),
-      })
-    )
-    .min(1)
-    .max(2000),
-});
 const ResumeImportErrorSchema = z.object({
   success: z.literal(false),
   error: z.string(),
 });
+
+type ResumeExportCanonicalRequest = z.infer<typeof ResumeExportCanonicalRequestSchema>;
+type ResumeExportRequest = z.infer<typeof ResumeExportRequestSchema>;
+type ResumeExportEntryContext = ResumeExportCanonicalRequest["entries"][number];
+type ExportResumePayload = ResumeExportEntry["resume"];
+type ResumeExportEntryFields = Omit<ResumeExportEntry, "key" | "resume">;
 
 function stripFrontMatter(content: string): string {
   const lines = content.split("\n");
@@ -260,63 +192,175 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function readEnvVarFromFile(filePath: string, key: string): string | null {
-  if (!fs.existsSync(filePath)) {
-    return null;
+async function callConvexQuery(pathName: string, args: Record<string, unknown>): Promise<unknown> {
+  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
+  const response = await fetch(`${convexUrl}/api/query`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      path: pathName,
+      args,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Convex query failed (${response.status}): ${text}`);
   }
 
-  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
+  const payload = await response.json() as {
+    status?: string;
+    value?: unknown;
+    errorMessage?: string;
+  };
 
-    const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!match || match[1] !== key) {
-      continue;
-    }
-
-    let value = match[2].trim();
-    const hasDoubleQuotes = value.startsWith("\"") && value.endsWith("\"");
-    const hasSingleQuotes = value.startsWith("'") && value.endsWith("'");
-    if (hasDoubleQuotes || hasSingleQuotes) {
-      value = value.slice(1, -1);
-    }
-
-    return value;
+  if (payload.status !== "success") {
+    throw new Error(payload.errorMessage || `Convex query failed for ${pathName}`);
   }
 
-  return null;
+  return payload.value;
 }
 
-function resolveConvexUrl(): string {
-  if (process.env.CONVEX_URL) {
-    return process.env.CONVEX_URL;
-  }
-  if (process.env.VITE_CONVEX_URL) {
-    return process.env.VITE_CONVEX_URL;
+function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
+  return {
+    name: resume.name,
+    jobIntention: resume.jobIntention,
+    location: resume.location,
+    age: resume.age,
+    experience: resume.experience,
+    education: resume.education,
+    expectedSalary: resume.expectedSalary,
+    profileUrl: resume.profileUrl,
+    source: undefined,
+    selfIntro: resume.selfIntro,
+    workHistory: resume.workHistory,
+  };
+}
+
+function toExportEntryFields(entry: ResumeExportEntryContext): ResumeExportEntryFields {
+  return {
+    match: entry.match,
+    action: entry.action,
+    status: entry.status,
+    ruleScore: entry.ruleScore,
+    userComment: entry.userComment,
+    referenceNote: entry.referenceNote,
+  };
+}
+
+function toExportEntry(key: string, resume: ExportResumePayload, fields: ResumeExportEntryFields): ResumeExportEntry {
+  return {
+    key,
+    resume,
+    ...fields,
+  };
+}
+
+async function resolveConvexExportResumeMap(
+  entries: ResumeExportEntryContext[]
+): Promise<Map<string, ExportResumePayload>> {
+  const resumeIds = Array.from(new Set(entries.map((entry) => entry.resumeId.trim()).filter(Boolean)));
+  if (resumeIds.length === 0) {
+    return new Map();
   }
 
-  const candidateFiles = [
-    path.join(config.projectRoot, "packages", "convex", ".env.local"),
-    path.join(config.projectRoot, "apps", "web", ".env.local"),
-    path.join(config.projectRoot, ".env.local"),
-    path.join(config.projectRoot, ".env"),
-  ];
+  const value = await callConvexQuery("resumes:getByIdsForExport", { resumeIds });
+  if (!Array.isArray(value)) {
+    throw new Error("Invalid export resume response from Convex");
+  }
 
-  for (const filePath of candidateFiles) {
-    const direct = readEnvVarFromFile(filePath, "CONVEX_URL");
-    if (direct) {
-      return direct;
+  const resolved = new Map<string, ExportResumePayload>();
+  value.forEach((item) => {
+    if (!isRecord(item) || typeof item.resumeId !== "string" || item.resumeId.length === 0) {
+      return;
     }
-    const vite = readEnvVarFromFile(filePath, "VITE_CONVEX_URL");
-    if (vite) {
-      return vite;
+    const resumeId = item.resumeId;
+    const parsedResume = ResumeExportLegacyResumeSchema.safeParse(item.resume);
+    if (!parsedResume.success) {
+      return;
     }
+    resolved.set(resumeId, parsedResume.data);
+  });
+
+  return resolved;
+}
+
+function resolveSampleExportResumeMap(
+  sampleName: string,
+  entries: ResumeExportEntryContext[]
+): Map<string, ExportResumePayload> {
+  const { items } = resumeService.loadSample(sampleName);
+  const requestedIds = new Set(entries.map((entry) => entry.resumeId.trim()).filter(Boolean));
+  const resolved = new Map<string, ExportResumePayload>();
+
+  items.forEach((resume, index) => {
+    const resumeId = resolveResumeId(resume, index);
+    if (!requestedIds.has(resumeId)) {
+      return;
+    }
+    resolved.set(resumeId, toExportResumePayload(resume));
+  });
+
+  return resolved;
+}
+
+function buildExportEntriesFromResolvedResumes(
+  entries: ResumeExportEntryContext[],
+  resolvedResumes: Map<string, ExportResumePayload>
+): ResumeExportEntry[] {
+  const missingIds: string[] = [];
+  const resolvedEntries = entries.flatMap((entry) => {
+    const resume = resolvedResumes.get(entry.resumeId);
+    if (!resume) {
+      missingIds.push(entry.resumeId);
+      return [];
+    }
+
+    return [toExportEntry(entry.resumeId, resume, toExportEntryFields(entry))];
+  });
+
+  if (missingIds.length > 0) {
+    throw new DataNotFoundError(`Unable to resolve resumes for export: ${missingIds.join(", ")}`);
   }
 
-  return "http://127.0.0.1:3210";
+  return resolvedEntries;
+}
+
+function isCanonicalExportRequest(
+  value: ResumeExportRequest
+): value is ResumeExportCanonicalRequest {
+  return "source" in value;
+}
+
+async function resolveExportRequest(
+  request: ResumeExportRequest
+): Promise<{ format: ExportFormat; entries: ResumeExportEntry[]; batchMeta: ExportBatchMeta }> {
+  if (!isCanonicalExportRequest(request)) {
+    return {
+      format: request.format,
+      entries: request.entries.map((entry) => toExportEntry(entry.key, entry.resume, toExportEntryFields(entry))),
+      batchMeta: {
+        userComment: request.userComment,
+        referenceNote: request.referenceNote,
+      },
+    };
+  }
+
+  const resolvedResumes = request.source === "sample"
+    ? resolveSampleExportResumeMap(request.sample ?? "", request.entries)
+    : await resolveConvexExportResumeMap(request.entries);
+
+  return {
+    format: request.format,
+    entries: buildExportEntriesFromResolvedResumes(request.entries, resolvedResumes),
+    batchMeta: {
+      userComment: request.userComment,
+      referenceNote: request.referenceNote,
+    },
+  };
 }
 
 async function triggerReingestStaleSkillsVersion(limit: number): Promise<{
@@ -1611,6 +1655,45 @@ app.openapi(clearResumeMatchesRoute, (c) => {
   }, 200);
 });
 
+const exportResumesRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/export",
+  tags: ["resumes"],
+  summary: "Export resumes as CSV or XLSX",
+  description: "Exports selected resumes using a canonical resumeId-based request or the legacy embedded-resume payload.",
+  request: {
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: ResumeExportRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "text/csv": {
+          schema: ResumeExportBinaryResponseSchema,
+        },
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+          schema: ResumeExportBinaryResponseSchema,
+        },
+      },
+      description: "Exported CSV or XLSX file",
+    },
+    404: {
+      content: { "application/json": { schema: SimpleErrorSchema } },
+      description: "Sample or selected resumes could not be resolved",
+    },
+    500: {
+      content: { "application/json": { schema: SimpleErrorSchema } },
+      description: "Export failed",
+    },
+  },
+});
+
 const rescoreResumeMatchesRoute = createRoute({
   method: "post",
   path: "/api/resumes/matches/rescore",
@@ -1786,21 +1869,11 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
   );
 });
 
-app.post("/api/resumes/export", async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = ResumeExportRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ success: false, error: "Invalid request body" }, 400);
-  }
-
-  const format: ExportFormat = parsed.data.format;
-  const entries: ResumeExportEntry[] = parsed.data.entries;
-  const batchMeta: ExportBatchMeta = {
-    userComment: parsed.data.userComment,
-    referenceNote: parsed.data.referenceNote,
-  };
+app.openapi(exportResumesRoute, async (c) => {
+  const request = c.req.valid("json");
 
   try {
+    const { format, entries, batchMeta } = await resolveExportRequest(request);
     const file = await exportService.exportResumes(format, entries, batchMeta);
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `resumes-export-${timestamp}.${file.extension}`;
@@ -1815,6 +1888,9 @@ app.post("/api/resumes/export", async (c) => {
       },
     });
   } catch (error) {
+    if (error instanceof DataNotFoundError) {
+      return c.json({ success: false, error: error.message }, 404);
+    }
     console.error("Failed to export resumes:", error);
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);

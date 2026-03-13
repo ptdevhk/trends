@@ -18,6 +18,7 @@ import {
   type ExperienceLevelFilter,
 } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
+import type { components } from '@/lib/api-types'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import {
   aiFeedbackToActionType,
@@ -47,6 +48,8 @@ type JobDescriptionApiResponse = {
   }
   content?: string
 }
+
+type ResumeExportRequestBody = components['schemas']['ResumeExportCanonicalRequest']
 
 type ScoredConvexResume = ConvexResumeItem & {
   _ruleScore: number
@@ -1167,9 +1170,13 @@ export function useResumeListState(loadSearchHistory = false) {
       }
 
       if (action === 'export') {
-        const exportEntries = selectedEntries.map(({ key, resume, match, action: currentAction, ruleScore, status, statusMeta }) => ({
-          key,
-          resume,
+        if (mode !== 'ai' && !selectedSample) {
+          toast.error(t('bulk.exportFailed', { defaultValue: 'Export failed: sample context is missing. Please refresh and try again.' }))
+          return
+        }
+
+        const exportEntries = selectedEntries.map(({ key, match, action: currentAction, ruleScore, status, statusMeta }) => ({
+          resumeId: key,
           match,
           action: currentAction,
           status,
@@ -1177,6 +1184,12 @@ export function useResumeListState(loadSearchHistory = false) {
           userComment: normalizeOptionalString(statusMeta?.notes),
         }))
         const exportFormat = format ?? bulkExportFormat
+        const exportRequest: ResumeExportRequestBody = {
+          format: exportFormat,
+          source: mode === 'ai' ? 'convex' : 'sample',
+          entries: exportEntries,
+          ...(mode === 'ai' ? {} : { sample: selectedSample }),
+        }
 
         try {
           const response = await fetch(`${apiBaseUrl}/api/resumes/export`, {
@@ -1184,10 +1197,7 @@ export function useResumeListState(loadSearchHistory = false) {
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              format: exportFormat,
-              entries: exportEntries,
-            }),
+            body: JSON.stringify(exportRequest),
           })
 
           if (!response.ok) {
@@ -1226,7 +1236,10 @@ export function useResumeListState(loadSearchHistory = false) {
           return
         } catch (error) {
           console.error('Export failed', error)
-          toast.error(t('bulk.exportFailed', { defaultValue: 'Export failed. Please try again.' }))
+          const message = error instanceof Error && error.message.trim().length > 0
+            ? error.message
+            : t('bulk.exportFailed', { defaultValue: 'Export failed. Please try again.' })
+          toast.error(message)
           return
         }
       }
@@ -1250,7 +1263,7 @@ export function useResumeListState(loadSearchHistory = false) {
         toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))
       }
     },
-    [apiBaseUrl, blockCandidates, bulkExportFormat, displayedResumes, saveAction, selectedIds, sendLearningFeedback, t]
+    [apiBaseUrl, blockCandidates, bulkExportFormat, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t]
   )
 
   const actionFeedbackLabels = useMemo<Partial<Record<CandidateActionType, string>>>(

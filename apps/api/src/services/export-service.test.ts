@@ -196,4 +196,35 @@ describe("ExportService", () => {
     expect(parsed.data[0]?.matchedWorkEntries).toContain("sales · Example Co. · Sales Engineer");
     expect(parsed.data[0]?.matchedWorkEntries).toContain("verified");
   });
+
+  it("keeps CSV and XLSX headers aligned", async () => {
+    const service = new ExportService();
+    const csvFile = await service.exportResumes("csv", [buildEntry("27")]);
+    const xlsxFile = await service.exportResumes("xlsx", [buildEntry("27")]);
+    const csvParsed = Papa.parse<Record<string, string>>(csvFile.content.toString("utf8"), { header: true });
+    const csvHeaders = csvParsed.meta.fields ?? [];
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(xlsxFile.content);
+    const sheet = workbook.getWorksheet("Resumes");
+    const xlsxHeaders = ((sheet?.getRow(1).values as unknown[]) ?? [])
+      .filter((value): value is string => typeof value === "string");
+
+    const normalizedCsvHeaders = csvHeaders.map((header) =>
+      header
+        .replace(/([A-Z]+)/g, " $1")
+        .trim()
+        .split(/\s+/)
+        .map((part) => {
+          const lower = part.toLowerCase();
+          if (lower === "id") return "ID";
+          if (lower === "ai") return "AI";
+          if (lower === "url") return "URL";
+          return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+        })
+        .join(" ")
+    );
+
+    expect(xlsxHeaders).toEqual(normalizedCsvHeaders);
+  });
 });

@@ -744,6 +744,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export resumes as CSV or XLSX
+         * @description Exports selected resumes using a canonical resumeId-based request or the legacy embedded-resume payload.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResumeExportRequest"];
+                };
+            };
+            responses: {
+                /** @description Exported CSV or XLSX file */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    };
+                };
+                /** @description Sample or selected resumes could not be resolved */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Export failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/verify-token": {
         parameters: {
             query?: never;
@@ -4230,6 +4300,116 @@ export interface components {
             resumes?: components["schemas"]["ResumeImportItem"][];
             data?: components["schemas"]["ResumeImportItem"][];
         };
+        /** @enum {string} */
+        ResumeExportSource: "sample" | "convex";
+        ResumeExportMatch: {
+            /** @example 88 */
+            score: number;
+            /**
+             * @example strong_match
+             * @enum {string}
+             */
+            recommendation: "strong_match" | "match" | "potential" | "no_match";
+            /**
+             * @example ai
+             * @enum {string}
+             */
+            scoreSource?: "rule" | "ai";
+            /** @example Strong CNC sales fit. */
+            summary?: string;
+        };
+        ResumeExportEntryContext: {
+            /** @example resume-1 */
+            resumeId: string;
+            /** @example 72 */
+            ruleScore?: number;
+            /** @example shortlist */
+            action?: string;
+            match?: components["schemas"]["ResumeExportMatch"];
+            /** @example Call back tomorrow */
+            userComment?: string;
+            /** @example Referred by HR */
+            referenceNote?: string;
+            /** @example contacted */
+            status?: string;
+        };
+        ResumeExportCanonicalRequest: {
+            /**
+             * @default csv
+             * @example csv
+             * @enum {string}
+             */
+            format: "csv" | "xlsx";
+            source: components["schemas"]["ResumeExportSource"];
+            /** @example sample-initial */
+            sample?: string;
+            /** @example Batch note */
+            userComment?: string;
+            /** @example Internal export */
+            referenceNote?: string;
+            entries: components["schemas"]["ResumeExportEntryContext"][];
+        };
+        ResumeExportLegacyRequest: {
+            /**
+             * @default csv
+             * @enum {string}
+             */
+            format: "csv" | "xlsx";
+            userComment?: string;
+            referenceNote?: string;
+            entries: {
+                key: string;
+                ruleScore?: number;
+                action?: string;
+                match?: components["schemas"]["ResumeExportMatch"];
+                resume: {
+                    name?: string;
+                    jobIntention?: string;
+                    location?: string;
+                    age?: string;
+                    experience?: string;
+                    education?: string;
+                    expectedSalary?: string;
+                    profileUrl?: string;
+                    source?: string;
+                    selfIntro?: string;
+                    workHistory?: {
+                        raw?: string;
+                        companyName?: string;
+                        jobTitle?: string;
+                        description?: string;
+                        startDate?: string;
+                        endDate?: string;
+                    }[];
+                    ingestData?: {
+                        industryTags?: string[];
+                        companyHits?: string[];
+                        roleSignals?: {
+                            type: string;
+                            matchedSignals: string[];
+                            signalCount?: number;
+                            occurrences?: number;
+                            years: number;
+                            industryVerifiedYears?: number;
+                            roleRelevantYears?: number;
+                            industryVerifiedRelevantYears?: number;
+                            matchedWorkEntries?: {
+                                companyName?: string;
+                                jobTitle?: string;
+                                years: number;
+                                industryVerified: boolean;
+                                matchedSignals: string[];
+                            }[];
+                            verifyIn?: string;
+                        }[];
+                    };
+                };
+                userComment?: string;
+                referenceNote?: string;
+                status?: string;
+            }[];
+        };
+        ResumeExportRequest: components["schemas"]["ResumeExportCanonicalRequest"] | components["schemas"]["ResumeExportLegacyRequest"];
         ResumeFilters: {
             minExperience?: number;
             maxExperience?: number;
