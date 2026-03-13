@@ -18,6 +18,10 @@ import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { UnifiedSearchService, type UnifiedKeywordExpansion } from "./unified-search-service.js";
 
 import type {
+  ResumeIngestBrandHit,
+  ResumeIngestData,
+  ResumeIngestMatchedWorkEntry,
+  ResumeIngestRoleSignal,
   ResumeDigitalIdentity,
   ResumeIndustry,
   ResumeItem,
@@ -63,6 +67,152 @@ function toStringValue(value: unknown): string {
   if (typeof value === "string") return value.trim();
   if (value === null || value === undefined) return "";
   return String(value);
+}
+
+function toOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return undefined;
+
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => toStringValue(item)).filter(Boolean);
+}
+
+function normalizeIngestBrandHits(value: unknown): ResumeIngestBrandHit[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const brandHits = value
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const brand = toStringValue(item.brand);
+      const role = toStringValue(item.role);
+      const source = toStringValue(item.source);
+      const context = toStringValue(item.context);
+      const companyId = toOptionalNumber(item.companyId);
+
+      if (!brand || !role || !source || !context) {
+        return null;
+      }
+
+      return {
+        brand,
+        role,
+        source,
+        context,
+        ...(companyId === undefined ? {} : { companyId }),
+      } satisfies ResumeIngestBrandHit;
+    })
+    .filter((item): item is ResumeIngestBrandHit => item !== null);
+
+  return brandHits.length > 0 ? brandHits : undefined;
+}
+
+function normalizeMatchedWorkEntries(value: unknown): ResumeIngestMatchedWorkEntry[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const matchedWorkEntries = value
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const years = toOptionalNumber(item.years);
+      if (years === undefined) {
+        return null;
+      }
+
+      const companyName = toStringValue(item.companyName) || undefined;
+      const jobTitle = toStringValue(item.jobTitle) || undefined;
+
+      return {
+        ...(companyName ? { companyName } : {}),
+        ...(jobTitle ? { jobTitle } : {}),
+        years,
+        industryVerified: item.industryVerified === true,
+        matchedSignals: toStringArray(item.matchedSignals),
+      } satisfies ResumeIngestMatchedWorkEntry;
+    })
+    .filter((item): item is ResumeIngestMatchedWorkEntry => item !== null);
+
+  return matchedWorkEntries.length > 0 ? matchedWorkEntries : undefined;
+}
+
+function normalizeRoleSignals(value: unknown): ResumeIngestRoleSignal[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const roleSignals = value
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const type = toStringValue(item.type);
+      const years = toOptionalNumber(item.years);
+      if (!type || years === undefined) {
+        return null;
+      }
+
+      const industryVerifiedYears = toOptionalNumber(item.industryVerifiedYears);
+      const roleRelevantYears = toOptionalNumber(item.roleRelevantYears);
+      const industryVerifiedRelevantYears = toOptionalNumber(item.industryVerifiedRelevantYears);
+      const matchedWorkEntries = normalizeMatchedWorkEntries(item.matchedWorkEntries);
+
+      return {
+        type,
+        matchedSignals: toStringArray(item.matchedSignals),
+        years,
+        ...(industryVerifiedYears === undefined ? {} : { industryVerifiedYears }),
+        ...(roleRelevantYears === undefined ? {} : { roleRelevantYears }),
+        ...(industryVerifiedRelevantYears === undefined ? {} : { industryVerifiedRelevantYears }),
+        ...(matchedWorkEntries ? { matchedWorkEntries } : {}),
+      } satisfies ResumeIngestRoleSignal;
+    })
+    .filter((item): item is ResumeIngestRoleSignal => item !== null);
+
+  return roleSignals.length > 0 ? roleSignals : undefined;
+}
+
+function normalizeIngestData(value: unknown): ResumeIngestData | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const industryTags = toStringArray(value.industryTags);
+  const brandHits = normalizeIngestBrandHits(value.brandHits);
+  const companyHits = toStringArray(value.companyHits);
+  const roleSignals = normalizeRoleSignals(value.roleSignals);
+
+  if (
+    industryTags.length === 0
+    && brandHits === undefined
+    && companyHits.length === 0
+    && roleSignals === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(industryTags.length > 0 ? { industryTags } : {}),
+    ...(brandHits ? { brandHits } : {}),
+    ...(companyHits.length > 0 ? { companyHits } : {}),
+    ...(roleSignals ? { roleSignals } : {}),
+  };
 }
 
 function countOccurrences(haystack: string, needle: string): number {
@@ -143,6 +293,7 @@ function normalizeResumeItem(item: unknown, source?: string): ResumeItem {
     selfIntro: toStringValue(record.selfIntro),
     jobIntention: toStringValue(record.jobIntention),
     expectedSalary: toStringValue(record.expectedSalary),
+    ingestData: normalizeIngestData(record.ingestData),
     extractedAt: toStringValue(record.extractedAt),
     ...normalizeSharedResumeFields(record, source),
     resumeId: resumeId || undefined,

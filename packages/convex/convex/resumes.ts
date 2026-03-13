@@ -614,6 +614,7 @@ export const getByIdsForExport = query({
                         workHistory: Array.isArray(content.workHistory) ? content.workHistory : undefined,
                         ingestData: doc.ingestData ? {
                             industryTags: doc.ingestData.industryTags,
+                            brandHits: doc.ingestData.brandHits,
                             companyHits: doc.ingestData.companyHits,
                             roleSignals: doc.ingestData.roleSignals,
                         } : undefined,

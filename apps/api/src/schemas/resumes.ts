@@ -572,6 +572,14 @@ const ResumeExportLegacyRoleSignalSchema = z.object({
   verifyIn: z.string().optional(),
 });
 
+const ResumeExportLegacyBrandHitSchema = z.object({
+  brand: z.string(),
+  role: z.string(),
+  source: z.string(),
+  context: z.string(),
+  companyId: z.number().optional(),
+});
+
 export const ResumeExportLegacyResumeSchema = z.object({
   name: z.string().optional(),
   jobIntention: z.string().optional(),
@@ -587,6 +595,7 @@ export const ResumeExportLegacyResumeSchema = z.object({
   ingestData: z
     .object({
       industryTags: z.array(z.string()).optional(),
+      brandHits: z.array(ResumeExportLegacyBrandHitSchema).optional(),
       companyHits: z.array(z.string()).optional(),
       roleSignals: z.array(ResumeExportLegacyRoleSignalSchema).optional(),
     })
