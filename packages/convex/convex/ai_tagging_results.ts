@@ -5,15 +5,12 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+import type { ChatMessage } from "./analyze";
+import { resolveChatCompletionModel } from "./lib/ai_model";
 import { resolveAiTaggingParallelism } from "./lib/parallelism";
 
 type RoleFit = "sales_verified" | "sales_unverified" | "operator_only";
 type Recommendation = "strong_match" | "match" | "potential" | "no_match";
-type ChatMessage = {
-  role: "system" | "user";
-  content: string;
-};
-
 type TaggingResult = {
   roleFit: RoleFit;
   recommendation: Recommendation;
@@ -307,14 +304,17 @@ async function callTaggingLlm(input: {
     throw new Error("AI_API_KEY/OPENAI_API_KEY is not set in Convex environment variables.");
   }
 
-  const response = await fetch(`${resolveAiApiBase()}/chat/completions`, {
+  const apiBase = resolveAiApiBase();
+  const model = resolveChatCompletionModel(apiBase, input.model);
+
+  const response = await fetch(`${apiBase}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: input.model,
+      model,
       messages: input.messages,
       temperature: resolveAiTaggingTemperature(),
       response_format: { type: "json_object" },
