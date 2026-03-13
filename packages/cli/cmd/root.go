@@ -61,6 +61,7 @@ func init() {
 		newCrawlCmd(),
 		newResumeCmd(),
 		newJDCmd(),
+		newSystemCmd(),
 		newWorkerCmd(),
 		newMigrateCmd(),
 		newMCPCmd(),
@@ -98,9 +99,13 @@ func currentOptions() RootOptions {
 	}
 }
 
-func newAPIClient() *client.Client {
+var apiClientFactory = func() *client.Client {
 	options := currentOptions()
 	return client.New(options.APIURL, options.WorkerURL)
+}
+
+func newAPIClient() *client.Client {
+	return apiClientFactory()
 }
 
 func normalizeBaseURL(value string) string {

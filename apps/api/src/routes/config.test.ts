@@ -115,6 +115,8 @@ describe('config route workspace access', () => {
         label: 'Resume AI prompts (active locale)',
         relativePath: 'config/resume/ai-prompts.md',
         type: 'markdown',
+        group: 'prompt',
+        audience: 'developer',
         readOnly: true,
         metadata: {
           version: 3,
@@ -142,6 +144,8 @@ describe('config route workspace access', () => {
           label: 'Resume AI prompts (active locale)',
           relativePath: 'config/resume/ai-prompts.md',
           type: 'markdown',
+          group: 'prompt',
+          audience: 'developer',
           readOnly: true,
           metadata: {
             version: 3,
@@ -154,12 +158,85 @@ describe('config route workspace access', () => {
     })
   })
 
+  it('loads grouped config source summaries', async () => {
+    const listGroupSpy = vi.spyOn(configSourceInspector, 'listSourceGroups').mockReturnValue([
+      {
+        key: 'prompt',
+        label: 'Prompt Sources',
+        description: 'Prompt and AI-inspection sources used by debug and screening flows.',
+        audience: 'developer',
+        sources: [
+          {
+            key: 'resume-ai-prompts-active',
+            label: 'Resume AI prompts (active locale)',
+            relativePath: 'config/resume/ai-prompts.md',
+            type: 'markdown',
+            group: 'prompt',
+            audience: 'developer',
+            readOnly: true,
+          },
+        ],
+      },
+    ])
+
+    const app = createTestApp()
+    const response = await app.request('/api/config/source-groups?locale=en', {
+      headers: {
+        'X-Workspace-Slug': 'hr',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    expect(listGroupSpy).toHaveBeenCalledWith('en')
+    expect(await response.json()).toEqual({
+      success: true,
+      groups: [
+        {
+          key: 'prompt',
+          label: 'Prompt Sources',
+          description: 'Prompt and AI-inspection sources used by debug and screening flows.',
+          audience: 'developer',
+          sources: [
+            {
+              key: 'resume-ai-prompts-active',
+              label: 'Resume AI prompts (active locale)',
+              relativePath: 'config/resume/ai-prompts.md',
+              type: 'markdown',
+              group: 'prompt',
+              audience: 'developer',
+              readOnly: true,
+            },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('loads system metadata payload', async () => {
+    const app = createTestApp()
+    const response = await app.request('/api/config/system-metadata', {
+      headers: {
+        'X-Workspace-Slug': 'hr',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    const payload = await response.json()
+    expect(payload.success).toBe(true)
+    expect(payload.metadata.identity.appName).toBe('Trends')
+    expect(payload.metadata.navigation.system.length).toBeGreaterThan(0)
+    expect(payload.metadata.labels.aiBreakdown.some((item: { key: string }) => item.key === 'industry_db')).toBe(true)
+    expect(payload.metadata.capabilities.some((item: { id: string }) => item.id === 'cli-system-inspect')).toBe(true)
+  })
+
   it('loads config source detail by key', async () => {
     const getSourceSpy = vi.spyOn(configSourceInspector, 'getSource').mockReturnValue({
       key: 'resume-skills',
       label: 'Resume skills taxonomy',
       relativePath: 'config/resume/skills.md',
       type: 'markdown',
+      group: 'config',
+      audience: 'developer',
       readOnly: true,
       rawSource: '## Skills\n- CNC',
       parsedPreview: {
@@ -183,6 +260,8 @@ describe('config route workspace access', () => {
         label: 'Resume skills taxonomy',
         relativePath: 'config/resume/skills.md',
         type: 'markdown',
+        group: 'config',
+        audience: 'developer',
         readOnly: true,
         rawSource: '## Skills\n- CNC',
         parsedPreview: {

@@ -1,4 +1,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  getLabelDescriptor,
+  INGEST_BRAND_CONTEXT_LABELS,
+  INGEST_BRAND_ROLE_LABELS,
+  INGEST_BRAND_SOURCE_LABELS,
+} from '@trends/shared'
 import { useAction, useMutation, usePaginatedQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useTranslation } from 'react-i18next'
@@ -77,8 +83,22 @@ function parseSkillsVersionPayload(value: unknown): number | null {
   return typeof value.version === 'number' ? value.version : null
 }
 
-function toBrandLabel(value: string): string {
-  return value.toUpperCase()
+function formatBrandHitLabel(
+  brand: string,
+  source: string,
+  context: string,
+  role: string,
+  translate: (key: string, options?: { defaultValue?: string }) => string,
+): string {
+  const sourceDescriptor = getLabelDescriptor(source, INGEST_BRAND_SOURCE_LABELS)
+  const contextDescriptor = getLabelDescriptor(context, INGEST_BRAND_CONTEXT_LABELS)
+  const roleDescriptor = getLabelDescriptor(role, INGEST_BRAND_ROLE_LABELS)
+
+  const sourceLabel = translate(sourceDescriptor?.labelKey ?? source, { defaultValue: sourceDescriptor?.defaultLabel ?? source })
+  const contextLabel = translate(contextDescriptor?.labelKey ?? context, { defaultValue: contextDescriptor?.defaultLabel ?? context })
+  const roleLabel = translate(roleDescriptor?.labelKey ?? role, { defaultValue: roleDescriptor?.defaultLabel ?? role })
+
+  return `${brand.toUpperCase()} (${sourceLabel} / ${contextLabel} / ${roleLabel})`
 }
 
 function formatTaggingEntry(entry: {
@@ -545,12 +565,7 @@ export default function DebugIngest() {
                                 <span className="font-medium">{t('debugIngest.brandHits', { defaultValue: 'Brand Hits' })}:</span>{' '}
                                 {ingestData.brandHits.length > 0
                                   ? ingestData.brandHits
-                                    .map((hit) => {
-                                      const sourceLabel = t(`debugIngest.brandSource.${hit.source}`, { defaultValue: hit.source })
-                                      const contextLabel = t(`debugIngest.brandContext.${hit.context}`, { defaultValue: hit.context })
-                                      const roleLabel = t(`debugIngest.brandRole.${hit.role}`, { defaultValue: hit.role })
-                                      return `${toBrandLabel(hit.brand)} (${sourceLabel} / ${contextLabel} / ${roleLabel})`
-                                    })
+                                    .map((hit) => formatBrandHitLabel(hit.brand, hit.source, hit.context, hit.role, t))
                                     .join('; ')
                                   : '--'}
                               </div>

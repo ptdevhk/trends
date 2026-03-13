@@ -1,15 +1,27 @@
+import { useMemo } from 'react'
+import {
+  APP_SURFACE_IDENTITY,
+  SETTINGS_NAV_ITEMS,
+  type SurfaceNavDefinition,
+} from '@trends/shared'
 import { Link, useLocation } from 'react-router-dom'
 import { Ban, Home, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useSystemMetadata } from '@/hooks/useSystemMetadata'
 import { cn } from '@/lib/utils'
 
-interface NavItem {
+type NavItem = SurfaceNavDefinition & {
   title: string
   href: string
   icon: React.ComponentType<{ className?: string }>
   matches: string[]
+}
+
+const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  home: Home,
+  blocks: Ban,
 }
 
 interface SettingsSidebarProps {
@@ -20,30 +32,29 @@ export function SettingsSidebar({ onClose }: SettingsSidebarProps) {
   const location = useLocation()
   const { slug } = useWorkspace()
   const { t } = useTranslation()
+  const identity = useSystemMetadata()
+  const appVersion = identity?.appVersion ?? 'unknown'
 
-  const navItems: NavItem[] = [
-    {
-      title: t('nav.home', { defaultValue: 'Home' }),
-      href: `/${slug}/resumes`,
-      icon: Home,
-      matches: [`/${slug}/resumes`],
-    },
-    {
-      title: t('settings.blocks.nav', { defaultValue: 'Blacklist' }),
-      href: `/${slug}/settings/blocks`,
-      icon: Ban,
-      matches: [`/${slug}/settings/blocks`],
-    },
-  ]
+  const navItems = useMemo<NavItem[]>(() => {
+    return SETTINGS_NAV_ITEMS.map((item) => ({
+      ...item,
+      title: t(item.titleKey, { defaultValue: item.defaultTitle }),
+      href: `/${slug}${item.hrefSuffix}`,
+      matches: item.matchesSuffixes.map((suffix) => `/${slug}${suffix}`),
+      icon: NAV_ICONS[item.id] ?? Home,
+    }))
+  }, [slug, t])
 
   return (
     <div className="flex flex-col h-full bg-muted/30">
       <div className="flex-1 overflow-y-auto py-4">
         <div className="px-5 mb-6 flex items-center justify-between">
           <Link to={`/${slug}/resumes`} className="flex items-center gap-2">
-            <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded font-medium">SETTINGS</span>
+            <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded font-medium">
+              {APP_SURFACE_IDENTITY.settingsBadgeLabel}
+            </span>
             <div className="flex items-baseline gap-1">
-              <span className="font-bold text-base truncate">App Title</span>
+              <span className="font-bold text-base truncate">{APP_SURFACE_IDENTITY.appName}</span>
             </div>
           </Link>
           {onClose && (
@@ -76,7 +87,7 @@ export function SettingsSidebar({ onClose }: SettingsSidebarProps) {
       </div>
       <div className="px-5 mt-auto pt-4">
         <div className="text-xs text-muted-foreground truncate">
-          v0.9.0 Workspace Settings
+          v{appVersion} {APP_SURFACE_IDENTITY.settingsTitle}
         </div>
       </div>
     </div>

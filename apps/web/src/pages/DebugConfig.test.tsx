@@ -127,32 +127,52 @@ describe('DebugConfig config sources', () => {
         }
       }
 
-      if (url.endsWith('/api/config/sources')) {
+      if (url.endsWith('/api/config/source-groups')) {
         return {
           ok: true,
           status: 200,
           json: async () => ({
             success: true,
-            sources: [
+            groups: [
               {
-                key: 'resume-ai-prompts-active',
-                label: 'Resume AI prompts (active locale)',
-                relativePath: 'config/resume/ai-prompts.md',
-                type: 'markdown',
-                readOnly: true,
-                metadata: {
-                  version: 4,
-                  requestedLocale: 'en',
-                  resolvedSourceLocale: 'zh-Hans',
-                  fallbackToZhHans: true,
-                },
+                key: 'prompt',
+                label: 'Prompt Sources',
+                description: 'Shared prompt definitions and locale-aware prompt assets.',
+                audience: 'developer',
+                sources: [
+                  {
+                    key: 'resume-ai-prompts-active',
+                    label: 'Resume AI prompts (active locale)',
+                    relativePath: 'config/resume/ai-prompts.md',
+                    type: 'markdown',
+                    group: 'prompt',
+                    audience: 'developer',
+                    readOnly: true,
+                    metadata: {
+                      version: 4,
+                      requestedLocale: 'en',
+                      resolvedSourceLocale: 'zh-Hans',
+                      fallbackToZhHans: true,
+                    },
+                  },
+                ],
               },
               {
-                key: 'resume-rule-weights',
-                label: 'Resume rule weights',
-                relativePath: 'config/resume/rule-weights.json5',
-                type: 'json5',
-                readOnly: true,
+                key: 'config',
+                label: 'Config Sources',
+                description: 'Runtime configuration and rules exposed to debug surfaces.',
+                audience: 'admin',
+                sources: [
+                  {
+                    key: 'resume-rule-weights',
+                    label: 'Resume rule weights',
+                    relativePath: 'config/resume/rule-weights.json5',
+                    type: 'json5',
+                    group: 'config',
+                    audience: 'admin',
+                    readOnly: true,
+                  },
+                ],
               },
             ],
           }),
@@ -170,6 +190,8 @@ describe('DebugConfig config sources', () => {
               label: 'Resume AI prompts (active locale)',
               relativePath: 'config/resume/ai-prompts.md',
               type: 'markdown',
+              group: 'prompt',
+              audience: 'developer',
               readOnly: true,
               metadata: {
                 version: 4,
@@ -206,6 +228,8 @@ describe('DebugConfig config sources', () => {
               label: 'Resume rule weights',
               relativePath: 'config/resume/rule-weights.json5',
               type: 'json5',
+              group: 'config',
+              audience: 'admin',
               readOnly: true,
               rawSource: '{ roleMatch: 50 }',
               parsedPreview: {
@@ -229,6 +253,8 @@ describe('DebugConfig config sources', () => {
       expect(screen.getByText('debugConfig.configSources')).toBeInTheDocument()
     })
 
+    expect(screen.getByText('Prompt Sources')).toBeInTheDocument()
+    expect(screen.getByText('Config Sources')).toBeInTheDocument()
     expect(screen.getAllByText('Resume AI prompts (active locale)').length).toBeGreaterThan(0)
     expect(screen.getAllByText('config/resume/ai-prompts.md').length).toBeGreaterThan(0)
     expect(screen.getAllByText('debugConfig.readOnly').length).toBeGreaterThan(0)

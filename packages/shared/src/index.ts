@@ -6,3 +6,4 @@ export * from "./work-history-evidence.js";
 export * from "./generated/resume-ai-prompts.js";
 export * from "./resume-normalization.js";
 export * from "./resume-id.js";
+export * from "./system-debug-metadata.js";

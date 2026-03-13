@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  DEBUG_AI_BREAKDOWN_LABELS,
+  DEBUG_AI_KEYWORD_PROMPT_VARIANT,
+  getResumeAiPromptDefinition,
+} from '@trends/shared'
 import { useQuery } from 'convex/react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -8,68 +13,11 @@ import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/PageHeader'
 
-const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密机械和机床行业的简历。
-你必须严格按照【纯数字 JSON】格式返回结果。
-1. 绝对不要包含 markdown 标记 (如 \`\`\`json ... \`\`\`)。
-2. 所有评分字段（score, breakdown.*）必须是【JSON Number 类型】，绝对禁止使用字符串或中文数字（如 "30", "三十", thirty）。
-3. 正确示例: "score": 85
-4. 错误示例: "score": "85", "score": "eighty-five"
-5. 如果无法确切评分，请基于现有信息估算一个数字。`
-
-const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
-
-## 职位信息
-**职位名称**: {jobTitle}
-**职位要求**:
-{requirements}
-
-## 评分规则 (权重与标准)
-{matchingRules}
-
-## 候选人信息
-**姓名**: {candidateName}
-**求职意向**: {jobIntention}
-**工作经验**: {workExperience}年
-**学历**: {education}
-**技能**: {skills}
-**曾任职公司**: {companies}
-**简介**: {summary}
-
-请以JSON格式返回分析结果，确保 score 为数字类型：
-{
-  "score": 30, // 必须是0-100的整数数字 (Number)，不要加引号
-  "breakdown": {
-    "experience": 10, // 数字
-    "skills": 5, // 数字
-    "industry_db": 5, // 数字
-    "education": 5, // 数字
-    "location": 5 // 数字
-  },
-  "recommendation": "strong_match" | "match" | "potential" | "no_match",
-  "highlights": ["匹配亮点1", ...],
-  "concerns": ["不足之处1", ...],
-  "summary": "中文总结"
-}`
-
-const KEYWORD_PROMPT_VARIANT = `buildKeywordRequirements(['cnc', '车床', '4轴']):
-候选人需具备以下关键技能/经验:
-- cnc
-- 车床
-- 4轴`
-
 type ResumeDoc = Doc<'resumes'>
 type BreakdownKey = 'experience' | 'skills' | 'industry_db' | 'education' | 'location'
 
 type ScoreBreakdown = Record<BreakdownKey, number>
-const BREAKDOWN_KEYS: BreakdownKey[] = ['experience', 'skills', 'industry_db', 'education', 'location']
-
-const BREAKDOWN_LABEL_KEYS: Record<BreakdownKey, string> = {
-  experience: 'debugAi.breakdownLabels.experience',
-  skills: 'debugAi.breakdownLabels.skills',
-  industry_db: 'debugAi.breakdownLabels.industryDb',
-  education: 'debugAi.breakdownLabels.education',
-  location: 'debugAi.breakdownLabels.location',
-}
+const BREAKDOWN_KEYS: BreakdownKey[] = DEBUG_AI_BREAKDOWN_LABELS.map((item) => item.key as BreakdownKey)
 
 const EMPTY_BREAKDOWN: ScoreBreakdown = {
   experience: 0,
@@ -78,6 +26,10 @@ const EMPTY_BREAKDOWN: ScoreBreakdown = {
   education: 0,
   location: 0,
 }
+
+const BREAKDOWN_LABELS = new Map(
+  DEBUG_AI_BREAKDOWN_LABELS.map((item) => [item.key as BreakdownKey, item])
+)
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -175,9 +127,10 @@ function buildResumeLabel(resume: ResumeDoc, unknownCandidateLabel: string): str
 }
 
 export default function DebugAI() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const resumeDocs = useQuery(api.resumes.list, { limit: 50 })
   const resumes = useMemo(() => resumeDocs ?? [], [resumeDocs])
+  const promptDefinition = useMemo(() => getResumeAiPromptDefinition(i18n.resolvedLanguage), [i18n.resolvedLanguage])
 
   const [selectedResumeId, setSelectedResumeId] = useState('')
 
@@ -235,15 +188,15 @@ export default function DebugAI() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <h2 className="text-sm font-semibold">{t('debugAi.systemPrompt')}</h2>
-            <pre className="max-h-64 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">{SYSTEM_PROMPT}</pre>
+            <pre className="max-h-64 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">{promptDefinition.sections.systemPrompt}</pre>
           </div>
           <div className="space-y-2">
             <h2 className="text-sm font-semibold">{t('debugAi.userPrompt')}</h2>
-            <pre className="max-h-80 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">{USER_PROMPT_TEMPLATE}</pre>
+            <pre className="max-h-80 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">{promptDefinition.normalized.userPromptTemplate}</pre>
           </div>
           <div className="space-y-2">
-            <h2 className="text-sm font-semibold">Keyword-Based Prompt Variant</h2>
-            <pre className="max-h-64 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">{KEYWORD_PROMPT_VARIANT}</pre>
+            <h2 className="text-sm font-semibold">{DEBUG_AI_KEYWORD_PROMPT_VARIANT.title}</h2>
+            <pre className="max-h-64 overflow-auto rounded-md border bg-muted/40 p-4 text-xs leading-relaxed">{DEBUG_AI_KEYWORD_PROMPT_VARIANT.body}</pre>
           </div>
         </CardContent>
       </Card>
@@ -279,10 +232,11 @@ export default function DebugAI() {
           <div className="space-y-4">
             {BREAKDOWN_KEYS.map((key) => {
               const score = scoreBreakdown[key]
+              const label = BREAKDOWN_LABELS.get(key)
               return (
                 <div key={key} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
-                    <span>{t(BREAKDOWN_LABEL_KEYS[key])}</span>
+                    <span>{t(label?.labelKey ?? key, { defaultValue: label?.defaultLabel ?? key })}</span>
                     <span className="font-mono text-xs text-muted-foreground">{score}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
