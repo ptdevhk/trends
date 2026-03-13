@@ -226,30 +226,21 @@ export function ResumeCard({
     .filter((company) => company.trim().length > 0)
     .slice(0, 3)
   const resolveBrand = brandDisplayResolve ?? ((brandId: string) => brandId.toUpperCase())
-  // Non-employer brand hits grouped by brand name with context labels
+  // Non-employer brand hits grouped by brand name for user-facing badges.
   const brandSummary = useMemo(() => {
     if (!brandHits || brandHits.length === 0) return []
-    const groups = new Map<string, { contexts: Set<string>; count: number }>()
+    const groups = new Map<string, number>()
     for (const hit of brandHits) {
       if (hit.context === 'employer') continue
       const key = hit.brand.trim().toLowerCase()
       if (!key) continue
-      const existing = groups.get(key) ?? { contexts: new Set<string>(), count: 0 }
-      existing.contexts.add(hit.context)
-      existing.count += 1
-      groups.set(key, existing)
+      groups.set(key, (groups.get(key) ?? 0) + 1)
     }
     return Array.from(groups.entries())
-      .sort(([, a], [, b]) => b.count - a.count)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 4)
-      .map(([brand, { contexts }]) => {
-        const contextValues = Array.from(contexts)
-        return {
-          brand,
-          contextLabels: contextValues.map((context) => t(`debugIngest.brandContext.${context}`, { defaultValue: context })),
-        }
-      })
-  }, [brandHits, t])
+      .map(([brand]) => brand)
+  }, [brandHits])
   const primaryRoleSignal = selectPrimaryRoleSignal(roleSignals)
   const verifiedRoleYears = primaryRoleSignal ? getRoleVerifiedYears(primaryRoleSignal) : 0
   const roleRelevantYears = primaryRoleSignal ? getRoleRelevantYears(primaryRoleSignal) : 0
@@ -464,15 +455,13 @@ export function ResumeCard({
             </Badge>
           )
         })}
-        {brandSummary.map(({ brand, contextLabels }) => (
+        {brandSummary.map((brand) => (
           <Badge
             key={`brand-${brand}`}
             variant="outline"
             className="text-[10px] border-amber-200 bg-amber-50 text-amber-700"
-            title={contextLabels.join(' / ')}
           >
             {resolveBrand(brand)}
-            {contextLabels.length > 0 ? ` · ${contextLabels.join('/')}` : ''}
           </Badge>
         ))}
       </div>

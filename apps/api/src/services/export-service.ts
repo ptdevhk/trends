@@ -182,19 +182,7 @@ function resolveBrandDisplayName(
 }
 
 function formatBrandHit(hit: ResumeIngestBrandHit, brandDisplayResolver?: BrandDisplayResolver): string {
-  const displayName = resolveBrandDisplayName(hit.brand, brandDisplayResolver);
-  if (!displayName) {
-    return "";
-  }
-
-  const source = normalizeString(hit.source).trim();
-  const context = normalizeString(hit.context).trim();
-  const qualifiers = [
-    source ? `source=${source}` : "",
-    context ? `context=${context}` : "",
-  ].filter(Boolean);
-
-  return [displayName, ...qualifiers].join(" · ");
+  return resolveBrandDisplayName(hit.brand, brandDisplayResolver);
 }
 
 function formatBrandHits(

@@ -174,7 +174,7 @@ describe("resume export route", () => {
     expect(parsed.data[0]?.userComment).toBe("Call Bob");
     expect(parsed.data[1]?.resumeId).toBe("resume-a");
     expect(parsed.data[1]?.name).toBe("Alice");
-    expect(parsed.data[1]?.brandHits).toBe("发那科 · source=workHistory · context=equipment");
+    expect(parsed.data[1]?.brandHits).toBe("发那科");
   });
 
   it("exports convex-backed requests via server-side Convex resolution", async () => {
@@ -268,7 +268,7 @@ describe("resume export route", () => {
     expect(sheet?.getCell("A3").value).toBe("convex-a");
     expect(sheet?.getCell("B3").value).toBe("Alice");
     expect(brandHitsColumn).toBeGreaterThan(0);
-    expect(sheet?.getRow(3).getCell(brandHitsColumn).value).toBe("发那科 · source=workHistory · context=equipment");
+    expect(sheet?.getRow(3).getCell(brandHitsColumn).value).toBe("发那科");
   });
 
   it("returns a clear 404 when any requested resume cannot be resolved", async () => {
@@ -356,6 +356,6 @@ describe("resume export route", () => {
     const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
     expect(parsed.data[0]?.resumeId).toBe("legacy-1");
     expect(parsed.data[0]?.name).toBe("Legacy Alice");
-    expect(parsed.data[0]?.brandHits).toBe("哈斯 · source=selfIntro · context=sales");
+    expect(parsed.data[0]?.brandHits).toBe("哈斯");
   });
 });
