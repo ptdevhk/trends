@@ -1,8 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { useAction, useMutation, useQuery } from 'convex/react'
+import { useAction, useMutation, usePaginatedQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
-import { useConvexResumes } from '@/hooks/useConvexResumes'
-import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw, Database, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -13,14 +11,46 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
-function getSearchTarget(resume: ConvexResumeItem): string {
+
+type IngestDiagnosticsResume = {
+  resumeId: string
+  externalId: string
+  name: string
+  jobIntention: string
+  location: string
+  ingestData?: {
+    industryTags: string[]
+    companyHits: string[]
+    brandHits: Array<{
+      brand: string
+      role: string
+      source: string
+      context: string
+    }>
+    experienceLevel: string
+    ruleScoreCount: number
+    computedAt: number
+    skillsVersion: number
+    taggingEntries: Array<{
+      tag: string
+      source: string
+      confidence: number
+      provenance: {
+        stage: string
+        evidence: string[]
+      }
+    }>
+  }
+}
+
+const INGEST_DIAGNOSTICS_PAGE_SIZE = 100
+
+function getSearchTarget(resume: IngestDiagnosticsResume): string {
   return [
     resume.externalId,
     resume.name,
     resume.jobIntention,
     resume.location,
-    resume.experience,
-    resume.education,
   ]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
@@ -67,8 +97,11 @@ function formatTaggingEntry(entry: {
 
 export default function DebugIngest() {
   const { t } = useTranslation()
-  const { resumes, loading } = useConvexResumes(2000)
-  const totalCount = useQuery(api.resumes.count)
+  const {
+    results: paginatedResumes,
+    status,
+    loadMore,
+  } = usePaginatedQuery(api.resumes.listIngestDiagnostics, {}, { initialNumItems: INGEST_DIAGNOSTICS_PAGE_SIZE })
   const backfillIngestData = useAction(api.migrations.backfillIngestData)
   const reIngestStaleSkillsVersion = useAction(api.migrations.reIngestStaleSkillsVersion)
   const clearAnalysesMutation = useMutation(api.resumes.clearAnalyses)
@@ -112,6 +145,11 @@ export default function DebugIngest() {
   useEffect(() => {
     void loadSkillsVersion()
   }, [loadSkillsVersion])
+
+  const resumes = paginatedResumes
+  const loading = status === 'LoadingFirstPage'
+  const canLoadMore = status === 'CanLoadMore'
+  const hasMoreAvailable = status === 'CanLoadMore' || status === 'LoadingMore'
 
   const filteredResumes = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -229,26 +267,26 @@ export default function DebugIngest() {
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{t('debugIngest.total', { defaultValue: 'Total Resumes' })}</CardTitle>
+            <CardTitle className="text-sm">{t('debugIngest.loadedTotal', { defaultValue: 'Loaded Resumes' })}</CardTitle>
           </CardHeader>
           <CardContent>
-            <span className="text-2xl font-semibold">{totalCount ?? '...'}</span>
-            {totalCount !== undefined && totalCount > resumes.length && (
+            <span className="text-2xl font-semibold">{resumes.length}</span>
+            {hasMoreAvailable && (
               <span className="ml-2 text-sm text-muted-foreground">
-                ({t('debugIngest.showing', { count: resumes.length, defaultValue: `showing ${resumes.length}` })})
+                ({t('debugIngest.moreAvailable', { defaultValue: 'more available' })})
               </span>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{t('debugIngest.withIngest', { defaultValue: 'With Ingest Data' })}</CardTitle>
+            <CardTitle className="text-sm">{t('debugIngest.loadedWithIngest', { defaultValue: 'Loaded With Ingest Data' })}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">{withIngestCount}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">{t('debugIngest.stale', { defaultValue: 'Stale / Missing' })}</CardTitle>
+            <CardTitle className="text-sm">{t('debugIngest.loadedStale', { defaultValue: 'Loaded Stale / Missing' })}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">{staleCount}</CardContent>
         </Card>
@@ -435,13 +473,12 @@ export default function DebugIngest() {
                               </div>
                               <div>
                                 <span className="font-medium">{t('debugIngest.ruleScoreCount', { defaultValue: 'Rule Scores' })}:</span>{' '}
-                                {Object.keys(ingestData.ruleScores || {}).length}
+                                {ingestData.ruleScoreCount}
                               </div>
                               <div className="md:col-span-2">
                                 <span className="font-medium">{t('debugIngest.taggingEnvelope', { defaultValue: 'Tagging Envelope' })}:</span>{' '}
-                                {ingestData.taggingEnvelope?.entries?.length
-                                  ? ingestData.taggingEnvelope.entries
-                                    .slice(0, 8)
+                                {ingestData.taggingEntries.length
+                                  ? ingestData.taggingEntries
                                     .map((entry) => formatTaggingEntry(entry))
                                     .join('; ')
                                   : '--'}
@@ -461,6 +498,14 @@ export default function DebugIngest() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={() => loadMore(INGEST_DIAGNOSTICS_PAGE_SIZE)} disabled={!canLoadMore}>
+          {status === 'LoadingMore'
+            ? t('resumes.loading', { defaultValue: 'Loading...' })
+            : t('debugIngest.loadMore', { defaultValue: 'Load More' })}
+        </Button>
       </div>
     </div>
   )
