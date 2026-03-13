@@ -16,6 +16,21 @@ type ResumeWorkHistoryItem = Partial<SharedResumeWorkHistoryItem> & {
 type ResumeIngestData = {
   industryTags?: string[];
   companyHits?: string[];
+  roleSignals?: Array<{
+    type: string;
+    matchedSignals: string[];
+    years: number;
+    industryVerifiedYears?: number;
+    roleRelevantYears?: number;
+    industryVerifiedRelevantYears?: number;
+    matchedWorkEntries?: Array<{
+      companyName?: string;
+      jobTitle?: string;
+      years: number;
+      industryVerified: boolean;
+      matchedSignals: string[];
+    }>;
+  }>;
 };
 
 type ResumeExportPayload = {
@@ -68,6 +83,8 @@ type ExportRow = {
   action: string;
   industryTags: string;
   companyHits: string;
+  roleEvidence: string;
+  matchedWorkEntries: string;
   profileUrl: string;
   workHistory: string;
   selfIntro: string;
@@ -91,6 +108,60 @@ function normalizeStringArray(value: string[] | undefined): string[] {
     return [];
   }
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function formatYears(value: number | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "0y";
+  }
+
+  const rounded = Math.round(value * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1).replace(/\.0$/, "")}y`;
+}
+
+function formatRoleEvidence(roleSignals: ResumeIngestData["roleSignals"]): string {
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return "";
+  }
+
+  return roleSignals
+    .map((signal) => {
+      const relevantYears = signal.roleRelevantYears ?? signal.years;
+      const verifiedYears = signal.industryVerifiedRelevantYears ?? signal.industryVerifiedYears ?? 0;
+      const parts = [`${signal.type}:${formatYears(relevantYears)}`];
+
+      if (verifiedYears > 0) {
+        parts.push(`verified ${formatYears(verifiedYears)}`);
+      }
+      if (signal.matchedSignals.length > 0) {
+        parts.push(`signals ${signal.matchedSignals.join("/")}`);
+      }
+
+      return parts.join(" · ");
+    })
+    .join(" | ");
+}
+
+function formatMatchedWorkEntries(roleSignals: ResumeIngestData["roleSignals"]): string {
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return "";
+  }
+
+  return roleSignals
+    .flatMap((signal) =>
+      (signal.matchedWorkEntries ?? []).map((entry) => {
+        const heading = [signal.type, entry.companyName, entry.jobTitle].filter(Boolean).join(" · ");
+        const suffix = [
+          formatYears(entry.years),
+          entry.industryVerified ? "verified" : "",
+          entry.matchedSignals.length > 0 ? `signals ${entry.matchedSignals.join("/")}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return [heading, suffix].filter(Boolean).join(" · ");
+      })
+    )
+    .join(" | ");
 }
 
 function parseAgeNumber(value: unknown): number | null {
@@ -141,6 +212,8 @@ function toRow(entry: ResumeExportEntry, brandDisplayResolver?: BrandDisplayReso
     companyHits: normalizeStringArray(entry.resume.ingestData?.companyHits)
       .map((brandId) => (brandDisplayResolver ? brandDisplayResolver.resolveZhHans(brandId) : brandId.toUpperCase()))
       .join(", "),
+    roleEvidence: formatRoleEvidence(entry.resume.ingestData?.roleSignals),
+    matchedWorkEntries: formatMatchedWorkEntries(entry.resume.ingestData?.roleSignals),
     profileUrl: normalizeProfileUrlForDisplay(entry.resume.profileUrl, entry.resume.source),
     workHistory,
     selfIntro: normalizeString(entry.resume.selfIntro),
@@ -167,6 +240,8 @@ const EXCEL_COLUMNS: Array<{ header: string; key: keyof ExportRow; width: number
   { header: "Action", key: "action", width: 12 },
   { header: "Industry Tags", key: "industryTags", width: 22 },
   { header: "Company Hits", key: "companyHits", width: 22 },
+  { header: "Role Evidence", key: "roleEvidence", width: 34 },
+  { header: "Matched Work Entries", key: "matchedWorkEntries", width: 44 },
   { header: "Profile URL", key: "profileUrl", width: 28 },
   { header: "Work History", key: "workHistory", width: 44 },
   { header: "Self Intro", key: "selfIntro", width: 48 },

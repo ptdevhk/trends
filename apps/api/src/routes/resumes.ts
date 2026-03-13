@@ -141,6 +141,28 @@ const ResumeExportRequestSchema = z.object({
             .object({
               industryTags: z.array(z.string()).optional(),
               companyHits: z.array(z.string()).optional(),
+              roleSignals: z.array(
+                z.object({
+                  type: z.string(),
+                  matchedSignals: z.array(z.string()),
+                  signalCount: z.number(),
+                  occurrences: z.number(),
+                  years: z.number(),
+                  industryVerifiedYears: z.number().optional(),
+                  roleRelevantYears: z.number().optional(),
+                  industryVerifiedRelevantYears: z.number().optional(),
+                  matchedWorkEntries: z.array(
+                    z.object({
+                      companyName: z.string().optional(),
+                      jobTitle: z.string().optional(),
+                      years: z.number(),
+                      industryVerified: z.boolean(),
+                      matchedSignals: z.array(z.string()),
+                    })
+                  ).optional(),
+                  verifyIn: z.string(),
+                })
+              ).optional(),
             })
             .optional(),
         }),

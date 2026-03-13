@@ -455,6 +455,15 @@ export const updateIngestData = internalMutation({
                 occurrences: v.number(),
                 years: v.number(),
                 industryVerifiedYears: v.optional(v.number()),
+                roleRelevantYears: v.optional(v.number()),
+                industryVerifiedRelevantYears: v.optional(v.number()),
+                matchedWorkEntries: v.optional(v.array(v.object({
+                    companyName: v.optional(v.string()),
+                    jobTitle: v.optional(v.string()),
+                    years: v.number(),
+                    industryVerified: v.boolean(),
+                    matchedSignals: v.array(v.string()),
+                }))),
                 verifyIn: v.string(),
             }))),
             tagEnvelope: v.optional(v.array(v.object({
@@ -528,6 +537,14 @@ export const updateIngestDataBatch = internalMutation({
                     companyId: v.optional(v.number()),
                 }))),
                 companyHits: v.optional(v.array(v.string())),
+                industryDbV2Raw: v.optional(v.number()),
+                industryDbV2RawComponents: v.optional(v.object({
+                    companyScore: v.number(),
+                    brandScore: v.number(),
+                    weightedBrandUnits: v.number(),
+                    uniqueCompanies: v.number(),
+                    brandUnitCount: v.number(),
+                })),
                 roleSignals: v.optional(v.array(v.object({
                     type: v.string(),
                     matchedSignals: v.array(v.string()),
@@ -535,6 +552,15 @@ export const updateIngestDataBatch = internalMutation({
                     occurrences: v.number(),
                     years: v.number(),
                     industryVerifiedYears: v.optional(v.number()),
+                    roleRelevantYears: v.optional(v.number()),
+                    industryVerifiedRelevantYears: v.optional(v.number()),
+                    matchedWorkEntries: v.optional(v.array(v.object({
+                        companyName: v.optional(v.string()),
+                        jobTitle: v.optional(v.string()),
+                        years: v.number(),
+                        industryVerified: v.boolean(),
+                        matchedSignals: v.array(v.string()),
+                    }))),
                     verifyIn: v.string(),
                 }))),
                 tagEnvelope: v.optional(v.array(v.object({

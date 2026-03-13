@@ -22,6 +22,25 @@ function buildEntry(age: string | undefined): ResumeExportEntry {
       ingestData: {
         industryTags: ["cnc"],
         companyHits: ["FANUC"],
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售工程师", "客户"],
+            years: 4.5,
+            industryVerifiedYears: 3.5,
+            roleRelevantYears: 4.5,
+            industryVerifiedRelevantYears: 3.5,
+            matchedWorkEntries: [
+              {
+                companyName: "Example Co.",
+                jobTitle: "Sales Engineer",
+                years: 3.5,
+                industryVerified: true,
+                matchedSignals: ["销售工程师", "客户"],
+              },
+            ],
+          },
+        ],
       },
     },
     match: {
@@ -164,5 +183,17 @@ describe("ExportService", () => {
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
     expect(parsed.data[0]?.workHistory).toContain("2021-03 ~ 2023-08 Example Co. Sales Manager");
+  });
+
+  it("includes role evidence fields in CSV output", async () => {
+    const service = new ExportService();
+    const file = await service.exportResumes("csv", [buildEntry("27")]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.roleEvidence).toContain("sales:4.5y");
+    expect(parsed.data[0]?.roleEvidence).toContain("verified 3.5y");
+    expect(parsed.data[0]?.matchedWorkEntries).toContain("sales · Example Co. · Sales Engineer");
+    expect(parsed.data[0]?.matchedWorkEntries).toContain("verified");
   });
 });

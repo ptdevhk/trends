@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { RefreshCw, FileText, AlertTriangle, History } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import type { ResumeItem } from '@/hooks/useResumes'
+import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { ResumeCard, ResumeCardSkeleton } from '@/components/ResumeCard'
 import { ResumeDetail } from '@/components/ResumeDetail'
 import { Button } from '@/components/ui/button'
@@ -73,7 +74,7 @@ export function ResumeList() {
   const { slug: workspaceSlug } = useWorkspace()
   const { resolve: brandDisplayResolve } = useBrandDisplayMap()
 
-  const [detailResume, setDetailResume] = useState<ResumeItem | null>(null)
+  const [detailResume, setDetailResume] = useState<ResumeItem | ConvexResumeItem | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
 
   const detailKey = useMemo(() => {
@@ -228,6 +229,7 @@ export function ResumeList() {
                 ruleScore={entry.ruleScore}
                 industryTags={ingestData?.industryTags}
                 companyHits={ingestData?.companyHits}
+                roleSignals={ingestData?.roleSignals}
                 brandDisplayResolve={brandDisplayResolve}
                 roleTypes={ingestData?.roleSignals?.map((signal) => signal.type) ?? []}
                 experienceLevel={ingestData?.experienceLevel}

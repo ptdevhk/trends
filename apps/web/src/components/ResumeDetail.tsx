@@ -7,18 +7,38 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import type { ResumeItem } from '@/hooks/useResumes'
-import { isSafeProfileUrl } from '@/lib/resume-scoring'
+import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import { formatRoleYears, getRoleLabel, hasIngestData, isSafeProfileUrl } from '@/lib/resume-scoring'
 
 import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
 
 interface ResumeDetailProps {
-  resume: ResumeItem | null
+  resume: ResumeItem | ConvexResumeItem | null
   matchResult?: MatchingResult
   open: boolean
   onOpenChange: (open: boolean) => void
   aiScoreFeedback?: AiFeedbackSentiment
   aiSummaryFeedback?: AiFeedbackSentiment
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
+}
+
+function normalizeEvidenceValue(value: string | undefined): string {
+  return value?.trim().toLowerCase() ?? ''
+}
+
+function matchesStructuredWorkEntry(
+  companyName: string | undefined,
+  jobTitle: string | undefined,
+  workEntry: { companyName?: string; jobTitle?: string }
+): boolean {
+  const normalizedCompany = normalizeEvidenceValue(companyName)
+  const normalizedJobTitle = normalizeEvidenceValue(jobTitle)
+  const candidateCompany = normalizeEvidenceValue(workEntry.companyName)
+  const candidateJobTitle = normalizeEvidenceValue(workEntry.jobTitle)
+
+  const companyMatches = normalizedCompany && candidateCompany && normalizedCompany === candidateCompany
+  const titleMatches = normalizedJobTitle && candidateJobTitle && normalizedJobTitle === candidateJobTitle
+  return Boolean(companyMatches || titleMatches)
 }
 
 export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreFeedback, aiSummaryFeedback, onAiFeedback }: ResumeDetailProps) {
@@ -29,6 +49,47 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
     if (!resume?.workHistory?.length) return []
     return resume.workHistory.filter((item) => normalizeWorkHistoryEntry(item) !== null)
   }, [resume])
+  const workHistoryAnnotations = useMemo(() => {
+    if (!resume || !hasIngestData(resume)) {
+      return workHistory.map(() => [])
+    }
+
+    const roleSignals = resume.ingestData.roleSignals ?? []
+    return workHistory.map((item) => {
+      const normalizedItem = normalizeWorkHistoryEntry(item)
+      const annotations = new Map<string, {
+        type: string
+        years: number
+        industryVerified: boolean
+        matchedSignals: Set<string>
+      }>()
+
+      for (const roleSignal of roleSignals) {
+        for (const matchedEntry of roleSignal.matchedWorkEntries ?? []) {
+          if (!matchesStructuredWorkEntry(normalizedItem?.companyName, normalizedItem?.jobTitle, matchedEntry)) {
+            continue
+          }
+
+          const existing = annotations.get(roleSignal.type) ?? {
+            type: roleSignal.type,
+            years: matchedEntry.years,
+            industryVerified: matchedEntry.industryVerified,
+            matchedSignals: new Set<string>(),
+          }
+
+          existing.years = Math.max(existing.years, matchedEntry.years)
+          existing.industryVerified = existing.industryVerified || matchedEntry.industryVerified
+          matchedEntry.matchedSignals.forEach((signal) => existing.matchedSignals.add(signal))
+          annotations.set(roleSignal.type, existing)
+        }
+      }
+
+      return Array.from(annotations.values()).map((annotation) => ({
+        ...annotation,
+        matchedSignals: Array.from(annotation.matchedSignals),
+      }))
+    })
+  }, [resume, workHistory])
   const profileUrl = resume?.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
   const scoreLabel = matchResult
@@ -132,6 +193,7 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
             ) : (
               <ul className="space-y-2 text-sm">
                 {workHistory.map((item, index) => {
+                  const annotations = workHistoryAnnotations[index] ?? []
                   const dateRange = buildWorkHistoryDateRange(item.startDate, item.endDate)
                   const durationLabel = item.raw?.match(/[(（]([^)）]+)[)）]/)?.[1] || ''
                   const dateLine = [dateRange, durationLabel ? `(${durationLabel})` : ''].filter(Boolean).join(' ')
@@ -140,6 +202,32 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
                     <li key={`${resume.name}-${index}`} className="rounded-md border border-border p-3 space-y-1">
                       {heading ? <div className="font-medium">{heading}</div> : null}
                       {dateLine ? <div className="text-xs text-muted-foreground">{dateLine}</div> : null}
+                      {annotations.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {annotations.map((annotation) => (
+                            <div key={`${annotation.type}-${annotation.matchedSignals.join('|')}`} className="flex flex-wrap gap-1">
+                              <Badge
+                                variant="outline"
+                                className={annotation.industryVerified ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : ''}
+                              >
+                                {getRoleLabel(annotation.type)}
+                                {' '}
+                                {formatRoleYears(annotation.years)}
+                              </Badge>
+                              {annotation.industryVerified ? (
+                                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                                  行业验证
+                                </Badge>
+                              ) : null}
+                              {annotation.matchedSignals.map((signal) => (
+                                <Badge key={`${annotation.type}-${signal}`} variant="outline" className="text-[10px]">
+                                  {signal}
+                                </Badge>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                       {item.description ? <div className="whitespace-pre-wrap">{item.description}</div> : null}
                       {!heading && !dateLine && !item.description ? <div>{item.raw}</div> : null}
                     </li>

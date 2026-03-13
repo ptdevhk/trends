@@ -287,18 +287,26 @@ function getRoleYears(resume: ConvexResumeItem, roleType: string): number {
   const normalizedRoleType = normalizeFilterToken(roleType)
   if (!normalizedRoleType) {
     return roleSignals.reduce((maxYears, signal) => {
-      if (typeof signal.years !== 'number' || !Number.isFinite(signal.years)) {
+      const relevantYears =
+        typeof signal.roleRelevantYears === 'number' && Number.isFinite(signal.roleRelevantYears)
+          ? signal.roleRelevantYears
+          : signal.years
+      if (typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
         return maxYears
       }
-      return Math.max(maxYears, signal.years)
+      return Math.max(maxYears, relevantYears)
     }, 0)
   }
 
   const roleSignal = roleSignals.find((signal) => normalizeFilterToken(signal.type) === normalizedRoleType)
-  if (!roleSignal || typeof roleSignal.years !== 'number' || !Number.isFinite(roleSignal.years)) {
+  const relevantYears =
+    typeof roleSignal?.roleRelevantYears === 'number' && Number.isFinite(roleSignal.roleRelevantYears)
+      ? roleSignal.roleRelevantYears
+      : roleSignal?.years
+  if (!roleSignal || typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
     return 0
   }
-  return roleSignal.years
+  return relevantYears
 }
 
 function parseExtractedAt(value: string | undefined): number {

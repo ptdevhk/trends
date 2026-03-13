@@ -3,7 +3,7 @@ import { buildWorkHistoryEntryText, buildWorkHistoryEvidence, normalizeWorkHisto
 import { IndustryDataService } from "./industry-data-service.js";
 import { SkillsKnowledgeService } from "./skills-knowledge.js";
 import { JobDescriptionService } from "./job-description-service.js";
-import { RuleScoringService, type RoleSignalSummary } from "./rule-scoring.js";
+import { RuleScoringService, type MatchedWorkEntry, type RoleSignalSummary } from "./rule-scoring.js";
 import { resolveResumeId } from "./resume-id.js";
 import { computeEntryRoleYears, computeWorkHistoryYears, extractCompanyFromWorkHistory } from "./work-history.js";
 import type { ResumeItem, ResumeWorkHistoryItem } from "../types/resume.js";
@@ -246,7 +246,7 @@ function inferTaggingStage(tag: string): TaggingProvenanceStage {
   if (tag.startsWith("synonym:")) {
     return "synonym_expansion";
   }
-  if (tag.startsWith("company:")) {
+  if (tag.startsWith("company:") || tag.startsWith("brand:")) {
     return "company_pattern_match";
   }
   if (tag.startsWith("role:")) {
@@ -345,6 +345,11 @@ const DEFAULT_ROLE_SIGNAL_LIBRARY: Record<string, string[]> = {
   sales: ["销售", "业务开发", "客户", "大客户", "渠道", "销售经理", "销售工程师", "sales", "account"],
   engineer: ["工程师", "设计", "研发", "开发", "编程", "调试", "维修", "技术", "engineer", "developer", "design"],
 };
+const ROLE_SIGNAL_MATCH_WEIGHTS = {
+  jobTitle: 2,
+  description: 1,
+  raw: 1,
+} as const;
 
 /**
  * Build a single ResumeIndex from a ResumeItem
@@ -540,10 +545,13 @@ export class IngestComputeService {
     }
 
     const roleSignalAccumulators = new Map<string, {
-      signals: Set<string>;
+      signals: Map<string, { label: string; weight: number }>;
       occurrences: number;
       years: number;
       industryVerifiedYears: number;
+      roleRelevantYears: number;
+      industryVerifiedRelevantYears: number;
+      matchedWorkEntries: MatchedWorkEntry[];
     }>();
 
     for (const entry of workHistory) {
@@ -552,34 +560,51 @@ export class IngestComputeService {
         continue;
       }
 
-      const normalized = workHistoryText.toLowerCase();
-      const years = computeEntryRoleYears(entry);
+      const normalizedEntry = normalizeWorkHistoryEntry(entry);
+      const years = Number(computeEntryRoleYears(entry).toFixed(2));
 
-      // Extract company name and verify industry
-      const companyName = extractCompanyFromWorkHistory(entry);
-      const industryVerification = this.industryDataService.verifyCompanyIndustry(companyName);
+      const companyName = normalizedEntry?.companyName || extractCompanyFromWorkHistory(entry) || undefined;
+      const jobTitle = normalizedEntry?.jobTitle || undefined;
+      const industryVerification = this.industryDataService.verifyCompanyIndustry(companyName || "");
 
       for (const [roleType, signals] of Object.entries(DEFAULT_ROLE_SIGNAL_LIBRARY)) {
-        const matchedSignals = signals.filter((signal) => normalized.includes(signal.toLowerCase()));
+        const matchedSignals = this.resolveRoleSignalMatches(entry, workHistoryText, signals);
         if (matchedSignals.length === 0) {
           continue;
         }
 
         const existing = roleSignalAccumulators.get(roleType) ?? {
-          signals: new Set<string>(),
+          signals: new Map<string, { label: string; weight: number }>(),
           occurrences: 0,
           years: 0,
           industryVerifiedYears: 0,
+          roleRelevantYears: 0,
+          industryVerifiedRelevantYears: 0,
+          matchedWorkEntries: [],
         };
 
-        matchedSignals.forEach((signal) => existing.signals.add(signal.toLowerCase()));
+        matchedSignals.forEach((signal) => {
+          const current = existing.signals.get(signal.key);
+          if (!current || signal.weight > current.weight) {
+            existing.signals.set(signal.key, { label: signal.label, weight: signal.weight });
+          }
+        });
         existing.occurrences += 1;
         existing.years += years;
+        existing.roleRelevantYears += years;
 
-        // Only count years toward industryVerifiedYears if company is in CNC industry
         if (industryVerification.verified) {
           existing.industryVerifiedYears += years;
+          existing.industryVerifiedRelevantYears += years;
         }
+
+        existing.matchedWorkEntries.push({
+          companyName,
+          jobTitle,
+          years,
+          industryVerified: industryVerification.verified,
+          matchedSignals: matchedSignals.map((signal) => signal.label),
+        });
 
         roleSignalAccumulators.set(roleType, existing);
       }
@@ -587,13 +612,53 @@ export class IngestComputeService {
 
     return Array.from(roleSignalAccumulators.entries()).map(([type, value]) => ({
       type,
-      matchedSignals: Array.from(value.signals),
-      signalCount: value.signals.size,
+      matchedSignals: Array.from(value.signals.values()).map((signal) => signal.label),
+      signalCount: Array.from(value.signals.values()).reduce((total, signal) => total + signal.weight, 0),
       occurrences: value.occurrences,
       years: Number(value.years.toFixed(2)),
       industryVerifiedYears: Number(value.industryVerifiedYears.toFixed(2)),
+      roleRelevantYears: Number(value.roleRelevantYears.toFixed(2)),
+      industryVerifiedRelevantYears: Number(value.industryVerifiedRelevantYears.toFixed(2)),
+      matchedWorkEntries: value.matchedWorkEntries,
       verifyIn: "workHistory",
     }));
+  }
+
+  private resolveRoleSignalMatches(
+    entry: ResumeWorkHistoryItem,
+    workHistoryText: string,
+    signals: string[],
+  ): Array<{ key: string; label: string; weight: number }> {
+    const normalizedEntry = normalizeWorkHistoryEntry(entry);
+    const jobTitleText = normalizeText(normalizedEntry?.jobTitle);
+    const descriptionText = normalizeText(normalizedEntry?.description);
+    const rawText = normalizeText(normalizedEntry?.raw || workHistoryText);
+    const matches = new Map<string, { key: string; label: string; weight: number }>();
+
+    for (const signal of signals) {
+      const normalizedSignal = signal.toLowerCase();
+      let weight = 0;
+
+      if (jobTitleText.includes(normalizedSignal)) {
+        weight = ROLE_SIGNAL_MATCH_WEIGHTS.jobTitle;
+      } else if (descriptionText.includes(normalizedSignal)) {
+        weight = ROLE_SIGNAL_MATCH_WEIGHTS.description;
+      } else if (rawText.includes(normalizedSignal)) {
+        weight = ROLE_SIGNAL_MATCH_WEIGHTS.raw;
+      }
+
+      if (weight <= 0) {
+        continue;
+      }
+
+      matches.set(normalizedSignal, {
+        key: normalizedSignal,
+        label: signal,
+        weight,
+      });
+    }
+
+    return Array.from(matches.values()).sort((left, right) => right.weight - left.weight);
   }
 
   private upsertTagEnvelopeEntry(
@@ -684,6 +749,37 @@ export class IngestComputeService {
         `company:${company}`,
         80,
         evidence.length > 0 ? evidence : [`companyHit:${company}`],
+        skillsVersion,
+      );
+    }
+
+    // Non-employer brand hits grouped by brand name
+    const brandGroups = new Map<string, { contexts: Set<string>; count: number }>();
+    for (const hit of brandHits) {
+      if (hit.context === "employer") {
+        continue;
+      }
+      const brandKey = hit.brand.trim().toLowerCase();
+      if (!brandKey) {
+        continue;
+      }
+      const existing = brandGroups.get(brandKey) ?? { contexts: new Set<string>(), count: 0 };
+      existing.contexts.add(hit.context);
+      existing.count += 1;
+      brandGroups.set(brandKey, existing);
+    }
+
+    for (const [brand, { contexts, count }] of brandGroups) {
+      const evidence = [
+        `brandCount:${count}`,
+        ...Array.from(contexts).map((ctx) => `brandContext:${ctx}`),
+      ];
+
+      this.upsertTagEnvelopeEntry(
+        envelope,
+        `brand:${brand}`,
+        65,
+        evidence,
         skillsVersion,
       );
     }

@@ -334,6 +334,55 @@ describe("IngestComputeService", () => {
     expect(engineerRole?.years).toBeGreaterThan(0);
   });
 
+  it("should persist matched work-entry evidence and prioritize title matches", () => {
+    const structuredResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_CNC_SALES.data[0],
+          workHistory: [
+            {
+              raw: "2021-01~2023-06 东莞精雕机械科技有限公司 销售工程师",
+              companyName: "东莞精雕机械科技有限公司",
+              jobTitle: "销售工程师",
+              description: "负责客户开发与渠道维护",
+              startDate: "2021-01",
+              endDate: "2023-06",
+            },
+            {
+              raw: "2019-01~2020-12 深圳科技有限公司 项目协调",
+              companyName: "深圳科技有限公司",
+              jobTitle: "项目协调",
+              description: "协助销售团队推进客户跟进",
+              startDate: "2019-01",
+              endDate: "2020-12",
+            },
+          ],
+        },
+      ],
+    };
+    const result = service.computeOne("resume-structured", structuredResume);
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+
+    expect(salesRole).toBeDefined();
+    expect(salesRole?.signalCount).toBeGreaterThan((salesRole?.matchedSignals.length ?? 0));
+    expect(salesRole?.roleRelevantYears).toBeGreaterThan(4);
+    expect(salesRole?.industryVerifiedRelevantYears).toBeGreaterThan(2);
+    expect(salesRole?.matchedWorkEntries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        companyName: "东莞精雕机械科技有限公司",
+        jobTitle: "销售工程师",
+        industryVerified: true,
+        matchedSignals: expect.arrayContaining(["销售", "销售工程师", "客户", "渠道"]),
+      }),
+      expect.objectContaining({
+        companyName: "深圳科技有限公司",
+        jobTitle: "项目协调",
+        industryVerified: false,
+        matchedSignals: expect.arrayContaining(["销售", "客户"]),
+      }),
+    ]));
+  });
+
   it("should build tag envelope with confidence and provenance", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
