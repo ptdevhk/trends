@@ -108,6 +108,7 @@ const ResumeImportErrorSchema = z.object({
 type ResumeExportCanonicalRequest = z.infer<typeof ResumeExportCanonicalRequestSchema>;
 type ResumeExportRequest = z.infer<typeof ResumeExportRequestSchema>;
 type ResumeExportEntryContext = ResumeExportCanonicalRequest["entries"][number];
+type ResumeExportLegacyEntryContext = z.infer<typeof ResumeExportLegacyRequestSchema>["entries"][number];
 type ExportResumePayload = ResumeExportEntry["resume"];
 type ResumeExportEntryFields = Omit<ResumeExportEntry, "key" | "resume">;
 
@@ -240,7 +241,7 @@ function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
   };
 }
 
-function toExportEntryFields(entry: ResumeExportEntryContext): ResumeExportEntryFields {
+function toExportEntryFields(entry: ResumeExportEntryContext | ResumeExportLegacyEntryContext): ResumeExportEntryFields {
   return {
     match: entry.match,
     action: entry.action,
