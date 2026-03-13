@@ -1,6 +1,6 @@
 ---
-version: 6
-updated_at: '2026-03-11'
+version: 7
+updated_at: '2026-03-13'
 description: >
   English locale variant for the resume skills knowledge.
   Maintained alongside the zh-Hans canonical source for localized authoring.
@@ -16,11 +16,11 @@ Skills are organized by domain tags. Each domain includes a canonical tag, displ
 
 ### machinery
 - displayName: Machinery
-- keywords: 机床, 车床, 加工中心, 机械, 设备, 五轴, 夹具, 治具, lathe, machining, milling, cnc, 数控, fanuc, siemens, star, brother, mitsubishi
+- keywords: 机床, 车床, 加工中心, 机械, 设备, cnc, 数控
 
 ### sales
 - displayName: Sales
-- keywords: 销售, 业务, 客户, 大客户, 渠道, 销售工程师, 业务拓展, sales, account, key account, bd, business development
+- keywords: 销售, 业务, 销售工程师, 业务拓展, sales, account, key account, bd, business development
 
 ### metrology
 - displayName: Metrology

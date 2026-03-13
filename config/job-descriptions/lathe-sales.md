@@ -11,7 +11,7 @@ status: active
 required_roles:
   - type: sales
     min_years: 1
-    signals: [销售, 业务开发, 客户, 大客户, 渠道, 销售经理, 销售工程师]
+    signals: [销售, 业务开发, 大客户, 渠道, 销售经理, 销售工程师]
     verify_in: workHistory
 
 # Auto-matching configuration (NEW)

@@ -67,6 +67,11 @@ function matchesAllTokens(searchText: string | undefined, tokens: string[]): boo
     return tokens.every((token) => normalizedText.includes(token));
 }
 
+type TagExpansionKeywordGroup = {
+    original: string;
+    variants: string[];
+};
+
 type MatchSource = "searchText" | "industryTags" | "companyHits" | "synonymHits";
 
 type SearchProvenance = {
@@ -91,17 +96,96 @@ function dedupeProvenance(items: SearchProvenance[]): SearchProvenance[] {
     return deduped;
 }
 
-function addProvenance(
-    target: Map<string, SearchProvenance[]>,
-    key: string,
-    provenance: SearchProvenance
-): void {
-    const existing = target.get(key);
-    if (existing) {
-        existing.push(provenance);
-        return;
+function normalizeTagExpansionKeywordGroups(
+    keywordGroups: Array<{ original: string; variants: string[] }>
+): TagExpansionKeywordGroup[] {
+    return keywordGroups
+        .map((group) => ({
+            original: group.original.trim().toLowerCase(),
+            variants: Array.from(
+                new Set(
+                    group.variants
+                        .map((term) => term.trim().toLowerCase())
+                        .filter((term) => term.length >= 2)
+                )
+            ),
+        }))
+        .filter((group) => group.original.length >= 1 && group.variants.length > 0);
+}
+
+function collectExpandedTerms(keywordGroups: TagExpansionKeywordGroup[]): string[] {
+    return Array.from(new Set(keywordGroups.flatMap((group) => group.variants)));
+}
+
+function selectTagExpansionAnchorGroup(keywordGroups: TagExpansionKeywordGroup[]): TagExpansionKeywordGroup {
+    const [firstGroup, ...remainingGroups] = keywordGroups;
+    if (!firstGroup) {
+        throw new Error("Keyword groups are required for tag expansion search");
     }
-    target.set(key, [provenance]);
+
+    return remainingGroups.reduce((selected, candidate) => {
+        if (candidate.variants.length !== selected.variants.length) {
+            return candidate.variants.length < selected.variants.length ? candidate : selected;
+        }
+        return candidate.original.length > selected.original.length ? candidate : selected;
+    }, firstGroup);
+}
+
+export function buildTagExpansionSearchQuery(
+    keywordGroups: TagExpansionKeywordGroup[],
+    mode: "AND" | "OR"
+): string {
+    if (keywordGroups.length === 0) {
+        return "";
+    }
+
+    if (mode === "AND") {
+        return selectTagExpansionAnchorGroup(keywordGroups).variants.join(" ");
+    }
+
+    return collectExpandedTerms(keywordGroups).join(" ");
+}
+
+function matchesTagExpansionGroup(searchText: string, group: TagExpansionKeywordGroup): boolean {
+    return group.variants.some((variant) => searchText.includes(variant));
+}
+
+export function matchesTagExpansionSearchText(
+    searchText: string,
+    keywordGroups: TagExpansionKeywordGroup[],
+    mode: "AND" | "OR"
+): boolean {
+    return mode === "AND"
+        ? keywordGroups.every((group) => matchesTagExpansionGroup(searchText, group))
+        : keywordGroups.some((group) => matchesTagExpansionGroup(searchText, group));
+}
+
+export function collectSearchTextProvenance(
+    searchText: string,
+    keywordGroups: TagExpansionKeywordGroup[],
+    sourceMapping: Record<string, string>
+): SearchProvenance[] {
+    const matches: SearchProvenance[] = [];
+    const seen = new Set<string>();
+
+    for (const group of keywordGroups) {
+        for (const term of group.variants) {
+            if (!searchText.includes(term)) {
+                continue;
+            }
+            if (seen.has(term)) {
+                continue;
+            }
+            seen.add(term);
+            matches.push({
+                term,
+                source: "searchText",
+                expandedFrom: sourceMapping[term],
+            });
+        }
+    }
+
+    return matches;
 }
 
 function compareResumes(
@@ -273,19 +357,8 @@ export const searchWithTagExpansion = query({
         const limit = args.limit || 50;
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
         const mode = args.mode ?? "AND";
-        const keywordGroups = args.keywordGroups
-            .map((group) => ({
-                original: group.original.trim().toLowerCase(),
-                variants: Array.from(
-                    new Set(
-                        group.variants
-                            .map((term) => term.trim().toLowerCase())
-                            .filter((term) => term.length >= 2)
-                    )
-                ),
-            }))
-            .filter((group) => group.original.length >= 1 && group.variants.length > 0);
-        const expandedTerms = Array.from(new Set(keywordGroups.flatMap((group) => group.variants)));
+        const keywordGroups = normalizeTagExpansionKeywordGroups(args.keywordGroups);
+        const expandedTerms = collectExpandedTerms(keywordGroups);
 
         if (expandedTerms.length === 0 || keywordGroups.length === 0) {
             return {
@@ -303,35 +376,31 @@ export const searchWithTagExpansion = query({
             (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
         );
         const provenanceByResumeId = new Map<string, SearchProvenance[]>();
-        const matchedDocsById = new Map<string, Doc<"resumes">>();
-        const fetchLimit = Math.max(limit * Math.max(keywordGroups.length, 2), 100);
+        const fetchLimit = Math.min(Math.max(limit * 2, 100), 400);
+        const searchQuery = buildTagExpansionSearchQuery(keywordGroups, mode);
 
-        for (const term of expandedTerms) {
-            const matches = await ctx.db
+        const matches = searchQuery
+            ? await ctx.db
                 .query("resumes")
-                .withSearchIndex("search_body", (q) => q.search("searchText", term))
-                .take(fetchLimit);
+                .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
+                .take(fetchLimit)
+            : [];
 
-            for (const match of matches) {
-                const matchId = String(match._id);
-                matchedDocsById.set(matchId, match);
-                addProvenance(provenanceByResumeId, matchId, {
-                    term,
-                    source: "searchText",
-                    expandedFrom: sourceMapping[term],
-                });
-            }
-        }
-
-        const filteredDocs = Array.from(matchedDocsById.values()).filter((doc) => {
+        const filteredDocs = matches.filter((doc) => {
             const normalizedSearchText = (doc.searchText || "").toLowerCase();
+            const matched = matchesTagExpansionSearchText(normalizedSearchText, keywordGroups, mode);
 
-            const groupMatched = (group: { variants: string[] }): boolean =>
-                group.variants.some((variant) => normalizedSearchText.includes(variant));
+            if (!matched) {
+                return false;
+            }
 
-            return mode === "AND"
-                ? keywordGroups.every(groupMatched)
-                : keywordGroups.some(groupMatched);
+            const provenance = collectSearchTextProvenance(normalizedSearchText, keywordGroups, sourceMapping);
+            if (provenance.length === 0) {
+                return false;
+            }
+
+            provenanceByResumeId.set(String(doc._id), provenance);
+            return true;
         });
 
         return {

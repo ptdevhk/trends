@@ -16,6 +16,7 @@ import type * as candidate_status from "../candidate_status.js";
 import type * as ingest_agent from "../ingest_agent.js";
 import type * as job_descriptions from "../job_descriptions.js";
 import type * as lib_age from "../lib/age.js";
+import type * as lib_ai_model from "../lib/ai_model.js";
 import type * as lib_parallelism from "../lib/parallelism.js";
 import type * as lib_resume_identity from "../lib/resume_identity.js";
 import type * as migrations from "../migrations.js";
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   ingest_agent: typeof ingest_agent;
   job_descriptions: typeof job_descriptions;
   "lib/age": typeof lib_age;
+  "lib/ai_model": typeof lib_ai_model;
   "lib/parallelism": typeof lib_parallelism;
   "lib/resume_identity": typeof lib_resume_identity;
   migrations: typeof migrations;

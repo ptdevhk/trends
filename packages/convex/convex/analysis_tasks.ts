@@ -7,6 +7,7 @@ import {
     buildKeywordRequirements,
     buildSystemPrompt,
     callLLM,
+    type ChatMessage,
     getAiApiKey,
     getUserPromptTemplate,
     hydrateUserPrompt,
@@ -23,11 +24,6 @@ type AnalysisResult = {
     highlights: string[];
     recommendation: string;
     breakdown?: Record<string, number>;
-};
-
-type Message = {
-    role: "system" | "user";
-    content: string;
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -268,7 +264,7 @@ async function analyzeOneResume(
         normalizedResume,
     );
 
-    const messages: Message[] = [
+    const messages: ChatMessage[] = [
         { role: "system", content: buildSystemPrompt(locale) },
         { role: "user", content: prompt },
     ];

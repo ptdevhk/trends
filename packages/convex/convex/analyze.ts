@@ -9,8 +9,14 @@ import {
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action } from "./_generated/server";
+import { resolveChatCompletionModel } from "./lib/ai_model";
 
 const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
+
+export type ChatMessage = {
+    role: "system" | "user";
+    content: string;
+};
 
 export const SYSTEM_PROMPT = getResumeAiPromptDefinition(DEFAULT_AI_OUTPUT_LOCALE).sections.systemPrompt;
 export const USER_PROMPT_TEMPLATE = getResumeAiUserPromptTemplate(DEFAULT_AI_OUTPUT_LOCALE);
@@ -140,11 +146,12 @@ export function normalizeResume(data: unknown) {
 }
 
 // Helper to call OpenAI/Compatible API
-export async function callLLM(messages: any[], apiKey: string) {
+export async function callLLM(messages: ChatMessage[], apiKey: string) {
     const apiBase = getAiApiBase();
     const url = `${apiBase}/chat/completions`;
+    const model = resolveChatCompletionModel(apiBase, getAiModel());
 
-    console.log(`Calling LLM at ${url}...`);
+    console.log(`Calling LLM at ${url} with model ${model}...`);
 
     const response = await fetch(url, {
         method: "POST",
@@ -153,7 +160,7 @@ export async function callLLM(messages: any[], apiKey: string) {
             "Authorization": `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-            model: getAiModel(),
+            model,
             messages: messages,
             temperature: getAiTemperature(),
             response_format: { type: "json_object" },
@@ -232,7 +239,7 @@ export const analyzeResume = action({
             norm,
         );
 
-        const messages = [
+        const messages: ChatMessage[] = [
             { role: "system", content: buildSystemPrompt(locale) },
             { role: "user", content: prompt },
         ];

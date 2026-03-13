@@ -28,7 +28,7 @@ description: Test skills knowledge file
 
 ### sales
 - displayName: 销售
-- keywords: 销售, 客户, sales, account
+- keywords: 销售, sales, account
 
 ## Synonym Table
 
@@ -92,7 +92,7 @@ auto_match:
 required_roles:
   - type: sales
     min_years: 1
-    signals: [销售, 客户, 渠道, 销售经理, 销售工程师]
+    signals: [销售, 渠道, 销售经理, 销售工程师]
     verify_in: workHistory
 ---
 
@@ -372,13 +372,13 @@ describe("IngestComputeService", () => {
         companyName: "东莞精雕机械科技有限公司",
         jobTitle: "销售工程师",
         industryVerified: true,
-        matchedSignals: expect.arrayContaining(["销售", "销售工程师", "客户", "渠道"]),
+        matchedSignals: expect.arrayContaining(["销售", "销售工程师", "渠道"]),
       }),
       expect.objectContaining({
         companyName: "深圳科技有限公司",
         jobTitle: "项目协调",
         industryVerified: false,
-        matchedSignals: expect.arrayContaining(["销售", "客户"]),
+        matchedSignals: expect.arrayContaining(["销售"]),
       }),
     ]));
   });
