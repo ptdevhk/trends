@@ -365,7 +365,7 @@ describe("IngestComputeService", () => {
 
     expect(salesRole).toBeDefined();
     expect(salesRole?.signalCount).toBeGreaterThan((salesRole?.matchedSignals.length ?? 0));
-    expect(salesRole?.roleRelevantYears).toBeGreaterThan(4);
+    expect(salesRole?.roleRelevantYears).toBeGreaterThan(2);
     expect(salesRole?.industryVerifiedRelevantYears).toBeGreaterThan(2);
     expect(salesRole?.matchedWorkEntries).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -374,11 +374,70 @@ describe("IngestComputeService", () => {
         industryVerified: true,
         matchedSignals: expect.arrayContaining(["销售", "销售工程师", "渠道"]),
       }),
+    ]));
+    expect(salesRole?.matchedWorkEntries?.some((entry) => entry.companyName === "深圳科技有限公司")).toBe(false);
+  });
+
+  it("should gate auxiliary description-only sales mentions", () => {
+    const result = service.computeOne("resume-cnc-aux-sales", {
+      data: [
+        {
+          ...SAMPLE_RESUME_ENGINEER.data[0],
+          jobIntention: "CNC编程员",
+          selfIntro: "长期从事CNC编程与设备调试。",
+          workHistory: [
+            {
+              raw: "2021-01~2024-12 汇专机床 CNC编程员",
+              companyName: "汇专机床",
+              jobTitle: "CNC编程员",
+              description: "配合公司销售搞定客户",
+              startDate: "2021-01",
+              endDate: "2024-12",
+            },
+          ],
+        },
+      ],
+    });
+
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+    const engineerRole = result.roleSignals.find((item) => item.type === "engineer");
+
+    expect(salesRole).toBeUndefined();
+    expect(engineerRole).toBeDefined();
+    expect(engineerRole?.years).toBeGreaterThan(0);
+  });
+
+  it("should preserve non-auxiliary multi-signal sales attribution from description", () => {
+    const result = service.computeOne("resume-sales-desc-signals", {
+      data: [
+        {
+          ...SAMPLE_RESUME_ENGINEER.data[0],
+          jobIntention: "项目专员",
+          selfIntro: "擅长订单统筹和渠道沟通。",
+          workHistory: [
+            {
+              raw: "2022-01~2024-12 深圳运营有限公司 项目专员",
+              companyName: "深圳运营有限公司",
+              jobTitle: "项目专员",
+              description: "负责销售订单处理，渠道开发",
+              startDate: "2022-01",
+              endDate: "2024-12",
+            },
+          ],
+        },
+      ],
+    });
+
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+
+    expect(salesRole).toBeDefined();
+    expect(salesRole?.matchedSignals).toEqual(expect.arrayContaining(["销售", "渠道"]));
+    expect(salesRole?.years).toBeGreaterThan(2);
+    expect(salesRole?.matchedWorkEntries).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        companyName: "深圳科技有限公司",
-        jobTitle: "项目协调",
-        industryVerified: false,
-        matchedSignals: expect.arrayContaining(["销售"]),
+        companyName: "深圳运营有限公司",
+        jobTitle: "项目专员",
+        matchedSignals: expect.arrayContaining(["销售", "渠道"]),
       }),
     ]));
   });

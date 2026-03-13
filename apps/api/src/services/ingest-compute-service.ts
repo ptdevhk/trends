@@ -350,6 +350,17 @@ const ROLE_SIGNAL_MATCH_WEIGHTS = {
   description: 1,
   raw: 1,
 } as const;
+const AUXILIARY_CONTEXT_PREFIXES = ["配合", "协助", "辅助", "支持", "协同"];
+const AUXILIARY_CONTEXT_WINDOW = 10;
+
+type RoleSignalMatchSource = "jobTitle" | "description" | "raw";
+
+interface RoleSignalMatch {
+  key: string;
+  label: string;
+  weight: number;
+  source: RoleSignalMatchSource;
+}
 
 /**
  * Build a single ResumeIndex from a ResumeItem
@@ -573,6 +584,15 @@ export class IngestComputeService {
           continue;
         }
 
+        const hasJobTitleMatch = matchedSignals.some((signal) => signal.source === "jobTitle");
+        if (
+          !hasJobTitleMatch
+          && matchedSignals.length === 1
+          && this.isAuxiliaryContextMatch(entry, workHistoryText, matchedSignals[0])
+        ) {
+          continue;
+        }
+
         const existing = roleSignalAccumulators.get(roleType) ?? {
           signals: new Map<string, { label: string; weight: number }>(),
           occurrences: 0,
@@ -628,26 +648,30 @@ export class IngestComputeService {
     entry: ResumeWorkHistoryItem,
     workHistoryText: string,
     signals: string[],
-  ): Array<{ key: string; label: string; weight: number }> {
+  ): RoleSignalMatch[] {
     const normalizedEntry = normalizeWorkHistoryEntry(entry);
     const jobTitleText = normalizeText(normalizedEntry?.jobTitle);
     const descriptionText = normalizeText(normalizedEntry?.description);
     const rawText = normalizeText(normalizedEntry?.raw || workHistoryText);
-    const matches = new Map<string, { key: string; label: string; weight: number }>();
+    const matches = new Map<string, RoleSignalMatch>();
 
     for (const signal of signals) {
       const normalizedSignal = signal.toLowerCase();
       let weight = 0;
+      let source: RoleSignalMatchSource | null = null;
 
       if (jobTitleText.includes(normalizedSignal)) {
         weight = ROLE_SIGNAL_MATCH_WEIGHTS.jobTitle;
+        source = "jobTitle";
       } else if (descriptionText.includes(normalizedSignal)) {
         weight = ROLE_SIGNAL_MATCH_WEIGHTS.description;
+        source = "description";
       } else if (rawText.includes(normalizedSignal)) {
         weight = ROLE_SIGNAL_MATCH_WEIGHTS.raw;
+        source = "raw";
       }
 
-      if (weight <= 0) {
+      if (weight <= 0 || source === null) {
         continue;
       }
 
@@ -655,10 +679,46 @@ export class IngestComputeService {
         key: normalizedSignal,
         label: signal,
         weight,
+        source,
       });
     }
 
     return Array.from(matches.values()).sort((left, right) => right.weight - left.weight);
+  }
+
+  private isAuxiliaryContextMatch(
+    entry: ResumeWorkHistoryItem,
+    workHistoryText: string,
+    signal: RoleSignalMatch,
+  ): boolean {
+    if (signal.source === "jobTitle") {
+      return false;
+    }
+
+    const normalizedEntry = normalizeWorkHistoryEntry(entry);
+    const sourceText = signal.source === "description"
+      ? normalizeText(normalizedEntry?.description)
+      : normalizeText(normalizedEntry?.raw || workHistoryText);
+
+    if (!sourceText) {
+      return false;
+    }
+
+    let matchIndex = sourceText.indexOf(signal.key);
+    let foundMatch = false;
+
+    while (matchIndex !== -1) {
+      foundMatch = true;
+      const contextWindow = sourceText.slice(Math.max(0, matchIndex - AUXILIARY_CONTEXT_WINDOW), matchIndex);
+      const hasAuxiliaryPrefix = AUXILIARY_CONTEXT_PREFIXES.some((prefix) => contextWindow.includes(prefix));
+      if (!hasAuxiliaryPrefix) {
+        return false;
+      }
+
+      matchIndex = sourceText.indexOf(signal.key, matchIndex + signal.key.length);
+    }
+
+    return foundMatch;
   }
 
   private upsertTagEnvelopeEntry(
