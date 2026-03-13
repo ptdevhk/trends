@@ -1,80 +1,34 @@
 /**
- * Temporary verification script: compare AI scores vs rule-based scores
- * for all resumes in Convex. Validates that primaryRuleScore is more
- * accurate than AI scoring for industry_db + verified exp dimensions.
+ * Manual verification helper for persisted ingest scoring.
  *
- * Usage: npx tsx scripts/verify-industry-scores.ts
+ * Default mode prints a score summary for resumes already in Convex.
+ * Round-trip mode imports a sample into the API, triggers re-ingest,
+ * then waits until persisted ingest fields appear in Convex.
+ *
+ * Usage:
+ *   npx tsx scripts/verify-industry-scores.ts
+ *   npx tsx scripts/verify-industry-scores.ts --sample sample-job5156-detail-enriched --round-trip
  */
-import fs from "node:fs";
-import path from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { ConvexHttpClient } from "convex/browser";
 
 import { api } from "../packages/convex/convex/_generated/api.js";
+import {
+  normalizeResumeImportPayload,
+  resolveConvexUrl as resolveImportConvexUrl,
+} from "../apps/api/src/services/resume-import-service.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, "..");
-
-function readEnvVarFromFile(
-  filePath: string,
-  varName: string,
-): string | null {
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-  const content = fs.readFileSync(filePath, "utf-8");
-  for (const line of content.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("#") || !trimmed.includes("=")) {
-      continue;
-    }
-    const eqIdx = trimmed.indexOf("=");
-    const key = trimmed.slice(0, eqIdx).trim();
-    if (key !== varName) {
-      continue;
-    }
-    let value = trimmed.slice(eqIdx + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    return value;
-  }
-  return null;
-}
-
-function resolveConvexUrl(): string {
-  if (process.env.CONVEX_URL) {
-    return process.env.CONVEX_URL;
-  }
-  if (process.env.VITE_CONVEX_URL) {
-    return process.env.VITE_CONVEX_URL;
-  }
-
-  const candidateFiles = [
-    path.join(PROJECT_ROOT, "packages", "convex", ".env.local"),
-    path.join(PROJECT_ROOT, "apps", "web", ".env.local"),
-    path.join(PROJECT_ROOT, ".env.local"),
-    path.join(PROJECT_ROOT, ".env"),
-  ];
-
-  for (const filePath of candidateFiles) {
-    const direct = readEnvVarFromFile(filePath, "CONVEX_URL");
-    if (direct) {
-      return direct;
-    }
-    const vite = readEnvVarFromFile(filePath, "VITE_CONVEX_URL");
-    if (vite) {
-      return vite;
-    }
-  }
-
-  return "http://127.0.0.1:3210";
-}
+const DEFAULT_CONVEX_URL = "http://127.0.0.1:3210";
+const DEFAULT_API_BASE_URL = "http://localhost:3000";
+const DEFAULT_LIMIT = 200;
+const DEFAULT_TIMEOUT_MS = 120000;
+const DEFAULT_POLL_MS = 3000;
 
 type RoleSignal = {
   type: string;
@@ -86,16 +40,32 @@ type RoleSignal = {
   verifyIn: string;
 };
 
+type IndustryDbV2RawComponents = {
+  companyScore?: number;
+  brandScore?: number;
+  weightedBrandUnits?: number;
+  uniqueCompanies?: number;
+  brandUnitCount?: number;
+};
+
 type ResumeDoc = {
   _id: string;
+  externalId?: string;
   content?: {
     name?: string;
+    resumeId?: string;
+    perUserId?: string;
+    profileUrl?: string;
     workHistory?: Array<{ raw: string }>;
   };
   ingestData?: {
     companyHits?: string[];
     roleSignals?: RoleSignal[];
     ruleScores?: Record<string, number>;
+    industryDbV2Raw?: number;
+    industryDbV2RawComponents?: IndustryDbV2RawComponents;
+    computedAt?: number;
+    skillsVersion?: number;
   };
   primaryRuleScore?: number;
   analysis?: {
@@ -105,16 +75,178 @@ type ResumeDoc = {
   };
 };
 
-async function main() {
-  const convexUrl = resolveConvexUrl();
-  console.log(`Using Convex URL: ${convexUrl}\n`);
+type CliOptions = {
+  sample: string | null;
+  roundTrip: boolean;
+  convexUrl: string;
+  apiBaseUrl: string;
+  limit: number;
+  timeoutMs: number;
+  pollMs: number;
+};
 
-  const client = new ConvexHttpClient(convexUrl);
+type ConvexListResponse = ResumeDoc[];
 
-  const resumes = (await client.query(api.resumes.list, {
-    limit: 200,
-  })) as unknown as ResumeDoc[];
+type ImportSummary = {
+  submitted: number;
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  deduped: number;
+};
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readCliValue(flag: string): string | undefined {
+  const fullFlag = `--${flag}`;
+  for (let index = 0; index < process.argv.length; index += 1) {
+    const arg = process.argv[index];
+    if (arg === fullFlag) {
+      return process.argv[index + 1];
+    }
+    if (arg.startsWith(`${fullFlag}=`)) {
+      return arg.slice(fullFlag.length + 1);
+    }
+  }
+  return undefined;
+}
+
+function hasCliFlag(flag: string): boolean {
+  return process.argv.includes(`--${flag}`);
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number, label: string): number {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid ${label}: ${value}`);
+  }
+  return parsed;
+}
+
+function resolveApiBaseUrl(): string {
+  if (process.env.TRENDS_API_URL?.trim()) {
+    return process.env.TRENDS_API_URL.trim().replace(/\/$/, "");
+  }
+  return DEFAULT_API_BASE_URL;
+}
+
+function parseCliOptions(): CliOptions {
+  return {
+    sample: readCliValue("sample") ?? null,
+    roundTrip: hasCliFlag("round-trip"),
+    convexUrl: readCliValue("convex-url") ?? resolveImportConvexUrl() ?? DEFAULT_CONVEX_URL,
+    apiBaseUrl: (readCliValue("api-base-url") ?? resolveApiBaseUrl()).replace(/\/$/, ""),
+    limit: parsePositiveInteger(readCliValue("limit"), DEFAULT_LIMIT, "limit"),
+    timeoutMs: parsePositiveInteger(readCliValue("timeout-ms"), DEFAULT_TIMEOUT_MS, "timeout-ms"),
+    pollMs: parsePositiveInteger(readCliValue("poll-ms"), DEFAULT_POLL_MS, "poll-ms"),
+  };
+}
+
+function toOptionalString(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return null;
+}
+
+function normalizeExternalId(value: unknown): string | null {
+  return toOptionalString(value);
+}
+
+function resolveSamplePath(sample: string): string {
+  if (path.isAbsolute(sample)) {
+    return sample;
+  }
+  if (sample.endsWith(".json")) {
+    return path.join(PROJECT_ROOT, sample);
+  }
+  return path.join(PROJECT_ROOT, "output", "resumes", "samples", `${sample}.json`);
+}
+
+function readImportFile(sample: string): unknown {
+  const samplePath = resolveSamplePath(sample);
+  return JSON.parse(fs.readFileSync(samplePath, "utf-8")) as unknown;
+}
+
+function buildTargetKeys(source: string, resumes: Array<Record<string, unknown>>): Set<string> {
+  const keys = new Set<string>();
+  for (const resume of resumes) {
+    const externalId = normalizeExternalId(resume.externalId);
+    if (externalId) {
+      keys.add(`externalId:${externalId}`);
+    }
+
+    const profileUrl = toOptionalString(resume.profileUrl);
+    if (profileUrl) {
+      keys.add(`profileUrl:${profileUrl}`);
+    }
+
+    const resumeId = toOptionalString(resume.resumeId);
+    if (resumeId) {
+      keys.add(`resumeId:${resumeId}`);
+      keys.add(`externalId:${source}:resume:${resumeId}`);
+    }
+
+    const perUserId = toOptionalString(resume.perUserId);
+    if (perUserId) {
+      keys.add(`perUserId:${perUserId}`);
+      keys.add(`externalId:${source}:user:${perUserId}`);
+    }
+  }
+  return keys;
+}
+
+function getResumeMatchKeys(resume: ResumeDoc): string[] {
+  const keys: string[] = [];
+  const externalId = normalizeExternalId(resume.externalId);
+  if (externalId) {
+    keys.push(`externalId:${externalId}`);
+  }
+  const profileUrl = toOptionalString(resume.content?.profileUrl);
+  if (profileUrl) {
+    keys.push(`profileUrl:${profileUrl}`);
+  }
+  const resumeId = toOptionalString(resume.content?.resumeId);
+  if (resumeId) {
+    keys.push(`resumeId:${resumeId}`);
+  }
+  const perUserId = toOptionalString(resume.content?.perUserId);
+  if (perUserId) {
+    keys.push(`perUserId:${perUserId}`);
+  }
+  return keys;
+}
+
+function hasPersistedIngestData(resume: ResumeDoc): boolean {
+  return typeof resume.ingestData?.computedAt === "number"
+    && typeof resume.ingestData?.industryDbV2Raw === "number"
+    && Number.isFinite(resume.ingestData.industryDbV2Raw);
+}
+
+function filterTargetResumes(resumes: ResumeDoc[], targetKeys: Set<string>): ResumeDoc[] {
+  return resumes.filter((resume) => getResumeMatchKeys(resume).some((key) => targetKeys.has(key)));
+}
+
+function shouldTriggerReingest(summary: unknown): summary is ImportSummary {
+  if (!isRecord(summary)) {
+    return false;
+  }
+  return ["submitted", "inserted", "updated", "unchanged", "deduped"].every((key) => {
+    const value = summary[key];
+    return typeof value === "number" && Number.isFinite(value);
+  });
+}
+
+function summarizeResumes(resumes: ResumeDoc[]): void {
   console.log(`Found ${resumes.length} resumes\n`);
   console.log("=".repeat(100));
 
@@ -156,6 +288,10 @@ async function main() {
     console.log(`  Rule Scores: ${JSON.stringify(ruleScores)}`);
     console.log(`  Primary Rule Score: ${primaryRuleScore}`);
     console.log(`  AI Score: ${aiScore ?? "N/A"}`);
+    console.log(`  Persisted industryDbV2Raw: ${resume.ingestData?.industryDbV2Raw ?? "N/A"}`);
+    console.log(
+      `  Persisted components: ${JSON.stringify(resume.ingestData?.industryDbV2RawComponents ?? {})}`,
+    );
 
     const aiScoreNum = typeof aiScore === "number" ? aiScore : 0;
     const delta = aiScoreNum - primaryRuleScore;
@@ -176,30 +312,123 @@ async function main() {
   console.log("\n" + "=".repeat(100));
   console.log("\nSUMMARY TABLE:");
   console.log(
-    "Name".padEnd(20) +
-      "AI Score".padEnd(12) +
-      "Rule Score".padEnd(12) +
-      "Verified Yrs".padEnd(14) +
-      "Company Hits".padEnd(30) +
-      "Delta",
+    "Name".padEnd(20)
+      + "AI Score".padEnd(12)
+      + "Rule Score".padEnd(12)
+      + "Verified Yrs".padEnd(14)
+      + "Company Hits".padEnd(30)
+      + "Delta",
   );
   console.log("-".repeat(100));
 
   for (const row of rows) {
     console.log(
-      row.name.slice(0, 18).padEnd(20) +
-        String(row.aiScore).padEnd(12) +
-        String(row.ruleScore).padEnd(12) +
-        String(row.verifiedYears).padEnd(14) +
-        (row.companyHits.length > 0
+      row.name.slice(0, 18).padEnd(20)
+        + String(row.aiScore).padEnd(12)
+        + String(row.ruleScore).padEnd(12)
+        + String(row.verifiedYears).padEnd(14)
+        + (row.companyHits.length > 0
           ? row.companyHits.join(",").slice(0, 28)
-          : "(none)"
-        ).padEnd(30) +
-        row.delta,
+          : "(none)").padEnd(30)
+        + row.delta,
     );
   }
+}
 
-  client.close();
+async function fetchResumes(client: ConvexHttpClient, limit: number): Promise<ConvexListResponse> {
+  return (await client.query(api.resumes.list, {
+    limit,
+  })) as unknown as ConvexListResponse;
+}
+
+async function postJson(url: string, body: unknown): Promise<unknown> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Workspace-Slug": "dev",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Request failed (${response.status}) for ${url}: ${text}`);
+  }
+
+  return response.json() as Promise<unknown>;
+}
+
+async function runRoundTrip(options: CliOptions): Promise<void> {
+  if (!options.sample) {
+    throw new Error("--round-trip requires --sample <sample-name-or-path>");
+  }
+
+  const client = new ConvexHttpClient(options.convexUrl);
+  const payload = readImportFile(options.sample);
+  const normalized = normalizeResumeImportPayload(payload);
+  const targetKeys = buildTargetKeys(
+    normalized.source,
+    normalized.resumes as Array<Record<string, unknown>>,
+  );
+
+  if (normalized.resumes.length === 0) {
+    throw new Error(`Sample ${options.sample} does not contain any resumes`);
+  }
+
+  console.log(`Using API base URL: ${options.apiBaseUrl}`);
+  console.log(`Using Convex URL: ${options.convexUrl}`);
+  console.log(`Importing sample: ${options.sample}`);
+
+  const importResponse = await postJson(`${options.apiBaseUrl}/api/resumes/import`, payload);
+  console.log("Import response:", JSON.stringify(importResponse));
+
+  if (shouldTriggerReingest(importResponse) && importResponse.inserted === 0 && importResponse.updated === 0) {
+    console.log("Skipping explicit re-ingest because import did not add or update any resumes.");
+  } else {
+    const reingestResponse = await postJson(`${options.apiBaseUrl}/api/resumes/trigger-reingest`, {
+      limit: options.limit,
+    });
+    console.log("Re-ingest response:", JSON.stringify(reingestResponse));
+  }
+
+  const deadline = Date.now() + options.timeoutMs;
+  while (Date.now() <= deadline) {
+    const current = await fetchResumes(client, options.limit);
+    const targets = filterTargetResumes(current, targetKeys);
+    const persisted = targets.filter(hasPersistedIngestData);
+
+    console.log(
+      `Waiting for persisted ingest data: matched ${targets.length}/${normalized.resumes.length}, ready ${persisted.length}/${normalized.resumes.length}`,
+    );
+
+    if (targets.length >= normalized.resumes.length && persisted.length >= normalized.resumes.length) {
+      console.log("\nRound-trip persistence verified.\n");
+      summarizeResumes(targets);
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, options.pollMs));
+  }
+
+  throw new Error(`Timed out waiting for persisted ingest data after ${options.timeoutMs}ms`);
+}
+
+async function main() {
+  const options = parseCliOptions();
+
+  if (options.roundTrip) {
+    await runRoundTrip(options);
+    return;
+  }
+
+  const client = new ConvexHttpClient(options.convexUrl);
+  try {
+    console.log(`Using Convex URL: ${options.convexUrl}\n`);
+    const resumes = await fetchResumes(client, options.limit);
+    summarizeResumes(resumes);
+  } finally {
+  }
 }
 
 main().catch((err) => {

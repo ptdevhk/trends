@@ -1,6 +1,123 @@
 import { connectToChrome, waitForToast, DEFAULT_OPTIONS } from './e2e-utils';
 import { Page, expect } from '@playwright/test';
 
+function getFlagValue(flag: string): string | null {
+    const index = process.argv.indexOf(flag);
+    if (index === -1) {
+        return null;
+    }
+    const value = process.argv[index + 1];
+    return value && !value.startsWith('--') ? value : null;
+}
+
+async function waitForExtensionReady(page: Page) {
+    await expect.poll(async () => {
+        return page.evaluate(() => {
+            const accessor = (window as typeof window & {
+                __TR_RESUME_DATA__?: {
+                    status?: () => {
+                        extensionLoaded?: boolean;
+                        loggedIn?: boolean;
+                        domReady?: boolean;
+                        sourceKey?: string;
+                        cardCount?: number;
+                    };
+                };
+            }).__TR_RESUME_DATA__;
+            return accessor?.status?.() ?? null;
+        });
+    }, {
+        timeout: 15000,
+    }).not.toBeNull();
+}
+
+async function getExtensionStatus(page: Page) {
+    await waitForExtensionReady(page);
+    return page.evaluate(() => {
+        const accessor = (window as typeof window & {
+            __TR_RESUME_DATA__?: {
+                status?: () => {
+                    extensionLoaded?: boolean;
+                    loggedIn?: boolean;
+                    domReady?: boolean;
+                    sourceKey?: string;
+                    cardCount?: number;
+                    autoSync?: string;
+                    autoSyncCount?: number;
+                    autoSyncPages?: number;
+                };
+            };
+        }).__TR_RESUME_DATA__;
+        return accessor?.status?.() ?? null;
+    });
+}
+
+async function runJob5156DetailLiveSmoke(page: Page, detailUrl: string) {
+    console.log('Testing live Job5156 detail-page extraction...');
+    await page.goto(detailUrl);
+
+    const status = await expect.poll(async () => await getExtensionStatus(page), {
+        timeout: 20000,
+    }).toMatchObject({
+        extensionLoaded: true,
+        loggedIn: true,
+        sourceKey: 'job5156',
+        domReady: true,
+        cardCount: 1,
+    });
+
+    const extraction = await page.evaluate(() => {
+        const accessor = (window as typeof window & {
+            __TR_RESUME_DATA__?: {
+                extract?: () => Array<Record<string, unknown>>;
+            };
+        }).__TR_RESUME_DATA__;
+        return accessor?.extract?.() ?? [];
+    });
+
+    expect(Array.isArray(extraction)).toBe(true);
+    expect(extraction.length).toBeGreaterThan(0);
+    expect(extraction[0]).toMatchObject({
+        profileUrl: detailUrl,
+    });
+
+    console.log('✅ Job5156 detail-page live smoke test passed.', status);
+}
+
+async function runSeekMyRecommendedLiveSmoke(page: Page, recommendedUrl: string) {
+    console.log('Testing live Seek MY recommended-page extraction...');
+    await page.goto(recommendedUrl);
+
+    await expect.poll(async () => await getExtensionStatus(page), {
+        timeout: 20000,
+    }).toMatchObject({
+        extensionLoaded: true,
+        loggedIn: true,
+        sourceKey: 'seek',
+        domReady: true,
+    });
+
+    const status = await getExtensionStatus(page);
+
+    const extraction = await page.evaluate(() => {
+        const accessor = (window as typeof window & {
+            __TR_RESUME_DATA__?: {
+                extract?: () => Array<Record<string, unknown>>;
+            };
+        }).__TR_RESUME_DATA__;
+        return accessor?.extract?.() ?? [];
+    });
+
+    expect(Array.isArray(extraction)).toBe(true);
+    expect(extraction.length).toBeGreaterThan(0);
+    expect(recommendedUrl.startsWith('https://my.employer.seek.com/candidates/recommended')).toBe(true);
+
+    console.log('✅ Seek MY recommended-page live smoke test passed.', {
+        ...status,
+        extractedCount: extraction.length,
+    });
+}
+
 async function runCollectUrlKeywordModeTest(page: Page) {
     console.log('Testing Quick Start Collect URL keyword concat mode...');
     await page.goto(
@@ -164,6 +281,8 @@ async function runErrorStateTest(page: Page) {
 
 async function main() {
     const collectOnly = process.argv.includes('--collect-only');
+    const liveJob5156Detail = getFlagValue('--live-job5156-detail');
+    const liveSeekMyRecommended = getFlagValue('--live-seek-my-recommended');
     const { browser, page } = await connectToChrome();
 
     try {
@@ -177,6 +296,14 @@ async function main() {
         await runAnalysisTest(page);
         await runBulkActionsTest(page);
         // await runErrorStateTest(page); // Skip due to Convex mocking complexity in smoke test
+
+        if (liveJob5156Detail) {
+            await runJob5156DetailLiveSmoke(page, liveJob5156Detail);
+        }
+
+        if (liveSeekMyRecommended) {
+            await runSeekMyRecommendedLiveSmoke(page, liveSeekMyRecommended);
+        }
 
         console.log('\n🌟 All E2E smoke tests passed!');
     } catch (error) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields } from '@trends/shared'
 import { useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -111,6 +111,21 @@ type KeywordExpansionSummary = {
   mode: 'AND' | 'OR'
   expandedTo: string[]
   sourceMapping: Record<string, string>
+}
+
+type MockConvexResumePayload = {
+  list?: Doc<'resumes'>[]
+  search?: {
+    results?: Array<{
+      resume: Doc<'resumes'>
+      provenance?: Array<{
+        term: string
+        source: 'searchText' | 'industryTags' | 'companyHits' | 'synonymHits'
+        expandedFrom?: string
+      }>
+    }>
+    expansion?: unknown
+  }
 }
 
 function buildFallbackKeywordExpansion(query: string): KeywordExpansionSummary {
@@ -474,6 +489,19 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
   }
 }
 
+function readMockConvexResumePayload(): MockConvexResumePayload | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const value = (window as typeof window & { __TR_PLAYWRIGHT_MOCK_RESUMES__?: unknown }).__TR_PLAYWRIGHT_MOCK_RESUMES__
+  if (!isRecord(value)) {
+    return null
+  }
+
+  return value as MockConvexResumePayload
+}
+
 function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
   const content = isRecord(doc.content) ? doc.content : {}
   const profileUrl = normalizeProfileUrlForDisplay(
@@ -511,11 +539,20 @@ function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
 export function useConvexResumes(limit: number = 200, query?: string, jobDescriptionId?: string) {
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
   const normalizedQuery = query?.trim() || undefined
+  const mockPayload = useMemo(() => readMockConvexResumePayload(), [])
   const [keywordExpansion, setKeywordExpansion] = useState<KeywordExpansionSummary | null>(null)
   const [expansionLoading, setExpansionLoading] = useState(false)
 
   useEffect(() => {
     let active = true
+
+    if (mockPayload) {
+      setKeywordExpansion(normalizedQuery ? buildFallbackKeywordExpansion(normalizedQuery) : null)
+      setExpansionLoading(false)
+      return () => {
+        active = false
+      }
+    }
 
     if (!normalizedQuery) {
       setKeywordExpansion(null)
@@ -578,41 +615,55 @@ export function useConvexResumes(limit: number = 200, query?: string, jobDescrip
     return () => {
       active = false
     }
-  }, [normalizedQuery])
+  }, [mockPayload, normalizedQuery])
 
   const searchResults = useQuery(
     api.resumes.searchWithTagExpansion,
-    normalizedQuery && keywordExpansion
-      ? {
-          query: normalizedQuery,
-          keywordGroups: keywordExpansion.groups,
-          mode: keywordExpansion.mode,
-          sourceMappings: Object.entries(keywordExpansion.sourceMapping).map(([term, expandedFrom]) => ({
-            term,
-            expandedFrom,
-          })),
-          limit,
-          jobDescriptionId: normalizedJobDescriptionId,
-        }
-      : 'skip'
+    mockPayload
+      ? 'skip'
+      : normalizedQuery && keywordExpansion
+        ? {
+            query: normalizedQuery,
+            keywordGroups: keywordExpansion.groups,
+            mode: keywordExpansion.mode,
+            sourceMappings: Object.entries(keywordExpansion.sourceMapping).map(([term, expandedFrom]) => ({
+              term,
+              expandedFrom,
+            })),
+            limit,
+            jobDescriptionId: normalizedJobDescriptionId,
+          }
+        : 'skip'
   )
 
   const listResults = useQuery(
     api.resumes.listWithIngestData,
-    normalizedQuery ? 'skip' : { limit, jobDescriptionId: normalizedJobDescriptionId }
+    mockPayload
+      ? 'skip'
+      : normalizedQuery ? 'skip' : { limit, jobDescriptionId: normalizedJobDescriptionId }
   )
 
-  const mappedResumes = normalizedQuery
-    ? (searchResults?.results ?? []).map((entry) => ({
-        ...mapResumeDoc(entry.resume),
-        _provenance: entry.provenance,
-      }))
-    : (listResults ?? []).map(mapResumeDoc)
+  const mockSearchResults = normalizedQuery ? (mockPayload?.search?.results ?? []) : []
+  const mockListResults = !normalizedQuery ? (mockPayload?.list ?? []) : []
+
+  const mappedResumes = mockPayload
+    ? normalizedQuery
+      ? mockSearchResults.map((entry) => ({
+          ...mapResumeDoc(entry.resume),
+          _provenance: entry.provenance,
+        }))
+      : mockListResults.map(mapResumeDoc)
+    : normalizedQuery
+      ? (searchResults?.results ?? []).map((entry) => ({
+          ...mapResumeDoc(entry.resume),
+          _provenance: entry.provenance,
+        }))
+      : (listResults ?? []).map(mapResumeDoc)
 
   return {
     resumes: mappedResumes,
-    loading: normalizedQuery ? (expansionLoading || searchResults === undefined) : listResults === undefined,
+    loading: mockPayload ? false : normalizedQuery ? (expansionLoading || searchResults === undefined) : listResults === undefined,
     jobDescriptionId: normalizedJobDescriptionId,
-    expansion: searchResults?.expansion,
+    expansion: mockPayload ? mockPayload.search?.expansion : searchResults?.expansion,
   }
 }
