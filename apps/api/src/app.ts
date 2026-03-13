@@ -64,7 +64,7 @@ export function createApp() {
     "*",
     cors({
       origin: "*",
-      exposeHeaders: ["Content-Disposition"],
+      exposeHeaders: ["Content-Disposition", "Content-Length"],
     })
   );
   app.use("*", logger());

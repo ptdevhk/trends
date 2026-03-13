@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import type { Context } from "hono";
 import { randomUUID } from "node:crypto";
 import {
   ResumesQuerySchema,
@@ -1656,6 +1657,10 @@ app.openapi(clearResumeMatchesRoute, (c) => {
   }, 200);
 });
 
+const ResumeExportFormSchema = z.object({
+  payload: z.string().min(1),
+});
+
 const exportResumesRoute = createRoute({
   method: "post",
   path: "/api/resumes/export",
@@ -1870,31 +1875,56 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
   );
 });
 
+async function buildResumeExportResponse(request: z.infer<typeof ResumeExportRequestSchema>) {
+  const { format, entries, batchMeta } = await resolveExportRequest(request);
+  const file = await exportService.exportResumes(format, entries, batchMeta);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `resumes-export-${timestamp}.${file.extension}`;
+
+  return new Response(file.content, {
+    status: 200,
+    headers: {
+      "Content-Type": file.contentType,
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": String(file.content.byteLength),
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+async function parseResumeExportDownloadRequest(c: Context) {
+  const formData = await c.req.formData();
+  const parsedForm = ResumeExportFormSchema.parse({
+    payload: formData.get("payload"),
+  });
+  return ResumeExportRequestSchema.parse(JSON.parse(parsedForm.payload));
+}
+
+function buildResumeExportErrorResponse(c: Context, error: unknown) {
+  if (error instanceof DataNotFoundError) {
+    return c.json({ success: false, error: error.message }, 404);
+  }
+
+  console.error("Failed to export resumes:", error);
+  const message = error instanceof Error ? error.message : String(error);
+  return c.json({ success: false, error: message }, 500);
+}
+
 app.openapi(exportResumesRoute, async (c) => {
-  const request = c.req.valid("json");
-
   try {
-    const { format, entries, batchMeta } = await resolveExportRequest(request);
-    const file = await exportService.exportResumes(format, entries, batchMeta);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `resumes-export-${timestamp}.${file.extension}`;
-
-    return new Response(file.content, {
-      status: 200,
-      headers: {
-        "Content-Type": file.contentType,
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "no-store",
-        "Access-Control-Expose-Headers": "Content-Disposition",
-      },
-    });
+    const request = c.req.valid("json");
+    return await buildResumeExportResponse(request);
   } catch (error) {
-    if (error instanceof DataNotFoundError) {
-      return c.json({ success: false, error: error.message }, 404);
-    }
-    console.error("Failed to export resumes:", error);
-    const message = error instanceof Error ? error.message : String(error);
-    return c.json({ success: false, error: message }, 500);
+    return buildResumeExportErrorResponse(c, error);
+  }
+});
+
+app.post("/api/resumes/export/download", async (c) => {
+  try {
+    const request = await parseResumeExportDownloadRequest(c);
+    return await buildResumeExportResponse(request);
+  } catch (error) {
+    return buildResumeExportErrorResponse(c, error);
   }
 });
 

@@ -177,18 +177,26 @@ function taskMatchesCurrentSearch(
   return false
 }
 
-function getExportErrorMessage(value: unknown): string | undefined {
-  if (typeof value !== 'object' || value === null) {
-    return undefined
+function submitResumeExportDownload(apiBaseUrl: string, payload: ResumeExportRequestBody): void {
+  const form = document.createElement('form')
+  const input = document.createElement('input')
+
+  form.method = 'POST'
+  form.action = new URL(`${apiBaseUrl}/api/resumes/export/download`, window.location.origin).toString()
+  form.style.display = 'none'
+
+  input.type = 'hidden'
+  input.name = 'payload'
+  input.value = JSON.stringify(payload)
+
+  form.appendChild(input)
+  document.body.appendChild(form)
+
+  try {
+    form.submit()
+  } finally {
+    form.remove()
   }
-  if (!('error' in value)) {
-    return undefined
-  }
-  const error = value.error
-  if (typeof error !== 'string' || error.trim().length === 0) {
-    return undefined
-  }
-  return error
 }
 
 function normalizeFilterToken(value: string): string {
@@ -1192,47 +1200,8 @@ export function useResumeListState(loadSearchHistory = false) {
         }
 
         try {
-          const response = await fetch(`${apiBaseUrl}/api/resumes/export`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(exportRequest),
-          })
-
-          if (!response.ok) {
-            let message = `Export failed with status ${response.status}`
-            try {
-              const errorPayload = await response.json()
-              const parsedErrorMessage = getExportErrorMessage(errorPayload)
-              if (parsedErrorMessage) {
-                message = parsedErrorMessage
-              }
-            } catch (error) {
-              console.error('Failed to parse export error payload', error)
-            }
-            throw new Error(message)
-          }
-
-          const contentDisposition = response.headers.get('content-disposition')
-          const filenameMatch = contentDisposition?.match(/filename="?([^";]+)"?/i)
-          const filename = (filenameMatch && filenameMatch[1]) ? filenameMatch[1] : `selected-resumes-${new Date().toISOString().replace(/[:.]/g, '-')}.${exportFormat}`
-
-          const blob = await response.blob()
-          const url = URL.createObjectURL(blob)
-          const anchor = document.createElement('a')
-          anchor.href = url
-          anchor.download = filename
-          anchor.style.display = 'none'
-          document.body.appendChild(anchor)
-          anchor.click()
-
-          window.setTimeout(() => {
-            anchor.remove()
-            URL.revokeObjectURL(url)
-          }, 1000)
-
-          toast.success(t('bulk.exported', { count: exportEntries.length, defaultValue: `Exported ${exportEntries.length} resumes` }))
+          submitResumeExportDownload(apiBaseUrl, exportRequest)
+          toast.info(t('bulk.exportStarted', { count: exportEntries.length, defaultValue: `Started export for ${exportEntries.length} resumes` }))
           return
         } catch (error) {
           console.error('Export failed', error)
