@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
+import type { ResumeScanRow } from "./resumes";
 
 /**
  * Background ingest agent (M3)
@@ -19,6 +20,11 @@ function getBffApiUrl(): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isStaleSkillsVersion(resume: ResumeScanRow, currentVersion: number): boolean {
+  const version = resume.ingestData?.skillsVersion;
+  return typeof version !== "number" || version < currentVersion;
 }
 
 export const processNewResumes = internalAction({
@@ -126,23 +132,39 @@ export const processNewResumes = internalAction({
 export const reIngestAllResumes = internalAction({
   args: {},
   handler: async (ctx): Promise<{ scheduled: number; batches: number }> => {
-    const resumeIds: Id<"resumes">[] = await ctx.runQuery(internal.resumes.listProcessedIds, {});
-
-    if (resumeIds.length === 0) {
-      return { scheduled: 0, batches: 0 };
-    }
-
     const batchSize = 50;
+    let cursor: string | undefined;
+    let scheduled = 0;
     let batches = 0;
 
-    for (let index = 0; index < resumeIds.length; index += batchSize) {
-      await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
-        resumeIds: resumeIds.slice(index, index + batchSize),
-      });
-      batches += 1;
+    while (true) {
+      const batch: {
+        continueCursor: string;
+        isDone: boolean;
+        page: ResumeScanRow[];
+      } = await ctx.runQuery(internal.resumes.listResumeScanBatch, { cursor });
+
+      const resumeIds = batch.page
+        .filter((resume) => resume.ingestData !== undefined)
+        .map((resume) => resume._id);
+
+      for (let index = 0; index < resumeIds.length; index += batchSize) {
+        await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
+          resumeIds: resumeIds.slice(index, index + batchSize),
+        });
+        batches += 1;
+      }
+
+      scheduled += resumeIds.length;
+
+      if (batch.isDone) {
+        break;
+      }
+
+      cursor = batch.continueCursor;
     }
 
-    return { scheduled: resumeIds.length, batches };
+    return { scheduled, batches };
   },
 });
 
@@ -173,23 +195,52 @@ export const reIngestStaleResumes = internalAction({
       throw new Error("Invalid skills version response: version must be a number");
     }
 
-    const staleResumes: Array<{ _id: Id<"resumes"> }> = await ctx.runQuery(internal.resumes.listStaleResumes, {
-      currentVersion,
-      limit,
-    });
+    const batchSize = 50;
+    let cursor: string | undefined;
+    const resumeIds: Id<"resumes">[] = [];
+    let hasMore = false;
+    let batches = 0;
 
-    if (staleResumes.length === 0) {
+    while (resumeIds.length < limit) {
+      const batch: {
+        continueCursor: string;
+        isDone: boolean;
+        page: ResumeScanRow[];
+      } = await ctx.runQuery(internal.resumes.listResumeScanBatch, { cursor });
+
+      const staleIds = batch.page
+        .filter((resume) => resume.ingestData !== undefined && isStaleSkillsVersion(resume, currentVersion))
+        .map((resume) => resume._id);
+      const remaining = limit - resumeIds.length;
+
+      if (staleIds.length > remaining) {
+        resumeIds.push(...staleIds.slice(0, remaining));
+        hasMore = true;
+        break;
+      }
+
+      resumeIds.push(...staleIds);
+
+      if (resumeIds.length === limit) {
+        hasMore = !batch.isDone;
+        break;
+      }
+
+      if (batch.isDone) {
+        break;
+      }
+
+      cursor = batch.continueCursor;
+    }
+
+    if (resumeIds.length === 0) {
       return {
         scheduled: 0,
         batches: 0,
         currentVersion,
-        hasMore: false,
+        hasMore,
       };
     }
-
-    const resumeIds = staleResumes.map((resume) => resume._id);
-    const batchSize = 50;
-    let batches = 0;
 
     for (let index = 0; index < resumeIds.length; index += batchSize) {
       await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
@@ -202,7 +253,7 @@ export const reIngestStaleResumes = internalAction({
       scheduled: resumeIds.length,
       batches,
       currentVersion,
-      hasMore: resumeIds.length === limit,
+      hasMore,
     };
   },
 });

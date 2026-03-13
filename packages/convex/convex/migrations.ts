@@ -8,6 +8,7 @@ import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 import { deriveResumeIdentityKey } from "./lib/resume_identity";
 import { parseAgeFromContent } from "./lib/age";
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
+import { resolveResumeScanBatchSize } from "./resumes";
 
 const JOB5156_HOST = "hr.job5156.com";
 const JOB5156_PROFILE_DISPLAY_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
@@ -215,6 +216,8 @@ type BackfillIngestDataResult = {
     scheduled: number;
     batches: number;
     hasMore: boolean;
+    cursor: string | null;
+    scannedResumes: number;
     message: string;
 };
 
@@ -252,11 +255,20 @@ export const backfillSearchText = mutation({
 });
 
 export const reindexSearchText = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
         let count = 0;
-        for (const resume of resumes) {
+        for (const resume of resumes.page) {
             const searchText = mergeSearchTextWithIngestData(buildSearchText(resume.content), {
                 industryTags: resume.ingestData?.industryTags,
                 synonymHits: resume.ingestData?.synonymHits,
@@ -267,7 +279,12 @@ export const reindexSearchText = mutation({
                 count++;
             }
         }
-        return `Reindexed ${count} resumes`;
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes: count,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
     },
 });
 
@@ -356,18 +373,28 @@ export const backfillWorkspaceSlugs = mutation({
 export const backfillIngestData = action({
     args: {
         limit: v.optional(v.number()),
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
     },
     handler: async (ctx, args): Promise<BackfillIngestDataResult> => {
         const limit = Math.max(1, Math.min(args.limit ?? 100, 500));
-        const unprocessed: Array<Pick<Doc<"resumes">, "_id">> = await ctx.runQuery(internal.resumes.listUnprocessed, { limit });
-        const resumeIds: Id<"resumes">[] = unprocessed.map((resume: Pick<Doc<"resumes">, "_id">) => resume._id);
+        const scanBatch = await ctx.runQuery(internal.resumes.listResumeScanBatch, {
+            cursor: args.cursor,
+            limit: Math.min(resolveResumeScanBatchSize(args.batchSize), limit),
+        });
+        const resumeIds: Id<"resumes">[] = scanBatch.page
+            .filter((resume) => resume.ingestData === undefined)
+            .slice(0, limit)
+            .map((resume) => resume._id);
 
         if (resumeIds.length === 0) {
             return {
                 scheduled: 0,
                 batches: 0,
-                hasMore: false,
-                message: "No unprocessed resumes remaining",
+                hasMore: !scanBatch.isDone,
+                cursor: scanBatch.isDone ? null : scanBatch.continueCursor,
+                scannedResumes: scanBatch.page.length,
+                message: scanBatch.isDone ? "No unprocessed resumes remaining" : "No unprocessed resumes found in this batch",
             };
         }
 
@@ -385,19 +412,30 @@ export const backfillIngestData = action({
         return {
             scheduled: resumeIds.length,
             batches,
-            hasMore: resumeIds.length === limit,
+            hasMore: !scanBatch.isDone,
+            cursor: scanBatch.isDone ? null : scanBatch.continueCursor,
+            scannedResumes: scanBatch.page.length,
             message: `Scheduled ingest backfill for ${resumeIds.length} resumes in ${batches} batch(es)`,
         };
     },
 });
 
 export const backfillPrimaryRuleScore = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
         let updated = 0;
 
-        for (const resume of resumes) {
+        for (const resume of resumes.page) {
             if (resume.primaryRuleScore !== undefined) {
                 continue;
             }
@@ -409,17 +447,31 @@ export const backfillPrimaryRuleScore = mutation({
             updated += 1;
         }
 
-        return `Backfilled ${updated} resumes`;
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes: updated,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
     },
 });
 
 export const backfillEvidenceText = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
         let patched = 0;
 
-        for (const resume of resumes) {
+        for (const resume of resumes.page) {
             if (!resume.ingestData || typeof resume.ingestData.evidenceText === "string") {
                 continue;
             }
@@ -434,8 +486,10 @@ export const backfillEvidenceText = mutation({
         }
 
         return {
-            scannedResumes: resumes.length,
+            scannedResumes: resumes.page.length,
             patched,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
         };
     },
 });
@@ -514,13 +568,22 @@ function rewriteJob5156WorkHistoryContent(content: unknown): {
 }
 
 export const backfillJob5156ProfileUrls = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
         let updatedResumes = 0;
         let updatedProfileFields = 0;
 
-        for (const resume of resumes) {
+        for (const resume of resumes.page) {
             const rewritten = rewriteJob5156ProfileUrlsInContent(resume.content);
             if (!rewritten.content) {
                 continue;
@@ -537,21 +600,32 @@ export const backfillJob5156ProfileUrls = mutation({
         }
 
         return {
-            scannedResumes: resumes.length,
+            scannedResumes: resumes.page.length,
             updatedResumes,
             updatedProfileFields,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
         };
     },
 });
 
 export const backfillJob5156WorkHistoryEducation = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
         let updatedResumes = 0;
         let movedEducationEntries = 0;
 
-        for (const resume of resumes) {
+        for (const resume of resumes.page) {
             const rewritten = rewriteJob5156WorkHistoryContent(resume.content);
             if (!rewritten.content) {
                 continue;
@@ -573,9 +647,11 @@ export const backfillJob5156WorkHistoryEducation = mutation({
         }
 
         return {
-            scannedResumes: resumes.length,
+            scannedResumes: resumes.page.length,
             updatedResumes,
             movedEducationEntries,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
         };
     },
 });

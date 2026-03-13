@@ -5,6 +5,8 @@ import { backfillEvidenceText, backfillJob5156WorkHistoryEducation } from '../mi
 type BackfillEvidenceTextResult = {
   scannedResumes: number
   patched: number
+  hasMore: boolean
+  cursor: string | null
 }
 
 type ConvexHandler<TArgs, TResult> = {
@@ -18,7 +20,7 @@ const backfillEvidenceTextHandler = (backfillEvidenceText as unknown as ConvexHa
 
 const backfillJob5156WorkHistoryEducationHandler = (backfillJob5156WorkHistoryEducation as unknown as ConvexHandler<
   Record<string, never>,
-  { scannedResumes: number; updatedResumes: number; movedEducationEntries: number }
+  { scannedResumes: number; updatedResumes: number; movedEducationEntries: number; hasMore: boolean; cursor: string | null }
 >)._handler
 
 type ResumeRecord = {
@@ -44,8 +46,17 @@ function createResumesDb(records: ResumeRecord[]) {
       query(tableName: string) {
         expect(tableName).toBe('resumes')
         return {
-          async collect() {
-            return records.map((record) => ({ ...record }))
+          order(direction: 'asc' | 'desc') {
+            expect(direction).toBe('desc')
+            return {
+              async paginate() {
+                return {
+                  page: records.map((record) => ({ ...record })),
+                  isDone: true,
+                  continueCursor: 'cursor:done',
+                }
+              },
+            }
           },
         }
       },
@@ -109,6 +120,8 @@ describe('backfillEvidenceText', () => {
     expect(result).toEqual({
       scannedResumes: 3,
       patched: 1,
+      hasMore: false,
+      cursor: null,
     })
 
     expect(ctx.patches).toContainEqual({
@@ -180,6 +193,8 @@ describe('backfillJob5156WorkHistoryEducation', () => {
       scannedResumes: 2,
       updatedResumes: 1,
       movedEducationEntries: 1,
+      hasMore: false,
+      cursor: null,
     })
 
     expect(ctx.patches).toContainEqual({
