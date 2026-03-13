@@ -210,6 +210,14 @@ export interface RequiredRoleRequirement {
   verifyIn: "workHistory" | "searchText";
 }
 
+export interface MatchedWorkEntry {
+  companyName?: string;
+  jobTitle?: string;
+  years: number;
+  industryVerified: boolean;
+  matchedSignals: string[];
+}
+
 export interface RoleSignalSummary {
   type: string;
   matchedSignals: string[];
@@ -217,6 +225,9 @@ export interface RoleSignalSummary {
   occurrences: number;
   years: number;
   industryVerifiedYears: number;
+  roleRelevantYears?: number;
+  industryVerifiedRelevantYears?: number;
+  matchedWorkEntries?: MatchedWorkEntry[];
   verifyIn: "workHistory" | "searchText";
 }
 
@@ -567,8 +578,12 @@ export class RuleScoringService {
     if (matched) {
       return {
         signalCount: matched.signalCount,
-        years: matched.years,
-        industryVerifiedYears: matched.industryVerifiedYears ?? matched.years,
+        years: matched.roleRelevantYears ?? matched.years,
+        industryVerifiedYears:
+          matched.industryVerifiedRelevantYears
+          ?? matched.industryVerifiedYears
+          ?? matched.roleRelevantYears
+          ?? matched.years,
       };
     }
 
@@ -651,10 +666,14 @@ export class RuleScoringService {
             && signal.verifyIn === required.verifyIn
         );
         if (!matched) return 0;
-        // Use industry-verified years for roles requiring CNC industry experience
         return requiresIndustryVerification(required.type)
-          ? (matched.industryVerifiedYears ?? matched.years)
-          : matched.years;
+          ? (
+              matched.industryVerifiedRelevantYears
+              ?? matched.industryVerifiedYears
+              ?? matched.roleRelevantYears
+              ?? matched.years
+            )
+          : (matched.roleRelevantYears ?? matched.years);
       })
       .filter((years) => years > 0);
 

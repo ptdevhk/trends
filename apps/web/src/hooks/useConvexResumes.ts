@@ -43,6 +43,15 @@ export type ConvexIngestData = {
     occurrences: number
     years: number
     industryVerifiedYears: number
+    roleRelevantYears?: number
+    industryVerifiedRelevantYears?: number
+    matchedWorkEntries?: Array<{
+      companyName?: string
+      jobTitle?: string
+      years: number
+      industryVerified: boolean
+      matchedSignals: string[]
+    }>
     verifyIn: string
   }>
   tagEnvelope?: Array<{
@@ -72,6 +81,8 @@ export type ConvexIngestData = {
   computedAt: number
   skillsVersion: number
 }
+
+export type ConvexRoleSignal = NonNullable<ConvexIngestData['roleSignals']>[number]
 
 export type ConvexResumeItem = ResumeItem & {
   resumeId: Doc<'resumes'>['_id']
@@ -425,6 +436,30 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
               occurrences: toNumber(item.occurrences) ?? 0,
               years,
               industryVerifiedYears: toNumber(item.industryVerifiedYears) ?? 0,
+              roleRelevantYears: toNumber(item.roleRelevantYears) ?? undefined,
+              industryVerifiedRelevantYears: toNumber(item.industryVerifiedRelevantYears) ?? undefined,
+              matchedWorkEntries: Array.isArray(item.matchedWorkEntries)
+                ? item.matchedWorkEntries
+                    .map((workEntry) => {
+                      if (!isRecord(workEntry)) {
+                        return null
+                      }
+
+                      const workEntryYears = toNumber(workEntry.years)
+                      if (workEntryYears === null) {
+                        return null
+                      }
+
+                      return {
+                        companyName: toStringValue(workEntry.companyName) || undefined,
+                        jobTitle: toStringValue(workEntry.jobTitle) || undefined,
+                        years: workEntryYears,
+                        industryVerified: Boolean(workEntry.industryVerified),
+                        matchedSignals: toStringArray(workEntry.matchedSignals),
+                      }
+                    })
+                    .filter((workEntry): workEntry is NonNullable<typeof workEntry> => workEntry !== null)
+                : undefined,
               verifyIn: toStringValue(item.verifyIn) || 'workHistory',
             }
           })

@@ -197,12 +197,32 @@ describe('resume-scoring', () => {
     })).toBe(40)
   })
 
+  it('adds percentile bonus when industry_db raw score exceeds cohort p80', () => {
+    expect(computeNormalizedIndustryDbScore(25, {
+      size: 50,
+      p80: 20,
+      histogram50: Array.from({ length: 51 }, (_, index) => {
+        if (index === 20) return 40
+        if (index === 25) return 10
+        return 0
+      }),
+    })).toBe(45)
+  })
+
   it('falls back to raw industry_db score for weak cohorts', () => {
     expect(computeNormalizedIndustryDbScore(12, {
       size: 10,
       p80: 4,
       histogram50: Array.from({ length: 51 }, () => 0),
     })).toBe(12)
+  })
+
+  it('falls back to raw industry_db score when p80 guard is too low', () => {
+    expect(computeNormalizedIndustryDbScore(25, {
+      size: 50,
+      p80: 5,
+      histogram50: Array.from({ length: 51 }, (_, index) => (index === 25 ? 50 : 0)),
+    })).toBe(25)
   })
 
   it('overrides AI breakdown and recomputes total score', () => {

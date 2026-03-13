@@ -10,7 +10,35 @@ export type IndustryDbV2Stats = {
   histogram50: number[]
 }
 
+export type ResumeMatchedWorkEntry = {
+  companyName?: string
+  jobTitle?: string
+  years: number
+  industryVerified: boolean
+  matchedSignals: string[]
+}
+
+export type ResumeRoleSignalLike = {
+  type: string
+  matchedSignals: string[]
+  signalCount: number
+  occurrences: number
+  years: number
+  industryVerifiedYears?: number
+  roleRelevantYears?: number
+  industryVerifiedRelevantYears?: number
+  matchedWorkEntries?: ResumeMatchedWorkEntry[]
+  verifyIn: string
+}
+
 const VALID_RECOMMENDATIONS: Recommendation[] = ['strong_match', 'match', 'potential', 'no_match']
+const ROLE_LABELS: Record<string, string> = {
+  sales: '销售',
+  engineer: '工程',
+  operator: '操作',
+  technician: '技术',
+  manager: '管理',
+}
 
 export function isRecommendation(value: string): value is Recommendation {
   return VALID_RECOMMENDATIONS.some((item) => item === value)
@@ -18,6 +46,39 @@ export function isRecommendation(value: string): value is Recommendation {
 
 export function toRecommendation(value: string): Recommendation {
   return isRecommendation(value) ? value : 'potential'
+}
+
+export function getRoleLabel(type: string): string {
+  const normalized = type.trim().toLowerCase()
+  return ROLE_LABELS[normalized] ?? type
+}
+
+export function formatRoleYears(years: number): string {
+  if (!Number.isFinite(years) || years <= 0) {
+    return '0年'
+  }
+
+  const rounded = Math.round(years * 10) / 10
+  const label = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+  return `${label.replace(/\.0$/, '')}年`
+}
+
+export function getRoleRelevantYears(signal: Pick<ResumeRoleSignalLike, 'roleRelevantYears' | 'years'>): number {
+  return typeof signal.roleRelevantYears === 'number' && Number.isFinite(signal.roleRelevantYears)
+    ? signal.roleRelevantYears
+    : signal.years
+}
+
+export function getRoleVerifiedYears(
+  signal: Pick<ResumeRoleSignalLike, 'industryVerifiedRelevantYears' | 'industryVerifiedYears'>
+): number {
+  if (typeof signal.industryVerifiedRelevantYears === 'number' && Number.isFinite(signal.industryVerifiedRelevantYears)) {
+    return signal.industryVerifiedRelevantYears
+  }
+
+  return typeof signal.industryVerifiedYears === 'number' && Number.isFinite(signal.industryVerifiedYears)
+    ? signal.industryVerifiedYears
+    : 0
 }
 
 export function toMatchBreakdown(value: Record<string, number> | undefined): MatchBreakdown | undefined {
@@ -140,14 +201,7 @@ export type ResumeWithIngestData = ResumeItem & {
       context: string
     }>
     companyHits: string[]
-    roleSignals?: Array<{
-      type: string
-      matchedSignals: string[]
-      signalCount: number
-      occurrences: number
-      years: number
-      verifyIn: string
-    }>
+    roleSignals?: ResumeRoleSignalLike[]
     ruleScores: Record<string, number>
     experienceLevel: string
     computedAt: number

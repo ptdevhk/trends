@@ -10,7 +10,7 @@ import type { ResumeItem } from '@/hooks/useResumes'
 import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { cn } from '@/lib/utils'
-import { isSafeProfileUrl } from '@/lib/resume-scoring'
+import { formatRoleYears, getRoleLabel, getRoleRelevantYears, getRoleVerifiedYears, isSafeProfileUrl, type ResumeRoleSignalLike } from '@/lib/resume-scoring'
 import {
   Tooltip,
   TooltipContent,
@@ -22,6 +22,13 @@ import { OutreachModal } from './OutreachModal'
 import { Select } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+
+export interface BrandHitLike {
+  brand: string
+  context: string
+  source?: string
+}
+
 interface ResumeCardProps {
   resume: ResumeItem
   onViewDetails: () => void
@@ -29,6 +36,8 @@ interface ResumeCardProps {
   ruleScore?: number
   industryTags?: string[]
   companyHits?: string[]
+  brandHits?: BrandHitLike[]
+  roleSignals?: ResumeRoleSignalLike[]
   brandDisplayResolve?: (brandId: string) => string
   roleTypes?: string[]
   experienceLevel?: string
@@ -84,6 +93,24 @@ const STATUS_BADGE_CLASS: Record<CandidateStatus, string> = {
   withdrawn: 'border-amber-200 bg-amber-50 text-amber-700',
 }
 
+function selectPrimaryRoleSignal(roleSignals: ResumeRoleSignalLike[] | undefined): ResumeRoleSignalLike | undefined {
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return undefined
+  }
+
+  return [...roleSignals].sort((left, right) => {
+    const leftVerified = getRoleVerifiedYears(left)
+    const rightVerified = getRoleVerifiedYears(right)
+    if (leftVerified !== rightVerified) {
+      return rightVerified - leftVerified
+    }
+
+    const leftRelevant = getRoleRelevantYears(left)
+    const rightRelevant = getRoleRelevantYears(right)
+    return rightRelevant - leftRelevant
+  })[0]
+}
+
 export function ResumeCardSkeleton() {
   return (
     <div className="p-4 border rounded-lg space-y-3">
@@ -126,6 +153,8 @@ export function ResumeCard({
   onAiFeedback,
   industryTags,
   companyHits,
+  brandHits,
+  roleSignals,
   brandDisplayResolve,
   roleTypes,
   experienceLevel,
@@ -196,6 +225,31 @@ export function ResumeCard({
   const visibleCompanyHits = (companyHits ?? [])
     .filter((company) => company.trim().length > 0)
     .slice(0, 3)
+  // Non-employer brand hits grouped by brand name with context labels
+  const brandSummary = useMemo(() => {
+    if (!brandHits || brandHits.length === 0) return []
+    const groups = new Map<string, { contexts: Set<string>; count: number }>()
+    for (const hit of brandHits) {
+      if (hit.context === 'employer') continue
+      const key = hit.brand.trim().toLowerCase()
+      if (!key) continue
+      const existing = groups.get(key) ?? { contexts: new Set<string>(), count: 0 }
+      existing.contexts.add(hit.context)
+      existing.count += 1
+      groups.set(key, existing)
+    }
+    return Array.from(groups.entries())
+      .sort(([, a], [, b]) => b.count - a.count)
+      .slice(0, 4)
+      .map(([brand, { contexts, count }]) => ({ brand, contexts: Array.from(contexts), count }))
+  }, [brandHits])
+  const primaryRoleSignal = selectPrimaryRoleSignal(roleSignals)
+  const verifiedRoleYears = primaryRoleSignal ? getRoleVerifiedYears(primaryRoleSignal) : 0
+  const roleRelevantYears = primaryRoleSignal ? getRoleRelevantYears(primaryRoleSignal) : 0
+  const displayRoleYears = verifiedRoleYears > 0 ? verifiedRoleYears : roleRelevantYears
+  const roleEvidenceLabel = primaryRoleSignal
+    ? `${getRoleLabel(primaryRoleSignal.type)}${formatRoleYears(displayRoleYears)}${verifiedRoleYears > 0 ? '(行业验证)' : ''}`
+    : null
   const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase()
   const experienceLevelForClick: ExperienceLevelFilter | undefined =
     normalizedExperienceLevel === 'senior'
@@ -323,6 +377,45 @@ export function ResumeCard({
           >
             {experienceBadge.label}
           </Badge>
+        ) : null}
+        {primaryRoleSignal && roleEvidenceLabel ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'cursor-help text-[10px]',
+                    verifiedRoleYears > 0
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-700'
+                  )}
+                >
+                  {roleEvidenceLabel}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[320px] text-xs">
+                <div className="space-y-1">
+                  <p className="font-semibold">{getRoleLabel(primaryRoleSignal.type)}</p>
+                  <p>相关年限: {formatRoleYears(roleRelevantYears)}</p>
+                  {verifiedRoleYears > 0 ? <p>行业验证: {formatRoleYears(verifiedRoleYears)}</p> : null}
+                  <p>命中信号: {primaryRoleSignal.matchedSignals.slice(0, 6).join(' / ') || '--'}</p>
+                  {primaryRoleSignal.matchedWorkEntries && primaryRoleSignal.matchedWorkEntries.length > 0 ? (
+                    <p>
+                      命中经历:
+                      {' '}
+                      {primaryRoleSignal.matchedWorkEntries
+                        .slice(0, 2)
+                        .map((entry) =>
+                          [entry.companyName, entry.jobTitle, formatRoleYears(entry.years)].filter(Boolean).join(' · ')
+                        )
+                        .join('；')}
+                    </p>
+                  ) : null}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : null}
         {visibleIndustryTags.map((tag, index) => {
           const isActive = activeTagFilters?.has(tag.trim().toLowerCase()) ?? false
