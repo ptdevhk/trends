@@ -88,6 +88,21 @@ function buildSampleResume(overrides: Partial<ResumeItem> & { resumeId: string; 
   };
 }
 
+function expectAttachmentHeaders(response: Response, extension: "csv" | "xlsx") {
+  expect(response.headers.get("content-type")).toBe(
+    extension === "csv"
+      ? "text/csv; charset=utf-8"
+      : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  expect(response.headers.get("content-disposition")).toMatch(
+    extension === "csv"
+      ? /^attachment; filename="resumes-export-.+\.csv"$/
+      : /^attachment; filename="resumes-export-.+\.xlsx"$/
+  );
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(response.headers.get("content-length")).toBeTruthy();
+}
+
 describe("resume export route", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -127,6 +142,7 @@ describe("resume export route", () => {
     });
 
     expect(response.status).toBe(200);
+    expectAttachmentHeaders(response, "csv");
     const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
     expect(parsed.data[0]?.resumeId).toBe("resume-b");
     expect(parsed.data[0]?.name).toBe("Bob");
@@ -196,6 +212,7 @@ describe("resume export route", () => {
     });
 
     expect(response.status).toBe(200);
+    expectAttachmentHeaders(response, "xlsx");
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
       pathName: "resumes:getByIdsForExport",
@@ -282,6 +299,7 @@ describe("resume export route", () => {
     });
 
     expect(response.status).toBe(200);
+    expectAttachmentHeaders(response, "csv");
     const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
     expect(parsed.data[0]?.resumeId).toBe("legacy-1");
     expect(parsed.data[0]?.name).toBe("Legacy Alice");

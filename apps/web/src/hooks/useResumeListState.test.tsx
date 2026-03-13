@@ -4,17 +4,13 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import { useResumeListState } from './useResumeListState'
 
-const fetchMock = vi.fn(async (...args: [RequestInfo | URL, RequestInit?]) => {
-  void args
-  return new Response(new Blob(['resumeId,name\n1,Alice']), {
-    status: 200,
-    headers: {
-      'Content-Disposition': 'attachment; filename="resumes-export-test.csv"',
-    },
-  })
+let submittedFormAction = ''
+let submittedPayloadValue = ''
+const formSubmitMock = vi.fn(function thisFormSubmit(this: HTMLFormElement) {
+  submittedFormAction = this.action
+  const payloadInput = this.querySelector('input[name="payload"]')
+  submittedPayloadValue = payloadInput instanceof HTMLInputElement ? payloadInput.value : ''
 })
-const createObjectURLMock = vi.fn(() => 'blob:test-export')
-const revokeObjectURLMock = vi.fn()
 
 const mockState = vi.hoisted(() => ({
   convexResumes: [] as ConvexResumeItem[],
@@ -152,14 +148,9 @@ vi.mock('@/lib/api-helpers', () => ({
   },
 }))
 
-vi.stubGlobal('fetch', fetchMock)
-Object.defineProperty(globalThis.URL, 'createObjectURL', {
+Object.defineProperty(globalThis.HTMLFormElement.prototype, 'submit', {
   writable: true,
-  value: createObjectURLMock,
-})
-Object.defineProperty(globalThis.URL, 'revokeObjectURL', {
-  writable: true,
-  value: revokeObjectURLMock,
+  value: formSubmitMock,
 })
 
 vi.mock('sonner', () => ({
@@ -276,6 +267,8 @@ describe('useResumeListState role filter regression', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    submittedFormAction = ''
+    submittedPayloadValue = ''
     window.history.replaceState({}, '', '/')
     mockState.filters = {}
     mockState.sessionLocation = '广东'
@@ -606,21 +599,13 @@ describe('useResumeListState role filter regression', () => {
       await result.current.handleBulkAction('export', 'csv')
     })
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/resumes/export',
-      expect.objectContaining({
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-    )
+    expect(formSubmitMock).toHaveBeenCalledTimes(1)
 
-    const requestCall = fetchMock.mock.calls[0]
-    expect(requestCall).toBeDefined()
-    const requestInit = requestCall?.[1] as RequestInit | undefined
-    expect(requestInit?.body).toBeDefined()
-    const parsedBody = JSON.parse(String(requestInit?.body)) as {
+    const submittedForm = document.querySelector('form') as HTMLFormElement | null
+    expect(submittedForm).toBeNull()
+    expect(submittedFormAction).toContain('/api/resumes/export/download')
+
+    const parsedBody = JSON.parse(submittedPayloadValue) as {
       source: string
       entries: Array<{ resumeId: string; userComment?: string; status?: string }>
       format: string
