@@ -4,18 +4,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DebugIngest from './DebugIngest'
 
 const resetMutation = vi.fn(async () => ({ count: 0, cleared: 0 }))
+const loadMore = vi.fn()
+type PaginatedQueryMockResult = {
+  results: Array<Record<string, unknown>>
+  status: string
+  isLoading: boolean
+  loadMore: typeof loadMore
+}
 
-vi.mock('convex/react', () => ({
-  useQuery: () => undefined,
-  useAction: () => vi.fn(async () => ({ scheduled: 0 })),
-  useMutation: () => resetMutation,
+const usePaginatedQueryMock = vi.fn<() => PaginatedQueryMockResult>(() => ({
+  results: [],
+  status: 'Exhausted',
+  isLoading: false,
+  loadMore,
 }))
 
-vi.mock('@/hooks/useConvexResumes', () => ({
-  useConvexResumes: () => ({
-    resumes: [],
-    loading: false,
-  }),
+vi.mock('convex/react', () => ({
+  usePaginatedQuery: () => usePaginatedQueryMock(),
+  useAction: () => vi.fn(async () => ({ scheduled: 0 })),
+  useMutation: () => resetMutation,
 }))
 
 vi.mock('react-i18next', () => ({
@@ -39,6 +46,12 @@ vi.mock('sonner', () => ({
 describe('DebugIngest reset database dialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    usePaginatedQueryMock.mockReturnValue({
+      results: [],
+      status: 'Exhausted',
+      isLoading: false,
+      loadMore,
+    })
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
@@ -47,6 +60,55 @@ describe('DebugIngest reset database dialog', () => {
         json: async () => ({ success: true, version: 1 }),
       }))
     )
+  })
+
+  it('renders loaded counts and loads more results when available', async () => {
+    const user = userEvent.setup()
+    usePaginatedQueryMock.mockReturnValue({
+      results: [
+        {
+          resumeId: 'resume-1',
+          externalId: 'ext-1',
+          name: '赵先生',
+          jobIntention: '销售工程师',
+          location: '东莞',
+          ingestData: {
+            industryTags: ['sales'],
+            companyHits: ['fanuc'],
+            brandHits: [],
+            experienceLevel: 'mid',
+            ruleScoreCount: 2,
+            computedAt: 1_700_000_000_000,
+            skillsVersion: 3,
+            taggingEntries: [],
+          },
+        },
+      ],
+      status: 'CanLoadMore',
+      isLoading: false,
+      loadMore,
+    })
+
+    render(<DebugIngest />)
+
+    await waitFor(() => {
+      expect(screen.getByText((content) => content.includes('more available'))).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('Loaded Resumes')).toBeInTheDocument()
+
+    const loadMoreButton = screen.getByRole('button', { name: 'Load More' })
+    expect(loadMoreButton).toBeEnabled()
+
+    await user.click(loadMoreButton)
+
+    expect(loadMore).toHaveBeenCalledWith(100)
+  })
+
+  it('disables load more when pagination is exhausted', () => {
+    render(<DebugIngest />)
+
+    expect(screen.getByRole('button', { name: 'Load More' })).toBeDisabled()
   })
 
   it('opens in-app confirmation dialog instead of native confirm', async () => {

@@ -1,11 +1,22 @@
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 
 import { mergeSearchTextWithIngestData } from "./search_text";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
+}
+
+function toStringValue(value: unknown): string {
+    if (typeof value === "string") {
+        return value.trim();
+    }
+    if (value === null || value === undefined) {
+        return "";
+    }
+    return String(value).trim();
 }
 
 function toRuleScores(value: unknown): Record<string, number> {
@@ -80,6 +91,47 @@ type SearchProvenance = {
     expandedFrom?: string;
 };
 
+type IngestDiagnosticsBrandHit = {
+    brand: string;
+    role: string;
+    source: string;
+    context: string;
+};
+
+type IngestDiagnosticsTaggingEntry = {
+    tag: string;
+    source: string;
+    confidence: number;
+    provenance: {
+        stage: string;
+        evidence: string[];
+    };
+};
+
+export type IngestDiagnosticsRow = {
+    resumeId: string;
+    externalId: string;
+    name: string;
+    jobIntention: string;
+    location: string;
+    ingestData?: {
+        industryTags: string[];
+        companyHits: string[];
+        brandHits: IngestDiagnosticsBrandHit[];
+        experienceLevel: string;
+        ruleScoreCount: number;
+        computedAt: number;
+        skillsVersion: number;
+        taggingEntries: IngestDiagnosticsTaggingEntry[];
+    };
+};
+
+const DEFAULT_RESUME_LIMIT = 50;
+export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 200;
+export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 400;
+const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
+const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
+
 function dedupeProvenance(items: SearchProvenance[]): SearchProvenance[] {
     const seen = new Set<string>();
     const deduped: SearchProvenance[] = [];
@@ -94,6 +146,76 @@ function dedupeProvenance(items: SearchProvenance[]): SearchProvenance[] {
     }
 
     return deduped;
+}
+
+function countRuleScores(value: unknown): number {
+    return Object.keys(toRuleScores(value)).length;
+}
+
+function projectIngestDiagnosticsBrandHits(
+    brandHits: NonNullable<Doc<"resumes">["ingestData"]>["brandHits"]
+): IngestDiagnosticsBrandHit[] {
+    return (brandHits ?? []).map((hit) => ({
+        brand: hit.brand,
+        role: hit.role,
+        source: hit.source,
+        context: hit.context,
+    }));
+}
+
+function projectIngestDiagnosticsTaggingEntries(
+    taggingEnvelope: NonNullable<Doc<"resumes">["ingestData"]>["taggingEnvelope"]
+): IngestDiagnosticsTaggingEntry[] {
+    return taggingEnvelope?.entries.slice(0, MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES).map((entry) => ({
+        tag: entry.tag,
+        source: entry.source,
+        confidence: entry.confidence,
+        provenance: {
+            stage: entry.provenance.stage,
+            evidence: entry.provenance.evidence,
+        },
+    })) ?? [];
+}
+
+export function projectIngestDiagnosticsRow(
+    resume: {
+        _id: string;
+        externalId: string;
+        content: unknown;
+        ingestData?: Doc<"resumes">["ingestData"];
+    }
+): IngestDiagnosticsRow {
+    const content = isRecord(resume.content) ? resume.content : {};
+    const ingestData = resume.ingestData;
+
+    return {
+        resumeId: resume._id,
+        externalId: resume.externalId,
+        name: toStringValue(content.name),
+        jobIntention: toStringValue(content.jobIntention),
+        location: toStringValue(content.location),
+        ingestData: ingestData ? {
+            industryTags: ingestData.industryTags,
+            companyHits: ingestData.companyHits ?? [],
+            brandHits: projectIngestDiagnosticsBrandHits(ingestData.brandHits),
+            experienceLevel: ingestData.experienceLevel,
+            ruleScoreCount: countRuleScores(ingestData.ruleScores),
+            computedAt: ingestData.computedAt,
+            skillsVersion: ingestData.skillsVersion,
+            taggingEntries: projectIngestDiagnosticsTaggingEntries(ingestData.taggingEnvelope),
+        } : undefined,
+    };
+}
+
+export function resolveListWithIngestWindow(requestedLimit: number | undefined): {
+    limit: number;
+    overfetchLimit: number;
+} {
+    const limit = Math.min(Math.max(requestedLimit || DEFAULT_RESUME_LIMIT, 1), MAX_SAFE_LIST_WITH_INGEST_LIMIT);
+    return {
+        limit,
+        overfetchLimit: Math.min(Math.max(limit * 3, limit), MAX_SAFE_LIST_WITH_INGEST_OVERFETCH),
+    };
 }
 
 function normalizeTagExpansionKeywordGroups(
@@ -259,7 +381,7 @@ export const count = query({
 export const list = query({
     args: { limit: v.optional(v.number()) },
     handler: async (ctx, args) => {
-        const limit = args.limit || 50;
+        const limit = args.limit || DEFAULT_RESUME_LIMIT;
         return await ctx.db.query("resumes").order("desc").take(limit);
     },
 });
@@ -270,16 +392,35 @@ export const listWithIngestData = query({
         jobDescriptionId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const limit = args.limit || 50;
+        const { limit, overfetchLimit } = resolveListWithIngestWindow(args.limit);
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
-
-        const overfetchLimit = Math.max(limit * 3, limit);
         const candidates = await ctx.db
             .query("resumes")
             .withIndex("by_primaryRuleScore")
             .order("desc")
             .take(overfetchLimit);
         return sortByIngestRuleScore(candidates, jobDescriptionId).slice(0, limit);
+    },
+});
+
+export const listIngestDiagnostics = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, args) => {
+        const page = await ctx.db
+            .query("resumes")
+            .withIndex("by_primaryRuleScore")
+            .order("desc")
+            .paginate({
+                ...args.paginationOpts,
+                numItems: Math.min(args.paginationOpts.numItems, MAX_INGEST_DIAGNOSTICS_PAGE_SIZE),
+            });
+
+        return {
+            ...page,
+            page: page.page.map(projectIngestDiagnosticsRow),
+        };
     },
 });
 
