@@ -724,7 +724,7 @@ export const listStaleResumes = internalQuery({
         const resumes = await ctx.db
             .query("resumes")
             .filter((q) => q.neq(q.field("ingestData"), undefined))
-            .take(limit * 5);
+            .collect();
 
         return resumes
             .filter((resume) => {
