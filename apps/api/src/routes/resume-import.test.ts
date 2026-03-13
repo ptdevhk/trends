@@ -174,6 +174,102 @@ describe("resume import route", () => {
     });
   });
 
+  it("accepts Job5156 detail-page payloads for admin imports without losing structured work history", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "resume_tasks:submitResumes") {
+        return convexSuccess({
+          submitted: 1,
+          deduped: 0,
+          inserted: 1,
+          updated: 0,
+          unchanged: 0,
+        });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createTestApp();
+    const response = await app.request("/api/resumes/import", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify({
+        metadata: {
+          sourceKey: "job5156",
+          sourceHost: "hr.job5156.com",
+          sourceUrl: "https://hr.job5156.com/resume/view/987654",
+          keyword: "销售工程师",
+          generatedBy: "manual-import@1.0.0",
+          collectionContext: {
+            captureMode: "detail-page",
+            operation: "manual-import",
+          },
+        },
+        resumes: [
+          {
+            resumeId: 987654,
+            perUserId: 123456,
+            name: "李先生",
+            profileUrl: "https://hr.job5156.com/resume/view/987654",
+            activityStatus: "在线中",
+            location: "东莞",
+            jobIntention: "销售工程师",
+            workHistory: [
+              {
+                raw: "2021-03~至今(4年)东莞某设备公司销售工程师\n负责华南区机床销售与客户维护",
+                companyName: "东莞某设备公司",
+                jobTitle: "销售工程师",
+                startDate: "2021-03",
+                endDate: "至今",
+                description: "负责华南区机床销售与客户维护。\n离职原因：寻求更大平台。",
+              },
+            ],
+            extractedAt: "2026-03-12T01:02:03.000Z",
+          },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      submitted: 1,
+      inserted: 1,
+      updated: 0,
+      unchanged: 0,
+      deduped: 0,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args).toMatchObject({
+      resumes: [
+        {
+          externalId: "hr.job5156.com:resume:987654",
+          source: "hr.job5156.com",
+          tags: ["销售工程师"],
+          content: expect.objectContaining({
+            profileUrl: "https://hr.job5156.com/resume/view/987654",
+            workHistory: [
+              {
+                raw: "2021-03~至今(4年)东莞某设备公司销售工程师\n负责华南区机床销售与客户维护",
+                companyName: "东莞某设备公司",
+                jobTitle: "销售工程师",
+                startDate: "2021-03",
+                endDate: "至今",
+                description: "负责华南区机床销售与客户维护。\n离职原因：寻求更大平台。",
+              },
+            ],
+          }),
+        },
+      ],
+    });
+  });
+
   it("accepts source-aware payloads for admin imports", async () => {
     const calls: ConvexCall[] = [];
 

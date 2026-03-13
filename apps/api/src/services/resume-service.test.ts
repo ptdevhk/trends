@@ -110,4 +110,64 @@ describe("ResumeService", () => {
 
     expect(items[0]?.profileUrl).toBe("https://hr.job5156.com/resume/view/123456");
   });
+
+  it("preserves structured Job5156 detail-page work history when loading samples", () => {
+    const root = createFixtureRoot();
+    roots.push(root);
+
+    const samplePath = path.join(root, "output", "resumes", "samples", "job5156-detail-sample.json");
+    fs.writeFileSync(
+      samplePath,
+      JSON.stringify({
+        metadata: {
+          sourceHost: "hr.job5156.com",
+          sourceKey: "job5156",
+          sourceUrl: "https://hr.job5156.com/resume/view/987654",
+          generatedBy: "browser-extension@1.1.1",
+        },
+        data: [
+          {
+            name: "Detail Candidate",
+            profileUrl: "https://hr.job5156.com/resume/view/987654",
+            activityStatus: "在线中",
+            age: "34岁",
+            experience: "11年",
+            education: "本科",
+            location: "东莞",
+            selfIntro: "熟悉机床销售与项目跟进。",
+            jobIntention: "销售工程师",
+            expectedSalary: "15000-20000元/月",
+            workHistory: [
+              {
+                raw: "2021-03~至今(4年)东莞某设备公司销售工程师\n负责华南区机床销售与客户维护",
+                companyName: "东莞某设备公司",
+                jobTitle: "销售工程师",
+                startDate: "2021-03",
+                endDate: "至今",
+                description: "负责华南区机床销售与客户维护。\n离职原因：寻求更大平台。",
+              },
+            ],
+            extractedAt: "2026-03-12T00:00:00.000Z",
+            resumeId: "987654",
+          },
+        ],
+      }, null, 2),
+      "utf8"
+    );
+
+    const service = new ResumeService(root);
+    const { items } = service.loadSample("job5156-detail-sample");
+
+    expect(items[0]?.profileUrl).toBe("https://hr.job5156.com/resume/view/987654");
+    expect(items[0]?.workHistory).toEqual([
+      {
+        raw: "2021-03~至今(4年)东莞某设备公司销售工程师\n负责华南区机床销售与客户维护",
+        companyName: "东莞某设备公司",
+        jobTitle: "销售工程师",
+        startDate: "2021-03",
+        endDate: "至今",
+        description: "负责华南区机床销售与客户维护。\n离职原因：寻求更大平台。",
+      },
+    ]);
+  });
 });

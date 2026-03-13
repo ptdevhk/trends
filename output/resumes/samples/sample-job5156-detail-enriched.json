@@ -1,0 +1,149 @@
+{
+  "metadata": {
+    "sourceHost": "hr.job5156.com",
+    "sourceKey": "job5156",
+    "sourceUrl": "https://hr.job5156.com/resume/view/987654",
+    "searchCriteria": {
+      "keyword": "销售工程师",
+      "location": "东莞",
+      "filters": {}
+    },
+    "generatedAt": "2026-03-12T01:02:03.000Z",
+    "generatedBy": "browser-extension@1.1.1",
+    "totalPages": 1,
+    "totalResumes": 2,
+    "reproduction": "Navigate to sourceUrl, then export structured detail-page JSON"
+  },
+  "data": [
+    {
+      "name": "李先生",
+      "profileUrl": "https://hr.job5156.com/resume/view/987654",
+      "activityStatus": "在线中",
+      "age": "34岁",
+      "experience": "11年",
+      "education": "本科",
+      "location": "东莞",
+      "selfIntro": "多年机床与自动化设备销售经验，熟悉华南客户开发。",
+      "jobIntention": "销售工程师",
+      "expectedSalary": "15000-20000元/月",
+      "workHistory": [
+        {
+          "raw": "2021-03~至今(4年)东莞某设备公司销售工程师\n负责华南区机床销售与客户维护",
+          "companyName": "东莞某设备公司",
+          "jobTitle": "销售工程师",
+          "startDate": "2021-03",
+          "endDate": "至今",
+          "description": "负责华南区机床销售与客户维护。\n离职原因：寻求更大平台。"
+        },
+        {
+          "raw": "2018-02~2021-02(3年)深圳精密自动化有限公司销售主管\n负责重点客户项目跟进",
+          "companyName": "深圳精密自动化有限公司",
+          "jobTitle": "销售主管",
+          "startDate": "2018-02",
+          "endDate": "2021-02",
+          "description": "负责重点客户项目跟进与年度销售目标管理。"
+        }
+      ],
+      "extractedAt": "2026-03-12T01:02:03.000Z",
+      "resumeId": "987654",
+      "perUserId": "123456",
+      "ingestData": {
+        "industryTags": ["machinery", "sales"],
+        "synonymHits": ["machine tools"],
+        "brandHits": [
+          {
+            "brand": "haas",
+            "role": "sales engineer",
+            "source": "workHistory",
+            "context": "project"
+          }
+        ],
+        "companyHits": ["haas"],
+        "roleSignals": [
+          {
+            "type": "engineer",
+            "matchedSignals": ["sales engineer", "cnc", "machine tools"],
+            "signalCount": 3,
+            "occurrences": 2,
+            "years": 4,
+            "industryVerifiedYears": 4,
+            "roleRelevantYears": 4,
+            "industryVerifiedRelevantYears": 4,
+            "matchedWorkEntries": [
+              {
+                "companyName": "东莞某设备公司",
+                "jobTitle": "销售工程师",
+                "years": 4,
+                "industryVerified": true,
+                "matchedSignals": ["sales engineer", "cnc", "machine tools"]
+              }
+            ],
+            "verifyIn": "workHistory"
+          }
+        ],
+        "ruleScores": {
+          "industry": 88,
+          "role": 92
+        },
+        "experienceLevel": "senior",
+        "computedAt": 1710205323000,
+        "skillsVersion": 2
+      }
+    },
+    {
+      "name": "王女士",
+      "profileUrl": "https://hr.job5156.com/resume/view/888888",
+      "activityStatus": "3日内活跃",
+      "age": "29岁",
+      "experience": "5年",
+      "education": "大专",
+      "location": "东莞",
+      "selfIntro": "具备基础销售支持经验。",
+      "jobIntention": "销售助理",
+      "expectedSalary": "8000-10000元/月",
+      "workHistory": [
+        {
+          "raw": "2022-01~至今(3年)东莞某贸易公司销售助理"
+        }
+      ],
+      "extractedAt": "2026-03-12T01:02:03.000Z",
+      "resumeId": "888888",
+      "perUserId": "654321",
+      "ingestData": {
+        "industryTags": ["sales"],
+        "synonymHits": [],
+        "brandHits": [],
+        "companyHits": [],
+        "roleSignals": [
+          {
+            "type": "sales",
+            "matchedSignals": ["sales"],
+            "signalCount": 1,
+            "occurrences": 1,
+            "years": 1,
+            "industryVerifiedYears": 0,
+            "roleRelevantYears": 1,
+            "industryVerifiedRelevantYears": 0,
+            "matchedWorkEntries": [
+              {
+                "companyName": "东莞某贸易公司",
+                "jobTitle": "销售助理",
+                "years": 1,
+                "industryVerified": false,
+                "matchedSignals": ["sales"]
+              }
+            ],
+            "verifyIn": "workHistory"
+          }
+        ],
+        "ruleScores": {
+          "industry": 40,
+          "role": 35
+        },
+        "experienceLevel": "junior",
+        "computedAt": 1710205323000,
+        "skillsVersion": 2
+      }
+    }
+  ]
+}

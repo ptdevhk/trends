@@ -104,6 +104,68 @@ describe("resume-import-service", () => {
     });
   });
 
+  it("preserves Job5156 detail-page work history fields during normalization", () => {
+    const result = normalizeResumeImportPayload({
+      metadata: {
+        sourceKey: "job5156",
+        sourceHost: "hr.job5156.com",
+        sourceUrl: "https://hr.job5156.com/resume/view/987654",
+        keyword: "销售工程师",
+        generatedBy: "browser-extension@1.1.1",
+        collectionContext: {
+          captureMode: "detail-page",
+          operation: "auto-sync",
+        },
+      },
+      resumes: [
+        {
+          resumeId: 987654,
+          perUserId: 123456,
+          name: "李先生",
+          profileUrl: "https://hr.job5156.com/resume/view/987654",
+          activityStatus: "在线中",
+          location: "东莞",
+          jobIntention: "销售工程师",
+          workHistory: [
+            {
+              raw: "2021-03~至今(4年)东莞某设备公司销售工程师\n负责华南区机床销售与客户维护",
+              companyName: "东莞某设备公司",
+              jobTitle: "销售工程师",
+              startDate: "2021-03",
+              endDate: "至今",
+              description: "负责华南区机床销售与客户维护。\n离职原因：寻求更大平台。",
+            },
+          ],
+          extractedAt: "2026-03-12T01:02:03.000Z",
+        },
+      ],
+    });
+
+    expect(result.source).toBe("hr.job5156.com");
+    expect(result.tags).toEqual(["销售工程师"]);
+    expect(result.resumes).toHaveLength(1);
+    expect(result.convexResumes[0]).toMatchObject({
+      externalId: "hr.job5156.com:resume:987654",
+      source: "hr.job5156.com",
+      tags: ["销售工程师"],
+      content: expect.objectContaining({
+        resumeId: "987654",
+        perUserId: "123456",
+        profileUrl: "https://hr.job5156.com/resume/view/987654",
+        workHistory: [
+          {
+            raw: "2021-03~至今(4年)东莞某设备公司销售工程师\n负责华南区机床销售与客户维护",
+            companyName: "东莞某设备公司",
+            jobTitle: "销售工程师",
+            startDate: "2021-03",
+            endDate: "至今",
+            description: "负责华南区机床销售与客户维护。\n离职原因：寻求更大平台。",
+          },
+        ],
+      }),
+    });
+  });
+
   it("submits source-aware payloads through the shared Convex path", async () => {
     const calls: ConvexCall[] = [];
 
