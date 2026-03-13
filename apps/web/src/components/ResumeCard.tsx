@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText, normalizeWorkHistoryEntry } from '@trends/shared'
+import { buildWorkHistoryEntryText } from '@trends/shared'
 import { useTranslation } from 'react-i18next'
 import { User, CheckCircle, XCircle, Phone, Star, Ban, MessageSquare } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -10,6 +10,7 @@ import type { ResumeItem } from '@/hooks/useResumes'
 import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { cn } from '@/lib/utils'
+import { isSafeProfileUrl } from '@/lib/resume-scoring'
 import {
   Tooltip,
   TooltipContent,
@@ -59,11 +60,6 @@ interface ResumeCardProps {
   isReviewed?: boolean
   aiScoreFeedback?: AiFeedbackSentiment
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
-}
-
-function isSafeProfileUrl(value: string | undefined): value is string {
-  if (!value) return false
-  return value.startsWith('http://') || value.startsWith('https://')
 }
 
 const STATUS_OPTIONS: Array<{ value: CandidateStatus; labelKey: string }> = [
@@ -150,15 +146,12 @@ export function ResumeCard({
   const [commentDialogOpen, setCommentDialogOpen] = useState(false)
   const [commentNoteInput, setCommentNoteInput] = useState('')
   const workHistory = (resume.workHistory ?? [])
-    .map((item) => {
-      const normalized = normalizeWorkHistoryEntry(item)
-      return {
-        item,
-        normalized,
-        text: normalized ? buildWorkHistoryEntryText(item) : '',
-      }
-    })
-    .filter(({ normalized, text }) => normalized !== null && text.length > 0)
+    .slice(0, 3)
+    .map((item) => ({
+      item,
+      text: buildWorkHistoryEntryText(item),
+    }))
+    .filter(({ text }) => text.length > 0)
   const jobIntention = (resume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
   const selfIntro = resume.selfIntro || '--'
   const profileUrl = resume.profileUrl?.trim()
@@ -538,7 +531,7 @@ export function ResumeCard({
 
         {workHistory.length > 0 ? (
           <div className="min-w-0 space-y-1 text-sm lg:w-[420px]">
-            {workHistory.slice(0, 3).map(({ item, text }, index) => (
+            {workHistory.map(({ item, text }, index) => (
               <div key={`${resume.name}-${index}`} className="flex gap-2">
                 <span className="text-muted-foreground">●</span>
                 <span className="truncate" title={item.raw || text}>

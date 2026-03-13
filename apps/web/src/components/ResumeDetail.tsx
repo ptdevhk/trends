@@ -7,6 +7,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import type { ResumeItem } from '@/hooks/useResumes'
+import { isSafeProfileUrl } from '@/lib/resume-scoring'
 
 import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
 
@@ -18,11 +19,6 @@ interface ResumeDetailProps {
   aiScoreFeedback?: AiFeedbackSentiment
   aiSummaryFeedback?: AiFeedbackSentiment
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
-}
-
-function isSafeProfileUrl(value: string | undefined): value is string {
-  if (!value) return false
-  return value.startsWith('http://') || value.startsWith('https://')
 }
 
 export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreFeedback, aiSummaryFeedback, onAiFeedback }: ResumeDetailProps) {
@@ -137,16 +133,15 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
               <ul className="space-y-2 text-sm">
                 {workHistory.map((item, index) => {
                   const dateRange = buildWorkHistoryDateRange(item.startDate, item.endDate)
+                  const durationLabel = item.raw?.match(/[(（]([^)）]+)[)）]/)?.[1] || ''
+                  const dateLine = [dateRange, durationLabel ? `(${durationLabel})` : ''].filter(Boolean).join(' ')
                   const heading = [item.companyName, item.jobTitle].filter(Boolean).join(' · ')
                   return (
                     <li key={`${resume.name}-${index}`} className="rounded-md border border-border p-3 space-y-1">
                       {heading ? <div className="font-medium">{heading}</div> : null}
-                      {dateRange ? <div className="text-xs text-muted-foreground">{dateRange}</div> : null}
+                      {dateLine ? <div className="text-xs text-muted-foreground">{dateLine}</div> : null}
                       {item.description ? <div className="whitespace-pre-wrap">{item.description}</div> : null}
-                      {!heading && !dateRange && !item.description ? <div>{item.raw}</div> : null}
-                      {item.raw && (heading || dateRange || item.description) ? (
-                        <div className="text-xs text-muted-foreground whitespace-pre-wrap">{item.raw}</div>
-                      ) : null}
+                      {!heading && !dateLine && !item.description ? <div>{item.raw}</div> : null}
                     </li>
                   )
                 })}
