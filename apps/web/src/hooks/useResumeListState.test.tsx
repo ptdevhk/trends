@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import type { ConvexIngestData, ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import { useResumeListState } from './useResumeListState'
 
@@ -165,6 +165,7 @@ function buildResume(params: {
   id: string
   name: string
   primaryRuleScore?: number
+  brandHits?: ConvexIngestData['brandHits']
   companyHits?: string[]
   industryTags?: string[]
   industryDbV2Raw?: number
@@ -215,7 +216,7 @@ function buildResume(params: {
       evidenceText: 'test work history',
       industryTags: params.industryTags ?? [],
       synonymHits: [],
-      brandHits: [],
+      brandHits: params.brandHits ?? [],
       companyHits: params.companyHits ?? [],
       industryDbV2Raw: params.industryDbV2Raw ?? 0,
       roleSignals: params.roleSignals,
@@ -804,6 +805,60 @@ describe('useResumeListState role filter regression', () => {
 
     expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(40)
     expect(result.current.displayedResumes[0]?.match?.score).toBe(70)
+  })
+
+  it('bumps industry_db to brand section max when resume has brand hits', async () => {
+    mockState.convexResumes = [
+      buildResume({
+        id: 'resume-brand-1',
+        name: 'Brand Hit Resume',
+        industryDbV2Raw: 5,
+        brandHits: [{ brand: 'star', role: 'distributor', source: 'job5156', context: 'Star distributor' }],
+        analysis: {
+          score: 45,
+          summary: 'Good match',
+          highlights: ['summary'],
+          recommendation: 'match',
+          breakdown: {
+            related_exp: 30,
+            industry_db: 5,
+          },
+          jobDescriptionId: 'lathe-sales',
+        },
+        roleSignals: [],
+      }),
+    ]
+    mockState.searchHistory = [
+      {
+        id: 'history-brand',
+        sessionKey: 'session-1',
+        title: 'Brand bump test',
+        location: '苏州',
+        keywords: ['CNC'],
+        jobDescriptionId: 'lathe-sales',
+        filters: {},
+        selectedTags: [],
+        selectedCompanies: [],
+        selectedExperienceLevel: undefined,
+        industryDbV2Stats: {
+          size: 50,
+          p80: 20,
+          histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
+        },
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
+    })
+
+    // raw=5 bumped to 30 (brand section max), normalizes to 50 at top of cohort
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(50)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(80)
   })
 
   it('allows manual profile apply to bypass the URL hydration guard', () => {

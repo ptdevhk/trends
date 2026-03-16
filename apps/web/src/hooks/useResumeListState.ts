@@ -33,6 +33,7 @@ import {
 import {
   buildLearningObservation,
   buildResumeKey,
+  bumpIndustryDbV2Raw,
   createBatchNormalizer,
   getAnalysisForJob,
   hasIngestData,
@@ -1004,12 +1005,11 @@ export function useResumeListState(loadSearchHistory = false) {
         const identityKey = getResumeIdentityKey(resume, resumeKey)
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
+        const hasBrandHits = (resume.ingestData?.brandHits?.length ?? 0) > 0
+        const hasCompanyHits = (resume.ingestData?.companyHits?.length ?? 0) > 0
+        const effectiveRaw = bumpIndustryDbV2Raw(resume.ingestData?.industryDbV2Raw, hasBrandHits, hasCompanyHits)
         const normalizedAnalysis = analysis && isAnalysisValid
-          ? overrideIndustryDbBreakdown(
-              analysis,
-              resume.ingestData?.industryDbV2Raw,
-              normalize
-            )
+          ? overrideIndustryDbBreakdown(analysis, effectiveRaw, normalize)
           : undefined
 
         const match: MatchingResult | undefined = normalizedAnalysis
