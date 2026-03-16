@@ -328,12 +328,12 @@ describe("resume export route", () => {
             resumeId: "convex-b",
             status: "contacted",
             match: {
-              score: 99,
+              score: 50,
               recommendation: "match",
               scoreSource: "ai",
               breakdown: {
                 related_exp: 12,
-                industry_db: 80,
+                industry_db: 38,
               },
             },
           },
