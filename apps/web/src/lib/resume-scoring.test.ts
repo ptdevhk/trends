@@ -4,6 +4,7 @@ import {
   buildResumeKey,
   buildRuleScoringText,
   computeNormalizedIndustryDbScore,
+  createBatchNormalizer,
   getPrecomputedRuleScore,
   hasIngestData,
   isAutoFilteredAnalysis,
@@ -263,11 +264,11 @@ describe('resume-scoring', () => {
         related_exp: 30,
         industry_db: 15,
       },
-    }, 20, {
+    }, 20, createBatchNormalizer({
       size: 50,
       p80: 20,
       histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
-    })).toEqual(expect.objectContaining({
+    }))).toEqual(expect.objectContaining({
       score: 70,
       breakdown: {
         related_exp: 30,

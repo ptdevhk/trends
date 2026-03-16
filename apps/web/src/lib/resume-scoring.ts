@@ -228,6 +228,7 @@ function countHistogramSamples(histogram50: number[]): number {
   return histogram50.reduce((total, count) => total + count, 0)
 }
 
+const INDUSTRY_DB_V2_SCORE_CAP = 50
 const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5
 const INDUSTRY_DB_V2_BRAND_SECTION_SCORE = 30
 const INDUSTRY_DB_V2_COMPANY_SECTION_SCORE = 20
@@ -240,7 +241,7 @@ export function bumpIndustryDbV2Raw(
   const sectionBump =
     (hasBrandHits ? INDUSTRY_DB_V2_BRAND_SECTION_SCORE : 0) +
     (hasCompanyHits ? INDUSTRY_DB_V2_COMPANY_SECTION_SCORE : 0)
-  const safeRaw = typeof raw === 'number' && Number.isFinite(raw) ? clamp(raw, 0, 50) : 0
+  const safeRaw = typeof raw === 'number' && Number.isFinite(raw) ? clamp(raw, 0, INDUSTRY_DB_V2_SCORE_CAP) : 0
   return Math.max(safeRaw, sectionBump)
 }
 
@@ -270,7 +271,7 @@ function percentileRankFromHistogram(histogram50: number[], raw: number): number
     return 1
   }
 
-  const roundedRaw = Math.round(clamp(raw, 0, 50))
+  const roundedRaw = Math.round(clamp(raw, 0, INDUSTRY_DB_V2_SCORE_CAP))
   let lowerBound = 0
   let upperBound = 0
 
@@ -327,35 +328,46 @@ export function toIndustryDbV2Stats(value: unknown): IndustryDbV2Stats | undefin
   }
 }
 
-export function computeNormalizedIndustryDbScore(raw: number | undefined, stats: IndustryDbV2Stats | undefined): number {
-  const safeRaw = typeof raw === 'number' && Number.isFinite(raw) ? clamp(raw, 0, 50) : 0
+export function createBatchNormalizer(
+  stats: IndustryDbV2Stats | undefined
+): (raw: number | undefined) => number {
+  const toSafeRaw = (raw: number | undefined) =>
+    typeof raw === 'number' && Number.isFinite(raw) ? clamp(raw, 0, INDUSTRY_DB_V2_SCORE_CAP) : 0
+
   if (!stats || stats.size < 30) {
-    return Math.round(safeRaw)
+    return (raw) => Math.round(toSafeRaw(raw))
   }
 
   const histogram50 = normalizeHistogram50(stats.histogram50)
   const sampleSize = countHistogramSamples(histogram50)
   if (sampleSize < 30) {
-    return Math.round(safeRaw)
+    return (raw) => Math.round(toSafeRaw(raw))
   }
 
   const { p80: effectiveP80, count: nonZeroCount } = nonZeroP80FromHistogram(histogram50)
   if (nonZeroCount < INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE) {
-    return Math.round(safeRaw)
+    return (raw) => Math.round(toSafeRaw(raw))
   }
 
-  const rank = percentileRankFromHistogram(histogram50, safeRaw)
-  const base = 40 * clamp(safeRaw / Math.max(effectiveP80, 1), 0, 1)
-  const bonus = 10 * clamp((rank - 0.8) / 0.2, 0, 1)
-  return Math.round(Math.min(50, base + bonus))
+  return (raw) => {
+    const safeRaw = toSafeRaw(raw)
+    const rank = percentileRankFromHistogram(histogram50, safeRaw)
+    const base = 40 * clamp(safeRaw / Math.max(effectiveP80, 1), 0, 1)
+    const bonus = 10 * clamp((rank - 0.8) / 0.2, 0, 1)
+    return Math.round(Math.min(INDUSTRY_DB_V2_SCORE_CAP, base + bonus))
+  }
+}
+
+export function computeNormalizedIndustryDbScore(raw: number | undefined, stats: IndustryDbV2Stats | undefined): number {
+  return createBatchNormalizer(stats)(raw)
 }
 
 export function overrideIndustryDbBreakdown(
   analysis: ConvexResumeAnalysis,
   raw: number | undefined,
-  stats: IndustryDbV2Stats | undefined
+  normalizer: (raw: number | undefined) => number
 ): ConvexResumeAnalysis {
-  const normalizedIndustryDb = computeNormalizedIndustryDbScore(raw, stats)
+  const normalizedIndustryDb = normalizer(raw)
   const nextBreakdown: MatchBreakdown = {
     ...(analysis.breakdown ?? {}),
     industry_db: normalizedIndustryDb,

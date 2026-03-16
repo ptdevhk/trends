@@ -33,6 +33,7 @@ import {
 import {
   buildLearningObservation,
   buildResumeKey,
+  createBatchNormalizer,
   getAnalysisForJob,
   hasIngestData,
   isAutoFilteredAnalysis,
@@ -997,6 +998,7 @@ export function useResumeListState(loadSearchHistory = false) {
 
   const enrichedResumes = useMemo<EnrichedResume[]>(() => {
     if (mode === 'ai') {
+      const normalize = createBatchNormalizer(appliedSearchHistory?.industryDbV2Stats)
       return filteredConvexResumes.map((resume: ScoredConvexResume, index: number) => {
         const resumeKey = buildResumeKey(resume, index)
         const identityKey = getResumeIdentityKey(resume, resumeKey)
@@ -1006,7 +1008,7 @@ export function useResumeListState(loadSearchHistory = false) {
           ? overrideIndustryDbBreakdown(
               analysis,
               resume.ingestData?.industryDbV2Raw,
-              appliedSearchHistory?.industryDbV2Stats
+              normalize
             )
           : undefined
 
