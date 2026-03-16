@@ -13,6 +13,7 @@ import JSON5 from "json5";
 import { aiConfig, validateResumeAIConfig, getMaskedApiKey } from "./ai-config.js";
 import { findProjectRoot } from "./db.js";
 import { localeToNaturalLanguage, resolveAIOutputLocale } from "./locale-utils.js";
+import { resumeAiPromptService, type ResumeAiPromptDocument } from "./resume-ai-prompt-service.js";
 
 // Types
 export interface MatchingRequest {
@@ -24,18 +25,13 @@ export interface MatchingRequest {
         skills?: string[];
         companies?: string[];
         workHistory?: string;
+        sourceKey?: string;
     };
     jobDescription: {
         title: string;
         requirements: string;
         responsibilities?: string;
         company?: string;
-    };
-    criteria?: {
-        requiredSkills?: string[];
-        preferredSkills?: string[];
-        minExperience?: number;
-        educationLevel?: string;
     };
 }
 
@@ -123,59 +119,10 @@ function loadConfiguredConcurrency(): number {
 }
 
 // Prompt templates
-const SYSTEM_PROMPT = `你是一个专业的HR助手，专门帮助筛选精密机械和机床行业的简历。
-你需要根据职位要求对候选人进行评分和分析。
-
-评分标准：
-- 90-100分：完美匹配，技能、经验、教育背景完全符合要求
-- 70-89分：良好匹配，大部分要求符合，有少量可培养的差距
-- 50-69分：潜力候选人，有相关基础但需要培训
-- 0-49分：不匹配，基本要求不满足
-
-你必须严格按照JSON格式返回结果，不要包含任何其他文字。`;
-
-function buildSystemPrompt(locale: string): string {
+function buildSystemPrompt(systemPrompt: string, locale: string): string {
     const naturalLanguage = localeToNaturalLanguage(locale);
-    return `${SYSTEM_PROMPT}\nPlease respond entirely in ${naturalLanguage}.`;
+    return `${systemPrompt}\nPlease respond entirely in ${naturalLanguage}.`;
 }
-
-const USER_PROMPT_TEMPLATE = `请分析以下候选人与职位的匹配度：
-
-## 职位信息
-**职位名称**: {jobTitle}
-**职位要求**:
-{requirements}
-
-## 候选人信息
-**姓名**: {candidateName}
-**工作经验**: {workExperience}年
-**学历**: {education}
-**技能**: {skills}
-**曾任职公司**: {companies}
-**工作经历**:
-{workHistory}
-
-{additionalCriteria}
-
-重要评估规则：
-- 只根据"工作经历"中的实际岗位和职责来判断候选人是否有相关经验
-- 不要根据候选人的求职意向或自我介绍来推断其能力
-- 如果工作经历中没有相关岗位经验，即使总工作年限很长也应给予较低评分
-
-**行业相关性验证规则（重要）：**
-- 对于销售类岗位，销售经验必须来自CNC机床、数控设备、精密机械等相关行业
-- 在非相关行业（如纸业、零售、餐饮、快消品等）的销售经验不计入CNC行业销售经验
-- CNC相关行业关键词：机床、数控、CNC、模具、加工中心、车床、铣床、磨床、机械、自动化、五金、金属加工
-- 如果候选人的销售经历全部来自非CNC相关行业，应给予低分（<50分）并在concerns中说明原因
-
-请以JSON格式返回分析结果，包含以下字段：
-{
-  "score": 0-100的整数评分,
-  "recommendation": "strong_match" 或 "match" 或 "potential" 或 "no_match",
-  "highlights": ["匹配亮点1", "匹配亮点2", ...],
-  "concerns": ["关注点或不足1", "关注点或不足2", ...],
-  "summary": "中文总结，说明匹配原因和建议"
-}`;
 
 const SCORE_WORD_MAP: Record<string, number> = {
     zero: 0,
@@ -274,7 +221,7 @@ export class AIMatchingService {
     /**
      * Match a single resume against a job description
      */
-    async matchResume(request: MatchingRequest): Promise<MatchingResult> {
+    async matchResume(request: MatchingRequest, promptOverride?: ResumeAiPromptDocument): Promise<MatchingResult> {
         const availability = this.isAvailable();
         if (!availability.available) {
             return {
@@ -287,12 +234,10 @@ export class AIMatchingService {
             };
         }
 
-        const aiOutputLocale = resolveAIOutputLocale();
-        const systemPrompt = buildSystemPrompt(aiOutputLocale);
-        const userPrompt = this.buildPrompt(request);
+        const prompt = promptOverride ?? this.loadPromptForResume(request.resume);
         const messages = [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
+            { role: "system", content: buildSystemPrompt(prompt.normalized.systemPrompt, prompt.normalized.locale) },
+            { role: "user", content: this.buildPrompt(request.resume, request.jobDescription, prompt) },
         ];
 
         try {
@@ -319,7 +264,6 @@ export class AIMatchingService {
     async matchBatch(
         resumes: MatchingRequest["resume"][],
         jobDescription: MatchingRequest["jobDescription"],
-        criteria?: MatchingRequest["criteria"],
         options?: BatchMatchingOptions
     ): Promise<BatchMatchingResult> {
         const startTime = Date.now();
@@ -336,6 +280,7 @@ export class AIMatchingService {
             options?.concurrency ?? this.defaultConcurrency,
             resumes.length
         ));
+        const promptsBySourceKey = new Map<string, ResumeAiPromptDocument>();
 
         const orderedResults: Array<{ resumeId: string; result: MatchingResult } | null> =
             Array.from({ length: resumes.length }, () => null);
@@ -353,11 +298,11 @@ export class AIMatchingService {
 
                 let result: MatchingResult;
                 try {
+                    const prompt = this.loadPromptForResume(resume, promptsBySourceKey);
                     result = await this.matchResume({
                         resume,
                         jobDescription,
-                        criteria,
-                    });
+                    }, prompt);
                 } catch {
                     failedCount += 1;
                     result = {
@@ -454,38 +399,40 @@ Return strictly valid JSON:
     /**
      * Build the prompt from request
      */
-    private buildPrompt(request: MatchingRequest): string {
-        const { resume, jobDescription, criteria } = request;
+    private buildPrompt(
+        resume: MatchingRequest["resume"],
+        jobDescription: MatchingRequest["jobDescription"],
+        prompt: ResumeAiPromptDocument
+    ): string {
+        const matchingRules = jobDescription.responsibilities || jobDescription.requirements || "";
+        const verifiedCompanies = resume.companies?.length ? resume.companies.join(", ") : "无";
+        const evidenceText = resume.workHistory || "无工作经历";
 
-        let additionalCriteria = "";
-        if (criteria) {
-            const parts: string[] = [];
-            if (criteria.requiredSkills?.length) {
-                parts.push(`**必须技能**: ${criteria.requiredSkills.join(", ")}`);
-            }
-            if (criteria.preferredSkills?.length) {
-                parts.push(`**优先技能**: ${criteria.preferredSkills.join(", ")}`);
-            }
-            if (criteria.minExperience) {
-                parts.push(`**最低经验**: ${criteria.minExperience}年`);
-            }
-            if (criteria.educationLevel) {
-                parts.push(`**学历要求**: ${criteria.educationLevel}`);
-            }
-            if (parts.length > 0) {
-                additionalCriteria = "## 额外筛选条件\n" + parts.join("\n");
-            }
-        }
+        return resumeAiPromptService.renderUserPromptTemplate(prompt.normalized.userPromptTemplate, {
+            jobTitle: jobDescription.title,
+            requirements: jobDescription.requirements,
+            matchingRules,
+            candidateName: resume.name,
+            verifiedCompanies,
+            evidenceText,
+            workExperience: String(resume.workExperience || 0),
+            education: resume.education || "未填写",
+            companies: resume.companies?.join(", ") || "未填写",
+        });
+    }
 
-        return USER_PROMPT_TEMPLATE.replace("{jobTitle}", jobDescription.title)
-            .replace("{requirements}", jobDescription.requirements)
-            .replace("{candidateName}", resume.name)
-            .replace("{workExperience}", String(resume.workExperience || 0))
-            .replace("{education}", resume.education || "未填写")
-            .replace("{skills}", resume.skills?.join(", ") || "未填写")
-            .replace("{companies}", resume.companies?.join(", ") || "未填写")
-            .replace("{workHistory}", resume.workHistory || "无工作经历")
-            .replace("{additionalCriteria}", additionalCriteria);
+    private loadPromptForResume(
+        resume: MatchingRequest["resume"],
+        promptCache?: Map<string, ResumeAiPromptDocument>
+    ): ResumeAiPromptDocument {
+        const sourceKey = resume.sourceKey ?? "";
+        const cached = promptCache?.get(sourceKey);
+        if (cached) return cached;
+
+        const aiOutputLocale = resolveAIOutputLocale({ sourceKey: resume.sourceKey });
+        const prompt = resumeAiPromptService.loadPrompt(aiOutputLocale);
+        promptCache?.set(sourceKey, prompt);
+        return prompt;
     }
 
     /**

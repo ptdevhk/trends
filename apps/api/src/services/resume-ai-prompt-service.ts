@@ -8,7 +8,7 @@ import { FileParseError } from "./errors.js";
 
 export const DEFAULT_RESUME_AI_PROMPT_LOCALE = "zh-Hans";
 
-const LOCALE_TO_NATURAL_LANGUAGE: Record<string, string> = {
+export const LOCALE_TO_NATURAL_LANGUAGE: Record<string, string> = {
   "zh-Hans": "Simplified Chinese",
   "zh-Hant": "Traditional Chinese",
   en: "English",
@@ -77,6 +77,8 @@ export interface ResumeAiPromptNormalized {
   promptVariables: string;
   notes: string;
 }
+
+export type ResumeAiPromptTemplateValues = Record<string, string>;
 
 export interface ResumeAiPromptDocument {
   metadata: ResumeAiPromptMetadata;
@@ -253,6 +255,17 @@ function buildNormalizedPrompt(
     promptVariables: sections.promptVariables.trim(),
     notes: sections.notes.trim(),
   };
+}
+
+function getMissingTemplateVariables(template: string, values: ResumeAiPromptTemplateValues): string[] {
+  return Object.keys(values).filter((key) => !template.includes(`{${key}}`));
+}
+
+function renderPromptTemplate(template: string, values: ResumeAiPromptTemplateValues): string {
+  return Object.entries(values).reduce(
+    (result, [key, value]) => result.replaceAll(`{${key}}`, value),
+    template,
+  );
 }
 
 export class ResumeAiPromptService {
@@ -462,6 +475,14 @@ export class ResumeAiPromptService {
     }
 
     return sources;
+  }
+
+  renderUserPromptTemplate(template: string, values: ResumeAiPromptTemplateValues): string {
+    const missing = getMissingTemplateVariables(template, values);
+    if (missing.length > 0) {
+      throw new FileParseError(template, `Prompt template missing variables: ${missing.join(", ")}`);
+    }
+    return renderPromptTemplate(template, values);
   }
 
   clearCache(): void {

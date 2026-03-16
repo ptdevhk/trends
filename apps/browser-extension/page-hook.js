@@ -3,6 +3,11 @@
   const trWindow = window;
   if (trWindow.__trResumeHookInstalled) return;
   trWindow.__trResumeHookInstalled = true;
+  try {
+    document.documentElement?.setAttribute('data-tr-page-hook', 'true');
+  } catch {
+    // ignore
+  }
 
   const SOURCE = 'tr-resume-api';
   const EXTERNAL_ACCESS_KEY = '__TR_RESUME_DATA__';
@@ -246,7 +251,14 @@
       })
       .filter((value) => Number.isFinite(value) && value > 0);
     const totalPages = Math.max(pageNumbers.length > 0 ? Math.max(...pageNumbers) : 0, currentPage);
-    const hasNextPage = links.some((node) => (node.textContent || '').trim().toLowerCase() === 'next');
+    const nextLink = links.find((node) => (node.textContent || '').trim().toLowerCase() === 'next') || null;
+    const hasNextPage = totalPages > currentPage && !!nextLink
+      && !nextLink.hasAttribute('disabled')
+      && !nextLink.classList.contains('disabled')
+      && !nextLink.classList.contains('is-disabled')
+      && nextLink.getAttribute('aria-disabled') !== 'true'
+      && nextLink.getAttribute('aria-hidden') !== 'true'
+      && nextLink.getAttribute('tabindex') !== '-1';
 
     return {
       currentPage,

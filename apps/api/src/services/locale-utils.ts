@@ -1,18 +1,21 @@
-const DEFAULT_AI_OUTPUT_LOCALE = "zh-Hans";
+import {
+    DEFAULT_RESUME_AI_PROMPT_LOCALE,
+    LOCALE_TO_NATURAL_LANGUAGE,
+} from "./resume-ai-prompt-service.js";
 
-const LOCALE_TO_NATURAL: Record<string, string> = {
-    "zh-Hans": "Simplified Chinese",
-    "zh-Hant": "Traditional Chinese",
-    en: "English",
-    ja: "Japanese",
-    ko: "Korean",
-};
+const SEEK_RESUME_AI_OUTPUT_LOCALE = "en";
 
 export function localeToNaturalLanguage(locale: string): string {
-    return LOCALE_TO_NATURAL[locale] ?? locale;
+    return LOCALE_TO_NATURAL_LANGUAGE[locale] ?? locale;
 }
 
-export function resolveAIOutputLocale(): string {
+export function resolveAIOutputLocale(scope?: { sourceKey?: string | null }): string {
     const locale = process.env.AI_OUTPUT_LOCALE?.trim();
-    return locale && locale.length > 0 ? locale : DEFAULT_AI_OUTPUT_LOCALE;
+    if (locale && locale.length > 0) {
+        return locale;
+    }
+    if (scope?.sourceKey === "seek") {
+        return SEEK_RESUME_AI_OUTPUT_LOCALE;
+    }
+    return DEFAULT_RESUME_AI_PROMPT_LOCALE;
 }

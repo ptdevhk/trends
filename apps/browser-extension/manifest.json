@@ -41,6 +41,21 @@
                 "*://my.employer.seek.com/talentsearch/profile*"
             ],
             "js": [
+                "page-hook.js"
+            ],
+            "run_at": "document_start",
+            "world": "MAIN"
+        },
+        {
+            "matches": [
+                "*://hr.job5156.com/search*",
+                "*://hr.job5156.com/resume/view/*",
+                "*://hk.employer.seek.com/candidates/recommended*",
+                "*://my.employer.seek.com/candidates/recommended*",
+                "*://hk.employer.seek.com/talentsearch/profile*",
+                "*://my.employer.seek.com/talentsearch/profile*"
+            ],
+            "js": [
                 "content.js"
             ],
             "css": [

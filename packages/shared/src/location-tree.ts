@@ -136,6 +136,16 @@ const LOCATION_TREE: LocationSeed[] = [
       { name: "静安", aliases: ["静安区"] },
     ],
   },
+  {
+    name: "Malaysia",
+    aliases: ["MY", "马来西亚"],
+    children: [
+      {
+        name: "Kuala Lumpur",
+        aliases: ["Kuala Lumpur MY", "Kuala Lumpur, Malaysia", "KualaLumpur", "吉隆坡"],
+      },
+    ],
+  },
 ];
 
 const nodesById = new Map<string, InternalLocationNode>();
@@ -328,8 +338,19 @@ export function normalizeLocationName(name: string): string {
     return "";
   }
 
-  let normalized = name
-    .trim()
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/[A-Za-z]/.test(trimmed)) {
+    return trimmed
+      .replace(/[，,、]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  let normalized = trimmed
     .replace(/[，,、]/g, "")
     .replace(/\s+/g, "");
 
