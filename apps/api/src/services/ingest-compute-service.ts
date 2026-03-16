@@ -88,6 +88,12 @@ export interface TaggingEnvelope {
   entries: TaggingEnvelopeEntry[];
 }
 
+interface VerifiedEmployerMatch {
+  key: string;
+  companyId: number;
+  companyNameCn: string;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -420,13 +426,7 @@ export class IngestComputeService {
 
     // 3. Compute field-aware brandHits, then derive companyHits for backward compatibility
     const brandHits = this.computeBrandHits(item, index.companies, searchText);
-    const companyHits = Array.from(
-      new Set(
-        brandHits
-          .filter((hit) => hit.context === "employer")
-          .map((hit) => hit.brand)
-      )
-    );
+    const companyHits = this.computeEmployerCompanyHits(item);
     const { raw: industryDbV2Raw, components: industryDbV2RawComponents } = computeIndustryDbV2Raw(
       companyHits,
       brandHits
@@ -1071,31 +1071,55 @@ export class IngestComputeService {
     }
 
     // Strict employer matching against Industry DB companies (Tier 1 only).
-    for (let i = 0; i < workHistory.length; i++) {
-      const employerNames = extractedByEntry[i];
+    for (const employerMatch of this.collectVerifiedEmployerMatches(workHistory)) {
+      if (this.industryDataService.matchBrands(employerMatch.companyNameCn).length === 0) {
+        continue;
+      }
+
+      const key = `${employerMatch.key}|workHistory|employer`;
+      if (dedupe.has(key)) {
+        continue;
+      }
+      dedupe.add(key);
+      hits.push({
+        brand: employerMatch.key,
+        source: "workHistory",
+        context: "employer",
+        role: "employer",
+        companyId: employerMatch.companyId,
+      });
+    }
+
+    return hits;
+  }
+
+  private computeEmployerCompanyHits(item: ResumeItem): string[] {
+    return this.collectVerifiedEmployerMatches(item.workHistory || []).map((match) => match.key);
+  }
+
+  private collectVerifiedEmployerMatches(workHistory: ResumeWorkHistoryItem[]): VerifiedEmployerMatch[] {
+    const matches = new Map<string, VerifiedEmployerMatch>();
+
+    for (const entry of workHistory) {
+      const employerNames = extractCompanies([entry]);
       for (const employerName of employerNames) {
         const verification = this.industryDataService.verifyCompanyIndustry(employerName);
         if (verification.matchType !== "known_company" || !verification.company) {
           continue;
         }
 
-        const companyKey = this.industryDataService.getCompanyKey(verification.company);
-        const key = `${companyKey}|workHistory|employer`;
-        if (dedupe.has(key)) {
-          continue;
+        const key = this.industryDataService.getCompanyKey(verification.company);
+        if (!matches.has(key)) {
+          matches.set(key, {
+            key,
+            companyId: verification.company.id,
+            companyNameCn: verification.company.nameCn,
+          });
         }
-        dedupe.add(key);
-        hits.push({
-          brand: companyKey,
-          source: "workHistory",
-          context: "employer",
-          role: "employer",
-          companyId: verification.company.id,
-        });
       }
     }
 
-    return hits;
+    return Array.from(matches.values());
   }
 
   private classifyBrandContext(
