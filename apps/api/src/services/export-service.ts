@@ -241,6 +241,9 @@ function toRow(
   const ingestData = entry.resume.ingestData;
   const effectiveRaw = computeEffectiveIndustryDbV2Raw(ingestData);
   const { raw: industryDbV2Raw, normalized: industryDbV2Normalized } = batchNormalizer(effectiveRaw);
+  const relatedExp = typeof entry.match?.breakdown?.related_exp === "number"
+    ? entry.match.breakdown.related_exp
+    : undefined;
 
   return {
     resumeId: entry.key,
@@ -251,11 +254,9 @@ function toRow(
     education: normalizeString(entry.resume.education),
     age: parseAgeNumber(entry.resume.age) ?? "",
     expectedSalary: normalizeString(entry.resume.expectedSalary),
-    aiScore: typeof entry.match?.score === "number" ? entry.match.score : "",
+    aiScore: (relatedExp ?? 0) + industryDbV2Normalized,
     industryDb: industryDbV2Normalized,
-    relatedExp: typeof entry.match?.breakdown?.related_exp === "number"
-      ? entry.match.breakdown.related_exp
-      : "",
+    relatedExp: relatedExp ?? "",
     industryDbV2Raw,
     industryDbV2Normalized,
     ruleScore: typeof entry.ruleScore === "number" ? entry.ruleScore : "",

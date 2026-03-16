@@ -116,9 +116,19 @@ describe("ExportService", () => {
     expect(parsed.data[0]?.referenceNote).toBe("Referred by HR dept");
   });
 
-  it("exports industryDb and relatedExp columns in standard CSV output", async () => {
+  it("exports aiScore aligned with industryDb and relatedExp in standard CSV output", async () => {
     const service = new ExportService();
-    const firstEntry = buildEntry("25");
+    const firstEntry: ResumeExportEntry = {
+      ...buildEntry("25"),
+      match: {
+        ...buildEntry("25").match!,
+        score: 88,
+        breakdown: {
+          related_exp: 18,
+          industry_db: 70,
+        },
+      },
+    };
     const secondEntry: ResumeExportEntry = {
       ...buildEntry("26"),
       key: "resume-2",
@@ -130,6 +140,10 @@ describe("ExportService", () => {
           brandHits: [],
           industryDbV2Raw: 25,
         },
+      },
+      match: {
+        ...buildEntry("26").match!,
+        score: 77,
       },
     };
 
@@ -149,8 +163,12 @@ describe("ExportService", () => {
     expect(parsed.meta.fields).toContain("relatedExp");
     expect(parsed.meta.fields).not.toContain("industryDbV2Raw");
     expect(parsed.meta.fields).not.toContain("industryDbV2Normalized");
+    expect(parsed.data[0]?.aiScore).toBe("68");
     expect(parsed.data[0]?.industryDb).toBe("50");
+    expect(parsed.data[0]?.relatedExp).toBe("18");
+    expect(parsed.data[1]?.aiScore).toBe("45");
     expect(parsed.data[1]?.industryDb).toBe("45");
+    expect(parsed.data[1]?.relatedExp).toBe("");
   });
 
   it("exports industryDbV2Raw and industryDbV2Normalized columns in debug CSV output", async () => {

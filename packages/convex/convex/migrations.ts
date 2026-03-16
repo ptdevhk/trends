@@ -380,23 +380,46 @@ export const backfillIngestData = action({
     },
     handler: async (ctx, args): Promise<BackfillIngestDataResult> => {
         const limit = Math.max(1, Math.min(args.limit ?? 100, 500));
-        const scanBatch = await ctx.runQuery(internal.resumes.listResumeScanBatch, {
-            cursor: args.cursor,
-            limit: Math.min(resolveResumeScanBatchSize(args.batchSize), limit),
-        });
-        const resumeIds: Id<"resumes">[] = scanBatch.page
-            .filter((resume) => resume.ingestData === undefined)
-            .slice(0, limit)
-            .map((resume) => resume._id);
+        const scanLimit = Math.min(resolveResumeScanBatchSize(args.batchSize), limit);
+        let cursor = args.cursor;
+        let scannedResumes = 0;
+        let hasMore = false;
+        let nextCursor: string | null = args.cursor ?? null;
+        const resumeIds: Id<"resumes">[] = [];
+
+        while (resumeIds.length < limit) {
+            const scanBatch = await ctx.runQuery(internal.resumes.listResumeScanBatch, {
+                cursor,
+                limit: scanLimit,
+            });
+            const remaining = limit - resumeIds.length;
+
+            scannedResumes += scanBatch.page.length;
+            resumeIds.push(
+                ...scanBatch.page
+                    .filter((resume) => resume.ingestData === undefined)
+                    .slice(0, remaining)
+                    .map((resume) => resume._id)
+            );
+
+            nextCursor = scanBatch.isDone ? null : scanBatch.continueCursor;
+            hasMore = !scanBatch.isDone;
+
+            if (scanBatch.isDone || resumeIds.length >= limit) {
+                break;
+            }
+
+            cursor = scanBatch.continueCursor;
+        }
 
         if (resumeIds.length === 0) {
             return {
                 scheduled: 0,
                 batches: 0,
-                hasMore: !scanBatch.isDone,
-                cursor: scanBatch.isDone ? null : scanBatch.continueCursor,
-                scannedResumes: scanBatch.page.length,
-                message: scanBatch.isDone ? "No unprocessed resumes remaining" : "No unprocessed resumes found in this batch",
+                hasMore,
+                cursor: nextCursor,
+                scannedResumes,
+                message: hasMore ? "No unprocessed resumes found in this scan window" : "No unprocessed resumes remaining",
             };
         }
 
@@ -414,9 +437,9 @@ export const backfillIngestData = action({
         return {
             scheduled: resumeIds.length,
             batches,
-            hasMore: !scanBatch.isDone,
-            cursor: scanBatch.isDone ? null : scanBatch.continueCursor,
-            scannedResumes: scanBatch.page.length,
+            hasMore,
+            cursor: nextCursor,
+            scannedResumes,
             message: `Scheduled ingest backfill for ${resumeIds.length} resumes in ${batches} batch(es)`,
         };
     },

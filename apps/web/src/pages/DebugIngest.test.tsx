@@ -8,6 +8,7 @@ const clearAnalysesMutation = vi.fn(async () => ({ cleared: 0 }))
 const hardResetMutation = vi.fn(async () => ({ cleared: 0 }))
 const backfillIngestDataAction = vi.fn(async () => ({ scheduled: 0 }))
 const reIngestStaleSkillsVersionAction = vi.fn(async () => ({ scheduled: 0 }))
+const reIngestAllResumesAction = vi.fn(async () => ({ scheduled: 0 }))
 const loadMore = vi.fn()
 type PaginatedQueryMockResult = {
   results: Array<Record<string, unknown>>
@@ -29,7 +30,7 @@ let mutationHookCallCount = 0
 vi.mock('convex/react', () => ({
   usePaginatedQuery: () => usePaginatedQueryMock(),
   useAction: () => {
-    const action = [backfillIngestDataAction, reIngestStaleSkillsVersionAction][actionHookCallCount % 2]
+    const action = [backfillIngestDataAction, reIngestStaleSkillsVersionAction, reIngestAllResumesAction][actionHookCallCount % 3]
     actionHookCallCount += 1
     return action
   },
@@ -177,7 +178,7 @@ describe('DebugIngest reset database dialog', () => {
 
     expect(
       screen.getByText(
-        'Clear all computed ingest and AI analysis data, then schedule full re-ingest for up to 500 resumes? This cannot be undone.'
+        'Clear all computed ingest and AI analysis data, then schedule a full background re-ingest for all resumes. This cannot be undone.'
       )
     ).toBeInTheDocument()
     expect(confirmSpy).not.toHaveBeenCalled()
@@ -186,7 +187,7 @@ describe('DebugIngest reset database dialog', () => {
   it('hard resets computed data and schedules re-ingest after confirmation', async () => {
     const user = userEvent.setup()
     hardResetMutation.mockResolvedValueOnce({ cleared: 12 })
-    backfillIngestDataAction.mockResolvedValueOnce({ scheduled: 12 })
+    reIngestAllResumesAction.mockResolvedValueOnce({ scheduled: 12 })
 
     render(<DebugIngest />)
 
@@ -203,12 +204,12 @@ describe('DebugIngest reset database dialog', () => {
       expect(hardResetMutation).toHaveBeenCalledWith({})
     })
     await waitFor(() => {
-      expect(backfillIngestDataAction).toHaveBeenCalledWith({ limit: 500 })
+      expect(reIngestAllResumesAction).toHaveBeenCalledWith({})
     })
     await waitFor(() => {
       expect(
         screen.queryByText(
-          'Clear all computed ingest and AI analysis data, then schedule full re-ingest for up to 500 resumes? This cannot be undone.'
+          'Clear all computed ingest and AI analysis data, then schedule a full background re-ingest for all resumes. This cannot be undone.'
         )
       ).not.toBeInTheDocument()
     })
