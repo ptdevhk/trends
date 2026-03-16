@@ -229,6 +229,7 @@ function countHistogramSamples(histogram50: number[]): number {
 }
 
 const INDUSTRY_DB_V2_SCORE_CAP = 50
+const RELATED_EXP_AI_WEIGHT = INDUSTRY_DB_V2_SCORE_CAP / 100
 const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5
 const INDUSTRY_DB_V2_BRAND_SECTION_SCORE = 30
 const INDUSTRY_DB_V2_COMPANY_SECTION_SCORE = 20
@@ -370,7 +371,7 @@ export function overrideIndustryDbBreakdown(
   const normalizedIndustryDb = normalizer(raw)
   const normalizedRelatedExp =
     typeof analysis.breakdown?.related_exp === 'number'
-      ? Math.round(clamp(analysis.breakdown.related_exp, 0, 100) * 0.5)
+      ? Math.round(clamp(analysis.breakdown.related_exp, 0, 100) * RELATED_EXP_AI_WEIGHT)
       : 0
   const nextBreakdown: MatchBreakdown = {
     ...(analysis.breakdown ?? {}),
