@@ -53,6 +53,10 @@ function buildHistoryTitle(location: string, keywords: string[]): string {
 const INDUSTRY_DB_V2_COHORT_MAX_SIZE = 2000;
 const INDUSTRY_DB_V2_HISTOGRAM_SIZE = 51;
 
+function roundTo2(value: number): number {
+    return Number(value.toFixed(2));
+}
+
 function clampIndustryDbV2RawScore(value: number): number {
     if (!Number.isFinite(value)) {
         return 0;
@@ -80,7 +84,16 @@ function quantile(sorted: number[], q: number): number {
 async function buildIndustryDbV2Cohort(
     ctx: MutationCtx,
     resumeIds: string[],
-): Promise<{ size: number; p80: number; histogram50: number[] } | null> {
+): Promise<{
+    size: number;
+    min: number;
+    max: number;
+    p50: number;
+    p80: number;
+    mean: number;
+    stddev: number;
+    histogram50: number[];
+} | null> {
     const limitedResumeIds = normalizeStringList(resumeIds).slice(0, INDUSTRY_DB_V2_COHORT_MAX_SIZE);
     if (limitedResumeIds.length === 0) {
         return null;
@@ -94,10 +107,17 @@ async function buildIndustryDbV2Cohort(
     sorted.forEach((score: number) => {
         histogram50[Math.round(score)] += 1;
     });
+    const mean = sorted.reduce((total: number, score: number) => total + score, 0) / sorted.length;
+    const variance = sorted.reduce((total: number, score: number) => total + ((score - mean) ** 2), 0) / sorted.length;
 
     return {
         size: sorted.length,
-        p80: Number(quantile(sorted, 0.8).toFixed(2)),
+        min: roundTo2(sorted[0] ?? 0),
+        max: roundTo2(sorted[sorted.length - 1] ?? 0),
+        p50: roundTo2(quantile(sorted, 0.5)),
+        p80: roundTo2(quantile(sorted, 0.8)),
+        mean: roundTo2(mean),
+        stddev: roundTo2(Math.sqrt(variance)),
         histogram50,
     };
 }
@@ -258,7 +278,12 @@ export const listSearchHistory = query({
                     industryDbV2Stats: cohort
                         ? {
                             size: cohort.size,
+                            min: cohort.min,
+                            max: cohort.max,
+                            p50: cohort.p50,
                             p80: cohort.p80,
+                            mean: cohort.mean,
+                            stddev: cohort.stddev,
                             histogram50: cohort.histogram50,
                         }
                         : undefined,
@@ -328,7 +353,12 @@ export const saveSearchHistory = mutation({
                 workspaceSlug,
                 computedAt: now,
                 size: cohort.size,
+                min: cohort.min,
+                max: cohort.max,
+                p50: cohort.p50,
                 p80: cohort.p80,
+                mean: cohort.mean,
+                stddev: cohort.stddev,
                 histogram50: cohort.histogram50,
             });
         }

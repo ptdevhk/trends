@@ -619,6 +619,68 @@ describe('useResumeListState role filter regression', () => {
     }))
   })
 
+  it('includes applied frozen industry DB cohort stats in export requests', async () => {
+    mockState.searchHistory = [
+      {
+        id: 'history-export',
+        sessionKey: 'session-1',
+        title: 'Saved search',
+        location: '苏州',
+        keywords: ['CNC', '销售'],
+        jobDescriptionId: 'lathe-sales',
+        filters: {},
+        selectedTags: [],
+        selectedCompanies: [],
+        selectedExperienceLevel: undefined,
+        industryDbV2Stats: {
+          size: 50,
+          min: 0,
+          max: 25,
+          p50: 10,
+          p80: 20,
+          mean: 12.4,
+          stddev: 6.8,
+          histogram50: Array.from({ length: 51 }, (_, index) => {
+            if (index === 20) return 40
+            if (index === 25) return 10
+            return 0
+          }),
+        },
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
+    })
+
+    act(() => {
+      result.current.handleToggleSelect('resume-ideal-cnc-sales')
+    })
+
+    await act(async () => {
+      await result.current.handleBulkAction('export', 'csv')
+    })
+
+    const parsedBody = JSON.parse(submittedPayloadValue) as {
+      industryDbV2Stats?: {
+        size: number
+        min?: number
+        max?: number
+        p50?: number
+        p80: number
+        mean?: number
+        stddev?: number
+        histogram50: number[]
+      }
+    }
+
+    expect(parsedBody.industryDbV2Stats).toEqual(mockState.searchHistory[0].industryDbV2Stats)
+  })
+
   it('applies saved search history and updates opened timestamp', async () => {
     mockState.searchHistory = [
       {

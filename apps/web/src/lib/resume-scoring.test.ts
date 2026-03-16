@@ -8,6 +8,7 @@ import {
   hasIngestData,
   isAutoFilteredAnalysis,
   overrideIndustryDbBreakdown,
+  toIndustryDbV2Stats,
   toMatchBreakdown,
   toRecommendation,
 } from '@/lib/resume-scoring'
@@ -200,6 +201,28 @@ describe('resume-scoring', () => {
       p80: 20,
       histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
     })).toBe(40)
+  })
+
+  it('parses enriched industry_db cohort stats without dropping legacy fields', () => {
+    expect(toIndustryDbV2Stats({
+      size: 50,
+      min: 0,
+      max: 25,
+      p50: 10,
+      p80: 20,
+      mean: 12.4,
+      stddev: 6.8,
+      histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
+    })).toEqual({
+      size: 50,
+      min: 0,
+      max: 25,
+      p50: 10,
+      p80: 20,
+      mean: 12.4,
+      stddev: 6.8,
+      histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
+    })
   })
 
   it('adds percentile bonus when industry_db raw score exceeds cohort p80', () => {

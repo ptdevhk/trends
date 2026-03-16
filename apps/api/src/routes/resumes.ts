@@ -47,6 +47,10 @@ import {
   type ExportBatchMeta,
   type ResumeExportEntry,
 } from "../services/export-service.js";
+import {
+  computeBatchStats,
+  type IndustryDbV2BatchStats,
+} from "../services/industry-db-batch-stats.js";
 import { submitResumeImport } from "../services/resume-import-service.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
@@ -345,29 +349,34 @@ function isCanonicalExportRequest(
 
 async function resolveExportRequest(
   request: ResumeExportRequest
-): Promise<{ format: ExportFormat; entries: ResumeExportEntry[]; batchMeta: ExportBatchMeta }> {
+): Promise<{
+  format: ExportFormat;
+  entries: ResumeExportEntry[];
+  batchMeta: ExportBatchMeta;
+  industryDbV2Stats: IndustryDbV2BatchStats;
+}> {
+  let entries: ResumeExportEntry[];
+
   if (!isCanonicalExportRequest(request)) {
-    return {
-      format: request.format,
-      entries: request.entries.map((entry) => toExportEntry(entry.key, entry.resume, toExportEntryFields(entry))),
-      batchMeta: {
-        userComment: request.userComment,
-        referenceNote: request.referenceNote,
-      },
-    };
+    entries = request.entries.map((entry) => toExportEntry(entry.key, entry.resume, toExportEntryFields(entry)));
+  } else {
+    const resolvedResumes = request.source === "sample"
+      ? resolveSampleExportResumeMap(request.sample ?? "", request.entries)
+      : await resolveConvexExportResumeMap(request.entries);
+    entries = buildExportEntriesFromResolvedResumes(request.entries, resolvedResumes);
   }
 
-  const resolvedResumes = request.source === "sample"
-    ? resolveSampleExportResumeMap(request.sample ?? "", request.entries)
-    : await resolveConvexExportResumeMap(request.entries);
+  const industryDbV2Stats = request.industryDbV2Stats
+    ?? computeBatchStats(entries.map((entry) => entry.resume.ingestData?.industryDbV2Raw));
 
   return {
     format: request.format,
-    entries: buildExportEntriesFromResolvedResumes(request.entries, resolvedResumes),
+    entries,
     batchMeta: {
       userComment: request.userComment,
       referenceNote: request.referenceNote,
     },
+    industryDbV2Stats,
   };
 }
 
@@ -1882,8 +1891,8 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
 });
 
 async function buildResumeExportResponse(request: z.infer<typeof ResumeExportRequestSchema>) {
-  const { format, entries, batchMeta } = await resolveExportRequest(request);
-  const file = await exportService.exportResumes(format, entries, batchMeta);
+  const { format, entries, batchMeta, industryDbV2Stats } = await resolveExportRequest(request);
+  const file = await exportService.exportResumes(format, entries, batchMeta, industryDbV2Stats);
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const filename = `resumes-export-${timestamp}.${file.extension}`;
 

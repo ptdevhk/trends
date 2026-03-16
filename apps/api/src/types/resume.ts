@@ -52,6 +52,7 @@ export type ResumeIngestData = {
   industryTags?: string[];
   brandHits?: ResumeIngestBrandHit[];
   companyHits?: string[];
+  industryDbV2Raw?: number;
   roleSignals?: ResumeIngestRoleSignal[];
 };
 

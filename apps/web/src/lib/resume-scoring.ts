@@ -6,7 +6,12 @@ import { deriveAnalysisLookupKey } from '@/lib/analysis-utils'
 
 export type IndustryDbV2Stats = {
   size: number
+  min?: number
+  max?: number
+  p50?: number
   p80: number
+  mean?: number
+  stddev?: number
   histogram50: number[]
 }
 
@@ -257,14 +262,31 @@ function percentileRankFromHistogram(histogram50: number[], raw: number): number
   return midpoint / (total - 1)
 }
 
+function safeFiniteNumber(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined
+}
+
 export function toIndustryDbV2Stats(value: unknown): IndustryDbV2Stats | undefined {
   if (!isRecord(value) || !Array.isArray(value.histogram50)) {
     return undefined
   }
 
+  const size = safeFiniteNumber(value.size)
+  const min = safeFiniteNumber(value.min)
+  const max = safeFiniteNumber(value.max)
+  const p50 = safeFiniteNumber(value.p50)
+  const p80 = safeFiniteNumber(value.p80)
+  const mean = safeFiniteNumber(value.mean)
+  const stddev = safeFiniteNumber(value.stddev)
+
   return {
-    size: typeof value.size === 'number' && Number.isFinite(value.size) ? Math.max(0, Math.floor(value.size)) : 0,
-    p80: typeof value.p80 === 'number' && Number.isFinite(value.p80) ? value.p80 : 0,
+    size: size !== undefined ? Math.max(0, Math.floor(size)) : 0,
+    ...(min !== undefined && { min }),
+    ...(max !== undefined && { max }),
+    ...(p50 !== undefined && { p50 }),
+    p80: p80 ?? 0,
+    ...(mean !== undefined && { mean }),
+    ...(stddev !== undefined && { stddev }),
     histogram50: normalizeHistogram50(value.histogram50),
   }
 }

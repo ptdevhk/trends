@@ -4302,6 +4302,23 @@ export interface components {
         };
         /** @enum {string} */
         ResumeExportSource: "sample" | "convex";
+        IndustryDbV2Stats: {
+            /** @example 50 */
+            size: number;
+            /** @example 0 */
+            min?: number;
+            /** @example 25 */
+            max?: number;
+            /** @example 10 */
+            p50?: number;
+            /** @example 20 */
+            p80: number;
+            /** @example 12.4 */
+            mean?: number;
+            /** @example 6.8 */
+            stddev?: number;
+            histogram50: number[];
+        };
         ResumeExportMatch: {
             /** @example 88 */
             score: number;
@@ -4347,6 +4364,7 @@ export interface components {
             userComment?: string;
             /** @example Internal export */
             referenceNote?: string;
+            industryDbV2Stats?: components["schemas"]["IndustryDbV2Stats"];
             entries: components["schemas"]["ResumeExportEntryContext"][];
         };
         ResumeExportLegacyRequest: {
@@ -4357,6 +4375,7 @@ export interface components {
             format: "csv" | "xlsx";
             userComment?: string;
             referenceNote?: string;
+            industryDbV2Stats?: components["schemas"]["IndustryDbV2Stats"];
             entries: {
                 key: string;
                 ruleScore?: number;
@@ -4391,6 +4410,7 @@ export interface components {
                             companyId?: number;
                         }[];
                         companyHits?: string[];
+                        industryDbV2Raw?: number;
                         roleSignals?: {
                             type: string;
                             matchedSignals: string[];
