@@ -47,4 +47,11 @@ describe("location-tree", () => {
     expect(isLocationMatch("深圳市", "东莞")).toBe(false);
     expect(isLocationMatch("广东", "东莞")).toBe(false);
   });
+
+  it("supports seeded Malaysia and Kuala Lumpur aliases", () => {
+    expect(findLocation("Kuala Lumpur MY")?.name).toBe("Kuala Lumpur");
+    expect(findLocation("Kuala Lumpur, Malaysia")?.name).toBe("Kuala Lumpur");
+    expect(isLocationMatch("Kuala Lumpur, Malaysia", "Kuala Lumpur MY")).toBe(true);
+    expect(isLocationMatch("Kuala Lumpur", "Malaysia")).toBe(true);
+  });
 });

@@ -113,4 +113,35 @@ describe("ResumeIndexService", () => {
       cleanupFixtureRoot(root);
     }
   });
+
+  it("extracts seeded English location cities before CJK fallback", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new ResumeIndexService(root);
+      const resumes: ResumeItem[] = [
+        {
+          name: "Alex Tan",
+          profileUrl: "https://my.employer.seek.com/candidates/1",
+          activityStatus: "Active",
+          age: "29",
+          experience: "6 years",
+          education: "Bachelor",
+          location: "Kuala Lumpur, Malaysia",
+          selfIntro: "",
+          jobIntention: "",
+          expectedSalary: "",
+          workHistory: [],
+          extractedAt: "2026-03-16T00:00:00.000Z",
+          resumeId: "R2001",
+          profileType: "seek",
+        },
+      ];
+
+      const index = service.buildIndex("sample:seek", resumes);
+      expect(index.get("R2001")?.locationCity).toBe("Kuala Lumpur");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
 });

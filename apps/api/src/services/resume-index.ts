@@ -5,7 +5,9 @@ import {
   buildWorkHistoryEntryText,
   buildWorkHistoryEvidence,
   FALLBACK_INDUSTRY_KEYWORDS,
+  findLocation,
   normalizeIndustryTags,
+  normalizeLocationName,
   type CanonicalIndustryTag,
 } from "@trends/shared";
 
@@ -207,11 +209,26 @@ export class ResumeIndexService {
       if (location.includes(knownLocation)) return knownLocation;
     }
 
-    const normalized = location.trim();
-    const direct = normalized.match(/^([\u4e00-\u9fa5]{2,6}?)(?:市|县|区|镇)/);
+    const seededLocation = findLocation(location);
+    if (seededLocation) {
+      if (seededLocation.level === "city") {
+        return seededLocation.name;
+      }
+      if (seededLocation.level === "district" && seededLocation.parentName) {
+        return seededLocation.parentName;
+      }
+      return seededLocation.name;
+    }
+
+    const normalized = normalizeLocationName(location.trim());
+    if (/[a-z]/i.test(normalized)) {
+      return normalized || null;
+    }
+
+    const direct = location.trim().match(/^([\u4e00-\u9fa5]{2,6}?)(?:市|县|区|镇)/);
     if (direct?.[1]) return direct[1];
 
-    const fallback = normalized.match(/[\u4e00-\u9fa5]{2,4}/);
+    const fallback = location.trim().match(/[\u4e00-\u9fa5]{2,4}/);
     return fallback?.[0] ?? null;
   }
 

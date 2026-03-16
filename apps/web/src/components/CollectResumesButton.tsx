@@ -10,7 +10,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-const JOB_BOARD_BASE_URL = 'https://hr.job5156.com/search'
+const SEEK_TALENT_SEARCH_URL = 'https://my.employer.seek.com/candidates/recommended'
+const SEEK_DEFAULT_LOCATION = 'Kuala Lumpur MY'
 const EXTENSION_META_URL = '/extension/extension-meta.json'
 const EXTENSION_ZIP_URL = '/extension/trends-resume-collector-latest.zip'
 
@@ -50,6 +51,10 @@ export function CollectResumesButton({ location, keywords, collectLimit, minAge,
   const [maxPagesInput, setMaxPagesInput] = useState('')
 
   const normalizedLocation = useMemo(() => location.trim(), [location])
+  const collectLocation = useMemo(
+    () => (normalizedLocation.length > 0 ? normalizedLocation : SEEK_DEFAULT_LOCATION),
+    [normalizedLocation]
+  )
   const normalizedKeywords = useMemo(
     () => keywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
     [keywords]
@@ -74,8 +79,8 @@ export function CollectResumesButton({ location, keywords, collectLimit, minAge,
       tr_auto_sync: 'true',
     })
 
-    if (normalizedLocation.length > 0) {
-      query.set('location', normalizedLocation) // will be parsed by extension
+    if (collectLocation.length > 0) {
+      query.set('location', collectLocation)
     }
 
     if (normalizedCollectLimit > 0) {
@@ -94,13 +99,13 @@ export function CollectResumesButton({ location, keywords, collectLimit, minAge,
       query.set('tr_max_age', String(normalizedMaxAge))
     }
 
-    return `${JOB_BOARD_BASE_URL}?${query.toString()}`
+    return `${SEEK_TALENT_SEARCH_URL}?${query.toString()}`
   }, [
     disabled,
     normalizedCollectLimit,
     normalizedCollectMaxPages,
     normalizedKeywords,
-    normalizedLocation,
+    collectLocation,
     normalizedMinAge,
     normalizedMaxAge,
   ])
