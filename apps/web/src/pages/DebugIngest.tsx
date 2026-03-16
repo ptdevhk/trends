@@ -124,6 +124,7 @@ export default function DebugIngest() {
   } = usePaginatedQuery(api.resumes.listIngestDiagnostics, {}, { initialNumItems: INGEST_DIAGNOSTICS_PAGE_SIZE })
   const backfillIngestData = useAction(api.migrations.backfillIngestData)
   const reIngestStaleSkillsVersion = useAction(api.migrations.reIngestStaleSkillsVersion)
+  const reIngestAllResumes = useAction(api.migrations.reIngestAllResumes)
   const clearAnalysesMutation = useMutation(api.resumes.clearAnalyses)
   const hardResetIngestDataMutation = useMutation(api.resumes.hardResetIngestData)
   const resetDatabaseMutation = useMutation(api.resume_tasks.resetDatabase)
@@ -259,13 +260,13 @@ export default function DebugIngest() {
         totalCleared += result.cleared
         cursor = result.hasMore ? (result.cursor ?? undefined) : undefined
       } while (cursor)
-      const backfillResult = await backfillIngestData({ limit: 500 })
+      const reingestResult = await reIngestAllResumes({})
       setHardResetDialogOpen(false)
       toast.success(
         t('debugIngest.hardResetSuccess', {
           cleared: totalCleared,
-          scheduled: backfillResult.scheduled,
-          defaultValue: `Cleared computed data for ${totalCleared} resumes and scheduled ${backfillResult.scheduled} resumes for re-ingest.`,
+          scheduled: reingestResult.scheduled,
+          defaultValue: `Cleared computed data for ${totalCleared} resumes and scheduled ${reingestResult.scheduled} resumes for full re-ingest.`,
         })
       )
       await loadSkillsVersion()
@@ -279,7 +280,7 @@ export default function DebugIngest() {
     } finally {
       setHardResetting(false)
     }
-  }, [backfillIngestData, hardResetIngestDataMutation, loadSkillsVersion, t])
+  }, [hardResetIngestDataMutation, loadSkillsVersion, reIngestAllResumes, t])
 
   const resetDatabase = useCallback(async () => {
     setResettingDatabase(true)
@@ -408,7 +409,7 @@ export default function DebugIngest() {
             <DialogTitle>{t('debugIngest.hardReset', { defaultValue: 'Hard Reset & Re-ingest' })}</DialogTitle>
             <DialogDescription>
               {t('debugIngest.hardResetConfirm', {
-                defaultValue: 'Clear all computed ingest and AI analysis data, then schedule full re-ingest for up to 500 resumes? This cannot be undone.',
+                defaultValue: 'Clear all computed ingest and AI analysis data, then schedule a full background re-ingest for all resumes. This cannot be undone.',
               })}
             </DialogDescription>
           </DialogHeader>

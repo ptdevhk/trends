@@ -324,8 +324,32 @@ describe("resume export route", () => {
           }),
         },
         entries: [
-          { resumeId: "convex-b", status: "contacted" },
-          { resumeId: "convex-a", status: "new" },
+          {
+            resumeId: "convex-b",
+            status: "contacted",
+            match: {
+              score: 99,
+              recommendation: "match",
+              scoreSource: "ai",
+              breakdown: {
+                related_exp: 12,
+                industry_db: 80,
+              },
+            },
+          },
+          {
+            resumeId: "convex-a",
+            status: "new",
+            match: {
+              score: 68,
+              recommendation: "strong_match",
+              scoreSource: "ai",
+              breakdown: {
+                related_exp: 18,
+                industry_db: 50,
+              },
+            },
+          },
         ],
       }),
     });
@@ -344,7 +368,9 @@ describe("resume export route", () => {
     await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
     const sheet = workbook.getWorksheet("Resumes");
     const brandHitsColumn = findColumnIndex(sheet, "Brand Hits");
+    const aiScoreColumn = findColumnIndex(sheet, "AI Score");
     const industryDbColumn = findColumnIndex(sheet, "Industry DB");
+    const relatedExpColumn = findColumnIndex(sheet, "Related Exp");
     const industryDbRawColumn = findColumnIndex(sheet, "Industry DB V2 Raw");
     const industryDbNormalizedColumn = findColumnIndex(sheet, "Industry DB V2 Normalized");
     expect(sheet?.getCell("A2").value).toBe("convex-b");
@@ -352,13 +378,19 @@ describe("resume export route", () => {
     expect(sheet?.getCell("A3").value).toBe("convex-a");
     expect(sheet?.getCell("B3").value).toBe("Alice");
     expect(brandHitsColumn).toBeGreaterThan(0);
+    expect(aiScoreColumn).toBeGreaterThan(0);
     expect(industryDbColumn).toBeGreaterThan(0);
+    expect(relatedExpColumn).toBeGreaterThan(0);
     expect(industryDbRawColumn).toBeGreaterThan(0);
     expect(industryDbNormalizedColumn).toBeGreaterThan(0);
+    expect(sheet?.getRow(2).getCell(aiScoreColumn).value).toBe(50);
     expect(sheet?.getRow(2).getCell(industryDbColumn).value).toBe(38);
+    expect(sheet?.getRow(2).getCell(relatedExpColumn).value).toBe(12);
     expect(sheet?.getRow(2).getCell(industryDbRawColumn).value).toBe(20);
     expect(sheet?.getRow(2).getCell(industryDbNormalizedColumn).value).toBe(38);
+    expect(sheet?.getRow(3).getCell(aiScoreColumn).value).toBe(68);
     expect(sheet?.getRow(3).getCell(industryDbColumn).value).toBe(50);
+    expect(sheet?.getRow(3).getCell(relatedExpColumn).value).toBe(18);
     expect(sheet?.getRow(3).getCell(industryDbRawColumn).value).toBe(50);
     expect(sheet?.getRow(3).getCell(industryDbNormalizedColumn).value).toBe(50);
     expect(sheet?.getRow(3).getCell(brandHitsColumn).value).toBe("发那科");

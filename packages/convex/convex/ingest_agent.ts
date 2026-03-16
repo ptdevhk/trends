@@ -144,9 +144,7 @@ export const reIngestAllResumes = internalAction({
         page: ResumeScanRow[];
       } = await ctx.runQuery(internal.resumes.listResumeScanBatch, { cursor });
 
-      const resumeIds = batch.page
-        .filter((resume) => resume.ingestData !== undefined)
-        .map((resume) => resume._id);
+      const resumeIds = batch.page.map((resume) => resume._id);
 
       for (let index = 0; index < resumeIds.length; index += batchSize) {
         await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {

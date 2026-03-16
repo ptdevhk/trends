@@ -62,7 +62,7 @@ describe("backfillIngestData", () => {
       },
     }
 
-    const result = await backfillIngestDataHandler(ctx as never, { limit: 100 })
+    const result = await backfillIngestDataHandler(ctx as never, { limit: 1 })
 
     expect(result).toEqual({
       scheduled: 1,
@@ -73,5 +73,78 @@ describe("backfillIngestData", () => {
       message: "Scheduled ingest backfill for 1 resumes in 1 batch(es)",
     })
     expect(scheduledPayloads).toEqual([{ resumeIds: ["resume-1"] }])
+  })
+
+  it("continues scanning later pages until it finds enough unprocessed resumes", async () => {
+    const scheduledPayloads: Array<{ resumeIds: string[] }> = []
+    let queryCount = 0
+
+    const ctx = {
+      async runQuery() {
+        queryCount += 1
+
+        if (queryCount === 1) {
+          return {
+            continueCursor: "next:cursor",
+            isDone: false,
+            page: [
+              {
+                _id: "resume-1",
+                content: {},
+                ingestData: {
+                  evidenceText: "already processed",
+                  industryTags: [],
+                  synonymHits: [],
+                  ruleScores: {},
+                  experienceLevel: "unknown",
+                  computedAt: 1,
+                  skillsVersion: 1,
+                },
+                primaryRuleScore: 0,
+                searchText: "",
+              },
+            ],
+          }
+        }
+
+        return {
+          continueCursor: "done:cursor",
+          isDone: true,
+          page: [
+            {
+              _id: "resume-2",
+              content: {},
+              ingestData: undefined,
+              primaryRuleScore: undefined,
+              searchText: undefined,
+            },
+            {
+              _id: "resume-3",
+              content: {},
+              ingestData: undefined,
+              primaryRuleScore: undefined,
+              searchText: undefined,
+            },
+          ],
+        }
+      },
+      scheduler: {
+        async runAfter(_delay: number, _fn: unknown, payload: { resumeIds: string[] }) {
+          scheduledPayloads.push(payload)
+        },
+      },
+    }
+
+    const result = await backfillIngestDataHandler(ctx as never, { limit: 2 })
+
+    expect(result).toEqual({
+      scheduled: 2,
+      batches: 1,
+      hasMore: false,
+      cursor: null,
+      scannedResumes: 3,
+      message: "Scheduled ingest backfill for 2 resumes in 1 batch(es)",
+    })
+    expect(scheduledPayloads).toEqual([{ resumeIds: ["resume-2", "resume-3"] }])
   })
 })
