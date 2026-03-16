@@ -245,11 +245,11 @@ describe('resume-scoring', () => {
     })).toBe(12)
   })
 
-  it('falls back to raw industry_db score when p80 guard is too low', () => {
+  it('falls back when non-zero sample count is below minimum threshold', () => {
     expect(computeNormalizedIndustryDbScore(25, {
       size: 50,
-      p80: 5,
-      histogram50: Array.from({ length: 51 }, (_, index) => (index === 25 ? 50 : 0)),
+      p80: 25,
+      histogram50: Array.from({ length: 51 }, (_, index) => (index === 25 ? 3 : 0)),
     })).toBe(25)
   })
 

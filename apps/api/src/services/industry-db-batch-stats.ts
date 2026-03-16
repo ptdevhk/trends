@@ -19,6 +19,9 @@ export type NormalizedIndustryDbScore = {
 const INDUSTRY_DB_V2_SCORE_CAP = 50;
 const INDUSTRY_DB_V2_HISTOGRAM_SIZE = 51;
 const INDUSTRY_DB_V2_MIN_NORMALIZATION_SAMPLE_SIZE = 30;
+const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5;
+const INDUSTRY_DB_V2_BRAND_SECTION_SCORE = 30;
+const INDUSTRY_DB_V2_COMPANY_SECTION_SCORE = 20;
 
 function roundTo2(value: number): number {
   return Number(value.toFixed(2));
@@ -63,6 +66,29 @@ function normalizeHistogram50(histogram50: number[]): number[] {
 
 function countHistogramSamples(histogram50: number[]): number {
   return histogram50.reduce((total, count) => total + count, 0);
+}
+
+export function bumpIndustryDbV2Raw(
+  raw: number | undefined,
+  hasBrandHits: boolean,
+  hasCompanyHits: boolean
+): number {
+  const sectionBump =
+    (hasBrandHits ? INDUSTRY_DB_V2_BRAND_SECTION_SCORE : 0) +
+    (hasCompanyHits ? INDUSTRY_DB_V2_COMPANY_SECTION_SCORE : 0);
+  return Math.max(clampIndustryDbV2RawScore(raw), sectionBump);
+}
+
+function nonZeroP80FromHistogram(histogram50: number[]): { p80: number; count: number } {
+  const sorted: number[] = [];
+  histogram50.forEach((count, score) => {
+    if (score > 0) {
+      for (let i = 0; i < count; i++) {
+        sorted.push(score);
+      }
+    }
+  });
+  return { p80: quantile(sorted, 0.8), count: sorted.length };
 }
 
 function percentileRankFromHistogram(histogram50: number[], raw: number): number {
@@ -165,7 +191,12 @@ function prepareNormalizationContext(
     return null;
   }
 
-  return { histogram50, sampleSize, p80: stats.p80 };
+  const { p80: effectiveP80, count: nonZeroCount } = nonZeroP80FromHistogram(histogram50);
+  if (nonZeroCount < INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE) {
+    return null;
+  }
+
+  return { histogram50, sampleSize, p80: effectiveP80 };
 }
 
 function normalizeWithContext(
