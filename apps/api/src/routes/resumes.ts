@@ -606,6 +606,7 @@ function buildAiResumePayload(item: {
     skills: item.indexData.skills,
     companies: item.indexData.companies.length > 0 ? item.indexData.companies : extractCompanies(item.resume.workHistory),
     workHistory: buildWorkHistoryEvidence(item.resume.workHistory).lines.join("\n") || undefined,
+    sourceKey: item.resume.profileType === "seek" ? "seek" : item.resume.profileType,
   };
 }
 
@@ -1419,7 +1420,6 @@ app.post("/api/resumes/match-stream", async (c) => {
                 requirements,
                 responsibilities,
               },
-              undefined,
               {
                 onResult: ({ resumeId, result, done }) => {
                   const payload = {
@@ -1498,7 +1498,6 @@ app.post("/api/resumes/match-stream", async (c) => {
             requirements,
             responsibilities,
           },
-          undefined,
           {
             onResult: ({ resumeId, result, done, total }) => {
               const payload = {
