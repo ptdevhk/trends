@@ -6,12 +6,39 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { ResumeService } from "./resume-service";
 
+const MINIMAL_SKILLS_MD = `---
+version: 1
+updated_at: '2026-01-01'
+---
+
+## 领域分类
+
+### machinery
+- displayName: 机械
+- keywords: cnc, 机械
+
+## 同义词表
+
+## 企业名单
+
+## 评分规则
+
+## 经验级别
+
+## 职能信号
+
+## 行业背景
+
+## 排除词
+`;
+
 function createFixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "resume-service-"));
   fs.mkdirSync(path.join(root, "output", "resumes", "samples"), { recursive: true });
   fs.mkdirSync(path.join(root, "config", "resume"), { recursive: true });
   fs.mkdirSync(path.join(root, "config", "job-descriptions"), { recursive: true });
   fs.writeFileSync(path.join(root, "config", "resume", "skills_words.txt"), "sales cnc\n", "utf8");
+  fs.writeFileSync(path.join(root, "config", "resume", "skills.md"), MINIMAL_SKILLS_MD, "utf8");
   return root;
 }
 
