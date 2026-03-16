@@ -4374,11 +4374,8 @@ export interface components {
             /** @example Internal export */
             referenceNote?: string;
             industryDbV2Stats?: components["schemas"]["IndustryDbV2Stats"];
-            /**
-             * @default false
-             * @example false
-             */
-            debug: boolean;
+            /** @example false */
+            debug?: boolean;
             entries: components["schemas"]["ResumeExportEntryContext"][];
         };
         ResumeExportLegacyRequest: {

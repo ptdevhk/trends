@@ -535,7 +535,7 @@ export const ResumeExportCanonicalRequestSchema = z
     userComment: z.string().optional().openapi({ example: "Batch note" }),
     referenceNote: z.string().optional().openapi({ example: "Internal export" }),
     industryDbV2Stats: IndustryDbV2StatsSchema.optional(),
-    debug: z.boolean().optional().default(false).openapi({ example: false }),
+    debug: z.boolean().optional().openapi({ example: false }),
     entries: z.array(ResumeExportEntryContextSchema).min(1).max(2000),
   })
   .superRefine((value, ctx) => {
