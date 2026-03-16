@@ -118,17 +118,20 @@ describe("ExportService", () => {
 
   it("exports aiScore aligned with industryDb and relatedExp in standard CSV output", async () => {
     const service = new ExportService();
+    // firstEntry: match reflects what the web sends after overrideIndustryDbBreakdown —
+    // score = relatedExp + normalizedIndustryDb, breakdown.industry_db = UI-normalized value.
     const firstEntry: ResumeExportEntry = {
       ...buildEntry("25"),
       match: {
         ...buildEntry("25").match!,
-        score: 88,
+        score: 68,
         breakdown: {
           related_exp: 18,
-          industry_db: 70,
+          industry_db: 50,
         },
       },
     };
+    // secondEntry: no AI match, so aiScore should be empty.
     const secondEntry: ResumeExportEntry = {
       ...buildEntry("26"),
       key: "resume-2",
@@ -141,10 +144,7 @@ describe("ExportService", () => {
           industryDbV2Raw: 25,
         },
       },
-      match: {
-        ...buildEntry("26").match!,
-        score: 77,
-      },
+      match: undefined,
     };
 
     const file = await service.exportResumes("csv", [firstEntry, secondEntry], undefined, {
@@ -166,7 +166,8 @@ describe("ExportService", () => {
     expect(parsed.data[0]?.aiScore).toBe("68");
     expect(parsed.data[0]?.industryDb).toBe("50");
     expect(parsed.data[0]?.relatedExp).toBe("18");
-    expect(parsed.data[1]?.aiScore).toBe("45");
+    expect(Number(parsed.data[0]?.aiScore)).toBe(Number(parsed.data[0]?.industryDb) + Number(parsed.data[0]?.relatedExp));
+    expect(parsed.data[1]?.aiScore).toBe("");
     expect(parsed.data[1]?.industryDb).toBe("45");
     expect(parsed.data[1]?.relatedExp).toBe("");
   });

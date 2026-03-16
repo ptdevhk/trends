@@ -244,6 +244,16 @@ function toRow(
   const relatedExp = typeof entry.match?.breakdown?.related_exp === "number"
     ? entry.match.breakdown.related_exp
     : undefined;
+  // Prefer client-sent values: the web applies overrideIndustryDbBreakdown before sending,
+  // so match.breakdown.industry_db and match.score already reflect the same normalization
+  // the UI displays. Re-normalizing from raw ingest data uses different batch stats and
+  // produces different values. Fall back to fresh re-normalization only when no match is sent.
+  const industryDb = typeof entry.match?.breakdown?.industry_db === "number"
+    ? entry.match.breakdown.industry_db
+    : industryDbV2Normalized;
+  const aiScore: number | "" = typeof entry.match?.score === "number"
+    ? entry.match.score
+    : "";
 
   return {
     resumeId: entry.key,
@@ -254,8 +264,8 @@ function toRow(
     education: normalizeString(entry.resume.education),
     age: parseAgeNumber(entry.resume.age) ?? "",
     expectedSalary: normalizeString(entry.resume.expectedSalary),
-    aiScore: (relatedExp ?? 0) + industryDbV2Normalized,
-    industryDb: industryDbV2Normalized,
+    aiScore,
+    industryDb,
     relatedExp: relatedExp ?? "",
     industryDbV2Raw,
     industryDbV2Normalized,
