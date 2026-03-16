@@ -1011,7 +1011,7 @@ export function useResumeListState(loadSearchHistory = false) {
               analysis,
               bumpIndustryDbV2Raw(
                 ingestData?.industryDbV2Raw,
-                (ingestData?.brandHits?.length ?? 0) > 0,
+                (ingestData?.brandHits?.filter((h) => h.context !== "employer").length ?? 0) > 0,
                 (ingestData?.companyHits?.length ?? 0) > 0,
               ),
               normalize,

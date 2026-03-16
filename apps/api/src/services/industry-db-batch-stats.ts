@@ -84,9 +84,12 @@ export function computeEffectiveIndustryDbV2Raw(ingestData: {
   companyHits?: unknown[];
   industryDbV2Raw?: number;
 } | null | undefined): number {
+  const hasNonEmployerBrandHit = (ingestData?.brandHits ?? []).some(
+    (hit) => typeof hit === "object" && hit !== null && (hit as { context?: string }).context !== "employer"
+  );
   return bumpIndustryDbV2Raw(
     ingestData?.industryDbV2Raw,
-    (ingestData?.brandHits?.length ?? 0) > 0,
+    hasNonEmployerBrandHit,
     (ingestData?.companyHits?.length ?? 0) > 0,
   );
 }

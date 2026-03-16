@@ -108,6 +108,30 @@ describe("industry-db-batch-stats", () => {
     expect(computeEffectiveIndustryDbV2Raw(null)).toBe(0);
   });
 
+  it("ignores employer-context brand hits when computing the bump", () => {
+    // employer-only brandHits → only company bump applies
+    expect(computeEffectiveIndustryDbV2Raw({
+      brandHits: [{ brand: "fanuc", role: "employer", source: "workHistory", context: "employer" }],
+      companyHits: ["fanuc"],
+      industryDbV2Raw: 5,
+    })).toBe(20);
+    // employer brandHit + no companyHits → no bump
+    expect(computeEffectiveIndustryDbV2Raw({
+      brandHits: [{ brand: "fanuc", role: "employer", source: "workHistory", context: "employer" }],
+      companyHits: [],
+      industryDbV2Raw: 5,
+    })).toBe(5);
+    // mixed: employer + non-employer brandHit → brand bump applies
+    expect(computeEffectiveIndustryDbV2Raw({
+      brandHits: [
+        { brand: "fanuc", role: "employer", source: "workHistory", context: "employer" },
+        { brand: "fanuc", role: "equipment", source: "selfIntro", context: "equipment" },
+      ],
+      companyHits: ["fanuc"],
+      industryDbV2Raw: 5,
+    })).toBe(50);
+  });
+
   it("coerces invalid raw inputs to the supported score range", () => {
     expect(clampIndustryDbV2RawScore(undefined)).toBe(0);
     expect(clampIndustryDbV2RawScore(Number.NaN)).toBe(0);
