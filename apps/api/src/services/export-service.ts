@@ -12,7 +12,7 @@ import {
   type CompanyPattern,
 } from "./skills-knowledge.js";
 import {
-  bumpIndustryDbV2Raw,
+  computeEffectiveIndustryDbV2Raw,
   createBatchNormalizer,
   type IndustryDbV2BatchStats,
 } from "./industry-db-batch-stats.js";
@@ -236,9 +236,7 @@ function toRow(
       .join(" | ")
     : "";
   const ingestData = entry.resume.ingestData;
-  const hasBrandHits = (ingestData?.brandHits?.length ?? 0) > 0;
-  const hasCompanyHits = (ingestData?.companyHits?.length ?? 0) > 0;
-  const effectiveRaw = bumpIndustryDbV2Raw(ingestData?.industryDbV2Raw, hasBrandHits, hasCompanyHits);
+  const effectiveRaw = computeEffectiveIndustryDbV2Raw(ingestData);
   const { raw: industryDbV2Raw, normalized: industryDbV2Normalized } = batchNormalizer(effectiveRaw);
 
   return {

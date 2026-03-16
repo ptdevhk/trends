@@ -1005,11 +1005,17 @@ export function useResumeListState(loadSearchHistory = false) {
         const identityKey = getResumeIdentityKey(resume, resumeKey)
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
-        const hasBrandHits = (resume.ingestData?.brandHits?.length ?? 0) > 0
-        const hasCompanyHits = (resume.ingestData?.companyHits?.length ?? 0) > 0
-        const effectiveRaw = bumpIndustryDbV2Raw(resume.ingestData?.industryDbV2Raw, hasBrandHits, hasCompanyHits)
+        const ingestData = resume.ingestData
         const normalizedAnalysis = analysis && isAnalysisValid
-          ? overrideIndustryDbBreakdown(analysis, effectiveRaw, normalize)
+          ? overrideIndustryDbBreakdown(
+              analysis,
+              bumpIndustryDbV2Raw(
+                ingestData?.industryDbV2Raw,
+                (ingestData?.brandHits?.length ?? 0) > 0,
+                (ingestData?.companyHits?.length ?? 0) > 0,
+              ),
+              normalize,
+            )
           : undefined
 
         const match: MatchingResult | undefined = normalizedAnalysis

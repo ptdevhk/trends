@@ -79,6 +79,18 @@ export function bumpIndustryDbV2Raw(
   return Math.max(clampIndustryDbV2RawScore(raw), sectionBump);
 }
 
+export function computeEffectiveIndustryDbV2Raw(ingestData: {
+  brandHits?: unknown[];
+  companyHits?: unknown[];
+  industryDbV2Raw?: number;
+} | null | undefined): number {
+  return bumpIndustryDbV2Raw(
+    ingestData?.industryDbV2Raw,
+    (ingestData?.brandHits?.length ?? 0) > 0,
+    (ingestData?.companyHits?.length ?? 0) > 0,
+  );
+}
+
 function nonZeroP80FromHistogram(histogram50: number[]): { p80: number; count: number } {
   const sorted: number[] = [];
   histogram50.forEach((count, score) => {
