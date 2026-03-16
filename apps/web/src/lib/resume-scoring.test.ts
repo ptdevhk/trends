@@ -296,57 +296,21 @@ describe('resume-scoring', () => {
     }))
   })
 
-  it('rounds weighted related_exp to the nearest integer', () => {
+  it.each([
+    { label: 'rounds to nearest integer', input: 35 as number | undefined, expected: 18 },
+    { label: 'keeps at 0 when AI returns 0', input: 0 as number | undefined, expected: 0 },
+    { label: 'defaults to 0 when missing', input: undefined, expected: 0 },
+  ])('$label for related_exp weight', ({ input, expected }) => {
     expect(overrideIndustryDbBreakdown({
       score: 40,
       summary: '',
       highlights: [],
       recommendation: 'match',
-      breakdown: {
-        related_exp: 35,
-        industry_db: 10,
-      },
+      breakdown: input !== undefined ? { related_exp: input, industry_db: 10 } : { industry_db: 10 },
     }, 0, () => 0)).toEqual(expect.objectContaining({
-      score: 18,
+      score: expected,
       breakdown: {
-        related_exp: 18,
-        industry_db: 0,
-      },
-    }))
-  })
-
-  it('keeps weighted related_exp at 0 when the AI returns 0', () => {
-    expect(overrideIndustryDbBreakdown({
-      score: 40,
-      summary: '',
-      highlights: [],
-      recommendation: 'match',
-      breakdown: {
-        related_exp: 0,
-        industry_db: 10,
-      },
-    }, 0, () => 0)).toEqual(expect.objectContaining({
-      score: 0,
-      breakdown: {
-        related_exp: 0,
-        industry_db: 0,
-      },
-    }))
-  })
-
-  it('defaults weighted related_exp to 0 when it is missing', () => {
-    expect(overrideIndustryDbBreakdown({
-      score: 40,
-      summary: '',
-      highlights: [],
-      recommendation: 'match',
-      breakdown: {
-        industry_db: 10,
-      },
-    }, 0, () => 0)).toEqual(expect.objectContaining({
-      score: 0,
-      breakdown: {
-        related_exp: 0,
+        related_exp: expected,
         industry_db: 0,
       },
     }))
