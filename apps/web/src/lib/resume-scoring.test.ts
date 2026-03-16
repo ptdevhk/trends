@@ -277,7 +277,7 @@ describe('resume-scoring', () => {
     }))
   })
 
-  it('caps recomputed score at 100 when components exceed 100', () => {
+  it('clamps related_exp to 50 and caps recomputed score at 100', () => {
     expect(overrideIndustryDbBreakdown({
       score: 88,
       summary: '',
@@ -287,6 +287,12 @@ describe('resume-scoring', () => {
         related_exp: 90,
         industry_db: 15,
       },
-    }, 50, (raw) => (typeof raw === 'number' ? Math.min(50, raw) : 0)).score).toBe(100)
+    }, 50, (raw) => (typeof raw === 'number' ? Math.min(50, raw) : 0))).toEqual(expect.objectContaining({
+      score: 100,
+      breakdown: {
+        related_exp: 50,
+        industry_db: 50,
+      },
+    }))
   })
 })
