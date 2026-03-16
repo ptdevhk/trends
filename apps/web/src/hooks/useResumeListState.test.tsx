@@ -804,7 +804,8 @@ describe('useResumeListState role filter regression', () => {
     })
 
     expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(40)
-    expect(result.current.displayedResumes[0]?.match?.score).toBe(70)
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(15)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(55)
   })
 
   it('bumps industry_db to brand section max when resume has brand hits', async () => {
@@ -858,7 +859,8 @@ describe('useResumeListState role filter regression', () => {
 
     // raw=5 bumped to 30 (brand section max), normalizes to 50 at top of cohort
     expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(50)
-    expect(result.current.displayedResumes[0]?.match?.score).toBe(80)
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(15)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(65)
   })
 
   it('allows manual profile apply to bypass the URL hydration guard', () => {

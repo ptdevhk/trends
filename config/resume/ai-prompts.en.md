@@ -71,9 +71,9 @@ Return the analysis as JSON and ensure score is numeric:
 ```
 
 ### breakdown Field Descriptions
-- `related_exp`: Scores how well the candidate's work-history evidence matches the target role (0-50). Maximum 50 points.
-- `industry_db`: Scores the candidate's industry database company verification hits (0-50). Maximum 50 points.
-- `score` = `related_exp` + `industry_db` (0-100). Do not include dimensions without grounded data.
+- `related_exp`: Scores how well the candidate's work-history evidence matches the target role (0-100). Runtime converts it into a 0-50 contribution using a fixed 50% weight.
+- `industry_db`: Scores known industry database company/brand hits (0-100, reference only). Runtime replaces the AI-provided value with the rule-engine result (company hits + brand hits); the AI-provided value does not affect the final score.
+- `score` = `related_exp` (AI value × 0.5) + `industry_db` (system rule result), for a 0-100 total. Do not include dimensions without grounded data.
 
 ## Prompt Variables
 
