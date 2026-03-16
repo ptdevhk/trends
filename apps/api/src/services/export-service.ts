@@ -11,6 +11,10 @@ import {
   normalizeCompanyPatternIdentifier,
   type CompanyPattern,
 } from "./skills-knowledge.js";
+import {
+  createBatchNormalizer,
+  type IndustryDbV2BatchStats,
+} from "./industry-db-batch-stats.js";
 import type { ResumeIngestData } from "../types/resume.js";
 
 export type ExportFormat = "csv" | "xlsx";
@@ -62,6 +66,8 @@ type ExportRow = {
   age: number | "";
   expectedSalary: string;
   aiScore: number | "";
+  industryDbV2Raw: number;
+  industryDbV2Normalized: number;
   ruleScore: number | "";
   recommendation: string;
   status: string;
@@ -218,6 +224,7 @@ function summarizeBrandHits(
 
 function toRow(
   entry: ResumeExportEntry,
+  batchNormalizer: (raw: number | undefined) => { raw: number; normalized: number },
   brandDisplayResolver?: BrandDisplayResolver,
   companyPatternAliasLookup?: Map<string, string>
 ): ExportRow {
@@ -227,6 +234,9 @@ function toRow(
       .filter((item) => item.trim().length > 0)
       .join(" | ")
     : "";
+  const { raw: industryDbV2Raw, normalized: industryDbV2Normalized } = batchNormalizer(
+    entry.resume.ingestData?.industryDbV2Raw
+  );
 
   return {
     resumeId: entry.key,
@@ -238,6 +248,8 @@ function toRow(
     age: parseAgeNumber(entry.resume.age) ?? "",
     expectedSalary: normalizeString(entry.resume.expectedSalary),
     aiScore: typeof entry.match?.score === "number" ? entry.match.score : "",
+    industryDbV2Raw,
+    industryDbV2Normalized,
     ruleScore: typeof entry.ruleScore === "number" ? entry.ruleScore : "",
     recommendation: normalizeString(entry.match?.recommendation),
     status: normalizeString(entry.status),
@@ -273,6 +285,8 @@ const EXCEL_COLUMNS: Array<{ header: string; key: keyof ExportRow; width: number
   { header: "Age", key: "age", width: 10 },
   { header: "Expected Salary", key: "expectedSalary", width: 16 },
   { header: "AI Score", key: "aiScore", width: 10 },
+  { header: "Industry DB V2 Raw", key: "industryDbV2Raw", width: 18 },
+  { header: "Industry DB V2 Normalized", key: "industryDbV2Normalized", width: 24 },
   { header: "Rule Score", key: "ruleScore", width: 10 },
   { header: "Recommendation", key: "recommendation", width: 16 },
   { header: "Status", key: "status", width: 16 },
@@ -323,11 +337,18 @@ export class ExportService {
   async exportResumes(
     format: ExportFormat,
     entries: ResumeExportEntry[],
-    batchMeta?: ExportBatchMeta
+    batchMeta?: ExportBatchMeta,
+    industryDbV2Stats?: IndustryDbV2BatchStats
   ): Promise<ExportFile> {
+    const batchNormalizer = createBatchNormalizer(industryDbV2Stats);
     const rows = entries.map((entry) =>
       applyBatchMeta(
-        toRow(entry, this.brandDisplayResolver, this.companyPatternAliasLookup),
+        toRow(
+          entry,
+          batchNormalizer,
+          this.brandDisplayResolver,
+          this.companyPatternAliasLookup
+        ),
         batchMeta
       )
     );

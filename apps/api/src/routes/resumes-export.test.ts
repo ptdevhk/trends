@@ -261,6 +261,7 @@ describe("resume export route", () => {
               workHistory: [{ raw: "Alice history" }],
               ingestData: {
                 industryTags: ["machinery"],
+                industryDbV2Raw: 25,
                 brandHits: [
                   {
                     brand: "fanuc",
@@ -293,6 +294,9 @@ describe("resume export route", () => {
               profileUrl: "https://example.com/b",
               source: "seek",
               workHistory: [{ raw: "Bob history" }],
+              ingestData: {
+                industryDbV2Raw: 20,
+              },
             },
           },
         ]);
@@ -309,6 +313,15 @@ describe("resume export route", () => {
       body: JSON.stringify({
         format: "xlsx",
         source: "convex",
+        industryDbV2Stats: {
+          size: 50,
+          p80: 20,
+          histogram50: Array.from({ length: 51 }, (_, index) => {
+            if (index === 20) return 40;
+            if (index === 25) return 10;
+            return 0;
+          }),
+        },
         entries: [
           { resumeId: "convex-b", status: "contacted" },
           { resumeId: "convex-a", status: "new" },
@@ -330,11 +343,19 @@ describe("resume export route", () => {
     await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
     const sheet = workbook.getWorksheet("Resumes");
     const brandHitsColumn = findColumnIndex(sheet, "Brand Hits");
+    const industryDbRawColumn = findColumnIndex(sheet, "Industry DB V2 Raw");
+    const industryDbNormalizedColumn = findColumnIndex(sheet, "Industry DB V2 Normalized");
     expect(sheet?.getCell("A2").value).toBe("convex-b");
     expect(sheet?.getCell("B2").value).toBe("Bob");
     expect(sheet?.getCell("A3").value).toBe("convex-a");
     expect(sheet?.getCell("B3").value).toBe("Alice");
     expect(brandHitsColumn).toBeGreaterThan(0);
+    expect(industryDbRawColumn).toBeGreaterThan(0);
+    expect(industryDbNormalizedColumn).toBeGreaterThan(0);
+    expect(sheet?.getRow(2).getCell(industryDbRawColumn).value).toBe(20);
+    expect(sheet?.getRow(2).getCell(industryDbNormalizedColumn).value).toBe(40);
+    expect(sheet?.getRow(3).getCell(industryDbRawColumn).value).toBe(25);
+    expect(sheet?.getRow(3).getCell(industryDbNormalizedColumn).value).toBe(45);
     expect(sheet?.getRow(3).getCell(brandHitsColumn).value).toBe("发那科");
   });
 

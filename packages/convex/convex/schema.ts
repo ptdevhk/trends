@@ -359,7 +359,12 @@ export default defineSchema({
         workspaceSlug: v.string(),
         computedAt: v.number(),
         size: v.number(),
+        min: v.optional(v.number()),
+        max: v.optional(v.number()),
+        p50: v.optional(v.number()),
         p80: v.number(),
+        mean: v.optional(v.number()),
+        stddev: v.optional(v.number()),
         histogram50: v.array(v.number()),
     })
         .index("by_searchHistoryId", ["searchHistoryId"])

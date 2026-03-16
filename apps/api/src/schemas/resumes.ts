@@ -513,6 +513,19 @@ export const ResumeExportEntryContextSchema = z
   })
   .openapi("ResumeExportEntryContext");
 
+export const IndustryDbV2StatsSchema = z
+  .object({
+    size: z.number().int().min(0).openapi({ example: 50 }),
+    min: z.number().optional().openapi({ example: 0 }),
+    max: z.number().optional().openapi({ example: 25 }),
+    p50: z.number().optional().openapi({ example: 10 }),
+    p80: z.number().openapi({ example: 20 }),
+    mean: z.number().optional().openapi({ example: 12.4 }),
+    stddev: z.number().optional().openapi({ example: 6.8 }),
+    histogram50: z.array(z.number().int().min(0)).length(51),
+  })
+  .openapi("IndustryDbV2Stats");
+
 export const ResumeExportCanonicalRequestSchema = z
   .object({
     format: z.enum(["csv", "xlsx"]).default("csv").openapi({ example: "csv" }),
@@ -520,6 +533,7 @@ export const ResumeExportCanonicalRequestSchema = z
     sample: z.string().optional().openapi({ example: "sample-initial" }),
     userComment: z.string().optional().openapi({ example: "Batch note" }),
     referenceNote: z.string().optional().openapi({ example: "Internal export" }),
+    industryDbV2Stats: IndustryDbV2StatsSchema.optional(),
     entries: z.array(ResumeExportEntryContextSchema).min(1).max(2000),
   })
   .superRefine((value, ctx) => {
@@ -597,6 +611,7 @@ export const ResumeExportResolvedResumeSchema = z.object({
       industryTags: z.array(z.string()).optional(),
       brandHits: z.array(ResumeExportLegacyBrandHitSchema).optional(),
       companyHits: z.array(z.string()).optional(),
+      industryDbV2Raw: z.number().optional(),
       roleSignals: z.array(ResumeExportLegacyRoleSignalSchema).optional(),
     })
     .optional(),
@@ -609,6 +624,7 @@ export const ResumeExportLegacyRequestSchema = z
     format: z.enum(["csv", "xlsx"]).default("csv"),
     userComment: z.string().optional(),
     referenceNote: z.string().optional(),
+    industryDbV2Stats: IndustryDbV2StatsSchema.optional(),
     entries: z
       .array(
         z.object({

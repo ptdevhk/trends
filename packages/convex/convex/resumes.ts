@@ -616,6 +616,7 @@ export const getByIdsForExport = query({
                             industryTags: doc.ingestData.industryTags,
                             brandHits: doc.ingestData.brandHits,
                             companyHits: doc.ingestData.companyHits,
+                            industryDbV2Raw: doc.ingestData.industryDbV2Raw,
                             roleSignals: doc.ingestData.roleSignals,
                         } : undefined,
                     },

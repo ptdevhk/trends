@@ -1,0 +1,5 @@
+[allowlist]
+regexTarget = "match"
+regexes = [
+  '''industryDbV2(Raw|Normalized)''',
+]

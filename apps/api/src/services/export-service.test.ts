@@ -22,6 +22,7 @@ function buildEntry(age: string | undefined): ResumeExportEntry {
       ingestData: {
         industryTags: ["cnc"],
         companyHits: ["FANUC"],
+        industryDbV2Raw: 20,
         brandHits: [
           {
             brand: "fanuc",
@@ -113,6 +114,41 @@ describe("ExportService", () => {
 
     expect(parsed.data[0]?.userComment).toBe("Excellent candidate");
     expect(parsed.data[0]?.referenceNote).toBe("Referred by HR dept");
+  });
+
+  it("exports industry DB raw and normalized columns in CSV output", async () => {
+    const service = new ExportService();
+    const firstEntry = buildEntry("25");
+    const secondEntry: ResumeExportEntry = {
+      ...buildEntry("26"),
+      key: "resume-2",
+      resume: {
+        ...buildEntry("26").resume,
+        ingestData: {
+          ...buildEntry("26").resume.ingestData,
+          industryDbV2Raw: 25,
+        },
+      },
+    };
+
+    const file = await service.exportResumes("csv", [firstEntry, secondEntry], undefined, {
+      size: 50,
+      p80: 20,
+      histogram50: Array.from({ length: 51 }, (_, index) => {
+        if (index === 20) return 40;
+        if (index === 25) return 10;
+        return 0;
+      }),
+    });
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.meta.fields).toContain("industryDbV2Raw");
+    expect(parsed.meta.fields).toContain("industryDbV2Normalized");
+    expect(parsed.data[0]?.industryDbV2Raw).toBe("20");
+    expect(parsed.data[0]?.industryDbV2Normalized).toBe("40");
+    expect(parsed.data[1]?.industryDbV2Raw).toBe("25");
+    expect(parsed.data[1]?.industryDbV2Normalized).toBe("45");
   });
 
   it("applies batch-level userComment/referenceNote to every exported row", async () => {
@@ -296,6 +332,8 @@ describe("ExportService", () => {
           const lower = part.toLowerCase();
           if (lower === "id") return "ID";
           if (lower === "ai") return "AI";
+          if (lower === "db") return "DB";
+          if (lower === "v2") return "V2";
           if (lower === "url") return "URL";
           return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
         })

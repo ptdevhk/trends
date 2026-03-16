@@ -1196,6 +1196,9 @@ export function useResumeListState(loadSearchHistory = false) {
           format: exportFormat,
           source: mode === 'ai' ? 'convex' : 'sample',
           entries: exportEntries,
+          ...(appliedSearchHistory?.industryDbV2Stats
+            ? { industryDbV2Stats: appliedSearchHistory.industryDbV2Stats }
+            : {}),
           ...(mode === 'ai' ? {} : { sample: selectedSample }),
         }
 
@@ -1232,7 +1235,7 @@ export function useResumeListState(loadSearchHistory = false) {
         toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))
       }
     },
-    [apiBaseUrl, blockCandidates, bulkExportFormat, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t]
+    [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t]
   )
 
   const actionFeedbackLabels = useMemo<Partial<Record<CandidateActionType, string>>>(
