@@ -355,6 +355,7 @@ async function resolveExportRequest(
   entries: ResumeExportEntry[];
   batchMeta: ExportBatchMeta;
   industryDbV2Stats: IndustryDbV2BatchStats;
+  debug: boolean;
 }> {
   let entries: ResumeExportEntry[];
 
@@ -380,6 +381,7 @@ async function resolveExportRequest(
       referenceNote: request.referenceNote,
     },
     industryDbV2Stats,
+    debug: isCanonicalExportRequest(request) ? (request.debug ?? false) : false,
   };
 }
 
@@ -1894,8 +1896,8 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
 });
 
 async function buildResumeExportResponse(request: z.infer<typeof ResumeExportRequestSchema>) {
-  const { format, entries, batchMeta, industryDbV2Stats } = await resolveExportRequest(request);
-  const file = await exportService.exportResumes(format, entries, batchMeta, industryDbV2Stats);
+  const { format, entries, batchMeta, industryDbV2Stats, debug } = await resolveExportRequest(request);
+  const file = await exportService.exportResumes(format, entries, batchMeta, industryDbV2Stats, debug);
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const filename = `resumes-export-${timestamp}.${file.extension}`;
 

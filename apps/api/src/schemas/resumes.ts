@@ -498,6 +498,7 @@ export const ResumeExportMatchSchema = z
     recommendation: RecommendationSchema.openapi({ example: "strong_match" }),
     scoreSource: ScoreSourceSchema.optional().openapi({ example: "ai" }),
     summary: z.string().optional().openapi({ example: "Strong CNC sales fit." }),
+    breakdown: z.record(z.unknown()).optional().openapi({ example: { related_exp: 20, industry_db: 40 } }),
   })
   .openapi("ResumeExportMatch");
 
@@ -534,6 +535,7 @@ export const ResumeExportCanonicalRequestSchema = z
     userComment: z.string().optional().openapi({ example: "Batch note" }),
     referenceNote: z.string().optional().openapi({ example: "Internal export" }),
     industryDbV2Stats: IndustryDbV2StatsSchema.optional(),
+    debug: z.boolean().optional().default(false).openapi({ example: false }),
     entries: z.array(ResumeExportEntryContextSchema).min(1).max(2000),
   })
   .superRefine((value, ctx) => {

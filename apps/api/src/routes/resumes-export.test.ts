@@ -313,6 +313,7 @@ describe("resume export route", () => {
       body: JSON.stringify({
         format: "xlsx",
         source: "convex",
+        debug: true,
         industryDbV2Stats: {
           size: 50,
           p80: 20,
@@ -343,6 +344,7 @@ describe("resume export route", () => {
     await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
     const sheet = workbook.getWorksheet("Resumes");
     const brandHitsColumn = findColumnIndex(sheet, "Brand Hits");
+    const industryDbColumn = findColumnIndex(sheet, "Industry DB");
     const industryDbRawColumn = findColumnIndex(sheet, "Industry DB V2 Raw");
     const industryDbNormalizedColumn = findColumnIndex(sheet, "Industry DB V2 Normalized");
     expect(sheet?.getCell("A2").value).toBe("convex-b");
@@ -350,10 +352,13 @@ describe("resume export route", () => {
     expect(sheet?.getCell("A3").value).toBe("convex-a");
     expect(sheet?.getCell("B3").value).toBe("Alice");
     expect(brandHitsColumn).toBeGreaterThan(0);
+    expect(industryDbColumn).toBeGreaterThan(0);
     expect(industryDbRawColumn).toBeGreaterThan(0);
     expect(industryDbNormalizedColumn).toBeGreaterThan(0);
+    expect(sheet?.getRow(2).getCell(industryDbColumn).value).toBe(38);
     expect(sheet?.getRow(2).getCell(industryDbRawColumn).value).toBe(20);
     expect(sheet?.getRow(2).getCell(industryDbNormalizedColumn).value).toBe(38);
+    expect(sheet?.getRow(3).getCell(industryDbColumn).value).toBe(50);
     expect(sheet?.getRow(3).getCell(industryDbRawColumn).value).toBe(50);
     expect(sheet?.getRow(3).getCell(industryDbNormalizedColumn).value).toBe(50);
     expect(sheet?.getRow(3).getCell(brandHitsColumn).value).toBe("发那科");
