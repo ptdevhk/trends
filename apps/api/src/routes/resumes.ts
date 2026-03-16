@@ -370,7 +370,9 @@ async function resolveExportRequest(
   const industryDbV2Stats = request.industryDbV2Stats
     ?? computeBatchStats(entries.map((entry) => {
       const d = entry.resume.ingestData;
-      return bumpIndustryDbV2Raw(d?.industryDbV2Raw, (d?.brandHits?.length ?? 0) > 0, (d?.companyHits?.length ?? 0) > 0);
+      const hasBrandHits = (d?.brandHits?.length ?? 0) > 0;
+      const hasCompanyHits = (d?.companyHits?.length ?? 0) > 0;
+      return bumpIndustryDbV2Raw(d?.industryDbV2Raw, hasBrandHits, hasCompanyHits);
     }));
 
   return {
