@@ -60,6 +60,7 @@ export interface SearchProfile {
         type: string;
         enabled: boolean;
         priority?: number;
+        jobUrl?: string;
     }>;
 
     // Notifications
@@ -364,12 +365,14 @@ function parseSources(value: unknown): SearchProfile["sources"] | undefined {
             const type = readString(item.type);
             const enabled = readBoolean(item.enabled);
             const priority = readNumber(item.priority);
+            const jobUrl = readString(item.jobUrl);
             if (!type || enabled === undefined) return null;
 
             return {
                 type,
                 enabled,
                 priority,
+                jobUrl,
             };
         })
         .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -501,6 +504,21 @@ function parseSession(value: unknown): SearchProfile["session"] | undefined {
         resetTriggers,
         retention,
     };
+}
+
+function isSeekRecommendedCandidatesUrl(value: string | undefined): boolean {
+    if (!value) {
+        return false;
+    }
+
+    try {
+        const url = new URL(value);
+        return url.protocol === "https:"
+            && url.hostname.toLowerCase().endsWith(".employer.seek.com")
+            && url.pathname.replace(/\/+$/, "") === "/candidates/recommended";
+    } catch {
+        return false;
+    }
 }
 
 export class SearchProfileService {
@@ -635,6 +653,15 @@ export class SearchProfileService {
 
     validateProfile(profile: SearchProfile): void {
         this.ensureRequiredCoreFields(profile);
+
+        const invalidSeekSource = profile.sources?.find((source) => (
+            source.type === "seek"
+            && source.enabled
+            && !isSeekRecommendedCandidatesUrl(source.jobUrl)
+        ));
+        if (invalidSeekSource) {
+            throw new Error("Enabled Seek source requires an exact Seek recommended candidates URL");
+        }
     }
 
     private getCacheKey(workspaceSlug: string, profileId: string): string {

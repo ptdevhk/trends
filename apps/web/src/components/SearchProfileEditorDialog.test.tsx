@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchProfileEditorDialog } from './SearchProfileEditorDialog'
@@ -11,6 +11,27 @@ const { getMock, postMock, putMock } = vi.hoisted(() => ({
 const { useQueryMock } = vi.hoisted(() => ({
   useQueryMock: vi.fn(),
 }))
+const { tMock } = vi.hoisted(() => ({
+  tMock: vi.fn((_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key),
+}))
+
+const CONVEX_JOB_DESCRIPTIONS = [{
+  _id: 'custom-jd-id',
+  title: '车床销售',
+  type: 'custom',
+  enabled: true,
+}]
+
+const CONVEX_JOB_DESCRIPTION_DETAIL = {
+  _id: 'custom-jd-id',
+  title: '车床销售',
+  location: '广东,江苏',
+  customKeywords: ['车床', '销售'],
+  minExperience: 2,
+  maxExperience: 5,
+  minAge: 25,
+  maxAge: 38,
+}
 
 vi.mock('./JobDescriptionSelect', () => ({
   JobDescriptionSelect: ({
@@ -83,13 +104,32 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))
 
+vi.mock('@/components/ui/checkbox', () => ({
+  Checkbox: ({
+    id,
+    checked,
+    onCheckedChange,
+  }: {
+    id?: string
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+  }) => (
+    <input
+      id={id}
+      type="checkbox"
+      checked={checked}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+    />
+  ),
+}))
+
 vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: 'dev' }),
 }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key,
+    t: tMock,
   }),
 }))
 
@@ -121,26 +161,12 @@ describe('SearchProfileEditorDialog JD hydration', () => {
       }
 
       if (typeof args === 'object' && args !== null && 'workspaceSlug' in args) {
-        return [{
-          _id: 'custom-jd-id',
-          title: '车床销售',
-          type: 'custom',
-          enabled: true,
-        }]
+        return CONVEX_JOB_DESCRIPTIONS
       }
 
       if (typeof args === 'object' && args !== null && 'id' in args) {
         if (args.id === 'custom-jd-id') {
-          return {
-            _id: 'custom-jd-id',
-            title: '车床销售',
-            location: '广东,江苏',
-            customKeywords: ['车床', '销售'],
-            minExperience: 2,
-            maxExperience: 5,
-            minAge: 25,
-            maxAge: 38,
-          }
+          return CONVEX_JOB_DESCRIPTION_DETAIL
         }
         return null
       }
@@ -194,8 +220,6 @@ describe('SearchProfileEditorDialog JD hydration', () => {
   })
 
   it('loads custom JD defaults into the fast edit form', async () => {
-    const user = userEvent.setup()
-
     render(
       <SearchProfileEditorDialog
         open
@@ -204,7 +228,7 @@ describe('SearchProfileEditorDialog JD hydration', () => {
       />
     )
 
-    await user.selectOptions(screen.getByTestId('job-description-select'), 'custom-jd-id')
+    fireEvent.change(screen.getByTestId('job-description-select'), { target: { value: 'custom-jd-id' } })
 
     await waitFor(() => {
       expect(screen.getByLabelText('地区:')).toHaveValue('广东,江苏')
@@ -219,6 +243,28 @@ describe('SearchProfileEditorDialog JD hydration', () => {
   })
 
   it('falls back to system JD metadata when the selection is not a custom Convex JD', async () => {
+    render(
+      <SearchProfileEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        profileId={null}
+      />
+    )
+
+    fireEvent.change(screen.getByTestId('job-description-select'), { target: { value: 'lathe-sales' } })
+
+    await waitFor(() => {
+      expect(getMock).toHaveBeenCalledWith('/api/job-descriptions/lathe-sales')
+      expect(screen.getByLabelText('地区:')).toHaveValue('东莞')
+      expect(screen.getByLabelText('关键词:')).toHaveValue('车床 销售')
+      expect(screen.getByLabelText('最低相关经验(年)')).toHaveValue(4)
+      expect(screen.getByLabelText('最高相关经验(年)')).toHaveValue(6)
+      expect(screen.getByLabelText('最低年龄')).toHaveValue(24)
+      expect(screen.getByLabelText('最高年龄')).toHaveValue(40)
+    })
+  })
+
+  it('persists Seek source job URLs in the profile payload', async () => {
     const user = userEvent.setup()
 
     render(
@@ -229,16 +275,34 @@ describe('SearchProfileEditorDialog JD hydration', () => {
       />
     )
 
-    await user.selectOptions(screen.getByTestId('job-description-select'), 'lathe-sales')
+    await user.type(screen.getByLabelText('Name'), 'Seek profile')
+    await user.type(screen.getByLabelText('关键词:'), '销售 工程师')
+    await user.click(screen.getByLabelText('Seek'))
+    await user.clear(screen.getByLabelText('Seek job URL'))
+    await user.type(
+      screen.getByLabelText('Seek job URL'),
+      'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1'
+    )
+    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
-      expect(getMock).toHaveBeenCalledWith('/api/job-descriptions/lathe-sales')
-      expect(screen.getByLabelText('地区:')).toHaveValue('东莞')
-      expect(screen.getByLabelText('关键词:')).toHaveValue('车床 销售')
-      expect(screen.getByLabelText('最低相关经验(年)')).toHaveValue(4)
-      expect(screen.getByLabelText('最高相关经验(年)')).toHaveValue(6)
-      expect(screen.getByLabelText('最低年龄')).toHaveValue(24)
-      expect(screen.getByLabelText('最高年龄')).toHaveValue(40)
+      expect(postMock).toHaveBeenCalledWith('/api/search-profiles', {
+        body: expect.objectContaining({
+          sources: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'job5156',
+              enabled: true,
+              priority: 1,
+            }),
+            expect.objectContaining({
+              type: 'seek',
+              enabled: true,
+              priority: 2,
+              jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+            }),
+          ]),
+        }),
+      })
     })
   })
 
@@ -271,7 +335,7 @@ describe('SearchProfileEditorDialog JD hydration', () => {
       />
     )
 
-    await user.selectOptions(screen.getByTestId('job-description-select'), '')
+    fireEvent.change(screen.getByTestId('job-description-select'), { target: { value: '' } })
     await user.clear(screen.getByLabelText('最低相关经验(年)'))
     await user.clear(screen.getByLabelText('最高年龄'))
     await user.click(screen.getByRole('button', { name: 'Save' }))

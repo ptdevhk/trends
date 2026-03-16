@@ -71,6 +71,7 @@ describe('useSession', () => {
           location: '广东,江苏',
           keywords: ['CNC', '销售'],
           jobDescriptionId: 'lathe-sales',
+          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           filters: {
             minExperience: 1,
             minAge: 25,
@@ -123,6 +124,7 @@ describe('useSession', () => {
             location: '东莞',
             keywords: ['CNC', '销售'],
             jobDescriptionId: 'lathe-sales',
+            collectUrl: ' https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1 ',
             filters: { minAge: 25 },
             selectedTags: ['STAR', 'STAR', ''],
             selectedCompanies: ['Acme', '  Acme  ', ''],
@@ -165,6 +167,7 @@ describe('useSession', () => {
         title: '  东莞 · CNC  ',
         location: '东莞',
         keywords: ['CNC', '销售'],
+        collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
         selectedTags: ['STAR'],
         selectedCompanies: ['Acme'],
         selectedExperienceLevel: 'mid',
@@ -202,6 +205,7 @@ describe('useSession', () => {
       title: 'HR saved search',
       location: '东莞',
       keywords: ['招聘', '简历'],
+      collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
       resumeIds: ['resume-1', 'resume-2'],
     })
     await result.current.markSearchHistoryOpened('history-hr' as never)
@@ -220,6 +224,7 @@ describe('useSession', () => {
         title: 'HR saved search',
         location: '东莞',
         keywords: ['招聘', '简历'],
+        collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
         resumeIds: ['resume-1', 'resume-2'],
       })
     )
@@ -251,5 +256,35 @@ describe('useSession', () => {
 
     expect(result.current.location).toBe('')
     expect(result.current.keywords).toEqual(['CNC', '销售'])
+  })
+
+  it('can clear and replace the persisted collect URL through external state', async () => {
+    const { result } = renderHook(() => useSession())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    act(() => {
+      result.current.setCollectUrl('https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1')
+    })
+
+    expect(result.current.collectUrl).toBe('https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1')
+
+    act(() => {
+      result.current.applyExternalState({
+        collectUrl: '',
+      })
+    })
+
+    expect(result.current.collectUrl).toBeUndefined()
+
+    act(() => {
+      result.current.applyExternalState({
+        collectUrl: ' https://my.employer.seek.com/candidates/recommended?jobId=2&pageNumber=1 ',
+      })
+    })
+
+    expect(result.current.collectUrl).toBe('https://my.employer.seek.com/candidates/recommended?jobId=2&pageNumber=1')
   })
 })

@@ -672,6 +672,107 @@ describe('search-profiles update route', () => {
     expect('filters' in updateCall.args.profile).toBe(false)
   })
 
+  it('persists Seek source job URLs on profile updates', async () => {
+    const calls: ConvexCall[] = []
+    const existingCreatedAt = Date.now() - 1000
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+
+      if (call.pathName === 'search_profiles:getById') {
+        return convexSuccess({
+          _id: 'custom-profile-1',
+          name: 'Seek profile',
+          criteria: {
+            keywords: ['Sales', 'Engineer'],
+            locations: ['Kuala Lumpur MY'],
+          },
+          profile: {
+            id: 'custom-profile-1',
+            name: 'Seek profile',
+            status: 'active',
+            location: 'Kuala Lumpur MY',
+            keywords: ['Sales', 'Engineer'],
+            sources: [
+              {
+                type: 'job5156',
+                enabled: true,
+                priority: 1,
+              },
+            ],
+          },
+          workspaceSlug: 'dev',
+          createdAt: existingCreatedAt,
+          updatedAt: existingCreatedAt,
+        })
+      }
+
+      if (call.pathName === 'search_profiles:update') {
+        if (!isRecord(call.args.profile)) {
+          throw new Error('Expected updated profile payload')
+        }
+
+        return convexSuccess({
+          _id: 'custom-profile-1',
+          name: call.args.profile.name,
+          criteria: {
+            keywords: call.args.profile.keywords,
+            locations: [call.args.profile.location],
+          },
+          profile: call.args.profile,
+          workspaceSlug: 'dev',
+          createdAt: existingCreatedAt,
+          updatedAt: Date.now(),
+        })
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles/custom-profile-1', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'dev',
+      },
+      body: JSON.stringify({
+        name: 'Seek profile',
+        location: 'Kuala Lumpur MY',
+        keywords: ['Sales', 'Engineer'],
+        status: 'active',
+        sources: [
+          {
+            type: 'job5156',
+            enabled: true,
+            priority: 1,
+          },
+          {
+            type: 'seek',
+            enabled: true,
+            priority: 2,
+            jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+          },
+        ],
+      }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const updateCall = getUpdateCall(calls)
+    expect(isRecord(updateCall.args.profile)).toBe(true)
+    if (!isRecord(updateCall.args.profile) || !Array.isArray(updateCall.args.profile.sources)) {
+      throw new Error('Expected sources array in updated profile payload')
+    }
+    expect(updateCall.args.profile.sources).toContainEqual({
+      type: 'seek',
+      enabled: true,
+      priority: 2,
+      jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+    })
+  })
+
   it('allows saving an explicitly empty location without restoring the previous one', async () => {
     const calls: ConvexCall[] = []
     const existingCreatedAt = Date.now() - 1000

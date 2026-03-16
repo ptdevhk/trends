@@ -10,6 +10,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
 import { SearchProfileEditorDialog, type SearchProfileDetails } from '@/components/SearchProfileEditorDialog'
+import {
+  SEARCH_PROFILE_SOURCE_TYPES,
+  buildSeekCollectUrl,
+  getActiveSearchProfileSource,
+  isSeekRecommendedCandidatesUrl,
+} from '@/lib/search-profile-sources'
 
 type ListProfilesResponse = {
   success: boolean
@@ -40,6 +46,8 @@ type ProfileStatusResponse = {
 }
 
 const TERMINAL_STATUSES: Array<SearchProfileRunStatus['taskStatus']> = ['completed', 'failed', 'cancelled', 'unknown']
+const DEFAULT_PROFILE_RUN_LIMIT = 120
+const DEFAULT_PROFILE_RUN_MAX_PAGES = 10
 
 
 
@@ -167,6 +175,26 @@ export function SearchProfilesPage() {
     }, 3000)
   }, [clearPolling, fetchRunStatus])
 
+  const fetchProfileDetail = useCallback(async (profileId: string) => {
+    try {
+      const { data } = await rawApiClient.GET<ProfileResponse>(`/api/search-profiles/${profileId}`)
+      if (!data?.success || !data.profile) {
+        return null
+      }
+
+      const profile = data.profile
+
+      setProfileDetails((previous) => ({
+        ...previous,
+        [profileId]: profile,
+      }))
+      return profile
+    } catch (error) {
+      console.error(`Failed to load profile detail ${profileId}`, error)
+      return null
+    }
+  }, [])
+
   const loadProfiles = useCallback(async () => {
     setLoading(true)
     try {
@@ -180,12 +208,9 @@ export function SearchProfilesPage() {
 
       const detailEntries = await Promise.all(
         nextProfiles.map(async (profile) => {
-          const { data: detailData } = await rawApiClient.GET<ProfileResponse>(`/api/search-profiles/${profile.id}`)
-          if (!detailData?.success || !detailData.profile) {
-            return null
-          }
-          return [profile.id, detailData.profile] as const
-        })
+          const detail = await fetchProfileDetail(profile.id)
+          return detail ? [profile.id, detail] as const : null
+        }),
       )
 
       const nextDetails: Record<string, SearchProfileDetails> = {}
@@ -206,7 +231,7 @@ export function SearchProfilesPage() {
     } finally {
       setLoading(false)
     }
-  }, [fetchRunStatus, t])
+  }, [fetchProfileDetail, fetchRunStatus, t])
 
   useEffect(() => {
     void loadProfiles()
@@ -261,6 +286,39 @@ export function SearchProfilesPage() {
   }, [clearPolling, deletingProfileId, loadProfiles, t])
 
   const handleRunNow = useCallback(async (profileId: string) => {
+    const detail = profileDetails[profileId] ?? await fetchProfileDetail(profileId)
+    if (!detail) {
+      toast.error(t('searchProfiles.loadDetailError', { defaultValue: 'Failed to load profile details' }))
+      return
+    }
+    const activeSource = getActiveSearchProfileSource(detail.sources)
+
+    if (activeSource?.type === SEARCH_PROFILE_SOURCE_TYPES.seek) {
+      if (!isSeekRecommendedCandidatesUrl(activeSource.jobUrl)) {
+        toast.error(t('searchProfiles.seekJobUrlMissing', { defaultValue: 'Seek Run Now requires an exact Seek recommended candidates URL.' }))
+        return
+      }
+
+      const launchUrl = buildSeekCollectUrl({
+        baseUrl: activeSource.jobUrl,
+        location: detail.location,
+        keywords: detail.keywords,
+        collectLimit: detail.schedule?.maxCandidates ?? DEFAULT_PROFILE_RUN_LIMIT,
+        maxPages: DEFAULT_PROFILE_RUN_MAX_PAGES,
+        minAge: detail.filters?.minAge,
+        maxAge: detail.filters?.maxAge,
+      })
+
+      if (!launchUrl) {
+        toast.error(t('searchProfiles.seekRunError', { defaultValue: 'Failed to build Seek launch URL.' }))
+        return
+      }
+
+      window.open(launchUrl, '_blank', 'noopener,noreferrer')
+      toast.success(t('searchProfiles.seekRunSuccess', { defaultValue: 'Opened Seek collection in a new tab' }))
+      return
+    }
+
     setRunningIds((previous) => new Set(previous).add(profileId))
 
     try {
@@ -304,7 +362,7 @@ export function SearchProfilesPage() {
         return next
       })
     }
-  }, [startPolling, t])
+  }, [fetchProfileDetail, profileDetails, startPolling, t])
 
 
 
