@@ -157,6 +157,7 @@ export const saveSession = mutation({
         location: v.string(),
         keywords: v.array(v.string()),
         jobDescriptionId: v.optional(v.string()),
+        collectUrl: v.optional(v.string()),
         filters: v.optional(v.any()),
     },
     handler: async (ctx, args) => {
@@ -175,6 +176,7 @@ export const saveSession = mutation({
                 location: args.location,
                 keywords: args.keywords,
                 jobDescriptionId: args.jobDescriptionId,
+                collectUrl: normalizeOptionalString(args.collectUrl),
                 filters: args.filters,
             },
             workspaceSlug,
@@ -305,6 +307,7 @@ export const saveSearchHistory = mutation({
         location: v.string(),
         keywords: v.array(v.string()),
         jobDescriptionId: v.optional(v.string()),
+        collectUrl: v.optional(v.string()),
         filters: v.optional(v.any()),
         selectedTags: v.optional(v.array(v.string())),
         selectedCompanies: v.optional(v.array(v.string())),
@@ -320,6 +323,7 @@ export const saveSearchHistory = mutation({
         const keywords = normalizeStringList(args.keywords);
         const title = normalizeOptionalString(args.title) ?? buildHistoryTitle(location, keywords);
         const jobDescriptionId = normalizeOptionalString(args.jobDescriptionId);
+        const collectUrl = normalizeOptionalString(args.collectUrl);
         const selectedTags = normalizeStringList(args.selectedTags);
         const selectedCompanies = normalizeStringList(args.selectedCompanies);
         const selectedExperienceLevel = normalizeOptionalString(args.selectedExperienceLevel);
@@ -334,6 +338,7 @@ export const saveSearchHistory = mutation({
             location,
             keywords,
             jobDescriptionId,
+            collectUrl,
             filters: args.filters,
             selectedTags,
             selectedCompanies,

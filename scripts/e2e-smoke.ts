@@ -147,7 +147,7 @@ async function runCollectUrlKeywordModeTest(page: Page) {
 
     expect(openedUrls.length).toBeGreaterThan(0);
     const openedUrl = new URL(openedUrls[0]);
-    expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://hr.job5156.com/search');
+    expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://my.employer.seek.com/candidates/recommended');
     expect(openedUrl.searchParams.get('keyword')).toBe('CNC 车床 销售 STAR');
     expect(openedUrl.searchParams.get('location')).toBe('东莞');
     expect(openedUrl.searchParams.get('tr_auto_sync')).toBe('true');

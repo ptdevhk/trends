@@ -9,8 +9,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { buildSeekCollectUrl, isSeekRecommendedCandidatesUrl } from '@/lib/search-profile-sources'
 
-const SEEK_TALENT_SEARCH_URL = 'https://my.employer.seek.com/candidates/recommended'
 const SEEK_DEFAULT_LOCATION = 'Kuala Lumpur MY'
 const EXTENSION_META_URL = '/extension/extension-meta.json'
 const EXTENSION_ZIP_URL = '/extension/trends-resume-collector-latest.zip'
@@ -22,6 +22,7 @@ type ExtensionMeta = {
 interface CollectResumesButtonProps {
   location: string
   keywords: string[]
+  collectUrl?: string
   collectLimit?: number
   minAge?: number
   maxAge?: number
@@ -45,7 +46,7 @@ function normalizeAgeBound(value: number | undefined): number | undefined {
   return parsed > 0 ? parsed : undefined
 }
 
-export function CollectResumesButton({ location, keywords, collectLimit, minAge, maxAge }: CollectResumesButtonProps) {
+export function CollectResumesButton({ location, keywords, collectUrl, collectLimit, minAge, maxAge }: CollectResumesButtonProps) {
   const { t } = useTranslation()
   const [extensionVersion, setExtensionVersion] = useState<string | null>(null)
   const [maxPagesInput, setMaxPagesInput] = useState('')
@@ -66,42 +67,28 @@ export function CollectResumesButton({ location, keywords, collectLimit, minAge,
   )
   const normalizedMinAge = useMemo(() => normalizeAgeBound(minAge), [minAge])
   const normalizedMaxAge = useMemo(() => normalizeAgeBound(maxAge), [maxAge])
+  const hasExactCollectUrl = useMemo(() => isSeekRecommendedCandidatesUrl(collectUrl), [collectUrl])
 
-  const disabled = normalizedKeywords.length === 0
+  const disabled = !hasExactCollectUrl && normalizedKeywords.length === 0
 
-  const collectUrl = useMemo(() => {
+  const launchUrl = useMemo(() => {
     if (disabled) {
       return null
     }
 
-    const query = new URLSearchParams({
-      keyword: normalizedKeywords.join(' '),
-      tr_auto_sync: 'true',
+    return buildSeekCollectUrl({
+      baseUrl: hasExactCollectUrl ? collectUrl : undefined,
+      location: collectLocation,
+      keywords: normalizedKeywords,
+      collectLimit: normalizedCollectLimit,
+      maxPages: normalizedCollectMaxPages,
+      minAge: normalizedMinAge,
+      maxAge: normalizedMaxAge,
     })
-
-    if (collectLocation.length > 0) {
-      query.set('location', collectLocation)
-    }
-
-    if (normalizedCollectLimit > 0) {
-      query.set('tr_limit', String(normalizedCollectLimit))
-    }
-
-    if (normalizedCollectMaxPages > 0) {
-      query.set('tr_max_pages', String(normalizedCollectMaxPages))
-    }
-
-    if (typeof normalizedMinAge === 'number') {
-      query.set('tr_min_age', String(normalizedMinAge))
-    }
-
-    if (typeof normalizedMaxAge === 'number') {
-      query.set('tr_max_age', String(normalizedMaxAge))
-    }
-
-    return `${SEEK_TALENT_SEARCH_URL}?${query.toString()}`
   }, [
+    collectUrl,
     disabled,
+    hasExactCollectUrl,
     normalizedCollectLimit,
     normalizedCollectMaxPages,
     normalizedKeywords,
@@ -142,11 +129,11 @@ export function CollectResumesButton({ location, keywords, collectLimit, minAge,
   const maxPagesPlaceholder = t('quickStart.collectMaxPagesPlaceholder', 'Pages')
 
   const handleClick = () => {
-    if (!collectUrl) {
+    if (!launchUrl) {
       return
     }
 
-    window.open(collectUrl, '_blank', 'noopener,noreferrer')
+    window.open(launchUrl, '_blank', 'noopener,noreferrer')
   }
 
   const handleMaxPagesChange = (event: ChangeEvent<HTMLInputElement>) => {

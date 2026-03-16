@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { getSearchProfileCollectUrl } from '@/lib/search-profile-sources'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
 const AUTO_MATCH_MIN_CONFIDENCE = 0.3
@@ -54,12 +55,14 @@ interface QuickStartPanelProps {
       location: string
       keywords: string[]
       jobDescriptionId?: string
+      collectUrl?: string
       filters?: Partial<ResumeFilters>
     },
     applyDuringUrlHydration?: boolean
   ) => void
   defaultLocation?: string
   defaultKeywords?: string[]
+  defaultCollectUrl?: string
   jobDescriptionId?: string
   onJobChange?: (value: string) => void
   quickFilters?: {
@@ -263,6 +266,7 @@ export function QuickStartPanel({
   onApplyConfig,
   defaultLocation = '广东',
   defaultKeywords = [],
+  defaultCollectUrl,
   jobDescriptionId = '',
   onJobChange,
   quickFilters,
@@ -278,6 +282,7 @@ export function QuickStartPanel({
   const [location, setLocation] = useState(defaultLocation)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
   const [customKeyword, setCustomKeyword] = useState(defaultKeywords.join(' '))
+  const [collectUrl, setCollectUrl] = useState(defaultCollectUrl)
   const [quickMinRoleYears, setQuickMinRoleYears] = useState(quickFilters?.minRoleYears?.toString() ?? '')
   const [quickMaxAge, setQuickMaxAge] = useState(quickFilters?.maxAge?.toString() ?? '')
   const [activeRoleType, setActiveRoleType] = useState<string | undefined>(quickFilters?.roleFilterType)
@@ -312,6 +317,10 @@ export function QuickStartPanel({
     setSelectedKeywords(defaultKeywords)
     setCustomKeyword(defaultKeywords.join(' '))
   }, [defaultKeywords])
+
+  useEffect(() => {
+    setCollectUrl(defaultCollectUrl)
+  }, [defaultCollectUrl])
 
   useEffect(() => {
     const normalizedJobDescriptionId = jobDescriptionId.trim()
@@ -520,11 +529,12 @@ export function QuickStartPanel({
         location,
         keywords: normalizedKeywords,
         jobDescriptionId: effectiveJobDescriptionId,
+        collectUrl,
       })
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [location, normalizedKeywords, jobDescriptionId, onApplyConfig])
+  }, [collectUrl, location, normalizedKeywords, jobDescriptionId, onApplyConfig])
 
   useEffect(() => {
     if (normalizedKeywords.length === 0) {
@@ -563,6 +573,7 @@ export function QuickStartPanel({
   const handleKeywordsChange = useCallback((keywords: string[]) => {
     setSelectedKeywords(keywords)
     setCustomKeyword(keywords.join(' '))
+    setCollectUrl(undefined)
   }, [])
 
   const handleLocationToggle = useCallback(
@@ -580,12 +591,14 @@ export function QuickStartPanel({
         nextParts.add(toggleLocation)
       }
 
+      setCollectUrl(undefined)
       setLocation(Array.from(nextParts).join(','))
     },
     [location, setLocation, t]
   )
 
   const handleJobChange = useCallback((value: string) => {
+    setCollectUrl(undefined)
     onJobChange?.(value)
   }, [onJobChange])
 
@@ -593,11 +606,13 @@ export function QuickStartPanel({
     const profileLocation = profile.location.trim()
     const profileKeywords = normalizeProfileKeywords(profile)
     const nextJobDescriptionId = profile.jobDescription?.trim() || ''
+    const nextCollectUrl = getSearchProfileCollectUrl(profile.sources)
     const quickConstraints = getProfileQuickConstraints(profile)
 
     setLocation(profileLocation)
     setSelectedKeywords(profileKeywords)
     setCustomKeyword(profileKeywords.join(' '))
+    setCollectUrl(nextCollectUrl)
     setQuickMinRoleYears(
       typeof quickConstraints.minRoleYears === 'number' ? String(quickConstraints.minRoleYears) : ''
     )
@@ -608,6 +623,7 @@ export function QuickStartPanel({
       location: profileLocation,
       keywords: profileKeywords,
       jobDescriptionId: nextJobDescriptionId || undefined,
+      collectUrl: nextCollectUrl,
       filters: mapProfileFiltersToResumeFilters(profile.filters),
     }, true)
     onApplyQuickFilters?.({
@@ -632,6 +648,7 @@ export function QuickStartPanel({
     minExperience?: number
     maxAge?: number
   }) => {
+    setCollectUrl(undefined)
     if (selectedConvexJobDescriptionProfile?.type === 'system') {
       onJobChange?.(newId)
     }
@@ -736,7 +753,10 @@ export function QuickStartPanel({
                   id="quickstart-location"
                   type="text"
                   value={location}
-                  onChange={(event) => setLocation(event.target.value)}
+                  onChange={(event) => {
+                    setCollectUrl(undefined)
+                    setLocation(event.target.value)
+                  }}
                   placeholder={t('quickStart.locationTooltip', '位置 (逗号分隔)')}
                   title={t('quickStart.locationTooltip', '支持多个位置，用逗号分隔，最多10个')}
                   className="h-9 w-40 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -756,6 +776,7 @@ export function QuickStartPanel({
                     const value = event.target.value
                     setCustomKeyword(value)
                     const parts = value.split(/[\s,]+/).filter(Boolean)
+                    setCollectUrl(undefined)
                     setSelectedKeywords(parts)
                   }}
                   placeholder={t('quickStart.customKeywordPlaceholder', '关键词 (空格分隔)...')}

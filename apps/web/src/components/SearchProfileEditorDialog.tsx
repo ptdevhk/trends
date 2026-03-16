@@ -12,6 +12,12 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+    SEARCH_PROFILE_SOURCE_TYPES,
+    isSeekRecommendedCandidatesUrl,
+    normalizeSeekJobUrl,
+    type SearchProfileSource,
+} from '@/lib/search-profile-sources'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
 export type SearchProfileFilters = {
@@ -39,7 +45,9 @@ export type SearchProfileDetails = {
     schedule?: {
         enabled: boolean
         cron?: string
+        maxCandidates?: number
     }
+    sources?: SearchProfileSource[]
 }
 
 type ProfileResponse = {
@@ -80,6 +88,14 @@ type ProfileFormState = {
     enabled: boolean
 }
 
+type SourceFormState = {
+    job5156Enabled: boolean
+    job5156Priority: string
+    seekEnabled: boolean
+    seekPriority: string
+    seekJobUrl: string
+}
+
 const DEFAULT_FORM: ProfileFormState = {
     name: '',
     location: '东莞',
@@ -91,6 +107,14 @@ const DEFAULT_FORM: ProfileFormState = {
     maxAge: '',
     cron: '0 9 * * 1-5',
     enabled: true,
+}
+
+const DEFAULT_SOURCES_FORM: SourceFormState = {
+    job5156Enabled: true,
+    job5156Priority: '1',
+    seekEnabled: false,
+    seekPriority: '2',
+    seekJobUrl: '',
 }
 
 function normalizeStringArray(values: string[] | undefined): string[] {
@@ -149,6 +173,66 @@ function parseKeywords(value: string): string[] {
         .filter((keyword) => keyword.length > 0)
 }
 
+function normalizeSourcePriority(value: number | undefined): string {
+    return typeof value === 'number' && Number.isFinite(value) ? String(Math.trunc(value)) : ''
+}
+
+function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceFormState {
+    if (!Array.isArray(sources) || sources.length === 0) {
+        return DEFAULT_SOURCES_FORM
+    }
+
+    const job5156Source = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job5156)
+    const seekSource = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
+
+    return {
+        job5156Enabled: job5156Source?.enabled ?? DEFAULT_SOURCES_FORM.job5156Enabled,
+        job5156Priority: normalizeSourcePriority(job5156Source?.priority) || DEFAULT_SOURCES_FORM.job5156Priority,
+        seekEnabled: seekSource?.enabled ?? DEFAULT_SOURCES_FORM.seekEnabled,
+        seekPriority: normalizeSourcePriority(seekSource?.priority) || DEFAULT_SOURCES_FORM.seekPriority,
+        seekJobUrl: seekSource?.jobUrl ?? DEFAULT_SOURCES_FORM.seekJobUrl,
+    }
+}
+
+function splitKnownSources(sources: SearchProfileSource[] | undefined): {
+    known: SourceFormState
+    additional: SearchProfileSource[]
+} {
+    if (!Array.isArray(sources) || sources.length === 0) {
+        return {
+            known: DEFAULT_SOURCES_FORM,
+            additional: [],
+        }
+    }
+
+    return {
+        known: toSourcesFormState(sources),
+        additional: sources.filter((source) => (
+            source.type !== SEARCH_PROFILE_SOURCE_TYPES.job5156
+            && source.type !== SEARCH_PROFILE_SOURCE_TYPES.seek
+        )),
+    }
+}
+
+function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: SearchProfileSource[]): SearchProfileSource[] {
+    const sources: SearchProfileSource[] = [...additionalSources]
+
+    sources.push({
+        type: SEARCH_PROFILE_SOURCE_TYPES.job5156,
+        enabled: sourceForm.job5156Enabled,
+        priority: parseOptionalNumber(sourceForm.job5156Priority),
+    })
+
+    sources.push({
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        enabled: sourceForm.seekEnabled,
+        priority: parseOptionalNumber(sourceForm.seekPriority),
+        jobUrl: normalizeSeekJobUrl(sourceForm.seekJobUrl),
+    })
+
+    return sources
+}
+
 function toFormState(profile: SearchProfileDetails): ProfileFormState {
     return {
         name: profile.name,
@@ -182,6 +266,8 @@ export function SearchProfileEditorDialog({
     const { t } = useTranslation()
     const { slug } = useWorkspace()
     const [form, setForm] = useState<ProfileFormState>(DEFAULT_FORM)
+    const [sourceForm, setSourceForm] = useState<SourceFormState>(DEFAULT_SOURCES_FORM)
+    const [additionalSources, setAdditionalSources] = useState<SearchProfileSource[]>([])
     const [submitting, setSubmitting] = useState(false)
     const [pendingJobDescriptionHydration, setPendingJobDescriptionHydration] = useState<{
         id: string
@@ -203,6 +289,25 @@ export function SearchProfileEditorDialog({
         selectedConvexJobDescription ? { id: selectedConvexJobDescription._id } : 'skip'
     )
 
+    const loadProfile = useCallback(async (id: string) => {
+        try {
+            const { data } = await rawApiClient.GET<ProfileResponse>(`/api/search-profiles/${id}`)
+            if (!data?.success || !data.profile) {
+                toast.error(t('searchProfiles.loadDetailError', { defaultValue: 'Failed to load profile details' }))
+                onOpenChange(false)
+                return
+            }
+            setForm(toFormState(data.profile))
+            const sourceState = splitKnownSources(data.profile.sources)
+            setSourceForm(sourceState.known)
+            setAdditionalSources(sourceState.additional)
+        } catch (error) {
+            console.error('Failed to load profile', error)
+            toast.error(t('searchProfiles.loadDetailError', { defaultValue: 'Failed to load profile details' }))
+            onOpenChange(false)
+        }
+    }, [onOpenChange, t])
+
     useEffect(() => {
         if (!open) {
             setPendingJobDescriptionHydration(null)
@@ -212,6 +317,9 @@ export function SearchProfileEditorDialog({
         // When opened
         if (initialData) {
             setForm(toFormState(initialData))
+            const sourceState = splitKnownSources(initialData.sources)
+            setSourceForm(sourceState.known)
+            setAdditionalSources(sourceState.additional)
             return
         }
 
@@ -219,8 +327,10 @@ export function SearchProfileEditorDialog({
             void loadProfile(profileId)
         } else {
             setForm(DEFAULT_FORM)
+            setSourceForm(DEFAULT_SOURCES_FORM)
+            setAdditionalSources([])
         }
-    }, [open, profileId, initialData])
+    }, [initialData, loadProfile, open, profileId])
 
     useEffect(() => {
         if (!open || !pendingJobDescriptionHydration) {
@@ -314,22 +424,6 @@ export function SearchProfileEditorDialog({
         }
     }, [open, pendingJobDescriptionHydration, convexJobDescriptions, selectedConvexJobDescription, selectedConvexJobDescriptionDetail])
 
-    const loadProfile = async (id: string) => {
-        try {
-            const { data } = await rawApiClient.GET<ProfileResponse>(`/api/search-profiles/${id}`)
-            if (!data?.success || !data.profile) {
-                toast.error(t('searchProfiles.loadDetailError', { defaultValue: 'Failed to load profile details' }))
-                onOpenChange(false)
-                return
-            }
-            setForm(toFormState(data.profile))
-        } catch (error) {
-            console.error('Failed to load profile', error)
-            toast.error(t('searchProfiles.loadDetailError', { defaultValue: 'Failed to load profile details' }))
-            onOpenChange(false)
-        }
-    }
-
     const handleJobDescriptionChange = useCallback((value: string) => {
         setForm((previous) => ({ ...previous, jobDescription: value }))
 
@@ -353,12 +447,22 @@ export function SearchProfileEditorDialog({
             return
         }
 
+        const normalizedSeekJobUrl = normalizeSeekJobUrl(sourceForm.seekJobUrl)
+        if (sourceForm.seekEnabled && !isSeekRecommendedCandidatesUrl(normalizedSeekJobUrl)) {
+            toast.error(t('searchProfiles.seekJobUrlError', { defaultValue: 'Enabled Seek source requires a Seek recommended candidates URL' }))
+            return
+        }
+
         const parsedMinExp = parseOptionalNumber(form.minExperience)
         const parsedMaxExp = parseOptionalNumber(form.maxExperience)
         const parsedMinAge = parseOptionalNumber(form.minAge)
         const parsedMaxAge = parseOptionalNumber(form.maxAge)
 
         const hasFilters = parsedMinExp !== undefined || parsedMaxExp !== undefined || parsedMinAge !== undefined || parsedMaxAge !== undefined
+        const sources = buildSourcesPayload({
+            ...sourceForm,
+            seekJobUrl: normalizedSeekJobUrl ?? sourceForm.seekJobUrl,
+        }, additionalSources)
 
         const payload = {
             name: form.name.trim(),
@@ -376,6 +480,7 @@ export function SearchProfileEditorDialog({
                 enabled: form.enabled,
                 cron: form.cron.trim() || undefined,
             },
+            sources,
         }
 
         setSubmitting(true)
@@ -406,7 +511,7 @@ export function SearchProfileEditorDialog({
         } finally {
             setSubmitting(false)
         }
-    }, [profileId, form, t, onOpenChange, onSaved])
+    }, [additionalSources, form, onOpenChange, onSaved, profileId, sourceForm, t])
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -515,6 +620,94 @@ export function SearchProfileEditorDialog({
                             onChange={(event) => setForm((previous) => ({ ...previous, cron: event.target.value }))}
                             placeholder="0 9 * * 1-5"
                         />
+                    </div>
+
+                    <div className="grid gap-3">
+                        <Label>{t('searchProfiles.fields.sources', { defaultValue: 'Sources' })}</Label>
+
+                        <div className="rounded-md border p-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Checkbox
+                                        id="profile-source-job5156"
+                                        checked={sourceForm.job5156Enabled}
+                                        onCheckedChange={(checked) => setSourceForm((previous) => ({
+                                            ...previous,
+                                            job5156Enabled: checked === true,
+                                        }))}
+                                    />
+                                    <Label htmlFor="profile-source-job5156">Job5156</Label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Label htmlFor="profile-source-job5156-priority" className="text-sm text-muted-foreground">
+                                        {t('searchProfiles.fields.priority', { defaultValue: 'Priority' })}
+                                    </Label>
+                                    <Input
+                                        id="profile-source-job5156-priority"
+                                        type="number"
+                                        min={1}
+                                        value={sourceForm.job5156Priority}
+                                        onChange={(event) => setSourceForm((previous) => ({
+                                            ...previous,
+                                            job5156Priority: event.target.value,
+                                        }))}
+                                        className="h-8 w-24"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-md border p-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Checkbox
+                                        id="profile-source-seek"
+                                        checked={sourceForm.seekEnabled}
+                                        onCheckedChange={(checked) => setSourceForm((previous) => ({
+                                            ...previous,
+                                            seekEnabled: checked === true,
+                                        }))}
+                                    />
+                                    <Label htmlFor="profile-source-seek">Seek</Label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Label htmlFor="profile-source-seek-priority" className="text-sm text-muted-foreground">
+                                        {t('searchProfiles.fields.priority', { defaultValue: 'Priority' })}
+                                    </Label>
+                                    <Input
+                                        id="profile-source-seek-priority"
+                                        type="number"
+                                        min={1}
+                                        value={sourceForm.seekPriority}
+                                        onChange={(event) => setSourceForm((previous) => ({
+                                            ...previous,
+                                            seekPriority: event.target.value,
+                                        }))}
+                                        className="h-8 w-24"
+                                    />
+                                </div>
+                            </div>
+
+                            {sourceForm.seekEnabled ? (
+                                <div className="mt-3 grid gap-2">
+                                    <Label htmlFor="profile-source-seek-job-url">
+                                        {t('searchProfiles.fields.seekJobUrl', { defaultValue: 'Seek job URL' })}
+                                    </Label>
+                                    <Input
+                                        id="profile-source-seek-job-url"
+                                        value={sourceForm.seekJobUrl}
+                                        onChange={(event) => setSourceForm((previous) => ({
+                                            ...previous,
+                                            seekJobUrl: event.target.value,
+                                        }))}
+                                        placeholder="https://my.employer.seek.com/candidates/recommended?jobId=123&pageNumber=1"
+                                    />
+                                    <span className="text-xs text-muted-foreground">
+                                        {t('searchProfiles.fields.seekJobUrlHint', { defaultValue: 'Use the exact Seek recommended candidates URL for this job lane.' })}
+                                    </span>
+                                </div>
+                            ) : null}
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2">

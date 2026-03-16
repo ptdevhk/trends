@@ -116,6 +116,29 @@ function createSearchHistoryDb(records: SearchHistoryRecord[]) {
           }
         }
 
+        if (tableName === 'industry_db_cohorts') {
+          return {
+            withIndex(indexName, apply) {
+              expect(indexName).toBe('by_workspace')
+              const clause = apply({
+                eq(field, value) {
+                  return { field, value }
+                },
+              }) as { field: string; value: string }
+              expect(clause.field).toBe('workspaceSlug')
+
+              return {
+                async collect() {
+                  return []
+                },
+              }
+            },
+            async collect() {
+              return []
+            },
+          }
+        }
+
         return {
           async collect() {
             return []

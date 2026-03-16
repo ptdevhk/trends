@@ -27,6 +27,7 @@ export function ResumeList() {
   const {
     sessionLocation,
     sessionKeywords,
+    sessionCollectUrl,
     jobDescriptionId,
     filters,
     reviewedIdsSet,
@@ -95,6 +96,7 @@ export function ResumeList() {
         onJobChange={handleJobChange}
         defaultLocation={sessionLocation}
         defaultKeywords={sessionKeywords}
+        defaultCollectUrl={sessionCollectUrl}
         quickFilters={{
           minRoleYears: filters.minRoleYears ?? filters.minSalesYears,
           roleFilterType:
@@ -132,6 +134,7 @@ export function ResumeList() {
             <CollectResumesButton
               location={sessionLocation}
               keywords={sessionKeywords}
+              collectUrl={sessionCollectUrl}
               minAge={filters.minAge}
               maxAge={filters.maxAge}
             />

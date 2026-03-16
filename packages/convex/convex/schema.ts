@@ -324,6 +324,7 @@ export default defineSchema({
             location: v.string(),
             keywords: v.array(v.string()),
             jobDescriptionId: v.optional(v.string()),
+            collectUrl: v.optional(v.string()),
             filters: v.optional(v.any()), // Stores ResumeFilters object
         }),
         reviewedResumeIds: v.array(v.string()), // IDs of resumes seen/acted upon
@@ -340,6 +341,7 @@ export default defineSchema({
         location: v.string(),
         keywords: v.array(v.string()),
         jobDescriptionId: v.optional(v.string()),
+        collectUrl: v.optional(v.string()),
         filters: v.optional(v.any()),
         selectedTags: v.optional(v.array(v.string())),
         selectedCompanies: v.optional(v.array(v.string())),

@@ -367,6 +367,8 @@ export function useResumeListState(loadSearchHistory = false) {
     setKeywords: setSessionKeywords,
     jobDescriptionId,
     setJobDescriptionId,
+    collectUrl: sessionCollectUrl,
+    setCollectUrl: setSessionCollectUrl,
     filters,
     setFilters,
     reviewedIdsSet,
@@ -1360,6 +1362,7 @@ export function useResumeListState(loadSearchHistory = false) {
       location: string
       keywords: string[]
       jobDescriptionId?: string
+      collectUrl?: string
       filters?: Partial<ResumeFilters>
     }, applyDuringUrlHydration?: boolean) => {
       if (shouldBlockQuickStartSync && !applyDuringUrlHydration) {
@@ -1380,13 +1383,17 @@ export function useResumeListState(loadSearchHistory = false) {
 
       setSessionKeywords((current) => (areKeywordListsEqual(current, normalizedKeywords) ? current : normalizedKeywords))
       setJobDescriptionId((current) => (current === normalizedJobDescriptionId ? current : normalizedJobDescriptionId))
+      setSessionCollectUrl((current) => {
+        const nextCollectUrl = normalizeOptionalString(config.collectUrl)
+        return current === nextCollectUrl ? current : nextCollectUrl
+      })
       setFilters((current) => ({
         ...current,
         ...(config.filters ?? {}),
         locations: normalizedLocation ? normalizedLocation.split(/[\s,，、]+/).filter(Boolean) : [],
       }))
     },
-    [setFilters, setJobDescriptionId, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
+    [setFilters, setJobDescriptionId, setSessionCollectUrl, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
   )
 
   const handleQuickConstraintApply = useCallback(
@@ -1414,6 +1421,7 @@ export function useResumeListState(loadSearchHistory = false) {
       location: sessionLocation,
       keywords: sessionKeywords,
       jobDescriptionId,
+      collectUrl: sessionCollectUrl,
       filters,
       selectedTags,
       selectedCompanies,
@@ -1426,7 +1434,7 @@ export function useResumeListState(loadSearchHistory = false) {
     } else {
       toast.error(t('quickStart.history.saveError', 'Failed to save search history'))
     }
-  }, [filteredConvexResumes, filters, jobDescriptionId, saveSearchHistory, selectedCompanies, selectedExperienceLevel, selectedTags, sessionKeywords, sessionLocation, t])
+  }, [filteredConvexResumes, filters, jobDescriptionId, saveSearchHistory, selectedCompanies, selectedExperienceLevel, selectedTags, sessionCollectUrl, sessionKeywords, sessionLocation, t])
 
   const handleApplySearchHistory = useCallback(async (entry: SearchHistoryItem) => {
     skipNextUrlSyncRef.current = true
@@ -1434,6 +1442,7 @@ export function useResumeListState(loadSearchHistory = false) {
       location: entry.location,
       keywords: entry.keywords,
       jobDescriptionId: entry.jobDescriptionId ?? '',
+      collectUrl: entry.collectUrl ?? '',
       filters: entry.filters,
     })
     setAppliedSearchHistoryId(entry.id)
@@ -1447,6 +1456,7 @@ export function useResumeListState(loadSearchHistory = false) {
   return {
     sessionLocation,
     sessionKeywords,
+    sessionCollectUrl,
     jobDescriptionId,
     appliedSearchHistoryId,
     filters,
