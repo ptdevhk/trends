@@ -155,7 +155,7 @@ type PreparedNormalizationContext = {
 function prepareNormalizationContext(
   stats: IndustryDbV2BatchStats
 ): PreparedNormalizationContext | null {
-  if (stats.size < INDUSTRY_DB_V2_MIN_NORMALIZATION_SAMPLE_SIZE || stats.p80 <= 5) {
+  if (stats.size < INDUSTRY_DB_V2_MIN_NORMALIZATION_SAMPLE_SIZE) {
     return null;
   }
 

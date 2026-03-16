@@ -293,7 +293,7 @@ export function toIndustryDbV2Stats(value: unknown): IndustryDbV2Stats | undefin
 
 export function computeNormalizedIndustryDbScore(raw: number | undefined, stats: IndustryDbV2Stats | undefined): number {
   const safeRaw = typeof raw === 'number' && Number.isFinite(raw) ? clamp(raw, 0, 50) : 0
-  if (!stats || stats.size < 30 || stats.p80 <= 5) {
+  if (!stats || stats.size < 30) {
     return Math.round(safeRaw)
   }
 
