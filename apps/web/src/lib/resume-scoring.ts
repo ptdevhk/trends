@@ -376,7 +376,7 @@ export function overrideIndustryDbBreakdown(
 
   return {
     ...analysis,
-    score: relatedExp + normalizedIndustryDb,
+    score: Math.min(100, relatedExp + normalizedIndustryDb),
     breakdown: nextBreakdown,
   }
 }

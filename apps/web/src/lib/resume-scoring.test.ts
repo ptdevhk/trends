@@ -276,4 +276,17 @@ describe('resume-scoring', () => {
       },
     }))
   })
+
+  it('caps recomputed score at 100 when components exceed 100', () => {
+    expect(overrideIndustryDbBreakdown({
+      score: 88,
+      summary: '',
+      highlights: [],
+      recommendation: 'match',
+      breakdown: {
+        related_exp: 90,
+        industry_db: 15,
+      },
+    }, 50, (raw) => (typeof raw === 'number' ? Math.min(50, raw) : 0)).score).toBe(100)
+  })
 })
