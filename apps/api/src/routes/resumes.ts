@@ -381,7 +381,7 @@ async function resolveExportRequest(
       referenceNote: request.referenceNote,
     },
     industryDbV2Stats,
-    debug: isCanonicalExportRequest(request) ? (request.debug ?? false) : false,
+    debug: isCanonicalExportRequest(request) ? (request.debug ?? process.env.DEBUG === "true") : process.env.DEBUG === "true",
   };
 }
 
