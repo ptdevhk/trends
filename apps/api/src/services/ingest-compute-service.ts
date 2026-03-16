@@ -425,8 +425,9 @@ export class IngestComputeService {
     const synonymHits = this.computeSynonymHits(searchText);
 
     // 3. Compute field-aware brandHits, then derive companyHits for backward compatibility
-    const brandHits = this.computeBrandHits(item, index.companies, searchText);
-    const companyHits = this.computeEmployerCompanyHits(item);
+    const verifiedEmployers = this.collectVerifiedEmployerMatches(item.workHistory ?? []);
+    const brandHits = this.computeBrandHits(item, index.companies, searchText, verifiedEmployers);
+    const companyHits = verifiedEmployers.map((m) => m.key);
     const { raw: industryDbV2Raw, components: industryDbV2RawComponents } = computeIndustryDbV2Raw(
       companyHits,
       brandHits
@@ -947,7 +948,7 @@ export class IngestComputeService {
   /**
    * Compute field-aware brand hits from resume text segments.
    */
-  private computeBrandHits(item: ResumeItem, companies: string[], searchText: string): BrandHit[] {
+  private computeBrandHits(item: ResumeItem, companies: string[], searchText: string, verifiedEmployers: VerifiedEmployerMatch[]): BrandHit[] {
     const patterns = this.skillsKnowledgeService.getCompanyPatterns();
     const normalizedSearchText = searchText.toLowerCase();
     const normalizedCompanies = companies
@@ -1041,7 +1042,7 @@ export class IngestComputeService {
 
     const workHistory = item.workHistory || [];
 
-    // Pre-extract company names per work-history entry so both loops below share the result.
+    // Pre-extract company names per work-history entry for the pattern-scan loop below.
     const extractedByEntry = workHistory.map((entry) => extractCompanies([entry]));
 
     for (const pattern of patterns) {
@@ -1071,7 +1072,7 @@ export class IngestComputeService {
     }
 
     // Strict employer matching against Industry DB companies (Tier 1 only).
-    for (const employerMatch of this.collectVerifiedEmployerMatches(workHistory)) {
+    for (const employerMatch of verifiedEmployers) {
       if (this.industryDataService.matchBrands(employerMatch.companyNameCn).length === 0) {
         continue;
       }
@@ -1091,10 +1092,6 @@ export class IngestComputeService {
     }
 
     return hits;
-  }
-
-  private computeEmployerCompanyHits(item: ResumeItem): string[] {
-    return this.collectVerifiedEmployerMatches(item.workHistory || []).map((match) => match.key);
   }
 
   private collectVerifiedEmployerMatches(workHistory: ResumeWorkHistoryItem[]): VerifiedEmployerMatch[] {
