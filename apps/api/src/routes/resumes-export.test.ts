@@ -457,4 +457,47 @@ describe("resume export route", () => {
     expect(parsed.data[0]?.name).toBe("Legacy Alice");
     expect(parsed.data[0]?.brandHits).toBe("哈斯");
   });
+
+  it("enables debug columns when DEBUG env var is true", async () => {
+    const originalDebug = process.env.DEBUG;
+    process.env.DEBUG = "true";
+    try {
+      vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+        items: [
+          buildSampleResume({
+            resumeId: "resume-debug",
+            name: "Debug Alice",
+            ingestData: { industryDbV2Raw: 15, companyHits: ["fanuc"], brandHits: [] },
+          }),
+        ],
+        sample: { name: "sample-test", filename: "sample-test.json", updatedAt: "2026-03-01T00:00:00.000Z", size: 1 },
+        metadata: undefined,
+        indexes: new Map(),
+      });
+
+      const app = createApp();
+      const response = await app.request("/api/resumes/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          format: "csv",
+          source: "sample",
+          sample: "sample-test",
+          entries: [{ resumeId: "resume-debug" }],
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
+      expect(parsed.meta.fields).toContain("industryDbV2Raw");
+      expect(parsed.meta.fields).toContain("industryDbV2Normalized");
+      expect(parsed.data[0]?.industryDbV2Raw).toBe("20");
+    } finally {
+      if (originalDebug === undefined) {
+        delete process.env.DEBUG;
+      } else {
+        process.env.DEBUG = originalDebug;
+      }
+    }
+  });
 });
