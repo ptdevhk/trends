@@ -118,8 +118,7 @@ describe("ExportService", () => {
 
   it("exports aiScore aligned with industryDb and relatedExp in standard CSV output", async () => {
     const service = new ExportService();
-    // firstEntry: match reflects what the web sends after overrideIndustryDbBreakdown —
-    // score = relatedExp + normalizedIndustryDb, breakdown.industry_db = UI-normalized value.
+    // firstEntry: match reflects what the web sends after overrideIndustryDbBreakdown.
     const firstEntry: ResumeExportEntry = {
       ...buildEntry("25"),
       match: {
@@ -131,7 +130,7 @@ describe("ExportService", () => {
         },
       },
     };
-    // secondEntry: no AI match, so aiScore should be empty.
+    // secondEntry: no AI match, so aiScore should be empty and industryDb falls back to raw direct scoring.
     const secondEntry: ResumeExportEntry = {
       ...buildEntry("26"),
       key: "resume-2",
@@ -168,8 +167,54 @@ describe("ExportService", () => {
     expect(parsed.data[0]?.relatedExp).toBe("18");
     expect(Number(parsed.data[0]?.aiScore)).toBe(Number(parsed.data[0]?.industryDb) + Number(parsed.data[0]?.relatedExp));
     expect(parsed.data[1]?.aiScore).toBe("");
-    expect(parsed.data[1]?.industryDb).toBe("45");
+    expect(parsed.data[1]?.industryDb).toBe("25");
     expect(parsed.data[1]?.relatedExp).toBe("");
+  });
+
+  it("uses the direct fallback for hit-driven industryDb when no match payload is sent", async () => {
+    const service = new ExportService();
+    const file = await service.exportResumes("csv", [
+      {
+        ...buildEntry("27"),
+        key: "resume-hit",
+        resume: {
+          ...buildEntry("27").resume,
+          ingestData: {
+            industryTags: ["cnc"],
+            companyHits: ["fanuc"],
+            brandHits: [],
+            industryDbV2Raw: 15,
+          },
+        },
+        match: undefined,
+      },
+      {
+        ...buildEntry("28"),
+        key: "resume-employer-only",
+        resume: {
+          ...buildEntry("28").resume,
+          ingestData: {
+            industryTags: ["cnc"],
+            companyHits: [],
+            brandHits: [
+              {
+                brand: "fanuc",
+                role: "employer",
+                source: "workHistory",
+                context: "employer",
+              },
+            ],
+            industryDbV2Raw: 15,
+          },
+        },
+        match: undefined,
+      },
+    ]);
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.data[0]?.industryDb).toBe("50");
+    expect(parsed.data[1]?.industryDb).toBe("15");
   });
 
   it("exports industryDbV2Raw and industryDbV2Normalized columns in debug CSV output", async () => {

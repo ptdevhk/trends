@@ -755,7 +755,7 @@ describe('useResumeListState role filter regression', () => {
     )
   })
 
-  it('overrides AI industry_db score from applied search history cohort stats', async () => {
+  it('overrides AI industry_db score from raw ingest data when no hits are present', async () => {
     mockState.convexResumes = [
       buildResume({
         id: 'resume-ai-1',
@@ -803,9 +803,9 @@ describe('useResumeListState role filter regression', () => {
       await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
     })
 
-    expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(40)
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(20)
     expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(15)
-    expect(result.current.displayedResumes[0]?.match?.score).toBe(55)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(35)
   })
 
   it('bumps industry_db to brand section max when resume has brand hits', async () => {
@@ -857,10 +857,64 @@ describe('useResumeListState role filter regression', () => {
       await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
     })
 
-    // raw=5 bumped to 30 (brand section max), normalizes to 50 at top of cohort
+    // has brand hits -> full slot (50)
     expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(50)
     expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(15)
     expect(result.current.displayedResumes[0]?.match?.score).toBe(65)
+  })
+
+  it('ignores employer-context brand hits when computing direct industry_db score', async () => {
+    mockState.convexResumes = [
+      buildResume({
+        id: 'resume-employer-brand-1',
+        name: 'Employer Brand Resume',
+        industryDbV2Raw: 5,
+        brandHits: [{ brand: 'fanuc', role: 'employer', source: 'workHistory', context: 'employer' }],
+        analysis: {
+          score: 45,
+          summary: 'Good match',
+          highlights: ['summary'],
+          recommendation: 'match',
+          breakdown: {
+            related_exp: 30,
+            industry_db: 5,
+          },
+          jobDescriptionId: 'lathe-sales',
+        },
+        roleSignals: [],
+      }),
+    ]
+    mockState.searchHistory = [
+      {
+        id: 'history-employer-brand',
+        sessionKey: 'session-1',
+        title: 'Employer brand test',
+        location: '苏州',
+        keywords: ['CNC'],
+        jobDescriptionId: 'lathe-sales',
+        filters: {},
+        selectedTags: [],
+        selectedCompanies: [],
+        selectedExperienceLevel: undefined,
+        industryDbV2Stats: {
+          size: 50,
+          p80: 20,
+          histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
+        },
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
+    })
+
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.industry_db).toBe(5)
+    expect(result.current.displayedResumes[0]?.match?.breakdown?.related_exp).toBe(15)
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(20)
   })
 
   it('allows manual profile apply to bypass the URL hydration guard', () => {

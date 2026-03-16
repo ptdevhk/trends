@@ -12,6 +12,7 @@ import {
   type CompanyPattern,
 } from "./skills-knowledge.js";
 import {
+  computeDirectIndustryDbScore,
   computeEffectiveIndustryDbV2Raw,
   createBatchNormalizer,
   type IndustryDbV2BatchStats,
@@ -245,12 +246,12 @@ function toRow(
     ? entry.match.breakdown.related_exp
     : undefined;
   // Prefer client-sent values: the web applies overrideIndustryDbBreakdown before sending,
-  // so match.breakdown.industry_db and match.score already reflect the same normalization
-  // the UI displays. Re-normalizing from raw ingest data uses different batch stats and
-  // produces different values. Fall back to fresh re-normalization only when no match is sent.
+  // so match.breakdown.industry_db and match.score already reflect the UI scoring.
+  // Fall back to the same direct rule when no match is sent. Keep debug-only batch
+  // normalization columns intact for diagnostics.
   const industryDb = typeof entry.match?.breakdown?.industry_db === "number"
     ? entry.match.breakdown.industry_db
-    : industryDbV2Normalized;
+    : computeDirectIndustryDbScore(ingestData);
   const aiScore: number | "" = typeof entry.match?.score === "number"
     ? entry.match.score
     : "";
