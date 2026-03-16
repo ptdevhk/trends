@@ -4,6 +4,7 @@ import {
   bumpIndustryDbV2Raw,
   clampIndustryDbV2RawScore,
   computeBatchStats,
+  computeDirectIndustryDbScore,
   computeEffectiveIndustryDbV2Raw,
   normalizeIndustryDbScore,
 } from "./industry-db-batch-stats.js";
@@ -127,6 +128,28 @@ describe("industry-db-batch-stats", () => {
         { brand: "fanuc", role: "employer", source: "workHistory", context: "employer" },
         { brand: "fanuc", role: "equipment", source: "selfIntro", context: "equipment" },
       ],
+      companyHits: ["fanuc"],
+      industryDbV2Raw: 5,
+    })).toBe(50);
+  });
+
+  it("computes direct industry_db score without cohort normalization", () => {
+    expect(computeDirectIndustryDbScore({ brandHits: [{}], companyHits: [], industryDbV2Raw: 5 })).toBe(50);
+    expect(computeDirectIndustryDbScore({ brandHits: [], companyHits: ["star"], industryDbV2Raw: 5 })).toBe(50);
+    expect(computeDirectIndustryDbScore({ brandHits: [{}], companyHits: ["star"], industryDbV2Raw: 5 })).toBe(50);
+    expect(computeDirectIndustryDbScore({ brandHits: [], companyHits: [], industryDbV2Raw: 25 })).toBe(25);
+    expect(computeDirectIndustryDbScore({ brandHits: [], companyHits: [], industryDbV2Raw: 60 })).toBe(50);
+    expect(computeDirectIndustryDbScore(undefined)).toBe(0);
+  });
+
+  it("ignores employer-context brand hits when computing the direct score", () => {
+    expect(computeDirectIndustryDbScore({
+      brandHits: [{ brand: "fanuc", role: "employer", source: "workHistory", context: "employer" }],
+      companyHits: [],
+      industryDbV2Raw: 5,
+    })).toBe(5);
+    expect(computeDirectIndustryDbScore({
+      brandHits: [{ brand: "fanuc", role: "employer", source: "workHistory", context: "employer" }],
       companyHits: ["fanuc"],
       industryDbV2Raw: 5,
     })).toBe(50);

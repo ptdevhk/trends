@@ -33,8 +33,7 @@ import {
 import {
   buildLearningObservation,
   buildResumeKey,
-  bumpIndustryDbV2Raw,
-  createBatchNormalizer,
+  computeDirectIndustryDb,
   getAnalysisForJob,
   hasIngestData,
   isAutoFilteredAnalysis,
@@ -999,22 +998,22 @@ export function useResumeListState(loadSearchHistory = false) {
 
   const enrichedResumes = useMemo<EnrichedResume[]>(() => {
     if (mode === 'ai') {
-      const normalize = createBatchNormalizer(appliedSearchHistory?.industryDbV2Stats)
       return filteredConvexResumes.map((resume: ScoredConvexResume, index: number) => {
         const resumeKey = buildResumeKey(resume, index)
         const identityKey = getResumeIdentityKey(resume, resumeKey)
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
         const ingestData = resume.ingestData
+        const hasBrandHits = (ingestData?.brandHits ?? []).some((hit) => hit.context !== 'employer')
+        const hasCompanyHits = (ingestData?.companyHits?.length ?? 0) > 0
         const normalizedAnalysis = analysis && isAnalysisValid
           ? overrideIndustryDbBreakdown(
               analysis,
-              bumpIndustryDbV2Raw(
+              computeDirectIndustryDb(
                 ingestData?.industryDbV2Raw,
-                (ingestData?.brandHits?.filter((h) => h.context !== "employer").length ?? 0) > 0,
-                (ingestData?.companyHits?.length ?? 0) > 0,
+                hasBrandHits,
+                hasCompanyHits,
               ),
-              normalize,
             )
           : undefined
 
@@ -1061,7 +1060,7 @@ export function useResumeListState(loadSearchHistory = false) {
         action: actions[resumeKey],
       }
     })
-  }, [actions, appliedSearchHistory?.industryDbV2Stats, blocksByIdentity, filteredConvexResumes, jobDescriptionId, mode, resumes, sessionKeywords, statusByIdentity])
+  }, [actions, blocksByIdentity, filteredConvexResumes, jobDescriptionId, mode, resumes, sessionKeywords, statusByIdentity])
 
   const displayedResumes = useMemo(() => {
     const sortBy = filters.sortBy ?? 'score'

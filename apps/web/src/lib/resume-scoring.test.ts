@@ -3,8 +3,8 @@ import {
   buildLearningObservation,
   buildResumeKey,
   buildRuleScoringText,
+  computeDirectIndustryDb,
   computeNormalizedIndustryDbScore,
-  createBatchNormalizer,
   getPrecomputedRuleScore,
   hasIngestData,
   isAutoFilteredAnalysis,
@@ -254,6 +254,17 @@ describe('resume-scoring', () => {
     })).toBe(25)
   })
 
+  it.each([
+    { label: 'returns full slot for brand hits', raw: 10, hasBrandHits: true, hasCompanyHits: false, expected: 50 },
+    { label: 'returns full slot for company hits', raw: 10, hasBrandHits: false, hasCompanyHits: true, expected: 50 },
+    { label: 'returns full slot for brand and company hits', raw: 10, hasBrandHits: true, hasCompanyHits: true, expected: 50 },
+    { label: 'keeps raw score with no hits', raw: 20, hasBrandHits: false, hasCompanyHits: false, expected: 20 },
+    { label: 'clamps raw score above cap with no hits', raw: 60, hasBrandHits: false, hasCompanyHits: false, expected: 50 },
+    { label: 'defaults missing raw to 0 with no hits', raw: undefined, hasBrandHits: false, hasCompanyHits: false, expected: 0 },
+  ])('$label', ({ raw, hasBrandHits, hasCompanyHits, expected }) => {
+    expect(computeDirectIndustryDb(raw, hasBrandHits, hasCompanyHits)).toBe(expected)
+  })
+
   it('overrides AI breakdown and recomputes total score', () => {
     expect(overrideIndustryDbBreakdown({
       score: 45,
@@ -264,11 +275,7 @@ describe('resume-scoring', () => {
         related_exp: 30,
         industry_db: 15,
       },
-    }, 20, createBatchNormalizer({
-      size: 50,
-      p80: 20,
-      histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
-    }))).toEqual(expect.objectContaining({
+    }, 40)).toEqual(expect.objectContaining({
       score: 55,
       breakdown: {
         related_exp: 15,
@@ -287,7 +294,7 @@ describe('resume-scoring', () => {
         related_exp: 90,
         industry_db: 15,
       },
-    }, 50, (raw) => (typeof raw === 'number' ? Math.min(50, raw) : 0))).toEqual(expect.objectContaining({
+    }, 50)).toEqual(expect.objectContaining({
       score: 95,
       breakdown: {
         related_exp: 45,
@@ -307,7 +314,7 @@ describe('resume-scoring', () => {
       highlights: [],
       recommendation: 'match',
       breakdown: input !== undefined ? { related_exp: input, industry_db: 10 } : { industry_db: 10 },
-    }, 0, () => 0)).toEqual(expect.objectContaining({
+    }, 0)).toEqual(expect.objectContaining({
       score: expected,
       breakdown: {
         related_exp: expected,

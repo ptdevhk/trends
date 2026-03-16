@@ -246,6 +246,16 @@ export function bumpIndustryDbV2Raw(
   return Math.max(safeRaw, sectionBump)
 }
 
+export function computeDirectIndustryDb(
+  raw: number | undefined,
+  hasBrandHits: boolean,
+  hasCompanyHits: boolean,
+): number {
+  if (hasBrandHits || hasCompanyHits) return INDUSTRY_DB_V2_SCORE_CAP
+  const safeRaw = typeof raw === 'number' && Number.isFinite(raw) ? raw : 0
+  return clamp(safeRaw, 0, INDUSTRY_DB_V2_SCORE_CAP)
+}
+
 function nonZeroP80FromHistogram(histogram50: number[]): { p80: number; count: number } {
   const nonZeroValues: number[] = []
   histogram50.forEach((count, score) => {
@@ -365,10 +375,8 @@ export function computeNormalizedIndustryDbScore(raw: number | undefined, stats:
 
 export function overrideIndustryDbBreakdown(
   analysis: ConvexResumeAnalysis,
-  raw: number | undefined,
-  normalizer: (raw: number | undefined) => number
+  industryDb: number,
 ): ConvexResumeAnalysis {
-  const normalizedIndustryDb = normalizer(raw)
   const normalizedRelatedExp =
     typeof analysis.breakdown?.related_exp === 'number'
       ? Math.round(clamp(analysis.breakdown.related_exp, 0, 100) * RELATED_EXP_AI_WEIGHT)
@@ -376,12 +384,12 @@ export function overrideIndustryDbBreakdown(
   const nextBreakdown: MatchBreakdown = {
     ...(analysis.breakdown ?? {}),
     related_exp: normalizedRelatedExp,
-    industry_db: normalizedIndustryDb,
+    industry_db: industryDb,
   }
 
   return {
     ...analysis,
-    score: Math.min(100, normalizedRelatedExp + normalizedIndustryDb),
+    score: Math.min(100, normalizedRelatedExp + industryDb),
     breakdown: nextBreakdown,
   }
 }

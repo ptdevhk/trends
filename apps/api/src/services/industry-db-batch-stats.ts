@@ -79,19 +79,33 @@ export function bumpIndustryDbV2Raw(
   return Math.max(clampIndustryDbV2RawScore(raw), sectionBump);
 }
 
+function hasNonEmployerBrandHit(brandHits: unknown[] | undefined): boolean {
+  return (brandHits ?? []).some(
+    (hit) => typeof hit === "object" && hit !== null && (hit as { context?: string }).context !== "employer"
+  );
+}
+
 export function computeEffectiveIndustryDbV2Raw(ingestData: {
   brandHits?: unknown[];
   companyHits?: unknown[];
   industryDbV2Raw?: number;
 } | null | undefined): number {
-  const hasNonEmployerBrandHit = (ingestData?.brandHits ?? []).some(
-    (hit) => typeof hit === "object" && hit !== null && (hit as { context?: string }).context !== "employer"
-  );
   return bumpIndustryDbV2Raw(
     ingestData?.industryDbV2Raw,
-    hasNonEmployerBrandHit,
+    hasNonEmployerBrandHit(ingestData?.brandHits),
     (ingestData?.companyHits?.length ?? 0) > 0,
   );
+}
+
+export function computeDirectIndustryDbScore(ingestData: {
+  brandHits?: unknown[];
+  companyHits?: unknown[];
+  industryDbV2Raw?: number;
+} | null | undefined): number {
+  if (hasNonEmployerBrandHit(ingestData?.brandHits) || (ingestData?.companyHits?.length ?? 0) > 0) {
+    return INDUSTRY_DB_V2_SCORE_CAP;
+  }
+  return clampIndustryDbV2RawScore(ingestData?.industryDbV2Raw);
 }
 
 function nonZeroP80FromHistogram(histogram50: number[]): { p80: number; count: number } {
