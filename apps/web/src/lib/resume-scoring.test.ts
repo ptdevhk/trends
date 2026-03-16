@@ -269,15 +269,15 @@ describe('resume-scoring', () => {
       p80: 20,
       histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
     }))).toEqual(expect.objectContaining({
-      score: 70,
+      score: 55,
       breakdown: {
-        related_exp: 30,
+        related_exp: 15,
         industry_db: 40,
       },
     }))
   })
 
-  it('clamps related_exp to 50 and caps recomputed score at 100', () => {
+  it('weights related_exp into its 50 point contribution slot', () => {
     expect(overrideIndustryDbBreakdown({
       score: 88,
       summary: '',
@@ -288,10 +288,66 @@ describe('resume-scoring', () => {
         industry_db: 15,
       },
     }, 50, (raw) => (typeof raw === 'number' ? Math.min(50, raw) : 0))).toEqual(expect.objectContaining({
-      score: 100,
+      score: 95,
       breakdown: {
-        related_exp: 50,
+        related_exp: 45,
         industry_db: 50,
+      },
+    }))
+  })
+
+  it('rounds weighted related_exp to the nearest integer', () => {
+    expect(overrideIndustryDbBreakdown({
+      score: 40,
+      summary: '',
+      highlights: [],
+      recommendation: 'match',
+      breakdown: {
+        related_exp: 35,
+        industry_db: 10,
+      },
+    }, 0, () => 0)).toEqual(expect.objectContaining({
+      score: 18,
+      breakdown: {
+        related_exp: 18,
+        industry_db: 0,
+      },
+    }))
+  })
+
+  it('keeps weighted related_exp at 0 when the AI returns 0', () => {
+    expect(overrideIndustryDbBreakdown({
+      score: 40,
+      summary: '',
+      highlights: [],
+      recommendation: 'match',
+      breakdown: {
+        related_exp: 0,
+        industry_db: 10,
+      },
+    }, 0, () => 0)).toEqual(expect.objectContaining({
+      score: 0,
+      breakdown: {
+        related_exp: 0,
+        industry_db: 0,
+      },
+    }))
+  })
+
+  it('defaults weighted related_exp to 0 when it is missing', () => {
+    expect(overrideIndustryDbBreakdown({
+      score: 40,
+      summary: '',
+      highlights: [],
+      recommendation: 'match',
+      breakdown: {
+        industry_db: 10,
+      },
+    }, 0, () => 0)).toEqual(expect.objectContaining({
+      score: 0,
+      breakdown: {
+        related_exp: 0,
+        industry_db: 0,
       },
     }))
   })
