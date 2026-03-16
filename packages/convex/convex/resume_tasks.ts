@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
@@ -557,79 +557,92 @@ export const getSummary = query({
     },
 });
 
+const RESET_TABLES = [
+    "collection_tasks",
+    "resumes",
+    "collection_workers",
+    "candidate_blocks",
+    "candidate_status",
+    "analysis_tasks",
+    "screening_sessions",
+    "search_history",
+    "sync_events",
+    "industry_db_cohorts",
+] as const;
+
+type ResetTableName = (typeof RESET_TABLES)[number];
+
+const RESET_BATCH_SIZE = 200;
+
+export const resetDatabaseBatch = internalMutation({
+    args: {
+        tableIndex: v.number(),
+        totalDeleted: v.number(),
+    },
+    handler: async (ctx, { tableIndex, totalDeleted }) => {
+        let deleted = totalDeleted;
+        let currentIndex = tableIndex;
+
+        while (currentIndex < RESET_TABLES.length) {
+            const tableName = RESET_TABLES[currentIndex] as ResetTableName;
+            const batch = await ctx.db.query(tableName).take(RESET_BATCH_SIZE);
+
+            if (batch.length === 0) {
+                currentIndex += 1;
+                continue;
+            }
+
+            for (const doc of batch) {
+                await ctx.db.delete(doc._id);
+            }
+            deleted += batch.length;
+
+            if (batch.length === RESET_BATCH_SIZE) {
+                await ctx.scheduler.runAfter(0, internal.resume_tasks.resetDatabaseBatch, {
+                    tableIndex: currentIndex,
+                    totalDeleted: deleted,
+                });
+                return;
+            }
+
+            currentIndex += 1;
+        }
+    },
+});
+
 export const resetDatabase = mutation({
     args: {},
     handler: async (ctx) => {
-        const tasks = await ctx.db.query("collection_tasks").collect();
-        for (const task of tasks) {
-            await ctx.db.delete(task._id);
-        }
+        const counts: Record<string, number> = {};
+        let count = 0;
 
-        const resumes = await ctx.db.query("resumes").collect();
-        for (const resume of resumes) {
-            await ctx.db.delete(resume._id);
-        }
+        for (const tableName of RESET_TABLES) {
+            const batch = await ctx.db.query(tableName as ResetTableName).take(RESET_BATCH_SIZE);
+            for (const doc of batch) {
+                await ctx.db.delete(doc._id);
+            }
+            counts[tableName] = batch.length;
+            count += batch.length;
 
-        const workers = await ctx.db.query("collection_workers").collect();
-        for (const worker of workers) {
-            await ctx.db.delete(worker._id);
+            if (batch.length === RESET_BATCH_SIZE) {
+                await ctx.scheduler.runAfter(0, internal.resume_tasks.resetDatabaseBatch, {
+                    tableIndex: RESET_TABLES.indexOf(tableName),
+                    totalDeleted: count,
+                });
+                return {
+                    success: true,
+                    count,
+                    partial: true,
+                    deleted: counts,
+                };
+            }
         }
-
-        const blocks = await ctx.db.query("candidate_blocks").collect();
-        for (const block of blocks) {
-            await ctx.db.delete(block._id);
-        }
-
-        const statuses = await ctx.db.query("candidate_status").collect();
-        for (const status of statuses) {
-            await ctx.db.delete(status._id);
-        }
-
-        const analysisTasks = await ctx.db.query("analysis_tasks").collect();
-        for (const analysisTask of analysisTasks) {
-            await ctx.db.delete(analysisTask._id);
-        }
-
-        const screeningSessions = await ctx.db.query("screening_sessions").collect();
-        for (const session of screeningSessions) {
-            await ctx.db.delete(session._id);
-        }
-
-        const searchHistory = await ctx.db.query("search_history").collect();
-        for (const entry of searchHistory) {
-            await ctx.db.delete(entry._id);
-        }
-
-        const syncEvents = await ctx.db.query("sync_events").collect();
-        for (const event of syncEvents) {
-            await ctx.db.delete(event._id);
-        }
-
-        const count =
-            tasks.length
-            + resumes.length
-            + workers.length
-            + blocks.length
-            + statuses.length
-            + analysisTasks.length
-            + screeningSessions.length
-            + searchHistory.length
-            + syncEvents.length;
 
         return {
             success: true,
             count,
-            deleted: {
-                collectionTasks: tasks.length,
-                resumes: resumes.length,
-                collectionWorkers: workers.length,
-                candidateBlocks: blocks.length,
-                candidateStatus: statuses.length,
-                analysisTasks: analysisTasks.length,
-                screeningSessions: screeningSessions.length,
-                searchHistory: searchHistory.length,
-                syncEvents: syncEvents.length,
-            },
+            partial: false,
+            deleted: counts,
         };
     },
 });
