@@ -368,15 +368,17 @@ export function overrideIndustryDbBreakdown(
   normalizer: (raw: number | undefined) => number
 ): ConvexResumeAnalysis {
   const normalizedIndustryDb = normalizer(raw)
+  const normalizedRelatedExp =
+    typeof analysis.breakdown?.related_exp === 'number' ? clamp(analysis.breakdown.related_exp, 0, 50) : 0
   const nextBreakdown: MatchBreakdown = {
     ...(analysis.breakdown ?? {}),
+    related_exp: normalizedRelatedExp,
     industry_db: normalizedIndustryDb,
   }
-  const relatedExp = typeof nextBreakdown.related_exp === 'number' ? nextBreakdown.related_exp : 0
 
   return {
     ...analysis,
-    score: Math.min(100, relatedExp + normalizedIndustryDb),
+    score: Math.min(100, normalizedRelatedExp + normalizedIndustryDb),
     breakdown: nextBreakdown,
   }
 }
