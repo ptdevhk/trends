@@ -20,6 +20,7 @@ const SELECTORS = {
   workItem: '.work-item',
   pagination: '.el-pagination',
   nextPageBtn: '.el-pagination .btn-next',
+  seekPagination: 'nav[aria-label="Pagination of results"]',
   searchInput: '.el-autocomplete input.el-input__inner',
   searchButton: '.resume-search-item-search-input-block__input-button',
   // Area selector (location filter modal)
@@ -255,11 +256,36 @@ function buildExportFilename() {
   return `resumes_${timestamp}_${makeRandomId()}.json`;
 }
 
+function parseAutoLocationValues(locationRaw) {
+  if (!locationRaw) return [];
+  return Array.from(
+    new Set(
+      String(locationRaw)
+        .split(/[，,、]+/)
+        .map((location) => location.trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 10);
+}
+
+function getAutoLocationValues(url) {
+  return parseAutoLocationValues(url.searchParams.get(AUTO_LOCATION_PARAM) || '');
+}
+
+function normalizeSeekLocationLabel(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\bmalaysia\b/g, '')
+    .replace(/\bmy\b/g, '')
+    .replace(/[，,、]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function buildExportMetadata(resumes) {
   const url = new URL(window.location.href);
   const keyword = normalizeKeyword(url.searchParams.get(AUTO_SEARCH_PARAM) || '');
-  const location = (url.searchParams.get(AUTO_LOCATION_PARAM) || '').trim();
-  const locationArray = location ? location.split(/[\s,]+/).filter(Boolean) : [];
+  const locationArray = getAutoLocationValues(url);
   const rawSampleName = url.searchParams.get(SAMPLE_NAME_PARAM) || '';
   const sampleName = sanitizeSampleName(rawSampleName).replace(/\.json$/i, '');
 
@@ -1255,8 +1281,7 @@ function buildSubmitMetadata() {
   const url = new URL(window.location.href);
   const sourceKey = getCurrentSourceKey();
   const keyword = normalizeKeyword(url.searchParams.get(AUTO_SEARCH_PARAM) || '');
-  const locationRaw = (url.searchParams.get(AUTO_LOCATION_PARAM) || '').trim();
-  const location = locationRaw ? locationRaw.split(/[\s,]+/).filter(Boolean).join(',') : '';
+  const location = getAutoLocationValues(url).join(',');
 
   url.searchParams.delete(AUTO_EXPORT_PARAM);
   url.searchParams.delete(AUTO_SYNC_PARAM);
@@ -1491,13 +1516,18 @@ function updateApiSnapshot(message) {
 
 function installApiHook() {
   try {
+    if (document.documentElement.hasAttribute('data-tr-page-hook')) {
+      document.documentElement.setAttribute('data-tr-resume-hook', 'true');
+      return;
+    }
     if (document.documentElement.hasAttribute('data-tr-resume-hook')) return;
     const script = document.createElement('script');
     script.src = chrome.runtime.getURL('page-hook.js');
-    script.async = true;
+    script.async = false;
     script.setAttribute('data-tr-resume-hook', 'true');
     script.onload = () => script.remove();
-    (document.head || document.documentElement).appendChild(script);
+    const mountTarget = document.head || document.documentElement;
+    mountTarget.prepend(script);
     document.documentElement.setAttribute('data-tr-resume-hook', 'true');
   } catch (error) {
     console.warn('Failed to install API hook:', error);
@@ -2010,8 +2040,9 @@ function getSeekPaginationInfo() {
       return match ? Number.parseInt(match[1], 10) : 0;
     })
     .filter((value) => Number.isFinite(value) && value > 0);
-  const hasNextPage = links.some((item) => /next/i.test((item.textContent || '').trim()));
   const totalPages = Math.max(pageNumbers.length > 0 ? Math.max(...pageNumbers) : 0, currentPage);
+  const nextLink = getSeekNextPageLink();
+  const hasNextPage = totalPages > currentPage && !isDisabledPaginationControl(nextLink);
 
   return { currentPage, totalPages, totalItems: 0, hasNextPage };
 }
@@ -2050,22 +2081,39 @@ function getPaginationInfo() {
   return { currentPage, totalPages, totalItems, hasNextPage: totalPages > currentPage };
 }
 
+function getSeekNextPageLink() {
+  const pagination = document.querySelector(SELECTORS.seekPagination);
+  if (!pagination) return null;
+  const links = Array.from(pagination.querySelectorAll('a'));
+  const nextLink = links.find((node) => /next/i.test((node.textContent || '').trim()));
+  return asHTMLElement(nextLink || null);
+}
+
+function isDisabledPaginationControl(control) {
+  if (!control) return true;
+  return (
+    control.hasAttribute('disabled')
+    || control.classList.contains('disabled')
+    || control.classList.contains('is-disabled')
+    || control.getAttribute('aria-disabled') === 'true'
+    || control.getAttribute('aria-hidden') === 'true'
+    || control.getAttribute('tabindex') === '-1'
+  );
+}
+
 function goToNextPageInternal() {
-  const nextBtn = /** @type {HTMLElement | null} */ (document.querySelector(SELECTORS.nextPageBtn));
-  if (!nextBtn) return false;
-  if (
-    nextBtn.hasAttribute('disabled')
-    || nextBtn.classList.contains('is-disabled')
-    || nextBtn.getAttribute('aria-disabled') === 'true'
-  ) {
-    return false;
-  }
+  const nextBtn = getCurrentSourceKey() === SOURCE_KEYS.SEEK
+    ? getSeekNextPageLink()
+    : asHTMLElement(document.querySelector(SELECTORS.nextPageBtn));
+  if (!nextBtn || isDisabledPaginationControl(nextBtn)) return false;
   nextBtn.click();
   return true;
 }
 
 function getNextPageButtonState() {
-  const nextBtn = document.querySelector(SELECTORS.nextPageBtn);
+  const nextBtn = getCurrentSourceKey() === SOURCE_KEYS.SEEK
+    ? getSeekNextPageLink()
+    : document.querySelector(SELECTORS.nextPageBtn);
   if (!nextBtn) {
     return {
       exists: false
@@ -2073,6 +2121,8 @@ function getNextPageButtonState() {
   }
   return {
     exists: true,
+    text: nextBtn.textContent || '',
+    href: nextBtn.getAttribute('href') || '',
     className: nextBtn.className || '',
     disabledAttr: nextBtn.getAttribute('disabled') || '',
     ariaDisabled: nextBtn.getAttribute('aria-disabled') || '',
@@ -2372,7 +2422,7 @@ function waitForResumeCards({ timeoutMs = 30000, minCount = 1 } = {}) {
 
     const intervalId = setInterval(check, 500);
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
     check();
   });
 }
@@ -2403,7 +2453,7 @@ function waitForApiRows({ timeoutMs = 5000, minCount = 1 } = {}) {
 
     const intervalId = setInterval(check, 300);
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
     check();
   });
 }
@@ -2437,8 +2487,9 @@ function waitForPagination({ timeoutMs = 8000 } = {}) {
 
     const check = () => {
       if (done) return;
-      const pagination = document.querySelector(SELECTORS.pagination);
-      const nextBtn = document.querySelector(SELECTORS.nextPageBtn);
+      const isSeek = getCurrentSourceKey() === SOURCE_KEYS.SEEK;
+      const pagination = document.querySelector(isSeek ? SELECTORS.seekPagination : SELECTORS.pagination);
+      const nextBtn = isSeek ? getSeekNextPageLink() : document.querySelector(SELECTORS.nextPageBtn);
       if (pagination && nextBtn) {
         done = true;
         cleanup();
@@ -2457,7 +2508,7 @@ function waitForPagination({ timeoutMs = 8000 } = {}) {
 
     const intervalId = setInterval(check, 300);
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
     check();
   });
 }
@@ -2497,7 +2548,7 @@ function waitForPageTransition(options = {}) {
 
     const intervalId = setInterval(check, 300);
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true });
     check();
   });
 }
@@ -2529,7 +2580,7 @@ function waitForSearchElements({ timeoutMs = 8000 } = {}) {
 
     const intervalId = setInterval(check, 300);
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
     check();
   });
 }
@@ -2566,7 +2617,7 @@ function waitForAreaModal({ timeoutMs = 8000 } = {}) {
 
     const intervalId = setInterval(check, 300);
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true });
     check();
   });
 }
@@ -2599,12 +2650,27 @@ function asHTMLElement(element) {
 function findAreaItemByText(container, text) {
   if (!container || !text) return null;
   const target = text.replace(/\s+/g, ' ').trim();
+  const normalizedTarget = normalizeSeekLocationLabel(target);
   const itemSelector = `${SELECTORS.areaItem}, ${SELECTORS.areaDistrictItem}`;
   const items = container.querySelectorAll(itemSelector);
+  let normalizedMatch = null;
   for (const item of items) {
-    if (getAreaItemText(item) === target) return asHTMLElement(item);
+    const itemText = getAreaItemText(item);
+    if (itemText === target) return asHTMLElement(item);
+    if (!normalizedMatch) {
+      const normalizedItemText = normalizeSeekLocationLabel(itemText);
+      if (
+        normalizedTarget &&
+        normalizedItemText &&
+        (normalizedItemText === normalizedTarget
+          || normalizedItemText.includes(normalizedTarget)
+          || normalizedTarget.includes(normalizedItemText))
+      ) {
+        normalizedMatch = asHTMLElement(item);
+      }
+    }
   }
-  return null;
+  return normalizedMatch;
 }
 
 /**
@@ -2640,7 +2706,7 @@ function waitForAreaItems(blockSelector, { timeoutMs = 5000, itemSelector } = {}
 
     const intervalId = setInterval(check, 300);
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
     check();
   });
 }
@@ -2671,7 +2737,7 @@ function waitForAreaTrigger({ timeoutMs = 8000 } = {}) {
 
     const intervalId = setInterval(check, 300);
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true });
     check();
   });
 }
@@ -2700,6 +2766,11 @@ function setAutoLocationAttributes(status, location) {
   } catch {
     // ignore
   }
+}
+
+function canSkipAutoLocationForSeekPage() {
+  if (getCurrentSourceKey() !== SOURCE_KEYS.SEEK) return false;
+  return window.location.pathname.includes('/candidates/recommended');
 }
 
 function setAutoAgeAttributes(status, minAge, maxAge) {
@@ -2838,14 +2909,7 @@ async function autoApplyAgeFilterFromUrl() {
 async function autoSelectLocation() {
   const params = new URLSearchParams(window.location.search || '');
   const locationRaw = (params.get(AUTO_LOCATION_PARAM) || '').trim();
-  const parsedLocations = Array.from(
-    new Set(
-      locationRaw
-        .split(/[\s,，、]+/)
-        .map((location) => location.trim())
-        .filter(Boolean)
-    )
-  ).slice(0, 10);
+  const parsedLocations = parseAutoLocationValues(locationRaw);
 
   if (parsedLocations.length === 0) {
     setAutoLocationAttributes('skipped', '');
@@ -2860,16 +2924,26 @@ async function autoSelectLocation() {
     try {
       trigger = await waitForAreaTrigger({});
     } catch {
-      setAutoLocationAttributes('failed', locationRaw);
-      console.warn('🎯 [Auto Location] Trigger not found');
+      if (canSkipAutoLocationForSeekPage()) {
+        setAutoLocationAttributes('skipped', locationRaw);
+        console.warn('🎯 [Auto Location] Trigger not found; skipping on SEEK recommended page');
+      } else {
+        setAutoLocationAttributes('failed', locationRaw);
+        console.warn('🎯 [Auto Location] Trigger not found');
+      }
       return;
     }
     trigger.click();
     try {
       modal = await waitForAreaModal({});
     } catch (error) {
-      setAutoLocationAttributes('failed', locationRaw);
-      console.warn('🎯 [Auto Location] Area selector not ready:', error);
+      if (canSkipAutoLocationForSeekPage()) {
+        setAutoLocationAttributes('skipped', locationRaw);
+        console.warn('🎯 [Auto Location] Area selector not ready; skipping on SEEK recommended page:', error);
+      } else {
+        setAutoLocationAttributes('failed', locationRaw);
+        console.warn('🎯 [Auto Location] Area selector not ready:', error);
+      }
       return;
     }
   }
@@ -2878,8 +2952,13 @@ async function autoSelectLocation() {
   const confirmBtn = asHTMLElement(modal.querySelector(SELECTORS.areaConfirmBtn));
   const cancelBtn = asHTMLElement(modal.querySelector(SELECTORS.areaCancelBtn));
   if (!provinceBlock || !confirmBtn || !cancelBtn) {
-    setAutoLocationAttributes('failed', locationRaw);
-    console.warn('🎯 [Auto Location] Missing modal controls');
+    if (canSkipAutoLocationForSeekPage()) {
+      setAutoLocationAttributes('skipped', locationRaw);
+      console.warn('🎯 [Auto Location] Missing modal controls; skipping on SEEK recommended page');
+    } else {
+      setAutoLocationAttributes('failed', locationRaw);
+      console.warn('🎯 [Auto Location] Missing modal controls');
+    }
     return;
   }
   const locationsToSelect = parsedLocations.filter((location, index) => {
@@ -2998,7 +3077,11 @@ async function autoSelectLocation() {
     setAutoLocationAttributes('done', successLocations.join(','));
   } else {
     cancelBtn.click();
-    setAutoLocationAttributes('failed', locationRaw);
+    if (canSkipAutoLocationForSeekPage()) {
+      setAutoLocationAttributes('skipped', locationRaw);
+    } else {
+      setAutoLocationAttributes('failed', locationRaw);
+    }
   }
 }
 
@@ -3254,6 +3337,10 @@ async function runAutoSyncIfEnabled() {
         }
 
         const paginationAfter = getPaginationInfo();
+        if (!paginationAfter.hasNextPage || paginationAfter.currentPage >= paginationAfter.totalPages) {
+          stopReason = 'no-next-page';
+          break;
+        }
         try {
           await waitForPagination({ timeoutMs: 8000 });
         } catch {
@@ -3312,6 +3399,10 @@ async function runAutoSyncIfEnabled() {
       }
 
       const paginationAfter = getPaginationInfo();
+      if (!paginationAfter.hasNextPage || paginationAfter.currentPage >= paginationAfter.totalPages) {
+        stopReason = 'no-next-page';
+        break;
+      }
       try {
         await waitForPagination({ timeoutMs: 8000 });
       } catch {
