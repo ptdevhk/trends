@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bumpIndustryDbV2Raw,
   clampIndustryDbV2RawScore,
   computeBatchStats,
   normalizeIndustryDbScore,
@@ -62,7 +63,7 @@ describe("industry-db-batch-stats", () => {
     });
   });
 
-  it("normalizes sparse batches where p80 is 0 due to majority-zero scores", () => {
+  it("normalizes sparse batches using non-zero p80 for meaningful discrimination", () => {
     const histogram50 = Array.from({ length: 51 }, (_, i) => {
       if (i === 0) return 77;
       if (i === 6) return 1;
@@ -80,11 +81,21 @@ describe("industry-db-batch-stats", () => {
     expect(zero.guardRailApplied).toBe(false);
 
     const six = normalizeIndustryDbScore(6, stats);
-    expect(six.normalized).toBeGreaterThan(0);
+    expect(six.normalized).toBe(20);
     expect(six.guardRailApplied).toBe(false);
 
     const thirty = normalizeIndustryDbScore(30, stats);
-    expect(thirty.normalized).toBeGreaterThan(six.normalized);
+    expect(thirty.normalized).toBe(50);
+    expect(thirty.normalized - six.normalized).toBeGreaterThan(20);
+  });
+
+  it("bumps raw score to section max when brand or company hits are present", () => {
+    expect(bumpIndustryDbV2Raw(5, true, false)).toBe(30);
+    expect(bumpIndustryDbV2Raw(5, false, true)).toBe(20);
+    expect(bumpIndustryDbV2Raw(5, true, true)).toBe(50);
+    expect(bumpIndustryDbV2Raw(40, true, false)).toBe(40);
+    expect(bumpIndustryDbV2Raw(undefined, true, true)).toBe(50);
+    expect(bumpIndustryDbV2Raw(0, false, false)).toBe(0);
   });
 
   it("coerces invalid raw inputs to the supported score range", () => {

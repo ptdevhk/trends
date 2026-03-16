@@ -125,7 +125,9 @@ describe("ExportService", () => {
       resume: {
         ...buildEntry("26").resume,
         ingestData: {
-          ...buildEntry("26").resume.ingestData,
+          industryTags: ["cnc"],
+          companyHits: [],
+          brandHits: [],
           industryDbV2Raw: 25,
         },
       },
@@ -145,8 +147,8 @@ describe("ExportService", () => {
 
     expect(parsed.meta.fields).toContain("industryDbV2Raw");
     expect(parsed.meta.fields).toContain("industryDbV2Normalized");
-    expect(parsed.data[0]?.industryDbV2Raw).toBe("20");
-    expect(parsed.data[0]?.industryDbV2Normalized).toBe("40");
+    expect(parsed.data[0]?.industryDbV2Raw).toBe("50");
+    expect(parsed.data[0]?.industryDbV2Normalized).toBe("50");
     expect(parsed.data[1]?.industryDbV2Raw).toBe("25");
     expect(parsed.data[1]?.industryDbV2Normalized).toBe("45");
   });

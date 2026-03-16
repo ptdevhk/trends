@@ -48,6 +48,7 @@ import {
   type ResumeExportEntry,
 } from "../services/export-service.js";
 import {
+  bumpIndustryDbV2Raw,
   computeBatchStats,
   type IndustryDbV2BatchStats,
 } from "../services/industry-db-batch-stats.js";
@@ -367,7 +368,10 @@ async function resolveExportRequest(
   }
 
   const industryDbV2Stats = request.industryDbV2Stats
-    ?? computeBatchStats(entries.map((entry) => entry.resume.ingestData?.industryDbV2Raw));
+    ?? computeBatchStats(entries.map((entry) => {
+      const d = entry.resume.ingestData;
+      return bumpIndustryDbV2Raw(d?.industryDbV2Raw, (d?.brandHits?.length ?? 0) > 0, (d?.companyHits?.length ?? 0) > 0);
+    }));
 
   return {
     format: request.format,

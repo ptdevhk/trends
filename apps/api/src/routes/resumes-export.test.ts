@@ -353,9 +353,9 @@ describe("resume export route", () => {
     expect(industryDbRawColumn).toBeGreaterThan(0);
     expect(industryDbNormalizedColumn).toBeGreaterThan(0);
     expect(sheet?.getRow(2).getCell(industryDbRawColumn).value).toBe(20);
-    expect(sheet?.getRow(2).getCell(industryDbNormalizedColumn).value).toBe(40);
-    expect(sheet?.getRow(3).getCell(industryDbRawColumn).value).toBe(25);
-    expect(sheet?.getRow(3).getCell(industryDbNormalizedColumn).value).toBe(45);
+    expect(sheet?.getRow(2).getCell(industryDbNormalizedColumn).value).toBe(38);
+    expect(sheet?.getRow(3).getCell(industryDbRawColumn).value).toBe(50);
+    expect(sheet?.getRow(3).getCell(industryDbNormalizedColumn).value).toBe(50);
     expect(sheet?.getRow(3).getCell(brandHitsColumn).value).toBe("发那科");
   });
 

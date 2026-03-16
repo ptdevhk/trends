@@ -228,6 +228,42 @@ function countHistogramSamples(histogram50: number[]): number {
   return histogram50.reduce((total, count) => total + count, 0)
 }
 
+const INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE = 5
+const INDUSTRY_DB_V2_BRAND_SECTION_SCORE = 30
+const INDUSTRY_DB_V2_COMPANY_SECTION_SCORE = 20
+
+export function bumpIndustryDbV2Raw(
+  raw: number | undefined,
+  hasBrandHits: boolean,
+  hasCompanyHits: boolean
+): number {
+  const sectionBump =
+    (hasBrandHits ? INDUSTRY_DB_V2_BRAND_SECTION_SCORE : 0) +
+    (hasCompanyHits ? INDUSTRY_DB_V2_COMPANY_SECTION_SCORE : 0)
+  const safeRaw = typeof raw === 'number' && Number.isFinite(raw) ? clamp(raw, 0, 50) : 0
+  return Math.max(safeRaw, sectionBump)
+}
+
+function nonZeroP80FromHistogram(histogram50: number[]): { p80: number; count: number } {
+  const nonZeroValues: number[] = []
+  histogram50.forEach((count, score) => {
+    if (score > 0) {
+      for (let i = 0; i < count; i++) {
+        nonZeroValues.push(score)
+      }
+    }
+  })
+  if (nonZeroValues.length === 0) {
+    return { p80: 0, count: 0 }
+  }
+  nonZeroValues.sort((a, b) => a - b)
+  const pos = (nonZeroValues.length - 1) * 0.8
+  const lo = Math.floor(pos)
+  const hi = Math.ceil(pos)
+  const p80 = lo === hi ? nonZeroValues[lo] : nonZeroValues[lo] * (1 - (pos - lo)) + nonZeroValues[hi] * (pos - lo)
+  return { p80, count: nonZeroValues.length }
+}
+
 function percentileRankFromHistogram(histogram50: number[], raw: number): number {
   const total = countHistogramSamples(histogram50)
   if (total <= 1) {
@@ -303,8 +339,13 @@ export function computeNormalizedIndustryDbScore(raw: number | undefined, stats:
     return Math.round(safeRaw)
   }
 
+  const { p80: effectiveP80, count: nonZeroCount } = nonZeroP80FromHistogram(histogram50)
+  if (nonZeroCount < INDUSTRY_DB_V2_MIN_NONZERO_SAMPLE_SIZE) {
+    return Math.round(safeRaw)
+  }
+
   const rank = percentileRankFromHistogram(histogram50, safeRaw)
-  const base = 40 * clamp(safeRaw / Math.max(stats.p80, 1), 0, 1)
+  const base = 40 * clamp(safeRaw / Math.max(effectiveP80, 1), 0, 1)
   const bonus = 10 * clamp((rank - 0.8) / 0.2, 0, 1)
   return Math.round(Math.min(50, base + bonus))
 }
