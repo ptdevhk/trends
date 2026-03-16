@@ -4,6 +4,7 @@ import {
   bumpIndustryDbV2Raw,
   clampIndustryDbV2RawScore,
   computeBatchStats,
+  computeEffectiveIndustryDbV2Raw,
   normalizeIndustryDbScore,
 } from "./industry-db-batch-stats.js";
 
@@ -96,6 +97,15 @@ describe("industry-db-batch-stats", () => {
     expect(bumpIndustryDbV2Raw(40, true, false)).toBe(40);
     expect(bumpIndustryDbV2Raw(undefined, true, true)).toBe(50);
     expect(bumpIndustryDbV2Raw(0, false, false)).toBe(0);
+  });
+
+  it("derives effective raw from ingest data shape", () => {
+    expect(computeEffectiveIndustryDbV2Raw({ brandHits: [{}], companyHits: [], industryDbV2Raw: 5 })).toBe(30);
+    expect(computeEffectiveIndustryDbV2Raw({ brandHits: [], companyHits: ['star'], industryDbV2Raw: 5 })).toBe(20);
+    expect(computeEffectiveIndustryDbV2Raw({ brandHits: [{}], companyHits: ['star'], industryDbV2Raw: 5 })).toBe(50);
+    expect(computeEffectiveIndustryDbV2Raw({ brandHits: [], companyHits: [], industryDbV2Raw: 25 })).toBe(25);
+    expect(computeEffectiveIndustryDbV2Raw(undefined)).toBe(0);
+    expect(computeEffectiveIndustryDbV2Raw(null)).toBe(0);
   });
 
   it("coerces invalid raw inputs to the supported score range", () => {
