@@ -135,6 +135,12 @@ const TEST_KEYWORDS_STRUCTURED_MD = `
 | 4 | 秦川机床集团股份公司 | QINCHUAN | key_company |
 | 5 | 润星科技集团 | RUNXING | key_company |
 
+## ITES 参展商 (ITES Exhibitors)
+
+| ID | 公司名称 (Company Name) | 英文名称 (English Name) | 展品类别 (Category) |
+| --- | --- | --- | --- |
+| 1 | 宝力机械有限公司 |  | 金属切削机床 |
+
 ## 4.3 进口代理商 (Import Agents)
 
 ### 4.3.4 三坐标/测量扫描代理商 (CMM/Measurement Scanning Agents)
@@ -145,6 +151,16 @@ const TEST_KEYWORDS_STRUCTURED_MD = `
 | 2 | 润星 |  | 测量扫描代理 |
 | 3 | 思瑞 |  | 测量扫描代理 |
 `;
+
+const TEST_BRANDS_JSON = JSON.stringify([
+  { id: 1, nameCn: "发那科", nameEn: "FANUC", type: "加工中心/数控车床", origin: "international" },
+  { id: 2, nameCn: "三菱", nameEn: "MITSUBISHI", type: "加工中心/火花机", origin: "international" },
+  { id: 3, nameCn: "哈斯", nameEn: "HAAS", type: "加工中心/走心机", origin: "international" },
+  { id: 4, nameCn: "润星科技", nameEn: "RUNXING", type: "加工中心/数控车床", origin: "domestic" },
+  { id: 5, nameCn: "思瑞测量", nameEn: "CHOTEST", type: "测量扫描", origin: "domestic" },
+  { id: 6, nameCn: "秦川机床", nameEn: "QINCHUAN", type: "加工中心/数控车床", origin: "domestic" },
+  { id: 7, nameCn: "精雕", nameEn: "JINGDIAO", type: "加工中心/数控车床", origin: "domestic" },
+], null, 2);
 
 const SAMPLE_RESUME_CNC_SALES = {
   data: [
@@ -253,6 +269,7 @@ describe("IngestComputeService", () => {
 		fs.writeFileSync(path.join(configJdDir, "jd-lathe-sales.md"), TEST_JD_LATHE_SALES);
 		fs.writeFileSync(path.join(configJdDir, "jd-cnc-engineer.md"), TEST_JD_CNC_ENGINEER);
 		fs.writeFileSync(path.join(configIndustryDataDir, "keywords-structured.md"), TEST_KEYWORDS_STRUCTURED_MD);
+		fs.writeFileSync(path.join(configIndustryDataDir, "brands.json"), TEST_BRANDS_JSON);
 
 		service = new IngestComputeService(tmpDir);
 	});
@@ -513,6 +530,23 @@ describe("IngestComputeService", () => {
 			context: "employer",
 			companyId: 3,
 		});
+	});
+
+	it("should keep non-brand ITES employers in companyHits without creating employer brandHits", () => {
+		const result = service.computeOne("resume-baoli", {
+			data: [
+				{
+					...SAMPLE_RESUME_JUNIOR.data[0],
+					selfIntro: "",
+					workHistory: [
+						{ raw: "2020-01~2024-01 东莞宝力机械科技有限公司 销售经理" },
+					],
+				},
+			],
+		});
+
+		expect(result.companyHits).toContain("宝力机械有限公司");
+		expect(result.brandHits.filter((hit) => hit.context === "employer")).toEqual([]);
 	});
 
 	it("should not match loose skills aliases as employer brands; should match Tier-1 industry DB companies", () => {
