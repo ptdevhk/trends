@@ -498,7 +498,7 @@ export const ResumeExportMatchSchema = z
     recommendation: RecommendationSchema.openapi({ example: "strong_match" }),
     scoreSource: ScoreSourceSchema.optional().openapi({ example: "ai" }),
     summary: z.string().optional().openapi({ example: "Strong CNC sales fit." }),
-    breakdown: z.record(z.unknown()).optional().openapi({ example: { related_exp: 20, industry_db: 40 } }),
+    breakdown: z.record(z.number()).optional().openapi({ example: { related_exp: 20, industry_db: 40 } }),
   })
   .openapi("ResumeExportMatch");
 

@@ -44,7 +44,7 @@ type MatchExportPayload = {
   recommendation: string;
   scoreSource?: "rule" | "ai";
   summary?: string;
-  breakdown?: Record<string, unknown>;
+  breakdown?: Record<string, number>;
 };
 
 export type ResumeExportEntry = {

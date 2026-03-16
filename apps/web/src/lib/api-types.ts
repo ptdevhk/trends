@@ -4341,7 +4341,7 @@ export interface components {
              *     }
              */
             breakdown?: {
-                [key: string]: unknown;
+                [key: string]: number;
             };
         };
         ResumeExportEntryContext: {
