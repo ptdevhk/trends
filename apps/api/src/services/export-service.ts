@@ -44,6 +44,7 @@ type MatchExportPayload = {
   recommendation: string;
   scoreSource?: "rule" | "ai";
   summary?: string;
+  breakdown?: Record<string, number>;
 };
 
 export type ResumeExportEntry = {
@@ -67,6 +68,8 @@ type ExportRow = {
   age: number | "";
   expectedSalary: string;
   aiScore: number | "";
+  industryDb: number;
+  relatedExp: number | "";
   industryDbV2Raw: number;
   industryDbV2Normalized: number;
   ruleScore: number | "";
@@ -249,6 +252,10 @@ function toRow(
     age: parseAgeNumber(entry.resume.age) ?? "",
     expectedSalary: normalizeString(entry.resume.expectedSalary),
     aiScore: typeof entry.match?.score === "number" ? entry.match.score : "",
+    industryDb: industryDbV2Normalized,
+    relatedExp: typeof entry.match?.breakdown?.related_exp === "number"
+      ? entry.match.breakdown.related_exp
+      : "",
     industryDbV2Raw,
     industryDbV2Normalized,
     ruleScore: typeof entry.ruleScore === "number" ? entry.ruleScore : "",
@@ -276,7 +283,9 @@ function toRow(
   };
 }
 
-const EXCEL_COLUMNS: Array<{ header: string; key: keyof ExportRow; width: number }> = [
+type ExcelColumn = { header: string; key: keyof ExportRow; width: number };
+
+const STANDARD_EXCEL_COLUMNS_HEAD: ExcelColumn[] = [
   { header: "Resume ID", key: "resumeId", width: 24 },
   { header: "Name", key: "name", width: 16 },
   { header: "Job Intention", key: "jobIntention", width: 20 },
@@ -286,8 +295,16 @@ const EXCEL_COLUMNS: Array<{ header: string; key: keyof ExportRow; width: number
   { header: "Age", key: "age", width: 10 },
   { header: "Expected Salary", key: "expectedSalary", width: 16 },
   { header: "AI Score", key: "aiScore", width: 10 },
+  { header: "Industry DB", key: "industryDb", width: 14 },
+  { header: "Related Exp", key: "relatedExp", width: 14 },
+];
+
+const DEBUG_EXCEL_COLUMNS: ExcelColumn[] = [
   { header: "Industry DB V2 Raw", key: "industryDbV2Raw", width: 18 },
   { header: "Industry DB V2 Normalized", key: "industryDbV2Normalized", width: 24 },
+];
+
+const STANDARD_EXCEL_COLUMNS_TAIL: ExcelColumn[] = [
   { header: "Rule Score", key: "ruleScore", width: 10 },
   { header: "Recommendation", key: "recommendation", width: 16 },
   { header: "Status", key: "status", width: 16 },
@@ -305,6 +322,18 @@ const EXCEL_COLUMNS: Array<{ header: string; key: keyof ExportRow; width: number
   { header: "User Comment", key: "userComment", width: 36 },
   { header: "Reference Note", key: "referenceNote", width: 36 },
 ];
+
+function getExcelColumns(debug: boolean): ExcelColumn[] {
+  return debug
+    ? [...STANDARD_EXCEL_COLUMNS_HEAD, ...DEBUG_EXCEL_COLUMNS, ...STANDARD_EXCEL_COLUMNS_TAIL]
+    : [...STANDARD_EXCEL_COLUMNS_HEAD, ...STANDARD_EXCEL_COLUMNS_TAIL];
+}
+
+function toOutputRow(row: ExportRow, debug: boolean): Omit<ExportRow, "industryDbV2Raw" | "industryDbV2Normalized"> | ExportRow {
+  if (debug) return row;
+  const { industryDbV2Raw: _r, industryDbV2Normalized: _n, ...standard } = row;
+  return standard;
+}
 
 export type ExportBatchMeta = {
   userComment?: string;
@@ -339,7 +368,8 @@ export class ExportService {
     format: ExportFormat,
     entries: ResumeExportEntry[],
     batchMeta?: ExportBatchMeta,
-    industryDbV2Stats?: IndustryDbV2BatchStats
+    industryDbV2Stats?: IndustryDbV2BatchStats,
+    debug = false
   ): Promise<ExportFile> {
     const batchNormalizer = createBatchNormalizer(industryDbV2Stats);
     const rows = entries.map((entry) =>
@@ -354,7 +384,7 @@ export class ExportService {
       )
     );
     if (format === "xlsx") {
-      const content = await this.toXlsx(rows);
+      const content = await this.toXlsx(rows, debug);
       return {
         extension: "xlsx",
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -362,7 +392,8 @@ export class ExportService {
       };
     }
 
-    const csv = Papa.unparse(rows, { header: true, newline: "\n" });
+    const outputRows = rows.map((row) => toOutputRow(row, debug));
+    const csv = Papa.unparse(outputRows, { header: true, newline: "\n" });
     return {
       extension: "csv",
       contentType: "text/csv; charset=utf-8",
@@ -370,11 +401,11 @@ export class ExportService {
     };
   }
 
-  private async toXlsx(rows: ExportRow[]): Promise<Buffer> {
+  private async toXlsx(rows: ExportRow[], debug: boolean): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Resumes");
 
-    sheet.columns = EXCEL_COLUMNS;
+    sheet.columns = getExcelColumns(debug);
     rows.forEach((row) => sheet.addRow(row));
     sheet.getRow(1).font = { bold: true };
 

@@ -4334,6 +4334,15 @@ export interface components {
             scoreSource?: "rule" | "ai";
             /** @example Strong CNC sales fit. */
             summary?: string;
+            /**
+             * @example {
+             *       "related_exp": 20,
+             *       "industry_db": 40
+             *     }
+             */
+            breakdown?: {
+                [key: string]: number;
+            };
         };
         ResumeExportEntryContext: {
             /** @example resume-1 */
@@ -4365,6 +4374,8 @@ export interface components {
             /** @example Internal export */
             referenceNote?: string;
             industryDbV2Stats?: components["schemas"]["IndustryDbV2Stats"];
+            /** @example false */
+            debug?: boolean;
             entries: components["schemas"]["ResumeExportEntryContext"][];
         };
         ResumeExportLegacyRequest: {

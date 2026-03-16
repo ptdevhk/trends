@@ -116,7 +116,7 @@ describe("ExportService", () => {
     expect(parsed.data[0]?.referenceNote).toBe("Referred by HR dept");
   });
 
-  it("exports industry DB raw and normalized columns in CSV output", async () => {
+  it("exports industryDb and relatedExp columns in standard CSV output", async () => {
     const service = new ExportService();
     const firstEntry = buildEntry("25");
     const secondEntry: ResumeExportEntry = {
@@ -142,6 +142,43 @@ describe("ExportService", () => {
         return 0;
       }),
     });
+    const csv = file.content.toString("utf8");
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+
+    expect(parsed.meta.fields).toContain("industryDb");
+    expect(parsed.meta.fields).toContain("relatedExp");
+    expect(parsed.meta.fields).not.toContain("industryDbV2Raw");
+    expect(parsed.meta.fields).not.toContain("industryDbV2Normalized");
+    expect(parsed.data[0]?.industryDb).toBe("50");
+    expect(parsed.data[1]?.industryDb).toBe("45");
+  });
+
+  it("exports industryDbV2Raw and industryDbV2Normalized columns in debug CSV output", async () => {
+    const service = new ExportService();
+    const firstEntry = buildEntry("25");
+    const secondEntry: ResumeExportEntry = {
+      ...buildEntry("26"),
+      key: "resume-2",
+      resume: {
+        ...buildEntry("26").resume,
+        ingestData: {
+          industryTags: ["cnc"],
+          companyHits: [],
+          brandHits: [],
+          industryDbV2Raw: 25,
+        },
+      },
+    };
+
+    const file = await service.exportResumes("csv", [firstEntry, secondEntry], undefined, {
+      size: 50,
+      p80: 20,
+      histogram50: Array.from({ length: 51 }, (_, index) => {
+        if (index === 20) return 40;
+        if (index === 25) return 10;
+        return 0;
+      }),
+    }, true);
     const csv = file.content.toString("utf8");
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
