@@ -12,6 +12,7 @@ import {
   INGEST_BRAND_ROLE_LABELS,
   INGEST_BRAND_SOURCE_LABELS,
   SETTINGS_NAV_ITEMS,
+  SYSTEM_SETTINGS_NAV_ITEMS,
   SYSTEM_CAPABILITY_DESCRIPTORS,
   SYSTEM_NAV_ITEMS,
 } from "@trends/shared";
@@ -139,6 +140,7 @@ const SystemMetadataSchema = z.object({
   navigation: z.object({
     system: z.array(SurfaceNavItemSchema),
     settings: z.array(SurfaceNavItemSchema),
+    systemSettings: z.array(SurfaceNavItemSchema),
     debugPage: z.array(SurfaceNavItemSchema),
   }),
   labels: z.object({
@@ -187,6 +189,7 @@ function buildSystemMetadata() {
     navigation: {
       system: SYSTEM_NAV_ITEMS,
       settings: SETTINGS_NAV_ITEMS,
+      systemSettings: SYSTEM_SETTINGS_NAV_ITEMS,
       debugPage: DEBUG_PAGE_SECTION_DEFINITIONS.map((section) => ({
         ...section,
         matchesSuffixes: section.hrefSuffix ? [section.hrefSuffix] : [""],

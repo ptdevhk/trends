@@ -413,6 +413,10 @@ describe('QuickStartPanel quick-filter display', () => {
         location: 'Kuala Lumpur MY',
         keywords: ['Sales Engineer', 'Sales Manager'],
         jobDescriptionId: undefined,
+        collectionSource: {
+          type: 'seek',
+          exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+        },
         collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
       })
     })
@@ -442,6 +446,9 @@ describe('QuickStartPanel quick-filter display', () => {
         location: 'Kuala Lumpur MY',
         keywords: ['Sales Engineer', 'Sales Manager'],
         jobDescriptionId: undefined,
+        collectionSource: {
+          type: 'seek',
+        },
         collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=Sales+Engineer+Sales+Manager&location=Kuala+Lumpur+MY&tr_auto_sync=true',
       })
     })

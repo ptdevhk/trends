@@ -47,12 +47,15 @@ func newSystemMetadataCmd() *cobra.Command {
 			}
 
 			headers := []string{"section", "value", "details"}
+			options := currentOptions()
 			rows := [][]string{
+				{"workspace", options.Workspace, "X-Workspace-Slug"},
 				{"app", response.Metadata.Identity.AppName, response.Metadata.Identity.AppVersion},
 				{"api", response.Metadata.Identity.SystemTitle, response.Metadata.Identity.APIVersion},
 				{"web", response.Metadata.Identity.SettingsTitle, response.Metadata.Identity.WebVersion},
 				{"system_nav", fmt.Sprintf("%d", len(response.Metadata.Navigation.System)), joinNavIDs(response.Metadata.Navigation.System)},
 				{"settings_nav", fmt.Sprintf("%d", len(response.Metadata.Navigation.Settings)), joinNavIDs(response.Metadata.Navigation.Settings)},
+				{"system_settings_nav", fmt.Sprintf("%d", len(response.Metadata.Navigation.SystemSettings)), joinNavIDs(response.Metadata.Navigation.SystemSettings)},
 				{"debug_nav", fmt.Sprintf("%d", len(response.Metadata.Navigation.DebugPage)), joinNavIDs(response.Metadata.Navigation.DebugPage)},
 				{"capabilities", fmt.Sprintf("%d", len(response.Metadata.Capabilities)), joinCapabilityIDs(response.Metadata.Capabilities)},
 			}

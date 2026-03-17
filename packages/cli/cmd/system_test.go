@@ -32,9 +32,10 @@ func TestSystemClientEndpoints(t *testing.T) {
 						"webVersion":         "1.2.0",
 					},
 					"navigation": map[string]any{
-						"system":    []map[string]any{{"id": "home", "titleKey": "home", "defaultTitle": "Home", "hrefSuffix": "/system", "matchesSuffixes": []string{"/system"}}},
-						"settings":  []map[string]any{{"id": "blocks", "titleKey": "blocks", "defaultTitle": "Blocks", "hrefSuffix": "/settings/blocks", "matchesSuffixes": []string{"/settings/blocks"}}},
-						"debugPage": []map[string]any{{"id": "all", "titleKey": "all", "defaultTitle": "All", "hrefSuffix": "", "matchesSuffixes": []string{""}}},
+						"system":         []map[string]any{{"id": "home", "titleKey": "home", "defaultTitle": "Home", "hrefSuffix": "/system", "matchesSuffixes": []string{"/system"}}},
+						"settings":       []map[string]any{{"id": "blocks", "titleKey": "blocks", "defaultTitle": "Blocks", "hrefSuffix": "/settings/blocks", "matchesSuffixes": []string{"/settings/blocks"}}},
+						"systemSettings": []map[string]any{{"id": "overview", "titleKey": "overview", "defaultTitle": "Overview", "hrefSuffix": "/system/settings", "matchesSuffixes": []string{"/system/settings"}}},
+						"debugPage":      []map[string]any{{"id": "all", "titleKey": "all", "defaultTitle": "All", "hrefSuffix": "", "matchesSuffixes": []string{""}}},
 					},
 					"labels": map[string]any{
 						"aiBreakdown":        []map[string]any{{"key": "skills", "labelKey": "skills", "defaultLabel": "Skills", "aliases": []string{"skills"}}},
@@ -90,7 +91,7 @@ func TestSystemClientEndpoints(t *testing.T) {
 	}))
 	defer server.Close()
 
-	apiClient := client.New(server.URL, server.URL)
+	apiClient := client.New(server.URL, server.URL, "hr")
 	apiClient.HTTP = server.Client()
 
 	metadata, err := apiClient.GetSystemMetadata(context.Background())
@@ -131,13 +132,14 @@ func TestSystemMetadataCommandWritesTable(t *testing.T) {
 	getSystemMetadata = func(ctx context.Context, apiClient *client.Client) (*client.SystemMetadataResponse, error) {
 		return &client.SystemMetadataResponse{
 			Success: true,
-			Metadata: struct {
-				Identity   client.SystemMetadataIdentity `json:"identity"`
-				Navigation struct {
-					System    []client.SystemNavItem `json:"system"`
-					Settings  []client.SystemNavItem `json:"settings"`
-					DebugPage []client.SystemNavItem `json:"debugPage"`
-				} `json:"navigation"`
+		Metadata: struct {
+			Identity   client.SystemMetadataIdentity `json:"identity"`
+			Navigation struct {
+				System         []client.SystemNavItem `json:"system"`
+				Settings       []client.SystemNavItem `json:"settings"`
+				SystemSettings []client.SystemNavItem `json:"systemSettings"`
+				DebugPage      []client.SystemNavItem `json:"debugPage"`
+			} `json:"navigation"`
 				Labels struct {
 					AIBreakdown        []client.SystemLabelDescriptor `json:"aiBreakdown"`
 					IngestBrandSource  []client.SystemLabelDescriptor `json:"ingestBrandSource"`
@@ -152,13 +154,15 @@ func TestSystemMetadataCommandWritesTable(t *testing.T) {
 			}{
 				Identity: client.SystemMetadataIdentity{AppName: "Trends", SystemTitle: "System Admin", SettingsTitle: "Workspace Settings", AppVersion: "1.0.0", APIVersion: "1.1.0", WebVersion: "1.2.0"},
 				Navigation: struct {
-					System    []client.SystemNavItem `json:"system"`
-					Settings  []client.SystemNavItem `json:"settings"`
-					DebugPage []client.SystemNavItem `json:"debugPage"`
+					System         []client.SystemNavItem `json:"system"`
+					Settings       []client.SystemNavItem `json:"settings"`
+					SystemSettings []client.SystemNavItem `json:"systemSettings"`
+					DebugPage      []client.SystemNavItem `json:"debugPage"`
 				}{
-					System:    []client.SystemNavItem{{ID: "home"}},
-					Settings:  []client.SystemNavItem{{ID: "blocks"}},
-					DebugPage: []client.SystemNavItem{{ID: "all"}},
+					System:         []client.SystemNavItem{{ID: "home"}},
+					Settings:       []client.SystemNavItem{{ID: "blocks"}},
+					SystemSettings: []client.SystemNavItem{{ID: "overview"}},
+					DebugPage:      []client.SystemNavItem{{ID: "all"}},
 				},
 				Capabilities: []client.SystemCapabilityDescriptor{{ID: "cli-system-inspect"}},
 			},
@@ -181,7 +185,7 @@ func TestSystemMetadataCommandWritesTable(t *testing.T) {
 		t.Fatalf("metadata command failed: %v", err)
 	}
 	text := output.String()
-	if !strings.Contains(text, "cli-system-inspect") || !strings.Contains(text, "Trends") {
+	if !strings.Contains(text, "cli-system-inspect") || !strings.Contains(text, "Trends") || !strings.Contains(text, "system_settings_nav") || !strings.Contains(text, "dev") {
 		t.Fatalf("unexpected command output: %s", text)
 	}
 }

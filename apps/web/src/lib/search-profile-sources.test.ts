@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest'
 
 import {
   SEARCH_PROFILE_SOURCE_TYPES,
+  buildCollectionLaunchUrl,
+  buildJob5156CollectUrl,
   buildSeekCollectUrl,
   getActiveSearchProfileSource,
+  getLegacyCollectionSource,
+  getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
+  resolveCollectionSource,
 } from './search-profile-sources'
 
 describe('search-profile-sources', () => {
@@ -46,6 +51,17 @@ describe('search-profile-sources', () => {
     expect(collectUrl).toBe('https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1')
   })
 
+  it('returns the active launchable collection source for Job5156 profiles', () => {
+    const collectionSource = getSearchProfileCollectionSource([
+      { type: 'manual_upload', enabled: true, priority: 1 },
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job5156, enabled: true, priority: 2 },
+    ])
+
+    expect(collectionSource).toEqual({
+      type: SEARCH_PROFILE_SOURCE_TYPES.job5156,
+    })
+  })
+
   it('uses enabled priority order when selecting the active source', () => {
     const activeSource = getActiveSearchProfileSource([
       { type: SEARCH_PROFILE_SOURCE_TYPES.seek, enabled: true, priority: 2 },
@@ -71,5 +87,62 @@ describe('search-profile-sources', () => {
     expect(url.searchParams.get('location')).toBe('Kuala Lumpur MY')
     expect(url.searchParams.get('keyword')).toBe('Sales Engineer Sales Manager')
     expect(url.searchParams.get('tr_auto_sync')).toBe('true')
+  })
+
+  it('builds a Job5156 collect URL with Trends control params', () => {
+    const collectUrl = buildJob5156CollectUrl({
+      location: '东莞,深圳',
+      keywords: ['CNC', '销售'],
+      collectLimit: 50,
+      maxPages: 4,
+      minAge: 28,
+      maxAge: 40,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(`${url.origin}${url.pathname}`).toBe('https://hr.job5156.com/search')
+    expect(url.searchParams.get('keyword')).toBe('CNC 销售')
+    expect(url.searchParams.get('location')).toBe('东莞,深圳')
+    expect(url.searchParams.get('tr_auto_sync')).toBe('true')
+    expect(url.searchParams.get('tr_limit')).toBe('50')
+    expect(url.searchParams.get('tr_max_pages')).toBe('4')
+    expect(url.searchParams.get('tr_min_age')).toBe('28')
+    expect(url.searchParams.get('tr_max_age')).toBe('40')
+  })
+
+  it('preserves legacy seek exact URLs as a collection source fallback', () => {
+    const legacySource = getLegacyCollectionSource('https://my.employer.seek.com/candidates/recommended?jobId=9&pageNumber=1')
+
+    expect(legacySource).toEqual({
+      type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+      exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=9&pageNumber=1',
+    })
+    expect(resolveCollectionSource(undefined, legacySource?.exactUrl)).toEqual(legacySource)
+  })
+
+  it('builds launch URLs from an explicit collection source', () => {
+    const seekUrl = buildCollectionLaunchUrl({
+      source: {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+      },
+      location: 'Kuala Lumpur MY',
+      keywords: ['Sales Engineer'],
+      maxPages: 2,
+    })
+    const job5156Url = buildCollectionLaunchUrl({
+      source: {
+        type: SEARCH_PROFILE_SOURCE_TYPES.job5156,
+      },
+      location: '东莞',
+      keywords: ['CNC'],
+      maxPages: 2,
+    })
+
+    expect(seekUrl).toContain('jobId=90842915')
+    expect(seekUrl).toContain('tr_max_pages=2')
+    expect(job5156Url).toContain('hr.job5156.com/search')
+    expect(job5156Url).toContain('tr_max_pages=2')
   })
 })

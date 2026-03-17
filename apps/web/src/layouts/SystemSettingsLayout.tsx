@@ -2,18 +2,20 @@ import { useMemo } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PageHeader } from '@/components/PageHeader'
+import { useSystemMetadata } from '@/hooks/useSystemMetadata'
 import { cn } from '@/lib/utils'
-import { SYSTEM_SETTINGS_SUBPAGES } from '@/pages/system-settings/lib'
+import { resolveSystemSettingsSubpages } from '@/pages/system-settings/lib'
 
 export default function SystemSettingsLayout() {
   const { t } = useTranslation()
+  const metadata = useSystemMetadata()
 
   const navItems = useMemo(() => {
-    return SYSTEM_SETTINGS_SUBPAGES.map((item) => ({
+    return resolveSystemSettingsSubpages(metadata?.navigation.systemSettings).map((item) => ({
       ...item,
       title: t(item.titleKey, { defaultValue: item.defaultTitle }),
     }))
-  }, [t])
+  }, [metadata?.navigation.systemSettings, t])
 
   return (
     <div className="flex flex-col gap-6">

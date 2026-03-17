@@ -14,7 +14,10 @@ import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import {
   buildSeekCollectUrl,
+  getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
+  stripCollectionSourceExactUrl,
+  type CollectionSource,
 } from '@/lib/search-profile-sources'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
@@ -59,6 +62,7 @@ type QuickStartWorkflow = {
   label: string
   location: string
   keywords: string[]
+  collectionSource?: CollectionSource
   collectUrl?: string
 }
 
@@ -68,6 +72,7 @@ interface QuickStartPanelProps {
       location: string
       keywords: string[]
       jobDescriptionId?: string
+      collectionSource?: CollectionSource | null
       collectUrl?: string
       filters?: Partial<ResumeFilters>
     },
@@ -75,6 +80,7 @@ interface QuickStartPanelProps {
   ) => void
   defaultLocation?: string
   defaultKeywords?: string[]
+  defaultCollectionSource?: CollectionSource
   defaultCollectUrl?: string
   jobDescriptionId?: string
   onJobChange?: (value: string) => void
@@ -235,6 +241,9 @@ const QUICK_START_WORKFLOWS: QuickStartWorkflow[] = [
     label: 'SEEK · Sales Engineer / Sales Manager · Kuala Lumpur MY',
     location: MALAYSIA_SEEK_WORKFLOW_LOCATION,
     keywords: MALAYSIA_SEEK_WORKFLOW_KEYWORDS,
+    collectionSource: {
+      type: 'seek',
+    },
     collectUrl: buildSeekCollectUrl({
       location: MALAYSIA_SEEK_WORKFLOW_LOCATION,
       keywords: MALAYSIA_SEEK_WORKFLOW_KEYWORDS,
@@ -292,6 +301,7 @@ export function QuickStartPanel({
   onApplyConfig,
   defaultLocation = '广东',
   defaultKeywords = [],
+  defaultCollectionSource,
   defaultCollectUrl,
   jobDescriptionId = '',
   onJobChange,
@@ -308,6 +318,7 @@ export function QuickStartPanel({
   const [location, setLocation] = useState(defaultLocation)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
   const [customKeyword, setCustomKeyword] = useState(defaultKeywords.join(' '))
+  const [collectionSource, setCollectionSource] = useState<CollectionSource | undefined>(defaultCollectionSource)
   const [collectUrl, setCollectUrl] = useState(defaultCollectUrl)
   const [quickMinRoleYears, setQuickMinRoleYears] = useState(quickFilters?.minRoleYears?.toString() ?? '')
   const [quickMaxAge, setQuickMaxAge] = useState(quickFilters?.maxAge?.toString() ?? '')
@@ -347,6 +358,10 @@ export function QuickStartPanel({
   useEffect(() => {
     setCollectUrl(defaultCollectUrl)
   }, [defaultCollectUrl])
+
+  useEffect(() => {
+    setCollectionSource(defaultCollectionSource)
+  }, [defaultCollectionSource])
 
   useEffect(() => {
     const normalizedJobDescriptionId = jobDescriptionId.trim()
@@ -563,12 +578,13 @@ export function QuickStartPanel({
         location,
         keywords: normalizedKeywords,
         jobDescriptionId: effectiveJobDescriptionId,
+        collectionSource,
         collectUrl,
       })
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [collectUrl, location, normalizedKeywords, jobDescriptionId, onApplyConfig])
+  }, [collectUrl, collectionSource, location, normalizedKeywords, jobDescriptionId, onApplyConfig])
 
   useEffect(() => {
     if (!matchedProfileCollectUrl) {
@@ -581,11 +597,18 @@ export function QuickStartPanel({
       return
     }
 
+    const nextCollectionSource: CollectionSource = {
+      type: 'seek',
+      exactUrl: matchedProfileCollectUrl,
+    }
+
+    setCollectionSource(nextCollectionSource)
     setCollectUrl(matchedProfileCollectUrl)
     onApplyConfig?.({
       location,
       keywords: normalizedKeywords,
       jobDescriptionId: jobDescriptionId || undefined,
+      collectionSource: nextCollectionSource,
       collectUrl: matchedProfileCollectUrl,
     }, true)
   }, [collectUrl, generatedCollectUrl, jobDescriptionId, location, matchedProfileCollectUrl, normalizedKeywords, onApplyConfig])
@@ -627,6 +650,7 @@ export function QuickStartPanel({
   const handleKeywordsChange = useCallback((keywords: string[]) => {
     setSelectedKeywords(keywords)
     setCustomKeyword(keywords.join(' '))
+    setCollectionSource((current) => stripCollectionSourceExactUrl(current))
     setCollectUrl(undefined)
   }, [])
 
@@ -645,6 +669,7 @@ export function QuickStartPanel({
         nextParts.add(toggleLocation)
       }
 
+      setCollectionSource((current) => stripCollectionSourceExactUrl(current))
       setCollectUrl(undefined)
       setLocation(Array.from(nextParts).join(','))
     },
@@ -652,6 +677,7 @@ export function QuickStartPanel({
   )
 
   const handleJobChange = useCallback((value: string) => {
+    setCollectionSource((current) => stripCollectionSourceExactUrl(current))
     setCollectUrl(undefined)
     onJobChange?.(value)
   }, [onJobChange])
@@ -660,6 +686,7 @@ export function QuickStartPanel({
     setLocation(workflow.location)
     setSelectedKeywords(workflow.keywords)
     setCustomKeyword(workflow.keywords.join(' '))
+    setCollectionSource(workflow.collectionSource)
     setCollectUrl(workflow.collectUrl)
     onJobChange?.('')
   }, [onJobChange])
@@ -668,12 +695,14 @@ export function QuickStartPanel({
     const profileLocation = profile.location.trim()
     const profileKeywords = normalizeProfileKeywords(profile)
     const nextJobDescriptionId = profile.jobDescription?.trim() || ''
+    const nextCollectionSource = getSearchProfileCollectionSource(profile.sources)
     const nextCollectUrl = getSearchProfileCollectUrl(profile.sources)
     const quickConstraints = getProfileQuickConstraints(profile)
 
     setLocation(profileLocation)
     setSelectedKeywords(profileKeywords)
     setCustomKeyword(profileKeywords.join(' '))
+    setCollectionSource(nextCollectionSource)
     setCollectUrl(nextCollectUrl)
     setQuickMinRoleYears(
       typeof quickConstraints.minRoleYears === 'number' ? String(quickConstraints.minRoleYears) : ''
@@ -685,6 +714,7 @@ export function QuickStartPanel({
       location: profileLocation,
       keywords: profileKeywords,
       jobDescriptionId: nextJobDescriptionId || undefined,
+      collectionSource: nextCollectionSource,
       collectUrl: nextCollectUrl,
       filters: mapProfileFiltersToResumeFilters(profile.filters),
     }, true)
@@ -710,6 +740,7 @@ export function QuickStartPanel({
     minExperience?: number
     maxAge?: number
   }) => {
+    setCollectionSource((current) => stripCollectionSourceExactUrl(current))
     setCollectUrl(undefined)
     if (selectedConvexJobDescriptionProfile?.type === 'system') {
       onJobChange?.(newId)

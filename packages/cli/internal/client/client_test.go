@@ -11,12 +11,15 @@ import (
 )
 
 func TestNewNormalizesURLs(t *testing.T) {
-	c := New("http://api.local/", "http://worker.local///")
+	c := New("http://api.local/", "http://worker.local///", " hr ")
 	if c.APIURL != "http://api.local" {
 		t.Fatalf("expected normalized APIURL, got %q", c.APIURL)
 	}
 	if c.WorkerURL != "http://worker.local" {
 		t.Fatalf("expected normalized WorkerURL, got %q", c.WorkerURL)
+	}
+	if c.Workspace != "hr" {
+		t.Fatalf("expected normalized workspace, got %q", c.Workspace)
 	}
 }
 
@@ -28,11 +31,14 @@ func TestDoJSONSuccess(t *testing.T) {
 		if got := r.Header.Get("Content-Type"); got != "application/json" {
 			t.Fatalf("expected Content-Type application/json, got %q", got)
 		}
+		if got := r.Header.Get("X-Workspace-Slug"); got != "hr" {
+			t.Fatalf("expected workspace header hr, got %q", got)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "value": 42})
 	}))
 	defer server.Close()
 
-	c := New(server.URL, server.URL)
+	c := New(server.URL, server.URL, "hr")
 	c.HTTP = server.Client()
 
 	var target struct {
@@ -54,7 +60,7 @@ func TestDoJSONHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := New(server.URL, server.URL)
+	c := New(server.URL, server.URL, "dev")
 	c.HTTP = server.Client()
 
 	err := c.doJSON(context.Background(), http.MethodGet, server.URL, nil, nil)
@@ -72,7 +78,7 @@ func TestDoJSONInvalidJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := New(server.URL, server.URL)
+	c := New(server.URL, server.URL, "dev")
 	c.HTTP = server.Client()
 
 	var target map[string]any
@@ -92,7 +98,7 @@ func TestDoJSONTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := New(server.URL, server.URL)
+	c := New(server.URL, server.URL, "dev")
 	c.HTTP = server.Client()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
@@ -110,12 +116,15 @@ func TestDoJSONTimeout(t *testing.T) {
 
 func TestDoBinarySuccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-Workspace-Slug"); got != "hr" {
+			t.Fatalf("expected workspace header hr, got %q", got)
+		}
 		w.Header().Set("Content-Disposition", `attachment; filename="x.csv"`)
 		_, _ = w.Write([]byte("a,b\n1,2\n"))
 	}))
 	defer server.Close()
 
-	c := New(server.URL, server.URL)
+	c := New(server.URL, server.URL, "hr")
 	c.HTTP = server.Client()
 
 	payload, headers, err := c.doBinary(context.Background(), http.MethodPost, server.URL, map[string]string{"format": "csv"})

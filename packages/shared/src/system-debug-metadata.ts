@@ -286,6 +286,51 @@ export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
   },
 ];
 
+export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
+  {
+    id: "overview",
+    titleKey: "debugConfig.settingsNavOverview",
+    defaultTitle: "Overview",
+    hrefSuffix: "/system/settings",
+    matchesSuffixes: ["/system/settings"],
+  },
+  {
+    id: "operations",
+    titleKey: "debugConfig.settingsNavOperations",
+    defaultTitle: "Operations",
+    hrefSuffix: "/system/settings/operations",
+    matchesSuffixes: ["/system/settings/operations"],
+  },
+  {
+    id: "runtime",
+    titleKey: "debugConfig.settingsNavRuntime",
+    defaultTitle: "AI and agents",
+    hrefSuffix: "/system/settings/runtime",
+    matchesSuffixes: ["/system/settings/runtime"],
+  },
+  {
+    id: "config-sources",
+    titleKey: "debugConfig.settingsNavConfigSources",
+    defaultTitle: "Config sources",
+    hrefSuffix: "/system/settings/config-sources",
+    matchesSuffixes: ["/system/settings/config-sources"],
+  },
+  {
+    id: "keywords",
+    titleKey: "debugConfig.settingsNavKeywords",
+    defaultTitle: "Keywords",
+    hrefSuffix: "/system/settings/keywords",
+    matchesSuffixes: ["/system/settings/keywords"],
+  },
+  {
+    id: "locations",
+    titleKey: "debugConfig.settingsNavLocations",
+    defaultTitle: "Locations",
+    hrefSuffix: "/system/settings/locations",
+    matchesSuffixes: ["/system/settings/locations"],
+  },
+];
+
 export const DEBUG_PAGE_SECTION_DEFINITIONS: Array<{
   id: "all" | "inputs" | "findings" | "process" | "raw" | "industry" | "jobs" | "config" | "ai";
   titleKey: string;

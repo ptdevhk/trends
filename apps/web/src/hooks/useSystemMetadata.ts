@@ -1,19 +1,30 @@
 import { useEffect, useState } from 'react'
+import type { SurfaceNavDefinition } from '@trends/shared'
 import { withWorkspaceHeaders } from '@/lib/workspace-ref'
 
 type SystemMetadataIdentity = {
   appVersion: string
 }
 
-type SystemMetadataPayload = {
-  success: true
-  metadata: {
-    identity: SystemMetadataIdentity
-  }
+type SystemMetadataNavigation = {
+  system: SurfaceNavDefinition[]
+  settings: SurfaceNavDefinition[]
+  systemSettings: SurfaceNavDefinition[]
+  debugPage: SurfaceNavDefinition[]
 }
 
-export function useSystemMetadata(): SystemMetadataIdentity | null {
-  const [identity, setIdentity] = useState<SystemMetadataIdentity | null>(null)
+export type SystemMetadata = {
+  identity: SystemMetadataIdentity
+  navigation: SystemMetadataNavigation
+}
+
+type SystemMetadataPayload = {
+  success: true
+  metadata: SystemMetadata
+}
+
+export function useSystemMetadata(): SystemMetadata | null {
+  const [metadata, setMetadata] = useState<SystemMetadata | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -29,7 +40,7 @@ export function useSystemMetadata(): SystemMetadataIdentity | null {
       })
       .then((payload) => {
         if (!cancelled && payload.success) {
-          setIdentity(payload.metadata.identity)
+          setMetadata(payload.metadata)
         }
       })
       .catch((error) => {
@@ -41,5 +52,5 @@ export function useSystemMetadata(): SystemMetadataIdentity | null {
     }
   }, [])
 
-  return identity
+  return metadata
 }

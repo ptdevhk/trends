@@ -31,7 +31,7 @@ func TestListResumesBuildsQueryParams(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := New(server.URL, server.URL)
+	c := New(server.URL, server.URL, "dev")
 	c.HTTP = server.Client()
 
 	response, err := c.ListResumes(context.Background(), 25, "cnc 东莞")
@@ -49,7 +49,7 @@ func TestListResumesFailsWhenSuccessFalse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := New(server.URL, server.URL)
+	c := New(server.URL, server.URL, "dev")
 	c.HTTP = server.Client()
 
 	_, err := c.ListResumes(context.Background(), 0, "")
@@ -86,7 +86,7 @@ func TestExportResumesUsesBinaryEndpoint(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := New(server.URL, server.URL)
+	c := New(server.URL, server.URL, "dev")
 	c.HTTP = server.Client()
 
 	content, disposition, err := c.ExportResumes(context.Background(), ResumeExportRequest{
@@ -138,7 +138,7 @@ func TestListAndCreateJobDescriptions(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := New(server.URL, server.URL)
+	c := New(server.URL, server.URL, "dev")
 	c.HTTP = server.Client()
 
 	list, err := c.ListJobDescriptions(context.Background())

@@ -75,6 +75,11 @@ type SearchHistoryRecord = RecordWithId & {
   location: string
   keywords: string[]
   jobDescriptionId?: string
+  collectionSource?: {
+    type: 'job5156' | 'seek'
+    exactUrl?: string
+  }
+  collectUrl?: string
   filters?: Record<string, unknown>
   selectedTags?: string[]
   selectedCompanies?: string[]

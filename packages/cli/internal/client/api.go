@@ -144,9 +144,10 @@ type SystemMetadataResponse struct {
 	Metadata struct {
 		Identity   SystemMetadataIdentity `json:"identity"`
 		Navigation struct {
-			System    []SystemNavItem `json:"system"`
-			Settings  []SystemNavItem `json:"settings"`
-			DebugPage []SystemNavItem `json:"debugPage"`
+			System         []SystemNavItem `json:"system"`
+			Settings       []SystemNavItem `json:"settings"`
+			SystemSettings []SystemNavItem `json:"systemSettings"`
+			DebugPage      []SystemNavItem `json:"debugPage"`
 		} `json:"navigation"`
 		Labels struct {
 			AIBreakdown        []SystemLabelDescriptor `json:"aiBreakdown"`
