@@ -602,6 +602,8 @@ test.describe('Resume quick role filter', () => {
 
     await page.goto('/dev/resumes?location=Kuala+Lumpur+MY&keyword=Sales+Engineer+Manager')
     await expect(page.getByText('SEEK Malaysia Sales Engineer / Sales Manager')).toBeVisible()
+    await expect(page.getByRole('textbox', { name: '位置' })).toHaveValue('Kuala Lumpur MY')
+    await expect(page.getByPlaceholder('自定义关键词...')).toHaveValue('Sales Engineer Manager')
 
     await page.evaluate(() => {
       const openedUrls: string[] = []
@@ -624,5 +626,11 @@ test.describe('Resume quick role filter', () => {
     expect(collectUrl.searchParams.get('pageNumber')).toBe('1')
     expect(collectUrl.searchParams.get('tr_auto_sync')).toBe('true')
     expect(collectUrl.searchParams.get('keyword')).toBeNull()
+
+    await page.getByRole('link', { name: '趋势 Trends' }).click()
+
+    await expect(page).toHaveURL(/\/dev\/resumes$/)
+    await expect(page.getByRole('textbox', { name: '位置' })).toHaveValue('')
+    await expect(page.getByPlaceholder('自定义关键词...')).toHaveValue('')
   })
 })
