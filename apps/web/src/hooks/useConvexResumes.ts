@@ -643,22 +643,21 @@ export function useConvexResumes(limit: number = 200, query?: string, jobDescrip
       : normalizedQuery ? 'skip' : { limit, jobDescriptionId: normalizedJobDescriptionId }
   )
 
-  const mockSearchResults = normalizedQuery ? (mockPayload?.search?.results ?? []) : []
-  const mockListResults = !normalizedQuery ? (mockPayload?.list ?? []) : []
-
-  const mappedResumes = mockPayload
-    ? normalizedQuery
-      ? mockSearchResults.map((entry) => ({
-          ...mapResumeDoc(entry.resume),
-          _provenance: entry.provenance,
-        }))
-      : mockListResults.map(mapResumeDoc)
-    : normalizedQuery
-      ? (searchResults?.results ?? []).map((entry) => ({
-          ...mapResumeDoc(entry.resume),
-          _provenance: entry.provenance,
-        }))
-      : (listResults ?? []).map(mapResumeDoc)
+  const mappedResumes = useMemo(() => (
+    mockPayload
+      ? normalizedQuery
+        ? (mockPayload.search?.results ?? []).map((entry) => ({
+            ...mapResumeDoc(entry.resume),
+            _provenance: entry.provenance,
+          }))
+        : (mockPayload.list ?? []).map(mapResumeDoc)
+      : normalizedQuery
+        ? (searchResults?.results ?? []).map((entry) => ({
+            ...mapResumeDoc(entry.resume),
+            _provenance: entry.provenance,
+          }))
+        : (listResults ?? []).map(mapResumeDoc)
+  ), [listResults, mockPayload, normalizedQuery, searchResults])
 
   return {
     resumes: mappedResumes,
