@@ -12,7 +12,10 @@ Use this skill when the user asks to operate backend services from terminal comm
 ## Workflow
 
 1. Build the CLI when binaries are missing or stale: `make cli-build`.
-2. Install or refresh the skill when you want the packaged workflow available in Codex: `make install-skill SKILL=trends-cli`.
+2. Install or refresh the skill from this canonical repo copy when you want the packaged workflow available in Codex or other agent managers:
+   - `make install-skill SKILL=trends-cli`
+   - `make install-skill SKILL=trends-cli TARGET=agents`
+   - `make install-skill SKILL=trends-cli TARGET=all`
 3. Prefer CLI commands over ad-hoc curl scripts for supported operations.
 4. Use `--output json` when command output needs to be consumed by other tools.
 5. Use `trends mcp serve` when integration requires MCP tool exposure.
@@ -43,6 +46,7 @@ Use this skill when the user asks to operate backend services from terminal comm
 ## Rules
 
 - Run commands from repository root.
+- Keep `dev-docs/skills/trends-cli` as the only editable source; install into `~/.codex/skills` and/or `~/.agents/skills` from that source instead of maintaining duplicate copies.
 - Keep `--api-url` and `--worker-url` aligned with running services.
 - `trends resume match` remains the API-backed path; when `source=convex` and AI scoring is needed for debug, use `trends resume debug ai-score`.
 - `trends resume debug rescore` currently mirrors the backend restriction and is sample-only.
