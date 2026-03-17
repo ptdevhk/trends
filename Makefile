@@ -258,7 +258,7 @@ install-deps:
 	./scripts/install-deps.sh
 
 # Prefetch Convex local backend and dashboard assets into local cache
-# Honors CONVEX_MIRROR_MODE / CONVEX_MIRROR_BASES / timeout env knobs; see the script --help surface for details.
+# Honors CI-sensitive mirror defaults plus CONVEX_MIRROR_MODE / CONVEX_MIRROR_BASES / timeout / curl env knobs; see the script --help surface for full details.
 prefetch-convex:
 	./scripts/prefetch-convex-backend.sh
 
@@ -768,7 +768,7 @@ help:
 	@echo "               Install deps, prefetch Convex assets, and bootstrap governance skill targets"
 	@echo "               See ./scripts/install-deps.sh --help for skill target, CI behavior, and additional prefetch env knobs"
 	@echo "  prefetch-convex [CONVEX_MIRROR_MODE=off|fallback|mirror-first] Prefetch Convex local backend + dashboard assets"
-	@echo "                 See ./scripts/prefetch-convex-backend.sh --help for mirror bases, timeout, and curl env knobs"
+	@echo "                 See ./scripts/prefetch-convex-backend.sh --help for CI defaults, mirror bases, timeout, and curl env knobs"
 	@echo ""
 	@echo "CLI:"
 	@echo "  cli-build      Build Go CLI to bin/trends"
