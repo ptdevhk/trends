@@ -345,6 +345,79 @@ describe('QuickStartPanel quick-filter display', () => {
     })
   })
 
+  it('promotes the matched SEEK profile jobUrl into collectUrl before manual apply', async () => {
+    const onApplyConfig = vi.fn()
+
+    postMock.mockResolvedValue({
+      data: {
+        success: true,
+        profileId: 'seek-malaysia-sales',
+        confidence: 0.95,
+        matchedKeywords: ['Sales Engineer', 'Sales Manager'],
+      },
+    })
+    getMock.mockImplementation(async (path: string) => {
+      if (path.includes('/api/search-profiles/seek-malaysia-sales')) {
+        return {
+          data: {
+            success: true,
+            profile: {
+              id: 'seek-malaysia-sales',
+              name: 'SEEK Malaysia Sales Engineer / Sales Manager',
+              status: 'active' as const,
+              location: 'Kuala Lumpur MY',
+              keywords: ['Sales Engineer', 'Sales Manager'],
+              jobDescription: 'seek-malaysia-sales',
+              filters: {
+                minExperience: 2,
+                maxAge: 45,
+              },
+              sources: [
+                {
+                  type: 'seek',
+                  enabled: true,
+                  priority: 1,
+                  jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+                },
+              ],
+            },
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+          item: {
+            requiredRoles: [],
+          },
+        },
+      }
+    })
+
+    render(
+      <QuickStartPanel
+        defaultLocation="Kuala Lumpur MY"
+        defaultKeywords={['Sales Engineer', 'Sales Manager']}
+        jobDescriptionId=""
+        onApplyConfig={onApplyConfig}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('SEEK Malaysia Sales Engineer / Sales Manager')).toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(onApplyConfig).toHaveBeenLastCalledWith({
+        location: 'Kuala Lumpur MY',
+        keywords: ['Sales Engineer', 'Sales Manager'],
+        jobDescriptionId: undefined,
+        collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+      })
+    })
+  })
+
   it('applies the SEEK Malaysia workflow preset without splitting the location', async () => {
     const user = userEvent.setup()
     const onApplyConfig = vi.fn()
