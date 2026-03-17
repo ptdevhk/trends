@@ -13,6 +13,14 @@ resolve_convex_mirror_mode() {
     echo "fallback"
 }
 
+resolve_skill_install_target() {
+    if [ -n "${SKILL_INSTALL_TARGET:-}" ]; then
+        echo "${SKILL_INSTALL_TARGET}"
+        return
+    fi
+    echo "codex"
+}
+
 echo "Installing Python dependencies..."
 uv sync
 
@@ -35,9 +43,10 @@ if [ -d "packages/convex" ]; then
     "$SCRIPT_DIR/prefetch-convex-backend.sh" || echo "Warning: Convex prefetch failed (non-fatal)"
 fi
 
-# Sync agent governance artifacts (policy mirror + Codex skill install)
+# Sync agent governance artifacts (policy mirror + target-aware skill install)
 if [ "${CI:-}" != "true" ]; then
-    echo "Syncing agent governance artifacts..."
+    EFFECTIVE_SKILL_INSTALL_TARGET="$(resolve_skill_install_target)"
+    echo "Syncing agent governance artifacts (skill target: ${EFFECTIVE_SKILL_INSTALL_TARGET})..."
     _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if command -v bun > /dev/null 2>&1; then
         bunx tsx "$_SCRIPT_DIR/agent-governance/sync-policy.ts" || echo "Warning: Agent policy sync failed (non-fatal)"
@@ -45,7 +54,7 @@ if [ "${CI:-}" != "true" ]; then
         npx tsx "$_SCRIPT_DIR/agent-governance/sync-policy.ts" || echo "Warning: Agent policy sync failed (non-fatal)"
     fi
     if [ -x "$_SCRIPT_DIR/skills/install-skill.sh" ]; then
-        "$_SCRIPT_DIR/skills/install-skill.sh" --skill trends-agent-governance || echo "Warning: Agent skill install failed (non-fatal)"
+        "$_SCRIPT_DIR/skills/install-skill.sh" --skill trends-agent-governance --target "$EFFECTIVE_SKILL_INSTALL_TARGET" || echo "Warning: Agent skill install failed (non-fatal)"
     elif [ -x "$_SCRIPT_DIR/agent-governance/install-skill.sh" ]; then
         "$_SCRIPT_DIR/agent-governance/install-skill.sh" || echo "Warning: Agent skill install failed (non-fatal)"
     else
