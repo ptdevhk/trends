@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
+import { isValidWorkspace } from '@trends/shared'
 import { AlertTriangle } from 'lucide-react'
 
 interface Props {
@@ -35,7 +36,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 ? window.location.pathname.match(/^\/([^/]+)/)
                 : null
             const workspaceSlug = workspaceMatch?.[1]
-            const homeHref = workspaceSlug === 'dev' || workspaceSlug === 'hr'
+            const homeHref = workspaceSlug && isValidWorkspace(workspaceSlug)
                 ? `/${workspaceSlug}/resumes`
                 : '/dev/resumes'
 
