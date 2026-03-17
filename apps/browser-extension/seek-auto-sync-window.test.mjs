@@ -59,6 +59,26 @@ test('respects the current start page for exact seek job urls', () => {
   assert.equal(pageWindow.allowedPageCount, 2);
 });
 
+test('keeps a non-first-page exact seek url on the same page when a small limit fits within one page', () => {
+  const pageWindow = helpers.resolveSeekAutoSyncPageWindow({
+    startPage: 3,
+    limit: 5,
+    maxPages: 10,
+    requestedPageSize: 20,
+  });
+  const selection = helpers.resolveSeekAutoSyncCurrentPageSelection({
+    limit: 5,
+    totalSubmitted: 0,
+    currentPageResumeCount: 20,
+  });
+
+  assert.equal(pageWindow.startPage, 3);
+  assert.equal(pageWindow.targetPageEnd, 3);
+  assert.equal(pageWindow.allowedPageCount, 1);
+  assert.equal(selection.selectedCount, 5);
+  assert.equal(selection.hitLimitWithinPage, true);
+});
+
 test('falls back to the current candidate count when seek request size is unavailable', () => {
   const pageWindow = helpers.resolveSeekAutoSyncPageWindow({
     startPage: 1,
