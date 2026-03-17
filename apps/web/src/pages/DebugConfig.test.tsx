@@ -1,11 +1,22 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
 import DebugConfig from './DebugConfig'
+import { SystemSettingsConfigSourcesPage } from './system-settings/SystemSettingsConfigSourcesPage'
+import { SystemSettingsKeywordsPage } from './system-settings/SystemSettingsKeywordsPage'
+import { SystemSettingsLocationsPage } from './system-settings/SystemSettingsLocationsPage'
 
 const resetMutation = vi.fn(async () => ({ count: 0, cleared: 0 }))
-const dispatchMutation = vi.fn(async () => ({ scheduled: 0 }))
-const useMutationMock = vi.fn()
+
+function jsonResponse(data: unknown) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => data,
+  }
+}
+
 const tMock = (key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
   if (typeof options === 'string') {
     return options
@@ -14,30 +25,13 @@ const tMock = (key: string, options?: string | { defaultValue?: string; [key: st
 }
 
 vi.mock('convex/react', () => ({
-  useQuery: () => ({
-    activeWorkers: 1,
-    total: 5,
-    processing: 1,
-    pending: 2,
-    completed: 2,
-    failed: 0,
-    cancelled: 0,
-  }),
-  useMutation: () => useMutationMock(),
+  useMutation: () => resetMutation,
 }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: tMock,
   }),
-}))
-
-vi.mock('@/components/TaskMonitor', () => ({
-  TaskMonitor: () => <div data-testid="task-monitor" />,
-}))
-
-vi.mock('@/components/SchedulerStatus', () => ({
-  SchedulerStatus: () => <div data-testid="scheduler-status" />,
 }))
 
 vi.mock('sonner', () => ({
@@ -47,237 +41,194 @@ vi.mock('sonner', () => ({
   },
 }))
 
-describe('DebugConfig config sources', () => {
+function renderSettingsRoute(initialEntry: string) {
+  return render(
+    <MemoryRouter
+      initialEntries={[initialEntry]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
+      <Routes>
+        <Route path="/:teamSlug/system/settings" element={<SystemSettingsLayout />}>
+          <Route index element={<DebugConfig />} />
+          <Route path="config-sources" element={<SystemSettingsConfigSourcesPage />} />
+          <Route path="keywords" element={<SystemSettingsKeywordsPage />} />
+          <Route path="locations" element={<SystemSettingsLocationsPage />} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+describe('System settings routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    useMutationMock.mockReset()
-    useMutationMock.mockReturnValueOnce(dispatchMutation).mockReturnValueOnce(resetMutation)
 
-    vi.stubGlobal = vi.stubGlobal ?? ((name: string, value: unknown) => {
-      ;(globalThis as Record<string, unknown>)[name] = value
-      return value
-    })
-
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
 
-      if (url.endsWith('/api/config/ai-status')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            success: true,
-            enabled: true,
-            model: 'claude-opus-4-6',
-            temperature: 0,
-            maxTokens: 4096,
-            timeout: 30000,
-            apiKeyMasked: 'sk-***',
-            valid: true,
-          }),
-        }
-      }
-
-      if (url.endsWith('/api/config/agents')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            success: true,
-            config: {
-              agents: {
-                list: [
-                  {
-                    id: 'screen',
-                    name: 'Screen',
-                    model: 'claude-opus-4-6',
-                    config: {},
-                  },
-                ],
-                defaults: {
-                  screen: {},
-                },
-              },
+      if (url.endsWith('/api/config/custom-keywords') && !init?.method) {
+        return jsonResponse({
+          success: true,
+          tags: [
+            {
+              id: 'fanuc',
+              keyword: 'FANUC',
+              english: 'FANUC',
+              category: 'brand',
             },
-          }),
-        }
-      }
-
-      if (url.endsWith('/api/config/custom-keywords')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            success: true,
-            tags: [],
-            categories: [],
-            systemLocations: [],
-          }),
-        }
+          ],
+          categories: [
+            {
+              id: 'brand',
+              name: 'Brand',
+            },
+          ],
+          systemLocations: [
+            {
+              id: 'gd',
+              keyword: '广东',
+              level: 'province',
+              visible: true,
+            },
+            {
+              id: 'dg',
+              keyword: '东莞',
+              level: 'city',
+              parentKeyword: '广东',
+              visible: false,
+            },
+          ],
+        })
       }
 
       if (url.endsWith('/api/industry/brands')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            success: true,
-            data: [],
-          }),
-        }
+        return jsonResponse({
+          success: true,
+          data: [
+            {
+              id: 1,
+              nameCn: '马扎克',
+              nameEn: 'Mazak',
+              type: 'machine',
+              origin: 'brands.json',
+            },
+          ],
+        })
       }
 
       if (url.endsWith('/api/config/source-groups')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            success: true,
-            groups: [
-              {
-                key: 'prompt',
-                label: 'Prompt Sources',
-                description: 'Shared prompt definitions and locale-aware prompt assets.',
-                audience: 'developer',
-                sources: [
-                  {
-                    key: 'resume-ai-prompts-active',
-                    label: 'Resume AI prompts (active locale)',
-                    relativePath: 'config/resume/ai-prompts.md',
-                    type: 'markdown',
-                    group: 'prompt',
-                    audience: 'developer',
-                    readOnly: true,
-                    metadata: {
-                      version: 4,
-                      requestedLocale: 'en',
-                      resolvedSourceLocale: 'zh-Hans',
-                      fallbackToZhHans: true,
-                    },
+        return jsonResponse({
+          success: true,
+          groups: [
+            {
+              key: 'prompt',
+              label: 'Prompt Sources',
+              description: 'Shared prompt definitions and locale-aware prompt assets.',
+              audience: 'developer',
+              sources: [
+                {
+                  key: 'resume-ai-prompts-active',
+                  label: 'Resume AI prompts (active locale)',
+                  relativePath: 'config/resume/ai-prompts.md',
+                  type: 'markdown',
+                  group: 'prompt',
+                  audience: 'developer',
+                  readOnly: true,
+                  metadata: {
+                    version: 4,
+                    requestedLocale: 'en',
+                    resolvedSourceLocale: 'zh-Hans',
+                    fallbackToZhHans: true,
                   },
-                ],
-              },
-              {
-                key: 'config',
-                label: 'Config Sources',
-                description: 'Runtime configuration and rules exposed to debug surfaces.',
-                audience: 'admin',
-                sources: [
-                  {
-                    key: 'resume-rule-weights',
-                    label: 'Resume rule weights',
-                    relativePath: 'config/resume/rule-weights.json5',
-                    type: 'json5',
-                    group: 'config',
-                    audience: 'admin',
-                    readOnly: true,
-                  },
-                ],
-              },
-            ],
-          }),
-        }
+                },
+              ],
+            },
+          ],
+        })
       }
 
       if (url.endsWith('/api/config/sources/resume-ai-prompts-active')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            success: true,
-            source: {
-              key: 'resume-ai-prompts-active',
-              label: 'Resume AI prompts (active locale)',
-              relativePath: 'config/resume/ai-prompts.md',
-              type: 'markdown',
-              group: 'prompt',
-              audience: 'developer',
-              readOnly: true,
-              metadata: {
-                version: 4,
-                updatedAt: '2026-03-10',
-                description: 'Canonical resume AI prompt source',
-                locale: 'en',
-                requestedLocale: 'en',
-                resolvedSourceLocale: 'zh-Hans',
-                fallbackToZhHans: true,
-              },
-              rawSource: '## System Prompt\n- Focus on evidence',
-              parsedPreview: {
-                sections: [
-                  {
-                    heading: 'System Prompt',
-                    lineCount: 1,
-                    subsectionHeadings: [],
-                  },
-                ],
-              },
+        return jsonResponse({
+          success: true,
+          source: {
+            key: 'resume-ai-prompts-active',
+            label: 'Resume AI prompts (active locale)',
+            relativePath: 'config/resume/ai-prompts.md',
+            type: 'markdown',
+            group: 'prompt',
+            audience: 'developer',
+            readOnly: true,
+            metadata: {
+              version: 4,
+              updatedAt: '2026-03-10',
+              description: 'Canonical resume AI prompt source',
+              locale: 'en',
+              requestedLocale: 'en',
+              resolvedSourceLocale: 'zh-Hans',
+              fallbackToZhHans: true,
             },
-          }),
-        }
+            rawSource: '## System Prompt\n- Focus on evidence',
+            parsedPreview: {
+              sections: [
+                {
+                  heading: 'System Prompt',
+                  lineCount: 1,
+                  subsectionHeadings: [],
+                },
+              ],
+            },
+          },
+        })
       }
 
-      if (url.endsWith('/api/config/sources/resume-rule-weights')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            success: true,
-            source: {
-              key: 'resume-rule-weights',
-              label: 'Resume rule weights',
-              relativePath: 'config/resume/rule-weights.json5',
-              type: 'json5',
-              group: 'config',
-              audience: 'admin',
-              readOnly: true,
-              rawSource: '{ roleMatch: 50 }',
-              parsedPreview: {
-                roleMatch: 50,
-              },
-            },
-          }),
-        }
+      if (url.endsWith('/api/config/custom-keywords/system-locations/dg') && init?.method === 'PUT') {
+        return jsonResponse({ success: true })
       }
 
       throw new Error(`Unhandled fetch: ${url}`)
     }))
   })
 
-  it('shows config sources and loads selected detail', async () => {
-    const user = userEvent.setup()
+  it('renders the overview hub with local settings navigation', () => {
+    renderSettingsRoute('/dev/system/settings')
 
-    render(<DebugConfig />)
+    expect(screen.getByText('Settings overview')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Open each system settings area in its own page.' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Operations' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'AI and agents' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Locations' })).toBeInTheDocument()
+  })
 
-    await waitFor(() => {
-      expect(screen.getByText('debugConfig.configSources')).toBeInTheDocument()
-    })
+  it('loads config-source details on the config sources route', async () => {
+    renderSettingsRoute('/dev/system/settings/config-sources')
 
-    expect(screen.getByText('Jump to section')).toBeInTheDocument()
-    expect(screen.getAllByText('Operations').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('AI and agents').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Rules and data').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Danger zone').length).toBeGreaterThan(0)
-    expect(screen.getByText('System settings overview')).toBeInTheDocument()
-
-    expect(screen.getByText('Prompt Sources')).toBeInTheDocument()
-    expect(screen.getByText('Config Sources')).toBeInTheDocument()
-    expect(screen.getAllByText('Resume AI prompts (active locale)').length).toBeGreaterThan(0)
+    expect(await screen.findByText('Canonical resume AI prompt source')).toBeInTheDocument()
     expect(screen.getAllByText('config/resume/ai-prompts.md').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('debugConfig.readOnly').length).toBeGreaterThan(0)
+  })
+
+  it('renders the dedicated locations page without keyword or config source sections', async () => {
+    renderSettingsRoute('/dev/system/settings/locations')
 
     await waitFor(() => {
-      expect(screen.getByText('debugConfig.configSourceRaw')).toBeInTheDocument()
-      expect(screen.getByText('debugConfig.configSourceParsedPreview')).toBeInTheDocument()
-      expect(screen.getByText('debugConfig.configSourceFallbackEnabled')).toBeInTheDocument()
-      expect(screen.getByText(/Focus on evidence/i)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'System location config' })).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: /Resume rule weights/i }))
+    expect(screen.getByText('Backed by Job5156 location data with per-chip visibility controls.')).toBeInTheDocument()
+    expect(screen.getAllByText('广东').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('heading', { name: 'debugConfig.configSources' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'debugConfig.customKeywords' })).not.toBeInTheDocument()
+  })
+
+  it('renders the keywords route with editable and derived keyword data', async () => {
+    renderSettingsRoute('/dev/system/settings/keywords')
 
     await waitFor(() => {
-      expect(screen.getAllByText('Resume rule weights').length).toBeGreaterThan(0)
-      expect(screen.getByText('{ roleMatch: 50 }')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Keywords' })).toBeInTheDocument()
     })
+
+    expect(screen.getAllByText('FANUC').length).toBeGreaterThan(0)
+    expect(screen.getByText('Mazak')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add Keyword' })).toBeInTheDocument()
   })
 })
