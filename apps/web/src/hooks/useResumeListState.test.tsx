@@ -1,7 +1,8 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConvexIngestData, ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
+import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { useResumeListState } from './useResumeListState'
 
 let submittedFormAction = ''
@@ -50,6 +51,11 @@ const mockState = vi.hoisted(() => ({
   urlHasParams: false,
   urlHasKeywordParam: false,
   urlHasJobDescriptionParam: false,
+  locationPathname: '/dev/resumes',
+  locationSearch: '',
+  locationHash: '',
+  locationState: null as unknown,
+  navigate: vi.fn(),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -65,13 +71,13 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('react-router-dom', () => ({
   useLocation: () => ({
-    pathname: '/dev/resumes',
-    search: '',
-    hash: '',
-    state: null,
+    pathname: mockState.locationPathname,
+    search: mockState.locationSearch,
+    hash: mockState.locationHash,
+    state: mockState.locationState,
     key: 'test',
   }),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockState.navigate,
 }))
 
 vi.mock('convex/react', () => ({
@@ -306,6 +312,10 @@ describe('useResumeListState role filter regression', () => {
     mockState.urlHasParams = false
     mockState.urlHasKeywordParam = false
     mockState.urlHasJobDescriptionParam = false
+    mockState.locationPathname = '/dev/resumes'
+    mockState.locationSearch = ''
+    mockState.locationHash = ''
+    mockState.locationState = null
 
     // Real resume data from Convex (fetched via scripts/fetch-score-cases.ts)
     //
@@ -989,6 +999,34 @@ describe('useResumeListState role filter regression', () => {
     expect(filterUpdater({})).toMatchObject({
       locations: ['Kuala Lumpur MY'],
     })
+  })
+
+  it('clears query state when navigation requests a resume home reset', async () => {
+    mockState.locationSearch = '?location=Kuala+Lumpur+MY&keyword=Sales+Engineer+Manager'
+    mockState.locationState = RESUME_HOME_RESET_STATE
+
+    renderHook(() => useResumeListState())
+
+    await waitFor(() => {
+      expect(mockState.applyExternalState).toHaveBeenCalledWith({
+        location: '',
+        keywords: [],
+        jobDescriptionId: '',
+        filters: {},
+      })
+    })
+
+    expect(mockState.navigate).toHaveBeenCalledWith(
+      {
+        pathname: '/dev/resumes',
+        search: '',
+        hash: '',
+      },
+      {
+        replace: true,
+        state: null,
+      }
+    )
   })
 
   it('filters by selectedCompanies — only verified companyHits', () => {
