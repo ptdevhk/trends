@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from 'convex/react'
 import { isLocationMatch } from '@trends/shared'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
@@ -19,6 +20,7 @@ import {
 } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { components } from '@/lib/api-types'
+import { isResumeHomeResetState } from '@/lib/resume-home-navigation'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import {
   aiFeedbackToActionType,
@@ -360,6 +362,8 @@ function matchesEducationFilter(educationValue: string | undefined, selectedEduc
 
 export function useResumeListState(loadSearchHistory = false) {
   const { t } = useTranslation()
+  const location = useLocation()
+  const navigate = useNavigate()
   const {
     location: sessionLocation,
     setLocation: setSessionLocation,
@@ -1141,16 +1145,45 @@ export function useResumeListState(loadSearchHistory = false) {
     )
   }, [displayedResumes])
 
-  const handleResetAll = useCallback(() => {
+  const resetResumeSearchState = useCallback(() => {
     setAppliedSearchHistoryId(undefined)
-    setSessionLocation('')
-    setSessionKeywords([])
-    setJobDescriptionId('')
-    setFilters({})
+    applyExternalState({
+      location: '',
+      keywords: [],
+      jobDescriptionId: '',
+      filters: {},
+    })
     setSelectedTags([])
     setSelectedCompanies([])
     setSelectedExperienceLevel(undefined)
-  }, [setSessionLocation, setSessionKeywords, setJobDescriptionId, setFilters, setSelectedTags, setSelectedCompanies, setSelectedExperienceLevel])
+  }, [applyExternalState])
+
+  useEffect(() => {
+    if (!isResumeHomeResetState(location.state)) {
+      return
+    }
+
+    skipNextUrlSyncRef.current = true
+    isUrlPushingRef.current = false
+    hasInitializedUrlHydrationRef.current = true
+    lastAppliedUrlStateRef.current = null
+    setHasCompletedUrlHydration(true)
+    resetResumeSearchState()
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: '',
+        hash: location.hash,
+      },
+      {
+        replace: true,
+        state: null,
+      }
+    )
+  }, [location.hash, location.pathname, location.state, navigate, resetResumeSearchState])
+
+  const handleResetAll = resetResumeSearchState
 
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set())

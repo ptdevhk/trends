@@ -4,6 +4,7 @@ import { TrendingUp } from 'lucide-react'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { cn } from '@/lib/utils'
 
 interface HeaderProps {
@@ -22,7 +23,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
       <div className="container flex h-14 items-center justify-between gap-4">
         <div className="flex items-center gap-3 sm:gap-6">
           {leftAction}
-          <Link to={resumesPath} className="flex items-center gap-2">
+          <Link to={resumesPath} state={RESUME_HOME_RESET_STATE} className="flex items-center gap-2">
             <TrendingUp className="h-6 w-6 text-primary" />
             <div className="flex items-baseline gap-1">
               <span className="font-bold text-lg">{t('app.title')}</span>
@@ -32,6 +33,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
           <nav className="hidden items-center gap-4 text-sm sm:flex">
             <NavLink
               to={resumesPath}
+              state={RESUME_HOME_RESET_STATE}
               className={({ isActive }) =>
                 cn(
                   'transition-colors hover:text-foreground',
@@ -75,6 +77,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
           <nav className="flex items-center gap-3 text-sm sm:hidden">
             <NavLink
               to={resumesPath}
+              state={RESUME_HOME_RESET_STATE}
               className={({ isActive }) =>
                 cn(
                   'transition-colors hover:text-foreground',

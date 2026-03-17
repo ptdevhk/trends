@@ -116,6 +116,53 @@ async function mockResumePageApis(
     })
   })
 
+  await page.route('**/api/industry/keywords**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: [],
+      }),
+    })
+  })
+
+  await page.route('**/api/config/custom-keywords**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        tags: [],
+        systemLocations: [],
+      }),
+    })
+  })
+
+  await page.route('**/api/industry/brands**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: [],
+      }),
+    })
+  })
+
+  await page.route('**/api/industry/brand-display-map**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        haas: {
+          displayName: 'Haas',
+          zhHans: '哈斯',
+        },
+      }),
+    })
+  })
+
   await page.route('**/api/search-profiles/auto-match', async (route) => {
     await route.fulfill({
       status: 200,
@@ -323,6 +370,33 @@ const salesResume: MockResume = {
 }
 
 test.describe('Resume quick role filter', () => {
+  test('home navigation clears search state while direct links and legacy redirects still hydrate', async ({ page }) => {
+    await mockResumePageApis(page, {
+      searchResumes: [engineerResume, salesResume],
+    })
+
+    await page.goto('/resumes?location=%E4%B8%9C%E8%8E%9E&keyword=CNC+%E8%BD%A6%E5%BA%8A+%E9%94%80%E5%94%AE+STAR')
+
+    const locationInput = page.getByRole('textbox', { name: '位置' })
+    const keywordInput = page.getByPlaceholder('自定义关键词...')
+
+    await expect(page).toHaveURL(/\/dev\/resumes\?location=.*keyword=/)
+    await expect(locationInput).toHaveValue('东莞')
+    await expect(keywordInput).toHaveValue('CNC 车床 销售 STAR')
+
+    await page.getByRole('link', { name: '趋势 Trends' }).click()
+
+    await expect(page).toHaveURL(/\/dev\/resumes$/)
+    await expect(locationInput).toHaveValue('')
+    await expect(keywordInput).toHaveValue('')
+
+    await page.goBack()
+
+    await expect(page).toHaveURL(/\/dev\/resumes\?location=.*keyword=/)
+    await expect(locationInput).toHaveValue('东莞')
+    await expect(keywordInput).toHaveValue('CNC 车床 销售 STAR')
+  })
+
   test('engineer role filter keeps only engineer-tagged resumes', async ({ page }) => {
     await mockResumePageApis(page, {
       listResumes: [engineerResume, salesResume],
@@ -355,7 +429,7 @@ test.describe('Resume quick role filter', () => {
     await expect(cards.first().getByText('machinery')).toBeVisible()
     await expect(cards.first().getByText('sales')).toBeVisible()
     await expect(page.getByText('工程4年(行业验证)')).toBeVisible()
-    await expect(page.getByText(/哈斯 · project/i)).toBeVisible()
+    await expect(cards.first().getByText('哈斯')).toHaveCount(2)
     await expect(page.getByText(/东莞某设备公司.*销售工程师/)).toBeVisible()
 
     await page.getByRole('button', { name: '查看' }).first().click()
@@ -375,4 +449,3 @@ test.describe('Resume quick role filter', () => {
     await expect(page.getByText('王女士')).toHaveCount(0)
   })
 })
-

@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useSystemMetadata } from '@/hooks/useSystemMetadata'
+import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
 
@@ -65,7 +66,7 @@ export function SystemSidebar({ onClose }: SystemSidebarProps) {
     <div className="flex flex-col h-full bg-muted/30">
       <div className="flex-1 overflow-y-auto py-4">
         <div className="px-5 mb-6 flex items-center justify-between">
-          <Link to={`/${slug}/resumes`} className="flex items-center gap-2">
+          <Link to={`/${slug}/resumes`} state={RESUME_HOME_RESET_STATE} className="flex items-center gap-2">
             <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded font-medium">
               {APP_SURFACE_IDENTITY.adminBadgeLabel}
             </span>
@@ -86,6 +87,7 @@ export function SystemSidebar({ onClose }: SystemSidebarProps) {
               <Link
                 key={item.href}
                 to={item.href}
+                state={item.id === 'home' ? RESUME_HOME_RESET_STATE : undefined}
                 onClick={onClose}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors',
