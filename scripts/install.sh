@@ -1445,6 +1445,7 @@ print_usage() {
     echo "  SEED_RESUMES           Seed demo resumes during install/upgrade when truthy"
     echo "  ALLOW_NODE_DOWNGRADE   Permit downgrading a newer Node.js to the required v22"
     echo "  CONVEX_MIRROR_MODE     Convex prefetch source order: off|fallback|mirror-first"
+    echo "                         Default is fallback, or off when CI=true"
     echo "  CONVEX_MIRROR_BASES    Convex prefetch mirror base URLs (comma-separated)"
     echo "  CONVEX_DOWNLOAD_TIMEOUT_SECS / CONVEX_CONNECT_TIMEOUT_SECS"
     echo "                         Convex prefetch timeout overrides"
