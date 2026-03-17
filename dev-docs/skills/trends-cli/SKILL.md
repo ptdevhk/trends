@@ -14,6 +14,8 @@ Use this skill when the user asks to operate backend services from terminal comm
 1. Bootstrap local dependencies and default governance skill setup when the environment may be stale:
    - `make install-deps`
    - `SKILL_INSTALL_TARGET=all make install-deps`
+   - `CONVEX_MIRROR_MODE=mirror-first make install-deps`
+   - `make prefetch-convex`
 2. Build the CLI when binaries are missing or stale: `make cli-build`.
 3. Install or refresh the skill from this canonical repo copy when you want the packaged workflow available in Codex or other agent managers:
    - `make install-skill SKILL=trends-cli`
@@ -50,6 +52,7 @@ Use this skill when the user asks to operate backend services from terminal comm
 
 - Run commands from repository root.
 - `make install-deps` bootstraps the governance skill by default into `~/.codex/skills`; use `SKILL_INSTALL_TARGET=all make install-deps` when local setup should also refresh `~/.agents/skills`.
+- `CONVEX_MIRROR_MODE=mirror-first make install-deps` is the repo-level bootstrap path when Convex asset prefetch should try configured mirrors before GitHub, and `make prefetch-convex` is the focused prefetch-only escape hatch. Use `./scripts/install-deps.sh --help` or `./scripts/prefetch-convex-backend.sh --help` when mirror-base, timeout, or curl verbosity knobs matter.
 - Keep `dev-docs/skills/trends-cli` as the only editable source; install into `~/.codex/skills` and/or `~/.agents/skills` from that source instead of maintaining duplicate copies. `CODEX_HOME` and `AGENTS_HOME` can override those roots when needed.
 - Keep `--api-url` and `--worker-url` aligned with running services.
 - `trends resume match` remains the API-backed path; when `source=convex` and AI scoring is needed for debug, use `trends resume debug ai-score`.
