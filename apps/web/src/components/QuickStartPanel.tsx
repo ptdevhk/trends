@@ -12,7 +12,10 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
-import { buildSeekCollectUrl, getSearchProfileCollectUrl } from '@/lib/search-profile-sources'
+import {
+  buildSeekCollectUrl,
+  getSearchProfileCollectUrl,
+} from '@/lib/search-profile-sources'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
 const AUTO_MATCH_MIN_CONFIDENCE = 0.3
@@ -473,6 +476,14 @@ export function QuickStartPanel({
     () => selectedKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
     [selectedKeywords]
   )
+  const generatedCollectUrl = useMemo(
+    () => buildSeekCollectUrl({ location, keywords: normalizedKeywords }) ?? undefined,
+    [location, normalizedKeywords]
+  )
+  const matchedProfileCollectUrl = useMemo(
+    () => getSearchProfileCollectUrl(autoMatchResult?.profile.sources),
+    [autoMatchResult]
+  )
   const selectedConvexJobDescriptionProfile = useMemo(() => {
     if (!selectedConvexJobDescription || !selectedConvexJobDescriptionDetail) {
       return undefined
@@ -558,6 +569,26 @@ export function QuickStartPanel({
 
     return () => clearTimeout(timer)
   }, [collectUrl, location, normalizedKeywords, jobDescriptionId, onApplyConfig])
+
+  useEffect(() => {
+    if (!matchedProfileCollectUrl) {
+      return
+    }
+    const normalizedCurrent = collectUrl?.trim()
+    const shouldPromoteMatchedProfileUrl = !normalizedCurrent || normalizedCurrent === generatedCollectUrl
+
+    if (!shouldPromoteMatchedProfileUrl || normalizedCurrent === matchedProfileCollectUrl) {
+      return
+    }
+
+    setCollectUrl(matchedProfileCollectUrl)
+    onApplyConfig?.({
+      location,
+      keywords: normalizedKeywords,
+      jobDescriptionId: jobDescriptionId || undefined,
+      collectUrl: matchedProfileCollectUrl,
+    }, true)
+  }, [collectUrl, generatedCollectUrl, jobDescriptionId, location, matchedProfileCollectUrl, normalizedKeywords, onApplyConfig])
 
   useEffect(() => {
     if (normalizedKeywords.length === 0) {

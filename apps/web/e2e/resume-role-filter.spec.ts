@@ -507,7 +507,7 @@ test.describe('Resume quick role filter', () => {
                 type: 'seek',
                 enabled: true,
                 priority: 1,
-                jobUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=Sales%20Engineer%20Sales%20Manager&location=Kuala%20Lumpur%20MY',
+                jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
               },
             ],
           },
@@ -546,8 +546,83 @@ test.describe('Resume quick role filter', () => {
 
     const openedUrl = await page.evaluate(() => (window as Window & { __trOpenedUrls?: string[] }).__trOpenedUrls?.[0] ?? '')
     const collectUrl = new URL(openedUrl)
-    expect(collectUrl.searchParams.get('location')).toBe('Kuala Lumpur MY')
-    expect(collectUrl.searchParams.get('keyword')).toBe('Sales Engineer Sales Manager')
+    expect(collectUrl.searchParams.get('jobId')).toBe('90842915')
+    expect(collectUrl.searchParams.get('pageNumber')).toBe('1')
     expect(collectUrl.searchParams.get('tr_auto_sync')).toBe('true')
+  })
+
+  test('SEEK auto-match prefers the profile jobUrl for collect on raw query pages', async ({ page }) => {
+    await mockResumePageApis(page, {
+      searchResumes: [],
+    })
+
+    await page.route('**/api/search-profiles/auto-match', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          profileId: 'seek-malaysia-sales',
+          confidence: 0.95,
+          matchedKeywords: ['Sales Engineer', 'Sales Manager'],
+        }),
+      })
+    })
+
+    await page.route('**/api/search-profiles/seek-malaysia-sales', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          profile: {
+            id: 'seek-malaysia-sales',
+            name: 'SEEK Malaysia Sales Engineer / Sales Manager',
+            status: 'active',
+            location: 'Kuala Lumpur MY',
+            keywords: ['Sales Engineer', 'Sales Manager'],
+            jobDescription: 'seek-malaysia-sales',
+            filters: {
+              minExperience: 2,
+              maxAge: 45,
+              locations: ['Kuala Lumpur MY'],
+            },
+            sources: [
+              {
+                type: 'seek',
+                enabled: true,
+                priority: 1,
+                jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+              },
+            ],
+          },
+        }),
+      })
+    })
+
+    await page.goto('/dev/resumes?location=Kuala+Lumpur+MY&keyword=Sales+Engineer+Manager')
+    await expect(page.getByText('SEEK Malaysia Sales Engineer / Sales Manager')).toBeVisible()
+
+    await page.evaluate(() => {
+      const openedUrls: string[] = []
+      ;(window as Window & { __trOpenedUrls?: string[] }).__trOpenedUrls = openedUrls
+      window.open = ((url?: string | URL) => {
+        openedUrls.push(String(url))
+        return null
+      }) as typeof window.open
+    })
+
+    await page.getByRole('button', { name: '采集' }).click()
+
+    await expect.poll(async () => {
+      return await page.evaluate(() => (window as Window & { __trOpenedUrls?: string[] }).__trOpenedUrls?.[0] ?? null)
+    }).toContain('https://my.employer.seek.com/candidates/recommended')
+
+    const openedUrl = await page.evaluate(() => (window as Window & { __trOpenedUrls?: string[] }).__trOpenedUrls?.[0] ?? '')
+    const collectUrl = new URL(openedUrl as string)
+    expect(collectUrl.searchParams.get('jobId')).toBe('90842915')
+    expect(collectUrl.searchParams.get('pageNumber')).toBe('1')
+    expect(collectUrl.searchParams.get('tr_auto_sync')).toBe('true')
+    expect(collectUrl.searchParams.get('keyword')).toBeNull()
   })
 })
