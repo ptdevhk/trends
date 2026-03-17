@@ -9,6 +9,21 @@ DASHBOARD_ASSET_NAME="dashboard.zip"
 DEFAULT_DASHBOARD_PORT="6790"
 DEFAULT_DASHBOARD_API_PORT="6791"
 
+usage() {
+    cat <<EOF
+Usage: $0 [--help]
+Prefetches stable Convex backend and dashboard assets into the local Convex cache.
+
+Environment:
+  CONVEX_MIRROR_MODE            Download source order: off|fallback|mirror-first (default: fallback, or off in CI)
+  CONVEX_MIRROR_BASES           Comma-separated mirror base URLs (default: ${DEFAULT_MIRROR_BASES})
+  CONVEX_DOWNLOAD_TIMEOUT_SECS  Download timeout in seconds (default: ${DEFAULT_DOWNLOAD_TIMEOUT_SECS})
+  CONVEX_CONNECT_TIMEOUT_SECS   Connect timeout in seconds (default: ${DEFAULT_CONNECT_TIMEOUT_SECS})
+  CONVEX_CURL_NO_SILENT         When true/1, keep curl progress output enabled
+  CI                            When true, defaults mirror mode to off
+EOF
+}
+
 log() {
     echo "[convex-prefetch] $*"
 }
@@ -314,6 +329,20 @@ download_asset_zip() {
 }
 
 main() {
+    if [ "$#" -gt 0 ]; then
+        case "$1" in
+            --help|-h)
+                usage
+                return 0
+                ;;
+            *)
+                log "Unknown argument: $1"
+                usage >&2
+                return 1
+                ;;
+        esac
+    fi
+
     require_command curl
     require_command jq
     require_command unzip
