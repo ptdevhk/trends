@@ -253,7 +253,7 @@ i18n-build:
 # Dependencies
 # =============================================================================
 
-# Install Python/Node dependencies for development
+# Install Python/Node dependencies for development, Convex prefetch, and governance bootstrap
 install-deps:
 	./scripts/install-deps.sh
 
@@ -760,7 +760,9 @@ help:
 	@echo "  i18n-build     Build static sites for all locales"
 	@echo ""
 	@echo "Dependencies:"
-	@echo "  install-deps [SKILL_INSTALL_TARGET=codex|agents|all] Install deps and bootstrap governance skill targets"
+	@echo "  install-deps [SKILL_INSTALL_TARGET=codex|agents|all] [CONVEX_MIRROR_MODE=off|fallback|mirror-first]"
+	@echo "               Install deps, prefetch Convex assets, and bootstrap governance skill targets"
+	@echo "               See ./scripts/install-deps.sh --help for mirror bases, timeout, and curl env knobs"
 	@echo "  prefetch-convex [CONVEX_MIRROR_MODE=off|fallback|mirror-first] Prefetch Convex local backend + dashboard assets"
 	@echo "                 See ./scripts/prefetch-convex-backend.sh --help for mirror bases, timeout, and curl env knobs"
 	@echo ""
