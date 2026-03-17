@@ -112,4 +112,17 @@ describe('App redirects', () => {
 
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()
   })
+
+  it('preserves search params when AdminGate redirects a non-admin workspace away from system routes', async () => {
+    window.history.replaceState({}, '', '/hr/system?keyword=CNC&location=Kuala+Lumpur+MY')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/hr/resumes')
+      expect(window.location.search).toBe('?keyword=CNC&location=Kuala+Lumpur+MY')
+    })
+
+    expect(screen.getByText('Resumes Page')).toBeInTheDocument()
+  })
 })
