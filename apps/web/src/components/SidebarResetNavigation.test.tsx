@@ -63,7 +63,9 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
 
 vi.mock('@/hooks/useSystemMetadata', () => ({
   useSystemMetadata: () => ({
-    appVersion: mockState.appVersion,
+    identity: {
+      appVersion: mockState.appVersion,
+    },
   }),
 }))
 
