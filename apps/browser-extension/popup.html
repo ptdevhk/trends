@@ -26,7 +26,10 @@
     <div id="auto-sync-summary" class="auto-sync-summary hidden">
       <div class="auto-sync-summary__header">
         <span class="auto-sync-summary__title">自动同步</span>
-        <span id="auto-sync-state" class="auto-sync-summary__badge">-</span>
+        <div class="auto-sync-summary__actions">
+          <button id="btn-clear-auto-sync-summary" class="auto-sync-summary__clear hidden" type="button">清除记录</button>
+          <span id="auto-sync-state" class="auto-sync-summary__badge">-</span>
+        </div>
       </div>
       <div id="auto-sync-main" class="auto-sync-summary__main"></div>
       <div id="auto-sync-detail" class="auto-sync-summary__detail"></div>

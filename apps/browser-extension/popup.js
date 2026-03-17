@@ -14,6 +14,7 @@ const autoSyncSummary = /** @type {HTMLElement} */ (document.getElementById('aut
 const autoSyncState = /** @type {HTMLElement} */ (document.getElementById('auto-sync-state'));
 const autoSyncMain = /** @type {HTMLElement} */ (document.getElementById('auto-sync-main'));
 const autoSyncDetail = /** @type {HTMLElement} */ (document.getElementById('auto-sync-detail'));
+const btnClearAutoSyncSummary = /** @type {HTMLButtonElement} */ (document.getElementById('btn-clear-auto-sync-summary'));
 const btnExtract = /** @type {HTMLButtonElement} */ (document.getElementById('btn-extract'));
 const btnCSV = /** @type {HTMLButtonElement} */ (document.getElementById('btn-csv'));
 const btnJSON = /** @type {HTMLButtonElement} */ (document.getElementById('btn-json'));
@@ -108,6 +109,12 @@ function storageLocalGet(defaults) {
     });
 }
 
+function storageLocalRemove(keys) {
+    return new Promise((resolve) => {
+        chrome.storage.local.remove(keys, () => resolve());
+    });
+}
+
 /**
  * Send message to content script
  */
@@ -167,6 +174,10 @@ function hideAutoSyncSummary() {
     autoSyncState.className = 'auto-sync-summary__badge';
     autoSyncMain.textContent = '';
     autoSyncDetail.textContent = '';
+    if (btnClearAutoSyncSummary) {
+        btnClearAutoSyncSummary.classList.add('hidden');
+        btnClearAutoSyncSummary.disabled = false;
+    }
 }
 
 async function getStoredAutoSyncSummary() {
@@ -223,6 +234,30 @@ function renderAutoSyncSummary(status) {
     autoSyncMain.textContent = summary.mainText;
     autoSyncDetail.textContent = summary.detailText;
     autoSyncDetail.classList.toggle('hidden', !summary.detailText);
+    if (btnClearAutoSyncSummary) {
+        btnClearAutoSyncSummary.classList.toggle('hidden', status?.summarySource !== 'stored');
+        btnClearAutoSyncSummary.disabled = false;
+    }
+}
+
+async function handleClearStoredAutoSyncSummary() {
+    if (btnClearAutoSyncSummary) {
+        btnClearAutoSyncSummary.disabled = true;
+    }
+
+    try {
+        await storageLocalRemove([
+            LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY,
+            LEGACY_LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY,
+        ]);
+        hideAutoSyncSummary();
+        showStatus('已清除自动同步记录', 'success');
+    } catch (error) {
+        showStatus(error?.message || '清除记录失败', 'error');
+        if (btnClearAutoSyncSummary) {
+            btnClearAutoSyncSummary.disabled = false;
+        }
+    }
 }
 
 async function refreshRuntimeStatus() {
@@ -514,6 +549,7 @@ if (btnDiagnose) btnDiagnose.addEventListener('click', handleDiagnose);
 if (btnOpenDownloadSettings) btnOpenDownloadSettings.addEventListener('click', handleOpenDownloadSettings);
 if (btnShowLastDownload) btnShowLastDownload.addEventListener('click', handleShowLastDownload);
 if (btnSync) btnSync.addEventListener('click', handleSyncToServer);
+if (btnClearAutoSyncSummary) btnClearAutoSyncSummary.addEventListener('click', handleClearStoredAutoSyncSummary);
 if (lnkConfigureServer) {
     lnkConfigureServer.addEventListener('click', (event) => {
         event.preventDefault();
