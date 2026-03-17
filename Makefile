@@ -305,7 +305,7 @@ check-resume-ai-prompts:
 install-agent-skill:
 	@./scripts/skills/install-skill.sh --skill trends-agent-governance --target "$(or $(TARGET),codex)"
 
-# Validate repo governance skill structure + installed skill sync (local only)
+# Validate repo governance skill structure + installed skill sync for the selected local target
 check-agent-skill:
 	@if command -v bun > /dev/null 2>&1; then \
 		bunx tsx scripts/skills/validate-skill.ts --skill trends-agent-governance; \
