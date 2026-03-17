@@ -90,6 +90,8 @@ Required flow:
 ```bash
 make install-deps                           # Default: bootstrap governance skill into ~/.codex/skills
 SKILL_INSTALL_TARGET=all make install-deps  # Optional: also bootstrap ~/.agents/skills
+make prefetch-convex                        # Prefetch local Convex backend + dashboard cache
+CONVEX_MIRROR_MODE=mirror-first make prefetch-convex  # Optional: try configured mirrors before GitHub
 make dev                # Full local stack
 make dev-fast           # UI-focused fast profile
 make dev-critical       # Critical path profile
