@@ -258,7 +258,7 @@ install-deps:
 	./scripts/install-deps.sh
 
 # Prefetch Convex local backend and dashboard assets into local cache
-# Honors CI-sensitive mirror defaults plus CONVEX_MIRROR_MODE / CONVEX_MIRROR_BASES / timeout / curl env knobs; see the script --help surface for full details.
+# Honors shared CI env/defaults plus CONVEX_MIRROR_MODE / CONVEX_MIRROR_BASES / timeout / curl env knobs; see the script --help surface for full details.
 prefetch-convex:
 	./scripts/prefetch-convex-backend.sh
 
