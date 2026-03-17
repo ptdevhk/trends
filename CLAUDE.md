@@ -35,7 +35,7 @@ English-first guidance; Chinese notes are short clarifications.
 ### Enforcement
 - Sync generated policy mirror with `make sync-agent-policy`.
 - Validate policy drift with `make check-agent-policy`.
-- Validate governance skill package and installed copy with `make check-agent-skill`.
+- Validate governance skill package and installed copy with `make check-agent-skill` (or `make check-agent-skill TARGET=all` when both skill roots matter).
 - `make check` must fail if policy or governance skill checks fail.
 <!-- AGENT_POLICY:END -->
 
@@ -127,7 +127,8 @@ npm --workspace @trends/web run gen:api
 ```bash
 make sync-agent-policy
 make check-agent-policy
-make check-agent-skill
+make check-agent-skill              # Default: validate ~/.codex/skills copy
+make check-agent-skill TARGET=all   # Optional: validate ~/.codex/skills and ~/.agents/skills
 ```
 
 ## Code Style & Safety
