@@ -3972,6 +3972,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   else if (request.action === 'getPaginationInfo') {
     sendResponse(getPaginationInfo());
   }
+  else if (request.action === 'getRuntimeStatus') {
+    sendResponse({
+      success: true,
+      status: getExternalAccessorStatus()
+    });
+  }
   else if (request.action === 'ping') {
     sendResponse({ success: true, message: 'Content script loaded' });
   }
@@ -4013,6 +4019,7 @@ function getExternalAccessorStatus() {
   const autoSyncEffectivePageSizeRaw = document.documentElement.getAttribute('data-tr-auto-sync-effective-page-size') || '';
   const autoSyncSelectedCountRaw = document.documentElement.getAttribute('data-tr-auto-sync-selected-count') || '';
   const autoSyncRemainingCapacityRaw = document.documentElement.getAttribute('data-tr-auto-sync-remaining-capacity') || '';
+  const autoSyncStopReason = document.documentElement.getAttribute('data-tr-auto-sync-stop-reason') || '';
   const autoSyncCount = Number.parseInt(autoSyncCountRaw, 10);
   const autoSyncPages = Number.parseInt(autoSyncPagesRaw, 10);
   const autoSyncTargetStart = Number.parseInt(autoSyncTargetStartRaw, 10);
@@ -4046,6 +4053,7 @@ function getExternalAccessorStatus() {
     autoSyncEffectivePageSize: Number.isFinite(autoSyncEffectivePageSize) ? autoSyncEffectivePageSize : null,
     autoSyncSelectedCount: Number.isFinite(autoSyncSelectedCount) ? autoSyncSelectedCount : null,
     autoSyncRemainingCapacity: Number.isFinite(autoSyncRemainingCapacity) ? autoSyncRemainingCapacity : null,
+    autoSyncStopReason: autoSyncStopReason || null,
     pagination,
     lastOperationName: apiSnapshot.lastOperationName,
     timestamp: new Date().toISOString()

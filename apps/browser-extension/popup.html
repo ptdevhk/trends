@@ -23,6 +23,15 @@
       共 <span id="total-items">-</span> 条简历
     </div>
 
+    <div id="auto-sync-summary" class="auto-sync-summary hidden">
+      <div class="auto-sync-summary__header">
+        <span class="auto-sync-summary__title">自动同步</span>
+        <span id="auto-sync-state" class="auto-sync-summary__badge">-</span>
+      </div>
+      <div id="auto-sync-main" class="auto-sync-summary__main"></div>
+      <div id="auto-sync-detail" class="auto-sync-summary__detail"></div>
+    </div>
+
     <div class="actions">
       <button id="btn-extract" class="btn btn-primary">
         <span class="icon">📥</span>
@@ -95,6 +104,7 @@
     </footer>
   </div>
 
+  <script src="popup-auto-sync-summary.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

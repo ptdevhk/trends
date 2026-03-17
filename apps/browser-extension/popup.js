@@ -10,6 +10,10 @@ const statusText = /** @type {HTMLElement} */ (document.getElementById('status-t
 const pageCurrent = /** @type {HTMLElement} */ (document.getElementById('page-current'));
 const pageTotal = /** @type {HTMLElement} */ (document.getElementById('page-total'));
 const totalItems = /** @type {HTMLElement} */ (document.getElementById('total-items'));
+const autoSyncSummary = /** @type {HTMLElement} */ (document.getElementById('auto-sync-summary'));
+const autoSyncState = /** @type {HTMLElement} */ (document.getElementById('auto-sync-state'));
+const autoSyncMain = /** @type {HTMLElement} */ (document.getElementById('auto-sync-main'));
+const autoSyncDetail = /** @type {HTMLElement} */ (document.getElementById('auto-sync-detail'));
 const btnExtract = /** @type {HTMLButtonElement} */ (document.getElementById('btn-extract'));
 const btnCSV = /** @type {HTMLButtonElement} */ (document.getElementById('btn-csv'));
 const btnJSON = /** @type {HTMLButtonElement} */ (document.getElementById('btn-json'));
@@ -32,6 +36,23 @@ const DEFAULT_SERVER_URL = 'https://trends.pt-mes.com';
 let lastDiagnosticDownloadId = null;
 let serverConfigured = false;
 let configuredServerUrl = '';
+let runtimeStatusIntervalId = null;
+
+function getPopupAutoSyncSummaryHelpers() {
+    const helpers = globalThis.__TR_POPUP_AUTO_SYNC_SUMMARY__;
+    return helpers && typeof helpers === 'object' ? helpers : null;
+}
+
+function getTargetTabIdOverride() {
+    try {
+        const params = new URLSearchParams(window.location.search || '');
+        const rawTabId = params.get('tabId') || '';
+        const parsedTabId = Number.parseInt(rawTabId, 10);
+        return Number.isFinite(parsedTabId) && parsedTabId >= 0 ? parsedTabId : null;
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Show status message
@@ -59,8 +80,11 @@ async function sendToBackground(action, data = {}) {
  * Send message to content script
  */
 async function sendToContent(action, data = {}) {
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const tab = tabs[0];
+    const targetTabId = getTargetTabIdOverride();
+    const tab = targetTabId !== null
+        ? await chrome.tabs.get(targetTabId)
+        : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+
     if (!tab || typeof tab.id !== 'number') {
         throw new Error('No active tab');
     }
@@ -95,12 +119,73 @@ function showDiagnostics(payload) {
 async function updatePaginationInfo() {
     try {
         const info = await sendToContent('getPaginationInfo');
-        pageCurrent.textContent = info.currentPage || '-';
-        pageTotal.textContent = info.totalPages || '-';
-        totalItems.textContent = info.totalItems || '-';
+        renderPagination(info);
     } catch (error) {
         console.error('Pagination error:', error);
     }
+}
+
+function renderPagination(pagination = {}) {
+    pageCurrent.textContent = pagination.currentPage || '-';
+    pageTotal.textContent = pagination.totalPages || '-';
+    totalItems.textContent = pagination.totalItems || '-';
+}
+
+function hideAutoSyncSummary() {
+    if (!autoSyncSummary || !autoSyncState || !autoSyncMain || !autoSyncDetail) return;
+    autoSyncSummary.classList.add('hidden');
+    autoSyncState.textContent = '-';
+    autoSyncState.className = 'auto-sync-summary__badge';
+    autoSyncMain.textContent = '';
+    autoSyncDetail.textContent = '';
+}
+
+function renderAutoSyncSummary(status) {
+    if (!autoSyncSummary || !autoSyncState || !autoSyncMain || !autoSyncDetail) return;
+    const helpers = getPopupAutoSyncSummaryHelpers();
+    const summary = typeof helpers?.buildAutoSyncSummary === 'function'
+        ? helpers.buildAutoSyncSummary(status)
+        : null;
+    if (!summary) {
+        hideAutoSyncSummary();
+        return;
+    }
+
+    autoSyncSummary.classList.remove('hidden');
+    autoSyncState.textContent = summary.stateLabel;
+    autoSyncState.className = `auto-sync-summary__badge state-${summary.autoSync}`;
+    autoSyncMain.textContent = summary.mainText;
+    autoSyncDetail.textContent = summary.detailText;
+    autoSyncDetail.classList.toggle('hidden', !summary.detailText);
+}
+
+async function refreshRuntimeStatus() {
+    try {
+        const response = await sendToContent('getRuntimeStatus');
+        if (!response?.success || !response.status) {
+            hideAutoSyncSummary();
+            await updatePaginationInfo();
+            return;
+        }
+
+        const status = response.status;
+        if (status.pagination) {
+            renderPagination(status.pagination);
+        } else {
+            await updatePaginationInfo();
+        }
+        renderAutoSyncSummary(status);
+    } catch (error) {
+        hideAutoSyncSummary();
+        console.error('Runtime status error:', error);
+    }
+}
+
+function startRuntimeStatusPolling() {
+    if (runtimeStatusIntervalId !== null) return;
+    runtimeStatusIntervalId = window.setInterval(() => {
+        refreshRuntimeStatus();
+    }, 1500);
 }
 
 async function refreshServerConfig() {
@@ -277,9 +362,7 @@ async function handleExtract() {
             showPreview(resumes);
 
             if (response.pagination) {
-                pageCurrent.textContent = response.pagination.currentPage || '-';
-                pageTotal.textContent = response.pagination.totalPages || '-';
-                totalItems.textContent = response.pagination.totalItems || '-';
+                renderPagination(response.pagination);
             }
         } else {
             showStatus('提取失败', 'error');
@@ -358,7 +441,6 @@ if (lnkConfigureServer) {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    updatePaginationInfo();
     refreshServerConfig();
 
     if (optSaveAs) {
@@ -370,8 +452,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    sendToContent('ping').catch(() => {
-        showStatus('请刷新 Job5156 或 Seek 页面', 'error');
-    });
+    sendToContent('ping')
+        .then(() => {
+            refreshRuntimeStatus();
+            startRuntimeStatusPolling();
+        })
+        .catch(() => {
+            hideAutoSyncSummary();
+            updatePaginationInfo();
+            showStatus('请刷新 Job5156 或 Seek 页面', 'error');
+        });
+});
+
+window.addEventListener('unload', () => {
+    if (runtimeStatusIntervalId !== null) {
+        window.clearInterval(runtimeStatusIntervalId);
+        runtimeStatusIntervalId = null;
+    }
 });
 })();
