@@ -138,4 +138,39 @@ describe('App redirects', () => {
 
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()
   })
+
+  it('preserves search params when redirecting /profiles to /dev/system/profiles', async () => {
+    window.history.replaceState({}, '', '/profiles?keyword=Sales+Engineer')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/dev/system/profiles')
+      expect(window.location.search).toBe('?keyword=Sales+Engineer')
+    })
+  })
+
+  it('preserves search params when redirecting legacy /system routes into /dev/system', async () => {
+    window.history.replaceState({}, '', '/system/search-analytics?keyword=CNC')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/dev/system/search-analytics')
+      expect(window.location.search).toBe('?keyword=CNC')
+    })
+  })
+
+  it('preserves search params when the wildcard route falls back to /dev/resumes', async () => {
+    window.history.replaceState({}, '', '/totally-unknown-route?keyword=STAR')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/dev/resumes')
+      expect(window.location.search).toBe('?keyword=STAR')
+    })
+
+    expect(screen.getByText('Resumes Page')).toBeInTheDocument()
+  })
 })
