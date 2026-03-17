@@ -97,6 +97,7 @@ make dev                # Full local stack
 make dev-fast           # UI-focused fast profile
 make dev-critical       # Critical path profile
 make dev-backend        # Backend-focused profile
+./scripts/dev.sh --help # Full dev service-profile and Convex startup/prefetch env contract
 ```
 
 ### Start Single Services
