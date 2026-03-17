@@ -108,7 +108,7 @@ if [[ "$CHECK_ONLY" == "true" ]]; then
       exit 1
     fi
 
-    DRIFT_OUTPUT="$(rsync -ani --delete "$SOURCE_DIR"/ "$dest_dir"/)"
+    DRIFT_OUTPUT="$(rsync --dry-run --itemize-changes --recursive --links --perms --checksum --delete "$SOURCE_DIR"/ "$dest_dir"/)"
     if [[ -n "$DRIFT_OUTPUT" ]]; then
       echo "Installed skill drift detected at $dest_dir" >&2
       echo "$DRIFT_OUTPUT" >&2
