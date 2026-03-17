@@ -129,6 +129,7 @@ make sync-agent-policy
 make check-agent-policy
 make check-agent-skill              # Default: validate ~/.codex/skills copy
 make check-agent-skill TARGET=all   # Optional: validate ~/.codex/skills and ~/.agents/skills
+TARGET=all make sync-agent-governance  # Optional: run policy sync + governance skill install in both roots
 ```
 
 ## Code Style & Safety
