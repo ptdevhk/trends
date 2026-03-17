@@ -109,6 +109,14 @@ make dev-mcp
 make dev-crawl
 ```
 
+### Deployment
+```bash
+make install                                # Install the production stack from the current checkout
+ENV_FILE=.env.production make deploy-check  # Dry run the deploy precheck against the target env
+CONVEX_MIRROR_MODE=mirror-first make deploy # Optional: mirror-first Convex prefetch during upgrade
+./scripts/install.sh --help                 # Full install/upgrade modes plus production prefetch env knobs
+```
+
 ### Verification
 ```bash
 make check                  # Default: validate ~/.codex/skills governance install
