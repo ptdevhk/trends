@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ErrorBoundary } from './ErrorBoundary'
 
 // Component that throws an error conditionally
@@ -12,6 +12,10 @@ const ThrowError = ({ shouldThrow = true, message = 'Test Error' }) => {
 }
 
 describe('ErrorBoundary', () => {
+    beforeEach(() => {
+        window.history.replaceState({}, '', '/')
+    })
+
     it('renders children when no error occurs', () => {
         render(
             <ErrorBoundary>
@@ -33,6 +37,38 @@ describe('ErrorBoundary', () => {
 
         expect(screen.getByText('Something went wrong')).toBeInTheDocument()
         expect(screen.getByText('Test Error')).toBeInTheDocument()
+
+        spy.mockRestore()
+    })
+
+    it('builds a workspace resume home href without preserving query params', () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => { })
+        window.history.replaceState({}, '', '/hr/system/settings?location=Kuala+Lumpur+MY&keyword=Sales+Engineer+Manager')
+
+        render(
+            <ErrorBoundary>
+                <ThrowError />
+            </ErrorBoundary>
+        )
+
+        const homeLink = screen.getByRole('link', { name: /go home/i })
+        expect(homeLink).toHaveAttribute('href', '/hr/resumes')
+
+        spy.mockRestore()
+    })
+
+    it('falls back to /dev/resumes for unknown workspace paths', () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => { })
+        window.history.replaceState({}, '', '/unknown/system/settings?location=foo')
+
+        render(
+            <ErrorBoundary>
+                <ThrowError />
+            </ErrorBoundary>
+        )
+
+        const homeLink = screen.getByRole('link', { name: /go home/i })
+        expect(homeLink).toHaveAttribute('href', '/dev/resumes')
 
         spy.mockRestore()
     })
