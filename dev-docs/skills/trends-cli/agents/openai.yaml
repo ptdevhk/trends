@@ -1,3 +1,3 @@
 display_name: Trends CLI
 short_description: Operate Trends backend services and resume debug flows through the Go CLI and MCP mode.
-default_prompt: Use the trends-cli workflow. Build the CLI if needed, prefer CLI commands over ad-hoc API calls, use `resume debug` for cache/reingest/AI dev-cycle tasks, and report concise command output with follow-up actions.
+default_prompt: Use the trends-cli workflow. Run `make install-deps` when the local environment may be stale, build the CLI if needed, prefer CLI commands over ad-hoc API calls, use `resume debug` for cache/reingest/AI dev-cycle tasks, and report concise command output with follow-up actions.
