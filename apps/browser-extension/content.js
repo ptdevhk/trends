@@ -69,6 +69,7 @@ const PAGE_BRIDGE_RESPONSE_ATTR = 'data-tr-resume-bridge-response';
 const JOB5156_DETAIL_FETCH_TIMEOUT_MS = 5000;
 const JOB5156_DETAIL_FETCH_CONCURRENCY = 5;
 const DEFAULT_SEEK_PAGE_SIZE = 20;
+const LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY = 'latestAutoSyncSummary';
 
 const apiSnapshot = {
   searchRows: null,
@@ -85,6 +86,8 @@ const apiSnapshot = {
   lastSourceKey: null,
   lastOperationName: null
 };
+
+let lastPersistedAutoSyncSummaryFingerprint = '';
 
 function sanitizeSampleName(value) {
   if (!value) return '';
@@ -645,6 +648,8 @@ function setSeekAutoSyncWindowAttributes(pageWindow) {
   } catch {
     // ignore
   }
+
+  persistLatestAutoSyncSummary();
 }
 
 /**
@@ -670,6 +675,8 @@ function setSeekAutoSyncSelectionAttributes(selection) {
   } catch {
     // ignore
   }
+
+  persistLatestAutoSyncSummary();
 }
 
 function findSeekProfileTrigger(profileId) {
@@ -2521,6 +2528,10 @@ function setAutoSyncAttributes(status, count, pagesProcessed) {
   } catch {
     // ignore
   }
+
+  if (status && status !== 'skipped') {
+    persistLatestAutoSyncSummary();
+  }
 }
 
 /**
@@ -3884,6 +3895,7 @@ async function runAutoSyncIfEnabled() {
     } catch {
       // ignore
     }
+    persistLatestAutoSyncSummary();
 
     if (autoSyncCancelled) {
       SyncStatusWidget.show({
@@ -3925,6 +3937,7 @@ async function runAutoSyncIfEnabled() {
     } catch {
       // ignore
     }
+    persistLatestAutoSyncSummary();
   }
 }
 
@@ -3995,6 +4008,63 @@ function getExtensionVersion() {
 
 function isLoggedIn() {
   return !document.querySelector('.login-btn, [href*="login"]');
+}
+
+function buildPersistedAutoSyncSummary(status = getExternalAccessorStatus()) {
+  const autoSync = typeof status?.autoSync === 'string' ? status.autoSync : '';
+  if (!autoSync || autoSync === 'skipped') {
+    return null;
+  }
+
+  return {
+    autoSync,
+    autoSyncCount: typeof status?.autoSyncCount === 'number' ? status.autoSyncCount : 0,
+    autoSyncPages: typeof status?.autoSyncPages === 'number' ? status.autoSyncPages : 0,
+    autoSyncTargetPageStart: status?.autoSyncTargetPageStart ?? null,
+    autoSyncTargetPageEnd: status?.autoSyncTargetPageEnd ?? null,
+    autoSyncEffectivePageSize: status?.autoSyncEffectivePageSize ?? null,
+    autoSyncSelectedCount: status?.autoSyncSelectedCount ?? null,
+    autoSyncRemainingCapacity: status?.autoSyncRemainingCapacity ?? null,
+    autoSyncStopReason: status?.autoSyncStopReason ?? null,
+    sourceKey: typeof status?.sourceKey === 'string' ? status.sourceKey : getCurrentSourceKey(),
+    sourceUrl: window.location.href,
+    summarySource: 'stored',
+    persistedAt: new Date().toISOString(),
+  };
+}
+
+function persistLatestAutoSyncSummary() {
+  try {
+    if (!chrome?.storage?.local?.set) return;
+    const summary = buildPersistedAutoSyncSummary();
+    if (!summary) return;
+
+    const fingerprint = JSON.stringify({
+      autoSync: summary.autoSync,
+      autoSyncCount: summary.autoSyncCount,
+      autoSyncPages: summary.autoSyncPages,
+      autoSyncTargetPageStart: summary.autoSyncTargetPageStart,
+      autoSyncTargetPageEnd: summary.autoSyncTargetPageEnd,
+      autoSyncEffectivePageSize: summary.autoSyncEffectivePageSize,
+      autoSyncSelectedCount: summary.autoSyncSelectedCount,
+      autoSyncRemainingCapacity: summary.autoSyncRemainingCapacity,
+      autoSyncStopReason: summary.autoSyncStopReason,
+      sourceKey: summary.sourceKey,
+      sourceUrl: summary.sourceUrl,
+      summarySource: summary.summarySource,
+    });
+
+    if (summary.autoSync === 'running' && fingerprint === lastPersistedAutoSyncSummaryFingerprint) {
+      return;
+    }
+
+    lastPersistedAutoSyncSummaryFingerprint = fingerprint;
+    chrome.storage.local.set({
+      [LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY]: summary
+    });
+  } catch (error) {
+    console.warn('🎯 [Auto Sync] Failed to persist latest auto sync summary:', error);
+  }
 }
 
 function getExternalAccessorStatus() {

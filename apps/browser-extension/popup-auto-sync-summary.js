@@ -42,6 +42,31 @@
   }
 
   /**
+   * @param {string | null | undefined} sourceKey
+   * @returns {string}
+   */
+  function formatAutoSyncSourceKey(sourceKey) {
+    if (sourceKey === 'seek') return 'SEEK';
+    if (sourceKey === 'job5156') return 'Job5156';
+    return '';
+  }
+
+  /**
+   * @param {string | null | undefined} persistedAt
+   * @returns {string}
+   */
+  function formatAutoSyncPersistedAt(persistedAt) {
+    if (typeof persistedAt !== 'string') return '';
+    const trimmed = persistedAt.trim();
+    if (!trimmed) return '';
+    return trimmed
+      .replace('T', ' ')
+      .replace(/\.\d+Z?$/u, '')
+      .replace(/Z$/u, '')
+      .slice(0, 16);
+  }
+
+  /**
    * @param {{
    *   autoSync?: string;
    *   autoSyncCount?: number | null;
@@ -52,6 +77,9 @@
    *   autoSyncEffectivePageSize?: number | null;
    *   autoSyncRemainingCapacity?: number | null;
    *   autoSyncStopReason?: string | null;
+   *   summarySource?: string | null;
+   *   sourceKey?: string | null;
+   *   persistedAt?: string | null;
    * }} [status]
    * @returns {{ autoSync: string; stateLabel: string; mainText: string; detailText: string } | null}
    */
@@ -94,6 +122,17 @@
     if (stopReasonLabel) {
       detailParts.push(stopReasonLabel);
     }
+    if (status.summarySource === 'stored') {
+      detailParts.push('最近一次记录');
+      const sourceKeyLabel = formatAutoSyncSourceKey(status.sourceKey);
+      if (sourceKeyLabel) {
+        detailParts.push(`来源 ${sourceKeyLabel}`);
+      }
+      const persistedAtLabel = formatAutoSyncPersistedAt(status.persistedAt);
+      if (persistedAtLabel) {
+        detailParts.push(`记录于 ${persistedAtLabel}`);
+      }
+    }
 
     return {
       autoSync,
@@ -106,6 +145,8 @@
   globalThis.__TR_POPUP_AUTO_SYNC_SUMMARY__ = Object.freeze({
     formatAutoSyncState,
     formatAutoSyncStopReason,
+    formatAutoSyncSourceKey,
+    formatAutoSyncPersistedAt,
     buildAutoSyncSummary,
   });
 })();
