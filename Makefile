@@ -780,7 +780,7 @@ help:
 	@echo "  check-test-plan-skill [TARGET=codex|agents|all] Validate resume-qa-hybrid-mcp skill + installed drift"
 	@echo "  install-browser-ext-skill [TARGET=codex|agents|all] Install browser-extension-dev into the selected skills dir"
 	@echo "  check-browser-ext-skill [TARGET=codex|agents|all] Validate browser-extension-dev skill + installed drift"
-	@echo "  sync-agent-governance Run policy sync + skill install"
+	@echo "  sync-agent-governance [TARGET=codex|agents|all] Run policy sync + governance skill install"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  seed           Seed Convex with system job descriptions"
