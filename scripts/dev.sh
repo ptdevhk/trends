@@ -10,6 +10,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 LOGS_DIR="$PROJECT_ROOT/logs"
 APP_TIMEZONE_DEFAULT="Asia/Hong_Kong"
 ENV_FILE_RESOLVED=""
+AUTO_DETECTED_ENV_FILE=0
 
 if [ -n "$ENV_FILE" ]; then
     if [ -f "$ENV_FILE" ]; then
@@ -19,7 +20,7 @@ if [ -n "$ENV_FILE" ]; then
     fi
 elif [ -f "$PROJECT_ROOT/.env" ]; then
     ENV_FILE_RESOLVED="$PROJECT_ROOT/.env"
-    echo -e "${CYAN}[$(date '+%H:%M:%S')] [DEV]${NC} Auto-detected .env in project root."
+    AUTO_DETECTED_ENV_FILE=1
 fi
 
 if [ -n "$ENV_FILE_RESOLVED" ]; then
@@ -1275,8 +1276,121 @@ print_status() {
     echo ""
 }
 
+print_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --mcp-only    Start only MCP server"
+    echo "  --crawl-only  Run crawler only (no long-running services)"
+    echo "  --skip-crawl  Skip initial crawl and start servers immediately (default)"
+    echo "  --fresh       Run crawl first, then start servers"
+    echo "  --all         Start all services (including future apps/*)"
+    echo "  --profile     Service profile: full|critical|fast-ui|backend"
+    echo "  --seed        Run seed status check (default behavior)"
+    echo "  --no-seed     Skip Convex seed status check"
+    echo "  --force, -f   Kill processes using required ports"
+    echo "  --help        Show this help message"
+    echo ""
+    echo "Singleton behavior:"
+    echo "  Uses /tmp/dev-server-<hash>.{lock,lockdir,pid,path} per project."
+    echo "  If another scripts/dev.sh instance is active, this run stops it and takes over."
+    echo ""
+    echo "Environment variables:"
+    echo "  ENV_FILE      Optional env file path (unset by default)"
+    echo "  SKIP_CRAWL    Skip crawl on startup (default: true; set to false to crawl)"
+    echo "  SERVICE_PROFILE Service profile when no explicit service flags are provided (default: full)"
+    echo "  SEED_MODE     Convex seed mode: auto|skip (default: auto)"
+    echo "  MCP_PORT      MCP server port (default: 3333)"
+    echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
+    echo "  API_PORT      BFF API port (default: 3000)"
+    echo "  WEB_PORT      Web frontend port (default: 5173)"
+    echo "  CONVEX_STARTUP_TIMEOUT Convex startup timeout in seconds (default: 60)"
+    echo "  CONVEX_STARTUP_RETRIES Additional Convex startup retries after first failure (default: 1)"
+    echo "  CONVEX_RETRY_DELAY_SECS Delay between Convex startup attempts in seconds (default: 2)"
+    echo "  CONVEX_LOCAL_BACKEND_VERSION Explicit Convex local backend version override"
+    echo "  CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: true)"
+    echo "  CONVEX_MIRROR_MODE Convex prefetch source order before startup: off|fallback|mirror-first"
+    echo "  CONVEX_MIRROR_BASES / CONVEX_DOWNLOAD_TIMEOUT_SECS / CONVEX_CONNECT_TIMEOUT_SECS"
+    echo "                    Convex prefetch mirror-base and timeout overrides"
+    echo "  CONVEX_CURL_NO_SILENT When true/1, keep Convex prefetch curl progress output enabled"
+    echo ""
+    echo "See $SCRIPT_DIR/prefetch-convex-backend.sh --help for the full Convex prefetch env contract."
+}
+
+exit_without_cleanup() {
+    local exit_code="$1"
+    trap - SIGINT SIGTERM EXIT
+    exit "$exit_code"
+}
+
 # Main
 main() {
+    local service_profile="${SERVICE_PROFILE:-full}"
+    local services=()
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --mcp-only)
+                services=("mcp")
+                shift
+                ;;
+            --crawl-only)
+                services=("crawl")
+                shift
+                ;;
+            --skip-crawl)
+                SKIP_CRAWL=true
+                shift
+                ;;
+            --fresh)
+                SKIP_CRAWL=false
+                shift
+                ;;
+            --all)
+                services=("convex" "mcp" "crawl" "worker" "scraper" "api" "web")
+                shift
+                ;;
+            --profile)
+                if [[ $# -lt 2 ]]; then
+                    echo "Missing value for --profile (expected: full|critical|fast-ui|backend)" >&2
+                    print_usage >&2
+                    exit_without_cleanup 1
+                fi
+                service_profile="$2"
+                shift 2
+                ;;
+            --profile=*)
+                service_profile="${1#*=}"
+                shift
+                ;;
+            --seed)
+                SEED_MODE="auto"
+                shift
+                ;;
+            --no-seed)
+                SEED_MODE="skip"
+                shift
+                ;;
+            --force|-f)
+                FORCE_KILL=true
+                shift
+                ;;
+            --help|-h)
+                print_usage
+                exit_without_cleanup 0
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                print_usage >&2
+                exit_without_cleanup 1
+                ;;
+        esac
+    done
+
+    if [ "$AUTO_DETECTED_ENV_FILE" -eq 1 ]; then
+        echo -e "${CYAN}[$(date '+%H:%M:%S')] [DEV]${NC} Auto-detected .env in project root."
+    fi
+
     PROJECT_HASH="$(hash_path "$PROJECT_ROOT")"
     LOCKFILE="/tmp/dev-server-${PROJECT_HASH}.lock"
     LOCKDIR="/tmp/dev-server-${PROJECT_HASH}.lockdir"
@@ -1369,98 +1483,6 @@ main() {
         log "DEV" "$YELLOW" "Using system environment variables (no ENV_FILE configured)"
     fi
     log "DEV" "$GREEN" "Timezone: $TIMEZONE"
-
-    local service_profile="${SERVICE_PROFILE:-full}"
-
-    # Parse command line arguments
-    local services=()
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --mcp-only)
-                services=("mcp")
-                shift
-                ;;
-            --crawl-only)
-                services=("crawl")
-                shift
-                ;;
-            --skip-crawl)
-                SKIP_CRAWL=true
-                shift
-                ;;
-            --fresh)
-                SKIP_CRAWL=false
-                shift
-                ;;
-            --all)
-                services=("convex" "mcp" "crawl" "worker" "scraper" "api" "web")
-                shift
-                ;;
-            --profile)
-                if [[ $# -lt 2 ]]; then
-                    echo "Missing value for --profile (expected: full|critical|fast-ui|backend)"
-                    exit 1
-                fi
-                service_profile="$2"
-                shift 2
-                ;;
-            --profile=*)
-                service_profile="${1#*=}"
-                shift
-                ;;
-            --seed)
-                SEED_MODE="auto"
-                shift
-                ;;
-            --no-seed)
-                SEED_MODE="skip"
-                shift
-                ;;
-            --force|-f)
-                FORCE_KILL=true
-                shift
-                ;;
-            --help|-h)
-                echo "Usage: $0 [OPTIONS]"
-                echo ""
-                echo "Options:"
-                echo "  --mcp-only    Start only MCP server"
-                echo "  --crawl-only  Run crawler only (no long-running services)"
-                echo "  --skip-crawl  Skip initial crawl and start servers immediately (default)"
-                echo "  --fresh       Run crawl first, then start servers"
-                echo "  --all         Start all services (including future apps/*)"
-                echo "  --profile     Service profile: full|critical|fast-ui|backend"
-                echo "  --seed        Run seed status check (default behavior)"
-                echo "  --no-seed     Skip Convex seed status check"
-                echo "  --force, -f   Kill processes using required ports"
-                echo "  --help        Show this help message"
-                echo ""
-                echo "Singleton behavior:"
-                echo "  Uses /tmp/dev-server-<hash>.{lock,lockdir,pid,path} per project."
-                echo "  If another scripts/dev.sh instance is active, this run stops it and takes over."
-                echo ""
-                echo "Environment variables:"
-                echo "  ENV_FILE      Optional env file path (unset by default)"
-                echo "  SKIP_CRAWL    Skip crawl on startup (default: true; set to false to crawl)"
-                echo "  SERVICE_PROFILE Service profile when no explicit service flags are provided (default: full)"
-                echo "  SEED_MODE     Convex seed mode: auto|skip (default: auto)"
-                echo "  MCP_PORT      MCP server port (default: 3333)"
-                echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
-                echo "  API_PORT      BFF API port (default: 3000)"
-                echo "  WEB_PORT      Web frontend port (default: 5173)"
-                echo "  CONVEX_STARTUP_TIMEOUT Convex startup timeout in seconds (default: 60)"
-                echo "  CONVEX_STARTUP_RETRIES Additional Convex startup retries after first failure (default: 1)"
-                echo "  CONVEX_RETRY_DELAY_SECS Delay between Convex startup attempts in seconds (default: 2)"
-                echo "  CONVEX_LOCAL_BACKEND_VERSION Explicit Convex local backend version override"
-                echo "  CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: true)"
-                exit 0
-                ;;
-            *)
-                echo "Unknown option: $1"
-                exit 1
-                ;;
-        esac
-    done
 
     # Default service selection by profile (only when explicit service flags were not provided)
     if [ ${#services[@]} -eq 0 ]; then
