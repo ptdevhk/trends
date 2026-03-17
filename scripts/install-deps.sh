@@ -8,12 +8,12 @@ usage() {
     echo "Environment:"
     echo "  SKILL_INSTALL_TARGET   Governance skill install target: codex|agents|all (default: codex)"
     echo "  CONVEX_MIRROR_MODE     Convex prefetch mode override: off|fallback|mirror-first"
-    echo "                         Default is fallback, or off when CI=true"
+    echo "                         Default is fallback, or off when CI=true/1"
     echo "  CONVEX_MIRROR_BASES    Convex prefetch mirror base URLs (comma-separated)"
     echo "  CONVEX_DOWNLOAD_TIMEOUT_SECS / CONVEX_CONNECT_TIMEOUT_SECS"
     echo "                         Convex prefetch timeout overrides"
     echo "  CONVEX_CURL_NO_SILENT  When true/1, keep Convex prefetch curl progress output enabled"
-    echo "  CI                     When true, uses npm, skips governance sync, and defaults shared Convex prefetch mode to off"
+    echo "  CI                     When true/1, uses npm, skips governance sync, and defaults shared Convex prefetch mode to off"
     echo ""
     echo "See ./scripts/prefetch-convex-backend.sh --help for the full Convex prefetch env contract."
 }
@@ -35,7 +35,7 @@ fi
 resolve_convex_mirror_mode() {
     local mode="${CONVEX_MIRROR_MODE:-}"
     if [ -z "${mode}" ]; then
-        if [ "${CI:-}" = "true" ]; then
+        if is_ci_env; then
             echo "off"
             return
         fi
@@ -54,6 +54,10 @@ resolve_convex_mirror_mode() {
     esac
 }
 
+is_ci_env() {
+    [ "${CI:-}" = "true" ] || [ "${CI:-}" = "1" ]
+}
+
 resolve_skill_install_target() {
     local target="${SKILL_INSTALL_TARGET:-codex}"
     case "${target}" in
@@ -70,7 +74,7 @@ resolve_skill_install_target() {
 
 EFFECTIVE_CONVEX_MIRROR_MODE=""
 EFFECTIVE_SKILL_INSTALL_TARGET=""
-if [ "${CI:-}" != "true" ]; then
+if ! is_ci_env; then
     EFFECTIVE_CONVEX_MIRROR_MODE="$(resolve_convex_mirror_mode)"
     EFFECTIVE_SKILL_INSTALL_TARGET="$(resolve_skill_install_target)"
 fi
@@ -79,7 +83,7 @@ echo "Installing Python dependencies..."
 uv sync
 
 echo "Installing Node.js dependencies..."
-if [ "${CI:-}" = "true" ]; then
+if is_ci_env; then
     npm install
 elif command -v bun &> /dev/null; then
     if ! bun install; then
@@ -100,7 +104,7 @@ if [ -d "packages/convex" ]; then
 fi
 
 # Sync agent governance artifacts (policy mirror + target-aware skill install)
-if [ "${CI:-}" != "true" ]; then
+if ! is_ci_env; then
     echo "Syncing agent governance artifacts (skill target: ${EFFECTIVE_SKILL_INSTALL_TARGET})..."
     _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if command -v bun > /dev/null 2>&1; then

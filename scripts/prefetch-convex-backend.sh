@@ -15,12 +15,12 @@ Usage: $0 [--help]
 Prefetches stable Convex backend and dashboard assets into the local Convex cache.
 
 Environment:
-  CONVEX_MIRROR_MODE            Download source order: off|fallback|mirror-first (default: fallback, or off when CI=true)
+  CONVEX_MIRROR_MODE            Download source order: off|fallback|mirror-first (default: fallback, or off when CI=true/1)
   CONVEX_MIRROR_BASES           Comma-separated mirror base URLs (default: ${DEFAULT_MIRROR_BASES})
   CONVEX_DOWNLOAD_TIMEOUT_SECS  Download timeout in seconds (default: ${DEFAULT_DOWNLOAD_TIMEOUT_SECS})
   CONVEX_CONNECT_TIMEOUT_SECS   Connect timeout in seconds (default: ${DEFAULT_CONNECT_TIMEOUT_SECS})
   CONVEX_CURL_NO_SILENT         When true/1, keep curl progress output enabled
-  CI                            When true, defaults shared Convex prefetch mode to off
+  CI                            When true/1, defaults shared Convex prefetch mode to off
 EOF
 }
 
@@ -89,12 +89,16 @@ trim() {
     echo "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
+is_ci_env() {
+    [ "${CI:-}" = "true" ] || [ "${CI:-}" = "1" ]
+}
+
 effective_mirror_mode() {
     if [ -n "${CONVEX_MIRROR_MODE:-}" ]; then
         echo "${CONVEX_MIRROR_MODE}"
         return
     fi
-    if [ "${CI:-}" = "true" ]; then
+    if is_ci_env; then
         echo "off"
         return
     fi
