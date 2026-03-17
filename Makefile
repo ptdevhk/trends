@@ -759,7 +759,7 @@ help:
 	@echo "  i18n-build     Build static sites for all locales"
 	@echo ""
 	@echo "Dependencies:"
-	@echo "  install-deps   Install Python/Node deps for development"
+	@echo "  install-deps [SKILL_INSTALL_TARGET=codex|agents|all] Install deps and bootstrap governance skill targets"
 	@echo "  prefetch-convex Prefetch Convex local backend + dashboard assets"
 	@echo ""
 	@echo "CLI:"
