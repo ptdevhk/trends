@@ -18,6 +18,7 @@ export default defineConfig({
     css: false,
     coverage: {
       provider: 'v8',
+      reporter: ['text', 'html', 'clover', 'json', 'lcov'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/test/**', 'src/**/*.d.ts', 'src/vite-env.d.ts'],
     },
