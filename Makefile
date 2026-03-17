@@ -745,7 +745,7 @@ help:
 	@echo "  deploy-seed    Force a full upgrade with seeded demo resumes (requires sudo)"
 	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
-	@echo "                 See ./scripts/install.sh --help for install/upgrade modes and prefetch env knobs"
+	@echo "                 See ./scripts/install.sh --help for install/upgrade modes, CI-sensitive prefetch defaults, and env knobs"
 	@echo "  docker         Start Docker containers"
 	@echo "  docker-build   Build and start Docker containers"
 	@echo "  docker-down    Stop Docker containers"
