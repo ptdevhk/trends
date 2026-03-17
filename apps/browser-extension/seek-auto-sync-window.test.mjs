@@ -97,3 +97,29 @@ test('detects when the target page window has been reached', () => {
     targetPageEnd: 5,
   }), false);
 });
+
+test('selects only the remaining mid-page subset when the limit is reached on the current page', () => {
+  const selection = helpers.resolveSeekAutoSyncCurrentPageSelection({
+    limit: 5,
+    totalSubmitted: 0,
+    currentPageResumeCount: 20,
+  });
+
+  assert.equal(selection.remainingCapacity, 5);
+  assert.equal(selection.selectedCount, 5);
+  assert.equal(selection.hitLimitWithinPage, true);
+  assert.equal(selection.limitAlreadyReached, false);
+});
+
+test('reports when the limit has already been exhausted before the current page', () => {
+  const selection = helpers.resolveSeekAutoSyncCurrentPageSelection({
+    limit: 5,
+    totalSubmitted: 5,
+    currentPageResumeCount: 20,
+  });
+
+  assert.equal(selection.remainingCapacity, 0);
+  assert.equal(selection.selectedCount, 0);
+  assert.equal(selection.hitLimitWithinPage, true);
+  assert.equal(selection.limitAlreadyReached, true);
+});

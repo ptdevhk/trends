@@ -91,10 +91,42 @@
     return !!(normalizedCurrentPage && normalizedTargetPageEnd && normalizedCurrentPage >= normalizedTargetPageEnd);
   }
 
+  /**
+   * @param {{
+   *   limit?: number | null;
+   *   totalSubmitted?: number | null;
+   *   currentPageResumeCount?: number | null;
+   * }} [options]
+   */
+  function resolveSeekAutoSyncCurrentPageSelection(options = {}) {
+    const {
+      limit,
+      totalSubmitted,
+      currentPageResumeCount,
+    } = options;
+    const normalizedLimit = normalizePositiveInt(limit);
+    const normalizedTotalSubmitted = normalizePositiveInt(totalSubmitted) || 0;
+    const normalizedCurrentPageResumeCount = normalizePositiveInt(currentPageResumeCount) || 0;
+    const remainingCapacity = normalizedLimit
+      ? Math.max(normalizedLimit - normalizedTotalSubmitted, 0)
+      : null;
+    const selectedCount = remainingCapacity === null
+      ? normalizedCurrentPageResumeCount
+      : Math.min(normalizedCurrentPageResumeCount, remainingCapacity);
+
+    return {
+      remainingCapacity,
+      selectedCount,
+      hitLimitWithinPage: remainingCapacity !== null && normalizedCurrentPageResumeCount > remainingCapacity,
+      limitAlreadyReached: remainingCapacity !== null && remainingCapacity <= 0,
+    };
+  }
+
   globalThis.__TR_SEEK_AUTO_SYNC__ = Object.freeze({
     DEFAULT_PAGE_SIZE,
     resolveSeekAutoSyncPageSize,
     resolveSeekAutoSyncPageWindow,
     isSeekAutoSyncPageWindowReached,
+    resolveSeekAutoSyncCurrentPageSelection,
   });
 })();
