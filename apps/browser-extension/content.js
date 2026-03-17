@@ -2535,11 +2535,40 @@ function buildAutoSyncProgressHint({ limit, totalSubmitted, selectedCount = null
   const progressHint = limit > 0
     ? `已采集 ${Math.min(totalSubmitted, limit)}/${limit}`
     : `已采集 ${totalSubmitted}`;
-  const selectedHint = typeof selectedCount === 'number' && Number.isFinite(selectedCount)
-    ? ` · 本页选中 ${selectedCount} 份`
-    : '';
+  const selectedHint = buildAutoSyncSelectedCountHint({ selectedCount });
 
   return `${progressHint}${selectedHint}${ageHint}`;
+}
+
+/**
+ * @param {{
+ *   selectedCount?: number | null;
+ *   prefix?: string;
+ * }} [options]
+ */
+function buildAutoSyncSelectedCountHint({ selectedCount = null, prefix = ' · ' } = {}) {
+  return typeof selectedCount === 'number' && Number.isFinite(selectedCount)
+    ? `${prefix}本页选中 ${selectedCount} 份`
+    : '';
+}
+
+/**
+ * @param {{
+ *   totalInserted?: number | null;
+ *   totalUpdated?: number | null;
+ *   pagesVisited?: number | null;
+ *   selectedCount?: number | null;
+ * }} [options]
+ */
+function buildAutoSyncCompletionHint({
+  totalInserted = 0,
+  totalUpdated = 0,
+  pagesVisited = 0,
+  selectedCount = null,
+} = {}) {
+  return `${totalInserted} 新增, ${totalUpdated} 更新, 共 ${pagesVisited} 页${buildAutoSyncSelectedCountHint({
+    selectedCount,
+  })}`;
 }
 
 const SyncStatusWidget = (() => {
@@ -3652,6 +3681,7 @@ async function runAutoSyncIfEnabled() {
     let totalInserted = 0;
     let totalUpdated = 0;
     let pagesVisited = 0;
+    let lastSelectedCount = null;
     let stopReason = 'completed';
     let seekStartPage = null;
 
@@ -3712,6 +3742,7 @@ async function runAutoSyncIfEnabled() {
       } else if (limit > 0 && typeof pageSelection.remainingCapacity === 'number' && resumes.length > pageSelection.remainingCapacity) {
         resumes = resumes.slice(0, pageSelection.remainingCapacity);
       }
+      lastSelectedCount = isSeekListPage ? resumes.length : null;
       if (getCurrentSourceKey() === SOURCE_KEYS.JOB5156 && !isJob5156DetailPage() && resumes.length > 0) {
         resumes = await enrichJob5156SearchResumesWithDetail(resumes);
       }
@@ -3858,7 +3889,12 @@ async function runAutoSyncIfEnabled() {
       SyncStatusWidget.show({
         state: 'success',
         message: `同步已取消，已同步 ${totalSubmitted} 份简历`,
-        hint: `${totalInserted} 新增, ${totalUpdated} 更新, 共 ${pagesVisited} 页`,
+        hint: buildAutoSyncCompletionHint({
+          totalInserted,
+          totalUpdated,
+          pagesVisited,
+          selectedCount: lastSelectedCount,
+        }),
         autoDismiss: true
       });
       setAutoSyncAttributes('cancelled', totalSubmitted, pagesVisited);
@@ -3868,6 +3904,10 @@ async function runAutoSyncIfEnabled() {
     SyncStatusWidget.show({
       state: 'success',
       message: `已同步 ${totalSubmitted} 份简历 (${totalInserted} 新增, ${totalUpdated} 更新), 共 ${pagesVisited} 页`,
+      hint: buildAutoSyncSelectedCountHint({
+        selectedCount: lastSelectedCount,
+        prefix: '',
+      }),
       autoDismiss: true
     });
     setAutoSyncAttributes('done', totalSubmitted, pagesVisited);
