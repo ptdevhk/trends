@@ -13,7 +13,7 @@ usage() {
     echo "  CONVEX_DOWNLOAD_TIMEOUT_SECS / CONVEX_CONNECT_TIMEOUT_SECS"
     echo "                         Convex prefetch timeout overrides"
     echo "  CONVEX_CURL_NO_SILENT  When true/1, keep Convex prefetch curl progress output enabled"
-    echo "  CI                     When true, uses npm, skips governance sync, and defaults prefetch mode to off"
+    echo "  CI                     When true, uses npm, skips governance sync, and defaults shared Convex prefetch mode to off"
     echo ""
     echo "See ./scripts/prefetch-convex-backend.sh --help for the full Convex prefetch env contract."
 }
