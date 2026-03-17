@@ -173,4 +173,43 @@ describe('App redirects', () => {
 
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()
   })
+
+  it('preserves search params when workspace legacy config jds routes hit the non-admin guard', async () => {
+    window.history.replaceState({}, '', '/hr/config/jds?keyword=STAR')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/hr/resumes')
+      expect(window.location.search).toBe('?keyword=STAR')
+    })
+
+    expect(screen.getByText('Resumes Page')).toBeInTheDocument()
+  })
+
+  it('preserves search params when workspace legacy debug config routes hit the non-admin guard', async () => {
+    window.history.replaceState({}, '', '/hr/debug/config?keyword=CNC')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/hr/resumes')
+      expect(window.location.search).toBe('?keyword=CNC')
+    })
+
+    expect(screen.getByText('Resumes Page')).toBeInTheDocument()
+  })
+
+  it('preserves search params when workspace legacy debug wildcard routes hit the non-admin guard', async () => {
+    window.history.replaceState({}, '', '/hr/debug/raw?keyword=Machine')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/hr/resumes')
+      expect(window.location.search).toBe('?keyword=Machine')
+    })
+
+    expect(screen.getByText('Resumes Page')).toBeInTheDocument()
+  })
 })
