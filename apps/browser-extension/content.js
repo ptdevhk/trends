@@ -580,6 +580,37 @@ function isSeekAutoSyncPageWindowReached(pageWindow, currentPage) {
   return !!(normalizedCurrentPage && targetPageEnd && normalizedCurrentPage >= targetPageEnd);
 }
 
+/**
+ * @param {{
+ *   limit?: number | null;
+ *   totalSubmitted?: number | null;
+ *   currentPageResumeCount?: number | null;
+ * }} [options]
+ */
+function resolveSeekAutoSyncCurrentPageSelection(options = {}) {
+  const helpers = getSeekAutoSyncHelpers();
+  if (typeof helpers?.resolveSeekAutoSyncCurrentPageSelection === 'function') {
+    return helpers.resolveSeekAutoSyncCurrentPageSelection(options);
+  }
+
+  const normalizedLimit = normalizeOptionalPositiveInt(options.limit);
+  const normalizedTotalSubmitted = normalizeOptionalPositiveInt(options.totalSubmitted) || 0;
+  const normalizedCurrentPageResumeCount = normalizeOptionalPositiveInt(options.currentPageResumeCount) || 0;
+  const remainingCapacity = normalizedLimit
+    ? Math.max(normalizedLimit - normalizedTotalSubmitted, 0)
+    : null;
+  const selectedCount = remainingCapacity === null
+    ? normalizedCurrentPageResumeCount
+    : Math.min(normalizedCurrentPageResumeCount, remainingCapacity);
+
+  return {
+    remainingCapacity,
+    selectedCount,
+    hitLimitWithinPage: remainingCapacity !== null && normalizedCurrentPageResumeCount > remainingCapacity,
+    limitAlreadyReached: remainingCapacity !== null && remainingCapacity <= 0,
+  };
+}
+
 function getSeekRequestedPageSize() {
   const requestInput = getSeekRecommendedRequest()?.variables?.input;
   return normalizeOptionalPositiveInt(requestInput?.size);
@@ -3607,16 +3638,32 @@ async function runAutoSyncIfEnabled() {
         : null;
       setSeekAutoSyncWindowAttributes(seekPageWindow);
 
-      const remainingCapacity = limit > 0 ? Math.max(limit - totalSubmitted, 0) : 0;
-      if (limit > 0 && remainingCapacity <= 0) {
+      const pageSelection = isSeekListPage
+        ? resolveSeekAutoSyncCurrentPageSelection({
+            limit,
+            totalSubmitted,
+            currentPageResumeCount: getSeekCurrentCandidateCount(),
+          })
+        : {
+            remainingCapacity: limit > 0 ? Math.max(limit - totalSubmitted, 0) : null,
+            selectedCount: null,
+            hitLimitWithinPage: false,
+            limitAlreadyReached: limit > 0 ? Math.max(limit - totalSubmitted, 0) <= 0 : false,
+          };
+
+      if ((isSeekListPage && pageSelection.limitAlreadyReached) || (!isSeekListPage && limit > 0 && pageSelection.limitAlreadyReached)) {
         stopReason = 'limit-reached';
         break;
       }
 
       let resumes = extractResumes();
-      const hitLimitWithinPage = limit > 0 && resumes.length > remainingCapacity;
-      if (limit > 0 && resumes.length > remainingCapacity) {
-        resumes = resumes.slice(0, remainingCapacity);
+      const hitLimitWithinPage = isSeekListPage
+        ? pageSelection.hitLimitWithinPage
+        : limit > 0 && typeof pageSelection.remainingCapacity === 'number' && resumes.length > pageSelection.remainingCapacity;
+      if (isSeekListPage && typeof pageSelection.selectedCount === 'number') {
+        resumes = resumes.slice(0, pageSelection.selectedCount);
+      } else if (limit > 0 && typeof pageSelection.remainingCapacity === 'number' && resumes.length > pageSelection.remainingCapacity) {
+        resumes = resumes.slice(0, pageSelection.remainingCapacity);
       }
       if (getCurrentSourceKey() === SOURCE_KEYS.JOB5156 && !isJob5156DetailPage() && resumes.length > 0) {
         resumes = await enrichJob5156SearchResumesWithDetail(resumes);
