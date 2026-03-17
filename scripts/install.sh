@@ -1427,8 +1427,37 @@ uninstall_flow() {
     echo "  sudo userdel $SERVICE_USER"
 }
 
+print_usage() {
+    echo "Usage: $0 [install|upgrade|upgrade-check|uninstall|--help]"
+    echo ""
+    echo "Commands:"
+    echo "  install        Install the full Trends production stack"
+    echo "  upgrade        Pull, rebuild, and restart the deployed stack"
+    echo "  upgrade-check  Show whether deploy would skip, refresh env, or run full upgrade"
+    echo "  uninstall      Remove installed systemd services"
+    echo "  --help, -h     Show this help message"
+    echo ""
+    echo "Environment variables:"
+    echo "  ENV_FILE               Production env file path (default: .env.production)"
+    echo "  WORKSPACE_DIR          Source checkout to install from (default: current directory)"
+    echo "  INSTALL_BRANCH         Branch to install or upgrade to"
+    echo "  FORCE                  Force upgrade flow even when no changes are detected"
+    echo "  SEED_RESUMES           Seed demo resumes during install/upgrade when truthy"
+    echo "  ALLOW_NODE_DOWNGRADE   Permit downgrading a newer Node.js to the required v22"
+    echo "  CONVEX_MIRROR_MODE     Convex prefetch source order: off|fallback|mirror-first"
+    echo "  CONVEX_MIRROR_BASES    Convex prefetch mirror base URLs (comma-separated)"
+    echo "  CONVEX_DOWNLOAD_TIMEOUT_SECS / CONVEX_CONNECT_TIMEOUT_SECS"
+    echo "                         Convex prefetch timeout overrides"
+    echo "  CONVEX_CURL_NO_SILENT  When true/1, keep Convex prefetch curl progress output enabled"
+    echo ""
+    echo "See $WORKSPACE_DIR/scripts/prefetch-convex-backend.sh --help for the full Convex prefetch env contract."
+}
+
 main() {
     case "${1:-install}" in
+        --help|-h)
+            print_usage
+            ;;
         install)
             install_flow
             ;;
@@ -1442,7 +1471,7 @@ main() {
             uninstall_flow
             ;;
         *)
-            echo "Usage: $0 [install|upgrade|upgrade-check|uninstall]"
+            print_usage >&2
             exit 1
             ;;
     esac
