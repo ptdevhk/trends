@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConvexIngestData, ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
+import { rawApiClient } from '@/lib/api-helpers'
 import { useResumeListState } from './useResumeListState'
 
 let submittedFormAction = ''
@@ -34,6 +35,7 @@ const mockState = vi.hoisted(() => ({
   saveSearchHistory: vi.fn(async () => 'history-1'),
   markSearchHistoryOpened: vi.fn(async () => {}),
   searchHistory: [] as Array<Record<string, unknown>>,
+  matchApiResponse: { success: true, results: [] as Array<{ resumeId: string; score: number }> },
   refresh: vi.fn(async () => {}),
   reloadSamples: vi.fn(async () => {}),
   blockCandidates: vi.fn(async () => true),
@@ -168,7 +170,7 @@ vi.mock('@/hooks/useCandidateStatus', () => ({
 
 vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: {
-    POST: vi.fn(async () => ({ data: { success: true } })),
+    POST: vi.fn(async () => ({ data: mockState.matchApiResponse })),
     GET: vi.fn(async () => ({ data: { success: true } })),
   },
 }))
@@ -305,6 +307,7 @@ describe('useResumeListState role filter regression', () => {
     mockState.blocksByIdentity = {}
     mockState.statusByIdentity = {}
     mockState.searchHistory = []
+    mockState.matchApiResponse = { success: true, results: [] }
     document.body.innerHTML = ''
     mockState.urlParsedState = {
       location: undefined,
@@ -477,6 +480,45 @@ describe('useResumeListState role filter regression', () => {
       'Luo Non-CNC Sales',      // primaryRuleScore: 20
       'Engineer Junior',        // primaryRuleScore: 0 (undefined)
     ])
+  })
+
+  it('uses query-specific scores for keyword-only ranking instead of primaryRuleScore', async () => {
+    mockState.sessionKeywords = ['CNC', '销售']
+    mockState.sessionLocation = '东莞'
+    mockState.matchApiResponse = {
+      success: true,
+      results: [
+        { resumeId: 'resume-zhang-machinery-sales', score: 92 },
+        { resumeId: 'resume-li-automation-sales', score: 88 },
+        { resumeId: 'resume-ideal-cnc-sales', score: 84 },
+        { resumeId: 'resume-zhou-jingdiao', score: 40 },
+        { resumeId: 'resume-luo-non-cnc-sales', score: 12 },
+        { resumeId: 'resume-engineer-junior', score: 0 },
+      ],
+    }
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await waitFor(() => {
+      expect(result.current.displayedResumes.map((entry) => entry.resume.name)).toEqual([
+        'Zhang Machinery Sales',
+        'Li Automation Sales',
+        'Ideal CNC Sales',
+        'Zhou Jingdiao Hit',
+        'Luo Non-CNC Sales',
+        'Engineer Junior',
+      ])
+    })
+
+    expect(rawApiClient.POST).toHaveBeenCalledWith('/api/resumes/match', {
+      body: expect.objectContaining({
+        source: 'convex',
+        persist: false,
+        mode: 'rules_only',
+        keywords: ['CNC', '销售'],
+        location: '东莞',
+      }),
+    })
   })
 
   it('minMatchScore >=60 keeps only industry-verified high-score resumes', () => {

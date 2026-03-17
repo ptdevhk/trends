@@ -211,7 +211,7 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 	switch name {
 	case "resume_list":
 		limit := intArg(args, "limit", 50)
-		result, err := apiClient.ListResumes(ctx, limit, "")
+		result, err := apiClient.ListResumes(ctx, limit, "", "sample")
 		if err != nil {
 			return "", err
 		}
@@ -222,7 +222,7 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 			return "", fmt.Errorf("query is required")
 		}
 		limit := intArg(args, "limit", 50)
-		result, err := apiClient.SearchResumes(ctx, query, limit)
+		result, err := apiClient.SearchResumes(ctx, query, limit, "sample")
 		if err != nil {
 			return "", err
 		}

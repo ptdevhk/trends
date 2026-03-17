@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ func newResumeCmd() *cobra.Command {
 	resumeCmd.AddCommand(
 		newResumeListCmd(),
 		newResumeSearchCmd(),
+		newResumeMatchCmd(),
 		newResumeExportCmd(),
 	)
 
@@ -37,7 +39,7 @@ func newResumeListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List resumes",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			response, err := newAPIClient().ListResumes(context.Background(), limit, "")
+			response, err := newAPIClient().ListResumes(context.Background(), limit, "", "sample")
 			if err != nil {
 				return err
 			}
@@ -65,21 +67,28 @@ func newResumeListCmd() *cobra.Command {
 
 func newResumeSearchCmd() *cobra.Command {
 	var limit int
+	var source string
 
 	cmd := &cobra.Command{
 		Use:   "search <query>",
-		Short: "Search resumes (AND mode: all keywords must match)",
+		Short: "Search resumes (sample or live Convex-backed retrieval)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			response, err := newAPIClient().SearchResumes(context.Background(), args[0], limit)
+			response, err := newAPIClient().SearchResumes(context.Background(), args[0], limit, source)
 			if err != nil {
 				return err
 			}
 
 			options := currentOptions()
 			if options.Output != "json" {
-				fmt.Fprintf(cmd.OutOrStdout(), "Query: %s | Total: %d | Returned: %d\n\n",
-					response.Summary.Query, response.Summary.Total, response.Summary.Returned)
+				fmt.Fprintf(
+					cmd.OutOrStdout(),
+					"Query: %s | Source: %s | Total: %d | Returned: %d\n\n",
+					response.Summary.Query,
+					coalesceString(response.Summary.Source, normalizeResumeSourceFlag(source)),
+					response.Summary.Total,
+					response.Summary.Returned,
+				)
 			}
 
 			headers := []string{"id", "name", "intention", "location", "experience", "education"}
@@ -100,6 +109,90 @@ func newResumeSearchCmd() *cobra.Command {
 	}
 
 	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum resumes to fetch")
+	cmd.Flags().StringVar(&source, "source", "sample", "Resume source: sample|convex")
+	return cmd
+}
+
+func newResumeMatchCmd() *cobra.Command {
+	var (
+		query            string
+		location         string
+		jobDescriptionID string
+		sample           string
+		source           string
+		persist          bool
+		limit            int
+		topN             int
+		mode             string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "match",
+		Short: "Run resume matching through the API",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			keywords := splitQueryKeywords(query)
+			if strings.TrimSpace(jobDescriptionID) == "" && len(keywords) == 0 {
+				return fmt.Errorf("query or job-description is required")
+			}
+
+			request := client.ResumeMatchRequest{
+				Sample:           strings.TrimSpace(sample),
+				Source:           source,
+				JobDescriptionID: strings.TrimSpace(jobDescriptionID),
+				Keywords:         keywords,
+				Location:         strings.TrimSpace(location),
+				Limit:            limit,
+				TopN:             topN,
+				Mode:             strings.TrimSpace(mode),
+			}
+			request.Persist = &persist
+
+			response, err := newAPIClient().MatchResumes(context.Background(), request)
+			if err != nil {
+				return err
+			}
+
+			options := currentOptions()
+			if options.Output == "json" {
+				return writeOutput(cmd, nil, nil, response)
+			}
+
+			displayMap, err := loadResumeDisplayMap(context.Background(), newAPIClient(), strings.Join(keywords, " "), limit, source)
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"resume_id", "score", "recommendation", "primary_rule", "sales_years", "company_hits", "name", "location"}
+			rows := make([][]string, 0, len(response.Results))
+			for _, result := range response.Results {
+				display := displayMap[result.ResumeID]
+				rows = append(rows, []string{
+					result.ResumeID,
+					strconv.Itoa(result.Score),
+					result.Recommendation,
+					formatOptionalFloat(debugPrimaryRuleScore(result.Debug)),
+					formatSalesYears(result.Debug),
+					strings.Join(debugCompanyHits(result.Debug), ", "),
+					display.Name,
+					display.Location,
+				})
+			}
+
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().StringVar(&query, "query", "", "Keyword query to match against resumes")
+	cmd.Flags().StringVar(&location, "location", "", "Optional location constraint")
+	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID")
+	cmd.Flags().StringVar(&sample, "sample", "", "Optional sample name for sample-backed matching")
+	cmd.Flags().StringVar(&source, "source", "convex", "Resume source: sample|convex")
+	cmd.Flags().BoolVar(&persist, "persist", false, "Persist matches and session state")
+	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum resumes to score")
+	cmd.Flags().IntVar(&topN, "top-n", 20, "Hybrid/AI candidate cutoff")
+	cmd.Flags().StringVar(&mode, "mode", "rules_only", "Match mode: rules_only|hybrid|ai_only")
+
 	return cmd
 }
 
@@ -118,7 +211,7 @@ func newResumeExportCmd() *cobra.Command {
 				return fmt.Errorf("invalid format %q (expected csv|xlsx)", format)
 			}
 
-			resumes, err := newAPIClient().ListResumes(context.Background(), limit, query)
+			resumes, err := newAPIClient().ListResumes(context.Background(), limit, query, "sample")
 			if err != nil {
 				return err
 			}
@@ -179,6 +272,99 @@ func newResumeExportCmd() *cobra.Command {
 	cmd.Flags().StringVar(&outPath, "out", "", "Output file path")
 
 	return cmd
+}
+
+type resumeDisplayRow struct {
+	Name     string
+	Location string
+}
+
+func loadResumeDisplayMap(ctx context.Context, apiClient *client.Client, query string, limit int, source string) (map[string]resumeDisplayRow, error) {
+	var (
+		response *client.ResumesResponse
+		err      error
+	)
+	if strings.TrimSpace(query) != "" {
+		response, err = apiClient.SearchResumes(ctx, query, limit, source)
+	} else {
+		response, err = apiClient.ListResumes(ctx, limit, "", source)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	displayMap := make(map[string]resumeDisplayRow, len(response.Data))
+	for index, item := range response.Data {
+		displayMap[resumeIdentifier(item, index)] = resumeDisplayRow{
+			Name:     item.Name,
+			Location: item.Location,
+		}
+	}
+	return displayMap, nil
+}
+
+func splitQueryKeywords(query string) []string {
+	return strings.Fields(strings.TrimSpace(query))
+}
+
+func coalesceString(values ...string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func normalizeResumeSourceFlag(source string) string {
+	if strings.EqualFold(strings.TrimSpace(source), "convex") {
+		return "convex"
+	}
+	return "sample"
+}
+
+func formatOptionalFloat(value *float64) string {
+	if value == nil {
+		return ""
+	}
+	if *value == float64(int(*value)) {
+		return strconv.Itoa(int(*value))
+	}
+	return strconv.FormatFloat(*value, 'f', 2, 64)
+}
+
+func formatSalesYears(debug *client.ResumeMatchDebug) string {
+	if debug == nil {
+		return ""
+	}
+	for _, signal := range debug.RoleSignals {
+		if strings.EqualFold(signal.Type, "sales") {
+			if signal.IndustryVerifiedRelevantYears != nil {
+				return formatOptionalFloat(signal.IndustryVerifiedRelevantYears)
+			}
+			if signal.RoleRelevantYears != nil {
+				return formatOptionalFloat(signal.RoleRelevantYears)
+			}
+			value := signal.IndustryVerifiedYears
+			return formatOptionalFloat(&value)
+		}
+	}
+	return ""
+}
+
+func debugPrimaryRuleScore(debug *client.ResumeMatchDebug) *float64 {
+	if debug == nil {
+		return nil
+	}
+	return debug.PrimaryRuleScore
+}
+
+func debugCompanyHits(debug *client.ResumeMatchDebug) []string {
+	if debug == nil {
+		return nil
+	}
+	return debug.CompanyHits
 }
 
 func resumeIdentifier(item client.ResumeItem, index int) string {

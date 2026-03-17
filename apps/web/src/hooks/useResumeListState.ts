@@ -400,6 +400,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
   const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<ExperienceLevelFilter | undefined>(undefined)
   const [appliedSearchHistoryId, setAppliedSearchHistoryId] = useState<string | undefined>(undefined)
+  const [queryRuleScoreMap, setQueryRuleScoreMap] = useState<Record<string, number>>({})
   const [mode] = useState<'ai'>('ai')
   const hydratedSessionIdRef = useRef<string | null>(null)
   const hasInitializedUrlHydrationRef = useRef(false)
@@ -498,6 +499,7 @@ export function useResumeListState(loadSearchHistory = false) {
     const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
     return rawBaseUrl.replace(/\/api\/?$/, '')
   }, [])
+  const keywordOnlyQueryScoring = sessionKeywords.length > 0 && !jobDescriptionId?.trim()
 
   const activeLoading = mode === 'ai' ? convexLoading : loading
   const hasActiveTask = useMemo(() => {
@@ -506,6 +508,59 @@ export function useResumeListState(loadSearchHistory = false) {
     }
     return analysisTasks.some((task) => taskMatchesCurrentSearch(task, jobDescriptionId, sessionKeywords))
   }, [analysisTasks, jobDescriptionId, sessionKeywords])
+
+  useEffect(() => {
+    let active = true
+
+    if (!keywordOnlyQueryScoring || convexResumes.length === 0) {
+      setQueryRuleScoreMap({})
+      return () => {
+        active = false
+      }
+    }
+
+    const resumeIds = convexResumes.map((resume) => String(resume.resumeId))
+    void rawApiClient
+      .POST<{
+        success: boolean
+        results?: Array<{
+          resumeId: string
+          score: number
+        }>
+      }>('/api/resumes/match', {
+        body: {
+          source: 'convex',
+          persist: false,
+          mode: 'rules_only',
+          keywords: sessionKeywords,
+          location: sessionLocation,
+          resumeIds,
+        },
+      })
+      .then(({ data, error }) => {
+        if (!active || error || !data?.success) {
+          if (active) {
+            setQueryRuleScoreMap({})
+          }
+          return
+        }
+
+        const nextMap = Object.fromEntries(
+          (data.results ?? []).map((item) => [item.resumeId, item.score])
+        )
+        setQueryRuleScoreMap(nextMap)
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to load query-specific resume scores', error)
+        if (active) {
+          setQueryRuleScoreMap({})
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [convexResumes, jobDescriptionId, keywordOnlyQueryScoring, sessionKeywords, sessionLocation])
 
   useEffect(() => {
     if (!activeHasUrlParams) {
@@ -712,9 +767,15 @@ export function useResumeListState(loadSearchHistory = false) {
         return !isAutoFilteredAnalysis(analysis)
       })
       .map((resume: ConvexResumeItem) => {
+        const querySpecificRuleScore = keywordOnlyQueryScoring
+          ? queryRuleScoreMap[String(resume.resumeId)]
+          : undefined
         return {
           ...resume,
-          _ruleScore: resume.primaryRuleScore ?? 0,
+          _ruleScore:
+            typeof querySpecificRuleScore === 'number'
+              ? querySpecificRuleScore
+              : (resume.primaryRuleScore ?? 0),
         }
       })
 
@@ -826,6 +887,8 @@ export function useResumeListState(loadSearchHistory = false) {
     convexResumes,
     filters,
     jobDescriptionId,
+    keywordOnlyQueryScoring,
+    queryRuleScoreMap,
     selectedCompanies,
     selectedExperienceLevel,
     selectedTags,

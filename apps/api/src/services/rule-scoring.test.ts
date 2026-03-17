@@ -102,7 +102,7 @@ describe("RuleScoringService", () => {
     }
   });
 
-  it("does not apply strict role gating for keyword-only searches", () => {
+  it("infers sales role gating for unambiguous keyword-only searches", () => {
     const root = createFixtureRoot();
 
     try {
@@ -124,14 +124,20 @@ describe("RuleScoringService", () => {
 
       const result = service.scoreResume(operatorCandidate, context);
 
-      expect(context.requiredRoles).toEqual([]);
-      expect(result.breakdown.roleMatch).toBe(10);
+      expect(context.requiredRoles).toEqual([
+        expect.objectContaining({
+          type: "sales",
+          verifyIn: "workHistory",
+        }),
+      ]);
+      expect(result.breakdown.roleMatch).toBe(2);
+      expect(result.breakdown.experienceMatch).toBe(0);
     } finally {
       cleanupFixtureRoot(root);
     }
   });
 
-  it("keeps CNC 数控车床 销售 keyword searches free of JD role gating", () => {
+  it("infers keyword-only sales gating without forcing JD minYears", () => {
     const root = createFixtureRoot();
 
     try {
@@ -153,19 +159,50 @@ describe("RuleScoringService", () => {
       };
 
       const keywordResult = service.scoreResume(cncSalesCandidate, keywordContext);
-      const jdResult = service.scoreResume(cncSalesCandidate, jdContext);
+      const keywordWithSignalsResult = service.scoreResume(
+        cncSalesCandidate,
+        keywordContext,
+        [],
+        [createSalesRoleSignal(0.5)]
+      );
+      const jdResult = service.scoreResume(
+        cncSalesCandidate,
+        jdContext,
+        [],
+        [createSalesRoleSignal(0.5)]
+      );
 
       expect(keywordContext.keywords).toEqual(["cnc", "数控车床", "销售"]);
       expect(keywordContext.industryTags).toEqual(["machinery"]);
-      expect(keywordContext.requiredRoles).toEqual([]);
+      expect(keywordContext.requiredRoles).toEqual([
+        expect.objectContaining({
+          type: "sales",
+          verifyIn: "workHistory",
+        }),
+      ]);
       expect(keywordResult.breakdown.skillMatch).toBeGreaterThan(0);
-      expect(keywordResult.breakdown.roleMatch).toBe(10);
-      expect(keywordResult.recommendation).toBe("strong_match");
-
+      expect(keywordResult.breakdown.roleMatch).toBe(2);
+      expect(keywordResult.breakdown.experienceMatch).toBe(0);
+      expect(keywordWithSignalsResult.breakdown.roleMatch).toBe(8);
+      expect(keywordWithSignalsResult.breakdown.experienceMatch).toBe(25);
       expect(jdContext.requiredRoles).toHaveLength(1);
-      expect(jdResult.breakdown.roleMatch).toBe(2);
-      expect(jdResult.breakdown.experienceMatch).toBe(0);
-      expect(keywordResult.score).toBeGreaterThan(jdResult.score);
+      expect(jdContext.requiredRoles[0]?.minYears).toBe(1);
+      expect(jdResult.breakdown.roleMatch).toBe(5);
+      expect(jdResult.breakdown.experienceMatch).toBe(13);
+      expect(keywordWithSignalsResult.score).toBeGreaterThan(jdResult.score);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("keeps ambiguous multi-role keyword searches recall-first", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["销售", "工程师"], "东莞");
+
+      expect(context.requiredRoles).toEqual([]);
     } finally {
       cleanupFixtureRoot(root);
     }
@@ -422,7 +459,7 @@ describe("RuleScoringService", () => {
         { brand: "fanuc", role: "both", source: "workHistory", context: "employer" },
       ]);
 
-      expect(equipmentResult.breakdown.brandRelevance).toBe(7);
+      expect(equipmentResult.breakdown.brandRelevance).toBe(0);
       expect(employerResult.breakdown.brandRelevance).toBe(10);
       expect(employerResult.score).toBeGreaterThan(equipmentResult.score);
     } finally {
