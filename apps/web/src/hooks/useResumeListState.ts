@@ -85,6 +85,17 @@ function areKeywordListsEqual(left: string[], right: string[]): boolean {
   return normalizeKeywordFingerprint(left) === normalizeKeywordFingerprint(right)
 }
 
+function areScoreMapsEqual(left: Record<string, number>, right: Record<string, number>): boolean {
+  const leftEntries = Object.entries(left)
+  const rightEntries = Object.entries(right)
+
+  if (leftEntries.length !== rightEntries.length) {
+    return false
+  }
+
+  return leftEntries.every(([key, value]) => right[key] === value)
+}
+
 function appendKeywordToken(current: string[], token: string): string[] {
   const normalizedToken = token.trim()
   if (!normalizedToken) {
@@ -205,6 +216,15 @@ function submitResumeExportDownload(apiBaseUrl: string, payload: ResumeExportReq
 
 function normalizeFilterToken(value: string): string {
   return value.trim().toLowerCase()
+}
+
+function parseSerializedStringArray(value: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
 }
 
 function toExperienceLevel(value: string | undefined): ExperienceLevelFilter | undefined {
@@ -500,6 +520,34 @@ export function useResumeListState(loadSearchHistory = false) {
     return rawBaseUrl.replace(/\/api\/?$/, '')
   }, [])
   const keywordOnlyQueryScoring = sessionKeywords.length > 0 && !jobDescriptionId?.trim()
+  const querySpecificKeywordsKey = useMemo(
+    () => JSON.stringify(sessionKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0)),
+    [sessionKeywords]
+  )
+  const querySpecificResumeIdsKey = useMemo(
+    () =>
+      JSON.stringify(
+        Array.from(new Set(convexResumes.map((resume) => String(resume.resumeId)))).sort()
+      ),
+    [convexResumes]
+  )
+  const querySpecificScoreRequest = useMemo(() => {
+    if (!keywordOnlyQueryScoring) {
+      return null
+    }
+
+    const keywords = parseSerializedStringArray(querySpecificKeywordsKey)
+    const resumeIds = parseSerializedStringArray(querySpecificResumeIdsKey)
+    if (keywords.length === 0 || resumeIds.length === 0) {
+      return null
+    }
+
+    return {
+      keywords,
+      location: sessionLocation.trim(),
+      resumeIds,
+    }
+  }, [keywordOnlyQueryScoring, querySpecificKeywordsKey, querySpecificResumeIdsKey, sessionLocation])
 
   const activeLoading = mode === 'ai' ? convexLoading : loading
   const hasActiveTask = useMemo(() => {
@@ -512,14 +560,13 @@ export function useResumeListState(loadSearchHistory = false) {
   useEffect(() => {
     let active = true
 
-    if (!keywordOnlyQueryScoring || convexResumes.length === 0) {
-      setQueryRuleScoreMap({})
+    if (!querySpecificScoreRequest) {
+      setQueryRuleScoreMap((current) => (Object.keys(current).length === 0 ? current : {}))
       return () => {
         active = false
       }
     }
 
-    const resumeIds = convexResumes.map((resume) => String(resume.resumeId))
     void rawApiClient
       .POST<{
         success: boolean
@@ -532,15 +579,15 @@ export function useResumeListState(loadSearchHistory = false) {
           source: 'convex',
           persist: false,
           mode: 'rules_only',
-          keywords: sessionKeywords,
-          location: sessionLocation,
-          resumeIds,
+          keywords: querySpecificScoreRequest.keywords,
+          location: querySpecificScoreRequest.location,
+          resumeIds: querySpecificScoreRequest.resumeIds,
         },
       })
       .then(({ data, error }) => {
         if (!active || error || !data?.success) {
           if (active) {
-            setQueryRuleScoreMap({})
+            setQueryRuleScoreMap((current) => (Object.keys(current).length === 0 ? current : {}))
           }
           return
         }
@@ -548,19 +595,19 @@ export function useResumeListState(loadSearchHistory = false) {
         const nextMap = Object.fromEntries(
           (data.results ?? []).map((item) => [item.resumeId, item.score])
         )
-        setQueryRuleScoreMap(nextMap)
+        setQueryRuleScoreMap((current) => (areScoreMapsEqual(current, nextMap) ? current : nextMap))
       })
       .catch((error: unknown) => {
         console.error('Failed to load query-specific resume scores', error)
         if (active) {
-          setQueryRuleScoreMap({})
+          setQueryRuleScoreMap((current) => (Object.keys(current).length === 0 ? current : {}))
         }
       })
 
     return () => {
       active = false
     }
-  }, [convexResumes, jobDescriptionId, keywordOnlyQueryScoring, sessionKeywords, sessionLocation])
+  }, [querySpecificScoreRequest])
 
   useEffect(() => {
     if (!activeHasUrlParams) {

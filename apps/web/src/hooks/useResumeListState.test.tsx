@@ -16,6 +16,7 @@ const formSubmitMock = vi.fn(function thisFormSubmit(this: HTMLFormElement) {
 
 const mockState = vi.hoisted(() => ({
   convexResumes: [] as ConvexResumeItem[],
+  cloneConvexResumesOnRead: false,
   filters: {} as Record<string, unknown>,
   sessionLocation: '广东',
   sessionKeywords: [] as string[],
@@ -139,7 +140,9 @@ vi.mock('@/hooks/useResumes', () => ({
 
 vi.mock('@/hooks/useConvexResumes', () => ({
   useConvexResumes: () => ({
-    resumes: mockState.convexResumes,
+    resumes: mockState.cloneConvexResumesOnRead
+      ? [...mockState.convexResumes]
+      : mockState.convexResumes,
     loading: false,
   }),
 }))
@@ -299,6 +302,7 @@ describe('useResumeListState role filter regression', () => {
     submittedPayloadValue = ''
     window.history.replaceState({}, '', '/')
     mockState.filters = {}
+    mockState.cloneConvexResumesOnRead = false
     mockState.sessionLocation = '广东'
     mockState.sessionKeywords = []
     mockState.sessionJobDescriptionId = undefined
@@ -519,6 +523,32 @@ describe('useResumeListState role filter regression', () => {
         location: '东莞',
       }),
     })
+  })
+
+  it('does not refetch query-specific scores when convex resume arrays are remapped on rerender', async () => {
+    mockState.cloneConvexResumesOnRead = true
+    mockState.sessionKeywords = ['CNC', '销售']
+    mockState.sessionLocation = '东莞'
+    mockState.matchApiResponse = {
+      success: true,
+      results: [
+        { resumeId: 'resume-zhang-machinery-sales', score: 92 },
+        { resumeId: 'resume-li-automation-sales', score: 88 },
+        { resumeId: 'resume-ideal-cnc-sales', score: 84 },
+      ],
+    }
+
+    const { rerender } = renderHook(() => useResumeListState())
+
+    await waitFor(() => {
+      expect(rawApiClient.POST).toHaveBeenCalledTimes(1)
+    })
+
+    await act(async () => {
+      rerender()
+    })
+
+    expect(rawApiClient.POST).toHaveBeenCalledTimes(1)
   })
 
   it('minMatchScore >=60 keeps only industry-verified high-score resumes', () => {
