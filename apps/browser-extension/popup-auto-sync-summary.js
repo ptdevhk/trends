@@ -1,4 +1,6 @@
 (() => {
+  const DEFAULT_STORED_AUTO_SYNC_SUMMARY_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
   /**
    * @param {string} autoSync
    * @returns {string}
@@ -64,6 +66,88 @@
       .replace(/\.\d+Z?$/u, '')
       .replace(/Z$/u, '')
       .slice(0, 16);
+  }
+
+  /**
+   * @param {unknown} value
+   * @returns {Record<string, unknown> | null}
+   */
+  function normalizeStoredAutoSyncSummary(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return /** @type {Record<string, unknown>} */ (value);
+  }
+
+  /**
+   * @param {Record<string, unknown> | null | undefined} summariesBySource
+   * @returns {Array<Record<string, unknown>>}
+   */
+  function listStoredAutoSyncSummaries(summariesBySource) {
+    if (!summariesBySource || typeof summariesBySource !== 'object' || Array.isArray(summariesBySource)) {
+      return [];
+    }
+
+    const summaries = /** @type {Array<Record<string, unknown>>} */ ([]);
+    for (const value of Object.values(summariesBySource)) {
+      const summary = normalizeStoredAutoSyncSummary(value);
+      if (summary) {
+        summaries.push(summary);
+      }
+    }
+    return summaries;
+  }
+
+  /**
+   * @param {unknown} value
+   * @returns {number | null}
+   */
+  function parsePersistedAtMs(value) {
+    if (typeof value !== 'string') return null;
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+
+  /**
+   * @param {{
+   *   summariesBySource?: Record<string, unknown> | null;
+   *   preferredSourceKey?: string | null;
+   *   nowMs?: number;
+   *   maxAgeMs?: number;
+   * }} [options]
+   * @returns {Record<string, unknown> | null}
+   */
+  function pickStoredAutoSyncSummary(options = {}) {
+    const {
+      summariesBySource = null,
+      preferredSourceKey = '',
+      nowMs = Date.now(),
+      maxAgeMs = DEFAULT_STORED_AUTO_SYNC_SUMMARY_MAX_AGE_MS,
+    } = options;
+    const candidates = listStoredAutoSyncSummaries(summariesBySource)
+      .map((summary) => ({
+        summary,
+        persistedAtMs: parsePersistedAtMs(summary.persistedAt),
+      }))
+      .filter(({ summary, persistedAtMs }) => {
+        const autoSync = typeof summary.autoSync === 'string' ? summary.autoSync : '';
+        if (!autoSync || autoSync === 'skipped') return false;
+        if (!Number.isFinite(persistedAtMs)) return false;
+        return nowMs - persistedAtMs <= maxAgeMs;
+      })
+      .sort((left, right) => /** @type {number} */ (right.persistedAtMs) - /** @type {number} */ (left.persistedAtMs));
+
+    if (!candidates.length) {
+      return null;
+    }
+
+    const normalizedPreferredSourceKey = typeof preferredSourceKey === 'string' ? preferredSourceKey.trim() : '';
+    if (normalizedPreferredSourceKey) {
+      const matched = candidates.find(({ summary }) => summary.sourceKey === normalizedPreferredSourceKey);
+      return matched ? matched.summary : null;
+    }
+
+    return candidates[0]?.summary || null;
   }
 
   /**
@@ -143,10 +227,15 @@
   }
 
   globalThis.__TR_POPUP_AUTO_SYNC_SUMMARY__ = Object.freeze({
+    DEFAULT_STORED_AUTO_SYNC_SUMMARY_MAX_AGE_MS,
     formatAutoSyncState,
     formatAutoSyncStopReason,
     formatAutoSyncSourceKey,
     formatAutoSyncPersistedAt,
+    normalizeStoredAutoSyncSummary,
+    listStoredAutoSyncSummaries,
+    parsePersistedAtMs,
+    pickStoredAutoSyncSummary,
     buildAutoSyncSummary,
   });
 })();
