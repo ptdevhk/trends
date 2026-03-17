@@ -9,6 +9,11 @@ AGENTS_DEST_ROOT="${AGENTS_HOME:-$HOME/.agents}/skills"
 usage() {
   echo "Usage: $0 --skill <skill-name> [--target codex|agents|all] [--check]"
   echo "Default target: codex"
+  echo "Targets:"
+  echo "  codex  -> $CODEX_DEST_ROOT"
+  echo "  agents -> $AGENTS_DEST_ROOT"
+  echo "  all    -> both roots"
+  echo "Env overrides: CODEX_HOME, AGENTS_HOME"
 }
 
 require_tool() {
