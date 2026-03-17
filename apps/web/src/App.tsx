@@ -15,7 +15,13 @@ import { SearchProfilesPage } from '@/pages/SearchProfilesPage'
 import SearchAnalyticsPage from '@/pages/SearchAnalyticsPage'
 import SettingsLayout from '@/layouts/SettingsLayout'
 import SystemLayout from '@/layouts/SystemLayout'
+import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
+import { SystemSettingsConfigSourcesPage } from '@/pages/system-settings/SystemSettingsConfigSourcesPage'
+import { SystemSettingsKeywordsPage } from '@/pages/system-settings/SystemSettingsKeywordsPage'
+import { SystemSettingsLocationsPage } from '@/pages/system-settings/SystemSettingsLocationsPage'
+import { SystemSettingsOperationsPage } from '@/pages/system-settings/SystemSettingsOperationsPage'
+import { SystemSettingsRuntimePage } from '@/pages/system-settings/SystemSettingsRuntimePage'
 
 function MainShell() {
   return (
@@ -105,7 +111,14 @@ function App() {
               }
             >
               <Route index element={<Navigate to="settings" replace />} />
-              <Route path="settings" element={<DebugConfig />} />
+              <Route path="settings" element={<SystemSettingsLayout />}>
+                <Route index element={<DebugConfig />} />
+                <Route path="operations" element={<SystemSettingsOperationsPage />} />
+                <Route path="runtime" element={<SystemSettingsRuntimePage />} />
+                <Route path="config-sources" element={<SystemSettingsConfigSourcesPage />} />
+                <Route path="keywords" element={<SystemSettingsKeywordsPage />} />
+                <Route path="locations" element={<SystemSettingsLocationsPage />} />
+              </Route>
               <Route path="jds" element={<DebugJDs />} />
               <Route path="profiles" element={<SearchProfilesPage />} />
               <Route path="ai-debugger" element={<DebugAI />} />
