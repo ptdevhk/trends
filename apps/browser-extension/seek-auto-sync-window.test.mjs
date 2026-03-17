@@ -79,6 +79,26 @@ test('keeps a non-first-page exact seek url on the same page when a small limit 
   assert.equal(selection.hitLimitWithinPage, true);
 });
 
+test('keeps a non-first-page exact seek url on the same page when maxPages is the tighter bound', () => {
+  const pageWindow = helpers.resolveSeekAutoSyncPageWindow({
+    startPage: 3,
+    limit: 100,
+    maxPages: 1,
+    requestedPageSize: 20,
+  });
+  const selection = helpers.resolveSeekAutoSyncCurrentPageSelection({
+    limit: 100,
+    totalSubmitted: 0,
+    currentPageResumeCount: 20,
+  });
+
+  assert.equal(pageWindow.startPage, 3);
+  assert.equal(pageWindow.targetPageEnd, 3);
+  assert.equal(pageWindow.allowedPageCount, 1);
+  assert.equal(selection.selectedCount, 20);
+  assert.equal(selection.hitLimitWithinPage, false);
+});
+
 test('falls back to the current candidate count when seek request size is unavailable', () => {
   const pageWindow = helpers.resolveSeekAutoSyncPageWindow({
     startPage: 1,
