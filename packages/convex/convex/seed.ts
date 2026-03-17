@@ -649,7 +649,25 @@ export const seedWorkspaceDemoData = mutation({
       },
     ];
 
-    const searchHistory = [
+    const searchHistory: Array<{
+      sessionKey: string;
+      title: string;
+      location: string;
+      keywords: string[];
+      jobDescriptionId?: string;
+      collectionSource?: {
+        type: "job5156" | "seek";
+        exactUrl?: string;
+      };
+      collectUrl?: string;
+      filters?: Record<string, unknown>;
+      selectedTags?: string[];
+      selectedCompanies?: string[];
+      selectedExperienceLevel?: string;
+      workspaceSlug?: string;
+      createdAt: number;
+      lastOpenedAt: number;
+    }> = [
       {
         sessionKey: "workspace-demo-session-dev",
         title: "东莞 · 机械 销售",
@@ -991,6 +1009,8 @@ export const seedWorkspaceDemoData = mutation({
           existing.location !== item.location ||
           stableSerialize(existing.keywords) !== stableSerialize(item.keywords) ||
           existing.jobDescriptionId !== item.jobDescriptionId ||
+          stableSerialize(existing.collectionSource ?? null) !== stableSerialize(item.collectionSource ?? null) ||
+          existing.collectUrl !== item.collectUrl ||
           stableSerialize(existing.filters ?? {}) !== stableSerialize(item.filters ?? {}) ||
           stableSerialize(existing.selectedTags ?? []) !== stableSerialize(item.selectedTags ?? []) ||
           stableSerialize(existing.selectedCompanies ?? []) !== stableSerialize(item.selectedCompanies ?? []) ||
@@ -1003,6 +1023,8 @@ export const seedWorkspaceDemoData = mutation({
             location: item.location,
             keywords: item.keywords,
             jobDescriptionId: item.jobDescriptionId,
+            collectionSource: item.collectionSource,
+            collectUrl: item.collectUrl,
             filters: item.filters,
             selectedTags: item.selectedTags,
             selectedCompanies: item.selectedCompanies,
@@ -1022,6 +1044,8 @@ export const seedWorkspaceDemoData = mutation({
         location: item.location,
         keywords: item.keywords,
         jobDescriptionId: item.jobDescriptionId,
+        collectionSource: item.collectionSource,
+        collectUrl: item.collectUrl,
         filters: item.filters,
         selectedTags: item.selectedTags,
         selectedCompanies: item.selectedCompanies,

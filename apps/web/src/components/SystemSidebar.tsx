@@ -49,8 +49,8 @@ export function SystemSidebar({ onClose }: SystemSidebarProps) {
   const location = useLocation()
   const { slug } = useWorkspace()
   const { t } = useTranslation()
-  const identity = useSystemMetadata()
-  const appVersion = identity?.appVersion ?? 'unknown'
+  const metadata = useSystemMetadata()
+  const appVersion = metadata?.identity.appVersion ?? 'unknown'
 
   const navItems = useMemo<NavItem[]>(() => {
     return SYSTEM_NAV_ITEMS.map((item) => ({

@@ -3,6 +3,11 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 
 export const DEFAULT_WORKSPACE_SLUG = "dev";
 
+type CollectionSource = {
+    type: "job5156" | "seek";
+    exactUrl?: string;
+};
+
 function normalizeWorkspaceSlug(input: string | undefined): string {
     const normalized = input?.trim();
     return normalized && normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_SLUG;
@@ -31,6 +36,25 @@ function normalizeStringList(values: string[] | undefined): string[] {
     });
 
     return normalized;
+}
+
+function normalizeCollectionSource(
+    input: CollectionSource | undefined,
+    legacyCollectUrl?: string,
+): CollectionSource | undefined {
+    const type = input?.type;
+    if (type === "job5156") {
+        return { type };
+    }
+
+    const exactUrl = normalizeOptionalString(
+        (type === "seek" ? input?.exactUrl : undefined) ?? legacyCollectUrl,
+    );
+    if (type === "seek") {
+        return exactUrl ? { type, exactUrl } : { type };
+    }
+
+    return exactUrl ? { type: "seek", exactUrl } : undefined;
 }
 
 function belongsToWorkspace(
@@ -157,6 +181,10 @@ export const saveSession = mutation({
         location: v.string(),
         keywords: v.array(v.string()),
         jobDescriptionId: v.optional(v.string()),
+        collectionSource: v.optional(v.object({
+            type: v.union(v.literal("job5156"), v.literal("seek")),
+            exactUrl: v.optional(v.string()),
+        })),
         collectUrl: v.optional(v.string()),
         filters: v.optional(v.any()),
     },
@@ -176,6 +204,7 @@ export const saveSession = mutation({
                 location: args.location,
                 keywords: args.keywords,
                 jobDescriptionId: args.jobDescriptionId,
+                collectionSource: normalizeCollectionSource(args.collectionSource, args.collectUrl),
                 collectUrl: normalizeOptionalString(args.collectUrl),
                 filters: args.filters,
             },
@@ -307,6 +336,10 @@ export const saveSearchHistory = mutation({
         location: v.string(),
         keywords: v.array(v.string()),
         jobDescriptionId: v.optional(v.string()),
+        collectionSource: v.optional(v.object({
+            type: v.union(v.literal("job5156"), v.literal("seek")),
+            exactUrl: v.optional(v.string()),
+        })),
         collectUrl: v.optional(v.string()),
         filters: v.optional(v.any()),
         selectedTags: v.optional(v.array(v.string())),
@@ -323,6 +356,7 @@ export const saveSearchHistory = mutation({
         const keywords = normalizeStringList(args.keywords);
         const title = normalizeOptionalString(args.title) ?? buildHistoryTitle(location, keywords);
         const jobDescriptionId = normalizeOptionalString(args.jobDescriptionId);
+        const collectionSource = normalizeCollectionSource(args.collectionSource, args.collectUrl);
         const collectUrl = normalizeOptionalString(args.collectUrl);
         const selectedTags = normalizeStringList(args.selectedTags);
         const selectedCompanies = normalizeStringList(args.selectedCompanies);
@@ -338,6 +372,7 @@ export const saveSearchHistory = mutation({
             location,
             keywords,
             jobDescriptionId,
+            collectionSource,
             collectUrl,
             filters: args.filters,
             selectedTags,

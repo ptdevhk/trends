@@ -225,6 +225,7 @@ describe('config route workspace access', () => {
     expect(payload.success).toBe(true)
     expect(payload.metadata.identity.appName).toBe('Trends')
     expect(payload.metadata.navigation.system.length).toBeGreaterThan(0)
+    expect(payload.metadata.navigation.systemSettings.length).toBeGreaterThan(0)
     expect(payload.metadata.labels.aiBreakdown.some((item: { key: string }) => item.key === 'industry_db')).toBe(true)
     expect(payload.metadata.capabilities.some((item: { id: string }) => item.id === 'cli-system-inspect')).toBe(true)
   })

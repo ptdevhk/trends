@@ -19,6 +19,7 @@ const (
 type RootOptions struct {
 	APIURL    string
 	WorkerURL string
+	Workspace string
 	Output    string
 }
 
@@ -44,6 +45,7 @@ var rootCmd = &cobra.Command{
 func init() {
 	viper.SetDefault("api_url", defaultAPIURL)
 	viper.SetDefault("worker_url", defaultWorkerURL)
+	viper.SetDefault("workspace", "dev")
 	viper.SetDefault("output", defaultOutput)
 
 	viper.SetEnvPrefix("TRENDS")
@@ -51,10 +53,12 @@ func init() {
 
 	rootCmd.PersistentFlags().String("api-url", defaultAPIURL, "BFF API base URL")
 	rootCmd.PersistentFlags().String("worker-url", defaultWorkerURL, "Worker API base URL")
+	rootCmd.PersistentFlags().String("workspace", "dev", "Workspace slug")
 	rootCmd.PersistentFlags().StringP("output", "o", defaultOutput, "Output format: table|json|csv")
 
 	_ = viper.BindPFlag("api_url", rootCmd.PersistentFlags().Lookup("api-url"))
 	_ = viper.BindPFlag("worker_url", rootCmd.PersistentFlags().Lookup("worker-url"))
+	_ = viper.BindPFlag("workspace", rootCmd.PersistentFlags().Lookup("workspace"))
 	_ = viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
 
 	rootCmd.AddCommand(
@@ -95,13 +99,14 @@ func currentOptions() RootOptions {
 	return RootOptions{
 		APIURL:    normalizeBaseURL(viper.GetString("api_url")),
 		WorkerURL: normalizeBaseURL(viper.GetString("worker_url")),
+		Workspace: normalizeWorkspace(viper.GetString("workspace")),
 		Output:    strings.ToLower(strings.TrimSpace(viper.GetString("output"))),
 	}
 }
 
 var apiClientFactory = func() *client.Client {
 	options := currentOptions()
-	return client.New(options.APIURL, options.WorkerURL)
+	return client.New(options.APIURL, options.WorkerURL, options.Workspace)
 }
 
 func newAPIClient() *client.Client {
@@ -114,4 +119,12 @@ func normalizeBaseURL(value string) string {
 		return ""
 	}
 	return strings.TrimRight(trimmed, "/")
+}
+
+func normalizeWorkspace(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "dev"
+	}
+	return trimmed
 }

@@ -15,7 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { SYSTEM_SETTINGS_SUBPAGES, type SystemSettingsSubpageDefinition } from '@/pages/system-settings/lib'
+import { useSystemMetadata } from '@/hooks/useSystemMetadata'
+import { resolveSystemSettingsSubpages, type SystemSettingsSubpageDefinition } from '@/pages/system-settings/lib'
 
 function getSectionIcon(id: SystemSettingsSubpageDefinition['id']) {
   switch (id) {
@@ -36,12 +37,13 @@ function getSectionIcon(id: SystemSettingsSubpageDefinition['id']) {
 
 export default function DebugConfig() {
   const { t } = useTranslation()
+  const metadata = useSystemMetadata()
   const resetDatabase = useMutation(api.resume_tasks.resetDatabase)
   const [resetDatabaseDialogOpen, setResetDatabaseDialogOpen] = useState(false)
   const [resettingDatabase, setResettingDatabase] = useState(false)
 
   const sectionCards = useMemo(() => {
-    return SYSTEM_SETTINGS_SUBPAGES
+    return resolveSystemSettingsSubpages(metadata?.navigation.systemSettings)
       .filter((item) => item.id !== 'overview')
       .map((item) => ({
         ...item,
@@ -49,7 +51,7 @@ export default function DebugConfig() {
         description: t(item.descriptionKey, { defaultValue: item.defaultDescription }),
         icon: getSectionIcon(item.id),
       }))
-  }, [t])
+  }, [metadata?.navigation.systemSettings, t])
 
   async function handleResetDatabase() {
     setResettingDatabase(true)

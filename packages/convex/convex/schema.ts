@@ -324,6 +324,10 @@ export default defineSchema({
             location: v.string(),
             keywords: v.array(v.string()),
             jobDescriptionId: v.optional(v.string()),
+            collectionSource: v.optional(v.object({
+                type: v.union(v.literal("job5156"), v.literal("seek")),
+                exactUrl: v.optional(v.string()),
+            })),
             collectUrl: v.optional(v.string()),
             filters: v.optional(v.any()), // Stores ResumeFilters object
         }),
@@ -341,6 +345,10 @@ export default defineSchema({
         location: v.string(),
         keywords: v.array(v.string()),
         jobDescriptionId: v.optional(v.string()),
+        collectionSource: v.optional(v.object({
+            type: v.union(v.literal("job5156"), v.literal("seek")),
+            exactUrl: v.optional(v.string()),
+        })),
         collectUrl: v.optional(v.string()),
         filters: v.optional(v.any()),
         selectedTags: v.optional(v.array(v.string())),

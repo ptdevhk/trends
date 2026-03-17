@@ -19,6 +19,7 @@ const mockState = vi.hoisted(() => ({
   sessionLocation: '广东',
   sessionKeywords: [] as string[],
   sessionJobDescriptionId: undefined as string | undefined,
+  sessionCollectionSource: undefined as { type: 'job5156' | 'seek'; exactUrl?: string } | undefined,
   sessionCollectUrl: '' as string,
   blocksByIdentity: {} as Record<string, { identityKey: string }>,
   statusByIdentity: {} as Record<string, CandidateStatusRecord>,
@@ -26,6 +27,7 @@ const mockState = vi.hoisted(() => ({
   setLocation: vi.fn(),
   setKeywords: vi.fn(),
   setJobDescriptionId: vi.fn(),
+  setCollectionSource: vi.fn(),
   setCollectUrl: vi.fn(),
   trackReviewedResume: vi.fn(),
   applyExternalState: vi.fn(),
@@ -93,6 +95,8 @@ vi.mock('@/hooks/useSession', () => ({
     setKeywords: mockState.setKeywords,
     jobDescriptionId: mockState.sessionJobDescriptionId,
     setJobDescriptionId: mockState.setJobDescriptionId,
+    collectionSource: mockState.sessionCollectionSource,
+    setCollectionSource: mockState.setCollectionSource,
     collectUrl: mockState.sessionCollectUrl,
     setCollectUrl: mockState.setCollectUrl,
     filters: mockState.filters,
@@ -296,6 +300,8 @@ describe('useResumeListState role filter regression', () => {
     mockState.sessionLocation = '广东'
     mockState.sessionKeywords = []
     mockState.sessionJobDescriptionId = undefined
+    mockState.sessionCollectionSource = undefined
+    mockState.sessionCollectUrl = ''
     mockState.blocksByIdentity = {}
     mockState.statusByIdentity = {}
     mockState.searchHistory = []
@@ -584,6 +590,8 @@ describe('useResumeListState role filter regression', () => {
       location: '',
       keywords: [],
       jobDescriptionId: '',
+      collectionSource: null,
+      collectUrl: '',
       filters: {},
     })
   })
@@ -755,6 +763,7 @@ describe('useResumeListState role filter regression', () => {
       location: '苏州',
       keywords: ['CNC', '销售'],
       jobDescriptionId: 'lathe-sales',
+      collectionSource: null,
       collectUrl: '',
       filters: { minAge: 28 },
     })
@@ -987,6 +996,7 @@ describe('useResumeListState role filter regression', () => {
       result.current.handleQuickStartApply({
         location: 'Kuala Lumpur MY',
         keywords: ['Sales Engineer', 'Sales Manager'],
+        collectionSource: { type: 'seek' },
         collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=Sales+Engineer+Sales+Manager&location=Kuala+Lumpur+MY',
       }, true)
     })
@@ -999,6 +1009,7 @@ describe('useResumeListState role filter regression', () => {
     expect(filterUpdater({})).toMatchObject({
       locations: ['Kuala Lumpur MY'],
     })
+    expect(mockState.setCollectionSource).toHaveBeenCalledWith(expect.any(Function))
   })
 
   it('clears query state when navigation requests a resume home reset', async () => {
@@ -1012,6 +1023,8 @@ describe('useResumeListState role filter regression', () => {
         location: '',
         keywords: [],
         jobDescriptionId: '',
+        collectionSource: null,
+        collectUrl: '',
         filters: {},
       })
     })

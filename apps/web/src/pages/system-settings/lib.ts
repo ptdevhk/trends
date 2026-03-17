@@ -4,7 +4,9 @@ import type {
   InspectableSourceDetail as ConfigSourceDetail,
   InspectableSourceGroupSummary as ConfigSourceGroupSummary,
   InspectableSourceSummary as ConfigSourceSummary,
+  SurfaceNavDefinition,
 } from '@trends/shared'
+import { SYSTEM_SETTINGS_NAV_ITEMS } from '@trends/shared'
 import { withWorkspaceHeaders } from '@/lib/workspace-ref'
 
 export type {
@@ -107,56 +109,71 @@ export interface SystemSettingsSubpageDefinition {
   defaultDescription: string
 }
 
-export const SYSTEM_SETTINGS_SUBPAGES: SystemSettingsSubpageDefinition[] = [
-  {
-    id: 'overview',
-    href: '.',
-    titleKey: 'debugConfig.settingsNavOverview',
-    defaultTitle: 'Overview',
+const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemSettingsSubpageDefinition, 'descriptionKey' | 'defaultDescription'>> = {
+  overview: {
     descriptionKey: 'debugConfig.settingsOverviewPageDescription',
     defaultDescription: 'Open each settings area in a dedicated page instead of scrolling through one long screen.',
   },
-  {
-    id: 'operations',
-    href: 'operations',
-    titleKey: 'debugConfig.settingsNavOperations',
-    defaultTitle: 'Operations',
+  operations: {
     descriptionKey: 'debugConfig.operationsPageDescription',
     defaultDescription: 'Live diagnostics and manual collection controls.',
   },
-  {
-    id: 'runtime',
-    href: 'runtime',
-    titleKey: 'debugConfig.settingsNavRuntime',
-    defaultTitle: 'AI and agents',
+  runtime: {
     descriptionKey: 'debugConfig.runtimePageDescription',
     defaultDescription: 'Inspect AI connectivity and the screening pipeline.',
   },
-  {
-    id: 'config-sources',
-    href: 'config-sources',
-    titleKey: 'debugConfig.settingsNavConfigSources',
-    defaultTitle: 'Config sources',
+  'config-sources': {
     descriptionKey: 'debugConfig.configSourcesPageDescription',
     defaultDescription: 'Inspect read-only prompt and configuration sources.',
   },
-  {
-    id: 'keywords',
-    href: 'keywords',
-    titleKey: 'debugConfig.settingsNavKeywords',
-    defaultTitle: 'Keywords',
+  keywords: {
     descriptionKey: 'debugConfig.keywordsPageDescription',
     defaultDescription: 'Manage editable keywords and review derived brand data.',
   },
-  {
-    id: 'locations',
-    href: 'locations',
-    titleKey: 'debugConfig.settingsNavLocations',
-    defaultTitle: 'Locations',
+  locations: {
     descriptionKey: 'debugConfig.locationsPageDescription',
     defaultDescription: 'Control which system location chips are visible in the UI.',
   },
-]
+}
+
+function isSystemSettingsSubpageId(value: string): value is SystemSettingsSubpageId {
+  return value in SYSTEM_SETTINGS_SUBPAGE_COPY
+}
+
+function toSystemSettingsHref(hrefSuffix: string): string {
+  const relativeSuffix = hrefSuffix.replace(/^\/system\/settings/, '')
+  return relativeSuffix ? relativeSuffix.replace(/^\//, '') : '.'
+}
+
+function toSystemSettingsSubpage(item: SurfaceNavDefinition): SystemSettingsSubpageDefinition | null {
+  if (!isSystemSettingsSubpageId(item.id)) {
+    return null
+  }
+
+  const copy = SYSTEM_SETTINGS_SUBPAGE_COPY[item.id]
+  return {
+    id: item.id,
+    href: toSystemSettingsHref(item.hrefSuffix),
+    titleKey: item.titleKey,
+    defaultTitle: item.defaultTitle,
+    descriptionKey: copy.descriptionKey,
+    defaultDescription: copy.defaultDescription,
+  }
+}
+
+export function resolveSystemSettingsSubpages(
+  navItems: SurfaceNavDefinition[] | undefined,
+): SystemSettingsSubpageDefinition[] {
+  const items = Array.isArray(navItems) && navItems.length > 0
+    ? navItems
+    : SYSTEM_SETTINGS_NAV_ITEMS
+
+  return items
+    .map((item) => toSystemSettingsSubpage(item))
+    .filter((item): item is SystemSettingsSubpageDefinition => item !== null)
+}
+
+export const SYSTEM_SETTINGS_SUBPAGES = resolveSystemSettingsSubpages(undefined)
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null

@@ -14,17 +14,27 @@ import (
 type Client struct {
 	APIURL    string
 	WorkerURL string
+	Workspace string
 	HTTP      *http.Client
 }
 
-func New(apiURL, workerURL string) *Client {
+func New(apiURL, workerURL, workspace string) *Client {
 	return &Client{
 		APIURL:    strings.TrimRight(apiURL, "/"),
 		WorkerURL: strings.TrimRight(workerURL, "/"),
+		Workspace: normalizeWorkspace(workspace),
 		HTTP: &http.Client{
 			Timeout: 90 * time.Second,
 		},
 	}
+}
+
+func normalizeWorkspace(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "dev"
+	}
+	return trimmed
 }
 
 func (c *Client) doJSON(ctx context.Context, method string, url string, body any, target any) error {
@@ -41,6 +51,7 @@ func (c *Client) doJSON(ctx context.Context, method string, url string, body any
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
+	req.Header.Set("X-Workspace-Slug", c.Workspace)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -85,6 +96,7 @@ func (c *Client) doBinary(ctx context.Context, method string, url string, body a
 	if err != nil {
 		return nil, nil, fmt.Errorf("create request: %w", err)
 	}
+	req.Header.Set("X-Workspace-Slug", c.Workspace)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

@@ -71,6 +71,9 @@ describe('useSession', () => {
           location: '广东,江苏',
           keywords: ['CNC', '销售'],
           jobDescriptionId: 'lathe-sales',
+          collectionSource: {
+            type: 'job5156',
+          },
           collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           filters: {
             minExperience: 1,
@@ -124,6 +127,9 @@ describe('useSession', () => {
             location: '东莞',
             keywords: ['CNC', '销售'],
             jobDescriptionId: 'lathe-sales',
+            collectionSource: {
+              type: 'job5156',
+            },
             collectUrl: ' https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1 ',
             filters: { minAge: 25 },
             selectedTags: ['STAR', 'STAR', ''],
@@ -168,6 +174,7 @@ describe('useSession', () => {
         location: '东莞',
         keywords: ['CNC', '销售'],
         collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+        collectionSource: { type: 'job5156' },
         selectedTags: ['STAR'],
         selectedCompanies: ['Acme'],
         selectedExperienceLevel: 'mid',
@@ -205,6 +212,7 @@ describe('useSession', () => {
       title: 'HR saved search',
       location: '东莞',
       keywords: ['招聘', '简历'],
+      collectionSource: { type: 'job5156' },
       collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
       resumeIds: ['resume-1', 'resume-2'],
     })
@@ -224,6 +232,7 @@ describe('useSession', () => {
         title: 'HR saved search',
         location: '东莞',
         keywords: ['招聘', '简历'],
+        collectionSource: { type: 'job5156' },
         collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
         resumeIds: ['resume-1', 'resume-2'],
       })
@@ -258,7 +267,7 @@ describe('useSession', () => {
     expect(result.current.keywords).toEqual(['CNC', '销售'])
   })
 
-  it('can clear and replace the persisted collect URL through external state', async () => {
+  it('can clear and replace the persisted collection source and collect URL through external state', async () => {
     const { result } = renderHook(() => useSession())
 
     await waitFor(() => {
@@ -266,25 +275,79 @@ describe('useSession', () => {
     })
 
     act(() => {
+      result.current.setCollectionSource({ type: 'seek', exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1' })
       result.current.setCollectUrl('https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1')
     })
 
+    expect(result.current.collectionSource).toEqual({
+      type: 'seek',
+      exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+    })
     expect(result.current.collectUrl).toBe('https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1')
 
     act(() => {
       result.current.applyExternalState({
+        collectionSource: null,
         collectUrl: '',
       })
     })
 
+    expect(result.current.collectionSource).toBeUndefined()
     expect(result.current.collectUrl).toBeUndefined()
 
     act(() => {
       result.current.applyExternalState({
+        collectionSource: {
+          type: 'job5156',
+        },
         collectUrl: ' https://my.employer.seek.com/candidates/recommended?jobId=2&pageNumber=1 ',
       })
     })
 
+    expect(result.current.collectionSource).toEqual({
+      type: 'job5156',
+    })
     expect(result.current.collectUrl).toBe('https://my.employer.seek.com/candidates/recommended?jobId=2&pageNumber=1')
+  })
+
+  it('falls back to legacy seek collectUrl when history records are missing collectionSource', async () => {
+    useQueryMock.mockImplementation((query) => {
+      if (query === 'list-history-query') {
+        return [
+          {
+            _id: 'history-seek',
+            sessionKey: 'session-seek',
+            title: 'Seek history',
+            location: 'Kuala Lumpur MY',
+            keywords: ['Sales Engineer'],
+            collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+            filters: {},
+            selectedTags: [],
+            selectedCompanies: [],
+            createdAt: 1,
+          },
+        ]
+      }
+
+      return {
+        config: {
+          location: '',
+          keywords: [],
+          filters: {},
+        },
+        reviewedResumeIds: [],
+      }
+    })
+
+    const { result } = renderHook(() => useSession(true))
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    expect(result.current.searchHistory[0]?.collectionSource).toEqual({
+      type: 'seek',
+      exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+    })
   })
 })

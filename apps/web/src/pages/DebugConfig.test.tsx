@@ -147,6 +147,66 @@ describe('System settings routes', () => {
         })
       }
 
+      if (url.endsWith('/api/config/system-metadata')) {
+        return jsonResponse({
+          success: true,
+          metadata: {
+            identity: {
+              appVersion: '1.0.0',
+            },
+            navigation: {
+              system: [],
+              settings: [],
+              systemSettings: [
+                {
+                  id: 'overview',
+                  titleKey: 'debugConfig.settingsNavOverview',
+                  defaultTitle: 'Overview',
+                  hrefSuffix: '/system/settings',
+                  matchesSuffixes: ['/system/settings'],
+                },
+                {
+                  id: 'operations',
+                  titleKey: 'debugConfig.settingsNavOperations',
+                  defaultTitle: 'Operations',
+                  hrefSuffix: '/system/settings/operations',
+                  matchesSuffixes: ['/system/settings/operations'],
+                },
+                {
+                  id: 'runtime',
+                  titleKey: 'debugConfig.settingsNavRuntime',
+                  defaultTitle: 'AI and agents',
+                  hrefSuffix: '/system/settings/runtime',
+                  matchesSuffixes: ['/system/settings/runtime'],
+                },
+                {
+                  id: 'config-sources',
+                  titleKey: 'debugConfig.settingsNavConfigSources',
+                  defaultTitle: 'Config sources',
+                  hrefSuffix: '/system/settings/config-sources',
+                  matchesSuffixes: ['/system/settings/config-sources'],
+                },
+                {
+                  id: 'keywords',
+                  titleKey: 'debugConfig.settingsNavKeywords',
+                  defaultTitle: 'Keywords',
+                  hrefSuffix: '/system/settings/keywords',
+                  matchesSuffixes: ['/system/settings/keywords'],
+                },
+                {
+                  id: 'locations',
+                  titleKey: 'debugConfig.settingsNavLocations',
+                  defaultTitle: 'Locations',
+                  hrefSuffix: '/system/settings/locations',
+                  matchesSuffixes: ['/system/settings/locations'],
+                },
+              ],
+              debugPage: [],
+            },
+          },
+        })
+      }
+
       if (url.endsWith('/api/config/sources/resume-ai-prompts-active')) {
         return jsonResponse({
           success: true,
