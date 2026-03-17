@@ -65,7 +65,7 @@ function parseLocationParam(value: string | undefined): string[] {
   }
 
   return value
-    .split(/[\s,，、]+/g)
+    .split(/[,，、]+/g)
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
 }

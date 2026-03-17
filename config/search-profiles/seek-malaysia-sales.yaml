@@ -1,0 +1,44 @@
+id: seek-malaysia-sales
+name: SEEK Malaysia Sales Engineer / Sales Manager
+description: Malaysia SEEK workflow for Kuala Lumpur sales hiring
+createdAt: "2026-03-17"
+updatedAt: "2026-03-17"
+status: active
+
+location: Kuala Lumpur MY
+keywords:
+  - Sales Engineer
+  - Sales Manager
+  - CNC
+  - machine tools
+  - Malaysia
+
+jobDescription: seek-malaysia-sales
+
+filters:
+  minExperience: 2
+  maxExperience: null
+  maxAge: 45
+  locations:
+    - Kuala Lumpur MY
+    - Malaysia
+
+schedule:
+  enabled: false
+  timezone: Asia/Kuala_Lumpur
+  maxCandidates: 120
+
+sources:
+  - type: seek
+    enabled: true
+    priority: 1
+    jobUrl: https://my.employer.seek.com/candidates/recommended?keyword=Sales%20Engineer%20Sales%20Manager&location=Kuala%20Lumpur%20MY
+  - type: job5156
+    enabled: false
+    priority: 2
+
+session:
+  scope: per-position
+  retention:
+    mode: until-closed
+    archiveAfterDays: 90

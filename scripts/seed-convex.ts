@@ -22,6 +22,12 @@ type SeedJobDescription = {
   slug?: string;
   content: string;
   type: "system" | "custom";
+  location?: string;
+  customKeywords?: string[];
+  minExperience?: number;
+  maxExperience?: number;
+  minAge?: number;
+  maxAge?: number;
 };
 
 type SeedResume = {
@@ -250,6 +256,61 @@ function extractTitle(content: string, fallback: string): string {
   return fallback;
 }
 
+function readFrontmatterString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function readFrontmatterNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readFrontmatterStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function extractJobDescriptionSeedMetadata(content: string): Omit<SeedJobDescription, "title" | "slug" | "content" | "type"> {
+  const frontmatter = parseFrontmatter(content);
+  const location = readFrontmatterString(frontmatter, "location");
+
+  let customKeywords: string[] | undefined;
+  let minExperience: number | undefined;
+  let maxExperience: number | undefined;
+  let minAge: number | undefined;
+  let maxAge: number | undefined;
+
+  const autoMatch = frontmatter.auto_match;
+  if (isRecord(autoMatch)) {
+    customKeywords = readFrontmatterStringArray(autoMatch.keywords);
+
+    const suggestedFilters = autoMatch.suggested_filters;
+    if (isRecord(suggestedFilters)) {
+      minExperience = readFrontmatterNumber(suggestedFilters, "minExperience");
+      maxExperience = readFrontmatterNumber(suggestedFilters, "maxExperience");
+      minAge = readFrontmatterNumber(suggestedFilters, "minAge");
+      maxAge = readFrontmatterNumber(suggestedFilters, "maxAge");
+    }
+  }
+
+  return {
+    location,
+    customKeywords,
+    minExperience,
+    maxExperience,
+    minAge,
+    maxAge,
+  };
+}
+
 function loadJobDescriptions(projectRoot: string): SeedJobDescription[] {
   const jobDescriptionDir = path.join(projectRoot, "config", "job-descriptions");
   if (!fs.existsSync(jobDescriptionDir)) {
@@ -266,11 +327,13 @@ function loadJobDescriptions(projectRoot: string): SeedJobDescription[] {
     const content = fs.readFileSync(filePath, "utf8");
     const slug = filename.replace(/\.md$/i, "");
     const title = extractTitle(content, slug);
+    const metadata = extractJobDescriptionSeedMetadata(content);
     const jobDescription: SeedJobDescription = {
       title,
       slug,
       content,
       type: "system",
+      ...metadata,
     };
     return jobDescription;
   });

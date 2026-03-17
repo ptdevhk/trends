@@ -344,4 +344,33 @@ describe('QuickStartPanel quick-filter display', () => {
       expect(screen.getByText('100%')).toBeInTheDocument()
     })
   })
+
+  it('applies the SEEK Malaysia workflow preset without splitting the location', async () => {
+    const user = userEvent.setup()
+    const onApplyConfig = vi.fn()
+
+    render(
+      <QuickStartPanel
+        defaultLocation=""
+        defaultKeywords={[]}
+        jobDescriptionId=""
+        onApplyConfig={onApplyConfig}
+        onJobChange={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'SEEK · Sales Engineer / Sales Manager · Kuala Lumpur MY' }))
+
+    expect(screen.getByRole('textbox', { name: '位置' })).toHaveValue('Kuala Lumpur MY')
+    expect(screen.getByDisplayValue('Sales Engineer Sales Manager')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(onApplyConfig).toHaveBeenLastCalledWith({
+        location: 'Kuala Lumpur MY',
+        keywords: ['Sales Engineer', 'Sales Manager'],
+        jobDescriptionId: undefined,
+        collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=Sales+Engineer+Sales+Manager&location=Kuala+Lumpur+MY&tr_auto_sync=true',
+      })
+    })
+  })
 })

@@ -12,10 +12,12 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
-import { getSearchProfileCollectUrl } from '@/lib/search-profile-sources'
+import { buildSeekCollectUrl, getSearchProfileCollectUrl } from '@/lib/search-profile-sources'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
 const AUTO_MATCH_MIN_CONFIDENCE = 0.3
+const MALAYSIA_SEEK_WORKFLOW_LOCATION = 'Kuala Lumpur MY'
+const MALAYSIA_SEEK_WORKFLOW_KEYWORDS = ['Sales Engineer', 'Sales Manager']
 
 type AutoMatchApiResponse = {
   success: boolean
@@ -47,6 +49,14 @@ type AutoMatchedProfile = {
   confidence: number
   matchedKeywords: string[]
   profile: SearchProfileDetails
+}
+
+type QuickStartWorkflow = {
+  id: string
+  label: string
+  location: string
+  keywords: string[]
+  collectUrl?: string
 }
 
 interface QuickStartPanelProps {
@@ -202,7 +212,7 @@ function parseLocationParts(value: string): string[] {
   const parts: string[] = []
 
   value
-    .split(/[\s,，、]+/)
+    .split(/[,，、]+/)
     .map((item) => item.trim())
     .filter(Boolean)
     .forEach((item) => {
@@ -215,6 +225,19 @@ function parseLocationParts(value: string): string[] {
 
   return parts
 }
+
+const QUICK_START_WORKFLOWS: QuickStartWorkflow[] = [
+  {
+    id: 'seek-malaysia-sales',
+    label: 'SEEK · Sales Engineer / Sales Manager · Kuala Lumpur MY',
+    location: MALAYSIA_SEEK_WORKFLOW_LOCATION,
+    keywords: MALAYSIA_SEEK_WORKFLOW_KEYWORDS,
+    collectUrl: buildSeekCollectUrl({
+      location: MALAYSIA_SEEK_WORKFLOW_LOCATION,
+      keywords: MALAYSIA_SEEK_WORKFLOW_KEYWORDS,
+    }) ?? undefined,
+  },
+]
 
 function normalizeProfileKeywords(profile: SearchProfileDetails): string[] {
   return profile.keywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0)
@@ -602,6 +625,14 @@ export function QuickStartPanel({
     onJobChange?.(value)
   }, [onJobChange])
 
+  const handleApplyWorkflow = useCallback((workflow: QuickStartWorkflow) => {
+    setLocation(workflow.location)
+    setSelectedKeywords(workflow.keywords)
+    setCustomKeyword(workflow.keywords.join(' '))
+    setCollectUrl(workflow.collectUrl)
+    onJobChange?.('')
+  }, [onJobChange])
+
   const applyProfileToLiveSearch = useCallback((profile: SearchProfileDetails) => {
     const profileLocation = profile.location.trim()
     const profileKeywords = normalizeProfileKeywords(profile)
@@ -823,6 +854,24 @@ export function QuickStartPanel({
           activeLocations={parseLocationParts(location)}
           onLocationToggle={handleLocationToggle}
         />
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">
+            {t('quickStart.workflows', 'Workflow')}:
+          </span>
+          {QUICK_START_WORKFLOWS.map((workflow) => (
+            <Button
+              key={workflow.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-full px-3 text-xs"
+              onClick={() => handleApplyWorkflow(workflow)}
+            >
+              {workflow.label}
+            </Button>
+          ))}
+        </div>
 
         {selectedConvexJobDescriptionProfile ? (
           <div className="rounded-md border border-muted/60 bg-muted/20 px-3 py-2">

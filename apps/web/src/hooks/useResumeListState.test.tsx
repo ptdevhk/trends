@@ -63,6 +63,17 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+vi.mock('react-router-dom', () => ({
+  useLocation: () => ({
+    pathname: '/dev/resumes',
+    search: '',
+    hash: '',
+    state: null,
+    key: 'test',
+  }),
+  useNavigate: () => vi.fn(),
+}))
+
 vi.mock('convex/react', () => ({
   useQuery: () => [],
   useMutation: () => vi.fn(async () => ({})),
@@ -559,9 +570,12 @@ describe('useResumeListState role filter regression', () => {
       result.current.handleResetAll()
     })
 
-    expect(mockState.setLocation).toHaveBeenCalledWith('')
-    expect(mockState.setKeywords).toHaveBeenCalledWith([])
-    expect(mockState.setFilters).toHaveBeenCalledWith({})
+    expect(mockState.applyExternalState).toHaveBeenCalledWith({
+      location: '',
+      keywords: [],
+      jobDescriptionId: '',
+      filters: {},
+    })
   })
 
   it('saves current search into explicit history', async () => {
@@ -954,6 +968,27 @@ describe('useResumeListState role filter regression', () => {
     expect(setLocationArg('')).toBe('江苏')
     expect(mockState.setKeywords).toHaveBeenCalledWith(expect.any(Function))
     expect(mockState.setFilters).toHaveBeenCalledWith(expect.any(Function))
+  })
+
+  it('preserves spaced locations when applying a Malaysia quick-start workflow', () => {
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleQuickStartApply({
+        location: 'Kuala Lumpur MY',
+        keywords: ['Sales Engineer', 'Sales Manager'],
+        collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=Sales+Engineer+Sales+Manager&location=Kuala+Lumpur+MY',
+      }, true)
+    })
+
+    expect(mockState.setLocation).toHaveBeenCalledTimes(1)
+    const locationUpdater = mockState.setLocation.mock.calls[0]?.[0] as (current: string) => string
+    expect(locationUpdater('')).toBe('Kuala Lumpur MY')
+
+    const filterUpdater = mockState.setFilters.mock.calls[0]?.[0] as (current: Record<string, unknown>) => Record<string, unknown>
+    expect(filterUpdater({})).toMatchObject({
+      locations: ['Kuala Lumpur MY'],
+    })
   })
 
   it('filters by selectedCompanies — only verified companyHits', () => {
