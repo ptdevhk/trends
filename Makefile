@@ -766,7 +766,7 @@ help:
 	@echo "Dependencies:"
 	@echo "  install-deps [SKILL_INSTALL_TARGET=codex|agents|all] [CONVEX_MIRROR_MODE=off|fallback|mirror-first]"
 	@echo "               Install deps, prefetch Convex assets, and bootstrap governance skill targets"
-	@echo "               See ./scripts/install-deps.sh --help for mirror bases, timeout, and curl env knobs"
+	@echo "               See ./scripts/install-deps.sh --help for skill target, CI behavior, and additional prefetch env knobs"
 	@echo "  prefetch-convex [CONVEX_MIRROR_MODE=off|fallback|mirror-first] Prefetch Convex local backend + dashboard assets"
 	@echo "                 See ./scripts/prefetch-convex-backend.sh --help for mirror bases, timeout, and curl env knobs"
 	@echo ""
