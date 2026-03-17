@@ -253,6 +253,13 @@ describe('DebugConfig config sources', () => {
       expect(screen.getByText('debugConfig.configSources')).toBeInTheDocument()
     })
 
+    expect(screen.getByText('Jump to section')).toBeInTheDocument()
+    expect(screen.getAllByText('Operations').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('AI and agents').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Rules and data').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Danger zone').length).toBeGreaterThan(0)
+    expect(screen.getByText('System settings overview')).toBeInTheDocument()
+
     expect(screen.getByText('Prompt Sources')).toBeInTheDocument()
     expect(screen.getByText('Config Sources')).toBeInTheDocument()
     expect(screen.getAllByText('Resume AI prompts (active locale)').length).toBeGreaterThan(0)
