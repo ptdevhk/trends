@@ -8,11 +8,12 @@ usage() {
     echo "Environment:"
     echo "  SKILL_INSTALL_TARGET   Governance skill install target: codex|agents|all (default: codex)"
     echo "  CONVEX_MIRROR_MODE     Convex prefetch mode override: off|fallback|mirror-first"
+    echo "                         Default is fallback, or off when CI=true"
     echo "  CONVEX_MIRROR_BASES    Convex prefetch mirror base URLs (comma-separated)"
     echo "  CONVEX_DOWNLOAD_TIMEOUT_SECS / CONVEX_CONNECT_TIMEOUT_SECS"
     echo "                         Convex prefetch timeout overrides"
     echo "  CONVEX_CURL_NO_SILENT  When true/1, keep Convex prefetch curl progress output enabled"
-    echo "  CI                     When true, uses npm and skips governance sync"
+    echo "  CI                     When true, uses npm, skips governance sync, and defaults prefetch mode to off"
     echo ""
     echo "See ./scripts/prefetch-convex-backend.sh --help for the full Convex prefetch env contract."
 }
