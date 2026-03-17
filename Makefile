@@ -346,23 +346,23 @@ check-skill-install:
 	fi
 	@./scripts/skills/install-skill.sh --skill "$(SKILL)" --target "$(or $(TARGET),codex)" --check
 
-# Install resume-qa-hybrid-mcp skill into ${CODEX_HOME:-$HOME/.codex}/skills
+# Install resume-qa-hybrid-mcp skill into the requested skills target (default: ${CODEX_HOME:-$HOME/.codex}/skills)
 install-test-plan-skill:
-	@$(MAKE) install-skill SKILL=resume-qa-hybrid-mcp
+	@$(MAKE) install-skill SKILL=resume-qa-hybrid-mcp TARGET="$(or $(TARGET),codex)"
 
 # Check installed drift for resume-qa-hybrid-mcp skill
 check-test-plan-skill:
 	@$(MAKE) validate-skill SKILL=resume-qa-hybrid-mcp
-	@$(MAKE) check-skill-install SKILL=resume-qa-hybrid-mcp
+	@$(MAKE) check-skill-install SKILL=resume-qa-hybrid-mcp TARGET="$(or $(TARGET),codex)"
 
-# Install browser-extension-dev skill into ${CODEX_HOME:-$HOME/.codex}/skills
+# Install browser-extension-dev skill into the requested skills target (default: ${CODEX_HOME:-$HOME/.codex}/skills)
 install-browser-ext-skill:
-	@$(MAKE) install-skill SKILL=browser-extension-dev
+	@$(MAKE) install-skill SKILL=browser-extension-dev TARGET="$(or $(TARGET),codex)"
 
 # Check browser-extension-dev skill structure + installed drift
 check-browser-ext-skill:
 	@$(MAKE) validate-skill SKILL=browser-extension-dev
-	@$(MAKE) check-skill-install SKILL=browser-extension-dev
+	@$(MAKE) check-skill-install SKILL=browser-extension-dev TARGET="$(or $(TARGET),codex)"
 
 # Sync all governance artifacts
 sync-agent-governance: sync-agent-policy install-agent-skill
@@ -776,10 +776,10 @@ help:
 	@echo "  install-skill SKILL=<name> [TARGET=codex|agents|all] Install any repo skill into the selected skills dir"
 	@echo "  validate-skill SKILL=<name> Validate skill structure from SKILL.md frontmatter"
 	@echo "  check-skill-install SKILL=<name> [TARGET=codex|agents|all] Validate installed skill sync with repo source"
-	@echo "  install-test-plan-skill Install resume-qa-hybrid-mcp skill into ~/.codex/skills"
-	@echo "  check-test-plan-skill Validate resume-qa-hybrid-mcp skill + installed drift"
-	@echo "  install-browser-ext-skill Install browser-extension-dev skill into ~/.codex/skills"
-	@echo "  check-browser-ext-skill Validate browser-extension-dev skill + installed drift"
+	@echo "  install-test-plan-skill [TARGET=codex|agents|all] Install resume-qa-hybrid-mcp into the selected skills dir"
+	@echo "  check-test-plan-skill [TARGET=codex|agents|all] Validate resume-qa-hybrid-mcp skill + installed drift"
+	@echo "  install-browser-ext-skill [TARGET=codex|agents|all] Install browser-extension-dev into the selected skills dir"
+	@echo "  check-browser-ext-skill [TARGET=codex|agents|all] Validate browser-extension-dev skill + installed drift"
 	@echo "  sync-agent-governance Run policy sync + skill install"
 	@echo ""
 	@echo "Utilities:"
