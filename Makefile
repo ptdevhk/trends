@@ -781,6 +781,7 @@ help:
 	@echo "  install-browser-ext-skill [TARGET=codex|agents|all] Install browser-extension-dev into the selected skills dir"
 	@echo "  check-browser-ext-skill [TARGET=codex|agents|all] Validate browser-extension-dev skill + installed drift"
 	@echo "  sync-agent-governance [TARGET=codex|agents|all] Run policy sync + governance skill install"
+	@echo "                     Skill roots honor CODEX_HOME and AGENTS_HOME when set"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  seed           Seed Convex with system job descriptions"
