@@ -73,6 +73,26 @@ test('returns a minimal fallback summary when only the state is available', () =
   });
 });
 
+test('adds stored-summary metadata when rendering the last persisted result', () => {
+  const summary = helpers.buildAutoSyncSummary({
+    autoSync: 'done',
+    autoSyncCount: 5,
+    autoSyncPages: 1,
+    autoSyncSelectedCount: 5,
+    autoSyncStopReason: 'limit-reached',
+    summarySource: 'stored',
+    sourceKey: 'seek',
+    persistedAt: '2026-03-17T08:21:35.000Z',
+  });
+
+  assert.deepEqual(JSON.parse(JSON.stringify(summary)), {
+    autoSync: 'done',
+    stateLabel: '已完成',
+    mainText: '已采集 5 份 · 共 1 页 · 本页选中 5 份',
+    detailText: '命中数量上限 · 最近一次记录 · 来源 SEEK · 记录于 2026-03-17 08:21',
+  });
+});
+
 test('skips rendering when auto sync is absent or skipped', () => {
   assert.equal(helpers.buildAutoSyncSummary({ autoSync: '' }), null);
   assert.equal(helpers.buildAutoSyncSummary({ autoSync: 'skipped' }), null);

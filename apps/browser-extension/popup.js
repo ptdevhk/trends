@@ -31,6 +31,7 @@ const lnkConfigureServer = /** @type {HTMLAnchorElement} */ (document.getElement
 const btnSync = /** @type {HTMLButtonElement} */ (document.getElementById('btn-sync'));
 const syncResult = /** @type {HTMLElement} */ (document.getElementById('sync-result'));
 const DEFAULT_SERVER_URL = 'https://trends.pt-mes.com';
+const LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY = 'latestAutoSyncSummary';
 
 // State
 let lastDiagnosticDownloadId = null;
@@ -74,6 +75,12 @@ function showStatus(message, type = 'info') {
  */
 async function sendToBackground(action, data = {}) {
     return chrome.runtime.sendMessage({ action, ...data });
+}
+
+function storageLocalGet(defaults) {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(defaults, (items) => resolve(items || {}));
+    });
 }
 
 /**
@@ -140,6 +147,19 @@ function hideAutoSyncSummary() {
     autoSyncDetail.textContent = '';
 }
 
+async function getStoredAutoSyncSummary() {
+    try {
+        const items = await storageLocalGet({ [LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY]: null });
+        const summary = items?.[LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY];
+        return summary && typeof summary === 'object' && !Array.isArray(summary)
+            ? summary
+            : null;
+    } catch (error) {
+        console.error('Stored auto sync summary error:', error);
+        return null;
+    }
+}
+
 function renderAutoSyncSummary(status) {
     if (!autoSyncSummary || !autoSyncState || !autoSyncMain || !autoSyncDetail) return;
     const helpers = getPopupAutoSyncSummaryHelpers();
@@ -163,7 +183,12 @@ async function refreshRuntimeStatus() {
     try {
         const response = await sendToContent('getRuntimeStatus');
         if (!response?.success || !response.status) {
-            hideAutoSyncSummary();
+            const storedSummary = await getStoredAutoSyncSummary();
+            if (storedSummary) {
+                renderAutoSyncSummary(storedSummary);
+            } else {
+                hideAutoSyncSummary();
+            }
             await updatePaginationInfo();
             return;
         }
@@ -174,9 +199,24 @@ async function refreshRuntimeStatus() {
         } else {
             await updatePaginationInfo();
         }
-        renderAutoSyncSummary(status);
+        if (status.autoSync && status.autoSync !== 'skipped') {
+            renderAutoSyncSummary(status);
+            return;
+        }
+
+        const storedSummary = await getStoredAutoSyncSummary();
+        if (storedSummary) {
+            renderAutoSyncSummary(storedSummary);
+        } else {
+            hideAutoSyncSummary();
+        }
     } catch (error) {
-        hideAutoSyncSummary();
+        const storedSummary = await getStoredAutoSyncSummary();
+        if (storedSummary) {
+            renderAutoSyncSummary(storedSummary);
+        } else {
+            hideAutoSyncSummary();
+        }
         console.error('Runtime status error:', error);
     }
 }
@@ -457,8 +497,13 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshRuntimeStatus();
             startRuntimeStatusPolling();
         })
-        .catch(() => {
-            hideAutoSyncSummary();
+        .catch(async () => {
+            const storedSummary = await getStoredAutoSyncSummary();
+            if (storedSummary) {
+                renderAutoSyncSummary(storedSummary);
+            } else {
+                hideAutoSyncSummary();
+            }
             updatePaginationInfo();
             showStatus('请刷新 Job5156 或 Seek 页面', 'error');
         });
