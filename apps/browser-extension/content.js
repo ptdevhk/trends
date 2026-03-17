@@ -68,6 +68,7 @@ const PAGE_BRIDGE_REQUEST_ATTR = 'data-tr-resume-bridge-request';
 const PAGE_BRIDGE_RESPONSE_ATTR = 'data-tr-resume-bridge-response';
 const JOB5156_DETAIL_FETCH_TIMEOUT_MS = 5000;
 const JOB5156_DETAIL_FETCH_CONCURRENCY = 5;
+const DEFAULT_SEEK_PAGE_SIZE = 20;
 
 const apiSnapshot = {
   searchRows: null,
@@ -466,6 +467,153 @@ function getSeekRecommendedRequest() {
 
 function getSeekProfileRequest() {
   return apiSnapshot.seekProfileRequest || apiSnapshot.seekRecommendedRequest;
+}
+
+function getSeekAutoSyncHelpers() {
+  const helpers = globalThis.__TR_SEEK_AUTO_SYNC__;
+  return helpers && typeof helpers === 'object' ? helpers : null;
+}
+
+/**
+ * @param {{
+ *   requestedPageSize?: number | null;
+ *   currentPageCandidateCount?: number | null;
+ *   fallbackPageSize?: number | null;
+ * }} [options]
+ */
+function resolveSeekAutoSyncPageSize(options = {}) {
+  const {
+    requestedPageSize,
+    currentPageCandidateCount,
+    fallbackPageSize = DEFAULT_SEEK_PAGE_SIZE,
+  } = options;
+  const helpers = getSeekAutoSyncHelpers();
+  if (typeof helpers?.resolveSeekAutoSyncPageSize === 'function') {
+    return helpers.resolveSeekAutoSyncPageSize({
+      requestedPageSize,
+      currentPageCandidateCount,
+      fallbackPageSize,
+    });
+  }
+
+  return normalizeOptionalPositiveInt(requestedPageSize)
+    || normalizeOptionalPositiveInt(currentPageCandidateCount)
+    || normalizeOptionalPositiveInt(fallbackPageSize)
+    || DEFAULT_SEEK_PAGE_SIZE;
+}
+
+/**
+ * @param {{
+ *   startPage?: number | null;
+ *   limit?: number | null;
+ *   maxPages?: number | null;
+ *   requestedPageSize?: number | null;
+ *   currentPageCandidateCount?: number | null;
+ * }} [options]
+ */
+function resolveSeekAutoSyncPageWindow(options = {}) {
+  const {
+    startPage,
+    limit,
+    maxPages,
+    requestedPageSize,
+    currentPageCandidateCount,
+  } = options;
+  const helpers = getSeekAutoSyncHelpers();
+  if (typeof helpers?.resolveSeekAutoSyncPageWindow === 'function') {
+    return helpers.resolveSeekAutoSyncPageWindow({
+      startPage,
+      limit,
+      maxPages,
+      requestedPageSize,
+      currentPageCandidateCount,
+      fallbackPageSize: DEFAULT_SEEK_PAGE_SIZE,
+    });
+  }
+
+  const normalizedStartPage = normalizeOptionalPositiveInt(startPage) || 1;
+  const normalizedLimit = normalizeOptionalPositiveInt(limit);
+  const normalizedMaxPages = normalizeOptionalPositiveInt(maxPages);
+  const effectivePageSize = resolveSeekAutoSyncPageSize({
+    requestedPageSize,
+    currentPageCandidateCount,
+    fallbackPageSize: DEFAULT_SEEK_PAGE_SIZE,
+  });
+  const limitPageCount = normalizedLimit
+    ? Math.max(1, Math.ceil(normalizedLimit / effectivePageSize))
+    : null;
+
+  let allowedPageCount = null;
+  if (limitPageCount && normalizedMaxPages) {
+    allowedPageCount = Math.min(limitPageCount, normalizedMaxPages);
+  } else if (limitPageCount) {
+    allowedPageCount = limitPageCount;
+  } else if (normalizedMaxPages) {
+    allowedPageCount = normalizedMaxPages;
+  }
+
+  return {
+    startPage: normalizedStartPage,
+    targetPageEnd: allowedPageCount ? normalizedStartPage + allowedPageCount - 1 : null,
+    effectivePageSize,
+    limitPageCount,
+    maxPages: normalizedMaxPages,
+    allowedPageCount,
+  };
+}
+
+/**
+ * @param {{ targetPageEnd?: number | null } | null | undefined} pageWindow
+ * @param {number | null | undefined} currentPage
+ */
+function isSeekAutoSyncPageWindowReached(pageWindow, currentPage) {
+  const helpers = getSeekAutoSyncHelpers();
+  if (typeof helpers?.isSeekAutoSyncPageWindowReached === 'function') {
+    return helpers.isSeekAutoSyncPageWindowReached({
+      currentPage,
+      targetPageEnd: pageWindow?.targetPageEnd,
+    });
+  }
+
+  const normalizedCurrentPage = normalizeOptionalPositiveInt(currentPage);
+  const targetPageEnd = normalizeOptionalPositiveInt(pageWindow?.targetPageEnd);
+  return !!(normalizedCurrentPage && targetPageEnd && normalizedCurrentPage >= targetPageEnd);
+}
+
+function getSeekRequestedPageSize() {
+  const requestInput = getSeekRecommendedRequest()?.variables?.input;
+  return normalizeOptionalPositiveInt(requestInput?.size);
+}
+
+function getSeekCurrentCandidateCount() {
+  return Array.isArray(apiSnapshot.seekRecommendedCandidates) ? apiSnapshot.seekRecommendedCandidates.length : 0;
+}
+
+/**
+ * @param {{
+ *   startPage?: number | null;
+ *   targetPageEnd?: number | null;
+ *   effectivePageSize?: number | null;
+ * } | null | undefined} pageWindow
+ */
+function setSeekAutoSyncWindowAttributes(pageWindow) {
+  const attrs = /** @type {Array<[string, number | null | undefined]>} */ ([
+    ['data-tr-auto-sync-target-start', pageWindow?.startPage],
+    ['data-tr-auto-sync-target-end', pageWindow?.targetPageEnd],
+    ['data-tr-auto-sync-effective-page-size', pageWindow?.effectivePageSize],
+  ]);
+
+  try {
+    for (const [name, value] of attrs) {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        document.documentElement.setAttribute(name, String(value));
+      } else {
+        document.documentElement.removeAttribute(name);
+      }
+    }
+  } catch {
+    // ignore
+  }
 }
 
 function findSeekProfileTrigger(profileId) {
@@ -3400,6 +3548,7 @@ async function runAutoSyncIfEnabled() {
   const enabled = getAutoSyncEnabled();
   if (!enabled) {
     setAutoSyncAttributes('skipped');
+    setSeekAutoSyncWindowAttributes(null);
     return;
   }
 
@@ -3408,6 +3557,7 @@ async function runAutoSyncIfEnabled() {
   autoSyncTriggered = true;
   autoSyncCancelled = false;
   setAutoSyncAttributes('running', 0, 0);
+  setSeekAutoSyncWindowAttributes(null);
   try {
     document.documentElement.setAttribute('data-tr-auto-sync-limit', String(limit));
     document.documentElement.setAttribute('data-tr-auto-sync-max-pages', String(maxPages));
@@ -3426,6 +3576,7 @@ async function runAutoSyncIfEnabled() {
     let totalUpdated = 0;
     let pagesVisited = 0;
     let stopReason = 'completed';
+    let seekStartPage = null;
 
     while (true) {
       if (autoSyncCancelled) {
@@ -3436,10 +3587,25 @@ async function runAutoSyncIfEnabled() {
       const paginationBefore = getPaginationInfo();
       const currentPage = paginationBefore.currentPage;
       const totalPages = paginationBefore.totalPages;
+      const isSeekListPage = getCurrentSourceKey() === SOURCE_KEYS.SEEK && !isSeekProfileMode();
+      if (isSeekListPage && seekStartPage === null) {
+        seekStartPage = currentPage;
+      }
 
       await waitForExtractionData({});
 
       pagesVisited += 1;
+
+      const seekPageWindow = isSeekListPage
+        ? resolveSeekAutoSyncPageWindow({
+            startPage: seekStartPage || currentPage,
+            limit,
+            maxPages,
+            requestedPageSize: getSeekRequestedPageSize(),
+            currentPageCandidateCount: getSeekCurrentCandidateCount(),
+          })
+        : null;
+      setSeekAutoSyncWindowAttributes(seekPageWindow);
 
       const remainingCapacity = limit > 0 ? Math.max(limit - totalSubmitted, 0) : 0;
       if (limit > 0 && remainingCapacity <= 0) {
@@ -3448,6 +3614,7 @@ async function runAutoSyncIfEnabled() {
       }
 
       let resumes = extractResumes();
+      const hitLimitWithinPage = limit > 0 && resumes.length > remainingCapacity;
       if (limit > 0 && resumes.length > remainingCapacity) {
         resumes = resumes.slice(0, remainingCapacity);
       }
@@ -3477,7 +3644,11 @@ async function runAutoSyncIfEnabled() {
           stopReason = 'cancelled';
           break;
         }
-        if (maxPages > 0 && pagesVisited >= maxPages) {
+        if (isSeekListPage && isSeekAutoSyncPageWindowReached(seekPageWindow, currentPage)) {
+          stopReason = 'page-window-reached';
+          break;
+        }
+        if (!isSeekListPage && maxPages > 0 && pagesVisited >= maxPages) {
           stopReason = 'max-pages-reached';
           break;
         }
@@ -3535,11 +3706,19 @@ async function runAutoSyncIfEnabled() {
         stopReason = 'cancelled';
         break;
       }
-      if (limit > 0 && totalSubmitted >= limit) {
+      if (isSeekListPage && hitLimitWithinPage) {
         stopReason = 'limit-reached';
         break;
       }
-      if (maxPages > 0 && pagesVisited >= maxPages) {
+      if (isSeekListPage && isSeekAutoSyncPageWindowReached(seekPageWindow, currentPage)) {
+        stopReason = 'page-window-reached';
+        break;
+      }
+      if (!isSeekListPage && limit > 0 && totalSubmitted >= limit) {
+        stopReason = 'limit-reached';
+        break;
+      }
+      if (!isSeekListPage && maxPages > 0 && pagesVisited >= maxPages) {
         stopReason = 'max-pages-reached';
         break;
       }
@@ -3690,8 +3869,14 @@ function getExternalAccessorStatus() {
   const autoSync = document.documentElement.getAttribute('data-tr-auto-sync') || '';
   const autoSyncCountRaw = document.documentElement.getAttribute('data-tr-auto-sync-count') || '';
   const autoSyncPagesRaw = document.documentElement.getAttribute('data-tr-auto-sync-pages') || '';
+  const autoSyncTargetStartRaw = document.documentElement.getAttribute('data-tr-auto-sync-target-start') || '';
+  const autoSyncTargetEndRaw = document.documentElement.getAttribute('data-tr-auto-sync-target-end') || '';
+  const autoSyncEffectivePageSizeRaw = document.documentElement.getAttribute('data-tr-auto-sync-effective-page-size') || '';
   const autoSyncCount = Number.parseInt(autoSyncCountRaw, 10);
   const autoSyncPages = Number.parseInt(autoSyncPagesRaw, 10);
+  const autoSyncTargetStart = Number.parseInt(autoSyncTargetStartRaw, 10);
+  const autoSyncTargetEnd = Number.parseInt(autoSyncTargetEndRaw, 10);
+  const autoSyncEffectivePageSize = Number.parseInt(autoSyncEffectivePageSizeRaw, 10);
 
   return {
     extensionLoaded: true,
@@ -3713,6 +3898,9 @@ function getExternalAccessorStatus() {
     autoSync,
     autoSyncCount: Number.isFinite(autoSyncCount) ? autoSyncCount : 0,
     autoSyncPages: Number.isFinite(autoSyncPages) ? autoSyncPages : 0,
+    autoSyncTargetPageStart: Number.isFinite(autoSyncTargetStart) ? autoSyncTargetStart : null,
+    autoSyncTargetPageEnd: Number.isFinite(autoSyncTargetEnd) ? autoSyncTargetEnd : null,
+    autoSyncEffectivePageSize: Number.isFinite(autoSyncEffectivePageSize) ? autoSyncEffectivePageSize : null,
     pagination,
     lastOperationName: apiSnapshot.lastOperationName,
     timestamp: new Date().toISOString()
