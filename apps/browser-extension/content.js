@@ -2523,6 +2523,25 @@ function setAutoSyncAttributes(status, count, pagesProcessed) {
   }
 }
 
+/**
+ * @param {{
+ *   limit?: number | null;
+ *   totalSubmitted?: number | null;
+ *   selectedCount?: number | null;
+ *   ageHint?: string;
+ * }} [options]
+ */
+function buildAutoSyncProgressHint({ limit, totalSubmitted, selectedCount = null, ageHint = '' } = {}) {
+  const progressHint = limit > 0
+    ? `已采集 ${Math.min(totalSubmitted, limit)}/${limit}`
+    : `已采集 ${totalSubmitted}`;
+  const selectedHint = typeof selectedCount === 'number' && Number.isFinite(selectedCount)
+    ? ` · 本页选中 ${selectedCount} 份`
+    : '';
+
+  return `${progressHint}${selectedHint}${ageHint}`;
+}
+
 const SyncStatusWidget = (() => {
   const WIDGET_ID = 'tr-sync-status-widget';
   const DEFAULT_AUTO_DISMISS_MS = 5000;
@@ -3700,18 +3719,21 @@ async function runAutoSyncIfEnabled() {
         resumes = await enrichSeekRecommendedResumesWithDetail(resumes);
       }
       if (resumes.length <= 0) {
-        const progressHint = limit > 0
-          ? `已采集 ${Math.min(totalSubmitted, limit)}/${limit}`
-          : `已采集 ${totalSubmitted}`;
         const ageRange = getAgeRangeFromUrl();
         const ageHint = ageRange.enabled
           ? ` · 年龄: ${typeof ageRange.minAge === 'number' ? ageRange.minAge : '—'}-${typeof ageRange.maxAge === 'number' ? ageRange.maxAge : '—'}`
           : '';
+        const progressHint = buildAutoSyncProgressHint({
+          limit,
+          totalSubmitted,
+          selectedCount: isSeekListPage ? resumes.length : null,
+          ageHint,
+        });
 
         SyncStatusWidget.show({
           state: 'progress',
           message: `第 ${currentPage}/${Math.max(totalPages, currentPage)} 页无符合条件的简历，继续...`,
-          hint: `${progressHint}${ageHint}`
+          hint: progressHint
         });
         setAutoSyncAttributes('running', totalSubmitted, pagesVisited);
 
@@ -3755,9 +3777,11 @@ async function runAutoSyncIfEnabled() {
         continue;
       }
 
-      const progressHint = limit > 0
-        ? `已采集 ${Math.min(totalSubmitted, limit)}/${limit}`
-        : `已采集 ${totalSubmitted}`;
+      const progressHint = buildAutoSyncProgressHint({
+        limit,
+        totalSubmitted,
+        selectedCount: isSeekListPage ? resumes.length : null,
+      });
       SyncStatusWidget.show({
         state: 'progress',
         message: `正在同步第 ${currentPage}/${Math.max(totalPages, currentPage)} 页 (${resumes.length} 份)...`,
