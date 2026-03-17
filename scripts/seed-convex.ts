@@ -64,6 +64,10 @@ type WorkspaceSeedResult = {
     inserted: number;
     updated: number;
   };
+  resumes: {
+    inserted: number;
+    updated: number;
+  };
 };
 
 type CliOptions = {
@@ -546,7 +550,8 @@ async function main(): Promise<void> {
     + ` profiles(inserted=${workspaceSeedResult.searchProfiles.inserted}, updated=${workspaceSeedResult.searchProfiles.updated}),`
     + ` sessions(inserted=${workspaceSeedResult.screeningSessions.inserted}, updated=${workspaceSeedResult.screeningSessions.updated}),`
     + ` history(inserted=${workspaceSeedResult.searchHistory.inserted}, updated=${workspaceSeedResult.searchHistory.updated}),`
-    + ` workspaceConfig(inserted=${workspaceSeedResult.workspaceConfig.inserted}, updated=${workspaceSeedResult.workspaceConfig.updated})`
+    + ` workspaceConfig(inserted=${workspaceSeedResult.workspaceConfig.inserted}, updated=${workspaceSeedResult.workspaceConfig.updated}),`
+    + ` resumes(inserted=${workspaceSeedResult.resumes.inserted}, updated=${workspaceSeedResult.resumes.updated})`
   );
 
   if (options.withResumes) {
