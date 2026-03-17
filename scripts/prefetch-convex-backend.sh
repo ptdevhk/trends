@@ -15,7 +15,7 @@ Usage: $0 [--help]
 Prefetches stable Convex backend and dashboard assets into the local Convex cache.
 
 Environment:
-  CONVEX_MIRROR_MODE            Download source order: off|fallback|mirror-first (default: fallback, or off in CI)
+  CONVEX_MIRROR_MODE            Download source order: off|fallback|mirror-first (default: fallback, or off when CI=true)
   CONVEX_MIRROR_BASES           Comma-separated mirror base URLs (default: ${DEFAULT_MIRROR_BASES})
   CONVEX_DOWNLOAD_TIMEOUT_SECS  Download timeout in seconds (default: ${DEFAULT_DOWNLOAD_TIMEOUT_SECS})
   CONVEX_CONNECT_TIMEOUT_SECS   Connect timeout in seconds (default: ${DEFAULT_CONNECT_TIMEOUT_SECS})
