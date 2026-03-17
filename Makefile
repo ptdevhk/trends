@@ -603,7 +603,7 @@ fresh-env: clean clean-db
 	$(MAKE) install-deps
 	@echo "Fresh environment ready."
 
-# Run all validation checks (Python + Node.js)
+# Run all validation checks (Python + Node.js + governance skill validation; honors TARGET=all)
 check: check-python check-node check-agent-policy check-agent-skill
 	@echo "All checks passed"
 
@@ -800,7 +800,7 @@ help:
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
 	@echo "  chrome-debug   Start Google Chrome with remote debugging (port 9222)"
 	@echo "  clean          Remove generated/cached files"
-	@echo "  check          Run validation checks (Python + Node)"
+	@echo "  check [TARGET=codex|agents|all] Run validation checks (Python + Node + governance skill validation)"
 	@echo "  check-python   Run Python checks only"
 	@echo "  check-node     Run Node.js checks only"
 	@echo "  check-build    Run checks + build validation"
