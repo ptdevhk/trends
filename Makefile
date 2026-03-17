@@ -301,9 +301,9 @@ check-resume-ai-prompts:
 		npx tsx scripts/resume/sync-ai-prompts.ts --check; \
 	fi
 
-# Install repo governance skill into ${CODEX_HOME:-$HOME/.codex}/skills
+# Install repo governance skill into the requested skills target (default: ${CODEX_HOME:-$HOME/.codex}/skills)
 install-agent-skill:
-	@./scripts/skills/install-skill.sh --skill trends-agent-governance
+	@./scripts/skills/install-skill.sh --skill trends-agent-governance --target "$(or $(TARGET),codex)"
 
 # Validate repo governance skill structure + installed skill sync (local only)
 check-agent-skill:
@@ -315,16 +315,16 @@ check-agent-skill:
 	@if [ "$$CI" = "true" ]; then \
 		echo "Skipping installed skill drift check in CI"; \
 	else \
-		./scripts/skills/install-skill.sh --skill trends-agent-governance --check; \
+		./scripts/skills/install-skill.sh --skill trends-agent-governance --target "$(or $(TARGET),codex)" --check; \
 	fi
 
-# Install any repo skill into ${CODEX_HOME:-$HOME/.codex}/skills
+# Install any repo skill into the requested skills target (default: ${CODEX_HOME:-$HOME/.codex}/skills)
 install-skill:
 	@if [ -z "$(SKILL)" ]; then \
-		echo "SKILL is required. Usage: make install-skill SKILL=<skill-name>"; \
+		echo "SKILL is required. Usage: make install-skill SKILL=<skill-name> [TARGET=codex|agents|all]"; \
 		exit 1; \
 	fi
-	@./scripts/skills/install-skill.sh --skill "$(SKILL)"
+	@./scripts/skills/install-skill.sh --skill "$(SKILL)" --target "$(or $(TARGET),codex)"
 
 # Validate skill structure for any repo skill
 validate-skill:
@@ -341,10 +341,10 @@ validate-skill:
 # Check installed skill drift for any repo skill
 check-skill-install:
 	@if [ -z "$(SKILL)" ]; then \
-		echo "SKILL is required. Usage: make check-skill-install SKILL=<skill-name>"; \
+		echo "SKILL is required. Usage: make check-skill-install SKILL=<skill-name> [TARGET=codex|agents|all]"; \
 		exit 1; \
 	fi
-	@./scripts/skills/install-skill.sh --skill "$(SKILL)" --check
+	@./scripts/skills/install-skill.sh --skill "$(SKILL)" --target "$(or $(TARGET),codex)" --check
 
 # Install resume-qa-hybrid-mcp skill into ${CODEX_HOME:-$HOME/.codex}/skills
 install-test-plan-skill:
@@ -771,11 +771,11 @@ help:
 	@echo "  fetch-docs     Fetch latest upstream documentation"
 	@echo "  sync-agent-policy Sync generated dev-docs/AGENTS.md from canonical AGENTS policy"
 	@echo "  check-agent-policy Validate generated dev-docs/AGENTS.md is up to date"
-	@echo "  install-agent-skill Install governance skill into ~/.codex/skills"
+	@echo "  install-agent-skill [TARGET=codex|agents|all] Install governance skill into the selected skills dir"
 	@echo "  check-agent-skill Validate governance skill, command, rules file, and installed copy drift"
-	@echo "  install-skill SKILL=<name> Install any repo skill into ~/.codex/skills"
+	@echo "  install-skill SKILL=<name> [TARGET=codex|agents|all] Install any repo skill into the selected skills dir"
 	@echo "  validate-skill SKILL=<name> Validate skill structure from SKILL.md frontmatter"
-	@echo "  check-skill-install SKILL=<name> Validate installed skill sync with repo source"
+	@echo "  check-skill-install SKILL=<name> [TARGET=codex|agents|all] Validate installed skill sync with repo source"
 	@echo "  install-test-plan-skill Install resume-qa-hybrid-mcp skill into ~/.codex/skills"
 	@echo "  check-test-plan-skill Validate resume-qa-hybrid-mcp skill + installed drift"
 	@echo "  install-browser-ext-skill Install browser-extension-dev skill into ~/.codex/skills"
