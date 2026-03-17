@@ -14,12 +14,23 @@ resolve_convex_mirror_mode() {
 }
 
 resolve_skill_install_target() {
-    if [ -n "${SKILL_INSTALL_TARGET:-}" ]; then
-        echo "${SKILL_INSTALL_TARGET}"
-        return
-    fi
-    echo "codex"
+    local target="${SKILL_INSTALL_TARGET:-codex}"
+    case "${target}" in
+        codex|agents|all)
+            echo "${target}"
+            ;;
+        *)
+            echo "Invalid SKILL_INSTALL_TARGET: ${target}" >&2
+            echo "Expected one of: codex, agents, all" >&2
+            exit 1
+            ;;
+    esac
 }
+
+EFFECTIVE_SKILL_INSTALL_TARGET=""
+if [ "${CI:-}" != "true" ]; then
+    EFFECTIVE_SKILL_INSTALL_TARGET="$(resolve_skill_install_target)"
+fi
 
 echo "Installing Python dependencies..."
 uv sync
@@ -45,7 +56,6 @@ fi
 
 # Sync agent governance artifacts (policy mirror + target-aware skill install)
 if [ "${CI:-}" != "true" ]; then
-    EFFECTIVE_SKILL_INSTALL_TARGET="$(resolve_skill_install_target)"
     echo "Syncing agent governance artifacts (skill target: ${EFFECTIVE_SKILL_INSTALL_TARGET})..."
     _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if command -v bun > /dev/null 2>&1; then
