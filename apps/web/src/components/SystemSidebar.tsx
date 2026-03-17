@@ -50,7 +50,7 @@ export function SystemSidebar({ onClose }: SystemSidebarProps) {
   const { slug } = useWorkspace()
   const { t } = useTranslation()
   const metadata = useSystemMetadata()
-  const appVersion = metadata?.identity.appVersion ?? 'unknown'
+  const appVersion = metadata?.identity?.appVersion ?? 'unknown'
 
   const navItems = useMemo<NavItem[]>(() => {
     return SYSTEM_NAV_ITEMS.map((item) => ({
