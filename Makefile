@@ -727,7 +727,7 @@ help:
 	@echo "  dev-api        Start Hono BFF API server (port 3000)"
 	@echo "  dev-api-worker Start FastAPI worker REST API (port 8000)"
 	@echo "  dev-worker     Start worker scheduler (run now + verbose)"
-	@echo "                 See ./scripts/dev.sh --help for service profiles and Convex startup/prefetch env knobs"
+	@echo "                 See ./scripts/dev.sh --help for service profiles, CI-sensitive prefetch defaults, and Convex startup/env knobs"
 	@echo ""
 	@echo "Production:"
 	@echo "  run            Run crawler (production mode, full output)"
