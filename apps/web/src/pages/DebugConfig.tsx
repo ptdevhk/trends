@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type {
   ConfigSourceMetadata,
   InspectableSourceDetail as ConfigSourceDetail,
   InspectableSourceGroupSummary as ConfigSourceGroupSummary,
   InspectableSourceSummary as ConfigSourceSummary,
 } from '@trends/shared'
+import { Activity, ArrowRight, Bot, Database, ShieldAlert, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from 'convex/react'
@@ -19,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { withWorkspaceHeaders } from '@/lib/workspace-ref'
 import { PageHeader } from '@/components/PageHeader'
+import { cn } from '@/lib/utils'
 
 interface AIStatus {
   enabled: boolean
@@ -102,6 +104,21 @@ interface BrandKeywordItem {
 }
 
 type AgentNumericField = 'batchSize' | 'parallelism' | 'timeout' | 'temperature'
+type SettingsSectionId = 'operations' | 'runtime' | 'rules-data' | 'danger-zone'
+
+interface SettingsOverviewMetric {
+  label: string
+  value: string
+  detail: string
+}
+
+interface SettingsJumpItem {
+  id: SettingsSectionId
+  title: string
+  description: string
+  meta: string
+  icon: LucideIcon
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -521,6 +538,43 @@ function customKeywordToForm(tag: CustomKeywordTag): CustomKeywordFormState {
   }
 }
 
+function SettingsOverviewCard({ label, value, detail }: SettingsOverviewMetric) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/80 p-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">{label}</p>
+      <p className="mt-3 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{detail}</p>
+    </div>
+  )
+}
+
+function SettingsSection({
+  id,
+  title,
+  description,
+  badge,
+  children,
+}: {
+  id: SettingsSectionId
+  title: string
+  description: string
+  badge?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section id={id} className="scroll-mt-24 space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h2>
+          <p className="max-w-3xl text-sm text-muted-foreground">{description}</p>
+        </div>
+        {badge}
+      </div>
+      {children}
+    </section>
+  )
+}
+
 function SystemSummary() {
   const summary = useQuery(api.resume_tasks.getSummary)
   const { t } = useTranslation()
@@ -720,11 +774,15 @@ export default function DebugConfig() {
     }
   }, [loadAIStatus, loadAgentsConfig, loadCustomKeywords, loadBrandKeywords, loadConfigSourceGroups, t])
 
-  useEffect(() => {
+  const handleRefreshData = useCallback(() => {
     loadData().catch((error) => {
       console.error('Unexpected loadData failure', error)
     })
   }, [loadData])
+
+  useEffect(() => {
+    handleRefreshData()
+  }, [handleRefreshData])
 
   const configSources = useMemo(
     () => configSourceGroups.flatMap((group) => group.sources),
@@ -772,6 +830,10 @@ export default function DebugConfig() {
     () => systemLocationItems.filter((item) => item.visible).length,
     [systemLocationItems]
   )
+  const bondedAgentCount = useMemo(
+    () => agentsConfig?.agents.list.filter((agent) => agent.isBonded).length ?? 0,
+    [agentsConfig],
+  )
 
   const filteredSystemLocationItems = useMemo(() => {
     const query = systemLocationQuery.trim().toLowerCase()
@@ -810,6 +872,10 @@ export default function DebugConfig() {
 
   const handleSelectConfigSource = useCallback((key: string) => {
     setSelectedConfigSourceKey(key)
+  }, [])
+
+  const handleJumpToSection = useCallback((sectionId: SettingsSectionId) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
   const updateAgentTextField = useCallback((agentId: string, field: 'name' | 'model', value: string) => {
@@ -1061,11 +1127,110 @@ export default function DebugConfig() {
     }
   }, [collectionKeyword, collectionLocation, collectionLimit, collectionMaxPages, dispatchCollection])
 
+  const sectionJumpItems: SettingsJumpItem[] = [
+    {
+      id: 'operations',
+      title: t('debugConfig.sectionOperationsTitle', { defaultValue: 'Operations' }),
+      description: t('debugConfig.sectionOperationsDescription', {
+        defaultValue: 'Live system health, scheduler status, and manual resume collection controls.',
+      }),
+      meta: t('debugConfig.sectionOperationsMeta', { defaultValue: '3 operational panels' }),
+      icon: Activity,
+    },
+    {
+      id: 'runtime',
+      title: t('debugConfig.sectionRuntimeTitle', { defaultValue: 'AI and agents' }),
+      description: t('debugConfig.sectionRuntimeDescription', {
+        defaultValue: 'Model health and the configured screening pipeline.',
+      }),
+      meta: t('debugConfig.sectionRuntimeMeta', {
+        defaultValue: '{{count}} configured agents',
+        count: agentsConfig?.agents.list.length ?? 0,
+      }),
+      icon: Bot,
+    },
+    {
+      id: 'rules-data',
+      title: t('debugConfig.sectionRulesDataTitle', { defaultValue: 'Rules and data' }),
+      description: t('debugConfig.sectionRulesDataDescription', {
+        defaultValue: 'Inspectable sources, keyword rules, and location display controls.',
+      }),
+      meta: t('debugConfig.sectionRulesDataMeta', {
+        defaultValue: '{{count}} inspectable sources',
+        count: configSources.length,
+      }),
+      icon: Database,
+    },
+    {
+      id: 'danger-zone',
+      title: t('debugConfig.sectionDangerTitle', { defaultValue: 'Danger zone' }),
+      description: t('debugConfig.sectionDangerDescription', {
+        defaultValue: 'Destructive system-wide actions that require confirmation.',
+      }),
+      meta: t('debugConfig.sectionDangerMeta', { defaultValue: '1 irreversible action' }),
+      icon: ShieldAlert,
+    },
+  ]
+
+  const overviewMetrics: SettingsOverviewMetric[] = [
+    {
+      label: t('debugConfig.overviewAiLabel', { defaultValue: 'AI service' }),
+      value: !aiStatus
+        ? (loading ? t('trends.loading') : '-')
+        : (aiStatus.enabled ? t('debugConfig.aiEnabled') : t('debugConfig.aiDisabled')),
+      detail: aiStatus
+        ? `${aiStatus.model} • ${aiStatus.valid ? t('debugConfig.aiValid') : t('debugConfig.aiInvalid')}`
+        : t('debugConfig.overviewAiDetail', { defaultValue: 'Model availability and validation status.' }),
+    },
+    {
+      label: t('debugConfig.overviewAgentsLabel', { defaultValue: 'Agent stages' }),
+      value: String(agentsConfig?.agents.list.length ?? 0),
+      detail: t('debugConfig.overviewAgentsDetail', {
+        defaultValue: '{{count}} bonded to environment settings',
+        count: bondedAgentCount,
+      }),
+    },
+    {
+      label: t('debugConfig.overviewKeywordsLabel', { defaultValue: 'Custom keywords' }),
+      value: String(customKeywordTags.length),
+      detail: t('debugConfig.overviewKeywordsDetail', {
+        defaultValue: '{{count}} categories available for editing',
+        count: customKeywordCategories.length,
+      }),
+    },
+    {
+      label: t('debugConfig.overviewLocationsLabel', { defaultValue: 'Visible locations' }),
+      value: `${visibleSystemLocationCount}/${systemLocationItems.length}`,
+      detail: t('debugConfig.overviewLocationsDetail', {
+        defaultValue: 'Province and city chips shown in the UI.',
+      }),
+    },
+    {
+      label: t('debugConfig.overviewSourcesLabel', { defaultValue: 'Inspectable sources' }),
+      value: String(configSources.length),
+      detail: t('debugConfig.overviewSourcesDetail', {
+        defaultValue: '{{count}} brand entries loaded from read-only data',
+        count: brandKeywords.length,
+      }),
+    },
+  ]
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title={t('debugConfig.title')}
         description={t('debugConfig.subtitle')}
+        actions={(
+          <Button
+            variant="outline"
+            onClick={handleRefreshData}
+            disabled={loading}
+          >
+            {loading
+              ? t('trends.loading')
+              : t('common.refresh', { defaultValue: 'Refresh' })}
+          </Button>
+        )}
       />
 
       {loadError && (
@@ -1074,634 +1239,754 @@ export default function DebugConfig() {
         </div>
       )}
 
-      {/* Real-time System Summary */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <SystemSummary />
-        <SchedulerStatus apiBaseUrl={apiBaseUrl} />
-      </div>
-
-      {/* Resume Data Collection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('debugConfig.resumeDataCollection')}</CardTitle>
-          <CardDescription>
-            {t('debugConfig.resumeDataCollectionDescription')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <label htmlFor="col-keyword" className="text-sm font-medium">{t('debugConfig.keyword')}</label>
-              <Input
-                id="col-keyword"
-                placeholder={t('debugConfig.keywordPlaceholder')}
-                value={collectionKeyword}
-                onChange={(e) => setCollectionKeyword(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="col-location" className="text-sm font-medium">{t('debugConfig.location')}</label>
-              <Input
-                id="col-location"
-                placeholder={t('debugConfig.locationPlaceholder')}
-                value={collectionLocation}
-                onChange={(e) => setCollectionLocation(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="col-limit" className="text-sm font-medium">{t('debugConfig.limitResumes')}</label>
-              <Input
-                id="col-limit"
-                type="number"
-                placeholder="200"
-                value={collectionLimit}
-                onChange={(e) => setCollectionLimit(e.target.value)}
-                onFocus={(e) => e.target.select()}
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="col-max-pages" className="text-sm font-medium">{t('debugConfig.maxPages')}</label>
-              <Input
-                id="col-max-pages"
-                type="number"
-                placeholder="10"
-                value={collectionMaxPages}
-                onChange={(e) => setCollectionMaxPages(e.target.value)}
-                onFocus={(e) => e.target.select()}
-              />
-            </div>
-          </div>
-          <Button onClick={handleStartCollection} className="w-full sm:w-auto">
-            {t('debugConfig.startCollection')}
-          </Button>
-
-          <div className="mt-6">
-            <TaskMonitor />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('debugConfig.aiStatus')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!aiStatus ? (
-            <p className="text-sm text-muted-foreground">{loading ? t('trends.loading') : '-'}</p>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={aiStatus.enabled ? 'default' : 'secondary'}>
-                  {aiStatus.enabled ? t('debugConfig.aiEnabled') : t('debugConfig.aiDisabled')}
-                </Badge>
-                {aiStatus.bonded?.includes('AI_ANALYSIS_ENABLED') && (
-                  <Badge variant="outline" className="border-emerald-500/50 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400">
-                    Bound to environment
-                  </Badge>
-                )}
-                <Badge variant={aiStatus.valid ? 'default' : 'destructive'}>
-                  {aiStatus.valid ? t('debugConfig.aiValid') : t('debugConfig.aiInvalid')}
-                </Badge>
+      <Card className="overflow-hidden border-border/60 bg-gradient-to-br from-background via-background to-muted/30">
+        <CardContent className="space-y-6 p-6">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)]">
+            <div className="space-y-3">
+              <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+                {t('debugConfig.settingsOverviewEyebrow', { defaultValue: 'System settings overview' })}
               </div>
-
-              <div className="grid gap-3 text-sm sm:grid-cols-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-muted-foreground">{t('debugConfig.aiModel')}</p>
-                    {aiStatus.bonded?.includes('AI_MODEL') && (
-                      <Badge variant="outline" className="h-4 px-1 text-[10px] border-emerald-500/50 text-emerald-600">Bonded</Badge>
-                    )}
-                  </div>
-                  <p className="font-medium">{aiStatus.model}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">{t('debugConfig.aiApiBase')}</p>
-                  <p className="font-medium">{aiStatus.apiBase ?? '-'}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">{t('debugConfig.aiTemperature')}</p>
-                  <p className="font-medium">{aiStatus.temperature}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">{t('debugConfig.aiMaxTokens')}</p>
-                  <p className="font-medium">{aiStatus.maxTokens}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">{t('debugConfig.aiTimeout')}</p>
-                  <p className="font-medium">{aiStatus.timeout}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">API Key</p>
-                  <p className="font-medium">{aiStatus.apiKeyMasked}</p>
-                </div>
-              </div>
-
-              {aiStatus.validationError && (
-                <p className="rounded border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
-                  {aiStatus.validationError}
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                  {t('debugConfig.settingsOverviewTitle', {
+                    defaultValue: 'Organized around operations, runtime health, and editable rules.',
+                  })}
+                </h2>
+                <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                  {t('debugConfig.settingsOverviewDescription', {
+                    defaultValue: 'Use the grouped sections below to move quickly between live diagnostics, AI pipeline controls, and read-only source inspection.',
+                  })}
                 </p>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('debugConfig.agents')}</CardTitle>
-          <CardDescription>{t('debugConfig.agentsDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!agentsConfig ? (
-            <p className="text-sm text-muted-foreground">{loading ? t('trends.loading') : '-'}</p>
-          ) : agentsConfig.agents.list.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('debug.none')}</p>
-          ) : (
-            agentsConfig.agents.list.map((agent) => {
-              const defaults = agentsConfig.agents.defaults[agent.id] ?? {}
-              const isSaving = savingAgentId === agent.id
-
-              return (
-                <div key={agent.id} className="space-y-3 rounded-md border p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold">{agent.id}</h3>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        handleSaveAgents(agent.id).catch((error) => {
-                          console.error('Unexpected handleSaveAgents failure', error)
-                        })
-                      }}
-                      disabled={isSaving}
-                    >
-                      {isSaving ? `${t('debugConfig.save')}...` : t('debugConfig.save')}
-                    </Button>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Name</p>
-                      <Input
-                        value={agent.name}
-                        onChange={(event) => {
-                          updateAgentTextField(agent.id, 'name', event.target.value)
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs text-muted-foreground">{t('debugConfig.agentModel')}</p>
-                        {agent.isBonded && (
-                          <Badge variant="outline" className="h-3.5 px-1 text-[9px] border-emerald-500/50 text-emerald-600">Bonded</Badge>
-                        )}
-                      </div>
-                      <Input
-                        value={agent.model}
-                        disabled={agent.isBonded}
-                        onChange={(event) => {
-                          updateAgentTextField(agent.id, 'model', event.target.value)
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t('debugConfig.agentBatchSize')}</p>
-                      <Input
-                        type="number"
-                        value={agent.config.batchSize ?? ''}
-                        onChange={(event) => {
-                          updateAgentNumericField(agent.id, 'batchSize', event.target.value)
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t('debugConfig.agentParallelism')}</p>
-                      <Input
-                        type="number"
-                        value={agent.config.parallelism ?? ''}
-                        onChange={(event) => {
-                          updateAgentNumericField(agent.id, 'parallelism', event.target.value)
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t('debugConfig.agentTimeout')}</p>
-                      <Input
-                        type="number"
-                        value={agent.config.timeout ?? ''}
-                        onChange={(event) => {
-                          updateAgentNumericField(agent.id, 'timeout', event.target.value)
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t('debugConfig.aiTemperature')}</p>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={agent.config.temperature ?? ''}
-                        onChange={(event) => {
-                          updateAgentNumericField(agent.id, 'temperature', event.target.value)
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t('debugConfig.agentThreshold')}</p>
-                      <Input
-                        type="number"
-                        value={defaults.passThreshold ?? ''}
-                        onChange={(event) => {
-                          updateAgentThreshold(agent.id, event.target.value)
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle>{t('debugConfig.systemLocationConfigTitle', { defaultValue: '系统地区配置' })}</CardTitle>
-              <CardDescription>
-                {t('debugConfig.systemLocationConfigDescription', {
-                  defaultValue: '来源于 Job5156 地区数据，可配置展开标签显示或隐藏',
-                })}
-              </CardDescription>
+              </div>
             </div>
-            <Badge variant="secondary">{visibleSystemLocationCount}/{systemLocationItems.length}</Badge>
+
+            <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold">{t('debugConfig.quickNavigationTitle', { defaultValue: 'Jump to section' })}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t('debugConfig.quickNavigationDescription', {
+                      defaultValue: 'Keep the page manageable by jumping straight to the area you need.',
+                    })}
+                  </p>
+                </div>
+                <Badge variant="secondary">{sectionJumpItems.length}</Badge>
+              </div>
+              <div className="space-y-2">
+                {sectionJumpItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleJumpToSection(item.id)}
+                    className={cn(
+                      'group flex w-full items-start gap-3 rounded-xl border border-border/60 bg-background px-4 py-3 text-left transition-colors',
+                      'hover:border-primary/40 hover:bg-primary/5'
+                    )}
+                  >
+                    <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                      <item.icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-medium">{item.title}</p>
+                        <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                      </div>
+                      <p className="text-xs text-muted-foreground">{item.description}</p>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{item.meta}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Input
-            value={systemLocationQuery}
-            onChange={(event) => setSystemLocationQuery(event.target.value)}
-            placeholder={t('debugConfig.systemLocationSearchPlaceholder', {
-              defaultValue: '搜索地区（名称/上级/层级）',
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {overviewMetrics.map((item) => (
+              <SettingsOverviewCard
+                key={item.label}
+                label={item.label}
+                value={item.value}
+                detail={item.detail}
+              />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <SettingsSection
+        id="operations"
+        title={t('debugConfig.operationsSectionTitle', { defaultValue: 'Operations' })}
+        description={t('debugConfig.operationsSectionDescription', {
+          defaultValue: 'Live diagnostics and manual job controls for collection and processing.',
+        })}
+        badge={<Badge variant="outline">{t('debugConfig.live', { defaultValue: 'Live' })}</Badge>}
+      >
+        <div className="grid gap-6 md:grid-cols-2">
+          <SystemSummary />
+          <SchedulerStatus apiBaseUrl={apiBaseUrl} />
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('debugConfig.resumeDataCollection')}</CardTitle>
+            <CardDescription>
+              {t('debugConfig.resumeDataCollectionDescription')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="col-keyword" className="text-sm font-medium">{t('debugConfig.keyword')}</label>
+                <Input
+                  id="col-keyword"
+                  placeholder={t('debugConfig.keywordPlaceholder')}
+                  value={collectionKeyword}
+                  onChange={(e) => setCollectionKeyword(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="col-location" className="text-sm font-medium">{t('debugConfig.location')}</label>
+                <Input
+                  id="col-location"
+                  placeholder={t('debugConfig.locationPlaceholder')}
+                  value={collectionLocation}
+                  onChange={(e) => setCollectionLocation(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="col-limit" className="text-sm font-medium">{t('debugConfig.limitResumes')}</label>
+                <Input
+                  id="col-limit"
+                  type="number"
+                  placeholder="200"
+                  value={collectionLimit}
+                  onChange={(e) => setCollectionLimit(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="col-max-pages" className="text-sm font-medium">{t('debugConfig.maxPages')}</label>
+                <Input
+                  id="col-max-pages"
+                  type="number"
+                  placeholder="10"
+                  value={collectionMaxPages}
+                  onChange={(e) => setCollectionMaxPages(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                />
+              </div>
+            </div>
+            <Button onClick={handleStartCollection} className="w-full sm:w-auto">
+              {t('debugConfig.startCollection')}
+            </Button>
+
+            <div className="mt-6">
+              <TaskMonitor />
+            </div>
+          </CardContent>
+        </Card>
+      </SettingsSection>
+
+      <SettingsSection
+        id="runtime"
+        title={t('debugConfig.runtimeSectionTitle', { defaultValue: 'AI and agents' })}
+        description={t('debugConfig.runtimeSectionDescription', {
+          defaultValue: 'Inspect AI connectivity and adjust the multi-stage screening pipeline.',
+        })}
+        badge={(
+          <Badge variant="secondary">
+            {t('debugConfig.runtimeSectionBadge', {
+              defaultValue: '{{count}} agents',
+              count: agentsConfig?.agents.list.length ?? 0,
             })}
-          />
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('debugConfig.systemLocationKeyword', { defaultValue: '地区' })}</TableHead>
-                  <TableHead>{t('debugConfig.systemLocationLevel', { defaultValue: '层级' })}</TableHead>
-                  <TableHead>{t('debugConfig.systemLocationParent', { defaultValue: '上级' })}</TableHead>
-                  <TableHead>{t('debugConfig.systemLocationVisible', { defaultValue: '状态' })}</TableHead>
-                  <TableHead className="text-right">{t('resumes.actions.view')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSystemLocationItems.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
-                      {loading ? t('trends.loading') : t('debug.none')}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredSystemLocationItems.map((item) => {
-                    const isSaving = savingSystemLocationId === item.id
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.keyword}</TableCell>
-                        <TableCell>{item.level === 'province' ? '省级' : '城市'}</TableCell>
-                        <TableCell>{item.parentKeyword || '-'}</TableCell>
-                        <TableCell>
-                          <Badge variant={item.visible ? 'default' : 'secondary'}>
-                            {item.visible ? 'show' : 'hidden'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-end">
-                            <Button
-                              variant={item.visible ? 'outline' : 'default'}
-                              size="sm"
-                              disabled={isSaving}
-                              onClick={() => {
-                                handleToggleSystemLocationVisibility(item).catch((error) => {
-                                  console.error('Unexpected handleToggleSystemLocationVisibility failure', error)
-                                })
-                              }}
-                            >
-                              {isSaving
-                                ? `${t('debugConfig.save')}...`
-                                : (item.visible ? 'hidden' : 'show')}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle>{t('debugConfig.configSources')}</CardTitle>
-              <CardDescription>{t('debugConfig.configSourcesDescription')}</CardDescription>
-            </div>
-            <Badge variant="secondary">{configSources.length}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-            <div className="space-y-4">
-              {configSourceGroups.length === 0 ? (
-                <div className="rounded-md border p-6 text-center text-muted-foreground">
-                  {loading ? t('trends.loading') : t('debug.none')}
-                </div>
-              ) : (
-                configSourceGroups.map((group) => (
-                  <div key={group.key} className="rounded-md border">
-                    <div className="border-b bg-muted/20 px-4 py-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="space-y-1">
-                          <h3 className="text-sm font-semibold">{group.label}</h3>
-                          <p className="text-xs text-muted-foreground">{group.description}</p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="font-normal">{group.audience}</Badge>
-                          <Badge variant="secondary">{group.sources.length}</Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>{t('debugConfig.configSourceLabel')}</TableHead>
-                          <TableHead>{t('debugConfig.configSourceType')}</TableHead>
-                          <TableHead>{t('debugConfig.configSourcePath')}</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {group.sources.map((source) => (
-                          <TableRow
-                            key={source.key}
-                            className={selectedConfigSourceKey === source.key ? 'bg-muted/50' : undefined}
-                          >
-                            <TableCell>
-                              <button
-                                type="button"
-                                className="space-y-1 text-left"
-                                onClick={() => {
-                                  handleSelectConfigSource(source.key)
-                                }}
-                              >
-                                <div className="font-medium">{source.label}</div>
-                                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                                  <Badge variant="outline" className="font-normal">{t('debugConfig.readOnly')}</Badge>
-                                  {source.metadata?.locale && (
-                                    <Badge variant="secondary" className="font-normal">{source.metadata.locale}</Badge>
-                                  )}
-                                  {source.metadata?.version !== undefined && (
-                                    <span>{t('debugConfig.configSourceVersion', { version: source.metadata.version })}</span>
-                                  )}
-                                </div>
-                                {source.parseError && (
-                                  <p className="text-xs text-destructive">{source.parseError}</p>
-                                )}
-                              </button>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary">{source.type}</Badge>
-                            </TableCell>
-                            <TableCell className="font-mono text-xs text-muted-foreground">{source.relativePath}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="space-y-4">
-              {!selectedConfigSourceDetail ? (
-                <div className="rounded-md border p-6 text-sm text-muted-foreground">
-                  {loading ? t('trends.loading') : t('debug.none')}
-                </div>
+          </Badge>
+        )}
+      >
+        <div className="grid gap-6 2xl:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
+          <Card className="h-full">
+            <CardHeader>
+              <CardTitle>{t('debugConfig.aiStatus')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!aiStatus ? (
+                <p className="text-sm text-muted-foreground">{loading ? t('trends.loading') : '-'}</p>
               ) : (
                 <>
-                  <div className="rounded-md border p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <h3 className="text-sm font-semibold">{selectedConfigSourceDetail.label}</h3>
-                        <p className="font-mono text-xs text-muted-foreground">{selectedConfigSourceDetail.relativePath}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">{t('debugConfig.readOnly')}</Badge>
-                        <Badge variant="secondary">{selectedConfigSourceDetail.type}</Badge>
-                        <Badge variant="outline">{selectedConfigSourceDetail.group}</Badge>
-                        <Badge variant="outline">{selectedConfigSourceDetail.audience}</Badge>
-                        {selectedConfigSourceDetail.metadata?.locale && (
-                          <Badge variant="secondary">{selectedConfigSourceDetail.metadata.locale}</Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={aiStatus.enabled ? 'default' : 'secondary'}>
+                      {aiStatus.enabled ? t('debugConfig.aiEnabled') : t('debugConfig.aiDisabled')}
+                    </Badge>
+                    {aiStatus.bonded?.includes('AI_ANALYSIS_ENABLED') && (
+                      <Badge variant="outline" className="border-emerald-500/50 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400">
+                        Bound to environment
+                      </Badge>
+                    )}
+                    <Badge variant={aiStatus.valid ? 'default' : 'destructive'}>
+                      {aiStatus.valid ? t('debugConfig.aiValid') : t('debugConfig.aiInvalid')}
+                    </Badge>
+                  </div>
+
+                  <div className="grid gap-3 text-sm sm:grid-cols-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-muted-foreground">{t('debugConfig.aiModel')}</p>
+                        {aiStatus.bonded?.includes('AI_MODEL') && (
+                          <Badge variant="outline" className="h-4 px-1 text-[10px] border-emerald-500/50 text-emerald-600">Bonded</Badge>
                         )}
                       </div>
+                      <p className="font-medium">{aiStatus.model}</p>
                     </div>
-
-                    <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                      <div>
-                        <p className="text-muted-foreground">{t('debugConfig.configSourcePath')}</p>
-                        <p className="font-mono text-xs">{selectedConfigSourceDetail.relativePath}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">{t('debugConfig.configSourceType')}</p>
-                        <p className="font-medium">{selectedConfigSourceDetail.type}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Group</p>
-                        <p className="font-medium">{selectedConfigSourceDetail.group}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Audience</p>
-                        <p className="font-medium">{selectedConfigSourceDetail.audience}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">{t('debugConfig.configSourceVersionLabel')}</p>
-                        <p className="font-medium">{selectedConfigSourceDetail.metadata?.version ?? '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">{t('debugConfig.configSourceUpdatedAt')}</p>
-                        <p className="font-medium">{selectedConfigSourceDetail.metadata?.updatedAt ?? '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">{t('debugConfig.configSourceRequestedLocale')}</p>
-                        <p className="font-medium">{selectedConfigSourceDetail.metadata?.requestedLocale ?? '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">{t('debugConfig.configSourceResolvedLocale')}</p>
-                        <p className="font-medium">{selectedConfigSourceDetail.metadata?.resolvedSourceLocale ?? '-'}</p>
-                      </div>
+                    <div>
+                      <p className="text-muted-foreground">{t('debugConfig.aiApiBase')}</p>
+                      <p className="font-medium">{aiStatus.apiBase ?? '-'}</p>
                     </div>
-
-                    {selectedConfigSourceDetail.metadata?.description && (
-                      <div className="mt-4 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
-                        {selectedConfigSourceDetail.metadata.description}
-                      </div>
-                    )}
-
-                    {selectedConfigSourceDetail.metadata?.fallbackToZhHans !== undefined && (
-                      <div className="mt-3">
-                        <Badge variant={selectedConfigSourceDetail.metadata.fallbackToZhHans ? 'secondary' : 'outline'}>
-                          {selectedConfigSourceDetail.metadata.fallbackToZhHans
-                            ? t('debugConfig.configSourceFallbackEnabled')
-                            : t('debugConfig.configSourceFallbackDisabled')}
-                        </Badge>
-                      </div>
-                    )}
-
-                    {selectedConfigSourceDetail.parseError && (
-                      <p className="mt-4 rounded border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
-                        {selectedConfigSourceDetail.parseError}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">{t('debugConfig.configSourceRaw')}</p>
-                      <pre className="max-h-[480px] overflow-auto rounded-md border bg-muted/30 p-4 text-xs leading-5">
-                        <code>{selectedConfigSourceDetail.rawSource}</code>
-                      </pre>
+                    <div>
+                      <p className="text-muted-foreground">{t('debugConfig.aiTemperature')}</p>
+                      <p className="font-medium">{aiStatus.temperature}</p>
                     </div>
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">{t('debugConfig.configSourceParsedPreview')}</p>
-                      <pre className="max-h-[480px] overflow-auto rounded-md border bg-muted/30 p-4 text-xs leading-5">
-                        <code>{selectedConfigSourcePreview}</code>
-                      </pre>
+                    <div>
+                      <p className="text-muted-foreground">{t('debugConfig.aiMaxTokens')}</p>
+                      <p className="font-medium">{aiStatus.maxTokens}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">{t('debugConfig.aiTimeout')}</p>
+                      <p className="font-medium">{aiStatus.timeout}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">API Key</p>
+                      <p className="font-medium">{aiStatus.apiKeyMasked}</p>
                     </div>
                   </div>
+
+                  {aiStatus.validationError && (
+                    <p className="rounded border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
+                      {aiStatus.validationError}
+                    </p>
+                  )}
                 </>
               )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle>{t('debugConfig.customKeywords')}</CardTitle>
-              <CardDescription>{t('debugConfig.customKeywordsDescription')}</CardDescription>
-            </div>
-            <Button size="sm" onClick={openAddCustomKeywordDialog}>
-              {t('debugConfig.addCustomKeyword')}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('debugConfig.customKeywordId')}</TableHead>
-                  <TableHead>{t('debugConfig.customKeywordKeyword')}</TableHead>
-                  <TableHead>{t('debugConfig.customKeywordEnglish')}</TableHead>
-                  <TableHead>{t('debugConfig.customKeywordCategory')}</TableHead>
-                  <TableHead className="text-right">{t('resumes.actions.view')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {customKeywordTags.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
-                      {loading ? t('trends.loading') : t('debug.none')}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  customKeywordTags.map((tag) => (
-                    <TableRow key={tag.id}>
-                      <TableCell className="font-mono text-xs">{tag.id}</TableCell>
-                      <TableCell>{tag.keyword}</TableCell>
-                      <TableCell>{tag.english || '-'}</TableCell>
-                      <TableCell>{tag.category}</TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              openEditCustomKeywordDialog(tag)
-                            }}
-                          >
-                            {t('debugConfig.editCustomKeyword')}
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              setDeleteCustomKeywordTargetId(tag.id)
-                            }}
-                          >
-                            {t('debugConfig.deleteCustomKeyword')}
-                          </Button>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('debugConfig.agents')}</CardTitle>
+              <CardDescription>{t('debugConfig.agentsDescription')}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!agentsConfig ? (
+                <p className="text-sm text-muted-foreground">{loading ? t('trends.loading') : '-'}</p>
+              ) : agentsConfig.agents.list.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('debug.none')}</p>
+              ) : (
+                agentsConfig.agents.list.map((agent) => {
+                  const defaults = agentsConfig.agents.defaults[agent.id] ?? {}
+                  const isSaving = savingAgentId === agent.id
+
+                  return (
+                    <div key={agent.id} className="space-y-3 rounded-md border p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-semibold">{agent.id}</h3>
+                          <p className="text-xs text-muted-foreground">{agent.name}</p>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            handleSaveAgents(agent.id).catch((error) => {
+                              console.error('Unexpected handleSaveAgents failure', error)
+                            })
+                          }}
+                          disabled={isSaving}
+                        >
+                          {isSaving ? `${t('debugConfig.save')}...` : t('debugConfig.save')}
+                        </Button>
+                      </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle>{t('debugConfig.brandKeywords', '品牌關鍵詞')}</CardTitle>
-              <CardDescription>{t('debugConfig.brandKeywordsDescription', '從 skills.md 自動生成的設備品牌（唯讀）')}</CardDescription>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Name</p>
+                          <Input
+                            value={agent.name}
+                            onChange={(event) => {
+                              updateAgentTextField(agent.id, 'name', event.target.value)
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-muted-foreground">{t('debugConfig.agentModel')}</p>
+                            {agent.isBonded && (
+                              <Badge variant="outline" className="h-3.5 px-1 text-[9px] border-emerald-500/50 text-emerald-600">Bonded</Badge>
+                            )}
+                          </div>
+                          <Input
+                            value={agent.model}
+                            disabled={agent.isBonded}
+                            onChange={(event) => {
+                              updateAgentTextField(agent.id, 'model', event.target.value)
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">{t('debugConfig.agentBatchSize')}</p>
+                          <Input
+                            type="number"
+                            value={agent.config.batchSize ?? ''}
+                            onChange={(event) => {
+                              updateAgentNumericField(agent.id, 'batchSize', event.target.value)
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">{t('debugConfig.agentParallelism')}</p>
+                          <Input
+                            type="number"
+                            value={agent.config.parallelism ?? ''}
+                            onChange={(event) => {
+                              updateAgentNumericField(agent.id, 'parallelism', event.target.value)
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">{t('debugConfig.agentTimeout')}</p>
+                          <Input
+                            type="number"
+                            value={agent.config.timeout ?? ''}
+                            onChange={(event) => {
+                              updateAgentNumericField(agent.id, 'timeout', event.target.value)
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">{t('debugConfig.aiTemperature')}</p>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={agent.config.temperature ?? ''}
+                            onChange={(event) => {
+                              updateAgentNumericField(agent.id, 'temperature', event.target.value)
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">{t('debugConfig.agentThreshold')}</p>
+                          <Input
+                            type="number"
+                            value={defaults.passThreshold ?? ''}
+                            onChange={(event) => {
+                              updateAgentThreshold(agent.id, event.target.value)
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
+        id="rules-data"
+        title={t('debugConfig.rulesDataSectionTitle', { defaultValue: 'Rules and data' })}
+        description={t('debugConfig.rulesDataSectionDescription', {
+          defaultValue: 'Editable keyword surfaces and read-only source inspection in one place.',
+        })}
+        badge={(
+          <Badge variant="secondary">
+            {t('debugConfig.rulesDataSectionBadge', {
+              defaultValue: '{{count}} sources',
+              count: configSources.length,
+            })}
+          </Badge>
+        )}
+      >
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle>{t('debugConfig.configSources')}</CardTitle>
+                <CardDescription>{t('debugConfig.configSourcesDescription')}</CardDescription>
+              </div>
+              <Badge variant="secondary">{configSources.length}</Badge>
             </div>
-            <Badge variant="secondary">{brandKeywords.length}</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('debugConfig.brandKeywordNameCn', '中文名')}</TableHead>
-                  <TableHead>{t('debugConfig.brandKeywordNameEn', 'English')}</TableHead>
-                  <TableHead>{t('debugConfig.brandKeywordType', '类型')}</TableHead>
-                  <TableHead>{t('debugConfig.brandKeywordOrigin', '来源')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {brandKeywords.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
-                      {loading ? t('trends.loading') : t('debug.none')}
-                    </TableCell>
-                  </TableRow>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+              <div className="space-y-4">
+                {configSourceGroups.length === 0 ? (
+                  <div className="rounded-md border p-6 text-center text-muted-foreground">
+                    {loading ? t('trends.loading') : t('debug.none')}
+                  </div>
                 ) : (
-                  brandKeywords.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.nameCn}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.nameEn || '-'}</TableCell>
-                      <TableCell className="text-xs">{item.type}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">{item.origin}</Badge>
-                      </TableCell>
-                    </TableRow>
+                  configSourceGroups.map((group) => (
+                    <div key={group.key} className="rounded-md border">
+                      <div className="border-b bg-muted/20 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="space-y-1">
+                            <h3 className="text-sm font-semibold">{group.label}</h3>
+                            <p className="text-xs text-muted-foreground">{group.description}</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className="font-normal">{group.audience}</Badge>
+                            <Badge variant="secondary">{group.sources.length}</Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{t('debugConfig.configSourceLabel')}</TableHead>
+                            <TableHead>{t('debugConfig.configSourceType')}</TableHead>
+                            <TableHead>{t('debugConfig.configSourcePath')}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {group.sources.map((source) => (
+                            <TableRow
+                              key={source.key}
+                              className={selectedConfigSourceKey === source.key ? 'bg-muted/50' : undefined}
+                            >
+                              <TableCell>
+                                <button
+                                  type="button"
+                                  className="space-y-1 text-left"
+                                  onClick={() => {
+                                    handleSelectConfigSource(source.key)
+                                  }}
+                                >
+                                  <div className="font-medium">{source.label}</div>
+                                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                    <Badge variant="outline" className="font-normal">{t('debugConfig.readOnly')}</Badge>
+                                    {source.metadata?.locale && (
+                                      <Badge variant="secondary" className="font-normal">{source.metadata.locale}</Badge>
+                                    )}
+                                    {source.metadata?.version !== undefined && (
+                                      <span>{t('debugConfig.configSourceVersion', { version: source.metadata.version })}</span>
+                                    )}
+                                  </div>
+                                  {source.parseError && (
+                                    <p className="text-xs text-destructive">{source.parseError}</p>
+                                  )}
+                                </button>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary">{source.type}</Badge>
+                              </TableCell>
+                              <TableCell className="font-mono text-xs text-muted-foreground">{source.relativePath}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   ))
                 )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+              </div>
+
+              <div className="space-y-4">
+                {!selectedConfigSourceDetail ? (
+                  <div className="rounded-md border p-6 text-sm text-muted-foreground">
+                    {loading ? t('trends.loading') : t('debug.none')}
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-md border p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-semibold">{selectedConfigSourceDetail.label}</h3>
+                          <p className="font-mono text-xs text-muted-foreground">{selectedConfigSourceDetail.relativePath}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">{t('debugConfig.readOnly')}</Badge>
+                          <Badge variant="secondary">{selectedConfigSourceDetail.type}</Badge>
+                          <Badge variant="outline">{selectedConfigSourceDetail.group}</Badge>
+                          <Badge variant="outline">{selectedConfigSourceDetail.audience}</Badge>
+                          {selectedConfigSourceDetail.metadata?.locale && (
+                            <Badge variant="secondary">{selectedConfigSourceDetail.metadata.locale}</Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                        <div>
+                          <p className="text-muted-foreground">{t('debugConfig.configSourcePath')}</p>
+                          <p className="font-mono text-xs">{selectedConfigSourceDetail.relativePath}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">{t('debugConfig.configSourceType')}</p>
+                          <p className="font-medium">{selectedConfigSourceDetail.type}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Group</p>
+                          <p className="font-medium">{selectedConfigSourceDetail.group}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Audience</p>
+                          <p className="font-medium">{selectedConfigSourceDetail.audience}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">{t('debugConfig.configSourceVersionLabel')}</p>
+                          <p className="font-medium">{selectedConfigSourceDetail.metadata?.version ?? '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">{t('debugConfig.configSourceUpdatedAt')}</p>
+                          <p className="font-medium">{selectedConfigSourceDetail.metadata?.updatedAt ?? '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">{t('debugConfig.configSourceRequestedLocale')}</p>
+                          <p className="font-medium">{selectedConfigSourceDetail.metadata?.requestedLocale ?? '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">{t('debugConfig.configSourceResolvedLocale')}</p>
+                          <p className="font-medium">{selectedConfigSourceDetail.metadata?.resolvedSourceLocale ?? '-'}</p>
+                        </div>
+                      </div>
+
+                      {selectedConfigSourceDetail.metadata?.description && (
+                        <div className="mt-4 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+                          {selectedConfigSourceDetail.metadata.description}
+                        </div>
+                      )}
+
+                      {selectedConfigSourceDetail.metadata?.fallbackToZhHans !== undefined && (
+                        <div className="mt-3">
+                          <Badge variant={selectedConfigSourceDetail.metadata.fallbackToZhHans ? 'secondary' : 'outline'}>
+                            {selectedConfigSourceDetail.metadata.fallbackToZhHans
+                              ? t('debugConfig.configSourceFallbackEnabled')
+                              : t('debugConfig.configSourceFallbackDisabled')}
+                          </Badge>
+                        </div>
+                      )}
+
+                      {selectedConfigSourceDetail.parseError && (
+                        <p className="mt-4 rounded border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
+                          {selectedConfigSourceDetail.parseError}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">{t('debugConfig.configSourceRaw')}</p>
+                        <pre className="max-h-[480px] overflow-auto rounded-md border bg-muted/30 p-4 text-xs leading-5">
+                          <code>{selectedConfigSourceDetail.rawSource}</code>
+                        </pre>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">{t('debugConfig.configSourceParsedPreview')}</p>
+                        <pre className="max-h-[480px] overflow-auto rounded-md border bg-muted/30 p-4 text-xs leading-5">
+                          <code>{selectedConfigSourcePreview}</code>
+                        </pre>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle>{t('debugConfig.customKeywords')}</CardTitle>
+                  <CardDescription>{t('debugConfig.customKeywordsDescription')}</CardDescription>
+                </div>
+                <Button size="sm" onClick={openAddCustomKeywordDialog}>
+                  {t('debugConfig.addCustomKeyword')}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('debugConfig.customKeywordId')}</TableHead>
+                      <TableHead>{t('debugConfig.customKeywordKeyword')}</TableHead>
+                      <TableHead>{t('debugConfig.customKeywordEnglish')}</TableHead>
+                      <TableHead>{t('debugConfig.customKeywordCategory')}</TableHead>
+                      <TableHead className="text-right">{t('resumes.actions.view')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {customKeywordTags.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                          {loading ? t('trends.loading') : t('debug.none')}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      customKeywordTags.map((tag) => (
+                        <TableRow key={tag.id}>
+                          <TableCell className="font-mono text-xs">{tag.id}</TableCell>
+                          <TableCell>{tag.keyword}</TableCell>
+                          <TableCell>{tag.english || '-'}</TableCell>
+                          <TableCell>{tag.category}</TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  openEditCustomKeywordDialog(tag)
+                                }}
+                              >
+                                {t('debugConfig.editCustomKeyword')}
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  setDeleteCustomKeywordTargetId(tag.id)
+                                }}
+                              >
+                                {t('debugConfig.deleteCustomKeyword')}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="h-full">
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle>{t('debugConfig.brandKeywords', '品牌關鍵詞')}</CardTitle>
+                  <CardDescription>{t('debugConfig.brandKeywordsDescription', '從 skills.md 自動生成的設備品牌（唯讀）')}</CardDescription>
+                </div>
+                <Badge variant="secondary">{brandKeywords.length}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('debugConfig.brandKeywordNameCn', '中文名')}</TableHead>
+                      <TableHead>{t('debugConfig.brandKeywordNameEn', 'English')}</TableHead>
+                      <TableHead>{t('debugConfig.brandKeywordType', '类型')}</TableHead>
+                      <TableHead>{t('debugConfig.brandKeywordOrigin', '来源')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {brandKeywords.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                          {loading ? t('trends.loading') : t('debug.none')}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      brandKeywords.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.nameCn}</TableCell>
+                          <TableCell className="text-muted-foreground">{item.nameEn || '-'}</TableCell>
+                          <TableCell className="text-xs">{item.type}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{item.origin}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle>{t('debugConfig.systemLocationConfigTitle', { defaultValue: '系统地区配置' })}</CardTitle>
+                <CardDescription>
+                  {t('debugConfig.systemLocationConfigDescription', {
+                    defaultValue: '来源于 Job5156 地区数据，可配置展开标签显示或隐藏',
+                  })}
+                </CardDescription>
+              </div>
+              <Badge variant="secondary">{visibleSystemLocationCount}/{systemLocationItems.length}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Input
+              value={systemLocationQuery}
+              onChange={(event) => setSystemLocationQuery(event.target.value)}
+              placeholder={t('debugConfig.systemLocationSearchPlaceholder', {
+                defaultValue: '搜索地区（名称/上级/层级）',
+              })}
+            />
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('debugConfig.systemLocationKeyword', { defaultValue: '地区' })}</TableHead>
+                    <TableHead>{t('debugConfig.systemLocationLevel', { defaultValue: '层级' })}</TableHead>
+                    <TableHead>{t('debugConfig.systemLocationParent', { defaultValue: '上级' })}</TableHead>
+                    <TableHead>{t('debugConfig.systemLocationVisible', { defaultValue: '状态' })}</TableHead>
+                    <TableHead className="text-right">{t('resumes.actions.view')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredSystemLocationItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                        {loading ? t('trends.loading') : t('debug.none')}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredSystemLocationItems.map((item) => {
+                      const isSaving = savingSystemLocationId === item.id
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.keyword}</TableCell>
+                          <TableCell>{item.level === 'province' ? '省级' : '城市'}</TableCell>
+                          <TableCell>{item.parentKeyword || '-'}</TableCell>
+                          <TableCell>
+                            <Badge variant={item.visible ? 'default' : 'secondary'}>
+                              {item.visible ? 'show' : 'hidden'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end">
+                              <Button
+                                variant={item.visible ? 'outline' : 'default'}
+                                size="sm"
+                                disabled={isSaving}
+                                onClick={() => {
+                                  handleToggleSystemLocationVisibility(item).catch((error) => {
+                                    console.error('Unexpected handleToggleSystemLocationVisibility failure', error)
+                                  })
+                                }}
+                              >
+                                {isSaving
+                                  ? `${t('debugConfig.save')}...`
+                                  : (item.visible ? 'hidden' : 'show')}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </SettingsSection>
 
       <Dialog open={customKeywordDialogOpen} onOpenChange={setCustomKeywordDialogOpen}>
         <DialogContent>
@@ -1830,33 +2115,34 @@ export default function DebugConfig() {
         </DialogContent>
       </Dialog>
 
-      <Card className="border-destructive/50">
-        <CardHeader>
-          <CardTitle className="text-destructive">{t('debugConfig.dangerZone')}</CardTitle>
-          <CardDescription>
-            {t('debugConfig.dangerZoneDescription')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5">
-            <div className="space-y-1">
-              <p className="font-medium text-destructive">{t('debugConfig.resetDatabase')}</p>
-              <p className="text-sm text-destructive/80">
-                {t('debugConfig.resetDatabaseDescription')}
-              </p>
+      <SettingsSection
+        id="danger-zone"
+        title={t('debugConfig.dangerZone')}
+        description={t('debugConfig.dangerZoneDescription')}
+        badge={<Badge variant="destructive">{t('debugConfig.resetDatabase')}</Badge>}
+      >
+        <Card className="border-destructive/50">
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-4 rounded-lg border border-destructive/20 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="font-medium text-destructive">{t('debugConfig.resetDatabase')}</p>
+                <p className="text-sm text-destructive/80">
+                  {t('debugConfig.resetDatabaseDescription')}
+                </p>
+              </div>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setResetDatabaseDialogOpen(true)
+                }}
+                disabled={resettingDatabase}
+              >
+                {t('debugConfig.resetDatabase')}
+              </Button>
             </div>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setResetDatabaseDialogOpen(true)
-              }}
-              disabled={resettingDatabase}
-            >
-              {t('debugConfig.resetDatabase')}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </SettingsSection>
 
       <Dialog
         open={resetDatabaseDialogOpen}
@@ -1904,8 +2190,6 @@ export default function DebugConfig() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-
     </div>
   )
 }
