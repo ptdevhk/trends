@@ -108,7 +108,8 @@ make dev-crawl
 
 ### Verification
 ```bash
-make check
+make check                  # Default: validate ~/.codex/skills governance install
+make check TARGET=all       # Optional: validate governance installs in both skill roots
 make check-node
 make check-python
 npm test
