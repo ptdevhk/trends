@@ -95,10 +95,35 @@ h1 {
   margin-bottom: 8px;
 }
 
+.auto-sync-summary__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .auto-sync-summary__title {
   font-size: 12px;
   color: #b8c0d6;
   letter-spacing: 0.2px;
+}
+
+.auto-sync-summary__clear {
+  border: none;
+  background: transparent;
+  color: #64b5f6;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.auto-sync-summary__clear:hover {
+  text-decoration: underline;
+}
+
+.auto-sync-summary__clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-decoration: none;
 }
 
 .auto-sync-summary__badge {
