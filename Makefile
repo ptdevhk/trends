@@ -833,6 +833,7 @@ help:
 	@echo "  SEED_RESUMES   Set 1/true to seed demo resumes during install/upgrade (wrappers use this for install-seed/deploy-seed)"
 	@echo "  ALLOW_NODE_DOWNGRADE Set 1/true to allow installer to downgrade Node to v22 when a newer Node is already installed"
 	@echo "  CONVEX_MIRROR_MODE Shared Convex prefetch source order for dev/install/deploy: off|fallback|mirror-first"
+	@echo "                     Default is fallback, or off when CI=true in shared prefetch entrypoints"
 	@echo "  CONVEX_MIRROR_BASES / CONVEX_DOWNLOAD_TIMEOUT_SECS / CONVEX_CONNECT_TIMEOUT_SECS"
 	@echo "                 Shared Convex prefetch mirror-base and timeout overrides for dev/install/deploy"
 	@echo "  CONVEX_CURL_NO_SILENT Set true/1 to keep shared Convex prefetch curl progress output enabled"
