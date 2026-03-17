@@ -125,4 +125,17 @@ describe('App redirects', () => {
 
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()
   })
+
+  it('preserves search params when an invalid workspace slug falls back to /dev/resumes', async () => {
+    window.history.replaceState({}, '', '/unknown/resumes?keyword=STAR&location=Dongguan')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/dev/resumes')
+      expect(window.location.search).toBe('?keyword=STAR&location=Dongguan')
+    })
+
+    expect(screen.getByText('Resumes Page')).toBeInTheDocument()
+  })
 })
