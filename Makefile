@@ -772,7 +772,7 @@ help:
 	@echo "  sync-agent-policy Sync generated dev-docs/AGENTS.md from canonical AGENTS policy"
 	@echo "  check-agent-policy Validate generated dev-docs/AGENTS.md is up to date"
 	@echo "  install-agent-skill [TARGET=codex|agents|all] Install governance skill into the selected skills dir"
-	@echo "  check-agent-skill Validate governance skill, command, rules file, and installed copy drift"
+	@echo "  check-agent-skill [TARGET=codex|agents|all] Validate governance skill, command, rules file, and installed copy drift"
 	@echo "  install-skill SKILL=<name> [TARGET=codex|agents|all] Install any repo skill into the selected skills dir"
 	@echo "  validate-skill SKILL=<name> Validate skill structure from SKILL.md frontmatter"
 	@echo "  check-skill-install SKILL=<name> [TARGET=codex|agents|all] Validate installed skill sync with repo source"
