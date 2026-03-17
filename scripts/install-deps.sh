@@ -7,7 +7,7 @@ usage() {
     echo ""
     echo "Environment:"
     echo "  SKILL_INSTALL_TARGET   Governance skill install target: codex|agents|all (default: codex)"
-    echo "  CONVEX_MIRROR_MODE     Convex prefetch mode override: off|fallback|mirror"
+    echo "  CONVEX_MIRROR_MODE     Convex prefetch mode override: off|fallback|mirror-first"
     echo "  CI                     When true, uses npm and skips governance sync"
 }
 
@@ -26,15 +26,25 @@ if [ "$#" -gt 0 ]; then
 fi
 
 resolve_convex_mirror_mode() {
-    if [ -n "${CONVEX_MIRROR_MODE:-}" ]; then
-        echo "${CONVEX_MIRROR_MODE}"
+    local mode="${CONVEX_MIRROR_MODE:-}"
+    if [ -z "${mode}" ]; then
+        if [ "${CI:-}" = "true" ]; then
+            echo "off"
+            return
+        fi
+        echo "fallback"
         return
     fi
-    if [ "${CI:-}" = "true" ]; then
-        echo "off"
-        return
-    fi
-    echo "fallback"
+    case "${mode}" in
+        off|fallback|mirror-first)
+            echo "${mode}"
+            ;;
+        *)
+            echo "Invalid CONVEX_MIRROR_MODE: ${mode}" >&2
+            echo "Expected one of: off, fallback, mirror-first" >&2
+            exit 1
+            ;;
+    esac
 }
 
 resolve_skill_install_target() {
@@ -51,8 +61,10 @@ resolve_skill_install_target() {
     esac
 }
 
+EFFECTIVE_CONVEX_MIRROR_MODE=""
 EFFECTIVE_SKILL_INSTALL_TARGET=""
 if [ "${CI:-}" != "true" ]; then
+    EFFECTIVE_CONVEX_MIRROR_MODE="$(resolve_convex_mirror_mode)"
     EFFECTIVE_SKILL_INSTALL_TARGET="$(resolve_skill_install_target)"
 fi
 
@@ -72,7 +84,9 @@ else
 fi
 
 if [ -d "packages/convex" ]; then
-    EFFECTIVE_CONVEX_MIRROR_MODE="$(resolve_convex_mirror_mode)"
+    if [ -z "${EFFECTIVE_CONVEX_MIRROR_MODE}" ]; then
+        EFFECTIVE_CONVEX_MIRROR_MODE="$(resolve_convex_mirror_mode)"
+    fi
     echo "Prefetching Convex local backend and dashboard assets (mirror mode: ${EFFECTIVE_CONVEX_MIRROR_MODE})..."
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     "$SCRIPT_DIR/prefetch-convex-backend.sh" || echo "Warning: Convex prefetch failed (non-fatal)"
