@@ -1,8 +1,8 @@
 ---
 name: trends-cli
-description: Use the Trends Go CLI for backend operations including resume/jd listing, worker triggers, exports, migrations, and MCP server mode.
+description: Use the Trends Go CLI for backend operations including resume/jd listing, resume debug and AI dev-cycle workflows, worker triggers, exports, migrations, and MCP server mode.
 validation:
-  descriptionTerms: [CLI, resume, worker, migration]
+  descriptionTerms: [CLI, resume, debug, worker, migration]
 ---
 
 # Trends CLI
@@ -12,14 +12,23 @@ Use this skill when the user asks to operate backend services from terminal comm
 ## Workflow
 
 1. Build the CLI when binaries are missing or stale: `make cli-build`.
-2. Prefer CLI commands over ad-hoc curl scripts for supported operations.
-3. Use `--output json` when command output needs to be consumed by other tools.
-4. Use `trends mcp serve` when integration requires MCP tool exposure.
+2. Install or refresh the skill when you want the packaged workflow available in Codex: `make install-skill SKILL=trends-cli`.
+3. Prefer CLI commands over ad-hoc curl scripts for supported operations.
+4. Use `--output json` when command output needs to be consumed by other tools.
+5. Use `trends mcp serve` when integration requires MCP tool exposure.
+6. For live Convex AI debug work, prefer `trends resume debug ai-score` over forcing unsupported API match modes.
 
 ## Commands
 
 - `./bin/trends resume list --limit 50`
 - `./bin/trends resume search "CNC 东莞" --limit 50`
+- `./bin/trends resume debug ai-score --query "CNC 销售" --limit 5 --top-n 3`
+- `./bin/trends resume debug matches --job-description lathe-sales`
+- `./bin/trends resume debug match-runs --job-description lathe-sales --limit 20`
+- `./bin/trends resume debug clear-matches --job-description lathe-sales`
+- `./bin/trends resume debug skills-version`
+- `./bin/trends resume debug trigger-reingest --limit 200`
+- `./bin/trends resume debug rescore --source sample --query "CNC 销售"`
 - `./bin/trends resume export --format xlsx --limit 200`
 - `./bin/trends jd list`
 - `./bin/trends jd create ./config/job-descriptions/lathe-sales.md --name lathe-sales-copy`
@@ -35,4 +44,7 @@ Use this skill when the user asks to operate backend services from terminal comm
 
 - Run commands from repository root.
 - Keep `--api-url` and `--worker-url` aligned with running services.
+- `trends resume match` remains the API-backed path; when `source=convex` and AI scoring is needed for debug, use `trends resume debug ai-score`.
+- `trends resume debug rescore` currently mirrors the backend restriction and is sample-only.
+- `trends resume debug trigger-reingest` is the stale-skills-version reingest path, not a generic arbitrary reingest.
 - For migration commands, report the exact `convex run` output back to the user.
