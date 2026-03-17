@@ -88,7 +88,8 @@ Required flow:
 
 ### Start Development
 ```bash
-make install-deps
+make install-deps                           # Default: bootstrap governance skill into ~/.codex/skills
+SKILL_INSTALL_TARGET=all make install-deps  # Optional: also bootstrap ~/.agents/skills
 make dev                # Full local stack
 make dev-fast           # UI-focused fast profile
 make dev-critical       # Critical path profile
