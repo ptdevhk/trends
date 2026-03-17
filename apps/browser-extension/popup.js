@@ -31,7 +31,8 @@ const lnkConfigureServer = /** @type {HTMLAnchorElement} */ (document.getElement
 const btnSync = /** @type {HTMLButtonElement} */ (document.getElementById('btn-sync'));
 const syncResult = /** @type {HTMLElement} */ (document.getElementById('sync-result'));
 const DEFAULT_SERVER_URL = 'https://trends.pt-mes.com';
-const LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY = 'latestAutoSyncSummary';
+const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = 'latestAutoSyncSummaries';
+const LEGACY_LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY = 'latestAutoSyncSummary';
 
 // State
 let lastDiagnosticDownloadId = null;
@@ -52,6 +53,30 @@ function getTargetTabIdOverride() {
         return Number.isFinite(parsedTabId) && parsedTabId >= 0 ? parsedTabId : null;
     } catch {
         return null;
+    }
+}
+
+async function getTargetTab() {
+    const targetTabId = getTargetTabIdOverride();
+    return targetTabId !== null
+        ? chrome.tabs.get(targetTabId)
+        : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+}
+
+function getSourceKeyFromTabUrl(url) {
+    const value = typeof url === 'string' ? url : '';
+    if (!value) return '';
+    if (value.includes('hr.job5156.com')) return 'job5156';
+    if (value.includes('.employer.seek.com')) return 'seek';
+    return '';
+}
+
+async function getPreferredStoredSummarySourceKey() {
+    try {
+        const tab = await getTargetTab();
+        return getSourceKeyFromTabUrl(tab?.url);
+    } catch {
+        return '';
     }
 }
 
@@ -87,10 +112,7 @@ function storageLocalGet(defaults) {
  * Send message to content script
  */
 async function sendToContent(action, data = {}) {
-    const targetTabId = getTargetTabIdOverride();
-    const tab = targetTabId !== null
-        ? await chrome.tabs.get(targetTabId)
-        : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+    const tab = await getTargetTab();
 
     if (!tab || typeof tab.id !== 'number') {
         throw new Error('No active tab');
@@ -149,11 +171,35 @@ function hideAutoSyncSummary() {
 
 async function getStoredAutoSyncSummary() {
     try {
-        const items = await storageLocalGet({ [LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY]: null });
-        const summary = items?.[LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY];
-        return summary && typeof summary === 'object' && !Array.isArray(summary)
-            ? summary
-            : null;
+        const helpers = getPopupAutoSyncSummaryHelpers();
+        if (typeof helpers?.pickStoredAutoSyncSummary !== 'function') {
+            return null;
+        }
+
+        const preferredSourceKey = await getPreferredStoredSummarySourceKey();
+        const items = await storageLocalGet({
+            [LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY]: {},
+            [LEGACY_LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY]: null
+        });
+        const storedSummaries = items?.[LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY];
+        const legacySummary = items?.[LEGACY_LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY];
+        const normalizedStoredSummaries = storedSummaries && typeof storedSummaries === 'object' && !Array.isArray(storedSummaries)
+            ? { ...storedSummaries }
+            : {};
+
+        if (legacySummary && typeof legacySummary === 'object' && !Array.isArray(legacySummary)) {
+            const legacySourceKey = typeof legacySummary.sourceKey === 'string' && legacySummary.sourceKey
+                ? legacySummary.sourceKey
+                : 'unknown';
+            if (!normalizedStoredSummaries[legacySourceKey]) {
+                normalizedStoredSummaries[legacySourceKey] = legacySummary;
+            }
+        }
+
+        return helpers.pickStoredAutoSyncSummary({
+            summariesBySource: normalizedStoredSummaries,
+            preferredSourceKey,
+        });
     } catch (error) {
         console.error('Stored auto sync summary error:', error);
         return null;

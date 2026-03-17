@@ -69,7 +69,7 @@ const PAGE_BRIDGE_RESPONSE_ATTR = 'data-tr-resume-bridge-response';
 const JOB5156_DETAIL_FETCH_TIMEOUT_MS = 5000;
 const JOB5156_DETAIL_FETCH_CONCURRENCY = 5;
 const DEFAULT_SEEK_PAGE_SIZE = 20;
-const LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY = 'latestAutoSyncSummary';
+const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = 'latestAutoSyncSummaries';
 
 const apiSnapshot = {
   searchRows: null,
@@ -87,7 +87,7 @@ const apiSnapshot = {
   lastOperationName: null
 };
 
-let lastPersistedAutoSyncSummaryFingerprint = '';
+const lastPersistedAutoSyncSummaryFingerprintBySource = {};
 
 function sanitizeSampleName(value) {
   if (!value) return '';
@@ -4035,9 +4035,12 @@ function buildPersistedAutoSyncSummary(status = getExternalAccessorStatus()) {
 
 function persistLatestAutoSyncSummary() {
   try {
-    if (!chrome?.storage?.local?.set) return;
+    if (!chrome?.storage?.local?.get || !chrome?.storage?.local?.set) return;
     const summary = buildPersistedAutoSyncSummary();
     if (!summary) return;
+    const sourceKey = typeof summary.sourceKey === 'string' && summary.sourceKey
+      ? summary.sourceKey
+      : SOURCE_KEYS.UNKNOWN;
 
     const fingerprint = JSON.stringify({
       autoSync: summary.autoSync,
@@ -4054,13 +4057,23 @@ function persistLatestAutoSyncSummary() {
       summarySource: summary.summarySource,
     });
 
-    if (summary.autoSync === 'running' && fingerprint === lastPersistedAutoSyncSummaryFingerprint) {
+    if (
+      summary.autoSync === 'running'
+      && lastPersistedAutoSyncSummaryFingerprintBySource[sourceKey] === fingerprint
+    ) {
       return;
     }
 
-    lastPersistedAutoSyncSummaryFingerprint = fingerprint;
-    chrome.storage.local.set({
-      [LATEST_AUTO_SYNC_SUMMARY_STORAGE_KEY]: summary
+    lastPersistedAutoSyncSummaryFingerprintBySource[sourceKey] = fingerprint;
+    chrome.storage.local.get({ [LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY]: {} }, (items) => {
+      const existingSummaries = items?.[LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY];
+      const nextSummaries = existingSummaries && typeof existingSummaries === 'object' && !Array.isArray(existingSummaries)
+        ? { ...existingSummaries }
+        : {};
+      nextSummaries[sourceKey] = summary;
+      chrome.storage.local.set({
+        [LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY]: nextSummaries
+      });
     });
   } catch (error) {
     console.warn('🎯 [Auto Sync] Failed to persist latest auto sync summary:', error);

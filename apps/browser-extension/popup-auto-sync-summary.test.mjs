@@ -93,6 +93,76 @@ test('adds stored-summary metadata when rendering the last persisted result', ()
   });
 });
 
+test('picks the preferred source summary when it is recent', () => {
+  const summary = helpers.pickStoredAutoSyncSummary({
+    summariesBySource: {
+      seek: {
+        autoSync: 'done',
+        sourceKey: 'seek',
+        persistedAt: '2026-03-17T08:31:00.000Z',
+      },
+      job5156: {
+        autoSync: 'done',
+        sourceKey: 'job5156',
+        persistedAt: '2026-03-17T08:32:00.000Z',
+      },
+    },
+    preferredSourceKey: 'seek',
+    nowMs: Date.parse('2026-03-17T08:35:00.000Z'),
+  });
+
+  assert.deepEqual(JSON.parse(JSON.stringify(summary)), {
+    autoSync: 'done',
+    sourceKey: 'seek',
+    persistedAt: '2026-03-17T08:31:00.000Z',
+  });
+});
+
+test('returns the newest recent summary when no preferred source is available', () => {
+  const summary = helpers.pickStoredAutoSyncSummary({
+    summariesBySource: {
+      seek: {
+        autoSync: 'done',
+        sourceKey: 'seek',
+        persistedAt: '2026-03-17T08:31:00.000Z',
+      },
+      job5156: {
+        autoSync: 'done',
+        sourceKey: 'job5156',
+        persistedAt: '2026-03-17T08:32:00.000Z',
+      },
+    },
+    nowMs: Date.parse('2026-03-17T08:35:00.000Z'),
+  });
+
+  assert.deepEqual(JSON.parse(JSON.stringify(summary)), {
+    autoSync: 'done',
+    sourceKey: 'job5156',
+    persistedAt: '2026-03-17T08:32:00.000Z',
+  });
+});
+
+test('expires stale stored summaries and returns null when no recent preferred summary exists', () => {
+  const summary = helpers.pickStoredAutoSyncSummary({
+    summariesBySource: {
+      seek: {
+        autoSync: 'done',
+        sourceKey: 'seek',
+        persistedAt: '2026-03-15T08:31:00.000Z',
+      },
+      job5156: {
+        autoSync: 'done',
+        sourceKey: 'job5156',
+        persistedAt: '2026-03-17T08:32:00.000Z',
+      },
+    },
+    preferredSourceKey: 'seek',
+    nowMs: Date.parse('2026-03-17T08:35:00.000Z'),
+  });
+
+  assert.equal(summary, null);
+});
+
 test('skips rendering when auto sync is absent or skipped', () => {
   assert.equal(helpers.buildAutoSyncSummary({ autoSync: '' }), null);
   assert.equal(helpers.buildAutoSyncSummary({ autoSync: 'skipped' }), null);
