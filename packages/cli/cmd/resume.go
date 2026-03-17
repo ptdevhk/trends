@@ -27,6 +27,7 @@ func newResumeCmd() *cobra.Command {
 		newResumeSearchCmd(),
 		newResumeMatchCmd(),
 		newResumeExportCmd(),
+		newResumeDebugCmd(),
 	)
 
 	return resumeCmd
@@ -147,14 +148,15 @@ func newResumeMatchCmd() *cobra.Command {
 				Mode:             strings.TrimSpace(mode),
 			}
 			request.Persist = &persist
+			if err := validateResumeMatchRequest(request); err != nil {
+				return err
+			}
 
 			response, err := newAPIClient().MatchResumes(context.Background(), request)
 			if err != nil {
 				return err
 			}
-
-			options := currentOptions()
-			if options.Output == "json" {
+			if currentOptions().Output == "json" {
 				return writeOutput(cmd, nil, nil, response)
 			}
 
@@ -162,24 +164,7 @@ func newResumeMatchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			headers := []string{"resume_id", "score", "recommendation", "primary_rule", "sales_years", "company_hits", "name", "location"}
-			rows := make([][]string, 0, len(response.Results))
-			for _, result := range response.Results {
-				display := displayMap[result.ResumeID]
-				rows = append(rows, []string{
-					result.ResumeID,
-					strconv.Itoa(result.Score),
-					result.Recommendation,
-					formatOptionalFloat(debugPrimaryRuleScore(result.Debug)),
-					formatSalesYears(result.Debug),
-					strings.Join(debugCompanyHits(result.Debug), ", "),
-					display.Name,
-					display.Location,
-				})
-			}
-
-			return writeOutput(cmd, headers, rows, response)
+			return writeResumeMatchTable(cmd, response, displayMap)
 		},
 	}
 

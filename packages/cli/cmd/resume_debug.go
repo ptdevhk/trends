@@ -1,0 +1,491 @@
+package cmd
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/ptdevhk/trends/packages/cli/internal/client"
+	"github.com/spf13/cobra"
+)
+
+type localResumeAIScoreRequest struct {
+	APIURL           string   `json:"apiUrl"`
+	Workspace        string   `json:"workspace"`
+	Source           string   `json:"source"`
+	Query            string   `json:"query,omitempty"`
+	Location         string   `json:"location,omitempty"`
+	JobDescriptionID string   `json:"jobDescriptionId,omitempty"`
+	ResumeIDs        []string `json:"resumeIds,omitempty"`
+	Limit            int      `json:"limit"`
+	TopN             int      `json:"topN"`
+}
+
+type localResumeAIScoreStats struct {
+	Processed  int     `json:"processed"`
+	RuleAvg    float64 `json:"ruleAvg"`
+	AIScoreAvg float64 `json:"aiScoreAvg"`
+}
+
+type localResumeAIScoreResult struct {
+	ResumeID       string   `json:"resumeId"`
+	Name           string   `json:"name"`
+	Location       string   `json:"location"`
+	ProfileURL     string   `json:"profileUrl,omitempty"`
+	RuleScore      int      `json:"ruleScore"`
+	AIScore        int      `json:"aiScore"`
+	Recommendation string   `json:"recommendation"`
+	Summary        string   `json:"summary"`
+	Highlights     []string `json:"highlights,omitempty"`
+	Concerns       []string `json:"concerns,omitempty"`
+	RawResponse    string   `json:"rawResponse,omitempty"`
+}
+
+type localResumeAIScoreResponse struct {
+	Success          bool                       `json:"success"`
+	Source           string                     `json:"source"`
+	JobDescriptionID string                     `json:"jobDescriptionId"`
+	Results          []localResumeAIScoreResult `json:"results"`
+	Stats            localResumeAIScoreStats    `json:"stats"`
+}
+
+var runLocalResumeAIScorer = func(ctx context.Context, request localResumeAIScoreRequest) (*localResumeAIScoreResponse, error) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	input, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("marshal local AI scorer request: %w", err)
+	}
+
+	scriptPath := filepath.Join(projectRoot, "scripts", "resume", "debug-ai-score.ts")
+	args := []string{scriptPath}
+	envFilePath := filepath.Join(projectRoot, ".env")
+	if _, statErr := os.Stat(envFilePath); statErr == nil {
+		args = append([]string{"--env-file", envFilePath}, args...)
+	}
+
+	command := exec.CommandContext(ctx, "bun", args...)
+	command.Dir = projectRoot
+	command.Stdin = bytes.NewReader(input)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+
+	if err := command.Run(); err != nil {
+		errorOutput := strings.TrimSpace(stderr.String())
+		if errorOutput == "" {
+			errorOutput = strings.TrimSpace(stdout.String())
+		}
+		if errorOutput == "" {
+			errorOutput = "no output"
+		}
+		return nil, fmt.Errorf("run local AI scorer: %w\n%s", err, errorOutput)
+	}
+
+	var response localResumeAIScoreResponse
+	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+		return nil, fmt.Errorf("decode local AI scorer response: %w", err)
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("local AI scorer did not succeed")
+	}
+	return &response, nil
+}
+
+func newResumeDebugCmd() *cobra.Command {
+	debugCmd := &cobra.Command{
+		Use:   "debug",
+		Short: "Resume debug and dev-cycle operations",
+	}
+
+	debugCmd.AddCommand(
+		newResumeDebugMatchesCmd(),
+		newResumeDebugMatchRunsCmd(),
+		newResumeDebugClearMatchesCmd(),
+		newResumeDebugRescoreCmd(),
+		newResumeDebugSkillsVersionCmd(),
+		newResumeDebugTriggerReingestCmd(),
+		newResumeDebugAIScoreCmd(),
+	)
+
+	return debugCmd
+}
+
+func newResumeDebugMatchesCmd() *cobra.Command {
+	var (
+		sessionID        string
+		jobDescriptionID string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "matches",
+		Short: "Show cached resume matches",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(sessionID) == "" && strings.TrimSpace(jobDescriptionID) == "" {
+				return fmt.Errorf("session-id or job-description is required")
+			}
+
+			response, err := newAPIClient().ListResumeMatches(context.Background(), sessionID, jobDescriptionID)
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"resume_id", "score", "source", "recommendation", "matched_at", "session_id"}
+			rows := make([][]string, 0, len(response.Results))
+			for _, result := range response.Results {
+				rows = append(rows, []string{
+					result.ResumeID,
+					strconv.Itoa(result.Score),
+					result.ScoreSource,
+					result.Recommendation,
+					result.MatchedAt,
+					result.SessionID,
+				})
+			}
+
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().StringVar(&sessionID, "session-id", "", "Optional session ID")
+	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID")
+	return cmd
+}
+
+func newResumeDebugMatchRunsCmd() *cobra.Command {
+	var (
+		sessionID        string
+		jobDescriptionID string
+		limit            int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "match-runs",
+		Short: "Show recent resume match runs",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().ListResumeMatchRuns(context.Background(), client.MatchRunsQuery{
+				SessionID:        sessionID,
+				JobDescriptionID: jobDescriptionID,
+				Limit:            limit,
+			})
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"id", "mode", "status", "processed", "total", "failed", "matched", "avg_score"}
+			rows := make([][]string, 0, len(response.Runs))
+			for _, run := range response.Runs {
+				rows = append(rows, []string{
+					run.ID,
+					run.Mode,
+					run.Status,
+					strconv.Itoa(run.ProcessedCount),
+					strconv.Itoa(run.TotalCount),
+					strconv.Itoa(run.FailedCount),
+					intPointerString(run.MatchedCount),
+					formatOptionalFloat(run.AvgScore),
+				})
+			}
+
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().StringVar(&sessionID, "session-id", "", "Optional session ID")
+	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID")
+	cmd.Flags().IntVar(&limit, "limit", 20, "Maximum runs to fetch")
+	return cmd
+}
+
+func newResumeDebugClearMatchesCmd() *cobra.Command {
+	var jobDescriptionID string
+
+	cmd := &cobra.Command{
+		Use:   "clear-matches",
+		Short: "Clear cached resume matches",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().ClearResumeMatches(context.Background(), jobDescriptionID)
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"deleted", "job_description"}
+			rows := [][]string{{
+				strconv.Itoa(response.Deleted),
+				response.JobDescriptionID,
+			}}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID to clear only one cache scope")
+	return cmd
+}
+
+func newResumeDebugRescoreCmd() *cobra.Command {
+	var (
+		query            string
+		location         string
+		jobDescriptionID string
+		sample           string
+		source           string
+		limit            int
+		resumeIDs        []string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "rescore",
+		Short: "Re-score cached/sample matches with the rule engine",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			keywords := splitQueryKeywords(query)
+			if strings.TrimSpace(jobDescriptionID) == "" && len(keywords) == 0 {
+				return fmt.Errorf("query or job-description is required")
+			}
+			if normalizeResumeSourceFlag(source) == "convex" {
+				return fmt.Errorf("resume debug rescore only supports --source sample")
+			}
+
+			persist := true
+			response, err := newAPIClient().RescoreResumeMatches(context.Background(), client.ResumeRescoreRequest{
+				Sample:           strings.TrimSpace(sample),
+				Source:           source,
+				Persist:          &persist,
+				JobDescriptionID: strings.TrimSpace(jobDescriptionID),
+				Keywords:         keywords,
+				Location:         strings.TrimSpace(location),
+				ResumeIDs:        resumeIDs,
+				Limit:            limit,
+			})
+			if err != nil {
+				return err
+			}
+			if currentOptions().Output == "json" {
+				return writeOutput(cmd, nil, nil, response)
+			}
+
+			displayMap, err := loadResumeDisplayMap(context.Background(), newAPIClient(), strings.Join(keywords, " "), limit, source)
+			if err != nil {
+				return err
+			}
+			return writeResumeMatchTable(cmd, response, displayMap)
+		},
+	}
+
+	cmd.Flags().StringVar(&query, "query", "", "Keyword query to match against resumes")
+	cmd.Flags().StringVar(&location, "location", "", "Optional location constraint")
+	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID")
+	cmd.Flags().StringVar(&sample, "sample", "", "Optional sample name")
+	cmd.Flags().StringVar(&source, "source", "sample", "Resume source: sample")
+	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum resumes to score")
+	cmd.Flags().StringSliceVar(&resumeIDs, "resume-id", nil, "Optional specific resume IDs to rescore")
+	return cmd
+}
+
+func newResumeDebugSkillsVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "skills-version",
+		Short: "Show the current resume skills/config version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().GetResumeSkillsVersion(context.Background())
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"version"}
+			rows := [][]string{{strconv.Itoa(response.Version)}}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+}
+
+func newResumeDebugTriggerReingestCmd() *cobra.Command {
+	var limit int
+
+	cmd := &cobra.Command{
+		Use:   "trigger-reingest",
+		Short: "Trigger stale-skills-version resume reingest",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().TriggerResumeReingest(context.Background(), limit)
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"scheduled", "batches", "current_version", "has_more"}
+			rows := [][]string{{
+				strconv.Itoa(response.Scheduled),
+				strconv.Itoa(response.Batches),
+				strconv.Itoa(response.CurrentVersion),
+				fmt.Sprintf("%t", response.HasMore),
+			}}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().IntVar(&limit, "limit", 200, "Maximum stale resumes to schedule")
+	return cmd
+}
+
+func newResumeDebugAIScoreCmd() *cobra.Command {
+	var (
+		query            string
+		location         string
+		jobDescriptionID string
+		source           string
+		limit            int
+		topN             int
+		resumeIDs        []string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "ai-score",
+		Short: "Locally AI-score live Convex candidates for debug work",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if normalizeResumeSourceFlag(source) != "convex" {
+				return fmt.Errorf("resume debug ai-score only supports --source convex")
+			}
+			if strings.TrimSpace(jobDescriptionID) == "" && len(splitQueryKeywords(query)) == 0 {
+				return fmt.Errorf("query or job-description is required")
+			}
+			if topN <= 0 {
+				topN = limit
+			}
+
+			options := currentOptions()
+			response, err := runLocalResumeAIScorer(context.Background(), localResumeAIScoreRequest{
+				APIURL:           options.APIURL,
+				Workspace:        options.Workspace,
+				Source:           source,
+				Query:            strings.TrimSpace(query),
+				Location:         strings.TrimSpace(location),
+				JobDescriptionID: strings.TrimSpace(jobDescriptionID),
+				ResumeIDs:        resumeIDs,
+				Limit:            limit,
+				TopN:             topN,
+			})
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"resume_id", "ai_score", "rule_score", "recommendation", "name", "location"}
+			rows := make([][]string, 0, len(response.Results))
+			for _, result := range response.Results {
+				rows = append(rows, []string{
+					result.ResumeID,
+					strconv.Itoa(result.AIScore),
+					strconv.Itoa(result.RuleScore),
+					result.Recommendation,
+					result.Name,
+					result.Location,
+				})
+			}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().StringVar(&query, "query", "", "Keyword query used to build the AI scoring prompt")
+	cmd.Flags().StringVar(&location, "location", "", "Optional location constraint")
+	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID")
+	cmd.Flags().StringVar(&source, "source", "convex", "Resume source: convex")
+	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum candidates to consider before local AI scoring")
+	cmd.Flags().IntVar(&topN, "top-n", 10, "Number of top rule-ranked candidates to AI-score locally")
+	cmd.Flags().StringSliceVar(&resumeIDs, "resume-id", nil, "Optional specific Convex resume IDs to AI-score")
+	return cmd
+}
+
+func writeResumeMatchTable(cmd *cobra.Command, response *client.ResumeMatchResponse, displayMap map[string]resumeDisplayRow) error {
+	if currentOptions().Output == "json" {
+		return writeOutput(cmd, nil, nil, response)
+	}
+
+	headers := []string{"resume_id", "score", "recommendation", "primary_rule", "sales_years", "company_hits", "name", "location"}
+	rows := make([][]string, 0, len(response.Results))
+	for _, result := range response.Results {
+		display := displayMap[result.ResumeID]
+		rows = append(rows, []string{
+			result.ResumeID,
+			strconv.Itoa(result.Score),
+			result.Recommendation,
+			formatOptionalFloat(debugPrimaryRuleScore(result.Debug)),
+			formatSalesYears(result.Debug),
+			strings.Join(debugCompanyHits(result.Debug), ", "),
+			display.Name,
+			display.Location,
+		})
+	}
+
+	return writeOutput(cmd, headers, rows, response)
+}
+
+func validateResumeMatchRequest(request client.ResumeMatchRequest) error {
+	mode := strings.TrimSpace(request.Mode)
+	if mode == "" {
+		mode = "rules_only"
+	}
+
+	if normalizeResumeSourceFlag(request.Source) == "convex" && mode != "rules_only" {
+		return fmt.Errorf(
+			"source=convex with --mode %s is blocked by /api/resumes/match; use `trends resume debug ai-score ...` for local AI scoring or keep --mode rules_only",
+			mode,
+		)
+	}
+
+	persist := true
+	if request.Persist != nil {
+		persist = *request.Persist
+	}
+
+	if !persist && mode != "rules_only" {
+		return fmt.Errorf("mode=%s requires --persist; the API only allows --persist=false with --mode rules_only", mode)
+	}
+	if normalizeResumeSourceFlag(request.Source) == "convex" && persist {
+		return fmt.Errorf("source=convex only supports --persist=false")
+	}
+
+	return nil
+}
+
+func findProjectRoot() (string, error) {
+	current, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("read working directory: %w", err)
+	}
+
+	for {
+		if looksLikeProjectRoot(current) {
+			return current, nil
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+		current = parent
+	}
+
+	return "", fmt.Errorf("could not locate project root from %s", current)
+}
+
+func looksLikeProjectRoot(dir string) bool {
+	required := []string{
+		filepath.Join(dir, "CLAUDE.md"),
+		filepath.Join(dir, "packages", "cli", "go.mod"),
+		filepath.Join(dir, "scripts", "resume"),
+	}
+	for _, candidate := range required {
+		if _, err := os.Stat(candidate); err != nil {
+			return false
+		}
+	}
+	return true
+}

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ptdevhk/trends/packages/cli/internal/client"
 	"github.com/spf13/cobra"
 )
 
@@ -158,6 +159,34 @@ func mcpTools() []map[string]any {
 			},
 		},
 		{
+			"name":        "resume_matches",
+			"description": "Show cached resume matches",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"sessionId":        map[string]any{"type": "string"},
+					"jobDescriptionId": map[string]any{"type": "string"},
+				},
+			},
+		},
+		{
+			"name":        "resume_match_runs",
+			"description": "Show recent resume match runs",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"sessionId":        map[string]any{"type": "string"},
+					"jobDescriptionId": map[string]any{"type": "string"},
+					"limit":            map[string]any{"type": "integer", "minimum": 1},
+				},
+			},
+		},
+		{
+			"name":        "resume_skills_version",
+			"description": "Show the current resume skills/config version",
+			"inputSchema": map[string]any{"type": "object"},
+		},
+		{
 			"name":        "jd_list",
 			"description": "List job descriptions",
 			"inputSchema": map[string]any{"type": "object"},
@@ -223,6 +252,32 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 		}
 		limit := intArg(args, "limit", 50)
 		result, err := apiClient.SearchResumes(ctx, query, limit, "sample")
+		if err != nil {
+			return "", err
+		}
+		return prettyJSON(result)
+	case "resume_matches":
+		result, err := apiClient.ListResumeMatches(
+			ctx,
+			stringArg(args, "sessionId", ""),
+			stringArg(args, "jobDescriptionId", ""),
+		)
+		if err != nil {
+			return "", err
+		}
+		return prettyJSON(result)
+	case "resume_match_runs":
+		result, err := apiClient.ListResumeMatchRuns(ctx, client.MatchRunsQuery{
+			SessionID:        stringArg(args, "sessionId", ""),
+			JobDescriptionID: stringArg(args, "jobDescriptionId", ""),
+			Limit:            intArg(args, "limit", 20),
+		})
+		if err != nil {
+			return "", err
+		}
+		return prettyJSON(result)
+	case "resume_skills_version":
+		result, err := apiClient.GetResumeSkillsVersion(ctx)
 		if err != nil {
 			return "", err
 		}

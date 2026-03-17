@@ -144,3 +144,18 @@ func TestArgumentHelpers(t *testing.T) {
 		t.Fatalf("boolArg default expected true, got %v", got)
 	}
 }
+
+func TestMCPToolsIncludeResumeDebugReadOnlyTools(t *testing.T) {
+	tools := mcpTools()
+	names := make(map[string]bool, len(tools))
+	for _, tool := range tools {
+		name, _ := tool["name"].(string)
+		names[name] = true
+	}
+
+	for _, required := range []string{"resume_matches", "resume_match_runs", "resume_skills_version"} {
+		if !names[required] {
+			t.Fatalf("missing MCP tool %q", required)
+		}
+	}
+}

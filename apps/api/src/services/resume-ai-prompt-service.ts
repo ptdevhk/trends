@@ -258,7 +258,16 @@ function buildNormalizedPrompt(
 }
 
 function getMissingTemplateVariables(template: string, values: ResumeAiPromptTemplateValues): string[] {
-  return Object.keys(values).filter((key) => !template.includes(`{${key}}`));
+  const required = new Set<string>();
+  const variablePattern = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
+  for (const match of template.matchAll(variablePattern)) {
+    const variable = match[1]?.trim();
+    if (variable) {
+      required.add(variable);
+    }
+  }
+
+  return Array.from(required).filter((key) => !(key in values));
 }
 
 function renderPromptTemplate(template: string, values: ResumeAiPromptTemplateValues): string {
