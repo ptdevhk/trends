@@ -113,6 +113,12 @@ export const seedJobDescriptions = mutation({
         content: v.string(),
         type: jobDescriptionType,
         workspaceSlug: v.optional(v.string()),
+        location: v.optional(v.string()),
+        customKeywords: v.optional(v.array(v.string())),
+        minExperience: v.optional(v.number()),
+        maxExperience: v.optional(v.number()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
       }),
     ),
   },
@@ -147,6 +153,12 @@ export const seedJobDescriptions = mutation({
           slug?: string;
           content?: string;
           workspaceSlug?: string;
+          location?: string;
+          customKeywords?: string[];
+          minExperience?: number;
+          maxExperience?: number;
+          minAge?: number;
+          maxAge?: number;
           lastModified?: number;
         } = {};
 
@@ -161,6 +173,33 @@ export const seedJobDescriptions = mutation({
           existing.workspaceSlug !== workspaceSlug
         ) {
           patch.workspaceSlug = workspaceSlug;
+        }
+        if (item.location && existing.location !== item.location) {
+          patch.location = item.location;
+        }
+        if (
+          item.customKeywords &&
+          stableSerialize(existing.customKeywords ?? []) !== stableSerialize(item.customKeywords)
+        ) {
+          patch.customKeywords = item.customKeywords;
+        }
+        if (
+          item.minExperience !== undefined &&
+          existing.minExperience !== item.minExperience
+        ) {
+          patch.minExperience = item.minExperience;
+        }
+        if (
+          item.maxExperience !== undefined &&
+          existing.maxExperience !== item.maxExperience
+        ) {
+          patch.maxExperience = item.maxExperience;
+        }
+        if (item.minAge !== undefined && existing.minAge !== item.minAge) {
+          patch.minAge = item.minAge;
+        }
+        if (item.maxAge !== undefined && existing.maxAge !== item.maxAge) {
+          patch.maxAge = item.maxAge;
         }
 
         if (Object.keys(patch).length > 0) {
@@ -180,6 +219,12 @@ export const seedJobDescriptions = mutation({
         workspaceSlug,
         enabled: true,
         lastModified: Date.now(),
+        location: item.location,
+        customKeywords: item.customKeywords,
+        minExperience: item.minExperience,
+        maxExperience: item.maxExperience,
+        minAge: item.minAge,
+        maxAge: item.maxAge,
       });
       inserted += 1;
     }

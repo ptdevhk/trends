@@ -58,4 +58,18 @@ describe('search-profile-sources', () => {
       priority: 1,
     })
   })
+
+  it('builds a generic Seek collect URL that preserves spaced locations', () => {
+    const collectUrl = buildSeekCollectUrl({
+      location: 'Kuala Lumpur MY',
+      keywords: ['Sales Engineer', 'Sales Manager'],
+    })
+
+    expect(collectUrl).not.toBeNull()
+
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('location')).toBe('Kuala Lumpur MY')
+    expect(url.searchParams.get('keyword')).toBe('Sales Engineer Sales Manager')
+    expect(url.searchParams.get('tr_auto_sync')).toBe('true')
+  })
 })

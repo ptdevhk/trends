@@ -1423,7 +1423,12 @@ export function useResumeListState(loadSearchHistory = false) {
       setFilters((current) => ({
         ...current,
         ...(config.filters ?? {}),
-        locations: normalizedLocation ? normalizedLocation.split(/[\s,，、]+/).filter(Boolean) : [],
+        locations: normalizedLocation
+          ? normalizedLocation
+            .split(/[,，、]+/)
+            .map((item) => item.trim())
+            .filter(Boolean)
+          : [],
       }))
     },
     [setFilters, setJobDescriptionId, setSessionCollectUrl, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
