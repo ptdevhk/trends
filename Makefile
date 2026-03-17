@@ -803,7 +803,7 @@ help:
 	@echo "  check [TARGET=codex|agents|all] Run validation checks (Python + Node + governance skill validation)"
 	@echo "  check-python   Run Python checks only"
 	@echo "  check-node     Run Node.js checks only"
-	@echo "  check-build    Run checks + build validation"
+	@echo "  check-build [TARGET=codex|agents|all] Run checks + build validation"
 	@echo "  test           Run all tests (Python + Node)"
 	@echo "  test-python    Run Python tests only"
 	@echo "  test-node      Run Node.js tests only"
