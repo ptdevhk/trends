@@ -1310,11 +1310,11 @@ print_usage() {
     echo "  CONVEX_LOCAL_BACKEND_VERSION Explicit Convex local backend version override"
     echo "  CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: true)"
     echo "  CONVEX_MIRROR_MODE Convex prefetch source order before startup: off|fallback|mirror-first"
-    echo "                    Default is fallback, or off when CI=true"
+    echo "                    Default is fallback, or off when CI=true/1"
     echo "  CONVEX_MIRROR_BASES / CONVEX_DOWNLOAD_TIMEOUT_SECS / CONVEX_CONNECT_TIMEOUT_SECS"
     echo "                    Convex prefetch mirror-base and timeout overrides"
     echo "  CONVEX_CURL_NO_SILENT When true/1, keep Convex prefetch curl progress output enabled"
-    echo "  CI            When true, defaults shared Convex prefetch mode to off"
+    echo "  CI            When true/1, defaults shared Convex prefetch mode to off"
     echo ""
     echo "See $SCRIPT_DIR/prefetch-convex-backend.sh --help for the full Convex prefetch env contract."
 }
