@@ -356,6 +356,7 @@ export interface paths {
                 query?: {
                     sample?: string;
                     q?: string;
+                    source?: "sample" | "convex";
                     limit?: number;
                     offset?: string;
                     sessionId?: string;
@@ -692,6 +693,13 @@ export interface paths {
                     "application/json": {
                         sessionId?: string;
                         sample?: string;
+                        /**
+                         * @default sample
+                         * @enum {string}
+                         */
+                        source?: "sample" | "convex";
+                        /** @default true */
+                        persist?: boolean;
                         jobDescriptionId?: string;
                         keywords?: string[];
                         location?: string;
@@ -4038,12 +4046,23 @@ export interface components {
                 total: number;
                 returned: number;
                 query?: string;
+                /** @enum {string} */
+                source?: "sample" | "convex";
                 expandedTo?: string[];
                 /** @enum {string} */
                 mode?: "AND" | "OR";
+                keywordGroups?: {
+                    original: string;
+                    variants: string[];
+                }[];
+                sourceMapping?: {
+                    [key: string]: string;
+                };
             };
             data: components["schemas"]["ResumeItem"][];
         };
+        /** @enum {string} */
+        ResumeResultSource: "sample" | "convex";
         MatchBreakdown: {
             /** @example 20 */
             skillMatch: number;
@@ -4098,6 +4117,74 @@ export interface components {
             sessionId?: string;
             /** @example user-abc */
             userId?: string;
+            debug?: {
+                /** @example 85 */
+                primaryRuleScore?: number;
+                provenance?: {
+                    /** @example 销售 */
+                    term: string;
+                    /**
+                     * @example searchText
+                     * @enum {string}
+                     */
+                    source: "searchText" | "industryTags" | "companyHits" | "synonymHits";
+                    /** @example sales */
+                    expandedFrom?: string;
+                }[];
+                roleSignals?: {
+                    /** @example sales */
+                    type: string;
+                    /**
+                     * @example [
+                     *       "销售经理",
+                     *       "渠道"
+                     *     ]
+                     */
+                    matchedSignals: string[];
+                    /** @example 2 */
+                    signalCount: number;
+                    /** @example 2 */
+                    occurrences: number;
+                    /** @example 5 */
+                    years: number;
+                    /** @example 5 */
+                    industryVerifiedYears: number;
+                    /** @example 5 */
+                    roleRelevantYears?: number;
+                    /** @example 5 */
+                    industryVerifiedRelevantYears?: number;
+                    /**
+                     * @example workHistory
+                     * @enum {string}
+                     */
+                    verifyIn: "workHistory" | "searchText";
+                }[];
+                /**
+                 * @example [
+                 *       "fanuc"
+                 *     ]
+                 */
+                companyHits?: string[];
+                brandHits?: {
+                    /** @example fanuc */
+                    brand: string;
+                    /**
+                     * @example both
+                     * @enum {string}
+                     */
+                    role: "employer" | "equipment" | "both";
+                    /**
+                     * @example workHistory
+                     * @enum {string}
+                     */
+                    source: "workHistory" | "selfIntro" | "jobIntention";
+                    /**
+                     * @example employer
+                     * @enum {string}
+                     */
+                    context: "employer" | "equipment" | "sales" | "technical" | "general";
+                }[];
+            };
         };
         MatchStats: {
             processed: number;
@@ -4113,6 +4200,36 @@ export interface components {
             mode?: "rules_only" | "hybrid" | "ai_only";
             streamPath?: string;
             pendingAiCount?: number;
+            query?: {
+                source?: components["schemas"]["ResumeResultSource"];
+                persisted?: boolean;
+                keywordGroups?: {
+                    original: string;
+                    variants: string[];
+                }[];
+                expandedTo?: string[];
+                sourceMapping?: {
+                    [key: string]: string;
+                };
+                inferredRequiredRoles?: {
+                    /** @example sales */
+                    type: string;
+                    /**
+                     * @example [
+                     *       "销售",
+                     *       "业务"
+                     *     ]
+                     */
+                    signals: string[];
+                    /**
+                     * @example workHistory
+                     * @enum {string}
+                     */
+                    verifyIn: "workHistory" | "searchText";
+                    /** @example 2 */
+                    minYears?: number;
+                }[];
+            };
             results: components["schemas"]["ResumeMatch"][];
             stats: components["schemas"]["MatchStats"];
         };
@@ -4121,6 +4238,12 @@ export interface components {
             sessionId?: string;
             /** @example sample-initial */
             sample?: string;
+            source?: components["schemas"]["ResumeResultSource"] & unknown;
+            /**
+             * @default true
+             * @example true
+             */
+            persist: boolean;
             /** @example lathe-sales */
             jobDescriptionId?: string;
             /**

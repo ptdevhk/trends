@@ -35,7 +35,15 @@ import {
 } from "../services/match-storage.js";
 import { SessionManager } from "../services/session-manager.js";
 import { JobDescriptionService } from "../services/job-description-service.js";
-import { RuleScoringService } from "../services/rule-scoring.js";
+import {
+  RuleScoringService,
+  type BrandContext,
+  type BrandHit,
+  type BrandRole,
+  type RoleSignalSummary,
+  type RuleScoringContext,
+  type RuleScoringResult,
+} from "../services/rule-scoring.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { IngestComputeService } from "../services/ingest-compute-service.js";
 import { buildWorkHistoryEntryText, buildWorkHistoryEvidence, normalizeWorkHistoryEntry } from "@trends/shared";
@@ -93,6 +101,8 @@ const ClearMatchesResponseSchema = z.object({
 const RescoreRequestSchema = z.object({
   sessionId: z.string().optional(),
   sample: z.string().optional(),
+  source: z.enum(["sample", "convex"]).default("sample"),
+  persist: z.boolean().default(true),
   jobDescriptionId: z.string().optional(),
   keywords: z.array(z.string()).optional(),
   location: z.string().optional(),
@@ -122,6 +132,23 @@ type ResumeExportEntryContext = ResumeExportCanonicalRequest["entries"][number];
 type ResumeExportLegacyEntryContext = z.infer<typeof ResumeExportLegacyRequestSchema>["entries"][number];
 type ExportResumePayload = ResumeExportEntry["resume"];
 type ResumeExportEntryFields = Omit<ResumeExportEntry, "key" | "resume">;
+type ResumeSource = "sample" | "convex";
+type ResumeKeywordExpansion = ReturnType<ResumeService["expandSearchQuery"]>;
+type ResumeSearchProvenance = {
+  term: string;
+  source: "searchText" | "industryTags" | "companyHits" | "synonymHits";
+  expandedFrom?: string;
+};
+type PreparedResumeCandidate = {
+  resume: ResumeItem;
+  resumeId: string;
+  indexData: ResumeIndex;
+  primaryRuleScore?: number;
+  provenance?: ResumeSearchProvenance[];
+  brandHits: BrandHit[];
+  companyHits: string[];
+  roleSignals: RoleSignalSummary[];
+};
 
 function stripFrontMatter(content: string): string {
   const lines = content.split("\n");
@@ -204,6 +231,262 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function toStringValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value).trim();
+}
+
+function toOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => toStringValue(item))
+    .filter(Boolean);
+}
+
+function toBrandRole(value: unknown): BrandRole | null {
+  if (value === "employer" || value === "equipment" || value === "both") {
+    return value;
+  }
+  return null;
+}
+
+function toBrandContext(value: unknown): BrandContext | null {
+  if (
+    value === "employer"
+    || value === "equipment"
+    || value === "sales"
+    || value === "technical"
+    || value === "general"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function parseBrandHits(value: unknown): BrandHit[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+
+    const brand = toStringValue(item.brand);
+    const role = toBrandRole(item.role);
+    const source = item.source === "workHistory" || item.source === "selfIntro" || item.source === "jobIntention"
+      ? item.source
+      : null;
+    const context = toBrandContext(item.context);
+
+    if (!brand || !role || !source || !context) {
+      return [];
+    }
+
+    return [{
+      brand,
+      role,
+      source,
+      context,
+    }];
+  });
+}
+
+function parseRoleSignals(value: unknown): RoleSignalSummary[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+
+    const type = toStringValue(item.type);
+    const years = toOptionalNumber(item.years);
+    if (!type || years === undefined) {
+      return [];
+    }
+
+    const matchedSignals = toStringArray(item.matchedSignals);
+    const verifyIn = item.verifyIn === "searchText" ? "searchText" : "workHistory";
+    const signalCount = toOptionalNumber(item.signalCount) ?? matchedSignals.length;
+    const occurrences = toOptionalNumber(item.occurrences) ?? matchedSignals.length;
+    const industryVerifiedYears = toOptionalNumber(item.industryVerifiedYears) ?? 0;
+    const roleRelevantYears = toOptionalNumber(item.roleRelevantYears);
+    const industryVerifiedRelevantYears = toOptionalNumber(item.industryVerifiedRelevantYears);
+    const matchedWorkEntries = Array.isArray(item.matchedWorkEntries)
+      ? item.matchedWorkEntries.flatMap((entry) => {
+          if (!isRecord(entry)) {
+            return [];
+          }
+          const entryYears = toOptionalNumber(entry.years);
+          if (entryYears === undefined) {
+            return [];
+          }
+          return [{
+            companyName: toStringValue(entry.companyName) || undefined,
+            jobTitle: toStringValue(entry.jobTitle) || undefined,
+            years: entryYears,
+            industryVerified: entry.industryVerified === true,
+            matchedSignals: toStringArray(entry.matchedSignals),
+          }];
+        })
+      : undefined;
+
+    return [{
+      type,
+      matchedSignals,
+      signalCount,
+      occurrences,
+      years,
+      industryVerifiedYears,
+      ...(roleRelevantYears === undefined ? {} : { roleRelevantYears }),
+      ...(industryVerifiedRelevantYears === undefined ? {} : { industryVerifiedRelevantYears }),
+      ...(matchedWorkEntries && matchedWorkEntries.length > 0 ? { matchedWorkEntries } : {}),
+      verifyIn,
+    }];
+  });
+}
+
+function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const industryTags = toStringArray(value.industryTags);
+  const companyHits = toStringArray(value.companyHits);
+  const brandHits = parseBrandHits(value.brandHits);
+  const roleSignals = parseRoleSignals(value.roleSignals);
+  const industryDbV2Raw = toOptionalNumber(value.industryDbV2Raw);
+
+  if (
+    industryTags.length === 0
+    && companyHits.length === 0
+    && brandHits.length === 0
+    && roleSignals.length === 0
+    && industryDbV2Raw === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(industryTags.length > 0 ? { industryTags } : {}),
+    ...(companyHits.length > 0 ? { companyHits } : {}),
+    ...(brandHits.length > 0 ? { brandHits } : {}),
+    ...(roleSignals.length > 0 ? { roleSignals } : {}),
+    ...(industryDbV2Raw === undefined ? {} : { industryDbV2Raw }),
+  };
+}
+
+function parseConvexProvenance(value: unknown): ResumeSearchProvenance[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const provenance = value.flatMap((item) => {
+    if (!isRecord(item)) {
+      return [];
+    }
+    const term = toStringValue(item.term);
+    const source: ResumeSearchProvenance["source"] | null = item.source === "searchText"
+      || item.source === "industryTags"
+      || item.source === "companyHits"
+      || item.source === "synonymHits"
+      ? item.source
+      : null;
+    const expandedFrom = toStringValue(item.expandedFrom) || undefined;
+    if (!term || !source) {
+      return [];
+    }
+    return [{ term, source, ...(expandedFrom ? { expandedFrom } : {}) }];
+  });
+
+  return provenance.length > 0 ? provenance : undefined;
+}
+
+function toResumeItemFromRecord(record: Record<string, unknown>, source?: string): ResumeItem {
+  const profileUrl = toStringValue(
+    record.profileUrl ?? record.profile_url ?? record.profileURL ?? record.url
+  );
+  const workHistory = Array.isArray(record.workHistory)
+    ? record.workHistory
+      .map((entry) => normalizeWorkHistoryEntry(entry))
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    : [];
+
+  return {
+    name: toStringValue(record.name),
+    profileUrl,
+    activityStatus: toStringValue(record.activityStatus),
+    age: toStringValue(record.age),
+    experience: toStringValue(record.experience),
+    education: toStringValue(record.education),
+    location: toStringValue(record.location),
+    selfIntro: toStringValue(record.selfIntro),
+    jobIntention: toStringValue(record.jobIntention),
+    expectedSalary: toStringValue(record.expectedSalary),
+    workHistory,
+    extractedAt: toStringValue(record.extractedAt),
+    ingestData: buildResumeIngestData(record.ingestData),
+    resumeId: toStringValue(record.resumeId) || undefined,
+    perUserId: toStringValue(record.perUserId) || undefined,
+    profileId: toStringValue(record.profileId) || undefined,
+    profileType: toStringValue(record.profileType) || (source ? source : undefined),
+    externalId: toStringValue(record.externalId) || undefined,
+  };
+}
+
+function prepareResumeCandidate(params: {
+  resume: ResumeItem;
+  resumeId: string;
+  indexData?: ResumeIndex;
+  primaryRuleScore?: number;
+  provenance?: ResumeSearchProvenance[];
+  ingestData?: unknown;
+}): PreparedResumeCandidate {
+  const ingestData = params.ingestData ?? params.resume.ingestData;
+  const resume = params.resume.resumeId
+    ? params.resume
+    : {
+        ...params.resume,
+        resumeId: params.resumeId,
+      };
+  return {
+    resume,
+    resumeId: params.resumeId,
+    indexData: params.indexData ?? createFallbackIndex(resume, params.resumeId),
+    primaryRuleScore: params.primaryRuleScore,
+    provenance: params.provenance,
+    brandHits: parseBrandHits(isRecord(ingestData) ? ingestData.brandHits : undefined),
+    companyHits: toStringArray(isRecord(ingestData) ? ingestData.companyHits : undefined),
+    roleSignals: parseRoleSignals(isRecord(ingestData) ? ingestData.roleSignals : undefined),
+  };
+}
+
 async function callConvexQuery(pathName: string, args: Record<string, unknown>): Promise<unknown> {
   const convexUrl = resolveConvexUrl().replace(/\/$/, "");
   const response = await fetch(`${convexUrl}/api/query`, {
@@ -234,6 +517,221 @@ async function callConvexQuery(pathName: string, args: Record<string, unknown>):
   }
 
   return payload.value;
+}
+
+function buildKeywordExpansionSummary(expansion: ResumeKeywordExpansion): {
+  expandedTo?: string[];
+  mode?: "AND" | "OR";
+  keywordGroups?: Array<{ original: string; variants: string[] }>;
+  sourceMapping?: Record<string, string>;
+} {
+  return {
+    expandedTo: expansion?.flatTerms,
+    mode: expansion?.mode,
+    keywordGroups: expansion?.groups,
+    sourceMapping: expansion?.sourceMapping,
+  };
+}
+
+function buildMatchQueryMetadata(params: {
+  source: ResumeSource;
+  persisted: boolean;
+  keywordExpansion?: ResumeKeywordExpansion;
+  context: RuleScoringContext;
+}) {
+  const requiredRoles = params.context.requiredRoles.map((role) => ({
+    type: role.type,
+    signals: role.signals,
+    verifyIn: role.verifyIn,
+    ...(typeof role.minYears === "number" ? { minYears: role.minYears } : {}),
+  }));
+
+  return {
+    source: params.source,
+    persisted: params.persisted,
+    keywordGroups: params.keywordExpansion?.groups,
+    expandedTo: params.keywordExpansion?.flatTerms,
+    sourceMapping: params.keywordExpansion?.sourceMapping,
+    inferredRequiredRoles: requiredRoles,
+  };
+}
+
+function scorePreparedCandidates(
+  prepared: PreparedResumeCandidate[],
+  context: RuleScoringContext
+): Array<{ resumeId: string; result: RuleScoringResult; candidate: PreparedResumeCandidate }> {
+  return prepared.map((candidate) => ({
+    resumeId: candidate.resumeId,
+    result: ruleScoringService.scoreResume(
+      candidate.indexData,
+      context,
+      candidate.brandHits,
+      candidate.roleSignals
+    ),
+    candidate,
+  }));
+}
+
+function buildRuleMatchResponseEntry(params: {
+  candidate: PreparedResumeCandidate;
+  result: RuleScoringResult;
+  jobDescriptionId: string;
+  sessionId?: string;
+}): z.infer<typeof MatchResponseSchema>["results"][number] {
+  const matchingResult = ruleScoringService.toMatchingResult(params.result);
+  return {
+    resumeId: params.candidate.resumeId,
+    jobDescriptionId: params.jobDescriptionId,
+    score: matchingResult.score,
+    recommendation: matchingResult.recommendation,
+    highlights: matchingResult.highlights,
+    concerns: matchingResult.concerns,
+    summary: matchingResult.summary,
+    breakdown: matchingResult.breakdown,
+    scoreSource: matchingResult.scoreSource,
+    matchedAt: new Date().toISOString(),
+    sessionId: params.sessionId,
+    debug: {
+      primaryRuleScore: params.candidate.primaryRuleScore,
+      provenance: params.candidate.provenance,
+      roleSignals: params.candidate.roleSignals,
+      companyHits: params.candidate.companyHits,
+      brandHits: params.candidate.brandHits,
+    },
+  };
+}
+
+function prepareSampleCandidates(params: {
+  items: ResumeItem[];
+  indexMap: Map<string, ResumeIndex>;
+  resumeIds?: string[];
+  limit?: number;
+}): PreparedResumeCandidate[] {
+  const resumeIdFilter = params.resumeIds?.length
+    ? new Set(params.resumeIds)
+    : null;
+  const selected = resumeIdFilter
+    ? params.items
+      .map((resume, index) => ({ resume, resumeId: resolveResumeId(resume, index) }))
+      .filter((item) => resumeIdFilter.has(item.resumeId))
+    : params.items.map((resume, index) => ({ resume, resumeId: resolveResumeId(resume, index) }));
+  const limited = typeof params.limit === "number" ? selected.slice(0, params.limit) : selected;
+
+  return limited.map((item) => prepareResumeCandidate({
+    resume: item.resume,
+    resumeId: item.resumeId,
+    indexData: params.indexMap.get(item.resumeId) ?? createFallbackIndex(item.resume, item.resumeId),
+  }));
+}
+
+async function prepareConvexCandidates(params: {
+  resumeIds?: string[];
+  keywords?: string[];
+  location?: string;
+  limit?: number;
+  jobDescriptionId?: string;
+}): Promise<{
+  prepared: PreparedResumeCandidate[];
+  keywordExpansion?: ResumeKeywordExpansion;
+}> {
+  const resumeIds = Array.from(new Set((params.resumeIds ?? []).map((resumeId) => resumeId.trim()).filter(Boolean)));
+  if (resumeIds.length > 0) {
+    const value = await callConvexQuery("resumes:getByIdsForExport", { resumeIds });
+    if (!Array.isArray(value)) {
+      throw new Error("Invalid resume response from Convex");
+    }
+
+    const byId = new Map<string, PreparedResumeCandidate>();
+    value.forEach((item) => {
+      if (!isRecord(item)) {
+        return;
+      }
+      const resumeId = toStringValue(item.resumeId);
+      const resumeRecord = isRecord(item.resume) ? item.resume : null;
+      if (!resumeId || !resumeRecord) {
+        return;
+      }
+      const resume = toResumeItemFromRecord(resumeRecord);
+      byId.set(resumeId, prepareResumeCandidate({
+        resume,
+        resumeId,
+        ingestData: resumeRecord.ingestData,
+      }));
+    });
+
+    const prepared = resumeIds
+      .map((resumeId) => byId.get(resumeId))
+      .filter((item): item is PreparedResumeCandidate => Boolean(item));
+    const limited = typeof params.limit === "number" ? prepared.slice(0, params.limit) : prepared;
+    return { prepared: limited };
+  }
+
+  const normalizedKeywords = normalizeKeywords(params.keywords);
+  if (normalizedKeywords.length > 0) {
+    const keywordExpansion = resumeService.expandSearchQuery(normalizedKeywords.join(" "));
+    const value = await callConvexQuery("resumes:searchWithTagExpansion", {
+      query: normalizedKeywords.join(" "),
+      keywordGroups: keywordExpansion?.groups ?? [],
+      mode: keywordExpansion?.mode ?? "AND",
+      sourceMappings: Object.entries(keywordExpansion?.sourceMapping ?? {}).map(([term, expandedFrom]) => ({
+        term,
+        expandedFrom,
+      })),
+      limit: params.limit,
+      jobDescriptionId: params.jobDescriptionId,
+    });
+
+    if (!isRecord(value) || !Array.isArray(value.results)) {
+      throw new Error("Invalid resume search response from Convex");
+    }
+
+    const prepared = value.results.flatMap((entry) => {
+      if (!isRecord(entry) || !isRecord(entry.resume)) {
+        return [];
+      }
+      const resumeRecord = entry.resume;
+      const resumeId = toStringValue(resumeRecord._id);
+      if (!resumeId) {
+        return [];
+      }
+
+      return [prepareResumeCandidate({
+        resume: toResumeItemFromRecord(isRecord(resumeRecord.content) ? resumeRecord.content : {}, toStringValue(resumeRecord.source)),
+        resumeId,
+        primaryRuleScore: toOptionalNumber(resumeRecord.primaryRuleScore),
+        provenance: parseConvexProvenance(entry.provenance),
+        ingestData: resumeRecord.ingestData,
+      })];
+    });
+
+    return { prepared, keywordExpansion };
+  }
+
+  const value = await callConvexQuery("resumes:listWithIngestData", {
+    limit: params.limit,
+    jobDescriptionId: params.jobDescriptionId,
+  });
+  if (!Array.isArray(value)) {
+    throw new Error("Invalid resume list response from Convex");
+  }
+
+  return {
+    prepared: value.flatMap((item) => {
+      if (!isRecord(item)) {
+        return [];
+      }
+      const resumeId = toStringValue(item._id);
+      if (!resumeId) {
+        return [];
+      }
+      return [prepareResumeCandidate({
+        resume: toResumeItemFromRecord(isRecord(item.content) ? item.content : {}, toStringValue(item.source)),
+        resumeId,
+        primaryRuleScore: toOptionalNumber(item.primaryRuleScore),
+        ingestData: item.ingestData,
+      })];
+    }),
+  };
 }
 
 function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
@@ -701,6 +1199,7 @@ const getResumesRoute = createRoute({
 app.openapi(getResumesRoute, (c) => {
   const {
     sample,
+    source,
     q,
     limit,
     offset,
@@ -723,6 +1222,107 @@ app.openapi(getResumesRoute, (c) => {
   const keywordExpansion = resumeService.expandSearchQuery(keyword);
 
   try {
+    if (source === "convex") {
+      return (async () => {
+        const { prepared, keywordExpansion: liveExpansion } = await prepareConvexCandidates({
+          keywords: keyword ? normalizeKeywords(keyword.split(/\s+/)) : [],
+          limit,
+          jobDescriptionId: jobDescriptionId?.trim() || undefined,
+        });
+
+        let filtered = prepared.map((item) => item.resume);
+        filtered = resumeService.filterResumes(filtered, {
+          minExperience,
+          maxExperience,
+          education,
+          skills,
+          locations,
+          minSalary,
+          maxSalary,
+        });
+
+        const enriched = filtered.map((item, index) => ({
+          resume: item,
+          id: resolveResumeId(item, index),
+        }));
+
+        let matchMap: Map<string, { score: number; recommendation: string }> | null = null;
+        const resolvedJobId = jobDescriptionId?.trim() || undefined;
+        const needsMatchContext = Boolean(
+          resolvedJobId
+          && (minMatchScore !== undefined || (recommendation?.length ?? 0) > 0 || sortBy === "score")
+        );
+
+        if (needsMatchContext && resolvedJobId) {
+          const matches = matchStorage.getMatchesByResumeIds(
+            prepared.map((item) => item.resumeId),
+            resolvedJobId
+          );
+          matchMap = new Map(matches.map((match) => [match.resumeId, match]));
+        }
+
+        let working = enriched;
+        if (matchMap) {
+          if (minMatchScore !== undefined) {
+            working = working.filter((item) => {
+              const match = matchMap?.get(item.id);
+              return match && match.score >= minMatchScore;
+            });
+          }
+          if (recommendation?.length) {
+            const allowed = new Set(recommendation);
+            working = working.filter((item) => {
+              const match = matchMap?.get(item.id);
+              return match && allowed.has(match.recommendation);
+            });
+          }
+        }
+
+        if (sortBy) {
+          const order = sortOrder || (sortBy === "score" ? "desc" : "asc");
+          const direction = order === "desc" ? -1 : 1;
+
+          working = [...working].sort((a, b) => {
+            if (sortBy === "score") {
+              const scoreA = matchMap?.get(a.id)?.score ?? -1;
+              const scoreB = matchMap?.get(b.id)?.score ?? -1;
+              return (scoreA - scoreB) * direction;
+            }
+            if (sortBy === "experience") {
+              const expA = parseExperienceYears(a.resume.experience) ?? -1;
+              const expB = parseExperienceYears(b.resume.experience) ?? -1;
+              return (expA - expB) * direction;
+            }
+            if (sortBy === "extractedAt") {
+              const timeA = Date.parse(a.resume.extractedAt || "") || 0;
+              const timeB = Date.parse(b.resume.extractedAt || "") || 0;
+              return (timeA - timeB) * direction;
+            }
+            const nameA = a.resume.name?.toLowerCase() ?? "";
+            const nameB = b.resume.name?.toLowerCase() ?? "";
+            return nameA.localeCompare(nameB) * direction;
+          });
+        }
+
+        const start = offset ?? 0;
+        const end = typeof limit === "number" ? start + limit : undefined;
+        const paged = end ? working.slice(start, end) : working.slice(start);
+        const limited = paged.map((item) => item.resume);
+
+        return c.json({
+          success: true as const,
+          summary: {
+            total: working.length,
+            returned: limited.length,
+            query: keyword,
+            source,
+            ...buildKeywordExpansionSummary(liveExpansion ?? keywordExpansion),
+          },
+          data: limited,
+        }, 200);
+      })();
+    }
+
     const { items, sample: sampleInfo, metadata, indexes } = resumeService.loadSample(sampleName);
     const session = sessionId ? sessionManager.getSession(sessionId) : null;
     const resolvedJobId = jobDescriptionId?.trim() || session?.jobDescriptionId;
@@ -731,11 +1331,11 @@ app.openapi(getResumesRoute, (c) => {
     if (resolvedJobId) {
       try {
         const context = ruleScoringService.buildContext(resolvedJobId);
-        const indexList = items.map((item, index) => {
-          const resumeId = resolveResumeId(item, index);
-          return indexes.get(resumeId) ?? createFallbackIndex(item, resumeId);
+        const preparedForScores = prepareSampleCandidates({
+          items,
+          indexMap: indexes,
         });
-        const scored = ruleScoringService.scoreBatch(indexList, context);
+        const scored = scorePreparedCandidates(preparedForScores, context);
         ruleScoreMap = new Map(scored.map((entry) => [entry.resumeId, entry.result.score]));
       } catch (error) {
         console.error(`[Resumes] Failed to compute rule score map for ${resolvedJobId}:`, error);
@@ -841,8 +1441,11 @@ app.openapi(getResumesRoute, (c) => {
         total: working.length,
         returned: limited.length,
         query: keyword,
+        source,
         expandedTo: keywordExpansion?.flatTerms,
         mode: keywordExpansion?.mode,
+        keywordGroups: keywordExpansion?.groups,
+        sourceMapping: keywordExpansion?.sourceMapping,
       },
       data: limited,
     }, 200);
@@ -901,6 +1504,8 @@ app.openapi(matchResumesRoute, async (c) => {
     keywords,
     location,
     sample,
+    source,
+    persist,
     resumeIds,
     limit,
     topN,
@@ -912,6 +1517,15 @@ app.openapi(matchResumesRoute, async (c) => {
   if (!normalizedJobDescriptionId && normalizedKeywords.length === 0) {
     return c.json({ success: false, error: "jobDescriptionId or keywords is required" }, 400);
   }
+
+  const mode = toMatchMode(modeInput);
+  if (!persist && mode !== "rules_only") {
+    return c.json({ success: false, error: "persist=false only supports rules_only mode" }, 400);
+  }
+  if (source === "convex" && persist !== false) {
+    return c.json({ success: false, error: "source=convex only supports persist=false" }, 400);
+  }
+
   const matchJobDescriptionId = normalizedJobDescriptionId
     ? normalizedJobDescriptionId
     : toKeywordJobDescriptionId(normalizedKeywords, location);
@@ -920,37 +1534,50 @@ app.openapi(matchResumesRoute, async (c) => {
     location,
     jobDescriptionId: normalizedJobDescriptionId,
   });
+  const keywordExpansion = normalizedKeywords.length > 0
+    ? resumeService.expandSearchQuery(normalizedKeywords.join(" "))
+    : undefined;
 
-  const mode = toMatchMode(modeInput);
-
-  let session = sessionId ? sessionManager.getSession(sessionId) : null;
-  if (sessionId && !session) {
+  let session = persist && sessionId ? sessionManager.getSession(sessionId) : null;
+  if (persist && sessionId && !session) {
     return c.json({ success: false, error: "Session not found" }, 404);
   }
-
-  if (!session) {
+  if (persist && !session) {
     session = sessionManager.createSession({
       jobDescriptionId: normalizedJobDescriptionId,
       sampleName: sample,
     });
-  } else {
+  } else if (persist && session) {
     session = sessionManager.updateSession(session.id, {
       jobDescriptionId: normalizedJobDescriptionId ?? null,
       sampleName: sample ?? session.sampleName,
     }) ?? session;
   }
 
-  const sampleName = sample ?? session.sampleName;
-
-  let items: ResumeItem[] = [];
-  let indexMap = new Map<string, ResumeIndex>();
+  let sampleName = sample ?? session?.sampleName;
+  let prepared: PreparedResumeCandidate[] = [];
   let jdMeta: { title?: string } = {};
   let content = "";
 
   try {
-    const sampleData = resumeService.loadSample(sampleName);
-    items = sampleData.items;
-    indexMap = sampleData.indexes;
+    if (source === "convex") {
+      prepared = (await prepareConvexCandidates({
+        resumeIds,
+        keywords: normalizedKeywords,
+        location,
+        limit,
+        jobDescriptionId: normalizedJobDescriptionId,
+      })).prepared;
+    } else {
+      const sampleData = resumeService.loadSample(sampleName);
+      sampleName = sampleData.sample.name;
+      prepared = prepareSampleCandidates({
+        items: sampleData.items,
+        indexMap: sampleData.indexes,
+        resumeIds,
+        limit,
+      });
+    }
 
     if (normalizedJobDescriptionId) {
       const jdData = jobService.loadFile(normalizedJobDescriptionId);
@@ -966,14 +1593,6 @@ app.openapi(matchResumesRoute, async (c) => {
     throw error;
   }
 
-  const selected = resumeIds?.length
-    ? items
-      .map((resume, index) => ({ resume, resumeId: resolveResumeId(resume, index) }))
-      .filter((item) => resumeIds.includes(item.resumeId))
-    : items.map((resume, index) => ({ resume, resumeId: resolveResumeId(resume, index) }));
-
-  const limited = typeof limit === "number" ? selected.slice(0, limit) : selected;
-
   const requirements = normalizedJobDescriptionId
     ? (extractSection(content, ["Requirements", "任职要求", "要求"]) || stripFrontMatter(content))
     : buildKeywordRequirements(normalizedKeywords);
@@ -981,12 +1600,7 @@ app.openapi(matchResumesRoute, async (c) => {
     ? extractSection(content, ["Responsibilities", "岗位职责", "职责"])
     : buildKeywordResponsibilities(normalizedKeywords, location);
 
-  const prepared = limited.map((item) => ({
-    ...item,
-    indexData: indexMap.get(item.resumeId) ?? createFallbackIndex(item.resume, item.resumeId),
-  }));
-
-  const shouldTrackRun = mode !== "hybrid";
+  const shouldTrackRun = persist && mode !== "hybrid";
   const runId = randomUUID();
   if (shouldTrackRun) {
     matchStorage.createMatchRun({
@@ -1006,8 +1620,8 @@ app.openapi(matchResumesRoute, async (c) => {
       const context = normalizedJobDescriptionId
         ? ruleScoringService.buildContext(normalizedJobDescriptionId)
         : ruleScoringService.buildContextFromKeywords(normalizedKeywords, location);
-      const scored = ruleScoringService.scoreBatch(prepared.map((item) => item.indexData), context);
-
+      const scored = scorePreparedCandidates(prepared, context)
+        .sort((a, b) => b.result.score - a.result.score);
       const entries = scored.map((entry) => ({
         sessionId: session?.id,
         resumeId: entry.resumeId,
@@ -1018,19 +1632,16 @@ app.openapi(matchResumesRoute, async (c) => {
         processingTimeMs: Date.now() - startTime,
       }));
 
-      if (entries.length > 0) {
+      if (persist && entries.length > 0) {
         matchStorage.saveMatches(entries);
       }
 
-      const storedMatches = matchStorage.getMatchesByResumeIds(
-        prepared.map((item) => item.resumeId),
-        matchJobDescriptionId
-      );
-
-      const results = storedMatches
-        .map((match) => mapStoredMatch(match))
-        .sort((a, b) => b.score - a.score);
-
+      const results = scored.map((entry) => buildRuleMatchResponseEntry({
+        candidate: entry.candidate,
+        result: entry.result,
+        jobDescriptionId: matchJobDescriptionId,
+        sessionId: session?.id,
+      }));
       const pendingAiCount = mode === "hybrid"
         ? Math.min(toTopN(topN), results.length)
         : 0;
@@ -1051,7 +1662,7 @@ app.openapi(matchResumesRoute, async (c) => {
         });
       }
 
-      if (searchEventQuery) {
+      if (persist && searchEventQuery) {
         searchEventLogger.logSearchQuery({
           query: searchEventQuery,
           resultCount: results.length,
@@ -1065,6 +1676,12 @@ app.openapi(matchResumesRoute, async (c) => {
           mode,
           streamPath: mode === "hybrid" ? "/api/resumes/match-stream" : undefined,
           pendingAiCount: mode === "hybrid" ? pendingAiCount : undefined,
+          query: buildMatchQueryMetadata({
+            source,
+            persisted: persist,
+            keywordExpansion,
+            context,
+          }),
           results,
           stats,
         },
@@ -1072,12 +1689,14 @@ app.openapi(matchResumesRoute, async (c) => {
       );
     }
 
+    const context = normalizedJobDescriptionId
+      ? ruleScoringService.buildContext(normalizedJobDescriptionId)
+      : ruleScoringService.buildContextFromKeywords(normalizedKeywords, location);
     const cachedMatches = matchStorage.getMatchesByResumeIds(
       prepared.map((item) => item.resumeId),
       matchJobDescriptionId
     );
     const cachedMap = new Map(cachedMatches.map((match) => [match.resumeId, match]));
-
     const toProcess = prepared.filter((item) => {
       const cached = cachedMap.get(item.resumeId);
       if (!cached) return true;
@@ -1116,7 +1735,6 @@ app.openapi(matchResumesRoute, async (c) => {
       prepared.map((item) => item.resumeId),
       matchJobDescriptionId
     );
-
     const finalResults = finalMatches
       .map((match) => mapStoredMatch(match))
       .sort((a, b) => b.score - a.score);
@@ -1145,6 +1763,12 @@ app.openapi(matchResumesRoute, async (c) => {
       {
         success: true as const,
         mode: "ai_only",
+        query: buildMatchQueryMetadata({
+          source,
+          persisted: persist,
+          keywordExpansion,
+          context,
+        }),
         results: finalResults,
         stats,
       },
@@ -1177,6 +1801,8 @@ app.post("/api/resumes/match-stream", async (c) => {
     keywords,
     location,
     sample,
+    source,
+    persist,
     resumeIds,
     limit,
     topN,
@@ -1191,6 +1817,12 @@ app.post("/api/resumes/match-stream", async (c) => {
   const matchJobDescriptionId = normalizedJobDescriptionId
     ? normalizedJobDescriptionId
     : toKeywordJobDescriptionId(normalizedKeywords, location);
+  if (source === "convex") {
+    return c.json({ success: false, error: "match-stream does not support source=convex" }, 400);
+  }
+  if (persist === false) {
+    return c.json({ success: false, error: "match-stream does not support persist=false" }, 400);
+  }
 
   const mode = toMatchMode(modeInput);
   const requestedTopN = toTopN(topN);
@@ -1209,15 +1841,18 @@ app.post("/api/resumes/match-stream", async (c) => {
 
   const sampleName = sample ?? session.sampleName;
 
-  let items: ResumeItem[] = [];
-  let indexMap = new Map<string, ResumeIndex>();
+  let prepared: PreparedResumeCandidate[] = [];
   let jdMeta: { title?: string } = {};
   let content = "";
 
   try {
     const sampleData = resumeService.loadSample(sampleName);
-    items = sampleData.items;
-    indexMap = sampleData.indexes;
+    prepared = prepareSampleCandidates({
+      items: sampleData.items,
+      indexMap: sampleData.indexes,
+      resumeIds,
+      limit,
+    });
     if (normalizedJobDescriptionId) {
       const jdData = jobService.loadFile(normalizedJobDescriptionId);
       jdMeta = { title: jdData.title };
@@ -1232,25 +1867,12 @@ app.post("/api/resumes/match-stream", async (c) => {
     throw error;
   }
 
-  const selected = resumeIds?.length
-    ? items
-      .map((resume, index) => ({ resume, resumeId: resolveResumeId(resume, index) }))
-      .filter((item) => resumeIds.includes(item.resumeId))
-    : items.map((resume, index) => ({ resume, resumeId: resolveResumeId(resume, index) }));
-
-  const limited = typeof limit === "number" ? selected.slice(0, limit) : selected;
-
   const requirements = normalizedJobDescriptionId
     ? (extractSection(content, ["Requirements", "任职要求", "要求"]) || stripFrontMatter(content))
     : buildKeywordRequirements(normalizedKeywords);
   const responsibilities = normalizedJobDescriptionId
     ? extractSection(content, ["Responsibilities", "岗位职责", "职责"])
     : buildKeywordResponsibilities(normalizedKeywords, location);
-
-  const prepared = limited.map((item) => ({
-    ...item,
-    indexData: indexMap.get(item.resumeId) ?? createFallbackIndex(item.resume, item.resumeId),
-  }));
   const preparedMap = new Map(prepared.map((item) => [item.resumeId, item]));
 
   const runId = randomUUID();
@@ -1311,11 +1933,16 @@ app.post("/api/resumes/match-stream", async (c) => {
           const context = normalizedJobDescriptionId
             ? ruleScoringService.buildContext(normalizedJobDescriptionId)
             : ruleScoringService.buildContextFromKeywords(normalizedKeywords, location);
-          const scored = ruleScoringService.scoreBatch(prepared.map((item) => item.indexData), context);
+          const scored = scorePreparedCandidates(prepared, context);
           const orderedRuleResults = scored
             .map((entry) => ({
               resumeId: entry.resumeId,
-              result: ruleScoringService.toMatchingResult(entry.result),
+              result: buildRuleMatchResponseEntry({
+                candidate: entry.candidate,
+                result: entry.result,
+                jobDescriptionId: matchJobDescriptionId,
+                sessionId: session?.id,
+              }),
             }))
             .sort((a, b) => b.result.score - a.result.score);
           const existingRuleScopeMatches = matchStorage.getMatchesByResumeIds(
@@ -1336,7 +1963,15 @@ app.post("/api/resumes/match-stream", async (c) => {
               resumeId,
               jobDescriptionId: matchJobDescriptionId,
               sampleName: sampleName ?? undefined,
-              result,
+              result: {
+                score: result.score,
+                recommendation: result.recommendation,
+                highlights: result.highlights,
+                concerns: result.concerns,
+                summary: result.summary,
+                breakdown: result.breakdown,
+                scoreSource: result.scoreSource,
+              },
               aiModel: "rule-scoring",
               processingTimeMs: Date.now() - startTime,
             }));
@@ -1353,11 +1988,9 @@ app.post("/api/resumes/match-stream", async (c) => {
           safeSend("rules", {
             mode,
             results: orderedRuleResults.map(({ resumeId, result }) => ({
-              resumeId,
-              jobDescriptionId: matchJobDescriptionId,
               ...result,
+              resumeId,
               matchedAt: ruleMatchedAt,
-              sessionId: session?.id,
             })),
             progress: { done: orderedRuleResults.length, total: prepared.length },
           });
@@ -1799,12 +2432,18 @@ app.openapi(importResumesRoute, async (c) => {
   }
 });
 
-app.openapi(rescoreResumeMatchesRoute, (c) => {
-  const { sessionId, sample, jobDescriptionId, keywords, location, resumeIds, limit } = c.req.valid("json");
+app.openapi(rescoreResumeMatchesRoute, async (c) => {
+  const { sessionId, sample, source, persist, jobDescriptionId, keywords, location, resumeIds, limit } = c.req.valid("json");
   const normalizedJobDescriptionId = jobDescriptionId?.trim();
   const normalizedKeywords = normalizeKeywords(keywords);
   if (!normalizedJobDescriptionId && normalizedKeywords.length === 0) {
     return c.json({ success: false, error: "jobDescriptionId or keywords is required" }, 400);
+  }
+  if (!persist) {
+    return c.json({ success: false, error: "persist=false is not supported for rescore" }, 400);
+  }
+  if (source === "convex") {
+    return c.json({ success: false, error: "source=convex is not supported for rescore" }, 400);
   }
   const matchJobDescriptionId = normalizedJobDescriptionId
     ? normalizedJobDescriptionId
@@ -1822,13 +2461,16 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
 
   const sampleName = sample ?? session?.sampleName;
 
-  let items: ResumeItem[] = [];
-  let indexMap = new Map<string, ResumeIndex>();
+  let prepared: PreparedResumeCandidate[] = [];
 
   try {
     const sampleData = resumeService.loadSample(sampleName);
-    items = sampleData.items;
-    indexMap = sampleData.indexes;
+    prepared = prepareSampleCandidates({
+      items: sampleData.items,
+      indexMap: sampleData.indexes,
+      resumeIds,
+      limit,
+    });
     if (normalizedJobDescriptionId) {
       jobService.loadFile(normalizedJobDescriptionId);
     }
@@ -1839,21 +2481,11 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
     throw error;
   }
 
-  const selected = resumeIds?.length
-    ? items
-      .map((resume, index) => ({ resume, resumeId: resolveResumeId(resume, index) }))
-      .filter((item) => resumeIds.includes(item.resumeId))
-    : items.map((resume, index) => ({ resume, resumeId: resolveResumeId(resume, index) }));
-
-  const limited = typeof limit === "number" ? selected.slice(0, limit) : selected;
-
   const context = normalizedJobDescriptionId
     ? ruleScoringService.buildContext(normalizedJobDescriptionId)
     : ruleScoringService.buildContextFromKeywords(normalizedKeywords, location);
-  const scored = ruleScoringService.scoreBatch(
-    limited.map((item) => indexMap.get(item.resumeId) ?? createFallbackIndex(item.resume, item.resumeId)),
-    context
-  );
+  const scored = scorePreparedCandidates(prepared, context)
+    .sort((a, b) => b.result.score - a.result.score);
 
   const startTime = Date.now();
   const entries = scored.map((entry) => ({
@@ -1870,11 +2502,12 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
     matchStorage.saveMatches(entries);
   }
 
-  const finalMatches = matchStorage
-    .getMatchesByResumeIds(limited.map((item) => item.resumeId), matchJobDescriptionId)
-    .sort((a, b) => b.score - a.score);
-
-  const results = finalMatches.map((match) => mapStoredMatch(match));
+  const results = scored.map((entry) => buildRuleMatchResponseEntry({
+    candidate: entry.candidate,
+    result: entry.result,
+    jobDescriptionId: matchJobDescriptionId,
+    sessionId: session?.id,
+  }));
   if (searchEventQuery) {
     searchEventLogger.logSearchQuery({
       query: searchEventQuery,
@@ -1887,6 +2520,14 @@ app.openapi(rescoreResumeMatchesRoute, (c) => {
     {
       success: true as const,
       mode: "rules_only",
+      query: buildMatchQueryMetadata({
+        source,
+        persisted: persist,
+        keywordExpansion: normalizedKeywords.length > 0
+          ? resumeService.expandSearchQuery(normalizedKeywords.join(" "))
+          : undefined,
+        context,
+      }),
       results,
       stats: computeStats(results, Date.now() - startTime, 0),
     },

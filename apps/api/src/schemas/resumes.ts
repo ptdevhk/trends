@@ -265,6 +265,13 @@ export const ResumesQuerySchema = z.object({
       param: { name: "q", in: "query" },
       example: "sales",
     }),
+  source: z
+    .enum(["sample", "convex"])
+    .default("sample")
+    .openapi({
+      param: { name: "source", in: "query" },
+      example: "sample",
+    }),
   limit: z
     .coerce
     .number()
@@ -375,6 +382,11 @@ export const ResumesQuerySchema = z.object({
   }),
 });
 
+const KeywordGroupSchema = z.object({
+  original: z.string(),
+  variants: z.array(z.string()),
+});
+
 export const ResumesResponseSchema = z
   .object({
     success: z.literal(true),
@@ -385,18 +397,16 @@ export const ResumesResponseSchema = z
         total: z.number().int(),
         returned: z.number().int(),
         query: z.string().optional(),
+        source: z.enum(["sample", "convex"]).optional(),
         expandedTo: z.array(z.string()).optional(),
         mode: z.enum(["AND", "OR"]).optional(),
+        keywordGroups: z.array(KeywordGroupSchema).optional(),
+        sourceMapping: z.record(z.string()).optional(),
       })
       .optional(),
     data: z.array(ResumeItemSchema),
   })
   .openapi("ResumesResponse");
-
-const KeywordGroupSchema = z.object({
-  original: z.string(),
-  variants: z.array(z.string()),
-});
 
 export const ResumeKeywordExpansionQuerySchema = z.object({
   q: z
@@ -461,6 +471,10 @@ export const RecommendationSchema = z.enum([
 
 export const ScoreSourceSchema = z.enum(["rule", "ai"]);
 
+export const ResumeResultSourceSchema = z
+  .enum(["sample", "convex"])
+  .openapi("ResumeResultSource");
+
 export const MatchBreakdownSchema = z
   .object({
     skillMatch: z.number().int().openapi({ example: 20 }),
@@ -487,6 +501,46 @@ export const ResumeMatchSchema = z
     matchedAt: z.string().openapi({ example: "2026-02-05T08:00:00.000Z" }),
     sessionId: z.string().optional().openapi({ example: "session-123" }),
     userId: z.string().optional().openapi({ example: "user-abc" }),
+    debug: z
+      .object({
+        primaryRuleScore: z.number().optional().openapi({ example: 85 }),
+        provenance: z
+          .array(
+            z.object({
+              term: z.string().openapi({ example: "销售" }),
+              source: z.enum(["searchText", "industryTags", "companyHits", "synonymHits"]).openapi({ example: "searchText" }),
+              expandedFrom: z.string().optional().openapi({ example: "sales" }),
+            })
+          )
+          .optional(),
+        roleSignals: z
+          .array(
+            z.object({
+              type: z.string().openapi({ example: "sales" }),
+              matchedSignals: z.array(z.string()).openapi({ example: ["销售经理", "渠道"] }),
+              signalCount: z.number().openapi({ example: 2 }),
+              occurrences: z.number().openapi({ example: 2 }),
+              years: z.number().openapi({ example: 5 }),
+              industryVerifiedYears: z.number().openapi({ example: 5 }),
+              roleRelevantYears: z.number().optional().openapi({ example: 5 }),
+              industryVerifiedRelevantYears: z.number().optional().openapi({ example: 5 }),
+              verifyIn: z.enum(["workHistory", "searchText"]).openapi({ example: "workHistory" }),
+            })
+          )
+          .optional(),
+        companyHits: z.array(z.string()).optional().openapi({ example: ["fanuc"] }),
+        brandHits: z
+          .array(
+            z.object({
+              brand: z.string().openapi({ example: "fanuc" }),
+              role: z.enum(["employer", "equipment", "both"]).openapi({ example: "both" }),
+              source: z.enum(["workHistory", "selfIntro", "jobIntention"]).openapi({ example: "workHistory" }),
+              context: z.enum(["employer", "equipment", "sales", "technical", "general"]).openapi({ example: "employer" }),
+            })
+          )
+          .optional(),
+      })
+      .optional(),
   })
   .openapi("ResumeMatch");
 
@@ -657,6 +711,8 @@ export const MatchRequestSchema = z
   .object({
     sessionId: z.string().optional().openapi({ example: "session-123" }),
     sample: z.string().optional().openapi({ example: "sample-initial" }),
+    source: ResumeResultSourceSchema.default("sample").openapi({ example: "sample" }),
+    persist: z.boolean().default(true).openapi({ example: true }),
     jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),
     keywords: z.array(z.string()).optional().openapi({ example: ["cnc", "车床"] }),
     location: z.string().optional().openapi({ example: "广东" }),
@@ -683,6 +739,25 @@ export const MatchResponseSchema = z
     mode: z.enum(["rules_only", "hybrid", "ai_only"]).optional(),
     streamPath: z.string().optional(),
     pendingAiCount: z.number().int().optional(),
+    query: z
+      .object({
+        source: ResumeResultSourceSchema.optional(),
+        persisted: z.boolean().optional(),
+        keywordGroups: z.array(KeywordGroupSchema).optional(),
+        expandedTo: z.array(z.string()).optional(),
+        sourceMapping: z.record(z.string()).optional(),
+        inferredRequiredRoles: z
+          .array(
+            z.object({
+              type: z.string().openapi({ example: "sales" }),
+              signals: z.array(z.string()).openapi({ example: ["销售", "业务"] }),
+              verifyIn: z.enum(["workHistory", "searchText"]).openapi({ example: "workHistory" }),
+              minYears: z.number().optional().openapi({ example: 2 }),
+            })
+          )
+          .optional(),
+      })
+      .optional(),
     results: z.array(ResumeMatchSchema),
     stats: MatchStatsSchema,
   })

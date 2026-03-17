@@ -250,6 +250,64 @@ const INDUSTRY_MAP: Array<{ tag: string; keywords: string[] }> = Object.entries(
   ([tag, keywords]) => ({ tag, keywords })
 );
 
+const KEYWORD_ROLE_SIGNAL_LIBRARY: Record<string, string[]> = {
+  sales: [
+    "销售",
+    "业务",
+    "商务",
+    "销售员",
+    "销售经理",
+    "销售工程师",
+    "大客户",
+    "渠道",
+    "客户开发",
+    "sales",
+    "account",
+    "key account",
+    "bd",
+    "business development",
+  ],
+  engineer: [
+    "工程师",
+    "研发",
+    "设计",
+    "开发",
+    "编程",
+    "engineer",
+    "developer",
+    "design",
+  ],
+  operator: [
+    "操作员",
+    "操作",
+    "操机",
+    "开机",
+    "机台",
+    "operator",
+  ],
+  technician: [
+    "技术员",
+    "维修",
+    "维护",
+    "安装",
+    "保养",
+    "售后",
+    "technician",
+    "service",
+    "after-sales",
+  ],
+  manager: [
+    "经理",
+    "主管",
+    "总监",
+    "负责人",
+    "manager",
+    "lead",
+    "leader",
+    "director",
+  ],
+};
+
 const LOCATION_PROXIMITY_GROUPS: Record<string, string[]> = {
   pearlRiverDelta: ["东莞", "深圳", "广州", "佛山", "惠州", "中山", "珠海", "江门"],
   yangtzeRiverDelta: ["上海", "苏州", "杭州", "南京", "无锡", "宁波", "常州", "嘉兴"],
@@ -530,8 +588,58 @@ export class RuleScoringService {
       industryKeywords: cleanKeywords,
       industryTags,
       brandKeywords,
-      requiredRoles: [],
+      requiredRoles: this.inferRequiredRolesFromKeywords(cleanKeywords),
     };
+  }
+
+  inferRequiredRolesFromKeywords(keywords: string[]): RequiredRoleRequirement[] {
+    const cleanKeywords = ensureKeywords(keywords);
+    if (cleanKeywords.length === 0) {
+      return [];
+    }
+
+    const normalizedTokens = new Set<string>();
+    for (const keyword of cleanKeywords) {
+      const variants = this.skillsService.expandQueryWithSynonyms([keyword]);
+      const candidates = variants.length > 0 ? variants : [keyword];
+      for (const candidate of candidates) {
+        const normalized = compactText(candidate);
+        if (!normalized) {
+          continue;
+        }
+        normalizedTokens.add(normalized);
+        normalizedTokens.add(normalized.replace(/\s+/g, ""));
+      }
+    }
+    const normalizedTokenValues = Array.from(normalizedTokens);
+
+    const matchedFamilies = Object.entries(KEYWORD_ROLE_SIGNAL_LIBRARY)
+      .filter(([, signals]) => {
+        return signals.some((signal) => {
+          const normalizedSignal = compactText(signal);
+          if (!normalizedSignal) {
+            return false;
+          }
+          const compactSignal = normalizedSignal.replace(/\s+/g, "");
+          return normalizedTokenValues.some((token) =>
+            token.includes(normalizedSignal)
+            || normalizedSignal.includes(token)
+            || token.includes(compactSignal)
+            || compactSignal.includes(token)
+          );
+        });
+      });
+
+    if (matchedFamilies.length !== 1) {
+      return [];
+    }
+
+    const [type, signals] = matchedFamilies[0];
+    return [{
+      type,
+      signals: ensureKeywords(signals),
+      verifyIn: "workHistory",
+    }];
   }
 
   private inferIndustryTags(tokens: string[], industryMap: Array<{ tag: string; keywords: string[] }>): string[] {
@@ -763,9 +871,11 @@ export class RuleScoringService {
     let experienceMatch = 0;
     if (hasRequiredRoles) {
       const relevantRoleYears = this.computeRelevantRoleYears(context.requiredRoles, roleSignals);
-      const effectiveMinExperience = context.minExperience ?? context.requiredRoles[0]?.minYears ?? 0;
+      const effectiveMinExperience = context.minExperience ?? context.requiredRoles[0]?.minYears;
 
-      if (relevantRoleYears >= effectiveMinExperience) {
+      if (effectiveMinExperience === undefined || effectiveMinExperience <= 0) {
+        experienceMatch = relevantRoleYears > 0 ? categoryWeights.experienceMatch : 0;
+      } else if (relevantRoleYears >= effectiveMinExperience) {
         experienceMatch = categoryWeights.experienceMatch;
       } else if (relevantRoleYears > 0) {
         const ratio = relevantRoleYears / Math.max(1, effectiveMinExperience);
