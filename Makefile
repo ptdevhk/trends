@@ -313,7 +313,7 @@ check-agent-skill:
 	else \
 		npx tsx scripts/skills/validate-skill.ts --skill trends-agent-governance; \
 	fi
-	@if [ "$$CI" = "true" ]; then \
+	@if [ "$$CI" = "true" ] || [ "$$CI" = "1" ]; then \
 		echo "Skipping installed skill drift check in CI"; \
 	else \
 		./scripts/skills/install-skill.sh --skill trends-agent-governance --target "$(or $(TARGET),codex)" --check; \
@@ -625,7 +625,7 @@ check-node:
 		echo "apps/web/src/lib/api-types.ts is out of date. Run 'npm --workspace @trends/web run gen:api' and commit changes."; \
 		exit 1; \
 	)
-	@if [ "$$CI" = "true" ]; then \
+	@if [ "$$CI" = "true" ] || [ "$$CI" = "1" ]; then \
 		npm run --workspaces --if-present typecheck; \
 		npm run --workspace @trends/web lint; \
 		npm run --workspace @trends/browser-extension lint; \
@@ -640,7 +640,7 @@ check-node:
 # Build validation (for CI)
 check-build: check
 	@echo "Running build validation..."
-	@if [ "$$CI" = "true" ] || ! command -v bun > /dev/null 2>&1; then \
+	@if [ "$$CI" = "true" ] || [ "$$CI" = "1" ] || ! command -v bun > /dev/null 2>&1; then \
 		npm run --workspace @trends/shared build; \
 		npm run --workspace @trends/api build; \
 		npm run --workspace @trends/web build; \
