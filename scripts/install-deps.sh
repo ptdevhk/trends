@@ -1,6 +1,30 @@
 #!/bin/bash
 set -e
 
+usage() {
+    echo "Usage: $0 [--help]"
+    echo "Installs local Python/Node dependencies and bootstraps governance artifacts."
+    echo ""
+    echo "Environment:"
+    echo "  SKILL_INSTALL_TARGET   Governance skill install target: codex|agents|all (default: codex)"
+    echo "  CONVEX_MIRROR_MODE     Convex prefetch mode override: off|fallback|mirror"
+    echo "  CI                     When true, uses npm and skips governance sync"
+}
+
+if [ "$#" -gt 0 ]; then
+    case "$1" in
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+    esac
+fi
+
 resolve_convex_mirror_mode() {
     if [ -n "${CONVEX_MIRROR_MODE:-}" ]; then
         echo "${CONVEX_MIRROR_MODE}"
