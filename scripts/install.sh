@@ -331,6 +331,16 @@ NODE
         progress="$(node - "$output" <<'NODE'
 const vm = require('node:vm');
 const source = (process.argv[2] ?? '').trim();
+const progressKeys = [
+  'updated',
+  'updatedResumes',
+  'patched',
+  'count',
+  'cleared',
+  'scheduled',
+  'movedEducationEntries',
+  'updatedProfileFields',
+];
 let hasMore = 0;
 let cursor = '';
 let updated = -1;
@@ -342,8 +352,8 @@ try {
       hasMore = 1;
       cursor = typeof value.cursor === 'string' ? value.cursor : '';
     }
-    for (const key of Object.keys(value)) {
-      if (/^(updated|updatedResumes|count)$/.test(key) && typeof value[key] === 'number') {
+    for (const key of progressKeys) {
+      if (typeof value[key] === 'number') {
         updated = value[key];
         break;
       }
