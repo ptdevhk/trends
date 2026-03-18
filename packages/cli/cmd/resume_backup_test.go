@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/spf13/viper"
 )
 
 func TestResumeBackupCommandWritesBackupFile(t *testing.T) {
@@ -45,20 +43,8 @@ func TestResumeBackupCommandWritesBackupFile(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalAPIURL := viper.GetString("api_url")
-	originalWorkerURL := viper.GetString("worker_url")
-	originalWorkspace := viper.GetString("workspace")
-	originalOutput := viper.GetString("output")
-	t.Cleanup(func() {
-		viper.Set("api_url", originalAPIURL)
-		viper.Set("worker_url", originalWorkerURL)
-		viper.Set("workspace", originalWorkspace)
-		viper.Set("output", originalOutput)
-	})
-	viper.Set("api_url", server.URL)
-	viper.Set("worker_url", server.URL)
-	viper.Set("workspace", "hr")
-	viper.Set("output", "json")
+	setResumeCLIConfig(t, server.URL, "hr")
+	setCLIOutput(t, "json")
 
 	outPath := filepath.Join(t.TempDir(), "backups", "resume-backup.json")
 	cmd := newResumeBackupCmd()
@@ -85,6 +71,71 @@ func TestResumeBackupCommandWritesBackupFile(t *testing.T) {
 	}
 	if !strings.Contains(output.String(), `"count": 1`) {
 		t.Fatalf("unexpected command output: %s", output.String())
+	}
+}
+
+func TestResumeDeployBackupWriteCreatesRunDirAndWorkspaceFile(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/resumes/backup" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("X-Workspace-Slug"); got != "dev" {
+			t.Fatalf("unexpected workspace header: %q", got)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"metadata": map[string]any{
+				"generatedBy": "trends-api backup",
+			},
+			"resumes": []map[string]any{
+				{"resumeId": "r1", "name": "Alice"},
+				{"resumeId": "r2", "name": "Bob"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+
+	baseDir := filepath.Join(t.TempDir(), "deploy")
+	cmd := newResumeDeployBackupWriteCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--base-dir", baseDir})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume deploy-backup write command failed: %v", err)
+	}
+
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		t.Fatalf("failed to read deploy backup base dir: %v", err)
+	}
+	if len(entries) != 1 || !entries[0].IsDir() || !strings.HasPrefix(entries[0].Name(), "deploy-") {
+		t.Fatalf("unexpected deploy backup entries: %+v", entries)
+	}
+
+	runDir := filepath.Join(baseDir, entries[0].Name())
+	backupPath := filepath.Join(runDir, "resumes-dev.json")
+	written, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("failed to read deploy backup file: %v", err)
+	}
+	if !strings.Contains(string(written), `"resumeId": "r1"`) {
+		t.Fatalf("unexpected deploy backup file contents: %s", string(written))
+	}
+
+	payload := decodeCommandJSON(t, output)
+	if payload["workspace"] != "dev" {
+		t.Fatalf("unexpected workspace in output: %+v", payload)
+	}
+	if payload["runDir"] != runDir {
+		t.Fatalf("unexpected runDir in output: %+v", payload)
+	}
+	if payload["file"] != backupPath {
+		t.Fatalf("unexpected file path in output: %+v", payload)
 	}
 }
 
@@ -139,20 +190,8 @@ func TestResumeRestoreCommandReplaceModeCallsResetThenImport(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalAPIURL := viper.GetString("api_url")
-	originalWorkerURL := viper.GetString("worker_url")
-	originalWorkspace := viper.GetString("workspace")
-	originalOutput := viper.GetString("output")
-	t.Cleanup(func() {
-		viper.Set("api_url", originalAPIURL)
-		viper.Set("worker_url", originalWorkerURL)
-		viper.Set("workspace", originalWorkspace)
-		viper.Set("output", originalOutput)
-	})
-	viper.Set("api_url", server.URL)
-	viper.Set("worker_url", server.URL)
-	viper.Set("workspace", "dev")
-	viper.Set("output", "json")
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
 
 	cmd := newResumeRestoreCmd()
 	var output bytes.Buffer
@@ -173,6 +212,101 @@ func TestResumeRestoreCommandReplaceModeCallsResetThenImport(t *testing.T) {
 	}
 	if !strings.Contains(output.String(), `"mode": "replace"`) {
 		t.Fatalf("unexpected command output: %s", output.String())
+	}
+}
+
+func TestResumeDeployBackupRestoreUsesLatestRunDir(t *testing.T) {
+	baseDir := filepath.Join(t.TempDir(), "deploy")
+	olderDir := filepath.Join(baseDir, "deploy-20260101T000000Z-100")
+	latestDir := filepath.Join(baseDir, "deploy-20260102T000000Z-200")
+	for _, dir := range []string{olderDir, latestDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("failed to create deploy backup dir %s: %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(latestDir, "resumes-dev.json"), []byte(`{
+  "metadata": {
+    "generatedBy": "trends-api backup"
+  },
+  "resumes": [
+    {
+      "resumeId": "r-latest",
+      "name": "Latest"
+    }
+  ]
+}`), 0o644); err != nil {
+		t.Fatalf("failed to write latest deploy backup file: %v", err)
+	}
+
+	var callOrder []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callOrder = append(callOrder, r.URL.Path)
+
+		switch r.URL.Path {
+		case "/api/resumes/reset":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"count":   4,
+				"partial": false,
+				"deleted": map[string]int{"resumes": 4},
+			})
+		case "/api/resumes/import":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("failed to decode import payload: %v", err)
+			}
+			resumes, ok := payload["resumes"].([]any)
+			if !ok || len(resumes) != 1 {
+				t.Fatalf("unexpected import payload: %+v", payload)
+			}
+			resume, ok := resumes[0].(map[string]any)
+			if !ok || resume["resumeId"] != "r-latest" {
+				t.Fatalf("unexpected imported resume payload: %+v", payload)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success":   true,
+				"submitted": 1,
+				"inserted":  1,
+				"updated":   0,
+				"unchanged": 0,
+				"deduped":   0,
+			})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+
+	cmd := newResumeDeployBackupRestoreCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{
+		"--base-dir", baseDir,
+		"--mode", "replace",
+		"--yes",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume deploy-backup restore command failed: %v", err)
+	}
+
+	if len(callOrder) != 2 || callOrder[0] != "/api/resumes/reset" || callOrder[1] != "/api/resumes/import" {
+		t.Fatalf("unexpected call order: %+v", callOrder)
+	}
+
+	payload := decodeCommandJSON(t, output)
+	if payload["runDir"] != latestDir {
+		t.Fatalf("unexpected runDir in output: %+v", payload)
+	}
+	if payload["file"] != filepath.Join(latestDir, "resumes-dev.json") {
+		t.Fatalf("unexpected file path in output: %+v", payload)
+	}
+	if payload["mode"] != "replace" {
+		t.Fatalf("unexpected mode in output: %+v", payload)
 	}
 }
 
@@ -198,20 +332,8 @@ func TestResumeRestoreCommandRequiresYesForReplace(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalAPIURL := viper.GetString("api_url")
-	originalWorkerURL := viper.GetString("worker_url")
-	originalWorkspace := viper.GetString("workspace")
-	originalOutput := viper.GetString("output")
-	t.Cleanup(func() {
-		viper.Set("api_url", originalAPIURL)
-		viper.Set("worker_url", originalWorkerURL)
-		viper.Set("workspace", originalWorkspace)
-		viper.Set("output", originalOutput)
-	})
-	viper.Set("api_url", server.URL)
-	viper.Set("worker_url", server.URL)
-	viper.Set("workspace", "dev")
-	viper.Set("output", "json")
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
 
 	cmd := newResumeRestoreCmd()
 	var output bytes.Buffer

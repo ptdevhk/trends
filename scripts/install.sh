@@ -15,6 +15,7 @@ ENV_FILE="${ENV_FILE-.env.production}"
 DEPLOY_BACKUP_DIR="${DEPLOY_BACKUP_DIR:-/var/backups/trends/deploy}"
 KEEP_DEPLOY_BACKUPS="${KEEP_DEPLOY_BACKUPS:-10}"
 DEPLOY_BACKUP_INCLUDE_FILE_STORAGE="${DEPLOY_BACKUP_INCLUDE_FILE_STORAGE:-}"
+DEPLOY_BACKUP_RESUME_WORKSPACE="${DEPLOY_BACKUP_RESUME_WORKSPACE:-dev}"
 
 SERVICES=(
     "trends-api.service"
@@ -57,6 +58,8 @@ WORKSPACE_DIRTY=0
 DEPLOY_BACKUP_RUN_DIR=""
 DEPLOY_BACKUP_METADATA_PATH=""
 DEPLOY_BACKUP_CONVEX_PATH=""
+DEPLOY_BACKUP_RESUME_PATH=""
+DEPLOY_BACKUP_RESUME_EXISTS="false"
 DEPLOY_BACKUP_CONFIG_ENV_PATH=""
 DEPLOY_BACKUP_INSTALL_ENV_PATH=""
 DEPLOY_BACKUP_CONVEX_ENV_PATH=""
@@ -1359,6 +1362,8 @@ prepare_deploy_backup_dir() {
 
     DEPLOY_BACKUP_METADATA_PATH="$DEPLOY_BACKUP_RUN_DIR/metadata.txt"
     DEPLOY_BACKUP_CONVEX_PATH="$DEPLOY_BACKUP_RUN_DIR/convex.zip"
+    DEPLOY_BACKUP_RESUME_PATH="$DEPLOY_BACKUP_RUN_DIR/resumes-${DEPLOY_BACKUP_RESUME_WORKSPACE}.json"
+    DEPLOY_BACKUP_RESUME_EXISTS="false"
     DEPLOY_BACKUP_CONFIG_ENV_PATH="$DEPLOY_BACKUP_RUN_DIR/config.env"
     DEPLOY_BACKUP_INSTALL_ENV_PATH="$DEPLOY_BACKUP_RUN_DIR/install.env"
     DEPLOY_BACKUP_CONVEX_ENV_PATH="$DEPLOY_BACKUP_RUN_DIR/convex.env.local"
@@ -1377,6 +1382,9 @@ deployed_sha=${UPGRADE_DEPLOYED_SHA:-}
 target_branch=${UPGRADE_TARGET_BRANCH:-}
 target_sha=${UPGRADE_TARGET_SHA:-}
 created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+resume_backup_workspace=${DEPLOY_BACKUP_RESUME_WORKSPACE:-}
+resume_backup_path=${DEPLOY_BACKUP_RESUME_PATH:-}
+resume_backup_exists=${DEPLOY_BACKUP_RESUME_EXISTS:-false}
 EOF
 }
 
@@ -1384,6 +1392,7 @@ create_deploy_backup() {
     local convex_dir="$INSTALL_DIR/packages/convex"
     local convex_env_file="$convex_dir/.env.local"
     local export_command=""
+    local resume_backup_command=""
 
     if [[ ! -d "$convex_dir" ]]; then
         log_warn "Skipping Convex backup: $convex_dir not found."
@@ -1391,7 +1400,6 @@ create_deploy_backup() {
     fi
 
     prepare_deploy_backup_dir
-    write_deploy_backup_metadata
     copy_file_if_exists "$CONFIG_DIR/env" "$DEPLOY_BACKUP_CONFIG_ENV_PATH"
     copy_file_if_exists "$INSTALL_DIR/.env.production" "$DEPLOY_BACKUP_INSTALL_ENV_PATH"
     copy_file_if_exists "$convex_env_file" "$DEPLOY_BACKUP_CONVEX_ENV_PATH"
@@ -1418,6 +1426,17 @@ create_deploy_backup() {
 
     log_info "Exporting Convex backup to $DEPLOY_BACKUP_CONVEX_PATH..."
     run_as_service_user "$export_command"
+
+    resume_backup_command="set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$INSTALL_DIR' && API_URL=\"http://127.0.0.1:\${PORT:-3000}\" WORKSPACE='$DEPLOY_BACKUP_RESUME_WORKSPACE' OUT='$DEPLOY_BACKUP_RESUME_PATH' npx tsx 'scripts/resume/backup-resumes.ts'"
+    log_info "Exporting resume backup to $DEPLOY_BACKUP_RESUME_PATH (workspace: $DEPLOY_BACKUP_RESUME_WORKSPACE)..."
+    if run_as_service_user "$resume_backup_command"; then
+        DEPLOY_BACKUP_RESUME_EXISTS="true"
+    else
+        log_warn "Resume backup export failed; continuing with Convex snapshot only."
+        rm -f "$DEPLOY_BACKUP_RESUME_PATH"
+    fi
+
+    write_deploy_backup_metadata
 }
 
 restore_deploy_files_from_backup() {
@@ -1906,6 +1925,8 @@ print_usage() {
     echo "  KEEP_DEPLOY_BACKUPS    Number of deploy backups to retain after successful upgrades (default: 10)"
     echo "  DEPLOY_BACKUP_INCLUDE_FILE_STORAGE"
     echo "                         Include Convex file storage in the pre-deploy backup when truthy"
+    echo "  DEPLOY_BACKUP_RESUME_WORKSPACE"
+    echo "                         Workspace slug for best-effort resumes-<workspace>.json export (default: dev)"
     echo "  CONVEX_MIRROR_MODE     Convex prefetch source order: off|fallback|mirror-first"
     echo "                         Default is fallback, or off when CI=true/1"
     echo "  CONVEX_MIRROR_BASES    Convex prefetch mirror base URLs (comma-separated)"

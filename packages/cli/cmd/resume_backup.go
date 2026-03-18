@@ -14,10 +14,42 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const defaultResumeDeployBackupDir = "/var/backups/trends/deploy"
+
 type resumeBackupEnvelope struct {
 	Metadata json.RawMessage   `json:"metadata"`
 	Resumes  []json.RawMessage `json:"resumes"`
 	Data     []json.RawMessage `json:"data"`
+}
+
+type resumeBackupResult struct {
+	FilePath string
+	Count    int
+	Bytes    int
+}
+
+type resumeRestoreResult struct {
+	FilePath     string
+	Mode         string
+	Reset        bool
+	ResetCount   int
+	ResetPartial bool
+	Submitted    int
+	Inserted     int
+	Updated      int
+	Unchanged    int
+	Deduped      int
+}
+
+type resumeSummaryOutput struct {
+	Summary map[string]any
+	Headers []string
+	Rows    [][]string
+}
+
+type resumeOutputExtras struct {
+	Workspace string
+	RunDir    string
 }
 
 func isJSONObject(raw json.RawMessage) bool {
@@ -27,6 +59,207 @@ func isJSONObject(raw json.RawMessage) bool {
 
 	var value map[string]any
 	return json.Unmarshal(raw, &value) == nil
+}
+
+func unmarshalResumeBackupEnvelope(payload []byte) (resumeBackupEnvelope, error) {
+	var envelope resumeBackupEnvelope
+	if err := json.Unmarshal(payload, &envelope); err != nil {
+		return resumeBackupEnvelope{}, err
+	}
+	return envelope, nil
+}
+
+func resumeBackupCount(envelope resumeBackupEnvelope) int {
+	if len(envelope.Resumes) > 0 {
+		return len(envelope.Resumes)
+	}
+	return len(envelope.Data)
+}
+
+func normalizeResumeBackupOutputPath(outPath string, disposition string) string {
+	resolvedPath := strings.TrimSpace(outPath)
+	if resolvedPath != "" {
+		return resolvedPath
+	}
+
+	resolvedPath = extractFilename(disposition)
+	if resolvedPath != "" {
+		return resolvedPath
+	}
+
+	return fmt.Sprintf("resume-backup-%s.json", time.Now().Format("20060102-150405"))
+}
+
+func readResumeBackupFile(filePath string) ([]byte, resumeBackupEnvelope, error) {
+	payload, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, resumeBackupEnvelope{}, fmt.Errorf("read backup file: %w", err)
+	}
+
+	envelope, err := unmarshalResumeBackupEnvelope(payload)
+	if err != nil {
+		return nil, resumeBackupEnvelope{}, fmt.Errorf("invalid backup file: %w", err)
+	}
+	if !isJSONObject(envelope.Metadata) {
+		return nil, resumeBackupEnvelope{}, fmt.Errorf("invalid backup file: missing metadata")
+	}
+	if resumeBackupCount(envelope) == 0 {
+		return nil, resumeBackupEnvelope{}, fmt.Errorf("invalid backup file: missing resumes or data array")
+	}
+
+	return payload, envelope, nil
+}
+
+func normalizeResumeRestoreMode(mode string) (string, error) {
+	normalizedMode := strings.ToLower(strings.TrimSpace(mode))
+	if normalizedMode == "" {
+		normalizedMode = "upsert"
+	}
+	if normalizedMode != "upsert" && normalizedMode != "replace" {
+		return "", fmt.Errorf("invalid mode %q (expected upsert|replace)", mode)
+	}
+	return normalizedMode, nil
+}
+
+func backupResumesToFile(ctx context.Context, apiClient *client.Client, request client.ResumeBackupRequest, outPath string) (*resumeBackupResult, error) {
+	payload, disposition, err := apiClient.BackupResumes(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	envelope, err := unmarshalResumeBackupEnvelope(payload)
+	if err != nil {
+		return nil, fmt.Errorf("decode backup payload: %w", err)
+	}
+	if !isJSONObject(envelope.Metadata) {
+		return nil, fmt.Errorf("backup payload is missing metadata")
+	}
+
+	resolvedPath := normalizeResumeBackupOutputPath(outPath, disposition)
+	if err := writeJSONFile(resolvedPath, payload); err != nil {
+		return nil, err
+	}
+
+	return &resumeBackupResult{
+		FilePath: resolvedPath,
+		Count:    resumeBackupCount(envelope),
+		Bytes:    len(payload),
+	}, nil
+}
+
+func appendResumeOutputExtras(summary map[string]any, headers []string, row []string, extras resumeOutputExtras) ([]string, []string) {
+	if extras.Workspace != "" {
+		summary["workspace"] = extras.Workspace
+		headers = append(headers, "workspace")
+		row = append(row, extras.Workspace)
+	}
+	if extras.RunDir != "" {
+		summary["runDir"] = extras.RunDir
+		headers = append(headers, "run_dir")
+		row = append(row, extras.RunDir)
+	}
+	return headers, row
+}
+
+func buildResumeBackupOutput(result *resumeBackupResult, extras resumeOutputExtras) resumeSummaryOutput {
+	summary := map[string]any{
+		"count": result.Count,
+		"file":  result.FilePath,
+		"bytes": result.Bytes,
+	}
+	headers := make([]string, 0, 5)
+	row := make([]string, 0, 5)
+	headers, row = appendResumeOutputExtras(summary, headers, row, extras)
+	headers = append(headers, "file", "count", "bytes")
+	row = append(row, result.FilePath, fmt.Sprintf("%d", result.Count), fmt.Sprintf("%d", result.Bytes))
+
+	return resumeSummaryOutput{
+		Summary: summary,
+		Headers: headers,
+		Rows:    [][]string{row},
+	}
+}
+
+func buildResumeRestoreOutput(result *resumeRestoreResult, extras resumeOutputExtras) resumeSummaryOutput {
+	summary := map[string]any{
+		"mode":         result.Mode,
+		"file":         result.FilePath,
+		"reset":        result.Reset,
+		"resetCount":   result.ResetCount,
+		"resetPartial": result.ResetPartial,
+		"submitted":    result.Submitted,
+		"inserted":     result.Inserted,
+		"updated":      result.Updated,
+		"unchanged":    result.Unchanged,
+		"deduped":      result.Deduped,
+	}
+	headers := make([]string, 0, 12)
+	row := make([]string, 0, 12)
+	headers, row = appendResumeOutputExtras(summary, headers, row, extras)
+	headers = append(headers, "mode", "file", "reset", "reset_count", "reset_partial", "submitted", "inserted", "updated", "unchanged", "deduped")
+	row = append(
+		row,
+		result.Mode,
+		result.FilePath,
+		fmt.Sprintf("%t", result.Reset),
+		fmt.Sprintf("%d", result.ResetCount),
+		fmt.Sprintf("%t", result.ResetPartial),
+		fmt.Sprintf("%d", result.Submitted),
+		fmt.Sprintf("%d", result.Inserted),
+		fmt.Sprintf("%d", result.Updated),
+		fmt.Sprintf("%d", result.Unchanged),
+		fmt.Sprintf("%d", result.Deduped),
+	)
+
+	return resumeSummaryOutput{
+		Summary: summary,
+		Headers: headers,
+		Rows:    [][]string{row},
+	}
+}
+
+func restoreResumeBackupFile(ctx context.Context, apiClient *client.Client, filePath string, mode string, yes bool) (*resumeRestoreResult, error) {
+	payload, _, err := readResumeBackupFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	normalizedMode, err := normalizeResumeRestoreMode(mode)
+	if err != nil {
+		return nil, err
+	}
+	if normalizedMode == "replace" && !yes {
+		return nil, fmt.Errorf("restore mode replace requires --yes")
+	}
+
+	resetCount := 0
+	resetPartial := false
+	if normalizedMode == "replace" {
+		resetResponse, err := apiClient.ResetResumes(ctx)
+		if err != nil {
+			return nil, err
+		}
+		resetCount = resetResponse.Count
+		resetPartial = resetResponse.Partial
+	}
+
+	response, err := apiClient.ImportResumeBackup(ctx, json.RawMessage(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	return &resumeRestoreResult{
+		FilePath:     filePath,
+		Mode:         normalizedMode,
+		Reset:        normalizedMode == "replace",
+		ResetCount:   resetCount,
+		ResetPartial: resetPartial,
+		Submitted:    response.Submitted,
+		Inserted:     response.Inserted,
+		Updated:      response.Updated,
+		Unchanged:    response.Unchanged,
+		Deduped:      response.Deduped,
+	}, nil
 }
 
 func newResumeBackupCmd() *cobra.Command {
@@ -49,48 +282,13 @@ func newResumeBackupCmd() *cobra.Command {
 				request.Limit = limit
 			}
 
-			payload, disposition, err := newAPIClient().BackupResumes(context.Background(), request)
+			result, err := backupResumesToFile(context.Background(), newAPIClient(), request, outPath)
 			if err != nil {
 				return err
 			}
 
-			var envelope resumeBackupEnvelope
-			if err := json.Unmarshal(payload, &envelope); err != nil {
-				return fmt.Errorf("decode backup payload: %w", err)
-			}
-			if !isJSONObject(envelope.Metadata) {
-				return fmt.Errorf("backup payload is missing metadata")
-			}
-
-			resolvedPath := strings.TrimSpace(outPath)
-			if resolvedPath == "" {
-				resolvedPath = extractFilename(disposition)
-			}
-			if resolvedPath == "" {
-				resolvedPath = fmt.Sprintf("resume-backup-%s.json", time.Now().Format("20060102-150405"))
-			}
-
-			if err := writeJSONFile(resolvedPath, payload); err != nil {
-				return err
-			}
-
-			total := len(envelope.Resumes)
-			if total == 0 {
-				total = len(envelope.Data)
-			}
-
-			summary := map[string]any{
-				"count": total,
-				"file":  resolvedPath,
-				"bytes": len(payload),
-			}
-			headers := []string{"count", "file", "bytes"}
-			rows := [][]string{{
-				fmt.Sprintf("%d", total),
-				resolvedPath,
-				fmt.Sprintf("%d", len(payload)),
-			}}
-			return writeOutput(cmd, headers, rows, summary)
+			output := buildResumeBackupOutput(result, resumeOutputExtras{})
+			return writeOutput(cmd, output.Headers, output.Rows, output.Summary)
 		},
 	}
 
@@ -118,75 +316,13 @@ func newResumeRestoreCmd() *cobra.Command {
 				return fmt.Errorf("backup file path is required")
 			}
 
-			payload, err := os.ReadFile(filePath)
-			if err != nil {
-				return fmt.Errorf("read backup file: %w", err)
-			}
-
-			var envelope resumeBackupEnvelope
-			if err := json.Unmarshal(payload, &envelope); err != nil {
-				return fmt.Errorf("invalid backup file: %w", err)
-			}
-			if !isJSONObject(envelope.Metadata) {
-				return fmt.Errorf("invalid backup file: missing metadata")
-			}
-			if len(envelope.Resumes) == 0 && len(envelope.Data) == 0 {
-				return fmt.Errorf("invalid backup file: missing resumes or data array")
-			}
-
-			normalizedMode := strings.ToLower(strings.TrimSpace(mode))
-			if normalizedMode == "" {
-				normalizedMode = "upsert"
-			}
-			if normalizedMode != "upsert" && normalizedMode != "replace" {
-				return fmt.Errorf("invalid mode %q (expected upsert|replace)", mode)
-			}
-			if normalizedMode == "replace" && !yes {
-				return fmt.Errorf("restore mode replace requires --yes")
-			}
-
-			resetCount := 0
-			resetPartial := false
-			if normalizedMode == "replace" {
-				resetResponse, err := newAPIClient().ResetResumes(context.Background())
-				if err != nil {
-					return err
-				}
-				resetCount = resetResponse.Count
-				resetPartial = resetResponse.Partial
-			}
-
-			response, err := newAPIClient().ImportResumeBackup(context.Background(), json.RawMessage(payload))
+			result, err := restoreResumeBackupFile(context.Background(), newAPIClient(), filePath, mode, yes)
 			if err != nil {
 				return err
 			}
 
-			summary := map[string]any{
-				"mode":         normalizedMode,
-				"file":         filePath,
-				"reset":        normalizedMode == "replace",
-				"resetCount":   resetCount,
-				"resetPartial": resetPartial,
-				"submitted":    response.Submitted,
-				"inserted":     response.Inserted,
-				"updated":      response.Updated,
-				"unchanged":    response.Unchanged,
-				"deduped":      response.Deduped,
-			}
-			headers := []string{"mode", "file", "reset", "reset_count", "reset_partial", "submitted", "inserted", "updated", "unchanged", "deduped"}
-			rows := [][]string{{
-				normalizedMode,
-				filePath,
-				fmt.Sprintf("%t", normalizedMode == "replace"),
-				fmt.Sprintf("%d", resetCount),
-				fmt.Sprintf("%t", resetPartial),
-				fmt.Sprintf("%d", response.Submitted),
-				fmt.Sprintf("%d", response.Inserted),
-				fmt.Sprintf("%d", response.Updated),
-				fmt.Sprintf("%d", response.Unchanged),
-				fmt.Sprintf("%d", response.Deduped),
-			}}
-			return writeOutput(cmd, headers, rows, summary)
+			output := buildResumeRestoreOutput(result, resumeOutputExtras{})
+			return writeOutput(cmd, output.Headers, output.Rows, output.Summary)
 		},
 	}
 
@@ -194,6 +330,178 @@ func newResumeRestoreCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm destructive replace mode")
 
 	return cmd
+}
+
+func newResumeDeployBackupCmd() *cobra.Command {
+	deployBackupCmd := &cobra.Command{
+		Use:   "deploy-backup",
+		Short: "Read and write resume backups in the standard deploy backup layout",
+	}
+
+	deployBackupCmd.AddCommand(
+		newResumeDeployBackupWriteCmd(),
+		newResumeDeployBackupRestoreCmd(),
+	)
+
+	return deployBackupCmd
+}
+
+func newResumeDeployBackupWriteCmd() *cobra.Command {
+	var (
+		baseDir     string
+		limit       int
+		resumeIDs   []string
+		sourceHosts []string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "write [run-dir]",
+		Short: "Write a resume backup JSON file into a deploy backup run directory",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runDir, err := resolveOrCreateDeployBackupRunDir(baseDir, args)
+			if err != nil {
+				return err
+			}
+
+			request := client.ResumeBackupRequest{
+				ResumeIDs:   normalizeStringSlice(resumeIDs),
+				SourceHosts: normalizeStringSlice(sourceHosts),
+			}
+			if limit > 0 {
+				request.Limit = limit
+			}
+
+			filePath := deployResumeBackupFilePath(runDir, currentOptions().Workspace)
+			result, err := backupResumesToFile(context.Background(), newAPIClient(), request, filePath)
+			if err != nil {
+				return err
+			}
+
+			output := buildResumeBackupOutput(result, resumeOutputExtras{
+				Workspace: currentOptions().Workspace,
+				RunDir:    runDir,
+			})
+			return writeOutput(cmd, output.Headers, output.Rows, output.Summary)
+		},
+	}
+
+	cmd.Flags().StringVar(&baseDir, "base-dir", defaultResumeDeployBackupDir, "Base deploy backup directory")
+	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum resumes to include")
+	cmd.Flags().StringArrayVar(&resumeIDs, "resume-id", nil, "Resume identifier to include (repeatable)")
+	cmd.Flags().StringArrayVar(&sourceHosts, "source-host", nil, "Source host to include (repeatable)")
+
+	return cmd
+}
+
+func newResumeDeployBackupRestoreCmd() *cobra.Command {
+	var (
+		baseDir string
+		mode    string
+		yes     bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "restore [run-dir]",
+		Short: "Restore resume records from a deploy backup run directory",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runDir, err := resolveDeployBackupRunDir(baseDir, args)
+			if err != nil {
+				return err
+			}
+
+			filePath := deployResumeBackupFilePath(runDir, currentOptions().Workspace)
+			result, err := restoreResumeBackupFile(context.Background(), newAPIClient(), filePath, mode, yes)
+			if err != nil {
+				return err
+			}
+
+			output := buildResumeRestoreOutput(result, resumeOutputExtras{
+				Workspace: currentOptions().Workspace,
+				RunDir:    runDir,
+			})
+			return writeOutput(cmd, output.Headers, output.Rows, output.Summary)
+		},
+	}
+
+	cmd.Flags().StringVar(&baseDir, "base-dir", defaultResumeDeployBackupDir, "Base deploy backup directory")
+	cmd.Flags().StringVar(&mode, "mode", "upsert", "Restore mode: upsert|replace")
+	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm destructive replace mode")
+
+	return cmd
+}
+
+func resolveOrCreateDeployBackupRunDir(baseDir string, args []string) (string, error) {
+	if len(args) > 0 {
+		runDir := strings.TrimSpace(args[0])
+		if runDir == "" {
+			return "", fmt.Errorf("deploy backup run directory path is required")
+		}
+		if err := os.MkdirAll(runDir, 0o755); err != nil {
+			return "", fmt.Errorf("create deploy backup run directory: %w", err)
+		}
+		return runDir, nil
+	}
+
+	resolvedBaseDir := strings.TrimSpace(baseDir)
+	if resolvedBaseDir == "" {
+		resolvedBaseDir = defaultResumeDeployBackupDir
+	}
+	if err := os.MkdirAll(resolvedBaseDir, 0o755); err != nil {
+		return "", fmt.Errorf("create deploy backup base directory: %w", err)
+	}
+
+	runDir := filepath.Join(
+		resolvedBaseDir,
+		fmt.Sprintf("deploy-%s-%d", time.Now().UTC().Format("20060102T150405Z"), os.Getpid()),
+	)
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		return "", fmt.Errorf("create deploy backup run directory: %w", err)
+	}
+	return runDir, nil
+}
+
+func resolveDeployBackupRunDir(baseDir string, args []string) (string, error) {
+	if len(args) > 0 {
+		runDir := strings.TrimSpace(args[0])
+		if runDir == "" {
+			return "", fmt.Errorf("deploy backup run directory path is required")
+		}
+		return runDir, nil
+	}
+	return latestDeployBackupRunDir(baseDir)
+}
+
+func latestDeployBackupRunDir(baseDir string) (string, error) {
+	resolvedBaseDir := strings.TrimSpace(baseDir)
+	if resolvedBaseDir == "" {
+		resolvedBaseDir = defaultResumeDeployBackupDir
+	}
+
+	entries, err := os.ReadDir(resolvedBaseDir)
+	if err != nil {
+		return "", fmt.Errorf("read deploy backup base directory: %w", err)
+	}
+
+	latestName := ""
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "deploy-") {
+			continue
+		}
+		if latestName == "" || entry.Name() > latestName {
+			latestName = entry.Name()
+		}
+	}
+	if latestName == "" {
+		return "", fmt.Errorf("no deploy backup run directories found in %s", resolvedBaseDir)
+	}
+
+	return filepath.Join(resolvedBaseDir, latestName), nil
+}
+
+func deployResumeBackupFilePath(runDir string, workspace string) string {
+	return filepath.Join(runDir, fmt.Sprintf("resumes-%s.json", normalizeWorkspace(workspace)))
 }
 
 func normalizeStringSlice(values []string) []string {

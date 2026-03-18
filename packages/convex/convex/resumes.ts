@@ -7,6 +7,7 @@ import {
     formatLocationHierarchyLabel,
     normalizeResumeLocationHierarchy,
 } from "@trends/shared";
+import { deriveResumeIdentity } from "./lib/resume_identity";
 import { mergeSearchTextWithIngestData } from "./search_text";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -143,6 +144,26 @@ export type ResumeScanRow = {
     searchText: Doc<"resumes">["searchText"];
 };
 
+type ResumeBackupRow = {
+    _id: Doc<"resumes">["_id"];
+    externalId: string;
+    source: string;
+    tags: string[];
+    crawledAt: number;
+    content: Doc<"resumes">["content"];
+};
+
+type ResumeBackupFilterArgs = {
+    resumeIds?: string[];
+    sourceHosts?: string[];
+    limit?: number;
+};
+
+type ResumeBackupFilterSets = {
+    resumeIds?: Set<string>;
+    sourceHosts?: Set<string>;
+};
+
 const DEFAULT_RESUME_LIMIT = 50;
 export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 200;
 export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 400;
@@ -150,6 +171,8 @@ const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
 const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
 const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
 const MAX_RESUME_SCAN_BATCH_SIZE = 50;
+const DEFAULT_RESUME_BACKUP_PAGE_SIZE = 25;
+const MAX_RESUME_BACKUP_PAGE_SIZE = 25;
 
 function dedupeProvenance(items: SearchProvenance[]): SearchProvenance[] {
     const seen = new Set<string>();
@@ -243,6 +266,131 @@ export function resolveResumeScanBatchSize(requestedLimit: number | undefined): 
         ? Math.trunc(requestedLimit)
         : DEFAULT_RESUME_SCAN_BATCH_SIZE;
     return Math.min(Math.max(normalizedLimit, 1), MAX_RESUME_SCAN_BATCH_SIZE);
+}
+
+function resolveResumeBackupPageSize(requestedLimit: number | undefined): number {
+    const normalizedLimit = typeof requestedLimit === "number" && Number.isFinite(requestedLimit)
+        ? Math.trunc(requestedLimit)
+        : DEFAULT_RESUME_BACKUP_PAGE_SIZE;
+    return Math.min(Math.max(normalizedLimit, 1), MAX_RESUME_BACKUP_PAGE_SIZE);
+}
+
+function projectResumeBackupRow(resume: Doc<"resumes">): ResumeBackupRow {
+    return {
+        _id: resume._id,
+        externalId: resume.externalId,
+        source: resume.source,
+        tags: resume.tags,
+        crawledAt: resume.crawledAt,
+        content: resume.content,
+    };
+}
+
+function normalizeResumeBackupFilterValues(values: string[] | undefined): string[] | undefined {
+    if (!Array.isArray(values)) {
+        return undefined;
+    }
+
+    const normalized = Array.from(new Set(
+        values
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0)
+    ));
+
+    return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeResumeBackupSourceHosts(values: string[] | undefined): string[] | undefined {
+    const normalized = normalizeResumeBackupFilterValues(values);
+    return normalized?.map((value) => value.toLowerCase());
+}
+
+function compareResumeBackupRows(left: ResumeBackupRow, right: ResumeBackupRow): number {
+    const crawledDiff = right.crawledAt - left.crawledAt;
+    if (crawledDiff !== 0) {
+        return crawledDiff;
+    }
+
+    const externalDiff = left.externalId.localeCompare(right.externalId);
+    if (externalDiff !== 0) {
+        return externalDiff;
+    }
+
+    return String(left._id).localeCompare(String(right._id));
+}
+
+function createResumeBackupFilterSets(args: ResumeBackupFilterArgs): ResumeBackupFilterSets {
+    return {
+        resumeIds: args.resumeIds && args.resumeIds.length > 0 ? new Set(args.resumeIds) : undefined,
+        sourceHosts: args.sourceHosts && args.sourceHosts.length > 0 ? new Set(args.sourceHosts) : undefined,
+    };
+}
+
+function matchesResumeBackupSourceHosts(resume: Doc<"resumes">, sourceHosts: Set<string> | undefined): boolean {
+    if (!sourceHosts || sourceHosts.size === 0) {
+        return true;
+    }
+    return sourceHosts.has(resume.source.trim().toLowerCase());
+}
+
+function matchesResumeBackupResumeId(resume: Doc<"resumes">, resumeIds: Set<string> | undefined): boolean {
+    if (!resumeIds || resumeIds.size === 0) {
+        return true;
+    }
+
+    const identity = deriveResumeIdentity({
+        content: resume.content,
+        externalId: resume.externalId,
+        source: resume.source,
+    });
+    if (resumeIds.has(resume.externalId) || resumeIds.has(identity.rawValue) || resumeIds.has(identity.normalizedValue)) {
+        return true;
+    }
+
+    const content = isRecord(resume.content) ? resume.content : {};
+    const candidateValues = [
+        toOptionalStringValue(content.resumeId),
+        toOptionalStringValue(content.perUserId),
+        toOptionalStringValue(content.profileId),
+        toOptionalStringValue(content.externalId),
+    ].filter((value): value is string => Boolean(value));
+    return candidateValues.some((value) => resumeIds.has(value));
+}
+
+function applyResumeBackupFilters(resumes: Doc<"resumes">[], filterSets: ResumeBackupFilterSets): ResumeBackupRow[] {
+    const filtered: ResumeBackupRow[] = [];
+    for (const resume of resumes) {
+        if (!matchesResumeBackupSourceHosts(resume, filterSets.sourceHosts)) {
+            continue;
+        }
+        if (!matchesResumeBackupResumeId(resume, filterSets.resumeIds)) {
+            continue;
+        }
+        filtered.push(projectResumeBackupRow(resume));
+    }
+    return filtered;
+}
+
+function normalizeResumeBackupFetchLimit(limit: number | undefined, requestedResumeIds: string[] | undefined): number | undefined {
+    if (requestedResumeIds && requestedResumeIds.length > 0) {
+        return undefined;
+    }
+    return limit;
+}
+
+function normalizeResumeBackupRequestedLimit(limit: number | undefined): number | undefined {
+    if (typeof limit !== "number" || !Number.isFinite(limit)) {
+        return undefined;
+    }
+    return Math.max(1, Math.trunc(limit));
+}
+
+function normalizeResumeBackupArgs(args: ResumeBackupFilterArgs): ResumeBackupFilterArgs {
+    return {
+        resumeIds: normalizeResumeBackupFilterValues(args.resumeIds),
+        sourceHosts: normalizeResumeBackupSourceHosts(args.sourceHosts),
+        limit: normalizeResumeBackupRequestedLimit(args.limit),
+    };
 }
 
 function normalizeTagExpansionKeywordGroups(
@@ -414,29 +562,33 @@ export const list = query({
 });
 
 export const listForBackup = query({
-    args: {},
-    handler: async (ctx) => {
-        const docs = await ctx.db.query("resumes").collect();
-        return [...docs].sort((left, right) => {
-            const crawledDiff = right.crawledAt - left.crawledAt;
-            if (crawledDiff !== 0) {
-                return crawledDiff;
-            }
+    args: {
+        paginationOpts: paginationOptsValidator,
+        resumeIds: v.optional(v.array(v.string())),
+        sourceHosts: v.optional(v.array(v.string())),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const normalizedArgs = normalizeResumeBackupArgs(args);
+        const fetchLimit = normalizeResumeBackupFetchLimit(normalizedArgs.limit, normalizedArgs.resumeIds);
+        const filterSets = createResumeBackupFilterSets(normalizedArgs);
+        const pageSize = resolveResumeBackupPageSize(fetchLimit);
+        const page = await ctx.db
+            .query("resumes")
+            .withIndex("by_crawledAt")
+            .order("desc")
+            .paginate({
+                ...args.paginationOpts,
+                numItems: pageSize,
+            });
 
-            const externalDiff = left.externalId.localeCompare(right.externalId);
-            if (externalDiff !== 0) {
-                return externalDiff;
-            }
+        const filtered = applyResumeBackupFilters(page.page, filterSets).sort(compareResumeBackupRows);
 
-            return String(left._id).localeCompare(String(right._id));
-        }).map((doc) => ({
-            _id: doc._id,
-            externalId: doc.externalId,
-            source: doc.source,
-            tags: doc.tags,
-            crawledAt: doc.crawledAt,
-            content: doc.content,
-        }));
+        return {
+            page: filtered,
+            continueCursor: page.continueCursor,
+            isDone: page.isDone,
+        };
     },
 });
 

@@ -166,6 +166,7 @@ export default defineSchema({
         .index("by_externalId", ["externalId"])
         .index("by_identityKey", ["identityKey"])
         .index("by_hash", ["hash"])
+        .index("by_crawledAt", ["crawledAt"])
         .index("by_primaryRuleScore", ["primaryRuleScore"])
         .searchIndex("search_body", {
             searchField: "searchText",

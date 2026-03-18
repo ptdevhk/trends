@@ -28,6 +28,7 @@ func newResumeCmd() *cobra.Command {
 		newResumeMatchCmd(),
 		newResumeBackupCmd(),
 		newResumeRestoreCmd(),
+		newResumeDeployBackupCmd(),
 		newResumeExportCmd(),
 		newResumeDebugCmd(),
 	)

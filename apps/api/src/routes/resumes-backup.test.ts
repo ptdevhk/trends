@@ -71,53 +71,42 @@ describe("resume backup and reset routes", () => {
       calls.push(call);
 
       if (call.endpoint === "query" && call.pathName === "resumes:listForBackup") {
-        return convexSuccess([
-          {
-            _id: "resume-1",
-            externalId: "hr.job5156.com:resume:1001",
-            source: "hr.job5156.com",
-            tags: ["sales", "job5156"],
-            crawledAt: 200,
-            content: {
-              resumeId: "1001",
-              name: "Alice",
-              profileUrl: "https://hr.job5156.com/resume/view/1001",
-              activityStatus: "Active",
-              age: "30",
-              experience: "5 years",
-              education: "Bachelor",
-              location: "Dongguan",
-              jobIntention: "Sales",
-              expectedSalary: "10k-20k",
-              selfIntro: "Intro",
-              workHistory: [{ raw: "Test work history" }],
-              extractedAt: "2026-03-17T00:00:00.000Z",
-            },
+        expect(call.args).toEqual({
+          paginationOpts: {
+            cursor: null,
+            numItems: 50,
           },
-          {
-            _id: "resume-2",
-            externalId: "hk.employer.seek.com:profile:2002",
-            source: "hk.employer.seek.com",
-            tags: ["seek"],
-            crawledAt: 100,
-            content: {
-              profileId: "2002",
-              profileType: "seek",
-              name: "Bob",
-              profileUrl: "https://hk.employer.seek.com/candidates/2002",
-              activityStatus: "Active",
-              age: "31",
-              experience: "6 years",
-              education: "Bachelor",
-              location: "Kuala Lumpur",
-              jobIntention: "Sales Engineer",
-              expectedSalary: "8k-12k",
-              selfIntro: "Intro",
-              workHistory: [{ raw: "Test work history" }],
-              extractedAt: "2026-03-17T00:00:00.000Z",
+          resumeIds: ["1001"],
+          sourceHosts: ["hr.job5156.com"],
+        });
+        return convexSuccess({
+          page: [
+            {
+              _id: "resume-1",
+              externalId: "hr.job5156.com:resume:1001",
+              source: "hr.job5156.com",
+              tags: ["sales", "job5156"],
+              crawledAt: 200,
+              content: {
+                resumeId: "1001",
+                name: "Alice",
+                profileUrl: "https://hr.job5156.com/resume/view/1001",
+                activityStatus: "Active",
+                age: "30",
+                experience: "5 years",
+                education: "Bachelor",
+                location: "Dongguan",
+                jobIntention: "Sales",
+                expectedSalary: "10k-20k",
+                selfIntro: "Intro",
+                workHistory: [{ raw: "Test work history" }],
+                extractedAt: "2026-03-17T00:00:00.000Z",
+              },
             },
-          },
-        ]);
+          ],
+          continueCursor: "cursor:done",
+          isDone: true,
+        });
       }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -151,6 +140,110 @@ describe("resume backup and reset routes", () => {
     }));
     expect(calls).toHaveLength(1);
     expect(calls[0]?.pathName).toBe("resumes:listForBackup");
+  });
+
+  it("continues paginating resume backup pages until done", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.endpoint === "query" && call.pathName === "resumes:listForBackup") {
+        if (calls.length === 1) {
+          expect(call.args).toEqual({
+            paginationOpts: {
+              cursor: null,
+              numItems: 50,
+            },
+            limit: 2,
+          });
+          return convexSuccess({
+            page: [
+              {
+                _id: "resume-1",
+                externalId: "hr.job5156.com:resume:1001",
+                source: "hr.job5156.com",
+                tags: ["sales"],
+                crawledAt: 200,
+                content: {
+                  resumeId: "1001",
+                  name: "Alice",
+                  profileUrl: "https://hr.job5156.com/resume/view/1001",
+                  activityStatus: "Active",
+                  age: "30",
+                  experience: "5 years",
+                  education: "Bachelor",
+                  location: "Dongguan",
+                  jobIntention: "Sales",
+                  expectedSalary: "10k-20k",
+                  selfIntro: "Intro",
+                  workHistory: [{ raw: "Test work history" }],
+                  extractedAt: "2026-03-17T00:00:00.000Z",
+                },
+              },
+            ],
+            continueCursor: "cursor:page-2",
+            isDone: false,
+          });
+        }
+
+        expect(call.args).toEqual({
+          paginationOpts: {
+            cursor: "cursor:page-2",
+            numItems: 50,
+          },
+          limit: 2,
+        });
+        return convexSuccess({
+          page: [
+            {
+              _id: "resume-2",
+              externalId: "hk.employer.seek.com:profile:2002",
+              source: "hk.employer.seek.com",
+              tags: ["seek"],
+              crawledAt: 100,
+              content: {
+                profileId: "2002",
+                profileType: "seek",
+                name: "Bob",
+                profileUrl: "https://hk.employer.seek.com/candidates/2002",
+                activityStatus: "Active",
+                age: "31",
+                experience: "6 years",
+                education: "Bachelor",
+                location: "Kuala Lumpur",
+                jobIntention: "Sales Engineer",
+                expectedSalary: "8k-12k",
+                selfIntro: "Intro",
+                workHistory: [{ raw: "Test work history" }],
+                extractedAt: "2026-03-17T00:00:00.000Z",
+              },
+            },
+          ],
+          continueCursor: "cursor:done",
+          isDone: true,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/backup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify({ limit: 2 }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.metadata.totalResumes).toBe(2);
+    expect(payload.resumes.map((item: { name: string }) => item.name)).toEqual(["Alice", "Bob"]);
+    expect(calls).toHaveLength(2);
   });
 
   it("blocks resume backup for non-admin workspaces", async () => {

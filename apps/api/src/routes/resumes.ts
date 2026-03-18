@@ -488,6 +488,18 @@ function buildResumeBackupItem(params: {
   };
 }
 
+function normalizeResumeBackupFilterValues(values: string[] | undefined): string[] | undefined {
+  if (!values?.length) {
+    return undefined;
+  }
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function normalizeResumeBackupSourceHosts(values: string[] | undefined): string[] | undefined {
+  const normalized = normalizeResumeBackupFilterValues(values);
+  return normalized?.map((value) => value.toLowerCase());
+}
+
 function prepareResumeCandidate(params: {
   resume: ResumeItem;
   resumeId: string;
@@ -545,6 +557,21 @@ async function callConvexQuery(pathName: string, args: Record<string, unknown>):
   }
 
   return payload.value;
+}
+
+type ConvexPaginatedQueryPage = {
+  page: unknown[];
+  continueCursor: string;
+  isDone: boolean;
+};
+
+function isConvexPaginatedQueryPage(value: unknown): value is ConvexPaginatedQueryPage {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return Array.isArray(value.page)
+    && typeof value.continueCursor === "string"
+    && typeof value.isDone === "boolean";
 }
 
 async function callConvexMutation(pathName: string, args: Record<string, unknown>): Promise<unknown> {
@@ -2574,17 +2601,8 @@ app.openapi(backupResumesRoute, async (c) => {
 
   try {
     const request = c.req.valid("json");
-    const value = await callConvexQuery("resumes:listForBackup", {});
-    if (!Array.isArray(value)) {
-      throw new Error("Invalid resume backup response from Convex");
-    }
-
-    const requestedResumeIds = request.resumeIds?.length
-      ? new Set(request.resumeIds.map((resumeId) => resumeId.trim()).filter(Boolean))
-      : null;
-    const requestedSourceHosts = request.sourceHosts?.length
-      ? new Set(request.sourceHosts.map((sourceHost) => sourceHost.trim().toLowerCase()).filter(Boolean))
-      : null;
+    const requestedResumeIds = normalizeResumeBackupFilterValues(request.resumeIds);
+    const requestedSourceHosts = normalizeResumeBackupSourceHosts(request.sourceHosts);
 
     type BackupResumeEntry = {
       resumeId: string;
@@ -2594,38 +2612,67 @@ app.openapi(backupResumesRoute, async (c) => {
       payload: Record<string, unknown>;
     };
 
-    const entries = value.flatMap((item, index): BackupResumeEntry[] => {
-      if (!isRecord(item)) {
-        return [];
+    const entries: BackupResumeEntry[] = [];
+    const foundResumeIds = new Set<string>();
+    let cursor: string | null = null;
+    let isDone = false;
+
+    while (!isDone) {
+      const value = await callConvexQuery("resumes:listForBackup", {
+        paginationOpts: {
+          cursor,
+          numItems: 50,
+        },
+        resumeIds: requestedResumeIds,
+        sourceHosts: requestedSourceHosts,
+        limit: request.limit,
+      });
+      if (!isConvexPaginatedQueryPage(value)) {
+        throw new Error("Invalid resume backup response from Convex");
       }
 
-      const sourceHost = toStringValue(item.source).toLowerCase();
-      if (requestedSourceHosts && !requestedSourceHosts.has(sourceHost)) {
-        return [];
-      }
+      for (const item of value.page) {
+        if (!isRecord(item)) {
+          continue;
+        }
 
-      const content = isRecord(item.content) ? item.content : {};
-      const resume = toResumeItemFromRecord(content, sourceHost);
-      const resumeId = resolveResumeId(resume, index);
-      const tags = toStringArray(item.tags);
+        const sourceHost = toStringValue(item.source).toLowerCase();
+        const content = isRecord(item.content) ? item.content : {};
+        const resume = toResumeItemFromRecord(content, sourceHost);
+        const resumeId = resolveResumeId(resume, entries.length);
+        const tags = toStringArray(item.tags);
 
-      return [{
-        resumeId,
-        sourceHost,
-        tags,
-        crawledAt: typeof item.crawledAt === "number" && Number.isFinite(item.crawledAt) ? item.crawledAt : 0,
-        payload: buildResumeBackupItem({
-          record: item,
+        entries.push({
+          resumeId,
           sourceHost,
           tags,
-        }),
-      }];
-    });
+          crawledAt: typeof item.crawledAt === "number" && Number.isFinite(item.crawledAt) ? item.crawledAt : 0,
+          payload: buildResumeBackupItem({
+            record: item,
+            sourceHost,
+            tags,
+          }),
+        });
+        if (requestedResumeIds) {
+          foundResumeIds.add(resumeId);
+        }
+      }
+
+      const reachedRequestedLimit = typeof request.limit === "number"
+        && !requestedResumeIds
+        && entries.length >= request.limit;
+      const foundAllRequestedResumeIds = requestedResumeIds
+        ? requestedResumeIds.every((resumeId) => foundResumeIds.has(resumeId))
+        : false;
+
+      cursor = value.isDone ? null : value.continueCursor;
+      isDone = value.isDone || reachedRequestedLimit || foundAllRequestedResumeIds;
+    }
 
     let selectedEntries: BackupResumeEntry[];
     if (requestedResumeIds) {
       const byResumeId = new Map(entries.map((entry) => [entry.resumeId, entry]));
-      const missingResumeIds = Array.from(requestedResumeIds).filter((resumeId) => !byResumeId.has(resumeId));
+      const missingResumeIds = requestedResumeIds.filter((resumeId) => !byResumeId.has(resumeId));
       if (missingResumeIds.length > 0) {
         return c.json({
           success: false as const,
@@ -2633,7 +2680,7 @@ app.openapi(backupResumesRoute, async (c) => {
         }, 404);
       }
 
-      selectedEntries = Array.from(requestedResumeIds)
+      selectedEntries = requestedResumeIds
         .map((resumeId) => byResumeId.get(resumeId))
         .filter((entry): entry is BackupResumeEntry => Boolean(entry));
     } else {

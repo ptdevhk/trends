@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/ptdevhk/trends/packages/cli/internal/client"
-	"github.com/spf13/viper"
 )
 
 func TestResumeSearchCommandSupportsConvexSource(t *testing.T) {
@@ -35,20 +34,8 @@ func TestResumeSearchCommandSupportsConvexSource(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalAPIURL := viper.GetString("api_url")
-	originalWorkerURL := viper.GetString("worker_url")
-	originalWorkspace := viper.GetString("workspace")
-	originalOutput := viper.GetString("output")
-	t.Cleanup(func() {
-		viper.Set("api_url", originalAPIURL)
-		viper.Set("worker_url", originalWorkerURL)
-		viper.Set("workspace", originalWorkspace)
-		viper.Set("output", originalOutput)
-	})
-	viper.Set("api_url", server.URL)
-	viper.Set("worker_url", server.URL)
-	viper.Set("workspace", "hr")
-	viper.Set("output", "table")
+	setResumeCLIConfig(t, server.URL, "hr")
+	setCLIOutput(t, "table")
 
 	cmd := newResumeSearchCmd()
 	var output bytes.Buffer
@@ -92,20 +79,8 @@ func TestResumeMatchCommandWritesJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalAPIURL := viper.GetString("api_url")
-	originalWorkerURL := viper.GetString("worker_url")
-	originalWorkspace := viper.GetString("workspace")
-	originalOutput := viper.GetString("output")
-	t.Cleanup(func() {
-		viper.Set("api_url", originalAPIURL)
-		viper.Set("worker_url", originalWorkerURL)
-		viper.Set("workspace", originalWorkspace)
-		viper.Set("output", originalOutput)
-	})
-	viper.Set("api_url", server.URL)
-	viper.Set("worker_url", server.URL)
-	viper.Set("workspace", "dev")
-	viper.Set("output", "json")
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
 
 	cmd := newResumeMatchCmd()
 	var output bytes.Buffer

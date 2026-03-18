@@ -768,7 +768,7 @@ help:
 	@echo "Deployment:"
 	@echo "  install        Install as systemd services (requires sudo)"
 	@echo "  install-seed   Install as systemd services with seeded demo resumes (requires sudo)"
-	@echo "  deploy         Preflight workspace git, snapshot Convex, then skip, env-refresh, or full upgrade (requires sudo)"
+	@echo "  deploy         Preflight workspace git, snapshot Convex, and best-effort write resumes-<workspace>.json before skip/env-refresh/full upgrade (requires sudo)"
 	@echo "  deploy-check   Dry run deploy precheck with workspace git status but without rebuilding"
 	@echo "  deploy-seed    Force a full upgrade with seeded demo resumes (requires sudo)"
 	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
