@@ -239,11 +239,11 @@ type RankedLocationHierarchy = {
 };
 
 function hierarchySignature(value: LocationHierarchy): string {
-  return [value.country, value.province ?? "", value.city ?? ""].join("|");
+  return [value.country, value.province ?? "", value.city ?? "", value.district ?? ""].join("|");
 }
 
 function hierarchySpecificity(value: LocationHierarchy): number {
-  return [value.province, value.city].filter((part) => Boolean(part)).length;
+  return [value.province, value.city, value.district].filter((part) => Boolean(part)).length;
 }
 
 function areHierarchiesCompatible(left: LocationHierarchy, right: LocationHierarchy): boolean {
@@ -256,6 +256,10 @@ function areHierarchiesCompatible(left: LocationHierarchy, right: LocationHierar
   }
 
   if (left.city && right.city && left.city !== right.city) {
+    return false;
+  }
+
+  if (left.district && right.district && left.district !== right.district) {
     return false;
   }
 

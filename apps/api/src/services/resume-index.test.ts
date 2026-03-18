@@ -133,6 +133,7 @@ describe("ResumeIndexService", () => {
             country: "中国",
             province: "广东",
             city: "东莞",
+            district: "长安",
           },
           selfIntro: "",
           jobIntention: "",
@@ -151,6 +152,7 @@ describe("ResumeIndexService", () => {
       expect(entry?.searchText).toContain("中国");
       expect(entry?.searchText).toContain("广东");
       expect(entry?.searchText).toContain("东莞");
+      expect(entry?.searchText).toContain("长安");
     } finally {
       cleanupFixtureRoot(root);
     }

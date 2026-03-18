@@ -598,6 +598,7 @@ describe('useResumeListState role filter regression', () => {
           country: '中国',
           province: '广东',
           city: '东莞',
+          district: '长安',
         },
         roleSignals: [
           {
@@ -613,7 +614,7 @@ describe('useResumeListState role filter regression', () => {
       }),
     ]
     mockState.filters = {
-      locations: ['东莞'],
+      locations: ['长安'],
     }
 
     expect(getDisplayedResumeNames()).toEqual(['Hierarchy Location'])

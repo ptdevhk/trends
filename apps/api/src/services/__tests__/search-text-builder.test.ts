@@ -56,12 +56,13 @@ describe("buildSearchText", () => {
         country: "中国",
         province: "广东",
         city: "东莞",
+        district: "长安",
         matchedFrom: "location",
         confidence: "high",
       },
     });
 
-    expect(result).toBe("中国 广东 东莞");
+    expect(result).toBe("中国 广东 东莞 长安");
   });
 
   it("splits cjk and ascii boundaries for mixed-script search tokens", () => {

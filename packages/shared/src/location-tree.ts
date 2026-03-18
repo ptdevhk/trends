@@ -34,6 +34,7 @@ export type LocationHierarchy = {
   country: string;
   province?: string;
   city?: string;
+  district?: string;
   matchedFrom?: "location" | "profile" | "workHistory" | "jobIntention";
   confidence?: "high";
 };
@@ -64,8 +65,21 @@ const LOCATION_TREE: LocationSeed[] = [
         name: "广东",
         aliases: ["广东省"],
         children: [
-          { name: "广州", aliases: ["广州市"] },
-          { name: "深圳", aliases: ["深圳市"] },
+          {
+            name: "广州",
+            aliases: ["广州市"],
+            children: [
+              { name: "番禺", aliases: ["番禺区"] },
+              { name: "越秀", aliases: ["越秀区"] },
+            ],
+          },
+          {
+            name: "深圳",
+            aliases: ["深圳市"],
+            children: [
+              { name: "宝安", aliases: ["宝安区"] },
+            ],
+          },
           { name: "珠海", aliases: ["珠海市"] },
           { name: "汕头", aliases: ["汕头市"] },
           { name: "佛山", aliases: ["佛山市"] },
@@ -347,10 +361,18 @@ function buildLocationHierarchyFromNode(node: InternalLocationNode, matchedFrom?
     if (ancestor.level === "city") {
       hierarchy.city = ancestor.name;
     }
+    if (ancestor.level === "district") {
+      hierarchy.district = ancestor.name;
+    }
   }
 
   if (node.level === "province") {
     delete hierarchy.city;
+    delete hierarchy.district;
+  }
+
+  if (node.level === "city") {
+    delete hierarchy.district;
   }
 
   return hierarchy;
@@ -494,7 +516,7 @@ export function formatLocationHierarchyLabel(hierarchy: LocationHierarchy | null
     return "";
   }
 
-  const parts = [hierarchy.province, hierarchy.city].filter((value): value is string => Boolean(value));
+  const parts = [hierarchy.province, hierarchy.city, hierarchy.district].filter((value): value is string => Boolean(value));
   if (parts.length > 0) {
     return parts.join("");
   }
@@ -507,7 +529,7 @@ export function formatLocationHierarchySearchText(hierarchy: LocationHierarchy |
     return "";
   }
 
-  return [hierarchy.country, hierarchy.province, hierarchy.city]
+  return [hierarchy.country, hierarchy.province, hierarchy.city, hierarchy.district]
     .filter((value): value is string => Boolean(value))
     .join(" ");
 }
@@ -544,6 +566,7 @@ export function normalizeLocationHierarchy(value: unknown): LocationHierarchy | 
   const country = typeof record.country === "string" ? record.country.trim() : "";
   const province = typeof record.province === "string" ? record.province.trim() : "";
   const city = typeof record.city === "string" ? record.city.trim() : "";
+  const district = typeof record.district === "string" ? record.district.trim() : "";
   const matchedFrom = record.matchedFrom === "location"
     || record.matchedFrom === "profile"
     || record.matchedFrom === "workHistory"
@@ -552,7 +575,7 @@ export function normalizeLocationHierarchy(value: unknown): LocationHierarchy | 
     : undefined;
   const confidence = record.confidence === "high" ? "high" : undefined;
 
-  const resolved = resolveLocationHierarchy([country, province, city].filter(Boolean).join(""));
+  const resolved = resolveLocationHierarchy([country, province, city, district].filter(Boolean).join(""));
   if (resolved) {
     if (matchedFrom) {
       resolved.matchedFrom = matchedFrom;
@@ -570,6 +593,9 @@ export function normalizeLocationHierarchy(value: unknown): LocationHierarchy | 
     }
     if (city) {
       hierarchy.city = city;
+    }
+    if (district) {
+      hierarchy.district = district;
     }
     if (matchedFrom) {
       hierarchy.matchedFrom = matchedFrom;

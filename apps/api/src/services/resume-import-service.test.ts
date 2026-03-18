@@ -104,6 +104,7 @@ describe("resume-import-service", () => {
           country: "中国",
           province: "广东",
           city: "东莞",
+          district: "石碣",
           matchedFrom: "location",
           confidence: "high",
         },
