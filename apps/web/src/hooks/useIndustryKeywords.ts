@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { rawApiClient } from "@/lib/api-helpers";
 
+export type KeywordMarket = "CN" | "MY";
+export type ConfigSourceOrigin = "system" | "workspace";
+export type WorkflowSeedCollectionSourceType = "job5156" | "seek";
+
 export type KeywordCategory =
   | "machining"
   | "lathe"
@@ -17,6 +21,9 @@ export type IndustryKeyword = {
   keyword: string;
   english?: string;
   category: KeywordCategory;
+  markets?: KeywordMarket[];
+  visible?: boolean;
+  source?: ConfigSourceOrigin;
 };
 
 type IndustryKeywordsResponse = {
@@ -48,6 +55,9 @@ type CustomKeywordTag = {
   keyword: string;
   english?: string;
   category: string;
+  markets?: KeywordMarket[];
+  visible?: boolean;
+  source?: ConfigSourceOrigin;
 };
 
 type SystemLocationItem = {
@@ -56,12 +66,34 @@ type SystemLocationItem = {
   level: "province" | "city";
   parentKeyword?: string;
   visible: boolean;
+  markets?: KeywordMarket[];
+};
+
+type CustomKeywordWorkflowSeed = {
+  id: string;
+  label: string;
+  market: KeywordMarket;
+  location: string;
+  keywords: string[];
+  collectionSource: {
+    type: WorkflowSeedCollectionSourceType;
+    exactUrl?: string;
+  };
+  collectUrl?: string;
+  visible?: boolean;
+  source?: ConfigSourceOrigin;
 };
 
 type CustomKeywordsResponse = {
   success: boolean;
+  categories?: Array<{
+    id: string;
+    name: string;
+    icon?: string;
+  }>;
   tags?: CustomKeywordTag[];
   systemLocations?: SystemLocationItem[];
+  workflowSeeds?: CustomKeywordWorkflowSeed[];
 };
 
 function deduplicateKeywords(items: IndustryKeyword[]): IndustryKeyword[] {
@@ -144,6 +176,7 @@ export function useIndustryKeywords() {
   const [keywords, setKeywords] = useState<IndustryKeyword[]>([]);
   const [customKeywords, setCustomKeywords] = useState<IndustryKeyword[]>([]);
   const [systemLocationKeywords, setSystemLocationKeywords] = useState<IndustryKeyword[]>([]);
+  const [workflowSeeds, setWorkflowSeeds] = useState<CustomKeywordWorkflowSeed[]>([]);
   const [brandKeywords, setBrandKeywords] = useState<IndustryKeyword[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +196,7 @@ export function useIndustryKeywords() {
       setKeywords([]);
       setCustomKeywords([]);
       setSystemLocationKeywords([]);
+      setWorkflowSeeds([]);
       setBrandKeywords([]);
       setError("Failed to load industry keywords");
       setLoading(false);
@@ -176,6 +210,7 @@ export function useIndustryKeywords() {
       console.error("Failed to load custom keywords", customError);
       setCustomKeywords([]);
       setSystemLocationKeywords([]);
+      setWorkflowSeeds([]);
     } else {
       const mappedCustomKeywords: IndustryKeyword[] = [];
       if (Array.isArray(customData.tags)) {
@@ -187,10 +222,13 @@ export function useIndustryKeywords() {
             keyword,
             english: tag.english?.trim() || undefined,
             category: normalizeCategory(tag.category),
+            markets: tag.markets?.length ? tag.markets : undefined,
+            visible: tag.visible,
+            source: tag.source,
           });
         }
       }
-      setCustomKeywords(mappedCustomKeywords);
+      setCustomKeywords(mappedCustomKeywords.filter((item) => item.visible !== false));
 
       const mappedSystemLocationKeywords: IndustryKeyword[] = [];
       if (Array.isArray(customData.systemLocations)) {
@@ -201,10 +239,16 @@ export function useIndustryKeywords() {
             id: item.id,
             keyword,
             category: "location",
+            markets: item.markets?.length ? item.markets : undefined,
           });
         }
       }
       setSystemLocationKeywords(mappedSystemLocationKeywords);
+
+      const mappedWorkflowSeeds = Array.isArray(customData.workflowSeeds)
+        ? customData.workflowSeeds.filter((item) => item.visible !== false)
+        : [];
+      setWorkflowSeeds(mappedWorkflowSeeds);
     }
 
     const { data: brandData, error: brandError } = brandResponse;
@@ -275,6 +319,7 @@ export function useIndustryKeywords() {
     keywords: allKeywords,
     grouped,
     hotKeywords,
+    workflowSeeds,
     loading,
     error,
     refresh: fetchKeywords,

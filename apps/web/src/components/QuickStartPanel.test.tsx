@@ -102,6 +102,41 @@ describe('QuickStartPanel quick-filter display', () => {
     })
     postMock.mockResolvedValue({ data: { success: false } })
     getMock.mockImplementation(async (path: string) => {
+      if (path.includes('/api/config/custom-keywords')) {
+        return {
+          data: {
+            success: true,
+            tags: [],
+            categories: [],
+            systemLocations: [],
+            workflowSeeds: [
+              {
+                id: 'job5156-cn-cnc-sales',
+                label: 'China · Job5156 · CNC 销售',
+                market: 'CN',
+                location: '',
+                keywords: ['CNC', '销售'],
+                collectionSource: {
+                  type: 'job5156',
+                },
+                visible: true,
+              },
+              {
+                id: 'seek-my-sales-engineer',
+                label: 'Malaysia · SEEK · Sales Engineer / Sales Manager',
+                market: 'MY',
+                location: 'Kuala Lumpur MY',
+                keywords: ['Sales Engineer', 'Sales Manager'],
+                collectionSource: {
+                  type: 'seek',
+                },
+                visible: true,
+              },
+            ],
+          },
+        }
+      }
+
       if (path.includes('/api/job-descriptions/lathe-sales')) {
         return {
           data: {
@@ -201,6 +236,39 @@ describe('QuickStartPanel quick-filter display', () => {
     expect(
       onApplyQuickFilters.mock.calls.some(([value]) => value?.minRoleYears === 1)
     ).toBe(false)
+  })
+
+  it('applies workflow seeds from the config payload', async () => {
+    const user = userEvent.setup()
+    const onApplyConfig = vi.fn()
+
+    render(
+      <QuickStartPanel
+        defaultLocation="广东"
+        defaultKeywords={[]}
+        jobDescriptionId=""
+        onApplyConfig={onApplyConfig}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'China · Job5156 · CNC 销售' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'China · Job5156 · CNC 销售' }))
+
+    await waitFor(() => {
+      expect(
+        onApplyConfig.mock.calls.some(([payload]) =>
+          payload?.location === ''
+          && Array.isArray(payload?.keywords)
+          && payload.keywords.join(' ') === 'CNC 销售'
+          && payload.collectionSource?.type === 'job5156'
+          && typeof payload.collectUrl === 'string'
+          && payload.collectUrl.includes('hr.job5156.com/search')
+        )
+      ).toBe(true)
+    })
   })
 
   it('refreshes the matched profile card after saving edits from the fast editor', async () => {
@@ -436,7 +504,13 @@ describe('QuickStartPanel quick-filter display', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: 'SEEK · Sales Engineer / Sales Manager · Kuala Lumpur MY' }))
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Malaysia · SEEK · Sales Engineer / Sales Manager' })
+      ).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Malaysia · SEEK · Sales Engineer / Sales Manager' }))
 
     expect(screen.getByRole('textbox', { name: '位置' })).toHaveValue('Kuala Lumpur MY')
     expect(screen.getByDisplayValue('Sales Engineer Sales Manager')).toBeInTheDocument()
@@ -448,6 +522,7 @@ describe('QuickStartPanel quick-filter display', () => {
         jobDescriptionId: undefined,
         collectionSource: {
           type: 'seek',
+          exactUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=Sales+Engineer+Sales+Manager&location=Kuala+Lumpur+MY&tr_auto_sync=true',
         },
         collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=Sales+Engineer+Sales+Manager&location=Kuala+Lumpur+MY&tr_auto_sync=true',
       })

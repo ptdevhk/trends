@@ -13,17 +13,18 @@ import { Badge } from '@/components/ui/badge'
 import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import {
-  buildSeekCollectUrl,
+  buildCollectionLaunchUrl,
   getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
+  resolveCollectionSource,
   stripCollectionSourceExactUrl,
+  SEARCH_PROFILE_SOURCE_TYPES,
   type CollectionSource,
 } from '@/lib/search-profile-sources'
+import { parseCustomKeywordsPayload, type CustomKeywordWorkflowSeed, type KeywordMarket } from '@/pages/system-settings/lib'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 
 const AUTO_MATCH_MIN_CONFIDENCE = 0.3
-const MALAYSIA_SEEK_WORKFLOW_LOCATION = 'Kuala Lumpur MY'
-const MALAYSIA_SEEK_WORKFLOW_KEYWORDS = ['Sales Engineer', 'Sales Manager']
 
 type AutoMatchApiResponse = {
   success: boolean
@@ -57,14 +58,7 @@ type AutoMatchedProfile = {
   profile: SearchProfileDetails
 }
 
-type QuickStartWorkflow = {
-  id: string
-  label: string
-  location: string
-  keywords: string[]
-  collectionSource?: CollectionSource
-  collectUrl?: string
-}
+type QuickStartWorkflow = CustomKeywordWorkflowSeed
 
 interface QuickStartPanelProps {
   onApplyConfig?: (
@@ -235,22 +229,6 @@ function parseLocationParts(value: string): string[] {
   return parts
 }
 
-const QUICK_START_WORKFLOWS: QuickStartWorkflow[] = [
-  {
-    id: 'seek-malaysia-sales',
-    label: 'SEEK · Sales Engineer / Sales Manager · Kuala Lumpur MY',
-    location: MALAYSIA_SEEK_WORKFLOW_LOCATION,
-    keywords: MALAYSIA_SEEK_WORKFLOW_KEYWORDS,
-    collectionSource: {
-      type: 'seek',
-    },
-    collectUrl: buildSeekCollectUrl({
-      location: MALAYSIA_SEEK_WORKFLOW_LOCATION,
-      keywords: MALAYSIA_SEEK_WORKFLOW_KEYWORDS,
-    }) ?? undefined,
-  },
-]
-
 function normalizeProfileKeywords(profile: SearchProfileDetails): string[] {
   return profile.keywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0)
 }
@@ -329,6 +307,7 @@ export function QuickStartPanel({
   const [matching, setMatching] = useState(false)
   const [showJdEditor, setShowJdEditor] = useState(false)
   const [showProfileEditor, setShowProfileEditor] = useState(false)
+  const [workflowSeeds, setWorkflowSeeds] = useState<QuickStartWorkflow[]>([])
   const lastJobDescriptionIdRef = useRef(jobDescriptionId.trim())
 
   const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
@@ -487,13 +466,53 @@ export function QuickStartPanel({
     }
   }, [jobDescriptionId, convexJobDescriptions, selectedConvexJobDescription, selectedConvexJobDescriptionDetail])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const loadWorkflowSeeds = async () => {
+      try {
+        const response = await rawApiClient.GET<Record<string, unknown>>('/api/config/custom-keywords')
+        if (cancelled || !response.data) {
+          return
+        }
+
+        const parsed = parseCustomKeywordsPayload(response.data)
+        if (!parsed) {
+          return
+        }
+
+        setWorkflowSeeds(parsed.workflowSeeds.filter((item) => item.visible !== false))
+      } catch (error) {
+        console.error('Failed to load workflow seeds', error)
+        if (!cancelled) {
+          setWorkflowSeeds([])
+        }
+      }
+    }
+
+    void loadWorkflowSeeds()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const normalizedKeywords = useMemo(
     () => selectedKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
     [selectedKeywords]
   )
+  const currentCollectionSource = useMemo<CollectionSource>(
+    () => resolveCollectionSource(collectionSource, collectUrl) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 },
+    [collectionSource, collectUrl]
+  )
+  const currentMarket: KeywordMarket = currentCollectionSource.type === SEARCH_PROFILE_SOURCE_TYPES.seek ? 'MY' : 'CN'
   const generatedCollectUrl = useMemo(
-    () => buildSeekCollectUrl({ location, keywords: normalizedKeywords }) ?? undefined,
-    [location, normalizedKeywords]
+    () => buildCollectionLaunchUrl({
+      source: currentCollectionSource,
+      location,
+      keywords: normalizedKeywords,
+    }) ?? undefined,
+    [currentCollectionSource, location, normalizedKeywords]
   )
   const matchedProfileCollectUrl = useMemo(
     () => getSearchProfileCollectUrl(autoMatchResult?.profile.sources),
@@ -578,13 +597,13 @@ export function QuickStartPanel({
         location,
         keywords: normalizedKeywords,
         jobDescriptionId: effectiveJobDescriptionId,
-        collectionSource,
+        collectionSource: currentCollectionSource,
         collectUrl,
       })
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [collectUrl, collectionSource, location, normalizedKeywords, jobDescriptionId, onApplyConfig])
+  }, [collectUrl, currentCollectionSource, location, normalizedKeywords, jobDescriptionId, onApplyConfig])
 
   useEffect(() => {
     if (!matchedProfileCollectUrl) {
@@ -683,11 +702,19 @@ export function QuickStartPanel({
   }, [onJobChange])
 
   const handleApplyWorkflow = useCallback((workflow: QuickStartWorkflow) => {
+    const nextCollectUrl = workflow.collectUrl
+      ?? buildCollectionLaunchUrl({
+        source: workflow.collectionSource,
+        location: workflow.location,
+        keywords: workflow.keywords,
+      })
+      ?? undefined
+
     setLocation(workflow.location)
     setSelectedKeywords(workflow.keywords)
     setCustomKeyword(workflow.keywords.join(' '))
     setCollectionSource(workflow.collectionSource)
-    setCollectUrl(workflow.collectUrl)
+    setCollectUrl(nextCollectUrl)
     onJobChange?.('')
   }, [onJobChange])
 
@@ -915,13 +942,14 @@ export function QuickStartPanel({
           onChange={handleKeywordsChange}
           activeLocations={parseLocationParts(location)}
           onLocationToggle={handleLocationToggle}
+          market={currentMarket}
         />
 
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted-foreground">
             {t('quickStart.workflows', 'Workflow')}:
           </span>
-          {QUICK_START_WORKFLOWS.map((workflow) => (
+          {workflowSeeds.map((workflow) => (
             <Button
               key={workflow.id}
               type="button"

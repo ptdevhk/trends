@@ -16,6 +16,10 @@ export type {
   ConfigSourceSummary,
 }
 
+export type KeywordMarket = 'CN' | 'MY'
+export type ConfigSourceOrigin = 'system' | 'workspace'
+export type WorkflowSeedCollectionSourceType = 'job5156' | 'seek'
+
 export interface AIStatus {
   enabled: boolean
   model: string
@@ -66,6 +70,9 @@ export interface CustomKeywordTag {
   keyword: string
   english?: string
   category: string
+  markets?: KeywordMarket[]
+  visible?: boolean
+  source?: ConfigSourceOrigin
 }
 
 export interface CustomKeywordCategory {
@@ -80,6 +87,22 @@ export interface SystemLocationItem {
   level: 'province' | 'city'
   parentKeyword?: string
   visible: boolean
+  markets?: KeywordMarket[]
+}
+
+export interface CustomKeywordWorkflowSeed {
+  id: string
+  label: string
+  market: KeywordMarket
+  location: string
+  keywords: string[]
+  collectionSource: {
+    type: WorkflowSeedCollectionSourceType
+    exactUrl?: string
+  }
+  collectUrl?: string
+  visible?: boolean
+  source?: ConfigSourceOrigin
 }
 
 export interface CustomKeywordFormState {
@@ -87,6 +110,19 @@ export interface CustomKeywordFormState {
   keyword: string
   english: string
   category: string
+  markets: KeywordMarket[]
+  visible: boolean
+}
+
+export interface WorkflowSeedFormState {
+  id: string
+  label: string
+  market: KeywordMarket
+  location: string
+  keywords: string
+  collectionSourceType: WorkflowSeedCollectionSourceType
+  collectUrl: string
+  visible: boolean
 }
 
 export interface BrandKeywordItem {
@@ -367,11 +403,20 @@ function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
     return null
   }
 
+  const markets = Array.isArray(value.markets)
+    ? value.markets.filter((item): item is KeywordMarket => item === 'CN' || item === 'MY')
+    : undefined
+  const visible = typeof value.visible === 'boolean' ? value.visible : undefined
+  const source = value.source === 'system' || value.source === 'workspace' ? value.source : undefined
+
   return {
     id,
     keyword,
     english,
     category,
+    markets: markets && markets.length > 0 ? Array.from(new Set(markets)) : undefined,
+    visible,
+    source,
   }
 }
 
@@ -412,12 +457,72 @@ function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
     level,
     visible,
     parentKeyword: readString(value.parentKeyword) ?? undefined,
+    markets: Array.isArray(value.markets)
+      ? Array.from(new Set(value.markets.filter((item): item is KeywordMarket => item === 'CN' || item === 'MY')))
+      : undefined,
+  }
+}
+
+function parseWorkflowSeedCollectionSource(value: unknown): CustomKeywordWorkflowSeed['collectionSource'] | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  if (value.type !== 'job5156' && value.type !== 'seek') {
+    return null
+  }
+
+  const exactUrl = readString(value.exactUrl) ?? undefined
+  return exactUrl ? { type: value.type, exactUrl } : { type: value.type }
+}
+
+function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const id = readString(value.id)
+  const label = readString(value.label)
+  const market = readString(value.market)
+  const location = readString(value.location) ?? ''
+  const collectionSource = parseWorkflowSeedCollectionSource(value.collectionSource)
+  if (!id || !label || (market !== 'CN' && market !== 'MY') || !collectionSource || !Array.isArray(value.keywords)) {
+    return null
+  }
+
+  const keywords = value.keywords
+    .map((item) => readString(item))
+    .filter((item): item is string => item !== null)
+
+  if (keywords.length === 0) {
+    return null
+  }
+
+  const collectUrl = readString(value.collectUrl) ?? undefined
+  const visible = typeof value.visible === 'boolean' ? value.visible : undefined
+  const source = value.source === 'system' || value.source === 'workspace' ? value.source : undefined
+
+  return {
+    id,
+    label,
+    market,
+    location,
+    keywords: Array.from(new Set(keywords)),
+    collectionSource,
+    collectUrl,
+    visible,
+    source,
   }
 }
 
 export function parseCustomKeywordsPayload(
   payload: unknown,
-): { tags: CustomKeywordTag[]; categories: CustomKeywordCategory[]; systemLocations: SystemLocationItem[] } | null {
+): {
+  tags: CustomKeywordTag[]
+  categories: CustomKeywordCategory[]
+  systemLocations: SystemLocationItem[]
+  workflowSeeds: CustomKeywordWorkflowSeed[]
+} | null {
   if (!isRecord(payload) || payload.success !== true) {
     return null
   }
@@ -440,7 +545,13 @@ export function parseCustomKeywordsPayload(
       .filter((item): item is SystemLocationItem => item !== null)
     : []
 
-  return { tags, categories, systemLocations }
+  const workflowSeeds = Array.isArray(payload.workflowSeeds)
+    ? payload.workflowSeeds
+      .map((item) => parseWorkflowSeed(item))
+      .filter((item): item is CustomKeywordWorkflowSeed => item !== null)
+    : []
+
+  return { tags, categories, systemLocations, workflowSeeds }
 }
 
 function parseBrandKeywordItem(value: unknown): BrandKeywordItem | null {
@@ -610,6 +721,8 @@ export function createEmptyCustomKeywordForm(): CustomKeywordFormState {
     keyword: '',
     english: '',
     category: '',
+    markets: ['CN'],
+    visible: true,
   }
 }
 
@@ -619,6 +732,34 @@ export function customKeywordToForm(tag: CustomKeywordTag): CustomKeywordFormSta
     keyword: tag.keyword,
     english: tag.english ?? '',
     category: tag.category,
+    markets: tag.markets && tag.markets.length > 0 ? tag.markets : ['CN', 'MY'],
+    visible: tag.visible ?? true,
+  }
+}
+
+export function createEmptyWorkflowSeedForm(): WorkflowSeedFormState {
+  return {
+    id: '',
+    label: '',
+    market: 'CN',
+    location: '',
+    keywords: '',
+    collectionSourceType: 'job5156',
+    collectUrl: '',
+    visible: true,
+  }
+}
+
+export function workflowSeedToForm(seed: CustomKeywordWorkflowSeed): WorkflowSeedFormState {
+  return {
+    id: seed.id,
+    label: seed.label,
+    market: seed.market,
+    location: seed.location,
+    keywords: seed.keywords.join(', '),
+    collectionSourceType: seed.collectionSource.type,
+    collectUrl: seed.collectUrl ?? seed.collectionSource.exactUrl ?? '',
+    visible: seed.visible ?? true,
   }
 }
 
