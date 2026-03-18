@@ -410,7 +410,10 @@ resolve_repo_url() {
 
     local script_dir source_root remote_url git_config_path gitdir_path
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    source_root="$(cd "$script_dir/.." && pwd)"
+    source_root="$WORKSPACE_DIR"
+    if [[ -z "$source_root" || ! -d "$source_root" ]]; then
+        source_root="$(cd "$script_dir/.." && pwd)"
+    fi
 
     remote_url=""
     git_config_path=""
