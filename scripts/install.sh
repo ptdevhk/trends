@@ -12,6 +12,9 @@ SERVICE_USER="trends"
 SERVICE_GROUP="trends"
 WORKSPACE_DIR="${WORKSPACE_DIR:-$(pwd)}"
 ENV_FILE="${ENV_FILE-.env.production}"
+DEPLOY_BACKUP_DIR="${DEPLOY_BACKUP_DIR:-/var/backups/trends/deploy}"
+KEEP_DEPLOY_BACKUPS="${KEEP_DEPLOY_BACKUPS:-10}"
+DEPLOY_BACKUP_INCLUDE_FILE_STORAGE="${DEPLOY_BACKUP_INCLUDE_FILE_STORAGE:-}"
 
 SERVICES=(
     "trends-api.service"
@@ -37,12 +40,27 @@ REPO_AUTHENTICATED_WITH_GH=0
 GH_AUTH_HOME=""
 UPGRADE_ACTION=""
 UPGRADE_DEPLOYED_SHA=""
+UPGRADE_DEPLOYED_BRANCH=""
 UPGRADE_TARGET_SHA=""
 UPGRADE_TARGET_BRANCH=""
 UPGRADE_ENV_CHANGED=0
 UPGRADE_FRONTEND_ENV_CHANGED=0
 UPGRADE_TRACKED_DRIFT=0
 UPGRADE_RESOLVED_ENV_PATH=""
+WORKSPACE_CURRENT_BRANCH=""
+WORKSPACE_TARGET_BRANCH=""
+WORKSPACE_LOCAL_SHA=""
+WORKSPACE_REMOTE_SHA=""
+WORKSPACE_AHEAD=0
+WORKSPACE_BEHIND=0
+WORKSPACE_DIRTY=0
+DEPLOY_BACKUP_RUN_DIR=""
+DEPLOY_BACKUP_METADATA_PATH=""
+DEPLOY_BACKUP_CONVEX_PATH=""
+DEPLOY_BACKUP_CONFIG_ENV_PATH=""
+DEPLOY_BACKUP_INSTALL_ENV_PATH=""
+DEPLOY_BACKUP_CONVEX_ENV_PATH=""
+DEPLOY_BACKUP_INSTALL_PATCH_PATH=""
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
@@ -392,7 +410,10 @@ resolve_repo_url() {
 
     local script_dir source_root remote_url git_config_path gitdir_path
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    source_root="$(cd "$script_dir/.." && pwd)"
+    source_root="$WORKSPACE_DIR"
+    if [[ -z "$source_root" || ! -d "$source_root" ]]; then
+        source_root="$(cd "$script_dir/.." && pwd)"
+    fi
 
     remote_url=""
     git_config_path=""
@@ -463,6 +484,135 @@ run_install_repo_git() {
     git -C "$INSTALL_DIR" "$@"
 }
 
+run_workspace_repo_git() {
+    if [[ -n "${SUDO_USER:-}" ]]; then
+        run_as_invoking_user git -C "$WORKSPACE_DIR" "$@"
+        return
+    fi
+
+    git -C "$WORKSPACE_DIR" "$@"
+}
+
+workspace_repo_exists() {
+    run_workspace_repo_git rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
+resolve_workspace_current_branch() {
+    local branch=""
+
+    if ! workspace_repo_exists; then
+        return 1
+    fi
+
+    branch="$(run_workspace_repo_git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
+        return 1
+    fi
+
+    printf '%s' "$branch"
+}
+
+preflight_workspace_repo() {
+    local auto_pull="${1:-0}"
+    local desired_branch=""
+    local current_branch=""
+    local local_ref="HEAD"
+    local dirty_status=""
+    local counts=""
+
+    WORKSPACE_CURRENT_BRANCH=""
+    WORKSPACE_TARGET_BRANCH=""
+    WORKSPACE_LOCAL_SHA=""
+    WORKSPACE_REMOTE_SHA=""
+    WORKSPACE_AHEAD=0
+    WORKSPACE_BEHIND=0
+    WORKSPACE_DIRTY=0
+
+    if ! workspace_repo_exists; then
+        log_info "WORKSPACE_DIR $WORKSPACE_DIR is not a git checkout; skipping workspace git preflight."
+        return 0
+    fi
+
+    current_branch="$(resolve_workspace_current_branch || true)"
+    if [[ -n "${INSTALL_BRANCH:-}" ]]; then
+        desired_branch="$INSTALL_BRANCH"
+    else
+        desired_branch="$current_branch"
+    fi
+
+    WORKSPACE_CURRENT_BRANCH="$current_branch"
+    WORKSPACE_TARGET_BRANCH="$desired_branch"
+
+    dirty_status="$(run_workspace_repo_git status --porcelain --untracked-files=no 2>/dev/null || true)"
+    if [[ -n "$dirty_status" ]]; then
+        WORKSPACE_DIRTY=1
+        log_error "Workspace checkout at $WORKSPACE_DIR has tracked git changes."
+        log_error "Commit, stash, or discard them before running deploy. make deploy only promotes committed git history."
+        return 1
+    fi
+
+    log_info "Fetching workspace checkout at $WORKSPACE_DIR..."
+    run_workspace_repo_git fetch --prune origin
+
+    if [[ -z "$desired_branch" ]]; then
+        log_warn "Workspace is on a detached HEAD and INSTALL_BRANCH is unset; skipping workspace pull preflight."
+        return 0
+    fi
+
+    if ! run_workspace_repo_git show-ref --verify --quiet "refs/remotes/origin/$desired_branch"; then
+        log_error "origin/$desired_branch does not exist for workspace checkout $WORKSPACE_DIR."
+        return 1
+    fi
+
+    if [[ -n "$current_branch" && "$current_branch" == "$desired_branch" ]]; then
+        local_ref="HEAD"
+    elif run_workspace_repo_git show-ref --verify --quiet "refs/heads/$desired_branch"; then
+        local_ref="$desired_branch"
+    else
+        log_warn "Workspace branch $desired_branch does not exist locally; deploy will use origin/$desired_branch."
+        WORKSPACE_REMOTE_SHA="$(run_workspace_repo_git rev-parse "origin/$desired_branch" 2>/dev/null || true)"
+        return 0
+    fi
+
+    WORKSPACE_LOCAL_SHA="$(run_workspace_repo_git rev-parse "$local_ref" 2>/dev/null || true)"
+    WORKSPACE_REMOTE_SHA="$(run_workspace_repo_git rev-parse "origin/$desired_branch" 2>/dev/null || true)"
+    counts="$(run_workspace_repo_git rev-list --left-right --count "$local_ref...origin/$desired_branch" 2>/dev/null || true)"
+    if [[ -n "$counts" ]]; then
+        WORKSPACE_AHEAD="${counts%%[[:space:]]*}"
+        WORKSPACE_BEHIND="${counts##*[[:space:]]}"
+    fi
+
+    if [[ "$WORKSPACE_AHEAD" -gt 0 && "$WORKSPACE_BEHIND" -gt 0 ]]; then
+        log_error "Workspace branch $desired_branch has diverged from origin/$desired_branch."
+        log_error "Rebase or reset the workspace branch before deploy."
+        return 1
+    fi
+
+    if [[ "$WORKSPACE_AHEAD" -gt 0 ]]; then
+        log_error "Workspace branch $desired_branch has local commits not pushed to origin."
+        log_error "Push the branch before deploy so /opt/trends can pull the same commit."
+        return 1
+    fi
+
+    if [[ "$WORKSPACE_BEHIND" -gt 0 ]]; then
+        if [[ "$auto_pull" == "1" && -n "$current_branch" && "$current_branch" == "$desired_branch" ]]; then
+            log_info "Fast-forwarding workspace branch $desired_branch..."
+            run_workspace_repo_git pull --ff-only origin "$desired_branch"
+            WORKSPACE_LOCAL_SHA="$(run_workspace_repo_git rev-parse HEAD 2>/dev/null || true)"
+            WORKSPACE_REMOTE_SHA="$WORKSPACE_LOCAL_SHA"
+            WORKSPACE_BEHIND=0
+        else
+            log_warn "Workspace branch $desired_branch is behind origin/$desired_branch."
+            if [[ "$auto_pull" == "1" ]]; then
+                log_warn "Auto-pull skipped because the workspace is not currently on $desired_branch."
+            fi
+        fi
+        return 0
+    fi
+
+    log_info "Workspace branch ${desired_branch} is already up to date with origin/${desired_branch}."
+}
+
 run_remote_git() {
     if [[ "$REPO_AUTHENTICATED_WITH_GH" -eq 1 && -n "${SUDO_USER:-}" ]]; then
         run_as_invoking_user git "$@"
@@ -482,6 +632,12 @@ resolve_desired_branch() {
     local desired_branch="${INSTALL_BRANCH:-}"
     local remote_head=""
 
+    if [[ -n "$desired_branch" ]]; then
+        printf '%s' "$desired_branch"
+        return 0
+    fi
+
+    desired_branch="$(resolve_workspace_current_branch || true)"
     if [[ -n "$desired_branch" ]]; then
         printf '%s' "$desired_branch"
         return 0
@@ -579,6 +735,7 @@ plan_upgrade_action() {
     local repo_url=""
     local desired_branch=""
     local deployed_sha=""
+    local deployed_branch=""
     local target_sha=""
     local tracked_drift=0
     local env_changed=0
@@ -589,6 +746,7 @@ plan_upgrade_action() {
     repo_url="$(resolve_repo_url)"
     desired_branch="$(resolve_desired_branch "$repo_url" || true)"
     deployed_sha="$(run_install_repo_git rev-parse HEAD 2>/dev/null || true)"
+    deployed_branch="$(run_install_repo_git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
     dirty_status="$(run_install_repo_git status --porcelain --untracked-files=no 2>/dev/null || true)"
     target_sha=""
 
@@ -626,6 +784,7 @@ plan_upgrade_action() {
     fi
 
     UPGRADE_DEPLOYED_SHA="$deployed_sha"
+    UPGRADE_DEPLOYED_BRANCH="$deployed_branch"
     UPGRADE_TARGET_SHA="$target_sha"
     UPGRADE_TARGET_BRANCH="$desired_branch"
     UPGRADE_ENV_CHANGED="$env_changed"
@@ -637,7 +796,17 @@ plan_upgrade_action() {
 print_upgrade_plan() {
     echo ""
     log_info "Upgrade precheck summary:"
+    if [[ -n "$WORKSPACE_DIR" ]]; then
+        echo "  workspace dir: $WORKSPACE_DIR"
+        echo "  workspace current branch: ${WORKSPACE_CURRENT_BRANCH:-<detached-or-unresolved>}"
+        echo "  workspace deploy branch: ${WORKSPACE_TARGET_BRANCH:-<unresolved>}"
+        echo "  workspace local sha: ${WORKSPACE_LOCAL_SHA:-<unresolved>}"
+        echo "  workspace remote sha: ${WORKSPACE_REMOTE_SHA:-<unresolved>}"
+        echo "  workspace dirty: $([[ "$WORKSPACE_DIRTY" -eq 1 ]] && echo yes || echo no)"
+        echo "  workspace ahead/behind: ${WORKSPACE_AHEAD}/${WORKSPACE_BEHIND}"
+    fi
     echo "  target branch: ${UPGRADE_TARGET_BRANCH:-<unresolved>}"
+    echo "  deployed branch: ${UPGRADE_DEPLOYED_BRANCH:-<unknown>}"
     echo "  deployed sha: ${UPGRADE_DEPLOYED_SHA:-<unknown>}"
     echo "  target sha: ${UPGRADE_TARGET_SHA:-<unresolved>}"
     echo "  tracked drift: $([[ "$UPGRADE_TRACKED_DRIFT" -eq 1 ]] && echo yes || echo no)"
@@ -657,7 +826,7 @@ print_upgrade_plan() {
     echo "  action: $UPGRADE_ACTION"
 }
 
-env_only_upgrade_flow() {
+env_only_upgrade_steps() {
     ensure_node_22
     ensure_uv
     create_service_user
@@ -665,6 +834,10 @@ env_only_upgrade_flow() {
     deploy_env_file
     setup_convex
     restart_units
+}
+
+env_only_upgrade_flow() {
+    run_upgrade_steps_with_rollback "env-only" "env_only_upgrade_steps"
 
     echo ""
     log_info "Environment updated. Services restarted without rebuilding artifacts."
@@ -1125,6 +1298,247 @@ deploy_env_file() {
     log_info "  - $system_env_path"
 }
 
+copy_file_if_exists() {
+    local source_path="$1"
+    local target_path="$2"
+
+    if [[ ! -f "$source_path" ]]; then
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$target_path")"
+    cp "$source_path" "$target_path"
+}
+
+prepare_deploy_backup_dir() {
+    local timestamp=""
+
+    timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    mkdir -p "$DEPLOY_BACKUP_DIR"
+    DEPLOY_BACKUP_RUN_DIR="$DEPLOY_BACKUP_DIR/deploy-$timestamp-$$"
+    mkdir -p "$DEPLOY_BACKUP_RUN_DIR"
+    chown "$SERVICE_USER:$SERVICE_GROUP" "$DEPLOY_BACKUP_RUN_DIR" 2>/dev/null || true
+    chmod 750 "$DEPLOY_BACKUP_RUN_DIR" 2>/dev/null || true
+
+    DEPLOY_BACKUP_METADATA_PATH="$DEPLOY_BACKUP_RUN_DIR/metadata.txt"
+    DEPLOY_BACKUP_CONVEX_PATH="$DEPLOY_BACKUP_RUN_DIR/convex.zip"
+    DEPLOY_BACKUP_CONFIG_ENV_PATH="$DEPLOY_BACKUP_RUN_DIR/config.env"
+    DEPLOY_BACKUP_INSTALL_ENV_PATH="$DEPLOY_BACKUP_RUN_DIR/install.env"
+    DEPLOY_BACKUP_CONVEX_ENV_PATH="$DEPLOY_BACKUP_RUN_DIR/convex.env.local"
+    DEPLOY_BACKUP_INSTALL_PATCH_PATH="$DEPLOY_BACKUP_RUN_DIR/install.patch"
+}
+
+write_deploy_backup_metadata() {
+    cat > "$DEPLOY_BACKUP_METADATA_PATH" <<EOF
+workspace_dir=$WORKSPACE_DIR
+workspace_current_branch=${WORKSPACE_CURRENT_BRANCH:-}
+workspace_target_branch=${WORKSPACE_TARGET_BRANCH:-}
+workspace_local_sha=${WORKSPACE_LOCAL_SHA:-}
+workspace_remote_sha=${WORKSPACE_REMOTE_SHA:-}
+deployed_branch=${UPGRADE_DEPLOYED_BRANCH:-}
+deployed_sha=${UPGRADE_DEPLOYED_SHA:-}
+target_branch=${UPGRADE_TARGET_BRANCH:-}
+target_sha=${UPGRADE_TARGET_SHA:-}
+created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+}
+
+create_deploy_backup() {
+    local convex_dir="$INSTALL_DIR/packages/convex"
+    local convex_env_file="$convex_dir/.env.local"
+    local export_command=""
+
+    if [[ ! -d "$convex_dir" ]]; then
+        log_warn "Skipping Convex backup: $convex_dir not found."
+        return 0
+    fi
+
+    prepare_deploy_backup_dir
+    write_deploy_backup_metadata
+    copy_file_if_exists "$CONFIG_DIR/env" "$DEPLOY_BACKUP_CONFIG_ENV_PATH"
+    copy_file_if_exists "$INSTALL_DIR/.env.production" "$DEPLOY_BACKUP_INSTALL_ENV_PATH"
+    copy_file_if_exists "$convex_env_file" "$DEPLOY_BACKUP_CONVEX_ENV_PATH"
+
+    if [[ "$UPGRADE_TRACKED_DRIFT" -eq 1 ]]; then
+        if run_install_repo_git diff --binary --full-index > "$DEPLOY_BACKUP_INSTALL_PATCH_PATH"; then
+            :
+        else
+            log_warn "Failed to capture tracked-drift patch for $INSTALL_DIR."
+            rm -f "$DEPLOY_BACKUP_INSTALL_PATCH_PATH"
+        fi
+    fi
+
+    if [[ ! -f "$convex_env_file" ]]; then
+        log_error "Convex CLI env file not found: $convex_env_file"
+        log_error "Cannot create a deploy backup without the existing Convex deployment selector."
+        return 1
+    fi
+
+    export_command="set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex export --path '$DEPLOY_BACKUP_CONVEX_PATH' --env-file '$convex_env_file'"
+    if is_truthy "${DEPLOY_BACKUP_INCLUDE_FILE_STORAGE:-}"; then
+        export_command="$export_command --include-file-storage"
+    fi
+
+    log_info "Exporting Convex backup to $DEPLOY_BACKUP_CONVEX_PATH..."
+    run_as_service_user "$export_command"
+}
+
+restore_deploy_files_from_backup() {
+    if [[ -f "$DEPLOY_BACKUP_CONFIG_ENV_PATH" ]]; then
+        mkdir -p "$CONFIG_DIR"
+        cp "$DEPLOY_BACKUP_CONFIG_ENV_PATH" "$CONFIG_DIR/env"
+        chmod 600 "$CONFIG_DIR/env"
+        chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG_DIR/env"
+    fi
+
+    if [[ -f "$DEPLOY_BACKUP_INSTALL_ENV_PATH" ]]; then
+        mkdir -p "$INSTALL_DIR"
+        cp "$DEPLOY_BACKUP_INSTALL_ENV_PATH" "$INSTALL_DIR/.env.production"
+        chmod 600 "$INSTALL_DIR/.env.production"
+        chown "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR/.env.production"
+    fi
+
+    if [[ -f "$DEPLOY_BACKUP_CONVEX_ENV_PATH" ]]; then
+        mkdir -p "$INSTALL_DIR/packages/convex"
+        cp "$DEPLOY_BACKUP_CONVEX_ENV_PATH" "$INSTALL_DIR/packages/convex/.env.local"
+        chmod 600 "$INSTALL_DIR/packages/convex/.env.local"
+        chown "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR/packages/convex/.env.local"
+    fi
+}
+
+restore_install_repo_from_backup() {
+    if [[ -z "$UPGRADE_DEPLOYED_SHA" ]]; then
+        log_warn "Skipping code rollback because the previously deployed SHA is unknown."
+        return 0
+    fi
+
+    log_warn "Rolling $INSTALL_DIR back to ${UPGRADE_DEPLOYED_SHA}..."
+    if [[ -n "$UPGRADE_DEPLOYED_BRANCH" && "$UPGRADE_DEPLOYED_BRANCH" != "HEAD" ]]; then
+        run_as_service_user "cd '$INSTALL_DIR' && git checkout -B '$UPGRADE_DEPLOYED_BRANCH' '$UPGRADE_DEPLOYED_SHA'"
+    else
+        run_as_service_user "cd '$INSTALL_DIR' && git checkout '$UPGRADE_DEPLOYED_SHA'"
+    fi
+
+    if [[ -s "$DEPLOY_BACKUP_INSTALL_PATCH_PATH" ]]; then
+        run_as_service_user "cd '$INSTALL_DIR' && git apply '$DEPLOY_BACKUP_INSTALL_PATCH_PATH'"
+    fi
+
+    chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
+}
+
+restore_convex_from_backup() {
+    local convex_dir="$INSTALL_DIR/packages/convex"
+    local convex_env_file="$convex_dir/.env.local"
+
+    if [[ ! -f "$DEPLOY_BACKUP_CONVEX_PATH" ]]; then
+        log_warn "Skipping Convex restore: backup snapshot not found at $DEPLOY_BACKUP_CONVEX_PATH."
+        return 0
+    fi
+
+    if [[ -f "$DEPLOY_BACKUP_CONVEX_ENV_PATH" ]]; then
+        convex_env_file="$DEPLOY_BACKUP_CONVEX_ENV_PATH"
+    fi
+
+    if [[ ! -f "$convex_env_file" ]]; then
+        log_error "Cannot restore Convex snapshot because no CLI env file is available."
+        return 1
+    fi
+
+    log_warn "Restoring Convex snapshot from $DEPLOY_BACKUP_CONVEX_PATH..."
+    run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$convex_dir' && npx convex import --replace-all -y --env-file '$convex_env_file' '$DEPLOY_BACKUP_CONVEX_PATH'"
+}
+
+rollback_failed_upgrade() {
+    local rollback_mode="$1"
+    local rollback_failed=0
+
+    if [[ -z "$DEPLOY_BACKUP_RUN_DIR" ]]; then
+        log_error "Deploy failed before rollback state was prepared."
+        return 1
+    fi
+
+    log_warn "Deploy failed. Rolling back using backup in $DEPLOY_BACKUP_RUN_DIR..."
+    restore_deploy_files_from_backup || rollback_failed=1
+
+    if [[ "$rollback_mode" == "full" ]]; then
+        restore_install_repo_from_backup || rollback_failed=1
+        sync_dependencies || rollback_failed=1
+        sync_web_build_env || rollback_failed=1
+        build_shared_artifact || rollback_failed=1
+    fi
+
+    if [[ -d "$INSTALL_DIR/packages/convex" ]]; then
+        setup_convex || rollback_failed=1
+        restore_convex_from_backup || rollback_failed=1
+    fi
+
+    if [[ "$rollback_mode" == "full" ]]; then
+        build_artifacts || rollback_failed=1
+        stop_port_processes 3000
+        remove_legacy_units
+        install_systemd_units || rollback_failed=1
+    fi
+
+    restart_units || rollback_failed=1
+
+    if [[ "$rollback_failed" -ne 0 ]]; then
+        log_error "Rollback completed with errors. Inspect $DEPLOY_BACKUP_RUN_DIR and systemd logs."
+        return 1
+    fi
+
+    log_warn "Rollback completed successfully."
+}
+
+prune_deploy_backups() {
+    local keep="${KEEP_DEPLOY_BACKUPS:-10}"
+    local backups=()
+    local backup_path=""
+    local excess=0
+    local index=0
+
+    if [[ ! "$keep" =~ ^[0-9]+$ ]]; then
+        log_warn "KEEP_DEPLOY_BACKUPS=$keep is not numeric; skipping backup pruning."
+        return 0
+    fi
+
+    if [[ "$keep" -lt 1 || ! -d "$DEPLOY_BACKUP_DIR" ]]; then
+        return 0
+    fi
+
+    while IFS= read -r backup_path; do
+        backups+=("$backup_path")
+    done < <(find "$DEPLOY_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -name 'deploy-*' | sort)
+
+    excess=$(( ${#backups[@]} - keep ))
+    if [[ "$excess" -le 0 ]]; then
+        return 0
+    fi
+
+    for ((index = 0; index < excess; index += 1)); do
+        rm -rf "${backups[$index]}"
+    done
+}
+
+run_upgrade_steps_with_rollback() {
+    local rollback_mode="$1"
+    local flow_name="$2"
+    local status=0
+
+    create_deploy_backup
+
+    set +e
+    "$flow_name"
+    status=$?
+    set -e
+
+    if [[ "$status" -ne 0 ]]; then
+        rollback_failed_upgrade "$rollback_mode" || true
+        return "$status"
+    fi
+
+    prune_deploy_backups
+}
+
 setup_env_file_legacy() {
     mkdir -p "$CONFIG_DIR"
 
@@ -1324,11 +1738,31 @@ install_flow() {
     print_caddy_block
 }
 
+full_upgrade_steps() {
+    clone_or_update_repo
+    sync_dependencies
+    if [[ -n "$ENV_FILE" ]]; then
+        deploy_env_file
+        sync_web_build_env
+    else
+        log_info "ENV_FILE is empty; keeping existing $CONFIG_DIR/env unchanged."
+    fi
+    build_shared_artifact
+    setup_convex
+    build_artifacts
+    seed_and_migrate_convex
+    stop_port_processes 3000
+    remove_legacy_units
+    install_systemd_units
+    restart_units
+}
+
 upgrade_flow() {
     check_root
     check_systemd
     require_git
     ensure_repo_access
+    preflight_workspace_repo "1"
 
     if [[ ! -d "$INSTALL_DIR/.git" ]]; then
         log_error "$INSTALL_DIR is not a git repository. Run install first."
@@ -1352,22 +1786,7 @@ upgrade_flow() {
     ensure_node_22
     ensure_uv
     sync_service_user_gh_credentials
-    clone_or_update_repo
-    sync_dependencies
-    if [[ -n "$ENV_FILE" ]]; then
-        deploy_env_file
-        sync_web_build_env
-    else
-        log_info "ENV_FILE is empty; keeping existing $CONFIG_DIR/env unchanged."
-    fi
-    build_shared_artifact
-    setup_convex
-    build_artifacts
-    seed_and_migrate_convex
-    stop_port_processes 3000
-    remove_legacy_units
-    install_systemd_units
-    restart_units
+    run_upgrade_steps_with_rollback "full" "full_upgrade_steps"
 
     echo ""
     log_info "Upgrade completed. Services restarted."
@@ -1380,6 +1799,7 @@ upgrade_check_flow() {
     check_systemd
     require_git
     ensure_repo_access
+    preflight_workspace_repo "0"
 
     if [[ ! -d "$INSTALL_DIR/.git" ]]; then
         log_error "$INSTALL_DIR is not a git repository. Run install first."
@@ -1439,11 +1859,16 @@ print_usage() {
     echo ""
     echo "Environment variables:"
     echo "  ENV_FILE               Production env file path (default: .env.production)"
-    echo "  WORKSPACE_DIR          Source checkout to install from (default: current directory)"
-    echo "  INSTALL_BRANCH         Branch to install or upgrade to"
+    echo "  WORKSPACE_DIR          Source checkout to compare against origin before deploy (default: current directory)"
+    echo "                         When INSTALL_BRANCH is unset, deploy uses the workspace's current branch"
+    echo "  INSTALL_BRANCH         Branch to install or upgrade to (overrides workspace branch)"
     echo "  FORCE                  Force upgrade flow even when no changes are detected"
     echo "  SEED_RESUMES           Seed demo resumes during install/upgrade when truthy"
     echo "  ALLOW_NODE_DOWNGRADE   Permit downgrading a newer Node.js to the required v22"
+    echo "  DEPLOY_BACKUP_DIR      Directory for pre-deploy Convex snapshots (default: /var/backups/trends/deploy)"
+    echo "  KEEP_DEPLOY_BACKUPS    Number of deploy backups to retain after successful upgrades (default: 10)"
+    echo "  DEPLOY_BACKUP_INCLUDE_FILE_STORAGE"
+    echo "                         Include Convex file storage in the pre-deploy backup when truthy"
     echo "  CONVEX_MIRROR_MODE     Convex prefetch source order: off|fallback|mirror-first"
     echo "                         Default is fallback, or off when CI=true/1"
     echo "  CONVEX_MIRROR_BASES    Convex prefetch mirror base URLs (comma-separated)"
