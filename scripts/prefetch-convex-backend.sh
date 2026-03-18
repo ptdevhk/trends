@@ -20,7 +20,7 @@ Environment:
   CONVEX_DOWNLOAD_TIMEOUT_SECS  Download timeout in seconds (default: ${DEFAULT_DOWNLOAD_TIMEOUT_SECS})
   CONVEX_CONNECT_TIMEOUT_SECS   Connect timeout in seconds (default: ${DEFAULT_CONNECT_TIMEOUT_SECS})
   CONVEX_CURL_NO_SILENT         When true/1, keep curl progress output enabled
-  CI                            When true/1, defaults shared Convex prefetch mode to off
+  CI                            When true/1, shared Convex prefetch mode defaults to off
 EOF
 }
 
