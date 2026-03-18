@@ -7,6 +7,7 @@ import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   type IndustryKeyword,
+  type KeywordMarket,
   useIndustryKeywords,
 } from '@/hooks/useIndustryKeywords'
 
@@ -15,6 +16,7 @@ interface KeywordChipsProps {
   onChange: (keywords: string[]) => void
   activeLocations?: string[]
   onLocationToggle?: (location: string) => void
+  market?: KeywordMarket
 }
 
 const SEED_LOCATION_CHIP_LIMIT = 4
@@ -40,11 +42,25 @@ function createSyntheticLocationKeyword(keyword: string): IndustryKeyword {
   }
 }
 
+function matchesMarket(item: IndustryKeyword, market: KeywordMarket | undefined): boolean {
+  if (item.visible === false) {
+    return false
+  }
+  if (!market) {
+    return true
+  }
+  if (!Array.isArray(item.markets) || item.markets.length === 0) {
+    return true
+  }
+  return item.markets.includes(market)
+}
+
 export function KeywordChips({
   value,
   onChange,
   activeLocations,
   onLocationToggle,
+  market,
 }: KeywordChipsProps) {
   const { t } = useTranslation()
   const { keywords, grouped, hotKeywords, loading, error } = useIndustryKeywords()
@@ -54,14 +70,21 @@ export function KeywordChips({
   const selected = useMemo(() => new Set(normalizeKeywords(value)), [value])
 
   const selectedValues = useMemo(() => Array.from(selected), [selected])
+  const filteredHotKeywords = useMemo(
+    () => hotKeywords.filter((item) => matchesMarket(item, market)),
+    [hotKeywords, market]
+  )
   const hotKeywordSet = useMemo(
-    () => new Set(hotKeywords.map((keyword) => keyword.keyword)),
-    [hotKeywords]
+    () => new Set(filteredHotKeywords.map((keyword) => keyword.keyword)),
+    [filteredHotKeywords]
   )
   const knownKeywordSet = useMemo(
     () => new Set(keywords.map((keyword) => keyword.keyword)),
     [keywords]
   )
+  const customSelectedKeywords = useMemo(() => {
+    return selectedValues.filter((keyword) => !knownKeywordSet.has(keyword))
+  }, [knownKeywordSet, selectedValues])
   const keywordCategoryMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const item of keywords) {
@@ -85,10 +108,6 @@ export function KeywordChips({
   const additionalSelectedKeywords = useMemo(() => {
     return selectedValues.filter((keyword) => !hotKeywordSet.has(keyword))
   }, [hotKeywordSet, selectedValues])
-
-  const customSelectedKeywords = useMemo(() => {
-    return selectedValues.filter((keyword) => !knownKeywordSet.has(keyword))
-  }, [knownKeywordSet, selectedValues])
   const displayHotKeywords = useMemo(() => {
     const result: IndustryKeyword[] = []
     const seen = new Set<string>()
@@ -106,7 +125,7 @@ export function KeywordChips({
       })
     }
 
-    hotKeywords.forEach((item) => {
+    filteredHotKeywords.forEach((item) => {
       if (item.category !== 'location') {
         pushUnique(item)
         return
@@ -124,7 +143,7 @@ export function KeywordChips({
     })
 
     return result
-  }, [hotKeywords, normalizedActiveLocations])
+  }, [filteredHotKeywords, normalizedActiveLocations])
 
   const locationCategoryKeywords = useMemo(() => {
     const result: IndustryKeyword[] = []
@@ -142,7 +161,7 @@ export function KeywordChips({
       })
     }
 
-    grouped.location.forEach((item) => {
+    grouped.location.filter((item) => matchesMarket(item, market)).forEach((item) => {
       pushUnique(item)
     })
     normalizedActiveLocations.forEach((location) => {
@@ -150,7 +169,7 @@ export function KeywordChips({
     })
 
     return result
-  }, [grouped.location, normalizedActiveLocations])
+  }, [grouped.location, market, normalizedActiveLocations])
 
   const toggleKeyword = useCallback(
     (keyword: string) => {
@@ -246,7 +265,7 @@ export function KeywordChips({
         ? CATEGORY_ORDER.map((category) => {
           const categoryKeywords = category === 'location'
             ? locationCategoryKeywords
-            : grouped[category]
+            : grouped[category].filter((item) => matchesMarket(item, market))
           if (categoryKeywords.length === 0) return null
           return (
             <div key={category} className="flex flex-wrap items-center gap-1.5">

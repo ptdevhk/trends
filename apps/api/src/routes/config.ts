@@ -19,6 +19,7 @@ import {
 import { requireAdmin } from "../middleware/workspace.js";
 import { getMaskedApiKey, loadAIConfig, validateAIConfig } from "../services/ai-config.js";
 import { configSourceInspector, UnknownConfigSourceError } from "../services/config-source-inspector.js";
+import { customKeywordService } from "../services/custom-keyword-service.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 
 const app = new OpenAPIHono();
@@ -27,11 +28,30 @@ const API_ROOT = path.resolve(MODULE_DIR, "../..");
 const REPO_ROOT = path.resolve(API_ROOT, "../..");
 
 const AgentsConfigSchema = z.record(z.unknown());
+const KeywordMarketSchema = z.enum(["CN", "MY"]);
+const WorkflowSeedCollectionSourceSchema = z.object({
+  type: z.enum(["job5156", "seek"]),
+  exactUrl: z.string().optional(),
+});
 const CustomKeywordTagSchema = z.object({
   id: z.string(),
   keyword: z.string(),
   english: z.string().optional(),
   category: z.string(),
+  markets: z.array(KeywordMarketSchema).optional(),
+  visible: z.boolean().optional(),
+  source: z.enum(["system", "workspace"]).optional(),
+});
+const CustomKeywordWorkflowSeedSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  market: KeywordMarketSchema,
+  location: z.string(),
+  keywords: z.array(z.string()),
+  collectionSource: WorkflowSeedCollectionSourceSchema,
+  collectUrl: z.string().optional(),
+  visible: z.boolean().optional(),
+  source: z.enum(["system", "workspace"]).optional(),
 });
 const CustomKeywordCategorySchema = z.object({
   id: z.string(),
@@ -44,18 +64,17 @@ const SystemLocationItemSchema = z.object({
   level: z.enum(["province", "city"]),
   parentKeyword: z.string().optional(),
   visible: z.boolean(),
+  markets: z.array(KeywordMarketSchema).optional(),
 });
 const CustomKeywordsResponseSchema = z.object({
   success: z.literal(true),
   tags: z.array(CustomKeywordTagSchema),
   categories: z.array(CustomKeywordCategorySchema),
   systemLocations: z.array(SystemLocationItemSchema),
+  workflowSeeds: z.array(CustomKeywordWorkflowSeedSchema),
 });
-const CustomKeywordUpdateSchema = z.object({
-  keyword: z.string().optional(),
-  english: z.string().optional(),
-  category: z.string().optional(),
-});
+const CustomKeywordUpdateSchema = CustomKeywordTagSchema;
+const CustomKeywordWorkflowSeedUpdateSchema = CustomKeywordWorkflowSeedSchema;
 const SystemLocationVisibilityUpdateSchema = z.object({
   visible: z.boolean(),
 });
@@ -209,6 +228,34 @@ function buildSystemMetadata() {
   };
 }
 
+function upsertWorkspaceItem<T extends { id: string }>(items: T[], item: T): void {
+  const index = items.findIndex((existing) => existing.id === item.id);
+  if (index === -1) {
+    items.push(item);
+    return;
+  }
+
+  items[index] = item;
+}
+
+function removeWorkspaceItem<T extends { id: string }>(items: T[], id: string): boolean {
+  const nextItems = items.filter((item) => item.id !== id);
+  if (nextItems.length === items.length) {
+    return false;
+  }
+
+  items.splice(0, items.length, ...nextItems);
+  return true;
+}
+
+function isSystemCustomKeyword(id: string): boolean {
+  return Boolean(customKeywordService.getTag(id));
+}
+
+function isSystemWorkflowSeed(id: string): boolean {
+  return customKeywordService.listWorkflowSeeds().some((item) => item.id === id);
+}
+
 function applyBondedModel(configValue: Record<string, unknown>, model: string): Record<string, unknown> {
   const agents = configValue.agents;
   if (!isRecord(agents) || !Array.isArray(agents.list)) {
@@ -313,6 +360,7 @@ app.get("/custom-keywords", async (c) => {
       tags: config.tags,
       categories: config.categories,
       systemLocations: config.systemLocations,
+      workflowSeeds: config.workflowSeeds,
     });
     return c.json(response, 200);
   } catch (error) {
@@ -376,7 +424,7 @@ app.post("/custom-keywords", requireAdmin, async (c) => {
     }
 
     const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
-    workspaceConfig.tags.push(parsedBody.data);
+    upsertWorkspaceItem(workspaceConfig.tags, parsedBody.data);
 
     const categoryExists = mergedConfig.categories.some((category) => category.id === parsedBody.data.category)
       || workspaceConfig.categories.some((category) => category.id === parsedBody.data.category);
@@ -388,7 +436,9 @@ app.post("/custom-keywords", requireAdmin, async (c) => {
     }
 
     await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
-    return c.json({ success: true as const, tag: parsedBody.data }, 201);
+    const updatedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
+    const tag = updatedConfig.tags.find((item) => item.id === parsedBody.data.id) ?? parsedBody.data;
+    return c.json({ success: true as const, tag }, 201);
   } catch (error) {
     console.error("Failed to add custom keyword", error);
     return c.json({ success: false as const, error: "Failed to add custom keyword" }, 500);
@@ -405,39 +455,30 @@ app.put("/custom-keywords/:id", requireAdmin, async (c) => {
       return c.json({ success: false as const, error: "Invalid custom keyword update payload" }, 400);
     }
 
+    if (parsedBody.data.id !== id) {
+      return c.json({ success: false as const, error: "Path id does not match payload id" }, 400);
+    }
+
     const workspaceSlug = c.var.workspaceSlug;
+    const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
+    const existingTag = mergedConfig.tags.find((tag) => tag.id === id);
+    if (!existingTag) {
+      return c.json({ success: false as const, error: `Tag not found: ${id}` }, 404);
+    }
+
     const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
-    const index = workspaceConfig.tags.findIndex((tag) => tag.id === id);
-    if (index === -1) {
-      return c.json({ success: false as const, error: `Tag not found in workspace override: ${id}` }, 404);
-    }
+    upsertWorkspaceItem(workspaceConfig.tags, parsedBody.data);
 
-    const existingTag = workspaceConfig.tags[index];
-    const nextKeyword = parsedBody.data.keyword?.trim() ?? existingTag.keyword;
-    const nextCategory = parsedBody.data.category?.trim() ?? existingTag.category;
-    const nextEnglish = parsedBody.data.english !== undefined
-      ? parsedBody.data.english.trim() || undefined
-      : existingTag.english;
-    if (!nextKeyword || !nextCategory) {
-      return c.json({ success: false as const, error: "Invalid custom keyword update payload" }, 400);
-    }
-
-    const updatedTag = {
-      ...existingTag,
-      keyword: nextKeyword,
-      english: nextEnglish,
-      category: nextCategory,
-    };
-
-    workspaceConfig.tags[index] = updatedTag;
-
-    const categoryExists = workspaceConfig.categories.some((category) => category.id === nextCategory);
+    const categoryExists = mergedConfig.categories.some((category) => category.id === parsedBody.data.category)
+      || workspaceConfig.categories.some((category) => category.id === parsedBody.data.category);
     if (!categoryExists) {
-      workspaceConfig.categories.push({ id: nextCategory, name: nextCategory });
+      workspaceConfig.categories.push({ id: parsedBody.data.category, name: parsedBody.data.category });
     }
 
     await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
-    return c.json({ success: true as const, tag: updatedTag }, 200);
+    const updatedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
+    const tag = updatedConfig.tags.find((item) => item.id === id) ?? parsedBody.data;
+    return c.json({ success: true as const, tag }, 200);
   } catch (error) {
     console.error("Failed to update custom keyword", error);
     return c.json({ success: false as const, error: "Failed to update custom keyword" }, 500);
@@ -448,22 +489,123 @@ app.delete("/custom-keywords/:id", requireAdmin, async (c) => {
   try {
     const id = c.req.param("id");
     const workspaceSlug = c.var.workspaceSlug;
+    const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
     const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
-    const nextTags = workspaceConfig.tags.filter((tag) => tag.id !== id);
+    const systemTagExists = isSystemCustomKeyword(id);
+    const mergedTag = mergedConfig.tags.find((tag) => tag.id === id);
+    if (!mergedTag) {
+      return c.json({ success: false as const, error: `Tag not found: ${id}` }, 404);
+    }
 
-    if (nextTags.length === workspaceConfig.tags.length) {
+    if (systemTagExists) {
+      upsertWorkspaceItem(workspaceConfig.tags, {
+        ...mergedTag,
+        visible: false,
+        source: "workspace",
+      });
+    } else if (!removeWorkspaceItem(workspaceConfig.tags, id)) {
       return c.json({ success: false as const, error: `Tag not found in workspace override: ${id}` }, 404);
     }
 
-    await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, {
-      ...workspaceConfig,
-      tags: nextTags,
-    });
+    await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
 
     return c.json({ success: true as const }, 200);
   } catch (error) {
     console.error("Failed to delete custom keyword", error);
     return c.json({ success: false as const, error: "Failed to delete custom keyword" }, 500);
+  }
+});
+
+app.post("/custom-keywords/workflow-seeds", requireAdmin, async (c) => {
+  try {
+    const body: unknown = await c.req.json();
+    const parsedBody = CustomKeywordWorkflowSeedSchema.safeParse(body);
+
+    if (!parsedBody.success) {
+      return c.json({ success: false as const, error: "Invalid workflow seed payload" }, 400);
+    }
+
+    const workspaceSlug = c.var.workspaceSlug;
+    const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
+    const exists = mergedConfig.workflowSeeds.some((seed) => seed.id === parsedBody.data.id);
+    if (exists) {
+      return c.json({ success: false as const, error: `Workflow seed already exists: ${parsedBody.data.id}` }, 409);
+    }
+
+    const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
+    upsertWorkspaceItem(workspaceConfig.workflowSeeds, parsedBody.data);
+
+    await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
+    const updatedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
+    const workflowSeed = updatedConfig.workflowSeeds.find((item) => item.id === parsedBody.data.id) ?? parsedBody.data;
+    return c.json({ success: true as const, workflowSeed }, 201);
+  } catch (error) {
+    console.error("Failed to add workflow seed", error);
+    return c.json({ success: false as const, error: "Failed to add workflow seed" }, 500);
+  }
+});
+
+app.put("/custom-keywords/workflow-seeds/:id", requireAdmin, async (c) => {
+  try {
+    const id = c.req.param("id");
+    const body: unknown = await c.req.json();
+    const parsedBody = CustomKeywordWorkflowSeedUpdateSchema.safeParse(body);
+
+    if (!parsedBody.success) {
+      return c.json({ success: false as const, error: "Invalid workflow seed update payload" }, 400);
+    }
+
+    if (parsedBody.data.id !== id) {
+      return c.json({ success: false as const, error: "Path id does not match payload id" }, 400);
+    }
+
+    const workspaceSlug = c.var.workspaceSlug;
+    const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
+    const existingWorkflowSeed = mergedConfig.workflowSeeds.find((seed) => seed.id === id);
+    if (!existingWorkflowSeed) {
+      return c.json({ success: false as const, error: `Workflow seed not found: ${id}` }, 404);
+    }
+
+    const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
+    upsertWorkspaceItem(workspaceConfig.workflowSeeds, parsedBody.data);
+
+    await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
+    const updatedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
+    const workflowSeed = updatedConfig.workflowSeeds.find((item) => item.id === id) ?? parsedBody.data;
+    return c.json({ success: true as const, workflowSeed }, 200);
+  } catch (error) {
+    console.error("Failed to update workflow seed", error);
+    return c.json({ success: false as const, error: "Failed to update workflow seed" }, 500);
+  }
+});
+
+app.delete("/custom-keywords/workflow-seeds/:id", requireAdmin, async (c) => {
+  try {
+    const id = c.req.param("id");
+    const workspaceSlug = c.var.workspaceSlug;
+    const mergedConfig = await workspaceConfigService.getCustomKeywords(workspaceSlug);
+    const workspaceConfig = await workspaceConfigService.getWorkspaceCustomKeywords(workspaceSlug);
+    const systemWorkflowSeedExists = isSystemWorkflowSeed(id);
+    const mergedWorkflowSeed = mergedConfig.workflowSeeds.find((seed) => seed.id === id);
+    if (!mergedWorkflowSeed) {
+      return c.json({ success: false as const, error: `Workflow seed not found: ${id}` }, 404);
+    }
+
+    if (systemWorkflowSeedExists) {
+      upsertWorkspaceItem(workspaceConfig.workflowSeeds, {
+        ...mergedWorkflowSeed,
+        visible: false,
+        source: "workspace",
+      });
+    } else if (!removeWorkspaceItem(workspaceConfig.workflowSeeds, id)) {
+      return c.json({ success: false as const, error: `Workflow seed not found in workspace override: ${id}` }, 404);
+    }
+
+    await workspaceConfigService.setWorkspaceCustomKeywords(workspaceSlug, workspaceConfig);
+    return c.json({ success: true as const }, 200);
+  } catch (error) {
+    console.error("Failed to delete workflow seed", error);
+    return c.json({ success: false as const, error: "Failed to delete workflow seed" }, 500);
   }
 });
 

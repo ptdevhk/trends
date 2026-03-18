@@ -4,9 +4,11 @@ import JSON5 from "json5";
 import { findProjectRoot } from "./db.js";
 import {
   customKeywordService,
+  type ConfigSourceOrigin,
   type CustomKeywordCategory,
   type CustomKeywordsConfig,
   type CustomKeywordTag,
+  type CustomKeywordWorkflowSeed,
   type SystemLocationItem,
 } from "./custom-keyword-service.js";
 import {
@@ -47,6 +49,33 @@ function readNumber(value: unknown): number | null {
     return value;
   }
   return null;
+}
+
+function parseMarkets(value: unknown): Array<"CN" | "MY"> | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const markets = value.filter((item): item is "CN" | "MY" => item === "CN" || item === "MY");
+  return markets.length > 0 ? Array.from(new Set(markets)) : undefined;
+}
+
+function parseVisible(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSeed["collectionSource"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const type = value.type === "job5156" || value.type === "seek" ? value.type : null;
+  if (!type) {
+    return null;
+  }
+
+  const exactUrl = readString(value.exactUrl) ?? undefined;
+  return exactUrl ? { type, exactUrl } : { type };
 }
 
 function parseWorkspaceConfigEntry(value: unknown): WorkspaceConfigEntry | null {
@@ -107,7 +136,21 @@ function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
   }
 
   const english = readString(value.english) ?? undefined;
-  return { id, keyword, english, category };
+  const markets = parseMarkets(value.markets);
+  const visible = parseVisible(value.visible);
+  const source = value.source === "system" || value.source === "workspace" ? value.source : undefined;
+
+  const tag: CustomKeywordTag = { id, keyword, english, category };
+  if (markets) {
+    tag.markets = markets;
+  }
+  if (visible !== undefined) {
+    tag.visible = visible;
+  }
+  if (source) {
+    tag.source = source;
+  }
+  return tag;
 }
 
 function parseCustomKeywordCategory(value: unknown): CustomKeywordCategory | null {
@@ -138,12 +181,64 @@ function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
   }
 
   const parentKeyword = readString(value.parentKeyword) ?? undefined;
-  return { id, keyword, level, parentKeyword, visible };
+  const markets = parseMarkets(value.markets);
+  const location: SystemLocationItem = { id, keyword, level, parentKeyword, visible };
+  if (markets) {
+    location.markets = markets;
+  }
+  return location;
+}
+
+function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = readString(value.id);
+  const label = readString(value.label);
+  const market = value.market === "CN" || value.market === "MY" ? value.market : null;
+  const location = readString(value.location) ?? "";
+  const keywords = Array.isArray(value.keywords)
+    ? value.keywords
+        .map((item) => readString(item))
+        .filter((item): item is string => item !== null)
+    : [];
+  const collectionSource = parseWorkflowCollectionSource(value.collectionSource);
+
+  if (!id || !label || !market || keywords.length === 0 || !collectionSource) {
+    return null;
+  }
+
+  const workflowSeed: CustomKeywordWorkflowSeed = {
+    id,
+    label,
+    market,
+    location,
+    keywords: Array.from(new Set(keywords)),
+    collectionSource,
+  };
+
+  const collectUrl = readString(value.collectUrl) ?? undefined;
+  if (collectUrl) {
+    workflowSeed.collectUrl = collectUrl;
+  }
+
+  const visible = parseVisible(value.visible);
+  if (visible !== undefined) {
+    workflowSeed.visible = visible;
+  }
+
+  const source = value.source === "system" || value.source === "workspace" ? value.source : undefined;
+  if (source) {
+    workflowSeed.source = source;
+  }
+
+  return workflowSeed;
 }
 
 function parseCustomKeywordsConfig(value: unknown): CustomKeywordsConfig {
   if (!isRecord(value)) {
-    return { tags: [], categories: [], systemLocations: [] };
+    return { tags: [], categories: [], systemLocations: [], workflowSeeds: [] };
   }
 
   const tags = Array.isArray(value.tags)
@@ -164,7 +259,78 @@ function parseCustomKeywordsConfig(value: unknown): CustomKeywordsConfig {
         .filter((item): item is SystemLocationItem => item !== null)
     : [];
 
-  return { tags, categories, systemLocations };
+  const workflowSeeds = Array.isArray(value.workflowSeeds)
+    ? value.workflowSeeds
+        .map((item) => parseWorkflowSeed(item))
+        .filter((item): item is CustomKeywordWorkflowSeed => item !== null)
+    : [];
+
+  return { tags, categories, systemLocations, workflowSeeds };
+}
+
+function sanitizeCustomKeywordsConfig(config: CustomKeywordsConfig): CustomKeywordsConfig {
+  return {
+    tags: config.tags.map(({ source, ...tag }) => tag),
+    categories: config.categories.map((category) => ({ ...category })),
+    systemLocations: config.systemLocations.map((location) => ({ ...location })),
+    workflowSeeds: config.workflowSeeds.map(({ source, ...seed }) => ({
+      ...seed,
+      collectionSource: { ...seed.collectionSource },
+    })),
+  };
+}
+
+function mergeItemsById<T extends { id: string }>(base: T[], overrides: T[]): T[] {
+  const mergedById = new Map<string, T>();
+
+  for (const item of base) {
+    mergedById.set(item.id, item);
+  }
+
+  for (const item of overrides) {
+    const existing = mergedById.get(item.id);
+    if (!existing) {
+      mergedById.set(item.id, item);
+      continue;
+    }
+
+    mergedById.set(item.id, {
+      ...existing,
+      ...item,
+    });
+  }
+
+  return Array.from(mergedById.values());
+}
+
+function mergeResolvedItemsById<T extends { id: string; source?: ConfigSourceOrigin }>(base: T[], overrides: T[]): T[] {
+  const mergedById = new Map<string, T>();
+
+  for (const item of base) {
+    mergedById.set(item.id, {
+      ...item,
+      source: item.source ?? "system",
+    });
+  }
+
+  for (const item of overrides) {
+    const existing = mergedById.get(item.id);
+    if (!existing) {
+      mergedById.set(item.id, {
+        ...item,
+        source: "workspace",
+      });
+      continue;
+    }
+
+    mergedById.set(item.id, {
+      ...existing,
+      ...item,
+      source: "workspace",
+    });
+  }
+
+  return Array.from(mergedById.values());
 }
 
 function parseFilterPreset(value: unknown): FilterPreset | null {
@@ -432,14 +598,15 @@ export class WorkspaceConfigService {
   }
 
   async setWorkspaceCustomKeywords(workspaceSlug: string, config: CustomKeywordsConfig): Promise<void> {
-    await this.upsertWorkspaceConfigEntry(workspaceSlug, CUSTOM_KEYWORDS_KEY, config);
+    await this.upsertWorkspaceConfigEntry(workspaceSlug, CUSTOM_KEYWORDS_KEY, sanitizeCustomKeywordsConfig(config));
   }
 
   async getCustomKeywords(workspaceSlug: string): Promise<CustomKeywordsConfig> {
     const systemConfig: CustomKeywordsConfig = {
-      tags: customKeywordService.listTags(),
+      tags: customKeywordService.listTags().map((item) => ({ ...item, source: "system" as const })),
       categories: customKeywordService.listCategories(),
       systemLocations: customKeywordService.listSystemLocations(),
+      workflowSeeds: customKeywordService.listWorkflowSeeds().map((item) => ({ ...item, source: "system" as const })),
     };
     const workspaceConfig = await this.getWorkspaceCustomKeywords(workspaceSlug);
 
@@ -451,26 +618,15 @@ export class WorkspaceConfigService {
       categoriesById.set(category.id, category);
     }
 
-    const tagsById = new Map<string, CustomKeywordTag>();
-    for (const tag of systemConfig.tags) {
-      tagsById.set(tag.id, tag);
-    }
-    for (const tag of workspaceConfig.tags) {
-      tagsById.set(tag.id, tag);
-    }
-
-    const locationsById = new Map<string, SystemLocationItem>();
-    for (const item of systemConfig.systemLocations) {
-      locationsById.set(item.id, item);
-    }
-    for (const item of workspaceConfig.systemLocations) {
-      locationsById.set(item.id, item);
-    }
+    const tags = mergeResolvedItemsById(systemConfig.tags, workspaceConfig.tags);
+    const workflowSeeds = mergeResolvedItemsById(systemConfig.workflowSeeds, workspaceConfig.workflowSeeds);
+    const locations = mergeItemsById(systemConfig.systemLocations, workspaceConfig.systemLocations);
 
     return {
       categories: Array.from(categoriesById.values()),
-      tags: Array.from(tagsById.values()),
-      systemLocations: Array.from(locationsById.values()),
+      tags,
+      systemLocations: locations,
+      workflowSeeds,
     };
   }
 

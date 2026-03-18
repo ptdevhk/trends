@@ -3,11 +3,18 @@ import path from "node:path";
 import JSON5 from "json5";
 import { findProjectRoot } from "./db.js";
 
+export type KeywordMarket = "CN" | "MY";
+export type ConfigSourceOrigin = "system" | "workspace";
+export type WorkflowSeedCollectionSourceType = "job5156" | "seek";
+
 export interface CustomKeywordTag {
     id: string;
     keyword: string;
     english?: string;
     category: string;
+    markets?: KeywordMarket[];
+    visible?: boolean;
+    source?: ConfigSourceOrigin;
 }
 
 export interface CustomKeywordCategory {
@@ -24,12 +31,29 @@ export interface SystemLocationItem {
     level: SystemLocationLevel;
     parentKeyword?: string;
     visible: boolean;
+    markets?: KeywordMarket[];
+}
+
+export interface CustomKeywordWorkflowSeed {
+    id: string;
+    label: string;
+    market: KeywordMarket;
+    location: string;
+    keywords: string[];
+    collectionSource: {
+        type: WorkflowSeedCollectionSourceType;
+        exactUrl?: string;
+    };
+    collectUrl?: string;
+    visible?: boolean;
+    source?: ConfigSourceOrigin;
 }
 
 export interface CustomKeywordsConfig {
     tags: CustomKeywordTag[];
     categories: CustomKeywordCategory[];
     systemLocations: SystemLocationItem[];
+    workflowSeeds: CustomKeywordWorkflowSeed[];
 }
 
 const DEFAULT_CATEGORIES: CustomKeywordCategory[] = [
@@ -70,6 +94,125 @@ type Job5156LocationSnapshot = {
     tree?: unknown;
 };
 
+function parseKeywordMarket(value: unknown): KeywordMarket | null {
+    return value === "CN" || value === "MY" ? value : null;
+}
+
+function parseMarketList(value: unknown): KeywordMarket[] | undefined {
+    if (!Array.isArray(value)) {
+        return undefined;
+    }
+
+    const markets = value
+        .map((item) => parseKeywordMarket(item))
+        .filter((item): item is KeywordMarket => item !== null);
+
+    return markets.length > 0 ? Array.from(new Set(markets)) : undefined;
+}
+
+function parseVisible(value: unknown): boolean | undefined {
+    return typeof value === "boolean" ? value : undefined;
+}
+
+function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSeed["collectionSource"] | null {
+    if (!value || typeof value !== "object") {
+        return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    const type = record.type === "job5156" || record.type === "seek" ? record.type : null;
+    if (!type) {
+        return null;
+    }
+
+    const exactUrl = typeof record.exactUrl === "string" && record.exactUrl.trim()
+        ? record.exactUrl.trim()
+        : undefined;
+
+    return exactUrl ? { type, exactUrl } : { type };
+}
+
+function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
+    if (!value || typeof value !== "object") {
+        return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    const id = typeof record.id === "string" ? record.id.trim() : "";
+    const keyword = typeof record.keyword === "string" ? record.keyword.trim() : "";
+    const category = typeof record.category === "string" ? record.category.trim() : "";
+    if (!id || !keyword || !category) {
+        return null;
+    }
+
+    const tag: CustomKeywordTag = { id, keyword, category };
+
+    const english = typeof record.english === "string" && record.english.trim()
+        ? record.english.trim()
+        : undefined;
+    if (english) {
+        tag.english = english;
+    }
+
+    const markets = parseMarketList(record.markets);
+    if (markets) {
+        tag.markets = markets;
+    }
+
+    const visible = parseVisible(record.visible);
+    if (visible !== undefined) {
+        tag.visible = visible;
+    }
+
+    return tag;
+}
+
+function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
+    if (!value || typeof value !== "object") {
+        return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    const id = typeof record.id === "string" ? record.id.trim() : "";
+    const label = typeof record.label === "string" ? record.label.trim() : "";
+    const market = parseKeywordMarket(record.market);
+    const location = typeof record.location === "string" ? record.location.trim() : "";
+    const keywords = Array.isArray(record.keywords)
+        ? Array.from(new Set(
+            record.keywords
+                .map((item) => typeof item === "string" ? item.trim() : "")
+                .filter((item) => item.length > 0)
+        ))
+        : [];
+    const collectionSource = parseWorkflowCollectionSource(record.collectionSource);
+    if (!id || !label || !market || keywords.length === 0 || !collectionSource) {
+        return null;
+    }
+
+    const workflowSeed: CustomKeywordWorkflowSeed = {
+        id,
+        label,
+        market,
+        location,
+        keywords,
+        collectionSource,
+    };
+
+    const collectUrl = typeof record.collectUrl === "string" && record.collectUrl.trim()
+        ? record.collectUrl.trim()
+        : undefined;
+    if (collectUrl) {
+        workflowSeed.collectUrl = collectUrl;
+    }
+
+    const visible = parseVisible(record.visible);
+    if (visible !== undefined) {
+        workflowSeed.visible = visible;
+    }
+
+    return workflowSeed;
+}
+
 function normalizeKeyword(value: unknown): string {
     return typeof value === "string" ? value.trim() : "";
 }
@@ -93,42 +236,31 @@ function parseSystemLocationItem(value: unknown): SystemLocationItem | null {
     }
 
     const parentKeyword = normalizeKeyword(record.parentKeyword) || undefined;
-    return { id, keyword, level, parentKeyword, visible };
+    const markets = parseMarketList(record.markets);
+    const item: SystemLocationItem = { id, keyword, level, parentKeyword, visible };
+    if (markets) {
+        item.markets = markets;
+    }
+    return item;
 }
 
 function normalizeConfig(raw: unknown): CustomKeywordsConfig {
   if (!raw || typeof raw !== "object") {
-    return { tags: [], categories: [...DEFAULT_CATEGORIES], systemLocations: [] };
+    return { tags: [], categories: [...DEFAULT_CATEGORIES], systemLocations: [], workflowSeeds: [] };
   }
 
     const data = raw as {
         tags?: unknown[];
         categories?: unknown[];
         systemLocations?: unknown[];
+        workflowSeeds?: unknown[];
     };
 
-    const tags: CustomKeywordTag[] = [];
-    if (Array.isArray(data.tags)) {
-        for (const item of data.tags) {
-            if (!item || typeof item !== "object") continue;
-            const record = item as Record<string, unknown>;
-            const id = typeof record.id === "string" ? record.id.trim() : "";
-            const keyword = typeof record.keyword === "string" ? record.keyword.trim() : "";
-            const category = typeof record.category === "string" ? record.category.trim() : "";
-            if (!id || !keyword || !category) {
-                continue;
-            }
-
-            const english = typeof record.english === "string" && record.english.trim()
-                ? record.english.trim()
-                : undefined;
-            const tag: CustomKeywordTag = { id, keyword, category };
-            if (english) {
-                tag.english = english;
-            }
-            tags.push(tag);
-        }
-    }
+    const tags = Array.isArray(data.tags)
+        ? data.tags
+            .map((item) => parseCustomKeywordTag(item))
+            .filter((item): item is CustomKeywordTag => item !== null)
+        : [];
 
     const categories: CustomKeywordCategory[] = [];
     if (Array.isArray(data.categories)) {
@@ -152,22 +284,28 @@ function normalizeConfig(raw: unknown): CustomKeywordsConfig {
         }
     }
 
-    if (categories.length === 0) {
-        const parsedSystemLocations = Array.isArray(data.systemLocations)
-            ? data.systemLocations
-                .map((item) => parseSystemLocationItem(item))
-                .filter((item): item is SystemLocationItem => item !== null)
-            : [];
-        return { tags, categories: [...DEFAULT_CATEGORIES], systemLocations: parsedSystemLocations };
-    }
-
     const systemLocations = Array.isArray(data.systemLocations)
         ? data.systemLocations
             .map((item) => parseSystemLocationItem(item))
             .filter((item): item is SystemLocationItem => item !== null)
         : [];
 
-    return { tags, categories, systemLocations };
+    const workflowSeeds = Array.isArray(data.workflowSeeds)
+        ? data.workflowSeeds
+            .map((item) => parseWorkflowSeed(item))
+            .filter((item): item is CustomKeywordWorkflowSeed => item !== null)
+        : [];
+
+    if (categories.length === 0) {
+        return {
+            tags,
+            categories: [...DEFAULT_CATEGORIES],
+            systemLocations,
+            workflowSeeds,
+        };
+    }
+
+    return { tags, categories, systemLocations, workflowSeeds };
 }
 
 export class CustomKeywordService {
@@ -252,6 +390,7 @@ export class CustomKeywordService {
                         keyword: provinceKeyword,
                         level: "province",
                         visible: true,
+                        markets: ["CN"],
                     });
                 }
 
@@ -272,6 +411,7 @@ export class CustomKeywordService {
                         level: "city",
                         parentKeyword: includeProvince ? provinceName : undefined,
                         visible: hotCityNames.has(cityName) || DEFAULT_VISIBLE_CITIES.has(cityName),
+                        markets: ["CN"],
                     });
                 }
             }
@@ -343,6 +483,7 @@ export class CustomKeywordService {
                 tags: [],
                 categories: [...DEFAULT_CATEGORIES],
                 systemLocations: generatedSystemLocations,
+                workflowSeeds: [],
             };
             this.cache = fallback;
             this.cacheMtimeMs = null;
@@ -381,6 +522,11 @@ export class CustomKeywordService {
     listSystemLocations(): SystemLocationItem[] {
         const config = this.loadConfig();
         return config.systemLocations;
+    }
+
+    listWorkflowSeeds(): CustomKeywordWorkflowSeed[] {
+        const config = this.loadConfig();
+        return config.workflowSeeds;
     }
 
     clearCache(): void {

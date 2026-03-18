@@ -98,6 +98,30 @@ describe('System settings routes', () => {
               visible: false,
             },
           ],
+          workflowSeeds: [
+            {
+              id: 'job5156-cn-cnc-sales',
+              label: 'China · Job5156 · CNC 销售',
+              market: 'CN',
+              location: '',
+              keywords: ['CNC', '销售'],
+              collectionSource: {
+                type: 'job5156',
+              },
+              visible: true,
+            },
+            {
+              id: 'seek-my-sales-engineer',
+              label: 'Malaysia · SEEK · Sales Engineer / Sales Manager',
+              market: 'MY',
+              location: 'Kuala Lumpur MY',
+              keywords: ['Sales Engineer', 'Sales Manager'],
+              collectionSource: {
+                type: 'seek',
+              },
+              visible: true,
+            },
+          ],
         })
       }
 
@@ -290,5 +314,16 @@ describe('System settings routes', () => {
     expect(screen.getAllByText('FANUC').length).toBeGreaterThan(0)
     expect(screen.getByText('Mazak')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add Keyword' })).toBeInTheDocument()
+  })
+
+  it('renders workflow seed rows in the keywords route', async () => {
+    renderSettingsRoute('/dev/system/settings/keywords')
+
+    await waitFor(() => {
+      expect(screen.getByText('Workflow Seeds')).toBeInTheDocument()
+      expect(screen.getByText('China · Job5156 · CNC 销售')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('Malaysia · SEEK · Sales Engineer / Sales Manager')).toBeInTheDocument()
   })
 })
