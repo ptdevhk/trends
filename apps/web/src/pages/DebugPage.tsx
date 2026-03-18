@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { DEBUG_PAGE_SECTION_DEFINITIONS } from '@trends/shared'
+import { DEBUG_PAGE_SECTION_DEFINITIONS, formatLocationHierarchyLabel } from '@trends/shared'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
@@ -92,10 +92,10 @@ type IndustryBrand = {
 
 type CountEntry = { label: string; count: number }
 
-function buildCounts(items: ResumeItem[], key: keyof ResumeItem): CountEntry[] {
+function buildCounts(items: ResumeItem[], getLabel: (item: ResumeItem) => string): CountEntry[] {
   const counter = new Map<string, number>()
   items.forEach((item) => {
-    const value = (item[key] ?? '').toString().trim()
+    const value = getLabel(item).trim()
     if (!value) return
     counter.set(value, (counter.get(value) ?? 0) + 1)
   })
@@ -103,6 +103,10 @@ function buildCounts(items: ResumeItem[], key: keyof ResumeItem): CountEntry[] {
   return Array.from(counter.entries())
     .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count)
+}
+
+function getResumeLocationLabel(item: ResumeItem): string {
+  return formatLocationHierarchyLabel(item.locationHierarchy) || item.location || ''
 }
 
 /* CONVEX INTEGRATION START */
@@ -413,14 +417,19 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
     [t, basePath]
   )
 
-  const locationCounts = useMemo(() => buildCounts(resumes, 'location').slice(0, 5), [resumes])
-  const educationCounts = useMemo(() => buildCounts(resumes, 'education').slice(0, 5), [resumes])
-  const intentionCounts = useMemo(() => buildCounts(resumes, 'jobIntention').slice(0, 5), [resumes])
+  const locationCounts = useMemo(() => buildCounts(resumes, getResumeLocationLabel).slice(0, 5), [resumes])
+  const educationCounts = useMemo(() => buildCounts(resumes, (item) => item.education || '').slice(0, 5), [resumes])
+  const intentionCounts = useMemo(() => buildCounts(resumes, (item) => item.jobIntention || '').slice(0, 5), [resumes])
 
   const missingStats = useMemo(() => {
     const fields: Array<keyof ResumeItem> = ['education', 'location', 'experience', 'jobIntention']
     const stats = fields.map((field) => {
-      const missing = resumes.filter((item) => !item[field]?.toString().trim()).length
+      const missing = resumes.filter((item) => {
+        if (field === 'location') {
+          return !getResumeLocationLabel(item)
+        }
+        return !item[field]?.toString().trim()
+      }).length
       return { field, missing }
     })
     const missingWorkHistory = resumes.filter((item) => (item.workHistory?.length ?? 0) === 0).length
