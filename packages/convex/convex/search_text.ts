@@ -1,3 +1,5 @@
+import { formatLocationHierarchySearchText, type LocationHierarchy } from "@trends/shared";
+
 const PRIORITY_KEYS = [
     "name",
     "desiredPosition",
@@ -7,6 +9,7 @@ const PRIORITY_KEYS = [
     "workHistory",
     "companies",
     "summary",
+    "locationHierarchy",
 ];
 
 const PRIORITY_KEY_SET = new Set(PRIORITY_KEYS);
@@ -137,6 +140,13 @@ function toTextFragments(value: unknown): string[] {
 function collectPriorityFragments(content: UnknownRecord): string[] {
     const parts: string[] = [];
     for (const key of PRIORITY_KEYS) {
+        if (key === "locationHierarchy") {
+            const locationHierarchy = formatLocationHierarchySearchText(content[key] as LocationHierarchy | null | undefined);
+            if (locationHierarchy) {
+                parts.push(locationHierarchy);
+            }
+            continue;
+        }
         parts.push(...toTextFragments(content[key]));
     }
     return parts;

@@ -3,6 +3,10 @@ import type { Doc } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 
+import {
+    formatLocationHierarchyLabel,
+    normalizeResumeLocationHierarchy,
+} from "@trends/shared";
 import { mergeSearchTextWithIngestData } from "./search_text";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -202,13 +206,14 @@ export function projectIngestDiagnosticsRow(
 ): IngestDiagnosticsRow {
     const content = isRecord(resume.content) ? resume.content : {};
     const ingestData = resume.ingestData;
+    const locationHierarchy = normalizeResumeLocationHierarchy(content);
 
     return {
         resumeId: resume._id,
         externalId: resume.externalId,
         name: toStringValue(content.name),
         jobIntention: toStringValue(content.jobIntention),
-        location: toStringValue(content.location),
+        location: toStringValue(content.location) || formatLocationHierarchyLabel(locationHierarchy),
         ingestData: ingestData ? {
             industryTags: ingestData.industryTags,
             companyHits: ingestData.companyHits ?? [],

@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText } from "@trends/shared";
+import { buildWorkHistoryEntryText, formatLocationHierarchySearchText } from "@trends/shared";
 
 import { parseSearchQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
@@ -45,11 +45,13 @@ function normalizeToken(value: string): string {
 }
 
 function buildSearchText(item: ResumeItem): string {
+  const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
   const parts = [
     item.name,
     item.jobIntention,
     item.selfIntro,
     item.education,
+    locationText,
     item.expectedSalary,
     ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
   ];

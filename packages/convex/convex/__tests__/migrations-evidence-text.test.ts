@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { backfillEvidenceText, backfillJob5156WorkHistoryEducation } from '../migrations'
+import {
+  backfillEvidenceText,
+  backfillJob5156LocationHierarchy,
+  backfillJob5156WorkHistoryEducation,
+} from '../migrations'
 
 type BackfillEvidenceTextResult = {
   scannedResumes: number
@@ -21,6 +25,19 @@ const backfillEvidenceTextHandler = (backfillEvidenceText as unknown as ConvexHa
 const backfillJob5156WorkHistoryEducationHandler = (backfillJob5156WorkHistoryEducation as unknown as ConvexHandler<
   Record<string, never>,
   { scannedResumes: number; updatedResumes: number; movedEducationEntries: number; hasMore: boolean; cursor: string | null }
+>)._handler
+
+const backfillJob5156LocationHierarchyHandler = (backfillJob5156LocationHierarchy as unknown as ConvexHandler<
+  Record<string, never>,
+  {
+    scannedResumes: number
+    updatedResumes: number
+    updatedLocationHierarchy: number
+    updatedLocation: number
+    updatedSearchText: number
+    hasMore: boolean
+    cursor: string | null
+  }
 >)._handler
 
 type ResumeRecord = {
@@ -228,5 +245,68 @@ describe('backfillJob5156WorkHistoryEducation', () => {
     })
 
     expect(ctx.patches.some((entry) => entry.id === 'seek-legacy')).toBe(false)
+  })
+})
+
+describe('backfillJob5156LocationHierarchy', () => {
+  it('backfills structured location hierarchy and rebuilds search text for Job5156 resumes', async () => {
+    const records: ResumeRecord[] = [
+      {
+        _id: 'job5156-location',
+        content: {
+          source: 'hr.job5156.com',
+          profileUrl: 'https://hr.job5156.com/resume/view/123',
+          location: '',
+          workHistory: [
+            {
+              raw: '2020-01~2024-01 东莞精密机械有限公司 销售工程师',
+              companyName: '东莞精密机械有限公司',
+              jobTitle: '销售工程师',
+            },
+          ],
+        },
+        ingestData: {
+          evidenceText: 'stale evidence',
+          industryTags: ['machinery'],
+          synonymHits: ['销售'],
+          ruleScores: { jd1: 80 },
+          experienceLevel: 'mid',
+          computedAt: 1_700_000_000_000,
+          skillsVersion: 1,
+        },
+      },
+    ]
+
+    const ctx = createResumesDb(records)
+    const result = await backfillJob5156LocationHierarchyHandler(ctx as never, {})
+
+    expect(result).toEqual({
+      scannedResumes: 1,
+      updatedResumes: 1,
+      updatedLocationHierarchy: 1,
+      updatedLocation: 1,
+      updatedSearchText: 1,
+      hasMore: false,
+      cursor: null,
+    })
+
+    expect(ctx.patches).toContainEqual({
+      id: 'job5156-location',
+      patch: expect.objectContaining({
+        content: expect.objectContaining({
+          source: 'hr.job5156.com',
+          profileUrl: 'https://hr.job5156.com/resume/view/123',
+          location: '广东东莞',
+          locationHierarchy: {
+            country: '中国',
+            province: '广东',
+            city: '东莞',
+            matchedFrom: 'workHistory',
+            confidence: 'high',
+          },
+        }),
+        searchText: expect.stringContaining('中国'),
+      }),
+    })
   })
 })

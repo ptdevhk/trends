@@ -195,6 +195,8 @@ function buildResume(params: {
   id: string
   name: string
   primaryRuleScore?: number
+  location?: string
+  locationHierarchy?: ConvexResumeItem['locationHierarchy']
   brandHits?: ConvexIngestData['brandHits']
   companyHits?: string[]
   industryTags?: string[]
@@ -224,7 +226,8 @@ function buildResume(params: {
     ageNumber: 30,
     experience: '5 years',
     education: 'Bachelor',
-    location: 'Dongguan',
+    location: params.location ?? 'Dongguan',
+    locationHierarchy: params.locationHierarchy,
     selfIntro: 'Test intro',
     jobIntention: 'Test role',
     expectedSalary: '10k-20k',
@@ -583,6 +586,37 @@ describe('useResumeListState role filter regression', () => {
       'Zhang Machinery Sales',
       'Zhou Jingdiao Hit',
     ])
+  })
+
+  it('filters convex resumes by structured location hierarchy when raw location is blank', () => {
+    mockState.convexResumes = [
+      buildResume({
+        id: 'resume-hierarchy-location',
+        name: 'Hierarchy Location',
+        location: '',
+        locationHierarchy: {
+          country: '中国',
+          province: '广东',
+          city: '东莞',
+        },
+        roleSignals: [
+          {
+            type: 'sales',
+            matchedSignals: ['销售'],
+            signalCount: 1,
+            occurrences: 1,
+            years: 3,
+            industryVerifiedYears: 3,
+            verifyIn: 'workHistory',
+          },
+        ],
+      }),
+    ]
+    mockState.filters = {
+      locations: ['东莞'],
+    }
+
+    expect(getDisplayedResumeNames()).toEqual(['Hierarchy Location'])
   })
 
   it('falls back to legacy minSalesYears when minRoleYears is absent', () => {

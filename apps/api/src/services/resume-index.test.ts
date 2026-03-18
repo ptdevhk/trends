@@ -114,6 +114,48 @@ describe("ResumeIndexService", () => {
     }
   });
 
+  it("uses structured location hierarchy when raw location is missing", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new ResumeIndexService(root);
+
+      const resumes: ResumeItem[] = [
+        {
+          name: "张三",
+          profileUrl: "javascript:;",
+          activityStatus: "活跃",
+          age: "31",
+          experience: "5年",
+          education: "本科",
+          location: "",
+          locationHierarchy: {
+            country: "中国",
+            province: "广东",
+            city: "东莞",
+          },
+          selfIntro: "",
+          jobIntention: "",
+          expectedSalary: "12000-18000元/月",
+          workHistory: [],
+          extractedAt: "2026-02-11T00:00:00.000Z",
+          resumeId: "R2002",
+          perUserId: "U2002",
+        },
+      ];
+
+      const index = service.buildIndex("sample:hierarchy", resumes);
+      const entry = index.get("R2002");
+
+      expect(entry?.locationCity).toBe("东莞");
+      expect(entry?.searchText).toContain("中国");
+      expect(entry?.searchText).toContain("广东");
+      expect(entry?.searchText).toContain("东莞");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
   it("extracts seeded English location cities before CJK fallback", () => {
     const root = createFixtureRoot();
 

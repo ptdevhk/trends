@@ -3914,6 +3914,18 @@ export interface components {
             /** @example Navigate to sourceUrl, then add ?tr_auto_export=json */
             reproduction?: string;
         };
+        ResumeLocationHierarchy: {
+            /** @example 中国 */
+            country: string;
+            /** @example 广东 */
+            province?: string;
+            /** @example 东莞 */
+            city?: string;
+            /** @enum {string} */
+            matchedFrom?: "location" | "profile" | "workHistory" | "jobIntention";
+            /** @enum {string} */
+            confidence?: "high";
+        };
         ResumeWorkHistory: {
             /** @example 2021-03 ~ 2023-08 Example Co. - Sales Manager */
             raw: string;
@@ -4007,6 +4019,7 @@ export interface components {
             education: string;
             /** @example Shenzhen */
             location: string;
+            locationHierarchy?: components["schemas"]["ResumeLocationHierarchy"];
             /** @example 认真敬业，具备团队协作精神 */
             selfIntro: string;
             /** @example Sales Manager */
@@ -4394,6 +4407,7 @@ export interface components {
             education?: string;
             /** @example Shenzhen */
             location?: string;
+            locationHierarchy?: components["schemas"]["ResumeLocationHierarchy"];
             /** @example Sales Manager */
             jobIntention?: string;
             /** @example 10-15K */
@@ -4519,6 +4533,7 @@ export interface components {
                     name?: string;
                     jobIntention?: string;
                     location?: string;
+                    locationHierarchy?: components["schemas"]["ResumeLocationHierarchy"];
                     age?: string;
                     experience?: string;
                     education?: string;

@@ -1,3 +1,9 @@
+import {
+  formatLocationHierarchyLabel,
+  normalizeLocationHierarchy as normalizeLocationTreeHierarchy,
+  type LocationHierarchy,
+} from "./location-tree.js";
+
 export type ResumeWorkHistoryItem = {
   raw: string;
   companyName?: string;
@@ -57,6 +63,8 @@ export type ResumeDigitalIdentity = {
 
 export type NormalizedResumeFields = {
   profileUrl: string;
+  location?: string;
+  locationHierarchy?: LocationHierarchy;
   workHistory: ResumeWorkHistoryItem[];
   profileEducation?: ResumeProfileEducationItem[];
   skills?: Array<string | ResumeSkillDetail>;
@@ -225,6 +233,140 @@ function normalizeWorkHistory(value: unknown): ResumeWorkHistoryItem[] {
   return normalized;
 }
 
+type RankedLocationHierarchy = {
+  hierarchy: LocationHierarchy;
+  priority: number;
+};
+
+function hierarchySignature(value: LocationHierarchy): string {
+  return [value.country, value.province ?? "", value.city ?? ""].join("|");
+}
+
+function hierarchySpecificity(value: LocationHierarchy): number {
+  return [value.province, value.city].filter((part) => Boolean(part)).length;
+}
+
+function areHierarchiesCompatible(left: LocationHierarchy, right: LocationHierarchy): boolean {
+  if (left.country !== right.country) {
+    return false;
+  }
+
+  if (left.province && right.province && left.province !== right.province) {
+    return false;
+  }
+
+  if (left.city && right.city && left.city !== right.city) {
+    return false;
+  }
+
+  return true;
+}
+
+function chooseBestLocationHierarchy(candidates: RankedLocationHierarchy[]): LocationHierarchy | undefined {
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  const deduped = new Map<string, RankedLocationHierarchy>();
+  for (const candidate of candidates) {
+    const key = hierarchySignature(candidate.hierarchy);
+    const existing = deduped.get(key);
+    if (!existing || candidate.priority > existing.priority) {
+      deduped.set(key, candidate);
+    }
+  }
+
+  const uniqueCandidates = Array.from(deduped.values());
+  for (let leftIndex = 0; leftIndex < uniqueCandidates.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < uniqueCandidates.length; rightIndex += 1) {
+      if (!areHierarchiesCompatible(uniqueCandidates[leftIndex].hierarchy, uniqueCandidates[rightIndex].hierarchy)) {
+        return undefined;
+      }
+    }
+  }
+
+  uniqueCandidates.sort((left, right) => {
+    const specificityDiff = hierarchySpecificity(right.hierarchy) - hierarchySpecificity(left.hierarchy);
+    if (specificityDiff !== 0) {
+      return specificityDiff;
+    }
+
+    if (right.priority !== left.priority) {
+      return right.priority - left.priority;
+    }
+
+    return hierarchySignature(left.hierarchy).localeCompare(hierarchySignature(right.hierarchy));
+  });
+
+  return uniqueCandidates[0]?.hierarchy;
+}
+
+function toLocationHierarchyCandidate(
+  value: unknown,
+  matchedFrom: LocationHierarchy["matchedFrom"],
+  priority: number
+): RankedLocationHierarchy | undefined {
+  const hierarchy = normalizeLocationTreeHierarchy(value);
+  if (!hierarchy) {
+    return undefined;
+  }
+
+  const nextHierarchy: LocationHierarchy = {
+    ...hierarchy,
+    matchedFrom,
+    confidence: "high",
+  };
+
+  return {
+    hierarchy: nextHierarchy,
+    priority,
+  };
+}
+
+function collectLocationHierarchyCandidates(record: Record<string, unknown>): RankedLocationHierarchy[] {
+  const candidates: RankedLocationHierarchy[] = [];
+  const pushCandidate = (
+    value: unknown,
+    matchedFrom: LocationHierarchy["matchedFrom"],
+    priority: number
+  ) => {
+    const candidate = toLocationHierarchyCandidate(value, matchedFrom, priority);
+    if (candidate) {
+      candidates.push(candidate);
+    }
+  };
+
+  pushCandidate(record.location, "location", 100);
+
+  if (Array.isArray(record.workHistory)) {
+    for (const entry of record.workHistory) {
+      if (!isRecord(entry)) {
+        if (typeof entry === "string") {
+          pushCandidate(entry, "workHistory", 80);
+        }
+        continue;
+      }
+
+      pushCandidate(entry.raw, "workHistory", 80);
+      pushCandidate(entry.companyName, "workHistory", 80);
+      pushCandidate(entry.description, "workHistory", 80);
+    }
+  }
+
+  pushCandidate(record.jobIntention, "jobIntention", 60);
+
+  return candidates;
+}
+
+export function normalizeResumeLocationHierarchy(record: Record<string, unknown>): LocationHierarchy | undefined {
+  const explicitHierarchy = normalizeLocationTreeHierarchy(record.locationHierarchy);
+  if (explicitHierarchy) {
+    return explicitHierarchy;
+  }
+
+  return chooseBestLocationHierarchy(collectLocationHierarchyCandidates(record));
+}
+
 function normalizeProfileEducation(value: unknown): ResumeProfileEducationItem[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
@@ -379,8 +521,13 @@ function normalizeOptionalNumber(value: unknown): number | undefined {
 }
 
 export function normalizeSharedResumeFields(record: Record<string, unknown>, source?: string): NormalizedResumeFields {
+  const locationHierarchy = normalizeResumeLocationHierarchy(record);
+  const location = toTrimmedString(record.location) || formatLocationHierarchyLabel(locationHierarchy);
+
   return {
     profileUrl: normalizeProfileUrlForDisplay(record.profileUrl, source),
+    ...(location ? { location } : {}),
+    ...(locationHierarchy ? { locationHierarchy } : {}),
     workHistory: normalizeWorkHistory(record.workHistory),
     profileEducation: normalizeProfileEducation(record.profileEducation),
     skills: normalizeStringOrObjectArray(record.skills, normalizeSkillDetail),

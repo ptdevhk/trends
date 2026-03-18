@@ -46,7 +46,12 @@ import {
 } from "../services/rule-scoring.js";
 import { resolveResumeId } from "../services/resume-id.js";
 import { IngestComputeService } from "../services/ingest-compute-service.js";
-import { buildWorkHistoryEntryText, buildWorkHistoryEvidence, normalizeWorkHistoryEntry } from "@trends/shared";
+import {
+  buildWorkHistoryEntryText,
+  buildWorkHistoryEvidence,
+  formatLocationHierarchySearchText,
+  normalizeWorkHistoryEntry,
+} from "@trends/shared";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { SearchEventLogger } from "../services/search-event-logger.js";
 import {
@@ -1070,9 +1075,10 @@ function computeStats(
 }
 
 function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex {
+  const locationText = formatLocationHierarchySearchText(resume.locationHierarchy) || resume.location || "";
   const text = [
     resume.name,
-    resume.location,
+    locationText,
     resume.education,
     ...(resume.workHistory ?? []).map((item) => buildWorkHistoryEntryText(item)),
   ].join(" ").toLowerCase();
@@ -1081,7 +1087,11 @@ function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex 
     resumeId,
     experienceYears: null,
     educationLevel: resume.education || null,
-    locationCity: resume.location || null,
+    locationCity: resume.locationHierarchy?.city
+      || resume.locationHierarchy?.province
+      || resume.locationHierarchy?.country
+      || resume.location
+      || null,
     skills: [],
     companies: extractCompanies(resume.workHistory) ?? [],
     industryTags: [],

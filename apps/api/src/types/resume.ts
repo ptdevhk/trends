@@ -8,6 +8,7 @@ import type {
   ResumeSkillDetail,
   ResumeSnippet,
   ResumeWorkHistoryItem,
+  LocationHierarchy,
 } from "@trends/shared";
 
 export type {
@@ -64,6 +65,7 @@ export type ResumeItem = {
   experience: string;
   education: string;
   location: string;
+  locationHierarchy?: LocationHierarchy;
   selfIntro: string;
   jobIntention: string;
   expectedSalary: string;

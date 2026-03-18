@@ -114,4 +114,21 @@ describe("projectIngestDiagnosticsRow", () => {
         expect(row).not.toHaveProperty("content");
         expect(row).not.toHaveProperty("analysis");
     });
+
+    it("derives a canonical location from raw resume fields when the explicit field is blank", () => {
+        const row = projectIngestDiagnosticsRow({
+            _id: "resume-2",
+            externalId: "ext-2",
+            content: {
+                name: "赵先生",
+                jobIntention: "销售工程师",
+                location: "",
+                workHistory: [
+                    { raw: "2020-01~2024-01 东莞精密机械有限公司 销售工程师" },
+                ],
+            },
+        });
+
+        expect(row.location).toBe("广东东莞");
+    });
 });

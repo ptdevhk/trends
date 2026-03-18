@@ -1,4 +1,4 @@
-type LocationLevel = "province" | "city" | "district";
+type LocationLevel = "country" | "province" | "city" | "district";
 
 type LocationSeed = {
   name: string;
@@ -30,6 +30,14 @@ export type LocationNode = {
   children: string[];
 };
 
+export type LocationHierarchy = {
+  country: string;
+  province?: string;
+  city?: string;
+  matchedFrom?: "location" | "profile" | "workHistory" | "jobIntention";
+  confidence?: "high";
+};
+
 const LOCATION_SUFFIXES = [
   "特别行政区",
   "自治州",
@@ -49,91 +57,143 @@ const LOCATION_SUFFIXES = [
 
 const LOCATION_TREE: LocationSeed[] = [
   {
-    name: "广东",
-    aliases: ["广东省"],
+    name: "中国",
+    aliases: ["中华人民共和国", "中国大陆"],
     children: [
-      { name: "广州", aliases: ["广州市"] },
-      { name: "深圳", aliases: ["深圳市"] },
-      { name: "珠海", aliases: ["珠海市"] },
-      { name: "汕头", aliases: ["汕头市"] },
-      { name: "佛山", aliases: ["佛山市"] },
-      { name: "韶关", aliases: ["韶关市"] },
-      { name: "湛江", aliases: ["湛江市"] },
-      { name: "肇庆", aliases: ["肇庆市"] },
-      { name: "江门", aliases: ["江门市"] },
-      { name: "茂名", aliases: ["茂名市"] },
-      { name: "惠州", aliases: ["惠州市"] },
-      { name: "梅州", aliases: ["梅州市"] },
-      { name: "汕尾", aliases: ["汕尾市"] },
-      { name: "河源", aliases: ["河源市"] },
-      { name: "阳江", aliases: ["阳江市"] },
-      { name: "清远", aliases: ["清远市"] },
       {
-        name: "东莞",
-        aliases: ["东莞市"],
+        name: "广东",
+        aliases: ["广东省"],
         children: [
-          { name: "南城", aliases: ["南城区"] },
-          { name: "东城", aliases: ["东城区"] },
-          { name: "万江", aliases: ["万江区"] },
-          { name: "莞城", aliases: ["莞城区"] },
-          { name: "长安", aliases: ["长安镇"] },
-          { name: "虎门", aliases: ["虎门镇"] },
-          { name: "厚街", aliases: ["厚街镇"] },
-          { name: "常平", aliases: ["常平镇"] },
-          { name: "塘厦", aliases: ["塘厦镇"] },
-          { name: "凤岗", aliases: ["凤岗镇"] },
-          { name: "松山湖", aliases: ["松山湖高新区", "松山湖园区"] },
+          { name: "广州", aliases: ["广州市"] },
+          { name: "深圳", aliases: ["深圳市"] },
+          { name: "珠海", aliases: ["珠海市"] },
+          { name: "汕头", aliases: ["汕头市"] },
+          { name: "佛山", aliases: ["佛山市"] },
+          { name: "韶关", aliases: ["韶关市"] },
+          { name: "湛江", aliases: ["湛江市"] },
+          { name: "肇庆", aliases: ["肇庆市"] },
+          { name: "江门", aliases: ["江门市"] },
+          { name: "茂名", aliases: ["茂名市"] },
+          { name: "惠州", aliases: ["惠州市"] },
+          { name: "梅州", aliases: ["梅州市"] },
+          { name: "汕尾", aliases: ["汕尾市"] },
+          { name: "河源", aliases: ["河源市"] },
+          { name: "阳江", aliases: ["阳江市"] },
+          { name: "清远", aliases: ["清远市"] },
+          {
+            name: "东莞",
+            aliases: ["东莞市", "全东莞"],
+            children: [
+              { name: "南城", aliases: ["南城区"] },
+              { name: "东城", aliases: ["东城区"] },
+              { name: "万江", aliases: ["万江区"] },
+              { name: "莞城", aliases: ["莞城区"] },
+              { name: "长安", aliases: ["长安镇"] },
+              { name: "虎门", aliases: ["虎门镇"] },
+              { name: "厚街", aliases: ["厚街镇"] },
+              { name: "常平", aliases: ["常平镇"] },
+              { name: "塘厦", aliases: ["塘厦镇"] },
+              { name: "凤岗", aliases: ["凤岗镇"] },
+              { name: "松山湖", aliases: ["松山湖高新区", "松山湖园区"] },
+              { name: "石龙", aliases: ["石龙镇"] },
+              { name: "寮步", aliases: ["寮步镇"] },
+              { name: "樟木头", aliases: ["樟木头镇"] },
+              { name: "高埗", aliases: ["高埗镇"] },
+              { name: "中堂", aliases: ["中堂镇"] },
+              { name: "麻涌", aliases: ["麻涌镇"] },
+              { name: "望牛墩", aliases: ["望牛墩镇"] },
+              { name: "洪梅", aliases: ["洪梅镇"] },
+              { name: "石碣", aliases: ["石碣镇"] },
+              { name: "茶山", aliases: ["茶山镇"] },
+              { name: "石排", aliases: ["石排镇"] },
+              { name: "企石", aliases: ["企石镇"] },
+              { name: "清溪", aliases: ["清溪镇"] },
+              { name: "沙田", aliases: ["沙田镇"] },
+              { name: "道滘", aliases: ["道滘镇"] },
+              { name: "大朗", aliases: ["大朗镇"] },
+              { name: "黄江", aliases: ["黄江镇"] },
+              { name: "大岭山", aliases: ["大岭山镇"] },
+              { name: "横沥", aliases: ["横沥镇"] },
+              { name: "桥头", aliases: ["桥头镇"] },
+              { name: "谢岗", aliases: ["谢岗镇"] },
+              { name: "东坑", aliases: ["东坑镇"] },
+            ],
+          },
+          { name: "中山", aliases: ["中山市"] },
+          { name: "潮州", aliases: ["潮州市"] },
+          { name: "揭阳", aliases: ["揭阳市"] },
+          { name: "云浮", aliases: ["云浮市"] },
         ],
       },
-      { name: "中山", aliases: ["中山市"] },
-      { name: "潮州", aliases: ["潮州市"] },
-      { name: "揭阳", aliases: ["揭阳市"] },
-      { name: "云浮", aliases: ["云浮市"] },
-    ],
-  },
-  {
-    name: "江苏",
-    aliases: ["江苏省"],
-    children: [
-      { name: "南京", aliases: ["南京市"] },
-      { name: "无锡", aliases: ["无锡市"] },
-      { name: "常州", aliases: ["常州市"] },
       {
-        name: "苏州",
-        aliases: ["苏州市"],
-        children: [{ name: "昆山", aliases: ["昆山市"] }],
+        name: "江苏",
+        aliases: ["江苏省"],
+        children: [
+          { name: "南京", aliases: ["南京市"] },
+          { name: "无锡", aliases: ["无锡市"] },
+          { name: "常州", aliases: ["常州市"] },
+          {
+            name: "苏州",
+            aliases: ["苏州市"],
+            children: [{ name: "昆山", aliases: ["昆山市"] }],
+          },
+          { name: "南通", aliases: ["南通市"] },
+          { name: "镇江", aliases: ["镇江市"] },
+          { name: "扬州", aliases: ["扬州市"] },
+        ],
       },
-      { name: "南通", aliases: ["南通市"] },
-      { name: "镇江", aliases: ["镇江市"] },
-      { name: "扬州", aliases: ["扬州市"] },
-    ],
-  },
-  {
-    name: "浙江",
-    aliases: ["浙江省"],
-    children: [
-      { name: "杭州", aliases: ["杭州市"] },
-      { name: "宁波", aliases: ["宁波市"] },
-      { name: "温州", aliases: ["温州市"] },
-      { name: "嘉兴", aliases: ["嘉兴市"] },
-      { name: "湖州", aliases: ["湖州市"] },
-      { name: "绍兴", aliases: ["绍兴市"] },
-      { name: "金华", aliases: ["金华市"] },
-      { name: "台州", aliases: ["台州市"] },
-    ],
-  },
-  {
-    name: "上海",
-    aliases: ["上海市"],
-    children: [
-      { name: "浦东", aliases: ["浦东新区"] },
-      { name: "闵行", aliases: ["闵行区"] },
-      { name: "松江", aliases: ["松江区"] },
-      { name: "嘉定", aliases: ["嘉定区"] },
-      { name: "宝山", aliases: ["宝山区"] },
-      { name: "青浦", aliases: ["青浦区"] },
-      { name: "徐汇", aliases: ["徐汇区"] },
-      { name: "静安", aliases: ["静安区"] },
+      {
+        name: "浙江",
+        aliases: ["浙江省"],
+        children: [
+          { name: "杭州", aliases: ["杭州市"] },
+          { name: "宁波", aliases: ["宁波市"] },
+          { name: "温州", aliases: ["温州市"] },
+          { name: "嘉兴", aliases: ["嘉兴市"] },
+          { name: "湖州", aliases: ["湖州市"] },
+          { name: "绍兴", aliases: ["绍兴市"] },
+          { name: "金华", aliases: ["金华市"] },
+          { name: "台州", aliases: ["台州市"] },
+        ],
+      },
+      {
+        name: "上海",
+        aliases: ["上海市"],
+        children: [
+          { name: "浦东", aliases: ["浦东新区"] },
+          { name: "闵行", aliases: ["闵行区"] },
+          { name: "松江", aliases: ["松江区"] },
+          { name: "嘉定", aliases: ["嘉定区"] },
+          { name: "宝山", aliases: ["宝山区"] },
+          { name: "青浦", aliases: ["青浦区"] },
+          { name: "徐汇", aliases: ["徐汇区"] },
+          { name: "静安", aliases: ["静安区"] },
+        ],
+      },
+      {
+        name: "北京",
+        aliases: ["北京市"],
+      },
+      {
+        name: "天津",
+        aliases: ["天津市"],
+      },
+      {
+        name: "重庆",
+        aliases: ["重庆市"],
+      },
+      {
+        name: "香港",
+        aliases: ["香港特别行政区"],
+      },
+      {
+        name: "澳门",
+        aliases: ["澳门特别行政区"],
+      },
+      {
+        name: "台湾",
+        aliases: ["台湾省"],
+      },
     ],
   },
   {
@@ -153,8 +213,9 @@ const aliasesToNodeIds = new Map<string, string[]>();
 const aliasEntries: AliasEntry[] = [];
 
 function toLocationLevel(depth: number): LocationLevel {
-  if (depth <= 1) return "province";
-  if (depth === 2) return "city";
+  if (depth <= 1) return "country";
+  if (depth === 2) return "province";
+  if (depth === 3) return "city";
   return "district";
 }
 
@@ -242,6 +303,57 @@ function nodeToPublic(node: InternalLocationNode): LocationNode {
       .map((childId) => getNodeById(childId)?.name)
       .filter((value): value is string => Boolean(value)),
   };
+}
+
+function getNodeLineage(nodeId: string): InternalLocationNode[] {
+  const lineage: InternalLocationNode[] = [];
+  let current = getNodeById(nodeId);
+  while (current) {
+    lineage.push(current);
+    current = current.parentId ? getNodeById(current.parentId) : undefined;
+  }
+  return lineage.reverse();
+}
+
+function isHierarchyCompatible(nodeIds: string[]): boolean {
+  for (let i = 0; i < nodeIds.length; i += 1) {
+    for (let j = i + 1; j < nodeIds.length; j += 1) {
+      const left = nodeIds[i];
+      const right = nodeIds[j];
+      if (!isSameOrDescendant(left, right) && !isSameOrDescendant(right, left)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function buildLocationHierarchyFromNode(node: InternalLocationNode, matchedFrom?: LocationHierarchy["matchedFrom"]): LocationHierarchy {
+  const lineage = getNodeLineage(node.id);
+  const root = lineage[0];
+  const hierarchy: LocationHierarchy = {
+    country: root?.name ?? "中国",
+    confidence: "high",
+  };
+
+  if (matchedFrom) {
+    hierarchy.matchedFrom = matchedFrom;
+  }
+
+  for (const ancestor of lineage) {
+    if (ancestor.level === "province") {
+      hierarchy.province = ancestor.name;
+    }
+    if (ancestor.level === "city") {
+      hierarchy.city = ancestor.name;
+    }
+  }
+
+  if (node.level === "province") {
+    delete hierarchy.city;
+  }
+
+  return hierarchy;
 }
 
 function pickBestNode(nodeIds: string[], normalizedInput: string): InternalLocationNode | undefined {
@@ -354,7 +466,7 @@ export function normalizeLocationName(name: string): string {
     .replace(/[，,、]/g, "")
     .replace(/\s+/g, "");
 
-  if (normalized.startsWith("中国")) {
+  if (normalized.startsWith("中国") && normalized.length > "中国".length) {
     normalized = normalized.slice(2);
   }
 
@@ -375,6 +487,100 @@ export function normalizeLocationName(name: string): string {
   }
 
   return normalized;
+}
+
+export function formatLocationHierarchyLabel(hierarchy: LocationHierarchy | null | undefined): string {
+  if (!hierarchy) {
+    return "";
+  }
+
+  const parts = [hierarchy.province, hierarchy.city].filter((value): value is string => Boolean(value));
+  if (parts.length > 0) {
+    return parts.join("");
+  }
+
+  return hierarchy.country || "";
+}
+
+export function formatLocationHierarchySearchText(hierarchy: LocationHierarchy | null | undefined): string {
+  if (!hierarchy) {
+    return "";
+  }
+
+  return [hierarchy.country, hierarchy.province, hierarchy.city]
+    .filter((value): value is string => Boolean(value))
+    .join(" ");
+}
+
+export function resolveLocationHierarchy(name: string, matchedFrom?: LocationHierarchy["matchedFrom"]): LocationHierarchy | undefined {
+  const normalizedInput = normalizeLocationName(name);
+  if (!normalizedInput) {
+    return undefined;
+  }
+
+  const candidateNodeIds = extractLocationNodeIds(name);
+  if (candidateNodeIds.length === 0 || !isHierarchyCompatible(candidateNodeIds)) {
+    return undefined;
+  }
+
+  const bestNode = pickBestNode(candidateNodeIds, normalizedInput);
+  if (!bestNode) {
+    return undefined;
+  }
+
+  return buildLocationHierarchyFromNode(bestNode, matchedFrom);
+}
+
+export function normalizeLocationHierarchy(value: unknown): LocationHierarchy | undefined {
+  if (typeof value === "string") {
+    return resolveLocationHierarchy(value);
+  }
+
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const country = typeof record.country === "string" ? record.country.trim() : "";
+  const province = typeof record.province === "string" ? record.province.trim() : "";
+  const city = typeof record.city === "string" ? record.city.trim() : "";
+  const matchedFrom = record.matchedFrom === "location"
+    || record.matchedFrom === "profile"
+    || record.matchedFrom === "workHistory"
+    || record.matchedFrom === "jobIntention"
+    ? record.matchedFrom
+    : undefined;
+  const confidence = record.confidence === "high" ? "high" : undefined;
+
+  const resolved = resolveLocationHierarchy([country, province, city].filter(Boolean).join(""));
+  if (resolved) {
+    if (matchedFrom) {
+      resolved.matchedFrom = matchedFrom;
+    }
+    if (confidence) {
+      resolved.confidence = confidence;
+    }
+    return resolved;
+  }
+
+  if (country) {
+    const hierarchy: LocationHierarchy = { country };
+    if (province) {
+      hierarchy.province = province;
+    }
+    if (city) {
+      hierarchy.city = city;
+    }
+    if (matchedFrom) {
+      hierarchy.matchedFrom = matchedFrom;
+    }
+    if (confidence) {
+      hierarchy.confidence = confidence;
+    }
+    return hierarchy;
+  }
+
+  return undefined;
 }
 
 export function findLocation(name: string): LocationNode | undefined {
@@ -425,6 +631,16 @@ export function isLocationMatch(resumeLocation: string, filterName: string): boo
     return true;
   }
 
+  const filterNode = findLocationNode(filterName);
+  if (!filterNode) {
+    const normalizedResume = normalizeLocationName(resumeLocation);
+    return Boolean(normalizedResume && normalizedResume.includes(normalizedFilter));
+  }
+
+  if (typeof resumeLocation !== "string") {
+    return false;
+  }
+
   const normalizedResume = normalizeLocationName(resumeLocation);
   if (!normalizedResume) {
     return false;
@@ -432,11 +648,6 @@ export function isLocationMatch(resumeLocation: string, filterName: string): boo
 
   if (normalizedResume === normalizedFilter || normalizedResume.includes(normalizedFilter)) {
     return true;
-  }
-
-  const filterNode = findLocationNode(filterName);
-  if (!filterNode) {
-    return normalizedResume.includes(normalizedFilter);
   }
 
   const resumeNodeIds = extractLocationNodeIds(resumeLocation);

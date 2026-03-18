@@ -5,6 +5,7 @@ import {
   buildWorkHistoryEntryText,
   buildWorkHistoryEvidence,
   FALLBACK_INDUSTRY_KEYWORDS,
+  formatLocationHierarchySearchText,
   findLocation,
   normalizeIndustryTags,
   normalizeLocationName,
@@ -87,10 +88,11 @@ function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
 }
 
 function createSearchText(item: ResumeItem): string {
+  const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
   const parts = [
     item.name,
     item.education,
-    item.location,
+    locationText,
     item.expectedSalary,
     ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
   ];
@@ -202,7 +204,13 @@ export class ResumeIndexService {
     this.vocabularyLoaded = true;
   }
 
-  private extractLocationCity(location: string): string | null {
+  private extractLocationCity(item: ResumeItem): string | null {
+    const hierarchy = item.locationHierarchy;
+    if (hierarchy) {
+      return hierarchy.city || hierarchy.province || hierarchy.country || null;
+    }
+
+    const location = item.location || "";
     if (!location.trim()) return null;
 
     for (const knownLocation of this.locationVocabulary) {
@@ -270,7 +278,7 @@ export class ResumeIndexService {
         resumeId,
         experienceYears: computeWorkHistoryYears(item.workHistory ?? []),
         educationLevel: normalizeEducationLevel(item.education),
-        locationCity: this.extractLocationCity(item.location || ""),
+        locationCity: this.extractLocationCity(item),
         evidenceText,
         skills,
         companies,
