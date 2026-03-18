@@ -324,7 +324,7 @@ describe('config route workspace access', () => {
           id: 'job5156-cn-cnc-sales',
           label: 'China · Job5156 · CNC 销售',
           market: 'CN',
-          location: '',
+          location: 'China',
           keywords: ['CNC', '销售'],
           collectionSource: {
             type: 'job5156',
@@ -375,7 +375,7 @@ describe('config route workspace access', () => {
           id: 'job5156-cn-cnc-sales',
           label: 'China · Job5156 · CNC 销售',
           market: 'CN',
-          location: '',
+          location: 'China',
           keywords: ['CNC', '销售'],
           collectionSource: {
             type: 'job5156',
