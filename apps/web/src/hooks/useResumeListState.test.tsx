@@ -4,6 +4,7 @@ import type { ConvexIngestData, ConvexResumeItem } from '@/hooks/useConvexResume
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { rawApiClient } from '@/lib/api-helpers'
+import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import { useResumeListState } from './useResumeListState'
 
 let submittedFormAction = ''
@@ -241,7 +242,12 @@ function buildResume(params: {
     noticePeriodDays: 30,
     extractedAt: '2026-03-01T00:00:00.000Z',
     primaryRuleScore: params.primaryRuleScore,
-    analysis: params.analysis,
+    analysis: params.analysis
+      ? {
+          ...params.analysis,
+          promptVersion: params.analysis.promptVersion ?? getCurrentResumeAiPromptVersion(),
+        }
+      : undefined,
     ingestData: {
       evidenceText: 'test work history',
       industryTags: params.industryTags ?? [],
