@@ -218,7 +218,9 @@ function normalizeFilterToken(value: string): string {
   return value.trim().toLowerCase()
 }
 
-function getResumeLocationText(resume: { location?: string; locationHierarchy?: { country: string; province?: string; city?: string } }): string {
+function getResumeLocationText(
+  resume: { location?: string; locationHierarchy?: { country: string; province?: string; city?: string; district?: string } }
+): string {
   return formatLocationHierarchySearchText(resume.locationHierarchy) || resume.location || ''
 }
 

@@ -48,18 +48,28 @@ describe("location-tree", () => {
     expect(isLocationMatch("昆山市", "苏州")).toBe(true);
   });
 
-  it("resolves China-rooted hierarchies with city-level canonical labels", () => {
+  it("resolves China-rooted hierarchies with district-aware canonical labels", () => {
     const hierarchy = resolveLocationHierarchy("东莞长安镇");
     expect(hierarchy).toEqual(expect.objectContaining({
       country: "中国",
       province: "广东",
       city: "东莞",
+      district: "长安",
       confidence: "high",
     }));
-    expect(formatLocationHierarchyLabel(hierarchy)).toBe("广东东莞");
-    expect(formatLocationHierarchySearchText(hierarchy)).toBe("中国 广东 东莞");
+    expect(formatLocationHierarchyLabel(hierarchy)).toBe("广东东莞长安");
+    expect(formatLocationHierarchySearchText(hierarchy)).toBe("中国 广东 东莞 长安");
     expect(normalizeLocationHierarchy(hierarchy)).toEqual(hierarchy);
-    expect(resolveLocationHierarchy("石碣镇")?.city).toBe("东莞");
+    expect(resolveLocationHierarchy("石碣镇")).toEqual(expect.objectContaining({
+      city: "东莞",
+      district: "石碣",
+    }));
+    expect(resolveLocationHierarchy("广东深圳宝安区")).toEqual(expect.objectContaining({
+      country: "中国",
+      province: "广东",
+      city: "深圳",
+      district: "宝安",
+    }));
   });
 
   it("rejects conflicting sibling locations", () => {

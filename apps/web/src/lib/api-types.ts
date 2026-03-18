@@ -3921,6 +3921,8 @@ export interface components {
             province?: string;
             /** @example 东莞 */
             city?: string;
+            /** @example 长安 */
+            district?: string;
             /** @enum {string} */
             matchedFrom?: "location" | "profile" | "workHistory" | "jobIntention";
             /** @enum {string} */
