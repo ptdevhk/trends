@@ -97,7 +97,7 @@ make dev                # Full local stack
 make dev-fast           # UI-focused fast profile
 make dev-critical       # Critical path profile
 make dev-backend        # Backend-focused profile
-./scripts/dev.sh --help # Full dev service-profile plus CI env/defaults for Convex startup/prefetch and related env contract
+./scripts/dev.sh --help # Full dev service-profile plus CI=true/1 for Convex startup/prefetch and related env contract
 ```
 
 ### Start Single Services
@@ -117,7 +117,7 @@ make install-seed                           # Install the production stack with 
 ENV_FILE=.env.production make deploy-check  # Dry run the deploy precheck against the target env
 CONVEX_MIRROR_MODE=mirror-first make deploy # Optional: mirror-first Convex prefetch during upgrade
 make deploy-seed                            # Force a full upgrade with seeded demo resumes
-./scripts/install.sh --help                 # Full install/upgrade modes plus CI env/defaults for production prefetch and related env knobs
+./scripts/install.sh --help                 # Full install/upgrade modes plus CI=true/1 for production prefetch and related env knobs
 ```
 
 ### Verification

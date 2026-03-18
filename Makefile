@@ -258,7 +258,7 @@ install-deps:
 	./scripts/install-deps.sh
 
 # Prefetch Convex local backend and dashboard assets into local cache
-# Honors shared CI env/defaults plus CONVEX_MIRROR_MODE / CONVEX_MIRROR_BASES / timeout / curl env knobs; see the script --help surface for full details.
+# Honors shared CI=true/1 defaults plus CONVEX_MIRROR_MODE / CONVEX_MIRROR_BASES / timeout / curl env knobs; see the script --help surface for full details.
 prefetch-convex:
 	./scripts/prefetch-convex-backend.sh
 
@@ -727,7 +727,7 @@ help:
 	@echo "  dev-api        Start Hono BFF API server (port 3000)"
 	@echo "  dev-api-worker Start FastAPI worker REST API (port 8000)"
 	@echo "  dev-worker     Start worker scheduler (run now + verbose)"
-	@echo "                 See ./scripts/dev.sh --help for service profiles, CI env/defaults, and Convex startup/env knobs"
+	@echo "                 See ./scripts/dev.sh --help for service profiles, CI=true/1, and Convex startup/env knobs"
 	@echo ""
 	@echo "Production:"
 	@echo "  run            Run crawler (production mode, full output)"
@@ -745,7 +745,7 @@ help:
 	@echo "  deploy-seed    Force a full upgrade with seeded demo resumes (requires sudo)"
 	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
-	@echo "                 See ./scripts/install.sh --help for install/upgrade modes, CI env/defaults, and env knobs"
+	@echo "                 See ./scripts/install.sh --help for install/upgrade modes, CI=true/1, and env knobs"
 	@echo "  docker         Start Docker containers"
 	@echo "  docker-build   Build and start Docker containers"
 	@echo "  docker-down    Stop Docker containers"
@@ -766,9 +766,9 @@ help:
 	@echo "Dependencies:"
 	@echo "  install-deps [SKILL_INSTALL_TARGET=codex|agents|all] [CONVEX_MIRROR_MODE=off|fallback|mirror-first]"
 	@echo "               Install deps, prefetch Convex assets, and bootstrap governance skill targets"
-	@echo "               See ./scripts/install-deps.sh --help for skill target, CI env/defaults, and additional prefetch env knobs"
+	@echo "               See ./scripts/install-deps.sh --help for skill target, CI=true/1, and additional prefetch env knobs"
 	@echo "  prefetch-convex [CONVEX_MIRROR_MODE=off|fallback|mirror-first] Prefetch Convex local backend + dashboard assets"
-	@echo "                 See ./scripts/prefetch-convex-backend.sh --help for CI env/defaults, mirror bases, timeout, and curl env knobs"
+	@echo "                 See ./scripts/prefetch-convex-backend.sh --help for CI=true/1, mirror bases, timeout, and curl env knobs"
 	@echo ""
 	@echo "CLI:"
 	@echo "  cli-build      Build Go CLI to bin/trends"
