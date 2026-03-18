@@ -347,6 +347,59 @@ run_local_js_script() {
     fi
 }
 
+shared_dist_is_stale() {
+    local dist_index="$PROJECT_ROOT/packages/shared/dist/index.js"
+    local src_dir="$PROJECT_ROOT/packages/shared/src"
+
+    if [ ! -f "$dist_index" ]; then
+        return 0
+    fi
+
+    if find "$src_dir" -type f -newer "$dist_index" -print -quit | grep -q .; then
+        return 0
+    fi
+
+    return 1
+}
+
+build_shared_package_if_needed() {
+    local service
+    local should_check_shared="false"
+
+    for service in "$@"; do
+        case "$service" in
+            convex|api|web)
+                should_check_shared="true"
+                break
+                ;;
+        esac
+    done
+
+    if [ "$should_check_shared" != "true" ]; then
+        return 0
+    fi
+
+    if ! shared_dist_is_stale; then
+        log "DEV" "$GREEN" "@trends/shared dist is up to date."
+        return 0
+    fi
+
+    log "DEV" "$CYAN" "Building @trends/shared before starting dependent services..."
+    if has_bun; then
+        if ! bun run --filter '@trends/shared' build; then
+            log "DEV" "$RED" "Failed to build @trends/shared."
+            return 1
+        fi
+    else
+        if ! npm run --workspace @trends/shared build; then
+            log "DEV" "$RED" "Failed to build @trends/shared."
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
 sync_convex_ai_env() {
     local convex_dir="$PROJECT_ROOT/packages/convex"
     local convex_env_file="$convex_dir/.env.local"
@@ -1532,6 +1585,11 @@ main() {
 
     # Native modules can break when Node version changes between installs/runs.
     ensure_node_native_modules
+
+    if ! build_shared_package_if_needed "${services[@]}"; then
+        log "DEV" "$RED" "Shared package build preflight failed. Aborting."
+        exit 1
+    fi
 
     # Start requested services
     for service in "${services[@]}"; do
