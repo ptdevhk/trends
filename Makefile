@@ -154,7 +154,7 @@ install:
 install-seed:
 	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=1 ./scripts/install.sh install
 
-# Pull, rebuild, and restart all production services
+# Preflight the workspace branch, snapshot Convex, then pull, rebuild, and restart production services
 deploy:
 	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade
 
@@ -768,15 +768,15 @@ help:
 	@echo "Deployment:"
 	@echo "  install        Install as systemd services (requires sudo)"
 	@echo "  install-seed   Install as systemd services with seeded demo resumes (requires sudo)"
-	@echo "  deploy         Precheck deployed SHA/env, then skip, env-refresh, or full upgrade (requires sudo)"
-	@echo "  deploy-check   Dry run deploy precheck without rebuilding"
+	@echo "  deploy         Preflight workspace git, snapshot Convex, then skip, env-refresh, or full upgrade (requires sudo)"
+	@echo "  deploy-check   Dry run deploy precheck with workspace git status but without rebuilding"
 	@echo "  deploy-seed    Force a full upgrade with seeded demo resumes (requires sudo)"
 	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
 	@echo "  backup-resumes Export live resume records to a portable JSON backup"
 	@echo "  restore-resumes Restore resume records from a portable JSON backup"
 	@echo "                 Uses API_URL/TRENDS_API_URL, WORKSPACE=dev, and OUT/FILE/LIMIT/SOURCE_HOSTS/RESUME_IDS/MODE/YES"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
-	@echo "                 See ./scripts/install.sh --help for install/upgrade modes, CI=true/1, and env knobs"
+	@echo "                 See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1, and env knobs"
 	@echo "  docker         Start Docker containers"
 	@echo "  docker-build   Build and start Docker containers"
 	@echo "  docker-down    Stop Docker containers"
