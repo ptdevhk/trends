@@ -209,6 +209,8 @@ export const ResumeImportItemSchema = z
     profileId: z.union([z.string(), z.number()]).pipe(z.coerce.string()).optional(),
     profileType: z.string().optional(),
     externalId: z.string().optional(),
+    sourceHost: z.string().optional().openapi({ example: "hr.job5156.com" }),
+    tags: z.array(z.string()).optional().openapi({ example: ["sales", "job5156"] }),
     name: z.string().openapi({ example: "Alex Chen" }),
     age: z.string().optional().openapi({ example: "28" }),
     experience: z.string().optional().openapi({ example: "5 years" }),
@@ -243,6 +245,14 @@ export const ResumeImportRequestSchema = z
     }
   })
   .openapi("ResumeImportRequest");
+
+export const ResumeBackupRequestSchema = z
+  .object({
+    resumeIds: z.array(z.string().trim().min(1)).optional(),
+    sourceHosts: z.array(z.string().trim().min(1)).optional(),
+    limit: z.number().int().min(1).optional(),
+  })
+  .openapi("ResumeBackupRequest");
 
 export const ResumeSubmitSummarySchema = z
   .object({

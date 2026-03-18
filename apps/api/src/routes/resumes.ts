@@ -7,6 +7,7 @@ import {
   ResumeKeywordExpansionQuerySchema,
   ResumeKeywordExpansionResponseSchema,
   ResumeSamplesResponseSchema,
+  ResumeBackupRequestSchema,
   ResumeImportRequestSchema,
   ResumeSubmitSummarySchema,
   ResumeExportBinaryResponseSchema,
@@ -130,6 +131,13 @@ const TriggerReingestRequestSchema = z.object({
 const ResumeImportErrorSchema = z.object({
   success: z.literal(false),
   error: z.string(),
+});
+
+const ResumeResetResponseSchema = z.object({
+  success: z.literal(true),
+  count: z.number().int(),
+  partial: z.boolean(),
+  deleted: z.record(z.number().int()),
 });
 
 type ResumeExportCanonicalRequest = z.infer<typeof ResumeExportCanonicalRequestSchema>;
@@ -466,6 +474,20 @@ function toResumeItemFromRecord(record: Record<string, unknown>, source?: string
   };
 }
 
+function buildResumeBackupItem(params: {
+  record: Record<string, unknown>;
+  sourceHost: string;
+  tags: string[];
+}): Record<string, unknown> {
+  const content = isRecord(params.record.content) ? params.record.content : {};
+  return {
+    ...content,
+    externalId: toStringValue(params.record.externalId) || toStringValue(content.externalId),
+    sourceHost: params.sourceHost,
+    tags: params.tags,
+  };
+}
+
 function prepareResumeCandidate(params: {
   resume: ResumeItem;
   resumeId: string;
@@ -520,6 +542,38 @@ async function callConvexQuery(pathName: string, args: Record<string, unknown>):
 
   if (payload.status !== "success") {
     throw new Error(payload.errorMessage || `Convex query failed for ${pathName}`);
+  }
+
+  return payload.value;
+}
+
+async function callConvexMutation(pathName: string, args: Record<string, unknown>): Promise<unknown> {
+  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
+  const response = await fetch(`${convexUrl}/api/mutation`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      path: pathName,
+      args,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Convex mutation failed (${response.status}): ${text}`);
+  }
+
+  const payload = await response.json() as {
+    status?: string;
+    value?: unknown;
+    errorMessage?: string;
+  };
+
+  if (payload.status !== "success") {
+    throw new Error(payload.errorMessage || `Convex mutation failed for ${pathName}`);
   }
 
   return payload.value;
@@ -2434,6 +2488,70 @@ const importResumesRoute = createRoute({
   },
 });
 
+const backupResumesRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/backup",
+  tags: ["resumes"],
+  summary: "Backup live resume records",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: ResumeBackupRequestSchema,
+        },
+      },
+      required: true,
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ResumeImportRequestSchema,
+        },
+      },
+      description: "Portable backup payload",
+    },
+    403: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Admin access required",
+    },
+    404: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Requested resume records could not be resolved",
+    },
+    500: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Backup failed",
+    },
+  },
+});
+
+const resetResumesRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/reset",
+  tags: ["resumes"],
+  summary: "Reset resume-related Convex records",
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ResumeResetResponseSchema,
+        },
+      },
+      description: "Reset result",
+    },
+    403: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Admin access required",
+    },
+    500: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Reset failed",
+    },
+  },
+});
+
 app.openapi(importResumesRoute, async (c) => {
   if (c.var.accessLevel !== "admin") {
     return c.json({ success: false as const, error: "Admin access required" }, 403);
@@ -2446,6 +2564,126 @@ app.openapi(importResumesRoute, async (c) => {
   } catch (error) {
     console.error("Failed to import resumes", error);
     return c.json({ success: false as const, error: "Failed to import resumes" }, 500);
+  }
+});
+
+app.openapi(backupResumesRoute, async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+
+  try {
+    const request = c.req.valid("json");
+    const value = await callConvexQuery("resumes:listForBackup", {});
+    if (!Array.isArray(value)) {
+      throw new Error("Invalid resume backup response from Convex");
+    }
+
+    const requestedResumeIds = request.resumeIds?.length
+      ? new Set(request.resumeIds.map((resumeId) => resumeId.trim()).filter(Boolean))
+      : null;
+    const requestedSourceHosts = request.sourceHosts?.length
+      ? new Set(request.sourceHosts.map((sourceHost) => sourceHost.trim().toLowerCase()).filter(Boolean))
+      : null;
+
+    type BackupResumeEntry = {
+      resumeId: string;
+      sourceHost: string;
+      tags: string[];
+      crawledAt: number;
+      payload: Record<string, unknown>;
+    };
+
+    const entries = value.flatMap((item, index): BackupResumeEntry[] => {
+      if (!isRecord(item)) {
+        return [];
+      }
+
+      const sourceHost = toStringValue(item.source).toLowerCase();
+      if (requestedSourceHosts && !requestedSourceHosts.has(sourceHost)) {
+        return [];
+      }
+
+      const content = isRecord(item.content) ? item.content : {};
+      const resume = toResumeItemFromRecord(content, sourceHost);
+      const resumeId = resolveResumeId(resume, index);
+      const tags = toStringArray(item.tags);
+
+      return [{
+        resumeId,
+        sourceHost,
+        tags,
+        crawledAt: typeof item.crawledAt === "number" && Number.isFinite(item.crawledAt) ? item.crawledAt : 0,
+        payload: buildResumeBackupItem({
+          record: item,
+          sourceHost,
+          tags,
+        }),
+      }];
+    });
+
+    let selectedEntries: BackupResumeEntry[];
+    if (requestedResumeIds) {
+      const byResumeId = new Map(entries.map((entry) => [entry.resumeId, entry]));
+      const missingResumeIds = Array.from(requestedResumeIds).filter((resumeId) => !byResumeId.has(resumeId));
+      if (missingResumeIds.length > 0) {
+        return c.json({
+          success: false as const,
+          error: `Unable to resolve resumes for backup: ${missingResumeIds.join(", ")}`,
+        }, 404);
+      }
+
+      selectedEntries = Array.from(requestedResumeIds)
+        .map((resumeId) => byResumeId.get(resumeId))
+        .filter((entry): entry is BackupResumeEntry => Boolean(entry));
+    } else {
+      selectedEntries = [...entries].sort((left, right) => {
+        const crawledDiff = right.crawledAt - left.crawledAt;
+        if (crawledDiff !== 0) {
+          return crawledDiff;
+        }
+
+        const sourceDiff = left.sourceHost.localeCompare(right.sourceHost);
+        if (sourceDiff !== 0) {
+          return sourceDiff;
+        }
+
+        return left.resumeId.localeCompare(right.resumeId);
+      });
+    }
+
+    const limited = typeof request.limit === "number" ? selectedEntries.slice(0, request.limit) : selectedEntries;
+    const generatedAt = new Date().toISOString();
+    c.header("Content-Disposition", `attachment; filename="resume-backup-${generatedAt.replace(/[:.]/g, "-")}.json"`);
+    c.header("Cache-Control", "no-store");
+    return c.json(ResumeImportRequestSchema.parse({
+      metadata: {
+        sourceUrl: c.req.url,
+        generatedBy: "trends-api backup",
+        generatedAt,
+        totalResumes: limited.length,
+      },
+      resumes: limited.map((entry) => entry.payload),
+    }), 200);
+  } catch (error) {
+    console.error("Failed to backup resumes", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false as const, error: message }, 500);
+  }
+});
+
+app.openapi(resetResumesRoute, async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+
+  try {
+    const value = await callConvexMutation("resume_tasks:resetDatabase", {});
+    return c.json(ResumeResetResponseSchema.parse(value), 200);
+  } catch (error) {
+    console.error("Failed to reset resumes", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false as const, error: message }, 500);
   }
 });
 

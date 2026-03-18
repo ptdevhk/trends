@@ -413,6 +413,33 @@ export const list = query({
     },
 });
 
+export const listForBackup = query({
+    args: {},
+    handler: async (ctx) => {
+        const docs = await ctx.db.query("resumes").collect();
+        return [...docs].sort((left, right) => {
+            const crawledDiff = right.crawledAt - left.crawledAt;
+            if (crawledDiff !== 0) {
+                return crawledDiff;
+            }
+
+            const externalDiff = left.externalId.localeCompare(right.externalId);
+            if (externalDiff !== 0) {
+                return externalDiff;
+            }
+
+            return String(left._id).localeCompare(String(right._id));
+        }).map((doc) => ({
+            _id: doc._id,
+            externalId: doc.externalId,
+            source: doc.source,
+            tags: doc.tags,
+            crawledAt: doc.crawledAt,
+            content: doc.content,
+        }));
+    },
+});
+
 export const listWithIngestData = query({
     args: {
         limit: v.optional(v.number()),
