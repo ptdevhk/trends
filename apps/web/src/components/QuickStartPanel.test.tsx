@@ -114,7 +114,7 @@ describe('QuickStartPanel quick-filter display', () => {
                 id: 'job5156-cn-cnc-sales',
                 label: 'China · Job5156 · CNC 销售',
                 market: 'CN',
-                location: '',
+                location: 'China',
                 keywords: ['CNC', '销售'],
                 collectionSource: {
                   type: 'job5156',
@@ -260,12 +260,13 @@ describe('QuickStartPanel quick-filter display', () => {
     await waitFor(() => {
       expect(
         onApplyConfig.mock.calls.some(([payload]) =>
-          payload?.location === ''
+          payload?.location === 'China'
           && Array.isArray(payload?.keywords)
           && payload.keywords.join(' ') === 'CNC 销售'
           && payload.collectionSource?.type === 'job5156'
           && typeof payload.collectUrl === 'string'
           && payload.collectUrl.includes('hr.job5156.com/search')
+          && !payload.collectUrl.includes('location=')
         )
       ).toBe(true)
     })

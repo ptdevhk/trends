@@ -25,6 +25,13 @@ describe('KeywordChips market filtering', () => {
       markets: ['CN' as const],
       visible: true,
     }
+    const chinaLocation = {
+      id: 'loc-china',
+      keyword: 'China',
+      category: 'location',
+      markets: ['CN' as const],
+      visible: true,
+    }
     const myLocation = {
       id: 'loc-my',
       keyword: 'Kuala Lumpur MY',
@@ -64,6 +71,7 @@ describe('KeywordChips market filtering', () => {
     useIndustryKeywordsMock.mockReturnValue({
       keywords: [
         cnLocation,
+        chinaLocation,
         myLocation,
         cnKeyword,
         myKeyword,
@@ -77,11 +85,11 @@ describe('KeywordChips market filtering', () => {
         measurement: [],
         smt: [],
         '3d_printing': [],
-        location: [cnLocation, myLocation],
+        location: [chinaLocation, cnLocation, myLocation],
         brand: [],
         custom: [cnKeyword, myKeyword, sharedKeyword, hiddenKeyword],
       },
-      hotKeywords: [cnKeyword, myKeyword, sharedKeyword, cnLocation, myLocation, hiddenKeyword],
+      hotKeywords: [cnKeyword, myKeyword, sharedKeyword, chinaLocation, cnLocation, myLocation, hiddenKeyword],
       loading: false,
       error: null,
       refresh: vi.fn(),
@@ -99,6 +107,7 @@ describe('KeywordChips market filtering', () => {
     )
 
     expect(screen.getByRole('button', { name: '广东' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'China' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'CNC' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '销售' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Kuala Lumpur MY' })).not.toBeInTheDocument()
@@ -116,6 +125,7 @@ describe('KeywordChips market filtering', () => {
     expect(screen.getByRole('button', { name: 'Kuala Lumpur MY' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'CNC' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sales Engineer' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'China' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '广东' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '销售' })).not.toBeInTheDocument()
     expect(screen.queryByText('Hidden Seed')).not.toBeInTheDocument()

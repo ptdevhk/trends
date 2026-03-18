@@ -48,6 +48,14 @@ describe("location-tree", () => {
     expect(isLocationMatch("昆山市", "苏州")).toBe(true);
   });
 
+  it("treats China aliases as the country-wide root", () => {
+    expect(findLocation("China")?.name).toBe("中国");
+    expect(findLocation("china")?.name).toBe("中国");
+    expect(findLocation("CN")?.name).toBe("中国");
+    expect(isLocationMatch("广东东莞长安镇", "china")).toBe(true);
+    expect(isLocationMatch("广东东莞长安镇", "CN")).toBe(true);
+  });
+
   it("resolves China-rooted hierarchies with district-aware canonical labels", () => {
     const hierarchy = resolveLocationHierarchy("东莞长安镇");
     expect(hierarchy).toEqual(expect.objectContaining({

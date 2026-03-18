@@ -2,6 +2,15 @@ const JOB5156_SEARCH_URL = 'https://hr.job5156.com/search'
 const SEEK_TALENT_SEARCH_URL = 'https://my.employer.seek.com/candidates/recommended'
 const SEEK_HOST_SUFFIX = '.employer.seek.com'
 const SEEK_RECOMMENDED_PATH = '/candidates/recommended'
+const CHINA_ROOT_LOCATION_LABELS = new Set([
+  '中国',
+  '中华人民共和国',
+  '中国大陆',
+  'China',
+  'china',
+  'CN',
+  'cn',
+])
 
 export const SEARCH_PROFILE_SOURCE_TYPES = {
   job5156: 'job5156',
@@ -77,6 +86,10 @@ function compareSourcePriority(left: SearchProfileSource, right: SearchProfileSo
     : Number.MAX_SAFE_INTEGER
 
   return leftPriority - rightPriority
+}
+
+function isChinaRootLocationLabel(value: string): boolean {
+  return CHINA_ROOT_LOCATION_LABELS.has(value.trim())
 }
 
 function removeTrendsParams(url: URL): void {
@@ -323,7 +336,7 @@ export function buildJob5156CollectUrl({
   const normalizedLocation = location.trim()
 
   url.searchParams.set('keyword', normalizedKeywords.join(' '))
-  if (normalizedLocation.length > 0) {
+  if (normalizedLocation.length > 0 && !isChinaRootLocationLabel(normalizedLocation)) {
     url.searchParams.set('location', normalizedLocation)
   }
 

@@ -111,6 +111,19 @@ describe('search-profile-sources', () => {
     expect(url.searchParams.get('tr_max_age')).toBe('40')
   })
 
+  it('omits the Job5156 location parameter for China-wide searches', () => {
+    const collectUrl = buildJob5156CollectUrl({
+      location: 'China',
+      keywords: ['CNC', '销售'],
+      maxPages: 2,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('location')).toBeNull()
+    expect(url.searchParams.get('keyword')).toBe('CNC 销售')
+  })
+
   it('preserves legacy seek exact URLs as a collection source fallback', () => {
     const legacySource = getLegacyCollectionSource('https://my.employer.seek.com/candidates/recommended?jobId=9&pageNumber=1')
 

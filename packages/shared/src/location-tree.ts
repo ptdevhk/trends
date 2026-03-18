@@ -59,7 +59,7 @@ const LOCATION_SUFFIXES = [
 const LOCATION_TREE: LocationSeed[] = [
   {
     name: "中国",
-    aliases: ["中华人民共和国", "中国大陆"],
+    aliases: ["中华人民共和国", "中国大陆", "China", "china", "CN", "cn"],
     children: [
       {
         name: "广东",
