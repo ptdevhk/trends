@@ -1,4 +1,9 @@
-import { buildWorkHistoryEntryText, resolveResumeId } from '@trends/shared'
+import {
+  buildWorkHistoryEntryText,
+  getCurrentResumeAiPromptVersion,
+  normalizeKeywordSalesAnalysis,
+  resolveResumeId,
+} from '@trends/shared'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeAnalysis } from '@/hooks/useConvexResumes'
 import type { MatchBreakdown, Recommendation } from '@/types/resume'
@@ -100,9 +105,13 @@ export function getAnalysisForJob(
     }
   },
   jobDescriptionId: string | undefined,
-  keywords: string[]
+  keywords: string[],
+  options?: {
+    location?: string
+    promptVersion?: number
+  }
 ): ConvexResumeAnalysis | undefined {
-  const lookupKey = deriveAnalysisLookupKey(jobDescriptionId, keywords)
+  const lookupKey = deriveAnalysisLookupKey(jobDescriptionId, keywords, options)
   const analysis = lookupKey && resume.analyses?.[lookupKey]
     ? resume.analyses[lookupKey]
     : resume.analysis && (!lookupKey || resume.analysis.jobDescriptionId === lookupKey)
@@ -110,6 +119,11 @@ export function getAnalysisForJob(
       : undefined
 
   if (!analysis) {
+    return undefined
+  }
+
+  const currentPromptVersion = options?.promptVersion ?? getCurrentResumeAiPromptVersion()
+  if (analysis.promptVersion !== currentPromptVersion) {
     return undefined
   }
 
@@ -376,6 +390,10 @@ export function computeNormalizedIndustryDbScore(raw: number | undefined, stats:
 export function overrideIndustryDbBreakdown(
   analysis: ConvexResumeAnalysis,
   industryDb: number,
+  options?: {
+    salesRequired?: boolean
+    roleSignals?: ResumeRoleSignalLike[]
+  },
 ): ConvexResumeAnalysis {
   const normalizedRelatedExp =
     typeof analysis.breakdown?.related_exp === 'number'
@@ -387,11 +405,17 @@ export function overrideIndustryDbBreakdown(
     industry_db: industryDb,
   }
 
-  return {
-    ...analysis,
-    score: Math.min(100, normalizedRelatedExp + industryDb),
-    breakdown: nextBreakdown,
-  }
+  return normalizeKeywordSalesAnalysis(
+    {
+      ...analysis,
+      score: Math.min(100, normalizedRelatedExp + industryDb),
+      breakdown: nextBreakdown,
+    },
+    {
+      salesRequired: options?.salesRequired ?? false,
+      roleSignals: options?.roleSignals,
+    }
+  )
 }
 
 export function hasIngestData(resume: unknown): resume is ResumeWithIngestData {

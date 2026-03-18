@@ -46,4 +46,28 @@ describe("buildAnalysisDispatchIdempotencyKey", () => {
 
         expect(keywordJob).not.toBe(explicitJob);
     });
+
+    it("changes when location or prompt version changes", () => {
+        const base = buildAnalysisDispatchIdempotencyKey({
+            keywords: ["cnc", "sales"],
+            location: "广东",
+            promptVersion: 2,
+            resumeIds: ["resume:1"],
+        });
+        const differentLocation = buildAnalysisDispatchIdempotencyKey({
+            keywords: ["cnc", "sales"],
+            location: "江苏",
+            promptVersion: 2,
+            resumeIds: ["resume:1"],
+        });
+        const differentVersion = buildAnalysisDispatchIdempotencyKey({
+            keywords: ["cnc", "sales"],
+            location: "广东",
+            promptVersion: 3,
+            resumeIds: ["resume:1"],
+        });
+
+        expect(base).not.toBe(differentLocation);
+        expect(base).not.toBe(differentVersion);
+    });
 });

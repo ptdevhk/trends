@@ -3,6 +3,12 @@ import type { Doc } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import {
+    buildKeywordAnalysisId as buildSharedKeywordAnalysisId,
+    getCurrentResumeAiPromptVersion,
+    isSalesRequiredContext,
+    normalizeKeywordSalesAnalysis,
+} from "@trends/shared";
+import {
     buildKeywordMatchingRules,
     buildKeywordRequirements,
     buildSystemPrompt,
@@ -157,14 +163,14 @@ function stableHash(seed: string): string {
     return (hash >>> 0).toString(16);
 }
 
-function buildKeywordAnalysisId(keywords: string[]): string {
-    if (keywords.length === 0) {
-        return "keyword-search";
+function buildKeywordAnalysisId(
+    keywords: string[],
+    options?: {
+        location?: string;
+        promptVersion?: number;
     }
-
-    const stableKeywords = [...keywords].sort();
-    const seed = stableKeywords.join("|");
-    return `keyword-search:${stableKeywords.length}:${stableHash(seed)}`;
+): string {
+    return buildSharedKeywordAnalysisId(keywords, options);
 }
 
 type AnalysisDispatchKeyInput = {
@@ -172,25 +178,31 @@ type AnalysisDispatchKeyInput = {
     jobDescriptionTitle?: string;
     jobDescriptionContent?: string;
     keywords?: string[];
+    location?: string;
+    promptVersion?: number;
     resumeIds: readonly string[];
 };
 
 function buildAnalysisDispatchJobKey(input: AnalysisDispatchKeyInput): string {
+    const promptVersion = input.promptVersion ?? getCurrentResumeAiPromptVersion();
     if (input.derivedJobDescriptionId && input.derivedJobDescriptionId.trim()) {
-        return `job:${input.derivedJobDescriptionId.trim().toLowerCase()}`;
+        return `job:${input.derivedJobDescriptionId.trim().toLowerCase()}:prompt:${promptVersion}`;
     }
 
     const normalizedKeywords = normalizeKeywords(input.keywords ?? []);
     if (normalizedKeywords.length > 0) {
-        return `keywords:${buildKeywordAnalysisId(normalizedKeywords)}`;
+        return `keywords:${buildKeywordAnalysisId(normalizedKeywords, {
+            location: input.location,
+            promptVersion,
+        })}`;
     }
 
     const title = input.jobDescriptionTitle?.trim().toLowerCase() ?? "";
     const content = input.jobDescriptionContent?.trim().toLowerCase() ?? "";
     if (!title && !content) {
-        return "job:default";
+        return `job:default:prompt:${promptVersion}`;
     }
-    return `job-content:${stableHash(`${title}|${content}`)}`;
+    return `job-content:prompt:${promptVersion}:${stableHash(`${title}|${content}`)}`;
 }
 
 export function buildAnalysisDispatchIdempotencyKey(input: AnalysisDispatchKeyInput): string {
@@ -240,6 +252,7 @@ async function analyzeOneResume(
         jobDescriptionTitle?: string;
         jobDescriptionContent?: string;
         keywords?: string[];
+        location?: string;
     },
     apiKey: string
 ): Promise<AnalysisResult> {
@@ -257,6 +270,15 @@ async function analyzeOneResume(
         : "使用默认评分标准";
     const locale = resolveAIOutputLocale();
     const normalizedResume = normalizeResume(resume);
+    const salesRequired = isSalesRequiredContext(
+        jobTitle,
+        requirements,
+        matchingRules,
+        config.jobDescriptionContent,
+        config.jobDescriptionTitle,
+        normalizedKeywords.join(" "),
+        config.location,
+    );
 
     const prompt = hydrateUserPrompt(
         getUserPromptTemplate(locale),
@@ -274,7 +296,11 @@ async function analyzeOneResume(
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             const rawResult = await callLLM(messages, apiKey);
-            return parseLlmResult(rawResult);
+            const parsedResult = parseLlmResult(rawResult);
+            return normalizeKeywordSalesAnalysis(parsedResult, {
+                salesRequired,
+                roleSignals: normalizedResume.roleSignals,
+            });
         } catch (error) {
             lastError = error;
             if (attempt < maxAttempts) {
@@ -316,11 +342,15 @@ export const dispatch = mutation({
         jobDescriptionTitle: v.optional(v.string()),
         jobDescriptionContent: v.optional(v.string()),
         keywords: v.optional(v.array(v.string())),
+        location: v.optional(v.string()),
+        promptVersion: v.optional(v.number()),
         sample: v.optional(v.string()),
         resumeIds: v.array(v.id("resumes")),
     },
     handler: async (ctx, args) => {
         const normalizedKeywords = normalizeKeywords(args.keywords ?? []);
+        const normalizedLocation = args.location?.trim() || undefined;
+        const promptVersion = args.promptVersion ?? getCurrentResumeAiPromptVersion();
         if (!args.jobDescriptionContent && normalizedKeywords.length === 0) {
             throw new Error("Either jobDescriptionContent or keywords is required for analysis.");
         }
@@ -330,12 +360,19 @@ export const dispatch = mutation({
         }
         const uniqueResumeIds = Array.from(uniqueResumeIdMap.values());
         const derivedJobDescriptionId = args.jobDescriptionId
-            || (normalizedKeywords.length > 0 ? buildKeywordAnalysisId(normalizedKeywords) : undefined);
+            || (normalizedKeywords.length > 0
+                ? buildKeywordAnalysisId(normalizedKeywords, {
+                    location: normalizedLocation,
+                    promptVersion,
+                })
+                : undefined);
         const jobKey = buildAnalysisDispatchJobKey({
             derivedJobDescriptionId,
             jobDescriptionTitle: args.jobDescriptionTitle,
             jobDescriptionContent: args.jobDescriptionContent,
             keywords: normalizedKeywords,
+            location: normalizedLocation,
+            promptVersion,
             resumeIds: uniqueResumeIds.map((resumeId) => String(resumeId)),
         });
         const idempotencyKey = buildAnalysisDispatchIdempotencyKey({
@@ -343,6 +380,8 @@ export const dispatch = mutation({
             jobDescriptionTitle: args.jobDescriptionTitle,
             jobDescriptionContent: args.jobDescriptionContent,
             keywords: normalizedKeywords,
+            location: normalizedLocation,
+            promptVersion,
             resumeIds: uniqueResumeIds.map((resumeId) => String(resumeId)),
         });
 
@@ -394,6 +433,8 @@ export const dispatch = mutation({
                 jobDescriptionTitle: args.jobDescriptionTitle,
                 jobDescriptionContent: args.jobDescriptionContent,
                 keywords: normalizedKeywords.length > 0 ? normalizedKeywords : undefined,
+                location: normalizedLocation,
+                promptVersion,
                 sample: args.sample,
                 resumeCount: uniqueResumeIds.length,
             },
@@ -588,9 +629,16 @@ export const processAnalysisTask = internalAction({
             const keywords = task.config.keywords && task.config.keywords.length > 0
                 ? normalizeKeywords(task.config.keywords)
                 : extractKeywords(keywordSource);
+            const normalizedLocation = task.config.location?.trim() || undefined;
+            const promptVersion = task.config.promptVersion ?? getCurrentResumeAiPromptVersion();
             const { toAnalyze, toSkip } = classifyResumes(resumes, keywords);
             const analysisJobDescriptionId = task.config.jobDescriptionId
-                || (keywords.length > 0 ? buildKeywordAnalysisId(keywords) : "keyword-search");
+                || (keywords.length > 0
+                    ? buildKeywordAnalysisId(keywords, {
+                        location: normalizedLocation,
+                        promptVersion,
+                    })
+                    : "keyword-search");
 
             skippedCount = toSkip.length;
 
@@ -607,6 +655,8 @@ export const processAnalysisTask = internalAction({
                                 keyword_match: 10,
                             },
                             jobDescriptionId: analysisJobDescriptionId,
+                            promptVersion,
+                            ...(normalizedLocation ? { queryLocation: normalizedLocation } : {}),
                             analyzedAt: Date.now(),
                         },
                     })),
@@ -648,6 +698,7 @@ export const processAnalysisTask = internalAction({
                                     jobDescriptionTitle: task.config.jobDescriptionTitle,
                                     jobDescriptionContent: task.config.jobDescriptionContent,
                                     keywords: task.config.keywords,
+                                    location: normalizedLocation,
                                 },
                                 apiKey
                             );
@@ -661,6 +712,8 @@ export const processAnalysisTask = internalAction({
                                     recommendation: result.recommendation,
                                     breakdown: result.breakdown,
                                     jobDescriptionId: analysisJobDescriptionId,
+                                    promptVersion,
+                                    ...(normalizedLocation ? { queryLocation: normalizedLocation } : {}),
                                     analyzedAt: Date.now(),
                                 },
                             });

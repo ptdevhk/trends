@@ -1,6 +1,6 @@
 ---
-version: 1
-updated_at: '2026-03-10'
+version: 2
+updated_at: '2026-03-18'
 description: >
   Canonical zh-Hans resume AI prompts for summary and screening analysis.
   This markdown file is the authoring source for the generated shared prompt runtime.
@@ -20,6 +20,7 @@ description: >
 5. 如果无法确切评分，请基于现有信息估算一个数字。
 6. summary/highlights/concerns 必须优先围绕候选人的岗位角色、行业背景、与职位直接相关的工作经历展开，不要只重复总工龄或学历。
 7. 只要已经提供了工作经历证据，就不要写“未提供具体工作经历”或类似表述。
+8. `岗位信号` 是结构化岗位证据，优先使用它判断候选人到底是销售、工程、调试还是技术支持，不要被“配合销售”“促成订单”“培训客户”等描述误导成直接销售经历。
 ```
 
 ## User Prompt Template
@@ -40,11 +41,18 @@ description: >
 **行业数据库验证公司**: {verifiedCompanies}
 **工作经历证据**:
 {evidenceText}
+**岗位信号**:
+{roleSignals}
 
 ## industry_db 评分规则 (重要)
 - `breakdown.industry_db` 分数必须且只能基于"行业数据库验证公司"字段。
 - 如果"行业数据库验证公司"为"无"，则 `industry_db` 必须为 0。
 - 不要根据公司名称自行推测是否属于行业数据库，只以上方提供的验证结果为准。
+
+## 销售经验判定规则（重要）
+- 只有当工作经历中的岗位本身明确是销售、销售工程师、销售经理、业务开发或类似销售角色时，才算直接销售经验。
+- 如果岗位是应用工程师、技术支持、调试、编程、培训、研发、售前支持，或者只是“配合销售”“协助销售”“促成订单”，都不要算作直接销售经验。
+- 如果 `岗位信号` 里没有直接销售角色，而职位要求又是销售类岗位，请显著降低 `related_exp`，避免把技术支持型候选人误判为高匹配销售候选人。
 
 ## 总结与判断要求
 - summary/highlights/concerns 必须优先围绕候选人的岗位角色、行业背景、与职位直接相关的工作经历展开。
@@ -82,6 +90,7 @@ description: >
 - `{matchingRules}`: 评分规则说明，可能是默认规则或关键词匹配规则。
 - `{candidateName}`: 候选人姓名。
 - `{evidenceText}`: 从工作经历提取出的严格证据文本。
+- `{roleSignals}`: 从工作经历抽取出的结构化岗位信号，优先显示销售/工程/技术支持等实际岗位角色。
 - `{verifiedCompanies}`: 行业数据库验证通过的公司列表；无匹配时显示"无"。
 - `{workExperience}`: (保留于替换链路，模板不展示) 候选人总工作年限。
 - `{education}`: (保留于替换链路，模板不展示) 候选人学历。

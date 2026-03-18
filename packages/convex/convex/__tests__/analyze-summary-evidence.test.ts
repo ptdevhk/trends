@@ -93,7 +93,9 @@ describe("analyze summary evidence lane", () => {
 
   it("prompt template contains {verifiedCompanies} and industry_db rule", () => {
     expect(USER_PROMPT_TEMPLATE).toContain("{verifiedCompanies}");
+    expect(USER_PROMPT_TEMPLATE).toContain("{roleSignals}");
     expect(USER_PROMPT_TEMPLATE).toContain("industry_db");
     expect(USER_PROMPT_TEMPLATE).toContain("\u884C\u4E1A\u6570\u636E\u5E93\u9A8C\u8BC1\u516C\u53F8");
+    expect(USER_PROMPT_TEMPLATE).toContain("\u9500\u552E\u7ECF\u9A8C\u5224\u5B9A\u89C4\u5219");
   });
 });

@@ -10,6 +10,7 @@ import path from "node:path";
 
 import JSON5 from "json5";
 
+import { getSalesRoleYears, isSalesRequiredContext, normalizeKeywordSalesAnalysis } from "@trends/shared";
 import { aiConfig, validateResumeAIConfig, getMaskedApiKey } from "./ai-config.js";
 import { findProjectRoot } from "./db.js";
 import { localeToNaturalLanguage, resolveAIOutputLocale } from "./locale-utils.js";
@@ -24,6 +25,25 @@ export interface MatchingRequest {
         education?: string;
         skills?: string[];
         companies?: string[];
+        companyHits?: string[];
+        roleSignals?: Array<{
+            type: string;
+            matchedSignals: string[];
+            signalCount: number;
+            occurrences: number;
+            years: number;
+            industryVerifiedYears?: number;
+            roleRelevantYears?: number;
+            industryVerifiedRelevantYears?: number;
+            matchedWorkEntries?: Array<{
+                companyName?: string;
+                jobTitle?: string;
+                years: number;
+                industryVerified: boolean;
+                matchedSignals: string[];
+            }>;
+            verifyIn: string;
+        }>;
         workHistory?: string;
         sourceKey?: string;
     };
@@ -161,6 +181,45 @@ function toStoredRawResponse(value: string): string {
     return trimText(compact, MAX_RAW_RESPONSE_LENGTH);
 }
 
+type MatchingResumeRoleSignal = NonNullable<MatchingRequest["resume"]["roleSignals"]>[number];
+
+function formatRoleSignals(roleSignals: MatchingResumeRoleSignal[] | undefined): string {
+    if (!roleSignals || roleSignals.length === 0) {
+        return "无";
+    }
+
+    return roleSignals.slice(0, 8).map((signal) => {
+        const relevantYears =
+            typeof signal.industryVerifiedRelevantYears === "number"
+                ? signal.industryVerifiedRelevantYears
+                : typeof signal.roleRelevantYears === "number"
+                    ? signal.roleRelevantYears
+                    : typeof signal.industryVerifiedYears === "number"
+                        ? signal.industryVerifiedYears
+                        : signal.years;
+        const workEntries = signal.matchedWorkEntries && signal.matchedWorkEntries.length > 0
+            ? signal.matchedWorkEntries.map((entry) => {
+                const parts = [
+                    entry.companyName,
+                    entry.jobTitle,
+                    `${entry.years}年`,
+                    entry.industryVerified ? "已验证" : "未验证",
+                    entry.matchedSignals.length > 0 ? `信号:${entry.matchedSignals.join("/")}` : undefined,
+                ].filter((item): item is string => Boolean(item));
+                return parts.join(" ");
+            }).join("; ")
+            : undefined;
+        const parts = [
+            `${signal.type}(${signal.verifyIn})`,
+            `years:${signal.years}`,
+            `relevant:${Number.isFinite(relevantYears) ? relevantYears : 0}`,
+            signal.matchedSignals.length > 0 ? `signals:${signal.matchedSignals.join("/")}` : undefined,
+            workEntries ? `work:${workEntries}` : undefined,
+        ].filter((item): item is string => Boolean(item));
+        return `- ${parts.join(" | ")}`;
+    }).join("\n");
+}
+
 /**
  * AI Matching Service class
  */
@@ -242,7 +301,8 @@ export class AIMatchingService {
 
         try {
             const response = await this.callLLM(messages);
-            return this.parseResponse(response);
+            const parsed = this.parseResponse(response);
+            return this.applySalesGuard(parsed, request);
         } catch (error) {
             const errorMessage = toCompactErrorMessage(error);
             console.error("[AI Matching] Error:", errorMessage);
@@ -405,8 +465,9 @@ Return strictly valid JSON:
         prompt: ResumeAiPromptDocument
     ): string {
         const matchingRules = jobDescription.responsibilities || jobDescription.requirements || "";
-        const verifiedCompanies = resume.companies?.length ? resume.companies.join(", ") : "无";
+        const verifiedCompanies = resume.companyHits?.length ? resume.companyHits.join(", ") : "无";
         const evidenceText = resume.workHistory || "无工作经历";
+        const roleSignals = formatRoleSignals(resume.roleSignals);
 
         return resumeAiPromptService.renderUserPromptTemplate(prompt.normalized.userPromptTemplate, {
             jobTitle: jobDescription.title,
@@ -415,10 +476,43 @@ Return strictly valid JSON:
             candidateName: resume.name,
             verifiedCompanies,
             evidenceText,
+            roleSignals,
             workExperience: String(resume.workExperience || 0),
             education: resume.education || "未填写",
             companies: resume.companies?.join(", ") || "未填写",
         });
+    }
+
+    private applySalesGuard(result: MatchingResult, request: MatchingRequest): MatchingResult {
+        const salesRequired = isSalesRequiredContext(
+            request.jobDescription.title,
+            request.jobDescription.requirements,
+            request.jobDescription.responsibilities,
+        );
+        if (!salesRequired) {
+            return result;
+        }
+
+        const salesRoleYears = getSalesRoleYears(request.resume.roleSignals);
+
+        if ((salesRoleYears ?? 0) > 0) {
+            return result;
+        }
+
+        const normalized = normalizeKeywordSalesAnalysis(
+            result as unknown as {
+                score: number;
+                recommendation: string;
+                breakdown?: Record<string, number>;
+            },
+            {
+                salesRequired: true,
+                roleSignals: request.resume.roleSignals,
+                rewriteBreakdown: false,
+            }
+        );
+
+        return normalized as MatchingResult;
     }
 
     private loadPromptForResume(

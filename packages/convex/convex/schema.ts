@@ -81,6 +81,8 @@ export default defineSchema({
             recommendation: v.string(),
             breakdown: v.optional(v.any()), // Stores detailed scores per category
             jobDescriptionId: v.optional(v.string()), // Tracks which JD was used for analysis
+            promptVersion: v.optional(v.number()),
+            queryLocation: v.optional(v.string()),
             analyzedAt: v.optional(v.number()),
         })),
 
@@ -213,6 +215,8 @@ export default defineSchema({
             jobDescriptionTitle: v.optional(v.string()),
             jobDescriptionContent: v.optional(v.string()),
             keywords: v.optional(v.array(v.string())),
+            location: v.optional(v.string()),
+            promptVersion: v.optional(v.number()),
             sample: v.optional(v.string()),
             resumeCount: v.number(),
         }),

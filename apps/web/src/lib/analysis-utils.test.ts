@@ -4,10 +4,28 @@ import { buildKeywordAnalysisId, deriveAnalysisLookupKey } from './analysis-util
 describe('buildKeywordAnalysisId', () => {
   it('matches backend output fixtures', () => {
     expect(buildKeywordAnalysisId([])).toBe('keyword-search')
-    expect(buildKeywordAnalysisId(['CNC', '车床'])).toBe('keyword-search:2:2223e0c7')
-    expect(buildKeywordAnalysisId(['  cnc ', 'CNC', '车床', ''])).toBe('keyword-search:2:2223e0c7')
-    expect(buildKeywordAnalysisId(['车床', 'cnc', '销售'])).toBe('keyword-search:3:15637327')
-    expect(buildKeywordAnalysisId(['销售', '车床', 'cnc', '销售'])).toBe('keyword-search:3:15637327')
+    expect(buildKeywordAnalysisId(['CNC', '车床'])).toBe('keyword-search:2:282bc607')
+    expect(buildKeywordAnalysisId(['  cnc ', 'CNC', '车床', ''])).toBe('keyword-search:2:282bc607')
+    expect(buildKeywordAnalysisId(['车床', 'cnc', '销售'])).toBe('keyword-search:3:e4226b67')
+    expect(buildKeywordAnalysisId(['销售', '车床', 'cnc', '销售'])).toBe('keyword-search:3:e4226b67')
+  })
+
+  it('changes when location or prompt version changes', () => {
+    const base = buildKeywordAnalysisId(['销售', 'CNC'], {
+      location: '广东',
+      promptVersion: 1,
+    })
+    const differentLocation = buildKeywordAnalysisId(['销售', 'CNC'], {
+      location: '江苏',
+      promptVersion: 1,
+    })
+    const differentVersion = buildKeywordAnalysisId(['销售', 'CNC'], {
+      location: '广东',
+      promptVersion: 2,
+    })
+
+    expect(base).not.toBe(differentLocation)
+    expect(base).not.toBe(differentVersion)
   })
 })
 
@@ -17,7 +35,10 @@ describe('deriveAnalysisLookupKey', () => {
   })
 
   it('falls back to keyword analysis id', () => {
-    expect(deriveAnalysisLookupKey(undefined, ['CNC', '车床'])).toBe('keyword-search:2:2223e0c7')
+    expect(deriveAnalysisLookupKey(undefined, ['CNC', '车床'], {
+      location: '广东',
+      promptVersion: 1,
+    })).toMatch(/^keyword-search:2:/)
   })
 
   it('returns empty key when no context is provided', () => {

@@ -41,4 +41,40 @@ describe("normalizeResume strict evidence", () => {
 
     expect(normalized.verifiedCompanies).toEqual(["大连机床集团"]);
   });
+
+  it("exposes structured roleSignals for prompt hydration", () => {
+    const normalized = normalizeResume({
+      name: "赵某",
+      ingestData: {
+        evidenceText: "2020-2024 深圳市玄羽科技有限公司 应用工程师",
+        roleSignals: [
+          {
+            type: "engineer",
+            matchedSignals: ["工程师", "调试"],
+            signalCount: 2,
+            occurrences: 2,
+            years: 3.9,
+            industryVerifiedYears: 0,
+            roleRelevantYears: 3.9,
+            verifyIn: "workHistory",
+          },
+          {
+            type: "sales",
+            matchedSignals: ["配合销售"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 0,
+            industryVerifiedYears: 0,
+            roleRelevantYears: 0,
+            verifyIn: "workHistory",
+          },
+        ],
+      },
+    } as unknown);
+
+    expect(normalized.roleSignals).toHaveLength(2);
+    expect(normalized.roleSignalsText).toContain("engineer(workHistory)");
+    expect(normalized.roleSignalsText).toContain("sales(workHistory)");
+    expect(normalized.roleSignalsText).toContain("配合销售");
+  });
 });
