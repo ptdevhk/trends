@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatLocationHierarchyLabel,
+  formatLocationHierarchySearchText,
   findLocation,
   getAllDescendants,
   getChildren,
   isLocationMatch,
+  normalizeLocationHierarchy,
   normalizeLocationName,
+  resolveLocationHierarchy,
 } from "../location-tree";
 
 describe("location-tree", () => {
@@ -13,6 +17,7 @@ describe("location-tree", () => {
     expect(normalizeLocationName("东莞市")).toBe("东莞");
     expect(normalizeLocationName("南城区")).toBe("南城");
     expect(normalizeLocationName("浦东新区")).toBe("浦东");
+    expect(normalizeLocationName("中国")).toBe("中国");
   });
 
   it("finds location by alias and compound text", () => {
@@ -41,6 +46,24 @@ describe("location-tree", () => {
     expect(isLocationMatch("东莞南城区", "广东")).toBe(true);
     expect(isLocationMatch("昆山市", "江苏")).toBe(true);
     expect(isLocationMatch("昆山市", "苏州")).toBe(true);
+  });
+
+  it("resolves China-rooted hierarchies with city-level canonical labels", () => {
+    const hierarchy = resolveLocationHierarchy("东莞长安镇");
+    expect(hierarchy).toEqual(expect.objectContaining({
+      country: "中国",
+      province: "广东",
+      city: "东莞",
+      confidence: "high",
+    }));
+    expect(formatLocationHierarchyLabel(hierarchy)).toBe("广东东莞");
+    expect(formatLocationHierarchySearchText(hierarchy)).toBe("中国 广东 东莞");
+    expect(normalizeLocationHierarchy(hierarchy)).toEqual(hierarchy);
+    expect(resolveLocationHierarchy("石碣镇")?.city).toBe("东莞");
+  });
+
+  it("rejects conflicting sibling locations", () => {
+    expect(resolveLocationHierarchy("东莞深圳")).toBeUndefined();
   });
 
   it("does not match non-descendant branches", () => {

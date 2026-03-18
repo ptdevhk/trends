@@ -2,7 +2,12 @@ import { internal } from "./_generated/api";
 import { action, mutation } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { buildWorkHistoryEvidence, normalizeWorkHistoryEntry } from "@trends/shared";
+import {
+    buildWorkHistoryEvidence,
+    formatLocationHierarchyLabel,
+    normalizeResumeLocationHierarchy,
+    normalizeWorkHistoryEntry,
+} from "@trends/shared";
 
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 import { deriveResumeIdentityKey } from "./lib/resume_identity";
@@ -109,6 +114,57 @@ function rewriteJob5156ProfileUrlsInContent(content: unknown): {
     return {
         content: nextContent,
         updatedFields,
+    };
+}
+
+type RewriteJob5156LocationHierarchyResult = {
+    content: Record<string, unknown> | null;
+    updatedLocationHierarchy: boolean;
+    updatedLocation: boolean;
+};
+
+function rewriteJob5156LocationHierarchyInContent(content: unknown): RewriteJob5156LocationHierarchyResult {
+    if (!isRecord(content)) {
+        return {
+            content: null,
+            updatedLocationHierarchy: false,
+            updatedLocation: false,
+        };
+    }
+
+    const source = typeof content.source === "string" ? content.source.toLowerCase() : "";
+    const profileUrl = typeof content.profileUrl === "string" ? content.profileUrl.toLowerCase() : "";
+    const isJob5156 = source === JOB5156_HOST || profileUrl.includes(JOB5156_HOST);
+    if (!isJob5156) {
+        return {
+            content: null,
+            updatedLocationHierarchy: false,
+            updatedLocation: false,
+        };
+    }
+
+    const locationHierarchy = normalizeResumeLocationHierarchy(content);
+    const rawLocation = typeof content.location === "string" ? content.location.trim() : "";
+    const nextLocation = rawLocation || (locationHierarchy ? formatLocationHierarchyLabel(locationHierarchy) : "");
+
+    let nextContent: Record<string, unknown> | null = null;
+    let updatedLocationHierarchy = false;
+    let updatedLocation = false;
+
+    if (locationHierarchy && !content.locationHierarchy) {
+        nextContent = { ...(nextContent ?? content), locationHierarchy };
+        updatedLocationHierarchy = true;
+    }
+
+    if (nextLocation && nextLocation !== rawLocation) {
+        nextContent = { ...(nextContent ?? content), location: nextLocation };
+        updatedLocation = true;
+    }
+
+    return {
+        content: nextContent,
+        updatedLocationHierarchy,
+        updatedLocation,
     };
 }
 
@@ -675,6 +731,77 @@ export const backfillJob5156WorkHistoryEducation = mutation({
             scannedResumes: resumes.page.length,
             updatedResumes,
             movedEducationEntries,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});
+
+export const backfillJob5156LocationHierarchy = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+
+        let updatedResumes = 0;
+        let updatedLocationHierarchy = 0;
+        let updatedLocation = 0;
+        let updatedSearchText = 0;
+
+        for (const resume of resumes.page) {
+            const rewritten = rewriteJob5156LocationHierarchyInContent(resume.content);
+            const searchText = mergeSearchTextWithIngestData(
+                buildSearchText(rewritten.content ?? resume.content),
+                {
+                    industryTags: resume.ingestData?.industryTags,
+                    synonymHits: resume.ingestData?.synonymHits,
+                    brandHits: resume.ingestData?.brandHits,
+                    companyHits: resume.ingestData?.companyHits,
+                }
+            );
+
+            const patch: {
+                content?: Record<string, unknown>;
+                searchText?: string;
+            } = {};
+
+            if (rewritten.content) {
+                patch.content = rewritten.content;
+                if (rewritten.updatedLocationHierarchy) {
+                    updatedLocationHierarchy += 1;
+                }
+                if (rewritten.updatedLocation) {
+                    updatedLocation += 1;
+                }
+            }
+
+            if (searchText !== resume.searchText) {
+                patch.searchText = searchText;
+                updatedSearchText += 1;
+            }
+
+            if (Object.keys(patch).length === 0) {
+                continue;
+            }
+
+            await ctx.db.patch(resume._id, patch);
+            updatedResumes += 1;
+        }
+
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes,
+            updatedLocationHierarchy,
+            updatedLocation,
+            updatedSearchText,
             hasMore: !resumes.isDone,
             cursor: resumes.isDone ? null : resumes.continueCursor,
         };

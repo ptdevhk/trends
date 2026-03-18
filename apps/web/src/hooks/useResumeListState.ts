@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from 'convex/react'
-import { isLocationMatch } from '@trends/shared'
+import { formatLocationHierarchySearchText, isLocationMatch } from '@trends/shared'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -216,6 +216,10 @@ function submitResumeExportDownload(apiBaseUrl: string, payload: ResumeExportReq
 
 function normalizeFilterToken(value: string): string {
   return value.trim().toLowerCase()
+}
+
+function getResumeLocationText(resume: { location?: string; locationHierarchy?: { country: string; province?: string; city?: string } }): string {
+  return formatLocationHierarchySearchText(resume.locationHierarchy) || resume.location || ''
 }
 
 function parseSerializedStringArray(value: string): string[] {
@@ -848,7 +852,7 @@ export function useResumeListState(loadSearchHistory = false) {
     if (filters.locations?.length) {
       const locations = filters.locations
       result = result.filter((resume: ScoredConvexResume) =>
-        locations.some((location) => isLocationMatch(resume.location ?? '', location))
+        locations.some((location) => isLocationMatch(getResumeLocationText(resume), location))
       )
     }
 

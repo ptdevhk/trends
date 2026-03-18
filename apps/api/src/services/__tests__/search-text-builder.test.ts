@@ -50,6 +50,20 @@ describe("buildSearchText", () => {
     expect(resultA).toBe(resultB);
   });
 
+  it("indexes structured location hierarchy while ignoring hierarchy metadata fields", () => {
+    const result = buildSearchText({
+      locationHierarchy: {
+        country: "中国",
+        province: "广东",
+        city: "东莞",
+        matchedFrom: "location",
+        confidence: "high",
+      },
+    });
+
+    expect(result).toBe("中国 广东 东莞");
+  });
+
   it("splits cjk and ascii boundaries for mixed-script search tokens", () => {
     const result = buildSearchText({
       summary: "东莞CNC编程 熟悉cnc操作和车床CNC技术员",

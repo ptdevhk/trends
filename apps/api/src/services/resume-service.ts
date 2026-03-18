@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   buildWorkHistoryEntryText,
+  formatLocationHierarchySearchText,
   isLocationMatch,
   normalizeProfileUrlForDisplay,
   normalizeSharedResumeFields,
@@ -234,11 +235,13 @@ function countOccurrences(haystack: string, needle: string): number {
 }
 
 function buildSearchText(item: ResumeItem): string {
+  const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
   const parts = [
     item.name,
     item.jobIntention,
     item.selfIntro,
     item.education,
+    locationText,
     item.expectedSalary,
     ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
   ];
@@ -566,7 +569,7 @@ export class ResumeService {
       }
 
       if (filters.locations?.length) {
-        const location = item.location || "";
+        const location = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
         const hasLocation = filters.locations.some((target) => isLocationMatch(location, target));
         if (!hasLocation) return false;
       }

@@ -31,6 +31,16 @@ const ResumeImportWorkHistorySchema = z
   })
   .openapi("ResumeImportWorkHistory");
 
+export const ResumeLocationHierarchySchema = z
+  .object({
+    country: z.string().openapi({ example: "中国" }),
+    province: z.string().optional().openapi({ example: "广东" }),
+    city: z.string().optional().openapi({ example: "东莞" }),
+    matchedFrom: z.enum(["location", "profile", "workHistory", "jobIntention"]).optional(),
+    confidence: z.literal("high").optional(),
+  })
+  .openapi("ResumeLocationHierarchy");
+
 const ResumeImportProfileEducationSchema = z
   .object({
     institution: z.string().optional().openapi({ example: "Universiti Malaya" }),
@@ -116,6 +126,7 @@ export const ResumeItemSchema = z
     experience: z.string().openapi({ example: "5 years" }),
     education: z.string().openapi({ example: "Bachelor" }),
     location: z.string().openapi({ example: "Shenzhen" }),
+    locationHierarchy: ResumeLocationHierarchySchema.optional(),
     selfIntro: z.string().openapi({ example: "认真敬业，具备团队协作精神" }),
     jobIntention: z.string().openapi({ example: "Sales Manager" }),
     expectedSalary: z.string().openapi({ example: "10-15K" }),
@@ -202,6 +213,7 @@ export const ResumeImportItemSchema = z
     experience: z.string().optional().openapi({ example: "5 years" }),
     education: z.string().optional().openapi({ example: "Bachelor" }),
     location: z.string().optional().openapi({ example: "Shenzhen" }),
+    locationHierarchy: ResumeLocationHierarchySchema.optional(),
     jobIntention: z.string().optional().openapi({ example: "Sales Manager" }),
     expectedSalary: z.string().optional().openapi({ example: "10-15K" }),
     selfIntro: z.string().optional().openapi({ example: "认真敬业，具备团队协作精神" }),
@@ -654,6 +666,7 @@ export const ResumeExportResolvedResumeSchema = z.object({
   name: z.string().optional(),
   jobIntention: z.string().optional(),
   location: z.string().optional(),
+  locationHierarchy: ResumeLocationHierarchySchema.optional(),
   age: z.string().optional(),
   experience: z.string().optional(),
   education: z.string().optional(),

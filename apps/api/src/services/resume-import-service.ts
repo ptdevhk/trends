@@ -5,6 +5,10 @@ import path from "node:path";
 import { z } from "@hono/zod-openapi";
 
 import {
+  formatLocationHierarchyLabel,
+  normalizeResumeLocationHierarchy,
+} from "@trends/shared";
+import {
   ResumeImportItemSchema,
   ResumeImportMetadataSchema,
   ResumeImportRequestSchema,
@@ -179,6 +183,18 @@ function buildResumeExternalId(resume: ResumeImportItem, source: string, hash: s
   return `${source}:hash:${hash}`;
 }
 
+function buildNormalizedResumeContent(resume: ResumeImportItem): Record<string, unknown> {
+  const locationHierarchy = normalizeResumeLocationHierarchy(resume);
+  const rawLocation = typeof resume.location === "string" ? resume.location.trim() : "";
+  const location = rawLocation || (locationHierarchy ? formatLocationHierarchyLabel(locationHierarchy) : "");
+
+  return {
+    ...resume,
+    location,
+    ...(locationHierarchy ? { locationHierarchy } : {}),
+  };
+}
+
 async function submitResumesToConvex(args: { resumes: ConvexResumeSubmitItem[] }): Promise<{
   submitted: number;
   deduped: number;
@@ -237,7 +253,7 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
   const source = resolveResumeSource(metadata);
 
   const convexResumes = resumes.map((resume) => {
-    const content: unknown = resume;
+    const content: unknown = buildNormalizedResumeContent(resume);
     const hash = crypto.createHash("sha256").update(stableStringify(content), "utf8").digest("hex");
     const externalId = buildResumeExternalId(resume, source, hash);
 

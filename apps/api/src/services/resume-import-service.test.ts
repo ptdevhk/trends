@@ -100,6 +100,56 @@ describe("resume-import-service", () => {
         resumeId: "1079188",
         perUserId: "1079188",
         name: "骆先生",
+        locationHierarchy: {
+          country: "中国",
+          province: "广东",
+          city: "东莞",
+          matchedFrom: "location",
+          confidence: "high",
+        },
+      }),
+    });
+  });
+
+  it("fills missing Job5156 locations from the derived hierarchy", () => {
+    const result = normalizeResumeImportPayload({
+      metadata: {
+        sourceKey: "job5156",
+        sourceHost: "hr.job5156.com",
+        sourceUrl: "https://hr.job5156.com/resume/view/555555",
+        keyword: "销售",
+        generatedBy: "browser-extension@1.1.1",
+      },
+      resumes: [
+        {
+          resumeId: 555555,
+          name: "空位置候选人",
+          profileUrl: "https://hr.job5156.com/resume/view/555555",
+          activityStatus: "在线中",
+          location: "",
+          jobIntention: "销售工程师",
+          workHistory: [
+            {
+              raw: "2020-01~2024-01 东莞富佳机械设备有限公司 销售工程师",
+              companyName: "东莞富佳机械设备有限公司",
+              jobTitle: "销售工程师",
+            },
+          ],
+          extractedAt: "2026-03-12T01:02:03.000Z",
+        },
+      ],
+    });
+
+    expect(result.convexResumes[0]).toMatchObject({
+      content: expect.objectContaining({
+        location: "广东东莞",
+        locationHierarchy: {
+          country: "中国",
+          province: "广东",
+          city: "东莞",
+          matchedFrom: "workHistory",
+          confidence: "high",
+        },
       }),
     });
   });

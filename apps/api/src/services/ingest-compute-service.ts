@@ -1,4 +1,10 @@
-import { buildWorkHistoryEntryText, buildWorkHistoryEvidence, normalizeWorkHistoryEntry } from "@trends/shared";
+import {
+  buildWorkHistoryEntryText,
+  buildWorkHistoryEvidence,
+  formatLocationHierarchySearchText,
+  normalizeResumeLocationHierarchy,
+  normalizeWorkHistoryEntry,
+} from "@trends/shared";
 
 import { IndustryDataService } from "./industry-data-service.js";
 import { normalizeCompanyPatternIdentifier, SkillsKnowledgeService } from "./skills-knowledge.js";
@@ -135,6 +141,7 @@ function toResumeItem(value: unknown): ResumeItem | null {
     experience: toStringValue(value.experience),
     education: toStringValue(value.education),
     location: toStringValue(value.location),
+    locationHierarchy: normalizeResumeLocationHierarchy(value),
     selfIntro: toStringValue(value.selfIntro),
     jobIntention: toStringValue(value.jobIntention),
     expectedSalary: toStringValue(value.expectedSalary),
@@ -235,9 +242,11 @@ function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
 }
 
 function createSearchText(item: ResumeItem): string {
+  const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
   const parts = [
     item.name,
     item.education,
+    locationText,
     item.expectedSalary,
     ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
   ];
@@ -384,7 +393,11 @@ export function buildResumeIndex(item: ResumeItem, index: number): ResumeIndex {
     resumeId,
     experienceYears: computeWorkHistoryYears(item.workHistory),
     educationLevel: normalizeEducationLevel(item.education),
-    locationCity: item.location || null,
+    locationCity: item.locationHierarchy?.city
+      || item.locationHierarchy?.province
+      || item.locationHierarchy?.country
+      || item.location
+      || null,
     evidenceText,
     skills: [],  // Not needed for ingest - skills are in searchText
     companies,
