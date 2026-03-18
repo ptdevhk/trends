@@ -4,6 +4,8 @@ import {
     buildResumeAiSystemPrompt,
     getResumeAiPromptDefinition,
     getResumeAiUserPromptTemplate,
+    isSalesRequiredContext,
+    normalizeKeywordSalesAnalysis,
     resolveResumeAiPromptLocale,
 } from "@trends/shared";
 import { v } from "convex/values";
@@ -16,6 +18,27 @@ const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
 export type ChatMessage = {
     role: "system" | "user";
     content: string;
+};
+
+type NormalizedMatchedWorkEntry = {
+    companyName?: string;
+    jobTitle?: string;
+    years: number;
+    industryVerified: boolean;
+    matchedSignals: string[];
+};
+
+type NormalizedRoleSignal = {
+    type: string;
+    matchedSignals: string[];
+    signalCount: number;
+    occurrences: number;
+    years: number;
+    industryVerifiedYears: number;
+    roleRelevantYears?: number;
+    industryVerifiedRelevantYears?: number;
+    matchedWorkEntries?: NormalizedMatchedWorkEntry[];
+    verifyIn: "searchText" | "workHistory";
 };
 
 export const SYSTEM_PROMPT = getResumeAiPromptDefinition(DEFAULT_AI_OUTPUT_LOCALE).sections.systemPrompt;
@@ -37,6 +60,126 @@ export function getUserPromptTemplate(locale: string): string {
 
 const VERIFIED_COMPANIES_NONE_LABEL = "无";
 
+function toNumber(value: unknown): number | undefined {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+    }
+    if (typeof value === "string") {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
+}
+
+function formatWorkEntry(entry: NormalizedMatchedWorkEntry): string {
+    const parts = [
+        entry.companyName,
+        entry.jobTitle,
+        `${entry.years}年`,
+        entry.industryVerified ? "已验证" : "未验证",
+        entry.matchedSignals.length > 0 ? `信号:${entry.matchedSignals.join("/")}` : undefined,
+    ].filter((item): item is string => Boolean(item));
+    return parts.join(" ");
+}
+
+function formatRoleSignals(roleSignals: NormalizedRoleSignal[]): string {
+    if (roleSignals.length === 0) {
+        return "无";
+    }
+
+    return roleSignals.slice(0, 8).map((signal) => {
+        const relevantYears = signal.industryVerifiedRelevantYears
+            ?? signal.roleRelevantYears
+            ?? signal.industryVerifiedYears
+            ?? signal.years;
+        const displayRelevantYears = typeof relevantYears === "number" && Number.isFinite(relevantYears)
+            ? relevantYears
+            : 0;
+        const workEntries = signal.matchedWorkEntries && signal.matchedWorkEntries.length > 0
+            ? signal.matchedWorkEntries.map((entry) => formatWorkEntry(entry)).join("; ")
+            : undefined;
+        const parts = [
+            `${signal.type}(${signal.verifyIn})`,
+            `years:${signal.years}`,
+            `relevant:${displayRelevantYears}`,
+            signal.matchedSignals.length > 0 ? `signals:${signal.matchedSignals.join("/")}` : undefined,
+            workEntries ? `work:${workEntries}` : undefined,
+        ].filter((item): item is string => Boolean(item));
+        return `- ${parts.join(" | ")}`;
+    }).join("\n");
+}
+
+function parseRoleSignals(value: unknown): NormalizedRoleSignal[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value.flatMap((item) => {
+        if (!isRecord(item)) {
+            return [];
+        }
+
+        const type = typeof item.type === "string" ? item.type.trim() : "";
+        const years = toNumber(item.years);
+        if (!type || years === undefined) {
+            return [];
+        }
+
+        const verifyIn = item.verifyIn === "searchText" ? "searchText" : "workHistory";
+        const matchedSignals = Array.isArray(item.matchedSignals)
+            ? item.matchedSignals.filter((signal): signal is string => typeof signal === "string" && signal.length > 0)
+            : [];
+        const signalCount = toNumber(item.signalCount) ?? matchedSignals.length;
+        const occurrences = toNumber(item.occurrences) ?? matchedSignals.length;
+        const industryVerifiedYears = toNumber(item.industryVerifiedYears) ?? 0;
+        const roleRelevantYears = toNumber(item.roleRelevantYears);
+        const industryVerifiedRelevantYears = toNumber(item.industryVerifiedRelevantYears);
+        const matchedWorkEntries = Array.isArray(item.matchedWorkEntries)
+            ? item.matchedWorkEntries.flatMap((entry) => {
+                  if (!isRecord(entry)) {
+                      return [];
+                  }
+
+                  const entryYears = toNumber(entry.years);
+                  if (entryYears === undefined) {
+                      return [];
+                  }
+
+                  const matchedEntrySignals = Array.isArray(entry.matchedSignals)
+                      ? entry.matchedSignals.filter(
+                            (signal): signal is string => typeof signal === "string" && signal.length > 0
+                        )
+                      : [];
+
+                  return [{
+                      companyName: typeof entry.companyName === "string" && entry.companyName.trim().length > 0
+                          ? entry.companyName.trim()
+                          : undefined,
+                      jobTitle: typeof entry.jobTitle === "string" && entry.jobTitle.trim().length > 0
+                          ? entry.jobTitle.trim()
+                          : undefined,
+                      years: entryYears,
+                      industryVerified: entry.industryVerified === true,
+                      matchedSignals: matchedEntrySignals,
+                  }];
+              })
+            : undefined;
+
+        return [{
+            type,
+            matchedSignals,
+            signalCount,
+            occurrences,
+            years,
+            industryVerifiedYears,
+            ...(roleRelevantYears === undefined ? {} : { roleRelevantYears }),
+            ...(industryVerifiedRelevantYears === undefined ? {} : { industryVerifiedRelevantYears }),
+            ...(matchedWorkEntries && matchedWorkEntries.length > 0 ? { matchedWorkEntries } : {}),
+            verifyIn,
+        }];
+    });
+}
+
 export function hydrateUserPrompt(
     template: string,
     job: { title: string; requirements: string; matchingRules: string },
@@ -50,6 +193,7 @@ export function hydrateUserPrompt(
         .replace("{workExperience}", String(resume.workExperience))
         .replace("{education}", resume.education)
         .replace("{evidenceText}", resume.evidenceText)
+        .replace("{roleSignals}", resume.roleSignalsText)
         .replace("{companies}", resume.companies)
         .replace("{verifiedCompanies}", resume.verifiedCompanies.length > 0
             ? resume.verifiedCompanies.join(", ")
@@ -132,6 +276,7 @@ export function normalizeResume(data: unknown) {
               (item: unknown): item is string => typeof item === "string" && item.length > 0
           )
         : [];
+    const roleSignals = parseRoleSignals(ingestData?.roleSignals);
 
     return {
         name: typeof content.name === "string" ? content.name : "未填写",
@@ -141,6 +286,8 @@ export function normalizeResume(data: unknown) {
             : (typeof content.degree === "string" ? content.degree : "未填写"),
         companies: allCompanies.length > 0 ? allCompanies.slice(0, 8).join(", ") : "未填写",
         evidenceText: evidenceText.trim() || "未填写",
+        roleSignals,
+        roleSignalsText: formatRoleSignals(roleSignals),
         verifiedCompanies: companyHits,
     };
 }
@@ -185,7 +332,7 @@ export async function callLLM(messages: ChatMessage[], apiKey: string) {
     // However, correcting the Prompt is the best fix.
     // Let's try to simple-fix unquoted string values for score to make it valid JSON at least.
     // Match "score": word (no quotes)
-    content = content.replace(/"(score|experience|skills|industry_db|education|location)":\s*([a-zA-Z]+)(?=[,}])/g, '"$1": "$2"');
+    content = content.replace(/"(score|related_exp|experience|skills|industry_db|education|location)":\s*([a-zA-Z]+)(?=[,}])/g, '"$1": "$2"');
 
     try {
         const json = JSON.parse(content);
@@ -232,6 +379,7 @@ export const analyzeResume = action({
 
         // 2. Prepare Prompt
         const locale = resolveAIOutputLocale();
+        const promptVersion = getResumeAiPromptDefinition(locale).metadata.version;
         const norm = normalizeResume(resume);
         const prompt = hydrateUserPrompt(
             getUserPromptTemplate(locale),
@@ -253,21 +401,30 @@ export const analyzeResume = action({
             throw new Error("Failed to analyze resume with AI.");
         }
 
+        const normalizedResult = normalizeKeywordSalesAnalysis(
+            result,
+            {
+                salesRequired: isSalesRequiredContext(jd.title, jd.requirements, matchingRules),
+                roleSignals: norm.roleSignals,
+            }
+        );
+
         // 4. Update Resume with result
         await ctx.runMutation(internal.resumes.updateAnalysis, {
             resumeId: args.resumeId,
             analysis: {
-                score: result.score,
-                breakdown: result.breakdown,
-                summary: result.summary,
-                highlights: result.highlights || [],
-                recommendation: result.recommendation || "no_match",
+                score: normalizedResult.score,
+                breakdown: normalizedResult.breakdown,
+                summary: normalizedResult.summary,
+                highlights: normalizedResult.highlights || [],
+                recommendation: normalizedResult.recommendation || "no_match",
                 jobDescriptionId: args.jobDescriptionId || "default",
+                promptVersion,
                 analyzedAt: Date.now(),
             },
         });
 
-        return result;
+        return normalizedResult;
     },
 });
 

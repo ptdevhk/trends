@@ -6,6 +6,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
+import { isSalesRequiredContext } from '@trends/shared'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import { useConvexResumes, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { useSession } from '@/hooks/useSession'
@@ -20,6 +21,7 @@ import {
 } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { components } from '@/lib/api-types'
+import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import { isResumeHomeResetState } from '@/lib/resume-home-navigation'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import {
@@ -172,7 +174,9 @@ function areUrlFiltersEqual(left: Partial<ResumeFilters>, right: Partial<ResumeF
 function taskMatchesCurrentSearch(
   task: AnalysisTaskDoc,
   jobDescriptionId: string | undefined,
-  sessionKeywords: string[]
+  sessionKeywords: string[],
+  location: string,
+  promptVersion: number
 ): boolean {
   if (task.status !== 'pending' && task.status !== 'processing') {
     return false
@@ -180,13 +184,19 @@ function taskMatchesCurrentSearch(
 
   const normalizedJobDescriptionId = (jobDescriptionId ?? '').trim()
   if (normalizedJobDescriptionId && task.config.jobDescriptionId === normalizedJobDescriptionId) {
-    return true
+    return task.config.promptVersion === promptVersion
+      && normalizeOptionalString(task.config.location) === normalizeOptionalString(location)
   }
 
   if (sessionKeywords.length > 0 && task.config.keywords?.length) {
     const normalizedSessionKeywords = normalizeKeywordFingerprint(sessionKeywords)
     const normalizedTaskKeywords = normalizeKeywordFingerprint(task.config.keywords)
-    return normalizedSessionKeywords.length > 0 && normalizedSessionKeywords === normalizedTaskKeywords
+    return (
+      normalizedSessionKeywords.length > 0
+      && normalizedSessionKeywords === normalizedTaskKeywords
+      && task.config.promptVersion === promptVersion
+      && normalizeOptionalString(task.config.location) === normalizeOptionalString(location)
+    )
   }
 
   return false
@@ -525,7 +535,12 @@ export function useResumeListState(loadSearchHistory = false) {
     const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
     return rawBaseUrl.replace(/\/api\/?$/, '')
   }, [])
+  const currentPromptVersion = getCurrentResumeAiPromptVersion()
   const keywordOnlyQueryScoring = sessionKeywords.length > 0 && !jobDescriptionId?.trim()
+  const salesRequiredContext = useMemo(
+    () => isSalesRequiredContext(sessionKeywords.join(' '), jobDescriptionId),
+    [jobDescriptionId, sessionKeywords]
+  )
   const querySpecificKeywordsKey = useMemo(
     () => JSON.stringify(sessionKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0)),
     [sessionKeywords]
@@ -560,8 +575,10 @@ export function useResumeListState(loadSearchHistory = false) {
     if (!analysisTasks || analysisTasks.length === 0) {
       return false
     }
-    return analysisTasks.some((task) => taskMatchesCurrentSearch(task, jobDescriptionId, sessionKeywords))
-  }, [analysisTasks, jobDescriptionId, sessionKeywords])
+    return analysisTasks.some((task) =>
+      taskMatchesCurrentSearch(task, jobDescriptionId, sessionKeywords, sessionLocation, currentPromptVersion)
+    )
+  }, [analysisTasks, currentPromptVersion, jobDescriptionId, sessionKeywords, sessionLocation])
 
   useEffect(() => {
     let active = true
@@ -816,7 +833,10 @@ export function useResumeListState(loadSearchHistory = false) {
   const filteredConvexResumes = useMemo(() => {
     let result: ScoredConvexResume[] = convexResumes
       .filter((resume: ConvexResumeItem) => {
-        const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
+        const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
+          location: sessionLocation,
+          promptVersion: currentPromptVersion,
+        })
         return !isAutoFilteredAnalysis(analysis)
       })
       .map((resume: ConvexResumeItem) => {
@@ -909,7 +929,10 @@ export function useResumeListState(loadSearchHistory = false) {
         if (rScore > 0) {
           return rScore >= minMatchScore
         }
-        const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
+        const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
+          location: sessionLocation,
+          promptVersion: currentPromptVersion,
+        })
         return (analysis?.score ?? 0) >= minMatchScore
       })
     }
@@ -945,7 +968,9 @@ export function useResumeListState(loadSearchHistory = false) {
     selectedCompanies,
     selectedExperienceLevel,
     selectedTags,
+    currentPromptVersion,
     sessionKeywords,
+    sessionLocation,
     statusByIdentity,
   ])
 
@@ -991,7 +1016,12 @@ export function useResumeListState(loadSearchHistory = false) {
     setAnalyzing(true)
     try {
       const candidatesToAnalyze = filteredConvexResumes
-        .filter((resume: ConvexResumeItem) => !getAnalysisForJob(resume, jobDescriptionId, sessionKeywords))
+        .filter((resume: ConvexResumeItem) =>
+          !getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
+            location: sessionLocation,
+            promptVersion: currentPromptVersion,
+          })
+        )
         .slice(0, Number(import.meta.env.VITE_ANALYSIS_TOP_N) || 10)
 
       if (candidatesToAnalyze.length === 0) {
@@ -1040,12 +1070,16 @@ export function useResumeListState(loadSearchHistory = false) {
           jobDescriptionId,
           jobDescriptionTitle: jdTitle || undefined,
           jobDescriptionContent: jdContent || undefined,
+          location: sessionLocation.trim() || undefined,
+          promptVersion: currentPromptVersion,
           sample: selectedSample || undefined,
           resumeIds,
         })
       } else if (sessionKeywords.length > 0) {
         await dispatchAnalysis({
           keywords: sessionKeywords,
+          location: sessionLocation.trim() || undefined,
+          promptVersion: currentPromptVersion,
           sample: selectedSample || undefined,
           resumeIds,
         })
@@ -1066,8 +1100,10 @@ export function useResumeListState(loadSearchHistory = false) {
     hasActiveTask,
     jobDescriptionId,
     lastDispatchTime,
+    currentPromptVersion,
     selectedSample,
     sessionKeywords,
+    sessionLocation,
     t,
   ])
 
@@ -1130,7 +1166,10 @@ export function useResumeListState(loadSearchHistory = false) {
       return filteredConvexResumes.map((resume: ScoredConvexResume, index: number) => {
         const resumeKey = buildResumeKey(resume, index)
         const identityKey = getResumeIdentityKey(resume, resumeKey)
-        const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords)
+        const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
+          location: sessionLocation,
+          promptVersion: currentPromptVersion,
+        })
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
         const ingestData = resume.ingestData
         const hasBrandHits = (ingestData?.brandHits ?? []).some((hit) => hit.context !== 'employer')
@@ -1143,6 +1182,10 @@ export function useResumeListState(loadSearchHistory = false) {
                 hasBrandHits,
                 hasCompanyHits,
               ),
+              {
+                salesRequired: salesRequiredContext,
+                roleSignals: ingestData?.roleSignals,
+              },
             )
           : undefined
 
@@ -1189,7 +1232,19 @@ export function useResumeListState(loadSearchHistory = false) {
         action: actions[resumeKey],
       }
     })
-  }, [actions, blocksByIdentity, filteredConvexResumes, jobDescriptionId, mode, resumes, sessionKeywords, statusByIdentity])
+  }, [
+    actions,
+    blocksByIdentity,
+    currentPromptVersion,
+    filteredConvexResumes,
+    jobDescriptionId,
+    mode,
+    resumes,
+    salesRequiredContext,
+    sessionKeywords,
+    sessionLocation,
+    statusByIdentity,
+  ])
 
   const displayedResumes = useMemo(() => {
     const sortBy = filters.sortBy ?? 'score'

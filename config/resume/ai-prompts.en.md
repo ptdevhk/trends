@@ -1,6 +1,6 @@
 ---
-version: 1
-updated_at: '2026-03-10'
+version: 2
+updated_at: '2026-03-18'
 description: >
   English locale variant for the resume AI prompts.
   Falls back to the zh-Hans master prompt when this file is absent.
@@ -20,6 +20,7 @@ You must return results strictly as plain numeric JSON.
 5. If an exact score is not possible, estimate a reasonable numeric score from the available evidence.
 6. summary/highlights/concerns must prioritize the candidate's role focus, industry background, and directly relevant work history instead of repeating only total years or education.
 7. If work-history evidence is already provided, do not say that specific work experience was missing.
+8. `Role Signals` are structured role evidence. Use them to decide whether the candidate is actually in sales, engineering, debugging, or technical support. Do not let phrases like "support sales", "close orders", or "train customers" inflate direct sales experience.
 ```
 
 ## User Prompt Template
@@ -40,11 +41,18 @@ Please analyze how well the following candidate matches the job:
 **Industry Database Verified Companies**: {verifiedCompanies}
 **Work-History Evidence**:
 {evidenceText}
+**Role Signals**:
+{roleSignals}
 
 ## industry_db Scoring Rule (Important)
 - The `breakdown.industry_db` score must be based solely on the "Industry Database Verified Companies" field above.
 - If "Industry Database Verified Companies" is "无" (none), then `industry_db` must be 0.
 - Do not guess whether a company belongs to the industry database based on its name alone; use only the verification result provided above.
+
+## Sales Experience Rule (Important)
+- Count direct sales experience only when the work-history role itself is explicitly sales, sales engineer, sales manager, business development, or a similar sales role.
+- If the role is application engineer, technical support, debugging, programming, training, R&D, presales support, or merely "supporting sales" / "helping close orders", do not count it as direct sales experience.
+- If `Role Signals` contain no direct sales role and the job is a sales role, significantly lower `related_exp` to avoid misclassifying technical-support candidates as strong sales matches.
 
 ## Summary and Judgment Requirements
 - summary/highlights/concerns must prioritize the candidate's role focus, industry background, and directly relevant work history.
@@ -82,6 +90,7 @@ Return the analysis as JSON and ensure score is numeric:
 - `{matchingRules}`: Scoring rules, either default scoring guidance or keyword-specific guidance.
 - `{candidateName}`: Candidate name.
 - `{evidenceText}`: Strict work-history evidence extracted from resume history.
+- `{roleSignals}`: Structured role signals extracted from work history, prioritizing actual sales/engineering/technical-support roles.
 - `{verifiedCompanies}`: Companies verified against the industry database; shows "无" (none) when no matches exist.
 - `{workExperience}`: (kept in hydration chain, not in template) Candidate total years of work experience.
 - `{education}`: (kept in hydration chain, not in template) Candidate education level.
