@@ -115,6 +115,22 @@ function normalizeSourceHost(value: string | undefined): string | null {
   return normalized ? normalized.toLowerCase() : null;
 }
 
+function normalizeTagList(values: string[] | undefined): string[] | undefined {
+  if (!Array.isArray(values)) {
+    return undefined;
+  }
+
+  const tags = Array.from(
+    new Set(
+      values
+        .map((value) => normalizeOptionalString(value))
+        .filter((value): value is string => value !== null),
+    ),
+  );
+
+  return tags.length > 0 ? tags : undefined;
+}
+
 function normalizeImportMetadata(metadata: ResumeImportMetadata): ResumeImportMetadata {
   const searchKeyword = normalizeOptionalString(metadata.searchCriteria?.keyword);
   const searchLocation = normalizeOptionalString(metadata.searchCriteria?.location);
@@ -184,12 +200,13 @@ function buildResumeExternalId(resume: ResumeImportItem, source: string, hash: s
 }
 
 function buildNormalizedResumeContent(resume: ResumeImportItem): Record<string, unknown> {
+  const { sourceHost: _sourceHost, tags: _tags, ...content } = resume;
   const locationHierarchy = normalizeResumeLocationHierarchy(resume);
-  const rawLocation = typeof resume.location === "string" ? resume.location.trim() : "";
+  const rawLocation = typeof content.location === "string" ? content.location.trim() : "";
   const location = rawLocation || (locationHierarchy ? formatLocationHierarchyLabel(locationHierarchy) : "");
 
   return {
-    ...resume,
+    ...content,
     location,
     ...(locationHierarchy ? { locationHierarchy } : {}),
   };
@@ -249,20 +266,22 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
   const metadata = normalizeImportMetadata(parsedInput.metadata);
   const resumes = parsedInput.resumes ?? parsedInput.data ?? [];
   const tag = normalizeOptionalString(metadata.searchProfileId) ?? normalizeOptionalString(metadata.keyword);
-  const tags = tag ? [tag] : [];
+  const defaultTags = tag ? [tag] : [];
   const source = resolveResumeSource(metadata);
 
   const convexResumes = resumes.map((resume) => {
+    const itemSource = normalizeSourceHost(resume.sourceHost) ?? source;
+    const itemTags = normalizeTagList(resume.tags) ?? defaultTags;
     const content: unknown = buildNormalizedResumeContent(resume);
     const hash = crypto.createHash("sha256").update(stableStringify(content), "utf8").digest("hex");
-    const externalId = buildResumeExternalId(resume, source, hash);
+    const externalId = buildResumeExternalId(resume, itemSource, hash);
 
     return {
       externalId,
       content,
       hash,
-      source,
-      tags,
+      source: itemSource,
+      tags: itemTags,
     };
   });
 
@@ -270,7 +289,7 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
     metadata,
     resumes,
     source,
-    tags,
+    tags: defaultTags,
     convexResumes,
   };
 }

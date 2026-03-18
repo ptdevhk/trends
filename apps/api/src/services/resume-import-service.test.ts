@@ -155,6 +155,71 @@ describe("resume-import-service", () => {
     });
   });
 
+  it("uses per-item sourceHost and tags for mixed-source backup payloads", () => {
+    const result = normalizeResumeImportPayload({
+      metadata: {
+        sourceUrl: "https://backup.example.com/api/resumes/backup",
+        generatedBy: "trends-api backup",
+        keyword: "backup",
+      },
+      resumes: [
+        {
+          resumeId: "1001",
+          name: "Alice",
+          profileUrl: "https://hr.job5156.com/resume/view/1001",
+          activityStatus: "Active",
+          age: "30",
+          experience: "5 years",
+          education: "Bachelor",
+          location: "东莞",
+          jobIntention: "Sales",
+          expectedSalary: "10k-20k",
+          selfIntro: "Intro",
+          workHistory: [{ raw: "Test work history" }],
+          extractedAt: "2026-03-17T00:00:00.000Z",
+          sourceHost: "hr.job5156.com",
+          tags: ["job5156", "sales"],
+        },
+        {
+          profileId: "2002",
+          profileType: "seek",
+          name: "Bob",
+          profileUrl: "https://hk.employer.seek.com/candidates/2002",
+          activityStatus: "Active",
+          age: "31",
+          experience: "6 years",
+          education: "Bachelor",
+          location: "Kuala Lumpur",
+          jobIntention: "Sales Engineer",
+          expectedSalary: "8k-12k",
+          selfIntro: "Intro",
+          workHistory: [{ raw: "Test work history" }],
+          extractedAt: "2026-03-17T00:00:00.000Z",
+          sourceHost: "hk.employer.seek.com",
+          tags: ["seek"],
+        },
+      ],
+    });
+
+    expect(result.source).toBe("backup.example.com");
+    expect(result.tags).toEqual(["backup"]);
+    expect(result.convexResumes).toHaveLength(2);
+    expect(result.convexResumes[0]).toMatchObject({
+      source: "hr.job5156.com",
+      tags: ["job5156", "sales"],
+      externalId: "hr.job5156.com:resume:1001",
+    });
+    expect(result.convexResumes[1]).toMatchObject({
+      source: "hk.employer.seek.com",
+      tags: ["seek"],
+      externalId: "hk.employer.seek.com:profile:2002",
+    });
+    expect(result.convexResumes[0].content).not.toHaveProperty("sourceHost");
+    expect(result.convexResumes[0].content).not.toHaveProperty("tags");
+    expect(result.convexResumes[1].content).not.toHaveProperty("sourceHost");
+    expect(result.convexResumes[1].content).not.toHaveProperty("tags");
+  });
+
   it("preserves Job5156 detail-page work history fields during normalization", () => {
     const result = normalizeResumeImportPayload({
       metadata: {

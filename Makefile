@@ -8,6 +8,7 @@
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
+		backup-resumes restore-resumes \
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance \
@@ -191,6 +192,33 @@ refresh-env:
 	sudo systemctl is-active --quiet trends-worker && echo "  trends-worker: active" || echo "  trends-worker: FAILED"; \
 	sudo systemctl is-active --quiet trends-worker-api && echo "  trends-worker-api: active" || echo "  trends-worker-api: FAILED"; \
 	sudo systemctl is-active --quiet trends-mcp && echo "  trends-mcp: active" || echo "  trends-mcp: FAILED"
+
+# Backup live resume records to a portable JSON file
+backup-resumes:
+	@API_URL="$${API_URL:-$${TRENDS_API_URL:-http://localhost:3000}}" \
+	WORKSPACE="$${WORKSPACE:-dev}" \
+	OUT="$${OUT:-}" \
+	LIMIT="$${LIMIT:-}" \
+	RESUME_IDS="$${RESUME_IDS:-}" \
+	SOURCE_HOSTS="$${SOURCE_HOSTS:-}" \
+	if command -v bun >/dev/null 2>&1; then \
+		bunx tsx scripts/resume/backup-resumes.ts; \
+	else \
+		npx tsx scripts/resume/backup-resumes.ts; \
+	fi
+
+# Restore live resume records from a portable JSON backup
+restore-resumes:
+	@API_URL="$${API_URL:-$${TRENDS_API_URL:-http://localhost:3000}}" \
+	WORKSPACE="$${WORKSPACE:-dev}" \
+	FILE="$${FILE:-}" \
+	MODE="$${MODE:-upsert}" \
+	YES="$${YES:-}" \
+	if command -v bun >/dev/null 2>&1; then \
+		bunx tsx scripts/resume/restore-resumes.ts; \
+	else \
+		npx tsx scripts/resume/restore-resumes.ts; \
+	fi
 
 # Docker: start containers
 docker:
@@ -744,6 +772,9 @@ help:
 	@echo "  deploy-check   Dry run deploy precheck without rebuilding"
 	@echo "  deploy-seed    Force a full upgrade with seeded demo resumes (requires sudo)"
 	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
+	@echo "  backup-resumes Export live resume records to a portable JSON backup"
+	@echo "  restore-resumes Restore resume records from a portable JSON backup"
+	@echo "                 Uses API_URL/TRENDS_API_URL, WORKSPACE=dev, and OUT/FILE/LIMIT/SOURCE_HOSTS/RESUME_IDS/MODE/YES"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "                 See ./scripts/install.sh --help for install/upgrade modes, CI=true/1, and env knobs"
 	@echo "  docker         Start Docker containers"

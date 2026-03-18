@@ -671,6 +671,155 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Backup live resume records */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResumeBackupRequest"];
+                };
+            };
+            responses: {
+                /** @description Portable backup payload */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeImportRequest"];
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Requested resume records could not be resolved */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Backup failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset resume-related Convex records */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reset result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            count: number;
+                            partial: boolean;
+                            deleted: {
+                                [key: string]: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Reset failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/matches/rescore": {
         parameters: {
             query?: never;
@@ -4399,6 +4548,15 @@ export interface components {
             profileId?: string | number;
             profileType?: string;
             externalId?: string;
+            /** @example hr.job5156.com */
+            sourceHost?: string;
+            /**
+             * @example [
+             *       "sales",
+             *       "job5156"
+             *     ]
+             */
+            tags?: string[];
             /** @example Alex Chen */
             name: string;
             /** @example 28 */
@@ -4438,6 +4596,11 @@ export interface components {
             metadata: components["schemas"]["ResumeImportMetadata"];
             resumes?: components["schemas"]["ResumeImportItem"][];
             data?: components["schemas"]["ResumeImportItem"][];
+        };
+        ResumeBackupRequest: {
+            resumeIds?: string[];
+            sourceHosts?: string[];
+            limit?: number;
         };
         /** @enum {string} */
         ResumeExportSource: "sample" | "convex";
