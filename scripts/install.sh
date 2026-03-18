@@ -292,8 +292,15 @@ run_convex_migration() {
     local migration_args="${3:-}"
     local cursor=""
     local iteration=1
+    local batch_count=0
     local consecutive_noop=0
     local max_consecutive_noop=3
+    local total_scanned=0
+    local total_updated=0
+    local saw_scanned=0
+    local saw_updated=0
+
+    log_info "Running Convex migration: $migration_name..."
 
     while true; do
         local call_args=""
@@ -313,19 +320,13 @@ NODE
             command="$command '$call_args'"
         fi
 
-        if [[ "$iteration" -eq 1 ]]; then
-            log_info "Running Convex migration: $migration_name..."
-        else
-            log_info "Running Convex migration: $migration_name (batch $iteration)..."
-        fi
-
         local output=""
         if ! output="$(run_as_service_user "$command" 2>&1)"; then
             printf '%s\n' "$output"
             log_warn "$migration_name failed.${call_args:+ $call_args}"
             return 1
         fi
-        printf '%s\n' "$output"
+        batch_count=$((batch_count + 1))
 
         local progress=""
         progress="$(node - "$output" <<'NODE'
@@ -344,6 +345,7 @@ const progressKeys = [
 let hasMore = 0;
 let cursor = '';
 let updated = -1;
+let scanned = -1;
 
 try {
   const value = vm.runInNewContext(`(${source})`);
@@ -351,6 +353,9 @@ try {
     if (value.hasMore === true) {
       hasMore = 1;
       cursor = typeof value.cursor === 'string' ? value.cursor : '';
+    }
+    if (typeof value.scannedResumes === 'number') {
+      scanned = value.scannedResumes;
     }
     for (const key of progressKeys) {
       if (typeof value[key] === 'number') {
@@ -363,14 +368,26 @@ try {
   hasMore = 0;
 }
 
-process.stdout.write(`${hasMore}\t${Buffer.from(cursor, 'utf8').toString('base64')}\t${updated}`);
+process.stdout.write(`${hasMore}\t${Buffer.from(cursor, 'utf8').toString('base64')}\t${updated}\t${scanned}`);
 NODE
 )"
 
         local has_more="${progress%%$'\t'*}"
         local rest="${progress#*$'\t'}"
         local cursor_b64="${rest%%$'\t'*}"
-        local batch_updated="${rest#*$'\t'}"
+        local trailing="${rest#*$'\t'}"
+        local batch_updated="${trailing%%$'\t'*}"
+        local batch_scanned="${trailing#*$'\t'}"
+
+        if [[ "$batch_updated" =~ ^-?[0-9]+$ ]] && [[ "$batch_updated" -ge 0 ]]; then
+            total_updated=$((total_updated + batch_updated))
+            saw_updated=1
+        fi
+
+        if [[ "$batch_scanned" =~ ^-?[0-9]+$ ]] && [[ "$batch_scanned" -ge 0 ]]; then
+            total_scanned=$((total_scanned + batch_scanned))
+            saw_scanned=1
+        fi
 
         if [[ "$has_more" != "1" ]]; then
             break
@@ -399,6 +416,16 @@ NODE
             break
         fi
     done
+
+    local summary="Completed Convex migration: $migration_name (batches: $batch_count"
+    if [[ "$saw_scanned" -eq 1 ]]; then
+        summary="$summary, scanned: $total_scanned"
+    fi
+    if [[ "$saw_updated" -eq 1 ]]; then
+        summary="$summary, changed: $total_updated"
+    fi
+    summary="$summary)"
+    log_info "$summary"
 }
 
 create_service_user() {
