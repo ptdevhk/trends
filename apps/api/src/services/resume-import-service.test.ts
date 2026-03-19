@@ -399,4 +399,49 @@ describe("resume-import-service", () => {
       ],
     });
   });
+
+  it("chunks large imports into multiple Convex submissions", async () => {
+    const batchLengths: number[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName !== "resume_tasks:submitResumes") {
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
+      }
+
+      const resumes = Array.isArray(call.args.resumes) ? call.args.resumes : [];
+      batchLengths.push(resumes.length);
+
+      return convexSuccess({
+        submitted: resumes.length,
+        deduped: 0,
+        inserted: resumes.length,
+        updated: 0,
+        unchanged: 0,
+      });
+    });
+
+    const result = await submitResumeImport({
+      metadata: {
+        sourceUrl: "https://backup.example.com/api/resumes/backup",
+        generatedBy: "trends-api backup",
+      },
+      resumes: Array.from({ length: 201 }, (_, index) => ({
+        name: `Resume ${index + 1}`,
+        profileUrl: `https://example.com/resumes/${index + 1}`,
+        activityStatus: "Active",
+        extractedAt: "2026-03-19T05:34:12.000Z",
+      })),
+    });
+
+    expect(batchLengths).toEqual([200, 1]);
+    expect(result).toEqual({
+      success: true,
+      submitted: 201,
+      inserted: 201,
+      updated: 0,
+      unchanged: 0,
+      deduped: 0,
+    });
+  });
 });

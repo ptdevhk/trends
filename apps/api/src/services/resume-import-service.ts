@@ -17,6 +17,7 @@ import {
 import { config } from "./config.js";
 
 const JOB5156_HOST = "hr.job5156.com";
+const RESUME_IMPORT_CONVEX_BATCH_SIZE = 200;
 
 type ResumeImportMetadata = z.infer<typeof ResumeImportMetadataSchema>;
 export type ResumeImportItem = z.infer<typeof ResumeImportItemSchema>;
@@ -220,45 +221,59 @@ async function submitResumesToConvex(args: { resumes: ConvexResumeSubmitItem[] }
   unchanged: number;
 }> {
   const convexUrl = resolveConvexUrl().replace(/\/$/, "");
-  const response = await fetch(`${convexUrl}/api/mutation`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      path: "resume_tasks:submitResumes",
-      args,
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Convex mutation failed (${response.status}): ${text}`);
-  }
-
-  const payload = (await response.json()) as {
-    status?: string;
-    value?: unknown;
-    errorMessage?: string;
+  const totals = {
+    submitted: 0,
+    deduped: 0,
+    inserted: 0,
+    updated: 0,
+    unchanged: 0,
   };
 
-  if (payload.status !== "success") {
-    throw new Error(payload.errorMessage || "Convex mutation failed");
+  for (let index = 0; index < args.resumes.length; index += RESUME_IMPORT_CONVEX_BATCH_SIZE) {
+    const batch = args.resumes.slice(index, index + RESUME_IMPORT_CONVEX_BATCH_SIZE);
+    // Keep each Convex mutation comfortably below the per-execution read limit.
+    const response = await fetch(`${convexUrl}/api/mutation`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        path: "resume_tasks:submitResumes",
+        args: {
+          resumes: batch,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Convex mutation failed (${response.status}): ${text}`);
+    }
+
+    const payload = (await response.json()) as {
+      status?: string;
+      value?: unknown;
+      errorMessage?: string;
+    };
+
+    if (payload.status !== "success") {
+      throw new Error(payload.errorMessage || "Convex mutation failed");
+    }
+
+    if (!isRecord(payload.value)) {
+      throw new Error("Invalid submitResumes response from Convex");
+    }
+
+    const value = payload.value;
+    totals.submitted += typeof value.submitted === "number" ? value.submitted : 0;
+    totals.deduped += typeof value.deduped === "number" ? value.deduped : 0;
+    totals.inserted += typeof value.inserted === "number" ? value.inserted : 0;
+    totals.updated += typeof value.updated === "number" ? value.updated : 0;
+    totals.unchanged += typeof value.unchanged === "number" ? value.unchanged : 0;
   }
 
-  if (!isRecord(payload.value)) {
-    throw new Error("Invalid submitResumes response from Convex");
-  }
-
-  const value = payload.value;
-  return {
-    submitted: typeof value.submitted === "number" ? value.submitted : 0,
-    deduped: typeof value.deduped === "number" ? value.deduped : 0,
-    inserted: typeof value.inserted === "number" ? value.inserted : 0,
-    updated: typeof value.updated === "number" ? value.updated : 0,
-    unchanged: typeof value.unchanged === "number" ? value.unchanged : 0,
-  };
+  return totals;
 }
 
 export function normalizeResumeImportPayload(input: ResumeImportRequest): NormalizedResumeImportPayload {
