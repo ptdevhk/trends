@@ -9,6 +9,7 @@ import {
     normalizeResumeLocationHierarchy,
     normalizeWorkHistoryEntry,
     parse51jobManualResume,
+    shouldPreferManual51jobOptionalField,
 } from "@trends/shared";
 
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
@@ -266,11 +267,11 @@ function rewrite51jobManualContent(content: unknown, source: string): {
         changed = true;
     }
 
-    const optionalFields: Array<keyof typeof parsed> = ["jobIntention", "expectedSalary", "experience", "education"];
+    const optionalFields: Array<"jobIntention" | "expectedSalary" | "experience" | "education"> = ["jobIntention", "expectedSalary", "experience", "education"];
     for (const field of optionalFields) {
         const existing = nextContent[field];
         const parsedValue = parsed[field];
-        if ((typeof existing !== "string" || !existing.trim()) && typeof parsedValue === "string" && parsedValue.trim()) {
+        if (shouldPreferManual51jobOptionalField(field, existing, parsedValue)) {
             nextContent[field] = parsedValue;
             changed = true;
         }
@@ -997,7 +998,9 @@ export const backfillManual51jobStructuredContent = mutation({
             }
 
             await ctx.db.patch(resume._id, patch);
-            repairedResumeIds.push(resume._id);
+            if (rewritten.contentChanged) {
+                repairedResumeIds.push(resume._id);
+            }
             updatedResumes += 1;
         }
 

@@ -147,6 +147,65 @@ describe('ManualResumeImportDialog', () => {
     })
   })
 
+  it('shows unreadable PDF extraction failures without refreshing', async () => {
+    const user = userEvent.setup()
+    const onImported = vi.fn()
+    const fetchMock = vi.mocked(fetch)
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        source: { key: '51job-manual', label: '51job-manual' },
+        summary: {
+          uploadedFiles: 1,
+          discoveredFiles: 1,
+          parsedResumes: 0,
+          imported: 0,
+          inserted: 0,
+          updated: 0,
+          unchanged: 0,
+          deduped: 0,
+          skipped: 0,
+          failed: 1,
+        },
+        files: [
+          {
+            uploadName: '东莞（加工中心）-周进佑.pdf',
+            entryPath: '东莞（加工中心）-周进佑.pdf',
+            extension: '.pdf',
+            status: 'failed',
+            error: 'PDF text extraction produced unusable content',
+            warnings: [],
+          },
+        ],
+        warnings: [],
+      }),
+    } as Response)
+
+    render(
+      <ManualResumeImportDialog
+        open
+        onOpenChange={vi.fn()}
+        location="东莞"
+        keywords={['销售工程师']}
+        onImported={onImported}
+      />
+    )
+
+    const input = screen.getByTestId('manual-resume-import-input') as HTMLInputElement
+    await user.upload(input, new File(['pdf'], '东莞（加工中心）-周进佑.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'Import resumes' }))
+
+    await waitFor(() => {
+      expect(errorMock).toHaveBeenCalledWith('PDF text extraction produced unusable content')
+      expect(successMock).not.toHaveBeenCalled()
+      expect(onImported).not.toHaveBeenCalled()
+      expect(screen.getByText('Import summary')).toBeInTheDocument()
+      expect(screen.getAllByText('东莞（加工中心）-周进佑.pdf')).toHaveLength(2)
+      expect(screen.getByText('PDF text extraction produced unusable content')).toBeInTheDocument()
+    })
+  })
+
   it('does not show a success toast or refresh when every uploaded file fails', async () => {
     const user = userEvent.setup()
     const onImported = vi.fn()

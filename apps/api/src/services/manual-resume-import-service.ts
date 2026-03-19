@@ -5,7 +5,12 @@ import * as unrar from "node-unrar-js";
 import { PDFParse } from "pdf-parse";
 import { z } from "@hono/zod-openapi";
 
-import { normalizeOptionalString, parse51jobManualResume } from "@trends/shared";
+import {
+  hasReadableManual51jobText,
+  normalizeOptionalString,
+  parse51jobManualResume,
+  stripManual51jobUnreadableControlCharacters,
+} from "@trends/shared";
 
 import {
   type ResumeImportItem,
@@ -434,13 +439,26 @@ async function parsePdfFile(file: EnumeratedImportFile): Promise<ParsedImportCan
 
   try {
     const result = await parser.getText();
-    const text = normalizeWhitespace(result.text);
-    if (!text) {
+    const rawText = normalizeWhitespace(result.text);
+    if (!rawText) {
       return {
         result: {
           ...fileResultBase(file),
           status: "failed",
           error: "No extractable text found in PDF file",
+          warnings: [],
+        },
+        resume: null,
+      };
+    }
+
+    const text = normalizeWhitespace(stripManual51jobUnreadableControlCharacters(rawText));
+    if (!text || !hasReadableManual51jobText(text)) {
+      return {
+        result: {
+          ...fileResultBase(file),
+          status: "failed",
+          error: "PDF text extraction produced unusable content",
           warnings: [],
         },
         resume: null,

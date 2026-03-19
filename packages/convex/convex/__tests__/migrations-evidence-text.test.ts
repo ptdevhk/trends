@@ -449,6 +449,47 @@ describe('backfillManual51jobStructuredContent', () => {
         },
       },
       {
+        _id: 'manual-salary-and-location-refresh',
+        content: {
+          profileType: '51job-manual',
+          name: '李湘',
+          location: '',
+          expectedSalary: '3000万',
+          resumeSnippet: {
+            text: [
+              '应聘职位：车床/加工中心销售工程师（东莞）',
+              '李湘',
+              '积极找工作（一个月内到岗）',
+              '女 ｜ 25岁 ｜ 东莞-虎门镇 ｜ 6年工作经验 ｜ 普通公民',
+              '累计带领团队完成3000万销售额，超额达成既定目标。',
+              '求职意向',
+              '销售 ｜ 8000-11000/月 ｜ 东莞 ｜ 全职',
+              '工作经历',
+              '东莞汇振精密机械有限公司',
+              '2021.04 - 2023.04（2年）',
+              '职位：销售',
+              '工作描述：在职期间，自主开发成交客户。',
+            ].join('\n'),
+          },
+          workHistory: [
+            {
+              raw: '2021.04 - 2023.04（2年）',
+              startDate: '2021-04',
+              endDate: '2023-04',
+            },
+          ],
+        },
+        ingestData: {
+          evidenceText: '',
+          industryTags: ['machinery'],
+          synonymHits: ['销售'],
+          ruleScores: { jd4: 86 },
+          experienceLevel: 'mid',
+          computedAt: 1_700_000_000_350,
+          skillsVersion: 1,
+        },
+      },
+      {
         _id: 'seek-resume',
         content: {
           profileType: 'seek',
@@ -472,10 +513,10 @@ describe('backfillManual51jobStructuredContent', () => {
     const result = await backfillManual51jobStructuredContentHandler(ctx as never, {})
 
     expect(result).toEqual({
-      scannedResumes: 4,
-      updatedResumes: 3,
-      updatedEvidenceText: 3,
-      updatedSearchText: 3,
+      scannedResumes: 5,
+      updatedResumes: 4,
+      updatedEvidenceText: 4,
+      updatedSearchText: 4,
       scheduledReingest: 3,
       batches: 1,
       hasMore: false,
@@ -549,11 +590,27 @@ describe('backfillManual51jobStructuredContent', () => {
         searchText: expect.stringContaining('广州设备有限公司'),
       }),
     })
+
+    expect(ctx.patches).toContainEqual({
+      id: 'manual-salary-and-location-refresh',
+      patch: expect.objectContaining({
+        content: expect.objectContaining({
+          name: '李湘',
+          location: '东莞-虎门镇',
+          expectedSalary: '8000-11000/月',
+          jobIntention: '销售 ｜ 8000-11000/月 ｜ 东莞 ｜ 全职',
+        }),
+        ingestData: expect.objectContaining({
+          evidenceText: expect.stringContaining('东莞汇振精密机械有限公司'),
+        }),
+        searchText: expect.stringContaining('东莞-虎门镇'),
+      }),
+    })
     expect(ctx.patches.some((entry) => entry.id === 'seek-resume')).toBe(false)
     expect(ctx.scheduled).toHaveLength(1)
     expect(ctx.scheduled[0]).toMatchObject({
       delayMs: 0,
-      args: { resumeIds: ['manual-legacy', 'manual-already-structured', 'manual-filename-fallback'] },
+      args: { resumeIds: ['manual-legacy', 'manual-filename-fallback', 'manual-salary-and-location-refresh'] },
     })
   })
 })

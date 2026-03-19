@@ -562,10 +562,13 @@ export type Parsed51jobManualResume = {
   resumeSnippet: ResumeSnippet;
 };
 
+export type Manual51jobOptionalField = "jobIntention" | "expectedSalary" | "experience" | "education";
+
 const MANUAL_51JOB_NAME_LABELS = ["姓名", "名称"] as const;
 const MANUAL_51JOB_PROFILE_ID_LABELS = ["人才ID", "简历编号", "ID"] as const;
 const MANUAL_51JOB_LOCATION_LABELS = ["区域", "现居住地", "现居住", "所在地", "所在地区"] as const;
-const MANUAL_51JOB_JOB_INTENTION_LABELS = ["应聘方向", "应聘职位", "求职意向", "期望职位", "意向职位"] as const;
+const MANUAL_51JOB_JOB_INTENTION_LABELS = ["应聘方向", "应聘职位", "期望职位", "意向职位"] as const;
+const MANUAL_51JOB_PREFERRED_JOB_INTENTION_LABELS = ["求职意向"] as const;
 const MANUAL_51JOB_SALARY_LABELS = ["期望薪资", "薪资要求", "期望工资", "期望月薪", "期望年薪"] as const;
 const MANUAL_51JOB_EXPERIENCE_LABELS = ["工作经验", "工作年限", "从业年限", "经验"] as const;
 const MANUAL_51JOB_EDUCATION_LABELS = ["最高学历学位", "最高学历", "学历"] as const;
@@ -631,10 +634,33 @@ const MANUAL_51JOB_TERMINAL_SECTION_HEADER_PATTERNS = [
   /^证书$/u,
   /^声明$/u,
 ] as const;
+const MANUAL_51JOB_UNREADABLE_CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu;
+const MANUAL_51JOB_PAGE_MARKER_ONLY_PATTERN = /^--\s*\d+\s+of\s+\d+\s*--$/iu;
+const MANUAL_51JOB_TEXT_SIGNAL_PATTERNS = [
+  /人才ID/u,
+  /求职意向/u,
+  /工作经历/u,
+  /教育经历/u,
+  /现居/u,
+  /应聘(?:方向|职位)/u,
+  /\d{4}[.-]\d{1,2}\s*[-~至]/u,
+] as const;
 const MANUAL_51JOB_INLINE_EXPERIENCE_PATTERN = /(\d+(?:\.\d+)?年(?:\d+个月)?(?:工作经验|经验))/u;
 const MANUAL_51JOB_INLINE_SALARY_PATTERNS = [
   /(面议|\d+(?:\.\d+)?(?:千|万)(?:[-~到至]\d+(?:\.\d+)?(?:千|万))?(?:\/(?:月|年))?)/u,
   /(面议|\d+(?:\.\d+)?(?:[-~到至]\d+(?:\.\d+)?)(?:千|万)(?:\/(?:月|年))?)/u,
+  /(面议|\d{3,5}(?:[-~到至]\d{3,5})?(?:元)?\/(?:月|年))/u,
+] as const;
+const MANUAL_51JOB_INLINE_LOCATION_EXCLUSION_PATTERN = /^(?:男|女|已婚|未婚|离异|普通公民|群众|中共.*|共青团员|党员|本科|大专|专科|高中|硕士|博士|在职.*|离职.*|随时到岗|一个月内到岗)$/u;
+const MANUAL_51JOB_SUMMARY_PRIMARY_LINE_EXCLUDED_LABELS = [
+  ...MANUAL_51JOB_NAME_LABELS,
+  ...MANUAL_51JOB_PROFILE_ID_LABELS,
+  ...MANUAL_51JOB_LOCATION_LABELS,
+  ...MANUAL_51JOB_PREFERRED_JOB_INTENTION_LABELS,
+  ...MANUAL_51JOB_JOB_INTENTION_LABELS,
+  ...MANUAL_51JOB_SALARY_LABELS,
+  ...MANUAL_51JOB_EXPERIENCE_LABELS,
+  ...MANUAL_51JOB_EDUCATION_LABELS,
 ] as const;
 const MANUAL_51JOB_LABEL_PATTERN_CACHE = new Map<string, RegExp>();
 
@@ -661,6 +687,74 @@ function normalizeManual51jobText(value: string): string {
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+export function stripManual51jobUnreadableControlCharacters(value: string): string {
+  return value.replace(MANUAL_51JOB_UNREADABLE_CONTROL_CHARACTER_PATTERN, "");
+}
+
+export function hasReadableManual51jobText(value: string): boolean {
+  const normalized = normalizeManual51jobText(stripManual51jobUnreadableControlCharacters(value));
+  if (!normalized) {
+    return false;
+  }
+  if (MANUAL_51JOB_PAGE_MARKER_ONLY_PATTERN.test(normalized)) {
+    return false;
+  }
+
+  return MANUAL_51JOB_TEXT_SIGNAL_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+export function shouldPreferManual51jobOptionalField(
+  field: Manual51jobOptionalField,
+  existing: unknown,
+  parsedValue: unknown,
+): boolean {
+  const nextValue = typeof parsedValue === "string" ? parsedValue.trim() : "";
+  if (!nextValue) {
+    return false;
+  }
+
+  const currentValue = typeof existing === "string" ? existing.trim() : "";
+  if (!currentValue) {
+    return true;
+  }
+  if (currentValue === nextValue) {
+    return false;
+  }
+
+  if (field === "expectedSalary") {
+    const currentLooksSuspicious = /(销售额|业绩)/u.test(currentValue)
+      || (!/(?:\/(?:月|年)|面议)/u.test(currentValue) && /万/u.test(currentValue));
+    const nextLooksStructured = /(?:\/(?:月|年)|面议)/u.test(nextValue);
+    if (currentLooksSuspicious && nextLooksStructured) {
+      return true;
+    }
+  }
+
+  if (field === "jobIntention") {
+    const currentParts = currentValue.split(/\s+/u).filter(Boolean);
+    const nextParts = nextValue.split(/\s+/u).filter(Boolean);
+    if (currentParts.length < nextParts.length) {
+      return true;
+    }
+  }
+
+  if (field === "experience") {
+    if (!/工作经验|经验/u.test(currentValue) && /工作经验|经验/u.test(nextValue)) {
+      return true;
+    }
+  }
+
+  if (field === "education") {
+    const currentLooksLikeQualification = /博士|硕士|本科|大专|专科|中专|中技|高中/u.test(currentValue);
+    const nextLooksLikeQualification = /博士|硕士|本科|大专|专科|中专|中技|高中/u.test(nextValue);
+    if (!currentLooksLikeQualification && nextLooksLikeQualification) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function normalizeManual51jobLine(value: string): string {
@@ -769,6 +863,9 @@ function pickManual51jobPrimaryLine(lines: readonly string[]): string | undefine
       if (resolveManual51jobSectionHeader(line) || isManual51jobTerminalSectionHeader(line)) {
         return false;
       }
+      if (getManual51jobLabeledLineValue(line, MANUAL_51JOB_SUMMARY_PRIMARY_LINE_EXCLUDED_LABELS) !== undefined) {
+        return false;
+      }
       if (/^\//.test(line) || /^--\s*\d+\s+of\s+\d+\s*--$/i.test(line)) {
         return false;
       }
@@ -798,14 +895,36 @@ function inferManual51jobSummaryExperience(lines: readonly string[]): string | u
   return undefined;
 }
 
+function inferManual51jobSalary(value: string | undefined): string | undefined {
+  const normalized = normalizeManual51jobLine(value || "");
+  if (!normalized) {
+    return undefined;
+  }
+
+  const matches = MANUAL_51JOB_INLINE_SALARY_PATTERNS
+    .map((pattern) => normalized.match(pattern)?.[1]?.trim())
+    .filter((match): match is string => Boolean(match));
+  if (matches.length === 0) {
+    return undefined;
+  }
+
+  matches.sort((left, right) => {
+    const rangeDiff = Number(right.includes("-") || right.includes("~") || right.includes("到") || right.includes("至"))
+      - Number(left.includes("-") || left.includes("~") || left.includes("到") || left.includes("至"));
+    if (rangeDiff !== 0) {
+      return rangeDiff;
+    }
+    return right.length - left.length;
+  });
+
+  return matches[0];
+}
+
 function inferManual51jobSummarySalary(lines: readonly string[]): string | undefined {
   for (const line of lines) {
-    const normalized = normalizeManual51jobLine(line);
-    for (const pattern of MANUAL_51JOB_INLINE_SALARY_PATTERNS) {
-      const match = normalized.match(pattern);
-      if (match?.[1]) {
-        return match[1];
-      }
+    const salary = inferManual51jobSalary(line);
+    if (salary) {
+      return salary;
     }
   }
   return undefined;
@@ -822,32 +941,69 @@ function splitManual51jobSummarySegments(value: string | undefined): string[] {
 }
 
 function resolveManual51jobJobIntentionLine(lines: readonly string[]): string | undefined {
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] || "";
-    const value = getManual51jobLabeledLineValue(line, MANUAL_51JOB_JOB_INTENTION_LABELS);
-    if (value === undefined) {
-      continue;
-    }
-    if (value) {
-      return value;
-    }
+  const labelGroups = [MANUAL_51JOB_PREFERRED_JOB_INTENTION_LABELS, MANUAL_51JOB_JOB_INTENTION_LABELS] as const;
 
-    return getManual51jobFollowingLine(lines, index, {
-      skip: (nextLine) => /^求职偏好/.test(nextLine),
-    });
+  for (const labels of labelGroups) {
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index] || "";
+      const value = getManual51jobLabeledLineValue(line, labels);
+      if (value === undefined) {
+        continue;
+      }
+      if (value) {
+        return value;
+      }
+
+      return getManual51jobFollowingLine(lines, index, {
+        skip: (nextLine) => /^求职偏好/.test(nextLine),
+      });
+    }
   }
 
   return undefined;
 }
 
 function inferManual51jobInlineLocation(text: string): string | undefined {
-  const match = text.match(/现居(?:住地|住)?[·:：]?\s*([^\n｜|]{1,40})/u);
-  if (!match?.[1]) {
-    return undefined;
+  const explicitMatch = text.match(/现居(?:住地|住)?[·:：]?\s*([^\n\t｜|]{1,40})/u);
+  if (explicitMatch?.[1]) {
+    const location = normalizeManual51jobLine(explicitMatch[1]);
+    if (location) {
+      return location;
+    }
   }
 
-  const location = normalizeManual51jobLine(match[1]);
-  return location || undefined;
+  const lines = splitManual51jobLines(text);
+  const preferredHeaderIndex = lines.findIndex((line) => /(?:^|\s)(?:男|女)\s*[｜|丨]/u.test(line) && MANUAL_51JOB_INLINE_EXPERIENCE_PATTERN.test(line));
+  const candidateLines = preferredHeaderIndex >= 0
+    ? [lines[preferredHeaderIndex] || ""]
+    : lines.slice(0, 12);
+
+  for (const line of candidateLines) {
+    const segments = splitManual51jobSummarySegments(line);
+    for (const segment of segments) {
+      if (!segment || MANUAL_51JOB_INLINE_LOCATION_EXCLUSION_PATTERN.test(segment)) {
+        continue;
+      }
+      if (MANUAL_51JOB_INLINE_EXPERIENCE_PATTERN.test(segment)) {
+        continue;
+      }
+      if (MANUAL_51JOB_INLINE_SALARY_PATTERNS.some((pattern) => pattern.test(segment))) {
+        continue;
+      }
+      if (/\d{11}|@|活跃时间|人才ID|求职意向|工作经历|教育经历/u.test(segment)) {
+        continue;
+      }
+      if (/[（(].*[）)]/.test(segment)) {
+        continue;
+      }
+      const hierarchy = normalizeLocationTreeHierarchy(segment);
+      if (hierarchy) {
+        return normalizeManual51jobLine(segment);
+      }
+    }
+  }
+
+  return undefined;
 }
 
 function resolveManual51jobSectionHeader(line: string): { key: Manual51jobSectionKey; remainder?: string } | null {
@@ -1419,19 +1575,23 @@ export function parse51jobManualResume(args: {
     || inferManual51jobResumeName(lines, args.entryPath)
     || args.fallbackName;
   const profileId = inferManual51jobProfileId(lines, args.entryPath) || args.fallbackProfileId;
+  const inlineLocation = inferManual51jobInlineLocation(text);
   const location = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_LOCATION_LABELS)
-    || inferManual51jobInlineLocation(text);
+    || inlineLocation;
   const primaryJobIntention = resolveManual51jobJobIntentionLine(lines);
   const primaryExpectedSalary = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_SALARY_LABELS);
   const primaryExperience = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_EXPERIENCE_LABELS);
+  const primaryJobIntentionSalary = inferManual51jobSalary(primaryJobIntention);
   const summaryPrimaryLine = pickManual51jobPrimaryLine(summaryLines);
   const summarySegments = splitManual51jobSummarySegments(summaryPrimaryLine);
+  const summarySalary = inferManual51jobSummarySalary(summaryLines);
+  const summarySegmentSalary = summarySegments.find((segment) => MANUAL_51JOB_INLINE_SALARY_PATTERNS.some((pattern) => pattern.test(segment)));
   const jobIntention = primaryJobIntention
     || summarySegments.find((segment) => !MANUAL_51JOB_INLINE_SALARY_PATTERNS.some((pattern) => pattern.test(segment)));
   const expectedSalary = primaryExpectedSalary
-    || inferManual51jobSummarySalary(summaryLines)
-    || splitManual51jobSummarySegments(primaryJobIntention).find((segment) => MANUAL_51JOB_INLINE_SALARY_PATTERNS.some((pattern) => pattern.test(segment)))
-    || summarySegments.find((segment) => MANUAL_51JOB_INLINE_SALARY_PATTERNS.some((pattern) => pattern.test(segment)));
+    || primaryJobIntentionSalary
+    || summarySegmentSalary
+    || summarySalary;
   const experience = primaryExperience || inferManual51jobSummaryExperience(summaryLines);
   const education = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_EDUCATION_LABELS)
     || pickManual51jobEducation(profileEducation)

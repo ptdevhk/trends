@@ -94,6 +94,56 @@ ${paragraphs}
   return new File([buffer], name, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
 }
 
+async function expectUnreadablePdfUploadFailure(options: {
+  fileName: string;
+  extractedText: string;
+}) {
+  const fetchSpy = vi.spyOn(globalThis, "fetch");
+  const destroy = vi.fn(async () => undefined);
+
+  vi.doMock("pdf-parse", () => ({
+    PDFParse: vi.fn().mockImplementation(() => ({
+      getText: vi.fn(async () => ({ text: options.extractedText })),
+      destroy,
+    })),
+  }));
+
+  const app = await createTestApp();
+  const formData = new FormData();
+  formData.append("files", new File([new Uint8Array([0x25, 0x50, 0x44, 0x46])], options.fileName, {
+    type: "application/pdf",
+  }));
+
+  const response = await app.request("/api/resumes/manual-import", {
+    method: "POST",
+    headers: {
+      "X-Workspace-Slug": "hr",
+    },
+    body: formData,
+  });
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    success: true,
+    summary: {
+      uploadedFiles: 1,
+      discoveredFiles: 1,
+      parsedResumes: 0,
+      imported: 0,
+      failed: 1,
+    },
+    files: [
+      expect.objectContaining({
+        entryPath: options.fileName,
+        status: "failed",
+        error: "PDF text extraction produced unusable content",
+      }),
+    ],
+  });
+  expect(fetchSpy).not.toHaveBeenCalled();
+  expect(destroy).toHaveBeenCalledTimes(1);
+}
+
 describe("manual resume import route", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -314,6 +364,20 @@ describe("manual resume import route", () => {
     });
   });
 
+  it("fails unreadable PDF resumes instead of importing junk text", async () => {
+    await expectUnreadablePdfUploadFailure({
+      fileName: "东莞（加工中心）-周进佑.pdf",
+      extractedText: "-- 1 of 1 --",
+    });
+  });
+
+  it("fails garbled PDF resumes instead of importing control-character junk", async () => {
+    await expectUnreadablePdfUploadFailure({
+      fileName: "车床-龙雄-.pdf",
+      extractedText: "\u0002\u0003\u0004\u0002\u0005\u0004\u0006\u0007\b \u000e\u000f \u0010\u0011\u0012\u0013",
+    });
+  });
+
   it("parses summary-style 51job resumes with split work-history blocks", async () => {
     const calls: ConvexCall[] = [];
     const documentText = [
@@ -404,6 +468,131 @@ describe("manual resume import route", () => {
                 endDate: "至今",
               }),
             ],
+          }),
+        },
+      ],
+    });
+  });
+
+  it("prefers salary from the job-intention section over sales totals in the body", async () => {
+    const calls: ConvexCall[] = [];
+    const documentText = [
+      "张先生 在职（一个月内到岗）",
+      "38岁\t17年经验\t本科\t现居·东莞-茶山镇\t户口·东莞\t中共预备党员",
+      "累计带领团队完成3000万销售额，超额达成既定目标。",
+      "求职意向",
+      "销售主管\t东莞、广州、深圳\t全职\t1.5-2.8万/月\t船舶/航空/航天、机械/设备/重工",
+      "工作经历",
+      "东莞市腾信精密制造股份有限公司",
+      "2020.09-2025.09（5年）",
+      "销售主管",
+      "工作描述：负责刀具与高端设备销售。",
+    ].join("\n");
+    const fileName = "张先生(213422761).docx";
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "resume_tasks:submitResumes") {
+        return convexSuccess({
+          submitted: 1,
+          deduped: 0,
+          inserted: 1,
+          updated: 0,
+          unchanged: 0,
+        });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = await createTestApp();
+    const formData = new FormData();
+    formData.append("files", await createDocxFile(fileName, documentText));
+
+    const response = await app.request("/api/resumes/manual-import", {
+      method: "POST",
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+      body: formData,
+    });
+
+    expect(response.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args).toMatchObject({
+      resumes: [
+        {
+          source: "51job-manual",
+          externalId: "51job-manual:profile:213422761",
+          content: expect.objectContaining({
+            name: "张先生",
+            location: "东莞-茶山镇",
+            jobIntention: "销售主管 东莞、广州、深圳 全职 1.5-2.8万/月 船舶/航空/航天、机械/设备/重工",
+            expectedSalary: "1.5-2.8万/月",
+            experience: "17年经验",
+          }),
+        },
+      ],
+    });
+  });
+
+  it("extracts unlabeled inline locations from summary profile headers", async () => {
+    const calls: ConvexCall[] = [];
+    const documentText = [
+      "应聘职位：车床/加工中心销售工程师（东莞）",
+      "李湘",
+      "积极找工作（一个月内到岗）",
+      "女 ｜ 25岁 ｜ 东莞-虎门镇 ｜ 6年工作经验 ｜ 普通公民",
+      "求职意向",
+      "销售 ｜ 8000-11000/月 ｜ 东莞 ｜ 全职",
+      "工作经历",
+      "东莞汇振精密机械有限公司",
+      "2021.04 - 2023.04（2年）",
+      "职位：销售",
+      "工作描述：在职期间，自主开发成交客户。",
+    ].join("\n");
+    const fileName = "李湘(962477902).docx";
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "resume_tasks:submitResumes") {
+        return convexSuccess({
+          submitted: 1,
+          deduped: 0,
+          inserted: 1,
+          updated: 0,
+          unchanged: 0,
+        });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = await createTestApp();
+    const formData = new FormData();
+    formData.append("files", await createDocxFile(fileName, documentText));
+
+    const response = await app.request("/api/resumes/manual-import", {
+      method: "POST",
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+      body: formData,
+    });
+
+    expect(response.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args).toMatchObject({
+      resumes: [
+        {
+          source: "51job-manual",
+          externalId: "51job-manual:profile:962477902",
+          content: expect.objectContaining({
+            name: "李湘",
+            location: "东莞-虎门镇",
+            jobIntention: "销售 ｜ 8000-11000/月 ｜ 东莞 ｜ 全职",
+            expectedSalary: "8000-11000/月",
+            experience: "6年工作经验",
           }),
         },
       ],
