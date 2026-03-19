@@ -11,6 +11,18 @@ import (
 	"testing"
 )
 
+func writeTestPortableBackupFile(t *testing.T, filePath string, value any) {
+	t.Helper()
+
+	payload, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("failed to marshal backup payload: %v", err)
+	}
+	if _, err := writePortableBackupFile(filePath, payload); err != nil {
+		t.Fatalf("failed to write backup payload: %v", err)
+	}
+}
+
 func TestResumeBackupCommandWritesBackupFile(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/api/resumes/backup" {
@@ -118,43 +130,56 @@ func TestResumeDeployBackupWriteCreatesRunDirAndWorkspaceFile(t *testing.T) {
 	}
 
 	runDir := filepath.Join(baseDir, entries[0].Name())
-	backupPath := filepath.Join(runDir, "resumes-dev.json")
+	backupPath := filepath.Join(runDir, "resumes-dev.tar.gz")
 	written, err := os.ReadFile(backupPath)
 	if err != nil {
 		t.Fatalf("failed to read deploy backup file: %v", err)
 	}
-	if !strings.Contains(string(written), `"resumeId": "r1"`) {
-		t.Fatalf("unexpected deploy backup file contents: %s", string(written))
+	if len(written) < 2 || written[0] != 0x1f || written[1] != 0x8b {
+		prefix := written
+		if len(prefix) > 2 {
+			prefix = prefix[:2]
+		}
+		t.Fatalf("expected gzip-compressed deploy backup, got prefix %x", prefix)
 	}
 
-	payload := decodeCommandJSON(t, output)
-	if payload["workspace"] != "dev" {
-		t.Fatalf("unexpected workspace in output: %+v", payload)
+	payload, envelope, err := readResumeBackupFile(backupPath)
+	if err != nil {
+		t.Fatalf("failed to read compressed deploy backup: %v", err)
 	}
-	if payload["runDir"] != runDir {
-		t.Fatalf("unexpected runDir in output: %+v", payload)
+	if count := resumeBackupCount(envelope); count != 2 {
+		t.Fatalf("unexpected deploy backup resume count: %d", count)
 	}
-	if payload["file"] != backupPath {
-		t.Fatalf("unexpected file path in output: %+v", payload)
+	if !strings.Contains(string(payload), `"resumeId": "r1"`) {
+		t.Fatalf("unexpected deploy backup file contents: %s", string(payload))
+	}
+
+	outputPayload := decodeCommandJSON(t, output)
+	if outputPayload["workspace"] != "dev" {
+		t.Fatalf("unexpected workspace in output: %+v", outputPayload)
+	}
+	if outputPayload["runDir"] != runDir {
+		t.Fatalf("unexpected runDir in output: %+v", outputPayload)
+	}
+	if outputPayload["file"] != backupPath {
+		t.Fatalf("unexpected file path in output: %+v", outputPayload)
 	}
 }
 
 func TestResumeRestoreCommandReplaceModeCallsResetThenImport(t *testing.T) {
-	backupFile := filepath.Join(t.TempDir(), "resume-backup.json")
-	if err := os.WriteFile(backupFile, []byte(`{
-  "metadata": {
-    "sourceUrl": "https://example.com/api/resumes/backup",
-    "generatedBy": "trends-api backup"
-  },
-  "resumes": [
-    {
-      "resumeId": "r1",
-      "name": "Alice"
-    }
-  ]
-}`), 0o644); err != nil {
-		t.Fatalf("failed to write backup file: %v", err)
-	}
+	backupFile := filepath.Join(t.TempDir(), "resume-backup.tar.gz")
+	writeTestPortableBackupFile(t, backupFile, map[string]any{
+		"metadata": map[string]any{
+			"sourceUrl":   "https://example.com/api/resumes/backup",
+			"generatedBy": "trends-api backup",
+		},
+		"resumes": []map[string]any{
+			{
+				"resumeId": "r1",
+				"name":     "Alice",
+			},
+		},
+	})
 
 	var callOrder []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -215,7 +240,7 @@ func TestResumeRestoreCommandReplaceModeCallsResetThenImport(t *testing.T) {
 	}
 }
 
-func TestResumeDeployBackupRestoreUsesLatestRunDir(t *testing.T) {
+func TestResumeDeployBackupRestorePrefersCompressedArtifactInLatestRunDir(t *testing.T) {
 	baseDir := filepath.Join(t.TempDir(), "deploy")
 	olderDir := filepath.Join(baseDir, "deploy-20260101T000000Z-100")
 	latestDir := filepath.Join(baseDir, "deploy-20260102T000000Z-200")
@@ -224,19 +249,32 @@ func TestResumeDeployBackupRestoreUsesLatestRunDir(t *testing.T) {
 			t.Fatalf("failed to create deploy backup dir %s: %v", dir, err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(latestDir, "resumes-dev.json"), []byte(`{
+	legacyPath := filepath.Join(latestDir, "resumes-dev.json")
+	if err := os.WriteFile(legacyPath, []byte(`{
   "metadata": {
     "generatedBy": "trends-api backup"
   },
   "resumes": [
     {
-      "resumeId": "r-latest",
-      "name": "Latest"
+      "resumeId": "r-legacy",
+      "name": "Legacy"
     }
   ]
 }`), 0o644); err != nil {
 		t.Fatalf("failed to write latest deploy backup file: %v", err)
 	}
+	compressedPath := filepath.Join(latestDir, "resumes-dev.tar.gz")
+	writeTestPortableBackupFile(t, compressedPath, map[string]any{
+		"metadata": map[string]any{
+			"generatedBy": "trends-api backup",
+		},
+		"resumes": []map[string]any{
+			{
+				"resumeId": "r-latest",
+				"name":     "Latest",
+			},
+		},
+	})
 
 	var callOrder []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -302,7 +340,114 @@ func TestResumeDeployBackupRestoreUsesLatestRunDir(t *testing.T) {
 	if payload["runDir"] != latestDir {
 		t.Fatalf("unexpected runDir in output: %+v", payload)
 	}
-	if payload["file"] != filepath.Join(latestDir, "resumes-dev.json") {
+	if payload["file"] != compressedPath {
+		t.Fatalf("unexpected file path in output: %+v", payload)
+	}
+	if payload["mode"] != "replace" {
+		t.Fatalf("unexpected mode in output: %+v", payload)
+	}
+}
+
+func TestResumeDeployBackupRestoreFallsBackToLegacyJSON(t *testing.T) {
+	baseDir := filepath.Join(t.TempDir(), "deploy")
+	olderDir := filepath.Join(baseDir, "deploy-20260101T000000Z-100")
+	latestDir := filepath.Join(baseDir, "deploy-20260102T000000Z-200")
+	for _, dir := range []string{olderDir, latestDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("failed to create deploy backup dir %s: %v", dir, err)
+		}
+	}
+	writeTestPortableBackupFile(t, filepath.Join(olderDir, "resumes-dev.tar.gz"), map[string]any{
+		"metadata": map[string]any{
+			"generatedBy": "trends-api backup",
+		},
+		"resumes": []map[string]any{
+			{
+				"resumeId": "r-older",
+				"name":     "Older",
+			},
+		},
+	})
+	legacyPath := filepath.Join(latestDir, "resumes-dev.json")
+	if err := os.WriteFile(legacyPath, []byte(`{
+  "metadata": {
+    "generatedBy": "trends-api backup"
+  },
+  "resumes": [
+    {
+      "resumeId": "r-legacy",
+      "name": "Legacy"
+    }
+  ]
+}`), 0o644); err != nil {
+		t.Fatalf("failed to write legacy deploy backup file: %v", err)
+	}
+
+	var callOrder []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callOrder = append(callOrder, r.URL.Path)
+
+		switch r.URL.Path {
+		case "/api/resumes/reset":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"count":   1,
+				"partial": false,
+				"deleted": map[string]int{"resumes": 1},
+			})
+		case "/api/resumes/import":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("failed to decode import payload: %v", err)
+			}
+			resumes, ok := payload["resumes"].([]any)
+			if !ok || len(resumes) != 1 {
+				t.Fatalf("unexpected import payload: %+v", payload)
+			}
+			resume, ok := resumes[0].(map[string]any)
+			if !ok || resume["resumeId"] != "r-legacy" {
+				t.Fatalf("unexpected imported resume payload: %+v", payload)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success":   true,
+				"submitted": 1,
+				"inserted":  1,
+				"updated":   0,
+				"unchanged": 0,
+				"deduped":   0,
+			})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+
+	cmd := newResumeDeployBackupRestoreCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{
+		"--base-dir", baseDir,
+		"--mode", "replace",
+		"--yes",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume deploy-backup restore command failed: %v", err)
+	}
+
+	if len(callOrder) != 2 || callOrder[0] != "/api/resumes/reset" || callOrder[1] != "/api/resumes/import" {
+		t.Fatalf("unexpected call order: %+v", callOrder)
+	}
+
+	payload := decodeCommandJSON(t, output)
+	if payload["runDir"] != latestDir {
+		t.Fatalf("unexpected runDir in output: %+v", payload)
+	}
+	if payload["file"] != legacyPath {
 		t.Fatalf("unexpected file path in output: %+v", payload)
 	}
 	if payload["mode"] != "replace" {

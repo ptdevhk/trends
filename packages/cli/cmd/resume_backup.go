@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -90,16 +93,201 @@ func normalizeResumeBackupOutputPath(outPath string, disposition string) string 
 	return fmt.Sprintf("resume-backup-%s.json", time.Now().Format("20060102-150405"))
 }
 
-func readResumeBackupFile(filePath string) ([]byte, resumeBackupEnvelope, error) {
-	payload, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, resumeBackupEnvelope{}, fmt.Errorf("read backup file: %w", err)
+func normalizeResumeRestoreMode(mode string) (string, error) {
+	normalizedMode := strings.ToLower(strings.TrimSpace(mode))
+	if normalizedMode == "" {
+		normalizedMode = "upsert"
+	}
+	if normalizedMode != "upsert" && normalizedMode != "replace" {
+		return "", fmt.Errorf("invalid mode %q (expected upsert|replace)", mode)
+	}
+	return normalizedMode, nil
+}
+
+func isTarGzPath(filePath string) bool {
+	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(filePath)), ".tar.gz")
+}
+
+func formatJSONPayload(payload []byte) []byte {
+	var formatted bytes.Buffer
+	if err := json.Indent(&formatted, payload, "", "  "); err == nil {
+		formatted.WriteByte('\n')
+		return formatted.Bytes()
 	}
 
-	envelope, err := unmarshalResumeBackupEnvelope(payload)
-	if err != nil {
-		return nil, resumeBackupEnvelope{}, fmt.Errorf("invalid backup file: %w", err)
+	return append([]byte(nil), payload...)
+}
+
+func resolveArchiveEntryName(filePath string) string {
+	fileName := filepath.Base(strings.TrimSpace(filePath))
+	if fileName == "" {
+		return "resume-backup.json"
 	}
+
+	if strings.HasSuffix(strings.ToLower(fileName), ".tar.gz") {
+		fileName = fileName[:len(fileName)-len(".tar.gz")]
+	}
+	if !strings.HasSuffix(strings.ToLower(fileName), ".json") {
+		fileName += ".json"
+	}
+	if len(fileName) > 100 {
+		return "resume-backup.json"
+	}
+
+	return fileName
+}
+
+func buildPortableBackupArchive(filePath string, content []byte) ([]byte, error) {
+	var archive bytes.Buffer
+	gzipWriter := gzip.NewWriter(&archive)
+	tarWriter := tar.NewWriter(gzipWriter)
+
+	header := &tar.Header{
+		Name:     resolveArchiveEntryName(filePath),
+		Mode:     0o644,
+		Size:     int64(len(content)),
+		ModTime:  time.Now().UTC(),
+		Typeflag: tar.TypeReg,
+		Format:   tar.FormatUSTAR,
+	}
+
+	if err := tarWriter.WriteHeader(header); err != nil {
+		_ = tarWriter.Close()
+		_ = gzipWriter.Close()
+		return nil, fmt.Errorf("create backup archive: %w", err)
+	}
+	if _, err := tarWriter.Write(content); err != nil {
+		_ = tarWriter.Close()
+		_ = gzipWriter.Close()
+		return nil, fmt.Errorf("write backup archive content: %w", err)
+	}
+	if err := tarWriter.Close(); err != nil {
+		_ = gzipWriter.Close()
+		return nil, fmt.Errorf("close backup archive: %w", err)
+	}
+	if err := gzipWriter.Close(); err != nil {
+		return nil, fmt.Errorf("compress backup archive: %w", err)
+	}
+
+	return archive.Bytes(), nil
+}
+
+func writePortableBackupFile(filePath string, payload []byte) (int, error) {
+	resolvedPath := strings.TrimSpace(filePath)
+	if resolvedPath == "" {
+		return 0, fmt.Errorf("output file path is required")
+	}
+
+	dir := filepath.Dir(resolvedPath)
+	if dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return 0, fmt.Errorf("create output directory: %w", err)
+		}
+	}
+
+	content := formatJSONPayload(payload)
+	if !isTarGzPath(resolvedPath) {
+		if err := os.WriteFile(resolvedPath, content, 0o644); err != nil {
+			return 0, fmt.Errorf("write backup file: %w", err)
+		}
+		return len(content), nil
+	}
+
+	archive, err := buildPortableBackupArchive(resolvedPath, content)
+	if err != nil {
+		return 0, err
+	}
+	if err := os.WriteFile(resolvedPath, archive, 0o644); err != nil {
+		return 0, fmt.Errorf("write backup file: %w", err)
+	}
+
+	return len(archive), nil
+}
+
+func extractTarEntryContent(reader io.Reader) ([]byte, error) {
+	tarReader := tar.NewReader(reader)
+	var jsonEntry []byte
+	var fallbackFile []byte
+	fileEntryCount := 0
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read backup archive: %w", err)
+		}
+		if header.Typeflag != tar.TypeReg && header.Typeflag != tar.TypeRegA {
+			continue
+		}
+
+		name := strings.TrimSpace(filepath.Base(header.Name))
+		if name == "" || strings.HasPrefix(name, "._") {
+			continue
+		}
+
+		content, err := io.ReadAll(tarReader)
+		if err != nil {
+			return nil, fmt.Errorf("read backup archive content: %w", err)
+		}
+
+		fileEntryCount++
+		if strings.HasSuffix(strings.ToLower(name), ".json") {
+			if jsonEntry != nil {
+				return nil, fmt.Errorf("invalid backup archive: multiple JSON entries found")
+			}
+			jsonEntry = content
+			continue
+		}
+
+		if fallbackFile == nil {
+			fallbackFile = content
+		}
+	}
+
+	if jsonEntry != nil {
+		return jsonEntry, nil
+	}
+	if fileEntryCount == 1 && fallbackFile != nil {
+		return fallbackFile, nil
+	}
+	if fileEntryCount > 1 {
+		return nil, fmt.Errorf("invalid backup archive: expected exactly one JSON payload")
+	}
+
+	return nil, fmt.Errorf("invalid backup archive: no file entries found")
+}
+
+func readPortableBackupFile(filePath string) ([]byte, error) {
+	resolvedPath := strings.TrimSpace(filePath)
+	if resolvedPath == "" {
+		return nil, fmt.Errorf("backup file path is required")
+	}
+
+	content, err := os.ReadFile(resolvedPath)
+	if err != nil {
+		return nil, fmt.Errorf("read backup file: %w", err)
+	}
+	if len(content) < 2 || content[0] != 0x1f || content[1] != 0x8b {
+		return content, nil
+	}
+
+	gzipReader, err := gzip.NewReader(bytes.NewReader(content))
+	if err != nil {
+		return nil, fmt.Errorf("read backup archive: %w", err)
+	}
+	defer gzipReader.Close()
+
+	archivePayload, err := extractTarEntryContent(gzipReader)
+	if err != nil {
+		return nil, err
+	}
+
+	return archivePayload, nil
+}
+
+func validateResumeBackupEnvelope(payload []byte, envelope resumeBackupEnvelope) ([]byte, resumeBackupEnvelope, error) {
 	if !isJSONObject(envelope.Metadata) {
 		return nil, resumeBackupEnvelope{}, fmt.Errorf("invalid backup file: missing metadata")
 	}
@@ -110,15 +298,18 @@ func readResumeBackupFile(filePath string) ([]byte, resumeBackupEnvelope, error)
 	return payload, envelope, nil
 }
 
-func normalizeResumeRestoreMode(mode string) (string, error) {
-	normalizedMode := strings.ToLower(strings.TrimSpace(mode))
-	if normalizedMode == "" {
-		normalizedMode = "upsert"
+func readResumeBackupFile(filePath string) ([]byte, resumeBackupEnvelope, error) {
+	payload, err := readPortableBackupFile(filePath)
+	if err != nil {
+		return nil, resumeBackupEnvelope{}, err
 	}
-	if normalizedMode != "upsert" && normalizedMode != "replace" {
-		return "", fmt.Errorf("invalid mode %q (expected upsert|replace)", mode)
+
+	envelope, err := unmarshalResumeBackupEnvelope(payload)
+	if err != nil {
+		return nil, resumeBackupEnvelope{}, fmt.Errorf("invalid backup file: %w", err)
 	}
-	return normalizedMode, nil
+
+	return validateResumeBackupEnvelope(payload, envelope)
 }
 
 func backupResumesToFile(ctx context.Context, apiClient *client.Client, request client.ResumeBackupRequest, outPath string) (*resumeBackupResult, error) {
@@ -136,14 +327,15 @@ func backupResumesToFile(ctx context.Context, apiClient *client.Client, request 
 	}
 
 	resolvedPath := normalizeResumeBackupOutputPath(outPath, disposition)
-	if err := writeJSONFile(resolvedPath, payload); err != nil {
+	bytesWritten, err := writePortableBackupFile(resolvedPath, payload)
+	if err != nil {
 		return nil, err
 	}
 
 	return &resumeBackupResult{
 		FilePath: resolvedPath,
 		Count:    resumeBackupCount(envelope),
-		Bytes:    len(payload),
+		Bytes:    bytesWritten,
 	}, nil
 }
 
@@ -272,7 +464,7 @@ func newResumeBackupCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "backup",
-		Short: "Backup live resume records to a portable JSON file",
+		Short: "Backup live resume records to a portable JSON or .tar.gz file",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := client.ResumeBackupRequest{
 				ResumeIDs:   normalizeStringSlice(resumeIDs),
@@ -308,7 +500,7 @@ func newResumeRestoreCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "restore <file>",
-		Short: "Restore resume records from a portable JSON backup",
+		Short: "Restore resume records from a portable JSON or .tar.gz backup",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			filePath := strings.TrimSpace(args[0])
@@ -356,7 +548,7 @@ func newResumeDeployBackupWriteCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "write [run-dir]",
-		Short: "Write a resume backup JSON file into a deploy backup run directory",
+		Short: "Write a resume backup into a deploy backup run directory (.tar.gz by default)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runDir, err := resolveOrCreateDeployBackupRunDir(baseDir, args)
@@ -403,7 +595,7 @@ func newResumeDeployBackupRestoreCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "restore [run-dir]",
-		Short: "Restore resume records from a deploy backup run directory",
+		Short: "Restore resume records from a deploy backup run directory (.tar.gz preferred)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runDir, err := resolveDeployBackupRunDir(baseDir, args)
@@ -411,7 +603,10 @@ func newResumeDeployBackupRestoreCmd() *cobra.Command {
 				return err
 			}
 
-			filePath := deployResumeBackupFilePath(runDir, currentOptions().Workspace)
+			filePath, err := resolveDeployResumeBackupFilePath(runDir, currentOptions().Workspace)
+			if err != nil {
+				return err
+			}
 			result, err := restoreResumeBackupFile(context.Background(), newAPIClient(), filePath, mode, yes)
 			if err != nil {
 				return err
@@ -501,7 +696,33 @@ func latestDeployBackupRunDir(baseDir string) (string, error) {
 }
 
 func deployResumeBackupFilePath(runDir string, workspace string) string {
-	return filepath.Join(runDir, fmt.Sprintf("resumes-%s.json", normalizeWorkspace(workspace)))
+	return filepath.Join(runDir, fmt.Sprintf("resumes-%s.tar.gz", normalizeWorkspace(workspace)))
+}
+
+func deployResumeBackupFilePaths(runDir string, workspace string) []string {
+	normalizedWorkspace := normalizeWorkspace(workspace)
+	return []string{
+		filepath.Join(runDir, fmt.Sprintf("resumes-%s.tar.gz", normalizedWorkspace)),
+		filepath.Join(runDir, fmt.Sprintf("resumes-%s.json", normalizedWorkspace)),
+	}
+}
+
+func resolveDeployResumeBackupFilePath(runDir string, workspace string) (string, error) {
+	candidates := deployResumeBackupFilePaths(runDir, workspace)
+	for _, candidate := range candidates {
+		info, err := os.Stat(candidate)
+		if err == nil {
+			if info.IsDir() {
+				continue
+			}
+			return candidate, nil
+		}
+		if !os.IsNotExist(err) {
+			return "", fmt.Errorf("stat deploy backup file %s: %w", candidate, err)
+		}
+	}
+
+	return "", fmt.Errorf("no deploy resume backup found in %s for workspace %s", runDir, normalizeWorkspace(workspace))
 }
 
 func normalizeStringSlice(values []string) []string {
@@ -513,32 +734,4 @@ func normalizeStringSlice(values []string) []string {
 		}
 	}
 	return normalized
-}
-
-func writeJSONFile(filePath string, payload []byte) error {
-	resolvedPath := strings.TrimSpace(filePath)
-	if resolvedPath == "" {
-		return fmt.Errorf("output file path is required")
-	}
-
-	dir := filepath.Dir(resolvedPath)
-	if dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("create output directory: %w", err)
-		}
-	}
-
-	var formatted bytes.Buffer
-	if err := json.Indent(&formatted, payload, "", "  "); err == nil {
-		formatted.WriteByte('\n')
-		if err := os.WriteFile(resolvedPath, formatted.Bytes(), 0o644); err != nil {
-			return fmt.Errorf("write backup file: %w", err)
-		}
-		return nil
-	}
-
-	if err := os.WriteFile(resolvedPath, payload, 0o644); err != nil {
-		return fmt.Errorf("write backup file: %w", err)
-	}
-	return nil
 }
