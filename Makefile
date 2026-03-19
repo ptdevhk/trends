@@ -193,7 +193,7 @@ refresh-env:
 	sudo systemctl is-active --quiet trends-worker-api && echo "  trends-worker-api: active" || echo "  trends-worker-api: FAILED"; \
 	sudo systemctl is-active --quiet trends-mcp && echo "  trends-mcp: active" || echo "  trends-mcp: FAILED"
 
-# Backup live resume records to a portable JSON file
+# Backup live resume records to a portable JSON or .tar.gz file
 backup-resumes:
 	@API_URL="$${API_URL:-$${TRENDS_API_URL:-http://localhost:3000}}" \
 	WORKSPACE="$${WORKSPACE:-dev}" \
@@ -207,7 +207,7 @@ backup-resumes:
 		npx tsx scripts/resume/backup-resumes.ts; \
 	fi
 
-# Restore live resume records from a portable JSON backup
+# Restore live resume records from a portable JSON or .tar.gz backup
 restore-resumes:
 	@API_URL="$${API_URL:-$${TRENDS_API_URL:-http://localhost:3000}}" \
 	WORKSPACE="$${WORKSPACE:-dev}" \
@@ -772,8 +772,8 @@ help:
 	@echo "  deploy-check   Dry run deploy precheck with workspace git status but without rebuilding"
 	@echo "  deploy-seed    Force a full upgrade with seeded demo resumes (requires sudo)"
 	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
-	@echo "  backup-resumes Export live resume records to a portable JSON backup"
-	@echo "  restore-resumes Restore resume records from a portable JSON backup"
+	@echo "  backup-resumes Export live resume records to a portable JSON or .tar.gz backup"
+	@echo "  restore-resumes Restore resume records from a portable JSON or .tar.gz backup"
 	@echo "                 Uses API_URL/TRENDS_API_URL, WORKSPACE=dev, and OUT/FILE/LIMIT/SOURCE_HOSTS/RESUME_IDS/MODE/YES"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "                 See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1, and env knobs"
