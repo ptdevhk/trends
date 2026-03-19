@@ -434,7 +434,9 @@ describe('backfillManual51jobStructuredContent', () => {
           },
           workHistory: [
             {
-              companyName: '旧占位公司',
+              raw: '2014.05 - 至今（11年1个月）\n职位：销售总监\n工作描述：主要销售日本津上数控车床，数控走心机，加工中心。\n广州市振工机电设备有限公司',
+              companyName: '在该公司',
+              jobTitle: '聊',
             },
           ],
         },

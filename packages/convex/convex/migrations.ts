@@ -8,6 +8,8 @@ import {
     normalizeJob5156ProfileUrlForDisplay,
     normalizeResumeLocationHierarchy,
     normalizeWorkHistoryEntry,
+    isLikelyManual51jobCompanyName,
+    isLikelyManual51jobJobTitle,
     parse51jobManualResume,
     shouldPreferManual51jobOptionalField,
 } from "@trends/shared";
@@ -143,6 +145,42 @@ function isManual51jobResumeContent(content: unknown, source: unknown): content 
     return profileType === MANUAL_51JOB_SOURCE;
 }
 
+function isImplausibleManual51jobCompanyName(value: string): boolean {
+    return !isLikelyManual51jobCompanyName(value);
+}
+
+function isImplausibleManual51jobJobTitle(value: string): boolean {
+    return !isLikelyManual51jobJobTitle(value);
+}
+
+function isManual51jobWorkHistoryEntryMalformed(entry: unknown): boolean {
+    const normalized = normalizeWorkHistoryEntry(entry);
+    if (!normalized) {
+        return true;
+    }
+
+    const hasCompany = Boolean(normalized.companyName);
+    const hasOtherFields = Boolean(normalized.jobTitle || normalized.description || normalized.startDate || normalized.endDate);
+
+    if (!hasCompany && !hasOtherFields) {
+        return true;
+    }
+
+    if (!normalized.companyName) {
+        return false;
+    }
+
+    if (isImplausibleManual51jobCompanyName(normalized.companyName)) {
+        return true;
+    }
+
+    if (normalized.jobTitle && isImplausibleManual51jobJobTitle(normalized.jobTitle)) {
+        return true;
+    }
+
+    return false;
+}
+
 function hasStructuredWorkHistory(content: Record<string, unknown>): boolean {
     if (!Array.isArray(content.workHistory)) {
         return false;
@@ -247,7 +285,11 @@ function rewrite51jobManualContent(content: unknown, source: string): {
     const nextContent: Record<string, unknown> = { ...content };
     let changed = false;
 
-    if (!hasStructuredWorkHistory(nextContent) && parsed.workHistory.length > 0) {
+    const existingWorkHistory = Array.isArray(nextContent.workHistory) ? nextContent.workHistory : [];
+    const shouldRepairWorkHistory = !hasStructuredWorkHistory(nextContent)
+        || existingWorkHistory.some((entry) => isManual51jobWorkHistoryEntryMalformed(entry));
+
+    if (shouldRepairWorkHistory && parsed.workHistory.length > 0) {
         nextContent.workHistory = parsed.workHistory;
         changed = true;
     }

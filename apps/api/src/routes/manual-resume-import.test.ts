@@ -599,6 +599,78 @@ describe("manual resume import route", () => {
     });
   });
 
+  it("repairs malformed manual 51job work history fields", async () => {
+    const calls: ConvexCall[] = [];
+    const documentText = [
+      "活跃时间：2023.10.10",
+      "ID：205191062",
+      "王先生",
+      "观望有好机会会考虑（一个月内到岗）",
+      "男 ｜ 26岁 ｜ 东莞 ｜ 6年工作经验 ｜ 共青团员",
+      "求职意向",
+      "销售代表 ｜ 5000-7000/月 ｜ 东莞 ｜ 全职",
+      "工作经历",
+      "2018.05 - 2020.11（2年6个月）",
+      "职位：销售代表",
+      "工作描述：在该公司主要负责以电话开发客户。",
+      "长沙冠聚信息技术有限公司",
+      "2017.06 - 2018.01（7个月）",
+      "职位：电话销售",
+      "工作描述：通过公司提供的客户资源进行电话联系。",
+    ].join("\n");
+    const fileName = "王先生(205191062).docx";
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "resume_tasks:submitResumes") {
+        return convexSuccess({
+          submitted: 1,
+          deduped: 0,
+          inserted: 1,
+          updated: 0,
+          unchanged: 0,
+        });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = await createTestApp();
+    const formData = new FormData();
+    formData.append("files", await createDocxFile(fileName, documentText));
+
+    const response = await app.request("/api/resumes/manual-import", {
+      method: "POST",
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+      body: formData,
+    });
+
+    expect(response.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args).toMatchObject({
+      resumes: [
+        {
+          source: "51job-manual",
+          externalId: "51job-manual:profile:205191062",
+          content: expect.objectContaining({
+            name: "王先生",
+            profileType: "51job-manual",
+            workHistory: expect.arrayContaining([
+              expect.objectContaining({
+                companyName: "长沙冠聚信息技术有限公司",
+                jobTitle: "销售代表",
+                startDate: "2018-05",
+                endDate: "2020-11",
+              }),
+            ]),
+          }),
+        },
+      ],
+    });
+  });
+
   it("returns partial success for mixed supported and unsupported uploads", async () => {
     const calls: ConvexCall[] = [];
 
