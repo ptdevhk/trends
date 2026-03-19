@@ -1,4 +1,4 @@
-import { normalizeOptionalString } from '@trends/shared'
+import { formatKeywordQuery, normalizeOptionalString } from '@trends/shared'
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { FileText, Loader2, Upload, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -76,11 +76,8 @@ function normalizeKeywords(keywords: string[] | undefined): string | undefined {
     return undefined
   }
 
-  const normalized = keywords
-    .map((keyword) => keyword.trim())
-    .filter((keyword) => keyword.length > 0)
-
-  return normalized.length > 0 ? normalized.join(' ') : undefined
+  const normalized = formatKeywordQuery(keywords).trim()
+  return normalized.length > 0 ? normalized : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

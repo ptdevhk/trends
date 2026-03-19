@@ -276,7 +276,7 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     )
 
     await user.type(screen.getByLabelText('Name'), 'Seek profile')
-    await user.type(screen.getByLabelText('关键词:'), '销售 工程师')
+    await user.type(screen.getByLabelText('关键词:'), '"Sales Engineer" OR "Sales Manager"')
     await user.click(screen.getByLabelText('Seek'))
     await user.clear(screen.getByLabelText('Seek job URL'))
     await user.type(
@@ -288,6 +288,7 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     await waitFor(() => {
       expect(postMock).toHaveBeenCalledWith('/api/search-profiles', {
         body: expect.objectContaining({
+          keywords: ['Sales Engineer', 'Sales Manager'],
           sources: expect.arrayContaining([
             expect.objectContaining({
               type: 'job5156',

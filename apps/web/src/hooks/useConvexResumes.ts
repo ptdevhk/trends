@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields } from '@trends/shared'
+import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery } from '@trends/shared'
 import { useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
@@ -130,15 +130,24 @@ type MockConvexResumePayload = {
   }
 }
 
+type MockSearchResult = NonNullable<NonNullable<MockConvexResumePayload['search']>['results']>[number]
+
+type SearchProvenance = NonNullable<MockSearchResult['provenance']>[number]
+
+type IndexedMockSearchResult = MockSearchResult & {
+  matchedGroupCount: number
+  provenance: SearchProvenance[]
+}
+
 function buildFallbackKeywordExpansion(query: string): KeywordExpansionSummary {
-  const terms = query
-    .split(/\s+/)
+  const parsed = parseKeywordQuery(query)
+  const terms = parsed.keywords
     .map((term) => term.trim().toLowerCase())
     .filter((term) => term.length > 0)
 
   return {
     groups: terms.map((term) => ({ original: term, variants: [term] })),
-    mode: 'AND',
+    mode: parsed.mode,
     expandedTo: terms,
     sourceMapping: {},
   }
@@ -146,6 +155,111 @@ function buildFallbackKeywordExpansion(query: string): KeywordExpansionSummary {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function buildMockSearchText(doc: Doc<'resumes'>): string {
+  const content = isRecord(doc.content) ? doc.content : {}
+  const fragments = [
+    toStringValue(content.name),
+    toStringValue(content.jobIntention),
+    toStringValue(content.location),
+    toStringValue(content.selfIntro),
+    toStringValue(content.expectedSalary),
+    ...toStringArray(doc.tags),
+    ...toStringArray(doc.ingestData?.industryTags),
+    ...toStringArray(doc.ingestData?.synonymHits),
+    ...toStringArray(doc.ingestData?.companyHits),
+    ...toStringArray(doc.ingestData?.brandHits?.map((hit) => hit.brand)),
+    ...toStringArray(doc.ingestData?.roleSignals?.flatMap((signal) => signal.matchedSignals ?? [])),
+    ...toStringArray(doc.ingestData?.roleSignals?.flatMap((signal) => signal.matchedWorkEntries?.flatMap((entry) => [entry.companyName, entry.jobTitle] as const) ?? [])),
+    ...toStringArray(Array.isArray(content.workHistory)
+      ? content.workHistory.flatMap((entry) => {
+          if (!isRecord(entry)) {
+            return []
+          }
+          return [entry.raw, entry.companyName, entry.jobTitle, entry.description]
+        })
+      : []),
+  ]
+
+  return fragments
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value.length > 0)
+    .join(' ')
+}
+
+function matchesKeywordExpansion(searchText: string, expansion: KeywordExpansionSummary): SearchProvenance[] {
+  const seen = new Set<string>()
+  const matches: SearchProvenance[] = []
+
+  for (const group of expansion.groups) {
+    for (const variant of group.variants) {
+      const normalizedVariant = variant.trim().toLowerCase()
+      if (!normalizedVariant || !searchText.includes(normalizedVariant) || seen.has(normalizedVariant)) {
+        continue
+      }
+
+      seen.add(normalizedVariant)
+      matches.push({
+        term: normalizedVariant,
+        source: 'searchText',
+        expandedFrom: expansion.sourceMapping[normalizedVariant],
+      })
+    }
+  }
+
+  return matches
+}
+
+function indexMockSearchResults(
+  results: MockSearchResult[],
+  expansion: KeywordExpansionSummary,
+): IndexedMockSearchResult[] {
+  return results.map((entry) => {
+    const searchText = buildMockSearchText(entry.resume)
+    const matchedGroupCount = expansion.groups.filter((group) =>
+      group.variants.some((variant) => searchText.includes(variant.trim().toLowerCase()))
+    ).length
+
+    return {
+      ...entry,
+      matchedGroupCount,
+      provenance: matchesKeywordExpansion(searchText, expansion),
+    }
+  })
+}
+
+function stripMatchedGroupCount(entry: IndexedMockSearchResult): MockSearchResult {
+  return {
+    resume: entry.resume,
+    provenance: entry.provenance,
+  }
+}
+
+function applyMockExpansionProvenance(
+  results: MockSearchResult[],
+  expansion: KeywordExpansionSummary,
+): MockSearchResult[] {
+  return indexMockSearchResults(results, expansion).map(stripMatchedGroupCount)
+}
+
+function filterMockSearchResults(
+  results: MockSearchResult[],
+  expansion: KeywordExpansionSummary,
+): MockSearchResult[] {
+  if (expansion.groups.length === 0) {
+    return []
+  }
+
+  return indexMockSearchResults(results, expansion)
+    .filter((entry) => {
+      const matched = expansion.mode === 'AND'
+        ? entry.matchedGroupCount === expansion.groups.length
+        : entry.matchedGroupCount > 0
+
+      return matched && entry.provenance.length > 0
+    })
+    .map(stripMatchedGroupCount)
 }
 
 function toStringValue(value: unknown): string {
@@ -544,6 +658,10 @@ export function useConvexResumes(limit: number = 200, query?: string, jobDescrip
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
   const normalizedQuery = query?.trim() || undefined
   const mockPayload = useMemo(() => readMockConvexResumePayload(), [])
+  const mockKeywordExpansion = useMemo(
+    () => normalizedQuery ? buildFallbackKeywordExpansion(normalizedQuery) : null,
+    [normalizedQuery]
+  )
   const [keywordExpansion, setKeywordExpansion] = useState<KeywordExpansionSummary | null>(null)
   const [expansionLoading, setExpansionLoading] = useState(false)
 
@@ -551,7 +669,7 @@ export function useConvexResumes(limit: number = 200, query?: string, jobDescrip
     let active = true
 
     if (mockPayload) {
-      setKeywordExpansion(normalizedQuery ? buildFallbackKeywordExpansion(normalizedQuery) : null)
+      setKeywordExpansion(mockKeywordExpansion)
       setExpansionLoading(false)
       return () => {
         active = false
@@ -619,7 +737,7 @@ export function useConvexResumes(limit: number = 200, query?: string, jobDescrip
     return () => {
       active = false
     }
-  }, [mockPayload, normalizedQuery])
+  }, [mockKeywordExpansion, mockPayload, normalizedQuery])
 
   const searchResults = useQuery(
     api.resumes.searchWithTagExpansion,
@@ -650,10 +768,13 @@ export function useConvexResumes(limit: number = 200, query?: string, jobDescrip
   const mappedResumes = useMemo(() => (
     mockPayload
       ? normalizedQuery
-        ? (mockPayload.search?.results ?? []).map((entry) => ({
+        ? ((mockKeywordExpansion?.mode === 'OR'
+            ? filterMockSearchResults(mockPayload.search?.results ?? [], mockKeywordExpansion)
+            : applyMockExpansionProvenance(mockPayload.search?.results ?? [], mockKeywordExpansion ?? buildFallbackKeywordExpansion(normalizedQuery)))
+          .map((entry) => ({
             ...mapResumeDoc(entry.resume),
             _provenance: entry.provenance,
-          }))
+          })))
         : (mockPayload.list ?? []).map(mapResumeDoc)
       : normalizedQuery
         ? (searchResults?.results ?? []).map((entry) => ({
@@ -661,12 +782,12 @@ export function useConvexResumes(limit: number = 200, query?: string, jobDescrip
             _provenance: entry.provenance,
           }))
         : (listResults ?? []).map(mapResumeDoc)
-  ), [listResults, mockPayload, normalizedQuery, searchResults])
+  ), [listResults, mockKeywordExpansion, mockPayload, normalizedQuery, searchResults])
 
   return {
     resumes: mappedResumes,
     loading: mockPayload ? false : normalizedQuery ? (expansionLoading || searchResults === undefined) : listResults === undefined,
     jobDescriptionId: normalizedJobDescriptionId,
-    expansion: mockPayload ? mockPayload.search?.expansion : searchResults?.expansion,
+    expansion: mockPayload ? (mockPayload.search?.expansion ?? mockKeywordExpansion) : searchResults?.expansion,
   }
 }

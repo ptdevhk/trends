@@ -85,7 +85,7 @@ describe('search-profile-sources', () => {
 
     const url = new URL(collectUrl as string)
     expect(url.searchParams.get('location')).toBe('Kuala Lumpur MY')
-    expect(url.searchParams.get('keyword')).toBe('Sales Engineer Sales Manager')
+    expect(url.searchParams.get('keyword')).toBe('"Sales Engineer" OR "Sales Manager"')
     expect(url.searchParams.get('tr_auto_sync')).toBe('true')
   })
 

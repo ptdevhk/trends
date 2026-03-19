@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from 'convex/react'
-import { formatLocationHierarchySearchText, isLocationMatch } from '@trends/shared'
+import { formatKeywordQuery, formatLocationHierarchySearchText, isLocationMatch } from '@trends/shared'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -159,11 +159,9 @@ function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFil
 
 function buildSearchHistoryTitle(location: string, keywords: string[]): string {
   const normalizedLocation = location.trim()
-  const normalizedKeywords = keywords
-    .map((keyword) => keyword.trim())
-    .filter((keyword) => keyword.length > 0)
+  const normalizedKeywords = formatKeywordQuery(keywords).trim()
 
-  const parts = [normalizedLocation, normalizedKeywords.join(' ')].filter((value) => value.length > 0)
+  const parts = [normalizedLocation, normalizedKeywords].filter((value) => value.length > 0)
   return parts.join(' · ') || 'Untitled search'
 }
 
@@ -520,7 +518,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus()
 
   const expandedQuery = useMemo(() => {
-    const kw = sessionKeywords.join(' ').trim()
+    const kw = formatKeywordQuery(sessionKeywords).trim()
     if (!kw) return undefined
     return kw
   }, [sessionKeywords])
@@ -538,7 +536,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const currentPromptVersion = getCurrentResumeAiPromptVersion()
   const keywordOnlyQueryScoring = sessionKeywords.length > 0 && !jobDescriptionId?.trim()
   const salesRequiredContext = useMemo(
-    () => isSalesRequiredContext(sessionKeywords.join(' '), jobDescriptionId),
+    () => isSalesRequiredContext(formatKeywordQuery(sessionKeywords), jobDescriptionId),
     [jobDescriptionId, sessionKeywords]
   )
   const querySpecificKeywordsKey = useMemo(
@@ -798,7 +796,7 @@ export function useResumeListState(loadSearchHistory = false) {
           ? normalizedLocation
           : undefined
       const locationFilters = locationForUrl
-        ? locationForUrl.split(/[\s,，、]+/).filter(Boolean)
+        ? locationForUrl.split(/[,，、]+/).map((item) => item.trim()).filter(Boolean)
         : undefined
       const filtersForUrl: Partial<ResumeFilters> = {
         ...filters,
@@ -1277,12 +1275,9 @@ export function useResumeListState(loadSearchHistory = false) {
   )
 
   const feedbackQuery = useMemo(() => {
-    const parts = [...sessionKeywords]
+    const keywordQuery = formatKeywordQuery(sessionKeywords).trim()
     const normalizedLocation = sessionLocation.trim()
-    if (normalizedLocation) {
-      parts.push(normalizedLocation)
-    }
-    const query = parts.join(' ').trim()
+    const query = [keywordQuery, normalizedLocation].filter((value) => value.length > 0).join(' ').trim()
     return query.length > 0 ? query : undefined
   }, [sessionKeywords, sessionLocation])
 

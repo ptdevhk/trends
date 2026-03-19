@@ -14,9 +14,11 @@ import { KeywordInput } from "@/components/KeywordInput"
 import {
     CANONICAL_INDUSTRY_TAGS,
     DEFAULT_MIN_EXPERIENCE,
+    formatKeywordInput,
     generateStructuredJobDescriptionContent,
     normalizeIndustryTags,
     normalizeOptionalString,
+    parseKeywordQuery,
     type StructuredJobDescriptionSeedFields,
 } from "@trends/shared"
 
@@ -87,12 +89,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
     const [location, setLocation] = useState("")
     const [industryTags, setIndustryTags] = useState<string[]>([])
     const [customKeywordsText, setCustomKeywordsText] = useState("")
-    const customKeywords = useMemo(() => {
-        return customKeywordsText
-            .split(/[\s,，、]+/)
-            .map((keyword) => keyword.trim())
-            .filter((keyword) => keyword.length > 0)
-    }, [customKeywordsText])
+    const customKeywords = useMemo(() => parseKeywordQuery(customKeywordsText).keywords, [customKeywordsText])
 
     const [minExperience, setMinExperience] = useState(String(DEFAULT_MIN_EXPERIENCE))
     const [maxExperience, setMaxExperience] = useState("")
@@ -121,7 +118,7 @@ export function JobDescriptionEditor({ open, onOpenChange, initialData, onSaveSu
             setTitle(initialData.title + (initialData.type === "system" ? " (Custom Copy)" : ""))
             setLocation(initialData.location ?? "")
             setIndustryTags(sanitizeIndustryTags(initialData.industryTags))
-            setCustomKeywordsText((initialData.customKeywords ?? []).join(" "))
+            setCustomKeywordsText(formatKeywordInput(initialData.customKeywords ?? []))
             setMinExperience(typeof initialData.minExperience === "number" ? String(initialData.minExperience) : defaultMinExperience)
             setMaxExperience(typeof initialData.maxExperience === "number" ? String(initialData.maxExperience) : "")
             setMinAge(typeof initialData.minAge === "number" ? String(initialData.minAge) : "")
