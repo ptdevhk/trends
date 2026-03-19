@@ -62,6 +62,7 @@ bin/
 coverage/
 apps/web/coverage/
 apps/web/test-results/
+tool-results/
 
 # Allow web app lib folder (overrides Python lib/ ignore)
 !apps/web/src/lib/
