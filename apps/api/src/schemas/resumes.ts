@@ -265,6 +265,81 @@ export const ResumeSubmitSummarySchema = z
   })
   .openapi("ResumeSubmitSummary");
 
+const ResumeManualImportContextFields = {
+  searchProfileId: z.string().optional().openapi({ example: "sales-engineer" }),
+  keyword: z.string().optional().openapi({ example: "销售工程师" }),
+  location: z.string().optional().openapi({ example: "东莞" }),
+};
+
+export const ResumeManualImportRequestSchema = z
+  .object({
+    files: z.any().openapi({
+      type: "array",
+      items: { type: "string", format: "binary" },
+    }),
+    ...ResumeManualImportContextFields,
+  })
+  .openapi("ResumeManualImportRequest");
+
+export const ResumeManualImportFormSchema = z.object({
+  files: z.array(z.instanceof(File)).min(1),
+  ...ResumeManualImportContextFields,
+});
+
+export const ResumeManualImportSourceSchema = z
+  .object({
+    key: z.string().openapi({ example: "51job-manual" }),
+    label: z.string().openapi({ example: "51job-manual" }),
+  })
+  .openapi("ResumeManualImportSource");
+
+export const ResumeManualImportFileResultSchema = z
+  .object({
+    uploadName: z.string().openapi({ example: "51job.rar" }),
+    entryPath: z.string().openapi({ example: "前程无忧简历/51job_张三(123456).docx" }),
+    extension: z.string().openapi({ example: ".docx" }),
+    status: z.enum(["imported", "skipped", "failed"]).openapi({ example: "imported" }),
+    resumeName: z.string().optional().openapi({ example: "张三" }),
+    profileId: z.string().optional().openapi({ example: "123456" }),
+    warnings: z.array(z.string()).default([]),
+    error: z.string().optional().openapi({ example: "Legacy .doc parsing is not supported yet" }),
+  })
+  .openapi("ResumeManualImportFileResult");
+
+export const ResumeManualImportSummarySchema = z
+  .object({
+    uploadedFiles: z.number().int(),
+    discoveredFiles: z.number().int(),
+    parsedResumes: z.number().int(),
+    imported: z.number().int(),
+    inserted: z.number().int(),
+    updated: z.number().int(),
+    unchanged: z.number().int(),
+    deduped: z.number().int(),
+    skipped: z.number().int(),
+    failed: z.number().int(),
+  })
+  .openapi("ResumeManualImportSummary");
+
+export const ResumeManualImportResponseSchema = z
+  .object({
+    success: z.literal(true),
+    source: ResumeManualImportSourceSchema,
+    summary: ResumeManualImportSummarySchema,
+    files: z.array(ResumeManualImportFileResultSchema),
+    warnings: z.array(z.string()).default([]),
+  })
+  .openapi("ResumeManualImportResponse");
+
+export const ResumeManualImportErrorSchema = z
+  .object({
+    success: z.literal(false),
+    error: z.string(),
+    files: z.array(ResumeManualImportFileResultSchema).optional(),
+    warnings: z.array(z.string()).optional(),
+  })
+  .openapi("ResumeManualImportError");
+
 export const ResumesQuerySchema = z.object({
   sample: z
     .string()

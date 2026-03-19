@@ -10,7 +10,15 @@ import type { ResumeItem } from '@/hooks/useResumes'
 import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { cn } from '@/lib/utils'
-import { formatRoleYears, getRoleLabel, getRoleRelevantYears, getRoleVerifiedYears, isSafeProfileUrl, type ResumeRoleSignalLike } from '@/lib/resume-scoring'
+import {
+  formatRoleYears,
+  getResumeSourceLabel,
+  getRoleLabel,
+  getRoleRelevantYears,
+  getRoleVerifiedYears,
+  isSafeProfileUrl,
+  type ResumeRoleSignalLike,
+} from '@/lib/resume-scoring'
 import {
   Tooltip,
   TooltipContent,
@@ -185,6 +193,7 @@ export function ResumeCard({
   const selfIntro = resume.selfIntro || '--'
   const profileUrl = resume.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
+  const sourceLabel = getResumeSourceLabel(resume)
 
   const score = matchResult?.score
   const recommendation = matchResult?.recommendation
@@ -301,6 +310,11 @@ export function ResumeCard({
         {blocked ? (
           <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 text-[10px]">
             已屏蔽
+          </Badge>
+        ) : null}
+        {sourceLabel ? (
+          <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 text-[10px]">
+            {sourceLabel}
           </Badge>
         ) : null}
         {resume.expectedSalary ? (
