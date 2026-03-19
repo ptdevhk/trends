@@ -5,8 +5,13 @@ import { v } from "convex/values";
 import {
     buildWorkHistoryEvidence,
     formatLocationHierarchyLabel,
+    normalizeJob5156ProfileUrlForDisplay,
     normalizeResumeLocationHierarchy,
     normalizeWorkHistoryEntry,
+    isLikelyManual51jobCompanyName,
+    isLikelyManual51jobJobTitle,
+    parse51jobManualResume,
+    shouldPreferManual51jobOptionalField,
 } from "@trends/shared";
 
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
@@ -16,67 +21,11 @@ import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 import { resolveResumeScanBatchSize } from "./resumes";
 
 const JOB5156_HOST = "hr.job5156.com";
-const JOB5156_PROFILE_DISPLAY_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
 const PROFILE_URL_CONTENT_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
+const MANUAL_51JOB_SOURCE = "51job-manual";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
-}
-
-function decodeURIComponentSafe(value: string): string {
-    try {
-        return decodeURIComponent(value);
-    } catch {
-        return value;
-    }
-}
-
-function extractJob5156ResumeId(pathname: string): string | null {
-    const oldRouteMatch = pathname.match(/^\/api\/com\/resume\/([^/?#]+)/i);
-    if (oldRouteMatch && oldRouteMatch[1]) {
-        return decodeURIComponentSafe(oldRouteMatch[1]);
-    }
-
-    const viewRouteMatch = pathname.match(/^\/resume\/view\/([^/?#]+)/i);
-    if (viewRouteMatch && viewRouteMatch[1]) {
-        return decodeURIComponentSafe(viewRouteMatch[1]);
-    }
-
-    return null;
-}
-
-function normalizeJob5156ProfileUrlForDisplay(value: string): string | null {
-    const trimmed = value.trim();
-    if (!trimmed) {
-        return null;
-    }
-
-    const directResumeId = extractJob5156ResumeId(trimmed);
-    if (directResumeId) {
-        return `${JOB5156_PROFILE_DISPLAY_PREFIX}${encodeURIComponent(directResumeId)}`;
-    }
-
-    let parsed: URL | null = null;
-    try {
-        parsed = new URL(trimmed);
-    } catch {
-        try {
-            parsed = new URL(`https://${trimmed}`);
-        } catch {
-            parsed = null;
-        }
-    }
-
-    if (!parsed || parsed.hostname.toLowerCase() !== JOB5156_HOST) {
-        return null;
-    }
-
-    const resumeId = extractJob5156ResumeId(parsed.pathname);
-    if (!resumeId) {
-        return null;
-    }
-
-    return `${JOB5156_PROFILE_DISPLAY_PREFIX}${encodeURIComponent(resumeId)}`;
 }
 
 function rewriteJob5156ProfileUrlsInContent(content: unknown): {
@@ -180,6 +129,226 @@ function toRuleScores(value: unknown): Record<string, number> {
         }
     }
     return scores;
+}
+
+function isManual51jobResumeContent(content: unknown, source: unknown): content is Record<string, unknown> {
+    if (!isRecord(content)) {
+        return false;
+    }
+
+    const normalizedSource = typeof source === "string" ? source.trim().toLowerCase() : "";
+    if (normalizedSource === MANUAL_51JOB_SOURCE) {
+        return true;
+    }
+
+    const profileType = typeof content.profileType === "string" ? content.profileType.trim().toLowerCase() : "";
+    return profileType === MANUAL_51JOB_SOURCE;
+}
+
+function isImplausibleManual51jobCompanyName(value: string): boolean {
+    return !isLikelyManual51jobCompanyName(value);
+}
+
+function isImplausibleManual51jobJobTitle(value: string): boolean {
+    return !isLikelyManual51jobJobTitle(value);
+}
+
+function isManual51jobWorkHistoryEntryMalformed(entry: unknown): boolean {
+    const normalized = normalizeWorkHistoryEntry(entry);
+    if (!normalized) {
+        return true;
+    }
+
+    const hasCompany = Boolean(normalized.companyName);
+    const hasOtherFields = Boolean(normalized.jobTitle || normalized.description || normalized.startDate || normalized.endDate);
+
+    if (!hasCompany && !hasOtherFields) {
+        return true;
+    }
+
+    if (!normalized.companyName) {
+        return false;
+    }
+
+    if (isImplausibleManual51jobCompanyName(normalized.companyName)) {
+        return true;
+    }
+
+    if (normalized.jobTitle && isImplausibleManual51jobJobTitle(normalized.jobTitle)) {
+        return true;
+    }
+
+    return false;
+}
+
+function hasStructuredWorkHistory(content: Record<string, unknown>): boolean {
+    if (!Array.isArray(content.workHistory)) {
+        return false;
+    }
+
+    return content.workHistory.some((entry) => {
+        const normalized = normalizeWorkHistoryEntry(entry);
+        return Boolean(normalized && normalized.companyName && (normalized.jobTitle || normalized.description || normalized.startDate || normalized.endDate));
+    });
+}
+
+function locationHierarchySpecificity(value: {
+    province?: string;
+    city?: string;
+    district?: string;
+} | undefined): number {
+    return [value?.province, value?.city, value?.district].filter(Boolean).length;
+}
+
+function shouldReplaceManual51jobName(existing: unknown, parsedName: string | undefined): boolean {
+    const nextName = typeof parsedName === "string" ? parsedName.trim() : "";
+    if (!nextName) {
+        return false;
+    }
+
+    const currentName = typeof existing === "string" ? existing.trim() : "";
+    if (!currentName) {
+        return true;
+    }
+    if (currentName === nextName) {
+        return false;
+    }
+    if (/[_(（）)]/.test(currentName)) {
+        return true;
+    }
+    if (currentName.includes(nextName) && currentName.length > nextName.length) {
+        return true;
+    }
+
+    return false;
+}
+
+function shouldPreferManual51jobLocation(existing: unknown, parsedLocation: string | undefined): boolean {
+    const nextLocation = typeof parsedLocation === "string" ? parsedLocation.trim() : "";
+    if (!nextLocation) {
+        return false;
+    }
+
+    const currentLocation = typeof existing === "string" ? existing.trim() : "";
+    if (!currentLocation) {
+        return true;
+    }
+    if (currentLocation === nextLocation) {
+        return false;
+    }
+
+    const currentHierarchy = normalizeResumeLocationHierarchy({ location: currentLocation });
+    const nextHierarchy = normalizeResumeLocationHierarchy({ location: nextLocation });
+    if (!nextHierarchy) {
+        return false;
+    }
+    if (!currentHierarchy) {
+        return true;
+    }
+
+    return locationHierarchySpecificity(nextHierarchy) > locationHierarchySpecificity(currentHierarchy);
+}
+
+function rewrite51jobManualContent(content: unknown, source: string): {
+    content: Record<string, unknown> | null;
+    contentChanged: boolean;
+    evidenceText: string;
+} {
+    if (!isManual51jobResumeContent(content, source)) {
+        return {
+            content: null,
+            contentChanged: false,
+            evidenceText: "",
+        };
+    }
+
+    const rawText = typeof content.resumeSnippet === "string"
+        ? content.resumeSnippet.trim()
+        : isRecord(content.resumeSnippet) && typeof content.resumeSnippet.text === "string"
+            ? content.resumeSnippet.text.trim()
+            : typeof content.selfIntro === "string"
+                ? content.selfIntro.trim()
+                : "";
+    if (!rawText) {
+        return {
+            content: null,
+            contentChanged: false,
+            evidenceText: "",
+        };
+    }
+
+    const parsed = parse51jobManualResume({
+        text: rawText,
+        fallbackName: typeof content.name === "string" ? content.name.trim() : undefined,
+        fallbackProfileId: typeof content.profileId === "string" ? content.profileId.trim() : undefined,
+    });
+    const nextContent: Record<string, unknown> = { ...content };
+    let changed = false;
+
+    const existingWorkHistory = Array.isArray(nextContent.workHistory) ? nextContent.workHistory : [];
+    const shouldRepairWorkHistory = !hasStructuredWorkHistory(nextContent)
+        || existingWorkHistory.some((entry) => isManual51jobWorkHistoryEntryMalformed(entry));
+
+    if (shouldRepairWorkHistory && parsed.workHistory.length > 0) {
+        nextContent.workHistory = parsed.workHistory;
+        changed = true;
+    }
+
+    if (!Array.isArray(nextContent.profileEducation) && parsed.profileEducation && parsed.profileEducation.length > 0) {
+        nextContent.profileEducation = parsed.profileEducation;
+        changed = true;
+    }
+
+    if (shouldReplaceManual51jobName(nextContent.name, parsed.name)) {
+        nextContent.name = parsed.name;
+        changed = true;
+    }
+
+    if (shouldPreferManual51jobLocation(nextContent.location, parsed.location)) {
+        nextContent.location = parsed.location;
+        changed = true;
+    }
+
+    const optionalFields: Array<"jobIntention" | "expectedSalary" | "experience" | "education"> = ["jobIntention", "expectedSalary", "experience", "education"];
+    for (const field of optionalFields) {
+        const existing = nextContent[field];
+        const parsedValue = parsed[field];
+        if (shouldPreferManual51jobOptionalField(field, existing, parsedValue)) {
+            nextContent[field] = parsedValue;
+            changed = true;
+        }
+    }
+
+    const existingSelfIntro = typeof nextContent.selfIntro === "string" ? nextContent.selfIntro.trim() : "";
+    if (!existingSelfIntro) {
+        if (parsed.selfIntro) {
+            nextContent.selfIntro = parsed.selfIntro;
+            changed = true;
+        }
+    } else if (existingSelfIntro === rawText) {
+        if (parsed.selfIntro) {
+            nextContent.selfIntro = parsed.selfIntro;
+        } else {
+            delete nextContent.selfIntro;
+        }
+        changed = true;
+    }
+
+    if (
+        (!isRecord(nextContent.resumeSnippet) || typeof nextContent.resumeSnippet.text !== "string" || !nextContent.resumeSnippet.text.trim())
+        && parsed.resumeSnippet.text
+    ) {
+        nextContent.resumeSnippet = parsed.resumeSnippet;
+        changed = true;
+    }
+
+    const rewrittenContent = changed ? nextContent : content;
+
+    return {
+        content: rewrittenContent,
+        contentChanged: changed,
+        evidenceText: buildWorkHistoryEvidence(rewrittenContent).text,
+    };
 }
 
 function analysisRichness(resume: Doc<"resumes">): number {
@@ -802,6 +971,99 @@ export const backfillJob5156LocationHierarchy = mutation({
             updatedLocationHierarchy,
             updatedLocation,
             updatedSearchText,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});
+
+export const backfillManual51jobStructuredContent = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+
+        let updatedResumes = 0;
+        let updatedEvidenceText = 0;
+        let updatedSearchText = 0;
+        const repairedResumeIds: Id<"resumes">[] = [];
+
+        for (const resume of resumes.page) {
+            const rewritten = rewrite51jobManualContent(resume.content, resume.source);
+            if (!rewritten.content) {
+                continue;
+            }
+
+            const searchText = mergeSearchTextWithIngestData(
+                buildSearchText(rewritten.content),
+                {
+                    industryTags: resume.ingestData?.industryTags,
+                    synonymHits: resume.ingestData?.synonymHits,
+                    brandHits: resume.ingestData?.brandHits,
+                    companyHits: resume.ingestData?.companyHits,
+                }
+            );
+
+            const patch: {
+                content?: Record<string, unknown>;
+                searchText?: string;
+                ingestData?: Doc<"resumes">["ingestData"];
+            } = {};
+
+            if (rewritten.contentChanged) {
+                patch.content = rewritten.content;
+            }
+
+            if (searchText !== resume.searchText) {
+                patch.searchText = searchText;
+                updatedSearchText += 1;
+            }
+
+            if (resume.ingestData && rewritten.evidenceText !== resume.ingestData.evidenceText) {
+                patch.ingestData = {
+                    ...resume.ingestData,
+                    evidenceText: rewritten.evidenceText,
+                };
+                updatedEvidenceText += 1;
+            }
+
+            if (Object.keys(patch).length === 0) {
+                continue;
+            }
+
+            await ctx.db.patch(resume._id, patch);
+            if (rewritten.contentChanged) {
+                repairedResumeIds.push(resume._id);
+            }
+            updatedResumes += 1;
+        }
+
+        let scheduledReingest = 0;
+        let batches = 0;
+        for (let index = 0; index < repairedResumeIds.length; index += 50) {
+            const chunk = repairedResumeIds.slice(index, index + 50);
+            await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
+                resumeIds: chunk,
+            });
+            scheduledReingest += chunk.length;
+            batches += 1;
+        }
+
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes,
+            updatedEvidenceText,
+            updatedSearchText,
+            scheduledReingest,
+            batches,
             hasMore: !resumes.isDone,
             cursor: resumes.isDone ? null : resumes.continueCursor,
         };

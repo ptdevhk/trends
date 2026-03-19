@@ -282,6 +282,96 @@ describe("resume-import-service", () => {
     });
   });
 
+  it("preserves structured manual 51job fields through shared normalization", () => {
+    const result = normalizeResumeImportPayload({
+      metadata: {
+        sourceKey: "51job-manual",
+        sourceHost: "51job-manual",
+        sourceUrl: "https://www.51job.com/",
+        keyword: "销售工程师",
+        generatedBy: "manual-import@1.0.0",
+      },
+      resumes: [
+        {
+          profileId: "123456",
+          profileType: "51job-manual",
+          name: "张三",
+          location: "广东东莞",
+          experience: "5年",
+          education: "本科",
+          jobIntention: "销售工程师",
+          selfIntro: "熟悉CNC机床销售、客户跟进与方案沟通",
+          workHistory: [
+            {
+              raw: "2021-03~至今 东莞精密机械有限公司 销售工程师",
+              companyName: "东莞精密机械有限公司",
+              jobTitle: "销售工程师",
+              description: "负责华南区机床销售与客户维护",
+              startDate: "2021-03",
+              endDate: "至今",
+            },
+          ],
+          profileEducation: [
+            {
+              institution: "华南理工大学",
+              qualification: "本科",
+              fieldOfStudy: "机械设计制造及其自动化",
+              startDate: "2015-09",
+              endDate: "2019-06",
+            },
+          ],
+          resumeSnippet: {
+            text: "姓名：张三\n工作经历\n2021-03~至今 东莞精密机械有限公司 销售工程师",
+          },
+          extractedAt: "2026-03-19T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(result.convexResumes[0]).toMatchObject({
+      externalId: "51job-manual:profile:123456",
+      source: "51job-manual",
+      tags: ["销售工程师"],
+      content: expect.objectContaining({
+        profileType: "51job-manual",
+        name: "张三",
+        experience: "5年",
+        education: "本科",
+        jobIntention: "销售工程师",
+        selfIntro: "熟悉CNC机床销售、客户跟进与方案沟通",
+        resumeSnippet: {
+          text: "姓名：张三\n工作经历\n2021-03~至今 东莞精密机械有限公司 销售工程师",
+        },
+        locationHierarchy: {
+          country: "中国",
+          province: "广东",
+          city: "东莞",
+          matchedFrom: "location",
+          confidence: "high",
+        },
+        workHistory: [
+          {
+            raw: "2021-03~至今 东莞精密机械有限公司 销售工程师",
+            companyName: "东莞精密机械有限公司",
+            jobTitle: "销售工程师",
+            description: "负责华南区机床销售与客户维护",
+            startDate: "2021-03",
+            endDate: "至今",
+          },
+        ],
+        profileEducation: [
+          {
+            institution: "华南理工大学",
+            qualification: "本科",
+            fieldOfStudy: "机械设计制造及其自动化",
+            startDate: "2015-09",
+            endDate: "2019-06",
+          },
+        ],
+      }),
+    });
+  });
+
   it("submits source-aware payloads through the shared Convex path", async () => {
     const calls: ConvexCall[] = [];
 

@@ -5,7 +5,12 @@ import * as unrar from "node-unrar-js";
 import { PDFParse } from "pdf-parse";
 import { z } from "@hono/zod-openapi";
 
-import { normalizeOptionalString } from "@trends/shared";
+import {
+  hasReadableManual51jobText,
+  normalizeOptionalString,
+  parse51jobManualResume,
+  stripManual51jobUnreadableControlCharacters,
+} from "@trends/shared";
 
 import {
   type ResumeImportItem,
@@ -57,6 +62,7 @@ const MAX_UPLOAD_FILE_SIZE = 25 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRY_SIZE = 25 * 1024 * 1024;
 const MAX_TOTAL_EXTRACTED_SIZE = 150 * 1024 * 1024;
 const MAX_UPLOAD_REQUEST_SIZE = MAX_TOTAL_EXTRACTED_SIZE;
+const MAX_PARALLEL_FILE_OPERATIONS = 4;
 const SUPPORTED_FILE_EXTENSIONS = new Set([".pdf", ".doc", ".docx"]);
 const DOCX_MESSAGE_WARNING_TYPES = new Set(["warning", "error"]);
 const DOCX_TEXT_ENTRY_PATH_PATTERN = /^word\/(?:document|header\d+|footer\d+|footnotes|endnotes)\.xml$/i;
@@ -283,15 +289,29 @@ async function expandUploadedFile(file: File): Promise<UploadExpansionResult> {
   }
 }
 
+async function mapInBatches<TItem, TResult>(
+  items: readonly TItem[],
+  mapper: (item: TItem) => Promise<TResult>,
+): Promise<TResult[]> {
+  const results: TResult[] = [];
+
+  for (let index = 0; index < items.length; index += MAX_PARALLEL_FILE_OPERATIONS) {
+    const batch = items.slice(index, index + MAX_PARALLEL_FILE_OPERATIONS);
+    results.push(...await Promise.all(batch.map((item) => mapper(item))));
+  }
+
+  return results;
+}
+
 async function enumerateUploadedFiles(files: File[]): Promise<{
   entries: EnumeratedImportFile[];
   fileResults: ManualResumeImportFileResult[];
 }> {
+  const expandedFiles = await mapInBatches(files, expandUploadedFile);
   const entries: EnumeratedImportFile[] = [];
   const fileResults: ManualResumeImportFileResult[] = [];
 
-  for (const file of files) {
-    const expanded = await expandUploadedFile(file);
+  for (const expanded of expandedFiles) {
     entries.push(...expanded.entries);
     if (expanded.fileResult) {
       fileResults.push(expanded.fileResult);
@@ -310,95 +330,38 @@ function fileResultBase(file: EnumeratedImportFile): Omit<ManualResumeImportFile
   };
 }
 
-function inferFilenameResumeName(entryPath: string): string | undefined {
-  const basename = path.basename(entryPath, path.extname(entryPath));
-  const withoutPrefix = basename.replace(/^51job[_-]?/i, "").trim();
-  const withoutId = withoutPrefix.replace(/\([^)]*\)/g, "").trim();
-  return withoutId || undefined;
-}
-
-function isLikelyResumeNameCandidate(value: string): boolean {
-  if (!value || value.length > 20) {
-    return false;
-  }
-  if (/\d/.test(value) || /[：:｜|丨/]/.test(value) || /[()（）]/.test(value)) {
-    return false;
-  }
-
-  const normalized = value.replace(/\s+/g, "");
-  if ([
-    "活跃时间",
-    "最近工作",
-    "最高学历",
-    "最高学历学位",
-    "求职意向",
-    "个人优势",
-    "工作经历",
-    "教育经历",
-    "专业描述",
-    "工作描述",
-    "证书",
-    "声明",
-    "离职",
-    "在职",
-    "全职",
-  ].includes(normalized)) {
-    return false;
-  }
-
-  return /\p{Script=Han}|[A-Za-z]/u.test(normalized);
-}
-
-function inferResumeName(entryPath: string, text: string): string | undefined {
-  const filenameCandidate = inferFilenameResumeName(entryPath);
-  if (filenameCandidate && /\p{Script=Han}/u.test(filenameCandidate)) {
-    return filenameCandidate;
-  }
-
-  const normalizedText = normalizeWhitespace(text);
-  const lines = normalizedText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-  for (const line of lines.slice(0, 12)) {
-    const firstToken = line.split(/[\s|｜丨]/).find(Boolean)?.trim();
-    if (firstToken && isLikelyResumeNameCandidate(firstToken)) {
-      return firstToken;
-    }
-  }
-
-  return filenameCandidate;
-}
-
-function inferProfileId(entryPath: string, text: string): string | undefined {
-  const entryMatch = entryPath.match(/\((\d{6,})\)/);
-  if (entryMatch?.[1]) {
-    return entryMatch[1];
-  }
-
-  const textMatch = text.match(/(?:人才ID|简历编号|ID)[:：]?\s*(\d{6,})/i);
-  return textMatch?.[1];
-}
-
 function buildImportedResumeCandidate(
   file: EnumeratedImportFile,
   text: string,
   warnings: string[],
 ): ParsedImportCandidate {
-  const resumeName = inferResumeName(file.entryPath, text);
-  const profileId = inferProfileId(file.entryPath, text);
+  const parsed = parse51jobManualResume({
+    text,
+    entryPath: file.entryPath,
+  });
+  const resumeName = parsed.name ?? path.basename(file.entryPath, file.extension);
   const resume: ResumeImportItem = {
-    name: resumeName ?? path.basename(file.entryPath, file.extension),
-    selfIntro: text,
-    resumeSnippet: { text },
+    name: resumeName,
     extractedAt: new Date().toISOString(),
     profileType: MANUAL_SOURCE_KEY,
-    ...(profileId ? { profileId } : {}),
+    workHistory: parsed.workHistory,
+    resumeSnippet: parsed.resumeSnippet,
+    ...(parsed.profileId ? { profileId: parsed.profileId } : {}),
+    ...(parsed.location ? { location: parsed.location } : {}),
+    ...(parsed.jobIntention ? { jobIntention: parsed.jobIntention } : {}),
+    ...(parsed.expectedSalary ? { expectedSalary: parsed.expectedSalary } : {}),
+    ...(parsed.experience ? { experience: parsed.experience } : {}),
+    ...(parsed.education ? { education: parsed.education } : {}),
+    ...(parsed.selfIntro ? { selfIntro: parsed.selfIntro } : {}),
+    ...(parsed.profileEducation ? { profileEducation: parsed.profileEducation } : {}),
   };
 
   return {
     result: {
       ...fileResultBase(file),
       status: "imported",
-      ...(resumeName ? { resumeName } : {}),
-      ...(profileId ? { profileId } : {}),
+      resumeName,
+      ...(parsed.profileId ? { profileId: parsed.profileId } : {}),
       warnings,
     },
     resume,
@@ -476,13 +439,26 @@ async function parsePdfFile(file: EnumeratedImportFile): Promise<ParsedImportCan
 
   try {
     const result = await parser.getText();
-    const text = normalizeWhitespace(result.text);
-    if (!text) {
+    const rawText = normalizeWhitespace(result.text);
+    if (!rawText) {
       return {
         result: {
           ...fileResultBase(file),
           status: "failed",
           error: "No extractable text found in PDF file",
+          warnings: [],
+        },
+        resume: null,
+      };
+    }
+
+    const text = normalizeWhitespace(stripManual51jobUnreadableControlCharacters(rawText));
+    if (!text || !hasReadableManual51jobText(text)) {
+      return {
+        result: {
+          ...fileResultBase(file),
+          status: "failed",
+          error: "PDF text extraction produced unusable content",
           warnings: [],
         },
         resume: null,
@@ -569,8 +545,9 @@ export async function importManualResumes(input: ManualResumeImportInput): Promi
   const resumes: ResumeImportItem[] = [];
   const warnings: string[] = [];
 
-  for (const file of enumeratedFiles) {
-    const parsed = await parseResumeFile(file);
+  const parsedFiles = await mapInBatches(enumeratedFiles, parseResumeFile);
+
+  for (const parsed of parsedFiles) {
     fileResults.push(parsed.result);
     if (parsed.result.warnings.length > 0) {
       warnings.push(...parsed.result.warnings.map((warning) => `${parsed.result.entryPath}: ${warning}`));
