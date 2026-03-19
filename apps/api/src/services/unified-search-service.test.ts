@@ -74,7 +74,7 @@ describe("UnifiedSearchService", () => {
     }
   });
 
-  it("preserves AND grouping for multi-keyword queries", () => {
+  it("preserves AND grouping for legacy multi-keyword token queries", () => {
     const root = createFixtureRoot();
 
     try {
@@ -94,6 +94,31 @@ describe("UnifiedSearchService", () => {
         },
       ]);
       expect(expansion.flatTerms).toEqual(["销售", "业务", "商务", "销售员", "sales", "cnc"]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("preserves quoted phrase groups with OR semantics", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
+      const expansion = service.expandKeyword('"Sales Engineer" OR "Sales Manager"');
+
+      expect(expansion.mode).toBe("OR");
+      expect(expansion.groups).toEqual([
+        {
+          original: "sales engineer",
+          variants: ["sales engineer"],
+        },
+        {
+          original: "sales manager",
+          variants: ["sales manager"],
+        },
+      ]);
+      expect(expansion.flatTerms).toEqual(["sales engineer", "sales manager"]);
     } finally {
       cleanupFixtureRoot(root);
     }
@@ -223,6 +248,54 @@ describe("UnifiedSearchService", () => {
       );
 
       expect(results.results.map((entry) => entry.resume.resumeId)).toEqual(["resume-both"]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("matches either quoted phrase group in OR mode", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
+      const engineerResume: ResumeItem = {
+        name: "Engineer only",
+        profileUrl: "https://example.com/1",
+        activityStatus: "active",
+        age: "35",
+        experience: "8年",
+        education: "本科",
+        location: "Kuala Lumpur MY",
+        selfIntro: "",
+        jobIntention: "Sales Engineer",
+        expectedSalary: "10000-15000",
+        workHistory: [],
+        extractedAt: "2026-03-11T00:00:00.000Z",
+        resumeId: "resume-engineer",
+      };
+      const managerResume: ResumeItem = {
+        ...engineerResume,
+        name: "Manager only",
+        jobIntention: "Sales Manager",
+        resumeId: "resume-manager",
+      };
+      const genericSalesResume: ResumeItem = {
+        ...engineerResume,
+        name: "Generic sales",
+        jobIntention: "Sales Executive",
+        resumeId: "resume-generic-sales",
+      };
+
+      const results = service.searchUnified(
+        [engineerResume, managerResume, genericSalesResume],
+        '"Sales Engineer" OR "Sales Manager"'
+      );
+
+      expect(results.results.map((entry) => entry.resume.resumeId)).toEqual([
+        "resume-engineer",
+        "resume-manager",
+      ]);
     } finally {
       cleanupFixtureRoot(root);
     }

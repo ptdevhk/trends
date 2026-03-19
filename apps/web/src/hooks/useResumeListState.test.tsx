@@ -1110,7 +1110,7 @@ describe('useResumeListState role filter regression', () => {
         location: 'Kuala Lumpur MY',
         keywords: ['Sales Engineer', 'Sales Manager'],
         collectionSource: { type: 'seek' },
-        collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=Sales+Engineer+Sales+Manager&location=Kuala+Lumpur+MY',
+        collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22&location=Kuala+Lumpur+MY',
       }, true)
     })
 
@@ -1126,7 +1126,7 @@ describe('useResumeListState role filter regression', () => {
   })
 
   it('clears query state when navigation requests a resume home reset', async () => {
-    mockState.locationSearch = '?location=Kuala+Lumpur+MY&keyword=Sales+Engineer+Manager'
+    mockState.locationSearch = '?location=Kuala+Lumpur+MY&keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22'
     mockState.locationState = RESUME_HOME_RESET_STATE
 
     renderHook(() => useResumeListState())

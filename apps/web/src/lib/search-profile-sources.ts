@@ -1,3 +1,5 @@
+import { formatKeywordQuery, normalizeKeywordPhrases } from '@trends/shared'
+
 const JOB5156_SEARCH_URL = 'https://hr.job5156.com/search'
 const SEEK_TALENT_SEARCH_URL = 'https://my.employer.seek.com/candidates/recommended'
 const SEEK_HOST_SUFFIX = '.employer.seek.com'
@@ -59,9 +61,7 @@ function normalizeOptionalString(value: string | undefined): string | undefined 
 }
 
 function normalizeKeywords(keywords: string[]): string[] {
-  return keywords
-    .map((keyword) => keyword.trim())
-    .filter((keyword) => keyword.length > 0)
+  return normalizeKeywordPhrases(keywords)
 }
 
 function normalizeOptionalPositiveInt(value: number | undefined): number | undefined {
@@ -277,7 +277,7 @@ export function buildSeekCollectUrl({
     : new URL(SEEK_TALENT_SEARCH_URL)
 
   if (!normalizedBaseUrl) {
-    url.searchParams.set('keyword', normalizedKeywords.join(' '))
+    url.searchParams.set('keyword', formatKeywordQuery(normalizedKeywords))
     if (normalizedLocation.length > 0) {
       url.searchParams.set('location', normalizedLocation)
     } else {
@@ -335,7 +335,7 @@ export function buildJob5156CollectUrl({
   const url = new URL(JOB5156_SEARCH_URL)
   const normalizedLocation = location.trim()
 
-  url.searchParams.set('keyword', normalizedKeywords.join(' '))
+  url.searchParams.set('keyword', formatKeywordQuery(normalizedKeywords))
   if (normalizedLocation.length > 0 && !isChinaRootLocationLabel(normalizedLocation)) {
     url.searchParams.set('location', normalizedLocation)
   }
