@@ -111,6 +111,17 @@ function getStatusBadgeClass(status: ManualResumeImportFileResult['status']): st
   return 'border-red-200 bg-red-50 text-red-700'
 }
 
+function hasImportedFiles(result: ManualResumeImportResponse): boolean {
+  return result.files.some((file) => file.status === 'imported')
+}
+
+function getBatchFailureMessage(result: ManualResumeImportResponse, fallbackMessage: string): string {
+  const firstProblemFile = result.files.find(
+    (file) => (file.status === 'failed' || file.status === 'skipped') && typeof file.error === 'string' && file.error.length > 0
+  )
+  return firstProblemFile?.error ?? fallbackMessage
+}
+
 export function ManualResumeImportDialog({
   open,
   onOpenChange,
@@ -204,8 +215,14 @@ export function ManualResumeImportDialog({
       }
 
       setResult(payload)
-      toast.success(t('manualResumeImport.importComplete', 'Resume import completed'))
-      await onImported?.()
+
+      if (hasImportedFiles(payload)) {
+        toast.success(t('manualResumeImport.importComplete', 'Resume import completed'))
+        await onImported?.()
+        return
+      }
+
+      toast.error(getBatchFailureMessage(payload, t('manualResumeImport.importFailed', 'Failed to import resumes')))
     } catch (error) {
       console.error('Failed to import manual resumes', error)
       const message = error instanceof Error
