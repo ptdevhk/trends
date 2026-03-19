@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RefreshCw, FileText, AlertTriangle, History } from 'lucide-react'
+import { RefreshCw, FileText, AlertTriangle, History, Upload } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
@@ -15,6 +15,7 @@ import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { CollectResumesButton } from '@/components/CollectResumesButton'
 import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { SearchHistoryDialog } from '@/components/SearchHistoryDialog'
+import { ManualResumeImportDialog } from '@/components/ManualResumeImportDialog'
 import { useResumeListState } from '@/hooks/useResumeListState'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -79,6 +80,7 @@ export function ResumeList() {
 
   const [detailResume, setDetailResume] = useState<ResumeItem | ConvexResumeItem | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [manualImportOpen, setManualImportOpen] = useState(false)
 
   const detailKey = useMemo(() => {
     if (!detailResume) return undefined
@@ -143,6 +145,16 @@ export function ResumeList() {
               minAge={filters.minAge}
               maxAge={filters.maxAge}
             />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setManualImportOpen(true)}
+            >
+              <Upload className="h-4 w-4" />
+              {t('manualResumeImport.title', 'Import resumes')}
+            </Button>
             {!selectedIds.size && (
               <Button
                 onClick={handleAnalyzeAll}
@@ -299,6 +311,14 @@ export function ResumeList() {
         items={searchHistory}
         loading={searchHistoryLoading}
         onApply={handleApplySearchHistory}
+      />
+
+      <ManualResumeImportDialog
+        open={manualImportOpen}
+        onOpenChange={setManualImportOpen}
+        location={sessionLocation}
+        keywords={sessionKeywords}
+        onImported={handleRefresh}
       />
     </div>
   )

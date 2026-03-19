@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { bodyLimit } from "hono/body-limit";
 import type { Context } from "hono";
 import { randomUUID } from "node:crypto";
 import {
@@ -9,6 +10,10 @@ import {
   ResumeSamplesResponseSchema,
   ResumeBackupRequestSchema,
   ResumeImportRequestSchema,
+  ResumeManualImportErrorSchema,
+  ResumeManualImportFormSchema,
+  ResumeManualImportRequestSchema,
+  ResumeManualImportResponseSchema,
   ResumeSubmitSummarySchema,
   ResumeExportBinaryResponseSchema,
   ResumeExportCanonicalRequestSchema,
@@ -67,6 +72,7 @@ import {
   type IndustryDbV2BatchStats,
 } from "../services/industry-db-batch-stats.js";
 import { submitResumeImport } from "../services/resume-import-service.js";
+import { getManualResumeImportMaxUploadBytes, importManualResumes } from "../services/manual-resume-import-service.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 
@@ -2480,6 +2486,41 @@ const rescoreResumeMatchesRoute = createRoute({
   },
 });
 
+const manualImportResumesRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/manual-import",
+  tags: ["resumes"],
+  summary: "Import resumes from manual 51job uploads",
+  request: {
+    body: {
+      content: {
+        "multipart/form-data": {
+          schema: ResumeManualImportRequestSchema,
+        },
+      },
+      required: true,
+    },
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: ResumeManualImportResponseSchema } },
+      description: "Manual import result",
+    },
+    400: {
+      content: { "application/json": { schema: ResumeManualImportErrorSchema } },
+      description: "Invalid upload payload",
+    },
+    413: {
+      content: { "application/json": { schema: ResumeManualImportErrorSchema } },
+      description: "Upload exceeds size limit",
+    },
+    500: {
+      content: { "application/json": { schema: ResumeManualImportErrorSchema } },
+      description: "Manual import failed",
+    },
+  },
+});
+
 const importResumesRoute = createRoute({
   method: "post",
   path: "/api/resumes/import",
@@ -2591,6 +2632,39 @@ app.openapi(importResumesRoute, async (c) => {
   } catch (error) {
     console.error("Failed to import resumes", error);
     return c.json({ success: false as const, error: "Failed to import resumes" }, 500);
+  }
+});
+
+app.use(
+  "/api/resumes/manual-import",
+  bodyLimit({
+    maxSize: getManualResumeImportMaxUploadBytes(),
+    onError: (c) => {
+      return c.json({ success: false as const, error: "Upload exceeds size limit" }, 413);
+    },
+  }),
+);
+
+app.openapi(manualImportResumesRoute, async (c) => {
+  try {
+    const formData = await c.req.formData();
+    const parsedForm = ResumeManualImportFormSchema.safeParse({
+      files: formData.getAll("files"),
+      searchProfileId: formData.get("searchProfileId") ?? undefined,
+      keyword: formData.get("keyword") ?? undefined,
+      location: formData.get("location") ?? undefined,
+    });
+
+    if (!parsedForm.success) {
+      return c.json({ success: false as const, error: "Expected at least one uploaded file" }, 400);
+    }
+
+    const result = await importManualResumes(parsedForm.data);
+    return c.json(result, 200);
+  } catch (error) {
+    console.error("Failed to import manual resumes", error);
+    const message = error instanceof Error ? error.message : "Failed to import manual resumes";
+    return c.json({ success: false as const, error: message }, 500);
   }
 });
 

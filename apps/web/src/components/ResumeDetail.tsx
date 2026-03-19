@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import { formatRoleYears, getRoleLabel, hasIngestData, isSafeProfileUrl } from '@/lib/resume-scoring'
+import { formatRoleYears, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl } from '@/lib/resume-scoring'
 
 import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
 
@@ -92,6 +92,7 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
   }, [resume, workHistory])
   const profileUrl = resume?.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
+  const sourceLabel = getResumeSourceLabel(resume)
   const scoreLabel = matchResult
     ? t(`resumes.matching.recommendations.${matchResult.recommendation}`, {
         defaultValue: matchResult.recommendation.replace(/_/g, ' '),
@@ -114,6 +115,13 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
 
         <div className="grid gap-4">
           <div className="text-sm relative">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              {sourceLabel ? (
+                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 text-[10px]">
+                  {sourceLabel}
+                </Badge>
+              ) : null}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.name')}</p>

@@ -671,6 +671,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/manual-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import resumes from manual 51job uploads */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": components["schemas"]["ResumeManualImportRequest"];
+                };
+            };
+            responses: {
+                /** @description Manual import result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeManualImportResponse"];
+                    };
+                };
+                /** @description Invalid upload payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeManualImportError"];
+                    };
+                };
+                /** @description Upload exceeds size limit */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeManualImportError"];
+                    };
+                };
+                /** @description Manual import failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeManualImportError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/backup": {
         parameters: {
             query?: never;
@@ -4596,6 +4663,70 @@ export interface components {
             metadata: components["schemas"]["ResumeImportMetadata"];
             resumes?: components["schemas"]["ResumeImportItem"][];
             data?: components["schemas"]["ResumeImportItem"][];
+        };
+        ResumeManualImportSource: {
+            /** @example 51job-manual */
+            key: string;
+            /** @example 51job-manual */
+            label: string;
+        };
+        ResumeManualImportSummary: {
+            uploadedFiles: number;
+            discoveredFiles: number;
+            parsedResumes: number;
+            imported: number;
+            inserted: number;
+            updated: number;
+            unchanged: number;
+            deduped: number;
+            skipped: number;
+            failed: number;
+        };
+        ResumeManualImportFileResult: {
+            /** @example 51job.rar */
+            uploadName: string;
+            /** @example 前程无忧简历/51job_张三(123456).docx */
+            entryPath: string;
+            /** @example .docx */
+            extension: string;
+            /**
+             * @example imported
+             * @enum {string}
+             */
+            status: "imported" | "skipped" | "failed";
+            /** @example 张三 */
+            resumeName?: string;
+            /** @example 123456 */
+            profileId?: string;
+            /** @default [] */
+            warnings: string[];
+            /** @example Legacy .doc parsing is not supported yet */
+            error?: string;
+        };
+        ResumeManualImportResponse: {
+            /** @enum {boolean} */
+            success: true;
+            source: components["schemas"]["ResumeManualImportSource"];
+            summary: components["schemas"]["ResumeManualImportSummary"];
+            files: components["schemas"]["ResumeManualImportFileResult"][];
+            /** @default [] */
+            warnings: string[];
+        };
+        ResumeManualImportError: {
+            /** @enum {boolean} */
+            success: false;
+            error: string;
+            files?: components["schemas"]["ResumeManualImportFileResult"][];
+            warnings?: string[];
+        };
+        ResumeManualImportRequest: {
+            files?: string[];
+            /** @example sales-engineer */
+            searchProfileId?: string;
+            /** @example 销售工程师 */
+            keyword?: string;
+            /** @example 东莞 */
+            location?: string;
         };
         ResumeBackupRequest: {
             resumeIds?: string[];

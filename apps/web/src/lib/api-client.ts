@@ -3,9 +3,9 @@ import type { paths } from './api-types'
 import { workspaceRef } from './workspace-ref'
 
 const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
-const baseUrl = rawBaseUrl.replace(/\/api\/?$/, '')
+export const apiBaseUrl = rawBaseUrl.replace(/\/api\/?$/, '')
 
-export const apiClient = createClient<paths>({ baseUrl })
+export const apiClient = createClient<paths>({ baseUrl: apiBaseUrl })
 
 apiClient.use({
   onRequest({ request }) {
