@@ -432,7 +432,11 @@ describe('backfillManual51jobStructuredContent', () => {
               '工作描述：主要销售日本津上数控车床，数控走心机，加工中心。',
             ].join('\n'),
           },
-          workHistory: [],
+          workHistory: [
+            {
+              companyName: '旧占位公司',
+            },
+          ],
         },
         ingestData: {
           evidenceText: '',
@@ -519,9 +523,14 @@ describe('backfillManual51jobStructuredContent', () => {
         content: expect.objectContaining({
           name: '谷仍友',
           location: '广州-番禺区',
+          jobIntention: '车床销售工程师（东莞）',
           workHistory: expect.arrayContaining([
             expect.objectContaining({
               companyName: '广州市振工机电设备有限公司',
+              jobTitle: '销售总监',
+              description: '主要销售日本津上数控车床 数控走心机 加工中心',
+              startDate: '2014-05',
+              endDate: '至今',
             }),
           ]),
         }),

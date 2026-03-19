@@ -314,6 +314,102 @@ describe("manual resume import route", () => {
     });
   });
 
+  it("parses summary-style 51job resumes with split work-history blocks", async () => {
+    const calls: ConvexCall[] = [];
+    const documentText = [
+      "曾先生 积极找工作（一个月内到岗）",
+      "36岁\t14年经验\t高中\t现居·清远-英德市",
+      "求职意向",
+      "求职偏好： 单休\tTo B（企业/机构）\t面销/陌拜",
+      "客户代表\t东莞\t全职\t8千-1万/月\t机械/设备/重工",
+      "工作经历",
+      "东莞市世川机械科技有限公司",
+      "2022.02-至今（4年1个月）",
+      "客户代表",
+      "工作描述：主要负责销售津上设备。",
+    ].join("\n");
+    const fileName = "曾先生(227359817).docx";
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+      if (call.pathName === "resume_tasks:submitResumes") {
+        return convexSuccess({
+          submitted: 1,
+          deduped: 0,
+          inserted: 1,
+          updated: 0,
+          unchanged: 0,
+        });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = await createTestApp();
+    const formData = new FormData();
+    formData.append("files", await createDocxFile(fileName, documentText));
+
+    const response = await app.request("/api/resumes/manual-import", {
+      method: "POST",
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+      body: formData,
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      success: true,
+      summary: {
+        uploadedFiles: 1,
+        discoveredFiles: 1,
+        parsedResumes: 1,
+        imported: 1,
+        skipped: 0,
+        failed: 0,
+      },
+      files: [
+        expect.objectContaining({
+          uploadName: fileName,
+          entryPath: fileName,
+          status: "imported",
+          resumeName: "曾先生",
+          profileId: "227359817",
+        }),
+      ],
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.args).toMatchObject({
+      resumes: [
+        {
+          source: "51job-manual",
+          externalId: "51job-manual:profile:227359817",
+          content: expect.objectContaining({
+            name: "曾先生",
+            profileType: "51job-manual",
+            location: "清远-英德市",
+            jobIntention: "客户代表 东莞 全职 8千-1万/月 机械/设备/重工",
+            expectedSalary: "8千-1万/月",
+            experience: "14年经验",
+            education: "高中",
+            resumeSnippet: expect.objectContaining({
+              text: expect.stringContaining("客户代表\t东莞\t全职\t8千-1万/月\t机械/设备/重工"),
+            }),
+            workHistory: [
+              expect.objectContaining({
+                companyName: "东莞市世川机械科技有限公司",
+                jobTitle: "客户代表",
+                description: "主要负责销售津上设备",
+                startDate: "2022-02",
+                endDate: "至今",
+              }),
+            ],
+          }),
+        },
+      ],
+    });
+  });
+
   it("returns partial success for mixed supported and unsupported uploads", async () => {
     const calls: ConvexCall[] = [];
 

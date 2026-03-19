@@ -149,7 +149,7 @@ function hasStructuredWorkHistory(content: Record<string, unknown>): boolean {
 
     return content.workHistory.some((entry) => {
         const normalized = normalizeWorkHistoryEntry(entry);
-        return Boolean(normalized && (normalized.companyName || normalized.jobTitle || normalized.description || normalized.startDate || normalized.endDate));
+        return Boolean(normalized && normalized.companyName && (normalized.jobTitle || normalized.description || normalized.startDate || normalized.endDate));
     });
 }
 
