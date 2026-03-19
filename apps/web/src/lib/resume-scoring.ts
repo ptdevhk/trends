@@ -2,6 +2,7 @@ import {
   buildWorkHistoryEntryText,
   getCurrentResumeAiPromptVersion,
   normalizeKeywordSalesAnalysis,
+  normalizeOptionalString,
   resolveResumeId,
 } from '@trends/shared'
 import type { ResumeItem } from '@/hooks/useResumes'
@@ -150,6 +151,14 @@ export function isAutoFilteredAnalysis(analysis: ConvexResumeAnalysis | undefine
 export function isSafeProfileUrl(value: string | undefined): value is string {
   if (!value) return false
   return value.startsWith('http://') || value.startsWith('https://')
+}
+
+export function getResumeSourceLabel(resume: unknown): string | undefined {
+  if (!resume || typeof resume !== 'object' || !('source' in resume) || typeof resume.source !== 'string') {
+    return undefined
+  }
+
+  return normalizeOptionalString(resume.source)
 }
 
 export function buildResumeKey(resume: ResumeItem, index: number): string {
