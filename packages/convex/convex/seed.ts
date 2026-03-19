@@ -267,23 +267,23 @@ export const status = query({
       searchHistory,
       workspaceConfig,
     ] = await Promise.all([
-      ctx.db.query("job_descriptions").collect(),
-      ctx.db.query("resumes").collect(),
-      ctx.db.query("collection_tasks").collect(),
-      ctx.db.query("search_profiles").collect(),
-      ctx.db.query("screening_sessions").collect(),
-      ctx.db.query("search_history").collect(),
-      ctx.db.query("workspace_config").collect(),
+      ctx.db.query("job_descriptions").first(),
+      ctx.db.query("resumes").first(),
+      ctx.db.query("collection_tasks").first(),
+      ctx.db.query("search_profiles").first(),
+      ctx.db.query("screening_sessions").first(),
+      ctx.db.query("search_history").first(),
+      ctx.db.query("workspace_config").first(),
     ]);
 
     const counts = {
-      jobDescriptions: jobDescriptions.length,
-      resumes: resumes.length,
-      collectionTasks: collectionTasks.length,
-      searchProfiles: searchProfiles.length,
-      screeningSessions: screeningSessions.length,
-      searchHistory: searchHistory.length,
-      workspaceConfig: workspaceConfig.length,
+      jobDescriptions: jobDescriptions === null ? 0 : 1,
+      resumes: resumes === null ? 0 : 1,
+      collectionTasks: collectionTasks === null ? 0 : 1,
+      searchProfiles: searchProfiles === null ? 0 : 1,
+      screeningSessions: screeningSessions === null ? 0 : 1,
+      searchHistory: searchHistory === null ? 0 : 1,
+      workspaceConfig: workspaceConfig === null ? 0 : 1,
     };
 
     return {
