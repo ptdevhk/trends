@@ -545,3 +545,627 @@ export function normalizeSharedResumeFields(record: Record<string, unknown>, sou
     noticePeriodDays: normalizeOptionalNumber(record.noticePeriodDays),
   };
 }
+
+type Manual51jobSectionKey = "workHistory" | "education" | "selfIntro";
+
+export type Parsed51jobManualResume = {
+  name?: string;
+  profileId?: string;
+  location?: string;
+  jobIntention?: string;
+  expectedSalary?: string;
+  experience?: string;
+  education?: string;
+  selfIntro?: string;
+  workHistory: ResumeWorkHistoryItem[];
+  profileEducation?: ResumeProfileEducationItem[];
+  resumeSnippet: ResumeSnippet;
+};
+
+const MANUAL_51JOB_NAME_LABELS = ["姓名", "名称"] as const;
+const MANUAL_51JOB_PROFILE_ID_LABELS = ["人才ID", "简历编号", "ID"] as const;
+const MANUAL_51JOB_LOCATION_LABELS = ["区域", "现居住地", "现居住", "所在地", "所在地区"] as const;
+const MANUAL_51JOB_JOB_INTENTION_LABELS = ["应聘方向", "求职意向", "期望职位", "意向职位"] as const;
+const MANUAL_51JOB_SALARY_LABELS = ["期望薪资", "薪资要求", "期望工资", "期望月薪", "期望年薪"] as const;
+const MANUAL_51JOB_EXPERIENCE_LABELS = ["工作经验", "工作年限", "从业年限", "经验"] as const;
+const MANUAL_51JOB_EDUCATION_LABELS = ["最高学历学位", "最高学历", "学历"] as const;
+const MANUAL_51JOB_WORK_DESCRIPTION_LABELS = ["工作描述", "职责描述", "工作职责", "主要职责", "工作内容"] as const;
+const MANUAL_51JOB_WORK_COMPANY_LABELS = ["公司", "单位", "企业"] as const;
+const MANUAL_51JOB_WORK_JOB_TITLE_LABELS = ["职位", "岗位", "职务"] as const;
+const MANUAL_51JOB_EDUCATION_INSTITUTION_LABELS = ["学校", "院校"] as const;
+const MANUAL_51JOB_EDUCATION_FIELD_LABELS = ["专业", "主修", "专业名称"] as const;
+const MANUAL_51JOB_EDUCATION_DESCRIPTION_LABELS = ["专业描述", "在校经历", "学习描述"] as const;
+const MANUAL_51JOB_EDUCATION_QUALIFICATION_LABELS = ["学历", "学位"] as const;
+const MANUAL_51JOB_SECTION_LABELS: Array<{ key: Manual51jobSectionKey; labels: readonly string[] }> = [
+  { key: "workHistory", labels: ["工作经历", "工作经验"] },
+  { key: "education", labels: ["教育经历", "教育背景"] },
+  { key: "selfIntro", labels: ["个人优势", "自我介绍", "自我评价", "个人简介"] },
+];
+const MANUAL_51JOB_SECTION_HEADER_SET = new Set(
+  MANUAL_51JOB_SECTION_LABELS.flatMap((entry) => entry.labels)
+);
+const MANUAL_51JOB_COMPANY_PATTERN = /([\u4e00-\u9fa5A-Za-z0-9()（）·.&\-]{2,80}(?:公司|集团|科技|机械|设备|自动化|股份|有限|中心|厂|银行|医院|研究院))/u;
+const MANUAL_51JOB_INSTITUTION_PATTERN = /([\u4e00-\u9fa5A-Za-z0-9()（）·.&\-]{2,80}(?:大学|学院|学校|中学|技校|职业技术学院|技术学院|中专))/u;
+const MANUAL_51JOB_QUALIFICATION_PATTERN = /(博士研究生|博士|硕士研究生|硕士|研究生|本科|大专|专科|中专|中技|高中)/u;
+const MANUAL_51JOB_DATE_RANGE_PATTERN = /(\d{4}(?:[-./年]\d{1,2})?)(?:\s*(?:[~～\-–—]|至|到)+\s*)(至今|目前|今|\d{4}(?:[-./年]\d{1,2})?)/u;
+const MANUAL_51JOB_TIMELINE_START_PATTERN = /^\s*\d{4}(?:[-./年]\d{1,2})?(?:\s*(?:[~～\-–—]|至|到)+\s*)(?:至今|目前|今|\d{4}(?:[-./年]\d{1,2})?)/u;
+const MANUAL_51JOB_NAME_EXCLUSIONS = new Set([
+  "活跃时间",
+  "最近工作",
+  "最高学历",
+  "最高学历学位",
+  "求职意向",
+  "个人优势",
+  "工作经历",
+  "工作经验",
+  "教育经历",
+  "专业描述",
+  "工作描述",
+  "证书",
+  "声明",
+  "离职",
+  "在职",
+  "全职",
+  "男",
+  "女",
+  "仅供招聘专用",
+  "仅供招聘专用，企业应尽保密义务，禁止外传",
+]);
+const MANUAL_51JOB_EDUCATION_RANK: Record<string, number> = {
+  高中: 1,
+  中技: 1,
+  中专: 1,
+  专科: 2,
+  大专: 2,
+  本科: 3,
+  研究生: 4,
+  硕士: 4,
+  硕士研究生: 4,
+  博士: 5,
+  博士研究生: 5,
+};
+const MANUAL_51JOB_LABEL_PATTERN_CACHE = new Map<string, RegExp>();
+
+function escapeManual51jobRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getManual51jobLabelPattern(label: string): RegExp {
+  const cachedPattern = MANUAL_51JOB_LABEL_PATTERN_CACHE.get(label);
+  if (cachedPattern) {
+    return cachedPattern;
+  }
+
+  const pattern = new RegExp(`^${escapeManual51jobRegExp(label)}\\s*[：:]\\s*(.*)$`, "u");
+  MANUAL_51JOB_LABEL_PATTERN_CACHE.set(label, pattern);
+  return pattern;
+}
+
+function normalizeManual51jobText(value: string): string {
+  return value
+    .replace(/\r/g, "\n")
+    .replace(/\u0000/g, "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function normalizeManual51jobLine(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function getManual51jobLabeledLineValue(line: string, labels: readonly string[]): string | undefined {
+  const normalizedLine = normalizeManual51jobLine(line);
+  if (!normalizedLine) {
+    return undefined;
+  }
+
+  for (const label of labels) {
+    if (normalizedLine === label) {
+      return "";
+    }
+
+    const match = normalizedLine.match(getManual51jobLabelPattern(label));
+    if (match) {
+      return match[1]?.trim() ?? "";
+    }
+  }
+
+  return undefined;
+}
+
+function splitManual51jobLines(text: string): string[] {
+  if (!text) {
+    return [];
+  }
+
+  return text.split("\n").map((line) => normalizeManual51jobLine(line));
+}
+
+function getManual51jobFieldValueFromLines(lines: readonly string[], labels: readonly string[]): string | undefined {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] || "";
+    const value = getManual51jobLabeledLineValue(line, labels);
+    if (value === undefined) {
+      continue;
+    }
+    if (value) {
+      return value;
+    }
+
+    for (let nextIndex = index + 1; nextIndex < lines.length; nextIndex += 1) {
+      const nextLine = lines[nextIndex] || "";
+      if (!nextLine) {
+        continue;
+      }
+      if (resolveManual51jobSectionHeader(nextLine)) {
+        break;
+      }
+      return nextLine;
+    }
+  }
+
+  return undefined;
+}
+
+function inferManual51jobInlineLocation(text: string): string | undefined {
+  const match = text.match(/现居(?:住地|住)?[·:：]?\s*([^\n｜|]{1,40})/u);
+  if (!match?.[1]) {
+    return undefined;
+  }
+
+  const location = normalizeManual51jobLine(match[1]);
+  return location || undefined;
+}
+
+function resolveManual51jobSectionHeader(line: string): { key: Manual51jobSectionKey; remainder?: string } | null {
+  const normalizedLine = normalizeManual51jobLine(line);
+  if (!normalizedLine) {
+    return null;
+  }
+
+  for (const entry of MANUAL_51JOB_SECTION_LABELS) {
+    for (const label of entry.labels) {
+      if (normalizedLine === label) {
+        return { key: entry.key };
+      }
+
+      const match = normalizedLine.match(getManual51jobLabelPattern(label));
+      if (match) {
+        const remainder = match[1]?.trim();
+        return remainder ? { key: entry.key, remainder } : { key: entry.key };
+      }
+    }
+  }
+
+  return null;
+}
+
+function collectManual51jobSections(text: string): Partial<Record<Manual51jobSectionKey, string[]>> {
+  const sections: Partial<Record<Manual51jobSectionKey, string[]>> = {};
+  let currentKey: Manual51jobSectionKey | null = null;
+
+  for (const rawLine of normalizeManual51jobText(text).split("\n")) {
+    const sectionHeader = resolveManual51jobSectionHeader(rawLine);
+    if (sectionHeader) {
+      currentKey = sectionHeader.key;
+      sections[currentKey] = [];
+      if (sectionHeader.remainder) {
+        sections[currentKey]?.push(sectionHeader.remainder);
+      }
+      continue;
+    }
+
+    if (currentKey) {
+      sections[currentKey]?.push(rawLine);
+    }
+  }
+
+  return sections;
+}
+
+function getManual51jobSectionText(
+  sections: Partial<Record<Manual51jobSectionKey, string[]>>,
+  key: Manual51jobSectionKey,
+): string | undefined {
+  const lines = sections[key]
+    ?.map((line) => normalizeManual51jobLine(line))
+    .filter((line) => Boolean(line));
+  if (!lines || lines.length === 0) {
+    return undefined;
+  }
+  const normalized = normalizeManual51jobText(lines.join("\n"));
+  return normalized || undefined;
+}
+
+function normalizeManual51jobDate(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (["至今", "目前", "今"].includes(trimmed)) {
+    return "至今";
+  }
+
+  return trimmed
+    .replace(/[./]/g, "-")
+    .replace(/年/g, "-")
+    .replace(/月/g, "")
+    .replace(/日/g, "")
+    .replace(/\s+/g, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function extractManual51jobDateRange(text: string): {
+  matchedText?: string;
+  startDate?: string;
+  endDate?: string;
+} {
+  const match = text.match(MANUAL_51JOB_DATE_RANGE_PATTERN);
+  if (!match) {
+    return {};
+  }
+
+  const startDate = normalizeManual51jobDate(match[1] || "");
+  const endDate = normalizeManual51jobDate(match[2] || "");
+
+  return {
+    matchedText: match[0],
+    ...(startDate ? { startDate } : {}),
+    ...(endDate ? { endDate } : {}),
+  };
+}
+
+function splitManual51jobBlocks(text: string): string[] {
+  const normalized = normalizeManual51jobText(text);
+  if (!normalized) {
+    return [];
+  }
+
+  const blocks: string[] = [];
+  let current: string[] = [];
+
+  for (const rawLine of normalized.split("\n")) {
+    const line = normalizeManual51jobLine(rawLine);
+    if (!line) {
+      continue;
+    }
+
+    if (MANUAL_51JOB_TIMELINE_START_PATTERN.test(line) && current.length > 0) {
+      blocks.push(current.join("\n"));
+      current = [line];
+      continue;
+    }
+
+    current.push(line);
+  }
+
+  if (current.length > 0) {
+    blocks.push(current.join("\n"));
+  }
+
+  return blocks;
+}
+
+function getManual51jobDescriptionLines(lines: string[]): string[] {
+  const descriptionLines: string[] = [];
+
+  for (let index = 1; index < lines.length; index += 1) {
+    const line = normalizeManual51jobLine(lines[index] || "");
+    if (!line) {
+      continue;
+    }
+
+    const labeledDescription = getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_DESCRIPTION_LABELS);
+    if (labeledDescription !== undefined) {
+      if (labeledDescription) {
+        descriptionLines.push(labeledDescription);
+      }
+      continue;
+    }
+
+    if (
+      getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_COMPANY_LABELS) !== undefined
+      || getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_JOB_TITLE_LABELS) !== undefined
+    ) {
+      continue;
+    }
+
+    if (MANUAL_51JOB_SECTION_HEADER_SET.has(line)) {
+      continue;
+    }
+
+    descriptionLines.push(line);
+  }
+
+  return descriptionLines;
+}
+
+function extractManual51jobCompany(value: string): string | undefined {
+  const match = normalizeManual51jobLine(value).match(MANUAL_51JOB_COMPANY_PATTERN);
+  return match?.[1]?.trim() || undefined;
+}
+
+function extractManual51jobInstitution(value: string): string | undefined {
+  const match = normalizeManual51jobLine(value).match(MANUAL_51JOB_INSTITUTION_PATTERN);
+  return match?.[1]?.trim() || undefined;
+}
+
+function extractManual51jobQualification(value: string): string | undefined {
+  const match = normalizeManual51jobLine(value).match(MANUAL_51JOB_QUALIFICATION_PATTERN);
+  return match?.[1]?.trim() || undefined;
+}
+
+function cleanManual51jobRemainder(value: string): string | undefined {
+  const normalized = normalizeManual51jobLine(
+    value
+      .replace(/[|｜丨]/g, " ")
+      .replace(/[：:]/g, " ")
+      .replace(/[()（）]/g, " ")
+      .replace(/[，,。；;]/g, " ")
+  );
+  return normalized || undefined;
+}
+
+function parseManual51jobWorkHistoryBlock(block: string): ResumeWorkHistoryItem | null {
+  const lines = block
+    .split("\n")
+    .map((line) => normalizeManual51jobLine(line))
+    .filter(Boolean);
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const raw = lines.join("\n");
+  const headerLine = lines[0] || "";
+  const dateRange = extractManual51jobDateRange(headerLine || raw);
+  const companyFromLabel = lines
+    .map((line) => getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_COMPANY_LABELS))
+    .find((value): value is string => Boolean(value));
+  const jobTitleFromLabel = lines
+    .map((line) => getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_JOB_TITLE_LABELS))
+    .find((value): value is string => Boolean(value));
+
+  let titleLine = headerLine;
+  if (dateRange.matchedText) {
+    titleLine = normalizeManual51jobLine(titleLine.replace(dateRange.matchedText, " "));
+  }
+  if (!titleLine && lines.length > 1) {
+    titleLine = lines[1] || "";
+  }
+
+  const companyName = companyFromLabel || extractManual51jobCompany(titleLine);
+  const jobTitle = jobTitleFromLabel || (() => {
+    if (!companyName) {
+      return undefined;
+    }
+    const remainder = cleanManual51jobRemainder(titleLine.replace(companyName, " "));
+    if (!remainder || remainder.length > 40) {
+      return undefined;
+    }
+    return remainder;
+  })();
+  const description = cleanManual51jobRemainder(getManual51jobDescriptionLines(lines).join("\n"));
+
+  if (!raw && !companyName && !jobTitle && !description && !dateRange.startDate && !dateRange.endDate) {
+    return null;
+  }
+
+  return {
+    raw,
+    ...(companyName ? { companyName } : {}),
+    ...(jobTitle ? { jobTitle } : {}),
+    ...(description ? { description } : {}),
+    ...(dateRange.startDate ? { startDate: dateRange.startDate } : {}),
+    ...(dateRange.endDate ? { endDate: dateRange.endDate } : {}),
+  };
+}
+
+function getManual51jobWorkHistory(text: string | undefined): ResumeWorkHistoryItem[] {
+  if (!text) {
+    return [];
+  }
+
+  return splitManual51jobBlocks(text)
+    .map((block) => parseManual51jobWorkHistoryBlock(block))
+    .filter((entry): entry is ResumeWorkHistoryItem => entry !== null);
+}
+
+function parseManual51jobEducationBlock(block: string): ResumeProfileEducationItem | null {
+  const lines = block
+    .split("\n")
+    .map((line) => normalizeManual51jobLine(line))
+    .filter(Boolean);
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const headerLine = lines[0] || "";
+  const dateRange = extractManual51jobDateRange(headerLine || block);
+  const institutionFromLabel = lines
+    .map((line) => getManual51jobLabeledLineValue(line, MANUAL_51JOB_EDUCATION_INSTITUTION_LABELS))
+    .find((value): value is string => Boolean(value));
+  const qualificationFromLabel = lines
+    .map((line) => getManual51jobLabeledLineValue(line, MANUAL_51JOB_EDUCATION_QUALIFICATION_LABELS))
+    .find((value): value is string => Boolean(value));
+  const fieldFromLabel = lines
+    .map((line) => getManual51jobLabeledLineValue(line, MANUAL_51JOB_EDUCATION_FIELD_LABELS))
+    .find((value): value is string => Boolean(value));
+  const descriptionFromLabel = lines
+    .map((line) => getManual51jobLabeledLineValue(line, MANUAL_51JOB_EDUCATION_DESCRIPTION_LABELS))
+    .find((value): value is string => Boolean(value));
+
+  let titleLine = headerLine;
+  if (dateRange.matchedText) {
+    titleLine = normalizeManual51jobLine(titleLine.replace(dateRange.matchedText, " "));
+  }
+  if (!titleLine && lines.length > 1) {
+    titleLine = lines[1] || "";
+  }
+
+  const institution = institutionFromLabel || extractManual51jobInstitution(titleLine);
+  const qualification = qualificationFromLabel || extractManual51jobQualification(titleLine);
+  const fieldOfStudy = fieldFromLabel || (() => {
+    if (!titleLine) {
+      return undefined;
+    }
+    let remainder = titleLine;
+    if (institution) {
+      remainder = remainder.replace(institution, " ");
+    }
+    if (qualification) {
+      remainder = remainder.replace(qualification, " ");
+    }
+    return cleanManual51jobRemainder(remainder);
+  })();
+  const description = cleanManual51jobRemainder(
+    [
+      descriptionFromLabel,
+      ...lines.slice(1).filter((line) => {
+        return getManual51jobLabeledLineValue(line, MANUAL_51JOB_EDUCATION_INSTITUTION_LABELS) === undefined
+          && getManual51jobLabeledLineValue(line, MANUAL_51JOB_EDUCATION_FIELD_LABELS) === undefined
+          && getManual51jobLabeledLineValue(line, MANUAL_51JOB_EDUCATION_QUALIFICATION_LABELS) === undefined;
+      }),
+    ].filter(Boolean).join("\n")
+  );
+
+  if (!institution && !qualification && !fieldOfStudy && !description) {
+    return null;
+  }
+
+  return {
+    ...(institution ? { institution } : {}),
+    ...(qualification ? { qualification } : {}),
+    ...(fieldOfStudy ? { fieldOfStudy } : {}),
+    ...(description ? { description } : {}),
+    ...(dateRange.startDate ? { startDate: dateRange.startDate } : {}),
+    ...(dateRange.endDate ? { endDate: dateRange.endDate } : {}),
+  };
+}
+
+function getManual51jobProfileEducation(text: string | undefined): ResumeProfileEducationItem[] | undefined {
+  if (!text) {
+    return undefined;
+  }
+
+  const normalized = splitManual51jobBlocks(text)
+    .map((block) => parseManual51jobEducationBlock(block))
+    .filter((entry): entry is ResumeProfileEducationItem => entry !== null);
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function pickManual51jobEducation(profileEducation: ResumeProfileEducationItem[] | undefined): string | undefined {
+  if (!profileEducation || profileEducation.length === 0) {
+    return undefined;
+  }
+
+  const qualifications = profileEducation
+    .map((entry) => extractManual51jobQualification(entry.qualification || ""))
+    .filter((value): value is string => Boolean(value));
+  if (qualifications.length === 0) {
+    return undefined;
+  }
+
+  return qualifications.sort((left, right) => {
+    const leftRank = MANUAL_51JOB_EDUCATION_RANK[left] || 0;
+    const rightRank = MANUAL_51JOB_EDUCATION_RANK[right] || 0;
+    return rightRank - leftRank;
+  })[0];
+}
+
+function inferManual51jobFilenameResumeName(entryPath: string | undefined): string | undefined {
+  if (!entryPath) {
+    return undefined;
+  }
+
+  const basename = entryPath
+    .split(/[\\/]/)
+    .pop()
+    ?.replace(/\.[^.]+$/, "")
+    .replace(/^51job[_-]?/i, "")
+    .trim();
+  const normalized = basename?.replace(/\([^)]*\)/g, "").trim();
+  return normalized || undefined;
+}
+
+function isLikelyManual51jobResumeName(value: string): boolean {
+  if (!value || value.length > 20) {
+    return false;
+  }
+  if (/\d/.test(value) || /[：:｜|丨/]/.test(value) || /[()（）]/.test(value)) {
+    return false;
+  }
+
+  const normalized = value.replace(/\s+/g, "");
+  if (MANUAL_51JOB_NAME_EXCLUSIONS.has(normalized)) {
+    return false;
+  }
+
+  return /\p{Script=Han}|[A-Za-z]/u.test(normalized);
+}
+
+function inferManual51jobResumeName(lines: readonly string[], entryPath?: string): string | undefined {
+  const filenameCandidate = inferManual51jobFilenameResumeName(entryPath);
+
+  for (const line of lines.slice(0, 12)) {
+    const firstToken = line.split(/[\s|｜丨]/).find(Boolean)?.trim();
+    if (firstToken && isLikelyManual51jobResumeName(firstToken)) {
+      return firstToken;
+    }
+  }
+
+  return filenameCandidate;
+}
+
+function inferManual51jobProfileId(lines: readonly string[], entryPath?: string): string | undefined {
+  const entryMatch = entryPath?.match(/\((\d{6,})\)/);
+  if (entryMatch?.[1]) {
+    return entryMatch[1];
+  }
+
+  const labeledValue = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_PROFILE_ID_LABELS);
+  const match = labeledValue?.match(/\d{6,}/);
+  return match?.[0] || undefined;
+}
+
+export function parse51jobManualResume(args: {
+  text: string;
+  entryPath?: string;
+  fallbackName?: string;
+  fallbackProfileId?: string;
+}): Parsed51jobManualResume {
+  const text = normalizeManual51jobText(args.text);
+  const lines = splitManual51jobLines(text);
+  const sections = collectManual51jobSections(text);
+  const workHistory = getManual51jobWorkHistory(getManual51jobSectionText(sections, "workHistory"));
+  const profileEducation = getManual51jobProfileEducation(getManual51jobSectionText(sections, "education"));
+  const name = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_NAME_LABELS)
+    || inferManual51jobResumeName(lines, args.entryPath)
+    || args.fallbackName;
+  const profileId = inferManual51jobProfileId(lines, args.entryPath) || args.fallbackProfileId;
+  const location = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_LOCATION_LABELS)
+    || inferManual51jobInlineLocation(text);
+  const jobIntention = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_JOB_INTENTION_LABELS);
+  const expectedSalary = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_SALARY_LABELS);
+  const experience = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_EXPERIENCE_LABELS);
+  const education = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_EDUCATION_LABELS)
+    || pickManual51jobEducation(profileEducation);
+  const selfIntro = cleanManual51jobRemainder(getManual51jobSectionText(sections, "selfIntro") || "");
+
+  return {
+    ...(name ? { name } : {}),
+    ...(profileId ? { profileId } : {}),
+    ...(location ? { location } : {}),
+    ...(jobIntention ? { jobIntention } : {}),
+    ...(expectedSalary ? { expectedSalary } : {}),
+    ...(experience ? { experience } : {}),
+    ...(education ? { education } : {}),
+    ...(selfIntro ? { selfIntro } : {}),
+    workHistory,
+    ...(profileEducation ? { profileEducation } : {}),
+    resumeSnippet: { text },
+  };
+}

@@ -63,6 +63,16 @@ function convexSuccess(value: unknown): Response {
 
 async function createDocxFile(name: string, text: string): Promise<File> {
   const zip = new JSZip();
+  const paragraphs = text
+    .split("\n")
+    .map((line) => line
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;"))
+    .map((line) => `    <w:p><w:r><w:t>${line}</w:t></w:r></w:p>`)
+    .join("\n");
   zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -76,7 +86,7 @@ async function createDocxFile(name: string, text: string): Promise<File> {
   zip.folder("word")?.file("document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
-    <w:p><w:r><w:t>${text}</w:t></w:r></w:p>
+${paragraphs}
   </w:body>
 </w:document>`);
 
@@ -93,6 +103,21 @@ describe("manual resume import route", () => {
 
   it("allows hr workspace users to upload direct DOCX resumes", async () => {
     const calls: ConvexCall[] = [];
+    const documentText = [
+      "姓名：张三",
+      "人才ID：123456",
+      "区域：广东东莞",
+      "应聘方向：销售工程师",
+      "工作经验：5年",
+      "最高学历：本科",
+      "工作经历",
+      "2021-03~至今 东莞精密机械有限公司 销售工程师",
+      "工作描述：负责华南区机床销售与客户维护",
+      "教育经历",
+      "2015-09~2019-06 华南理工大学 机械设计制造及其自动化 本科",
+      "个人优势",
+      "熟悉CNC机床销售、客户跟进与方案沟通",
+    ].join("\n");
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
@@ -111,7 +136,7 @@ describe("manual resume import route", () => {
 
     const app = await createTestApp();
     const formData = new FormData();
-    formData.append("files", await createDocxFile("51job_张三(123456).docx", "张三 销售工程师 CNC"));
+    formData.append("files", await createDocxFile("51job_张三(123456).docx", documentText));
     formData.append("keyword", "销售工程师");
 
     const response = await app.request("/api/resumes/manual-import", {
@@ -151,29 +176,49 @@ describe("manual resume import route", () => {
       ],
     });
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.args).toMatchObject({
-      resumes: [
-        {
-          source: "51job-manual",
-          externalId: "51job-manual:profile:123456",
-          tags: ["销售工程师"],
-          content: expect.objectContaining({
-            name: "张三",
-            profileType: "51job-manual",
-            selfIntro: "张三 销售工程师 CNC",
-            resumeSnippet: { text: "张三 销售工程师 CNC" },
-          }),
-        },
-      ],
+    const submittedResume = (calls[0]?.args.resumes as Array<Record<string, unknown>> | undefined)?.[0];
+    expect(submittedResume).toMatchObject({
+      source: "51job-manual",
+      externalId: "51job-manual:profile:123456",
+      tags: ["销售工程师"],
     });
+    const content = submittedResume?.content;
+    expect(content).toHaveProperty("name", "张三");
+    expect(content).toHaveProperty("profileType", "51job-manual");
+    expect(content).toHaveProperty("experience", "5年");
+    expect(content).toHaveProperty("education", "本科");
+    expect(content).toHaveProperty("location", "广东东莞");
+    expect(content).toHaveProperty("jobIntention", "销售工程师");
+    expect(content).toHaveProperty("selfIntro", "熟悉CNC机床销售、客户跟进与方案沟通");
+    expect(content).toHaveProperty("resumeSnippet.text");
+    expect(String((content as { resumeSnippet?: { text?: string } }).resumeSnippet?.text)).toContain("姓名：张三");
+    expect(String((content as { resumeSnippet?: { text?: string } }).resumeSnippet?.text)).toContain("东莞精密机械有限公司 销售工程师");
+    expect(content).toHaveProperty("locationHierarchy");
+    expect(content).toHaveProperty("profileId", "123456");
+    expect(content).toHaveProperty("workHistory.0.companyName", "东莞精密机械有限公司");
+    expect(content).toHaveProperty("workHistory.0.jobTitle", "销售工程师");
+    expect(content).toHaveProperty("workHistory.0.description", "负责华南区机床销售与客户维护");
+    expect(content).toHaveProperty("workHistory.0.startDate", "2021-03");
+    expect(content).toHaveProperty("workHistory.0.endDate", "至今");
+    expect(String((content as { workHistory?: Array<{ raw?: string }> }).workHistory?.[0]?.raw)).toContain("东莞精密机械有限公司 销售工程师");
+    expect(content).toHaveProperty("profileEducation.0.institution", "华南理工大学");
+    expect(content).toHaveProperty("profileEducation.0.qualification", "本科");
+    expect(content).toHaveProperty("profileEducation.0.fieldOfStudy", "机械设计制造及其自动化");
+    expect(content).toHaveProperty("profileEducation.0.startDate", "2015-09");
+    expect(content).toHaveProperty("profileEducation.0.endDate", "2019-06");
   });
 
   it("imports malformed 51job DOCX files via fallback XML extraction", async () => {
     const calls: ConvexCall[] = [];
     const fallbackText = [
-      "王某",
+      "姓名：王某",
       "人才ID: 987654321",
-      "对门窗体验箱和气密性仪器进行销售",
+      "现居·广州",
+      "应聘方向：销售工程师",
+      "工作经历",
+      "2020-01~2024-12 广州门窗设备有限公司 销售工程师",
+      "工作描述：对门窗体验箱和气密性仪器进行销售",
+      "个人优势",
       "熟悉门窗检测与客户跟进",
     ].join("\n");
     const fallbackFileName = "51job_王某(987654321).docx";
@@ -243,8 +288,26 @@ describe("manual resume import route", () => {
           content: expect.objectContaining({
             name: "王某",
             profileType: "51job-manual",
-            selfIntro: fallbackText,
+            location: "广州",
+            locationHierarchy: {
+              country: "中国",
+              province: "广东",
+              city: "广州",
+              matchedFrom: "location",
+              confidence: "high",
+            },
+            jobIntention: "销售工程师",
+            selfIntro: "熟悉门窗检测与客户跟进",
             resumeSnippet: { text: fallbackText },
+            workHistory: [
+              expect.objectContaining({
+                companyName: "广州门窗设备有限公司",
+                jobTitle: "销售工程师",
+                description: "对门窗体验箱和气密性仪器进行销售",
+                startDate: "2020-01",
+                endDate: "2024-12",
+              }),
+            ],
           }),
         },
       ],

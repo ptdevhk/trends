@@ -832,6 +832,52 @@ describe("IngestComputeService", () => {
     expect(index.searchText).not.toContain("机械助理");
   });
 
+  it("should produce evidence from manual-import-shaped structured work history even with empty selfIntro", () => {
+    const item = {
+      ...SAMPLE_RESUME_JUNIOR.data[0],
+      selfIntro: "",
+      jobIntention: "销售工程师",
+      workHistory: [
+        {
+          raw: "2021-03~2025-03 东莞精密机械有限公司 销售工程师",
+          companyName: "东莞精密机械有限公司",
+          jobTitle: "销售工程师",
+          description: "负责华南区机床销售与客户维护",
+          startDate: "2021-03",
+          endDate: "2025-03",
+        },
+      ],
+      profileEducation: [
+        {
+          institution: "华南理工大学",
+          qualification: "本科",
+          fieldOfStudy: "机械设计制造及其自动化",
+          startDate: "2015-09",
+          endDate: "2019-06",
+        },
+      ],
+      resumeSnippet: {
+        text: "姓名：张三\n工作经历\n2021-03~至今 东莞精密机械有限公司 销售工程师\n工作描述：负责华南区机床销售与客户维护",
+      },
+    };
+
+    const index = buildResumeIndex(item, 0);
+    const result = service.computeOne("resume-manual-51job", { data: [item] });
+    const salesRole = result.roleSignals.find((entry) => entry.type === "sales");
+
+    expect(index.evidenceText).toContain("东莞精密机械有限公司");
+    expect(index.evidenceText).toContain("销售工程师");
+    expect(result.evidenceText).toBe(index.evidenceText);
+    expect(result.ruleScores["jd-lathe-sales"]).toBeGreaterThan(0);
+    expect(salesRole?.years).toBeGreaterThan(0);
+    expect(salesRole?.matchedWorkEntries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        companyName: "东莞精密机械有限公司",
+        jobTitle: "销售工程师",
+      }),
+    ]));
+  });
+
   it("should use structured work history dates and company names", () => {
     const item = {
       ...SAMPLE_RESUME_JUNIOR.data[0],
