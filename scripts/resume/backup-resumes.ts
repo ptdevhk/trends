@@ -1,4 +1,11 @@
-import { resolveApiUrl, resolveWorkspace, splitCsv, parsePositiveInteger, extractFilename, writePrettyJsonFile } from "./operator-utils.ts";
+import {
+  resolveApiUrl,
+  resolveWorkspace,
+  splitCsv,
+  parsePositiveInteger,
+  extractFilename,
+  writePortableBackupFile,
+} from "./operator-utils.ts";
 
 type BackupResponse = {
   metadata?: Record<string, unknown>;
@@ -63,7 +70,7 @@ async function main(): Promise<void> {
 
   const resumes = Array.isArray(parsed.resumes) ? parsed.resumes : Array.isArray(parsed.data) ? parsed.data : [];
   const filePath = resolveOutputPath(response.headers.get("content-disposition"), outPath);
-  await writePrettyJsonFile(filePath, parsed);
+  const bytes = await writePortableBackupFile(filePath, parsed);
 
   console.log(JSON.stringify({
     success: true,
@@ -71,7 +78,7 @@ async function main(): Promise<void> {
     workspace,
     file: filePath,
     count: resumes.length,
-    bytes: Buffer.byteLength(responseText, "utf8"),
+    bytes,
   }, null, 2));
 }
 

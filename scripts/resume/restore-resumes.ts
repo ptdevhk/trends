@@ -1,6 +1,4 @@
-import { readFile } from "node:fs/promises";
-
-import { resolveApiUrl, resolveWorkspace, parseTruthy } from "./operator-utils.ts";
+import { resolveApiUrl, resolveWorkspace, parseTruthy, readPortableBackupFile } from "./operator-utils.ts";
 
 type RestorePayload = {
   metadata?: Record<string, unknown>;
@@ -45,7 +43,7 @@ async function main(): Promise<void> {
     throw new Error("MODE=replace requires YES=1");
   }
 
-  const raw = await readFile(filePath, "utf8");
+  const raw = await readPortableBackupFile(filePath);
   let parsed: RestorePayload;
   try {
     const decoded = JSON.parse(raw) as unknown;
