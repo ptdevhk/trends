@@ -1,11 +1,19 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toast } from 'sonner'
 import DebugIngest from './DebugIngest'
 
 const resetDatabaseMutation = vi.fn(async () => ({ count: 0 }))
 const clearAnalysesMutation = vi.fn(async () => ({ cleared: 0 }))
 const hardResetMutation = vi.fn(async () => ({ cleared: 0 }))
+const deleteResumesMutation = vi.fn(async () => ({
+  requested: 0,
+  deleted: 0,
+  missingResumeIds: [],
+  deletedAiTaggingResults: 0,
+  patchedScreeningSessions: 0,
+}))
 const backfillIngestDataAction = vi.fn(async () => ({ scheduled: 0 }))
 const reIngestStaleSkillsVersionAction = vi.fn(async () => ({ scheduled: 0 }))
 const reIngestAllResumesAction = vi.fn(async () => ({ scheduled: 0 }))
@@ -35,7 +43,7 @@ vi.mock('convex/react', () => ({
     return action
   },
   useMutation: () => {
-    const mutation = [clearAnalysesMutation, hardResetMutation, resetDatabaseMutation][mutationHookCallCount % 3]
+    const mutation = [clearAnalysesMutation, hardResetMutation, resetDatabaseMutation, deleteResumesMutation][mutationHookCallCount % 4]
     mutationHookCallCount += 1
     return mutation
   },
@@ -47,7 +55,10 @@ vi.mock('react-i18next', () => ({
       if (typeof options === 'string') {
         return options
       }
-      return options?.defaultValue ?? _key
+      if (options?.defaultValue) {
+        return options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => String(options[key] ?? `{{${key}}}`))
+      }
+      return _key
     },
   }),
 }))
@@ -201,7 +212,7 @@ describe('DebugIngest reset database dialog', () => {
     await user.click(dialogConfirmButton)
 
     await waitFor(() => {
-      expect(hardResetMutation).toHaveBeenCalledWith({})
+      expect(hardResetMutation).toHaveBeenCalledWith({ cursor: undefined })
     })
     await waitFor(() => {
       expect(reIngestAllResumesAction).toHaveBeenCalledWith({})
@@ -213,5 +224,150 @@ describe('DebugIngest reset database dialog', () => {
         )
       ).not.toBeInTheDocument()
     })
+  })
+
+  it('selects visible rows and bulk deletes selected resumes', async () => {
+    const user = userEvent.setup()
+    usePaginatedQueryMock.mockReturnValue({
+      results: [
+        {
+          resumeId: 'resume-1',
+          externalId: 'ext-1',
+          name: '赵先生',
+          jobIntention: '销售工程师',
+          location: '东莞',
+          ingestData: {
+            industryTags: ['sales'],
+            companyHits: ['fanuc'],
+            brandHits: [],
+            experienceLevel: 'mid',
+            ruleScoreCount: 2,
+            computedAt: 1_700_000_000_000,
+            skillsVersion: 3,
+            taggingEntries: [],
+          },
+        },
+        {
+          resumeId: 'resume-2',
+          externalId: 'ext-2',
+          name: '李小姐',
+          jobIntention: '技術支援',
+          location: '深圳',
+          ingestData: {
+            industryTags: ['service'],
+            companyHits: ['mitsubishi'],
+            brandHits: [],
+            experienceLevel: 'senior',
+            ruleScoreCount: 1,
+            computedAt: 1_700_000_000_100,
+            skillsVersion: 3,
+            taggingEntries: [],
+          },
+        },
+      ],
+      status: 'Exhausted',
+      isLoading: false,
+      loadMore,
+    })
+    deleteResumesMutation.mockResolvedValueOnce({
+      requested: 2,
+      deleted: 2,
+      missingResumeIds: [],
+      deletedAiTaggingResults: 4,
+      patchedScreeningSessions: 1,
+    })
+
+    render(<DebugIngest />)
+
+    const checkboxes = screen.getAllByRole('checkbox')
+    const selectAllCheckbox = checkboxes[0]
+    if (!selectAllCheckbox) {
+      throw new Error('Expected select all checkbox')
+    }
+    await user.click(selectAllCheckbox)
+
+    const bulkDeleteButton = screen.getByRole('button', { name: 'Delete Selected (2)' })
+    expect(bulkDeleteButton).toBeEnabled()
+    await user.click(bulkDeleteButton)
+
+    expect(
+      screen.getByText(
+        'Delete 2 selected resume(s) and their related AI tagging results, then remove stale reviewed-session references? Candidate workflow state will be preserved. This cannot be undone.'
+      )
+    ).toBeInTheDocument()
+
+    const confirmButtons = screen.getAllByRole('button', { name: 'Delete Selected (2)' })
+    const dialogConfirmButton = confirmButtons[confirmButtons.length - 1]
+    if (!dialogConfirmButton) {
+      throw new Error('Expected bulk delete confirmation button')
+    }
+    await user.click(dialogConfirmButton)
+
+    await waitFor(() => {
+      expect(deleteResumesMutation).toHaveBeenCalledWith({ resumeIds: ['resume-1', 'resume-2'] })
+    })
+    expect(toast.success).toHaveBeenCalledWith(
+      'Deleted 2 resume(s), removed 4 AI tagging result(s), and patched 1 screening session(s).'
+    )
+  })
+
+  it('deletes a single resume from the row action', async () => {
+    const user = userEvent.setup()
+    usePaginatedQueryMock.mockReturnValue({
+      results: [
+        {
+          resumeId: 'resume-1',
+          externalId: 'ext-1',
+          name: '赵先生',
+          jobIntention: '销售工程师',
+          location: '东莞',
+          ingestData: {
+            industryTags: ['sales'],
+            companyHits: ['fanuc'],
+            brandHits: [],
+            experienceLevel: 'mid',
+            ruleScoreCount: 2,
+            computedAt: 1_700_000_000_000,
+            skillsVersion: 3,
+            taggingEntries: [],
+          },
+        },
+      ],
+      status: 'Exhausted',
+      isLoading: false,
+      loadMore,
+    })
+    deleteResumesMutation.mockResolvedValueOnce({
+      requested: 1,
+      deleted: 1,
+      missingResumeIds: [],
+      deletedAiTaggingResults: 1,
+      patchedScreeningSessions: 0,
+    })
+
+    render(<DebugIngest />)
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0])
+
+    expect(
+      screen.getByText(
+        'Delete 赵先生 and its related AI tagging results, then remove stale reviewed-session references? Candidate workflow state will be preserved. This cannot be undone.'
+      )
+    ).toBeInTheDocument()
+
+    const dialogButtons = screen.getAllByRole('button', { name: 'Delete' })
+    const dialogConfirmButton = dialogButtons[dialogButtons.length - 1]
+    if (!dialogConfirmButton) {
+      throw new Error('Expected single delete confirmation button')
+    }
+
+    await user.click(dialogConfirmButton)
+
+    await waitFor(() => {
+      expect(deleteResumesMutation).toHaveBeenCalledWith({ resumeIds: ['resume-1'] })
+    })
+    expect(toast.success).toHaveBeenCalledWith(
+      'Deleted 1 resume(s), removed 1 AI tagging result(s), and patched 0 screening session(s).'
+    )
   })
 })
