@@ -82,6 +82,7 @@ export default defineSchema({
             breakdown: v.optional(v.any()), // Stores detailed scores per category
             jobDescriptionId: v.optional(v.string()), // Tracks which JD was used for analysis
             promptVersion: v.optional(v.number()),
+            locale: v.optional(v.string()),
             queryLocation: v.optional(v.string()),
             analyzedAt: v.optional(v.number()),
         })),
