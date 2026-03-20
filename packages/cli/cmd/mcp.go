@@ -227,6 +227,16 @@ func mcpTools() []map[string]any {
 			},
 		},
 		{
+			"name":        "migrate_backfill_manual_51job",
+			"description": "Run migrations:backfillManual51jobStructuredContent",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"limit": map[string]any{"type": "integer", "minimum": 1},
+				},
+			},
+		},
+		{
 			"name":        "migrate_backfill_score",
 			"description": "Run migrations:backfillPrimaryRuleScore",
 			"inputSchema": map[string]any{"type": "object"},
@@ -308,20 +318,17 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 		}
 		return prettyJSON(result)
 	case "migrate_reindex_search":
-		result, err := runConvexCommand(ctx, "migrations:reindexSearchText")
+		result, err := runConvexCommand(ctx, reindexSearchMigration)
 		if err != nil {
 			return "", err
 		}
 		return result, nil
 	case "migrate_backfill_ingest":
-		limit := intArg(args, "limit", 100)
-		result, err := runConvexCommand(ctx, "migrations:backfillIngestData", fmt.Sprintf(`{"limit":%d}`, limit))
-		if err != nil {
-			return "", err
-		}
-		return result, nil
+		return runMCPMigrationWithLimit(ctx, args, backfillIngestMigration)
+	case "migrate_backfill_manual_51job":
+		return runMCPMigrationWithLimit(ctx, args, backfillManual51jobMigration)
 	case "migrate_backfill_score":
-		result, err := runConvexCommand(ctx, "migrations:backfillPrimaryRuleScore")
+		result, err := runConvexCommand(ctx, backfillScoreMigration)
 		if err != nil {
 			return "", err
 		}
@@ -329,6 +336,14 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
+}
+
+func runMCPMigrationWithLimit(ctx context.Context, args map[string]interface{}, migration string) (string, error) {
+	return runMCPMigrationWithLimitForRunner(ctx, args, migration, runConvexCommand)
+}
+
+func runMCPMigrationWithLimitForRunner(ctx context.Context, args map[string]interface{}, migration string, runner convexRunner) (string, error) {
+	return runLimitedMigration(ctx, runner, migration, migrationLimitArgKey(migration), intArg(args, "limit", 100))
 }
 
 func intArg(args map[string]interface{}, key string, defaultValue int) int {

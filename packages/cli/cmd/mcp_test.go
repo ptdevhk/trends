@@ -145,6 +145,22 @@ func TestArgumentHelpers(t *testing.T) {
 	}
 }
 
+func TestRunMCPMigrationWithLimitForRunnerUsesManual51jobBatchSize(t *testing.T) {
+	var gotArgs []string
+
+	runner := func(ctx context.Context, migration string, extraArgs ...string) (string, error) {
+		gotArgs = append([]string(nil), extraArgs...)
+		return `{"ok":true}`, nil
+	}
+
+	if _, err := runMCPMigrationWithLimitForRunner(context.Background(), map[string]interface{}{"limit": float64(3)}, backfillManual51jobMigration, runner); err != nil {
+		t.Fatalf("runMCPMigrationWithLimitForRunner returned error: %v", err)
+	}
+	if len(gotArgs) != 1 || gotArgs[0] != `{"batchSize":3}` {
+		t.Fatalf("unexpected migration args: %+v", gotArgs)
+	}
+}
+
 func TestMCPToolsIncludeResumeDebugReadOnlyTools(t *testing.T) {
 	tools := mcpTools()
 	names := make(map[string]bool, len(tools))
@@ -153,7 +169,7 @@ func TestMCPToolsIncludeResumeDebugReadOnlyTools(t *testing.T) {
 		names[name] = true
 	}
 
-	for _, required := range []string{"resume_matches", "resume_match_runs", "resume_skills_version"} {
+	for _, required := range []string{"resume_matches", "resume_match_runs", "resume_skills_version", "migrate_backfill_manual_51job"} {
 		if !names[required] {
 			t.Fatalf("missing MCP tool %q", required)
 		}
