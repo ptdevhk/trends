@@ -12,6 +12,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action } from "./_generated/server";
 import { resolveChatCompletionModel } from "./lib/ai_model";
+import { SEEK_HOST_SUFFIX } from "./lib/resume_identity";
 
 const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
 
@@ -44,10 +45,21 @@ type NormalizedRoleSignal = {
 export const SYSTEM_PROMPT = getResumeAiPromptDefinition(DEFAULT_AI_OUTPUT_LOCALE).sections.systemPrompt;
 export const USER_PROMPT_TEMPLATE = getResumeAiUserPromptTemplate(DEFAULT_AI_OUTPUT_LOCALE);
 
+export function inferSourceKey(source: string | undefined): "seek" | undefined {
+    if (source?.toLowerCase().endsWith(SEEK_HOST_SUFFIX)) return "seek";
+    return undefined;
+}
+
 // For Convex deployments, set AI_OUTPUT_LOCALE via the dashboard or `convex env set`.
-export function resolveAIOutputLocale(): string {
+export function resolveAIOutputLocale(scope?: { sourceKey?: string }): string {
     const locale = process.env.AI_OUTPUT_LOCALE?.trim();
-    return resolveResumeAiPromptLocale(locale).requestedLocale;
+    if (locale && locale.length > 0) {
+        return resolveResumeAiPromptLocale(locale).requestedLocale;
+    }
+    if (scope?.sourceKey === "seek") {
+        return "en";
+    }
+    return resolveResumeAiPromptLocale(undefined).requestedLocale;
 }
 
 export function buildSystemPrompt(locale: string): string {
@@ -378,7 +390,8 @@ export const analyzeResume = action({
         const matchingRules = args.matchingRules ? JSON.stringify(args.matchingRules, null, 2) : "使用默认评分标准";
 
         // 2. Prepare Prompt
-        const locale = resolveAIOutputLocale();
+        const sourceKey = inferSourceKey(resume.source);
+        const locale = resolveAIOutputLocale({ sourceKey });
         const promptVersion = getResumeAiPromptDefinition(locale).metadata.version;
         const norm = normalizeResume(resume);
         const prompt = hydrateUserPrompt(
@@ -420,6 +433,7 @@ export const analyzeResume = action({
                 recommendation: normalizedResult.recommendation || "no_match",
                 jobDescriptionId: args.jobDescriptionId || "default",
                 promptVersion,
+                locale,
                 analyzedAt: Date.now(),
             },
         });
