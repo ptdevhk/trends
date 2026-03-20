@@ -88,9 +88,10 @@ Required flow:
 
 ### Start Development
 ```bash
-make install-deps                           # Default: bootstrap governance skill into ~/.codex/skills
-SKILL_INSTALL_TARGET=all make install-deps  # Optional: also bootstrap ~/.agents/skills
+make install-deps                           # Sync repo project skills into .agents/.claude and install configured global skills
 CONVEX_MIRROR_MODE=mirror-first make install-deps  # Optional: mirror-first Convex prefetch during bootstrap
+make sync-project-skills                    # Refresh committed project skill artifacts after editing dev-docs/skills/*
+make install-global-skills                  # Reinstall configured external global skills from config/skills/install.yaml
 make prefetch-convex                        # Prefetch local Convex backend + dashboard cache
 CONVEX_MIRROR_MODE=mirror-first make prefetch-convex  # Optional: try configured mirrors before GitHub
 make dev                # Full local stack
@@ -122,7 +123,7 @@ make deploy-seed                            # Force a full upgrade with seeded d
 
 ### Verification
 ```bash
-make check                  # Default: validate ~/.codex/skills governance install
+make check                  # Default: validate committed project skill sync plus ~/.codex/skills governance install
 make check TARGET=all       # Optional: validate governance installs in both skill roots
 make check-build TARGET=all # Optional: include build validation after dual-root governance checks
 make check-node
@@ -143,6 +144,8 @@ npm --workspace @trends/web run gen:api
 ```bash
 make sync-agent-policy
 make check-agent-policy
+make sync-project-skills
+make check-project-skills
 make check-agent-skill              # Default: validate ~/.codex/skills copy
 make check-agent-skill TARGET=all   # Optional: validate ~/.codex/skills and ~/.agents/skills
 TARGET=all make sync-agent-governance  # Optional: run policy sync + governance skill install in both roots

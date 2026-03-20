@@ -1,0 +1,3 @@
+display_name: Resume QA Hybrid MCP
+short_description: Create executable hybrid QA plans for resume flows with MCP/browser and API checks.
+default_prompt: Use the resume-qa-hybrid-mcp workflow. Load references/test-plan-template.md as the canonical template, adapt it to the requested scope, and produce an executable QA plan with MCP/browser scenarios, API assertions, and explicit pass/fail criteria.

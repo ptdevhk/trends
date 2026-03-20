@@ -11,7 +11,7 @@
 		backup-resumes restore-resumes \
 		clear-resumes \
 		cli-build cli-install cli-test \
-		sync-agent-policy check-agent-policy install-agent-skill check-agent-skill sync-agent-governance \
+		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
@@ -351,6 +351,22 @@ check-resume-field-usage-policy:
 install-agent-skill:
 	@./scripts/skills/install-skill.sh --skill trends-agent-governance --target "$(or $(TARGET),codex)"
 
+# Sync committed repo project skills into .agents/skills and .claude/skills
+sync-project-skills:
+	@./scripts/skills/sync-project-skills.sh
+
+# Validate repo project skill structure + committed sync drift
+check-project-skills:
+	@./scripts/skills/sync-project-skills.sh --check
+
+# Install configured external global skills from config/skills/install.yaml
+install-global-skills:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/skills/install-global-skills.ts; \
+	else \
+		npx tsx scripts/skills/install-global-skills.ts; \
+	fi
+
 # Validate repo governance skill structure + installed skill sync for the selected local target
 check-agent-skill:
 	@if command -v bun > /dev/null 2>&1; then \
@@ -649,8 +665,8 @@ fresh-env: clean clean-db
 	$(MAKE) install-deps
 	@echo "Fresh environment ready."
 
-# Run all validation checks (Python + Node.js + governance skill validation; honors TARGET=all)
-check: check-python check-node check-agent-policy check-agent-skill
+# Run all validation checks (Python + Node.js + project skill sync + governance skill validation; honors TARGET=all)
+check: check-python check-node check-project-skills check-agent-policy check-agent-skill
 	@echo "All checks passed"
 
 # Python checks
@@ -817,9 +833,9 @@ help:
 	@echo "  i18n-build     Build static sites for all locales"
 	@echo ""
 	@echo "Dependencies:"
-	@echo "  install-deps [SKILL_INSTALL_TARGET=codex|agents|all] [CONVEX_MIRROR_MODE=off|fallback|mirror-first]"
-	@echo "               Install deps, prefetch Convex assets, and bootstrap governance skill targets"
-	@echo "               See ./scripts/install-deps.sh --help for skill target, CI=true/1, and additional prefetch env knobs"
+	@echo "  install-deps [CONVEX_MIRROR_MODE=off|fallback|mirror-first]"
+	@echo "               Install deps, prefetch Convex assets, sync repo project skills, and install configured global skills"
+	@echo "               See ./scripts/install-deps.sh --help for CI=true/1 and additional prefetch env knobs"
 	@echo "  prefetch-convex [CONVEX_MIRROR_MODE=off|fallback|mirror-first] Prefetch Convex local backend + dashboard assets"
 	@echo "                 See ./scripts/prefetch-convex-backend.sh --help for CI=true/1, mirror bases, timeout, and curl env knobs"
 	@echo ""
@@ -832,6 +848,9 @@ help:
 	@echo "  fetch-docs     Fetch latest upstream documentation"
 	@echo "  sync-agent-policy Sync generated dev-docs/AGENTS.md from canonical AGENTS policy"
 	@echo "  check-agent-policy Validate generated dev-docs/AGENTS.md is up to date"
+	@echo "  sync-project-skills Sync committed project skills from dev-docs/skills into .agents/skills + .claude/skills"
+	@echo "  check-project-skills Validate project skill structure and committed sync drift"
+	@echo "  install-global-skills Install configured external global skills from config/skills/install.yaml"
 	@echo "  install-agent-skill [TARGET=codex|agents|all] Install governance skill into the selected skills dir"
 	@echo "  check-agent-skill [TARGET=codex|agents|all] Validate governance skill, command, rules file, and installed copy drift"
 	@echo "  install-skill SKILL=<name> [TARGET=codex|agents|all] Install any repo skill into the selected skills dir"

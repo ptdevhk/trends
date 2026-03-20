@@ -1,0 +1,22 @@
+version: 1
+
+project:
+  source_dir: dev-docs/skills
+  canonical_dir: .agents/skills
+  claude_dir: .claude/skills
+  skills:
+    - browser-extension-dev
+    - resume-qa-hybrid-mcp
+    - trends-agent-governance
+    - trends-cli
+
+global:
+  - source: https://github.com/karlorz/agent-skills
+    skill: obsidian-gh-knowledge
+    agents:
+      - codex
+      - claude-code
+  - source: https://github.com/karlorz/agent-skills
+    skill: simplify
+    agents:
+      - codex
