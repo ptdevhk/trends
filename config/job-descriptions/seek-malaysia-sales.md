@@ -1,7 +1,7 @@
 ---
 id: jd-seek-malaysia-sales
-title: 销售工程师 / 销售经理（马来西亚 SEEK）
-title_en: Sales Engineer / Sales Manager - Malaysia SEEK
+title: CNC销售（马来西亚 SEEK）
+title_en: CNC Sales - Malaysia SEEK
 department: Overseas Sales
 location: Kuala Lumpur MY
 source: seek.com
@@ -10,18 +10,17 @@ status: active
 required_roles:
   - type: sales
     min_years: 2
-    signals: [Sales Engineer, Sales Manager, account management, business development, CNC, machine tools]
+    signals: [sales, account management, business development, CNC, machine tools]
     verify_in: workHistory
 
 auto_match:
   keywords:
-    - Sales Engineer
-    - Sales Manager
+    - CNC Sales
     - Kuala Lumpur MY
     - Malaysia
-    - CNC
     - machine tools
     - account management
+    - business development
   locations:
     - Kuala Lumpur MY
     - Malaysia
@@ -33,7 +32,7 @@ auto_match:
 
 # Position Description
 
-Source candidates from SEEK for Malaysia equipment sales hiring, with focus on Kuala Lumpur and nationwide coverage.
+Source candidates from SEEK Malaysia for CNC sales hiring, with focus on Kuala Lumpur and nationwide coverage.
 
 # Required Criteria
 
@@ -45,9 +44,9 @@ Source candidates from SEEK for Malaysia equipment sales hiring, with focus on K
 # Preferred Criteria
 
 - Prior Malaysia market coverage or current Kuala Lumpur base
-- Experience as either Sales Engineer or Sales Manager
+- Experience in CNC sales or industrial equipment sales
 - Existing network across manufacturing, precision engineering, or industrial accounts
 
 # Keywords
 
-Sales Engineer, Sales Manager, Kuala Lumpur MY, Malaysia, CNC, machine tools, account management
+CNC Sales, Kuala Lumpur MY, Malaysia, machine tools, account management, business development
