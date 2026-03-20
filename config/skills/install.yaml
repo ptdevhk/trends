@@ -11,14 +11,12 @@ project:
     - trends-cli
 
 global:
-  - source: https://github.com/karlorz/agent-skills
+  - source: https://github.com/karlorz/agent-skills/tree/main/skills/obsidian-gh-knowledge
     skill: obsidian-gh-knowledge
-    path: skills/obsidian-gh-knowledge
     agents:
       - codex
       - claude-code
-  - source: https://github.com/karlorz/agent-skills
+  - source: https://github.com/karlorz/agent-skills/tree/main/skills/simplify
     skill: simplify
-    path: skills/simplify
     agents:
       - codex
