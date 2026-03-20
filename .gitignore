@@ -57,6 +57,7 @@ logs/
 # Node.js
 node_modules/
 package-lock.json
+skills-lock.json
 *.tsbuildinfo
 bin/
 coverage/

@@ -3,10 +3,9 @@ set -e
 
 usage() {
     echo "Usage: $0 [--help]"
-    echo "Installs local Python/Node dependencies and bootstraps governance artifacts."
+    echo "Installs local Python/Node dependencies and bootstraps repo/local skill artifacts."
     echo ""
     echo "Environment:"
-    echo "  SKILL_INSTALL_TARGET   Governance skill install target: codex|agents|all (default: codex)"
     echo "  CONVEX_MIRROR_MODE     Convex prefetch mode override: off|fallback|mirror-first"
     echo "                         Default is fallback, or off when CI=true/1"
     echo "  CONVEX_MIRROR_BASES    Convex prefetch mirror base URLs (comma-separated)"
@@ -58,25 +57,21 @@ is_ci_env() {
     [ "${CI:-}" = "true" ] || [ "${CI:-}" = "1" ]
 }
 
-resolve_skill_install_target() {
-    local target="${SKILL_INSTALL_TARGET:-codex}"
-    case "${target}" in
-        codex|agents|all)
-            echo "${target}"
-            ;;
-        *)
-            echo "Invalid SKILL_INSTALL_TARGET: ${target}" >&2
-            echo "Expected one of: codex, agents, all" >&2
-            exit 1
-            ;;
-    esac
+run_tsx() {
+    local script_path="$1"
+    shift
+
+    if command -v bun > /dev/null 2>&1; then
+        bunx tsx "$script_path" "$@"
+        return
+    fi
+
+    npx tsx "$script_path" "$@"
 }
 
 EFFECTIVE_CONVEX_MIRROR_MODE=""
-EFFECTIVE_SKILL_INSTALL_TARGET=""
 if ! is_ci_env; then
     EFFECTIVE_CONVEX_MIRROR_MODE="$(resolve_convex_mirror_mode)"
-    EFFECTIVE_SKILL_INSTALL_TARGET="$(resolve_skill_install_target)"
 fi
 
 echo "Installing Python dependencies..."
@@ -103,24 +98,19 @@ if [ -d "packages/convex" ]; then
     "$SCRIPT_DIR/prefetch-convex-backend.sh" || echo "Warning: Convex prefetch failed (non-fatal)"
 fi
 
-# Sync agent governance artifacts (policy mirror + target-aware skill install)
+# Sync agent governance artifacts and local skill bootstrap
 if ! is_ci_env; then
-    echo "Syncing agent governance artifacts (skill target: ${EFFECTIVE_SKILL_INSTALL_TARGET})..."
+    echo "Syncing agent governance artifacts and skill bootstrap..."
     _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if command -v bun > /dev/null 2>&1; then
-        bunx tsx "$_SCRIPT_DIR/agent-governance/sync-policy.ts" || echo "Warning: Agent policy sync failed (non-fatal)"
+    run_tsx "$_SCRIPT_DIR/agent-governance/sync-policy.ts" || echo "Warning: Agent policy sync failed (non-fatal)"
+    if [ -x "$_SCRIPT_DIR/skills/sync-project-skills.sh" ]; then
+        "$_SCRIPT_DIR/skills/sync-project-skills.sh" || echo "Warning: Project skill sync failed (non-fatal)"
     else
-        npx tsx "$_SCRIPT_DIR/agent-governance/sync-policy.ts" || echo "Warning: Agent policy sync failed (non-fatal)"
+        echo "Warning: Project skill sync script not found (non-fatal)"
     fi
-    if [ -x "$_SCRIPT_DIR/skills/install-skill.sh" ]; then
-        "$_SCRIPT_DIR/skills/install-skill.sh" --skill trends-agent-governance --target "$EFFECTIVE_SKILL_INSTALL_TARGET" || echo "Warning: Agent skill install failed (non-fatal)"
-    elif [ -x "$_SCRIPT_DIR/agent-governance/install-skill.sh" ]; then
-        "$_SCRIPT_DIR/agent-governance/install-skill.sh" || echo "Warning: Agent skill install failed (non-fatal)"
-    else
-        echo "Warning: Agent skill install script not found (non-fatal)"
-    fi
+    run_tsx "$_SCRIPT_DIR/skills/install-global-skills.ts" || echo "Warning: Global skill install failed (non-fatal)"
 else
-    echo "Skipping agent governance sync in CI"
+    echo "Skipping agent governance sync and skill bootstrap in CI"
 fi
 
 echo "Done!"
