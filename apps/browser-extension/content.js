@@ -1391,7 +1391,7 @@ async function enrichSingleJob5156SearchResumeWithDetail(resume, extractedAt) {
     return {
       ...fallbackResume,
       ...detailResume,
-      workHistory: (detailResume.workHistory || fallbackResume.workHistory || []).slice(0, 3),
+      workHistory: detailResume.workHistory || fallbackResume.workHistory || [],
       resumeId: detailResume.resumeId || fallbackResume.resumeId,
       perUserId: detailResume.perUserId || fallbackResume.perUserId,
       extractedAt: fallbackResume.extractedAt,

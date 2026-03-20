@@ -53,13 +53,14 @@ import {
 import { resolveResumeId } from "../services/resume-id.js";
 import { IngestComputeService } from "../services/ingest-compute-service.js";
 import {
+  buildLatestWorkHistoryEvidence,
   buildWorkHistoryEntryText,
-  buildWorkHistoryEvidence,
   formatKeywordQuery,
   formatLocationHierarchySearchText,
   normalizeKeywordPhrases,
   normalizeWorkHistoryEntry,
   parseKeywordQuery,
+  selectLatestWorkHistory,
 } from "@trends/shared";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { SearchEventLogger } from "../services/search-event-logger.js";
@@ -223,6 +224,10 @@ function extractSkills(...texts: (string | undefined)[]): string[] | undefined {
   }
   if (allParts.length === 0) return undefined;
   return Array.from(new Set(allParts)).slice(0, 20);
+}
+
+function getLatestWorkHistory(workHistory: ResumeItem["workHistory"] | undefined): ResumeItem["workHistory"] {
+  return selectLatestWorkHistory(workHistory ?? []);
 }
 
 function extractCompanies(workHistory: ResumeItem["workHistory"]): string[] | undefined {
@@ -1163,12 +1168,13 @@ function computeStats(
 }
 
 function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex {
+  const latestWorkHistory = getLatestWorkHistory(resume.workHistory);
   const locationText = formatLocationHierarchySearchText(resume.locationHierarchy) || resume.location || "";
   const text = [
     resume.name,
     locationText,
     resume.education,
-    ...(resume.workHistory ?? []).map((item) => buildWorkHistoryEntryText(item)),
+    ...latestWorkHistory.map((item) => buildWorkHistoryEntryText(item)),
   ].join(" ").toLowerCase();
 
   return {
@@ -1181,11 +1187,11 @@ function createFallbackIndex(resume: ResumeItem, resumeId: string): ResumeIndex 
       || resume.location
       || null,
     skills: [],
-    companies: extractCompanies(resume.workHistory) ?? [],
+    companies: extractCompanies(latestWorkHistory) ?? [],
     industryTags: [],
     salaryRange: null,
     searchText: text,
-    evidenceText: buildWorkHistoryEvidence(resume.workHistory).text,
+    evidenceText: buildLatestWorkHistoryEvidence(latestWorkHistory).text,
   };
 }
 
@@ -1196,16 +1202,17 @@ function buildAiResumePayload(item: {
   companyHits: string[];
   roleSignals: PreparedResumeCandidate["roleSignals"];
 }): MatchingRequest["resume"] {
+  const latestWorkHistory = getLatestWorkHistory(item.resume.workHistory);
   return {
     id: item.resumeId,
     name: item.resume.name || "未命名",
     workExperience: item.indexData.experienceYears ?? undefined,
     education: item.resume.education || undefined,
     skills: item.indexData.skills,
-    companies: item.indexData.companies.length > 0 ? item.indexData.companies : extractCompanies(item.resume.workHistory),
+    companies: item.indexData.companies.length > 0 ? item.indexData.companies : extractCompanies(latestWorkHistory),
     companyHits: item.companyHits,
     roleSignals: item.roleSignals,
-    workHistory: buildWorkHistoryEvidence(item.resume.workHistory).lines.join("\n") || undefined,
+    workHistory: buildLatestWorkHistoryEvidence(latestWorkHistory).lines.join("\n") || undefined,
     sourceKey: item.resume.profileType === "seek" ? "seek" : item.resume.profileType,
   };
 }

@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
-import { buildWorkHistoryEvidence } from "@trends/shared";
+import { buildLatestWorkHistoryEvidence } from "@trends/shared";
 
 import { IngestComputeService, buildResumeIndex } from "./ingest-compute-service";
 
@@ -826,7 +826,7 @@ describe("IngestComputeService", () => {
 
     const index = buildResumeIndex(item, 0);
 
-    expect(index.evidenceText).toBe(buildWorkHistoryEvidence(item).text);
+    expect(index.evidenceText).toBe(buildLatestWorkHistoryEvidence(item).text);
     expect(index.evidenceText).toBe("2020-2025 sales engineer\ncnc 机床");
     expect(index.searchText).not.toContain("应届毕业生");
     expect(index.searchText).not.toContain("机械助理");

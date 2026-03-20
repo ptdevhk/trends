@@ -1,5 +1,5 @@
 import {
-  buildWorkHistoryEntryText,
+  buildLatestWorkHistoryEvidence,
   getCurrentResumeAiPromptVersion,
   normalizeKeywordSalesAnalysis,
   normalizeOptionalString,
@@ -182,7 +182,7 @@ export function buildRuleScoringText(resume: {
     resume.experience,
     resume.location,
     resume.selfIntro,
-    ...(resume.workHistory || []).map((work) => buildWorkHistoryEntryText(work)),
+    ...buildLatestWorkHistoryEvidence(resume.workHistory).lines,
     resume.tags?.join(' '),
   ]
     .filter((item): item is string => Boolean(item))

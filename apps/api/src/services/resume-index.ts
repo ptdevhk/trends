@@ -2,13 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  buildLatestWorkHistoryEvidence,
   buildWorkHistoryEntryText,
-  buildWorkHistoryEvidence,
   FALLBACK_INDUSTRY_KEYWORDS,
   formatLocationHierarchySearchText,
   findLocation,
   normalizeIndustryTags,
   normalizeLocationName,
+  selectLatestWorkHistory,
   type CanonicalIndustryTag,
 } from "@trends/shared";
 
@@ -77,6 +78,10 @@ function parseSalaryRange(value: string): { min?: number; max?: number } | null 
   return { min, max };
 }
 
+function getLatestWorkHistory(workHistory: ResumeWorkHistoryItem[] | undefined): ResumeWorkHistoryItem[] {
+  return selectLatestWorkHistory(workHistory ?? []);
+}
+
 function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
   if (!workHistory.length) return [];
 
@@ -89,12 +94,13 @@ function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
 
 function createSearchText(item: ResumeItem): string {
   const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
+  const latestWorkHistory = getLatestWorkHistory(item.workHistory);
   const parts = [
     item.name,
     item.education,
     locationText,
     item.expectedSalary,
-    ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
+    ...latestWorkHistory.map((entry) => buildWorkHistoryEntryText(entry)),
   ];
 
   return normalizeText(parts.join(" "));
@@ -267,16 +273,17 @@ export class ResumeIndexService {
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
       const resumeId = resolveResumeId(item, i);
+      const latestWorkHistory = getLatestWorkHistory(item.workHistory);
       const searchText = createSearchText(item);
-      const companies = extractCompanies(item.workHistory ?? []);
+      const companies = extractCompanies(latestWorkHistory);
       const skills = this.extractSkills(searchText);
       const tagHaystack = [searchText, ...skills, ...companies].join(" ").toLowerCase();
 
-      const evidenceText = buildWorkHistoryEvidence(item.workHistory).text;
+      const evidenceText = buildLatestWorkHistoryEvidence(latestWorkHistory).text;
 
       nextMap.set(resumeId, {
         resumeId,
-        experienceYears: computeWorkHistoryYears(item.workHistory ?? []),
+        experienceYears: computeWorkHistoryYears(latestWorkHistory),
         educationLevel: normalizeEducationLevel(item.education),
         locationCity: this.extractLocationCity(item),
         evidenceText,

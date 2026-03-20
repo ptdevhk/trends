@@ -44,6 +44,19 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.verifiedCompanies).toEqual([]);
   });
 
+  it("limits derived companies to the latest three work history entries", () => {
+    const normalized = normalizeResume({
+      workHistory: [
+        { raw: "2018-01 ~ 2019-01 Oldest Co Old Role", startDate: "2018-01", endDate: "2019-01", companyName: "Oldest Co", jobTitle: "Old Role" },
+        { raw: "2023-01 ~ 2024-01 Recent Co Recent Role", startDate: "2023-01", endDate: "2024-01", companyName: "Recent Co", jobTitle: "Recent Role" },
+        { raw: "2024-02 ~ 至今 Current Co Current Role", startDate: "2024-02", endDate: "至今", companyName: "Current Co", jobTitle: "Current Role" },
+        { raw: "2021-01 ~ 2022-01 Middle Co Middle Role", startDate: "2021-01", endDate: "2022-01", companyName: "Middle Co", jobTitle: "Middle Role" },
+      ],
+    } as unknown, { locale: "en" });
+
+    expect(normalized.companies).toBe("Current Co, Recent Co, Middle Co");
+  });
+
   it("formats structured work-entry evidence in English when locale is en", () => {
     const normalized = normalizeResume({
       ingestData: {

@@ -2,6 +2,7 @@
  * Fetch real resume data to find matching (>80) and non-matching cases.
  * Usage: npx tsx scripts/fetch-score-cases.ts
  */
+import { selectLatestWorkHistory } from "@trends/shared";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../packages/convex/convex/_generated/api.js";
 
@@ -43,7 +44,7 @@ async function main() {
     roleSignals: r.ingestData?.roleSignals ?? [],
     ruleScores: r.ingestData?.ruleScores ?? {},
     primaryRuleScore: r.primaryRuleScore ?? 0,
-    workHistory: (r.content?.workHistory ?? []).slice(0, 3).map((w) => w.raw),
+    workHistory: selectLatestWorkHistory(r.content?.workHistory).map((w) => w.raw),
   }));
 
   rows.sort((a, b) => b.primaryRuleScore - a.primaryRuleScore);

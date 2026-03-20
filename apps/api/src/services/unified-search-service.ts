@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText, formatLocationHierarchySearchText } from "@trends/shared";
+import { buildWorkHistoryEntryText, formatLocationHierarchySearchText, selectLatestWorkHistory } from "@trends/shared";
 
 import { parseSearchQuery } from "./query-parser.js";
 import { resolveResumeId } from "./resume-id.js";
@@ -46,6 +46,7 @@ function normalizeToken(value: string): string {
 
 function buildSearchText(item: ResumeItem): string {
   const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
+  const latestWorkHistory = selectLatestWorkHistory(item.workHistory);
   const parts = [
     item.name,
     item.jobIntention,
@@ -53,7 +54,7 @@ function buildSearchText(item: ResumeItem): string {
     item.education,
     locationText,
     item.expectedSalary,
-    ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
+    ...latestWorkHistory.map((entry) => buildWorkHistoryEntryText(entry)),
   ];
   return parts.join(" ").toLowerCase();
 }
@@ -182,7 +183,7 @@ export class UnifiedSearchService {
       const resumeId = resolveResumeId(item, i);
       const index = options?.indexMap?.get(resumeId);
       const searchText = index?.searchText || buildSearchText(item);
-      const companies = index?.companies ?? (item.workHistory?.map((entry) => extractCompanyFromWorkHistory(entry)) || []);
+      const companies = index?.companies ?? selectLatestWorkHistory(item.workHistory).map((entry) => extractCompanyFromWorkHistory(entry));
       const industryTags = index?.industryTags ?? [];
       const provenance: UnifiedSearchProvenance[] = [];
       let matchedGroupCount = 0;

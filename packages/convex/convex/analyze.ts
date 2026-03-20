@@ -8,6 +8,7 @@ import {
     isSalesRequiredContext,
     normalizeKeywordSalesAnalysis,
     resolveResumeAiPromptLocale,
+    selectLatestWorkHistory,
 } from "@trends/shared";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -279,20 +280,12 @@ export function normalizeResume(
         ? root.ingestData
         : (isRecord(content.ingestData) ? content.ingestData : undefined);
 
+    const latestWorkHistory = selectLatestWorkHistory(content.workHistory);
+
     // Extract companies from workHistory since resume content has no "companies" field
-    const historyCompanies = Array.isArray(content.workHistory)
-        ? content.workHistory
-            .map((item) => {
-                if (typeof item === "string") {
-                    return item;
-                }
-                if (isRecord(item) && typeof item.raw === "string") {
-                    return item.raw;
-                }
-                return "";
-            })
-            .filter((item): item is string => item.length > 0)
-        : [];
+    const historyCompanies = latestWorkHistory
+        .map((item) => item.companyName)
+        .filter((item): item is string => typeof item === "string" && item.length > 0);
     const existingCompanies = Array.isArray(content.companies)
         ? content.companies.filter((item): item is string => typeof item === "string" && item.length > 0)
         : [];

@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText } from '@trends/shared'
+import { buildWorkHistoryEntryText, selectLatestWorkHistory } from '@trends/shared'
 import { useTranslation } from 'react-i18next'
 import { User, CheckCircle, XCircle, Phone, Star, Ban, MessageSquare } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -182,8 +182,7 @@ export function ResumeCard({
   const [blockNoteInput, setBlockNoteInput] = useState('')
   const [commentDialogOpen, setCommentDialogOpen] = useState(false)
   const [commentNoteInput, setCommentNoteInput] = useState('')
-  const workHistory = (resume.workHistory ?? [])
-    .slice(0, 3)
+  const workHistory = selectLatestWorkHistory(resume.workHistory)
     .map((item) => ({
       item,
       text: buildWorkHistoryEntryText(item),

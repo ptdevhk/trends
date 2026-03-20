@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { buildWorkHistoryDateRange, normalizeWorkHistoryEntry, RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE } from '@trends/shared'
+import { buildWorkHistoryDateRange, normalizeWorkHistoryEntry, RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE, selectLatestWorkHistory } from '@trends/shared'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -47,7 +47,7 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
 
   const workHistory = useMemo(() => {
     if (!resume?.workHistory?.length) return []
-    return resume.workHistory.filter((item) => normalizeWorkHistoryEntry(item) !== null)
+    return selectLatestWorkHistory(resume.workHistory)
   }, [resume])
   const workHistoryAnnotations = useMemo(() => {
     if (!resume || !hasIngestData(resume)) {

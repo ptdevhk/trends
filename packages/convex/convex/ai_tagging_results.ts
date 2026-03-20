@@ -1,5 +1,5 @@
 /// <reference path="./convex-env.d.ts" />
-import { buildWorkHistoryEvidence } from "@trends/shared";
+import { buildLatestWorkHistoryEvidence } from "@trends/shared";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery, mutation, query } from "./_generated/server";
@@ -80,7 +80,7 @@ export function resolveAiTaggingEvidence(resume: Pick<Doc<"resumes">, "content" 
 }
 
 export function buildEvidenceTextFromWorkHistory(content: unknown): { lines: string[]; text: string } {
-  return buildWorkHistoryEvidence(content);
+  return buildLatestWorkHistoryEvidence(content);
 }
 
 export function buildAiTaggingIdentity(input: {

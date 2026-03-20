@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
-  buildWorkHistoryEvidence,
+  buildLatestWorkHistoryEvidence,
   generateStructuredJobDescriptionContent,
 } from "@trends/shared";
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
@@ -152,7 +152,7 @@ function buildSeekMalaysiaSalesDemoResume(seededAt: number) {
     noticePeriodDays: 30,
     extractedAt: "2026-03-17T08:00:00.000Z",
   };
-  const evidenceText = buildWorkHistoryEvidence(content.workHistory).text;
+  const evidenceText = buildLatestWorkHistoryEvidence(content.workHistory).text;
   const ingestData = {
     evidenceText,
     industryTags: ["machinery", "sales"],
