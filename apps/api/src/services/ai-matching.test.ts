@@ -110,4 +110,45 @@ describe("AIMatchingService", () => {
         expect(promptContent).not.toContain("信号:");
         expect(promptContent).not.toContain("2年");
     });
+
+    it("applies analysis field usage policy overrides when hydrating prompts", async () => {
+        const service = new CapturingAIMatchingService();
+        await service.matchResume(
+            {
+                resume: {
+                    id: "resume-policy-1",
+                    name: "Alice",
+                    sourceKey: "seek",
+                    companyHits: ["FANUC"],
+                    workHistory: "2020-2024 Acme Machine Tools Sales Engineer",
+                },
+                jobDescription: {
+                    title: "Sales Engineer",
+                    requirements: "Sell CNC equipment",
+                },
+            },
+            {
+                fieldUsagePolicy: {
+                    fields: {
+                        companyHits: {
+                            surfaces: {
+                                analysis: false,
+                            },
+                        },
+                        workHistory: {
+                            surfaces: {
+                                analysis: false,
+                            },
+                        },
+                    },
+                },
+            },
+        );
+
+        const promptContent = service.lastMessages[1]?.content ?? "";
+        expect(promptContent).toContain("**Industry Database Verified Companies**: none");
+        expect(promptContent).toContain("**Work-History Evidence**:\nNo work history provided");
+        expect(promptContent).not.toContain("FANUC");
+        expect(promptContent).not.toContain("Acme Machine Tools");
+    });
 });

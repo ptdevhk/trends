@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink } from 'lucide-react'
+import { sanitizeResumeRecordForSurface } from '@trends/shared'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
@@ -12,6 +13,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import type { ResumeItem } from '@/hooks/useResumes'
+import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 
 interface ResumeTableProps {
   items: ResumeItem[]
@@ -24,13 +26,18 @@ function getRowId(item: ResumeItem, index: number): string {
 
 export function ResumeTable({ items, onViewDetails }: ResumeTableProps) {
   const { t } = useTranslation()
+  const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const [selected, setSelected] = useState<Record<string, boolean>>({})
+  const presentationItems = useMemo(
+    () => items.map((item) => sanitizeResumeRecordForSurface(item, 'presentation', fieldUsagePolicy)),
+    [fieldUsagePolicy, items],
+  )
 
   useEffect(() => {
     setSelected({})
-  }, [items])
+  }, [presentationItems])
 
-  const rowIds = useMemo(() => items.map(getRowId), [items])
+  const rowIds = useMemo(() => presentationItems.map(getRowId), [presentationItems])
   const selectedCount = rowIds.filter((id) => selected[id]).length
   const allSelected = rowIds.length > 0 && selectedCount === rowIds.length
   const isIndeterminate = selectedCount > 0 && !allSelected
@@ -78,7 +85,7 @@ export function ResumeTable({ items, onViewDetails }: ResumeTableProps) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {items.map((item, index) => {
+        {presentationItems.map((item, index) => {
           const rowId = getRowId(item, index)
           return (
             <TableRow key={rowId} data-state={selected[rowId] ? 'selected' : undefined}>

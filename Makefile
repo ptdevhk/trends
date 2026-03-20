@@ -15,6 +15,7 @@
 		install-skill validate-skill check-skill-install install-test-plan-skill check-test-plan-skill \
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
+		sync-resume-field-usage-policy check-resume-field-usage-policy \
 		clean-db fresh-env refresh-env
 
 # Default target
@@ -328,6 +329,22 @@ check-resume-ai-prompts:
 		bunx tsx scripts/resume/sync-ai-prompts.ts --check; \
 	else \
 		npx tsx scripts/resume/sync-ai-prompts.ts --check; \
+	fi
+
+# Sync generated resume field usage runtime artifact from canonical JSON5 policy
+sync-resume-field-usage-policy:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/resume/sync-field-usage-policy.ts; \
+	else \
+		npx tsx scripts/resume/sync-field-usage-policy.ts; \
+	fi
+
+# Validate generated resume field usage runtime artifact is up to date
+check-resume-field-usage-policy:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/resume/sync-field-usage-policy.ts --check; \
+	else \
+		npx tsx scripts/resume/sync-field-usage-policy.ts --check; \
 	fi
 
 # Install repo governance skill into the requested skills target (default: ${CODEX_HOME:-$HOME/.codex}/skills)
@@ -648,6 +665,7 @@ check-python:
 check-node:
 	@echo "Running Node.js checks..."
 	@npm run check:resume-ai-prompts
+	@npm run check:resume-field-usage-policy
 	@npm run check:resume-skills-locales
 	@npm --workspace @trends/web run gen:api
 	@git diff --exit-code apps/web/src/lib/api-types.ts >/dev/null || ( \

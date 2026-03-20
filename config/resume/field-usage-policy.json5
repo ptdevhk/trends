@@ -1,0 +1,24 @@
+// Canonical per-surface field-usage policy for normalized resume fields.
+{
+  version: 1,
+  updatedAt: "2026-03-20",
+  description: "Controls which canonical resume fields participate in analysis, presentation, outreach, and debug surfaces without deleting raw stored resume data.",
+  fields: {
+    jobIntention: {
+      surfaces: {
+        analysis: false,
+        presentation: false,
+        outreach: false,
+        debug: false,
+      },
+    },
+    selfIntro: {
+      surfaces: {
+        analysis: false,
+        presentation: false,
+        outreach: false,
+        debug: false,
+      },
+    },
+  },
+}

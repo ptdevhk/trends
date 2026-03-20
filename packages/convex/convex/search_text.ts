@@ -1,4 +1,9 @@
-import { buildLatestWorkHistoryEvidence, formatLocationHierarchySearchText, type LocationHierarchy } from "@trends/shared";
+import {
+    buildLatestWorkHistoryEvidence,
+    formatLocationHierarchySearchText,
+    getDisallowedResumeFieldKeys,
+    type LocationHierarchy,
+} from "@trends/shared";
 
 const PRIORITY_KEYS = [
     "name",
@@ -13,7 +18,11 @@ const PRIORITY_KEYS = [
 ];
 
 const PRIORITY_KEY_SET = new Set(PRIORITY_KEYS);
-const EXCLUDED_KEYS = new Set(["location", "experience", "jobIntention", "selfIntro"]);
+const EXCLUDED_KEYS = new Set([
+    "location",
+    "experience",
+    ...getDisallowedResumeFieldKeys("analysis"),
+]);
 
 type UnknownRecord = Record<string, unknown>;
 

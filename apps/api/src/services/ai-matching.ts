@@ -15,6 +15,9 @@ import {
     getSalesRoleYears,
     isSalesRequiredContext,
     normalizeKeywordSalesAnalysis,
+    sanitizeResumeRecordForSurface,
+    type ResumeFieldUsagePolicy,
+    type ResumeFieldUsagePolicyOverrides,
 } from "@trends/shared";
 import { aiConfig, validateResumeAIConfig, getMaskedApiKey } from "./ai-config.js";
 import { findProjectRoot } from "./db.js";
@@ -91,6 +94,7 @@ export interface BatchMatchingProgress {
 export interface BatchMatchingOptions {
     concurrency?: number;
     onResult?: (progress: BatchMatchingProgress) => void | Promise<void>;
+    fieldUsagePolicy?: ResumeFieldUsagePolicy | ResumeFieldUsagePolicyOverrides;
 }
 
 export interface BatchMatchingResult {
@@ -99,6 +103,11 @@ export interface BatchMatchingResult {
     failedCount: number;
     processingTimeMs: number;
 }
+
+type MatchResumeOptions = {
+    prompt?: ResumeAiPromptDocument;
+    fieldUsagePolicy?: ResumeFieldUsagePolicy | ResumeFieldUsagePolicyOverrides;
+};
 
 function toObject(value: unknown): Record<string, unknown> | null {
     if (!value || typeof value !== "object") return null;
@@ -290,7 +299,7 @@ export class AIMatchingService {
     /**
      * Match a single resume against a job description
      */
-    async matchResume(request: MatchingRequest, promptOverride?: ResumeAiPromptDocument): Promise<MatchingResult> {
+    async matchResume(request: MatchingRequest, options?: MatchResumeOptions): Promise<MatchingResult> {
         const availability = this.isAvailable();
         if (!availability.available) {
             return {
@@ -303,10 +312,13 @@ export class AIMatchingService {
             };
         }
 
-        const prompt = promptOverride ?? this.loadPromptForResume(request.resume);
+        const prompt = options?.prompt ?? this.loadPromptForResume(request.resume);
         const messages = [
             { role: "system", content: buildSystemPrompt(prompt.normalized.systemPrompt, prompt.normalized.locale) },
-            { role: "user", content: this.buildPrompt(request.resume, request.jobDescription, prompt) },
+            {
+                role: "user",
+                content: this.buildPrompt(request.resume, request.jobDescription, prompt, options?.fieldUsagePolicy),
+            },
         ];
 
         try {
@@ -369,10 +381,16 @@ export class AIMatchingService {
                 let result: MatchingResult;
                 try {
                     const prompt = this.loadPromptForResume(resume, promptsBySourceKey);
-                    result = await this.matchResume({
-                        resume,
-                        jobDescription,
-                    }, prompt);
+                    result = await this.matchResume(
+                        {
+                            resume,
+                            jobDescription,
+                        },
+                        {
+                            prompt,
+                            fieldUsagePolicy: options?.fieldUsagePolicy,
+                        }
+                    );
                 } catch {
                     failedCount += 1;
                     result = {
@@ -472,25 +490,40 @@ Return strictly valid JSON:
     private buildPrompt(
         resume: MatchingRequest["resume"],
         jobDescription: MatchingRequest["jobDescription"],
-        prompt: ResumeAiPromptDocument
+        prompt: ResumeAiPromptDocument,
+        fieldUsagePolicy?: ResumeFieldUsagePolicy | ResumeFieldUsagePolicyOverrides,
     ): string {
         const localeText = getResumeAiLocaleText(prompt.normalized.locale);
+        const analysisResume = sanitizeResumeRecordForSurface({ ...resume }, "analysis", fieldUsagePolicy);
         const matchingRules = jobDescription.responsibilities || jobDescription.requirements || "";
-        const verifiedCompanies = resume.companyHits?.length ? resume.companyHits.join(", ") : localeText.noneLabel;
-        const evidenceText = resume.workHistory || localeText.noWorkHistoryLabel;
-        const roleSignals = formatRoleSignals(resume.roleSignals, localeText);
+        const verifiedCompanies = Array.isArray(resume.companyHits) && analysisResume.companyHits !== undefined && resume.companyHits.length > 0
+            ? resume.companyHits.join(", ")
+            : localeText.noneLabel;
+        const evidenceText = typeof resume.workHistory === "string" && analysisResume.workHistory !== undefined && resume.workHistory.trim().length > 0
+            ? resume.workHistory
+            : localeText.noWorkHistoryLabel;
+        const roleSignals = formatRoleSignals(
+            Array.isArray(resume.roleSignals) && analysisResume.roleSignals !== undefined ? resume.roleSignals : undefined,
+            localeText,
+        );
 
         return resumeAiPromptService.renderUserPromptTemplate(prompt.normalized.userPromptTemplate, {
             jobTitle: jobDescription.title,
             requirements: jobDescription.requirements,
             matchingRules,
-            candidateName: resume.name,
+            candidateName: typeof resume.name === "string" && analysisResume.name !== undefined && resume.name.trim().length > 0
+                ? resume.name
+                : localeText.emptyFieldLabel,
             verifiedCompanies,
             evidenceText,
             roleSignals,
-            workExperience: String(resume.workExperience || 0),
-            education: resume.education || localeText.emptyFieldLabel,
-            companies: resume.companies?.join(", ") || localeText.emptyFieldLabel,
+            workExperience: String(typeof resume.workExperience === "number" && analysisResume.workExperience !== undefined ? resume.workExperience : 0),
+            education: typeof resume.education === "string" && analysisResume.education !== undefined && resume.education.trim().length > 0
+                ? resume.education
+                : localeText.emptyFieldLabel,
+            companies: Array.isArray(resume.companies) && analysisResume.companies !== undefined && resume.companies.length > 0
+                ? resume.companies.join(", ")
+                : localeText.emptyFieldLabel,
         });
     }
 

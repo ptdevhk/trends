@@ -92,6 +92,30 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.roleSignalsText).not.toContain("信号:");
   });
 
+  it("applies analysis field usage overrides to non-protected fields", () => {
+    const normalized = normalizeResume({
+      name: "Alice",
+      education: "Bachelor",
+      ingestData: {
+        evidenceText: "2021-2024 Acme Machine Tools Sales Engineer",
+      },
+    } as unknown, {
+      locale: "en",
+      fieldUsagePolicy: {
+        fields: {
+          education: {
+            surfaces: {
+              analysis: false,
+            },
+          },
+        },
+      },
+    });
+
+    expect(normalized.name).toBe("Alice");
+    expect(normalized.education).toBe("Not provided");
+  });
+
   it("preserves verifiedCompanies from ingestData.companyHits", () => {
     const normalized = normalizeResume({
       name: "王某",

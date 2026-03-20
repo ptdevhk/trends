@@ -1813,13 +1813,17 @@ app.openapi(matchResumesRoute, async (c) => {
     });
 
     if (toProcess.length > 0) {
+      const fieldUsagePolicy = await workspaceConfigService.getResumeFieldUsagePolicy(c.var.workspaceSlug);
       const batchResult = await aiService.matchBatch(
         toProcess.map((item) => buildAiResumePayload(item)),
         {
           title: jdMeta.title || matchJobDescriptionId,
           requirements,
           responsibilities,
-        }
+        },
+        {
+          fieldUsagePolicy,
+        },
       );
 
       const entries = batchResult.results.map((entry) => ({
@@ -2155,6 +2159,7 @@ app.post("/api/resumes/match-stream", async (c) => {
           }
 
           if (processQueue.length > 0) {
+            const fieldUsagePolicy = await workspaceConfigService.getResumeFieldUsagePolicy(c.var.workspaceSlug);
             const batchResult = await aiService.matchBatch(
               processQueue.map((item) => buildAiResumePayload(item)),
               {
@@ -2163,6 +2168,7 @@ app.post("/api/resumes/match-stream", async (c) => {
                 responsibilities,
               },
               {
+                fieldUsagePolicy,
                 onResult: ({ resumeId, result, done }) => {
                   const payload = {
                     ...result,
@@ -2233,6 +2239,7 @@ app.post("/api/resumes/match-stream", async (c) => {
           return;
         }
 
+        const fieldUsagePolicy = await workspaceConfigService.getResumeFieldUsagePolicy(c.var.workspaceSlug);
         const batchResult = await aiService.matchBatch(
           prepared.map((item) => buildAiResumePayload(item)),
           {
@@ -2241,6 +2248,7 @@ app.post("/api/resumes/match-stream", async (c) => {
             responsibilities,
           },
           {
+            fieldUsagePolicy,
             onResult: ({ resumeId, result, done, total }) => {
               const payload = {
                 ...result,

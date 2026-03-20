@@ -107,4 +107,17 @@ describe('DebugPage location aggregation', () => {
     expect(screen.getByText('广东深圳宝安')).toBeInTheDocument()
     expect(screen.getByText('location: 0')).toBeInTheDocument()
   })
+
+  it('hides debug intention aggregations by default', () => {
+    renderPage()
+
+    const heading = screen.getByText('debug.findingsIntentions')
+    const container = heading.nextElementSibling
+    if (!(container instanceof HTMLElement)) {
+      throw new Error('Expected intention findings list')
+    }
+
+    expect(within(container).getByText('debug.none')).toBeInTheDocument()
+    expect(screen.queryByText('销售工程师')).not.toBeInTheDocument()
+  })
 })

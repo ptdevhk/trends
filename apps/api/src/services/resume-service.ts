@@ -240,8 +240,6 @@ function buildSearchText(item: ResumeItem): string {
   const latestWorkHistory = selectLatestWorkHistory(item.workHistory);
   const parts = [
     item.name,
-    item.jobIntention,
-    item.selfIntro,
     item.education,
     locationText,
     item.expectedSalary,
@@ -453,7 +451,6 @@ export class ResumeService {
       const index = indexMap?.get(resumeId);
 
       const name = (item.name || "").toLowerCase();
-      const jobIntention = (item.jobIntention || "").toLowerCase();
       const searchText = index?.searchText || buildSearchText(item);
       const companies = index?.companies ?? selectLatestWorkHistory(item.workHistory).map((wh) => extractCompanyFromWorkHistory(wh));
 
@@ -479,17 +476,7 @@ export class ResumeService {
           score += 100;
         }
 
-        // 3. Job Intention Match
-        const intentionMatches = variants.filter((variant) => jobIntention.includes(variant));
-        if (intentionMatches.length > 0) {
-          score += 30;
-          // Bonus for start of intention
-          if (intentionMatches.some((variant) => jobIntention.startsWith(variant))) {
-            score += 20;
-          }
-        }
-
-        // 4. Skills Match (from index if available)
+        // 3. Skills Match (from index if available)
         if (index) {
           const matchedSkills = index.skills.filter((skill) =>
             variants.some((variant) => skill.includes(variant))
@@ -497,7 +484,7 @@ export class ResumeService {
           score += matchedSkills.length * 10;
         }
 
-        // 5. Full Text Search (Expanded recall)
+        // 4. Full Text Search (Expanded recall)
         let hasTextMatch = false;
         let occurrences = 0;
         for (const variant of variants) {

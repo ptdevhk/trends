@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ResumeDetail } from './ResumeDetail'
@@ -63,5 +64,35 @@ describe('ResumeDetail latest work history', () => {
     expect(screen.getByText('Recent Co · Recent Role')).toBeInTheDocument()
     expect(screen.getByText('Middle Co · Middle Role')).toBeInTheDocument()
     expect(screen.queryByText('Oldest Co · Old Role')).not.toBeInTheDocument()
+  })
+
+  it('keeps excluded presentation fields hidden when expanded', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Dongguan',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Expand' }))
+
+    expect(screen.queryByText('Sales Engineer')).not.toBeInTheDocument()
+    expect(screen.queryByText('Test intro')).not.toBeInTheDocument()
   })
 })

@@ -232,4 +232,31 @@ describe("ResumeService", () => {
       },
     ]);
   });
+
+  it("does not match keywords from jobIntention or selfIntro alone in API-side search", () => {
+    const root = createFixtureRoot();
+    roots.push(root);
+
+    const service = new ResumeService(root);
+    const items = [
+      {
+        name: "Only Header Fields",
+        profileUrl: "https://example.com/resume-1",
+        activityStatus: "Active",
+        age: "30",
+        experience: "5 years",
+        education: "Bachelor",
+        location: "Dongguan",
+        selfIntro: "FANUC CNC sales",
+        jobIntention: "Sales Engineer",
+        expectedSalary: "10k-20k",
+        workHistory: [],
+        extractedAt: "2026-03-20T00:00:00.000Z",
+        resumeId: "resume-header-only",
+      },
+    ];
+
+    expect(service.searchResumes(items, "sales engineer fanuc")).toEqual([]);
+    expect(service.filterResumes(items, { skills: ["fanuc"] })).toEqual([]);
+  });
 });

@@ -225,7 +225,7 @@ describe("UnifiedSearchService", () => {
         selfIntro: "",
         jobIntention: "销售工程师",
         expectedSalary: "10000-15000",
-        workHistory: [],
+        workHistory: [{ raw: "负责销售渠道拓展" }],
         extractedAt: "2026-03-11T00:00:00.000Z",
         resumeId: "resume-sales",
       };
@@ -233,12 +233,14 @@ describe("UnifiedSearchService", () => {
         ...salesResume,
         name: "CNC候选人",
         jobIntention: "CNC工程师",
+        workHistory: [{ raw: "负责CNC设备调试" }],
         resumeId: "resume-cnc",
       };
       const bothResume: ResumeItem = {
         ...salesResume,
         name: "复合候选人",
         jobIntention: "CNC销售工程师",
+        workHistory: [{ raw: "负责CNC设备销售与渠道拓展" }],
         resumeId: "resume-both",
       };
 
@@ -270,7 +272,7 @@ describe("UnifiedSearchService", () => {
         selfIntro: "",
         jobIntention: "Sales Engineer",
         expectedSalary: "10000-15000",
-        workHistory: [],
+        workHistory: [{ raw: "Worked as Sales Engineer for CNC accounts" }],
         extractedAt: "2026-03-11T00:00:00.000Z",
         resumeId: "resume-engineer",
       };
@@ -278,12 +280,14 @@ describe("UnifiedSearchService", () => {
         ...engineerResume,
         name: "Manager only",
         jobIntention: "Sales Manager",
+        workHistory: [{ raw: "Worked as Sales Manager for industrial accounts" }],
         resumeId: "resume-manager",
       };
       const genericSalesResume: ResumeItem = {
         ...engineerResume,
         name: "Generic sales",
         jobIntention: "Sales Executive",
+        workHistory: [{ raw: "Worked as Sales Executive for general B2B accounts" }],
         resumeId: "resume-generic-sales",
       };
 
@@ -296,6 +300,36 @@ describe("UnifiedSearchService", () => {
         "resume-engineer",
         "resume-manager",
       ]);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("does not match job intention text when no index searchText is available", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const skillsService = new SkillsKnowledgeService(root);
+      const service = new UnifiedSearchService(skillsService);
+      const resume: ResumeItem = {
+        name: "Header only",
+        profileUrl: "https://example.com/1",
+        activityStatus: "active",
+        age: "35",
+        experience: "8年",
+        education: "本科",
+        location: "东莞",
+        selfIntro: "精通FANUC系统",
+        jobIntention: "销售工程师",
+        expectedSalary: "10000-15000",
+        workHistory: [],
+        extractedAt: "2026-03-20T00:00:00.000Z",
+        resumeId: "resume-header-only",
+      };
+
+      const results = service.searchUnified([resume], "销售");
+
+      expect(results.results).toEqual([]);
     } finally {
       cleanupFixtureRoot(root);
     }

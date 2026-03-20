@@ -7,8 +7,11 @@ import {
     getResumeAiUserPromptTemplate,
     isSalesRequiredContext,
     normalizeKeywordSalesAnalysis,
+    sanitizeResumeRecordForSurface,
     resolveResumeAiPromptLocale,
     selectLatestWorkHistory,
+    type ResumeFieldUsagePolicy,
+    type ResumeFieldUsagePolicyOverrides,
 } from "@trends/shared";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -270,12 +273,13 @@ export function normalizeResume(
     data: unknown,
     options?: {
         locale?: string;
+        fieldUsagePolicy?: ResumeFieldUsagePolicy | ResumeFieldUsagePolicyOverrides;
     },
 ) {
-    // NOTE: Strict evidence lane — do not derive analysis inputs from selfIntro/jobIntention.
     const localeText = getResumeAiLocaleText(options?.locale);
     const root = isRecord(data) ? data : {};
-    const content = isRecord(root.content) ? root.content : root;
+    const rawContent = isRecord(root.content) ? root.content : root;
+    const content = sanitizeResumeRecordForSurface(rawContent, "analysis", options?.fieldUsagePolicy);
     const ingestData = isRecord(root.ingestData)
         ? root.ingestData
         : (isRecord(content.ingestData) ? content.ingestData : undefined);

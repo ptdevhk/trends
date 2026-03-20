@@ -1,6 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import JSON5 from "json5";
+import {
+  parseResumeFieldUsagePolicyOverrides,
+  resolveResumeFieldUsagePolicy,
+  type ResumeFieldUsagePolicy,
+  type ResumeFieldUsagePolicyOverrides,
+} from "@trends/shared";
 import { findProjectRoot } from "./db.js";
 import {
   customKeywordService,
@@ -451,6 +457,7 @@ const AGENT_OVERRIDES_KEY = "agent-overrides";
 const FILTER_PRESETS_KEY = "filter-presets";
 const RULE_WEIGHTS_KEY = "rule-weights";
 const LEARNING_LOG_KEY = "learning-log";
+const RESUME_FIELD_USAGE_POLICY_KEY = "resume-field-usage-policy";
 
 export class WorkspaceConfigService {
   readonly projectRoot: string;
@@ -717,6 +724,25 @@ export class WorkspaceConfigService {
     const systemEntries = skillsKnowledgeService.getLearningLog();
     const workspaceEntries = await this.getWorkspaceLearningLog(workspaceSlug);
     return [...systemEntries, ...workspaceEntries];
+  }
+
+  async getWorkspaceResumeFieldUsagePolicy(
+    workspaceSlug: string,
+  ): Promise<ResumeFieldUsagePolicyOverrides | undefined> {
+    const entry = await this.getWorkspaceConfigEntry(workspaceSlug, RESUME_FIELD_USAGE_POLICY_KEY);
+    return parseResumeFieldUsagePolicyOverrides(entry?.configValue);
+  }
+
+  async setWorkspaceResumeFieldUsagePolicy(
+    workspaceSlug: string,
+    config: ResumeFieldUsagePolicy | ResumeFieldUsagePolicyOverrides,
+  ): Promise<void> {
+    await this.upsertWorkspaceConfigEntry(workspaceSlug, RESUME_FIELD_USAGE_POLICY_KEY, config);
+  }
+
+  async getResumeFieldUsagePolicy(workspaceSlug: string): Promise<ResumeFieldUsagePolicy> {
+    const workspaceConfig = await this.getWorkspaceResumeFieldUsagePolicy(workspaceSlug);
+    return resolveResumeFieldUsagePolicy(workspaceConfig);
   }
 }
 

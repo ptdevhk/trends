@@ -74,4 +74,29 @@ describe('ResumeCard brand-hit badges', () => {
     expect(screen.getByText('2021-01 ~ 2022-01 Middle Co Middle Role')).toBeInTheDocument()
     expect(screen.queryByText('2018-01 ~ 2019-01 Oldest Co Old Role')).not.toBeInTheDocument()
   })
+
+  it('hides excluded presentation fields by default', () => {
+    render(
+      <ResumeCard
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Dongguan',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+        onViewDetails={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('Sales Engineer')).not.toBeInTheDocument()
+    expect(screen.queryByText('Test intro')).not.toBeInTheDocument()
+  })
 })

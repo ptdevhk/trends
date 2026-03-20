@@ -3,6 +3,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Brain } from 'lucide-react'
+import { sanitizeResumeRecordForSurface } from '@trends/shared'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { PageHeader } from '@/components/PageHeader'
@@ -14,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select } from '@/components/ui/select'
 import { JobDescriptionSelect } from '@/components/JobDescriptionSelect'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { useConvexResumes } from '@/hooks/useConvexResumes'
 
 type AiTaggingRow = Doc<'ai_tagging_results'>
@@ -51,6 +53,7 @@ function buildCandidateLabel(candidate: { name?: string; jobIntention?: string; 
 export default function DebugAiTaggingResults() {
   const { t } = useTranslation()
   const { slug } = useWorkspace()
+  const fieldUsagePolicy = useResumeFieldUsagePolicy()
 
   const [profileKey, setProfileKey] = useState('cnc-sales-strict')
   const [promptVersion, setPromptVersion] = useState('v1')
@@ -90,18 +93,19 @@ export default function DebugAiTaggingResults() {
   const candidateMap = useMemo(() => {
     return new Map<string, { name?: string; jobIntention?: string; externalId?: string; ruleScore?: number }>(
       resumes.map((resume) => {
+        const debugResume = sanitizeResumeRecordForSurface(resume, 'debug', fieldUsagePolicy)
         const ruleScore = normalizedJobDescriptionId
           ? (resume.ingestData?.ruleScores?.[normalizedJobDescriptionId] ?? 0)
           : 0
         return [String(resume.resumeId), {
-          name: resume.name,
-          jobIntention: resume.jobIntention,
-          externalId: resume.externalId,
+          name: debugResume.name,
+          jobIntention: debugResume.jobIntention,
+          externalId: debugResume.externalId,
           ruleScore,
         }]
       })
     )
-  }, [normalizedJobDescriptionId, resumes])
+  }, [fieldUsagePolicy, normalizedJobDescriptionId, resumes])
 
   const filteredCandidates = useMemo(() => {
     return resumes.filter((resume) => {
@@ -344,4 +348,3 @@ export default function DebugAiTaggingResults() {
     </div>
   )
 }
-

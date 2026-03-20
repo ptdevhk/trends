@@ -89,6 +89,8 @@ describe('OutreachModal latest work history', () => {
       'Middle Co',
     ])
     expect(body.resume.companies).not.toContain('Oldest Co')
+    expect(body.resume.summary).toBeUndefined()
+    expect(body.resume.jobIntention).toBeUndefined()
 
     vi.unstubAllGlobals()
   })

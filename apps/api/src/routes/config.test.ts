@@ -45,6 +45,50 @@ describe('config route workspace access', () => {
     })
   })
 
+  it('loads the resolved resume field usage policy for the requested workspace', async () => {
+    const getPolicySpy = vi.spyOn(workspaceConfigService, 'getResumeFieldUsagePolicy').mockResolvedValue({
+      version: 1,
+      updatedAt: '2026-03-20',
+      description: 'test policy',
+      sourceFileRelativePath: 'config/resume/field-usage-policy.json5',
+      fields: {
+        jobIntention: {
+          surfaces: {
+            analysis: false,
+            presentation: true,
+          },
+        },
+      },
+    })
+
+    const app = createTestApp()
+    const response = await app.request('/api/config/resume-field-usage-policy', {
+      headers: {
+        'X-Workspace-Slug': 'hr',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    expect(getPolicySpy).toHaveBeenCalledWith('hr')
+    expect(await response.json()).toEqual({
+      success: true,
+      config: {
+        version: 1,
+        updatedAt: '2026-03-20',
+        description: 'test policy',
+        sourceFileRelativePath: 'config/resume/field-usage-policy.json5',
+        fields: {
+          jobIntention: {
+            surfaces: {
+              analysis: false,
+              presentation: true,
+            },
+          },
+        },
+      },
+    })
+  })
+
   it('blocks hr users from updating workspace config', async () => {
     const setRuleWeightsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceRuleWeights').mockResolvedValue()
 
@@ -104,6 +148,71 @@ describe('config route workspace access', () => {
       config: {
         roleMatch: {
           screener: { passThreshold: 64 },
+        },
+      },
+    })
+  })
+
+  it('allows dev admin updates for the resume field usage policy', async () => {
+    const setPolicySpy = vi.spyOn(workspaceConfigService, 'setWorkspaceResumeFieldUsagePolicy').mockResolvedValue()
+    const getPolicySpy = vi.spyOn(workspaceConfigService, 'getResumeFieldUsagePolicy').mockResolvedValue({
+      version: 1,
+      updatedAt: '2026-03-20',
+      description: 'merged policy',
+      sourceFileRelativePath: 'config/resume/field-usage-policy.json5',
+      fields: {
+        jobIntention: {
+          surfaces: {
+            analysis: false,
+            presentation: true,
+          },
+        },
+      },
+    })
+
+    const app = createTestApp()
+    const response = await app.request('/api/config/resume-field-usage-policy', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'dev',
+      },
+      body: JSON.stringify({
+        fields: {
+          jobIntention: {
+            surfaces: {
+              presentation: true,
+            },
+          },
+        },
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(setPolicySpy).toHaveBeenCalledWith('dev', {
+      fields: {
+        jobIntention: {
+          surfaces: {
+            presentation: true,
+          },
+        },
+      },
+    })
+    expect(getPolicySpy).toHaveBeenCalledWith('dev')
+    expect(await response.json()).toEqual({
+      success: true,
+      config: {
+        version: 1,
+        updatedAt: '2026-03-20',
+        description: 'merged policy',
+        sourceFileRelativePath: 'config/resume/field-usage-policy.json5',
+        fields: {
+          jobIntention: {
+            surfaces: {
+              analysis: false,
+              presentation: true,
+            },
+          },
         },
       },
     })

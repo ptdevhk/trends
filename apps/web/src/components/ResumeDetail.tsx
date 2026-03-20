@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { buildWorkHistoryDateRange, normalizeWorkHistoryEntry, RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE, selectLatestWorkHistory } from '@trends/shared'
+import {
+  buildWorkHistoryDateRange,
+  normalizeWorkHistoryEntry,
+  RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE,
+  sanitizeResumeRecordForSurface,
+  selectLatestWorkHistory,
+} from '@trends/shared'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -9,6 +15,7 @@ import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { formatRoleYears, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl } from '@/lib/resume-scoring'
+import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 
 import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
 
@@ -43,12 +50,17 @@ function matchesStructuredWorkEntry(
 
 export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreFeedback, aiSummaryFeedback, onAiFeedback }: ResumeDetailProps) {
   const { t } = useTranslation()
+  const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const [isInfoExpanded, setIsInfoExpanded] = useState(false)
+  const presentationResume = useMemo(
+    () => (resume ? sanitizeResumeRecordForSurface(resume, 'presentation', fieldUsagePolicy) : null),
+    [fieldUsagePolicy, resume],
+  )
 
   const workHistory = useMemo(() => {
-    if (!resume?.workHistory?.length) return []
-    return selectLatestWorkHistory(resume.workHistory)
-  }, [resume])
+    if (!presentationResume?.workHistory?.length) return []
+    return selectLatestWorkHistory(presentationResume.workHistory)
+  }, [presentationResume])
   const workHistoryAnnotations = useMemo(() => {
     if (!resume || !hasIngestData(resume)) {
       return workHistory.map(() => [])
@@ -99,9 +111,11 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
       })
     : ''
 
-  if (!resume) {
+  if (!resume || !presentationResume) {
     return null
   }
+
+  const displayResume = presentationResume
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -125,11 +139,11 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.name')}</p>
-                <p className="font-medium">{resume.name || '--'}</p>
+                <p className="font-medium">{displayResume.name || '--'}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.age')}</p>
-                <p className="font-medium">{resume.age || '--'}</p>
+                <p className="font-medium">{displayResume.age || '--'}</p>
               </div>
             </div>
             <Button
@@ -147,47 +161,47 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
             <div className="grid grid-cols-2 gap-4 text-sm pt-2 border-t">
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.experience')}</p>
-                <p className="font-medium">{resume.experience || '--'}</p>
+                <p className="font-medium">{displayResume.experience || '--'}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.education')}</p>
-                <p className="font-medium">{resume.education || '--'}</p>
+                <p className="font-medium">{displayResume.education || '--'}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.location')}</p>
-                <p className="font-medium">{resume.location || '--'}</p>
+                <p className="font-medium">{displayResume.location || '--'}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.salary')}</p>
-                <p className="font-medium">{resume.expectedSalary || '--'}</p>
+                <p className="font-medium">{displayResume.expectedSalary || '--'}</p>
               </div>
               <div className="col-span-2">
                 <p className="text-muted-foreground">{t('resumes.columns.intention')}</p>
-                <p className="font-medium">{resume.jobIntention || '--'}</p>
+                <p className="font-medium">{displayResume.jobIntention || '--'}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.activity')}</p>
-                <p className="font-medium">{resume.activityStatus || '--'}</p>
+                <p className="font-medium">{displayResume.activityStatus || '--'}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">ID</p>
                 <p className="font-medium">
-                  {[resume.resumeId, resume.perUserId].filter(Boolean).join(' / ') || '--'}
+                  {[displayResume.resumeId, displayResume.perUserId].filter(Boolean).join(' / ') || '--'}
                 </p>
               </div>
-              {resume.extractedAt && (
+              {displayResume.extractedAt && (
                 <div className="col-span-2">
                   <p className="text-muted-foreground">{t('resumes.detail.extractedAt')}</p>
                   <p className="font-medium">
-                    {new Date(resume.extractedAt).toLocaleString()}
+                    {new Date(displayResume.extractedAt).toLocaleString()}
                   </p>
                 </div>
               )}
-              {resume.selfIntro && (
+              {displayResume.selfIntro && (
                 <div className="col-span-2">
                   <p className="text-muted-foreground">{t('resumes.detail.selfIntro')}</p>
                   <div className="mt-1 whitespace-pre-wrap">
-                    {resume.selfIntro}
+                    {displayResume.selfIntro}
                   </div>
                 </div>
               )}
@@ -207,7 +221,7 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
                   const dateLine = [dateRange, durationLabel ? `(${durationLabel})` : ''].filter(Boolean).join(' ')
                   const heading = [item.companyName, item.jobTitle].filter(Boolean).join(' · ')
                   return (
-                    <li key={`${resume.name}-${index}`} className="rounded-md border border-border p-3 space-y-1">
+                    <li key={`${displayResume.name}-${index}`} className="rounded-md border border-border p-3 space-y-1">
                       {heading ? <div className="font-medium">{heading}</div> : null}
                       {dateLine ? <div className="text-xs text-muted-foreground">{dateLine}</div> : null}
                       {annotations.length > 0 ? (

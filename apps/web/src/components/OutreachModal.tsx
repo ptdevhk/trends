@@ -1,6 +1,5 @@
-
-import { selectLatestWorkHistory } from "@trends/shared";
-import { useState, useEffect, useCallback } from "react";
+import { sanitizeResumeRecordForSurface, selectLatestWorkHistory } from "@trends/shared";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -16,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Send, Wand2 } from "lucide-react";
 import type { ResumeItem } from "@/hooks/useResumes";
 import type { MatchingResult } from "@/types/resume";
+import { useResumeFieldUsagePolicy } from "@/contexts/ResumeFieldUsagePolicyContext";
 
 interface OutreachModalProps {
     isOpen: boolean;
@@ -39,11 +39,16 @@ export function OutreachModal({
     analysis,
     onSuccess,
 }: OutreachModalProps) {
+    const fieldUsagePolicy = useResumeFieldUsagePolicy();
     const [subject, setSubject] = useState("");
     const [body, setBody] = useState("");
     const [loading, setLoading] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const outreachResume = useMemo(
+        () => sanitizeResumeRecordForSurface(resume, "outreach", fieldUsagePolicy),
+        [fieldUsagePolicy, resume],
+    );
 
 
 
@@ -57,12 +62,18 @@ export function OutreachModal({
                 body: JSON.stringify({
                     resume: {
                         id: resume.resumeId || resume.name,
-                        name: resume.name,
-                        summary: resume.selfIntro,
+                        name: outreachResume.name,
+                        ...(typeof outreachResume.selfIntro === "string" && outreachResume.selfIntro.trim().length > 0
+                            ? { summary: outreachResume.selfIntro }
+                            : {}),
                         skills: [],
-                        workExperience: parseInt(resume.experience) || 0,
-                        education: resume.education,
-                        jobIntention: resume.jobIntention,
+                        workExperience: parseInt(typeof outreachResume.experience === "string" ? outreachResume.experience : resume.experience) || 0,
+                        ...(typeof outreachResume.education === "string" && outreachResume.education.trim().length > 0
+                            ? { education: outreachResume.education }
+                            : {}),
+                        ...(typeof outreachResume.jobIntention === "string" && outreachResume.jobIntention.trim().length > 0
+                            ? { jobIntention: outreachResume.jobIntention }
+                            : {}),
                         companies: selectLatestWorkHistory(resume.workHistory)
                             .map((work) => work.companyName)
                             .filter((company): company is string => typeof company === "string" && company.length > 0),
@@ -84,7 +95,7 @@ export function OutreachModal({
         } finally {
             setGenerating(false);
         }
-    }, [analysis, jobDescription, resume]);
+    }, [analysis, jobDescription, outreachResume, resume]);
 
     // Auto-generate draft when modal opens
     useEffect(() => {
@@ -98,7 +109,9 @@ export function OutreachModal({
         try {
             // For now, we simulate sending to the candidate's email derived from name or use a placeholder
             // In a real app, resume.email would be verified
-            const emailMatch = resume.selfIntro?.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi);
+            const emailMatch = typeof outreachResume.selfIntro === "string"
+                ? outreachResume.selfIntro.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi)
+                : null;
             const email = emailMatch ? emailMatch[0] : "candidate@example.com";
 
             const res = await fetch("/api/notifications/send", {
