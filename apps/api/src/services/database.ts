@@ -76,6 +76,7 @@ function initSchema(db: Database.Database): void {
 
     CREATE TABLE IF NOT EXISTS search_sessions (
       id TEXT PRIMARY KEY,
+      workspace_slug TEXT DEFAULT 'dev',
       user_id TEXT,
       job_description_id TEXT,
       sample_name TEXT,
@@ -160,6 +161,15 @@ function initSchema(db: Database.Database): void {
   ensureColumn(db, "search_sessions", "workspace_slug", "TEXT DEFAULT 'dev'");
 }
 
+function isDuplicateColumnError(error: unknown, column: string): boolean {
+  if (getSqliteErrorCode(error) !== "SQLITE_ERROR") {
+    return false;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes(`duplicate column name: ${column}`);
+}
+
 function ensureColumn(
   db: Database.Database,
   table: string,
@@ -169,5 +179,13 @@ function ensureColumn(
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<Record<string, unknown>>;
   const exists = rows.some((row) => String(row.name) === column);
   if (exists) return;
-  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  } catch (error) {
+    if (isDuplicateColumnError(error, column)) {
+      return;
+    }
+    throw error;
+  }
 }
