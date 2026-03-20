@@ -201,9 +201,9 @@ backup-resumes:
 	OUT="$${OUT:-}" \
 	LIMIT="$${LIMIT:-}" \
 	RESUME_IDS="$${RESUME_IDS:-}" \
-	SOURCE_HOSTS="$${SOURCE_HOSTS:-}" \
+	SOURCE_HOSTS="$${SOURCE_HOSTS:-}"; \
 	if command -v bun >/dev/null 2>&1; then \
-		bunx tsx scripts/resume/backup-resumes.ts; \
+		bun run scripts/resume/backup-resumes.ts; \
 	else \
 		npx tsx scripts/resume/backup-resumes.ts; \
 	fi
@@ -214,9 +214,9 @@ restore-resumes:
 	WORKSPACE="$${WORKSPACE:-dev}" \
 	FILE="$${FILE:-}" \
 	MODE="$${MODE:-upsert}" \
-	YES="$${YES:-}" \
+	YES="$${YES:-}"; \
 	if command -v bun >/dev/null 2>&1; then \
-		bunx tsx scripts/resume/restore-resumes.ts; \
+		bun run scripts/resume/restore-resumes.ts; \
 	else \
 		npx tsx scripts/resume/restore-resumes.ts; \
 	fi
@@ -792,8 +792,11 @@ help:
 	@echo "  deploy-seed    Force a full upgrade with seeded demo resumes (requires sudo)"
 	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
 	@echo "  backup-resumes Export live resume records to a portable JSON or .tar.gz backup"
-	@echo "  restore-resumes Restore resume records from a portable JSON or .tar.gz backup"
+	@echo "  restore-resumes Restore resume records from a portable backup file or snapshot directory"
 	@echo "                 Uses API_URL/TRENDS_API_URL, WORKSPACE=dev, and OUT/FILE/LIMIT/SOURCE_HOSTS/RESUME_IDS/MODE/YES"
+	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json"
+	@echo "                 Example: make restore-resumes FILE=/abs/path/output/resume-backups/20260321-015304"
+	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json MODE=replace YES=1"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "                 See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1, and env knobs"
 	@echo "  docker         Start Docker containers"

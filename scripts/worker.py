@@ -19,15 +19,17 @@ except ImportError:
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import existing scraping logic
-from refresh_sample import (
+from browser_cdp import (
     CDPError,
     CDP_PORT,
-    open_cdp_session,
-    execute_scrape_job,
-    build_search_url,
     eval_json,
-    wait_for,
+    open_cdp_session,
     resolve_accessor_context,
+    wait_for,
+)
+from refresh_sample import (
+    build_search_url,
+    execute_scrape_job,
 )
 
 class CancellationError(Exception):

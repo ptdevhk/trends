@@ -3,21 +3,29 @@ import { constants } from "node:fs";
 import { access, mkdir, readFile, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { resolveApiUrl, resolveWorkspace, splitCsv } from "./operator-utils.ts";
+import { buildManualResumeImportPayload } from "../../apps/api/src/services/manual-resume-import-service.ts";
+import {
+  resolveApiUrl,
+  resolveWorkspace,
+  splitCsv,
+  writePortableBackupFile,
+} from "./operator-utils.ts";
 
 const execFileAsync = promisify(execFileCallback);
 
 const DEFAULT_COUNT = 20;
+const DEFAULT_MAX_PAGES = 10;
+const DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222";
 const DEFAULT_WAIT_TIMEOUT_SEC = 600;
-const DEFAULT_POLL_INTERVAL_MS = 2_000;
 const DEFAULT_OUT_DIR = "output/resume-backups";
 const DEFAULT_MANUAL_FILE = "~/Downloads/51job.rar";
-const DEFAULT_JOB5156_URL = "http://localhost:5173/dev/resumes?location=China&keyword=CNC+%E9%94%80%E5%94%AE&minAge=25&maxAge=40";
-const DEFAULT_SEEK_URL = "http://localhost:5173/dev/resumes?location=Kuala+Lumpur+MY&keyword=CNC+Sales";
+const DEFAULT_JOB5156_URL =
+  "https://hr.job5156.com/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40";
+const DEFAULT_SEEK_URL =
+  "https://hk.employer.seek.com/candidates/recommended?jobId=90842915";
 
 export const SOURCE_ALIASES = ["job5156", "seek", "51job-manual"] as const;
 export type SourceAlias = (typeof SOURCE_ALIASES)[number];
@@ -32,13 +40,14 @@ type SnapshotCliArgs = {
   apiUrl: string;
   workspace: string;
   count: number;
+  maxPages: number;
   outDir: string;
   sources: SourceAlias[];
   job5156Url: string;
   seekUrl: string;
   manualFile: string;
+  cdpEndpoint: string;
   waitTimeoutSec: number;
-  openBrowser: boolean;
 };
 
 export type SnapshotOptions = SnapshotCliArgs & {
@@ -51,11 +60,19 @@ type ResumeBackupEnvelope = {
   data?: unknown[];
 };
 
-type ResumeResetResponse = {
-  success?: boolean;
-  count?: number;
-  partial?: boolean;
-  deleted?: Record<string, number>;
+type ResumeImportPayload = {
+  metadata: Record<string, unknown>;
+  resumes: Record<string, unknown>[];
+};
+
+type BrowserCollectorSummary = {
+  mode?: string;
+  endpoint?: string;
+  source?: string;
+  sourceHost?: string;
+  url?: string;
+  status?: Record<string, unknown>;
+  payload?: ResumeBackupEnvelope;
 };
 
 type ManualImportSummary = {
@@ -69,13 +86,6 @@ type ManualImportSummary = {
   deduped?: number;
   skipped?: number;
   failed?: number;
-};
-
-type ManualImportResponse = {
-  success?: boolean;
-  error?: string;
-  summary?: ManualImportSummary;
-  warnings?: string[];
 };
 
 type ExecOptions = {
@@ -111,41 +121,45 @@ export type SnapshotRunSummary = {
   sources: SnapshotSourceResult[];
 };
 
-type SnapshotRuntime = {
-  now: () => Date;
-  sleep: (ms: number) => Promise<void>;
-  exec: (command: string, args: string[], options?: ExecOptions) => Promise<ExecResult>;
-  fetch: typeof fetch;
-  promptEnter: (message: string) => Promise<void>;
-  openUrl: (url: string) => Promise<void>;
-  log: (message: string) => void;
-  warn: (message: string) => void;
-  resolveUserHomeDirectory: (user?: string) => Promise<string>;
+type BrowserSourceAlias = Extract<SourceAlias, "job5156" | "seek">;
+
+type ManualSnapshotPayloadResult = {
+  payload: ResumeBackupEnvelope;
+  summary: ManualImportSummary;
 };
 
-type ResumeCountParams = {
-  apiUrl: string;
-  workspace: string;
-  sourceHost?: string;
-  limit: number;
-  runtime: SnapshotRuntime;
+type SnapshotRuntime = {
+  now: () => Date;
+  exec: (
+    command: string,
+    args: string[],
+    options?: ExecOptions,
+  ) => Promise<ExecResult>;
+  log: (message: string) => void;
+  buildManualSnapshotPayload?: (params: {
+    archivePath: string;
+    limit: number;
+  }) => Promise<ManualSnapshotPayloadResult>;
+  resolveUserHomeDirectory: (user?: string) => Promise<string>;
 };
 
 function usage(): string {
   return [
-    "Usage: tsx scripts/resume/snapshot-source-backups.ts [options]",
+    "Usage: bun run scripts/resume/snapshot-source-backups.ts [options]",
     "",
     "Options:",
     "  --source <alias>           Repeatable source alias: job5156 | seek | 51job-manual",
     `  --count <number>           Resumes per source (default: ${DEFAULT_COUNT})`,
-    `  --api-url <url>            Trends API base URL (default: ${resolveApiUrl()})`,
-    `  --workspace <slug>         Workspace slug (default: ${resolveWorkspace()})`,
+    `  --max-pages <number>       Browser pages per source collection (default: ${DEFAULT_MAX_PAGES})`,
+    `  --api-url <url>            Retained for CLI compatibility (default: ${resolveApiUrl()})`,
+    `  --workspace <slug>         Retained for CLI compatibility (default: ${resolveWorkspace()})`,
     `  --out-dir <path>           Output directory (default: ${DEFAULT_OUT_DIR})`,
-    `  --job5156-url <url>        Local dev launch URL for Job5156 (default: ${DEFAULT_JOB5156_URL})`,
-    `  --seek-url <url>           Local dev launch URL for SEEK (default: ${DEFAULT_SEEK_URL})`,
+    `  --job5156-url <url>        Direct Job5156 source URL (default: ${DEFAULT_JOB5156_URL})`,
+    `  --seek-url <url>           Direct SEEK source URL (default: ${DEFAULT_SEEK_URL})`,
     `  --manual-file <path>       Manual 51job archive path (default: ${DEFAULT_MANUAL_FILE})`,
-    `  --wait-timeout-sec <n>     Wait timeout per source in seconds (default: ${DEFAULT_WAIT_TIMEOUT_SEC})`,
-    "  --open-browser             Best-effort open the local launch URL before waiting",
+    `  --cdp-endpoint <value>     Chrome DevTools endpoint or port (default: ${DEFAULT_CDP_ENDPOINT})`,
+    `  --wait-timeout-sec <n>     Retained for CLI compatibility (default: ${DEFAULT_WAIT_TIMEOUT_SEC})`,
+    "  --open-browser             Deprecated no-op retained for CLI compatibility",
     "  --help                     Show this help",
   ].join("\n");
 }
@@ -185,7 +199,10 @@ function hasCliFlag(argv: string[], flag: string): boolean {
   return argv.includes(`--${flag}`);
 }
 
-function parsePositiveInteger(value: string | undefined, fallback: number): number {
+function parsePositiveInteger(
+  value: string | undefined,
+  fallback: number,
+): number {
   const parsed = Number.parseInt(value?.trim() ?? "", 10);
   if (!Number.isFinite(parsed) || parsed < 1) {
     return fallback;
@@ -209,7 +226,9 @@ export function resolveRequestedSources(values: string[]): SourceAlias[] {
       continue;
     }
     if (!isSourceAlias(value)) {
-      throw new Error(`invalid source ${JSON.stringify(rawValue)} (expected ${SOURCE_ALIASES.join("|")})`);
+      throw new Error(
+        `invalid source ${JSON.stringify(rawValue)} (expected ${SOURCE_ALIASES.join("|")})`,
+      );
     }
     if (!normalized.includes(value)) {
       normalized.push(value);
@@ -233,13 +252,23 @@ export function parseCliArgs(argv: string[]): SnapshotCliArgs {
     apiUrl: readCliValue(argv, "api-url")?.trim() || resolveApiUrl(),
     workspace: readCliValue(argv, "workspace")?.trim() || resolveWorkspace(),
     count: parsePositiveInteger(readCliValue(argv, "count"), DEFAULT_COUNT),
+    maxPages: parsePositiveInteger(
+      readCliValue(argv, "max-pages"),
+      DEFAULT_MAX_PAGES,
+    ),
     outDir: readCliValue(argv, "out-dir")?.trim() || DEFAULT_OUT_DIR,
     sources: resolveRequestedSources(readCliValues(argv, "source")),
-    job5156Url: readCliValue(argv, "job5156-url")?.trim() || DEFAULT_JOB5156_URL,
+    job5156Url:
+      readCliValue(argv, "job5156-url")?.trim() || DEFAULT_JOB5156_URL,
     seekUrl: readCliValue(argv, "seek-url")?.trim() || DEFAULT_SEEK_URL,
-    manualFile: readCliValue(argv, "manual-file")?.trim() || DEFAULT_MANUAL_FILE,
-    waitTimeoutSec: parsePositiveInteger(readCliValue(argv, "wait-timeout-sec"), DEFAULT_WAIT_TIMEOUT_SEC),
-    openBrowser: hasCliFlag(argv, "open-browser"),
+    manualFile:
+      readCliValue(argv, "manual-file")?.trim() || DEFAULT_MANUAL_FILE,
+    cdpEndpoint:
+      readCliValue(argv, "cdp-endpoint")?.trim() || DEFAULT_CDP_ENDPOINT,
+    waitTimeoutSec: parsePositiveInteger(
+      readCliValue(argv, "wait-timeout-sec"),
+      DEFAULT_WAIT_TIMEOUT_SEC,
+    ),
   };
 }
 
@@ -257,6 +286,18 @@ function readResumeArray(payload: ResumeBackupEnvelope): unknown[] {
   return [];
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readResumeRecords(
+  payload: ResumeBackupEnvelope,
+): Record<string, unknown>[] {
+  return readResumeArray(payload)
+    .filter(isRecord)
+    .map((resume) => ({ ...resume }));
+}
+
 function formatRunStamp(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -267,179 +308,180 @@ function formatRunStamp(date: Date): string {
   return `${year}${month}${day}-${hour}${minute}${second}`;
 }
 
-function buildOutputFilePath(runDir: string, alias: SourceAlias, count: number, runStamp: string): string {
-  return path.join(runDir, `resume-backup-${alias}-top${count}-${runStamp}.json`);
-}
-
-async function parseJsonResponse<T>(response: Response): Promise<T> {
-  const responseText = await response.text();
-  if (!response.ok) {
-    throw new Error(responseText.trim() || `request failed (${response.status})`);
-  }
-
-  try {
-    return JSON.parse(responseText) as T;
-  } catch (error) {
-    throw new Error(`invalid JSON response: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-async function postJson<T>(
-  apiUrl: string,
-  workspace: string,
-  pathname: string,
-  body: unknown,
-  runtime: SnapshotRuntime,
-): Promise<T> {
-  const response = await runtime.fetch(`${apiUrl.replace(/\/$/, "")}${pathname}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Workspace-Slug": workspace,
-    },
-    body: JSON.stringify(body),
-  });
-  return await parseJsonResponse<T>(response);
-}
-
-async function fetchResumeCount(params: ResumeCountParams): Promise<number> {
-  const payload = await postJson<ResumeBackupEnvelope>(
-    params.apiUrl,
-    params.workspace,
-    "/api/resumes/backup",
-    {
-      ...(params.sourceHost ? { sourceHosts: [params.sourceHost] } : {}),
-      limit: params.limit,
-    },
-    params.runtime,
+function buildOutputFilePath(
+  runDir: string,
+  alias: SourceAlias,
+  count: number,
+  runStamp: string,
+): string {
+  return path.join(
+    runDir,
+    `resume-backup-${alias}-top${count}-${runStamp}.json`,
   );
-  return readResumeArray(payload).length;
-}
-
-async function waitForResumeCount(params: {
-  alias: SourceAlias | "all";
-  apiUrl: string;
-  workspace: string;
-  sourceHost?: string;
-  targetCount: number;
-  timeoutMs: number;
-  runtime: SnapshotRuntime;
-  pollIntervalMs?: number;
-}): Promise<number> {
-  const deadline = Date.now() + params.timeoutMs;
-  const pollIntervalMs = params.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-  let lastCount: number | null = null;
-
-  while (true) {
-    const observed = await fetchResumeCount({
-      apiUrl: params.apiUrl,
-      workspace: params.workspace,
-      sourceHost: params.sourceHost,
-      limit: Math.max(params.targetCount, 1),
-      runtime: params.runtime,
-    });
-
-    if (params.targetCount === 0 ? observed === 0 : observed >= params.targetCount) {
-      return observed;
-    }
-
-    if (observed !== lastCount) {
-      const scope = params.alias === "all" ? "all sources" : params.alias;
-      params.runtime.log(`[${scope}] observed ${observed}/${params.targetCount} resumes`);
-      lastCount = observed;
-    }
-
-    if (Date.now() >= deadline) {
-      throw new Error(
-        params.targetCount === 0
-          ? "timed out waiting for resume table to become empty"
-          : `timed out waiting for ${params.alias} to reach ${params.targetCount} resumes`,
-      );
-    }
-
-    await params.runtime.sleep(pollIntervalMs);
-  }
-}
-
-function buildBrowserPrompt(alias: SourceAlias, launchUrl: string, count: number): string {
-  if (alias === "seek") {
-    return [
-      `[seek] Open the local dev page and collect resumes from the SEEK lane:`,
-      launchUrl,
-      "",
-      "Before clicking Collect, switch the source selector to SEEK.",
-      "Use an account/session that stores imported rows as hk.employer.seek.com.",
-      "",
-      `Press Enter after the collection run has been triggered. The helper will wait for ${count} SEEK resumes.`,
-    ].join("\n");
-  }
-
-  return [
-    `[job5156] Open the local dev page and collect resumes from Job5156:`,
-    launchUrl,
-    "",
-    "Use a logged-in browser with the Trends extension enabled, then click Collect.",
-    "",
-    `Press Enter after the collection run has been triggered. The helper will wait for ${count} Job5156 resumes.`,
-  ].join("\n");
 }
 
 async function cleanupFile(filePath: string): Promise<void> {
   await unlink(filePath).catch(() => undefined);
 }
 
-async function ensureCliBinary(repoRoot: string, runtime: SnapshotRuntime): Promise<string> {
-  const cliPath = path.join(repoRoot, "bin", "trends");
-  try {
-    await access(cliPath, constants.X_OK);
-    return cliPath;
-  } catch {
-    runtime.log("bin/trends is missing; building it with make cli-build");
-  }
-
-  await runtime.exec("make", ["cli-build"], { cwd: repoRoot });
-  await access(cliPath, constants.X_OK);
-  return cliPath;
+function resolveCollectorScriptPath(repoRoot: string): string {
+  return path.join(repoRoot, "scripts", "resume", "collect_browser_source.py");
 }
 
-async function backupSourceToFile(params: {
-  alias: SourceAlias;
-  sourceHost: string;
+function buildBrowserCollectorParams(
+  alias: BrowserSourceAlias,
+  launchUrl: string,
+  options: SnapshotOptions,
+  runtime: SnapshotRuntime,
+) {
+  return {
+    alias,
+    launchUrl,
+    count: options.count,
+    maxPages: options.maxPages,
+    cdpEndpoint: options.cdpEndpoint,
+    repoRoot: options.repoRoot,
+    runtime,
+  };
+}
+
+function extractExecFailureDetail(
+  failure: Error & { stderr?: string; stdout?: string },
+): string {
+  const candidateOutputs = [failure.stderr, failure.stdout, failure.message];
+
+  for (const output of candidateOutputs) {
+    if (typeof output !== "string") {
+      continue;
+    }
+
+    const line = output
+      .split(/\r?\n/u)
+      .map((value) => value.trim())
+      .find(
+        (value) =>
+          value.length > 0 && !value.toLowerCase().startsWith("hint:"),
+      );
+    if (line) {
+      return line.replace(/^Error:\s*/u, "");
+    }
+  }
+
+  return "command failed";
+}
+
+async function runBrowserCollector(params: {
+  alias: BrowserSourceAlias;
+  launchUrl: string;
   count: number;
-  apiUrl: string;
-  workspace: string;
-  cliPath: string;
-  outFile: string;
+  maxPages: number;
+  cdpEndpoint: string;
   repoRoot: string;
   runtime: SnapshotRuntime;
-}): Promise<number> {
+  checkOnly?: boolean;
+}): Promise<BrowserCollectorSummary> {
+  const args = [
+    "run",
+    "python",
+    resolveCollectorScriptPath(params.repoRoot),
+    "--source",
+    params.alias,
+    "--url",
+    params.launchUrl,
+    "--limit",
+    String(params.count),
+    "--max-pages",
+    String(params.maxPages),
+    "--cdp-endpoint",
+    params.cdpEndpoint,
+    ...(params.checkOnly ? ["--check-only"] : []),
+  ];
+  let result: ExecResult;
   try {
-    const result = await params.runtime.exec(
-      params.cliPath,
-      [
-        "--api-url",
-        params.apiUrl,
-        "--workspace",
-        params.workspace,
-        "--output",
-        "json",
-        "resume",
-        "backup",
-        "--source-host",
-        params.sourceHost,
-        "--limit",
-        String(params.count),
-        "--out",
-        params.outFile,
-      ],
-      { cwd: params.repoRoot },
+    result = await params.runtime.exec("uv", args, {
+      cwd: params.repoRoot,
+    });
+  } catch (error) {
+    const failure = error as Error & { stderr?: string; stdout?: string };
+    throw new Error(
+      `[${params.alias}] browser collector failed: ${extractExecFailureDetail(failure)}`,
     );
+  }
+  const stdout = result.stdout.trim();
+  if (!stdout) {
+    throw new Error(`[${params.alias}] browser collector returned no output`);
+  }
 
-    const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
-    const count = typeof parsed.count === "number" ? parsed.count : Number.NaN;
-    if (!Number.isFinite(count)) {
-      throw new Error(`backup summary for ${params.alias} did not include a numeric count`);
-    }
+  try {
+    return JSON.parse(stdout) as BrowserCollectorSummary;
+  } catch (error) {
+    throw new Error(
+      `[${params.alias}] browser collector returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function normalizeCollectedImportPayload(
+  alias: BrowserSourceAlias,
+  payload: ResumeBackupEnvelope | undefined,
+  runtime: SnapshotRuntime,
+): ResumeImportPayload {
+  if (!payload) {
+    throw new Error(`[${alias}] collector did not return a payload`);
+  }
+
+  const sourceHost = SOURCE_HOSTS[alias];
+  const resumes = readResumeRecords(payload).map((resume) => ({
+    ...resume,
+    sourceHost,
+  }));
+  if (resumes.length === 0) {
+    throw new Error(`[${alias}] collector returned zero resumes`);
+  }
+
+  const rawMetadata = isRecord(payload.metadata) ? payload.metadata : {};
+  const sourceUrl =
+    typeof rawMetadata.sourceUrl === "string"
+      ? rawMetadata.sourceUrl.trim()
+      : "";
+  if (!sourceUrl) {
+    throw new Error(
+      `[${alias}] collector payload is missing metadata.sourceUrl`,
+    );
+  }
+
+  return {
+    metadata: {
+      ...rawMetadata,
+      sourceKey: alias,
+      sourceHost,
+      sourceUrl,
+      generatedAt:
+        typeof rawMetadata.generatedAt === "string" &&
+        rawMetadata.generatedAt.trim()
+          ? rawMetadata.generatedAt
+          : runtime.now().toISOString(),
+      totalResumes: resumes.length,
+    },
+    resumes,
+  };
+}
+
+async function writeSnapshotPayloadToFile(params: {
+  alias: SourceAlias;
+  payload: ResumeBackupEnvelope;
+  expectedCount: number;
+  outFile: string;
+}): Promise<number> {
+  const count = readResumeRecords(params.payload).length;
+  if (count !== params.expectedCount) {
+    throw new Error(
+      `expected ${params.expectedCount} resumes in ${params.alias} snapshot, received ${count}`,
+    );
+  }
+
+  try {
+    await writePortableBackupFile(params.outFile, params.payload);
     return count;
   } catch (error) {
     await cleanupFile(params.outFile);
@@ -447,34 +489,32 @@ async function backupSourceToFile(params: {
   }
 }
 
-async function resetResumes(apiUrl: string, workspace: string, runtime: SnapshotRuntime): Promise<ResumeResetResponse> {
-  return await postJson<ResumeResetResponse>(apiUrl, workspace, "/api/resumes/reset", {}, runtime);
-}
-
-async function importManualArchive(params: {
-  apiUrl: string;
-  workspace: string;
+async function buildManualSnapshotPayload(params: {
   archivePath: string;
+  limit: number;
   runtime: SnapshotRuntime;
-}): Promise<ManualImportSummary | undefined> {
-  const archiveData = await readFile(params.archivePath);
-  const formData = new FormData();
-  formData.append("files", new Blob([archiveData]), path.basename(params.archivePath));
-
-  const response = await params.runtime.fetch(`${params.apiUrl.replace(/\/$/, "")}/api/resumes/manual-import`, {
-    method: "POST",
-    headers: {
-      "X-Workspace-Slug": params.workspace,
-    },
-    body: formData,
-  });
-
-  const payload = await parseJsonResponse<ManualImportResponse>(response);
-  if (payload.success !== true) {
-    throw new Error(payload.error?.trim() || "manual import failed");
+}): Promise<ManualSnapshotPayloadResult> {
+  if (params.runtime.buildManualSnapshotPayload) {
+    return await params.runtime.buildManualSnapshotPayload({
+      archivePath: params.archivePath,
+      limit: params.limit,
+    });
   }
 
-  return payload.summary;
+  const archiveData = await readFile(params.archivePath);
+  const file = new File(
+    [archiveData],
+    path.basename(params.archivePath),
+    { type: "application/octet-stream" },
+  );
+  const result = await buildManualResumeImportPayload({
+    files: [file],
+    limit: params.limit,
+  });
+  return {
+    payload: result.payload,
+    summary: result.summary,
+  };
 }
 
 async function resolveSudoUserHome(
@@ -488,7 +528,12 @@ async function resolveSudoUserHome(
 
   if (process.platform === "darwin") {
     try {
-      const result = await exec("dscl", [".", "-read", `/Users/${trimmed}`, "NFSHomeDirectory"]);
+      const result = await exec("dscl", [
+        ".",
+        "-read",
+        `/Users/${trimmed}`,
+        "NFSHomeDirectory",
+      ]);
       const match = /NFSHomeDirectory:\s+(.+)/u.exec(result.stdout);
       if (match?.[1]) {
         return match[1].trim();
@@ -546,7 +591,10 @@ export async function resolveUserFacingPath(
   return path.resolve(repoRoot, trimmed);
 }
 
-function buildSourceLaunchUrl(alias: SourceAlias, options: SnapshotOptions): string | undefined {
+function buildSourceLaunchUrl(
+  alias: SourceAlias,
+  options: SnapshotOptions,
+): string | undefined {
   if (alias === "job5156") {
     return options.job5156Url;
   }
@@ -564,7 +612,6 @@ export async function runSnapshotSourceBackups(
   const runDir = path.join(options.outDir, runStamp);
   await mkdir(runDir, { recursive: true });
 
-  const cliPath = await ensureCliBinary(options.repoRoot, runtime);
   const manualArchivePath = options.sources.includes("51job-manual")
     ? await resolveUserFacingPath(options.manualFile, options.repoRoot, runtime)
     : undefined;
@@ -577,98 +624,75 @@ export async function runSnapshotSourceBackups(
 
   for (const alias of options.sources) {
     const sourceHost = SOURCE_HOSTS[alias];
-    runtime.log(`[${alias}] resetting resume tables`);
-    const resetResult = await resetResumes(options.apiUrl, options.workspace, runtime);
-    const resetCount = typeof resetResult.count === "number" ? resetResult.count : 0;
-    const resetPartial = resetResult.partial === true;
-
-    if (resetPartial) {
-      runtime.log(`[${alias}] reset returned partial=true; waiting for the background delete batches to finish`);
-    }
-
-    await waitForResumeCount({
-      alias: "all",
-      apiUrl: options.apiUrl,
-      workspace: options.workspace,
-      targetCount: 0,
-      timeoutMs: options.waitTimeoutSec * 1_000,
-      runtime,
-    });
-
     let launchUrl: string | undefined;
     let manualImportSummary: ManualImportSummary | undefined;
+    let snapshotPayload: ResumeBackupEnvelope;
 
-    if (alias === "51job-manual") {
-      if (!manualArchivePath) {
-        throw new Error("manual archive path was not resolved");
-      }
-      runtime.log(`[51job-manual] importing ${manualArchivePath}`);
-      manualImportSummary = await importManualArchive({
-        apiUrl: options.apiUrl,
-        workspace: options.workspace,
-        archivePath: manualArchivePath,
-        runtime,
-      });
-    } else {
+    if (alias !== "51job-manual") {
       launchUrl = buildSourceLaunchUrl(alias, options);
       if (!launchUrl) {
         throw new Error(`missing launch URL for ${alias}`);
       }
+      const browserCollectorParams = buildBrowserCollectorParams(
+        alias,
+        launchUrl,
+        options,
+        runtime,
+      );
 
-      if (options.openBrowser) {
-        try {
-          await runtime.openUrl(launchUrl);
-          runtime.log(`[${alias}] opened ${launchUrl}`);
-        } catch (error) {
-          runtime.warn(
-            `[${alias}] failed to open browser automatically: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
+      runtime.log(
+        `[${alias}] checking Chrome DevTools at ${options.cdpEndpoint}`,
+      );
+      await runBrowserCollector({
+        ...browserCollectorParams,
+        checkOnly: true,
+      });
+
+      const collected = await runBrowserCollector(browserCollectorParams);
+      const normalizedPayload = normalizeCollectedImportPayload(
+        alias,
+        collected.payload,
+        runtime,
+      );
+      runtime.log(
+        `[${alias}] collected ${normalizedPayload.resumes.length} resumes`,
+      );
+      snapshotPayload = normalizedPayload;
+    } else {
+      if (!manualArchivePath) {
+        throw new Error("manual archive path was not resolved");
       }
-
-      await runtime.promptEnter(buildBrowserPrompt(alias, launchUrl, options.count));
+      runtime.log(`[51job-manual] parsing ${manualArchivePath}`);
+      const manualSnapshot = await buildManualSnapshotPayload({
+        archivePath: manualArchivePath,
+        limit: options.count,
+        runtime,
+      });
+      manualImportSummary = manualSnapshot.summary;
+      snapshotPayload = manualSnapshot.payload;
     }
-
-    const observedCount = await waitForResumeCount({
-      alias,
-      apiUrl: options.apiUrl,
-      workspace: options.workspace,
-      sourceHost,
-      targetCount: options.count,
-      timeoutMs: options.waitTimeoutSec * 1_000,
-      runtime,
-    });
 
     const outFile = buildOutputFilePath(runDir, alias, options.count, runStamp);
-    const backupCount = await backupSourceToFile({
+    runtime.log(`[${alias}] writing snapshot file ${outFile}`);
+    const snapshotCount = await writeSnapshotPayloadToFile({
       alias,
-      sourceHost,
-      count: options.count,
-      apiUrl: options.apiUrl,
-      workspace: options.workspace,
-      cliPath,
+      payload: snapshotPayload,
+      expectedCount: options.count,
       outFile,
-      repoRoot: options.repoRoot,
-      runtime,
     });
-
-    if (backupCount !== options.count) {
-      await cleanupFile(outFile);
-      throw new Error(
-        `expected ${options.count} resumes in ${alias} backup, received ${backupCount}`,
-      );
-    }
 
     results.push({
       alias,
       sourceHost,
       file: outFile,
-      count: backupCount,
+      count: snapshotCount,
       ...(launchUrl ? { launchUrl } : {}),
-      ...(manualArchivePath && alias === "51job-manual" ? { manualFile: manualArchivePath } : {}),
-      resetCount,
-      resetPartial,
-      observedCount,
+      ...(manualArchivePath && alias === "51job-manual"
+        ? { manualFile: manualArchivePath }
+        : {}),
+      resetCount: 0,
+      resetPartial: false,
+      observedCount: snapshotCount,
       ...(manualImportSummary ? { manualImportSummary } : {}),
     });
   }
@@ -685,18 +709,6 @@ export async function runSnapshotSourceBackups(
   };
 }
 
-async function defaultOpenUrl(url: string, exec: SnapshotRuntime["exec"]): Promise<void> {
-  if (process.platform === "darwin") {
-    await exec("open", [url]);
-    return;
-  }
-  if (process.platform === "win32") {
-    await exec("cmd", ["/c", "start", "", url]);
-    return;
-  }
-  await exec("xdg-open", [url]);
-}
-
 function createRuntime(): SnapshotRuntime {
   const exec: SnapshotRuntime["exec"] = async (command, args, options) => {
     const result = await execFileAsync(command, args, {
@@ -711,34 +723,8 @@ function createRuntime(): SnapshotRuntime {
 
   return {
     now: () => new Date(),
-    sleep: async (ms: number) => {
-      await new Promise((resolve) => setTimeout(resolve, ms));
-    },
     exec,
-    fetch: globalThis.fetch,
-    promptEnter: async (message: string) => {
-      if (!process.stdin.isTTY || !process.stdout.isTTY) {
-        console.error(message);
-        return;
-      }
-
-      const interfaceHandle = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-      });
-      try {
-        await interfaceHandle.question(`${message}\n> `);
-      } finally {
-        interfaceHandle.close();
-      }
-    },
-    openUrl: async (url: string) => {
-      await defaultOpenUrl(url, exec);
-    },
     log: (message: string) => {
-      console.error(message);
-    },
-    warn: (message: string) => {
       console.error(message);
     },
     resolveUserHomeDirectory: async (user?: string) => {
@@ -756,23 +742,32 @@ async function main(): Promise<void> {
   const cliArgs = parseCliArgs(process.argv.slice(2));
   const repoRoot = resolveRepoRoot();
   const outDir = await resolveUserFacingPath(cliArgs.outDir, repoRoot, runtime);
-  const summary = await runSnapshotSourceBackups({
-    ...cliArgs,
-    repoRoot,
-    outDir,
-  }, runtime);
+  const summary = await runSnapshotSourceBackups(
+    {
+      ...cliArgs,
+      repoRoot,
+      outDir,
+    },
+    runtime,
+  );
   console.log(JSON.stringify(summary, null, 2));
 }
 
 const isMainModule = process.argv[1]
-  ? path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1])
+  ? path.resolve(fileURLToPath(import.meta.url)) ===
+    path.resolve(process.argv[1])
   : false;
 
 if (isMainModule) {
   void main().catch((error) => {
-    console.error(error instanceof Error ? error.stack || error.message : String(error));
+    console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   });
 }
 
-export { DEFAULT_JOB5156_URL, DEFAULT_MANUAL_FILE, DEFAULT_SEEK_URL, SOURCE_HOSTS };
+export {
+  DEFAULT_JOB5156_URL,
+  DEFAULT_MANUAL_FILE,
+  DEFAULT_SEEK_URL,
+  SOURCE_HOSTS,
+};

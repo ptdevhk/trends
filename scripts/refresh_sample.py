@@ -15,34 +15,21 @@ import re
 import sys
 import time
 import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-import websockets
+from browser_cdp import (
+    CDPClient,
+    CDP_PORT,
+    CDPError,
+    eval_json,
+    open_cdp_session,
+    wait_for,
+)
 
-CDP_PORT = 9222
 DEFAULT_KEYWORD = "销售"
 DEFAULT_SAMPLE = "sample-initial"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output" / "resumes" / "samples"
-
-
-class CDPError(RuntimeError):
-    pass
-
-
-def fetch_json(url: str, timeout: float = 2.0):
-    with urllib.request.urlopen(url, timeout=timeout) as response:
-        return json.load(response)
-
-
-def create_target(port: int, url: str):
-    encoded = urllib.parse.quote(url, safe="")
-    endpoint = f"http://127.0.0.1:{port}/json/new?{encoded}"
-    try:
-        return fetch_json(endpoint, timeout=3.0)
-    except Exception:
-        return None
 
 
 def sanitize_sample_name(value: str) -> str:
@@ -129,134 +116,6 @@ def build_metadata(page_url: str, sample_name: str, status: dict | None, resumes
         "totalResumes": len(resumes),
         "reproduction": f"Navigate to sourceUrl, then add ?{reproduction_params}",
     }
-
-
-class CDPClient:
-    def __init__(self, ws):
-        self.ws = ws
-        self._next_id = 0
-        self.contexts: dict[int, dict] = {}
-
-    async def _recv(self):
-        raw = await self.ws.recv()
-        msg = json.loads(raw)
-        if "method" in msg:
-            self._handle_event(msg)
-            return ("event", msg)
-        return ("response", msg)
-
-    def _handle_event(self, msg: dict):
-        method = msg.get("method")
-        params = msg.get("params") or {}
-        if method == "Runtime.executionContextCreated":
-            context = params.get("context")
-            if context and "id" in context:
-                self.contexts[context["id"]] = context
-        elif method == "Runtime.executionContextDestroyed":
-            context_id = params.get("executionContextId")
-            if context_id in self.contexts:
-                self.contexts.pop(context_id, None)
-        elif method == "Runtime.executionContextsCleared":
-            self.contexts = {}
-
-    async def call(self, method: str, params: dict | None = None, timeout: float = 20.0):
-        self._next_id += 1
-        request_id = self._next_id
-        message = {"id": request_id, "method": method}
-        if params:
-            message["params"] = params
-        await self.ws.send(json.dumps(message))
-        deadline = time.time() + timeout
-        while True:
-            remaining = deadline - time.time()
-            if remaining <= 0:
-                raise CDPError(f"Timeout waiting for {method}")
-            try:
-                kind, msg = await asyncio.wait_for(self._recv(), timeout=remaining)
-            except asyncio.TimeoutError as exc:
-                raise CDPError(f"Timeout waiting for {method}") from exc
-            if kind == "response" and msg.get("id") == request_id:
-                if "error" in msg:
-                    raise CDPError(f"{method} failed: {msg['error']}")
-                return msg.get("result") or {}
-
-
-async def eval_json(client: CDPClient, expression: str, context_id: int | None = None):
-    params = {
-        "expression": expression,
-        "returnByValue": True,
-        "awaitPromise": True,
-    }
-    if context_id:
-        params["contextId"] = context_id
-    result = await client.call("Runtime.evaluate", params=params)
-    if "exceptionDetails" in result:
-        raise CDPError("Runtime.evaluate threw an exception")
-    return (result.get("result") or {}).get("value")
-
-
-def pick_contexts(contexts: dict[int, dict]) -> list[dict]:
-    isolated = []
-    for ctx in contexts.values():
-        aux = ctx.get("auxData") or {}
-        if aux.get("type") == "isolated":
-            isolated.append(ctx)
-    if not isolated:
-        isolated = list(contexts.values())
-    def rank(ctx: dict) -> tuple[int, str]:
-        name = ctx.get("name") or ""
-        if "Resume" in name or "智通直聘" in name:
-            return (0, name)
-        return (1, name)
-    isolated.sort(key=rank)
-    return isolated
-
-
-async def resolve_accessor_context(client: CDPClient) -> tuple[bool, int | None]:
-    probe = """(() => {
-      const api = window.__TR_RESUME_DATA__;
-      return !!(
-        api &&
-        typeof api.status === "function" &&
-        typeof api.extract === "function"
-      );
-    })()"""
-    try:
-        if await eval_json(client, probe):
-            return True, None
-    except CDPError:
-        pass
-
-    for ctx in pick_contexts(client.contexts):
-        ctx_id = ctx.get("id")
-        if not ctx_id:
-            continue
-        try:
-            if await eval_json(client, probe, context_id=ctx_id):
-                return True, ctx_id
-        except CDPError:
-            continue
-    return False, None
-
-
-async def wait_for(
-    client: CDPClient,
-    expression: str,
-    timeout: float = 20.0,
-    interval: float = 0.5,
-    context_id: int | None = None,
-):
-    deadline = time.time() + timeout
-    last = None
-    while time.time() < deadline:
-        try:
-            last = await eval_json(client, expression, context_id=context_id)
-        except CDPError:
-            last = None
-        if last:
-            return last
-        await asyncio.sleep(interval)
-    return last
 
 
 async def execute_scrape_job(
@@ -419,114 +278,6 @@ async def execute_scrape_job(
             break
             
     return all_resumes
-
-
-from contextlib import asynccontextmanager
-
-@asynccontextmanager
-async def open_cdp_session(port: int, search_url: str = None):
-    """
-    Context manager that connects to Chrome, finds/creates target,
-    resolves extension context, and yields (client, context_id).
-    """
-    try:
-        targets = fetch_json(f"http://127.0.0.1:{port}/json")
-    except Exception as exc:
-        raise CDPError("Chrome is not reachable on the CDP port.") from exc
-
-    pages = [
-        target
-        for target in targets
-        if target.get("type") == "page" and target.get("webSocketDebuggerUrl")
-    ]
-
-    target = None
-    # Prefer existing search tab
-    if search_url:
-        target_domain = urllib.parse.urlparse(search_url).netloc
-        for page in pages:
-            if target_domain in (page.get("url") or ""):
-                target = page
-                break
-    
-    # Fallback to any job5156 tab
-    if not target:
-        for page in pages:
-            if "hr.job5156.com" in (page.get("url") or ""):
-                target = page
-                break
-                
-    # Create new if needed
-    if not target and search_url:
-        target = create_target(port, search_url)
-        
-    if not target and pages:
-        target = pages[0]
-        
-    if not target:
-        raise CDPError("No debuggable Chrome pages found.")
-
-    ws_url = target.get("webSocketDebuggerUrl")
-    if not ws_url:
-        raise CDPError("Selected target has no webSocketDebuggerUrl.")
-
-    print(f"Using target: {target.get('title') or target.get('url')}")
-
-    async with websockets.connect(ws_url, max_size=64 * 1024 * 1024) as ws:
-        client = CDPClient(ws)
-        await client.call("Page.enable")
-        await client.call("Runtime.enable")
-        
-        if search_url:
-            await client.call("Page.navigate", {"url": search_url})
-            await wait_for(client, "document.readyState === 'complete'", timeout=30.0)
-
-        accessor_found, context_id = await resolve_accessor_context(client)
-        if not accessor_found:
-            # Maybe we need to navigate or reload?
-            if search_url:
-                 await client.call("Page.navigate", {"url": search_url})
-                 await wait_for(client, "document.readyState === 'complete'", timeout=30.0)
-            
-            accessor_found, context_id = await resolve_accessor_context(client)
-            
-        if not accessor_found:
-             # Try waiting a bit more
-             await wait_for(client, "document.readyState === 'complete'", timeout=5.0)
-             accessor_found, context_id = await resolve_accessor_context(client)
-
-        if not accessor_found:
-            raise CDPError(
-                "Extension accessor not found. Ensure the extension is enabled for hr.job5156.com."
-            )
-
-        # Wait for extension status
-        status = await wait_for(
-            client,
-            """(() => {
-              const api = window.__TR_RESUME_DATA__;
-              return api && typeof api.status === "function" ? api.status() : null;
-            })()""",
-            timeout=15.0,
-            context_id=context_id,
-        )
-        if not status:
-            raise CDPError("Extension did not report status in time.")
-
-        # Check ready state
-        await wait_for(
-            client,
-            """(() => {
-              const api = window.__TR_RESUME_DATA__;
-              if (!api) return false;
-              if (typeof api.isReady === "function") return !!api.isReady();
-              return !!document.querySelector(".el-checkbox-group.resume-search-item-list-content-block");
-            })()""",
-            timeout=30.0,
-            context_id=context_id,
-        )
-        
-        yield client, context_id
 
 
 async def run():
