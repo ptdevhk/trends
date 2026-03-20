@@ -1,3 +1,4 @@
+import { formatKeywordInput, normalizeKeywordPhrases, parseKeywordQuery } from '@trends/shared'
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { Pencil, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -65,6 +66,7 @@ interface QuickStartPanelProps {
     config: {
       location: string
       keywords: string[]
+      requiredKeywords?: string[]
       jobDescriptionId?: string
       collectionSource?: CollectionSource | null
       collectUrl?: string
@@ -230,7 +232,7 @@ function parseLocationParts(value: string): string[] {
 }
 
 function normalizeProfileKeywords(profile: SearchProfileDetails): string[] {
-  return profile.keywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0)
+  return normalizeKeywordPhrases(profile.keywords)
 }
 
 function getProfileQuickConstraints(profile: SearchProfileDetails): {
@@ -295,7 +297,7 @@ export function QuickStartPanel({
 
   const [location, setLocation] = useState(defaultLocation)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(defaultKeywords)
-  const [customKeyword, setCustomKeyword] = useState(defaultKeywords.join(' '))
+  const [customKeyword, setCustomKeyword] = useState(formatKeywordInput(defaultKeywords))
   const [collectionSource, setCollectionSource] = useState<CollectionSource | undefined>(defaultCollectionSource)
   const [collectUrl, setCollectUrl] = useState(defaultCollectUrl)
   const [quickMinRoleYears, setQuickMinRoleYears] = useState(quickFilters?.minRoleYears?.toString() ?? '')
@@ -331,7 +333,7 @@ export function QuickStartPanel({
 
   useEffect(() => {
     setSelectedKeywords(defaultKeywords)
-    setCustomKeyword(defaultKeywords.join(' '))
+    setCustomKeyword(formatKeywordInput(defaultKeywords))
   }, [defaultKeywords])
 
   useEffect(() => {
@@ -411,7 +413,7 @@ export function QuickStartPanel({
 
       if (selectedConvexJobDescriptionDetail?.customKeywords && selectedConvexJobDescriptionDetail.customKeywords.length > 0) {
         setSelectedKeywords(selectedConvexJobDescriptionDetail.customKeywords.map(k => k.trim()))
-        setCustomKeyword(selectedConvexJobDescriptionDetail.customKeywords.join(' '))
+        setCustomKeyword(formatKeywordInput(selectedConvexJobDescriptionDetail.customKeywords))
       }
 
       return
@@ -443,7 +445,7 @@ export function QuickStartPanel({
 
           if (autoMatchKeywords && autoMatchKeywords.length > 0) {
             setSelectedKeywords(autoMatchKeywords.map(k => k.trim()))
-            setCustomKeyword(autoMatchKeywords.join(' '))
+            setCustomKeyword(formatKeywordInput(autoMatchKeywords))
           } else {
             setSelectedKeywords([])
             setCustomKeyword('')
@@ -498,7 +500,7 @@ export function QuickStartPanel({
   }, [])
 
   const normalizedKeywords = useMemo(
-    () => selectedKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
+    () => normalizeKeywordPhrases(selectedKeywords),
     [selectedKeywords]
   )
   const currentCollectionSource = useMemo<CollectionSource>(
@@ -668,7 +670,7 @@ export function QuickStartPanel({
 
   const handleKeywordsChange = useCallback((keywords: string[]) => {
     setSelectedKeywords(keywords)
-    setCustomKeyword(keywords.join(' '))
+    setCustomKeyword(formatKeywordInput(keywords))
     setCollectionSource((current) => stripCollectionSourceExactUrl(current))
     setCollectUrl(undefined)
   }, [])
@@ -702,17 +704,18 @@ export function QuickStartPanel({
   }, [onJobChange])
 
   const handleApplyWorkflow = useCallback((workflow: QuickStartWorkflow) => {
+    const workflowKeywords = normalizeKeywordPhrases(workflow.keywords)
     const nextCollectUrl = workflow.collectUrl
       ?? buildCollectionLaunchUrl({
         source: workflow.collectionSource,
         location: workflow.location,
-        keywords: workflow.keywords,
+        keywords: workflowKeywords,
       })
       ?? undefined
 
     setLocation(workflow.location)
-    setSelectedKeywords(workflow.keywords)
-    setCustomKeyword(workflow.keywords.join(' '))
+    setSelectedKeywords(workflowKeywords)
+    setCustomKeyword(formatKeywordInput(workflowKeywords))
     setCollectionSource(workflow.collectionSource)
     setCollectUrl(nextCollectUrl)
     onJobChange?.('')
@@ -728,7 +731,7 @@ export function QuickStartPanel({
 
     setLocation(profileLocation)
     setSelectedKeywords(profileKeywords)
-    setCustomKeyword(profileKeywords.join(' '))
+    setCustomKeyword(formatKeywordInput(profileKeywords))
     setCollectionSource(nextCollectionSource)
     setCollectUrl(nextCollectUrl)
     setQuickMinRoleYears(
@@ -740,6 +743,7 @@ export function QuickStartPanel({
     onApplyConfig?.({
       location: profileLocation,
       keywords: profileKeywords,
+      requiredKeywords: profile.requiredKeywords,
       jobDescriptionId: nextJobDescriptionId || undefined,
       collectionSource: nextCollectionSource,
       collectUrl: nextCollectUrl,
@@ -791,13 +795,14 @@ export function QuickStartPanel({
       }
 
       if (savedFields.customKeywords && savedFields.customKeywords.length > 0) {
-        setSelectedKeywords(savedFields.customKeywords.map(k => k.trim()))
-        setCustomKeyword(savedFields.customKeywords.join(' '))
+        const normalizedSavedKeywords = normalizeKeywordPhrases(savedFields.customKeywords)
+        setSelectedKeywords(normalizedSavedKeywords)
+        setCustomKeyword(formatKeywordInput(normalizedSavedKeywords))
       } else if (savedFields.title) {
-        const titleWords = savedFields.title.split(/[\s-]+/).filter(Boolean)
+        const titleWords = normalizeKeywordPhrases(savedFields.title.split(/[\s-]+/))
         if (titleWords.length > 0) {
           setSelectedKeywords(titleWords)
-          setCustomKeyword(titleWords.join(' '))
+          setCustomKeyword(formatKeywordInput(titleWords))
         }
       }
     }
@@ -895,11 +900,10 @@ export function QuickStartPanel({
                   onChange={(event) => {
                     const value = event.target.value
                     setCustomKeyword(value)
-                    const parts = value.split(/[\s,]+/).filter(Boolean)
                     setCollectUrl(undefined)
-                    setSelectedKeywords(parts)
+                    setSelectedKeywords(parseKeywordQuery(value).keywords)
                   }}
-                  placeholder={t('quickStart.customKeywordPlaceholder', '关键词 (空格分隔)...')}
+                  placeholder={t('quickStart.customKeywordPlaceholder', '关键词（支持引号 OR，或用逗号分隔短语）...')}
                   className="h-9 w-full sm:w-64 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>

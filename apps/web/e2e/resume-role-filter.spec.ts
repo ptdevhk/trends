@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { parseKeywordQuery } from '@trends/shared'
 import type { Doc } from '../../../packages/convex/convex/_generated/dataModel'
 
 type MockResume = Doc<'resumes'>
@@ -20,6 +21,14 @@ function countNonEngineerCards(roleTypes: Array<string | null>): number {
 
 function parseConvexBody(route: Parameters<Page['route']>[1] extends (route: infer T) => unknown ? T : never) {
   return route.request().postDataJSON() as { path?: string; args?: Record<string, unknown> }
+}
+
+function isSeekMalaysiaRoleQuery(query: string): boolean {
+  const parsed = parseKeywordQuery(query)
+  return parsed.mode === 'OR'
+    && parsed.keywords.length === 2
+    && parsed.keywords[0] === 'Sales Engineer'
+    && parsed.keywords[1] === 'Sales Manager'
 }
 
 async function mockResumePageApis(
@@ -101,17 +110,31 @@ async function mockResumePageApis(
   })
 
   await page.route('**/api/resumes/keyword-expansion**', async (route) => {
+    const requestUrl = new URL(route.request().url())
+    const query = requestUrl.searchParams.get('q') ?? ''
+    const summary = isSeekMalaysiaRoleQuery(query)
+      ? {
+          groups: [
+            { original: 'sales engineer', variants: ['sales engineer'] },
+            { original: 'sales manager', variants: ['sales manager'] },
+          ],
+          mode: 'OR',
+          expandedTo: ['sales engineer', 'sales manager'],
+          sourceMapping: {},
+        }
+      : {
+          groups: [],
+          mode: 'AND',
+          expandedTo: [],
+          sourceMapping: {},
+        }
+
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         success: true,
-        summary: {
-          groups: [],
-          mode: 'AND',
-          expandedTo: [],
-          sourceMapping: {},
-        },
+        summary,
       }),
     })
   })
@@ -369,6 +392,204 @@ const salesResume: MockResume = {
   },
 }
 
+const seekEngineerResume: MockResume = {
+  _id: 'resume_seek_engineer',
+  identityKey: 'resume_seek_engineer',
+  externalId: 'seek:resume:engineer-1',
+  source: 'my.employer.seek.com',
+  tags: ['sales engineer'],
+  crawledAt: 1710205323000,
+  primaryRuleScore: 82,
+  ingestData: {
+    industryTags: ['sales'],
+    synonymHits: [],
+    brandHits: [],
+    companyHits: [],
+    roleSignals: [
+      {
+        type: 'engineer',
+        matchedSignals: ['sales engineer'],
+        signalCount: 1,
+        occurrences: 1,
+        years: 3,
+        industryVerifiedYears: 3,
+        roleRelevantYears: 3,
+        industryVerifiedRelevantYears: 3,
+        matchedWorkEntries: [
+          {
+            companyName: 'KL Automation',
+            jobTitle: 'Sales Engineer',
+            years: 3,
+            industryVerified: true,
+            matchedSignals: ['sales engineer'],
+          },
+        ],
+        verifyIn: 'workHistory',
+      },
+    ],
+    ruleScores: { industry: 78, role: 82 },
+    experienceLevel: 'mid',
+    computedAt: 1710205323000,
+    skillsVersion: 2,
+  },
+  content: {
+    name: 'Engineer Candidate',
+    profileUrl: 'https://my.employer.seek.com/candidates/engineer-1',
+    activityStatus: 'active',
+    age: '31',
+    experience: '7 years',
+    education: 'Bachelor',
+    location: 'Kuala Lumpur MY',
+    selfIntro: 'Experienced in CNC solution selling and application engineering.',
+    jobIntention: 'Sales Engineer',
+    expectedSalary: 'RM 12,000',
+    workHistory: [
+      {
+        raw: '2021-01~至今 KL Automation Sales Engineer',
+        companyName: 'KL Automation',
+        jobTitle: 'Sales Engineer',
+        startDate: '2021-01',
+        endDate: '至今',
+      },
+    ],
+    extractedAt: '2026-03-12T01:02:03.000Z',
+    resumeId: 'engineer-1',
+    perUserId: 'seek-engineer-1',
+  },
+}
+
+const seekManagerResume: MockResume = {
+  _id: 'resume_seek_manager',
+  identityKey: 'resume_seek_manager',
+  externalId: 'seek:resume:manager-1',
+  source: 'my.employer.seek.com',
+  tags: ['sales manager'],
+  crawledAt: 1710205323000,
+  primaryRuleScore: 80,
+  ingestData: {
+    industryTags: ['sales'],
+    synonymHits: [],
+    brandHits: [],
+    companyHits: [],
+    roleSignals: [
+      {
+        type: 'manager',
+        matchedSignals: ['sales manager'],
+        signalCount: 1,
+        occurrences: 1,
+        years: 4,
+        industryVerifiedYears: 4,
+        roleRelevantYears: 4,
+        industryVerifiedRelevantYears: 4,
+        matchedWorkEntries: [
+          {
+            companyName: 'MY Industrial Systems',
+            jobTitle: 'Sales Manager',
+            years: 4,
+            industryVerified: true,
+            matchedSignals: ['sales manager'],
+          },
+        ],
+        verifyIn: 'workHistory',
+      },
+    ],
+    ruleScores: { industry: 76, role: 80 },
+    experienceLevel: 'senior',
+    computedAt: 1710205323000,
+    skillsVersion: 2,
+  },
+  content: {
+    name: 'Manager Candidate',
+    profileUrl: 'https://my.employer.seek.com/candidates/manager-1',
+    activityStatus: 'active',
+    age: '36',
+    experience: '10 years',
+    education: 'Bachelor',
+    location: 'Kuala Lumpur MY',
+    selfIntro: 'Led regional industrial equipment teams across Malaysia.',
+    jobIntention: 'Sales Manager',
+    expectedSalary: 'RM 15,000',
+    workHistory: [
+      {
+        raw: '2020-01~至今 MY Industrial Systems Sales Manager',
+        companyName: 'MY Industrial Systems',
+        jobTitle: 'Sales Manager',
+        startDate: '2020-01',
+        endDate: '至今',
+      },
+    ],
+    extractedAt: '2026-03-12T01:02:03.000Z',
+    resumeId: 'manager-1',
+    perUserId: 'seek-manager-1',
+  },
+}
+
+const seekGenericSalesResume: MockResume = {
+  _id: 'resume_seek_generic',
+  identityKey: 'resume_seek_generic',
+  externalId: 'seek:resume:generic-1',
+  source: 'my.employer.seek.com',
+  tags: ['sales executive'],
+  crawledAt: 1710205323000,
+  primaryRuleScore: 40,
+  ingestData: {
+    industryTags: ['sales'],
+    synonymHits: [],
+    brandHits: [],
+    companyHits: [],
+    roleSignals: [
+      {
+        type: 'sales',
+        matchedSignals: ['sales'],
+        signalCount: 1,
+        occurrences: 1,
+        years: 2,
+        industryVerifiedYears: 1,
+        roleRelevantYears: 2,
+        industryVerifiedRelevantYears: 1,
+        matchedWorkEntries: [
+          {
+            companyName: 'MY General Trading',
+            jobTitle: 'Sales Executive',
+            years: 2,
+            industryVerified: false,
+            matchedSignals: ['sales'],
+          },
+        ],
+        verifyIn: 'workHistory',
+      },
+    ],
+    ruleScores: { industry: 35, role: 40 },
+    experienceLevel: 'mid',
+    computedAt: 1710205323000,
+    skillsVersion: 2,
+  },
+  content: {
+    name: 'Generic Sales Candidate',
+    profileUrl: 'https://my.employer.seek.com/candidates/generic-1',
+    activityStatus: 'active',
+    age: '30',
+    experience: '6 years',
+    education: 'Diploma',
+    location: 'Kuala Lumpur MY',
+    selfIntro: 'General B2B sales background.',
+    jobIntention: 'Sales Executive',
+    expectedSalary: 'RM 8,000',
+    workHistory: [
+      {
+        raw: '2022-01~至今 MY General Trading Sales Executive',
+        companyName: 'MY General Trading',
+        jobTitle: 'Sales Executive',
+        startDate: '2022-01',
+        endDate: '至今',
+      },
+    ],
+    extractedAt: '2026-03-12T01:02:03.000Z',
+    resumeId: 'generic-1',
+    perUserId: 'seek-generic-1',
+  },
+}
+
 test.describe('Resume quick role filter', () => {
   test('home navigation clears search state while direct links and legacy redirects still hydrate', async ({ page }) => {
     await mockResumePageApis(page, {
@@ -449,9 +670,9 @@ test.describe('Resume quick role filter', () => {
     await expect(page.getByText('王女士')).toHaveCount(0)
   })
 
-  test('SEEK Malaysia workflow keeps Kuala Lumpur as one location token and opens the correct collect URL', async ({ page }) => {
+  test('SEEK Malaysia workflow preserves OR phrase intent end to end', async ({ page }) => {
     await mockResumePageApis(page, {
-      searchResumes: [],
+      searchResumes: [seekEngineerResume, seekManagerResume, seekGenericSalesResume],
     })
 
     await page.route('**/api/config/custom-keywords**', async (route) => {
@@ -515,19 +736,21 @@ test.describe('Resume quick role filter', () => {
       })
     })
 
-    await page.goto('/dev/resumes')
-
-    await expect(page.getByRole('button', { name: 'Sales Engineer', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Sales Manager', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Kuala Lumpur MY', exact: true })).toBeVisible()
-
-    await page.getByRole('button', { name: 'SEEK · Sales Engineer / Sales Manager · Kuala Lumpur MY' }).click()
+    await page.goto('/dev/resumes?location=Kuala+Lumpur+MY&keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22')
 
     await expect(page.getByRole('textbox', { name: '位置' })).toHaveValue('Kuala Lumpur MY')
-    await expect(page.getByPlaceholder('自定义关键词...')).toHaveValue('Sales Engineer Sales Manager')
+    await expect(page.getByPlaceholder('自定义关键词...')).toHaveValue('Sales Engineer, Sales Manager')
     await expect(page).toHaveURL(/location=Kuala(\+|%20)Lumpur(\+|%20)MY/)
     await expect(page).not.toHaveURL(/location=Kuala,Lumpur,MY/)
     await expect(page.getByText('SEEK Malaysia Sales Engineer / Sales Manager')).toBeVisible()
+    await expect(page.getByText('Engineer Candidate')).toBeVisible()
+    await expect(page.getByText('Manager Candidate')).toBeVisible()
+
+    const resumeCards = page.getByTestId('resume-card')
+    await expect(resumeCards).toHaveCount(2)
+    await expect(resumeCards.filter({ hasText: 'Engineer Candidate' })).toHaveCount(1)
+    await expect(resumeCards.filter({ hasText: 'Manager Candidate' })).toHaveCount(1)
+    await expect(resumeCards.filter({ hasText: 'Generic Sales Candidate' })).toHaveCount(0)
 
     await page.evaluate(() => {
       const openedUrls: string[] = []
@@ -549,6 +772,7 @@ test.describe('Resume quick role filter', () => {
     expect(collectUrl.searchParams.get('jobId')).toBe('90842915')
     expect(collectUrl.searchParams.get('pageNumber')).toBe('1')
     expect(collectUrl.searchParams.get('tr_auto_sync')).toBe('true')
+    expect(collectUrl.searchParams.get('keyword')).toBeNull()
   })
 
   test('SEEK auto-match prefers the profile jobUrl for collect on raw query pages', async ({ page }) => {

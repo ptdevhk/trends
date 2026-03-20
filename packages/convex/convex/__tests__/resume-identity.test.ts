@@ -110,6 +110,26 @@ describe("deriveResumeIdentityKey", () => {
         expect(nestedProfile).toBe("profileUrl:my.employer.seek.com/candidates/503033454");
     });
 
+    it("normalizes Seek recommended URL format (openProfileId) to same identity as path format", () => {
+        const recommendedUrl = deriveResumeIdentityKey({
+            externalId: "hk.employer.seek.com:profile:503033454",
+            source: "hk.employer.seek.com",
+            content: {
+                profileUrl: "https://hk.employer.seek.com/candidates/recommended?jobId=90842915&openProfileId=503033454",
+            },
+        });
+        const pathUrl = deriveResumeIdentityKey({
+            externalId: "hk.employer.seek.com:profile:503033454",
+            source: "hk.employer.seek.com",
+            content: {
+                profileUrl: "https://hk.employer.seek.com/candidates/503033454",
+            },
+        });
+
+        expect(recommendedUrl).toBe("profileUrl:hk.employer.seek.com/candidates/503033454");
+        expect(recommendedUrl).toBe(pathUrl);
+    });
+
     it("keeps same numeric ids distinct across different sources", () => {
         const seekIdentity = deriveResumeIdentityKey({
             externalId: "hk.employer.seek.com:profile:123456",

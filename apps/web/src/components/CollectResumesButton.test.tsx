@@ -75,7 +75,7 @@ describe('CollectResumesButton', () => {
 
     const job5156Url = new URL(openMock.mock.calls[1]?.[0] as string)
     expect(`${job5156Url.origin}${job5156Url.pathname}`).toBe('https://hr.job5156.com/search')
-    expect(job5156Url.searchParams.get('keyword')).toBe('Sales Engineer Sales Manager')
+    expect(job5156Url.searchParams.get('keyword')).toBe('"Sales Engineer" OR "Sales Manager"')
     expect(job5156Url.searchParams.get('location')).toBe('Kuala Lumpur MY')
     expect(job5156Url.searchParams.get('tr_auto_sync')).toBe('true')
 

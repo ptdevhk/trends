@@ -1,3 +1,4 @@
+import { formatKeywordInput, inferKeywordQueryMode, normalizeKeywordPhrases, parseKeywordQuery } from '@trends/shared'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from 'convex/react'
 import { useTranslation } from 'react-i18next'
@@ -39,6 +40,7 @@ export type SearchProfileDetails = {
     status: 'active' | 'paused' | 'archived'
     location: string
     keywords: string[]
+    requiredKeywords?: string[]
     jobDescription?: string
     filterPreset?: string
     filters?: SearchProfileFilters
@@ -138,7 +140,7 @@ function normalizeStringArray(values: string[] | undefined): string[] {
 function toKeywordsText(keywords: string[] | undefined, fallbackText?: string): string {
     const normalized = normalizeStringArray(keywords)
     if (normalized.length > 0) {
-        return normalized.join(' ')
+        return formatKeywordInput(normalized)
     }
 
     const fallback = fallbackText?.trim()
@@ -167,10 +169,11 @@ function parseOptionalNumber(value: string): number | undefined {
 }
 
 function parseKeywords(value: string): string[] {
-    return value
-        .split(/[\s,，、]+/)
-        .map((keyword) => keyword.trim())
-        .filter((keyword) => keyword.length > 0)
+    const parsed = parseKeywordQuery(value)
+    const keywords = normalizeKeywordPhrases(parsed.keywords)
+    return inferKeywordQueryMode(keywords) === 'OR'
+        ? keywords
+        : normalizeStringArray(keywords)
 }
 
 function normalizeSourcePriority(value: number | undefined): string {
@@ -237,7 +240,7 @@ function toFormState(profile: SearchProfileDetails): ProfileFormState {
     return {
         name: profile.name,
         location: profile.location,
-        keywordsText: profile.keywords.join(' '),
+        keywordsText: formatKeywordInput(profile.keywords),
         jobDescription: profile.jobDescription || '',
         minExperience: typeof profile.filters?.minExperience === 'number' ? String(profile.filters.minExperience) : '1',
         maxExperience: typeof profile.filters?.maxExperience === 'number' ? String(profile.filters.maxExperience) : '',

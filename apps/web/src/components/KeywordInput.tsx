@@ -1,3 +1,4 @@
+import { formatKeywordInput, normalizeKeywordPhrases, parseKeywordQuery } from "@trends/shared"
 import { useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -16,27 +17,20 @@ export function KeywordInput({ value, onChange, placeholder, id }: KeywordInputP
     const availableCustomKeywords = grouped.custom || []
     const [expanded, setExpanded] = useState(false)
 
-    const activeKeywords = useMemo(() => {
-        return value
-            .split(/[\s,，、]+/)
-            .map((keyword) => keyword.trim())
-            .filter((keyword) => keyword.length > 0)
-    }, [value])
+    const activeKeywords = useMemo(() => parseKeywordQuery(value).keywords, [value])
 
     const toggleKeyword = (keyword: string) => {
-        if (activeKeywords.includes(keyword)) {
-            const newKeywords = activeKeywords.filter((k) => k !== keyword)
-            onChange(newKeywords.join(" "))
-        } else {
-            const suffix = value.trim().length > 0 ? " " : ""
-            let newValue = value.trim()
-            if (newValue.endsWith(',') || newValue.endsWith('，') || newValue.endsWith('、')) {
-                newValue = newValue + " " + keyword
-            } else {
-                newValue = newValue + suffix + keyword
-            }
-            onChange(newValue)
+        const normalizedKeyword = keyword.trim()
+        if (!normalizedKeyword) {
+            return
         }
+
+        if (activeKeywords.includes(normalizedKeyword)) {
+            onChange(formatKeywordInput(activeKeywords.filter((k) => k !== normalizedKeyword)))
+            return
+        }
+
+        onChange(formatKeywordInput(normalizeKeywordPhrases([...activeKeywords, normalizedKeyword])))
     }
 
     return (

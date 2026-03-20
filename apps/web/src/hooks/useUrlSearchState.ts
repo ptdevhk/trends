@@ -1,3 +1,4 @@
+import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { CandidateStatus, ResumeFilters } from '@/types/resume'
@@ -10,6 +11,7 @@ const KNOWN_PARAM_KEYS = [
   'jd',
   'tags',
   'co',
+  'rkw',
   'exp',
   'minExp',
   'maxExp',
@@ -31,6 +33,7 @@ export type ExperienceLevelFilter = 'senior' | 'mid' | 'junior'
 export type UrlSearchState = {
   location?: string
   keywords: string[]
+  requiredKeywords: string[]
   jobDescriptionId?: string
   selectedTags: string[]
   selectedCompanies: string[]
@@ -53,10 +56,7 @@ function parseKeywordParam(value: string | null): string[] {
     return []
   }
 
-  return value
-    .split(/[\s,，、]+/g)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
+  return parseKeywordQuery(value).keywords
 }
 
 function parseLocationParam(value: string | undefined): string[] {
@@ -194,6 +194,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
   const location = normalizedLocation || (effectiveLocations.length > 0 ? effectiveLocations.join(',') : undefined)
   const keywordRaw = getFirstParam(searchParams, ['kw', 'keyword'])
   const keywords = normalizeUniqueValues(parseKeywordParam(keywordRaw))
+  const requiredKeywords = normalizeUniqueValues(parseCsvParam(searchParams.get('rkw')))
   const jobDescriptionRaw = searchParams.get('jd')
   const jobDescriptionId = jobDescriptionRaw?.trim() || undefined
   const selectedTags = normalizeUniqueValues(parseCsvParam(searchParams.get('tags')))
@@ -260,6 +261,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
   return {
     location,
     keywords,
+    requiredKeywords,
     jobDescriptionId,
     selectedTags,
     selectedCompanies,
@@ -309,7 +311,9 @@ export function useUrlSearchState() {
           ? locationForUrlParts.join(',')
           : normalizedLocation
         setParam(nextParams, 'location', locationForUrl)
-        setParam(nextParams, 'keyword', hasKeywords ? normalizedKeywords.join(' ') : undefined)
+        setParam(nextParams, 'keyword', hasKeywords ? formatKeywordQuery(normalizedKeywords) : undefined)
+        const normalizedRequiredKeywords = normalizeUniqueValues(state.requiredKeywords)
+        setParam(nextParams, 'rkw', normalizedRequiredKeywords.length > 0 ? normalizedRequiredKeywords.join(',') : undefined)
         setParam(nextParams, 'jd', state.jobDescriptionId?.trim())
         setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
         setParam(nextParams, 'co', normalizedCompanies.length > 0 ? normalizedCompanies.join(',') : undefined)

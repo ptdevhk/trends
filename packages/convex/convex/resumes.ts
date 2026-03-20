@@ -164,6 +164,14 @@ type ResumeBackupFilterSets = {
     sourceHosts?: Set<string>;
 };
 
+type DeleteResumesResult = {
+    requested: number;
+    deleted: number;
+    missingResumeIds: string[];
+    deletedAiTaggingResults: number;
+    patchedScreeningSessions: number;
+};
+
 const DEFAULT_RESUME_LIMIT = 50;
 export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 200;
 export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 400;
@@ -217,6 +225,22 @@ function projectIngestDiagnosticsTaggingEntries(
             evidence: entry.provenance.evidence,
         },
     })) ?? [];
+}
+
+function normalizeRequestedResumeIds(resumeIds: string[]): string[] {
+    const normalizedIds: string[] = [];
+    const seen = new Set<string>();
+
+    for (const resumeId of resumeIds) {
+        const token = resumeId.trim();
+        if (!token || seen.has(token)) {
+            continue;
+        }
+        seen.add(token);
+        normalizedIds.push(token);
+    }
+
+    return normalizedIds;
 }
 
 export function projectIngestDiagnosticsRow(
@@ -830,6 +854,7 @@ export const updateAnalysis = internalMutation({
             breakdown: v.optional(v.any()),
             jobDescriptionId: v.optional(v.string()),
             promptVersion: v.optional(v.number()),
+            locale: v.optional(v.string()),
             queryLocation: v.optional(v.string()),
             analyzedAt: v.optional(v.number()),
         }),
@@ -863,6 +888,7 @@ export const updateAnalysisBatch = internalMutation({
                 breakdown: v.optional(v.any()),
                 jobDescriptionId: v.optional(v.string()),
                 promptVersion: v.optional(v.number()),
+                locale: v.optional(v.string()),
                 queryLocation: v.optional(v.string()),
                 analyzedAt: v.optional(v.number()),
             }),
@@ -1147,6 +1173,107 @@ export const clearAnalyses = mutation({
         }
 
         return { cleared };
+    },
+});
+
+export const deleteResumes = mutation({
+    args: {
+        resumeIds: v.array(v.string()),
+    },
+    returns: v.object({
+        requested: v.number(),
+        deleted: v.number(),
+        missingResumeIds: v.array(v.string()),
+        deletedAiTaggingResults: v.number(),
+        patchedScreeningSessions: v.number(),
+    }),
+    handler: async (ctx, args): Promise<DeleteResumesResult> => {
+        const requestedResumeIds = normalizeRequestedResumeIds(args.resumeIds);
+        if (requestedResumeIds.length === 0) {
+            return {
+                requested: 0,
+                deleted: 0,
+                missingResumeIds: [],
+                deletedAiTaggingResults: 0,
+                patchedScreeningSessions: 0,
+            };
+        }
+
+        const resolvedEntries = requestedResumeIds.map((resumeId) => ({
+            requestedResumeId: resumeId,
+            normalizedResumeId: ctx.db.normalizeId("resumes", resumeId),
+        }));
+        const missingResumeIds = resolvedEntries
+            .filter((entry) => entry.normalizedResumeId === null)
+            .map((entry) => entry.requestedResumeId);
+        const normalizedResumeIds = resolvedEntries
+            .flatMap((entry) => (entry.normalizedResumeId ? [entry.normalizedResumeId] : []));
+
+        if (normalizedResumeIds.length === 0) {
+            return {
+                requested: requestedResumeIds.length,
+                deleted: 0,
+                missingResumeIds,
+                deletedAiTaggingResults: 0,
+                patchedScreeningSessions: 0,
+            };
+        }
+
+        const resumes = await Promise.all(normalizedResumeIds.map((resumeId) => ctx.db.get(resumeId)));
+        const existingResumes = resumes.filter((resume): resume is NonNullable<typeof resume> => resume !== null);
+        const existingResumeIds = existingResumes.map((resume) => resume._id);
+        const existingResumeIdStrings = new Set(existingResumeIds.map((resumeId) => String(resumeId)));
+        const missingExistingResumeIds = resolvedEntries
+            .filter((entry) => entry.normalizedResumeId !== null && !existingResumeIdStrings.has(String(entry.normalizedResumeId)))
+            .map((entry) => entry.requestedResumeId);
+
+        if (existingResumes.length === 0) {
+            return {
+                requested: requestedResumeIds.length,
+                deleted: 0,
+                missingResumeIds: [...missingResumeIds, ...missingExistingResumeIds],
+                deletedAiTaggingResults: 0,
+                patchedScreeningSessions: 0,
+            };
+        }
+
+        let deletedAiTaggingResults = 0;
+        for (const resumeId of existingResumeIds) {
+            const taggingResults = await ctx.db
+                .query("ai_tagging_results")
+                .withIndex("by_resume_profile", (q) => q.eq("resumeId", resumeId))
+                .collect();
+
+            for (const taggingResult of taggingResults) {
+                await ctx.db.delete(taggingResult._id);
+                deletedAiTaggingResults += 1;
+            }
+        }
+
+        const deletedResumeIdStrings = new Set(existingResumeIds.map((resumeId) => String(resumeId)));
+        const screeningSessions = await ctx.db.query("screening_sessions").collect();
+        let patchedScreeningSessions = 0;
+        for (const session of screeningSessions) {
+            const reviewedResumeIds = session.reviewedResumeIds.filter((resumeId) => !deletedResumeIdStrings.has(resumeId));
+            if (reviewedResumeIds.length === session.reviewedResumeIds.length) {
+                continue;
+            }
+
+            await ctx.db.patch(session._id, { reviewedResumeIds });
+            patchedScreeningSessions += 1;
+        }
+
+        for (const resume of existingResumes) {
+            await ctx.db.delete(resume._id);
+        }
+
+        return {
+            requested: requestedResumeIds.length,
+            deleted: existingResumes.length,
+            missingResumeIds: [...missingResumeIds, ...missingExistingResumeIds],
+            deletedAiTaggingResults,
+            patchedScreeningSessions,
+        };
     },
 });
 

@@ -17,6 +17,7 @@ import {
     getAiApiKey,
     getUserPromptTemplate,
     hydrateUserPrompt,
+    inferSourceKey,
     normalizeResume,
     resolveAIOutputLocale,
 } from "./analyze";
@@ -30,6 +31,7 @@ type AnalysisResult = {
     highlights: string[];
     recommendation: string;
     breakdown?: Record<string, number>;
+    locale?: string;
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -268,7 +270,7 @@ async function analyzeOneResume(
     const matchingRules = useKeywordPath
         ? buildKeywordMatchingRules(normalizedKeywords)
         : "使用默认评分标准";
-    const locale = resolveAIOutputLocale();
+    const locale = resolveAIOutputLocale({ sourceKey: inferSourceKey(resume.source) });
     const normalizedResume = normalizeResume(resume);
     const salesRequired = isSalesRequiredContext(
         jobTitle,
@@ -297,10 +299,13 @@ async function analyzeOneResume(
         try {
             const rawResult = await callLLM(messages, apiKey);
             const parsedResult = parseLlmResult(rawResult);
-            return normalizeKeywordSalesAnalysis(parsedResult, {
-                salesRequired,
-                roleSignals: normalizedResume.roleSignals,
-            });
+            return {
+                ...normalizeKeywordSalesAnalysis(parsedResult, {
+                    salesRequired,
+                    roleSignals: normalizedResume.roleSignals,
+                }),
+                locale,
+            };
         } catch (error) {
             lastError = error;
             if (attempt < maxAttempts) {
@@ -656,6 +661,7 @@ export const processAnalysisTask = internalAction({
                             },
                             jobDescriptionId: analysisJobDescriptionId,
                             promptVersion,
+                            locale: resolveAIOutputLocale({ sourceKey: inferSourceKey(resume.source) }),
                             ...(normalizedLocation ? { queryLocation: normalizedLocation } : {}),
                             analyzedAt: Date.now(),
                         },
@@ -713,6 +719,7 @@ export const processAnalysisTask = internalAction({
                                     breakdown: result.breakdown,
                                     jobDescriptionId: analysisJobDescriptionId,
                                     promptVersion,
+                                    locale: result.locale,
                                     ...(normalizedLocation ? { queryLocation: normalizedLocation } : {}),
                                     analyzedAt: Date.now(),
                                 },

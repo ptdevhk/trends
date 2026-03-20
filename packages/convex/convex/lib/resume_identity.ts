@@ -18,7 +18,7 @@ const RESUME_ID_KEYS = ["resumeId", "resume_id"];
 const PER_USER_ID_KEYS = ["perUserId", "per_user_id"];
 const EXTERNAL_ID_KEYS = ["externalId", "external_id"];
 const JOB5156_HOST = "hr.job5156.com";
-const SEEK_HOST_SUFFIX = ".employer.seek.com";
+export const SEEK_HOST_SUFFIX = ".employer.seek.com";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
@@ -135,6 +135,11 @@ function normalizeSeekProfileUrlForIdentity(value: string, source: string | unde
     const isSeekHost = hostname.endsWith(SEEK_HOST_SUFFIX) || normalizedSource?.endsWith(SEEK_HOST_SUFFIX);
     if (!isSeekHost) {
         return null;
+    }
+
+    const openProfileIdParam = parsed.searchParams.get("openProfileId");
+    if (openProfileIdParam && /^\d+$/.test(openProfileIdParam)) {
+        return `${hostname}/candidates/${openProfileIdParam}`.toLowerCase();
     }
 
     const profileIdMatch = parsed.pathname.match(/\/candidates\/(?:profiles\/)?(\d+)(?:\/|$)/i);

@@ -55,8 +55,11 @@ import { IngestComputeService } from "../services/ingest-compute-service.js";
 import {
   buildWorkHistoryEntryText,
   buildWorkHistoryEvidence,
+  formatKeywordQuery,
   formatLocationHierarchySearchText,
+  normalizeKeywordPhrases,
   normalizeWorkHistoryEntry,
+  parseKeywordQuery,
 } from "@trends/shared";
 import { SkillsKnowledgeService } from "../services/skills-knowledge.js";
 import { SearchEventLogger } from "../services/search-event-logger.js";
@@ -238,13 +241,7 @@ function extractCompanies(workHistory: ResumeItem["workHistory"]): string[] | un
 
 function normalizeKeywords(keywords: string[] | undefined): string[] {
   if (!Array.isArray(keywords)) return [];
-  return Array.from(
-    new Set(
-      keywords
-        .map((item) => item.trim().toLowerCase())
-        .filter((item) => item.length > 0)
-    )
-  );
+  return normalizeKeywordPhrases(keywords).map((item) => item.toLowerCase());
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -761,9 +758,10 @@ async function prepareConvexCandidates(params: {
 
   const normalizedKeywords = normalizeKeywords(params.keywords);
   if (normalizedKeywords.length > 0) {
-    const keywordExpansion = resumeService.expandSearchQuery(normalizedKeywords.join(" "));
+    const canonicalKeywordQuery = formatKeywordQuery(normalizedKeywords);
+    const keywordExpansion = resumeService.expandSearchQuery(canonicalKeywordQuery);
     const value = await callConvexQuery("resumes:searchWithTagExpansion", {
-      query: normalizedKeywords.join(" "),
+      query: canonicalKeywordQuery,
       keywordGroups: keywordExpansion?.groups ?? [],
       mode: keywordExpansion?.mode ?? "AND",
       sourceMappings: Object.entries(keywordExpansion?.sourceMapping ?? {}).map(([term, expandedFrom]) => ({
@@ -1034,10 +1032,10 @@ function buildSearchEventQuery(params: {
   location?: string;
   jobDescriptionId?: string;
 }): string | null {
-  const keywords = params.keywords.map((keyword) => keyword.trim()).filter(Boolean);
-  if (keywords.length > 0) {
+  const keywordQuery = formatKeywordQuery(params.keywords).trim();
+  if (keywordQuery) {
     const location = params.location?.trim();
-    return location ? `${keywords.join(" ")} ${location}` : keywords.join(" ");
+    return location ? `${keywordQuery} ${location}` : keywordQuery;
   }
 
   const jobDescriptionId = params.jobDescriptionId?.trim();
@@ -1329,7 +1327,7 @@ app.openapi(getResumesRoute, (c) => {
     if (source === "convex") {
       return (async () => {
         const { prepared, keywordExpansion: liveExpansion } = await prepareConvexCandidates({
-          keywords: keyword ? normalizeKeywords(keyword.split(/\s+/)) : [],
+          keywords: keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [],
           limit,
           jobDescriptionId: jobDescriptionId?.trim() || undefined,
         });
@@ -1639,7 +1637,7 @@ app.openapi(matchResumesRoute, async (c) => {
     jobDescriptionId: normalizedJobDescriptionId,
   });
   const keywordExpansion = normalizedKeywords.length > 0
-    ? resumeService.expandSearchQuery(normalizedKeywords.join(" "))
+    ? resumeService.expandSearchQuery(formatKeywordQuery(normalizedKeywords))
     : undefined;
 
   let session = persist && sessionId ? sessionManager.getSession(sessionId) : null;
@@ -2900,7 +2898,7 @@ app.openapi(rescoreResumeMatchesRoute, async (c) => {
         source,
         persisted: persist,
         keywordExpansion: normalizedKeywords.length > 0
-          ? resumeService.expandSearchQuery(normalizedKeywords.join(" "))
+          ? resumeService.expandSearchQuery(formatKeywordQuery(normalizedKeywords))
           : undefined,
         context,
       }),

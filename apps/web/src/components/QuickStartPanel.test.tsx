@@ -514,7 +514,7 @@ describe('QuickStartPanel quick-filter display', () => {
     await user.click(screen.getByRole('button', { name: 'Malaysia · SEEK · Sales Engineer / Sales Manager' }))
 
     expect(screen.getByRole('textbox', { name: '位置' })).toHaveValue('Kuala Lumpur MY')
-    expect(screen.getByDisplayValue('Sales Engineer Sales Manager')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Sales Engineer, Sales Manager')).toBeInTheDocument()
 
     await waitFor(() => {
       expect(onApplyConfig).toHaveBeenLastCalledWith({
@@ -523,9 +523,9 @@ describe('QuickStartPanel quick-filter display', () => {
         jobDescriptionId: undefined,
         collectionSource: {
           type: 'seek',
-          exactUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=Sales+Engineer+Sales+Manager&location=Kuala+Lumpur+MY&tr_auto_sync=true',
+          exactUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22&location=Kuala+Lumpur+MY&tr_auto_sync=true',
         },
-        collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=Sales+Engineer+Sales+Manager&location=Kuala+Lumpur+MY&tr_auto_sync=true',
+        collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22&location=Kuala+Lumpur+MY&tr_auto_sync=true',
       })
     })
   })

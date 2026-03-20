@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { normalizeKeywordPhrases } from "@trends/shared";
 import { parse as parseYaml } from "yaml";
 
 import { findProjectRoot } from "./db.js";
@@ -25,6 +26,7 @@ export interface SearchProfile {
     // Core inputs
     location: string;
     keywords: string[];
+    requiredKeywords?: string[];
 
     // Auto-configured
     jobDescription?: string;
@@ -199,13 +201,11 @@ function readStringArray(value: unknown): string[] | undefined {
 }
 
 function normalizeKeywords(keywords: string[]): string[] {
-    return Array.from(
-        new Set(
-            keywords
-                .map((keyword) => keyword.trim())
-                .filter((keyword) => keyword.length > 0)
-        )
-    );
+    return normalizeKeywordPhrases(keywords);
+}
+
+function normalizeKeywordFingerprints(keywords: string[]): string[] {
+    return normalizeKeywords(keywords).map((keyword) => keyword.toLowerCase());
 }
 
 export function matchSearchProfilesByKeywords(
@@ -213,7 +213,7 @@ export function matchSearchProfilesByKeywords(
     keywords: string[],
     location?: string
 ): AutoMatchResult {
-    const normalizedInputKeywords = normalizeKeywords(keywords.map((keyword) => keyword.toLowerCase()));
+    const normalizedInputKeywords = normalizeKeywordFingerprints(keywords);
     if (normalizedInputKeywords.length === 0) {
         return {
             confidence: 0,
@@ -228,7 +228,7 @@ export function matchSearchProfilesByKeywords(
             continue;
         }
 
-        const profileKeywords = profile.keywords.map((keyword) => keyword.toLowerCase());
+        const profileKeywords = normalizeKeywordFingerprints(profile.keywords);
         const matchedKeywords = normalizedInputKeywords.filter((keyword) =>
             profileKeywords.some((profileKeyword) => profileKeyword.includes(keyword) || keyword.includes(profileKeyword))
         );
@@ -574,6 +574,12 @@ export class SearchProfileService {
         const inputKeywords = readStringArray(record.keywords);
         const keywords = normalizeKeywords(inputKeywords ?? fallback?.keywords ?? []);
 
+        const inputRequiredKeywords = readStringArray(record.requiredKeywords ?? record.required_keywords);
+        const requiredKeywordSource = inputRequiredKeywords ?? fallback?.requiredKeywords;
+        const requiredKeywords = requiredKeywordSource !== undefined
+            ? normalizeKeywords(requiredKeywordSource)
+            : undefined;
+
         const inputStatus = readString(record.status);
         const status: SearchProfile["status"] =
             inputStatus === "paused" || inputStatus === "archived" || inputStatus === "active"
@@ -605,6 +611,7 @@ export class SearchProfileService {
             updatedAt,
             location,
             keywords,
+            ...(requiredKeywords !== undefined && { requiredKeywords }),
             jobDescription,
             filterPreset,
             filters,

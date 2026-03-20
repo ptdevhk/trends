@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
@@ -49,6 +50,14 @@ type IngestDiagnosticsResume = {
   }
 }
 
+type DeleteResumesResult = {
+  requested: number
+  deleted: number
+  missingResumeIds: string[]
+  deletedAiTaggingResults: number
+  patchedScreeningSessions: number
+}
+
 const INGEST_DIAGNOSTICS_PAGE_SIZE = 100
 
 function getSearchTarget(resume: IngestDiagnosticsResume): string {
@@ -61,6 +70,18 @@ function getSearchTarget(resume: IngestDiagnosticsResume): string {
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
     .toLowerCase()
+}
+
+function getResumeLabel(resume: IngestDiagnosticsResume): string {
+  const name = resume.name.trim()
+  if (name) {
+    return name
+  }
+  const externalId = resume.externalId.trim()
+  if (externalId) {
+    return externalId
+  }
+  return resume.resumeId
 }
 
 function formatTimestamp(value: number | undefined): string {
@@ -128,15 +149,20 @@ export default function DebugIngest() {
   const clearAnalysesMutation = useMutation(api.resumes.clearAnalyses)
   const hardResetIngestDataMutation = useMutation(api.resumes.hardResetIngestData)
   const resetDatabaseMutation = useMutation(api.resume_tasks.resetDatabase)
+  const deleteResumesMutation = useMutation(api.resumes.deleteResumes)
 
   const [search, setSearch] = useState('')
   const [skillsVersion, setSkillsVersion] = useState<number | null>(null)
   const [versionLoading, setVersionLoading] = useState(false)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [selectedResumeIds, setSelectedResumeIds] = useState<Set<string>>(new Set())
+  const [resumePendingDelete, setResumePendingDelete] = useState<IngestDiagnosticsResume | null>(null)
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const [reingesting, setReingesting] = useState(false)
   const [clearingAnalyses, setClearingAnalyses] = useState(false)
   const [hardResetting, setHardResetting] = useState(false)
   const [resettingDatabase, setResettingDatabase] = useState(false)
+  const [deletingResumes, setDeletingResumes] = useState(false)
   const [hardResetDialogOpen, setHardResetDialogOpen] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
 
@@ -175,6 +201,33 @@ export default function DebugIngest() {
   const canLoadMore = status === 'CanLoadMore'
   const hasMoreAvailable = status === 'CanLoadMore' || status === 'LoadingMore'
 
+  useEffect(() => {
+    const loadedResumeIds = new Set(resumes.map((resume) => String(resume.resumeId)))
+
+    setSelectedResumeIds((previous) => {
+      const next = new Set([...previous].filter((resumeId) => loadedResumeIds.has(resumeId)))
+      return next.size === previous.size ? previous : next
+    })
+
+    setExpandedIds((previous) => {
+      const nextIds = [...previous].filter((resumeId) => loadedResumeIds.has(resumeId))
+      return nextIds.length === previous.size ? previous : new Set(nextIds)
+    })
+
+    setResumePendingDelete((previous) => {
+      if (!previous) {
+        return previous
+      }
+      return loadedResumeIds.has(String(previous.resumeId)) ? previous : null
+    })
+  }, [resumes])
+
+  useEffect(() => {
+    if (!deletingResumes && bulkDeleteDialogOpen && selectedResumeIds.size === 0) {
+      setBulkDeleteDialogOpen(false)
+    }
+  }, [bulkDeleteDialogOpen, deletingResumes, selectedResumeIds])
+
   const filteredResumes = useMemo(() => {
     const query = search.trim().toLowerCase()
     if (!query) {
@@ -183,9 +236,20 @@ export default function DebugIngest() {
     return resumes.filter((resume) => getSearchTarget(resume).includes(query))
   }, [resumes, search])
 
+  const visibleResumeIds = useMemo(
+    () => filteredResumes.map((resume) => String(resume.resumeId)),
+    [filteredResumes],
+  )
+  const selectedVisibleCount = useMemo(
+    () => visibleResumeIds.filter((resumeId) => selectedResumeIds.has(resumeId)).length,
+    [selectedResumeIds, visibleResumeIds],
+  )
+  const allVisibleSelected = visibleResumeIds.length > 0 && selectedVisibleCount === visibleResumeIds.length
+  const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected
+
   const withIngestCount = useMemo(
     () => resumes.filter((resume) => resume.ingestData !== undefined).length,
-    [resumes]
+    [resumes],
   )
 
   const staleCount = useMemo(() => {
@@ -210,6 +274,53 @@ export default function DebugIngest() {
     })
   }, [])
 
+  const toggleSelectAllVisible = useCallback((checked: boolean) => {
+    setSelectedResumeIds((previous) => {
+      const next = new Set(previous)
+      if (checked) {
+        for (const id of visibleResumeIds) next.add(id)
+      } else {
+        for (const id of visibleResumeIds) next.delete(id)
+      }
+      return next
+    })
+  }, [visibleResumeIds])
+
+  const toggleSelectResume = useCallback((resumeId: string, checked: boolean) => {
+    setSelectedResumeIds((previous) => {
+      const next = new Set(previous)
+      if (checked) next.add(resumeId)
+      else next.delete(resumeId)
+      return next
+    })
+  }, [])
+
+  const createDeleteSummaryMessage = useCallback((result: DeleteResumesResult) => {
+    if (result.deleted === 0) {
+      return t('debugIngest.deleteNoop', {
+        missing: result.missingResumeIds.length,
+        defaultValue: `No resumes were deleted; ${result.missingResumeIds.length} requested ID(s) were missing.`,
+      })
+    }
+
+    if (result.missingResumeIds.length > 0) {
+      return t('debugIngest.deleteSuccessWithMissing', {
+        deleted: result.deleted,
+        tagging: result.deletedAiTaggingResults,
+        sessions: result.patchedScreeningSessions,
+        missing: result.missingResumeIds.length,
+        defaultValue: `Deleted ${result.deleted} resume(s), removed ${result.deletedAiTaggingResults} AI tagging result(s), patched ${result.patchedScreeningSessions} screening session(s), and skipped ${result.missingResumeIds.length} missing ID(s).`,
+      })
+    }
+
+    return t('debugIngest.deleteSuccess', {
+      deleted: result.deleted,
+      tagging: result.deletedAiTaggingResults,
+      sessions: result.patchedScreeningSessions,
+      defaultValue: `Deleted ${result.deleted} resume(s), removed ${result.deletedAiTaggingResults} AI tagging result(s), and patched ${result.patchedScreeningSessions} screening session(s).`,
+    })
+  }, [t])
+
   const triggerReIngest = useCallback(async () => {
     setReingesting(true)
     try {
@@ -221,7 +332,7 @@ export default function DebugIngest() {
         t('debugIngest.reingestSuccess', {
           scheduled: backfillResult.scheduled + staleResult.scheduled,
           defaultValue: `Scheduled ${backfillResult.scheduled + staleResult.scheduled} resumes for ingest`,
-        })
+        }),
       )
       await loadSkillsVersion()
     } catch (error) {
@@ -240,7 +351,7 @@ export default function DebugIngest() {
         t('debugIngest.clearAnalysesSuccess', {
           cleared: result.cleared,
           defaultValue: `Cleared analyses for ${result.cleared} resumes. You can now re-run AI analysis.`,
-        })
+        }),
       )
     } catch (error) {
       console.error('Failed to clear analyses', error)
@@ -267,7 +378,7 @@ export default function DebugIngest() {
           cleared: totalCleared,
           scheduled: reingestResult.scheduled,
           defaultValue: `Cleared computed data for ${totalCleared} resumes and scheduled ${reingestResult.scheduled} resumes for full re-ingest.`,
-        })
+        }),
       )
       await loadSkillsVersion()
     } catch (error) {
@@ -275,7 +386,7 @@ export default function DebugIngest() {
       toast.error(
         t('debugIngest.hardResetFailed', {
           defaultValue: 'Failed to hard reset resumes and schedule re-ingest',
-        })
+        }),
       )
     } finally {
       setHardResetting(false)
@@ -288,12 +399,15 @@ export default function DebugIngest() {
       const result = await resetDatabaseMutation({})
       setSearch('')
       setExpandedIds(new Set())
+      setSelectedResumeIds(new Set())
+      setResumePendingDelete(null)
+      setBulkDeleteDialogOpen(false)
       setResetDialogOpen(false)
       toast.success(
         t('debugIngest.resetDatabaseSuccess', {
           count: result.count,
           defaultValue: `Deleted ${result.count} records from the resume database.`,
-        })
+        }),
       )
       await loadSkillsVersion()
     } catch (error) {
@@ -301,12 +415,61 @@ export default function DebugIngest() {
       toast.error(
         t('debugIngest.resetDatabaseFailed', {
           defaultValue: 'Failed to clear resume database',
-        })
+        }),
       )
     } finally {
       setResettingDatabase(false)
     }
   }, [loadSkillsVersion, resetDatabaseMutation, t])
+
+  const deleteResumes = useCallback(async (resumeIds: string[]) => {
+    if (resumeIds.length === 0 || deletingResumes) {
+      return
+    }
+
+    setDeletingResumes(true)
+    try {
+      const result = await deleteResumesMutation({ resumeIds })
+      const deletedIdSet = new Set(resumeIds)
+
+      setSelectedResumeIds((previous) => {
+        const next = new Set([...previous].filter((resumeId) => !deletedIdSet.has(resumeId)))
+        return next.size === previous.size ? previous : next
+      })
+      setExpandedIds((previous) => {
+        const nextIds = [...previous].filter((resumeId) => !deletedIdSet.has(resumeId))
+        return nextIds.length === previous.size ? previous : new Set(nextIds)
+      })
+      setResumePendingDelete(null)
+      setBulkDeleteDialogOpen(false)
+
+      const summaryMessage = createDeleteSummaryMessage(result)
+      if (result.deleted > 0) {
+        toast.success(summaryMessage)
+      } else {
+        toast.error(summaryMessage)
+      }
+    } catch (error) {
+      console.error('Failed to delete resumes', error)
+      toast.error(t('debugIngest.deleteFailed', { defaultValue: 'Failed to delete resumes' }))
+    } finally {
+      setDeletingResumes(false)
+    }
+  }, [createDeleteSummaryMessage, deleteResumesMutation, deletingResumes, t])
+
+  const confirmSingleDelete = useCallback(() => {
+    if (!resumePendingDelete) {
+      return
+    }
+    void deleteResumes([String(resumePendingDelete.resumeId)])
+  }, [deleteResumes, resumePendingDelete])
+
+  const confirmBulkDelete = useCallback(() => {
+    if (selectedResumeIds.size === 0) {
+      return
+    }
+    void deleteResumes([...selectedResumeIds])
+  }, [deleteResumes, selectedResumeIds])
 
   return (
     <div className="space-y-6">
@@ -370,6 +533,17 @@ export default function DebugIngest() {
         <Button onClick={() => void triggerReIngest()} disabled={reingesting}>
           <RefreshCw className={`mr-2 h-4 w-4 ${reingesting ? 'animate-spin' : ''}`} />
           {t('debugIngest.reingest', { defaultValue: 'Trigger Re-ingest' })}
+        </Button>
+        <Button
+          variant="destructive"
+          onClick={() => setBulkDeleteDialogOpen(true)}
+          disabled={selectedResumeIds.size === 0 || deletingResumes}
+        >
+          <Trash2 className={`mr-2 h-4 w-4 ${deletingResumes ? 'animate-spin' : ''}`} />
+          {t('debugIngest.deleteSelected', {
+            count: selectedResumeIds.size,
+            defaultValue: `Delete Selected (${selectedResumeIds.size})`,
+          })}
         </Button>
         <Button variant="destructive" onClick={() => void clearAnalyses()} disabled={clearingAnalyses}>
           <Trash2 className={`mr-2 h-4 w-4 ${clearingAnalyses ? 'animate-spin' : ''}`} />
@@ -481,10 +655,121 @@ export default function DebugIngest() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={resumePendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!deletingResumes && !open) {
+            setResumePendingDelete(null)
+          }
+        }}
+      >
+        <DialogContent
+          onEscapeKeyDown={(event) => {
+            if (deletingResumes) {
+              event.preventDefault()
+            }
+          }}
+          onPointerDownOutside={(event) => {
+            if (deletingResumes) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t('debugIngest.deleteResume', { defaultValue: 'Delete Resume' })}</DialogTitle>
+            <DialogDescription>
+              {resumePendingDelete
+                ? t('debugIngest.deleteResumeConfirm', {
+                    name: getResumeLabel(resumePendingDelete),
+                    defaultValue: `Delete ${getResumeLabel(resumePendingDelete)} and its related AI tagging results, then remove stale reviewed-session references? Candidate workflow state will be preserved. This cannot be undone.`,
+                  })
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setResumePendingDelete(null)}
+              disabled={deletingResumes}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmSingleDelete}
+              disabled={deletingResumes || resumePendingDelete === null}
+            >
+              <Trash2 className={`mr-2 h-4 w-4 ${deletingResumes ? 'animate-spin' : ''}`} />
+              {t('common.delete', { defaultValue: 'Delete' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={bulkDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!deletingResumes) {
+            setBulkDeleteDialogOpen(open)
+          }
+        }}
+      >
+        <DialogContent
+          onEscapeKeyDown={(event) => {
+            if (deletingResumes) {
+              event.preventDefault()
+            }
+          }}
+          onPointerDownOutside={(event) => {
+            if (deletingResumes) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t('debugIngest.deleteResume', { defaultValue: 'Delete Resume' })}</DialogTitle>
+            <DialogDescription>
+              {t('debugIngest.deleteSelectedConfirm', {
+                count: selectedResumeIds.size,
+                defaultValue: `Delete ${selectedResumeIds.size} selected resume(s) and their related AI tagging results, then remove stale reviewed-session references? Candidate workflow state will be preserved. This cannot be undone.`,
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteDialogOpen(false)}
+              disabled={deletingResumes}
+            >
+              {t('common.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmBulkDelete}
+              disabled={deletingResumes || selectedResumeIds.size === 0}
+            >
+              <Trash2 className={`mr-2 h-4 w-4 ${deletingResumes ? 'animate-spin' : ''}`} />
+              {t('debugIngest.deleteSelected', {
+                count: selectedResumeIds.size,
+                defaultValue: `Delete Selected (${selectedResumeIds.size})`,
+              })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[48px]">
+                <Checkbox
+                  checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
+                  onCheckedChange={(checked) => toggleSelectAllVisible(checked === true)}
+                  aria-label={t('bulkActions.selectAll', { defaultValue: 'Select all' })}
+                  disabled={visibleResumeIds.length === 0 || deletingResumes}
+                />
+              </TableHead>
               <TableHead className="w-[48px]" />
               <TableHead>{t('resumes.columns.name', { defaultValue: 'Name' })}</TableHead>
               <TableHead>{t('resumes.columns.intention', { defaultValue: 'Intention' })}</TableHead>
@@ -492,18 +777,19 @@ export default function DebugIngest() {
               <TableHead>{t('debugIngest.skillsVersion', { defaultValue: 'Skills Version' })}</TableHead>
               <TableHead>{t('debugIngest.computedAt', { defaultValue: 'Computed At' })}</TableHead>
               <TableHead>{t('debugIngest.status', { defaultValue: 'Status' })}</TableHead>
+              <TableHead className="text-right">{t('resumes.columns.actions', { defaultValue: 'Actions' })}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={9} className="text-center text-muted-foreground">
                   {t('resumes.loading', { defaultValue: 'Loading...' })}
                 </TableCell>
               </TableRow>
             ) : filteredResumes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={9} className="text-center text-muted-foreground">
                   {t('debugIngest.noResults', { defaultValue: 'No resumes found' })}
                 </TableCell>
               </TableRow>
@@ -511,13 +797,22 @@ export default function DebugIngest() {
               filteredResumes.map((resume) => {
                 const resumeId = String(resume.resumeId)
                 const isExpanded = expandedIds.has(resumeId)
+                const isSelected = selectedResumeIds.has(resumeId)
                 const ingestData = resume.ingestData
                 const isStale = skillsVersion !== null
                   && (typeof ingestData?.skillsVersion !== 'number' || ingestData.skillsVersion < skillsVersion)
 
                 return (
                   <Fragment key={resumeId}>
-                    <TableRow key={resumeId}>
+                    <TableRow data-state={isSelected ? 'selected' : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => toggleSelectResume(resumeId, checked === true)}
+                          aria-label={resumeId}
+                          disabled={deletingResumes}
+                        />
+                      </TableCell>
                       <TableCell>
                         <button
                           type="button"
@@ -548,10 +843,23 @@ export default function DebugIngest() {
                           </Badge>
                         )}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setResumePendingDelete(resume)}
+                          disabled={deletingResumes}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {t('common.delete', { defaultValue: 'Delete' })}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                     {isExpanded ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="bg-muted/20">
+                        <TableCell colSpan={9} className="bg-muted/20">
                           {ingestData ? (
                             <div className="grid gap-2 text-sm md:grid-cols-2">
                               <div>
