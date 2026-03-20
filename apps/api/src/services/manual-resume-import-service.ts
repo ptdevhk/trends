@@ -14,11 +14,13 @@ import {
 
 import {
   type ResumeImportItem,
+  type ResumeImportRequest,
   type ResumeSubmitSummary,
   normalizeResumeImportPayload,
   submitNormalizedResumeImport,
 } from "./resume-import-service.js";
 import {
+  ResumeImportRequestSchema,
   ResumeImportMetadataSchema,
   ResumeManualImportResponseSchema,
 } from "../schemas/resumes.js";
@@ -35,6 +37,7 @@ type ManualResumeImportInput = {
   searchProfileId?: string;
   keyword?: string;
   location?: string;
+  limit?: number;
 };
 
 type EnumeratedImportFile = {
@@ -53,6 +56,18 @@ type ParsedImportCandidate = {
 type UploadExpansionResult = {
   entries: EnumeratedImportFile[];
   fileResult?: ManualResumeImportFileResult;
+};
+
+export type ManualResumeImportBuildSummary = Pick<
+  ManualResumeImportSummary,
+  "uploadedFiles" | "discoveredFiles" | "parsedResumes" | "imported" | "skipped" | "failed"
+>;
+
+export type ManualResumeImportBuildResult = {
+  payload: ResumeImportRequest;
+  summary: ManualResumeImportBuildSummary;
+  files: ManualResumeImportFileResult[];
+  warnings: string[];
 };
 
 const MANUAL_SOURCE_KEY = "51job-manual";
@@ -516,12 +531,29 @@ async function parseResumeFile(file: EnumeratedImportFile): Promise<ParsedImport
 }
 
 function buildSummary(
+  parsedSummary: ManualResumeImportBuildSummary,
+  submitSummary: ResumeSubmitSummary,
+): ManualResumeImportSummary {
+  return {
+    uploadedFiles: parsedSummary.uploadedFiles,
+    discoveredFiles: parsedSummary.discoveredFiles,
+    parsedResumes: parsedSummary.parsedResumes,
+    imported: submitSummary.submitted,
+    inserted: submitSummary.inserted,
+    updated: submitSummary.updated,
+    unchanged: submitSummary.unchanged,
+    deduped: submitSummary.deduped,
+    skipped: parsedSummary.skipped,
+    failed: parsedSummary.failed,
+  };
+}
+
+function buildParsedSummary(
   uploadedFiles: number,
   discoveredFiles: number,
   parsedResumes: number,
-  submitSummary: ResumeSubmitSummary,
   fileResults: ManualResumeImportFileResult[],
-): ManualResumeImportSummary {
+): ManualResumeImportBuildSummary {
   const skipped = fileResults.filter((file) => file.status === "skipped").length;
   const failed = fileResults.filter((file) => file.status === "failed").length;
 
@@ -529,40 +561,77 @@ function buildSummary(
     uploadedFiles,
     discoveredFiles,
     parsedResumes,
-    imported: submitSummary.submitted,
-    inserted: submitSummary.inserted,
-    updated: submitSummary.updated,
-    unchanged: submitSummary.unchanged,
-    deduped: submitSummary.deduped,
+    imported: parsedResumes,
     skipped,
     failed,
   };
 }
 
-export async function importManualResumes(input: ManualResumeImportInput): Promise<ResumeManualImportResponse> {
+function resolveImportLimit(value: number | undefined): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  const parsed = Math.trunc(value);
+  return parsed > 0 ? parsed : undefined;
+}
+
+export async function buildManualResumeImportPayload(
+  input: ManualResumeImportInput,
+): Promise<ManualResumeImportBuildResult> {
   const metadata = buildBaseMetadata(input);
+  const limit = resolveImportLimit(input.limit);
   const { entries: enumeratedFiles, fileResults } = await enumerateUploadedFiles(input.files);
   const resumes: ResumeImportItem[] = [];
   const warnings: string[] = [];
 
-  const parsedFiles = await mapInBatches(enumeratedFiles, parseResumeFile);
+  for (let index = 0; index < enumeratedFiles.length; index += MAX_PARALLEL_FILE_OPERATIONS) {
+    const batch = enumeratedFiles.slice(index, index + MAX_PARALLEL_FILE_OPERATIONS);
+    const parsedFiles = await Promise.all(batch.map((file) => parseResumeFile(file)));
 
-  for (const parsed of parsedFiles) {
-    fileResults.push(parsed.result);
-    if (parsed.result.warnings.length > 0) {
-      warnings.push(...parsed.result.warnings.map((warning) => `${parsed.result.entryPath}: ${warning}`));
+    for (const parsed of parsedFiles) {
+      fileResults.push(parsed.result);
+      if (parsed.result.warnings.length > 0) {
+        warnings.push(...parsed.result.warnings.map((warning) => `${parsed.result.entryPath}: ${warning}`));
+      }
+      if (parsed.resume && (!limit || resumes.length < limit)) {
+        resumes.push(parsed.resume);
+      }
     }
-    if (parsed.resume) {
-      resumes.push(parsed.resume);
+
+    if (limit && resumes.length >= limit) {
+      break;
     }
   }
 
+  const payload = ResumeImportRequestSchema.parse({
+    metadata: {
+      ...metadata,
+      totalResumes: resumes.length,
+    },
+    resumes,
+  });
+
+  return {
+    payload,
+    summary: buildParsedSummary(
+      input.files.length,
+      enumeratedFiles.length,
+      resumes.length,
+      fileResults,
+    ),
+    files: fileResults,
+    warnings: Array.from(new Set(warnings)),
+  };
+}
+
+export async function importManualResumes(input: ManualResumeImportInput): Promise<ResumeManualImportResponse> {
+  const buildResult = await buildManualResumeImportPayload(input);
+  const resumes = buildResult.payload.resumes ?? [];
+
   const submitSummary: ResumeSubmitSummary = resumes.length > 0
     ? await submitNormalizedResumeImport(normalizeResumeImportPayload({
-      metadata: {
-        ...metadata,
-        totalResumes: resumes.length,
-      },
+      metadata: buildResult.payload.metadata,
       resumes,
     }))
     : { success: true, submitted: 0, inserted: 0, updated: 0, unchanged: 0, deduped: 0 };
@@ -573,9 +642,9 @@ export async function importManualResumes(input: ManualResumeImportInput): Promi
       key: MANUAL_SOURCE_KEY,
       label: MANUAL_SOURCE_KEY,
     },
-    summary: buildSummary(input.files.length, enumeratedFiles.length, resumes.length, submitSummary, fileResults),
-    files: fileResults,
-    warnings: Array.from(new Set(warnings)),
+    summary: buildSummary(buildResult.summary, submitSummary),
+    files: buildResult.files,
+    warnings: buildResult.warnings,
   });
 }
 
