@@ -460,8 +460,13 @@ function getSeekCandidateIdentity(candidate) {
   };
 }
 
-function buildSeekProfileUrl(profileId) {
-  return profileId ? `https://${window.location.hostname.toLowerCase()}/candidates/${encodeURIComponent(profileId)}` : '';
+function buildSeekProfileUrl(profileId, jobId) {
+  if (!profileId) return '';
+  const hostname = window.location.hostname.toLowerCase();
+  if (jobId) {
+    return `https://${hostname}/candidates/recommended?jobId=${encodeURIComponent(jobId)}&openProfileId=${encodeURIComponent(profileId)}`;
+  }
+  return `https://${hostname}/candidates/${encodeURIComponent(profileId)}`;
 }
 
 function getSeekRecommendedRequest() {
@@ -1433,6 +1438,13 @@ function extractSeekProfileResume() {
   const request = getSeekProfileRequest();
   const requestInput = request?.variables?.input;
   const language = request?.variables?.language;
+  const profileUrl = new URL(window.location.href);
+  const jobIdFromUrl = normalizeOptionalPositiveInt(profileUrl.searchParams.get('jobId'));
+  const jobId = requestInput?.jobId != null
+    ? String(requestInput.jobId)
+    : jobIdFromUrl != null
+      ? String(jobIdFromUrl)
+      : undefined;
   const { profileId, profileType } = getSeekCandidateIdentity(profile);
   const firstName = typeof profile.firstName === 'string' ? profile.firstName.trim() : '';
   const lastName = typeof profile.lastName === 'string' ? profile.lastName.trim() : '';
@@ -1470,14 +1482,14 @@ function extractSeekProfileResume() {
   const currentSubindustry = typeof profile.currentSubindustry === 'string' ? profile.currentSubindustry.trim() : '';
   const rightToWork = typeof profile.rightToWork?.label === 'string' ? profile.rightToWork.label.trim() : '';
   const education = profileEducation[0]?.qualification || '';
-  const pageNumber = normalizeOptionalPositiveInt(new URL(window.location.href).searchParams.get('pageNumber')) || 1;
+  const pageNumber = normalizeOptionalPositiveInt(profileUrl.searchParams.get('pageNumber')) || 1;
 
   return [{
     profileId,
     profileType,
     externalId: profileId ? `${window.location.hostname.toLowerCase()}:profile:${profileId}` : '',
     name: [firstName, lastName].filter(Boolean).join(' ').trim(),
-    profileUrl: buildSeekProfileUrl(profileId),
+    profileUrl: buildSeekProfileUrl(profileId, jobId),
     activityStatus: lastModifiedDate,
     age: '',
     experience: '',
@@ -2019,9 +2031,16 @@ function extractSeekResumes() {
   const request = getSeekRecommendedRequest();
   const requestInput = request?.variables?.input;
   const language = request?.variables?.language;
+  const url = new URL(window.location.href);
+  const jobIdFromUrl = normalizeOptionalPositiveInt(url.searchParams.get('jobId'));
+  const jobId = requestInput?.jobId != null
+    ? String(requestInput.jobId)
+    : jobIdFromUrl != null
+      ? String(jobIdFromUrl)
+      : undefined;
   const currentPage = typeof requestInput?.page === 'number'
     ? requestInput.page
-    : normalizeOptionalPositiveInt(new URL(window.location.href).searchParams.get('pageNumber')) || 1;
+    : normalizeOptionalPositiveInt(url.searchParams.get('pageNumber')) || 1;
 
   return candidates.map((candidate, index) => {
     const { profileId, profileType } = getSeekCandidateIdentity(candidate);
@@ -2041,7 +2060,7 @@ function extractSeekResumes() {
       profileType,
       externalId: profileId ? `${window.location.hostname.toLowerCase()}:profile:${profileId}` : '',
       name: [firstName, lastName].filter(Boolean).join(' ').trim(),
-      profileUrl: buildSeekProfileUrl(profileId),
+      profileUrl: buildSeekProfileUrl(profileId, jobId),
       activityStatus: lastModifiedDate,
       age: '',
       experience: '',

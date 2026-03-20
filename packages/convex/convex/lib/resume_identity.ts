@@ -137,6 +137,11 @@ function normalizeSeekProfileUrlForIdentity(value: string, source: string | unde
         return null;
     }
 
+    const openProfileIdParam = parsed.searchParams.get("openProfileId");
+    if (openProfileIdParam && /^\d+$/.test(openProfileIdParam)) {
+        return `${hostname}/candidates/${openProfileIdParam}`.toLowerCase();
+    }
+
     const profileIdMatch = parsed.pathname.match(/\/candidates\/(?:profiles\/)?(\d+)(?:\/|$)/i);
     if (profileIdMatch && profileIdMatch[1]) {
         return `${hostname}/candidates/${profileIdMatch[1]}`.toLowerCase();
