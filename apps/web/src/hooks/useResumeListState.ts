@@ -1612,8 +1612,10 @@ export function useResumeListState(loadSearchHistory = false) {
       })
 
       setSessionKeywords((current) => (areKeywordListsEqual(current, normalizedKeywords) ? current : normalizedKeywords))
-      const normalizedRequiredKeywords = (config.requiredKeywords ?? []).map((kw) => kw.trim()).filter((kw) => kw.length > 0)
-      setRequiredKeywords((current) => (areKeywordListsEqual(current, normalizedRequiredKeywords) ? current : normalizedRequiredKeywords))
+      if (config.requiredKeywords !== undefined) {
+        const normalizedRequiredKeywords = config.requiredKeywords.map((kw) => kw.trim()).filter((kw) => kw.length > 0)
+        setRequiredKeywords((current) => (areKeywordListsEqual(current, normalizedRequiredKeywords) ? current : normalizedRequiredKeywords))
+      }
       setJobDescriptionId((current) => (current === normalizedJobDescriptionId ? current : normalizedJobDescriptionId))
       setSessionCollectionSource((current) => {
         if (config.collectionSource === undefined) {
