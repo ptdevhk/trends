@@ -9,6 +9,26 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	migrationReindexSearchText    = "migrations:reindexSearchText"
+	migrationBackfillIngestData   = "migrations:backfillIngestData"
+	migrationBackfillPrimaryScore = "migrations:backfillPrimaryRuleScore"
+)
+
+func backfillIngestPayload(limit int) string {
+	return fmt.Sprintf(`{"limit":%d}`, limit)
+}
+
+var runConvexCommandExecutor = func(ctx context.Context, args []string) (string, error) {
+	command := exec.CommandContext(ctx, "npx", args...)
+	result, err := command.CombinedOutput()
+	output := strings.TrimSpace(string(result))
+	if err != nil {
+		return output, fmt.Errorf("run npx %s: %w\n%s", strings.Join(args, " "), err, output)
+	}
+	return output, nil
+}
+
 func newMigrateCmd() *cobra.Command {
 	migrateCmd := &cobra.Command{
 		Use:   "migrate",
@@ -29,11 +49,11 @@ func newMigrateReindexCmd() *cobra.Command {
 		Use:   "reindex-search",
 		Short: "Run migrations:reindexSearchText",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			output, err := runConvexCommand(context.Background(), "migrations:reindexSearchText")
+			output, err := runConvexCommand(context.Background(), migrationReindexSearchText)
 			if err != nil {
 				return err
 			}
-			return writeMigrationOutput(cmd, "migrations:reindexSearchText", output)
+			return writeMigrationOutput(cmd, migrationReindexSearchText, output)
 		},
 	}
 }
@@ -45,12 +65,12 @@ func newMigrateBackfillIngestCmd() *cobra.Command {
 		Use:   "backfill-ingest",
 		Short: "Run migrations:backfillIngestData",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			argument := fmt.Sprintf(`{"limit":%d}`, limit)
-			output, err := runConvexCommand(context.Background(), "migrations:backfillIngestData", argument)
+			argument := backfillIngestPayload(limit)
+			output, err := runConvexCommand(context.Background(), migrationBackfillIngestData, argument)
 			if err != nil {
 				return err
 			}
-			return writeMigrationOutput(cmd, "migrations:backfillIngestData", output)
+			return writeMigrationOutput(cmd, migrationBackfillIngestData, output)
 		},
 	}
 
@@ -63,11 +83,11 @@ func newMigrateBackfillScoreCmd() *cobra.Command {
 		Use:   "backfill-score",
 		Short: "Run migrations:backfillPrimaryRuleScore",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			output, err := runConvexCommand(context.Background(), "migrations:backfillPrimaryRuleScore")
+			output, err := runConvexCommand(context.Background(), migrationBackfillPrimaryScore)
 			if err != nil {
 				return err
 			}
-			return writeMigrationOutput(cmd, "migrations:backfillPrimaryRuleScore", output)
+			return writeMigrationOutput(cmd, migrationBackfillPrimaryScore, output)
 		},
 	}
 }
@@ -75,14 +95,7 @@ func newMigrateBackfillScoreCmd() *cobra.Command {
 func runConvexCommand(ctx context.Context, migration string, extraArgs ...string) (string, error) {
 	args := []string{"convex", "run", migration}
 	args = append(args, extraArgs...)
-
-	command := exec.CommandContext(ctx, "npx", args...)
-	result, err := command.CombinedOutput()
-	output := strings.TrimSpace(string(result))
-	if err != nil {
-		return output, fmt.Errorf("run npx %s: %w\n%s", strings.Join(args, " "), err, output)
-	}
-	return output, nil
+	return runConvexCommandExecutor(ctx, args)
 }
 
 func writeMigrationOutput(cmd *cobra.Command, migration string, output string) error {

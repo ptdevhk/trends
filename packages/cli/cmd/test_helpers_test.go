@@ -10,6 +10,11 @@ import (
 
 func setResumeCLIConfig(t *testing.T, apiURL string, workspace string) {
 	t.Helper()
+	setResumeCLIConfigURLs(t, apiURL, apiURL, workspace)
+}
+
+func setResumeCLIConfigURLs(t *testing.T, apiURL string, workerURL string, workspace string) {
+	t.Helper()
 
 	originalAPIURL := viper.GetString("api_url")
 	originalWorkerURL := viper.GetString("worker_url")
@@ -21,7 +26,7 @@ func setResumeCLIConfig(t *testing.T, apiURL string, workspace string) {
 	})
 
 	viper.Set("api_url", apiURL)
-	viper.Set("worker_url", apiURL)
+	viper.Set("worker_url", workerURL)
 	viper.Set("workspace", workspace)
 }
 
