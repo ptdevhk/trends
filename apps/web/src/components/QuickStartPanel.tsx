@@ -743,7 +743,7 @@ export function QuickStartPanel({
     onApplyConfig?.({
       location: profileLocation,
       keywords: profileKeywords,
-      requiredKeywords: profile.required_keywords,
+      requiredKeywords: profile.requiredKeywords,
       jobDescriptionId: nextJobDescriptionId || undefined,
       collectionSource: nextCollectionSource,
       collectUrl: nextCollectUrl,
