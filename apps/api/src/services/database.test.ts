@@ -57,4 +57,28 @@ describe("getResumeScreeningDb", () => {
     expect(execMock).toHaveBeenCalledTimes(1);
     expect(errorSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("ignores duplicate column errors during concurrent schema upgrades", async () => {
+    prepareMock.mockReturnValue({
+      all: vi.fn(() => []),
+    });
+    pragmaMock.mockImplementation((statement: string) => {
+      if (statement === "journal_mode") {
+        return "wal";
+      }
+      return undefined;
+    });
+    execMock.mockImplementation((statement: string) => {
+      if (statement.includes("ALTER TABLE search_sessions ADD COLUMN workspace_slug")) {
+        const error = new Error("duplicate column name: workspace_slug");
+        Object.assign(error, { code: "SQLITE_ERROR" });
+        throw error;
+      }
+      return undefined;
+    });
+
+    const { getResumeScreeningDb } = await import("./database");
+
+    expect(() => getResumeScreeningDb(process.cwd())).not.toThrow();
+  });
 });

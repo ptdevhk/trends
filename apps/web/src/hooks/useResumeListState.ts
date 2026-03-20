@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from 'convex/react'
-import { formatKeywordQuery, formatLocationHierarchySearchText, isLocationMatch } from '@trends/shared'
+import { formatKeywordQuery, formatLocationHierarchySearchText, isLocationMatch, normalizeKeywordPhrases } from '@trends/shared'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -18,6 +18,7 @@ import {
   parseUrlSearchState,
   useUrlSearchState,
   type ExperienceLevelFilter,
+  type UrlSearchState,
 } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { components } from '@/lib/api-types'
@@ -76,15 +77,18 @@ type EnrichedResume = {
 
 type AnalysisTaskDoc = Doc<'analysis_tasks'>
 
-function normalizeKeywordFingerprint(keywords: string[]): string {
-  return [...keywords]
-    .map((keyword) => keyword.trim().toLowerCase())
-    .filter((keyword) => keyword.length > 0)
+function normalizeKeywordFingerprint(keywords: readonly string[] | undefined): string {
+  if (!Array.isArray(keywords) || keywords.length === 0) {
+    return ''
+  }
+
+  return normalizeKeywordPhrases([...keywords])
+    .map((keyword) => keyword.toLowerCase())
     .sort()
     .join('|')
 }
 
-function areKeywordListsEqual(left: string[], right: string[]): boolean {
+function areKeywordListsEqual(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
   return normalizeKeywordFingerprint(left) === normalizeKeywordFingerprint(right)
 }
 
@@ -155,6 +159,19 @@ function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFil
     locations: normalizeFilterList(filters.locations),
     sortBy: filters.sortBy,
     sortOrder: filters.sortOrder,
+  }
+}
+
+function normalizeUrlSearchStateValue(state: Partial<UrlSearchState> | undefined): UrlSearchState {
+  return {
+    location: normalizeOptionalString(state?.location),
+    keywords: Array.isArray(state?.keywords) ? state.keywords : [],
+    requiredKeywords: Array.isArray(state?.requiredKeywords) ? state.requiredKeywords : [],
+    jobDescriptionId: normalizeOptionalString(state?.jobDescriptionId),
+    selectedTags: Array.isArray(state?.selectedTags) ? state.selectedTags : [],
+    selectedCompanies: Array.isArray(state?.selectedCompanies) ? state.selectedCompanies : [],
+    selectedExperienceLevel: state?.selectedExperienceLevel,
+    filters: state?.filters ?? {},
   }
 }
 
@@ -457,12 +474,16 @@ export function useResumeListState(loadSearchHistory = false) {
       hasUrlParams: hasKnownUrlSearchParams(params),
       hasKeywordParam: params.has('kw') || params.has('keyword'),
       hasJobDescriptionParam: params.has('jd'),
-      parsedState: parseUrlSearchState(params),
+      parsedState: normalizeUrlSearchStateValue(parseUrlSearchState(params)),
     }
   }
 
   const initialWindowSearchState = initialWindowSearchStateRef.current
   const session = useMemo(() => ({ id: 'convex', jobDescriptionId, filters }), [jobDescriptionId, filters])
+  const normalizedParsedUrlState = useMemo(
+    () => normalizeUrlSearchStateValue(parsedUrlState),
+    [parsedUrlState]
+  )
   const activeHasUrlParams = hasUrlParams
     || (!hasInitializedUrlHydrationRef.current && initialWindowSearchState.hasUrlParams)
   const activeHasKeywordParam = hasUrlParams
@@ -472,7 +493,7 @@ export function useResumeListState(loadSearchHistory = false) {
     ? hasJobDescriptionParam
     : initialWindowSearchState.hasJobDescriptionParam
   const activeParsedUrlState = hasUrlParams
-    ? parsedUrlState
+    ? normalizedParsedUrlState
     : initialWindowSearchState.parsedState
   const activeUrlStateSignature = useMemo(
     () => JSON.stringify({

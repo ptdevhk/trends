@@ -14,6 +14,42 @@ const { useQueryMock, profileEditorMockState } = vi.hoisted(() => ({
   },
 }))
 
+const SEEK_MALAYSIA_JOB_URL = 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1'
+const SEEK_MALAYSIA_COLLECT_URL = 'https://my.employer.seek.com/candidates/recommended?keyword=CNC+Sales&location=Kuala+Lumpur+MY&tr_auto_sync=true'
+
+const SEEK_MALAYSIA_WORKFLOW_SEED = {
+  id: 'seek-my-cnc-sales',
+  label: 'Malaysia · SEEK · CNC Sales',
+  market: 'MY',
+  location: 'Kuala Lumpur MY',
+  keywords: ['CNC', 'Sales'],
+  collectionSource: {
+    type: 'seek',
+  },
+  visible: true,
+}
+
+const SEEK_MALAYSIA_PROFILE = {
+  id: 'seek-malaysia-sales',
+  name: 'SEEK Malaysia CNC Sales',
+  status: 'active' as const,
+  location: 'Kuala Lumpur MY',
+  keywords: ['CNC', 'Sales'],
+  jobDescription: 'seek-malaysia-sales',
+  filters: {
+    minExperience: 2,
+    maxAge: 45,
+  },
+  sources: [
+    {
+      type: 'seek',
+      enabled: true,
+      priority: 1,
+      jobUrl: SEEK_MALAYSIA_JOB_URL,
+    },
+  ],
+}
+
 vi.mock('./JobDescriptionSelect', () => ({
   JobDescriptionSelect: ({
     value,
@@ -121,17 +157,7 @@ describe('QuickStartPanel quick-filter display', () => {
                 },
                 visible: true,
               },
-              {
-                id: 'seek-my-sales-engineer',
-                label: 'Malaysia · SEEK · Sales Engineer / Sales Manager',
-                market: 'MY',
-                location: 'Kuala Lumpur MY',
-                keywords: ['Sales Engineer', 'Sales Manager'],
-                collectionSource: {
-                  type: 'seek',
-                },
-                visible: true,
-              },
+              SEEK_MALAYSIA_WORKFLOW_SEED,
             ],
           },
         }
@@ -422,7 +448,7 @@ describe('QuickStartPanel quick-filter display', () => {
         success: true,
         profileId: 'seek-malaysia-sales',
         confidence: 0.95,
-        matchedKeywords: ['Sales Engineer', 'Sales Manager'],
+        matchedKeywords: SEEK_MALAYSIA_PROFILE.keywords.map((keyword) => keyword.toLowerCase()),
       },
     })
     getMock.mockImplementation(async (path: string) => {
@@ -430,26 +456,7 @@ describe('QuickStartPanel quick-filter display', () => {
         return {
           data: {
             success: true,
-            profile: {
-              id: 'seek-malaysia-sales',
-              name: 'SEEK Malaysia Sales Engineer / Sales Manager',
-              status: 'active' as const,
-              location: 'Kuala Lumpur MY',
-              keywords: ['Sales Engineer', 'Sales Manager'],
-              jobDescription: 'seek-malaysia-sales',
-              filters: {
-                minExperience: 2,
-                maxAge: 45,
-              },
-              sources: [
-                {
-                  type: 'seek',
-                  enabled: true,
-                  priority: 1,
-                  jobUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
-                },
-              ],
-            },
+            profile: SEEK_MALAYSIA_PROFILE,
           },
         }
       }
@@ -467,26 +474,26 @@ describe('QuickStartPanel quick-filter display', () => {
     render(
       <QuickStartPanel
         defaultLocation="Kuala Lumpur MY"
-        defaultKeywords={['Sales Engineer', 'Sales Manager']}
+        defaultKeywords={SEEK_MALAYSIA_WORKFLOW_SEED.keywords}
         jobDescriptionId=""
         onApplyConfig={onApplyConfig}
       />
     )
 
     await waitFor(() => {
-      expect(screen.getByText('SEEK Malaysia Sales Engineer / Sales Manager')).toBeInTheDocument()
+      expect(screen.getByText(SEEK_MALAYSIA_PROFILE.name)).toBeInTheDocument()
     })
 
     await waitFor(() => {
       expect(onApplyConfig).toHaveBeenLastCalledWith({
         location: 'Kuala Lumpur MY',
-        keywords: ['Sales Engineer', 'Sales Manager'],
+        keywords: SEEK_MALAYSIA_PROFILE.keywords,
         jobDescriptionId: undefined,
         collectionSource: {
           type: 'seek',
-          exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+          exactUrl: SEEK_MALAYSIA_JOB_URL,
         },
-        collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+        collectUrl: SEEK_MALAYSIA_JOB_URL,
       })
     })
   })
@@ -507,25 +514,25 @@ describe('QuickStartPanel quick-filter display', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: 'Malaysia · SEEK · Sales Engineer / Sales Manager' })
+        screen.getByRole('button', { name: SEEK_MALAYSIA_WORKFLOW_SEED.label })
       ).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: 'Malaysia · SEEK · Sales Engineer / Sales Manager' }))
+    await user.click(screen.getByRole('button', { name: SEEK_MALAYSIA_WORKFLOW_SEED.label }))
 
     expect(screen.getByRole('textbox', { name: '位置' })).toHaveValue('Kuala Lumpur MY')
-    expect(screen.getByDisplayValue('Sales Engineer, Sales Manager')).toBeInTheDocument()
+    expect(screen.getByDisplayValue(SEEK_MALAYSIA_WORKFLOW_SEED.keywords.join(' '))).toBeInTheDocument()
 
     await waitFor(() => {
       expect(onApplyConfig).toHaveBeenLastCalledWith({
         location: 'Kuala Lumpur MY',
-        keywords: ['Sales Engineer', 'Sales Manager'],
+        keywords: SEEK_MALAYSIA_WORKFLOW_SEED.keywords,
         jobDescriptionId: undefined,
         collectionSource: {
           type: 'seek',
-          exactUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22&location=Kuala+Lumpur+MY&tr_auto_sync=true',
+          exactUrl: SEEK_MALAYSIA_COLLECT_URL,
         },
-        collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22&location=Kuala+Lumpur+MY&tr_auto_sync=true',
+        collectUrl: SEEK_MALAYSIA_COLLECT_URL,
       })
     })
   })
