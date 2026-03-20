@@ -4,6 +4,7 @@ import {
   INGEST_BRAND_CONTEXT_LABELS,
   INGEST_BRAND_ROLE_LABELS,
   INGEST_BRAND_SOURCE_LABELS,
+  sanitizeResumeRecordForSurface,
 } from '@trends/shared'
 import { useAction, useMutation, usePaginatedQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -18,6 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
+import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 
 type IngestDiagnosticsResume = {
   resumeId: string
@@ -138,6 +140,7 @@ function formatTaggingEntry(entry: {
 
 export default function DebugIngest() {
   const { t } = useTranslation()
+  const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const {
     results: paginatedResumes,
     status,
@@ -196,7 +199,10 @@ export default function DebugIngest() {
     void loadSkillsVersion()
   }, [loadSkillsVersion])
 
-  const resumes = paginatedResumes
+  const resumes = useMemo(
+    () => paginatedResumes.map((resume) => sanitizeResumeRecordForSurface(resume, 'debug', fieldUsagePolicy)),
+    [fieldUsagePolicy, paginatedResumes],
+  )
   const loading = status === 'LoadingFirstPage'
   const canLoadMore = status === 'CanLoadMore'
   const hasMoreAvailable = status === 'CanLoadMore' || status === 'LoadingMore'

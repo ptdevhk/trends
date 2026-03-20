@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryEntryText, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
 import { useTranslation } from 'react-i18next'
 import { User, CheckCircle, XCircle, Phone, Star, Ban, MessageSquare } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -26,6 +26,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useMemo, useState } from 'react'
+import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { OutreachModal } from './OutreachModal'
 import { Select } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -174,6 +175,7 @@ export function ResumeCard({
   activeExperienceLevelFilter,
 }: ResumeCardProps) {
   const { t } = useTranslation()
+  const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const [showOutreach, setShowOutreach] = useState(false)
   const [promptDialogOpen, setPromptDialogOpen] = useState(false)
   const [pendingStatus, setPendingStatus] = useState<CandidateStatus | null>(null)
@@ -188,8 +190,12 @@ export function ResumeCard({
       text: buildWorkHistoryEntryText(item),
     }))
     .filter(({ text }) => text.length > 0)
-  const jobIntention = (resume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
-  const selfIntro = resume.selfIntro || '--'
+  const presentationResume = useMemo(
+    () => sanitizeResumeRecordForSurface(resume, 'presentation', fieldUsagePolicy),
+    [fieldUsagePolicy, resume],
+  )
+  const jobIntention = (presentationResume.jobIntention || '').replace(/^[:：]\s*/, '') || '--'
+  const selfIntro = presentationResume.selfIntro || '--'
   const profileUrl = resume.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
   const sourceLabel = getResumeSourceLabel(resume)

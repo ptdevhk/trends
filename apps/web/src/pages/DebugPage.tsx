@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { DEBUG_PAGE_SECTION_DEFINITIONS, formatLocationHierarchyLabel } from '@trends/shared'
+import { DEBUG_PAGE_SECTION_DEFINITIONS, formatLocationHierarchyLabel, isResumeFieldAllowed, sanitizeResumeRecordForSurface } from '@trends/shared'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
+import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 type ResumeSample = components['schemas']['ResumeSample']
 type ResumeItem = components['schemas']['ResumeItem']
 type ResumesResponse = components['schemas']['ResumesResponse']
@@ -131,6 +132,7 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 
 export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
   const { t } = useTranslation()
+  const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const location = useLocation()
 
   const [query, setQuery] = useState('')
@@ -140,11 +142,14 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
   // Use Convex hook instead of legacy API
   const [limit, setLimit] = useState(200)
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(limit, convexQuery)
+  const displayResumes = useMemo(
+    () => (convexResumes ?? []).map((resume) => sanitizeResumeRecordForSurface(resume, 'debug', fieldUsagePolicy)),
+    [convexResumes, fieldUsagePolicy],
+  )
 
   // Adapting Convex data to legacy structure
   const loading = convexLoading
   const rawResponse = useMemo<ResumesResponse>(() => {
-    const displayResumes = convexResumes || []
     return {
       success: true,
       data: displayResumes,
@@ -160,7 +165,7 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
         searchCriteria: { keyword: convexQuery || "all", location: "all" }
       }
     }
-  }, [convexQuery, convexResumes])
+  }, [convexQuery, displayResumes])
 
   // Legacy state (kept to minimize refactor errors, but unused/dummy)
   const [samples] = useState<ResumeSample[]>([{ name: 'convex-db', filename: 'db', updatedAt: new Date().toISOString(), size: 0 }])
@@ -272,7 +277,7 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
     ]
   }, [industryView, t])
 
-  const resumes = useMemo(() => rawResponse?.data ?? [], [rawResponse])
+  const resumes = useMemo(() => displayResumes, [displayResumes])
   const summary = rawResponse?.summary
   const metadata = rawResponse?.metadata
 
@@ -419,10 +424,18 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
 
   const locationCounts = useMemo(() => buildCounts(resumes, getResumeLocationLabel).slice(0, 5), [resumes])
   const educationCounts = useMemo(() => buildCounts(resumes, (item) => item.education || '').slice(0, 5), [resumes])
-  const intentionCounts = useMemo(() => buildCounts(resumes, (item) => item.jobIntention || '').slice(0, 5), [resumes])
+  const intentionCounts = useMemo(
+    () => isResumeFieldAllowed('jobIntention', 'debug', fieldUsagePolicy)
+      ? buildCounts(resumes, (item) => item.jobIntention || '').slice(0, 5)
+      : [],
+    [fieldUsagePolicy, resumes],
+  )
 
   const missingStats = useMemo(() => {
-    const fields: Array<keyof ResumeItem> = ['education', 'location', 'experience', 'jobIntention']
+    const candidateFields: Array<keyof ResumeItem> = ['education', 'location', 'experience', 'jobIntention']
+    const fields = candidateFields.filter(
+      (field): field is keyof ResumeItem => isResumeFieldAllowed(field, 'debug', fieldUsagePolicy),
+    )
     const stats = fields.map((field) => {
       const missing = resumes.filter((item) => {
         if (field === 'location') {
@@ -434,7 +447,7 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
     })
     const missingWorkHistory = resumes.filter((item) => (item.workHistory?.length ?? 0) === 0).length
     return { stats, missingWorkHistory }
-  }, [resumes])
+  }, [fieldUsagePolicy, resumes])
 
   useEffect(() => {
     if (!showIndustry) return

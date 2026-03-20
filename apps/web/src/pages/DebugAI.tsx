@@ -3,6 +3,8 @@ import {
   DEBUG_AI_BREAKDOWN_LABELS,
   DEBUG_AI_KEYWORD_PROMPT_VARIANT,
   getResumeAiPromptDefinition,
+  sanitizeResumeRecordForSurface,
+  type ResumeFieldUsagePolicy,
 } from '@trends/shared'
 import { useQuery } from 'convex/react'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/PageHeader'
+import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 
 type ResumeDoc = Doc<'resumes'>
 type BreakdownKey = 'experience' | 'skills' | 'industry_db' | 'education' | 'location'
@@ -115,9 +118,18 @@ function readTextField(source: unknown, key: string): string | null {
   return null
 }
 
-function buildResumeLabel(resume: ResumeDoc, unknownCandidateLabel: string): string {
-  const name = readTextField(resume.content, 'name') ?? unknownCandidateLabel
-  const intention = readTextField(resume.content, 'jobIntention') ?? readTextField(resume.content, 'desiredPosition')
+function buildResumeLabel(
+  resume: ResumeDoc,
+  unknownCandidateLabel: string,
+  policy: ResumeFieldUsagePolicy,
+): string {
+  const content = sanitizeResumeRecordForSurface(
+    isRecord(resume.content) ? resume.content : {},
+    'debug',
+    policy,
+  )
+  const name = readTextField(content, 'name') ?? unknownCandidateLabel
+  const intention = readTextField(content, 'jobIntention') ?? readTextField(content, 'desiredPosition')
 
   if (!intention) {
     return name
@@ -128,6 +140,7 @@ function buildResumeLabel(resume: ResumeDoc, unknownCandidateLabel: string): str
 
 export default function DebugAI() {
   const { t, i18n } = useTranslation()
+  const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const resumeDocs = useQuery(api.resumes.list, { limit: 50 })
   const resumes = useMemo(() => resumeDocs ?? [], [resumeDocs])
   const promptDefinition = useMemo(() => getResumeAiPromptDefinition(i18n.resolvedLanguage), [i18n.resolvedLanguage])
@@ -150,10 +163,10 @@ export default function DebugAI() {
       { value: '', label: t('debugAi.selectResumePlaceholder') },
       ...resumes.map((resume) => ({
         value: String(resume._id),
-        label: buildResumeLabel(resume, t('debugAi.unknownCandidate')),
+        label: buildResumeLabel(resume, t('debugAi.unknownCandidate'), fieldUsagePolicy),
       })),
     ],
-    [resumes, t],
+    [fieldUsagePolicy, resumes, t],
   )
 
   const analysisJson = useMemo(() => {

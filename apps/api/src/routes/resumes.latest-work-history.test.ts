@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { resolveResumeFieldUsagePolicy } from '@trends/shared'
 
 import { createApp } from '../app'
 import { AIMatchingService } from '../services/ai-matching'
+import { MatchStorage } from '../services/match-storage'
 import { ResumeService } from '../services/resume-service'
+import { workspaceConfigService } from '../services/workspace-config-service'
 
 describe('resume routes latest work history', () => {
   afterEach(() => {
@@ -34,6 +37,9 @@ describe('resume routes latest work history', () => {
       apiKeyMasked: '***',
       concurrency: 1,
     })
+    vi.spyOn(workspaceConfigService, 'getResumeFieldUsagePolicy').mockResolvedValue(resolveResumeFieldUsagePolicy())
+    vi.spyOn(MatchStorage.prototype, 'getMatchesByResumeIds').mockReturnValue([])
+    vi.spyOn(MatchStorage.prototype, 'saveMatches').mockImplementation(() => {})
 
     const loadSampleSpy = vi.spyOn(ResumeService.prototype, 'loadSample').mockReturnValue({
       items: [{
@@ -93,6 +99,8 @@ describe('resume routes latest work history', () => {
         '2021-01 ~ 2022-01 Middle Co Middle Role',
       ].join('\n'),
     }))
+    expect(resumesArg[0]).not.toHaveProperty('selfIntro')
+    expect(resumesArg[0]).not.toHaveProperty('jobIntention')
     expect(resumesArg[0].workHistory).not.toContain('Oldest Co')
   })
 })

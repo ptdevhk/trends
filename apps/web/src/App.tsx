@@ -17,6 +17,7 @@ import SettingsLayout from '@/layouts/SettingsLayout'
 import SystemLayout from '@/layouts/SystemLayout'
 import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
+import { ResumeFieldUsagePolicyProvider } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { SystemSettingsConfigSourcesPage } from '@/pages/system-settings/SystemSettingsConfigSourcesPage'
 import { SystemSettingsKeywordsPage } from '@/pages/system-settings/SystemSettingsKeywordsPage'
 import { SystemSettingsLocationsPage } from '@/pages/system-settings/SystemSettingsLocationsPage'
@@ -44,7 +45,9 @@ function PreserveSearchNavigate({ pathname }: { pathname: string }) {
 function WorkspaceShell() {
   return (
     <WorkspaceProvider>
-      <Outlet />
+      <ResumeFieldUsagePolicyProvider>
+        <Outlet />
+      </ResumeFieldUsagePolicyProvider>
     </WorkspaceProvider>
   )
 }

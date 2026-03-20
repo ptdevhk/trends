@@ -122,6 +122,8 @@ describe('DebugIngest reset database dialog', () => {
     })
 
     expect(screen.getByText('Loaded Resumes')).toBeInTheDocument()
+    expect(screen.queryByText('销售工程师')).not.toBeInTheDocument()
+    expect(screen.getByText('--')).toBeInTheDocument()
 
     const loadMoreButton = screen.getByRole('button', { name: 'Load More' })
     expect(loadMoreButton).toBeEnabled()

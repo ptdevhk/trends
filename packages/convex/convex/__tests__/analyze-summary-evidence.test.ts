@@ -80,6 +80,31 @@ describe("analyze summary evidence lane", () => {
     expect(normalized.verifiedCompanies).toEqual(["\u5927\u8FDE\u673A\u5E8A\u96C6\u56E2", "\u6C88\u9633\u673A\u5E8A"]);
   });
 
+  it("honors analysis field usage overrides on root content fields", () => {
+    const normalized = normalizeResume({
+      content: {
+        name: "Alice",
+      },
+      ingestData: {
+        evidenceText: "2020-2024 Acme Machine Tools Sales Engineer",
+      },
+    } as unknown, {
+      locale: "en",
+      fieldUsagePolicy: {
+        fields: {
+          name: {
+            surfaces: {
+              analysis: false,
+            },
+          },
+        },
+      },
+    });
+
+    expect(normalized.name).toBe("Not provided");
+    expect(normalized.evidenceText).toBe("2020-2024 Acme Machine Tools Sales Engineer");
+  });
+
   it("filters non-string and empty entries from companyHits", () => {
     const normalized = normalizeResume({
       content: { name: "\u6D4B\u8BD5" },

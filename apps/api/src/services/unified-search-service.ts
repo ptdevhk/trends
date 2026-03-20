@@ -49,8 +49,6 @@ function buildSearchText(item: ResumeItem): string {
   const latestWorkHistory = selectLatestWorkHistory(item.workHistory);
   const parts = [
     item.name,
-    item.jobIntention,
-    item.selfIntro,
     item.education,
     locationText,
     item.expectedSalary,

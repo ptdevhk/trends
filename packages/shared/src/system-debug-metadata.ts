@@ -170,6 +170,14 @@ export const STATIC_INSPECTABLE_SOURCE_DEFINITIONS: StaticInspectableSourceDefin
     audience: "admin",
   },
   {
+    key: "resume-field-usage-policy",
+    label: "Resume field usage policy",
+    relativePath: "config/resume/field-usage-policy.json5",
+    type: "json5",
+    group: "config",
+    audience: "admin",
+  },
+  {
     key: "resume-session",
     label: "Resume session config",
     relativePath: "config/resume/session.json5",

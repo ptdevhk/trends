@@ -162,9 +162,7 @@ function buildMockSearchText(doc: Doc<'resumes'>): string {
   const content = isRecord(doc.content) ? doc.content : {}
   const fragments = [
     toStringValue(content.name),
-    toStringValue(content.jobIntention),
     toStringValue(content.location),
-    toStringValue(content.selfIntro),
     toStringValue(content.expectedSalary),
     ...toStringArray(doc.tags),
     ...toStringArray(doc.ingestData?.industryTags),

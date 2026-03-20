@@ -79,6 +79,22 @@ const SystemLocationVisibilityUpdateSchema = z.object({
   visible: z.boolean(),
 });
 const RuleWeightsConfigSchema = z.record(z.unknown());
+const ResumeFieldUsageSurfaceRulesSchema = z.object({
+  analysis: z.boolean().optional(),
+  presentation: z.boolean().optional(),
+  outreach: z.boolean().optional(),
+  debug: z.boolean().optional(),
+});
+const ResumeFieldUsageFieldSchema = z.object({
+  surfaces: ResumeFieldUsageSurfaceRulesSchema,
+});
+const ResumeFieldUsagePolicySchema = z.object({
+  version: z.number().int().positive().optional(),
+  updatedAt: z.string().optional(),
+  description: z.string().optional(),
+  sourceFileRelativePath: z.string().optional(),
+  fields: z.record(ResumeFieldUsageFieldSchema).default({}),
+});
 const LearningLogEntrySchema = z.object({
   date: z.string(),
   observation: z.string(),
@@ -633,6 +649,37 @@ app.put("/rule-weights", requireAdmin, async (c) => {
   } catch (error) {
     console.error("Failed to update rule weights", error);
     return c.json({ success: false as const, error: "Failed to update rule weights" }, 500);
+  }
+});
+
+app.get("/resume-field-usage-policy", async (c) => {
+  try {
+    const config = await workspaceConfigService.getResumeFieldUsagePolicy(c.var.workspaceSlug);
+    const parsed = ResumeFieldUsagePolicySchema.safeParse(config);
+    if (!parsed.success) {
+      return c.json({ success: false as const, error: "Invalid resume field usage policy" }, 500);
+    }
+    return c.json({ success: true as const, config: parsed.data }, 200);
+  } catch (error) {
+    console.error("Failed to load resume field usage policy", error);
+    return c.json({ success: false as const, error: "Failed to load resume field usage policy" }, 500);
+  }
+});
+
+app.put("/resume-field-usage-policy", requireAdmin, async (c) => {
+  try {
+    const body: unknown = await c.req.json();
+    const parsed = ResumeFieldUsagePolicySchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ success: false as const, error: "Invalid resume field usage policy payload" }, 400);
+    }
+
+    await workspaceConfigService.setWorkspaceResumeFieldUsagePolicy(c.var.workspaceSlug, parsed.data);
+    const merged = await workspaceConfigService.getResumeFieldUsagePolicy(c.var.workspaceSlug);
+    return c.json({ success: true as const, config: merged }, 200);
+  } catch (error) {
+    console.error("Failed to update resume field usage policy", error);
+    return c.json({ success: false as const, error: "Failed to update resume field usage policy" }, 500);
   }
 });
 
