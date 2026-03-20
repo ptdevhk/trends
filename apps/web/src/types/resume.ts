@@ -83,6 +83,8 @@ export type MatchingResult = {
   userId?: string
   breakdown?: MatchBreakdown
   scoreSource?: ScoreSource
+  promptVersion?: number
+  locale?: string
 }
 
 export type MatchStats = {

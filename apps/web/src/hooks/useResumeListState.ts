@@ -1219,6 +1219,8 @@ export function useResumeListState(loadSearchHistory = false) {
             scoreSource: 'ai',
             matchedAt: new Date().toISOString(),
             jobDescriptionId: normalizedAnalysis.jobDescriptionId,
+            promptVersion: normalizedAnalysis.promptVersion,
+            locale: normalizedAnalysis.locale,
           }
           : undefined
 

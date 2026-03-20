@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { buildWorkHistoryDateRange, normalizeWorkHistoryEntry } from '@trends/shared'
+import { buildWorkHistoryDateRange, normalizeWorkHistoryEntry, RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE } from '@trends/shared'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -266,6 +266,16 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
                   ) : null}
                 </h3>
               </div>
+              {(matchResult.promptVersion != null || matchResult.locale) && (
+                <div className="flex items-center gap-3 mb-3 text-[11px] text-muted-foreground">
+                  {matchResult.promptVersion != null && (
+                    <span>Prompt v{matchResult.promptVersion}</span>
+                  )}
+                  {matchResult.locale && (
+                    <span>Language: {RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE[matchResult.locale as keyof typeof RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE] ?? matchResult.locale}</span>
+                  )}
+                </div>
+              )}
 
               <div className="mb-3">
                 <p className="text-sm text-foreground">{matchResult.summary}</p>

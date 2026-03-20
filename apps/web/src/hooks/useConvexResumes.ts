@@ -13,6 +13,7 @@ export type ConvexResumeAnalysis = {
   recommendation: string
   analyzedAt?: number
   promptVersion?: number
+  locale?: string
   queryLocation?: string
   concerns?: string[]
   breakdown?: Record<string, number>
@@ -325,6 +326,7 @@ function parseAnalysis(value: unknown): ConvexResumeAnalysis | undefined {
     recommendation: toStringValue(value.recommendation),
     analyzedAt: toNumber(value.analyzedAt) ?? undefined,
     promptVersion: toNumber(value.promptVersion) ?? undefined,
+    locale: toStringValue(value.locale) || undefined,
     queryLocation: toStringValue(value.queryLocation) || undefined,
     concerns: toStringArray(value.concerns),
     breakdown: parseBreakdown(value.breakdown),
