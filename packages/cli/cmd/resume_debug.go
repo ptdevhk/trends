@@ -455,37 +455,3 @@ func validateResumeMatchRequest(request client.ResumeMatchRequest) error {
 	return nil
 }
 
-func findProjectRoot() (string, error) {
-	current, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("read working directory: %w", err)
-	}
-
-	for {
-		if looksLikeProjectRoot(current) {
-			return current, nil
-		}
-
-		parent := filepath.Dir(current)
-		if parent == current {
-			break
-		}
-		current = parent
-	}
-
-	return "", fmt.Errorf("could not locate project root from %s", current)
-}
-
-func looksLikeProjectRoot(dir string) bool {
-	required := []string{
-		filepath.Join(dir, "CLAUDE.md"),
-		filepath.Join(dir, "packages", "cli", "go.mod"),
-		filepath.Join(dir, "scripts", "resume"),
-	}
-	for _, candidate := range required {
-		if _, err := os.Stat(candidate); err != nil {
-			return false
-		}
-	}
-	return true
-}
