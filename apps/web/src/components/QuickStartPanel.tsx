@@ -66,6 +66,7 @@ interface QuickStartPanelProps {
     config: {
       location: string
       keywords: string[]
+      requiredKeywords?: string[]
       jobDescriptionId?: string
       collectionSource?: CollectionSource | null
       collectUrl?: string
@@ -742,6 +743,7 @@ export function QuickStartPanel({
     onApplyConfig?.({
       location: profileLocation,
       keywords: profileKeywords,
+      requiredKeywords: profile.required_keywords,
       jobDescriptionId: nextJobDescriptionId || undefined,
       collectionSource: nextCollectionSource,
       collectUrl: nextCollectUrl,

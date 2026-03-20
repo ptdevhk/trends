@@ -40,6 +40,7 @@ export type SearchProfileDetails = {
     status: 'active' | 'paused' | 'archived'
     location: string
     keywords: string[]
+    required_keywords?: string[]
     jobDescription?: string
     filterPreset?: string
     filters?: SearchProfileFilters
