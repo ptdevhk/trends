@@ -3,7 +3,7 @@ import { action, mutation } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
-    buildWorkHistoryEvidence,
+    buildLatestWorkHistoryEvidence,
     formatLocationHierarchyLabel,
     normalizeJob5156ProfileUrlForDisplay,
     normalizeResumeLocationHierarchy,
@@ -413,7 +413,7 @@ function rewrite51jobManualContent(content: unknown, source: string): {
     return {
         content: rewrittenContent,
         contentChanged: changed,
-        evidenceText: buildWorkHistoryEvidence(rewrittenContent).text,
+        evidenceText: buildLatestWorkHistoryEvidence(rewrittenContent).text,
     };
 }
 
@@ -795,7 +795,7 @@ export const backfillEvidenceText = mutation({
             await ctx.db.patch(resume._id, {
                 ingestData: {
                     ...resume.ingestData,
-                    evidenceText: buildWorkHistoryEvidence(resume.content).text,
+                    evidenceText: buildLatestWorkHistoryEvidence(resume.content).text,
                 },
             });
             patched += 1;
@@ -954,7 +954,7 @@ export const backfillJob5156WorkHistoryEducation = mutation({
                 ingestData: resume.ingestData
                     ? {
                         ...resume.ingestData,
-                        evidenceText: buildWorkHistoryEvidence(rewritten.content).text,
+                        evidenceText: buildLatestWorkHistoryEvidence(rewritten.content).text,
                     }
                     : resume.ingestData,
             });

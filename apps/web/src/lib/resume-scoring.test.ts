@@ -165,24 +165,45 @@ describe('resume-scoring', () => {
     }
   })
 
-  it('builds rule scoring text from structured work history entries', () => {
+  it('builds rule scoring text from the latest three structured work history entries', () => {
     const resume = createResume({
       workHistory: [
         {
-          raw: '2021-03 ~ 2023-08 Example Co. Sales Engineer',
+          raw: 'legacy fallback line',
+          companyName: 'Legacy Works',
+          jobTitle: 'Old Role',
+          startDate: '2016-01',
+          endDate: '2017-02',
         },
         {
-          raw: 'legacy fallback line',
+          raw: '2021-03 ~ 2023-08 Example Co. Sales Engineer',
+          companyName: 'Example Co.',
+          jobTitle: 'Sales Engineer',
+          startDate: '2021-03',
+          endDate: '2023-08',
+        },
+        {
+          raw: 'recent structured line',
           companyName: 'Precision Works',
           jobTitle: 'CNC Sales',
-          startDate: '2019-01',
-          endDate: '2021-02',
+          startDate: '2024-01',
+          endDate: '2025-02',
+        },
+        {
+          raw: 'current structured line',
+          companyName: 'Current Automation',
+          jobTitle: 'Regional Manager',
+          startDate: '2025-03',
+          endDate: '至今',
         },
       ],
     })
 
-    expect(buildRuleScoringText(resume)).toContain('Precision Works CNC Sales')
-    expect(buildRuleScoringText(resume)).toContain('2019-01 ~ 2021-02')
+    const text = buildRuleScoringText(resume)
+    expect(text).toContain('Current Automation Regional Manager')
+    expect(text).toContain('2024-01 ~ 2025-02')
+    expect(text).toContain('Example Co. Sales Engineer')
+    expect(text).not.toContain('Legacy Works Old Role')
   })
 
   it('flags auto-filtered analyses', () => {

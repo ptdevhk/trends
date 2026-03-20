@@ -1,9 +1,10 @@
 import {
+  buildLatestWorkHistoryEvidence,
   buildWorkHistoryEntryText,
-  buildWorkHistoryEvidence,
   formatLocationHierarchySearchText,
   normalizeResumeLocationHierarchy,
   normalizeWorkHistoryEntry,
+  selectLatestWorkHistory,
 } from "@trends/shared";
 
 import { IndustryDataService } from "./industry-data-service.js";
@@ -241,14 +242,19 @@ function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
   return Array.from(new Set(companies)).slice(0, 20);
 }
 
+function getLatestWorkHistory(workHistory: ResumeWorkHistoryItem[] | undefined): ResumeWorkHistoryItem[] {
+  return selectLatestWorkHistory(workHistory ?? []);
+}
+
 function createSearchText(item: ResumeItem): string {
   const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
+  const latestWorkHistory = getLatestWorkHistory(item.workHistory);
   const parts = [
     item.name,
     item.education,
     locationText,
     item.expectedSalary,
-    ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
+    ...latestWorkHistory.map((entry) => buildWorkHistoryEntryText(entry)),
   ];
 
   return normalizeText(parts.join(" "));
@@ -383,15 +389,16 @@ interface RoleSignalMatch {
  */
 export function buildResumeIndex(item: ResumeItem, index: number): ResumeIndex {
   const resumeId = resolveResumeId(item, index);
+  const latestWorkHistory = getLatestWorkHistory(item.workHistory);
   const searchText = createSearchText(item);
-  const companies = extractCompanies(item.workHistory ?? []);
-  const evidenceText = buildWorkHistoryEvidence(item.workHistory).text;
+  const companies = extractCompanies(latestWorkHistory);
+  const evidenceText = buildLatestWorkHistoryEvidence(latestWorkHistory).text;
 
   // For ingest compute, we don't need full skill extraction
   // We just need the basic fields for rule scoring
   return {
     resumeId,
-    experienceYears: computeWorkHistoryYears(item.workHistory),
+    experienceYears: computeWorkHistoryYears(latestWorkHistory),
     educationLevel: normalizeEducationLevel(item.education),
     locationCity: item.locationHierarchy?.city
       || item.locationHierarchy?.province
@@ -438,14 +445,15 @@ export class IngestComputeService {
     const synonymHits = this.computeSynonymHits(searchText);
 
     // 3. Compute field-aware brandHits, then derive companyHits for backward compatibility
-    const verifiedEmployers = this.collectVerifiedEmployerMatches(item.workHistory ?? []);
-    const brandHits = this.computeBrandHits(item, index.companies, searchText, verifiedEmployers);
+    const latestWorkHistory = getLatestWorkHistory(item.workHistory);
+    const verifiedEmployers = this.collectVerifiedEmployerMatches(latestWorkHistory);
+    const brandHits = this.computeBrandHits(latestWorkHistory, index.companies, searchText, verifiedEmployers);
     const companyHits = verifiedEmployers.map((m) => m.key);
     const { raw: industryDbV2Raw, components: industryDbV2RawComponents } = computeIndustryDbV2Raw(
       companyHits,
       brandHits
     );
-    const roleSignals = this.computeRoleSignals(item.workHistory ?? []);
+    const roleSignals = this.computeRoleSignals(latestWorkHistory);
     const companyPatternAliasTokens = this.buildCompanyAliasTokens(companyHits, brandHits);
 
     // 4. Compute ruleScores for all active JDs
@@ -961,7 +969,7 @@ export class IngestComputeService {
   /**
    * Compute field-aware brand hits from resume text segments.
    */
-  private computeBrandHits(item: ResumeItem, companies: string[], searchText: string, verifiedEmployers: VerifiedEmployerMatch[]): BrandHit[] {
+  private computeBrandHits(workHistory: ResumeWorkHistoryItem[], companies: string[], searchText: string, verifiedEmployers: VerifiedEmployerMatch[]): BrandHit[] {
     const patterns = this.skillsKnowledgeService.getCompanyPatterns();
     const normalizedSearchText = searchText.toLowerCase();
     const normalizedCompanies = companies
@@ -1052,8 +1060,6 @@ export class IngestComputeService {
         }
       }
     };
-
-    const workHistory = item.workHistory || [];
 
     // Pre-extract company names per work-history entry for the pattern-scan loop below.
     const extractedByEntry = workHistory.map((entry) => extractCompanies([entry]));

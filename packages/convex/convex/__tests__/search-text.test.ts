@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { appendMissingSearchTokens, buildIngestSearchTokens, mergeSearchTextWithIngestData } from "../search_text";
+import { appendMissingSearchTokens, buildIngestSearchTokens, buildSearchText, mergeSearchTextWithIngestData } from "../search_text";
 
 describe("buildIngestSearchTokens", () => {
     it("normalizes and deduplicates ingest metadata tokens", () => {
@@ -46,5 +46,19 @@ describe("mergeSearchTextWithIngestData", () => {
             companyHits: ["fanuc"],
             companyPatternAliasTokens: "fanuc 发那科 mitsubishi 三菱",
         })).toBe("销售 cnc 三菱 machinery sales sales engineer mitsubishi fanuc 发那科");
+    });
+});
+
+describe("buildSearchText", () => {
+    it("uses only the latest three work history entries", () => {
+        expect(buildSearchText({
+            name: "Alice",
+            workHistory: [
+                { raw: "2018-01 ~ 2019-01 Oldest Co Old Role", startDate: "2018-01", endDate: "2019-01", companyName: "Oldest Co", jobTitle: "Old Role" },
+                { raw: "2023-01 ~ 2024-01 Recent Co Recent Role", startDate: "2023-01", endDate: "2024-01", companyName: "Recent Co", jobTitle: "Recent Role" },
+                { raw: "2024-02 ~ 至今 Current Co Current Role", startDate: "2024-02", endDate: "至今", companyName: "Current Co", jobTitle: "Current Role" },
+                { raw: "2021-01 ~ 2022-01 Middle Co Middle Role", startDate: "2021-01", endDate: "2022-01", companyName: "Middle Co", jobTitle: "Middle Role" },
+            ],
+        })).toBe("alice 2024-02 ~ 至今 current co current role 2023-01 ~ 2024-01 recent co recent role 2021-01 ~ 2022-01 middle co middle role");
     });
 });

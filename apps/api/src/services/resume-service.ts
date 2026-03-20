@@ -6,6 +6,7 @@ import {
   isLocationMatch,
   normalizeProfileUrlForDisplay,
   normalizeSharedResumeFields,
+  selectLatestWorkHistory,
 } from "@trends/shared";
 
 import { findProjectRoot } from "./db.js";
@@ -236,6 +237,7 @@ function countOccurrences(haystack: string, needle: string): number {
 
 function buildSearchText(item: ResumeItem): string {
   const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
+  const latestWorkHistory = selectLatestWorkHistory(item.workHistory);
   const parts = [
     item.name,
     item.jobIntention,
@@ -243,7 +245,7 @@ function buildSearchText(item: ResumeItem): string {
     item.education,
     locationText,
     item.expectedSalary,
-    ...(item.workHistory?.map((entry) => buildWorkHistoryEntryText(entry)) ?? []),
+    ...latestWorkHistory.map((entry) => buildWorkHistoryEntryText(entry)),
   ];
   return parts.join(" ").toLowerCase();
 }
@@ -453,7 +455,7 @@ export class ResumeService {
       const name = (item.name || "").toLowerCase();
       const jobIntention = (item.jobIntention || "").toLowerCase();
       const searchText = index?.searchText || buildSearchText(item);
-      const companies = index?.companies ?? (item.workHistory?.map((wh) => extractCompanyFromWorkHistory(wh)) || []);
+      const companies = index?.companies ?? selectLatestWorkHistory(item.workHistory).map((wh) => extractCompanyFromWorkHistory(wh));
 
       const perKeywordScores = keywordSets.map(({ original, variants }) => {
         let score = 0;

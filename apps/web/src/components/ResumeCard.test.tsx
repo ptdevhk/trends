@@ -42,4 +42,36 @@ describe('ResumeCard brand-hit badges', () => {
     expect(screen.queryByText('debugIngest.brandContext.sales')).not.toBeInTheDocument()
     expect(screen.queryByText(/workHistory/i)).not.toBeInTheDocument()
   })
+
+  it('renders only the latest three work history entries', () => {
+    render(
+      <ResumeCard
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Dongguan',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [
+            { raw: 'Oldest entry', companyName: 'Oldest Co', jobTitle: 'Old Role', startDate: '2018-01', endDate: '2019-01' },
+            { raw: 'Recent entry', companyName: 'Recent Co', jobTitle: 'Recent Role', startDate: '2023-01', endDate: '2024-01' },
+            { raw: 'Current entry', companyName: 'Current Co', jobTitle: 'Current Role', startDate: '2024-02', endDate: '至今' },
+            { raw: 'Middle entry', companyName: 'Middle Co', jobTitle: 'Middle Role', startDate: '2021-01', endDate: '2022-01' },
+          ],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+        onViewDetails={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('2024-02 ~ 至今 Current Co Current Role')).toBeInTheDocument()
+    expect(screen.getByText('2023-01 ~ 2024-01 Recent Co Recent Role')).toBeInTheDocument()
+    expect(screen.getByText('2021-01 ~ 2022-01 Middle Co Middle Role')).toBeInTheDocument()
+    expect(screen.queryByText('2018-01 ~ 2019-01 Oldest Co Old Role')).not.toBeInTheDocument()
+  })
 })

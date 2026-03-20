@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildWorkHistoryEvidence } from "@trends/shared";
+import { buildLatestWorkHistoryEvidence } from "@trends/shared";
 
 import { buildAiTaggingIdentity, buildEvidenceTextFromWorkHistory, resolveAiTaggingEvidence, stableHash } from "../ai_tagging_results";
 
@@ -41,7 +41,7 @@ describe("buildEvidenceTextFromWorkHistory", () => {
             workHistory: ["  Sales   Engineer ", { raw: " CNC 机床 " }],
         };
 
-        expect(buildEvidenceTextFromWorkHistory(input)).toEqual(buildWorkHistoryEvidence(input));
+        expect(buildEvidenceTextFromWorkHistory(input)).toEqual(buildLatestWorkHistoryEvidence(input));
     });
 });
 
@@ -76,7 +76,7 @@ describe("resolveAiTaggingEvidence", () => {
     });
 
     it("matches legacy backfill output for stable queue identity", () => {
-        const evidenceText = buildWorkHistoryEvidence({
+        const evidenceText = buildLatestWorkHistoryEvidence({
             workHistory: [
                 { raw: " 2020-2025 Sales Engineer " },
                 { raw: " CNC 机床 " },

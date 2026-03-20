@@ -1,4 +1,4 @@
-import { formatLocationHierarchySearchText, type LocationHierarchy } from "@trends/shared";
+import { buildLatestWorkHistoryEvidence, formatLocationHierarchySearchText, type LocationHierarchy } from "@trends/shared";
 
 const PRIORITY_KEYS = [
     "name",
@@ -145,6 +145,10 @@ function collectPriorityFragments(content: UnknownRecord): string[] {
             if (locationHierarchy) {
                 parts.push(locationHierarchy);
             }
+            continue;
+        }
+        if (key === "workHistory") {
+            parts.push(...buildLatestWorkHistoryEvidence(content[key]).lines);
             continue;
         }
         parts.push(...toTextFragments(content[key]));
