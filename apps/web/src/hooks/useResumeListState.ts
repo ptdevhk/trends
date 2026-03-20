@@ -37,6 +37,7 @@ import {
 import {
   buildLearningObservation,
   buildResumeKey,
+  buildRuleScoringText,
   computeDirectIndustryDb,
   getAnalysisForJob,
   hasIngestData,
@@ -432,6 +433,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const [bulkExportFormat, setBulkExportFormat] = useState<ResumeExportFormat>('csv')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
+  const [requiredKeywords, setRequiredKeywords] = useState<string[]>([])
   const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<ExperienceLevelFilter | undefined>(undefined)
   const [appliedSearchHistoryId, setAppliedSearchHistoryId] = useState<string | undefined>(undefined)
   const [queryRuleScoreMap, setQueryRuleScoreMap] = useState<Record<string, number>>({})
@@ -479,6 +481,7 @@ export function useResumeListState(loadSearchHistory = false) {
       hasUrlParams: activeHasUrlParams,
       location: activeParsedUrlState.location ?? '',
       keywords: activeParsedUrlState.keywords,
+      requiredKeywords: activeParsedUrlState.requiredKeywords,
       jobDescriptionId: activeParsedUrlState.jobDescriptionId ?? '',
       selectedTags: activeParsedUrlState.selectedTags,
       selectedCompanies: activeParsedUrlState.selectedCompanies,
@@ -667,6 +670,7 @@ export function useResumeListState(loadSearchHistory = false) {
     })
     setSelectedTags(activeParsedUrlState.selectedTags)
     setSelectedCompanies(activeParsedUrlState.selectedCompanies)
+    setRequiredKeywords(activeParsedUrlState.requiredKeywords)
     setSelectedExperienceLevel(activeParsedUrlState.selectedExperienceLevel)
   }, [
     applyExternalState,
@@ -755,6 +759,11 @@ export function useResumeListState(loadSearchHistory = false) {
         ? current
         : activeParsedUrlState.selectedCompanies
     )
+    setRequiredKeywords((current) =>
+      areKeywordListsEqual(current, activeParsedUrlState.requiredKeywords)
+        ? current
+        : activeParsedUrlState.requiredKeywords
+    )
     setSelectedExperienceLevel((current) =>
       (current ?? '') === (activeParsedUrlState.selectedExperienceLevel ?? '')
         ? current
@@ -807,6 +816,7 @@ export function useResumeListState(loadSearchHistory = false) {
       syncToUrl({
         location: locationForUrl,
         keywords: sessionKeywords,
+        requiredKeywords,
         jobDescriptionId,
         selectedTags,
         selectedCompanies,
@@ -820,6 +830,7 @@ export function useResumeListState(loadSearchHistory = false) {
     filters,
     hasCompletedUrlHydration,
     jobDescriptionId,
+    requiredKeywords,
     selectedCompanies,
     selectedExperienceLevel,
     selectedTags,
@@ -955,6 +966,14 @@ export function useResumeListState(loadSearchHistory = false) {
       )
     }
 
+    if (requiredKeywords.length > 0) {
+      const normalizedRequired = requiredKeywords.map((kw) => kw.trim().toLowerCase()).filter((kw) => kw.length > 0)
+      result = result.filter((resume: ScoredConvexResume) => {
+        const text = buildRuleScoringText(resume).toLowerCase()
+        return normalizedRequired.some((kw) => text.includes(kw))
+      })
+    }
+
     return result
   }, [
     blocksByIdentity,
@@ -963,6 +982,7 @@ export function useResumeListState(loadSearchHistory = false) {
     jobDescriptionId,
     keywordOnlyQueryScoring,
     queryRuleScoreMap,
+    requiredKeywords,
     selectedCompanies,
     selectedExperienceLevel,
     selectedTags,
@@ -1569,6 +1589,7 @@ export function useResumeListState(loadSearchHistory = false) {
     (config: {
       location: string
       keywords: string[]
+      requiredKeywords?: string[]
       jobDescriptionId?: string
       collectionSource?: CollectionSource | null
       collectUrl?: string
@@ -1591,6 +1612,8 @@ export function useResumeListState(loadSearchHistory = false) {
       })
 
       setSessionKeywords((current) => (areKeywordListsEqual(current, normalizedKeywords) ? current : normalizedKeywords))
+      const normalizedRequiredKeywords = (config.requiredKeywords ?? []).map((kw) => kw.trim()).filter((kw) => kw.length > 0)
+      setRequiredKeywords((current) => (areKeywordListsEqual(current, normalizedRequiredKeywords) ? current : normalizedRequiredKeywords))
       setJobDescriptionId((current) => (current === normalizedJobDescriptionId ? current : normalizedJobDescriptionId))
       setSessionCollectionSource((current) => {
         if (config.collectionSource === undefined) {
@@ -1616,7 +1639,7 @@ export function useResumeListState(loadSearchHistory = false) {
           : [],
       }))
     },
-    [setFilters, setJobDescriptionId, setSessionCollectionSource, setSessionCollectUrl, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
+    [setFilters, setJobDescriptionId, setRequiredKeywords, setSessionCollectionSource, setSessionCollectUrl, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
   )
 
   const handleQuickConstraintApply = useCallback(
@@ -1708,6 +1731,8 @@ export function useResumeListState(loadSearchHistory = false) {
     selectedIds,
     selectedTags,
     selectedCompanies,
+    requiredKeywords,
+    setRequiredKeywords,
     selectedExperienceLevel,
     activeTagFilters,
     activeCompanyFilters,

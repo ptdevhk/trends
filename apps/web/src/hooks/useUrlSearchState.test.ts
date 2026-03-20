@@ -40,6 +40,15 @@ describe('useUrlSearchState location parsing', () => {
     expect(state.keywords).toEqual(['CNC', '销售'])
   })
 
+  it('parses required keywords from rkw param', () => {
+    const state = parseUrlSearchState(
+      new URLSearchParams('keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22&rkw=CNC%2Cmachine+tools')
+    )
+
+    expect(state.keywords).toEqual(['Sales Engineer', 'Sales Manager'])
+    expect(state.requiredKeywords).toEqual(['CNC', 'machine tools'])
+  })
+
   it('serializes canonical OR phrase queries when syncing to the URL', () => {
     const currentParams = new URLSearchParams()
     useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
@@ -49,6 +58,7 @@ describe('useUrlSearchState location parsing', () => {
     const nextState: UrlSearchState = {
       location: 'Kuala Lumpur MY',
       keywords: ['Sales Engineer', 'Sales Manager'],
+      requiredKeywords: [],
       jobDescriptionId: undefined,
       selectedTags: [],
       selectedCompanies: [],
@@ -68,5 +78,30 @@ describe('useUrlSearchState location parsing', () => {
     const updatedParams = updater(new URLSearchParams()) as URLSearchParams
     expect(updatedParams.get('location')).toBe('Kuala Lumpur MY')
     expect(updatedParams.get('keyword')).toBe('"Sales Engineer" OR "Sales Manager"')
+    expect(updatedParams.get('rkw')).toBeNull()
+  })
+
+  it('serializes required keywords into rkw param', () => {
+    const currentParams = new URLSearchParams()
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    const nextState: UrlSearchState = {
+      location: 'Kuala Lumpur MY',
+      keywords: ['Sales Engineer', 'Sales Manager'],
+      requiredKeywords: ['CNC', 'machine tools'],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+      filters: {},
+    }
+
+    result.current.syncToUrl(nextState)
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(new URLSearchParams()) as URLSearchParams
+    expect(updatedParams.get('rkw')).toBe('CNC,machine tools')
   })
 })

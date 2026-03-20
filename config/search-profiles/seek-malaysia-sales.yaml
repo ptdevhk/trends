@@ -2,16 +2,17 @@ id: seek-malaysia-sales
 name: SEEK Malaysia Sales Engineer / Sales Manager
 description: Malaysia SEEK workflow for Kuala Lumpur sales hiring
 createdAt: "2026-03-17"
-updatedAt: "2026-03-17"
+updatedAt: "2026-03-20"
 status: active
 
 location: Kuala Lumpur MY
 keywords:
   - Sales Engineer
   - Sales Manager
+
+required_keywords:
   - CNC
   - machine tools
-  - Malaysia
 
 jobDescription: seek-malaysia-sales
 
