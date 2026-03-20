@@ -834,7 +834,7 @@ help:
 	@echo ""
 	@echo "Dependencies:"
 	@echo "  install-deps [CONVEX_MIRROR_MODE=off|fallback|mirror-first]"
-	@echo "               Install deps, prefetch Convex assets, sync repo project skills, and install configured global skills"
+	@echo "               Install deps, prefetch Convex assets, sync repo project skills, and install configured global skills into per-agent roots"
 	@echo "               See ./scripts/install-deps.sh --help for CI=true/1 and additional prefetch env knobs"
 	@echo "  prefetch-convex [CONVEX_MIRROR_MODE=off|fallback|mirror-first] Prefetch Convex local backend + dashboard assets"
 	@echo "                 See ./scripts/prefetch-convex-backend.sh --help for CI=true/1, mirror bases, timeout, and curl env knobs"

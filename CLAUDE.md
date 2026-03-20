@@ -88,7 +88,7 @@ Required flow:
 
 ### Start Development
 ```bash
-make install-deps                           # Sync repo project skills into .agents/.claude and install configured global skills
+make install-deps                           # Sync repo project skills into .agents/.claude and install configured global skills into per-agent roots
 CONVEX_MIRROR_MODE=mirror-first make install-deps  # Optional: mirror-first Convex prefetch during bootstrap
 make sync-project-skills                    # Refresh committed project skill artifacts after editing dev-docs/skills/*
 make install-global-skills                  # Reinstall configured external global skills from config/skills/install.yaml
