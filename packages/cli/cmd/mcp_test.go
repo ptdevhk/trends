@@ -5,9 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/ptdevhk/trends/packages/cli/internal/client"
 )
 
 func TestReadMCPMessage(t *testing.T) {
@@ -157,5 +161,177 @@ func TestMCPToolsIncludeResumeDebugReadOnlyTools(t *testing.T) {
 		if !names[required] {
 			t.Fatalf("missing MCP tool %q", required)
 		}
+	}
+}
+
+func TestRunMCPToolJDList(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/job-descriptions" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.JobDescriptionsResponse{
+			Success: true,
+			Items: []client.JobDescriptionFile{{
+				Name:   "cnc-sales",
+				Title:  "CNC Sales",
+				Status: "active",
+			}},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "hr")
+
+	text, err := runMCPTool(context.Background(), "jd_list", nil)
+	if err != nil {
+		t.Fatalf("runMCPTool returned error: %v", err)
+	}
+	if !strings.Contains(text, "cnc-sales") || !strings.Contains(text, "CNC Sales") {
+		t.Fatalf("unexpected MCP tool output: %s", text)
+	}
+}
+
+func TestRunMCPToolWorkerStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/worker/status" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.WorkerStatus{
+			Running:      true,
+			JobsExecuted: 4,
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "ops")
+
+	text, err := runMCPTool(context.Background(), "worker_status", nil)
+	if err != nil {
+		t.Fatalf("runMCPTool returned error: %v", err)
+	}
+	if !strings.Contains(text, `"jobs_executed": 4`) || !strings.Contains(text, `"running": true`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
+	}
+}
+
+func TestRunMCPToolCrawlTrigger(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/worker/crawl" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		_ = json.NewEncoder(w).Encode(client.WorkerTriggerResponse{
+			Success: true,
+			Mode:    "crawl",
+			Message: "crawl started",
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "ops")
+
+	text, err := runMCPTool(context.Background(), "crawl_trigger", nil)
+	if err != nil {
+		t.Fatalf("runMCPTool returned error: %v", err)
+	}
+	if !strings.Contains(text, `"mode": "crawl"`) || !strings.Contains(text, `"message": "crawl started"`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
+	}
+}
+
+func TestRunMCPToolWorkerRunPassesOnceFlag(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/worker/run" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("once"); got != "false" {
+			t.Fatalf("expected once=false, got %q", got)
+		}
+		_ = json.NewEncoder(w).Encode(client.WorkerTriggerResponse{
+			Success: true,
+			Mode:    "scheduled",
+			Message: "worker queued",
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "ops")
+
+	text, err := runMCPTool(context.Background(), "worker_run", map[string]interface{}{"once": false})
+	if err != nil {
+		t.Fatalf("runMCPTool returned error: %v", err)
+	}
+	if !strings.Contains(text, `"mode": "scheduled"`) || !strings.Contains(text, `"message": "worker queued"`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
+	}
+}
+
+func TestRunMCPToolWorkerStatusFallsBackToWorkerURL(t *testing.T) {
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "proxy unavailable", http.StatusBadGateway)
+	}))
+	defer proxy.Close()
+
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/worker/status" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.WorkerStatus{
+			Running:      false,
+			JobsExecuted: 9,
+		})
+	}))
+	defer worker.Close()
+
+	setResumeCLIConfigURLs(t, proxy.URL, worker.URL, "ops")
+
+	text, err := runMCPTool(context.Background(), "worker_status", nil)
+	if err != nil {
+		t.Fatalf("runMCPTool returned error: %v", err)
+	}
+	if !strings.Contains(text, `"jobs_executed": 9`) || !strings.Contains(text, `"running": false`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
+	}
+}
+
+func TestRunMCPToolCrawlTriggerRejectsUnsuccessfulResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(client.WorkerTriggerResponse{
+			Success: false,
+			Mode:    "crawl",
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "ops")
+
+	_, err := runMCPTool(context.Background(), "crawl_trigger", nil)
+	if err == nil {
+		t.Fatal("expected unsuccessful crawl trigger error")
+	}
+	if !strings.Contains(err.Error(), "not successful") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunMCPToolWorkerRunRejectsUnsuccessfulResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(client.WorkerTriggerResponse{
+			Success: false,
+			Mode:    "once",
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "ops")
+
+	_, err := runMCPTool(context.Background(), "worker_run", map[string]interface{}{"once": true})
+	if err == nil {
+		t.Fatal("expected unsuccessful worker run error")
+	}
+	if !strings.Contains(err.Error(), "not successful") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

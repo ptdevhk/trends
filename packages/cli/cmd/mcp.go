@@ -213,12 +213,12 @@ func mcpTools() []map[string]any {
 		},
 		{
 			"name":        "migrate_reindex_search",
-			"description": "Run migrations:reindexSearchText",
+			"description": "Run " + migrationReindexSearchText,
 			"inputSchema": map[string]any{"type": "object"},
 		},
 		{
 			"name":        "migrate_backfill_ingest",
-			"description": "Run migrations:backfillIngestData",
+			"description": "Run " + migrationBackfillIngestData,
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -228,7 +228,7 @@ func mcpTools() []map[string]any {
 		},
 		{
 			"name":        "migrate_backfill_score",
-			"description": "Run migrations:backfillPrimaryRuleScore",
+			"description": "Run " + migrationBackfillPrimaryScore,
 			"inputSchema": map[string]any{"type": "object"},
 		},
 	}
@@ -308,20 +308,20 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 		}
 		return prettyJSON(result)
 	case "migrate_reindex_search":
-		result, err := runConvexCommand(ctx, "migrations:reindexSearchText")
+		result, err := runConvexCommand(ctx, migrationReindexSearchText)
 		if err != nil {
 			return "", err
 		}
 		return result, nil
 	case "migrate_backfill_ingest":
 		limit := intArg(args, "limit", 100)
-		result, err := runConvexCommand(ctx, "migrations:backfillIngestData", fmt.Sprintf(`{"limit":%d}`, limit))
+		result, err := runConvexCommand(ctx, migrationBackfillIngestData, backfillIngestPayload(limit))
 		if err != nil {
 			return "", err
 		}
 		return result, nil
 	case "migrate_backfill_score":
-		result, err := runConvexCommand(ctx, "migrations:backfillPrimaryRuleScore")
+		result, err := runConvexCommand(ctx, migrationBackfillPrimaryScore)
 		if err != nil {
 			return "", err
 		}
