@@ -96,6 +96,10 @@ type CustomKeywordsResponse = {
   workflowSeeds?: CustomKeywordWorkflowSeed[];
 };
 
+function getKeywordFingerprint(keyword: string): string {
+  return keyword.trim().toLowerCase();
+}
+
 function deduplicateKeywords(items: IndustryKeyword[]): IndustryKeyword[] {
   const seen = new Set<string>();
   const deduplicated: IndustryKeyword[] = [];
@@ -104,7 +108,7 @@ function deduplicateKeywords(items: IndustryKeyword[]): IndustryKeyword[] {
     if (!keyword) {
       continue;
     }
-    const dedupeKey = `${item.category}:${keyword.toLowerCase()}`;
+    const dedupeKey = `${item.category}:${getKeywordFingerprint(keyword)}`;
     if (seen.has(dedupeKey)) {
       continue;
     }
@@ -282,10 +286,10 @@ export function useIndustryKeywords() {
   const allKeywords = useMemo(() => {
     // Custom keywords take priority over brand keywords with the same text
     const customSet = new Set(
-      customKeywords.map((item) => item.keyword.toLowerCase())
+      customKeywords.map((item) => getKeywordFingerprint(item.keyword))
     );
     const deduplicatedBrands = brandKeywords.filter(
-      (item) => !customSet.has(item.keyword.toLowerCase())
+      (item) => !customSet.has(getKeywordFingerprint(item.keyword))
     );
     return deduplicateKeywords([
       ...keywords,
@@ -304,12 +308,12 @@ export function useIndustryKeywords() {
   }, [allKeywords]);
 
   const hotKeywords = useMemo(() => {
-    const customSet = new Set(customKeywords.map((item) => item.keyword));
+    const customSet = new Set(customKeywords.map((item) => getKeywordFingerprint(item.keyword)));
     const categoryChips = CATEGORY_ORDER
       .filter((category) => category !== "custom")
       .flatMap((category) => grouped[category].slice(0, 3));
     const filteredCategoryChips = categoryChips.filter(
-      (chip) => !customSet.has(chip.keyword)
+      (chip) => !customSet.has(getKeywordFingerprint(chip.keyword))
     );
 
     return [...customKeywords, ...filteredCategoryChips];

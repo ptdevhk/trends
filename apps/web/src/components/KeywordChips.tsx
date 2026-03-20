@@ -1,3 +1,4 @@
+import { normalizeKeywordPhrases } from '@trends/shared'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -22,16 +23,8 @@ interface KeywordChipsProps {
 const SEED_LOCATION_CHIP_LIMIT = 4
 const SYNTHETIC_LOCATION_ID_PREFIX = '__active_location__'
 
-function normalizeKeywords(values: string[]): string[] {
-  const next: string[] = []
-  const seen = new Set<string>()
-  for (const value of values) {
-    const normalized = value.trim()
-    if (!normalized || seen.has(normalized)) continue
-    seen.add(normalized)
-    next.push(normalized)
-  }
-  return next
+function getKeywordFingerprint(value: string): string {
+  return value.trim().toLowerCase()
 }
 
 function createSyntheticLocationKeyword(keyword: string): IndustryKeyword {
@@ -66,47 +59,49 @@ export function KeywordChips({
   const { keywords, grouped, hotKeywords, loading, error } = useIndustryKeywords()
   const [expanded, setExpanded] = useState(false)
 
-  // Derive selection directly from props
-  const selected = useMemo(() => new Set(normalizeKeywords(value)), [value])
-
-  const selectedValues = useMemo(() => Array.from(selected), [selected])
+  const selectedValues = useMemo(() => normalizeKeywordPhrases(value), [value])
+  const selectedKeywordSet = useMemo(
+    () => new Set(selectedValues.map((keyword) => getKeywordFingerprint(keyword))),
+    [selectedValues]
+  )
   const filteredHotKeywords = useMemo(
     () => hotKeywords.filter((item) => matchesMarket(item, market)),
     [hotKeywords, market]
   )
   const hotKeywordSet = useMemo(
-    () => new Set(filteredHotKeywords.map((keyword) => keyword.keyword)),
+    () => new Set(filteredHotKeywords.map((keyword) => getKeywordFingerprint(keyword.keyword))),
     [filteredHotKeywords]
   )
   const knownKeywordSet = useMemo(
-    () => new Set(keywords.map((keyword) => keyword.keyword)),
+    () => new Set(keywords.map((keyword) => getKeywordFingerprint(keyword.keyword))),
     [keywords]
   )
   const customSelectedKeywords = useMemo(() => {
-    return selectedValues.filter((keyword) => !knownKeywordSet.has(keyword))
+    return selectedValues.filter((keyword) => !knownKeywordSet.has(getKeywordFingerprint(keyword)))
   }, [knownKeywordSet, selectedValues])
   const keywordCategoryMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const item of keywords) {
       const normalizedKeyword = item.keyword.trim()
-      if (!normalizedKeyword || map.has(normalizedKeyword)) {
+      const fingerprint = getKeywordFingerprint(normalizedKeyword)
+      if (!normalizedKeyword || map.has(fingerprint)) {
         continue
       }
-      map.set(normalizedKeyword, item.category)
+      map.set(fingerprint, item.category)
     }
     return map
   }, [keywords])
   const normalizedActiveLocations = useMemo(
-    () => normalizeKeywords(activeLocations ?? []),
+    () => normalizeKeywordPhrases(activeLocations ?? []),
     [activeLocations]
   )
   const activeLocationSet = useMemo(
-    () => new Set(normalizedActiveLocations),
+    () => new Set(normalizedActiveLocations.map((location) => getKeywordFingerprint(location))),
     [normalizedActiveLocations]
   )
 
   const additionalSelectedKeywords = useMemo(() => {
-    return selectedValues.filter((keyword) => !hotKeywordSet.has(keyword))
+    return selectedValues.filter((keyword) => !hotKeywordSet.has(getKeywordFingerprint(keyword)))
   }, [hotKeywordSet, selectedValues])
   const displayHotKeywords = useMemo(() => {
     const result: IndustryKeyword[] = []
@@ -115,10 +110,11 @@ export function KeywordChips({
 
     const pushUnique = (item: IndustryKeyword) => {
       const keyword = item.keyword.trim()
-      if (!keyword || seen.has(keyword)) {
+      const fingerprint = getKeywordFingerprint(keyword)
+      if (!keyword || seen.has(fingerprint)) {
         return
       }
-      seen.add(keyword)
+      seen.add(fingerprint)
       result.push({
         ...item,
         keyword,
@@ -151,10 +147,11 @@ export function KeywordChips({
 
     const pushUnique = (item: IndustryKeyword) => {
       const keyword = item.keyword.trim()
-      if (!keyword || seen.has(keyword)) {
+      const fingerprint = getKeywordFingerprint(keyword)
+      if (!keyword || seen.has(fingerprint)) {
         return
       }
-      seen.add(keyword)
+      seen.add(fingerprint)
       result.push({
         ...item,
         keyword,
@@ -176,31 +173,37 @@ export function KeywordChips({
       const normalized = keyword.trim()
       if (!normalized) return
 
-      const matchedKeyword = keywords.find((item) => item.keyword === normalized)
+      const fingerprint = getKeywordFingerprint(normalized)
+      const matchedKeyword = keywords.find(
+        (item) => getKeywordFingerprint(item.keyword) === fingerprint
+      )
       if (matchedKeyword?.category === 'location' && onLocationToggle) {
         onLocationToggle(normalized)
         return
       }
 
-      const next = new Set(selected)
-      if (next.has(normalized)) {
-        next.delete(normalized)
-      } else {
-        next.add(normalized)
+      const nextSelectedValues = selectedValues.filter(
+        (selectedKeyword) => getKeywordFingerprint(selectedKeyword) !== fingerprint
+      )
+      if (selectedKeywordSet.has(fingerprint)) {
+        onChange(nextSelectedValues)
+        return
       }
-      onChange(Array.from(next))
+
+      onChange(normalizeKeywordPhrases([...nextSelectedValues, normalized]))
     },
-    [keywords, onChange, onLocationToggle, selected]
+    [keywords, onChange, onLocationToggle, selectedKeywordSet, selectedValues]
   )
 
   const renderChip = useCallback(
     (keyword: string, category?: string) => {
       const normalizedKeyword = keyword.trim()
-      const resolvedCategory = category ?? keywordCategoryMap.get(normalizedKeyword)
+      const fingerprint = getKeywordFingerprint(normalizedKeyword)
+      const resolvedCategory = category ?? keywordCategoryMap.get(fingerprint)
       const isLocationChip = resolvedCategory === 'location'
       const selectedKeyword = isLocationChip
-        ? activeLocationSet.has(normalizedKeyword)
-        : selected.has(normalizedKeyword)
+        ? activeLocationSet.has(fingerprint)
+        : selectedKeywordSet.has(fingerprint)
       return (
         <Badge
           key={keyword}
@@ -229,7 +232,7 @@ export function KeywordChips({
         </Badge>
       )
     },
-    [keywordCategoryMap, activeLocationSet, selected, toggleKeyword]
+    [keywordCategoryMap, activeLocationSet, selectedKeywordSet, toggleKeyword]
   )
 
   return (
@@ -244,7 +247,7 @@ export function KeywordChips({
           <>
             {displayHotKeywords.map((item) => renderChip(item.keyword, item.category))}
             {!expanded && additionalSelectedKeywords.map((keyword) =>
-              renderChip(keyword, keywordCategoryMap.get(keyword.trim()))
+              renderChip(keyword, keywordCategoryMap.get(getKeywordFingerprint(keyword)))
             )}
           </>
         )}
@@ -282,7 +285,7 @@ export function KeywordChips({
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted-foreground">{t('quickStart.customKeywords', '自定义')}:</span>
           {customSelectedKeywords.map((keyword) =>
-            renderChip(keyword, keywordCategoryMap.get(keyword.trim()))
+            renderChip(keyword, keywordCategoryMap.get(getKeywordFingerprint(keyword)))
           )}
         </div>
       ) : null}
