@@ -213,12 +213,12 @@ func mcpTools() []map[string]any {
 		},
 		{
 			"name":        "migrate_reindex_search",
-			"description": "Run migrations:reindexSearchText",
+			"description": "Run " + migrationReindexSearchText,
 			"inputSchema": map[string]any{"type": "object"},
 		},
 		{
 			"name":        "migrate_backfill_ingest",
-			"description": "Run migrations:backfillIngestData",
+			"description": "Run " + migrationBackfillIngestData,
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -228,7 +228,7 @@ func mcpTools() []map[string]any {
 		},
 		{
 			"name":        "migrate_backfill_manual_51job",
-			"description": "Run migrations:backfillManual51jobStructuredContent",
+			"description": "Run " + backfillManual51jobMigration,
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -238,7 +238,7 @@ func mcpTools() []map[string]any {
 		},
 		{
 			"name":        "migrate_backfill_score",
-			"description": "Run migrations:backfillPrimaryRuleScore",
+			"description": "Run " + migrationBackfillPrimaryScore,
 			"inputSchema": map[string]any{"type": "object"},
 		},
 	}
@@ -318,17 +318,17 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 		}
 		return prettyJSON(result)
 	case "migrate_reindex_search":
-		result, err := runConvexCommand(ctx, reindexSearchMigration)
+		result, err := runConvexCommand(ctx, migrationReindexSearchText)
 		if err != nil {
 			return "", err
 		}
 		return result, nil
 	case "migrate_backfill_ingest":
-		return runMCPMigrationWithLimit(ctx, args, backfillIngestMigration)
+		return runMCPMigrationWithLimit(ctx, args, migrationBackfillIngestData)
 	case "migrate_backfill_manual_51job":
 		return runMCPMigrationWithLimit(ctx, args, backfillManual51jobMigration)
 	case "migrate_backfill_score":
-		result, err := runConvexCommand(ctx, backfillScoreMigration)
+		result, err := runConvexCommand(ctx, migrationBackfillPrimaryScore)
 		if err != nil {
 			return "", err
 		}

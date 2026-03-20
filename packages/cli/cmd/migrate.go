@@ -15,11 +15,31 @@ type convexRunner func(ctx context.Context, migration string, extraArgs ...strin
 const (
 	defaultMigrationLimitArgKey     = "limit"
 	manual51jobMigrationLimitArgKey = "batchSize"
-	reindexSearchMigration          = "migrations:reindexSearchText"
-	backfillIngestMigration         = "migrations:backfillIngestData"
-	backfillManual51jobMigration    = "migrations:backfillManual51jobStructuredContent"
-	backfillScoreMigration          = "migrations:backfillPrimaryRuleScore"
+
+	migrationReindexSearchText    = "migrations:reindexSearchText"
+	migrationBackfillIngestData   = "migrations:backfillIngestData"
+	backfillManual51jobMigration  = "migrations:backfillManual51jobStructuredContent"
+	migrationBackfillPrimaryScore = "migrations:backfillPrimaryRuleScore"
 )
+
+var runConvexCommandExecutor = func(ctx context.Context, args []string) (string, error) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		return "", err
+	}
+
+	commandArgs := []string{"--workspace", "@trends/convex", "exec"}
+	commandArgs = append(commandArgs, args...)
+
+	command := exec.CommandContext(ctx, "npm", commandArgs...)
+	command.Dir = projectRoot
+	result, err := command.CombinedOutput()
+	output := strings.TrimSpace(string(result))
+	if err != nil {
+		return output, fmt.Errorf("run npm %s: %w\n%s", strings.Join(commandArgs, " "), err, output)
+	}
+	return output, nil
+}
 
 func newMigrateCmd() *cobra.Command {
 	migrateCmd := &cobra.Command{
@@ -41,7 +61,7 @@ func newMigrateReindexCmd() *cobra.Command {
 	return newMigrationCmd(
 		"reindex-search",
 		"Run migrations:reindexSearchText",
-		reindexSearchMigration,
+		migrationReindexSearchText,
 	)
 }
 
@@ -49,9 +69,9 @@ func newMigrateBackfillIngestCmd() *cobra.Command {
 	return newLimitedMigrationCmd(
 		"backfill-ingest",
 		"Run migrations:backfillIngestData",
-		backfillIngestMigration,
+		migrationBackfillIngestData,
 		"Batch limit",
-		migrationLimitArgKey(backfillIngestMigration),
+		migrationLimitArgKey(migrationBackfillIngestData),
 	)
 }
 
@@ -69,7 +89,7 @@ func newMigrateBackfillScoreCmd() *cobra.Command {
 	return newMigrationCmd(
 		"backfill-score",
 		"Run migrations:backfillPrimaryRuleScore",
-		backfillScoreMigration,
+		migrationBackfillPrimaryScore,
 	)
 }
 
@@ -124,22 +144,9 @@ func newLimitedMigrationCmdForRunner(use string, short string, migration string,
 }
 
 func runConvexCommand(ctx context.Context, migration string, extraArgs ...string) (string, error) {
-	projectRoot, err := findProjectRoot()
-	if err != nil {
-		return "", err
-	}
-
-	args := []string{"--workspace", "@trends/convex", "exec", "convex", "run", migration}
+	args := []string{"convex", "run", migration}
 	args = append(args, extraArgs...)
-
-	command := exec.CommandContext(ctx, "npm", args...)
-	command.Dir = projectRoot
-	result, err := command.CombinedOutput()
-	output := strings.TrimSpace(string(result))
-	if err != nil {
-		return output, fmt.Errorf("run npm %s: %w\n%s", strings.Join(args, " "), err, output)
-	}
-	return output, nil
+	return runConvexCommandExecutor(ctx, args)
 }
 
 func runLimitedMigration(ctx context.Context, runner convexRunner, migration string, limitArgKey string, limit int) (string, error) {
