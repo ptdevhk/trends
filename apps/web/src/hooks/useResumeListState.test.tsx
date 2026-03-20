@@ -45,6 +45,7 @@ const mockState = vi.hoisted(() => ({
   urlParsedState: {
     location: undefined as string | undefined,
     keywords: [] as string[],
+    requiredKeywords: [] as string[],
     jobDescriptionId: undefined as string | undefined,
     filters: {} as Record<string, unknown>,
     selectedTags: [] as string[],
@@ -348,6 +349,7 @@ describe('useResumeListState role filter regression', () => {
       location: undefined,
       keywords: [],
       jobDescriptionId: undefined,
+      requiredKeywords: [],
       filters: {},
       selectedTags: [],
       selectedCompanies: [],
@@ -1096,6 +1098,7 @@ describe('useResumeListState role filter regression', () => {
       location: '广东',
       keywords: ['CNC'],
       jobDescriptionId: undefined,
+      requiredKeywords: [],
       filters: {},
       selectedTags: [],
       selectedCompanies: [],

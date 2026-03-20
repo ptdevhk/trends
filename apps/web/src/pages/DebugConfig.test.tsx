@@ -111,11 +111,11 @@ describe('System settings routes', () => {
               visible: true,
             },
             {
-              id: 'seek-my-sales-engineer',
-              label: 'Malaysia · SEEK · Sales Engineer / Sales Manager',
+              id: 'seek-my-cnc-sales',
+              label: 'Malaysia · SEEK · CNC Sales',
               market: 'MY',
               location: 'Kuala Lumpur MY',
-              keywords: ['Sales Engineer', 'Sales Manager'],
+              keywords: ['CNC', 'Sales'],
               collectionSource: {
                 type: 'seek',
               },
@@ -324,6 +324,6 @@ describe('System settings routes', () => {
       expect(screen.getByText('China · Job5156 · CNC 销售')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Malaysia · SEEK · Sales Engineer / Sales Manager')).toBeInTheDocument()
+    expect(screen.getByText('Malaysia · SEEK · CNC Sales')).toBeInTheDocument()
   })
 })

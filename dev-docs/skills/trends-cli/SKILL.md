@@ -45,6 +45,7 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends crawl`
 - `./bin/trends migrate reindex-search`
 - `./bin/trends migrate backfill-ingest --limit 100`
+- `./bin/trends migrate backfill-manual-51job --limit 100`
 - `./bin/trends migrate backfill-score`
 - `./bin/trends mcp serve`
 

@@ -546,7 +546,7 @@ export function normalizeSharedResumeFields(record: Record<string, unknown>, sou
   };
 }
 
-type Manual51jobSectionKey = "workHistory" | "education" | "selfIntro";
+type Manual51jobSectionKey = "workHistory" | "positionExperience" | "education" | "selfIntro";
 
 export type Parsed51jobManualResume = {
   name?: string;
@@ -563,6 +563,7 @@ export type Parsed51jobManualResume = {
 };
 
 export type Manual51jobOptionalField = "jobIntention" | "expectedSalary" | "experience" | "education";
+type Manual51jobLabeledWorkField = "company" | "jobTitle" | "description";
 
 const MANUAL_51JOB_NAME_LABELS = ["姓名", "名称"] as const;
 const MANUAL_51JOB_PROFILE_ID_LABELS = ["人才ID", "简历编号", "ID"] as const;
@@ -572,8 +573,9 @@ const MANUAL_51JOB_PREFERRED_JOB_INTENTION_LABELS = ["求职意向"] as const;
 const MANUAL_51JOB_SALARY_LABELS = ["期望薪资", "薪资要求", "期望工资", "期望月薪", "期望年薪"] as const;
 const MANUAL_51JOB_EXPERIENCE_LABELS = ["工作经验", "工作年限", "从业年限", "经验"] as const;
 const MANUAL_51JOB_EDUCATION_LABELS = ["最高学历学位", "最高学历", "学历"] as const;
-const MANUAL_51JOB_WORK_DESCRIPTION_LABELS = ["工作描述", "职责描述", "工作职责", "主要职责", "工作内容"] as const;
-const MANUAL_51JOB_WORK_COMPANY_LABELS = ["公司", "单位", "企业"] as const;
+const MANUAL_51JOB_WORK_DESCRIPTION_LABELS = ["工作描述", "职责描述", "工作职责", "主要职责", "工作内容", "项目描述"] as const;
+const MANUAL_51JOB_WORK_CUSTOMER_LABELS = ["主要客户", "客户"] as const;
+const MANUAL_51JOB_WORK_COMPANY_LABELS = ["公司", "单位", "企业", "所属公司"] as const;
 const MANUAL_51JOB_WORK_JOB_TITLE_LABELS = ["职位", "岗位", "职务"] as const;
 const MANUAL_51JOB_EDUCATION_INSTITUTION_LABELS = ["学校", "院校"] as const;
 const MANUAL_51JOB_EDUCATION_FIELD_LABELS = ["专业", "主修", "专业名称"] as const;
@@ -581,18 +583,19 @@ const MANUAL_51JOB_EDUCATION_DESCRIPTION_LABELS = ["专业描述", "在校经历
 const MANUAL_51JOB_EDUCATION_QUALIFICATION_LABELS = ["学历", "学位"] as const;
 const MANUAL_51JOB_SECTION_LABELS: Array<{ key: Manual51jobSectionKey; labels: readonly string[] }> = [
   { key: "workHistory", labels: ["工作经历", "工作经验"] },
+  { key: "positionExperience", labels: ["岗位经验"] },
   { key: "education", labels: ["教育经历", "教育背景"] },
   { key: "selfIntro", labels: ["个人优势", "自我介绍", "自我评价", "个人简介"] },
 ];
 const MANUAL_51JOB_SECTION_HEADER_SET = new Set(
   MANUAL_51JOB_SECTION_LABELS.flatMap((entry) => entry.labels)
 );
-const MANUAL_51JOB_COMPANY_PATTERN = /^([\u4e00-\u9fa5A-Za-z0-9()（）·.&\-]{2,80}(?:公司|集团|科技|机械|设备|自动化|股份|有限|中心|厂|银行|医院|研究院))/u;
+const MANUAL_51JOB_COMPANY_PATTERN = /^([\u4e00-\u9fa5A-Za-z0-9()（）·.&\-]{2,80}(?:公司|集团|股份|有限|中心|厂|银行|医院|研究院|研究所|学院|学校|超市))/u;
 const MANUAL_51JOB_INSTITUTION_PATTERN = /([\u4e00-\u9fa5A-Za-z0-9()（）·.&\-]{2,80}(?:大学|学院|学校|中学|技校|职业技术学院|技术学院|中专))/u;
 const MANUAL_51JOB_QUALIFICATION_PATTERN = /(博士研究生|博士|硕士研究生|硕士|研究生|本科|大专|专科|中专|中技|高中)/u;
-const MANUAL_51JOB_DATE_RANGE_PATTERN = /(\d{4}(?:[-./年]\d{1,2})?)(?:\s*(?:[~～\-–—]|至|到)+\s*)(至今|目前|今|\d{4}(?:[-./年]\d{1,2})?)/u;
-const MANUAL_51JOB_TIMELINE_START_PATTERN = /^\s*\d{4}(?:[-./年]\d{1,2})?(?:\s*(?:[~～\-–—]|至|到)+\s*)(?:至今|目前|今|\d{4}(?:[-./年]\d{1,2})?)/u;
-const MANUAL_51JOB_INLINE_DATE_RANGE_PATTERN = /\d{4}(?:[-./年]\d{1,2})?(?:\s*(?:[~～\-–—]|至|到)+\s*)(?:至今|目前|今|\d{4}(?:[-./年]\d{1,2})?)/u;
+const MANUAL_51JOB_DATE_RANGE_PATTERN = /((?:19|20)\d{2}(?:[-./年]\d{1,2})?)(?:\s*(?:[~～\-–—]|至|到)+\s*)(至今|目前|今|(?:19|20)\d{2}(?:[-./年]\d{1,2})?)/u;
+const MANUAL_51JOB_TIMELINE_START_PATTERN = /^\s*(?:19|20)\d{2}(?:[-./年]\d{1,2})?(?:\s*(?:[~～\-–—]|至|到)+\s*)(?:至今|目前|今|(?:19|20)\d{2}(?:[-./年]\d{1,2})?)/u;
+const MANUAL_51JOB_INLINE_DATE_RANGE_PATTERN = /(?:19|20)\d{2}(?:[-./年]\d{1,2})?(?:\s*(?:[~～\-–—]|至|到)+\s*)(?:至今|目前|今|(?:19|20)\d{2}(?:[-./年]\d{1,2})?)/u;
 const MANUAL_51JOB_WORK_HISTORY_PAGE_MARKER_PATTERN = /^--\s*\d+\s+of\s+\d+\s*--$/iu;
 const MANUAL_51JOB_NAME_EXCLUSIONS = new Set([
   "活跃时间",
@@ -783,7 +786,7 @@ function getManual51jobLabeledLineValue(line: string, labels: readonly string[])
   return undefined;
 }
 
-function splitManual51jobLines(text: string): string[] {
+export function splitManual51jobLines(text: string): string[] {
   if (!text) {
     return [];
   }
@@ -832,8 +835,12 @@ function getManual51jobFieldValueFromLines(lines: readonly string[], labels: rea
 
 function getManual51jobSectionStartIndex(lines: readonly string[], key: Manual51jobSectionKey): number {
   for (let index = 0; index < lines.length; index += 1) {
-    const sectionHeader = resolveManual51jobSectionHeader(lines[index] || "");
+    const line = lines[index] || "";
+    const sectionHeader = resolveManual51jobSectionHeader(line);
     if (sectionHeader?.key === key) {
+      return index;
+    }
+    if (key === "positionExperience" && /^岗位经验(?:\s|$)/u.test(normalizeManual51jobLine(line))) {
       return index;
     }
   }
@@ -1036,6 +1043,17 @@ function collectManual51jobSections(text: string): Partial<Record<Manual51jobSec
   let currentKey: Manual51jobSectionKey | null = null;
 
   for (const rawLine of normalizeManual51jobText(text).split("\n")) {
+    const normalizedLine = normalizeManual51jobLine(rawLine);
+    if (/^岗位经验(?:\s|$)/u.test(normalizedLine)) {
+      currentKey = "positionExperience";
+      sections[currentKey] = [];
+      const remainder = normalizedLine.replace(/^岗位经验[\s：:]*/u, "").trim();
+      if (remainder) {
+        sections[currentKey]?.push(remainder);
+      }
+      continue;
+    }
+
     const sectionHeader = resolveManual51jobSectionHeader(rawLine);
     if (sectionHeader) {
       currentKey = sectionHeader.key;
@@ -1122,28 +1140,67 @@ function splitManual51jobBlocks(text: string): string[] {
     return [];
   }
 
+  const lines = normalized
+    .split("\n")
+    .map((rawLine) => normalizeManual51jobLine(rawLine))
+    .filter(Boolean);
   const blocks: string[] = [];
   let current: string[] = [];
+  let currentHasTimeline = false;
+  let currentHasCompanyCandidate = false;
+  let capturingCustomerList = false;
 
-  for (const rawLine of normalized.split("\n")) {
-    const line = normalizeManual51jobLine(rawLine);
-    if (!line) {
-      continue;
-    }
+  for (const [index, line] of lines.entries()) {
     if (isManual51jobTerminalSectionHeader(line)) {
       break;
     }
 
-    if (MANUAL_51JOB_TIMELINE_START_PATTERN.test(line) && current.length > 0) {
-      const currentHasTimeline = current.some((entry) => MANUAL_51JOB_TIMELINE_START_PATTERN.test(entry));
-      if (currentHasTimeline) {
-        blocks.push(current.join("\n"));
-        current = [line];
-        continue;
-      }
+    const nextLine = lines[index + 1];
+    const customerLabelValue = getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_CUSTOMER_LABELS);
+    if (customerLabelValue !== undefined) {
+      capturingCustomerList = true;
+    }
+
+    const separatedCompanyCandidate = extractManual51jobCompanyCandidate(line);
+    if (
+      !capturingCustomerList
+      && current.length > 0
+      && currentHasTimeline
+      && currentHasCompanyCandidate
+      && nextLine
+      && MANUAL_51JOB_TIMELINE_START_PATTERN.test(nextLine)
+      && separatedCompanyCandidate
+      && hasManual51jobSeparatedCompanyCandidate(line, separatedCompanyCandidate)
+    ) {
+      blocks.push(current.join("\n"));
+      current = [line];
+      currentHasTimeline = false;
+      currentHasCompanyCandidate = true;
+      continue;
+    }
+
+    if (MANUAL_51JOB_TIMELINE_START_PATTERN.test(line) && current.length > 0 && currentHasTimeline) {
+      blocks.push(current.join("\n"));
+      current = [line];
+      currentHasTimeline = true;
+      currentHasCompanyCandidate = false;
+      capturingCustomerList = false;
+      continue;
     }
 
     current.push(line);
+    if (separatedCompanyCandidate) {
+      currentHasCompanyCandidate = true;
+    }
+    if (MANUAL_51JOB_TIMELINE_START_PATTERN.test(line)) {
+      currentHasTimeline = true;
+      capturingCustomerList = false;
+      continue;
+    }
+
+    if (capturingCustomerList && (MANUAL_51JOB_SECTION_HEADER_SET.has(line) || classifyManual51jobLabeledWorkField(line))) {
+      capturingCustomerList = false;
+    }
   }
 
   if (current.length > 0) {
@@ -1185,12 +1242,35 @@ function mergeManual51jobLeadingIdentityBlocks(
   return merged;
 }
 
+function classifyManual51jobLabeledWorkField(
+  line: string,
+): { field: Manual51jobLabeledWorkField; value: string } | { field: Manual51jobLabeledWorkField; value?: undefined } | undefined {
+  const labeledCompany = getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_COMPANY_LABELS);
+  if (labeledCompany !== undefined) {
+    return labeledCompany ? { field: "company", value: labeledCompany } : { field: "company" };
+  }
+
+  const labeledJobTitle = getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_JOB_TITLE_LABELS);
+  if (labeledJobTitle !== undefined) {
+    return labeledJobTitle ? { field: "jobTitle", value: labeledJobTitle } : { field: "jobTitle" };
+  }
+
+  const labeledDescription = getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_DESCRIPTION_LABELS);
+  if (labeledDescription !== undefined) {
+    return labeledDescription ? { field: "description", value: labeledDescription } : { field: "description" };
+  }
+
+  return undefined;
+}
+
 function getManual51jobDescriptionLines(
   lines: string[],
   companyName?: string,
   jobTitle?: string,
 ): string[] {
   const descriptionLines: string[] = [];
+  let pendingLabeledField: Manual51jobLabeledWorkField | undefined;
+  let capturingCustomerList = false;
 
   for (let index = 1; index < lines.length; index += 1) {
     const line = normalizeManual51jobLine(lines[index] || "");
@@ -1198,23 +1278,53 @@ function getManual51jobDescriptionLines(
       continue;
     }
 
-    const labeledDescription = getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_DESCRIPTION_LABELS);
-    if (labeledDescription !== undefined) {
-      if (labeledDescription) {
-        descriptionLines.push(labeledDescription);
+    const customerLabelValue = getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_CUSTOMER_LABELS);
+    if (customerLabelValue !== undefined) {
+      capturingCustomerList = true;
+      descriptionLines.push(customerLabelValue || normalizeManual51jobLine(line).replace(/[：:]$/u, ""));
+      continue;
+    }
+
+    const labeledField = classifyManual51jobLabeledWorkField(line);
+    if (labeledField) {
+      capturingCustomerList = false;
+      if (labeledField.value) {
+        if (labeledField.field === "description") {
+          descriptionLines.push(labeledField.value);
+        }
+      } else {
+        pendingLabeledField = labeledField.field;
       }
       continue;
     }
 
-    if (
-      getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_COMPANY_LABELS) !== undefined
-      || getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_JOB_TITLE_LABELS) !== undefined
-      || MANUAL_51JOB_TIMELINE_START_PATTERN.test(line)
-    ) {
+    if (capturingCustomerList) {
+      if (MANUAL_51JOB_TIMELINE_START_PATTERN.test(line) || MANUAL_51JOB_SECTION_HEADER_SET.has(line) || isManual51jobTerminalSectionHeader(line)) {
+        capturingCustomerList = false;
+      } else {
+        descriptionLines.push(line);
+        continue;
+      }
+    }
+
+    if (pendingLabeledField) {
+      const field = pendingLabeledField;
+      pendingLabeledField = undefined;
+      if (field === "description") {
+        descriptionLines.push(line);
+      }
+      continue;
+    }
+
+    if (MANUAL_51JOB_TIMELINE_START_PATTERN.test(line)) {
       continue;
     }
 
     if (MANUAL_51JOB_SECTION_HEADER_SET.has(line) || isManual51jobTerminalSectionHeader(line)) {
+      continue;
+    }
+
+    if (looksLikeManual51jobWorkHistoryNoise(line)) {
       continue;
     }
 
@@ -1239,6 +1349,20 @@ function getManual51jobDescriptionLines(
 function extractManual51jobCompany(value: string): string | undefined {
   const match = normalizeManual51jobLine(value).match(MANUAL_51JOB_COMPANY_PATTERN);
   return match?.[1]?.trim() || undefined;
+}
+
+function extractManual51jobCompanyCandidate(value: string): string | undefined {
+  const extracted = extractManual51jobCompany(value);
+  if (!extracted || /[中心]$/.test(extracted) || !isLikelyManual51jobCompanyName(extracted)) {
+    return undefined;
+  }
+
+  const remainder = cleanManual51jobJobTitleCandidate(value.replace(extracted, " "));
+  if (!remainder) {
+    return extracted;
+  }
+
+  return remainder.length <= 40 && isLikelyManual51jobJobTitle(remainder) ? extracted : undefined;
 }
 
 function extractManual51jobInstitution(value: string): string | undefined {
@@ -1267,18 +1391,67 @@ function cleanManual51jobRemainder(value: string): string | undefined {
   return trimmed || undefined;
 }
 
-export function looksLikeManual51jobWorkHistoryNoise(value: string): boolean {
+function cleanManual51jobJobTitleCandidate(value: string): string | undefined {
+  const normalized = cleanManual51jobRemainder(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const stripped = normalized
+    .replace(/^(?:台资企业|德资企业|日资企业|韩资企业|港资企业|民营|外资(?:（[^）]+）)?|外企|合资(?:企业)?|创业公司|已上市)(?:\s+|$)/u, "")
+    .replace(/(?:^|\s+)(?:台资企业|德资企业|日资企业|韩资企业|港资企业|民营|外资(?:（[^）]+）)?|外企|合资(?:企业)?|创业公司|已上市)$/u, "")
+    .trim();
+  return stripped || undefined;
+}
+
+function isLikelyManual51jobPositionExperienceJobTitle(value: string | undefined): value is string {
+  if (!value || !isLikelyManual51jobJobTitle(value)) {
+    return false;
+  }
+
+  return /(?:CNC|cnc|数控|销售|工程师|经理|主管|总监|专员|代表|助理|编程|操机|跟单|客服|业务|技术|顾问|主任|文员|采购|会计|店长|班长|组长|系长|车工|钳工|普工|设计|开发)$/u.test(value);
+}
+
+function looksLikeManual51jobDuration(value: string): boolean {
+  const normalized = normalizeManual51jobLine(value).replace(/[()（）]/g, "");
+  if (!normalized) {
+    return false;
+  }
+  return /^(?:\d+年(?:\d+个?月)?|\d+个?月|\d+月)$/u.test(normalized);
+}
+
+function looksLikeManual51jobBoilerplate(value: string): boolean {
   const normalized = normalizeManual51jobLine(value);
+  if (!normalized) {
+    return false;
+  }
+  return /^(?:声明[:：]|以上人才信息仅供|一经发现|仅供招聘专用|操作时间[:：]?|该人才偏好电话|有企业近期电话联系过该人才|推荐您电话沟通)/u.test(normalized)
+    || /(?:禁止用于其他任何用途|暂停或终止服务)/u.test(normalized);
+}
+
+function looksLikeManual51jobEducationOrTrainingText(value: string): boolean {
+  const normalized = normalizeManual51jobLine(value);
+  if (!normalized) {
+    return false;
+  }
+  return /(?:大学|学院|学校|中学|技校|职业技术学院|技术学院|中专|本科|大专|硕士|博士|双一流|985|211|培训机构|驾驶证|毕业论文|课程|主修|专业方向|英语\s|日语\s|韩语\s|简单沟通\/读写|工作分析)/u.test(normalized);
+}
+
+export function looksLikeManual51jobWorkHistoryNoise(value: string): boolean {
+  const normalized = normalizeManual51jobLine(value).replace(/[：:]$/u, "");
   if (!normalized) {
     return true;
   }
   if (MANUAL_51JOB_WORK_HISTORY_PAGE_MARKER_PATTERN.test(normalized) || normalized === "/") {
     return true;
   }
-  if (/^(?:聊|聊\s*天)$/u.test(normalized)) {
+  if (/^(?:聊|天|聊\s*天)$/u.test(normalized)) {
     return true;
   }
-  if (/^(?:声明|技能\s*\/\s*语言|技能|语言|证书|作品集|项目经验)$/u.test(normalized)) {
+  if (looksLikeManual51jobBoilerplate(normalized)) {
+    return true;
+  }
+  if (/^(?:声明|技能\s*\/\s*语言|技能|语言|证书|作品集|项目经验|项目描述|工作描述|职责描述|工作职责|工作内容|所属公司|岗位经验|走心机|加工中心|加工)$/u.test(normalized)) {
     return true;
   }
   return false;
@@ -1289,7 +1462,7 @@ export function isLikelyManual51jobCompanyName(value: string): boolean {
   if (!normalized || normalized.length > 80) {
     return false;
   }
-  if (looksLikeManual51jobWorkHistoryNoise(normalized)) {
+  if (looksLikeManual51jobWorkHistoryNoise(normalized) || looksLikeManual51jobDuration(normalized)) {
     return false;
   }
   if (MANUAL_51JOB_INLINE_DATE_RANGE_PATTERN.test(normalized)) {
@@ -1298,7 +1471,13 @@ export function isLikelyManual51jobCompanyName(value: string): boolean {
   if (/\d{2,}/u.test(normalized)) {
     return false;
   }
-  if (normalized.endsWith("中心") && !/(?:公司|集团|有限|股份|银行|医院|研究院|厂)/u.test(normalized)) {
+  if (/[：:；;，,。！？]/u.test(normalized)) {
+    return false;
+  }
+  if (looksLikeManual51jobEducationOrTrainingText(normalized)) {
+    return false;
+  }
+  if (normalized.endsWith("中心") && !/(?:公司|集团|有限|股份|银行|医院|研究院|研究所|厂)/u.test(normalized)) {
     return false;
   }
   if (/^(?:在该公司|通过公司|参与公司|主要涉及公司)$/u.test(normalized)) {
@@ -1315,7 +1494,7 @@ export function isLikelyManual51jobJobTitle(value: string): boolean {
   if (!normalized || normalized.length > 60) {
     return false;
   }
-  if (looksLikeManual51jobWorkHistoryNoise(normalized)) {
+  if (looksLikeManual51jobWorkHistoryNoise(normalized) || looksLikeManual51jobDuration(normalized)) {
     return false;
   }
   if (MANUAL_51JOB_INLINE_DATE_RANGE_PATTERN.test(normalized)) {
@@ -1324,23 +1503,54 @@ export function isLikelyManual51jobJobTitle(value: string): boolean {
   if (/\d{2,}/u.test(normalized)) {
     return false;
   }
+  if (/[，,。；;：:！？]/u.test(normalized)) {
+    return false;
+  }
+  if (/^[0-9一二三四五六七八九十]+[.、．]/u.test(normalized)) {
+    return false;
+  }
+  if (looksLikeManual51jobEducationOrTrainingText(normalized)) {
+    return false;
+  }
+  if (extractManual51jobCompany(normalized) === normalized && isLikelyManual51jobCompanyName(normalized)) {
+    return false;
+  }
   if (/^(?:在该公司|通过公司)$/u.test(normalized)) {
     return false;
   }
   if (/^(?:熟悉|了解|掌握|负责|参与|主要|通过|在该|具备)/u.test(normalized)) {
     return false;
   }
-  if (/^[\u4e00-\u9fa5A-Za-z]{1,2}$/u.test(normalized)) {
+  if (/^[\u4e00-\u9fa5A-Za-z]$/u.test(normalized)) {
     return false;
   }
   return true;
 }
 
+function sanitizeManual51jobWorkHistoryLines(lines: string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const line of lines) {
+    counts.set(line, (counts.get(line) || 0) + 1);
+  }
+
+  return lines.filter((line) => {
+    if (looksLikeManual51jobBoilerplate(line)) {
+      return false;
+    }
+    if ((counts.get(line) || 0) >= 4 && !MANUAL_51JOB_TIMELINE_START_PATTERN.test(line)) {
+      return false;
+    }
+    return true;
+  });
+}
+
 function parseManual51jobWorkHistoryBlock(block: string): ResumeWorkHistoryItem | null {
-  const lines = block
-    .split("\n")
-    .map((line) => normalizeManual51jobLine(line))
-    .filter(Boolean);
+  const lines = sanitizeManual51jobWorkHistoryLines(
+    block
+      .split("\n")
+      .map((line) => normalizeManual51jobLine(line))
+      .filter(Boolean)
+  );
   if (lines.length === 0) {
     return null;
   }
@@ -1349,14 +1559,11 @@ function parseManual51jobWorkHistoryBlock(block: string): ResumeWorkHistoryItem 
   const headerLine = lines[0] || "";
   const dateLineIndex = lines.findIndex((line) => MANUAL_51JOB_TIMELINE_START_PATTERN.test(line));
   const dateRange = extractManual51jobDateRange(resolveManual51jobPrimaryDateLine(lines, headerLine) || raw);
-  const companyFromLabel = lines
-    .map((line) => getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_COMPANY_LABELS))
-    .find((value): value is string => Boolean(value));
-  const jobTitleFromLabel = lines
-    .map((line) => getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_JOB_TITLE_LABELS))
-    .find((value): value is string => Boolean(value));
+  const companyFromLabel = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_WORK_COMPANY_LABELS);
+  const jobTitleFromLabel = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_WORK_JOB_TITLE_LABELS);
 
-  const companyCandidateLines: string[] = [];
+  let pendingLabeledField: Manual51jobLabeledWorkField | undefined;
+  let capturingCustomerList = false;
   let companyCandidate: string | undefined;
   let companyLineForCandidate: string | undefined;
   let roleLineCandidate: string | undefined;
@@ -1365,13 +1572,33 @@ function parseManual51jobWorkHistoryBlock(block: string): ResumeWorkHistoryItem 
     if (index === dateLineIndex) {
       continue;
     }
-    if (getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_COMPANY_LABELS) !== undefined) {
+
+    const customerLabelValue = getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_CUSTOMER_LABELS);
+    if (customerLabelValue !== undefined) {
+      pendingLabeledField = undefined;
+      capturingCustomerList = true;
       continue;
     }
-    if (getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_JOB_TITLE_LABELS) !== undefined) {
+
+    const labeledField = classifyManual51jobLabeledWorkField(line);
+    if (labeledField) {
+      capturingCustomerList = false;
+      if (!labeledField.value) {
+        pendingLabeledField = labeledField.field;
+      }
       continue;
     }
-    if (getManual51jobLabeledLineValue(line, MANUAL_51JOB_WORK_DESCRIPTION_LABELS) !== undefined) {
+
+    if (capturingCustomerList) {
+      if (MANUAL_51JOB_TIMELINE_START_PATTERN.test(line) || MANUAL_51JOB_SECTION_HEADER_SET.has(line) || isManual51jobTerminalSectionHeader(line)) {
+        capturingCustomerList = false;
+      } else {
+        continue;
+      }
+    }
+
+    if (pendingLabeledField) {
+      pendingLabeledField = undefined;
       continue;
     }
     if (MANUAL_51JOB_SECTION_HEADER_SET.has(line) || isManual51jobTerminalSectionHeader(line)) {
@@ -1381,17 +1608,15 @@ function parseManual51jobWorkHistoryBlock(block: string): ResumeWorkHistoryItem 
       continue;
     }
 
-    companyCandidateLines.push(line);
-
     if (!companyCandidate) {
-      const extractedCompany = extractManual51jobCompany(line);
-      if (extractedCompany && !/[中心]$/.test(extractedCompany) && isLikelyManual51jobCompanyName(extractedCompany)) {
+      const extractedCompany = extractManual51jobCompanyCandidate(line);
+      if (extractedCompany) {
         companyCandidate = extractedCompany;
         companyLineForCandidate = line;
       }
     }
 
-    if (!roleLineCandidate && line !== headerLine && !extractManual51jobCompany(line) && !MANUAL_51JOB_TIMELINE_START_PATTERN.test(line) && !/[｜|丨]/.test(line)) {
+    if (!roleLineCandidate && line !== headerLine && !extractManual51jobCompanyCandidate(line) && !MANUAL_51JOB_TIMELINE_START_PATTERN.test(line) && !/[｜|丨]/.test(line)) {
       roleLineCandidate = line;
     }
   }
@@ -1413,7 +1638,7 @@ function parseManual51jobWorkHistoryBlock(block: string): ResumeWorkHistoryItem 
     }
 
     if (dateRange.startDate || dateRange.endDate) {
-      const extracted = extractManual51jobCompany(titleLine);
+      const extracted = extractManual51jobCompanyCandidate(titleLine);
       if (extracted && isLikelyManual51jobCompanyName(extracted)) {
         return extracted;
       }
@@ -1430,7 +1655,7 @@ function parseManual51jobWorkHistoryBlock(block: string): ResumeWorkHistoryItem 
       if (!companyName || !companyLineForCandidate?.includes(companyName)) {
         return undefined;
       }
-      const remainder = cleanManual51jobRemainder(companyLineForCandidate.replace(companyName, " "));
+      const remainder = cleanManual51jobJobTitleCandidate(companyLineForCandidate.replace(companyName, " "));
       if (!remainder || remainder.length > 40) {
         return undefined;
       }
@@ -1447,7 +1672,7 @@ function parseManual51jobWorkHistoryBlock(block: string): ResumeWorkHistoryItem 
     if (!companyName) {
       return undefined;
     }
-    const remainder = cleanManual51jobRemainder(titleLine.replace(companyName, " "));
+    const remainder = cleanManual51jobJobTitleCandidate(titleLine.replace(companyName, " "));
     if (!remainder || remainder.length > 40) {
       return undefined;
     }
@@ -1455,12 +1680,11 @@ function parseManual51jobWorkHistoryBlock(block: string): ResumeWorkHistoryItem 
   })();
   const description = cleanManual51jobRemainder(getManual51jobDescriptionLines(lines, companyName, jobTitle).join("\n"));
 
-  if (
-    !companyName
-    && !jobTitle
-    && !description
-    && (!dateRange.startDate || !dateRange.endDate)
-  ) {
+  if (!companyName && !jobTitle) {
+    return null;
+  }
+
+  if (!companyName && jobTitle && looksLikeManual51jobEducationOrTrainingText([jobTitle, description || ""].join(" "))) {
     return null;
   }
 
@@ -1474,14 +1698,339 @@ function parseManual51jobWorkHistoryBlock(block: string): ResumeWorkHistoryItem 
   };
 }
 
+function normalizeManual51jobWorkHistoryComparableValue(value: string | undefined): string {
+  return normalizeManual51jobLine((value || "").replace(/[，,。；;：:！!？?（）()]/g, " "));
+}
+
+function hasManual51jobProjectAugmentingLabels(raw: string | undefined): boolean {
+  return /(?:^|\n)(?:项目经验|所属公司|项目描述)[:：]?/u.test(raw || "");
+}
+
+function isManual51jobProjectAugmentingDuplicateEntryPair(
+  left: ResumeWorkHistoryItem,
+  right: ResumeWorkHistoryItem,
+): boolean {
+  const leftAugmenting = hasManual51jobProjectAugmentingLabels(left.raw);
+  const rightAugmenting = hasManual51jobProjectAugmentingLabels(right.raw);
+  if (!leftAugmenting && !rightAugmenting) {
+    return false;
+  }
+
+  const companyCompatible = !left.companyName || !right.companyName || left.companyName === right.companyName;
+  const titleCompatible = !left.jobTitle || !right.jobTitle || left.jobTitle === right.jobTitle;
+  return companyCompatible && titleCompatible;
+}
+
+function hasManual51jobSeparatedCompanyCandidate(line: string, companyName: string): boolean {
+  return line === companyName || line.startsWith(`${companyName} `);
+}
+
+function isManual51jobEducationBoundaryLine(line: string): boolean {
+  return Boolean(extractManual51jobInstitution(line))
+    || Boolean(extractManual51jobQualification(line))
+    || /^专业描述[:：]?$/u.test(line)
+    || /^培训机构[:：]?/u.test(line);
+}
+
+function isManual51jobCrossPageNoiseLine(line: string): boolean {
+  return MANUAL_51JOB_WORK_HISTORY_PAGE_MARKER_PATTERN.test(line)
+    || line === "/"
+    || /^(?:聊|天|聊\s*天)$/u.test(line)
+    || looksLikeManual51jobBoilerplate(line);
+}
+
+function getManual51jobWorkHistoryDateRangesFromLines(
+  lines: string[],
+): Array<Pick<ResumeWorkHistoryItem, "startDate" | "endDate">> {
+  const ranges: Array<Pick<ResumeWorkHistoryItem, "startDate" | "endDate">> = [];
+  const seen = new Set<string>();
+  let pendingEducationDateBoundary = false;
+  for (const line of lines) {
+    if (ranges.length > 0 && isManual51jobCrossPageNoiseLine(line)) {
+      return ranges;
+    }
+
+    if (ranges.length > 0 && isManual51jobEducationBoundaryLine(line)) {
+      pendingEducationDateBoundary = true;
+      continue;
+    }
+
+    const range = extractManual51jobDateRange(line);
+    if (!range.matchedText || (!range.startDate && !range.endDate)) {
+      continue;
+    }
+
+    if (ranges.length > 0 && pendingEducationDateBoundary) {
+      return ranges;
+    }
+
+    const remainder = cleanManual51jobRemainder(line.replace(range.matchedText, " "));
+    if (remainder && looksLikeManual51jobEducationOrTrainingText(remainder)) {
+      continue;
+    }
+
+    const key = `${range.startDate || ""}|${range.endDate || ""}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    ranges.push({
+      ...(range.startDate ? { startDate: range.startDate } : {}),
+      ...(range.endDate ? { endDate: range.endDate } : {}),
+    });
+  }
+
+  return ranges;
+}
+
+function hasManual51jobCrossPageWorkHistoryNoiseInLines(lines: string[]): boolean {
+  return lines.some((line) => isManual51jobCrossPageNoiseLine(line));
+}
+
+function getManual51jobCrossPageWorkHistoryDateRangesFromLines(
+  lines: string[],
+  expectedCount: number,
+): Array<Pick<ResumeWorkHistoryItem, "startDate" | "endDate">> {
+  const ranges: Array<Pick<ResumeWorkHistoryItem, "startDate" | "endDate">> = [];
+  const trailingRanges: Array<Pick<ResumeWorkHistoryItem, "startDate" | "endDate">> = [];
+  const seen = new Set<string>();
+  let capturingTrailingRanges = false;
+
+  for (const line of lines) {
+    if (isManual51jobCrossPageNoiseLine(line)) {
+      continue;
+    }
+
+    if (ranges.length > 0 && isManual51jobEducationBoundaryLine(line)) {
+      capturingTrailingRanges = true;
+      continue;
+    }
+
+    const range = extractManual51jobDateRange(line);
+    if (!range.matchedText || (!range.startDate && !range.endDate)) {
+      continue;
+    }
+
+    const remainder = cleanManual51jobRemainder(line.replace(range.matchedText, " "));
+    if (remainder && looksLikeManual51jobEducationOrTrainingText(remainder)) {
+      continue;
+    }
+
+    const key = `${range.startDate || ""}|${range.endDate || ""}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    const nextRange = {
+      ...(range.startDate ? { startDate: range.startDate } : {}),
+      ...(range.endDate ? { endDate: range.endDate } : {}),
+    };
+
+    if (capturingTrailingRanges) {
+      trailingRanges.push(nextRange);
+      continue;
+    }
+
+    ranges.push(nextRange);
+    if (ranges.length >= expectedCount) {
+      return ranges.slice(0, expectedCount);
+    }
+  }
+
+  if (ranges.length >= expectedCount) {
+    return ranges.slice(0, expectedCount);
+  }
+
+  const remaining = expectedCount - ranges.length;
+  if (trailingRanges.length < remaining) {
+    return [];
+  }
+
+  return [...ranges, ...trailingRanges.slice(-remaining)];
+}
+
+type Manual51jobStructuredCompanyTitleEntryOptions = {
+  allowBroadJobTitles?: boolean;
+};
+
+function getManual51jobStructuredCompanyTitleEntriesFromLines(
+  lines: string[],
+  options?: Manual51jobStructuredCompanyTitleEntryOptions,
+): ResumeWorkHistoryItem[] {
+  const allowBroadJobTitles = options?.allowBroadJobTitles === true;
+  const entries: ResumeWorkHistoryItem[] = [];
+  let pendingCompanyLine: string | undefined;
+
+  for (const line of lines) {
+    if (!line) {
+      continue;
+    }
+    if (resolveManual51jobSectionHeader(line) || isManual51jobTerminalSectionHeader(line)) {
+      break;
+    }
+    if (looksLikeManual51jobWorkHistoryNoise(line) || looksLikeManual51jobEducationOrTrainingText(line) || MANUAL_51JOB_TIMELINE_START_PATTERN.test(line)) {
+      pendingCompanyLine = undefined;
+      continue;
+    }
+
+    const companyName = extractManual51jobCompanyCandidate(line);
+    const jobTitleCandidate = companyName ? cleanManual51jobJobTitleCandidate(line.replace(companyName, " ")) : undefined;
+    const jobTitle = jobTitleCandidate && (
+      isLikelyManual51jobPositionExperienceJobTitle(jobTitleCandidate)
+      || (allowBroadJobTitles && isLikelyManual51jobJobTitle(jobTitleCandidate))
+    )
+      ? jobTitleCandidate
+      : undefined;
+
+    if (companyName && jobTitle) {
+      entries.push({
+        raw: line,
+        companyName,
+        jobTitle,
+      });
+      pendingCompanyLine = undefined;
+      continue;
+    }
+
+    if (companyName && hasManual51jobSeparatedCompanyCandidate(line, companyName)) {
+      pendingCompanyLine = line;
+      continue;
+    }
+
+    if (pendingCompanyLine) {
+      const pendingCompany = extractManual51jobCompanyCandidate(pendingCompanyLine);
+      if (pendingCompany) {
+        const pendingTitle = cleanManual51jobJobTitleCandidate(line);
+        const isAllowedPendingTitle = pendingTitle && (
+          isLikelyManual51jobPositionExperienceJobTitle(pendingTitle)
+          || (allowBroadJobTitles && isLikelyManual51jobJobTitle(pendingTitle))
+        );
+        if (isAllowedPendingTitle) {
+          entries.push({
+            raw: `${pendingCompanyLine}\n${line}`,
+            companyName: pendingCompany,
+            jobTitle: pendingTitle,
+          });
+          pendingCompanyLine = undefined;
+          continue;
+        }
+      }
+    }
+
+    pendingCompanyLine = undefined;
+  }
+
+  return entries;
+}
+
+function doManual51jobStructuredWorkHistoryEntriesAlign(
+  left: ResumeWorkHistoryItem[],
+  right: ResumeWorkHistoryItem[],
+): boolean {
+  if (left.length === 0 || left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((entry, index) => {
+    const other = right[index];
+    if (!other) {
+      return false;
+    }
+
+    const companyCompatible = !entry.companyName || !other.companyName || entry.companyName === other.companyName;
+    const titleCompatible = !entry.jobTitle || !other.jobTitle || entry.jobTitle === other.jobTitle;
+    return companyCompatible && titleCompatible;
+  });
+}
+
+function rebuildManual51jobWorkHistoryFromStructuredEntries(
+  structuredEntries: ResumeWorkHistoryItem[],
+  dateRanges: Array<Pick<ResumeWorkHistoryItem, "startDate" | "endDate">>,
+): ResumeWorkHistoryItem[] {
+  if (structuredEntries.length === 0 || dateRanges.length === 0 || structuredEntries.length !== dateRanges.length) {
+    return [];
+  }
+
+  return structuredEntries.map((entry, index) => ({
+    ...entry,
+    ...(dateRanges[index]?.startDate ? { startDate: dateRanges[index]?.startDate } : {}),
+    ...(dateRanges[index]?.endDate ? { endDate: dateRanges[index]?.endDate } : {}),
+  }));
+}
+
+function mergeManual51jobDuplicateWorkHistoryEntry(
+  left: ResumeWorkHistoryItem,
+  right: ResumeWorkHistoryItem,
+): ResumeWorkHistoryItem {
+  const leftDescription = left.description || "";
+  const rightDescription = right.description || "";
+  const preferredDescription = rightDescription.length > leftDescription.length ? right.description : left.description;
+  const preferredRaw = (right.raw?.length || 0) > (left.raw?.length || 0) ? right.raw : left.raw;
+
+  return {
+    raw: preferredRaw,
+    ...(left.companyName || right.companyName ? { companyName: left.companyName || right.companyName } : {}),
+    ...(left.jobTitle || right.jobTitle ? { jobTitle: left.jobTitle || right.jobTitle } : {}),
+    ...(preferredDescription ? { description: preferredDescription } : {}),
+    ...(left.startDate || right.startDate ? { startDate: left.startDate || right.startDate } : {}),
+    ...(left.endDate || right.endDate ? { endDate: left.endDate || right.endDate } : {}),
+  };
+}
+
+function areLikelyDuplicateManual51jobWorkHistoryEntries(
+  left: ResumeWorkHistoryItem,
+  right: ResumeWorkHistoryItem,
+): boolean {
+  if (!left.startDate || !right.startDate || !left.endDate || !right.endDate) {
+    return false;
+  }
+  if (left.startDate !== right.startDate || left.endDate !== right.endDate) {
+    return false;
+  }
+  if (isManual51jobProjectAugmentingDuplicateEntryPair(left, right)) {
+    return true;
+  }
+
+  const companyCompatible = !left.companyName || !right.companyName || left.companyName === right.companyName;
+  const titleCompatible = !left.jobTitle || !right.jobTitle || left.jobTitle === right.jobTitle;
+  if (!companyCompatible || !titleCompatible) {
+    return false;
+  }
+
+  const leftDescription = normalizeManual51jobWorkHistoryComparableValue(left.description);
+  const rightDescription = normalizeManual51jobWorkHistoryComparableValue(right.description);
+  const leftRaw = left.raw || "";
+  const rightRaw = right.raw || "";
+  const projectAugmentingPair = hasManual51jobProjectAugmentingLabels(leftRaw) || hasManual51jobProjectAugmentingLabels(rightRaw);
+
+  if (!leftDescription || !rightDescription) {
+    return !projectAugmentingPair;
+  }
+
+  return leftDescription === rightDescription || leftDescription.includes(rightDescription) || rightDescription.includes(leftDescription);
+}
+
 function getManual51jobWorkHistory(text: string | undefined): ResumeWorkHistoryItem[] {
   if (!text) {
     return [];
   }
 
-  return mergeManual51jobLeadingIdentityBlocks(splitManual51jobBlocks(text), extractManual51jobCompany)
+  const parsed = mergeManual51jobLeadingIdentityBlocks(splitManual51jobBlocks(text), extractManual51jobCompany)
     .map((block) => parseManual51jobWorkHistoryBlock(block))
     .filter((entry): entry is ResumeWorkHistoryItem => entry !== null);
+
+  const unique: ResumeWorkHistoryItem[] = [];
+  for (const entry of parsed) {
+    const duplicateIndex = unique.findIndex((existing) => areLikelyDuplicateManual51jobWorkHistoryEntries(existing, entry));
+    if (duplicateIndex >= 0) {
+      unique[duplicateIndex] = mergeManual51jobDuplicateWorkHistoryEntry(unique[duplicateIndex]!, entry);
+      continue;
+    }
+    unique.push(entry);
+  }
+
+  return unique;
 }
 
 function parseManual51jobEducationBlock(block: string): ResumeProfileEducationItem | null {
@@ -1684,7 +2233,97 @@ export function parse51jobManualResume(args: {
   const lines = splitManual51jobLines(text);
   const summaryLines = getManual51jobSummaryLines(lines);
   const sections = collectManual51jobSections(text);
-  const workHistory = getManual51jobWorkHistory(getManual51jobSectionText(sections, "workHistory"));
+  const workHistorySectionText = getManual51jobSectionText(sections, "workHistory");
+  const positionExperienceSectionText = getManual51jobSectionText(sections, "positionExperience");
+  const workHistorySectionLines = workHistorySectionText ? splitManual51jobLines(workHistorySectionText) : [];
+  const positionExperienceSectionLines = positionExperienceSectionText ? splitManual51jobLines(positionExperienceSectionText) : [];
+  const primaryWorkHistory = getManual51jobWorkHistory(workHistorySectionText);
+  let workHistory = primaryWorkHistory;
+
+  let positionExperienceEntries: ResumeWorkHistoryItem[] = [];
+  let workHistoryDateRanges: Array<Pick<ResumeWorkHistoryItem, "startDate" | "endDate">> = [];
+  let shouldEvaluateStructuredFallback = primaryWorkHistory.length === 0;
+
+  if (!shouldEvaluateStructuredFallback && workHistorySectionLines.length > 0) {
+    workHistoryDateRanges = getManual51jobWorkHistoryDateRangesFromLines(workHistorySectionLines);
+    shouldEvaluateStructuredFallback = workHistoryDateRanges.length > primaryWorkHistory.length
+      || Boolean(positionExperienceSectionLines.length > 0 && hasManual51jobCrossPageWorkHistoryNoiseInLines(workHistorySectionLines));
+  }
+
+  if (shouldEvaluateStructuredFallback) {
+    if (workHistoryDateRanges.length === 0) {
+      workHistoryDateRanges = getManual51jobWorkHistoryDateRangesFromLines(workHistorySectionLines);
+    }
+    if (positionExperienceSectionLines.length > 0) {
+      positionExperienceEntries = getManual51jobStructuredCompanyTitleEntriesFromLines(positionExperienceSectionLines);
+    }
+    const workHistoryStructuredEntries = getManual51jobStructuredCompanyTitleEntriesFromLines(workHistorySectionLines);
+    const rebuiltPositionExperienceWorkHistory = rebuildManual51jobWorkHistoryFromStructuredEntries(
+      positionExperienceEntries,
+      workHistoryDateRanges,
+    );
+    const rebuiltWorkHistoryStructuredFallback = rebuildManual51jobWorkHistoryFromStructuredEntries(
+      workHistoryStructuredEntries,
+      workHistoryDateRanges,
+    );
+    const rebuiltCombinedStructuredFallback = rebuiltPositionExperienceWorkHistory.length === 0
+      && rebuiltWorkHistoryStructuredFallback.length === 0
+      && positionExperienceEntries.length > 0
+      && workHistoryStructuredEntries.length > 0
+      ? rebuildManual51jobWorkHistoryFromStructuredEntries(
+        [...positionExperienceEntries, ...workHistoryStructuredEntries],
+        workHistoryDateRanges,
+      )
+      : [];
+    const fallbackCandidates = [
+      rebuiltPositionExperienceWorkHistory,
+      rebuiltWorkHistoryStructuredFallback,
+      rebuiltCombinedStructuredFallback,
+    ];
+    const bestStructuredFallback = fallbackCandidates.sort((left, right) => right.length - left.length)[0] || [];
+    const positionExperienceWorkHistory = positionExperienceSectionText
+      ? getManual51jobWorkHistory(positionExperienceSectionText)
+      : [];
+    const alignedDetailedPositionExperienceWorkHistory = doManual51jobStructuredWorkHistoryEntriesAlign(
+      rebuiltPositionExperienceWorkHistory,
+      positionExperienceWorkHistory,
+    )
+      ? rebuiltPositionExperienceWorkHistory.map((entry, index) => mergeManual51jobDuplicateWorkHistoryEntry(
+        entry,
+        positionExperienceWorkHistory[index]!,
+      ))
+      : [];
+    const crossPageCombinedStructuredEntries = (
+      positionExperienceEntries.length > 0
+      && workHistorySectionLines.length > 0
+      && hasManual51jobCrossPageWorkHistoryNoiseInLines(workHistorySectionLines)
+    )
+      ? [
+        ...positionExperienceEntries,
+        ...getManual51jobStructuredCompanyTitleEntriesFromLines(workHistorySectionLines, { allowBroadJobTitles: true }),
+      ]
+      : [];
+    const crossPageWorkHistoryDateRanges = crossPageCombinedStructuredEntries.length > primaryWorkHistory.length
+      ? getManual51jobCrossPageWorkHistoryDateRangesFromLines(workHistorySectionLines, crossPageCombinedStructuredEntries.length)
+      : [];
+    const rebuiltCrossPagePositionExperienceWorkHistory = rebuildManual51jobWorkHistoryFromStructuredEntries(
+      crossPageCombinedStructuredEntries,
+      crossPageWorkHistoryDateRanges,
+    );
+
+    if (
+      alignedDetailedPositionExperienceWorkHistory.length > 0
+      && alignedDetailedPositionExperienceWorkHistory.length === bestStructuredFallback.length
+    ) {
+      workHistory = alignedDetailedPositionExperienceWorkHistory;
+    } else if (bestStructuredFallback.length > primaryWorkHistory.length) {
+      workHistory = bestStructuredFallback;
+    } else if (rebuiltCrossPagePositionExperienceWorkHistory.length > primaryWorkHistory.length) {
+      workHistory = rebuiltCrossPagePositionExperienceWorkHistory;
+    } else if (primaryWorkHistory.length === 0 && positionExperienceSectionText) {
+      workHistory = positionExperienceWorkHistory.length > 0 ? positionExperienceWorkHistory : positionExperienceEntries;
+    }
+  }
   const profileEducation = getManual51jobProfileEducation(getManual51jobSectionText(sections, "education"));
   const name = getManual51jobFieldValueFromLines(lines, MANUAL_51JOB_NAME_LABELS)
     || inferManual51jobResumeName(lines, args.entryPath)

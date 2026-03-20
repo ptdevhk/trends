@@ -12,6 +12,7 @@ import {
     isLikelyManual51jobJobTitle,
     parse51jobManualResume,
     shouldPreferManual51jobOptionalField,
+    splitManual51jobLines,
 } from "@trends/shared";
 
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
@@ -153,12 +154,34 @@ function isImplausibleManual51jobJobTitle(value: string): boolean {
     return !isLikelyManual51jobJobTitle(value);
 }
 
+function hasMisplacedManual51jobCompanyLine(raw: string, companyName: string): boolean {
+    const lines = splitManual51jobLines(raw).filter(Boolean);
+    if (lines.length < 2) {
+        return false;
+    }
+
+    const headerLine = lines[0] ?? "";
+    const hasAllowedCompanyLabelContext = /(?:^|\n)(?:主要客户|客户|所属公司)[:：]?/u.test(raw);
+    if (hasAllowedCompanyLabelContext) {
+        return false;
+    }
+
+    if (!headerLine.includes(companyName) && lines.slice(1).some((line) => line === companyName || line.startsWith(`${companyName} `))) {
+        return true;
+    }
+
+    return lines.slice(1).some((line) => line !== companyName && isLikelyManual51jobCompanyName(line));
+}
+
 function isManual51jobWorkHistoryEntryMalformed(entry: unknown): boolean {
     const normalized = normalizeWorkHistoryEntry(entry);
     if (!normalized) {
         return true;
     }
 
+    const originalRaw = isRecord(entry) && typeof entry.raw === "string"
+        ? entry.raw
+        : normalized.raw;
     const hasCompany = Boolean(normalized.companyName);
     const hasOtherFields = Boolean(normalized.jobTitle || normalized.description || normalized.startDate || normalized.endDate);
 
@@ -168,6 +191,24 @@ function isManual51jobWorkHistoryEntryMalformed(entry: unknown): boolean {
 
     if (!normalized.companyName) {
         return false;
+    }
+
+    const hasStandaloneCustomerLabel = /(?:^|\s)(?:主要客户|客户)[:：]/u.test(originalRaw);
+    if (hasStandaloneCustomerLabel) {
+        if (!/(?:主要客户|客户)/u.test(normalized.description || "")) {
+            return true;
+        }
+        if (normalized.companyName && originalRaw.includes(normalized.companyName)) {
+            const customerLabelIndex = originalRaw.search(/(?:^|\s)(?:主要客户|客户)[:：]/u);
+            const companyIndex = originalRaw.indexOf(normalized.companyName);
+            if (customerLabelIndex >= 0 && companyIndex > customerLabelIndex) {
+                return true;
+            }
+        }
+    }
+
+    if (hasMisplacedManual51jobCompanyLine(originalRaw, normalized.companyName)) {
+        return true;
     }
 
     if (isImplausibleManual51jobCompanyName(normalized.companyName)) {
@@ -189,6 +230,29 @@ function hasStructuredWorkHistory(content: Record<string, unknown>): boolean {
     return content.workHistory.some((entry) => {
         const normalized = normalizeWorkHistoryEntry(entry);
         return Boolean(normalized && normalized.companyName && (normalized.jobTitle || normalized.description || normalized.startDate || normalized.endDate));
+    });
+}
+
+function workHistoryMatches(existing: unknown, next: unknown): boolean {
+    if (!Array.isArray(existing) || !Array.isArray(next)) {
+        return false;
+    }
+    if (existing.length !== next.length) {
+        return false;
+    }
+
+    return existing.every((entry, index) => {
+        const left = normalizeWorkHistoryEntry(entry);
+        const right = normalizeWorkHistoryEntry(next[index]);
+        if (!left || !right) {
+            return left === right;
+        }
+        return left.raw === right.raw
+            && left.companyName === right.companyName
+            && left.jobTitle === right.jobTitle
+            && left.description === right.description
+            && left.startDate === right.startDate
+            && left.endDate === right.endDate;
     });
 }
 
@@ -286,10 +350,12 @@ function rewrite51jobManualContent(content: unknown, source: string): {
     let changed = false;
 
     const existingWorkHistory = Array.isArray(nextContent.workHistory) ? nextContent.workHistory : [];
+    const allExistingWorkHistoryMalformed = existingWorkHistory.length > 0
+        && existingWorkHistory.every((entry) => isManual51jobWorkHistoryEntryMalformed(entry));
     const shouldRepairWorkHistory = !hasStructuredWorkHistory(nextContent)
         || existingWorkHistory.some((entry) => isManual51jobWorkHistoryEntryMalformed(entry));
 
-    if (shouldRepairWorkHistory && parsed.workHistory.length > 0) {
+    if (shouldRepairWorkHistory && (parsed.workHistory.length > 0 || allExistingWorkHistoryMalformed) && !workHistoryMatches(existingWorkHistory, parsed.workHistory)) {
         nextContent.workHistory = parsed.workHistory;
         changed = true;
     }

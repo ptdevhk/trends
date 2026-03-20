@@ -485,11 +485,11 @@ describe('config route workspace access', () => {
   it('hides a seeded workflow seed through a workspace override on delete', async () => {
     vi.spyOn(customKeywordService, 'listWorkflowSeeds').mockReturnValue([
       {
-        id: 'seek-my-sales-engineer',
-        label: 'Malaysia · SEEK · Sales Engineer / Sales Manager',
+        id: 'seek-my-cnc-sales',
+        label: 'Malaysia · SEEK · CNC Sales',
         market: 'MY',
         location: 'Kuala Lumpur MY',
-        keywords: ['Sales Engineer', 'Sales Manager'],
+        keywords: ['CNC', 'Sales'],
         collectionSource: {
           type: 'seek',
         },
@@ -504,11 +504,11 @@ describe('config route workspace access', () => {
       systemLocations: [],
       workflowSeeds: [
         {
-          id: 'seek-my-sales-engineer',
-          label: 'Malaysia · SEEK · Sales Engineer / Sales Manager',
+          id: 'seek-my-cnc-sales',
+          label: 'Malaysia · SEEK · CNC Sales',
           market: 'MY',
           location: 'Kuala Lumpur MY',
-          keywords: ['Sales Engineer', 'Sales Manager'],
+          keywords: ['CNC', 'Sales'],
           collectionSource: {
             type: 'seek',
           },
@@ -528,7 +528,7 @@ describe('config route workspace access', () => {
     const setWorkspaceCustomKeywordsSpy = vi.spyOn(workspaceConfigService, 'setWorkspaceCustomKeywords').mockResolvedValue()
 
     const app = createTestApp()
-    const response = await app.request('/api/config/custom-keywords/workflow-seeds/seek-my-sales-engineer', {
+    const response = await app.request('/api/config/custom-keywords/workflow-seeds/seek-my-cnc-sales', {
       method: 'DELETE',
       headers: {
         'X-Workspace-Slug': 'dev',
@@ -541,7 +541,7 @@ describe('config route workspace access', () => {
     expect(setWorkspaceCustomKeywordsSpy).toHaveBeenCalledWith('dev', expect.objectContaining({
       workflowSeeds: [
         expect.objectContaining({
-          id: 'seek-my-sales-engineer',
+          id: 'seek-my-cnc-sales',
           visible: false,
           source: 'workspace',
         }),
