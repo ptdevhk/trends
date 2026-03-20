@@ -24,13 +24,13 @@ describe("getResumeScreeningDb", () => {
   });
 
   it("continues when enabling WAL hits SQLITE_BUSY", async () => {
-    const tableInfoAllMock = vi.fn(() => [
-      { name: "breakdown" },
-      { name: "score_source" },
-      { name: "workspace_slug" },
-    ]);
-    prepareMock.mockReturnValue({
-      all: tableInfoAllMock,
+    prepareMock.mockImplementation((statement: string) => {
+      if (statement === "SELECT name FROM sqlite_master WHERE type = 'table'") {
+        return {
+          all: vi.fn(() => []),
+        };
+      }
+      throw new Error(`Unexpected prepare statement: ${statement}`);
     });
     pragmaMock.mockImplementation((statement: string) => {
       if (statement === "journal_mode") {
@@ -54,13 +54,22 @@ describe("getResumeScreeningDb", () => {
     expect(pragmaMock).toHaveBeenCalledWith("journal_mode", { simple: true });
     expect(pragmaMock).toHaveBeenCalledWith("journal_mode = WAL");
     expect(pragmaMock).toHaveBeenCalledWith("foreign_keys = ON");
+    expect(execMock).toHaveBeenCalledWith(expect.stringContaining("CREATE TABLE IF NOT EXISTS users"));
     expect(execMock).toHaveBeenCalledTimes(1);
     expect(errorSpy).toHaveBeenCalledTimes(1);
   });
 
   it("ignores duplicate column errors during concurrent schema upgrades", async () => {
-    prepareMock.mockReturnValue({
-      all: vi.fn(() => []),
+    prepareMock.mockImplementation((statement: string) => {
+      if (statement === "SELECT name FROM sqlite_master WHERE type = 'table'") {
+        return {
+          all: vi.fn(() => [
+            { name: "resume_matches" },
+            { name: "search_sessions" },
+          ]),
+        };
+      }
+      throw new Error(`Unexpected prepare statement: ${statement}`);
     });
     pragmaMock.mockImplementation((statement: string) => {
       if (statement === "journal_mode") {

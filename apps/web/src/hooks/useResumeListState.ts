@@ -18,7 +18,6 @@ import {
   parseUrlSearchState,
   useUrlSearchState,
   type ExperienceLevelFilter,
-  type UrlSearchState,
 } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { components } from '@/lib/api-types'
@@ -162,19 +161,6 @@ function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFil
     locations: normalizeFilterList(filters.locations),
     sortBy: filters.sortBy,
     sortOrder: filters.sortOrder,
-  }
-}
-
-function normalizeUrlSearchStateValue(state: Partial<UrlSearchState> | undefined): UrlSearchState {
-  return {
-    location: normalizeOptionalString(state?.location),
-    keywords: Array.isArray(state?.keywords) ? state.keywords : [],
-    requiredKeywords: Array.isArray(state?.requiredKeywords) ? state.requiredKeywords : [],
-    jobDescriptionId: normalizeOptionalString(state?.jobDescriptionId),
-    selectedTags: Array.isArray(state?.selectedTags) ? state.selectedTags : [],
-    selectedCompanies: Array.isArray(state?.selectedCompanies) ? state.selectedCompanies : [],
-    selectedExperienceLevel: state?.selectedExperienceLevel,
-    filters: state?.filters ?? {},
   }
 }
 
@@ -471,16 +457,12 @@ export function useResumeListState(loadSearchHistory = false) {
       hasUrlParams: hasKnownUrlSearchParams(params),
       hasKeywordParam: params.has('kw') || params.has('keyword'),
       hasJobDescriptionParam: params.has('jd'),
-      parsedState: normalizeUrlSearchStateValue(parseUrlSearchState(params)),
+      parsedState: parseUrlSearchState(params),
     }
   }
 
   const initialWindowSearchState = initialWindowSearchStateRef.current
   const session = useMemo(() => ({ id: 'convex', jobDescriptionId, filters }), [jobDescriptionId, filters])
-  const normalizedParsedUrlState = useMemo(
-    () => normalizeUrlSearchStateValue(parsedUrlState),
-    [parsedUrlState]
-  )
   const activeHasUrlParams = hasUrlParams
     || (!hasInitializedUrlHydrationRef.current && initialWindowSearchState.hasUrlParams)
   const activeHasKeywordParam = hasUrlParams
@@ -490,7 +472,7 @@ export function useResumeListState(loadSearchHistory = false) {
     ? hasJobDescriptionParam
     : initialWindowSearchState.hasJobDescriptionParam
   const activeParsedUrlState = hasUrlParams
-    ? normalizedParsedUrlState
+    ? parsedUrlState
     : initialWindowSearchState.parsedState
   const activeUrlStateSignature = useMemo(
     () => JSON.stringify({
