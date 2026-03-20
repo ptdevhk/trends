@@ -88,10 +88,10 @@ Required flow:
 
 ### Start Development
 ```bash
-make install-deps                           # Sync repo project skills into .agents/.claude and install configured global skills into per-agent roots
+make install-deps                           # Sync repo project skills into .agents/.claude and install configured global skills via the skills CLI
 CONVEX_MIRROR_MODE=mirror-first make install-deps  # Optional: mirror-first Convex prefetch during bootstrap
 make sync-project-skills                    # Refresh committed project skill artifacts after editing dev-docs/skills/*
-make install-global-skills                  # Reinstall configured external global skills from config/skills/install.yaml
+make install-global-skills                  # Reinstall configured external global skills from config/skills/install.yaml (direct npx skills add -g tree URLs)
 make prefetch-convex                        # Prefetch local Convex backend + dashboard cache
 CONVEX_MIRROR_MODE=mirror-first make prefetch-convex  # Optional: try configured mirrors before GitHub
 make dev                # Full local stack

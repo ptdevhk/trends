@@ -1,7 +1,7 @@
 #!/usr/bin/env -S npx tsx
 
 import { execFile } from 'node:child_process';
-import { lstat, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { lstat, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -48,76 +48,35 @@ async function runCommand(command: string, args: string[]): Promise<void> {
   }
 }
 
-async function syncDirectory(sourceDir: string, destDir: string): Promise<void> {
-  const current = await lstat(destDir).catch(() => null);
-  if (current && !current.isDirectory()) {
-    await rm(destDir, { recursive: true, force: true });
-  }
-
-  await mkdir(destDir, { recursive: true });
-  await runCommand('rsync', ['-a', '--delete', `${sourceDir}/`, `${destDir}/`]);
+function getCodexLegacyInstallPath(skill: string): string {
+  const codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
+  return path.join(codexHome, 'skills', skill);
 }
 
-function getAgentRoot(agent: string): string {
-  if (agent === 'codex') {
-    const codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
-    return path.join(codexHome, 'skills');
-  }
-  if (agent === 'claude-code') {
-    const claudeHome = process.env.CLAUDE_HOME?.trim() || path.join(os.homedir(), '.claude');
-    return path.join(claudeHome, 'skills');
+async function cleanupLegacyCodexInstall(skill: string): Promise<void> {
+  const target = getCodexLegacyInstallPath(skill);
+  const stats = await lstat(target).catch(() => null);
+  if (!stats) {
+    return;
   }
 
-  throw new Error(`Unsupported global skill agent: ${agent}`);
+  console.log(`Removing stale Codex-specific copy: ${target}`);
+  await rm(target, { recursive: true, force: true });
 }
 
-function ensureRelativeSkillPath(skillPath: string): string {
-  if (path.isAbsolute(skillPath)) {
-    throw new Error(`Global skill path must be repository-relative: ${skillPath}`);
+async function installGlobalSkill(source: string, agents: string[]): Promise<void> {
+  const args = ['--yes', 'skills', 'add', '-g', source];
+  for (const agent of agents) {
+    args.push('--agent', agent);
   }
+  args.push('-y');
 
-  const normalized = path.normalize(skillPath);
-  if (normalized.startsWith('..')) {
-    throw new Error(`Global skill path cannot traverse outside the source repo: ${skillPath}`);
-  }
-
-  return normalized;
-}
-
-async function validateExternalSkillDir(skillDir: string): Promise<void> {
-  const statResult = await lstat(skillDir).catch(() => null);
-  if (!statResult?.isDirectory()) {
-    throw new Error(`Missing external skill directory: ${skillDir}`);
-  }
-
-  const skillFile = path.join(skillDir, 'SKILL.md');
-  const content = await readFile(skillFile, 'utf8').catch(() => {
-    throw new Error(`Missing SKILL.md in external skill directory: ${skillDir}`);
-  });
-
-  if (!content.startsWith('---\n')) {
-    throw new Error(`External SKILL.md is missing YAML frontmatter: ${skillFile}`);
-  }
-}
-
-async function cloneSource(source: string): Promise<string> {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'trends-global-skills-'));
-  const repoDir = path.join(tempRoot, 'repo');
-
-  try {
-    await runCommand('git', ['clone', '--depth', '1', source, repoDir]);
-  } catch (error) {
-    await rm(tempRoot, { recursive: true, force: true });
-    throw error;
-  }
-
-  return tempRoot;
+  await runCommand('npx', args);
 }
 
 async function main(): Promise<void> {
   parseArgs(process.argv.slice(2));
-  await ensureTool('git');
-  await ensureTool('rsync');
+  await ensureTool('npx');
 
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const repoRoot = path.resolve(scriptDir, '..', '..');
@@ -128,32 +87,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  const sourceRoots = new Map<string, string>();
-
-  try {
-    for (const entry of config.global) {
-      let tempRoot = sourceRoots.get(entry.source);
-      if (!tempRoot) {
-        console.log(`Cloning global skill source: ${entry.source}`);
-        tempRoot = await cloneSource(entry.source);
-        sourceRoots.set(entry.source, tempRoot);
-      }
-
-      const skillDir = path.join(tempRoot, 'repo', ensureRelativeSkillPath(entry.path));
-      await validateExternalSkillDir(skillDir);
-
-      for (const agent of entry.agents) {
-        const targetRoot = getAgentRoot(agent);
-        const targetDir = path.join(targetRoot, entry.skill);
-
-        console.log(`Installing global skill ${entry.skill} -> ${targetDir}`);
-        await syncDirectory(skillDir, targetDir);
-      }
+  for (const entry of config.global) {
+    if (entry.agents.includes('codex')) {
+      await cleanupLegacyCodexInstall(entry.skill);
     }
-  } finally {
-    for (const tempRoot of sourceRoots.values()) {
-      await rm(tempRoot, { recursive: true, force: true });
-    }
+
+    console.log(`Installing global skill via skills CLI: ${entry.source}`);
+    await installGlobalSkill(entry.source, entry.agents);
   }
 }
 

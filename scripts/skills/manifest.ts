@@ -12,7 +12,6 @@ export type ProjectSkillConfig = {
 export type GlobalSkillInstall = {
   source: string;
   skill: string;
-  path: string;
   agents: string[];
 };
 
@@ -112,10 +111,6 @@ function parseGlobalConfig(value: unknown): GlobalSkillInstall[] {
     return {
       source: readString(entry.source, `global[${index}].source`),
       skill: readSkillName(entry.skill, `global[${index}].skill`),
-      path: readRelativeDir(
-        typeof entry.path === 'undefined' ? `skills/${readSkillName(entry.skill, `global[${index}].skill`)}` : entry.path,
-        `global[${index}].path`,
-      ),
       agents: dedupeStrings(
         agentsValue.map((agent, agentIndex) =>
           readString(agent, `global[${index}].agents[${agentIndex}]`),
