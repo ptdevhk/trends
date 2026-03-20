@@ -648,6 +648,7 @@ check-python:
 check-node:
 	@echo "Running Node.js checks..."
 	@npm run check:resume-ai-prompts
+	@npm run check:resume-skills-locales
 	@npm --workspace @trends/web run gen:api
 	@git diff --exit-code apps/web/src/lib/api-types.ts >/dev/null || ( \
 		echo "apps/web/src/lib/api-types.ts is out of date. Run 'npm --workspace @trends/web run gen:api' and commit changes."; \

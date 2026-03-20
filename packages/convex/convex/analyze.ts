@@ -2,6 +2,7 @@
 import {
     DEFAULT_RESUME_AI_PROMPT_LOCALE,
     buildResumeAiSystemPrompt,
+    getResumeAiLocaleText,
     getResumeAiPromptDefinition,
     getResumeAiUserPromptTemplate,
     isSalesRequiredContext,
@@ -70,7 +71,9 @@ export function getUserPromptTemplate(locale: string): string {
     return getResumeAiUserPromptTemplate(locale);
 }
 
-const VERIFIED_COMPANIES_NONE_LABEL = "无";
+function isEnglishResumeAiLocale(locale?: string): boolean {
+    return resolveResumeAiPromptLocale(locale).resolvedSourceLocale === "en";
+}
 
 function toNumber(value: unknown): number | undefined {
     if (typeof value === "number" && Number.isFinite(value)) {
@@ -83,20 +86,26 @@ function toNumber(value: unknown): number | undefined {
     return undefined;
 }
 
-function formatWorkEntry(entry: NormalizedMatchedWorkEntry): string {
+function formatWorkEntry(
+    entry: NormalizedMatchedWorkEntry,
+    localeText: ReturnType<typeof getResumeAiLocaleText>,
+): string {
     const parts = [
         entry.companyName,
         entry.jobTitle,
-        `${entry.years}年`,
-        entry.industryVerified ? "已验证" : "未验证",
-        entry.matchedSignals.length > 0 ? `信号:${entry.matchedSignals.join("/")}` : undefined,
+        `${entry.years}${localeText.yearsUnitSuffix}`,
+        entry.industryVerified ? localeText.verifiedLabel : localeText.unverifiedLabel,
+        entry.matchedSignals.length > 0 ? `${localeText.signalsLabel}:${entry.matchedSignals.join("/")}` : undefined,
     ].filter((item): item is string => Boolean(item));
     return parts.join(" ");
 }
 
-function formatRoleSignals(roleSignals: NormalizedRoleSignal[]): string {
+function formatRoleSignals(
+    roleSignals: NormalizedRoleSignal[],
+    localeText: ReturnType<typeof getResumeAiLocaleText>,
+): string {
     if (roleSignals.length === 0) {
-        return "无";
+        return localeText.noneLabel;
     }
 
     return roleSignals.slice(0, 8).map((signal) => {
@@ -108,7 +117,7 @@ function formatRoleSignals(roleSignals: NormalizedRoleSignal[]): string {
             ? relevantYears
             : 0;
         const workEntries = signal.matchedWorkEntries && signal.matchedWorkEntries.length > 0
-            ? signal.matchedWorkEntries.map((entry) => formatWorkEntry(entry)).join("; ")
+            ? signal.matchedWorkEntries.map((entry) => formatWorkEntry(entry, localeText)).join("; ")
             : undefined;
         const parts = [
             `${signal.type}(${signal.verifyIn})`,
@@ -196,7 +205,9 @@ export function hydrateUserPrompt(
     template: string,
     job: { title: string; requirements: string; matchingRules: string },
     resume: ReturnType<typeof normalizeResume>,
+    locale?: string,
 ): string {
+    const localeText = getResumeAiLocaleText(locale);
     return template
         .replace("{jobTitle}", job.title)
         .replace("{requirements}", job.requirements)
@@ -209,14 +220,22 @@ export function hydrateUserPrompt(
         .replace("{companies}", resume.companies)
         .replace("{verifiedCompanies}", resume.verifiedCompanies.length > 0
             ? resume.verifiedCompanies.join(", ")
-            : VERIFIED_COMPANIES_NONE_LABEL);
+            : localeText.noneLabel);
 }
 
-export function buildKeywordRequirements(keywords: string[]): string {
+export function buildKeywordRequirements(keywords: string[], locale?: string): string {
+    if (isEnglishResumeAiLocale(locale)) {
+        return `The candidate should have the following key skills or experience:\n${keywords
+            .map((keyword) => `- ${keyword}`)
+            .join("\n")}`;
+    }
     return `候选人需具备以下关键技能/经验:\n${keywords.map((keyword) => `- ${keyword}`).join("\n")}`;
 }
 
-export function buildKeywordMatchingRules(keywords: string[]): string {
+export function buildKeywordMatchingRules(keywords: string[], locale?: string): string {
+    if (isEnglishResumeAiLocale(locale)) {
+        return `Score the candidate by how well their evidence matches the following keywords. More direct relevance should produce a higher score.\nKeywords: ${keywords.join(", ")}`;
+    }
     return `根据候选人与以下关键词的匹配程度评分。关键词越相关评分越高。\n关键词: ${keywords.join(", ")}`;
 }
 
@@ -246,8 +265,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 // Helper to normalize resume data
-export function normalizeResume(data: unknown) {
+export function normalizeResume(
+    data: unknown,
+    options?: {
+        locale?: string;
+    },
+) {
     // NOTE: Strict evidence lane — do not derive analysis inputs from selfIntro/jobIntention.
+    const localeText = getResumeAiLocaleText(options?.locale);
     const root = isRecord(data) ? data : {};
     const content = isRecord(root.content) ? root.content : root;
     const ingestData = isRecord(root.ingestData)
@@ -291,15 +316,15 @@ export function normalizeResume(data: unknown) {
     const roleSignals = parseRoleSignals(ingestData?.roleSignals);
 
     return {
-        name: typeof content.name === "string" ? content.name : "未填写",
+        name: typeof content.name === "string" ? content.name : localeText.emptyFieldLabel,
         workExperience: Number.isFinite(parsedExp) ? parsedExp : 0,
         education: typeof content.education === "string"
             ? content.education
-            : (typeof content.degree === "string" ? content.degree : "未填写"),
-        companies: allCompanies.length > 0 ? allCompanies.slice(0, 8).join(", ") : "未填写",
-        evidenceText: evidenceText.trim() || "未填写",
+            : (typeof content.degree === "string" ? content.degree : localeText.emptyFieldLabel),
+        companies: allCompanies.length > 0 ? allCompanies.slice(0, 8).join(", ") : localeText.emptyFieldLabel,
+        evidenceText: evidenceText.trim() || localeText.emptyFieldLabel,
         roleSignals,
-        roleSignalsText: formatRoleSignals(roleSignals),
+        roleSignalsText: formatRoleSignals(roleSignals, localeText),
         verifiedCompanies: companyHits,
     };
 }
@@ -393,11 +418,12 @@ export const analyzeResume = action({
         const sourceKey = inferSourceKey(resume.source);
         const locale = resolveAIOutputLocale({ sourceKey });
         const promptVersion = getResumeAiPromptDefinition(locale).metadata.version;
-        const norm = normalizeResume(resume);
+        const norm = normalizeResume(resume, { locale });
         const prompt = hydrateUserPrompt(
             getUserPromptTemplate(locale),
             { title: jd.title, requirements: jd.requirements, matchingRules },
             norm,
+            locale,
         );
 
         const messages: ChatMessage[] = [

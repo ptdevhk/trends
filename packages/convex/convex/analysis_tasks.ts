@@ -260,18 +260,21 @@ async function analyzeOneResume(
 ): Promise<AnalysisResult> {
     const normalizedKeywords = normalizeKeywords(config.keywords ?? []);
     const useKeywordPath = normalizedKeywords.length > 0 && !config.jobDescriptionContent;
+    const locale = resolveAIOutputLocale({ sourceKey: inferSourceKey(resume.source) });
+    const isEnglishLocale = locale === "en";
 
     const jobTitle = config.jobDescriptionTitle
         || config.jobDescriptionId
-        || (useKeywordPath ? normalizedKeywords.join(", ") : "销售经理 (通用)");
+        || (useKeywordPath ? normalizedKeywords.join(", ") : (isEnglishLocale ? "Sales Manager (Generic)" : "销售经理 (通用)"));
     const requirements = useKeywordPath
-        ? buildKeywordRequirements(normalizedKeywords)
-        : (config.jobDescriptionContent || "具备销售经验，沟通能力强，熟悉机床行业优先。");
+        ? buildKeywordRequirements(normalizedKeywords, locale)
+        : (config.jobDescriptionContent || (isEnglishLocale
+            ? "Sales experience, strong communication, and machine-tool industry familiarity preferred."
+            : "具备销售经验，沟通能力强，熟悉机床行业优先。"));
     const matchingRules = useKeywordPath
-        ? buildKeywordMatchingRules(normalizedKeywords)
-        : "使用默认评分标准";
-    const locale = resolveAIOutputLocale({ sourceKey: inferSourceKey(resume.source) });
-    const normalizedResume = normalizeResume(resume);
+        ? buildKeywordMatchingRules(normalizedKeywords, locale)
+        : (isEnglishLocale ? "Use the default scoring rules." : "使用默认评分标准");
+    const normalizedResume = normalizeResume(resume, { locale });
     const salesRequired = isSalesRequiredContext(
         jobTitle,
         requirements,
@@ -286,6 +289,7 @@ async function analyzeOneResume(
         getUserPromptTemplate(locale),
         { title: jobTitle, requirements, matchingRules },
         normalizedResume,
+        locale,
     );
 
     const messages: ChatMessage[] = [
