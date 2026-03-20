@@ -967,7 +967,7 @@ export function useResumeListState(loadSearchHistory = false) {
     }
 
     if (requiredKeywords.length > 0) {
-      const normalizedRequired = requiredKeywords.map((kw) => kw.trim().toLowerCase()).filter((kw) => kw.length > 0)
+      const normalizedRequired = requiredKeywords.map(normalizeFilterToken).filter((kw) => kw.length > 0)
       result = result.filter((resume: ScoredConvexResume) => {
         const text = buildRuleScoringText(resume).toLowerCase()
         return normalizedRequired.some((kw) => text.includes(kw))

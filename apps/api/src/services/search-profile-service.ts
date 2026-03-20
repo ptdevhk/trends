@@ -25,7 +25,7 @@ export interface SearchProfile {
     // Core inputs
     location: string;
     keywords: string[];
-    required_keywords?: string[];
+    requiredKeywords?: string[];
 
     // Auto-configured
     jobDescription?: string;
@@ -575,10 +575,10 @@ export class SearchProfileService {
         const inputKeywords = readStringArray(record.keywords);
         const keywords = normalizeKeywords(inputKeywords ?? fallback?.keywords ?? []);
 
-        const inputRequiredKeywords = readStringArray(record.required_keywords);
-        const required_keywords = inputRequiredKeywords !== undefined
+        const inputRequiredKeywords = readStringArray(record.requiredKeywords ?? record.required_keywords);
+        const requiredKeywords = inputRequiredKeywords !== undefined
             ? normalizeKeywords(inputRequiredKeywords)
-            : fallback?.required_keywords;
+            : fallback?.requiredKeywords;
 
         const inputStatus = readString(record.status);
         const status: SearchProfile["status"] =
@@ -611,7 +611,7 @@ export class SearchProfileService {
             updatedAt,
             location,
             keywords,
-            ...(required_keywords !== undefined && { required_keywords }),
+            ...(requiredKeywords !== undefined && { requiredKeywords }),
             jobDescription,
             filterPreset,
             filters,
