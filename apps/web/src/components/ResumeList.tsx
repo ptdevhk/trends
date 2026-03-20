@@ -16,6 +16,7 @@ import { CollectResumesButton } from '@/components/CollectResumesButton'
 import { ShareLinkButton } from '@/components/ShareLinkButton'
 import { SearchHistoryDialog } from '@/components/SearchHistoryDialog'
 import { ManualResumeImportDialog } from '@/components/ManualResumeImportDialog'
+import { ReviewPacketOpsDialog } from '@/components/ReviewPacketOpsDialog'
 import { useResumeListState } from '@/hooks/useResumeListState'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -46,6 +47,7 @@ export function ResumeList() {
     highScoreCount,
     blockedCount,
     bulkExportFormat,
+    lastReviewPacketRun,
     displayedResumes,
     searchHistory,
     searchHistoryLoading,
@@ -81,6 +83,7 @@ export function ResumeList() {
   const [detailResume, setDetailResume] = useState<ResumeItem | ConvexResumeItem | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [manualImportOpen, setManualImportOpen] = useState(false)
+  const [reviewPacketOpsOpen, setReviewPacketOpsOpen] = useState(false)
 
   const detailKey = useMemo(() => {
     if (!detailResume) return undefined
@@ -154,6 +157,16 @@ export function ResumeList() {
             >
               <Upload className="h-4 w-4" />
               {t('manualResumeImport.title', 'Import resumes')}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setReviewPacketOpsOpen(true)}
+            >
+              <FileText className="h-4 w-4" />
+              {t('reviewPackets.title', 'Review packet ops')}
             </Button>
             {!selectedIds.size && (
               <Button
@@ -318,6 +331,13 @@ export function ResumeList() {
         onOpenChange={setManualImportOpen}
         location={sessionLocation}
         keywords={sessionKeywords}
+        onImported={handleRefresh}
+      />
+
+      <ReviewPacketOpsDialog
+        open={reviewPacketOpsOpen}
+        onOpenChange={setReviewPacketOpsOpen}
+        initialRunId={lastReviewPacketRun?.id}
         onImported={handleRefresh}
       />
     </div>

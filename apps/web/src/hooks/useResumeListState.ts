@@ -23,6 +23,7 @@ import { rawApiClient } from '@/lib/api-helpers'
 import type { components } from '@/lib/api-types'
 import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import { isResumeHomeResetState } from '@/lib/resume-home-navigation'
+import { workspaceRef } from '@/lib/workspace-ref'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import {
   aiFeedbackToActionType,
@@ -56,7 +57,9 @@ type JobDescriptionApiResponse = {
   content?: string
 }
 
-type ResumeExportRequestBody = components['schemas']['ResumeExportCanonicalRequest']
+type ReviewPacketExportRequestBody = components['schemas']['ReviewPacketExportRequest']
+type ReviewPacketRun = components['schemas']['ReviewPacketRun']
+type ReviewPacketTrackedExportResponse = components['schemas']['ReviewPacketTrackedExportResponse']
 
 type ScoredConvexResume = ConvexResumeItem & {
   _ruleScore: number
@@ -76,7 +79,11 @@ type EnrichedResume = {
 
 type AnalysisTaskDoc = Doc<'analysis_tasks'>
 
-function normalizeKeywordFingerprint(keywords: string[]): string {
+function normalizeKeywordFingerprint(keywords: string[] | undefined): string {
+  if (!Array.isArray(keywords)) {
+    return ''
+  }
+
   return [...keywords]
     .map((keyword) => keyword.trim().toLowerCase())
     .filter((keyword) => keyword.length > 0)
@@ -201,19 +208,12 @@ function taskMatchesCurrentSearch(
   return false
 }
 
-function submitResumeExportDownload(apiBaseUrl: string, payload: ResumeExportRequestBody): void {
+function submitFileDownload(downloadUrl: string): void {
   const form = document.createElement('form')
-  const input = document.createElement('input')
 
-  form.method = 'POST'
-  form.action = new URL(`${apiBaseUrl}/api/resumes/export/download`, window.location.origin).toString()
+  form.method = 'GET'
+  form.action = downloadUrl
   form.style.display = 'none'
-
-  input.type = 'hidden'
-  input.name = 'payload'
-  input.value = JSON.stringify(payload)
-
-  form.appendChild(input)
   document.body.appendChild(form)
 
   try {
@@ -437,6 +437,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<ExperienceLevelFilter | undefined>(undefined)
   const [appliedSearchHistoryId, setAppliedSearchHistoryId] = useState<string | undefined>(undefined)
   const [queryRuleScoreMap, setQueryRuleScoreMap] = useState<Record<string, number>>({})
+  const [lastReviewPacketRun, setLastReviewPacketRun] = useState<ReviewPacketRun | null>(null)
   const [mode] = useState<'ai'>('ai')
   const hydratedSessionIdRef = useRef<string | null>(null)
   const hasInitializedUrlHydrationRef = useRef(false)
@@ -668,9 +669,9 @@ export function useResumeListState(loadSearchHistory = false) {
       collectUrl: '',
       filters: activeParsedUrlState.filters,
     })
-    setSelectedTags(activeParsedUrlState.selectedTags)
-    setSelectedCompanies(activeParsedUrlState.selectedCompanies)
-    setRequiredKeywords(activeParsedUrlState.requiredKeywords)
+    setSelectedTags(activeParsedUrlState.selectedTags ?? [])
+    setSelectedCompanies(activeParsedUrlState.selectedCompanies ?? [])
+    setRequiredKeywords(activeParsedUrlState.requiredKeywords ?? [])
     setSelectedExperienceLevel(activeParsedUrlState.selectedExperienceLevel)
   }, [
     applyExternalState,
@@ -752,17 +753,17 @@ export function useResumeListState(loadSearchHistory = false) {
     setSelectedTags((current) =>
       areKeywordListsEqual(current, activeParsedUrlState.selectedTags)
         ? current
-        : activeParsedUrlState.selectedTags
+        : activeParsedUrlState.selectedTags ?? []
     )
     setSelectedCompanies((current) =>
       areKeywordListsEqual(current, activeParsedUrlState.selectedCompanies)
         ? current
-        : activeParsedUrlState.selectedCompanies
+        : activeParsedUrlState.selectedCompanies ?? []
     )
     setRequiredKeywords((current) =>
       areKeywordListsEqual(current, activeParsedUrlState.requiredKeywords)
         ? current
-        : activeParsedUrlState.requiredKeywords
+        : activeParsedUrlState.requiredKeywords ?? []
     )
     setSelectedExperienceLevel((current) =>
       (current ?? '') === (activeParsedUrlState.selectedExperienceLevel ?? '')
@@ -1429,10 +1430,11 @@ export function useResumeListState(loadSearchHistory = false) {
           userComment: normalizeOptionalString(statusMeta?.notes),
         }))
         const exportFormat = format ?? bulkExportFormat
-        const exportRequest: ResumeExportRequestBody = {
+        const exportRequest: ReviewPacketExportRequestBody = {
           format: exportFormat,
           source: mode === 'ai' ? 'convex' : 'sample',
           entries: exportEntries,
+          ...(jobDescriptionId ? { jobDescriptionId } : {}),
           ...(appliedSearchHistory?.industryDbV2Stats
             ? { industryDbV2Stats: appliedSearchHistory.industryDbV2Stats }
             : {}),
@@ -1440,8 +1442,26 @@ export function useResumeListState(loadSearchHistory = false) {
         }
 
         try {
-          submitResumeExportDownload(apiBaseUrl, exportRequest)
-          toast.info(t('bulk.exportStarted', { count: exportEntries.length, defaultValue: `Started export for ${exportEntries.length} resumes` }))
+          const response = await rawApiClient.POST<ReviewPacketTrackedExportResponse>('/api/resumes/review-packets/export', {
+            body: exportRequest,
+          })
+          const payload = response.data
+          if (!payload?.success || !payload.run || !payload.downloadPath) {
+            throw new Error(t('bulk.exportFailed', { defaultValue: 'Export failed. Please try again.' }))
+          }
+
+          setLastReviewPacketRun(payload.run)
+          const downloadUrl = new URL(`${apiBaseUrl}${payload.downloadPath}`, window.location.origin)
+          downloadUrl.searchParams.set('workspaceSlug', workspaceRef.get())
+          submitFileDownload(downloadUrl.toString())
+          toast.info(t(
+            'bulk.exportStarted',
+            {
+              count: exportEntries.length,
+              runId: payload.run.id,
+              defaultValue: `Created review packet ${payload.run.id} for ${exportEntries.length} resumes`,
+            }
+          ))
           return
         } catch (error) {
           console.error('Export failed', error)
@@ -1472,7 +1492,7 @@ export function useResumeListState(loadSearchHistory = false) {
         toast.error(t('bulk.actionFailed', { defaultValue: 'Bulk action failed. Please try again.' }))
       }
     },
-    [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t]
+    [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, displayedResumes, jobDescriptionId, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t]
   )
 
   const actionFeedbackLabels = useMemo<Partial<Record<CandidateActionType, string>>>(
@@ -1741,6 +1761,7 @@ export function useResumeListState(loadSearchHistory = false) {
     highScoreCount,
     blockedCount,
     bulkExportFormat,
+    lastReviewPacketRun,
     displayedResumes,
     searchHistory,
     searchHistoryLoading,

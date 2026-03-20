@@ -805,6 +805,9 @@ export const getByIdsForExport = query({
                 const content = isRecord(doc.content) ? doc.content : {};
                 return {
                     resumeId: String(doc._id),
+                    identityKey: typeof doc.identityKey === "string" && doc.identityKey.trim().length > 0
+                        ? doc.identityKey
+                        : undefined,
                     resume: {
                         name: toOptionalStringValue(content.name),
                         jobIntention: toOptionalStringValue(content.jobIntention),

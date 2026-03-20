@@ -138,6 +138,35 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_match_runs_job ON match_runs(job_description_id);
     CREATE INDEX IF NOT EXISTS idx_match_runs_started ON match_runs(started_at DESC);
 
+    CREATE TABLE IF NOT EXISTS review_packet_runs (
+      id TEXT PRIMARY KEY,
+      workspace_slug TEXT NOT NULL DEFAULT 'dev',
+      source TEXT NOT NULL,
+      sample_name TEXT,
+      session_id TEXT,
+      job_description_id TEXT,
+      format TEXT NOT NULL,
+      status TEXT NOT NULL,
+      total_count INTEGER NOT NULL DEFAULT 0,
+      packet_filename TEXT,
+      exported_at TEXT NOT NULL,
+      feedback_imported_at TEXT,
+      summary_sent_at TEXT,
+      summary_channel TEXT,
+      items_json TEXT NOT NULL,
+      stats_json TEXT,
+      context_json TEXT,
+      error TEXT,
+      FOREIGN KEY (session_id) REFERENCES search_sessions(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_review_packet_runs_workspace
+      ON review_packet_runs(workspace_slug, exported_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_review_packet_runs_session
+      ON review_packet_runs(session_id);
+    CREATE INDEX IF NOT EXISTS idx_review_packet_runs_job
+      ON review_packet_runs(job_description_id);
+
     CREATE TABLE IF NOT EXISTS candidate_actions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT,

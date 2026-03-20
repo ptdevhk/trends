@@ -13,7 +13,8 @@ const WORKSPACE_HEADER = "X-Workspace-Slug";
 
 export const workspaceMiddleware: MiddlewareHandler = async (c, next) => {
   const rawSlug = c.req.header(WORKSPACE_HEADER);
-  const candidate = rawSlug?.trim() || DEFAULT_WORKSPACE;
+  const querySlug = c.req.query("workspaceSlug");
+  const candidate = rawSlug?.trim() || querySlug?.trim() || DEFAULT_WORKSPACE;
 
   if (!isValidWorkspace(candidate)) {
     return c.json(

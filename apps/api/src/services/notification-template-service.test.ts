@@ -43,6 +43,28 @@ const createFixtureRoot = (): string => {
     ].join("\n"),
   );
 
+  fs.writeFileSync(
+    path.join(templatesDir, "review-packet-wechat.md"),
+    [
+      "# Review Packet {{packetId}}",
+      "",
+      "{{#if statusBreakdown}}",
+      "## Status Breakdown",
+      "{{#each statusBreakdown}}",
+      "- {{this.label}}: {{this.count}}",
+      "{{/each}}",
+      "{{/if}}",
+      "",
+      "{{#if warnings}}",
+      "## Attention",
+      "{{#each warnings}}",
+      "- {{this}}",
+      "{{/each}}",
+      "{{/if}}",
+      "",
+    ].join("\n"),
+  );
+
   return root;
 };
 
@@ -92,6 +114,26 @@ describe("NotificationTemplateService", () => {
       const rendered = service.render("shortlist-wechat", { note: "Check ASAP" });
 
       expect(rendered.markdown).toContain("Note: Check ASAP");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("renders packet warning sections only when present", () => {
+    const root = createFixtureRoot();
+    try {
+      const service = new NotificationTemplateService(root);
+      const rendered = service.render("review-packet-wechat", {
+        packetId: "packet-1",
+        statusBreakdown: [{ label: "Offer", count: 2 }],
+        warnings: ["Name edited"],
+      });
+
+      expect(rendered.markdown).toContain("# Review Packet packet-1");
+      expect(rendered.markdown).toContain("## Status Breakdown");
+      expect(rendered.markdown).toContain("- Offer: 2");
+      expect(rendered.markdown).toContain("## Attention");
+      expect(rendered.markdown).toContain("- Name edited");
     } finally {
       cleanupFixtureRoot(root);
     }

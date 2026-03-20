@@ -8,11 +8,8 @@ import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import { useResumeListState } from './useResumeListState'
 
 let submittedFormAction = ''
-let submittedPayloadValue = ''
 const formSubmitMock = vi.fn(function thisFormSubmit(this: HTMLFormElement) {
   submittedFormAction = this.action
-  const payloadInput = this.querySelector('input[name="payload"]')
-  submittedPayloadValue = payloadInput instanceof HTMLInputElement ? payloadInput.value : ''
 })
 
 const mockState = vi.hoisted(() => ({
@@ -285,6 +282,32 @@ function getDisplayedResumeNames(): string[] {
   return result.current.displayedResumes.map((entry) => entry.resume.name)
 }
 
+function mockTrackedExportResponse(runId = 'review-packet-1') {
+  vi.mocked(rawApiClient.POST).mockImplementation(async (path: string, options?: { body?: unknown }) => {
+    if (path === '/api/resumes/review-packets/export') {
+      return {
+        data: {
+          success: true,
+          run: {
+            id: runId,
+            workspaceSlug: 'dev',
+            source: 'convex',
+            format: 'csv',
+            status: 'exported',
+            totalCount: Array.isArray((options?.body as { entries?: unknown[] } | undefined)?.entries)
+              ? ((options?.body as { entries?: unknown[] }).entries?.length ?? 0)
+              : 0,
+            exportedAt: '2026-03-20T10:00:00+08:00',
+          },
+          downloadPath: `/api/resumes/review-packets/${runId}/download`,
+        },
+      }
+    }
+
+    return { data: mockState.matchApiResponse }
+  })
+}
+
 describe('useResumeListState role filter regression', () => {
   it('preserves richer imported resume fields on convex resumes', () => {
     mockState.convexResumes = [
@@ -308,7 +331,6 @@ describe('useResumeListState role filter regression', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     submittedFormAction = ''
-    submittedPayloadValue = ''
     window.history.replaceState({}, '', '/')
     mockState.filters = {}
     mockState.cloneConvexResumesOnRead = false
@@ -732,6 +754,7 @@ describe('useResumeListState role filter regression', () => {
   })
 
   it('exports candidate status notes into the userComment field', async () => {
+    mockTrackedExportResponse('review-packet-notes')
     mockState.statusByIdentity = {
       'resume-ideal-cnc-sales': {
         ...buildCandidateStatusRecord('resume-ideal-cnc-sales', 'contacted'),
@@ -750,26 +773,30 @@ describe('useResumeListState role filter regression', () => {
     })
 
     expect(formSubmitMock).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(rawApiClient.POST)).toHaveBeenCalledWith(
+      '/api/resumes/review-packets/export',
+      expect.objectContaining({
+        body: expect.objectContaining({
+          entries: expect.arrayContaining([
+            expect.objectContaining({
+              resumeId: 'resume-ideal-cnc-sales',
+              status: 'contacted',
+              userComment: 'Call back tomorrow',
+            }),
+          ]),
+        }),
+      })
+    )
 
     const submittedForm = document.querySelector('form') as HTMLFormElement | null
     expect(submittedForm).toBeNull()
-    expect(submittedFormAction).toContain('/api/resumes/export/download')
-
-    const parsedBody = JSON.parse(submittedPayloadValue) as {
-      source: string
-      entries: Array<{ resumeId: string; userComment?: string; status?: string }>
-      format: string
-    }
-    expect(parsedBody.format).toBe('csv')
-    expect(parsedBody.source).toBe('convex')
-    expect(parsedBody.entries).toContainEqual(expect.objectContaining({
-      resumeId: 'resume-ideal-cnc-sales',
-      status: 'contacted',
-      userComment: 'Call back tomorrow',
-    }))
+    expect(submittedFormAction).toContain('/api/resumes/review-packets/review-packet-notes/download')
+    expect(submittedFormAction).toContain('workspaceSlug=dev')
+    expect(result.current.lastReviewPacketRun?.id).toBe('review-packet-notes')
   })
 
   it('includes applied frozen industry DB cohort stats in export requests', async () => {
+    mockTrackedExportResponse('review-packet-stats')
     mockState.searchHistory = [
       {
         id: 'history-export',
@@ -815,20 +842,15 @@ describe('useResumeListState role filter regression', () => {
       await result.current.handleBulkAction('export', 'csv')
     })
 
-    const parsedBody = JSON.parse(submittedPayloadValue) as {
-      industryDbV2Stats?: {
-        size: number
-        min?: number
-        max?: number
-        p50?: number
-        p80: number
-        mean?: number
-        stddev?: number
-        histogram50: number[]
-      }
-    }
-
-    expect(parsedBody.industryDbV2Stats).toEqual(mockState.searchHistory[0].industryDbV2Stats)
+    expect(vi.mocked(rawApiClient.POST)).toHaveBeenCalledWith(
+      '/api/resumes/review-packets/export',
+      expect.objectContaining({
+        body: expect.objectContaining({
+          industryDbV2Stats: mockState.searchHistory[0].industryDbV2Stats,
+        }),
+      })
+    )
+    expect(submittedFormAction).toContain('/api/resumes/review-packets/review-packet-stats/download')
   })
 
   it('applies saved search history and updates opened timestamp', async () => {

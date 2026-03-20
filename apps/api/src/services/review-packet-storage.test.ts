@@ -1,0 +1,130 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import { ReviewPacketStorage } from "./review-packet-storage";
+import { resetResumeScreeningDb } from "./database";
+
+function createFixtureRoot(): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "review-packet-storage-"));
+  fs.mkdirSync(path.join(root, "output"), { recursive: true });
+  fs.writeFileSync(path.join(root, "pyproject.toml"), "", "utf8");
+  return root;
+}
+
+describe("ReviewPacketStorage", () => {
+  let root = "";
+
+  afterEach(() => {
+    resetResumeScreeningDb();
+    if (root) {
+      fs.rmSync(root, { recursive: true, force: true });
+      root = "";
+    }
+  });
+
+  it("creates, retrieves, and lists tracked runs", () => {
+    root = createFixtureRoot();
+    const storage = new ReviewPacketStorage(root);
+
+    const created = storage.createRun({
+      id: "packet-1",
+      workspaceSlug: "hr",
+      source: "convex",
+      jobDescriptionId: "lathe-sales",
+      format: "xlsx",
+      totalCount: 2,
+      packetFilename: "packet-1.xlsx",
+      exportedAt: "2026-03-20T09:00:00+08:00",
+      items: [
+        { resumeId: "resume-1", identityKey: "profileUrl:resume-1", name: "Alice" },
+        { resumeId: "resume-2", identityKey: "profileUrl:resume-2", name: "Bob" },
+      ],
+      context: {
+        exportEntries: [
+          {
+            key: "resume-1",
+            resume: { name: "Alice" },
+            status: "new",
+          },
+        ],
+      },
+    });
+
+    expect(created.id).toBe("packet-1");
+    expect(created.workspaceSlug).toBe("hr");
+    expect(created.items).toHaveLength(2);
+
+    const fetched = storage.getRun("packet-1", "hr");
+    expect(fetched?.packetFilename).toBe("packet-1.xlsx");
+    expect(fetched?.context?.exportEntries?.[0]?.key).toBe("resume-1");
+
+    const listed = storage.listRuns("hr");
+    expect(listed.map((run) => run.id)).toEqual(["packet-1"]);
+  });
+
+  it("records feedback import and summary updates", () => {
+    root = createFixtureRoot();
+    const storage = new ReviewPacketStorage(root);
+
+    storage.createRun({
+      id: "packet-2",
+      workspaceSlug: "dev",
+      source: "sample",
+      sampleName: "sample-initial",
+      format: "csv",
+      totalCount: 1,
+      packetFilename: "packet-2.csv",
+      exportedAt: "2026-03-20T10:00:00+08:00",
+      items: [{ resumeId: "resume-3", identityKey: "resume-3", name: "Carol" }],
+    });
+
+    const imported = storage.recordFeedbackImport({
+      id: "packet-2",
+      workspaceSlug: "dev",
+      stats: {
+        importedAt: "2026-03-20T10:30:00+08:00",
+        fileName: "reviewed.xlsx",
+        totalRows: 1,
+        matchedRows: 1,
+        importedRows: 1,
+        reviewedCount: 1,
+        statusUpdates: 1,
+        actionUpdates: 1,
+        noteUpdates: 0,
+        invalidRows: 0,
+        duplicateRows: 0,
+        warningCount: 1,
+        matchedByProfileUrlCount: 0,
+        nameMismatchCount: 1,
+        reviewedResumeIds: ["resume-3"],
+        warnings: ["Name edited"],
+      },
+    });
+
+    expect(imported?.status).toBe("feedback_imported");
+    expect(imported?.stats?.import?.fileName).toBe("reviewed.xlsx");
+
+    const summarized = storage.updateSummaryStats({
+      id: "packet-2",
+      workspaceSlug: "dev",
+      sent: true,
+      stats: {
+        previewedAt: "2026-03-20T10:35:00+08:00",
+        sentAt: "2026-03-20T10:40:00+08:00",
+        channel: "wechat_work",
+        reviewedCount: 1,
+        pendingCount: 0,
+        warningCount: 1,
+        statusBreakdown: { interviewed_pass: 1 },
+        actionBreakdown: { shortlist: 1 },
+      },
+    });
+
+    expect(summarized?.status).toBe("summary_sent");
+    expect(summarized?.summaryChannel).toBe("wechat_work");
+    expect(summarized?.stats?.summary?.actionBreakdown.shortlist).toBe(1);
+  });
+});
