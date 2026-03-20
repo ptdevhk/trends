@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { SearchProfileService, type SearchProfile } from './search-profile-service.js'
+import {
+  SearchProfileService,
+  matchSearchProfilesByKeywords,
+  type SearchProfile,
+} from './search-profile-service.js'
 
 describe('SearchProfileService explicit clear semantics', () => {
   it('clears optional linkage fields when null is provided in an update payload', () => {
@@ -61,5 +65,43 @@ describe('SearchProfileService explicit clear semantics', () => {
 
     expect(normalized.location).toBe('')
     expect(() => service.validateProfile(normalized)).not.toThrow()
+  })
+})
+
+describe('SearchProfileService keyword normalization', () => {
+  it('deduplicates mixed-case keywords and required keywords while preserving the first label', () => {
+    const service = new SearchProfileService()
+
+    const normalized = service.normalizeProfileInput({
+      id: 'custom-profile-2',
+      name: 'CNC销售-MixedCase',
+      status: 'active',
+      location: '广东',
+      keywords: ['CNC', 'cnc', ' 销售 ', '销售'],
+      requiredKeywords: ['CNC', 'cnc', ' 销售 ', '销售'],
+    })
+
+    expect(normalized.keywords).toEqual(['CNC', '销售'])
+    expect(normalized.requiredKeywords).toEqual(['CNC', '销售'])
+  })
+
+  it('matches profiles regardless of input keyword case', () => {
+    const profile: SearchProfile = {
+      id: 'custom-profile-3',
+      name: 'CNC销售-Profile',
+      status: 'active',
+      location: '广东',
+      keywords: ['CNC', '销售'],
+    }
+
+    const lowerCaseMatch = matchSearchProfilesByKeywords([profile], ['cnc'])
+    const upperCaseMatch = matchSearchProfilesByKeywords([profile], ['CNC'])
+
+    expect(lowerCaseMatch.profile?.id).toBe(profile.id)
+    expect(lowerCaseMatch.matchedKeywords).toEqual(['cnc'])
+    expect(lowerCaseMatch.confidence).toBeGreaterThan(0.3)
+    expect(upperCaseMatch.profile?.id).toBe(profile.id)
+    expect(upperCaseMatch.matchedKeywords).toEqual(['cnc'])
+    expect(upperCaseMatch.confidence).toBeGreaterThan(0.3)
   })
 })
