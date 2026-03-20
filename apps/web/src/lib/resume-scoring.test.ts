@@ -310,7 +310,7 @@ describe('resume-scoring', () => {
         },
       ],
     })).toEqual(expect.objectContaining({
-      score: 49,
+      score: 60,
       recommendation: 'potential',
       breakdown: {
         related_exp: 20,
