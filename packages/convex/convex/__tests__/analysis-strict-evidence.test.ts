@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeResume } from "../analyze";
+import { buildKeywordMatchingRules, buildKeywordRequirements, normalizeResume } from "../analyze";
 
 describe("normalizeResume strict evidence", () => {
   it("does not derive evidence text from selfIntro/jobIntention", () => {
@@ -28,6 +28,55 @@ describe("normalizeResume strict evidence", () => {
 
     expect(normalized.evidenceText).toBe("未填写");
     expect(normalized.verifiedCompanies).toEqual([]);
+  });
+
+  it("supports English fallback labels when locale is en", () => {
+    const normalized = normalizeResume({
+      selfIntro: "CNC",
+      jobIntention: "Sales",
+    } as unknown, { locale: "en" });
+
+    expect(normalized.name).toBe("Not provided");
+    expect(normalized.education).toBe("Not provided");
+    expect(normalized.companies).toBe("Not provided");
+    expect(normalized.evidenceText).toBe("Not provided");
+    expect(normalized.roleSignalsText).toBe("none");
+    expect(normalized.verifiedCompanies).toEqual([]);
+  });
+
+  it("formats structured work-entry evidence in English when locale is en", () => {
+    const normalized = normalizeResume({
+      ingestData: {
+        evidenceText: "2021-2024 Acme Machine Tools Sales Engineer",
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["CNC sales"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 4,
+            industryVerifiedYears: 4,
+            roleRelevantYears: 4,
+            verifyIn: "workHistory",
+            matchedWorkEntries: [
+              {
+                companyName: "Acme Machine Tools",
+                jobTitle: "Sales Engineer",
+                years: 2,
+                industryVerified: true,
+                matchedSignals: ["CNC sales"],
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown, { locale: "en" });
+
+    expect(normalized.roleSignalsText).toContain("2 years verified");
+    expect(normalized.roleSignalsText).toContain("signals:CNC sales");
+    expect(normalized.roleSignalsText).not.toContain("2年");
+    expect(normalized.roleSignalsText).not.toContain("已验证");
+    expect(normalized.roleSignalsText).not.toContain("信号:");
   });
 
   it("preserves verifiedCompanies from ingestData.companyHits", () => {
@@ -76,5 +125,14 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.roleSignalsText).toContain("engineer(workHistory)");
     expect(normalized.roleSignalsText).toContain("sales(workHistory)");
     expect(normalized.roleSignalsText).toContain("配合销售");
+  });
+
+  it("builds English keyword guidance for the English prompt locale", () => {
+    expect(buildKeywordRequirements(["cnc", "servo"], "en")).toContain(
+      "The candidate should have the following key skills or experience:"
+    );
+    expect(buildKeywordMatchingRules(["cnc", "servo"], "en")).toContain(
+      "Score the candidate by how well their evidence matches the following keywords."
+    );
   });
 });

@@ -46,7 +46,7 @@ Please analyze how well the following candidate matches the job:
 
 ## industry_db Scoring Rule (Important)
 - The `breakdown.industry_db` score must be based solely on the "Industry Database Verified Companies" field above.
-- If "Industry Database Verified Companies" is "无" (none), then `industry_db` must be 0.
+- If "Industry Database Verified Companies" is "none", then `industry_db` must be 0.
 - Do not guess whether a company belongs to the industry database based on its name alone; use only the verification result provided above.
 
 ## Sales Experience Rule (Important)
@@ -91,7 +91,7 @@ Return the analysis as JSON and ensure score is numeric:
 - `{candidateName}`: Candidate name.
 - `{evidenceText}`: Strict work-history evidence extracted from resume history.
 - `{roleSignals}`: Structured role signals extracted from work history, prioritizing actual sales/engineering/technical-support roles.
-- `{verifiedCompanies}`: Companies verified against the industry database; shows "无" (none) when no matches exist.
+- `{verifiedCompanies}`: Companies verified against the industry database; shows "none" when no matches exist.
 - `{workExperience}`: (kept in hydration chain, not in template) Candidate total years of work experience.
 - `{education}`: (kept in hydration chain, not in template) Candidate education level.
 - `{companies}`: (kept in hydration chain, not in template) Candidate company summary.

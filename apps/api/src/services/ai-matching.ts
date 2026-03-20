@@ -10,7 +10,12 @@ import path from "node:path";
 
 import JSON5 from "json5";
 
-import { getSalesRoleYears, isSalesRequiredContext, normalizeKeywordSalesAnalysis } from "@trends/shared";
+import {
+    getResumeAiLocaleText,
+    getSalesRoleYears,
+    isSalesRequiredContext,
+    normalizeKeywordSalesAnalysis,
+} from "@trends/shared";
 import { aiConfig, validateResumeAIConfig, getMaskedApiKey } from "./ai-config.js";
 import { findProjectRoot } from "./db.js";
 import { localeToNaturalLanguage, resolveAIOutputLocale } from "./locale-utils.js";
@@ -183,9 +188,12 @@ function toStoredRawResponse(value: string): string {
 
 type MatchingResumeRoleSignal = NonNullable<MatchingRequest["resume"]["roleSignals"]>[number];
 
-function formatRoleSignals(roleSignals: MatchingResumeRoleSignal[] | undefined): string {
+function formatRoleSignals(
+    roleSignals: MatchingResumeRoleSignal[] | undefined,
+    localeText: ReturnType<typeof getResumeAiLocaleText>,
+): string {
     if (!roleSignals || roleSignals.length === 0) {
-        return "无";
+        return localeText.noneLabel;
     }
 
     return roleSignals.slice(0, 8).map((signal) => {
@@ -202,9 +210,11 @@ function formatRoleSignals(roleSignals: MatchingResumeRoleSignal[] | undefined):
                 const parts = [
                     entry.companyName,
                     entry.jobTitle,
-                    `${entry.years}年`,
-                    entry.industryVerified ? "已验证" : "未验证",
-                    entry.matchedSignals.length > 0 ? `信号:${entry.matchedSignals.join("/")}` : undefined,
+                    `${entry.years}${localeText.yearsUnitSuffix}`,
+                    entry.industryVerified ? localeText.verifiedLabel : localeText.unverifiedLabel,
+                    entry.matchedSignals.length > 0
+                        ? `${localeText.signalsLabel}:${entry.matchedSignals.join("/")}`
+                        : undefined,
                 ].filter((item): item is string => Boolean(item));
                 return parts.join(" ");
             }).join("; ")
@@ -464,10 +474,11 @@ Return strictly valid JSON:
         jobDescription: MatchingRequest["jobDescription"],
         prompt: ResumeAiPromptDocument
     ): string {
+        const localeText = getResumeAiLocaleText(prompt.normalized.locale);
         const matchingRules = jobDescription.responsibilities || jobDescription.requirements || "";
-        const verifiedCompanies = resume.companyHits?.length ? resume.companyHits.join(", ") : "无";
-        const evidenceText = resume.workHistory || "无工作经历";
-        const roleSignals = formatRoleSignals(resume.roleSignals);
+        const verifiedCompanies = resume.companyHits?.length ? resume.companyHits.join(", ") : localeText.noneLabel;
+        const evidenceText = resume.workHistory || localeText.noWorkHistoryLabel;
+        const roleSignals = formatRoleSignals(resume.roleSignals, localeText);
 
         return resumeAiPromptService.renderUserPromptTemplate(prompt.normalized.userPromptTemplate, {
             jobTitle: jobDescription.title,
@@ -478,8 +489,8 @@ Return strictly valid JSON:
             evidenceText,
             roleSignals,
             workExperience: String(resume.workExperience || 0),
-            education: resume.education || "未填写",
-            companies: resume.companies?.join(", ") || "未填写",
+            education: resume.education || localeText.emptyFieldLabel,
+            companies: resume.companies?.join(", ") || localeText.emptyFieldLabel,
         });
     }
 

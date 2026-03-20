@@ -64,4 +64,50 @@ describe("AIMatchingService", () => {
         expect(result.recommendation).toBe("potential");
         expect(result.summary).toBe("Strong CNC sales fit");
     });
+
+    it("uses English fallback labels for seek prompt hydration", async () => {
+        const service = new CapturingAIMatchingService();
+        await service.matchResume({
+            resume: {
+                id: "resume-seek-1",
+                name: "Alice",
+                sourceKey: "seek",
+                roleSignals: [
+                    {
+                        type: "sales",
+                        matchedSignals: ["CNC sales", "key accounts"],
+                        signalCount: 2,
+                        occurrences: 2,
+                        years: 4,
+                        industryVerifiedYears: 4,
+                        roleRelevantYears: 4,
+                        verifyIn: "workHistory",
+                        matchedWorkEntries: [
+                            {
+                                companyName: "Acme Machine Tools",
+                                jobTitle: "Sales Engineer",
+                                years: 2,
+                                industryVerified: true,
+                                matchedSignals: ["CNC sales"],
+                            },
+                        ],
+                    },
+                ],
+            },
+            jobDescription: {
+                title: "Sales Engineer",
+                requirements: "Sell CNC equipment",
+            },
+        });
+
+        const promptContent = service.lastMessages[1]?.content ?? "";
+        expect(promptContent).toContain("**Industry Database Verified Companies**: none");
+        expect(promptContent).toContain("**Work-History Evidence**:\nNo work history provided");
+        expect(promptContent).toContain("**Role Signals**:");
+        expect(promptContent).toContain("2 years verified");
+        expect(promptContent).toContain("signals:CNC sales");
+        expect(promptContent).not.toContain("已验证");
+        expect(promptContent).not.toContain("信号:");
+        expect(promptContent).not.toContain("2年");
+    });
 });
