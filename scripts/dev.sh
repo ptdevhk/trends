@@ -991,6 +991,7 @@ start_scraper() {
 start_convex() {
     local port="${CONVEX_PORT:-3210}"
     local convex_env_local="$PROJECT_ROOT/packages/convex/.env.local"
+    local root_env_local="$PROJECT_ROOT/.env.local"
     local selected_backend_version=""
     local cached_backend_version=""
     local force_upgrade_raw="${CONVEX_LOCAL_FORCE_UPGRADE:-true}"
@@ -1009,10 +1010,31 @@ start_convex() {
     local convex_log=""
     local convex_pid=""
     local configured_deployment=""
+    local configured_convex_url=""
     local auto_enabled_anonymous_mode="false"
     local -a convex_exec_cmd=()
 
-    # Case 1: CONVEX_URL already set in system env (e.g., cloud deployment).
+    if [ -z "${CONVEX_URL:-}" ] && [ -f "$convex_env_local" ]; then
+        configured_convex_url="$(
+            grep -E '^[[:space:]]*CONVEX_URL[[:space:]]*=' "$convex_env_local" | tail -n 1 \
+                | cut -d= -f2- \
+                | tr -d '\r'
+        )"
+    fi
+
+    if [ -z "${CONVEX_URL:-}" ] && [ -z "$configured_convex_url" ] && [ -f "$root_env_local" ]; then
+        configured_convex_url="$(
+            grep -E '^[[:space:]]*CONVEX_URL[[:space:]]*=' "$root_env_local" | tail -n 1 \
+                | cut -d= -f2- \
+                | tr -d '\r'
+        )"
+    fi
+
+    if [ -z "${CONVEX_URL:-}" ] && [ -n "$configured_convex_url" ]; then
+        export CONVEX_URL="$configured_convex_url"
+    fi
+
+    # Case 1: CONVEX_URL already configured (e.g., cloud deployment).
     # Skip starting local convex dev, just sync the URL to downstream consumers.
     if [ -n "${CONVEX_URL:-}" ]; then
         log "CONVEX" "$GREEN" "CONVEX_URL already set ($CONVEX_URL). Skipping local convex dev."
