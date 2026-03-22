@@ -240,6 +240,111 @@ func TestResumeRestoreCommandReplaceModeCallsResetThenImport(t *testing.T) {
 	}
 }
 
+func TestResumeRestoreCommandAcceptsSnapshotDirectoryInDeterministicOrder(t *testing.T) {
+	backupDir := filepath.Join(t.TempDir(), "resume-backups")
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
+		t.Fatalf("failed to create backup directory: %v", err)
+	}
+
+	writeTestPortableBackupFile(t, filepath.Join(backupDir, "resume-backup-seek-top20-20260321-015304.tar.gz"), map[string]any{
+		"metadata": map[string]any{
+			"generatedBy": "trends-api backup",
+		},
+		"resumes": []map[string]any{{"resumeId": "seek-1", "name": "Seek"}},
+	})
+	writeTestPortableBackupFile(t, filepath.Join(backupDir, "resume-backup-51job-manual-top20-20260321-015304.json"), map[string]any{
+		"metadata": map[string]any{
+			"generatedBy": "trends-api backup",
+		},
+		"resumes": []map[string]any{{"resumeId": "manual-1", "name": "Manual"}},
+	})
+	writeTestPortableBackupFile(t, filepath.Join(backupDir, "resume-backup-job5156-top20-20260321-015304.json"), map[string]any{
+		"metadata": map[string]any{
+			"generatedBy": "trends-api backup",
+		},
+		"resumes": []map[string]any{{"resumeId": "job-1", "name": "Job5156"}},
+	})
+
+	var callOrder []string
+	var importedResumeIDs []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callOrder = append(callOrder, r.URL.Path)
+
+		switch r.URL.Path {
+		case "/api/resumes/reset":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"count":   3,
+				"partial": false,
+				"deleted": map[string]int{"resumes": 3},
+			})
+		case "/api/resumes/import":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("failed to decode import payload: %v", err)
+			}
+			resumes, ok := payload["resumes"].([]any)
+			if !ok || len(resumes) != 1 {
+				t.Fatalf("unexpected import payload: %+v", payload)
+			}
+			resume, ok := resumes[0].(map[string]any)
+			if !ok {
+				t.Fatalf("unexpected resume payload: %+v", payload)
+			}
+			resumeID, _ := resume["resumeId"].(string)
+			importedResumeIDs = append(importedResumeIDs, resumeID)
+
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success":   true,
+				"submitted": len(resumes),
+				"inserted":  len(resumes),
+				"updated":   0,
+				"unchanged": 0,
+				"deduped":   0,
+			})
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+
+	cmd := newResumeRestoreCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{
+		backupDir,
+		"--mode", "replace",
+		"--yes",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume restore command failed: %v", err)
+	}
+
+	if len(callOrder) != 4 || callOrder[0] != "/api/resumes/reset" {
+		t.Fatalf("unexpected call order: %+v", callOrder)
+	}
+	if want := []string{"job-1", "seek-1", "manual-1"}; strings.Join(importedResumeIDs, ",") != strings.Join(want, ",") {
+		t.Fatalf("unexpected restore order: got %+v want %+v", importedResumeIDs, want)
+	}
+
+	payload := decodeCommandJSON(t, output)
+	if payload["inputPath"] != backupDir {
+		t.Fatalf("unexpected inputPath in output: %+v", payload)
+	}
+	if payload["submitted"] != float64(3) {
+		t.Fatalf("unexpected submitted total in output: %+v", payload)
+	}
+	files, ok := payload["files"].([]any)
+	if !ok || len(files) != 3 {
+		t.Fatalf("unexpected files payload: %+v", payload)
+	}
+}
+
 func TestResumeDeployBackupRestorePrefersCompressedArtifactInLatestRunDir(t *testing.T) {
 	baseDir := filepath.Join(t.TempDir(), "deploy")
 	olderDir := filepath.Join(baseDir, "deploy-20260101T000000Z-100")

@@ -1,12 +1,9 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -67,34 +64,13 @@ var runLocalResumeAIScorer = func(ctx context.Context, request localResumeAIScor
 	}
 
 	scriptPath := filepath.Join(projectRoot, "scripts", "resume", "debug-ai-score.ts")
-	args := []string{scriptPath}
-	envFilePath := filepath.Join(projectRoot, ".env")
-	if _, statErr := os.Stat(envFilePath); statErr == nil {
-		args = append([]string{"--env-file", envFilePath}, args...)
-	}
-
-	command := exec.CommandContext(ctx, "bun", args...)
-	command.Dir = projectRoot
-	command.Stdin = bytes.NewReader(input)
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	command.Stdout = &stdout
-	command.Stderr = &stderr
-
-	if err := command.Run(); err != nil {
-		errorOutput := strings.TrimSpace(stderr.String())
-		if errorOutput == "" {
-			errorOutput = strings.TrimSpace(stdout.String())
-		}
-		if errorOutput == "" {
-			errorOutput = "no output"
-		}
-		return nil, fmt.Errorf("run local AI scorer: %w\n%s", err, errorOutput)
+	stdout, stderr, err := runBunScript(ctx, projectRoot, scriptPath, nil, input)
+	if err != nil {
+		return nil, fmt.Errorf("run local AI scorer: %w\n%s", err, commandErrorOutput(stdout, stderr))
 	}
 
 	var response localResumeAIScoreResponse
-	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+	if err := json.Unmarshal([]byte(stdout), &response); err != nil {
 		return nil, fmt.Errorf("decode local AI scorer response: %w", err)
 	}
 	if !response.Success {
@@ -454,4 +430,3 @@ func validateResumeMatchRequest(request client.ResumeMatchRequest) error {
 
 	return nil
 }
-
