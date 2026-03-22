@@ -705,6 +705,30 @@ wait_for_port() {
     return 1
 }
 
+is_local_convex_url() {
+    local url="$1"
+    if [[ "$url" =~ ^https?://(127\.0\.0\.1|localhost)(:[0-9]+)?(/|$) ]]; then
+        return 0
+    fi
+    if [[ "$url" =~ ^https?://\[::1\](\:[0-9]+)?(/|$) ]]; then
+        return 0
+    fi
+    return 1
+}
+
+extract_convex_url_port() {
+    local url="$1"
+    if [[ "$url" =~ ^https?://[^/:]+:([0-9]+)(/|$) ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
+    if [[ "$url" =~ ^https?://\[[^]]+\]:([0-9]+)(/|$) ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
+    return 1
+}
+
 declare -a CONVEX_DEV_CMD=()
 
 build_convex_dev_command() {
@@ -1011,6 +1035,7 @@ start_convex() {
     local convex_pid=""
     local configured_deployment=""
     local configured_convex_url=""
+    local configured_convex_port=""
     local auto_enabled_anonymous_mode="false"
     local -a convex_exec_cmd=()
 
@@ -1034,7 +1059,19 @@ start_convex() {
         export CONVEX_URL="$configured_convex_url"
     fi
 
-    # Case 1: CONVEX_URL already configured (e.g., cloud deployment).
+    if [ -n "${CONVEX_URL:-}" ]; then
+        configured_convex_port="$(extract_convex_url_port "$CONVEX_URL" || true)"
+        if [ -z "$configured_convex_port" ]; then
+            configured_convex_port="$port"
+        fi
+
+        if is_local_convex_url "$CONVEX_URL" && check_port "$configured_convex_port"; then
+            log "CONVEX" "$YELLOW" "CONVEX_URL points to local $CONVEX_URL but port $configured_convex_port is not listening. Starting local convex dev."
+            unset CONVEX_URL
+        fi
+    fi
+
+    # Case 1: CONVEX_URL already configured (e.g., cloud deployment or an active local backend).
     # Skip starting local convex dev, just sync the URL to downstream consumers.
     if [ -n "${CONVEX_URL:-}" ]; then
         log "CONVEX" "$GREEN" "CONVEX_URL already set ($CONVEX_URL). Skipping local convex dev."
