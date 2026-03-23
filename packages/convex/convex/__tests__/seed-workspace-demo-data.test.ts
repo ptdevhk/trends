@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { seedWorkspaceDemoData } from '../seed'
+import { clearWorkspaceDemoResumes, seedWorkspaceDemoData } from '../seed'
 
 type WorkspaceSeedResult = {
   customJobDescriptions: {
@@ -31,6 +31,11 @@ type WorkspaceSeedResult = {
 
 type ConvexHandler<TArgs, TResult> = {
   _handler: (ctx: unknown, args: TArgs) => Promise<TResult>
+}
+
+type ClearWorkspaceDemoResumesResult = {
+  deleted: number
+  tag: string
 }
 
 type RecordWithId = {
@@ -121,8 +126,15 @@ type SeedTables = {
 type SupportedTable = keyof SeedTables
 
 const seedWorkspaceDemoDataHandler = (seedWorkspaceDemoData as unknown as ConvexHandler<
-  Record<string, never>,
+  {
+    includeDemoResumes?: boolean
+  },
   WorkspaceSeedResult
+>)._handler
+
+const clearWorkspaceDemoResumesHandler = (clearWorkspaceDemoResumes as unknown as ConvexHandler<
+  Record<string, never>,
+  ClearWorkspaceDemoResumesResult
 >)._handler
 
 function createEqChain(clauses: Array<{ field: string; value: string }>) {
@@ -317,6 +329,14 @@ function createSeedCtx() {
         patchRecord(tables.workspace_config, id, patch as Partial<WorkspaceConfigRecord>)
         patchRecord(tables.resumes, id, patch as Partial<ResumeRecord>)
       },
+      async delete(id: string) {
+        tables.job_descriptions = tables.job_descriptions.filter((entry) => entry._id !== id)
+        tables.search_profiles = tables.search_profiles.filter((entry) => entry._id !== id)
+        tables.screening_sessions = tables.screening_sessions.filter((entry) => entry._id !== id)
+        tables.search_history = tables.search_history.filter((entry) => entry._id !== id)
+        tables.workspace_config = tables.workspace_config.filter((entry) => entry._id !== id)
+        tables.resumes = tables.resumes.filter((entry) => entry._id !== id)
+      },
     },
   }
 
@@ -324,10 +344,21 @@ function createSeedCtx() {
 }
 
 describe('seedWorkspaceDemoData', () => {
-  it('seeds one deterministic SEEK Malaysia resume and stays idempotent on rerun', async () => {
+  it('does not seed demo resumes unless explicitly requested', async () => {
     const { ctx, tables } = createSeedCtx()
 
     const firstRun = await seedWorkspaceDemoDataHandler(ctx as never, {})
+
+    expect(firstRun.resumes).toEqual({ inserted: 0, updated: 0 })
+    expect(tables.resumes).toHaveLength(0)
+  })
+
+  it('seeds one deterministic SEEK Malaysia resume only for explicit demo-resume runs and stays idempotent on rerun', async () => {
+    const { ctx, tables } = createSeedCtx()
+
+    const firstRun = await seedWorkspaceDemoDataHandler(ctx as never, {
+      includeDemoResumes: true,
+    })
 
     expect(firstRun.resumes).toEqual({ inserted: 1, updated: 0 })
     expect(tables.resumes).toHaveLength(1)
@@ -353,9 +384,39 @@ describe('seedWorkspaceDemoData', () => {
       }),
     }))
 
-    const secondRun = await seedWorkspaceDemoDataHandler(ctx as never, {})
+    const secondRun = await seedWorkspaceDemoDataHandler(ctx as never, {
+      includeDemoResumes: true,
+    })
 
     expect(secondRun.resumes).toEqual({ inserted: 0, updated: 0 })
     expect(tables.resumes).toHaveLength(1)
+  })
+
+  it('clears only workspace-demo resumes', async () => {
+    const { ctx, tables } = createSeedCtx()
+
+    await seedWorkspaceDemoDataHandler(ctx as never, {
+      includeDemoResumes: true,
+    })
+    await ctx.db.insert('resumes', {
+      externalId: 'real-seek-profile',
+      identityKey: 'profileUrl:my.employer.seek.com/candidates/real',
+      content: {
+        name: 'Real Candidate',
+      },
+      hash: 'hash-real',
+      source: 'my.employer.seek.com',
+      tags: ['seek'],
+      crawledAt: 1,
+    })
+
+    const result = await clearWorkspaceDemoResumesHandler(ctx as never, {})
+
+    expect(result).toEqual({
+      deleted: 1,
+      tag: 'workspace-demo',
+    })
+    expect(tables.resumes).toHaveLength(1)
+    expect(tables.resumes[0]?.externalId).toBe('real-seek-profile')
   })
 })

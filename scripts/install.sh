@@ -809,7 +809,7 @@ plan_upgrade_action() {
     fi
 
     UPGRADE_ACTION="full"
-    if [[ -n "${SEED_RESUMES:-}" ]]; then
+    if is_truthy "${SEED_RESUMES:-}"; then
         UPGRADE_ACTION="full"
     elif is_truthy "${FORCE:-}"; then
         UPGRADE_ACTION="full"
@@ -857,7 +857,7 @@ print_upgrade_plan() {
     else
         echo "  env file: unchanged (ENV_FILE empty)"
     fi
-    if [[ -n "${SEED_RESUMES:-}" ]]; then
+    if is_truthy "${SEED_RESUMES:-}"; then
         echo "  seed resumes: yes"
     fi
     if is_truthy "${FORCE:-}"; then
@@ -1272,7 +1272,7 @@ seed_and_migrate_convex() {
     fi
 
     # Always seed JDs (idempotent). Optionally include sample resumes.
-    if [[ -n "${SEED_RESUMES:-}" ]]; then
+    if is_truthy "${SEED_RESUMES:-}"; then
         seed_args="$seed_args --with-resumes"
         log_info "Seeding Convex: job descriptions + sample resumes..."
     else
