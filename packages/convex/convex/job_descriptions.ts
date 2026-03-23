@@ -1,5 +1,6 @@
 import { internal } from "./_generated/api";
-import { mutation, query } from "./_generated/server";
+import { action, internalQuery, mutation, query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 
 import { isResumeAnalysisKeyForJobDescription, normalizeIndustryTags } from "@trends/shared";
@@ -33,6 +34,10 @@ function normalizeJobDescriptionRecord<T extends { industryTags?: string[] | und
         industryTags,
     };
 }
+
+type JobDescriptionWithUsage = Doc<"job_descriptions"> & {
+    usageCount: number;
+};
 
 export const list = query({
     args: {
@@ -165,6 +170,23 @@ export const list_all = query({
     },
 });
 
+export const listAllForWorkspace = internalQuery({
+    args: { workspaceSlug: v.optional(v.string()) },
+    handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const jds = await ctx.db.query("job_descriptions").collect();
+
+        return jds
+            .filter((jd) => {
+                if (jd.type === "system") {
+                    return true;
+                }
+                return belongsToWorkspace(jd.workspaceSlug, workspaceSlug);
+            })
+            .map(normalizeJobDescriptionRecord);
+    },
+});
+
 
 export const delete_jd = mutation({
     args: {
@@ -210,41 +232,61 @@ export const delete_batch = mutation({
 
 export const list_with_usage = query({
     args: { workspaceSlug: v.optional(v.string()) },
-    handler: async (ctx, args) => {
+    handler: async () => {
+        throw new Error("job_descriptions:list_with_usage is no longer available as a query; call the action instead");
+    },
+});
+
+export const list_with_usage_action = action({
+    args: { workspaceSlug: v.optional(v.string()) },
+    handler: async (ctx, args): Promise<JobDescriptionWithUsage[]> => {
         const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
-        const jds = await ctx.db.query("job_descriptions").collect();
-        const resumes = await ctx.db.query("resumes").collect();
-        const scopedJds = jds.filter((jd) => {
-            if (jd.type === "system") {
-                return true;
-            }
-            return belongsToWorkspace(jd.workspaceSlug, workspaceSlug);
+        const scopedJds: Doc<"job_descriptions">[] = await ctx.runQuery(internal.job_descriptions.listAllForWorkspace, {
+            workspaceSlug,
         });
 
-        return scopedJds.map(jd => {
-            const jdIdStr = String(jd._id);
-            const jdSlug = jd.slug;
+        const usageCounts = new Map<string, number>();
+        for (const jd of scopedJds) {
+            usageCounts.set(String(jd._id), 0);
+        }
 
-            const usageCount = resumes.filter(r => {
-                const analysisJdId = r.analysis?.jobDescriptionId;
-                if (analysisJdId === jdIdStr) return true;
-                if (jdSlug && analysisJdId === jdSlug) return true;
-                if (r.analyses) {
-                    const analysisKeys = Object.keys(r.analyses);
-                    if (analysisKeys.some((key) => isResumeAnalysisKeyForJobDescription(key, jdIdStr))) {
-                        return true;
-                    }
-                    if (jdSlug && analysisKeys.some((key) => isResumeAnalysisKeyForJobDescription(key, jdSlug))) {
-                        return true;
+        let cursor: string | undefined;
+        while (true) {
+            const page = await ctx.runQuery(internal.resumes.listResumeUsageBatch, {
+                cursor,
+            });
+
+            for (const resume of page.page) {
+                for (const jd of scopedJds) {
+                    const jdId = String(jd._id);
+                    const jdSlug = jd.slug;
+                    const analysisJdId = resume.analysis?.jobDescriptionId;
+                    const matchesCurrentAnalysis = analysisJdId === jdId || (jdSlug ? analysisJdId === jdSlug : false);
+                    const analysisKeys = resume.analyses ? Object.keys(resume.analyses) : [];
+                    const matchesCachedAnalysis = analysisKeys.some((key) =>
+                        isResumeAnalysisKeyForJobDescription(key, jdId)
+                        || (jdSlug ? isResumeAnalysisKeyForJobDescription(key, jdSlug) : false)
+                    );
+
+                    if (matchesCurrentAnalysis || matchesCachedAnalysis) {
+                        usageCounts.set(jdId, (usageCounts.get(jdId) ?? 0) + 1);
                     }
                 }
-                return false;
-            }).length;
+            }
 
-            return normalizeJobDescriptionRecord({
-                ...jd,
-                usageCount,
-            });
-        });
+            if (page.isDone) {
+                break;
+            }
+
+            cursor = page.continueCursor ?? undefined;
+            if (!cursor) {
+                throw new Error("listResumeUsageBatch returned an unfinished page without a continueCursor");
+            }
+        }
+
+        return scopedJds.map((jd): JobDescriptionWithUsage => normalizeJobDescriptionRecord({
+            ...jd,
+            usageCount: usageCounts.get(String(jd._id)) ?? 0,
+        }));
     }
 });

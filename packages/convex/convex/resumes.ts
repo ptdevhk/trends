@@ -148,6 +148,11 @@ export type ResumeScanRow = {
     searchText: Doc<"resumes">["searchText"];
 };
 
+export type ResumeUsageScanRow = {
+    analysis?: Doc<"resumes">["analysis"];
+    analyses?: Doc<"resumes">["analyses"];
+};
+
 export type ResumeWorkflowDatasetRow = {
     source: Doc<"resumes">["source"];
     content?: {
@@ -1192,6 +1197,31 @@ export const listResumeScanBatch = internalQuery({
                 ingestData: resume.ingestData,
                 primaryRuleScore: resume.primaryRuleScore,
                 searchText: resume.searchText,
+            })),
+        };
+    },
+});
+
+export const listResumeUsageBatch = internalQuery({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.limit),
+            });
+
+        return {
+            continueCursor: page.continueCursor,
+            isDone: page.isDone,
+            page: page.page.map((resume): ResumeUsageScanRow => ({
+                analysis: resume.analysis,
+                analyses: resume.analyses,
             })),
         };
     },

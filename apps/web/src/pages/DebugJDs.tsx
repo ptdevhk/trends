@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useQuery, useMutation } from 'convex/react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAction, useMutation } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,9 +44,10 @@ function getUsageCount(value: unknown): number {
 export default function DebugJDs() {
     const { t } = useTranslation()
     const { slug } = useWorkspace()
-    const jds = useQuery(api.job_descriptions.list_with_usage, { workspaceSlug: slug })
+    const loadJdsWithUsage = useAction(api.job_descriptions.list_with_usage_action)
     const deleteJD = useMutation(api.job_descriptions.delete_jd)
     const deleteBatch = useMutation(api.job_descriptions.delete_batch)
+    const [jds, setJds] = useState<Array<Doc<"job_descriptions"> & { usageCount?: number }> | undefined>(undefined)
 
     const [searchTerm, setSearchTerm] = useState('')
     const [typeFilter, setTypeFilter] = useState<string>('all')
@@ -63,6 +64,20 @@ export default function DebugJDs() {
     // Delete Confirmation State
     const [deleteId, setDeleteId] = useState<Id<"job_descriptions"> | null>(null)
     const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+
+    const refreshJds = useCallback(async () => {
+        try {
+            const result = await loadJdsWithUsage({ workspaceSlug: slug })
+            setJds(result)
+        } catch (error) {
+            console.error('Failed to load job descriptions with usage', error)
+            setDeleteError((previous) => previous ?? t('jdManagement.errors.deleteFailed'))
+        }
+    }, [loadJdsWithUsage, slug, t])
+
+    useEffect(() => {
+        void refreshJds()
+    }, [refreshJds])
 
     const filteredJDs = useMemo(() => {
         if (!jds) return []
@@ -101,6 +116,7 @@ export default function DebugJDs() {
         if (deleteId) {
             try {
                 await deleteJD({ id: deleteId, workspaceSlug: slug })
+                await refreshJds()
                 setDeleteId(null)
                 setDeleteError(null)
             } catch (error) {
@@ -155,6 +171,7 @@ export default function DebugJDs() {
 
         try {
             await deleteBatch({ ids: Array.from(selectedIds), workspaceSlug: slug })
+            await refreshJds()
             setSelectedIds(new Set())
             setShowBulkDeleteConfirm(false)
             setDeleteError(null)
@@ -509,7 +526,7 @@ export default function DebugJDs() {
                 onOpenChange={setShowEditor}
                 initialData={editorData}
                 onSaveSuccess={() => {
-                    // Query automatically refreshes
+                    void refreshJds()
                     setShowEditor(false)
                 }}
             />
