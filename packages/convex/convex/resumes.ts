@@ -167,6 +167,11 @@ type ResumeBackupRow = {
     tags: string[];
     crawledAt: number;
     content: Doc<"resumes">["content"];
+    searchText?: Doc<"resumes">["searchText"];
+    primaryRuleScore?: Doc<"resumes">["primaryRuleScore"];
+    ingestData?: Doc<"resumes">["ingestData"];
+    analysis?: Doc<"resumes">["analysis"];
+    analyses?: Doc<"resumes">["analyses"];
 };
 
 type ResumeBackupFilterArgs = {
@@ -323,6 +328,11 @@ function projectResumeBackupRow(resume: Doc<"resumes">): ResumeBackupRow {
         tags: resume.tags,
         crawledAt: resume.crawledAt,
         content: resume.content,
+        searchText: resume.searchText,
+        primaryRuleScore: resume.primaryRuleScore,
+        ingestData: resume.ingestData,
+        analysis: resume.analysis,
+        analyses: resume.analyses,
     };
 }
 
