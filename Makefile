@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
+.PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-status dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
 		worker worker-once install install-seed deploy deploy-check deploy-seed install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
@@ -127,6 +127,28 @@ dev-convex-stop:
 dev-convex-restart:
 	@$(MAKE) dev-convex-stop || exit $$?; \
 	$(MAKE) dev-convex
+
+# Show local Convex listener/process/data status
+dev-convex-status:
+	@convex_port="$${CONVEX_PORT:-3210}"; \
+	site_port="3211"; \
+	echo "Local Convex listeners:"; \
+	ss -ltnp "( sport = :$$convex_port or sport = :$$site_port )" || true; \
+	echo ""; \
+	echo "Local Convex processes:"; \
+	ps -eo pid,ppid,pgid,rss,%mem,etime,cmd --sort=-rss | rg 'convex dev|convex-local-backend|PID' || true; \
+	echo ""; \
+	if ! curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \
+		echo "Convex at http://127.0.0.1:$$convex_port is not reachable."; \
+		exit 0; \
+	fi; \
+	runner="npx"; \
+	if command -v bun >/dev/null 2>&1; then runner="bunx"; fi; \
+	echo "Resume count:"; \
+	(cd packages/convex && "$$runner" convex run resumes:count); \
+	echo ""; \
+	echo "Resume tasks:"; \
+	(cd packages/convex && "$$runner" convex run resume_tasks:list)
 
 # Start web frontend only (React + Vite on port 5173)
 dev-web:
@@ -888,6 +910,7 @@ help:
 	@echo "  dev-convex     Start only local Convex dev backend"
 	@echo "  dev-convex-stop Stop only local Convex listeners on ports 3210/3211"
 	@echo "  dev-convex-restart Restart only local Convex dev backend"
+	@echo "  dev-convex-status Show local Convex listeners, RSS, resume count, and backlog"
 	@echo "  dev-web        Start React frontend (Vite on port 5173)"
 	@echo "  dev-api        Start Hono BFF API server (port 3000)"
 	@echo "  dev-api-worker Start FastAPI worker REST API (port 8000)"
