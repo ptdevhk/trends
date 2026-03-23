@@ -55,6 +55,7 @@ API_URL = f"{CONVEX_URL.rstrip('/')}/api"
 
 _LAST_HEARTBEAT_WARNING_AT = 0.0
 JOB5156_HOST = "hr.job5156.com"
+CONVEX_RECOVERY_HINT = "Try `make dev-convex-status`, `make dev-convex-refresh`, or `make dev`."
 
 def _is_connection_error(error: Exception) -> bool:
     return isinstance(error, (httpx.RequestError, httpx.TimeoutException))
@@ -195,7 +196,13 @@ async def convex_mutation(client: httpx.AsyncClient, name: str, args: dict):
         return data["value"]
     except Exception as e:
         if _is_connection_error(e):
-            logger.error("Mutation %s failed (Convex unreachable at %s): %s", name, CONVEX_URL, e)
+            logger.error(
+                "Mutation %s failed (Convex unreachable at %s): %s. %s",
+                name,
+                CONVEX_URL,
+                e,
+                CONVEX_RECOVERY_HINT,
+            )
         else:
             logger.error("Mutation %s failed: %s", name, e)
         raise
@@ -212,7 +219,13 @@ async def convex_query(client: httpx.AsyncClient, name: str, args: dict):
         return data["value"]
     except Exception as e:
         if _is_connection_error(e):
-            logger.error("Query %s failed (Convex unreachable at %s): %s", name, CONVEX_URL, e)
+            logger.error(
+                "Query %s failed (Convex unreachable at %s): %s. %s",
+                name,
+                CONVEX_URL,
+                e,
+                CONVEX_RECOVERY_HINT,
+            )
         else:
             logger.error("Query %s failed: %s", name, e)
         raise
@@ -494,8 +507,9 @@ async def worker_loop():
                     if now - last_connection_log_at >= 30:
                         last_connection_log_at = now
                         logger.error(
-                            "Convex is not reachable at %s (is it running?). Try `make dev-convex-status`, `make dev-convex-refresh`, or `make dev`.",
+                            "Convex is not reachable at %s (is it running?). %s",
                             CONVEX_URL,
+                            CONVEX_RECOVERY_HINT,
                         )
                     await asyncio.sleep(connection_backoff_seconds)
                     connection_backoff_seconds = min(connection_backoff_seconds * 2, 60)
