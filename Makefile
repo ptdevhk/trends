@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
+.PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
 		worker worker-once install install-seed deploy deploy-check deploy-seed install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
@@ -75,6 +75,19 @@ dev-mcp:
 # Run crawler only (no long-running services)
 dev-crawl:
 	./scripts/dev.sh --crawl-only $(ARGS)
+
+# Start only local Convex dev backend
+dev-convex:
+	@if [ -d "packages/convex" ]; then \
+		if command -v bun >/dev/null 2>&1; then \
+			cd packages/convex && bun run dev; \
+		else \
+			cd packages/convex && npm run dev; \
+		fi; \
+	else \
+		echo "packages/convex not found."; \
+		exit 1; \
+	fi
 
 # Start web frontend only (React + Vite on port 5173)
 dev-web:
@@ -833,6 +846,7 @@ help:
 	@echo "  dev-clean      Kill stale dev processes and free dev ports"
 	@echo "  dev-mcp        Start only MCP server (HTTP on port 3333)"
 	@echo "  dev-crawl      Run crawler only (no long-running services)"
+	@echo "  dev-convex     Start only local Convex dev backend"
 	@echo "  dev-web        Start React frontend (Vite on port 5173)"
 	@echo "  dev-api        Start Hono BFF API server (port 3000)"
 	@echo "  dev-api-worker Start FastAPI worker REST API (port 8000)"
