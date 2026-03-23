@@ -124,7 +124,9 @@ export function buildResumeAnalysisLookupKeys(
   }
 
   if (keywords.length > 0) {
-    return [buildKeywordAnalysisId(keywords, options)];
+    const legacyKey = buildKeywordAnalysisId(keywords, options);
+    const sourceAwareKey = buildResumeAnalysisStorageKey(legacyKey, { sourceKey: options?.sourceKey });
+    return sourceAwareKey === legacyKey ? [legacyKey] : [sourceAwareKey, legacyKey];
   }
 
   return [];
