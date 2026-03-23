@@ -26,6 +26,8 @@ func newResumeCmd() *cobra.Command {
 		newResumeListCmd(),
 		newResumeSearchCmd(),
 		newResumeMatchCmd(),
+		newResumeSnapshotCmd(),
+		newResumeManualImportCmd(),
 		newResumeBackupCmd(),
 		newResumeRestoreCmd(),
 		newResumeDeployBackupCmd(),
@@ -260,6 +262,92 @@ func newResumeExportCmd() *cobra.Command {
 	cmd.Flags().StringVar(&outPath, "out", "", "Output file path")
 
 	return cmd
+}
+
+func newResumeManualImportCmd() *cobra.Command {
+	var (
+		searchProfileID string
+		keyword         string
+		location        string
+		limit           int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "import-51job <file> [file...]",
+		Short: "Import local 51job manual-export archives or documents through the API",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("limit") && limit < 1 {
+				return fmt.Errorf("--limit must be greater than 0")
+			}
+
+			response, err := newAPIClient().ImportManualResumes(context.Background(), client.ResumeManualImportRequest{
+				FilePaths:       normalizeStringSlice(args),
+				SearchProfileID: strings.TrimSpace(searchProfileID),
+				Keyword:         strings.TrimSpace(keyword),
+				Location:        strings.TrimSpace(location),
+				Limit:           limit,
+			})
+			if err != nil {
+				return err
+			}
+
+			if currentOptions().Output != "json" {
+				fmt.Fprintf(
+					cmd.OutOrStdout(),
+					"Source: %s | Uploaded: %d | Discovered: %d | Parsed: %d | Imported: %d | Failed: %d\n\n",
+					coalesceString(response.Source.Label, response.Source.Key, "51job-manual"),
+					response.Summary.UploadedFiles,
+					response.Summary.DiscoveredFiles,
+					response.Summary.ParsedResumes,
+					response.Summary.Imported,
+					response.Summary.Failed,
+				)
+			}
+
+			output := buildResumeManualImportOutput(response)
+			return writeOutput(cmd, output.Headers, output.Rows, response)
+		},
+	}
+
+	cmd.Flags().StringVar(&searchProfileID, "search-profile", "", "Optional search profile ID to attach to imported resumes")
+	cmd.Flags().StringVar(&keyword, "keyword", "", "Optional keyword tag to attach to imported resumes")
+	cmd.Flags().StringVar(&location, "location", "", "Optional location tag to attach to imported resumes")
+	cmd.Flags().IntVar(&limit, "limit", 0, "Optional maximum number of parsed resumes to import")
+
+	return cmd
+}
+
+func buildResumeManualImportOutput(response *client.ResumeManualImportResponse) resumeSummaryOutput {
+	headers := []string{
+		"upload_name",
+		"entry_path",
+		"extension",
+		"status",
+		"resume_name",
+		"profile_id",
+		"warnings",
+		"error",
+	}
+	rows := make([][]string, 0, len(response.Files))
+
+	for _, file := range response.Files {
+		rows = append(rows, []string{
+			file.UploadName,
+			file.EntryPath,
+			file.Extension,
+			file.Status,
+			file.ResumeName,
+			file.ProfileID,
+			strings.Join(file.Warnings, " | "),
+			file.Error,
+		})
+	}
+
+	return resumeSummaryOutput{
+		Headers: headers,
+		Rows:    rows,
+	}
 }
 
 type resumeDisplayRow struct {

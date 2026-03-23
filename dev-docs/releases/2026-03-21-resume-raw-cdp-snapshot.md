@@ -31,6 +31,29 @@ The shared CDP helper can now create a Chrome page target when `9222` is reachab
 
 ## Usage
 
+Preferred CLI wrapper for one source:
+
+```bash
+bin/trends --workspace dev --api-url http://localhost:3000 resume snapshot \
+  --source job5156 \
+  --count 20
+```
+
+Preferred CLI wrapper for all configured sources:
+
+```bash
+bin/trends --workspace dev --api-url http://localhost:3000 resume snapshot \
+  --count 20
+```
+
+Direct API-side validation of the manual 51job import lane:
+
+```bash
+bin/trends --workspace dev --api-url http://localhost:3000 resume import-51job \
+  ~/Downloads/51job.rar \
+  --keyword "CNC 销售"
+```
+
 Snapshot one source:
 
 ```bash
@@ -69,6 +92,14 @@ uv run python scripts/resume/collect_browser_source.py --source job5156 --limit 
 
 Snapshot generation writes plain JSON backup files under `output/resume-backups/<run-stamp>/`.
 Those files can be restored later without having mutated the live resume tables during snapshot creation.
+The CLI now accepts either a single backup file or a full snapshot run directory.
+
+Restore a whole snapshot run directory with the Trends CLI:
+
+```bash
+bin/trends --workspace dev --api-url http://localhost:3000 resume restore \
+  output/resume-backups/<run-stamp>
+```
 
 Restore any generated snapshot file with the Trends CLI:
 
@@ -83,8 +114,27 @@ Replace live data instead of upserting:
 bin/trends --workspace dev --api-url http://localhost:3000 resume restore \
   --mode replace \
   --yes \
-  output/resume-backups/<run-stamp>/resume-backup-job5156-top20-<run-stamp>.json
+  output/resume-backups/<run-stamp>
 ```
+
+Typical local verification flow after restore:
+
+```bash
+bin/trends --workspace dev --api-url http://localhost:3000 resume search "CNC 销售" --source convex --limit 20
+bin/trends --workspace dev --api-url http://localhost:3000 resume match --query "CNC 销售" --source convex --mode rules_only
+bin/trends --workspace dev --api-url http://localhost:3000 resume debug ai-score --query "CNC 销售" --source convex --limit 20 --top-n 5
+```
+
+Manual 51job API verification before or after snapshot restore:
+
+```bash
+bin/trends --workspace dev --api-url http://localhost:3000 resume import-51job \
+  ~/Downloads/51job.rar \
+  --keyword "CNC 销售" \
+  --location "东莞"
+```
+
+The command surfaces per-entry `warnings` and `error` details from `/api/resumes/manual-import`, so it is the preferred live check when validating malformed archives or mixed-success uploads.
 
 ## Defaults
 
@@ -98,5 +148,8 @@ bin/trends --workspace dev --api-url http://localhost:3000 resume restore \
 ## Operational Notes
 
 - The snapshot job does not reset or import into the live resume tables.
+- `trends resume snapshot` is the preferred operator entrypoint; the Bun script remains the underlying implementation.
+- `trends resume import-51job <file...>` is the preferred live API check for the `51job-manual` upload lane; it accepts local `.rar`, `.zip`, `.docx`, and `.pdf` inputs and surfaces file-level warnings/failures.
+- `trends resume restore <run-dir>` imports files in deterministic source order: `job5156`, `seek`, `51job-manual`.
 - `seek` may redirect to a non-talent-search page depending on the logged-in account; if that happens, the extension accessor will not be available and the helper will fail fast before writing a snapshot file.
 - Generated files are date-stamped in `output/resume-backups/<run-stamp>/`.
