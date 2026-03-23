@@ -91,23 +91,36 @@ dev-convex:
 
 # Stop only local Convex dev backend listeners
 dev-convex-stop:
-	@convex_port="$${CONVEX_PORT:-3210}"; \
+	@project_root="$(CURDIR)"; \
+	convex_port="$${CONVEX_PORT:-3210}"; \
 	site_port="3211"; \
-	pids="$$( { lsof -tiTCP:"$$convex_port" -sTCP:LISTEN 2>/dev/null; lsof -tiTCP:"$$site_port" -sTCP:LISTEN 2>/dev/null; } | sort -u )"; \
+	pids="$$( { \
+		lsof -tiTCP:"$$convex_port" -sTCP:LISTEN 2>/dev/null; \
+		lsof -tiTCP:"$$site_port" -sTCP:LISTEN 2>/dev/null; \
+		pgrep -f "$$project_root/node_modules/.bin/convex dev" 2>/dev/null; \
+	} | sort -u )"; \
 	if [ -z "$$pids" ]; then \
 		echo "No local Convex listeners found on ports $$convex_port/$$site_port."; \
 		exit 0; \
 	fi; \
-	echo "Stopping local Convex PIDs: $$pids"; \
-	kill $$pids; \
+	echo "Stopping local Convex process groups for PIDs: $$pids"; \
+	for pid in $$pids; do \
+		pgid="$$(ps -o pgid= -p "$$pid" | tr -d '[:space:]')"; \
+		if [ -n "$$pgid" ]; then \
+			kill -TERM -"$$pgid" 2>/dev/null || true; \
+		else \
+			kill -TERM "$$pid" 2>/dev/null || true; \
+		fi; \
+	done; \
 	for _ in 1 2 3 4 5 6 7 8 9 10; do \
-		if ! ss -ltn "( sport = :$$convex_port or sport = :$$site_port )" | rg -q ":$$convex_port|:$$site_port"; then \
+		if ! ss -ltn "( sport = :$$convex_port or sport = :$$site_port )" | rg -q ":$$convex_port|:$$site_port" \
+			&& ! pgrep -f "$$project_root/node_modules/.bin/convex dev" >/dev/null 2>&1; then \
 			echo "Local Convex stopped."; \
 			exit 0; \
 		fi; \
 		sleep 1; \
 	done; \
-	echo "Local Convex is still listening after SIGTERM; use make dev-clean if you need a full cleanup."; \
+	echo "Local Convex is still running after SIGTERM; use make dev-clean if you need a full cleanup."; \
 	exit 1
 
 # Restart only local Convex dev backend
