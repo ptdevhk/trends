@@ -1,6 +1,7 @@
 import { DEFAULT_RESUME_AI_PROMPT_LOCALE, getResumeAiPromptDefinition } from "./generated/resume-ai-prompts.js";
 
 const JOB5156_HOST_TOKEN = "job5156.com";
+const MANUAL_51JOB_SOURCE_TOKEN = "51job-manual";
 const SEEK_HOST_SUFFIX = ".employer.seek.com";
 
 function stableHash(seed: string): string {
@@ -82,7 +83,11 @@ export function normalizeResumeAnalysisSourceKey(
     return "seek";
   }
 
-  if (normalized === "job5156" || normalized.includes(JOB5156_HOST_TOKEN)) {
+  if (
+    normalized === "job5156"
+    || normalized === MANUAL_51JOB_SOURCE_TOKEN
+    || normalized.includes(JOB5156_HOST_TOKEN)
+  ) {
     return "job5156";
   }
 
@@ -124,7 +129,9 @@ export function buildResumeAnalysisLookupKeys(
   }
 
   if (keywords.length > 0) {
-    return [buildKeywordAnalysisId(keywords, options)];
+    const legacyKey = buildKeywordAnalysisId(keywords, options);
+    const sourceAwareKey = buildResumeAnalysisStorageKey(legacyKey, { sourceKey: options?.sourceKey });
+    return sourceAwareKey === legacyKey ? [legacyKey] : [sourceAwareKey, legacyKey];
   }
 
   return [];

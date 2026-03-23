@@ -72,6 +72,22 @@ describe('source-aware analysis helpers', () => {
     ])
   })
 
+  it('returns source-aware lookup keys for keyword searches before the legacy key', () => {
+    const legacyKey = buildKeywordAnalysisId(['CNC', '销售'], {
+      location: '东莞',
+      promptVersion: 2,
+    })
+
+    expect(buildResumeAnalysisLookupKeys(undefined, ['CNC', '销售'], {
+      location: '东莞',
+      promptVersion: 2,
+      sourceKey: 'job5156',
+    })).toEqual([
+      `source:job5156|analysis:${legacyKey}`,
+      legacyKey,
+    ])
+  })
+
   it('matches both legacy and source-aware keys when clearing by JD', () => {
     expect(isResumeAnalysisKeyForJobDescription('jd-lathe-sales', 'jd-lathe-sales')).toBe(true)
     expect(isResumeAnalysisKeyForJobDescription('source:seek|analysis:jd-lathe-sales', 'jd-lathe-sales')).toBe(true)
@@ -81,6 +97,8 @@ describe('source-aware analysis helpers', () => {
   it('normalizes known source keys from source hosts and explicit values', () => {
     expect(resolveResumeAnalysisSourceKey({ source: 'hk.employer.seek.com' })).toBe('seek')
     expect(resolveResumeAnalysisSourceKey({ sourceKey: 'job5156' })).toBe('job5156')
+    expect(resolveResumeAnalysisSourceKey({ source: '51job-manual' })).toBe('job5156')
+    expect(resolveResumeAnalysisSourceKey({ sourceKey: '51job-manual' })).toBe('job5156')
     expect(resolveResumeAnalysisSourceKey({ source: 'manual.51job.com' })).toBeUndefined()
   })
 })

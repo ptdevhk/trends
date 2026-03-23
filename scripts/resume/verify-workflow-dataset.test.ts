@@ -17,6 +17,14 @@ describe("verify workflow dataset helpers", () => {
         profileType: "job5156",
       },
     })).toBe("job5156");
+
+    expect(getResumeSourceKey({
+      _id: "manual-1",
+      source: "51job-manual",
+      content: {
+        profileType: "51job-manual",
+      },
+    })).toBe("job5156");
   });
 
   it("matches workflow filters using source key and Malaysia location aliases", () => {

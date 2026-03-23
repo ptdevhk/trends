@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { buildKeywordAnalysisId } from './analysis-utils'
 import {
   buildLearningObservation,
   buildResumeKey,
@@ -472,5 +473,40 @@ describe('resume-scoring', () => {
       promptVersion: 2,
       sourceKey: 'seek',
     })).toBeUndefined()
+  })
+
+  it('prefers source-aware keyword-search cache entries when a source key is provided', () => {
+    const keywordKey = buildKeywordAnalysisId(['CNC', '销售'], {
+      location: '东莞',
+      promptVersion: 2,
+    })
+
+    expect(getAnalysisForJob({
+      analyses: {
+        [`source:job5156|analysis:${keywordKey}`]: {
+          score: 79,
+          summary: 'manual lane keyword cache',
+          highlights: [],
+          recommendation: 'match',
+          promptVersion: 2,
+          jobDescriptionId: keywordKey,
+        },
+        [keywordKey]: {
+          score: 41,
+          summary: 'legacy keyword cache',
+          highlights: [],
+          recommendation: 'potential',
+          promptVersion: 2,
+          jobDescriptionId: keywordKey,
+        },
+      },
+    }, undefined, ['CNC', '销售'], {
+      location: '东莞',
+      promptVersion: 2,
+      sourceKey: 'job5156',
+    })).toEqual(expect.objectContaining({
+      score: 79,
+      summary: 'manual lane keyword cache',
+    }))
   })
 })
