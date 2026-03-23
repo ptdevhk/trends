@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-status dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
+.PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-ensure dev-convex-status dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
 		worker worker-once install install-seed deploy deploy-check deploy-seed install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
@@ -172,6 +172,15 @@ dev-convex-refresh:
 	tmux capture-pane -pt "$$tmux_session:0" -S -40 2>/dev/null || true; \
 	exit 1
 
+# Ensure local Convex is reachable before maintenance operations run
+dev-convex-ensure:
+	@convex_port="$${CONVEX_PORT:-3210}"; \
+	if curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \
+		echo "Local Convex already reachable at http://127.0.0.1:$$convex_port"; \
+		exit 0; \
+	fi; \
+	$(MAKE) dev-convex-refresh
+
 # Show local Convex listener/process/data status
 dev-convex-status:
 	@convex_port="$${CONVEX_PORT:-3210}"; \
@@ -342,6 +351,7 @@ restore-resumes:
 
 # Restore resume records, then restart local Convex to release retained restore RSS
 restore-resumes-restart:
+	@$(MAKE) dev-convex-ensure
 	@$(MAKE) restore-resumes API_URL="$(API_URL)" WORKSPACE="$(WORKSPACE)" FILE="$(FILE)" MODE="$(MODE)" YES="$(YES)"
 	@$(MAKE) dev-convex-refresh
 
@@ -370,6 +380,7 @@ clear-resume-analyses:
 
 # Clear resume AI analyses, then restart local Convex to release scan-time RSS
 clear-resume-analyses-restart:
+	@$(MAKE) dev-convex-ensure
 	@$(MAKE) clear-resume-analyses BATCH_SIZE="$(BATCH_SIZE)" JOB_DESCRIPTION="$(JOB_DESCRIPTION)" RESUME_IDS="$(RESUME_IDS)" JSON="$(JSON)"
 	@$(MAKE) dev-convex-refresh
 
@@ -965,6 +976,7 @@ help:
 	@echo "  dev-convex-stop Stop local Convex listeners on ports 3210/3211 and the default Convex tmux session"
 	@echo "  dev-convex-restart Restart only local Convex dev backend (foreground)"
 	@echo "  dev-convex-refresh Refresh local Convex in detached tmux mode when tmux is available"
+	@echo "  dev-convex-ensure Start local Convex only when http://127.0.0.1:3210 is currently unreachable"
 	@echo "  dev-convex-status Show local Convex listeners, RSS, resume count, and backlog"
 	@echo "  dev-web        Start React frontend (Vite on port 5173)"
 	@echo "  dev-api        Start Hono BFF API server (port 3000)"
@@ -994,14 +1006,14 @@ help:
 	@echo "                 Example: make restore-resumes FILE=/abs/path/output/resume-backups/20260321-015304"
 	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json MODE=replace YES=1"
 	@echo "  restore-resumes-restart Restore resumes, then restart local Convex to drop retained restore RSS"
-	@echo "                 Uses the same arguments as restore-resumes; reuses dev-convex-refresh when tmux is available"
+	@echo "                 Uses the same arguments as restore-resumes; ensures local Convex is up first, then refreshes it afterward"
 	@echo "                 Example: make restore-resumes-restart FILE=/abs/path/resume-backup.json"
 	@echo "  clear-resume-analyses Clear AI analyses in Convex in safe batches for large restored datasets"
 	@echo "                 Uses BATCH_SIZE=50 by default, optional JOB_DESCRIPTION=<id>, optional RESUME_IDS=a,b,c, and JSON=1"
 	@echo "                 Example: make clear-resume-analyses JSON=1"
 	@echo "                 Example: make clear-resume-analyses JOB_DESCRIPTION=lathe-sales BATCH_SIZE=25 JSON=1"
 	@echo "  clear-resume-analyses-restart Clear AI analyses, then restart local Convex to drop retained RSS"
-	@echo "                 Uses the same arguments as clear-resume-analyses; reuses dev-convex-refresh when tmux is available"
+	@echo "                 Uses the same arguments as clear-resume-analyses; ensures local Convex is up first, then refreshes it afterward"
 	@echo "                 Example: make clear-resume-analyses-restart JSON=1"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "                 See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1, and env knobs"
