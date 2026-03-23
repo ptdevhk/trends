@@ -9,7 +9,7 @@
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
 		seed-clear-demo-resumes \
-		backup-resumes restore-resumes clear-resume-analyses clear-resume-analyses-restart \
+		backup-resumes restore-resumes restore-resumes-restart clear-resume-analyses clear-resume-analyses-restart \
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
@@ -295,6 +295,11 @@ restore-resumes:
 	else \
 		npx tsx scripts/resume/restore-resumes.ts; \
 	fi
+
+# Restore resume records, then restart local Convex to release retained restore RSS
+restore-resumes-restart:
+	@$(MAKE) restore-resumes API_URL="$(API_URL)" WORKSPACE="$(WORKSPACE)" FILE="$(FILE)" MODE="$(MODE)" YES="$(YES)"
+	@$(MAKE) dev-convex-restart
 
 # Clear resume AI analyses directly in Convex, batching large datasets safely
 clear-resume-analyses:
@@ -943,6 +948,9 @@ help:
 	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json"
 	@echo "                 Example: make restore-resumes FILE=/abs/path/output/resume-backups/20260321-015304"
 	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json MODE=replace YES=1"
+	@echo "  restore-resumes-restart Restore resumes, then restart local Convex to drop retained restore RSS"
+	@echo "                 Uses the same arguments as restore-resumes and is recommended after large backup restores"
+	@echo "                 Example: make restore-resumes-restart FILE=/abs/path/resume-backup.json"
 	@echo "  clear-resume-analyses Clear AI analyses in Convex in safe batches for large restored datasets"
 	@echo "                 Uses BATCH_SIZE=50 by default, optional JOB_DESCRIPTION=<id>, optional RESUME_IDS=a,b,c, and JSON=1"
 	@echo "                 Example: make clear-resume-analyses JSON=1"
