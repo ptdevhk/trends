@@ -1,4 +1,5 @@
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { api } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
@@ -145,6 +146,13 @@ export type ResumeScanRow = {
     ingestData: Doc<"resumes">["ingestData"];
     primaryRuleScore: Doc<"resumes">["primaryRuleScore"];
     searchText: Doc<"resumes">["searchText"];
+};
+
+export type ResumeWorkflowDatasetRow = {
+    source: Doc<"resumes">["source"];
+    content?: {
+        profileType?: string;
+    };
 };
 
 type ResumeBackupRow = {
@@ -572,11 +580,28 @@ function mergeResumeDocs(
         .slice(0, limit);
 }
 
-export const count = query({
+export const count = action({
     args: {},
     handler: async (ctx) => {
-        const docs = await ctx.db.query("resumes").collect();
-        return docs.length;
+        let total = 0;
+        let cursor: string | undefined;
+
+        while (true) {
+            const page = await ctx.runQuery(api.resumes.listWorkflowDatasetPage, {
+                limit: MAX_RESUME_SCAN_BATCH_SIZE,
+                ...(cursor ? { cursor } : {}),
+            });
+
+            total += page.page.length;
+            if (page.isDone) {
+                return total;
+            }
+
+            cursor = page.continueCursor ?? undefined;
+            if (!cursor) {
+                throw new Error("listWorkflowDatasetPage returned an unfinished page without a continueCursor");
+            }
+        }
     },
 });
 
@@ -653,6 +678,35 @@ export const listIngestDiagnostics = query({
         return {
             ...page,
             page: page.page.map(projectIngestDiagnosticsRow),
+        };
+    },
+});
+
+export const listWorkflowDatasetPage = query({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.limit),
+            });
+
+        return {
+            continueCursor: page.continueCursor,
+            isDone: page.isDone,
+            page: page.page.map((resume): ResumeWorkflowDatasetRow => {
+                const content = isRecord(resume.content) ? resume.content : {};
+                const profileType = toOptionalStringValue(content.profileType);
+                return {
+                    source: resume.source,
+                    ...(profileType ? { content: { profileType } } : {}),
+                };
+            }),
         };
     },
 });
