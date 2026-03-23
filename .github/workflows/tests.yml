@@ -30,6 +30,11 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: packages/cli/go.mod
+
       - name: Install dependencies
         run: make install-deps
 
@@ -37,7 +42,7 @@ jobs:
         run: make test-coverage
 
       - name: Upload coverage to Codecov
-        if: always()
+        if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: codecov/codecov-action@v4
         with:
           use_oidc: true
