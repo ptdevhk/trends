@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -111,13 +112,89 @@ func TestNewMigrateBackfillManual51jobCmdConfig(t *testing.T) {
 	}
 }
 
+func TestParsePaginatedMigrationBatchParsesJSON(t *testing.T) {
+	result, err := parsePaginatedMigrationBatch(`{"scannedResumes":50,"updatedResumes":7,"hasMore":true,"cursor":"next-cursor"}`)
+	if err != nil {
+		t.Fatalf("parsePaginatedMigrationBatch returned error: %v", err)
+	}
+	if result.ScannedResumes != 50 || result.UpdatedResumes != 7 || !result.HasMore {
+		t.Fatalf("unexpected parsed batch: %+v", result)
+	}
+	if result.Cursor == nil || *result.Cursor != "next-cursor" {
+		t.Fatalf("unexpected cursor: %+v", result.Cursor)
+	}
+}
+
+func TestParsePaginatedMigrationBatchParsesConvexObjectLiteral(t *testing.T) {
+	result, err := parsePaginatedMigrationBatch(`{ scannedResumes: 25, updatedResumes: 0, hasMore: false, cursor: null }`)
+	if err != nil {
+		t.Fatalf("parsePaginatedMigrationBatch returned error: %v", err)
+	}
+	if result.ScannedResumes != 25 || result.UpdatedResumes != 0 || result.HasMore {
+		t.Fatalf("unexpected parsed batch: %+v", result)
+	}
+	if result.Cursor != nil {
+		t.Fatalf("expected nil cursor, got %+v", result.Cursor)
+	}
+}
+
+func TestRunPaginatedMigrationLoopsUntilComplete(t *testing.T) {
+	var gotArgs [][]string
+	callCount := 0
+
+	runner := func(ctx context.Context, migration string, extraArgs ...string) (string, error) {
+		gotArgs = append(gotArgs, append([]string(nil), extraArgs...))
+		callCount += 1
+		switch callCount {
+		case 1:
+			return `{ scannedResumes: 50, updatedResumes: 3, hasMore: true, cursor: "next-cursor" }`, nil
+		case 2:
+			return `{"scannedResumes":20,"updatedResumes":1,"hasMore":false,"cursor":null}`, nil
+		default:
+			t.Fatalf("unexpected extra invocation %d", callCount)
+			return "", nil
+		}
+	}
+
+	output, err := runPaginatedMigration(context.Background(), runner, migrationReindexSearchText, 50)
+	if err != nil {
+		t.Fatalf("runPaginatedMigration returned error: %v", err)
+	}
+
+	wantArgs := [][]string{
+		{`{"batchSize":50}`},
+		{`{"batchSize":50,"cursor":"next-cursor"}`},
+	}
+	if !reflect.DeepEqual(gotArgs, wantArgs) {
+		t.Fatalf("unexpected args: got %v want %v", gotArgs, wantArgs)
+	}
+
+	var summary paginatedMigrationSummary
+	if err := json.Unmarshal([]byte(output), &summary); err != nil {
+		t.Fatalf("failed to decode summary: %v", err)
+	}
+	if summary.Batches != 2 || summary.ScannedResumes != 70 || summary.UpdatedResumes != 4 {
+		t.Fatalf("unexpected summary: %+v", summary)
+	}
+}
+
 func TestMigrateReindexCommandWritesJSON(t *testing.T) {
 	setCLIOutput(t, "json")
 
-	var gotArgs []string
+	var gotArgs [][]string
+	callCount := 0
 	stubConvexExecutor(t, func(ctx context.Context, args []string) (string, error) {
-		gotArgs = append([]string(nil), args...)
-		return "reindex complete", nil
+		gotArgs = append(gotArgs, append([]string(nil), args...))
+		callCount += 1
+		switch callCount {
+		case 1:
+			return `{ scannedResumes: 100, updatedResumes: 8, hasMore: true, cursor: "cursor-1" }`, nil
+		case 2:
+			return `{ scannedResumes: 40, updatedResumes: 2, hasMore: false, cursor: null }`, nil
+		default:
+			t.Fatalf("unexpected extra invocation %d", callCount)
+			return "", nil
+		}
 	})
 
 	cmd := newMigrateReindexCmd()
@@ -129,7 +206,10 @@ func TestMigrateReindexCommandWritesJSON(t *testing.T) {
 		t.Fatalf("reindex command failed: %v", err)
 	}
 
-	wantArgs := []string{"convex", "run", migrationReindexSearchText}
+	wantArgs := [][]string{
+		{"convex", "run", migrationReindexSearchText, `{"batchSize":100}`},
+		{"convex", "run", migrationReindexSearchText, `{"batchSize":100,"cursor":"cursor-1"}`},
+	}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {
 		t.Fatalf("unexpected args: got %v want %v", gotArgs, wantArgs)
 	}
@@ -138,7 +218,7 @@ func TestMigrateReindexCommandWritesJSON(t *testing.T) {
 	if payload["migration"] != migrationReindexSearchText {
 		t.Fatalf("unexpected migration payload: %#v", payload)
 	}
-	if payload["output"] != "reindex complete" {
+	if payload["output"] != `{"batches":2,"scannedResumes":140,"updatedResumes":10}` {
 		t.Fatalf("unexpected output payload: %#v", payload)
 	}
 }
@@ -209,21 +289,34 @@ func TestMigrateBackfillScoreCommandWritesJSON(t *testing.T) {
 }
 
 func TestRunMCPToolMigrateReindexSearch(t *testing.T) {
-	var gotArgs []string
+	var gotArgs [][]string
+	callCount := 0
 	stubConvexExecutor(t, func(ctx context.Context, args []string) (string, error) {
-		gotArgs = append([]string(nil), args...)
-		return "mcp reindex complete", nil
+		gotArgs = append(gotArgs, append([]string(nil), args...))
+		callCount += 1
+		switch callCount {
+		case 1:
+			return `{ scannedResumes: 75, updatedResumes: 5, hasMore: true, cursor: "cursor-2" }`, nil
+		case 2:
+			return `{ scannedResumes: 25, updatedResumes: 1, hasMore: false, cursor: null }`, nil
+		default:
+			t.Fatalf("unexpected extra invocation %d", callCount)
+			return "", nil
+		}
 	})
 
 	text, err := runMCPTool(context.Background(), "migrate_reindex_search", nil)
 	if err != nil {
 		t.Fatalf("runMCPTool returned error: %v", err)
 	}
-	if text != "mcp reindex complete" {
+	if text != `{"batches":2,"scannedResumes":100,"updatedResumes":6}` {
 		t.Fatalf("unexpected tool text: %q", text)
 	}
 
-	wantArgs := []string{"convex", "run", migrationReindexSearchText}
+	wantArgs := [][]string{
+		{"convex", "run", migrationReindexSearchText, `{"batchSize":100}`},
+		{"convex", "run", migrationReindexSearchText, `{"batchSize":100,"cursor":"cursor-2"}`},
+	}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {
 		t.Fatalf("unexpected args: got %v want %v", gotArgs, wantArgs)
 	}

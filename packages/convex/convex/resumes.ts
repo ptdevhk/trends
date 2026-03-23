@@ -1147,11 +1147,22 @@ export const clearAnalyses = mutation({
     args: {
         resumeIds: v.optional(v.array(v.id("resumes"))),
         jobDescriptionId: v.optional(v.string()),
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        const page = args.resumeIds
+            ? undefined
+            : await ctx.db
+                .query("resumes")
+                .order("desc")
+                .paginate({
+                    cursor: args.cursor ?? null,
+                    numItems: resolveResumeScanBatchSize(args.batchSize),
+                });
         const resumes = args.resumeIds
             ? await Promise.all(args.resumeIds.map((id) => ctx.db.get(id)))
-            : await ctx.db.query("resumes").collect();
+            : page?.page ?? [];
 
         let cleared = 0;
         for (const resume of resumes) {
@@ -1183,7 +1194,15 @@ export const clearAnalyses = mutation({
             }
         }
 
-        return { cleared };
+        if (args.resumeIds) {
+            return { cleared, hasMore: false, cursor: null };
+        }
+
+        return {
+            cleared,
+            hasMore: page ? !page.isDone : false,
+            cursor: page && !page.isDone ? page.continueCursor : null,
+        };
     },
 });
 

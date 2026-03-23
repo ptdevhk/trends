@@ -9,7 +9,7 @@
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
 		seed-clear-demo-resumes \
-		backup-resumes restore-resumes \
+		backup-resumes restore-resumes clear-resume-analyses \
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
@@ -221,6 +221,29 @@ restore-resumes:
 	else \
 		npx tsx scripts/resume/restore-resumes.ts; \
 	fi
+
+# Clear resume AI analyses directly in Convex, batching large datasets safely
+clear-resume-analyses:
+	@batch_size="$${BATCH_SIZE:-50}"; \
+	job_description="$${JOB_DESCRIPTION:-}"; \
+	resume_ids="$${RESUME_IDS:-}"; \
+	output_flag=""; \
+	if [ "$${JSON:-}" = "1" ] || [ "$${JSON:-}" = "true" ] || [ "$${JSON:-}" = "yes" ]; then \
+		output_flag="-o json"; \
+	fi; \
+	resume_id_flags=""; \
+	if [ -n "$$resume_ids" ]; then \
+		OLD_IFS="$$IFS"; \
+		IFS=,; \
+		for resume_id in $$resume_ids; do \
+			trimmed=$$(printf "%s" "$$resume_id" | xargs); \
+			if [ -n "$$trimmed" ]; then \
+				resume_id_flags="$$resume_id_flags --resume-id $$trimmed"; \
+			fi; \
+		done; \
+		IFS="$$OLD_IFS"; \
+	fi; \
+	cd packages/cli && eval "go run . resume debug clear-analyses --batch-size $$batch_size $$output_flag $${job_description:+--job-description $$job_description} $$resume_id_flags"
 
 # Docker: start containers
 docker:
@@ -837,6 +860,10 @@ help:
 	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json"
 	@echo "                 Example: make restore-resumes FILE=/abs/path/output/resume-backups/20260321-015304"
 	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json MODE=replace YES=1"
+	@echo "  clear-resume-analyses Clear AI analyses in Convex in safe batches for large restored datasets"
+	@echo "                 Uses BATCH_SIZE=50 by default, optional JOB_DESCRIPTION=<id>, optional RESUME_IDS=a,b,c, and JSON=1"
+	@echo "                 Example: make clear-resume-analyses JSON=1"
+	@echo "                 Example: make clear-resume-analyses JOB_DESCRIPTION=lathe-sales BATCH_SIZE=25 JSON=1"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "                 See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1, and env knobs"
 	@echo "  docker         Start Docker containers"

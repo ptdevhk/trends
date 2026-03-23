@@ -61,4 +61,14 @@ describe("buildSearchText", () => {
             ],
         })).toBe("alice 2024-02 ~ 至今 current co current role 2023-01 ~ 2024-01 recent co recent role 2021-01 ~ 2022-01 middle co middle role");
     });
+
+    it("excludes raw resume snippet content from search text", () => {
+        expect(buildSearchText({
+            name: "Alice",
+            summary: "Precision machine tool sales background",
+            resumeSnippet: {
+                text: "FULL RAW RESUME HEADER WITH PRIVATE CONTACT BLOCK",
+            },
+        })).toBe("alice precision machine tool sales background");
+    });
 });

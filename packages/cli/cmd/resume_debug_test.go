@@ -339,6 +339,116 @@ func TestResumeDebugClearDemoResumesCommandWritesTable(t *testing.T) {
 	}
 }
 
+func TestParseResumeAnalysisClearBatchParsesConvexObjectLiteral(t *testing.T) {
+	result, err := parseResumeAnalysisClearBatch(`{ cleared: 12, hasMore: true, cursor: "cursor-1" }`)
+	if err != nil {
+		t.Fatalf("parseResumeAnalysisClearBatch returned error: %v", err)
+	}
+	if result.Cleared != 12 || !result.HasMore {
+		t.Fatalf("unexpected batch: %+v", result)
+	}
+	if result.Cursor == nil || *result.Cursor != "cursor-1" {
+		t.Fatalf("unexpected cursor: %+v", result.Cursor)
+	}
+}
+
+func TestRunResumeAnalysisClearPaginatesFullDataset(t *testing.T) {
+	callCount := 0
+	var gotArgs [][]string
+
+	response, err := runResumeAnalysisClear(context.Background(), resumeAnalysisClearRequest{
+		JobDescriptionID: "lathe-sales",
+		BatchSize:        40,
+	}, func(ctx context.Context, migration string, extraArgs ...string) (string, error) {
+		if migration != "resumes:clearAnalyses" {
+			t.Fatalf("unexpected migration: %s", migration)
+		}
+		gotArgs = append(gotArgs, append([]string(nil), extraArgs...))
+		callCount += 1
+		switch callCount {
+		case 1:
+			return `{ cleared: 18, hasMore: true, cursor: "cursor-1" }`, nil
+		case 2:
+			return `{"cleared":7,"hasMore":false,"cursor":null}`, nil
+		default:
+			t.Fatalf("unexpected extra invocation %d", callCount)
+			return "", nil
+		}
+	})
+	if err != nil {
+		t.Fatalf("runResumeAnalysisClear returned error: %v", err)
+	}
+
+	if response.Cleared != 25 || response.Batches != 2 || response.Targeted {
+		t.Fatalf("unexpected response: %+v", response)
+	}
+	if response.JobDescriptionID != "lathe-sales" {
+		t.Fatalf("unexpected job description id: %+v", response)
+	}
+
+	wantArgs := []string{
+		`{"batchSize":40,"jobDescriptionId":"lathe-sales"}`,
+		`{"batchSize":40,"cursor":"cursor-1","jobDescriptionId":"lathe-sales"}`,
+	}
+	if len(gotArgs) != len(wantArgs) {
+		t.Fatalf("unexpected runner args: got %v want %v", gotArgs, wantArgs)
+	}
+	for index := range wantArgs {
+		if len(gotArgs[index]) != 1 || gotArgs[index][0] != wantArgs[index] {
+			t.Fatalf("unexpected runner args: got %v want %v", gotArgs, wantArgs)
+		}
+	}
+}
+
+func TestResumeDebugClearAnalysesCommandWritesJSON(t *testing.T) {
+	setCLIOutput(t, "json")
+
+	originalRunner := runResumeAnalysisClearer
+	t.Cleanup(func() {
+		runResumeAnalysisClearer = originalRunner
+	})
+
+	runResumeAnalysisClearer = func(ctx context.Context, request resumeAnalysisClearRequest) (*resumeAnalysisClearResponse, error) {
+		if request.JobDescriptionID != "lathe-sales" {
+			t.Fatalf("unexpected job description: %q", request.JobDescriptionID)
+		}
+		if request.BatchSize != 30 {
+			t.Fatalf("unexpected batch size: %d", request.BatchSize)
+		}
+		if len(request.ResumeIDs) != 2 || request.ResumeIDs[0] != "resume-1" || request.ResumeIDs[1] != "resume-2" {
+			t.Fatalf("unexpected resume ids: %+v", request.ResumeIDs)
+		}
+		return &resumeAnalysisClearResponse{
+			Cleared:          2,
+			Batches:          1,
+			JobDescriptionID: request.JobDescriptionID,
+			ResumeIDs:        request.ResumeIDs,
+			Targeted:         true,
+		}, nil
+	}
+
+	cmd := newResumeDebugClearAnalysesCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{
+		"--job-description", "lathe-sales",
+		"--resume-id", "resume-1",
+		"--resume-id", " resume-2 ",
+		"--resume-id", "resume-1",
+		"--batch-size", "30",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug clear-analyses command failed: %v", err)
+	}
+
+	payload := decodeCommandJSON(t, output)
+	if payload["cleared"] != float64(2) || payload["targeted"] != true {
+		t.Fatalf("unexpected clear-analyses output: %+v", payload)
+	}
+}
+
 func TestResumeDebugRescoreRejectsConvex(t *testing.T) {
 	cmd := newResumeDebugRescoreCmd()
 	cmd.SetArgs([]string{"--query", "CNC 销售", "--source", "convex"})

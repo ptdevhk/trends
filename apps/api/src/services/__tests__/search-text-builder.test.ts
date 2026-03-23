@@ -91,4 +91,19 @@ describe("buildSearchText", () => {
     expect(variantB).toContain("车床");
     expect(variantA).toBe(variantB);
   });
+
+  it("excludes raw resume snippet text from indexed search content", () => {
+    const result = buildSearchText({
+      name: "Alice",
+      summary: "machine tool sales",
+      resumeSnippet: {
+        text: "FULL RAW RESUME HEADER WITH PRIVATE CONTACT BLOCK",
+      },
+    });
+
+    expect(result).toContain("alice");
+    expect(result).toContain("machine tool sales");
+    expect(result).not.toContain("full raw resume header");
+    expect(result).not.toContain("private contact block");
+  });
 });

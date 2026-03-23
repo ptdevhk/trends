@@ -4,9 +4,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
 import DebugIngest from './DebugIngest'
 
+type BatchResetResult = {
+  cleared: number
+  hasMore: boolean
+  cursor: string | null
+}
+
 const resetDatabaseMutation = vi.fn(async () => ({ count: 0 }))
-const clearAnalysesMutation = vi.fn(async () => ({ cleared: 0 }))
-const hardResetMutation = vi.fn(async () => ({ cleared: 0 }))
+const clearAnalysesMutation = vi.fn<() => Promise<BatchResetResult>>(async () => ({
+  cleared: 0,
+  hasMore: false,
+  cursor: null,
+}))
+const hardResetMutation = vi.fn<() => Promise<BatchResetResult>>(async () => ({
+  cleared: 0,
+  hasMore: false,
+  cursor: null,
+}))
 const deleteResumesMutation = vi.fn(async () => ({
   requested: 0,
   deleted: 0,
@@ -199,7 +213,7 @@ describe('DebugIngest reset database dialog', () => {
 
   it('hard resets computed data and schedules re-ingest after confirmation', async () => {
     const user = userEvent.setup()
-    hardResetMutation.mockResolvedValueOnce({ cleared: 12 })
+    hardResetMutation.mockResolvedValueOnce({ cleared: 12, hasMore: false, cursor: null })
     reIngestAllResumesAction.mockResolvedValueOnce({ scheduled: 12 })
 
     render(<DebugIngest />)
@@ -226,6 +240,27 @@ describe('DebugIngest reset database dialog', () => {
         )
       ).not.toBeInTheDocument()
     })
+  })
+
+  it('clears analyses across multiple batches and reports the total cleared count', async () => {
+    const user = userEvent.setup()
+    clearAnalysesMutation
+      .mockResolvedValueOnce({ cleared: 25, hasMore: true, cursor: 'cursor-1' })
+      .mockResolvedValueOnce({ cleared: 15, hasMore: false, cursor: null })
+
+    render(<DebugIngest />)
+
+    await user.click(screen.getByRole('button', { name: 'Reset AI Analyses' }))
+
+    await waitFor(() => {
+      expect(clearAnalysesMutation).toHaveBeenNthCalledWith(1, { cursor: undefined })
+    })
+    await waitFor(() => {
+      expect(clearAnalysesMutation).toHaveBeenNthCalledWith(2, { cursor: 'cursor-1' })
+    })
+    expect(toast.success).toHaveBeenCalledWith(
+      'Cleared analyses for 40 resumes. You can now re-run AI analysis.'
+    )
   })
 
   it('selects visible rows and bulk deletes selected resumes', async () => {
