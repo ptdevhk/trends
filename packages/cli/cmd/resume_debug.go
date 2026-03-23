@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -110,6 +111,28 @@ type workspaceDemoResumeCleanupResponse struct {
 	Tag       string `json:"tag"`
 }
 
+type resumeAnalysisClearRequest struct {
+	JobDescriptionID string   `json:"jobDescriptionId,omitempty"`
+	ResumeIDs        []string `json:"resumeIds,omitempty"`
+	BatchSize        int      `json:"batchSize,omitempty"`
+}
+
+type resumeAnalysisClearResponse struct {
+	Cleared          int      `json:"cleared"`
+	Batches          int      `json:"batches"`
+	JobDescriptionID string   `json:"jobDescriptionId,omitempty"`
+	ResumeIDs        []string `json:"resumeIds,omitempty"`
+	Targeted         bool     `json:"targeted"`
+}
+
+type paginatedAnalysisClearBatchResult struct {
+	Cleared int
+	HasMore bool
+	Cursor  *string
+}
+
+var clearedFieldPattern = regexp.MustCompile(`(?m)["']?cleared["']?\s*:\s*([0-9]+)`)
+
 var runLocalResumeAIScorer = func(ctx context.Context, request localResumeAIScoreRequest) (*localResumeAIScoreResponse, error) {
 	projectRoot, err := findProjectRoot()
 	if err != nil {
@@ -159,6 +182,10 @@ var runWorkspaceDemoResumeCleanup = func(ctx context.Context, request workspaceD
 		return nil, fmt.Errorf("decode workspace-demo resume cleanup response: %w", err)
 	}
 	return &response, nil
+}
+
+var runResumeAnalysisClearer = func(ctx context.Context, request resumeAnalysisClearRequest) (*resumeAnalysisClearResponse, error) {
+	return runResumeAnalysisClear(ctx, request, runConvexCommand)
 }
 
 var runWorkflowDatasetVerifier = func(ctx context.Context, request workflowDatasetVerificationRequest) (*workflowDatasetVerificationReport, error) {
@@ -211,6 +238,7 @@ func newResumeDebugCmd() *cobra.Command {
 		newResumeDebugMatchesCmd(),
 		newResumeDebugMatchRunsCmd(),
 		newResumeDebugClearMatchesCmd(),
+		newResumeDebugClearAnalysesCmd(),
 		newResumeDebugRescoreCmd(),
 		newResumeDebugSkillsVersionCmd(),
 		newResumeDebugTriggerReingestCmd(),
@@ -330,6 +358,47 @@ func newResumeDebugClearMatchesCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID to clear only one cache scope")
+	return cmd
+}
+
+func newResumeDebugClearAnalysesCmd() *cobra.Command {
+	var (
+		jobDescriptionID string
+		resumeIDs        []string
+		batchSize        int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "clear-analyses",
+		Short: "Clear resume AI analyses directly in Convex, batching large datasets safely",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if batchSize <= 0 {
+				return fmt.Errorf("batch-size must be greater than 0")
+			}
+
+			response, err := runResumeAnalysisClearer(context.Background(), resumeAnalysisClearRequest{
+				JobDescriptionID: strings.TrimSpace(jobDescriptionID),
+				ResumeIDs:        normalizeResumeIDList(resumeIDs),
+				BatchSize:        batchSize,
+			})
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"cleared", "batches", "targeted", "job_description"}
+			rows := [][]string{{
+				strconv.Itoa(response.Cleared),
+				strconv.Itoa(response.Batches),
+				fmt.Sprintf("%t", response.Targeted),
+				response.JobDescriptionID,
+			}}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID to clear only one analysis scope")
+	cmd.Flags().StringSliceVar(&resumeIDs, "resume-id", nil, "Optional specific Convex resume IDs to clear")
+	cmd.Flags().IntVar(&batchSize, "batch-size", 50, "Batch size for full-dataset clearing")
 	return cmd
 }
 
@@ -626,6 +695,153 @@ func newResumeDebugClearDemoResumesCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&convexURL, "convex-url", "", "Optional Convex URL override for workspace-demo resume cleanup")
 	return cmd
+}
+
+func runResumeAnalysisClear(ctx context.Context, request resumeAnalysisClearRequest, runner convexRunner) (*resumeAnalysisClearResponse, error) {
+	normalizedResumeIDs := normalizeResumeIDList(request.ResumeIDs)
+	normalizedJobDescriptionID := strings.TrimSpace(request.JobDescriptionID)
+
+	if len(normalizedResumeIDs) > 0 {
+		payload, err := buildResumeAnalysisClearPayload(normalizedJobDescriptionID, normalizedResumeIDs, request.BatchSize, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		output, err := runner(ctx, "resumes:clearAnalyses", payload)
+		if err != nil {
+			return nil, err
+		}
+
+		batch, err := parseResumeAnalysisClearBatch(output)
+		if err != nil {
+			return nil, err
+		}
+
+		return &resumeAnalysisClearResponse{
+			Cleared:          batch.Cleared,
+			Batches:          1,
+			JobDescriptionID: normalizedJobDescriptionID,
+			ResumeIDs:        normalizedResumeIDs,
+			Targeted:         true,
+		}, nil
+	}
+
+	totalCleared := 0
+	batches := 0
+	cursor := (*string)(nil)
+
+	for iteration := 0; iteration < maxPaginatedMigrationIterations; iteration += 1 {
+		payload, err := buildResumeAnalysisClearPayload(normalizedJobDescriptionID, nil, request.BatchSize, cursor)
+		if err != nil {
+			return nil, err
+		}
+
+		output, err := runner(ctx, "resumes:clearAnalyses", payload)
+		if err != nil {
+			return nil, err
+		}
+
+		batch, err := parseResumeAnalysisClearBatch(output)
+		if err != nil {
+			return nil, err
+		}
+
+		totalCleared += batch.Cleared
+		batches += 1
+
+		if !batch.HasMore {
+			return &resumeAnalysisClearResponse{
+				Cleared:          totalCleared,
+				Batches:          batches,
+				JobDescriptionID: normalizedJobDescriptionID,
+				Targeted:         false,
+			}, nil
+		}
+
+		if batch.Cursor == nil || strings.TrimSpace(*batch.Cursor) == "" {
+			return nil, fmt.Errorf("resumes:clearAnalyses returned hasMore without a follow-up cursor")
+		}
+		cursor = batch.Cursor
+	}
+
+	return nil, fmt.Errorf("resumes:clearAnalyses exceeded maximum pagination iterations (%d)", maxPaginatedMigrationIterations)
+}
+
+func buildResumeAnalysisClearPayload(jobDescriptionID string, resumeIDs []string, batchSize int, cursor *string) (string, error) {
+	payload := map[string]any{}
+	if trimmed := strings.TrimSpace(jobDescriptionID); trimmed != "" {
+		payload["jobDescriptionId"] = trimmed
+	}
+	if len(resumeIDs) > 0 {
+		payload["resumeIds"] = resumeIDs
+	} else {
+		payload["batchSize"] = normalizeMigrationLimit(batchSize)
+		if cursor != nil && strings.TrimSpace(*cursor) != "" {
+			payload["cursor"] = *cursor
+		}
+	}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+func parseResumeAnalysisClearBatch(output string) (paginatedAnalysisClearBatchResult, error) {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return paginatedAnalysisClearBatchResult{}, fmt.Errorf("empty resume analysis clear output")
+	}
+
+	var decoded struct {
+		Cleared int     `json:"cleared"`
+		HasMore bool    `json:"hasMore"`
+		Cursor  *string `json:"cursor"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &decoded); err == nil {
+		return paginatedAnalysisClearBatchResult{
+			Cleared: decoded.Cleared,
+			HasMore: decoded.HasMore,
+			Cursor:  decoded.Cursor,
+		}, nil
+	}
+
+	cleared, ok := extractRegexInt(trimmed, clearedFieldPattern)
+	if !ok {
+		return paginatedAnalysisClearBatchResult{}, fmt.Errorf("unable to parse cleared from %q", trimmed)
+	}
+	hasMore, ok := extractRegexBool(trimmed, hasMoreFieldPattern)
+	if !ok {
+		return paginatedAnalysisClearBatchResult{}, fmt.Errorf("unable to parse hasMore from %q", trimmed)
+	}
+	cursor, ok := extractRegexNullableString(trimmed, cursorFieldPattern)
+	if !ok && hasMore {
+		return paginatedAnalysisClearBatchResult{}, fmt.Errorf("unable to parse cursor from %q", trimmed)
+	}
+
+	return paginatedAnalysisClearBatchResult{
+		Cleared: cleared,
+		HasMore: hasMore,
+		Cursor:  cursor,
+	}, nil
+}
+
+func normalizeResumeIDList(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized
 }
 
 func formatWorkflowDatasetCounts(rows []workflowDatasetSourceCountRow) string {

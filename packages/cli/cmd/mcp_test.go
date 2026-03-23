@@ -173,10 +173,48 @@ func TestMCPToolsIncludeResumeDebugReadOnlyTools(t *testing.T) {
 		names[name] = true
 	}
 
-	for _, required := range []string{"resume_matches", "resume_match_runs", "resume_skills_version", "migrate_backfill_manual_51job"} {
+	for _, required := range []string{"resume_matches", "resume_match_runs", "resume_skills_version", "resume_clear_analyses", "migrate_backfill_manual_51job"} {
 		if !names[required] {
 			t.Fatalf("missing MCP tool %q", required)
 		}
+	}
+}
+
+func TestRunMCPToolResumeClearAnalyses(t *testing.T) {
+	originalRunner := runResumeAnalysisClearer
+	t.Cleanup(func() {
+		runResumeAnalysisClearer = originalRunner
+	})
+
+	runResumeAnalysisClearer = func(ctx context.Context, request resumeAnalysisClearRequest) (*resumeAnalysisClearResponse, error) {
+		if request.JobDescriptionID != "lathe-sales" {
+			t.Fatalf("unexpected job description: %q", request.JobDescriptionID)
+		}
+		if request.BatchSize != 25 {
+			t.Fatalf("unexpected batch size: %d", request.BatchSize)
+		}
+		if len(request.ResumeIDs) != 2 || request.ResumeIDs[0] != "resume-1" || request.ResumeIDs[1] != "resume-2" {
+			t.Fatalf("unexpected resume ids: %+v", request.ResumeIDs)
+		}
+		return &resumeAnalysisClearResponse{
+			Cleared:          2,
+			Batches:          1,
+			JobDescriptionID: request.JobDescriptionID,
+			ResumeIDs:        request.ResumeIDs,
+			Targeted:         true,
+		}, nil
+	}
+
+	text, err := runMCPTool(context.Background(), "resume_clear_analyses", map[string]interface{}{
+		"jobDescriptionId": "lathe-sales",
+		"resumeIds":        []interface{}{"resume-1", " resume-2 ", "resume-1"},
+		"batchSize":        float64(25),
+	})
+	if err != nil {
+		t.Fatalf("runMCPTool returned error: %v", err)
+	}
+	if !strings.Contains(text, `"cleared": 2`) || !strings.Contains(text, `"targeted": true`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
 	}
 }
 

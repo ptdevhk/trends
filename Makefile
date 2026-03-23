@@ -1,6 +1,6 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
+.PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-ensure dev-convex-status dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
 		worker worker-once install install-seed deploy deploy-check deploy-seed install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
@@ -9,7 +9,7 @@
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
 		seed-clear-demo-resumes \
-		backup-resumes restore-resumes \
+		backup-resumes restore-resumes restore-resumes-restart clear-resume-analyses clear-resume-analyses-restart \
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
@@ -75,6 +75,164 @@ dev-mcp:
 # Run crawler only (no long-running services)
 dev-crawl:
 	./scripts/dev.sh --crawl-only $(ARGS)
+
+# Start only local Convex dev backend
+dev-convex:
+	@if [ -d "packages/convex" ]; then \
+		if command -v bun >/dev/null 2>&1; then \
+			cd packages/convex && bun run dev; \
+		else \
+			cd packages/convex && npm run dev; \
+		fi; \
+	else \
+		echo "packages/convex not found."; \
+		exit 1; \
+	fi
+
+# Stop only local Convex dev backend listeners
+dev-convex-stop:
+	@project_root="$(CURDIR)"; \
+	convex_port="$${CONVEX_PORT:-3210}"; \
+	site_port="3211"; \
+	tmux_session="$${CONVEX_TMUX_SESSION:-trends-convex}"; \
+	pids="$$( { \
+		lsof -tiTCP:"$$convex_port" -sTCP:LISTEN 2>/dev/null; \
+		lsof -tiTCP:"$$site_port" -sTCP:LISTEN 2>/dev/null; \
+		pgrep -f "$$project_root/node_modules/.bin/convex dev" 2>/dev/null; \
+	} | sort -u )"; \
+	tmux_active="false"; \
+	if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$$tmux_session" 2>/dev/null; then \
+		tmux_active="true"; \
+	fi; \
+	if [ -z "$$pids" ] && [ "$$tmux_active" != "true" ]; then \
+		echo "No local Convex listeners found on ports $$convex_port/$$site_port."; \
+		exit 0; \
+	fi; \
+	if [ "$$tmux_active" = "true" ]; then \
+		echo "Stopping local Convex tmux session: $$tmux_session"; \
+		tmux kill-session -t "$$tmux_session" 2>/dev/null || true; \
+	fi; \
+	if [ -n "$$pids" ]; then \
+		echo "Stopping local Convex process groups for PIDs: $$pids"; \
+		for pid in $$pids; do \
+			pgid="$$(ps -o pgid= -p "$$pid" | tr -d '[:space:]')"; \
+			if [ -n "$$pgid" ]; then \
+				kill -TERM -"$$pgid" 2>/dev/null || true; \
+			else \
+				kill -TERM "$$pid" 2>/dev/null || true; \
+			fi; \
+		done; \
+	fi; \
+	for _ in 1 2 3 4 5 6 7 8 9 10; do \
+		tmux_running="false"; \
+		if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$$tmux_session" 2>/dev/null; then \
+			tmux_running="true"; \
+		fi; \
+		if ! ss -ltn "( sport = :$$convex_port or sport = :$$site_port )" | rg -q ":$$convex_port|:$$site_port" \
+			&& ! pgrep -f "$$project_root/node_modules/.bin/convex dev" >/dev/null 2>&1 \
+			&& [ "$$tmux_running" != "true" ]; then \
+			echo "Local Convex stopped."; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "Local Convex is still running after SIGTERM; use make dev-clean if you need a full cleanup."; \
+	exit 1
+
+# Restart only local Convex dev backend
+dev-convex-restart:
+	@$(MAKE) dev-convex-stop || exit $$?; \
+	$(MAKE) dev-convex
+
+# Refresh local Convex in a detached tmux session when available
+dev-convex-refresh:
+	@project_root="$(CURDIR)"; \
+	convex_port="$${CONVEX_PORT:-3210}"; \
+	tmux_session="$${CONVEX_TMUX_SESSION:-trends-convex}"; \
+	$(MAKE) dev-convex-stop || exit $$?; \
+	if ! command -v tmux >/dev/null 2>&1; then \
+		echo "tmux not found; falling back to foreground make dev-convex-restart."; \
+		$(MAKE) dev-convex-restart; \
+		exit $$?; \
+	fi; \
+	if tmux has-session -t "$$tmux_session" 2>/dev/null; then \
+		tmux kill-session -t "$$tmux_session" 2>/dev/null || true; \
+	fi; \
+	runner="npx"; \
+	if command -v bun >/dev/null 2>&1; then runner="bunx"; fi; \
+	tmux new-session -d -s "$$tmux_session" "cd '$$project_root/packages/convex' && env -u TZ $$runner convex dev"; \
+	for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+		if curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \
+			echo "Local Convex refreshed and ready at http://127.0.0.1:$$convex_port via tmux session $$tmux_session"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "Local Convex did not become ready after tmux refresh; recent tmux output follows:"; \
+	tmux capture-pane -pt "$$tmux_session:0" -S -40 2>/dev/null || true; \
+	exit 1
+
+# Ensure local Convex is reachable before maintenance operations run
+dev-convex-ensure:
+	@convex_port="$${CONVEX_PORT:-3210}"; \
+	if curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \
+		echo "Local Convex already reachable at http://127.0.0.1:$$convex_port"; \
+		exit 0; \
+	fi; \
+	$(MAKE) dev-convex-refresh
+
+# Show local Convex listener/process/data status
+dev-convex-status:
+	@convex_port="$${CONVEX_PORT:-3210}"; \
+	site_port="3211"; \
+	state_dir="$${CONVEX_STATE_DIR:-$$HOME/.convex/anonymous-convex-backend-state/anonymous-agent}"; \
+	echo "Local Convex listeners:"; \
+	ss -ltnp "( sport = :$$convex_port or sport = :$$site_port )" || true; \
+	echo ""; \
+	echo "Local Convex processes:"; \
+	listener_pids="$$( { \
+		lsof -tiTCP:"$$convex_port" -sTCP:LISTEN 2>/dev/null; \
+		lsof -tiTCP:"$$site_port" -sTCP:LISTEN 2>/dev/null; \
+	} | sort -u )"; \
+	pids="$$( { \
+		printf '%s\n' "$$listener_pids"; \
+		for pid in $$listener_pids; do \
+			current="$$pid"; \
+			for _ in 1 2 3; do \
+				parent="$$(ps -o ppid= -p "$$current" | tr -d '[:space:]')"; \
+				if [ -z "$$parent" ] || [ "$$parent" -le 1 ]; then \
+					break; \
+				fi; \
+				printf '%s\n' "$$parent"; \
+				current="$$parent"; \
+			done; \
+		done; \
+	} | sort -u | tr '\n' ' ' )"; \
+	if [ -n "$$pids" ]; then \
+		ps -o pid,ppid,pgid,rss,%mem,etime,cmd -p $$pids; \
+	else \
+		echo "No local Convex processes found."; \
+	fi; \
+	echo ""; \
+	echo "Local Convex state:"; \
+	if [ -d "$$state_dir" ]; then \
+		du -sh "$$state_dir"; \
+		ls -lh "$$state_dir"/convex_local_backend.sqlite3 2>/dev/null || true; \
+	else \
+		echo "State directory not found: $$state_dir"; \
+	fi; \
+	echo ""; \
+	if ! curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \
+		echo "Convex at http://127.0.0.1:$$convex_port is not reachable."; \
+		exit 0; \
+	fi; \
+	runner="npx"; \
+	if command -v bun >/dev/null 2>&1; then runner="bunx"; fi; \
+	echo "Resume count:"; \
+	(cd packages/convex && "$$runner" convex run resumes:count); \
+	echo ""; \
+	echo "Resume tasks:"; \
+	(cd packages/convex && "$$runner" convex run resume_tasks:list)
 
 # Start web frontend only (React + Vite on port 5173)
 dev-web:
@@ -221,6 +379,41 @@ restore-resumes:
 	else \
 		npx tsx scripts/resume/restore-resumes.ts; \
 	fi
+
+# Restore resume records, then restart local Convex to release retained restore RSS
+restore-resumes-restart:
+	@$(MAKE) dev-convex-ensure
+	@$(MAKE) restore-resumes API_URL="$(API_URL)" WORKSPACE="$(WORKSPACE)" FILE="$(FILE)" MODE="$(MODE)" YES="$(YES)"
+	@$(MAKE) dev-convex-refresh
+
+# Clear resume AI analyses directly in Convex, batching large datasets safely
+clear-resume-analyses:
+	@batch_size="$${BATCH_SIZE:-50}"; \
+	job_description="$${JOB_DESCRIPTION:-}"; \
+	resume_ids="$${RESUME_IDS:-}"; \
+	output_flag=""; \
+	if [ "$${JSON:-}" = "1" ] || [ "$${JSON:-}" = "true" ] || [ "$${JSON:-}" = "yes" ]; then \
+		output_flag="-o json"; \
+	fi; \
+	resume_id_flags=""; \
+	if [ -n "$$resume_ids" ]; then \
+		OLD_IFS="$$IFS"; \
+		IFS=,; \
+		for resume_id in $$resume_ids; do \
+			trimmed=$$(printf "%s" "$$resume_id" | xargs); \
+			if [ -n "$$trimmed" ]; then \
+				resume_id_flags="$$resume_id_flags --resume-id $$trimmed"; \
+			fi; \
+		done; \
+		IFS="$$OLD_IFS"; \
+		fi; \
+	cd packages/cli && eval "go run . resume debug clear-analyses --batch-size $$batch_size $$output_flag $${job_description:+--job-description $$job_description} $$resume_id_flags"
+
+# Clear resume AI analyses, then restart local Convex to release scan-time RSS
+clear-resume-analyses-restart:
+	@$(MAKE) dev-convex-ensure
+	@$(MAKE) clear-resume-analyses BATCH_SIZE="$(BATCH_SIZE)" JOB_DESCRIPTION="$(JOB_DESCRIPTION)" RESUME_IDS="$(RESUME_IDS)" JSON="$(JSON)"
+	@$(MAKE) dev-convex-refresh
 
 # Docker: start containers
 docker:
@@ -810,6 +1003,14 @@ help:
 	@echo "  dev-clean      Kill stale dev processes and free dev ports"
 	@echo "  dev-mcp        Start only MCP server (HTTP on port 3333)"
 	@echo "  dev-crawl      Run crawler only (no long-running services)"
+	@echo "  dev-convex     Start only local Convex dev backend"
+	@echo "  dev-convex-stop Stop local Convex listeners on ports 3210/3211 and the default Convex tmux session"
+	@echo "                 Use this when large restored datasets keep local Convex RSS high and you do not need it running"
+	@echo "  dev-convex-restart Restart only local Convex dev backend (foreground)"
+	@echo "  dev-convex-refresh Refresh local Convex in detached tmux mode when tmux is available"
+	@echo "                 Best for recovering from an unreachable local backend; large restored datasets may still settle at high RSS"
+	@echo "  dev-convex-ensure Start local Convex only when http://127.0.0.1:3210 is currently unreachable"
+	@echo "  dev-convex-status Show local Convex listeners, process RSS, state size, resume count, and backlog"
 	@echo "  dev-web        Start React frontend (Vite on port 5173)"
 	@echo "  dev-api        Start Hono BFF API server (port 3000)"
 	@echo "  dev-api-worker Start FastAPI worker REST API (port 8000)"
@@ -837,6 +1038,16 @@ help:
 	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json"
 	@echo "                 Example: make restore-resumes FILE=/abs/path/output/resume-backups/20260321-015304"
 	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json MODE=replace YES=1"
+	@echo "  restore-resumes-restart Restore resumes, then restart local Convex to drop retained restore RSS"
+	@echo "                 Uses the same arguments as restore-resumes; ensures local Convex is up first, then refreshes it afterward"
+	@echo "                 Example: make restore-resumes-restart FILE=/abs/path/resume-backup.json"
+	@echo "  clear-resume-analyses Clear AI analyses in Convex in safe batches for large restored datasets"
+	@echo "                 Uses BATCH_SIZE=50 by default, optional JOB_DESCRIPTION=<id>, optional RESUME_IDS=a,b,c, and JSON=1"
+	@echo "                 Example: make clear-resume-analyses JSON=1"
+	@echo "                 Example: make clear-resume-analyses JOB_DESCRIPTION=lathe-sales BATCH_SIZE=25 JSON=1"
+	@echo "  clear-resume-analyses-restart Clear AI analyses, then restart local Convex to drop retained RSS"
+	@echo "                 Uses the same arguments as clear-resume-analyses; ensures local Convex is up first, then refreshes it afterward"
+	@echo "                 Example: make clear-resume-analyses-restart JSON=1"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "                 See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1, and env knobs"
 	@echo "  docker         Start Docker containers"

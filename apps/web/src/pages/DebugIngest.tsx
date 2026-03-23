@@ -352,11 +352,17 @@ export default function DebugIngest() {
   const clearAnalyses = useCallback(async () => {
     setClearingAnalyses(true)
     try {
-      const result = await clearAnalysesMutation({})
+      let totalCleared = 0
+      let cursor: string | undefined
+      do {
+        const result = await clearAnalysesMutation({ cursor })
+        totalCleared += result.cleared
+        cursor = result.hasMore ? (result.cursor ?? undefined) : undefined
+      } while (cursor)
       toast.success(
         t('debugIngest.clearAnalysesSuccess', {
-          cleared: result.cleared,
-          defaultValue: `Cleared analyses for ${result.cleared} resumes. You can now re-run AI analysis.`,
+          cleared: totalCleared,
+          defaultValue: `Cleared analyses for ${totalCleared} resumes. You can now re-run AI analysis.`,
         }),
       )
     } catch (error) {

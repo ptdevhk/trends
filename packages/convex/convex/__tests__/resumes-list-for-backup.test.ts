@@ -13,6 +13,11 @@ type BackupRow = {
   tags: string[]
   crawledAt: number
   content: Record<string, unknown>
+  searchText?: string
+  primaryRuleScore?: number
+  ingestData?: Record<string, unknown>
+  analysis?: Record<string, unknown>
+  analyses?: Record<string, unknown>
 }
 
 const listForBackupHandler = (listForBackup as unknown as ConvexHandler<
@@ -50,6 +55,19 @@ describe("listForBackup", () => {
             source: "hr.job5156.com",
             tags: ["sales", "job5156"],
             crawledAt: 200,
+            searchText: "alice sales dongguan",
+            primaryRuleScore: 93,
+            ingestData: {
+              industryTags: ["machine tools"],
+            },
+            analysis: {
+              score: 86,
+            },
+            analyses: {
+              "source:job5156|analysis:lathe-sales": {
+                score: 86,
+              },
+            },
             content: {
               resumeId: "1001",
               name: "Alice",
@@ -107,6 +125,19 @@ describe("listForBackup", () => {
           source: "hr.job5156.com",
           tags: ["sales", "job5156"],
           crawledAt: 200,
+          searchText: "alice sales dongguan",
+          primaryRuleScore: 93,
+          ingestData: {
+            industryTags: ["machine tools"],
+          },
+          analysis: {
+            score: 86,
+          },
+          analyses: {
+            "source:job5156|analysis:lathe-sales": {
+              score: 86,
+            },
+          },
           content: {
             resumeId: "1001",
             name: "Alice",
@@ -142,6 +173,8 @@ describe("listForBackup", () => {
             source: "hk.employer.seek.com",
             tags: ["seek"],
             crawledAt: 100,
+            searchText: "bob seek sales",
+            primaryRuleScore: 81,
             content: {
               profileId: "2002",
               profileType: "seek",
@@ -201,6 +234,8 @@ describe("listForBackup", () => {
         source: "hk.employer.seek.com",
         tags: ["seek"],
         crawledAt: 100,
+        searchText: "bob seek sales",
+        primaryRuleScore: 81,
         content: {
           profileId: "2002",
           profileType: "seek",

@@ -36,6 +36,8 @@ type ResumeDoc = {
   };
 };
 
+type WorkflowDatasetPageRow = Pick<ResumeDoc, "source" | "content">;
+
 type SearchResult = {
   resume: ResumeDoc;
   provenance: Array<{
@@ -92,6 +94,8 @@ type WorkflowVerificationReport = {
   visibleBySourceKey: SourceCountRow[];
   visibleResumes: VisibleResumeRow[];
 };
+
+const WORKFLOW_DATASET_PAGE_SIZE = 50;
 
 function toOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -228,6 +232,31 @@ async function fetchKeywordExpansion(apiBaseUrl: string, workspace: string, quer
   return payload.summary;
 }
 
+async function listWorkflowDatasetRows(client: ConvexHttpClient): Promise<WorkflowDatasetPageRow[]> {
+  const rows: WorkflowDatasetPageRow[] = [];
+  let cursor: string | undefined;
+
+  while (true) {
+    const page = await client.query(api.resumes.listWorkflowDatasetPage, {
+      limit: WORKFLOW_DATASET_PAGE_SIZE,
+      ...(cursor ? { cursor } : {}),
+    });
+
+    rows.push(...(page.page as WorkflowDatasetPageRow[]));
+
+    if (page.isDone) {
+      return rows;
+    }
+
+    cursor = typeof page.continueCursor === "string" && page.continueCursor.length > 0
+      ? page.continueCursor
+      : undefined;
+    if (!cursor) {
+      throw new Error("listWorkflowDatasetPage returned an unfinished page without a continueCursor");
+    }
+  }
+}
+
 function toVisibleResumeRow(
   resume: ResumeDoc,
   jobDescriptionId: string | undefined,
@@ -296,11 +325,11 @@ function printReport(report: WorkflowVerificationReport): void {
 export async function buildWorkflowVerificationReport(options: CliOptions): Promise<WorkflowVerificationReport> {
   const client = new ConvexHttpClient(options.convexUrl);
 
-  const [totalResumeCount, allResumes, keywordExpansion] = await Promise.all([
-    client.query(api.resumes.count, {}),
-    client.query(api.resumes.listWithIngestData, { limit: options.limit }),
+  const [allResumes, keywordExpansion] = await Promise.all([
+    listWorkflowDatasetRows(client),
     fetchKeywordExpansion(options.apiBaseUrl, options.workspace, options.query),
   ]);
+  const totalResumeCount = allResumes.length;
 
   const searchResult = await client.query(api.resumes.searchWithTagExpansion, {
     query: options.query,
@@ -335,9 +364,9 @@ export async function buildWorkflowVerificationReport(options: CliOptions): Prom
     sourceKey: options.sourceKey,
     workspace: options.workspace,
     totalResumeCount,
-    scannedResumeCount: allResumes.length,
-    datasetBySourceHost: countByKey(allResumes as ResumeDoc[], (resume) => resume.source),
-    datasetBySourceKey: countByKey(allResumes as ResumeDoc[], getResumeSourceKey),
+    scannedResumeCount: totalResumeCount,
+    datasetBySourceHost: countByKey(allResumes, (resume) => resume.source),
+    datasetBySourceKey: countByKey(allResumes, getResumeSourceKey),
     keywordExpansion,
     queryMatchCount: queryMatches.length,
     queryMatchesBySourceHost: countByKey(queryMatches, (resume) => resume.source),

@@ -1,4 +1,5 @@
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { api } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
@@ -147,6 +148,18 @@ export type ResumeScanRow = {
     searchText: Doc<"resumes">["searchText"];
 };
 
+export type ResumeUsageScanRow = {
+    analysis?: Doc<"resumes">["analysis"];
+    analyses?: Doc<"resumes">["analyses"];
+};
+
+export type ResumeWorkflowDatasetRow = {
+    source: Doc<"resumes">["source"];
+    content?: {
+        profileType?: string;
+    };
+};
+
 type ResumeBackupRow = {
     _id: Doc<"resumes">["_id"];
     externalId: string;
@@ -154,6 +167,11 @@ type ResumeBackupRow = {
     tags: string[];
     crawledAt: number;
     content: Doc<"resumes">["content"];
+    searchText?: Doc<"resumes">["searchText"];
+    primaryRuleScore?: Doc<"resumes">["primaryRuleScore"];
+    ingestData?: Doc<"resumes">["ingestData"];
+    analysis?: Doc<"resumes">["analysis"];
+    analyses?: Doc<"resumes">["analyses"];
 };
 
 type ResumeBackupFilterArgs = {
@@ -310,6 +328,11 @@ function projectResumeBackupRow(resume: Doc<"resumes">): ResumeBackupRow {
         tags: resume.tags,
         crawledAt: resume.crawledAt,
         content: resume.content,
+        searchText: resume.searchText,
+        primaryRuleScore: resume.primaryRuleScore,
+        ingestData: resume.ingestData,
+        analysis: resume.analysis,
+        analyses: resume.analyses,
     };
 }
 
@@ -572,11 +595,28 @@ function mergeResumeDocs(
         .slice(0, limit);
 }
 
-export const count = query({
+export const count = action({
     args: {},
     handler: async (ctx) => {
-        const docs = await ctx.db.query("resumes").collect();
-        return docs.length;
+        let total = 0;
+        let cursor: string | undefined;
+
+        while (true) {
+            const page = await ctx.runQuery(api.resumes.listWorkflowDatasetPage, {
+                limit: MAX_RESUME_SCAN_BATCH_SIZE,
+                ...(cursor ? { cursor } : {}),
+            });
+
+            total += page.page.length;
+            if (page.isDone) {
+                return total;
+            }
+
+            cursor = page.continueCursor ?? undefined;
+            if (!cursor) {
+                throw new Error("listWorkflowDatasetPage returned an unfinished page without a continueCursor");
+            }
+        }
     },
 });
 
@@ -653,6 +693,35 @@ export const listIngestDiagnostics = query({
         return {
             ...page,
             page: page.page.map(projectIngestDiagnosticsRow),
+        };
+    },
+});
+
+export const listWorkflowDatasetPage = query({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.limit),
+            });
+
+        return {
+            continueCursor: page.continueCursor,
+            isDone: page.isDone,
+            page: page.page.map((resume): ResumeWorkflowDatasetRow => {
+                const content = isRecord(resume.content) ? resume.content : {};
+                const profileType = toOptionalStringValue(content.profileType);
+                return {
+                    source: resume.source,
+                    ...(profileType ? { content: { profileType } } : {}),
+                };
+            }),
         };
     },
 });
@@ -1143,15 +1212,51 @@ export const listResumeScanBatch = internalQuery({
     },
 });
 
+export const listResumeUsageBatch = internalQuery({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.limit),
+            });
+
+        return {
+            continueCursor: page.continueCursor,
+            isDone: page.isDone,
+            page: page.page.map((resume): ResumeUsageScanRow => ({
+                analysis: resume.analysis,
+                analyses: resume.analyses,
+            })),
+        };
+    },
+});
+
 export const clearAnalyses = mutation({
     args: {
         resumeIds: v.optional(v.array(v.id("resumes"))),
         jobDescriptionId: v.optional(v.string()),
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        const page = args.resumeIds
+            ? undefined
+            : await ctx.db
+                .query("resumes")
+                .order("desc")
+                .paginate({
+                    cursor: args.cursor ?? null,
+                    numItems: resolveResumeScanBatchSize(args.batchSize),
+                });
         const resumes = args.resumeIds
             ? await Promise.all(args.resumeIds.map((id) => ctx.db.get(id)))
-            : await ctx.db.query("resumes").collect();
+            : page?.page ?? [];
 
         let cleared = 0;
         for (const resume of resumes) {
@@ -1183,7 +1288,15 @@ export const clearAnalyses = mutation({
             }
         }
 
-        return { cleared };
+        if (args.resumeIds) {
+            return { cleared, hasMore: false, cursor: null };
+        }
+
+        return {
+            cleared,
+            hasMore: page ? !page.isDone : false,
+            cursor: page && !page.isDone ? page.continueCursor : null,
+        };
     },
 });
 

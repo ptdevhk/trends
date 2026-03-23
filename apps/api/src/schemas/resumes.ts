@@ -106,6 +106,17 @@ const ResumeImportDigitalIdentitySchema = z
   })
   .openapi("ResumeImportDigitalIdentity");
 
+export const ResumeImportRestoreStateSchema = z
+  .object({
+    crawledAt: z.number().int().optional().openapi({ example: 1763917200000 }),
+    searchText: z.string().optional().openapi({ example: "alice cnc sales dongguan" }),
+    primaryRuleScore: z.number().optional().openapi({ example: 85 }),
+    ingestData: z.any().optional(),
+    analysis: z.any().optional(),
+    analyses: z.any().optional(),
+  })
+  .openapi("ResumeImportRestoreState");
+
 const ResumeStructuredDetailsShape = {
   profileEducation: z.array(ResumeImportProfileEducationSchema).optional(),
   skills: z.array(z.union([z.string(), ResumeImportSkillDetailSchema])).optional(),
@@ -226,6 +237,7 @@ export const ResumeImportItemSchema = z
     profileUrl: z.string().optional().openapi({ example: "https://hr.job5156.com/resume/view/123" }),
     activityStatus: z.string().optional().openapi({ example: "Active today" }),
     extractedAt: z.string().optional().openapi({ example: "2026-02-03T10:00:00.000Z" }),
+    restoreState: ResumeImportRestoreStateSchema.optional(),
   })
   .openapi("ResumeImportItem");
 

@@ -20,5 +20,10 @@
         debug: false,
       },
     },
+    resumeSnippet: {
+      surfaces: {
+        analysis: false,
+      },
+    },
   },
 }

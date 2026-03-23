@@ -8,7 +8,7 @@ type ConvexHandler<TArgs, TResult> = {
 
 const hardResetIngestDataHandler = (hardResetIngestData as unknown as ConvexHandler<
   Record<string, never>,
-  { cleared: number }
+  { cleared: number; hasMore: boolean; cursor: string | null }
 >)._handler
 
 describe("hardResetIngestData", () => {
@@ -67,8 +67,18 @@ describe("hardResetIngestData", () => {
       db: {
         query() {
           return {
-            async collect() {
-              return resumes
+            order(orderDirection: string) {
+              expect(orderDirection).toBe("desc")
+              return {
+                async paginate(args: { cursor: string | null; numItems: number }) {
+                  expect(args).toEqual({ cursor: null, numItems: 25 })
+                  return {
+                    page: resumes,
+                    isDone: true,
+                    continueCursor: "cursor-unused",
+                  }
+                },
+              }
             },
           }
         },
@@ -78,7 +88,7 @@ describe("hardResetIngestData", () => {
 
     const result = await hardResetIngestDataHandler(ctx as never, {})
 
-    expect(result).toEqual({ cleared: 1 })
+    expect(result).toEqual({ cleared: 1, hasMore: false, cursor: null })
     expect(patch).toHaveBeenCalledTimes(1)
     expect(patch).toHaveBeenCalledWith("resume-1", {
       ingestData: undefined,

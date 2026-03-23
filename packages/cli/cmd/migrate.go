@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -15,11 +17,34 @@ type convexRunner func(ctx context.Context, migration string, extraArgs ...strin
 const (
 	defaultMigrationLimitArgKey     = "limit"
 	manual51jobMigrationLimitArgKey = "batchSize"
+	reindexBatchSizeArgKey          = "batchSize"
+	defaultReindexBatchSize         = 100
+	maxPaginatedMigrationIterations = 10000
 
 	migrationReindexSearchText    = "migrations:reindexSearchText"
 	migrationBackfillIngestData   = "migrations:backfillIngestData"
 	backfillManual51jobMigration  = "migrations:backfillManual51jobStructuredContent"
 	migrationBackfillPrimaryScore = "migrations:backfillPrimaryRuleScore"
+)
+
+type paginatedMigrationBatchResult struct {
+	ScannedResumes int
+	UpdatedResumes int
+	HasMore        bool
+	Cursor         *string
+}
+
+type paginatedMigrationSummary struct {
+	Batches        int `json:"batches"`
+	ScannedResumes int `json:"scannedResumes"`
+	UpdatedResumes int `json:"updatedResumes"`
+}
+
+var (
+	scannedResumesFieldPattern = regexp.MustCompile(`(?m)["']?scannedResumes["']?\s*:\s*([0-9]+)`)
+	updatedResumesFieldPattern = regexp.MustCompile(`(?m)["']?updatedResumes["']?\s*:\s*([0-9]+)`)
+	hasMoreFieldPattern        = regexp.MustCompile(`(?m)["']?hasMore["']?\s*:\s*(true|false)`)
+	cursorFieldPattern         = regexp.MustCompile(`(?m)["']?cursor["']?\s*:\s*(null|"([^"\\]|\\.)*"|'([^'\\]|\\.)*')`)
 )
 
 var runConvexCommandExecutor = func(ctx context.Context, args []string) (string, error) {
@@ -58,10 +83,12 @@ func newMigrateCmd() *cobra.Command {
 }
 
 func newMigrateReindexCmd() *cobra.Command {
-	return newMigrationCmd(
+	return newPaginatedMigrationCmd(
 		"reindex-search",
-		"Run migrations:reindexSearchText",
+		"Run migrations:reindexSearchText until complete",
 		migrationReindexSearchText,
+		"Batch size",
+		defaultReindexBatchSize,
 	)
 }
 
@@ -124,6 +151,29 @@ func newLimitedMigrationCmd(use string, short string, migration string, limitDes
 	return newLimitedMigrationCmdForRunner(use, short, migration, limitDescription, limitArgKey, runConvexCommand)
 }
 
+func newPaginatedMigrationCmd(use string, short string, migration string, batchSizeDescription string, defaultBatchSize int) *cobra.Command {
+	return newPaginatedMigrationCmdForRunner(use, short, migration, batchSizeDescription, defaultBatchSize, runConvexCommand)
+}
+
+func newPaginatedMigrationCmdForRunner(use string, short string, migration string, batchSizeDescription string, defaultBatchSize int, runner convexRunner) *cobra.Command {
+	batchSize := defaultBatchSize
+
+	cmd := &cobra.Command{
+		Use:   use,
+		Short: short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			output, err := runPaginatedMigration(context.Background(), runner, migration, batchSize)
+			if err != nil {
+				return err
+			}
+			return writeMigrationOutput(cmd, migration, output)
+		},
+	}
+
+	cmd.Flags().IntVar(&batchSize, "batch-size", defaultBatchSize, batchSizeDescription)
+	return cmd
+}
+
 func newLimitedMigrationCmdForRunner(use string, short string, migration string, limitDescription string, limitArgKey string, runner convexRunner) *cobra.Command {
 	var limit int
 
@@ -157,6 +207,149 @@ func runLimitedMigration(ctx context.Context, runner convexRunner, migration str
 		return "", err
 	}
 	return runner(ctx, migration, string(payload))
+}
+
+func runPaginatedMigration(ctx context.Context, runner convexRunner, migration string, batchSize int) (string, error) {
+	cursor := (*string)(nil)
+	summary := paginatedMigrationSummary{}
+
+	for iteration := 0; iteration < maxPaginatedMigrationIterations; iteration += 1 {
+		payload, err := buildPaginatedMigrationPayload(batchSize, cursor)
+		if err != nil {
+			return "", err
+		}
+
+		output, err := runner(ctx, migration, payload)
+		if err != nil {
+			return "", err
+		}
+
+		batch, err := parsePaginatedMigrationBatch(output)
+		if err != nil {
+			return "", err
+		}
+
+		summary.Batches += 1
+		summary.ScannedResumes += batch.ScannedResumes
+		summary.UpdatedResumes += batch.UpdatedResumes
+
+		if !batch.HasMore {
+			encoded, err := json.Marshal(summary)
+			if err != nil {
+				return "", err
+			}
+			return string(encoded), nil
+		}
+
+		cursor = batch.Cursor
+	}
+
+	return "", fmt.Errorf("%s exceeded maximum pagination iterations (%d)", migration, maxPaginatedMigrationIterations)
+}
+
+func buildPaginatedMigrationPayload(batchSize int, cursor *string) (string, error) {
+	payload := map[string]interface{}{
+		reindexBatchSizeArgKey: normalizeMigrationLimit(batchSize),
+	}
+	if cursor != nil && strings.TrimSpace(*cursor) != "" {
+		payload["cursor"] = *cursor
+	}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+func parsePaginatedMigrationBatch(output string) (paginatedMigrationBatchResult, error) {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return paginatedMigrationBatchResult{}, fmt.Errorf("empty paginated migration output")
+	}
+
+	var decoded struct {
+		ScannedResumes int     `json:"scannedResumes"`
+		UpdatedResumes int     `json:"updatedResumes"`
+		HasMore        bool    `json:"hasMore"`
+		Cursor         *string `json:"cursor"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &decoded); err == nil {
+		return paginatedMigrationBatchResult{
+			ScannedResumes: decoded.ScannedResumes,
+			UpdatedResumes: decoded.UpdatedResumes,
+			HasMore:        decoded.HasMore,
+			Cursor:         decoded.Cursor,
+		}, nil
+	}
+
+	scannedResumes, ok := extractRegexInt(trimmed, scannedResumesFieldPattern)
+	if !ok {
+		return paginatedMigrationBatchResult{}, fmt.Errorf("unable to parse scannedResumes from %q", trimmed)
+	}
+	updatedResumes, ok := extractRegexInt(trimmed, updatedResumesFieldPattern)
+	if !ok {
+		return paginatedMigrationBatchResult{}, fmt.Errorf("unable to parse updatedResumes from %q", trimmed)
+	}
+	hasMore, ok := extractRegexBool(trimmed, hasMoreFieldPattern)
+	if !ok {
+		return paginatedMigrationBatchResult{}, fmt.Errorf("unable to parse hasMore from %q", trimmed)
+	}
+	cursor, ok := extractRegexNullableString(trimmed, cursorFieldPattern)
+	if !ok && hasMore {
+		return paginatedMigrationBatchResult{}, fmt.Errorf("unable to parse cursor from %q", trimmed)
+	}
+
+	return paginatedMigrationBatchResult{
+		ScannedResumes: scannedResumes,
+		UpdatedResumes: updatedResumes,
+		HasMore:        hasMore,
+		Cursor:         cursor,
+	}, nil
+}
+
+func extractRegexInt(input string, pattern *regexp.Regexp) (int, bool) {
+	match := pattern.FindStringSubmatch(input)
+	if len(match) < 2 {
+		return 0, false
+	}
+	value, err := strconv.Atoi(match[1])
+	if err != nil {
+		return 0, false
+	}
+	return value, true
+}
+
+func extractRegexBool(input string, pattern *regexp.Regexp) (bool, bool) {
+	match := pattern.FindStringSubmatch(input)
+	if len(match) < 2 {
+		return false, false
+	}
+	switch match[1] {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+func extractRegexNullableString(input string, pattern *regexp.Regexp) (*string, bool) {
+	match := pattern.FindStringSubmatch(input)
+	if len(match) < 2 {
+		return nil, false
+	}
+	rawValue := match[1]
+	if rawValue == "null" {
+		return nil, true
+	}
+
+	decoded, err := strconv.Unquote(rawValue)
+	if err != nil {
+		return nil, false
+	}
+	return &decoded, true
 }
 
 func normalizeMigrationLimitArgKey(limitArgKey string) string {

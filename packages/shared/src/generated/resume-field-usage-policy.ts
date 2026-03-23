@@ -33,6 +33,11 @@ export const DEFAULT_RESUME_FIELD_USAGE_POLICY = {
         "debug": false
       }
     },
+    "resumeSnippet": {
+      "surfaces": {
+        "analysis": false
+      }
+    },
     "selfIntro": {
       "surfaces": {
         "analysis": false,

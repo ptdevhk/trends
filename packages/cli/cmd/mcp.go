@@ -187,6 +187,21 @@ func mcpTools() []map[string]any {
 			"inputSchema": map[string]any{"type": "object"},
 		},
 		{
+			"name":        "resume_clear_analyses",
+			"description": "Clear resume AI analyses directly in Convex, batching large datasets safely",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"jobDescriptionId": map[string]any{"type": "string"},
+					"resumeIds": map[string]any{
+						"type":  "array",
+						"items": map[string]any{"type": "string"},
+					},
+					"batchSize": map[string]any{"type": "integer", "minimum": 1},
+				},
+			},
+		},
+		{
 			"name":        "jd_list",
 			"description": "List job descriptions",
 			"inputSchema": map[string]any{"type": "object"},
@@ -214,7 +229,12 @@ func mcpTools() []map[string]any {
 		{
 			"name":        "migrate_reindex_search",
 			"description": "Run " + migrationReindexSearchText,
-			"inputSchema": map[string]any{"type": "object"},
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"batchSize": map[string]any{"type": "integer", "minimum": 1},
+				},
+			},
 		},
 		{
 			"name":        "migrate_backfill_ingest",
@@ -292,6 +312,16 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 			return "", err
 		}
 		return prettyJSON(result)
+	case "resume_clear_analyses":
+		result, err := runResumeAnalysisClearer(ctx, resumeAnalysisClearRequest{
+			JobDescriptionID: stringArg(args, "jobDescriptionId", ""),
+			ResumeIDs:        stringSliceArg(args, "resumeIds"),
+			BatchSize:        intArg(args, "batchSize", 50),
+		})
+		if err != nil {
+			return "", err
+		}
+		return prettyJSON(result)
 	case "jd_list":
 		result, err := apiClient.ListJobDescriptions(ctx)
 		if err != nil {
@@ -318,11 +348,7 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 		}
 		return prettyJSON(result)
 	case "migrate_reindex_search":
-		result, err := runConvexCommand(ctx, migrationReindexSearchText)
-		if err != nil {
-			return "", err
-		}
-		return result, nil
+		return runPaginatedMigration(ctx, runConvexCommand, migrationReindexSearchText, intArg(args, "batchSize", defaultReindexBatchSize))
 	case "migrate_backfill_ingest":
 		return runMCPMigrationWithLimit(ctx, args, migrationBackfillIngestData)
 	case "migrate_backfill_manual_51job":
@@ -383,6 +409,32 @@ func stringArg(args map[string]interface{}, key string, defaultValue string) str
 		return defaultValue
 	}
 	return text
+}
+
+func stringSliceArg(args map[string]interface{}, key string) []string {
+	if args == nil {
+		return nil
+	}
+	value, ok := args[key]
+	if !ok || value == nil {
+		return nil
+	}
+	switch typed := value.(type) {
+	case []string:
+		return normalizeResumeIDList(typed)
+	case []interface{}:
+		items := make([]string, 0, len(typed))
+		for _, item := range typed {
+			text, ok := item.(string)
+			if !ok {
+				continue
+			}
+			items = append(items, text)
+		}
+		return normalizeResumeIDList(items)
+	default:
+		return nil
+	}
 }
 
 func boolArg(args map[string]interface{}, key string, defaultValue bool) bool {

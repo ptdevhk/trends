@@ -87,6 +87,22 @@ describe("resume backup and reset routes", () => {
               source: "hr.job5156.com",
               tags: ["sales", "job5156"],
               crawledAt: 200,
+              primaryRuleScore: 93,
+              searchText: "alice sales dongguan",
+              ingestData: {
+                industryTags: ["machine tools"],
+              },
+              analysis: {
+                score: 86,
+                summary: "Strong sales fit",
+                highlights: ["CNC sales"],
+                recommendation: "match",
+              },
+              analyses: {
+                "source:job5156|analysis:lathe-sales": {
+                  score: 86,
+                },
+              },
               content: {
                 resumeId: "1001",
                 name: "Alice",
@@ -137,6 +153,25 @@ describe("resume backup and reset routes", () => {
       sourceHost: "hr.job5156.com",
       tags: ["sales", "job5156"],
       profileUrl: "https://hr.job5156.com/resume/view/1001",
+      restoreState: {
+        crawledAt: 200,
+        primaryRuleScore: 93,
+        searchText: "alice sales dongguan",
+        ingestData: {
+          industryTags: ["machine tools"],
+        },
+        analysis: {
+          score: 86,
+          summary: "Strong sales fit",
+          highlights: ["CNC sales"],
+          recommendation: "match",
+        },
+        analyses: {
+          "source:job5156|analysis:lathe-sales": {
+            score: 86,
+          },
+        },
+      },
     }));
     expect(calls).toHaveLength(1);
     expect(calls[0]?.pathName).toBe("resumes:listForBackup");

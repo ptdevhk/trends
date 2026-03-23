@@ -4,8 +4,8 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "convex dev",
-        "predev": "convex dev --once",
+        "dev": "env -u TZ convex dev",
+        "predev": "env -u TZ convex dev --once",
         "build": "convex codegen",
         "typecheck": "tsc --noEmit"
     },
