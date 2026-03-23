@@ -736,6 +736,44 @@ describe('useResumeListState role filter regression', () => {
     })
   })
 
+  it('clearing filter-panel state also clears the synced session location', () => {
+    mockState.sessionLocation = 'Kuala Lumpur MY'
+    mockState.filters = {
+      locations: ['Kuala Lumpur MY'],
+      minMatchScore: 60,
+    }
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleFiltersChange({})
+    })
+
+    expect(mockState.setLocation).toHaveBeenCalledWith(expect.any(Function))
+    const locationUpdater = mockState.setLocation.mock.calls[0]?.[0] as (current: string) => string
+    expect(locationUpdater('Kuala Lumpur MY')).toBe('')
+    expect(mockState.setFilters).toHaveBeenCalledWith({})
+  })
+
+  it('syncs manual filter-panel location edits back into the session location', () => {
+    mockState.sessionLocation = '广东'
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleFiltersChange({
+        locations: ['Kuala Lumpur MY', 'Selangor MY'],
+      })
+    })
+
+    expect(mockState.setLocation).toHaveBeenCalledWith(expect.any(Function))
+    const locationUpdater = mockState.setLocation.mock.calls[0]?.[0] as (current: string) => string
+    expect(locationUpdater('广东')).toBe('Kuala Lumpur MY,Selangor MY')
+    expect(mockState.setFilters).toHaveBeenCalledWith({
+      locations: ['Kuala Lumpur MY', 'Selangor MY'],
+    })
+  })
+
   it('saves current search into explicit history', async () => {
     mockState.filters = {
       minRoleYears: 2,
