@@ -544,6 +544,10 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 				return err
 			}
 
+			if options.Output == "json" {
+				return writeOutput(cmd, nil, nil, report)
+			}
+
 			headers := []string{"resume_id", "source_key", "primary_score", "job_score", "name", "location", "source_host"}
 			rows := make([][]string, 0, len(report.VisibleResumes))
 			for _, resume := range report.VisibleResumes {
@@ -556,10 +560,6 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 					resume.Location,
 					resume.SourceHost,
 				})
-			}
-
-			if options.Output == "json" {
-				return writeOutput(cmd, nil, nil, report)
 			}
 
 			if options.Output == "table" {

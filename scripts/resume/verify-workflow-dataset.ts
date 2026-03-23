@@ -194,6 +194,16 @@ export function countByKey<T>(items: T[], keyResolver: (item: T) => string | und
     .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
 }
 
+function filterWorkflowMatches(
+  resumes: ResumeDoc[],
+  filters: {
+    sourceKey?: string;
+    location?: string;
+  },
+): ResumeDoc[] {
+  return resumes.filter((resume) => matchesWorkflowFilters(resume, filters));
+}
+
 async function fetchKeywordExpansion(apiBaseUrl: string, workspace: string, query: string): Promise<KeywordExpansionSummary> {
   const url = new URL("/api/resumes/keyword-expansion", apiBaseUrl);
   url.searchParams.set("q", query);
@@ -305,13 +315,12 @@ export async function buildWorkflowVerificationReport(options: CliOptions): Prom
   });
 
   const queryMatches = (searchResult.results as SearchResult[]).map((entry) => entry.resume);
-  const visibleResumes = queryMatches
-    .filter((resume) =>
-      matchesWorkflowFilters(resume, {
-        sourceKey: options.sourceKey,
-        location: options.location,
-      }),
-    )
+  const workflowFilters = {
+    sourceKey: options.sourceKey,
+    location: options.location,
+  };
+  const visibleMatches = filterWorkflowMatches(queryMatches, workflowFilters);
+  const visibleResumes = visibleMatches
     .map((resume) => toVisibleResumeRow(resume, options.jobDescriptionId))
     .sort((left, right) => {
       const leftScore = left.jobRuleScore ?? left.primaryRuleScore ?? -1;
@@ -333,30 +342,9 @@ export async function buildWorkflowVerificationReport(options: CliOptions): Prom
     queryMatchCount: queryMatches.length,
     queryMatchesBySourceHost: countByKey(queryMatches, (resume) => resume.source),
     queryMatchesBySourceKey: countByKey(queryMatches, getResumeSourceKey),
-    visibleCount: queryMatches.filter((resume) =>
-      matchesWorkflowFilters(resume, {
-        sourceKey: options.sourceKey,
-        location: options.location,
-      }),
-    ).length,
-    visibleBySourceHost: countByKey(
-      queryMatches.filter((resume) =>
-        matchesWorkflowFilters(resume, {
-          sourceKey: options.sourceKey,
-          location: options.location,
-        }),
-      ),
-      (resume) => resume.source,
-    ),
-    visibleBySourceKey: countByKey(
-      queryMatches.filter((resume) =>
-        matchesWorkflowFilters(resume, {
-          sourceKey: options.sourceKey,
-          location: options.location,
-        }),
-      ),
-      getResumeSourceKey,
-    ),
+    visibleCount: visibleMatches.length,
+    visibleBySourceHost: countByKey(visibleMatches, (resume) => resume.source),
+    visibleBySourceKey: countByKey(visibleMatches, getResumeSourceKey),
     visibleResumes,
   };
 }
