@@ -52,6 +52,64 @@ type localResumeAIScoreResponse struct {
 	Stats            localResumeAIScoreStats    `json:"stats"`
 }
 
+type workflowDatasetVerificationRequest struct {
+	APIBaseURL       string
+	ConvexURL        string
+	Workspace        string
+	Query            string
+	Location         string
+	SourceKey        string
+	Limit            int
+	Top              int
+	JobDescriptionID string
+}
+
+type workflowDatasetSourceCountRow struct {
+	Key   string `json:"key"`
+	Count int    `json:"count"`
+}
+
+type workflowDatasetVisibleResumeRow struct {
+	ResumeID         string `json:"resumeId"`
+	SourceHost       string `json:"sourceHost"`
+	SourceKey        string `json:"sourceKey,omitempty"`
+	Name             string `json:"name"`
+	Location         string `json:"location"`
+	PrimaryRuleScore *int   `json:"primaryRuleScore"`
+	JobRuleScore     *int   `json:"jobRuleScore"`
+	ProfileURL       string `json:"profileUrl,omitempty"`
+}
+
+type workflowDatasetVerificationReport struct {
+	Query                    string                            `json:"query"`
+	Location                 string                            `json:"location,omitempty"`
+	SourceKey                string                            `json:"sourceKey,omitempty"`
+	Workspace                string                            `json:"workspace"`
+	TotalResumeCount         int                               `json:"totalResumeCount"`
+	ScannedResumeCount       int                               `json:"scannedResumeCount"`
+	DatasetBySourceHost      []workflowDatasetSourceCountRow   `json:"datasetBySourceHost"`
+	DatasetBySourceKey       []workflowDatasetSourceCountRow   `json:"datasetBySourceKey"`
+	KeywordExpansion         map[string]any                    `json:"keywordExpansion"`
+	QueryMatchCount          int                               `json:"queryMatchCount"`
+	QueryMatchesBySourceHost []workflowDatasetSourceCountRow   `json:"queryMatchesBySourceHost"`
+	QueryMatchesBySourceKey  []workflowDatasetSourceCountRow   `json:"queryMatchesBySourceKey"`
+	VisibleCount             int                               `json:"visibleCount"`
+	VisibleBySourceHost      []workflowDatasetSourceCountRow   `json:"visibleBySourceHost"`
+	VisibleBySourceKey       []workflowDatasetSourceCountRow   `json:"visibleBySourceKey"`
+	VisibleResumes           []workflowDatasetVisibleResumeRow `json:"visibleResumes"`
+}
+
+type workspaceDemoResumeCleanupRequest struct {
+	ConvexURL string
+}
+
+type workspaceDemoResumeCleanupResponse struct {
+	Success   bool   `json:"success"`
+	ConvexURL string `json:"convexUrl"`
+	Deleted   int    `json:"deleted"`
+	Tag       string `json:"tag"`
+}
+
 var runLocalResumeAIScorer = func(ctx context.Context, request localResumeAIScoreRequest) (*localResumeAIScoreResponse, error) {
 	projectRoot, err := findProjectRoot()
 	if err != nil {
@@ -79,6 +137,70 @@ var runLocalResumeAIScorer = func(ctx context.Context, request localResumeAIScor
 	return &response, nil
 }
 
+var runWorkspaceDemoResumeCleanup = func(ctx context.Context, request workspaceDemoResumeCleanupRequest) (*workspaceDemoResumeCleanupResponse, error) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	scriptPath := filepath.Join(projectRoot, "scripts", "resume", "clear-workspace-demo-resumes.ts")
+	args := []string{"--json"}
+	if value := normalizeBaseURL(request.ConvexURL); value != "" {
+		args = append(args, "--convex-url", value)
+	}
+
+	stdout, stderr, err := runBunScript(ctx, projectRoot, scriptPath, args, nil)
+	if err != nil {
+		return nil, fmt.Errorf("run workspace-demo resume cleanup: %w\n%s", err, commandErrorOutput(stdout, stderr))
+	}
+
+	var response workspaceDemoResumeCleanupResponse
+	if err := json.Unmarshal([]byte(stdout), &response); err != nil {
+		return nil, fmt.Errorf("decode workspace-demo resume cleanup response: %w", err)
+	}
+	return &response, nil
+}
+
+var runWorkflowDatasetVerifier = func(ctx context.Context, request workflowDatasetVerificationRequest) (*workflowDatasetVerificationReport, error) {
+	projectRoot, err := findProjectRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	scriptPath := filepath.Join(projectRoot, "scripts", "resume", "verify-workflow-dataset.ts")
+	args := []string{
+		"--query", strings.TrimSpace(request.Query),
+		"--workspace", normalizeWorkspace(request.Workspace),
+		"--api-base-url", normalizeBaseURL(request.APIBaseURL),
+		"--limit", strconv.Itoa(request.Limit),
+		"--top", strconv.Itoa(request.Top),
+		"--json",
+	}
+	if value := normalizeBaseURL(request.ConvexURL); value != "" {
+		args = append(args, "--convex-url", value)
+	}
+	if value := strings.TrimSpace(request.Location); value != "" {
+		args = append(args, "--location", value)
+	}
+	if value := strings.ToLower(strings.TrimSpace(request.SourceKey)); value != "" {
+		args = append(args, "--source-key", value)
+	}
+	if value := strings.TrimSpace(request.JobDescriptionID); value != "" {
+		args = append(args, "--job-description", value)
+	}
+
+	stdout, stderr, err := runBunScript(ctx, projectRoot, scriptPath, args, nil)
+	if err != nil {
+		return nil, fmt.Errorf("run workflow dataset verifier: %w\n%s", err, commandErrorOutput(stdout, stderr))
+	}
+
+	var response workflowDatasetVerificationReport
+	if err := json.Unmarshal([]byte(stdout), &response); err != nil {
+		return nil, fmt.Errorf("decode workflow dataset verifier response: %w", err)
+	}
+	return &response, nil
+}
+
 func newResumeDebugCmd() *cobra.Command {
 	debugCmd := &cobra.Command{
 		Use:   "debug",
@@ -93,6 +215,8 @@ func newResumeDebugCmd() *cobra.Command {
 		newResumeDebugSkillsVersionCmd(),
 		newResumeDebugTriggerReingestCmd(),
 		newResumeDebugAIScoreCmd(),
+		newResumeDebugWorkflowDatasetCmd(),
+		newResumeDebugClearDemoResumesCmd(),
 	)
 
 	return debugCmd
@@ -377,6 +501,143 @@ func newResumeDebugAIScoreCmd() *cobra.Command {
 	cmd.Flags().IntVar(&topN, "top-n", 10, "Number of top rule-ranked candidates to AI-score locally")
 	cmd.Flags().StringSliceVar(&resumeIDs, "resume-id", nil, "Optional specific Convex resume IDs to AI-score")
 	return cmd
+}
+
+func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
+	var (
+		query            string
+		location         string
+		sourceKey        string
+		convexURL        string
+		jobDescriptionID string
+		limit            int
+		top              int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "workflow-dataset",
+		Short: "Verify source mix, query matches, and visible results for a workflow dataset",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(query) == "" {
+				return fmt.Errorf("query is required")
+			}
+			if limit <= 0 {
+				return fmt.Errorf("limit must be greater than 0")
+			}
+			if top <= 0 {
+				return fmt.Errorf("top must be greater than 0")
+			}
+
+			options := currentOptions()
+			report, err := runWorkflowDatasetVerifier(context.Background(), workflowDatasetVerificationRequest{
+				APIBaseURL:       options.APIURL,
+				ConvexURL:        convexURL,
+				Workspace:        options.Workspace,
+				Query:            strings.TrimSpace(query),
+				Location:         strings.TrimSpace(location),
+				SourceKey:        strings.TrimSpace(sourceKey),
+				Limit:            limit,
+				Top:              top,
+				JobDescriptionID: strings.TrimSpace(jobDescriptionID),
+			})
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"resume_id", "source_key", "primary_score", "job_score", "name", "location", "source_host"}
+			rows := make([][]string, 0, len(report.VisibleResumes))
+			for _, resume := range report.VisibleResumes {
+				rows = append(rows, []string{
+					resume.ResumeID,
+					resume.SourceKey,
+					intPointerString(resume.PrimaryRuleScore),
+					intPointerString(resume.JobRuleScore),
+					resume.Name,
+					resume.Location,
+					resume.SourceHost,
+				})
+			}
+
+			if options.Output == "json" {
+				return writeOutput(cmd, nil, nil, report)
+			}
+
+			if options.Output == "table" {
+				fmt.Fprintf(
+					cmd.OutOrStdout(),
+					"Query: %s | Workspace: %s | Query matches: %d | Visible after filters: %d\n",
+					report.Query,
+					report.Workspace,
+					report.QueryMatchCount,
+					report.VisibleCount,
+				)
+				fmt.Fprintf(
+					cmd.OutOrStdout(),
+					"Dataset by source key: %s\n",
+					formatWorkflowDatasetCounts(report.DatasetBySourceKey),
+				)
+				fmt.Fprintf(
+					cmd.OutOrStdout(),
+					"Visible by source key: %s\n\n",
+					formatWorkflowDatasetCounts(report.VisibleBySourceKey),
+				)
+			}
+
+			if len(rows) == 0 && options.Output == "table" {
+				return writeMessage(cmd, "No visible resumes after workflow filters")
+			}
+			return writeOutput(cmd, headers, rows, report)
+		},
+	}
+
+	cmd.Flags().StringVar(&query, "query", "", "Keyword query used by the workflow")
+	cmd.Flags().StringVar(&location, "location", "", "Optional location filter")
+	cmd.Flags().StringVar(&sourceKey, "source-key", "", "Optional source key filter (for example seek or job5156)")
+	cmd.Flags().StringVar(&convexURL, "convex-url", "", "Optional Convex URL override for the verifier")
+	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID for score display")
+	cmd.Flags().IntVar(&limit, "limit", 200, "Maximum resumes to scan")
+	cmd.Flags().IntVar(&top, "top", 10, "Maximum visible resumes to print")
+	return cmd
+}
+
+func newResumeDebugClearDemoResumesCmd() *cobra.Command {
+	var convexURL string
+
+	cmd := &cobra.Command{
+		Use:   "clear-demo-resumes",
+		Short: "Delete resumes tagged workspace-demo from the target Convex deployment",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := runWorkspaceDemoResumeCleanup(context.Background(), workspaceDemoResumeCleanupRequest{
+				ConvexURL: convexURL,
+			})
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"deleted", "tag", "convex_url"}
+			rows := [][]string{{
+				strconv.Itoa(response.Deleted),
+				response.Tag,
+				response.ConvexURL,
+			}}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().StringVar(&convexURL, "convex-url", "", "Optional Convex URL override for workspace-demo resume cleanup")
+	return cmd
+}
+
+func formatWorkflowDatasetCounts(rows []workflowDatasetSourceCountRow) string {
+	if len(rows) == 0 {
+		return "none"
+	}
+
+	parts := make([]string, 0, len(rows))
+	for _, row := range rows {
+		parts = append(parts, fmt.Sprintf("%s:%d", row.Key, row.Count))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func writeResumeMatchTable(cmd *cobra.Command, response *client.ResumeMatchResponse, displayMap map[string]resumeDisplayRow) error {

@@ -43,6 +43,10 @@ type SeedResult = {
   skipped: number;
 };
 
+type WorkspaceSeedArgs = {
+  includeDemoResumes?: boolean;
+};
+
 type WorkspaceSeedResult = {
   customJobDescriptions: {
     inserted: number;
@@ -80,7 +84,7 @@ type CliOptions = {
 const seedStatusFunction = makeFunctionReference<"query", Record<string, never>, SeedStatus>("seed:status");
 const seedJobDescriptionsFunction = makeFunctionReference<"mutation", { items: SeedJobDescription[] }, SeedResult>("seed:seedJobDescriptions");
 const seedResumesFunction = makeFunctionReference<"mutation", { resumes: SeedResume[] }, SeedResult>("seed:seedResumes");
-const seedWorkspaceDemoFunction = makeFunctionReference<"mutation", Record<string, never>, WorkspaceSeedResult>("seed:seedWorkspaceDemoData");
+const seedWorkspaceDemoFunction = makeFunctionReference<"mutation", WorkspaceSeedArgs, WorkspaceSeedResult>("seed:seedWorkspaceDemoData");
 
 function printUsage(): void {
   console.log("Usage: seed-convex.ts [--with-resumes] [--force] [--check-only] [--sample <name>]");
@@ -543,7 +547,9 @@ async function main(): Promise<void> {
   const jdResult = await client.mutation(seedJobDescriptionsFunction, { items: jobDescriptions });
   console.log(`Job descriptions: inserted=${jdResult.inserted}, skipped=${jdResult.skipped}`);
 
-  const workspaceSeedResult = await client.mutation(seedWorkspaceDemoFunction, {});
+  const workspaceSeedResult = await client.mutation(seedWorkspaceDemoFunction, {
+    includeDemoResumes: options.withResumes,
+  });
   console.log(
     "Workspace fixtures:"
     + ` customJDs(inserted=${workspaceSeedResult.customJobDescriptions.inserted}, updated=${workspaceSeedResult.customJobDescriptions.updated}),`

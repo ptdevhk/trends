@@ -530,9 +530,12 @@ export const seedResumes = mutation({
 });
 
 export const seedWorkspaceDemoData = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    includeDemoResumes: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
     const seededAt = 1_762_000_000_000;
+    const includeDemoResumes = args.includeDemoResumes === true;
     const customJobDescriptions = [
       {
         title: "车床销售",
@@ -1089,7 +1092,9 @@ export const seedWorkspaceDemoData = mutation({
       result.workspaceConfig.inserted += 1;
     }
 
-    const demoResumes = [buildSeekMalaysiaSalesDemoResume(seededAt)];
+    const demoResumes = includeDemoResumes
+      ? [buildSeekMalaysiaSalesDemoResume(seededAt)]
+      : [];
     for (const item of demoResumes) {
       const identity = deriveResumeIdentity({
         content: item.content,
@@ -1229,6 +1234,27 @@ export const clearWorkspaceData = mutation({
       screeningSessions,
       searchHistory,
       workspaceConfig,
+    };
+  },
+});
+
+export const clearWorkspaceDemoResumes = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const resumes = await ctx.db.query("resumes").collect();
+    let deleted = 0;
+
+    for (const resume of resumes) {
+      if (!resume.tags.includes("workspace-demo")) {
+        continue;
+      }
+      await ctx.db.delete(resume._id);
+      deleted += 1;
+    }
+
+    return {
+      deleted,
+      tag: "workspace-demo",
     };
   },
 });

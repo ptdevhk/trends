@@ -8,6 +8,7 @@
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
+		seed-clear-demo-resumes \
 		backup-resumes restore-resumes \
 		clear-resumes \
 		cli-build cli-install cli-test \
@@ -16,12 +17,12 @@
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
 		sync-resume-field-usage-policy check-resume-field-usage-policy \
-		clean-db fresh-env refresh-env
+		clean-db fresh-env refresh-env verify-workflow-dataset
 
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: seed-matches clear-matches verify-critical-path benchmark-critical-path benchmark-critical-path-seeded benchmark-parallelism-matrix
+.PHONY: seed-matches clear-matches verify-critical-path verify-workflow-dataset benchmark-critical-path benchmark-critical-path-seeded benchmark-parallelism-matrix
 
 # =============================================================================
 # Development (Full Experience)
@@ -147,21 +148,21 @@ worker-once:
 # Deployment
 # =============================================================================
 
-# Install as systemd services (production) — seeds JDs + runs migrations
+# Install as systemd services (production) — seeds JDs + runs migrations, no demo resumes
 install:
-	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh install
+	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=0 ./scripts/install.sh install
 
 # Install with full demo data (JDs + sample resumes + migrations)
 install-seed:
 	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=1 ./scripts/install.sh install
 
-# Preflight the workspace branch, snapshot Convex, then pull, rebuild, and restart production services
+# Preflight the workspace branch, snapshot Convex, then pull, rebuild, and restart production services (no demo resume seeding)
 deploy:
-	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade
+	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=0 ./scripts/install.sh upgrade
 
 # Show whether deploy would skip, refresh env only, or run a full upgrade
 deploy-check:
-	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade-check
+	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=0 ./scripts/install.sh upgrade-check
 
 # Deploy with full demo data (re-seeds JDs + sample resumes + migrations)
 deploy-seed:
@@ -479,6 +480,14 @@ seed-clear-workspace:
 seed-clear-dev:
 	@$(MAKE) seed-clear-workspace WORKSPACE=dev
 
+# Clear only workspace-demo resume records without wiping real resumes
+seed-clear-demo-resumes:
+	@if command -v bun > /dev/null 2>&1; then \
+		CONVEX_URL="$(CONVEX_URL)" bun scripts/resume/clear-workspace-demo-resumes.ts $(if $(JSON),--json) $(ARGS); \
+	else \
+		CONVEX_URL="$(CONVEX_URL)" npx tsx scripts/resume/clear-workspace-demo-resumes.ts $(if $(JSON),--json) $(ARGS); \
+	fi
+
 # Clear resume-related Convex collections via resetDatabase
 clear-resumes:
 	@npm --workspace @trends/convex exec convex run resume_tasks:resetDatabase
@@ -521,6 +530,21 @@ verify-critical-path:
 		ANALYSIS_TIMEOUT_SEC="$(or $(ANALYSIS_TIMEOUT_SEC),300)" \
 		JSON="$(JSON)" \
 		npx tsx scripts/verify-critical-path.ts $(ARGS); \
+	fi
+
+# Verify a source-aware resume workflow dataset and visible-result mix
+verify-workflow-dataset:
+	@set -- --query "$(or $(QUERY),CNC Sales)" --workspace "$(or $(WORKSPACE),dev)" --limit "$(or $(LIMIT),200)" --top "$(or $(TOP),10)"; \
+	if [ -n "$(LOCATION)" ]; then set -- "$$@" --location "$(LOCATION)"; fi; \
+	if [ -n "$(SOURCE_KEY)" ]; then set -- "$$@" --source-key "$(SOURCE_KEY)"; fi; \
+	if [ -n "$(JOB_DESCRIPTION)" ]; then set -- "$$@" --job-description "$(JOB_DESCRIPTION)"; fi; \
+	if [ -n "$(API_BASE_URL)" ]; then set -- "$$@" --api-base-url "$(API_BASE_URL)"; fi; \
+	if [ -n "$(CONVEX_URL)" ]; then set -- "$$@" --convex-url "$(CONVEX_URL)"; fi; \
+	if [ -n "$(JSON)" ]; then set -- "$$@" --json; fi; \
+	if command -v bun > /dev/null 2>&1; then \
+		bun scripts/resume/verify-workflow-dataset.ts "$$@" $(ARGS); \
+	else \
+		npx tsx scripts/resume/verify-workflow-dataset.ts "$$@" $(ARGS); \
 	fi
 
 # Run E2E smoke tests via DevTools MCP / Playwright CDP
@@ -803,7 +827,7 @@ help:
 	@echo "Deployment:"
 	@echo "  install        Install as systemd services (requires sudo)"
 	@echo "  install-seed   Install as systemd services with seeded demo resumes (requires sudo)"
-	@echo "  deploy         Preflight workspace git, snapshot Convex, and best-effort write resumes-<workspace>.tar.gz before skip/env-refresh/full upgrade (requires sudo)"
+	@echo "  deploy         Preflight workspace git, snapshot Convex, and best-effort write resumes-<workspace>.tar.gz before skip/env-refresh/full upgrade; does not seed demo resumes (requires sudo)"
 	@echo "  deploy-check   Dry run deploy precheck with workspace git status but without rebuilding"
 	@echo "  deploy-seed    Force a full upgrade with seeded demo resumes (requires sudo)"
 	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
@@ -871,10 +895,12 @@ help:
 	@echo "  seed-clear     Clear all Convex seeded data (seed:clearAll)"
 	@echo "  seed-clear-workspace WORKSPACE=<slug> Clear workspace-scoped Convex data (default: dev)"
 	@echo "  seed-clear-dev Clear workspace-scoped Convex data for dev"
+	@echo "  seed-clear-demo-resumes Clear only demo resumes tagged workspace-demo"
 	@echo "  clear-resumes  Clear resume-related Convex collections"
 	@echo "  seed-matches   Seed deterministic resume matches for dev mode"
 	@echo "  clear-matches  Clear cached resume matches from SQLite"
 	@echo "  verify-critical-path Run critical-path smoke verification (Collection -> Search -> Analysis)"
+	@echo "  verify-workflow-dataset Verify source mix, query matches, and visible results for a resume workflow dataset"
 	@echo "  benchmark-critical-path Run repeated critical-path benchmark (median/p95 + rates)"
 	@echo "  benchmark-critical-path-seeded Run seeded-only benchmark profile"
 	@echo "  benchmark-parallelism-matrix Run AI/submit parallelism benchmark matrix"
@@ -903,7 +929,7 @@ help:
 	@echo "  WORKSPACE_DIR  Workspace root used to resolve relative ENV_FILE paths (auto-set by make)"
 	@echo "  INSTALL_BRANCH Git branch to deploy into /opt/trends (default: repo default branch)"
 	@echo "  FORCE          Set 1/true to bypass deploy precheck and force a full upgrade"
-	@echo "  SEED_RESUMES   Set 1/true to seed demo resumes during install/upgrade (wrappers use this for install-seed/deploy-seed)"
+	@echo "  SEED_RESUMES   Set 1/true/yes to seed demo resumes during install/upgrade; false/0 leaves real data untouched"
 	@echo "  ALLOW_NODE_DOWNGRADE Set 1/true to allow installer to downgrade Node to v22 when a newer Node is already installed"
 	@echo "  CONVEX_MIRROR_MODE Shared Convex prefetch source order for dev/install/deploy: off|fallback|mirror-first"
 	@echo "                     When CI=true/1, shared Convex prefetch mode defaults to off"
@@ -934,6 +960,11 @@ help:
 	@echo "  STRICT         Set 1/true to fail benchmark on >25% slowdown"
 	@echo "  OUT            Benchmark JSON output path (set to 1/true for default path)"
 	@echo "  MODE           Verification mode for verify-critical-path (dual|live|seeded)"
+	@echo "  QUERY          Query for verify-workflow-dataset (default: CNC Sales)"
+	@echo "  SOURCE_KEY     Source key filter for verify-workflow-dataset (e.g. seek, job5156)"
+	@echo "  JOB_DESCRIPTION Optional JD id for verify-workflow-dataset score display"
 	@echo "  COLLECTION_TIMEOUT_SEC Collection stage timeout for verify-critical-path"
 	@echo "  ANALYSIS_TIMEOUT_SEC Analysis stage timeout for verify-critical-path"
+	@echo "  API_BASE_URL   API base URL override for verify-workflow-dataset"
+	@echo "  LIMIT / TOP    Scan limit and top visible rows for verify-workflow-dataset"
 	@echo "  JSON           Set to 1/true for JSON verify/benchmark output"
