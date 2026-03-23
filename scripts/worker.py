@@ -494,7 +494,7 @@ async def worker_loop():
                     if now - last_connection_log_at >= 30:
                         last_connection_log_at = now
                         logger.error(
-                            "Convex is not reachable at %s (is it running?). Try `make dev` or `make dev-convex`.",
+                            "Convex is not reachable at %s (is it running?). Try `make dev-convex-status`, `make dev-convex-restart`, or `make dev`.",
                             CONVEX_URL,
                         )
                     await asyncio.sleep(connection_backoff_seconds)
