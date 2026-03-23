@@ -97,6 +97,8 @@ describe('source-aware analysis helpers', () => {
   it('normalizes known source keys from source hosts and explicit values', () => {
     expect(resolveResumeAnalysisSourceKey({ source: 'hk.employer.seek.com' })).toBe('seek')
     expect(resolveResumeAnalysisSourceKey({ sourceKey: 'job5156' })).toBe('job5156')
+    expect(resolveResumeAnalysisSourceKey({ source: '51job-manual' })).toBe('job5156')
+    expect(resolveResumeAnalysisSourceKey({ sourceKey: '51job-manual' })).toBe('job5156')
     expect(resolveResumeAnalysisSourceKey({ source: 'manual.51job.com' })).toBeUndefined()
   })
 })
