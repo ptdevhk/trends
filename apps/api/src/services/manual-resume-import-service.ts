@@ -224,9 +224,8 @@ function enumerateZipEntries(uploadName: string, archiveData: Uint8Array): Enume
 }
 
 async function extractRarEntries(uploadName: string, archiveData: Uint8Array): Promise<EnumeratedImportFile[]> {
-  // node-unrar-js works with the provided RAR v5 sample, but DOCX buffers extracted from RAR
-  // are not yet compatible with Mammoth in this runtime. Keep RAR enumeration/import enabled,
-  // and report DOCX entries as file-level failures until that parser lane is hardened.
+  // RAR uploads stay in the same downstream parse lane as direct/ZIP DOCX files.
+  // If Mammoth cannot extract text from an entry, parseDocxFile() falls back to raw XML extraction.
   const extractor = await unrar.createExtractorFromData({
     data: toArrayBuffer(archiveData),
   });

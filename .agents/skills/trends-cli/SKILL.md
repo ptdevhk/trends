@@ -32,6 +32,7 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends resume list --limit 50`
 - `./bin/trends resume search "CNC 东莞" --limit 50`
 - `./bin/trends resume snapshot --source job5156 --count 20`
+- `./bin/trends resume import-51job ~/Downloads/51job.rar --keyword "CNC 销售"`
 - `./bin/trends resume restore output/resume-backups/<run-stamp> --mode replace --yes`
 - `./bin/trends resume match --query "CNC 销售" --source convex --mode rules_only`
 - `./bin/trends resume debug ai-score --query "CNC 销售" --limit 5 --top-n 3`
@@ -61,6 +62,7 @@ Use this skill when the user asks to operate backend services from terminal comm
 - Keep `dev-docs/skills/trends-cli` as the only editable source. Refresh `.agents/skills/trends-cli` and `.claude/skills/trends-cli` with `make sync-project-skills`; use `make install-skill SKILL=trends-cli [TARGET=codex|agents|all]` only for manual user-global installs.
 - Keep `--api-url` and `--worker-url` aligned with running services.
 - Prefer `trends resume snapshot` over calling `scripts/resume/snapshot-source-backups.ts` directly when you want a repeatable operator/dev-cycle entrypoint.
+- Use `trends resume import-51job` when you want to validate the live `/api/resumes/manual-import` lane for local `.rar`, `.zip`, `.docx`, or `.pdf` files and inspect file-level warnings/failures before or after snapshot restore.
 - `trends resume restore` accepts either a single portable backup file or a snapshot run directory; directory restores import files in deterministic source order (`job5156`, `seek`, `51job-manual`) and only reset once in `--mode replace`.
 - The preferred snapshot verification flow is: `resume snapshot` -> `resume restore` -> `resume search` / `resume match --mode rules_only` -> `resume debug ai-score`; use `resume debug matches` or `match-runs` only for persisted review-lane validation.
 - `trends resume match` remains the API-backed path; when `source=convex` and AI scoring is needed for debug, use `trends resume debug ai-score`.
