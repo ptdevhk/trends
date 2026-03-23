@@ -282,7 +282,7 @@ i18n-build:
 # Dependencies
 # =============================================================================
 
-# Install Python/Node dependencies for development, Convex prefetch, and governance bootstrap
+# Install Python/Node dependencies, ensure the Go CLI toolchain, build bin/trends, and bootstrap local dev assets
 install-deps:
 	./scripts/install-deps.sh
 
@@ -834,7 +834,7 @@ help:
 	@echo ""
 	@echo "Dependencies:"
 	@echo "  install-deps [CONVEX_MIRROR_MODE=off|fallback|mirror-first]"
-	@echo "               Install deps, prefetch Convex assets, sync repo project skills, and install configured global skills via the skills CLI"
+	@echo "               Install deps, ensure the Go toolchain, build bin/trends, prefetch Convex assets, sync repo project skills, and install configured global skills via the skills CLI"
 	@echo "               Global skill URLs come from config/skills/install.yaml and use direct skill tree paths"
 	@echo "               See ./scripts/install-deps.sh --help for CI=true/1 and additional prefetch env knobs"
 	@echo "  prefetch-convex [CONVEX_MIRROR_MODE=off|fallback|mirror-first] Prefetch Convex local backend + dashboard assets"
