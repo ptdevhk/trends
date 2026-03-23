@@ -4609,6 +4609,17 @@ export interface components {
             /** @example 2023-08 */
             endDate?: string;
         };
+        ResumeImportRestoreState: {
+            /** @example 1763917200000 */
+            crawledAt?: number;
+            /** @example alice cnc sales dongguan */
+            searchText?: string;
+            /** @example 85 */
+            primaryRuleScore?: number;
+            ingestData?: unknown;
+            analysis?: unknown;
+            analyses?: unknown;
+        };
         ResumeImportItem: {
             resumeId?: string | number;
             perUserId?: string | number;
@@ -4658,6 +4669,7 @@ export interface components {
             activityStatus?: string;
             /** @example 2026-02-03T10:00:00.000Z */
             extractedAt?: string;
+            restoreState?: components["schemas"]["ResumeImportRestoreState"];
         };
         ResumeImportRequest: {
             metadata: components["schemas"]["ResumeImportMetadata"];

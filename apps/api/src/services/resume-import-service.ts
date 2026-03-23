@@ -10,6 +10,7 @@ import {
 } from "@trends/shared";
 import {
   ResumeImportItemSchema,
+  ResumeImportRestoreStateSchema,
   ResumeImportMetadataSchema,
   ResumeImportRequestSchema,
   ResumeSubmitSummarySchema,
@@ -21,8 +22,18 @@ const RESUME_IMPORT_CONVEX_BATCH_SIZE = 200;
 
 type ResumeImportMetadata = z.infer<typeof ResumeImportMetadataSchema>;
 export type ResumeImportItem = z.infer<typeof ResumeImportItemSchema>;
+type ResumeImportRestoreState = z.infer<typeof ResumeImportRestoreStateSchema>;
 export type ResumeImportRequest = z.infer<typeof ResumeImportRequestSchema>;
 export type ResumeSubmitSummary = z.infer<typeof ResumeSubmitSummarySchema>;
+
+type ConvexResumeRestoreState = {
+  crawledAt?: number;
+  searchText?: string;
+  primaryRuleScore?: number;
+  ingestData?: unknown;
+  analysis?: unknown;
+  analyses?: unknown;
+};
 
 type ConvexResumeSubmitItem = {
   externalId: string;
@@ -30,6 +41,7 @@ type ConvexResumeSubmitItem = {
   hash: string;
   source: string;
   tags: string[];
+  restoreState?: ConvexResumeRestoreState;
 };
 
 export type NormalizedResumeImportPayload = {
@@ -176,6 +188,40 @@ function normalizeCandidateId(value: string | undefined): string | null {
   return normalizeOptionalString(value);
 }
 
+function normalizeRestoreState(value: ResumeImportRestoreState | undefined): ConvexResumeRestoreState | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized: ConvexResumeRestoreState = {};
+  if (typeof value.crawledAt === "number" && Number.isFinite(value.crawledAt)) {
+    normalized.crawledAt = value.crawledAt;
+  }
+
+  const searchText = normalizeOptionalString(value.searchText);
+  if (searchText) {
+    normalized.searchText = searchText;
+  }
+
+  if (typeof value.primaryRuleScore === "number" && Number.isFinite(value.primaryRuleScore)) {
+    normalized.primaryRuleScore = value.primaryRuleScore;
+  }
+
+  if (value.ingestData !== undefined) {
+    normalized.ingestData = value.ingestData;
+  }
+
+  if (value.analysis !== undefined) {
+    normalized.analysis = value.analysis;
+  }
+
+  if (value.analyses !== undefined) {
+    normalized.analyses = value.analyses;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
 function buildResumeExternalId(resume: ResumeImportItem, source: string, hash: string): string {
   const explicitExternalId = normalizeCandidateId(resume.externalId);
   if (explicitExternalId) {
@@ -297,6 +343,7 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
       hash,
       source: itemSource,
       tags: itemTags,
+      restoreState: normalizeRestoreState(resume.restoreState),
     };
   });
 

@@ -488,12 +488,46 @@ function buildResumeBackupItem(params: {
   tags: string[];
 }): Record<string, unknown> {
   const content = isRecord(params.record.content) ? params.record.content : {};
+  const restoreState = buildResumeBackupRestoreState(params.record);
   return {
     ...content,
     externalId: toStringValue(params.record.externalId) || toStringValue(content.externalId),
     sourceHost: params.sourceHost,
     tags: params.tags,
+    ...(restoreState ? { restoreState } : {}),
   };
+}
+
+function buildResumeBackupRestoreState(record: Record<string, unknown>): Record<string, unknown> | undefined {
+  const restoreState: Record<string, unknown> = {};
+  const crawledAt = record.crawledAt;
+  if (typeof crawledAt === "number" && Number.isFinite(crawledAt)) {
+    restoreState.crawledAt = crawledAt;
+  }
+
+  const searchText = toStringValue(record.searchText);
+  if (searchText) {
+    restoreState.searchText = searchText;
+  }
+
+  const primaryRuleScore = record.primaryRuleScore;
+  if (typeof primaryRuleScore === "number" && Number.isFinite(primaryRuleScore)) {
+    restoreState.primaryRuleScore = primaryRuleScore;
+  }
+
+  if (record.ingestData !== undefined) {
+    restoreState.ingestData = record.ingestData;
+  }
+
+  if (record.analysis !== undefined) {
+    restoreState.analysis = record.analysis;
+  }
+
+  if (record.analyses !== undefined) {
+    restoreState.analyses = record.analyses;
+  }
+
+  return Object.keys(restoreState).length > 0 ? restoreState : undefined;
 }
 
 function normalizeResumeBackupFilterValues(values: string[] | undefined): string[] | undefined {

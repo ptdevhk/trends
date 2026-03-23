@@ -1,5 +1,6 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { buildSearchText } from "./search_text";
 import { resolveSubmitResumeParallelism } from "./lib/parallelism";
@@ -48,6 +49,59 @@ function normalizeOptionalPositiveInt(value: number | undefined): number | undef
         return undefined;
     }
     return truncated;
+}
+
+type RestoreState = {
+    crawledAt?: number;
+    searchText?: string;
+    primaryRuleScore?: number;
+    ingestData?: Doc<"resumes">["ingestData"];
+    analysis?: Doc<"resumes">["analysis"];
+    analyses?: Doc<"resumes">["analyses"];
+};
+
+function resolveStoredSearchText(
+    content: unknown,
+    restoreState: RestoreState | undefined,
+): string {
+    const restored = typeof restoreState?.searchText === "string"
+        ? restoreState.searchText.trim()
+        : "";
+    if (restored) {
+        return restored;
+    }
+    return buildSearchText(content);
+}
+
+function shouldScheduleIngest(restoreState: RestoreState | undefined): boolean {
+    return restoreState?.ingestData === undefined;
+}
+
+function applyRestoreStateFields(
+    target: {
+        primaryRuleScore?: number;
+        ingestData?: Doc<"resumes">["ingestData"];
+        analysis?: Doc<"resumes">["analysis"];
+        analyses?: Doc<"resumes">["analyses"];
+    },
+    restoreState: RestoreState | undefined,
+): void {
+    if (!restoreState) {
+        return;
+    }
+
+    if (typeof restoreState.primaryRuleScore === "number") {
+        target.primaryRuleScore = restoreState.primaryRuleScore;
+    }
+    if (restoreState.ingestData !== undefined) {
+        target.ingestData = restoreState.ingestData;
+    }
+    if (restoreState.analysis !== undefined) {
+        target.analysis = restoreState.analysis;
+    }
+    if (restoreState.analyses !== undefined) {
+        target.analyses = restoreState.analyses;
+    }
 }
 
 // List recent tasks for monitoring
@@ -339,6 +393,14 @@ export const submitResumes = mutation({
                 hash: v.string(),
                 source: v.string(),
                 tags: v.array(v.string()),
+                restoreState: v.optional(v.object({
+                    crawledAt: v.optional(v.number()),
+                    searchText: v.optional(v.string()),
+                    primaryRuleScore: v.optional(v.number()),
+                    ingestData: v.optional(v.any()),
+                    analysis: v.optional(v.any()),
+                    analyses: v.optional(v.any()),
+                })),
             })
         ),
     },
@@ -373,8 +435,7 @@ export const submitResumes = mutation({
         let unchanged = 0;
         let nextIndex = 0;
         const parallelism = resolveSubmitResumeParallelism(resumes.length);
-        const insertedIds: any[] = [];
-        const updatedIds: any[] = [];
+        const ingestProcessIds: Id<"resumes">[] = [];
 
         const worker = async (): Promise<void> => {
             while (true) {
@@ -386,6 +447,7 @@ export const submitResumes = mutation({
 
                 const entry = resumes[currentIndex];
                 const resume = entry.resume;
+                const restoreState = resume.restoreState;
                 let existing = await ctx.db
                     .query("resumes")
                     .withIndex("by_identityKey", (q) => q.eq("identityKey", entry.identityKey))
@@ -404,7 +466,6 @@ export const submitResumes = mutation({
                     }
                 }
 
-                const searchText = buildSearchText(resume.content);
                 const parsedAge = parseAgeFromContent(resume.content);
 
                 if (existing) {
@@ -420,21 +481,28 @@ export const submitResumes = mutation({
                             source: string;
                             tags: string[];
                             searchText: string;
+                            primaryRuleScore?: number;
+                            ingestData?: Doc<"resumes">["ingestData"];
+                            analysis?: Doc<"resumes">["analysis"];
+                            analyses?: Doc<"resumes">["analyses"];
                             age?: number;
                         } = {
                             externalId: resume.externalId,
                             identityKey: entry.identityKey,
                             content: resume.content,
                             hash: resume.hash,
-                            crawledAt: Date.now(),
+                            crawledAt: restoreState?.crawledAt ?? Date.now(),
                             source: resume.source,
                             tags: nextTags,
-                            searchText,
+                            searchText: resolveStoredSearchText(resume.content, restoreState),
                         };
+                        applyRestoreStateFields(patch, restoreState);
                         applyParsedAgePatch(patch, parsedAge, existing.age);
                         await ctx.db.patch(existing._id, patch);
                         updated += 1;
-                        updatedIds.push(existing._id);
+                        if (shouldScheduleIngest(restoreState)) {
+                            ingestProcessIds.push(existing._id);
+                        }
                         continue;
                     }
 
@@ -442,11 +510,16 @@ export const submitResumes = mutation({
                         searchText?: string;
                         identityKey?: string;
                         tags?: string[];
+                        primaryRuleScore?: number;
+                        ingestData?: Doc<"resumes">["ingestData"];
+                        analysis?: Doc<"resumes">["analysis"];
+                        analyses?: Doc<"resumes">["analyses"];
                         age?: number;
                     } = {};
 
-                    if (!existing.searchText) {
-                        patch.searchText = searchText;
+                    const restoredSearchText = resolveStoredSearchText(resume.content, restoreState);
+                    if ((!existing.searchText && restoredSearchText) || (restoreState?.searchText && existing.searchText !== restoredSearchText)) {
+                        patch.searchText = restoredSearchText;
                     }
                     if (existing.identityKey !== entry.identityKey) {
                         patch.identityKey = entry.identityKey;
@@ -454,11 +527,15 @@ export const submitResumes = mutation({
                     if (tagsChanged) {
                         patch.tags = nextTags;
                     }
+                    applyRestoreStateFields(patch, restoreState);
                     applyParsedAgePatch(patch, parsedAge, existing.age);
 
                     if (Object.keys(patch).length > 0) {
                         await ctx.db.patch(existing._id, patch);
                         updated += 1;
+                        if (shouldScheduleIngest(restoreState)) {
+                            ingestProcessIds.push(existing._id);
+                        }
                     } else {
                         unchanged += 1;
                     }
@@ -472,21 +549,28 @@ export const submitResumes = mutation({
                         tags: string[];
                         source: string;
                         crawledAt: number;
+                        primaryRuleScore?: number;
+                        ingestData?: Doc<"resumes">["ingestData"];
+                        analysis?: Doc<"resumes">["analysis"];
+                        analyses?: Doc<"resumes">["analyses"];
                         age?: number;
                     } = {
                         externalId: resume.externalId,
                         identityKey: entry.identityKey,
                         content: resume.content,
                         hash: resume.hash,
-                        searchText,
+                        searchText: resolveStoredSearchText(resume.content, restoreState),
                         tags: resume.tags,
                         source: resume.source,
-                        crawledAt: Date.now(),
+                        crawledAt: restoreState?.crawledAt ?? Date.now(),
                     };
+                    applyRestoreStateFields(insertPayload, restoreState);
                     applyParsedAgePatch(insertPayload, parsedAge);
                     const newId = await ctx.db.insert("resumes", insertPayload);
                     inserted += 1;
-                    insertedIds.push(newId);
+                    if (shouldScheduleIngest(restoreState)) {
+                        ingestProcessIds.push(newId);
+                    }
                 }
             }
         };
@@ -495,12 +579,11 @@ export const submitResumes = mutation({
         await Promise.all(workers);
 
         // Schedule ingest computation for new/updated resumes (M3)
-        const processIds = [...insertedIds, ...updatedIds];
-        if (processIds.length > 0) {
+        if (ingestProcessIds.length > 0) {
             const BATCH = 50;
-            for (let i = 0; i < processIds.length; i += BATCH) {
+            for (let i = 0; i < ingestProcessIds.length; i += BATCH) {
                 await ctx.scheduler.runAfter(0, internal.ingest_agent.processNewResumes, {
-                    resumeIds: processIds.slice(i, i + BATCH),
+                    resumeIds: ingestProcessIds.slice(i, i + BATCH),
                 });
             }
         }

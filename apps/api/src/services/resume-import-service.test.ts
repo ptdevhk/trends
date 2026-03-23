@@ -179,6 +179,20 @@ describe("resume-import-service", () => {
           extractedAt: "2026-03-17T00:00:00.000Z",
           sourceHost: "hr.job5156.com",
           tags: ["job5156", "sales"],
+          restoreState: {
+            crawledAt: 1763942400000,
+            searchText: "alice sales dongguan",
+            primaryRuleScore: 91,
+            ingestData: {
+              industryTags: ["machine tools"],
+            },
+            analysis: {
+              score: 88,
+            },
+            analyses: {
+              "source:job5156|analysis:lathe-sales": { score: 88 },
+            },
+          },
         },
         {
           profileId: "2002",
@@ -208,6 +222,20 @@ describe("resume-import-service", () => {
       source: "hr.job5156.com",
       tags: ["job5156", "sales"],
       externalId: "hr.job5156.com:resume:1001",
+      restoreState: {
+        crawledAt: 1763942400000,
+        searchText: "alice sales dongguan",
+        primaryRuleScore: 91,
+        ingestData: {
+          industryTags: ["machine tools"],
+        },
+        analysis: {
+          score: 88,
+        },
+        analyses: {
+          "source:job5156|analysis:lathe-sales": { score: 88 },
+        },
+      },
     });
     expect(result.convexResumes[1]).toMatchObject({
       source: "hk.employer.seek.com",
@@ -443,6 +471,14 @@ describe("resume-import-service", () => {
           digitalIdentity: { linkedinUrl: "https://www.linkedin.com/in/example" },
           noticePeriodDays: 30,
           extractedAt: "2026-03-12T01:02:03.000Z",
+          restoreState: {
+            crawledAt: 1763942400000,
+            searchText: "yap kae wen cnc sales engineer selangor",
+            primaryRuleScore: 72,
+            ingestData: {
+              industryTags: ["machine tools"],
+            },
+          },
         },
       ],
     });
@@ -463,6 +499,14 @@ describe("resume-import-service", () => {
           externalId: "hk.employer.seek.com:profile:503033454",
           source: "hk.employer.seek.com",
           tags: ["sales engineer"],
+          restoreState: {
+            crawledAt: 1763942400000,
+            searchText: "yap kae wen cnc sales engineer selangor",
+            primaryRuleScore: 72,
+            ingestData: {
+              industryTags: ["machine tools"],
+            },
+          },
           content: expect.objectContaining({
             profileId: "503033454",
             profileType: "seek",
