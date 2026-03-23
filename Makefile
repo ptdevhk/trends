@@ -9,7 +9,7 @@
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
 		seed-clear-demo-resumes \
-		backup-resumes restore-resumes clear-resume-analyses \
+		backup-resumes restore-resumes clear-resume-analyses clear-resume-analyses-restart \
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
@@ -316,8 +316,13 @@ clear-resume-analyses:
 			fi; \
 		done; \
 		IFS="$$OLD_IFS"; \
-	fi; \
+		fi; \
 	cd packages/cli && eval "go run . resume debug clear-analyses --batch-size $$batch_size $$output_flag $${job_description:+--job-description $$job_description} $$resume_id_flags"
+
+# Clear resume AI analyses, then restart local Convex to release scan-time RSS
+clear-resume-analyses-restart:
+	@$(MAKE) clear-resume-analyses BATCH_SIZE="$(BATCH_SIZE)" JOB_DESCRIPTION="$(JOB_DESCRIPTION)" RESUME_IDS="$(RESUME_IDS)" JSON="$(JSON)"
+	@$(MAKE) dev-convex-restart
 
 # Docker: start containers
 docker:
@@ -942,6 +947,9 @@ help:
 	@echo "                 Uses BATCH_SIZE=50 by default, optional JOB_DESCRIPTION=<id>, optional RESUME_IDS=a,b,c, and JSON=1"
 	@echo "                 Example: make clear-resume-analyses JSON=1"
 	@echo "                 Example: make clear-resume-analyses JOB_DESCRIPTION=lathe-sales BATCH_SIZE=25 JSON=1"
+	@echo "  clear-resume-analyses-restart Clear AI analyses, then restart local Convex to drop retained RSS"
+	@echo "                 Uses the same arguments as clear-resume-analyses and is recommended after full-dataset scans"
+	@echo "                 Example: make clear-resume-analyses-restart JSON=1"
 	@echo "  uninstall      Remove systemd services (requires sudo)"
 	@echo "                 See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1, and env knobs"
 	@echo "  docker         Start Docker containers"
