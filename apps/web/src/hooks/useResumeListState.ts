@@ -145,6 +145,28 @@ function normalizeFilterList(values: string[] | undefined): string[] | undefined
   return normalized.sort()
 }
 
+function serializeLocationFilter(values: string[] | undefined): string {
+  if (!Array.isArray(values) || values.length === 0) {
+    return ''
+  }
+
+  const seen = new Set<string>()
+  const normalized: string[] = []
+
+  values.forEach((value) => {
+    const trimmed = value.trim()
+    const key = trimmed.toLowerCase()
+    if (!trimmed || seen.has(key)) {
+      return
+    }
+
+    seen.add(key)
+    normalized.push(trimmed)
+  })
+
+  return normalized.join(',')
+}
+
 function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFilters> {
   return {
     minExperience: normalizeOptionalNumber(filters.minExperience),
@@ -1168,9 +1190,20 @@ export function useResumeListState(loadSearchHistory = false) {
 
   const handleFiltersChange = useCallback(
     (nextFilters: typeof filters) => {
+      const nextLocations = Array.isArray(nextFilters.locations) ? nextFilters.locations : undefined
+      const currentLocations = Array.isArray(filters.locations) ? filters.locations : undefined
+      const shouldSyncLocation =
+        nextLocations !== undefined
+        || (currentLocations?.length ?? 0) > 0
+
+      if (shouldSyncLocation) {
+        const nextLocation = serializeLocationFilter(nextLocations)
+        setSessionLocation((current) => (current === nextLocation ? current : nextLocation))
+      }
+
       setFilters(nextFilters)
     },
-    [setFilters]
+    [filters.locations, setFilters, setSessionLocation]
   )
 
   const handleToggleTag = useCallback((tag: string) => {
