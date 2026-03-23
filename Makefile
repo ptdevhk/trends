@@ -189,7 +189,29 @@ dev-convex-status:
 	ss -ltnp "( sport = :$$convex_port or sport = :$$site_port )" || true; \
 	echo ""; \
 	echo "Local Convex processes:"; \
-	ps -eo pid,ppid,pgid,rss,%mem,etime,cmd --sort=-rss | rg 'convex dev|convex-local-backend|PID' || true; \
+	listener_pids="$$( { \
+		lsof -tiTCP:"$$convex_port" -sTCP:LISTEN 2>/dev/null; \
+		lsof -tiTCP:"$$site_port" -sTCP:LISTEN 2>/dev/null; \
+	} | sort -u )"; \
+	pids="$$( { \
+		printf '%s\n' "$$listener_pids"; \
+		for pid in $$listener_pids; do \
+			current="$$pid"; \
+			for _ in 1 2 3; do \
+				parent="$$(ps -o ppid= -p "$$current" | tr -d '[:space:]')"; \
+				if [ -z "$$parent" ] || [ "$$parent" -le 1 ]; then \
+					break; \
+				fi; \
+				printf '%s\n' "$$parent"; \
+				current="$$parent"; \
+			done; \
+		done; \
+	} | sort -u | tr '\n' ' ' )"; \
+	if [ -n "$$pids" ]; then \
+		ps -o pid,ppid,pgid,rss,%mem,etime,cmd -p $$pids; \
+	else \
+		echo "No local Convex processes found."; \
+	fi; \
 	echo ""; \
 	if ! curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \
 		echo "Convex at http://127.0.0.1:$$convex_port is not reachable."; \
