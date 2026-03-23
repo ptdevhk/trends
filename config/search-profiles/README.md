@@ -6,10 +6,11 @@ This directory contains pre-configured search profiles that combine:
 - Job Description reference
 - Filter settings
 - Automation settings (scheduling, notifications)
+- Source routing and optional AI review behavior
 
 ## Usage
 
-Search profiles are the primary way to run automated resume collection and matching with minimal user input.
+Search profiles are routing presets for automated resume collection and matching with minimal operator input.
 
 ### Quick Start
 
@@ -63,11 +64,14 @@ notifications:
     - event: new_high_match    # Score >= 80
     - event: daily_summary
 
-# AI matching settings (optional, uses defaults if omitted)
+# Optional AI review settings
+# Keep deterministic scoring as the default engine; use AI only on shortlisted resumes.
 ai:
-  screenerThreshold: 50
-  evaluatorThreshold: 70
-  maxCandidatesPerRun: 200
+  pipeline:
+    - stage: review
+      model: openai/gpt-5-mini
+      threshold: 70
+      batchSize: 20
 ```
 
 ## File Format
@@ -93,4 +97,4 @@ curl -X POST http://localhost:3000/api/search-profiles/quick-start \
 
 ## Files
 
-_No profiles yet. Create your first profile!_
+- `dongguan-lathe-sales.yaml`: example routing preset with deterministic filters, notifications, and an optional review lane

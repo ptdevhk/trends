@@ -196,6 +196,8 @@ vi.mock('sonner', () => ({
 function buildResume(params: {
   id: string
   name: string
+  source?: string
+  profileType?: string
   primaryRuleScore?: number
   location?: string
   locationHierarchy?: ConvexResumeItem['locationHierarchy']
@@ -218,7 +220,7 @@ function buildResume(params: {
     resumeId: params.id as ConvexResumeItem['resumeId'],
     externalId: `ext-${params.id}`,
     crawledAt: 1_700_000_000_000,
-    source: 'test',
+    source: params.source ?? 'hr.job5156.com',
     tags: [],
     identityKey: params.id,
     name: params.name,
@@ -245,6 +247,7 @@ function buildResume(params: {
     digitalIdentity: { linkedinUrl: 'https://www.linkedin.com/in/example' },
     noticePeriodDays: 30,
     extractedAt: '2026-03-01T00:00:00.000Z',
+    profileType: params.profileType,
     primaryRuleScore: params.primaryRuleScore,
     analysis: params.analysis
       ? {
@@ -304,6 +307,28 @@ describe('useResumeListState role filter regression', () => {
     expect(resume?.resumeSnippet).toEqual({ text: 'Experienced sales engineer covering machine tools.' })
     expect(resume?.currentIndustry).toEqual({ name: 'Industrial machinery' })
     expect(resume?.noticePeriodDays).toBe(30)
+  })
+
+  it('filters the main review lane to the active collection source', () => {
+    mockState.sessionCollectionSource = { type: 'seek', exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1' }
+    mockState.convexResumes = [
+      buildResume({
+        id: 'seek-1',
+        name: 'Seek Candidate',
+        source: 'my.employer.seek.com',
+        profileType: 'seek',
+        roleSignals: [],
+      }),
+      buildResume({
+        id: 'job5156-1',
+        name: 'Job5156 Candidate',
+        source: 'hr.job5156.com',
+        profileType: 'job5156',
+        roleSignals: [],
+      }),
+    ]
+
+    expect(getDisplayedResumeNames()).toEqual(['Seek Candidate'])
   })
 
   beforeEach(() => {

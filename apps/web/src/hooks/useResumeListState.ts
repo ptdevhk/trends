@@ -22,7 +22,7 @@ import {
 } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import type { components } from '@/lib/api-types'
-import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
+import { getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from '@/lib/analysis-utils'
 import { isResumeHomeResetState } from '@/lib/resume-home-navigation'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import {
@@ -248,6 +248,17 @@ function getResumeLocationText(
   resume: { location?: string; locationHierarchy?: { country: string; province?: string; city?: string; district?: string } }
 ): string {
   return formatLocationHierarchySearchText(resume.locationHierarchy) || resume.location || ''
+}
+
+function resolveAnalysisSourceKeyForResume(
+  resume: Pick<ConvexResumeItem, 'source'> & { profileType?: string },
+  collectionSource: CollectionSource | undefined,
+): string | undefined {
+  return collectionSource?.type
+    ?? resolveResumeAnalysisSourceKey({
+      sourceKey: resume.profileType,
+      source: resume.source,
+    })
 }
 
 function parseSerializedStringArray(value: string): string[] {
@@ -862,10 +873,15 @@ export function useResumeListState(loadSearchHistory = false) {
 
   const filteredConvexResumes = useMemo(() => {
     let result: ScoredConvexResume[] = convexResumes
+      .filter((resume: ConvexResumeItem) =>
+        !sessionCollectionSource
+        || resolveAnalysisSourceKeyForResume(resume, undefined) === sessionCollectionSource.type
+      )
       .filter((resume: ConvexResumeItem) => {
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
           location: sessionLocation,
           promptVersion: currentPromptVersion,
+          sourceKey: resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource),
         })
         return !isAutoFilteredAnalysis(analysis)
       })
@@ -962,6 +978,7 @@ export function useResumeListState(loadSearchHistory = false) {
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
           location: sessionLocation,
           promptVersion: currentPromptVersion,
+          sourceKey: resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource),
         })
         return (analysis?.score ?? 0) >= minMatchScore
       })
@@ -1009,6 +1026,7 @@ export function useResumeListState(loadSearchHistory = false) {
     selectedTags,
     currentPromptVersion,
     sessionKeywords,
+    sessionCollectionSource,
     sessionLocation,
     statusByIdentity,
   ])
@@ -1059,6 +1077,7 @@ export function useResumeListState(loadSearchHistory = false) {
           !getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
             location: sessionLocation,
             promptVersion: currentPromptVersion,
+            sourceKey: resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource),
           })
         )
         .slice(0, Number(import.meta.env.VITE_ANALYSIS_TOP_N) || 10)
@@ -1141,6 +1160,7 @@ export function useResumeListState(loadSearchHistory = false) {
     lastDispatchTime,
     currentPromptVersion,
     selectedSample,
+    sessionCollectionSource,
     sessionKeywords,
     sessionLocation,
     t,
@@ -1208,6 +1228,7 @@ export function useResumeListState(loadSearchHistory = false) {
         const analysis = getAnalysisForJob(resume, jobDescriptionId, sessionKeywords, {
           location: sessionLocation,
           promptVersion: currentPromptVersion,
+          sourceKey: resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource),
         })
         const isAnalysisValid = !jobDescriptionId || analysis?.jobDescriptionId === jobDescriptionId
         const ingestData = resume.ingestData
@@ -1282,6 +1303,7 @@ export function useResumeListState(loadSearchHistory = false) {
     mode,
     resumes,
     salesRequiredContext,
+    sessionCollectionSource,
     sessionKeywords,
     sessionLocation,
     statusByIdentity,

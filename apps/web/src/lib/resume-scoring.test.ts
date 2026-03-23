@@ -394,4 +394,83 @@ describe('resume-scoring', () => {
       promptVersion: 2,
     })).toBeUndefined()
   })
+
+  it('prefers source-aware analysis cache entries when a source key is provided', () => {
+    expect(getAnalysisForJob({
+      analyses: {
+        'source:seek|analysis:jd-sales': {
+          score: 82,
+          summary: 'seek lane',
+          highlights: [],
+          recommendation: 'match',
+          promptVersion: 2,
+          jobDescriptionId: 'jd-sales',
+        },
+        'jd-sales': {
+          score: 61,
+          summary: 'legacy lane',
+          highlights: [],
+          recommendation: 'potential',
+          promptVersion: 2,
+          jobDescriptionId: 'jd-sales',
+        },
+      },
+    }, 'jd-sales', ['销售'], {
+      location: '广东',
+      promptVersion: 2,
+      sourceKey: 'seek',
+    })).toEqual(expect.objectContaining({
+      score: 82,
+      summary: 'seek lane',
+    }))
+  })
+
+  it('falls back to the legacy bare cache entry when no source-aware entry exists yet', () => {
+    expect(getAnalysisForJob({
+      analyses: {
+        'jd-sales': {
+          score: 61,
+          summary: 'legacy lane',
+          highlights: [],
+          recommendation: 'potential',
+          promptVersion: 2,
+          jobDescriptionId: 'jd-sales',
+        },
+      },
+    }, 'jd-sales', ['销售'], {
+      location: '广东',
+      promptVersion: 2,
+      sourceKey: 'seek',
+    })).toEqual(expect.objectContaining({
+      score: 61,
+      summary: 'legacy lane',
+    }))
+  })
+
+  it('does not reuse the current analysis field for a different source when a source-aware cache exists', () => {
+    expect(getAnalysisForJob({
+      analysis: {
+        score: 88,
+        summary: 'job5156 current',
+        highlights: [],
+        recommendation: 'match',
+        promptVersion: 2,
+        jobDescriptionId: 'jd-sales',
+      },
+      analyses: {
+        'source:job5156|analysis:jd-sales': {
+          score: 88,
+          summary: 'job5156 current',
+          highlights: [],
+          recommendation: 'match',
+          promptVersion: 2,
+          jobDescriptionId: 'jd-sales',
+        },
+      },
+    }, 'jd-sales', ['销售'], {
+      location: '广东',
+      promptVersion: 2,
+      sourceKey: 'seek',
+    })).toBeUndefined()
+  })
 })

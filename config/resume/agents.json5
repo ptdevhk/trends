@@ -1,10 +1,12 @@
+// Runtime tuning for the optional AI review lane.
+// Keep screener/evaluator/final ids for prompt/config compatibility.
 {
   "agents": {
     "list": [
       {
         "id": "screener",
-        "name": "初筛Agent",
-        "description": "快速筛选，排除明显不匹配候选人",
+        "name": "初筛阶段",
+        "description": "可选 AI 首轮审核，用于快速排除明显不匹配候选人",
         "model": "openai/gpt-5-mini",
         "config": {
           "batchSize": 50,
@@ -18,8 +20,8 @@
       },
       {
         "id": "evaluator",
-        "name": "详评Agent",
-        "description": "详细评估技能匹配度和工作经验",
+        "name": "详评阶段",
+        "description": "对通过初筛的候选人做更细的技能与经历评估",
         "model": "openai/gpt-5-mini",
         "config": {
           "batchSize": 10,
@@ -34,8 +36,8 @@
       },
       {
         "id": "final",
-        "name": "终审Agent",
-        "description": "最终推荐决策和面试建议",
+        "name": "终审阶段",
+        "description": "对少量高分候选人给出最终建议与面试提示",
         "model": "openai/gpt-5-mini",
         "config": {
           "batchSize": 5,

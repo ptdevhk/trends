@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildKeywordAnalysisId, deriveAnalysisLookupKey } from './analysis-utils'
+import {
+  buildKeywordAnalysisId,
+  buildResumeAnalysisLookupKeys,
+  buildResumeAnalysisStorageKey,
+  deriveAnalysisLookupKey,
+  isResumeAnalysisKeyForJobDescription,
+  resolveResumeAnalysisSourceKey,
+} from './analysis-utils'
 
 describe('buildKeywordAnalysisId', () => {
   it('matches backend output fixtures', () => {
@@ -34,6 +41,11 @@ describe('deriveAnalysisLookupKey', () => {
     expect(deriveAnalysisLookupKey('jd-lathe-sales', ['车床', '销售'])).toBe('jd-lathe-sales')
   })
 
+  it('uses source-aware keys when a collection source is known', () => {
+    expect(deriveAnalysisLookupKey('jd-lathe-sales', ['车床', '销售'], { sourceKey: 'seek' }))
+      .toBe('source:seek|analysis:jd-lathe-sales')
+  })
+
   it('falls back to keyword analysis id', () => {
     expect(deriveAnalysisLookupKey(undefined, ['CNC', '车床'], {
       location: '广东',
@@ -43,5 +55,32 @@ describe('deriveAnalysisLookupKey', () => {
 
   it('returns empty key when no context is provided', () => {
     expect(deriveAnalysisLookupKey(undefined, [])).toBe('')
+  })
+})
+
+describe('source-aware analysis helpers', () => {
+  it('builds storage keys with source prefixes and legacy fallback', () => {
+    expect(buildResumeAnalysisStorageKey('jd-lathe-sales', { sourceKey: 'seek' }))
+      .toBe('source:seek|analysis:jd-lathe-sales')
+    expect(buildResumeAnalysisStorageKey('jd-lathe-sales')).toBe('jd-lathe-sales')
+  })
+
+  it('returns source-aware lookup keys before the legacy key', () => {
+    expect(buildResumeAnalysisLookupKeys('jd-lathe-sales', [], { sourceKey: 'seek' })).toEqual([
+      'source:seek|analysis:jd-lathe-sales',
+      'jd-lathe-sales',
+    ])
+  })
+
+  it('matches both legacy and source-aware keys when clearing by JD', () => {
+    expect(isResumeAnalysisKeyForJobDescription('jd-lathe-sales', 'jd-lathe-sales')).toBe(true)
+    expect(isResumeAnalysisKeyForJobDescription('source:seek|analysis:jd-lathe-sales', 'jd-lathe-sales')).toBe(true)
+    expect(isResumeAnalysisKeyForJobDescription('source:seek|analysis:jd-cnc', 'jd-lathe-sales')).toBe(false)
+  })
+
+  it('normalizes known source keys from source hosts and explicit values', () => {
+    expect(resolveResumeAnalysisSourceKey({ source: 'hk.employer.seek.com' })).toBe('seek')
+    expect(resolveResumeAnalysisSourceKey({ sourceKey: 'job5156' })).toBe('job5156')
+    expect(resolveResumeAnalysisSourceKey({ source: 'manual.51job.com' })).toBeUndefined()
   })
 })

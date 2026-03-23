@@ -8,7 +8,7 @@ import {
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeAnalysis } from '@/hooks/useConvexResumes'
 import type { MatchBreakdown, Recommendation } from '@/types/resume'
-import { deriveAnalysisLookupKey } from '@/lib/analysis-utils'
+import { buildResumeAnalysisLookupKeys } from '@/lib/analysis-utils'
 
 export type IndustryDbV2Stats = {
   size: number
@@ -110,12 +110,21 @@ export function getAnalysisForJob(
   options?: {
     location?: string
     promptVersion?: number
+    sourceKey?: string
   }
 ): ConvexResumeAnalysis | undefined {
-  const lookupKey = deriveAnalysisLookupKey(jobDescriptionId, keywords, options)
-  const analysis = lookupKey && resume.analyses?.[lookupKey]
-    ? resume.analyses[lookupKey]
-    : resume.analysis && (!lookupKey || resume.analysis.jobDescriptionId === lookupKey)
+  const lookupKeys = buildResumeAnalysisLookupKeys(jobDescriptionId, keywords, options)
+  const hasCachedAnalyses = Boolean(resume.analyses && Object.keys(resume.analyses).length > 0)
+  const analysisFromCache = lookupKeys.find((lookupKey) => lookupKey && resume.analyses?.[lookupKey])
+  const analysis = analysisFromCache
+    ? resume.analyses?.[analysisFromCache]
+    : resume.analysis && (
+      lookupKeys.length === 0
+      || (
+        (!options?.sourceKey || !hasCachedAnalyses)
+        && lookupKeys.includes(resume.analysis.jobDescriptionId ?? '')
+      )
+    )
       ? resume.analysis
       : undefined
 

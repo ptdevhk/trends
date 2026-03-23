@@ -109,28 +109,16 @@ notifications:
       channels: [email]
 
 # ============================================================
-# AI MATCHING SETTINGS
+# OPTIONAL AI REVIEW SETTINGS
 # ============================================================
 
 ai:
-  # Use multi-stage pipeline
+  # Optional AI review lane on top of the deterministic shortlist
   pipeline:
-    - stage: screener
-      model: deepseek/deepseek-chat
-      threshold: 50
-      batchSize: 50
-      
-    - stage: evaluator
-      model: deepseek/deepseek-chat
+    - stage: review
+      model: openai/gpt-5-mini
       threshold: 70
-      # Only evaluate top 30% from screener
-      topPercent: 30
-      
-    - stage: final
-      model: anthropic/claude-sonnet-4-5
-      threshold: 80
-      # Only final review top 10% from evaluator
-      topPercent: 10
+      batchSize: 20
   
   # Auto-generate outreach messages for shortlisted candidates
   generateOutreach: true

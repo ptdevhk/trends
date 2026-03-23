@@ -1,5 +1,8 @@
 import { DEFAULT_RESUME_AI_PROMPT_LOCALE, getResumeAiPromptDefinition } from "./generated/resume-ai-prompts.js";
 
+const JOB5156_HOST_TOKEN = "job5156.com";
+const SEEK_HOST_SUFFIX = ".employer.seek.com";
+
 function stableHash(seed: string): string {
   let hash = 2166136261;
   for (const char of seed) {
@@ -39,6 +42,7 @@ export type AnalysisRoleSignalLike = {
 export type AnalysisKeywordKeyOptions = {
   location?: string;
   promptVersion?: number;
+  sourceKey?: string;
 };
 
 export type AnalysisResultLike = {
@@ -57,6 +61,81 @@ function getPromptVersionFallback(): number {
 
 function normalizeLocation(value: string | undefined): string | undefined {
   return normalizeText(value);
+}
+
+function normalizeJobDescriptionId(value: string | undefined): string {
+  const normalized = value?.trim();
+  return normalized ? normalized : "default";
+}
+
+export type ResumeAnalysisSourceKey = "job5156" | "seek";
+
+export function normalizeResumeAnalysisSourceKey(
+  value: string | null | undefined
+): ResumeAnalysisSourceKey | undefined {
+  const normalized = normalizeText(value ?? undefined);
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized === "seek" || normalized.endsWith(SEEK_HOST_SUFFIX)) {
+    return "seek";
+  }
+
+  if (normalized === "job5156" || normalized.includes(JOB5156_HOST_TOKEN)) {
+    return "job5156";
+  }
+
+  return undefined;
+}
+
+export function resolveResumeAnalysisSourceKey(scope?: {
+  sourceKey?: string | null;
+  source?: string | null;
+}): ResumeAnalysisSourceKey | undefined {
+  return normalizeResumeAnalysisSourceKey(scope?.sourceKey)
+    ?? normalizeResumeAnalysisSourceKey(scope?.source);
+}
+
+export function buildResumeAnalysisStorageKey(
+  jobDescriptionId: string | undefined,
+  options?: {
+    sourceKey?: string;
+  }
+): string {
+  const normalizedJobDescriptionId = normalizeJobDescriptionId(jobDescriptionId);
+  const sourceKey = resolveResumeAnalysisSourceKey({ sourceKey: options?.sourceKey });
+  if (!sourceKey) {
+    return normalizedJobDescriptionId;
+  }
+
+  return `source:${sourceKey}|analysis:${normalizedJobDescriptionId}`;
+}
+
+export function buildResumeAnalysisLookupKeys(
+  jobDescriptionId: string | undefined,
+  keywords: string[],
+  options?: AnalysisKeywordKeyOptions
+): string[] {
+  if (jobDescriptionId) {
+    const legacyKey = normalizeJobDescriptionId(jobDescriptionId);
+    const sourceAwareKey = buildResumeAnalysisStorageKey(jobDescriptionId, { sourceKey: options?.sourceKey });
+    return sourceAwareKey === legacyKey ? [legacyKey] : [sourceAwareKey, legacyKey];
+  }
+
+  if (keywords.length > 0) {
+    return [buildKeywordAnalysisId(keywords, options)];
+  }
+
+  return [];
+}
+
+export function isResumeAnalysisKeyForJobDescription(
+  key: string,
+  jobDescriptionId: string | undefined
+): boolean {
+  const normalizedJobDescriptionId = normalizeJobDescriptionId(jobDescriptionId);
+  return key === normalizedJobDescriptionId || key.endsWith(`|analysis:${normalizedJobDescriptionId}`);
 }
 
 export function getCurrentResumeAiPromptVersion(): number {
@@ -89,9 +168,7 @@ export function deriveAnalysisLookupKey(
   keywords: string[],
   options?: AnalysisKeywordKeyOptions
 ): string {
-  if (jobDescriptionId) return jobDescriptionId;
-  if (keywords.length > 0) return buildKeywordAnalysisId(keywords, options);
-  return "";
+  return buildResumeAnalysisLookupKeys(jobDescriptionId, keywords, options)[0] ?? "";
 }
 
 export function getRoleSignalYears(

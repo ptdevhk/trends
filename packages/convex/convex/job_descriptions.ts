@@ -2,7 +2,7 @@ import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-import { normalizeIndustryTags } from "@trends/shared";
+import { isResumeAnalysisKeyForJobDescription, normalizeIndustryTags } from "@trends/shared";
 
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 
@@ -229,8 +229,15 @@ export const list_with_usage = query({
                 const analysisJdId = r.analysis?.jobDescriptionId;
                 if (analysisJdId === jdIdStr) return true;
                 if (jdSlug && analysisJdId === jdSlug) return true;
-                if (r.analyses && r.analyses[jdIdStr]) return true;
-                if (jdSlug && r.analyses && r.analyses[jdSlug]) return true;
+                if (r.analyses) {
+                    const analysisKeys = Object.keys(r.analyses);
+                    if (analysisKeys.some((key) => isResumeAnalysisKeyForJobDescription(key, jdIdStr))) {
+                        return true;
+                    }
+                    if (jdSlug && analysisKeys.some((key) => isResumeAnalysisKeyForJobDescription(key, jdSlug))) {
+                        return true;
+                    }
+                }
                 return false;
             }).length;
 
