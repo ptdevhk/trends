@@ -24,7 +24,7 @@ export function SystemSettingsRuntimePage() {
   const [agentsConfig, setAgentsConfig] = useState<AgentsConfig | null>(null)
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null)
 
-  const bondedAgentCount = useMemo(
+  const reviewStageCount = useMemo(
     () => agentsConfig?.agents.list.filter((agent) => agent.isBonded).length ?? 0,
     [agentsConfig],
   )
@@ -169,16 +169,16 @@ export function SystemSettingsRuntimePage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
-          <h2 className="text-xl font-semibold tracking-tight">{t('debugConfig.settingsNavRuntime', { defaultValue: 'AI and agents' })}</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{t('debugConfig.settingsNavRuntime', { defaultValue: 'AI review runtime' })}</h2>
           <p className="text-sm text-muted-foreground">
             {t('debugConfig.runtimePageDescription', {
-              defaultValue: 'Inspect AI connectivity and the screening pipeline.',
+              defaultValue: 'Inspect AI connectivity and review-stage runtime tuning.',
             })}
           </p>
           <p className="text-xs text-muted-foreground">
             {t('debugConfig.runtimePageMeta', {
-              defaultValue: '{{count}} bonded agents',
-              count: bondedAgentCount,
+              defaultValue: '{{count}} review stages',
+              count: reviewStageCount,
             })}
           </p>
         </div>

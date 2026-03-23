@@ -4,8 +4,11 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 
 import {
+    buildResumeAnalysisStorageKey,
     formatLocationHierarchyLabel,
+    isResumeAnalysisKeyForJobDescription,
     normalizeResumeLocationHierarchy,
+    resolveResumeAnalysisSourceKey,
 } from "@trends/shared";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 import { mergeSearchTextWithIngestData } from "./search_text";
@@ -864,10 +867,11 @@ export const updateAnalysis = internalMutation({
         if (!resume) throw new Error("Resume not found");
 
         const analyses = resume.analyses || {};
-        const jdId = args.analysis.jobDescriptionId || "default";
+        const analysisKey = buildResumeAnalysisStorageKey(args.analysis.jobDescriptionId, {
+            sourceKey: resolveResumeAnalysisSourceKey({ source: resume.source }),
+        });
 
-        // Update the specific JD analysis
-        analyses[jdId] = args.analysis;
+        analyses[analysisKey] = args.analysis;
 
         await ctx.db.patch(args.resumeId, {
             analysis: args.analysis, // Keep current for backward compat / easy access
@@ -900,8 +904,10 @@ export const updateAnalysisBatch = internalMutation({
             if (!resume) return;
 
             const analyses = resume.analyses || {};
-            const jdId = update.analysis.jobDescriptionId || "default";
-            analyses[jdId] = update.analysis;
+            const analysisKey = buildResumeAnalysisStorageKey(update.analysis.jobDescriptionId, {
+                sourceKey: resolveResumeAnalysisSourceKey({ source: resume.source }),
+            });
+            analyses[analysisKey] = update.analysis;
 
             await ctx.db.patch(update.resumeId, {
                 analysis: update.analysis,
@@ -1154,8 +1160,13 @@ export const clearAnalyses = mutation({
 
             if (args.jobDescriptionId && resume.analyses) {
                 const analyses = { ...resume.analyses };
-                if (analyses[args.jobDescriptionId]) {
-                    delete analyses[args.jobDescriptionId];
+                const matchingKeys = Object.keys(analyses).filter((key) =>
+                    isResumeAnalysisKeyForJobDescription(key, args.jobDescriptionId)
+                );
+                if (matchingKeys.length > 0) {
+                    for (const key of matchingKeys) {
+                        delete analyses[key];
+                    }
                     const isCurrentAnalysis = resume.analysis?.jobDescriptionId === args.jobDescriptionId;
                     await ctx.db.patch(resume._id, {
                         analyses,

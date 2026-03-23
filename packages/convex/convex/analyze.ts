@@ -7,6 +7,7 @@ import {
     getResumeAiUserPromptTemplate,
     isSalesRequiredContext,
     normalizeKeywordSalesAnalysis,
+    resolveResumeAnalysisSourceKey,
     sanitizeResumeRecordForSurface,
     resolveResumeAiPromptLocale,
     selectLatestWorkHistory,
@@ -17,7 +18,6 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action } from "./_generated/server";
 import { resolveChatCompletionModel } from "./lib/ai_model";
-import { SEEK_HOST_SUFFIX } from "./lib/resume_identity";
 
 const DEFAULT_AI_OUTPUT_LOCALE = DEFAULT_RESUME_AI_PROMPT_LOCALE;
 
@@ -50,9 +50,8 @@ type NormalizedRoleSignal = {
 export const SYSTEM_PROMPT = getResumeAiPromptDefinition(DEFAULT_AI_OUTPUT_LOCALE).sections.systemPrompt;
 export const USER_PROMPT_TEMPLATE = getResumeAiUserPromptTemplate(DEFAULT_AI_OUTPUT_LOCALE);
 
-export function inferSourceKey(source: string | undefined): "seek" | undefined {
-    if (source?.toLowerCase().endsWith(SEEK_HOST_SUFFIX)) return "seek";
-    return undefined;
+export function inferSourceKey(source: string | undefined) {
+    return resolveResumeAnalysisSourceKey({ source });
 }
 
 // For Convex deployments, set AI_OUTPUT_LOCALE via the dashboard or `convex env set`.

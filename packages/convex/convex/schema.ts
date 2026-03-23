@@ -87,9 +87,10 @@ export default defineSchema({
             analyzedAt: v.optional(v.number()),
         })),
 
-        // AI Analysis Cache (Multi-JD Support)
-        // Key: jobDescriptionId (or 'default')
-        // Value: Analysis object
+        // AI Analysis Cache (Multi-JD + source-aware support)
+        // Key: `source:<sourceKey>|analysis:<jobDescriptionId>` when the resume source is known,
+        //       otherwise the legacy bare `jobDescriptionId` / `default` key.
+        // Value: Analysis object (the payload keeps bare jobDescriptionId for compatibility)
         analyses: v.optional(v.any()),
 
         // Full Text Search Field (Populated via mutation)

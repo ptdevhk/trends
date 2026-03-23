@@ -156,7 +156,7 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
   },
   runtime: {
     descriptionKey: 'debugConfig.runtimePageDescription',
-    defaultDescription: 'Inspect AI connectivity and the screening pipeline.',
+    defaultDescription: 'Inspect AI connectivity and review-stage runtime tuning.',
   },
   'config-sources': {
     descriptionKey: 'debugConfig.configSourcesPageDescription',
