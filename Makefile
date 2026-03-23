@@ -185,6 +185,7 @@ dev-convex-ensure:
 dev-convex-status:
 	@convex_port="$${CONVEX_PORT:-3210}"; \
 	site_port="3211"; \
+	state_dir="$${CONVEX_STATE_DIR:-$$HOME/.convex/anonymous-convex-backend-state/anonymous-agent}"; \
 	echo "Local Convex listeners:"; \
 	ss -ltnp "( sport = :$$convex_port or sport = :$$site_port )" || true; \
 	echo ""; \
@@ -211,6 +212,14 @@ dev-convex-status:
 		ps -o pid,ppid,pgid,rss,%mem,etime,cmd -p $$pids; \
 	else \
 		echo "No local Convex processes found."; \
+	fi; \
+	echo ""; \
+	echo "Local Convex state:"; \
+	if [ -d "$$state_dir" ]; then \
+		du -sh "$$state_dir"; \
+		ls -lh "$$state_dir"/convex_local_backend.sqlite3 2>/dev/null || true; \
+	else \
+		echo "State directory not found: $$state_dir"; \
 	fi; \
 	echo ""; \
 	if ! curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \
@@ -1001,7 +1010,7 @@ help:
 	@echo "  dev-convex-refresh Refresh local Convex in detached tmux mode when tmux is available"
 	@echo "                 Best for recovering from an unreachable local backend; large restored datasets may still settle at high RSS"
 	@echo "  dev-convex-ensure Start local Convex only when http://127.0.0.1:3210 is currently unreachable"
-	@echo "  dev-convex-status Show local Convex listeners, RSS, resume count, and backlog"
+	@echo "  dev-convex-status Show local Convex listeners, process RSS, state size, resume count, and backlog"
 	@echo "  dev-web        Start React frontend (Vite on port 5173)"
 	@echo "  dev-api        Start Hono BFF API server (port 3000)"
 	@echo "  dev-api-worker Start FastAPI worker REST API (port 8000)"
