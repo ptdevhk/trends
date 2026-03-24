@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
-import { MatchStorage } from "../services/match-storage";
+import { MatchStorage, type StoredMatch } from "../services/match-storage";
 import { SessionManager } from "../services/session-manager";
 
 type ConvexCall = {
@@ -77,6 +77,54 @@ function buildConvexResumeRecord(
       extractedAt: "2026-03-24T00:00:00.000Z",
     },
     ingestData: overrides.ingestData,
+  };
+}
+
+function buildConvexExportResumeRecord(
+  resumeId: string,
+  overrides: {
+    name?: string;
+    source?: string;
+    ingestData?: Record<string, unknown>;
+  } = {}
+) {
+  return {
+    resumeId,
+    resume: {
+      name: overrides.name ?? resumeId,
+      location: "东莞",
+      experience: "5 years",
+      education: "Bachelor",
+      jobIntention: "Sales Engineer",
+      profileUrl: `https://example.com/${resumeId}`,
+      workHistory: [{ raw: "2020-2025 CNC 销售工程师" }],
+      extractedAt: "2026-03-24T00:00:00.000Z",
+      source: overrides.source ?? "seek",
+      ingestData: overrides.ingestData,
+    },
+  };
+}
+
+function buildStoredMatch(
+  resumeId: string,
+  overrides: {
+    id?: number;
+    jobDescriptionId?: string;
+    score?: number;
+    recommendation?: StoredMatch["recommendation"];
+  } = {}
+): StoredMatch {
+  return {
+    id: overrides.id ?? 1,
+    resumeId,
+    jobDescriptionId: overrides.jobDescriptionId ?? "jd-1",
+    score: overrides.score ?? 80,
+    recommendation: overrides.recommendation ?? "match",
+    highlights: [],
+    concerns: [],
+    summary: "",
+    scoreSource: "ai",
+    matchedAt: "2026-03-24T00:00:00.000Z",
   };
 }
 
@@ -461,19 +509,27 @@ describe("resume routes", () => {
     }));
   });
 
-  it("falls back to overfetch when score sorting still depends on local match storage", async () => {
+  it("pages score-sorted convex results through match storage and preserves explicit-id order", async () => {
     const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesPageForJob")
+      .mockReturnValue({
+        matches: [
+          buildStoredMatch("resume-live-3", { id: 3, score: 96 }),
+          buildStoredMatch("resume-live-1", { id: 1, score: 81 }),
+        ],
+        total: 4,
+      });
+    const getMatchesByResumeIdsSpy = vi.spyOn(MatchStorage.prototype, "getMatchesByResumeIds");
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:listWithIngestData") {
+      if (call.pathName === "resumes:getByIdsForExport") {
         return convexSuccess([
-          buildConvexResumeRecord("resume-live-1", { name: "Alice" }),
-          buildConvexResumeRecord("resume-live-2", { name: "Bob" }),
-          buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
-          buildConvexResumeRecord("resume-live-4", { name: "Dylan" }),
+          buildConvexExportResumeRecord("resume-live-1", { name: "Alice" }),
+          buildConvexExportResumeRecord("resume-live-3", { name: "Carla" }),
         ]);
       }
 
@@ -481,14 +537,135 @@ describe("resume routes", () => {
     });
 
     const app = createApp();
-    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=score");
+    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=score&jobDescriptionId=jd-1");
 
     expect(response.status).toBe(200);
     const payload = await response.json();
     expect(payload.success).toBe(true);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 4,
+      returned: 2,
+      source: "convex",
+    }));
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Alice"]);
+    expect(getMatchesPageSpy).toHaveBeenCalledWith(expect.objectContaining({
+      jobDescriptionId: "jd-1",
+      limit: 2,
+      offset: 2,
+      sortOrder: "desc",
+    }));
+    expect(getMatchesByResumeIdsSpy).not.toHaveBeenCalled();
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:listWithIngestData",
-      args: expect.objectContaining({ limit: 4 }),
+      pathName: "resumes:getByIdsForExport",
+      args: expect.objectContaining({ resumeIds: ["resume-live-3", "resume-live-1"] }),
+    }));
+  });
+
+  it("pages minMatchScore convex filtering through match storage", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesPageForJob")
+      .mockReturnValue({
+        matches: [
+          buildStoredMatch("resume-live-2", { id: 2, score: 88 }),
+          buildStoredMatch("resume-live-4", { id: 4, score: 75 }),
+        ],
+        total: 2,
+      });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:getByIdsForExport") {
+        return convexSuccess([
+          buildConvexExportResumeRecord("resume-live-4", { name: "Dylan" }),
+          buildConvexExportResumeRecord("resume-live-2", { name: "Bob" }),
+        ]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&limit=2&jobDescriptionId=jd-1&minMatchScore=70");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 2,
+      returned: 2,
+      source: "convex",
+    }));
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Bob", "Dylan"]);
+    expect(getMatchesPageSpy).toHaveBeenCalledWith(expect.objectContaining({
+      jobDescriptionId: "jd-1",
+      minScore: 70,
+      sortOrder: "desc",
+    }));
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:getByIdsForExport",
+      args: expect.objectContaining({ resumeIds: ["resume-live-2", "resume-live-4"] }),
+    }));
+  });
+
+  it("pages recommendation-filtered convex results through match storage", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesPageForJob")
+      .mockReturnValue({
+        matches: [
+          buildStoredMatch("resume-live-5", {
+            id: 5,
+            score: 93,
+            recommendation: "strong_match",
+          }),
+          buildStoredMatch("resume-live-6", {
+            id: 6,
+            score: 84,
+            recommendation: "match",
+          }),
+        ],
+        total: 2,
+      });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:getByIdsForExport") {
+        return convexSuccess([
+          buildConvexExportResumeRecord("resume-live-6", { name: "Fiona" }),
+          buildConvexExportResumeRecord("resume-live-5", { name: "Evelyn" }),
+        ]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request(
+      "/api/resumes?source=convex&limit=2&jobDescriptionId=jd-1&recommendation=strong_match,match"
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 2,
+      returned: 2,
+      source: "convex",
+    }));
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Evelyn", "Fiona"]);
+    expect(getMatchesPageSpy).toHaveBeenCalledWith(expect.objectContaining({
+      jobDescriptionId: "jd-1",
+      recommendation: ["strong_match", "match"],
+      sortOrder: "desc",
+    }));
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:getByIdsForExport",
+      args: expect.objectContaining({ resumeIds: ["resume-live-5", "resume-live-6"] }),
     }));
   });
 

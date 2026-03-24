@@ -42,6 +42,11 @@ export type StoredMatchRun = {
   error?: string;
 };
 
+export type StoredMatchPage = {
+  matches: StoredMatch[];
+  total: number;
+};
+
 function parseJsonArray(value: unknown): string[] {
   if (typeof value !== "string" || !value.trim()) return [];
   try {
@@ -269,6 +274,74 @@ export class MatchStorage {
       .all(jobDescriptionId, ...resumeIds) as Record<string, unknown>[];
 
     return rows.map((row) => normalizeMatch(row));
+  }
+
+  getMatchesPageForJob(params: {
+    jobDescriptionId: string;
+    offset?: number;
+    limit?: number;
+    minScore?: number;
+    recommendation?: MatchingResult["recommendation"][];
+    sortOrder?: "asc" | "desc";
+  }): StoredMatchPage {
+    const clauses = ["job_description_id = ?"];
+    const values: Array<string | number> = [params.jobDescriptionId];
+
+    if (typeof params.minScore === "number") {
+      clauses.push("score >= ?");
+      values.push(params.minScore);
+    }
+
+    const normalizedRecommendations = Array.from(
+      new Set(
+        (params.recommendation ?? [])
+          .map((value) => value.trim())
+          .filter(Boolean)
+      )
+    ) as MatchingResult["recommendation"][];
+    if (normalizedRecommendations.length > 0) {
+      clauses.push(
+        `recommendation IN (${normalizedRecommendations.map(() => "?").join(", ")})`
+      );
+      values.push(...normalizedRecommendations);
+    }
+
+    const whereClause = `WHERE ${clauses.join(" AND ")}`;
+    const totalRow = this.db
+      .prepare(`SELECT COUNT(*) AS total FROM resume_matches ${whereClause}`)
+      .get(...values) as Record<string, unknown> | undefined;
+
+    const limit = typeof params.limit === "number" ? Math.max(1, params.limit) : undefined;
+    const offset = typeof params.offset === "number" ? Math.max(0, params.offset) : 0;
+    const order = params.sortOrder === "asc" ? "ASC" : "DESC";
+
+    const paginationClause = typeof limit === "number"
+      ? "LIMIT ? OFFSET ?"
+      : offset > 0
+        ? "LIMIT -1 OFFSET ?"
+        : "";
+    const paginationValues = typeof limit === "number"
+      ? [limit, offset]
+      : offset > 0
+        ? [offset]
+        : [];
+
+    const rows = this.db
+      .prepare(
+        `
+        SELECT *
+        FROM resume_matches
+        ${whereClause}
+        ORDER BY score ${order}, matched_at DESC, id DESC
+        ${paginationClause}
+        `
+      )
+      .all(...values, ...paginationValues) as Record<string, unknown>[];
+
+    return {
+      matches: rows.map((row) => normalizeMatch(row)),
+      total: Number(totalRow?.total ?? 0),
+    };
   }
 
   getLatestMatchesByResumeIds(resumeIds: string[]): StoredMatch[] {
