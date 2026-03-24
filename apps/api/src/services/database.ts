@@ -154,6 +154,31 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_actions_resume ON candidate_actions(resume_id);
     CREATE INDEX IF NOT EXISTS idx_actions_user ON candidate_actions(user_id);
     CREATE INDEX IF NOT EXISTS idx_actions_type ON candidate_actions(action_type);
+
+    CREATE TABLE IF NOT EXISTS review_packet_runs (
+      id TEXT PRIMARY KEY,
+      workspace_slug TEXT NOT NULL DEFAULT 'dev',
+      source TEXT NOT NULL,
+      sample_name TEXT,
+      session_id TEXT,
+      job_description_id TEXT,
+      format TEXT NOT NULL,
+      status TEXT NOT NULL,
+      total_count INTEGER NOT NULL DEFAULT 0,
+      packet_filename TEXT,
+      exported_at TEXT NOT NULL,
+      feedback_imported_at TEXT,
+      summary_sent_at TEXT,
+      summary_channel TEXT,
+      items_json TEXT NOT NULL,
+      stats_json TEXT,
+      context_json TEXT,
+      error TEXT,
+      FOREIGN KEY (session_id) REFERENCES search_sessions(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_review_packet_runs_workspace ON review_packet_runs(workspace_slug);
+    CREATE INDEX IF NOT EXISTS idx_review_packet_runs_exported ON review_packet_runs(exported_at DESC);
   `);
 
   ensureColumn(db, "resume_matches", "breakdown", "TEXT");
