@@ -1132,6 +1132,25 @@ export const listWithIngestDataPaginated = query({
         maxSalary: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        const filters = normalizeResumeListFilters(args);
+        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+        if (!jobDescriptionId && !args.sortBy && !filters) {
+            const page = await ctx.db
+                .query("resumes")
+                .withIndex("by_primaryRuleScore")
+                .order("desc")
+                .paginate({
+                    ...args.paginationOpts,
+                    numItems: resolvePaginatedResumePageLimit(args.paginationOpts.numItems),
+                });
+
+            return {
+                page: page.page,
+                continueCursor: page.continueCursor,
+                isDone: page.isDone,
+            };
+        }
+
         const offset = resolvePaginatedResumeOffsetCursor(args.paginationOpts.cursor);
         const limit = resolvePaginatedResumePageLimit(args.paginationOpts.numItems);
         const page = await runListWithIngestDataPageQuery(ctx, {
