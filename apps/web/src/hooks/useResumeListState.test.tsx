@@ -7,6 +7,7 @@ import { rawApiClient } from '@/lib/api-helpers'
 import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import { useResumeListState } from './useResumeListState'
 import type { ConvexResumeFilters, ConvexResumeSortBy } from '@/hooks/useConvexResumes'
+import { buildRuleScoringText } from '@/lib/resume-scoring'
 
 let capturedExportPayload: unknown = null
 const createObjectUrlMock = vi.fn(() => 'blob:mock')
@@ -1547,5 +1548,70 @@ describe('useResumeListState role filter regression', () => {
         (rs: { industryVerifiedYears: number }) => rs.industryVerifiedYears > 0
       )
     ).toBe(true)
+  })
+})
+
+describe('requiredKeywords filtering logic', () => {
+  function matchesAllRequired(resume: ConvexResumeItem, requiredKeywords: string[]): boolean {
+    const normalized = requiredKeywords.map((kw) => kw.trim().toLowerCase()).filter((kw) => kw.length > 0)
+    if (normalized.length === 0) return true
+    const text = buildRuleScoringText(resume).toLowerCase()
+    return normalized.every((kw) => text.includes(kw))
+  }
+
+  it('every() semantics: resume must contain ALL required keywords, not just some', () => {
+    const resumeWithBoth = buildResume({
+      id: 'both',
+      name: '王先生',
+      roleSignals: [],
+      workHistory: [{ raw: '负责machine tools和CNC机床销售', companyName: 'MAKINO', jobTitle: 'machine tools CNC Sales' }],
+    })
+
+    const resumeWithMachineToolsOnly = buildResume({
+      id: 'mt-only',
+      name: '张先生',
+      roleSignals: [],
+      workHistory: [{ raw: '负责machine tools设备销售', companyName: 'STAR', jobTitle: 'machine tools Sales' }],
+    })
+
+    const resumeWithCncOnly = buildResume({
+      id: 'cnc-only',
+      name: '李先生',
+      roleSignals: [],
+      workHistory: [{ raw: '负责CNC设备销售', companyName: 'Example', jobTitle: 'CNC Sales Rep' }],
+    })
+
+    expect(matchesAllRequired(resumeWithBoth, ['machine tools', 'cnc'])).toBe(true)
+    expect(matchesAllRequired(resumeWithMachineToolsOnly, ['machine tools', 'cnc'])).toBe(false)
+    expect(matchesAllRequired(resumeWithCncOnly, ['machine tools', 'cnc'])).toBe(false)
+  })
+
+  it('single required keyword filters correctly', () => {
+    const resumeWithKeyword = buildResume({
+      id: 'has-mt',
+      name: '张先生',
+      roleSignals: [],
+      workHistory: [{ raw: '负责machine tools设备销售', companyName: 'STAR', jobTitle: 'machine tools Sales' }],
+    })
+
+    const resumeWithoutKeyword = buildResume({
+      id: 'no-mt',
+      name: '李先生',
+      roleSignals: [],
+      workHistory: [{ raw: '负责普通设备销售', companyName: 'Example', jobTitle: 'General Sales Rep' }],
+    })
+
+    expect(matchesAllRequired(resumeWithKeyword, ['machine tools'])).toBe(true)
+    expect(matchesAllRequired(resumeWithoutKeyword, ['machine tools'])).toBe(false)
+  })
+
+  it('empty requiredKeywords matches all resumes', () => {
+    const resume = buildResume({
+      id: 'any',
+      name: '任先生',
+      roleSignals: [],
+    })
+
+    expect(matchesAllRequired(resume, [])).toBe(true)
   })
 })
