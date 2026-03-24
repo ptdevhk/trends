@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery } from '@trends/shared'
-import { useQuery } from 'convex/react'
+import { usePaginatedQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { rawApiClient } from '@/lib/api-helpers'
@@ -672,7 +672,7 @@ export function useConvexResumes(
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
   const normalizedQuery = query?.trim() || undefined
   const resolvedSortOrder = options?.sortBy ? (options.sortOrder ?? 'desc') : undefined
-  const scopeKey = `${normalizedJobDescriptionId ?? ''}::${normalizedQuery ?? ''}::${options?.sortBy ?? ''}::${resolvedSortOrder ?? ''}`
+  const initialNumItems = Math.min(limit, CONVEX_RESUME_PAGE_SIZE)
   const mockPayload = useMemo(() => readMockConvexResumePayload(), [])
   const mockKeywordExpansion = useMemo(
     () => normalizedQuery ? buildFallbackKeywordExpansion(normalizedQuery) : null,
@@ -755,11 +755,11 @@ export function useConvexResumes(
     }
   }, [mockKeywordExpansion, mockPayload, normalizedQuery])
 
-  const pagedSearchResults = useQuery(
-    api.resumes.searchWithTagExpansionPage,
+  const paginatedSearchResults = usePaginatedQuery(
+    api.resumes.searchWithTagExpansionPaginated,
     mockPayload
       ? 'skip'
-      : normalizedQuery && keywordExpansion && options?.sortBy
+      : normalizedQuery && keywordExpansion
         ? {
             query: normalizedQuery,
             keywordGroups: keywordExpansion.groups,
@@ -768,54 +768,65 @@ export function useConvexResumes(
               term,
               expandedFrom,
             })),
-            limit,
-            offset: 0,
             jobDescriptionId: normalizedJobDescriptionId,
-            sortBy: options.sortBy,
-            sortOrder: resolvedSortOrder,
+            ...(options?.sortBy ? {
+              sortBy: options.sortBy,
+              sortOrder: resolvedSortOrder,
+            } : {}),
           }
-        : 'skip'
+        : 'skip',
+    {
+      initialNumItems,
+    }
   )
 
-  const searchResults = useQuery(
-    api.resumes.searchWithTagExpansion,
+  const paginatedListResults = usePaginatedQuery(
+    api.resumes.listWithIngestDataPaginated,
     mockPayload
       ? 'skip'
-      : normalizedQuery && keywordExpansion && !options?.sortBy
-        ? {
-            query: normalizedQuery,
-            keywordGroups: keywordExpansion.groups,
-            mode: keywordExpansion.mode,
-            sourceMappings: Object.entries(keywordExpansion.sourceMapping).map(([term, expandedFrom]) => ({
-              term,
-              expandedFrom,
-            })),
-            limit,
-            jobDescriptionId: normalizedJobDescriptionId,
-          }
-        : 'skip'
-  )
-
-  const pagedListResults = useQuery(
-    api.resumes.listWithIngestDataPage,
-    mockPayload
-      ? 'skip'
-      : normalizedQuery || !options?.sortBy
+      : normalizedQuery
         ? 'skip'
         : {
-            limit,
-            offset: 0,
             jobDescriptionId: normalizedJobDescriptionId,
-            sortBy: options.sortBy,
-            sortOrder: resolvedSortOrder,
-          }
+            ...(options?.sortBy ? {
+              sortBy: options.sortBy,
+              sortOrder: resolvedSortOrder,
+            } : {}),
+          },
+    {
+      initialNumItems,
+    }
   )
 
-  const listResults = useQuery(
-    api.resumes.listWithIngestData,
-    mockPayload
-      ? 'skip'
-      : normalizedQuery || options?.sortBy ? 'skip' : { limit, jobDescriptionId: normalizedJobDescriptionId }
+  const activePaginatedStatus = normalizedQuery ? paginatedSearchResults.status : paginatedListResults.status
+  const activePaginatedResultsLength = normalizedQuery ? paginatedSearchResults.results.length : paginatedListResults.results.length
+  const activePaginatedLoadMore = normalizedQuery ? paginatedSearchResults.loadMore : paginatedListResults.loadMore
+
+  useEffect(() => {
+    if (mockPayload || limit <= 0) {
+      return
+    }
+
+    if (activePaginatedStatus !== 'CanLoadMore' || activePaginatedResultsLength >= limit) {
+      return
+    }
+
+    activePaginatedLoadMore(Math.min(CONVEX_RESUME_PAGE_SIZE, limit - activePaginatedResultsLength))
+  }, [
+    activePaginatedLoadMore,
+    activePaginatedResultsLength,
+    activePaginatedStatus,
+    limit,
+    mockPayload,
+  ])
+
+  const visibleSearchResults = useMemo(
+    () => paginatedSearchResults.results.slice(0, limit),
+    [limit, paginatedSearchResults.results]
+  )
+  const visibleListResults = useMemo(
+    () => paginatedListResults.results.slice(0, limit),
+    [limit, paginatedListResults.results]
   )
 
   const mappedResumes = useMemo(() => (
@@ -831,18 +842,18 @@ export function useConvexResumes(
           })))
         : (mockPayload.list ?? []).slice(0, limit).map(mapResumeDoc)
       : normalizedQuery
-        ? ((options?.sortBy ? pagedSearchResults?.results : searchResults?.results) ?? []).map((entry) => ({
+        ? visibleSearchResults.map((entry) => ({
             ...mapResumeDoc(entry.resume),
             _provenance: entry.provenance,
           }))
-        : ((options?.sortBy ? pagedListResults?.results : listResults) ?? []).map(mapResumeDoc)
-  ), [limit, listResults, mockKeywordExpansion, mockPayload, normalizedQuery, options?.sortBy, pagedListResults?.results, pagedSearchResults?.results, searchResults])
+        : visibleListResults.map(mapResumeDoc)
+  ), [limit, mockKeywordExpansion, mockPayload, normalizedQuery, visibleListResults, visibleSearchResults])
 
   const isLoading = mockPayload
     ? false
     : normalizedQuery
-      ? (expansionLoading || searchResults === undefined)
-      : listResults === undefined
+      ? (expansionLoading || paginatedSearchResults.status === 'LoadingFirstPage')
+      : paginatedListResults.status === 'LoadingFirstPage'
 
   const hasMore = useMemo(() => {
     if (mockPayload) {
@@ -851,64 +862,22 @@ export function useConvexResumes(
         : (mockPayload.list?.length ?? 0) > limit
     }
 
-    return normalizedQuery
-      ? (((options?.sortBy ? pagedSearchResults?.results?.length : searchResults?.results?.length) ?? 0) >= limit)
-      : (((options?.sortBy ? pagedListResults?.results?.length : listResults?.length) ?? 0) >= limit)
-  }, [limit, listResults?.length, mockPayload, normalizedQuery, options?.sortBy, pagedListResults?.results?.length, pagedSearchResults?.results?.length, searchResults?.results?.length])
+    return activePaginatedResultsLength > limit || activePaginatedStatus === 'CanLoadMore' || activePaginatedStatus === 'LoadingMore'
+  }, [activePaginatedResultsLength, activePaginatedStatus, limit, mockPayload, normalizedQuery])
 
   const resolvedExpansion = mockPayload
     ? (mockPayload.search?.expansion ?? mockKeywordExpansion)
-    : options?.sortBy
-      ? pagedSearchResults?.expansion
-      : searchResults?.expansion
+    : keywordExpansion
 
-  const [cachedState, setCachedState] = useState<{
-    scopeKey: string
-    resumes: ConvexResumeItem[]
-    hasMore: boolean
-    expansion: unknown
-  }>({
-    scopeKey,
-    resumes: [],
-    hasMore: false,
-    expansion: undefined,
-  })
-
-  useEffect(() => {
-    setCachedState((current) => (
-      current.scopeKey === scopeKey
-        ? current
-        : {
-            scopeKey,
-            resumes: [],
-            hasMore: false,
-            expansion: undefined,
-          }
-    ))
-  }, [scopeKey])
-
-  useEffect(() => {
-    if (isLoading) {
-      return
-    }
-
-    setCachedState({
-      scopeKey,
-      resumes: mappedResumes,
-      hasMore,
-      expansion: resolvedExpansion,
-    })
-  }, [hasMore, isLoading, mappedResumes, resolvedExpansion, scopeKey])
-
-  const hasCachedResumes = cachedState.scopeKey === scopeKey && cachedState.resumes.length > 0
-  const loadingMore = isLoading && hasCachedResumes
+  const loadingMore = !mockPayload
+    && activePaginatedStatus === 'LoadingMore'
 
   return {
-    resumes: loadingMore ? cachedState.resumes : mappedResumes,
-    loading: isLoading && !hasCachedResumes,
+    resumes: mappedResumes,
+    loading: isLoading,
     loadingMore,
-    hasMore: loadingMore ? cachedState.hasMore : hasMore,
+    hasMore,
     jobDescriptionId: normalizedJobDescriptionId,
-    expansion: loadingMore ? cachedState.expansion : resolvedExpansion,
+    expansion: resolvedExpansion,
   }
 }
