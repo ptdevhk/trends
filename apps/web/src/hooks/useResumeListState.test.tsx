@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConvexIngestData, ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
@@ -7,13 +7,10 @@ import { rawApiClient } from '@/lib/api-helpers'
 import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import { useResumeListState } from './useResumeListState'
 
-let submittedFormAction = ''
-let submittedPayloadValue = ''
-const formSubmitMock = vi.fn(function thisFormSubmit(this: HTMLFormElement) {
-  submittedFormAction = this.action
-  const payloadInput = this.querySelector('input[name="payload"]')
-  submittedPayloadValue = payloadInput instanceof HTMLInputElement ? payloadInput.value : ''
-})
+let capturedExportPayload: unknown = null
+const createObjectUrlMock = vi.fn(() => 'blob:mock')
+const revokeObjectUrlMock = vi.fn()
+const anchorClickMock = vi.fn()
 
 const mockState = vi.hoisted(() => ({
   convexResumes: [] as ConvexResumeItem[],
@@ -180,11 +177,6 @@ vi.mock('@/lib/api-helpers', () => ({
   },
 }))
 
-Object.defineProperty(globalThis.HTMLFormElement.prototype, 'submit', {
-  writable: true,
-  value: formSubmitMock,
-})
-
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -192,6 +184,21 @@ vi.mock('sonner', () => ({
     info: vi.fn(),
   },
 }))
+
+beforeAll(() => {
+  Object.defineProperty(window.URL, 'createObjectURL', {
+    writable: true,
+    value: createObjectUrlMock,
+  })
+  Object.defineProperty(window.URL, 'revokeObjectURL', {
+    writable: true,
+    value: revokeObjectUrlMock,
+  })
+  Object.defineProperty(globalThis.HTMLAnchorElement.prototype, 'click', {
+    writable: true,
+    value: anchorClickMock,
+  })
+})
 
 function buildResume(params: {
   id: string
@@ -355,8 +362,21 @@ describe('useResumeListState role filter regression', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    submittedFormAction = ''
-    submittedPayloadValue = ''
+    capturedExportPayload = null
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+
+      if (url.includes('/api/resumes/export')) {
+        const requestBody = typeof init?.body === 'string' ? init.body : '{}'
+        capturedExportPayload = JSON.parse(requestBody) as unknown
+        return new Response(new Blob(['']), {
+          status: 200,
+          headers: { 'content-disposition': 'attachment; filename="export.csv"' },
+        })
+      }
+
+      return new Response(null, { status: 404 })
+    }))
     window.history.replaceState({}, '', '/')
     mockState.filters = {}
     mockState.cloneConvexResumesOnRead = false
@@ -836,13 +856,13 @@ describe('useResumeListState role filter regression', () => {
       await result.current.handleBulkAction('export', 'csv')
     })
 
-    expect(formSubmitMock).toHaveBeenCalledTimes(1)
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/resumes/export'),
+      expect.objectContaining({ method: 'POST' }),
+    )
 
-    const submittedForm = document.querySelector('form') as HTMLFormElement | null
-    expect(submittedForm).toBeNull()
-    expect(submittedFormAction).toContain('/api/resumes/export/download')
-
-    const parsedBody = JSON.parse(submittedPayloadValue) as {
+    const parsedBody = capturedExportPayload as {
       source: string
       entries: Array<{ resumeId: string; userComment?: string; status?: string }>
       format: string
@@ -902,7 +922,7 @@ describe('useResumeListState role filter regression', () => {
       await result.current.handleBulkAction('export', 'csv')
     })
 
-    const parsedBody = JSON.parse(submittedPayloadValue) as {
+    const parsedBody = capturedExportPayload as {
       industryDbV2Stats?: {
         size: number
         min?: number
