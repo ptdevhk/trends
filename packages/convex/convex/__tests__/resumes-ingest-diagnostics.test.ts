@@ -12,8 +12,8 @@ describe("resolveListWithIngestWindow", () => {
 
     it("clamps oversized requests to the safe ingest list window", () => {
         expect(resolveListWithIngestWindow(5_000)).toEqual({
-            limit: 200,
-            overfetchLimit: 400,
+            limit: 2000,
+            overfetchLimit: 4000,
         });
     });
 });

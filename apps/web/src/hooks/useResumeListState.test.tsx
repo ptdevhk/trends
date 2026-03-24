@@ -14,6 +14,13 @@ const anchorClickMock = vi.fn()
 
 const mockState = vi.hoisted(() => ({
   convexResumes: [] as ConvexResumeItem[],
+  convexHasMore: false,
+  convexLoadingMore: false,
+  useConvexResumesArgs: [] as Array<{
+    limit?: number
+    query?: string
+    jobDescriptionId?: string
+  }>,
   cloneConvexResumesOnRead: false,
   filters: {} as Record<string, unknown>,
   sessionLocation: '广东',
@@ -138,12 +145,20 @@ vi.mock('@/hooks/useResumes', () => ({
 }))
 
 vi.mock('@/hooks/useConvexResumes', () => ({
-  useConvexResumes: () => ({
-    resumes: mockState.cloneConvexResumesOnRead
-      ? [...mockState.convexResumes]
-      : mockState.convexResumes,
-    loading: false,
-  }),
+  DEFAULT_CONVEX_RESUME_LIMIT: 200,
+  CONVEX_RESUME_PAGE_SIZE: 200,
+  MAX_CONVEX_RESUME_LIMIT: 2000,
+  useConvexResumes: (limit?: number, query?: string, jobDescriptionId?: string) => {
+    mockState.useConvexResumesArgs.push({ limit, query, jobDescriptionId })
+    return {
+      resumes: mockState.cloneConvexResumesOnRead
+        ? [...mockState.convexResumes]
+        : mockState.convexResumes,
+      loading: false,
+      loadingMore: mockState.convexLoadingMore,
+      hasMore: mockState.convexHasMore,
+    }
+  },
 }))
 
 vi.mock('@/hooks/useCandidateActions', () => ({
@@ -296,6 +311,10 @@ function getDisplayedResumeNames(): string[] {
   return result.current.displayedResumes.map((entry) => entry.resume.name)
 }
 
+function getLastConvexArgs() {
+  return mockState.useConvexResumesArgs[mockState.useConvexResumesArgs.length - 1]
+}
+
 describe('useResumeListState role filter regression', () => {
   it('preserves richer imported resume fields on convex resumes', () => {
     mockState.convexResumes = [
@@ -314,6 +333,75 @@ describe('useResumeListState role filter regression', () => {
     expect(resume?.resumeSnippet).toEqual({ text: 'Experienced sales engineer covering machine tools.' })
     expect(resume?.currentIndustry).toEqual({ name: 'Industrial machinery' })
     expect(resume?.noticePeriodDays).toBe(30)
+  })
+
+  it('requests larger Convex windows incrementally and resets when the query changes', async () => {
+    mockState.convexHasMore = true
+
+    const { result, rerender } = renderHook(() => useResumeListState())
+
+    expect(getLastConvexArgs()?.limit).toBe(200)
+
+    act(() => {
+      result.current.handleLoadMoreResumes()
+    })
+
+    expect(getLastConvexArgs()?.limit).toBe(400)
+
+    mockState.sessionKeywords = ['CNC']
+    rerender()
+
+    await waitFor(() => {
+      expect(getLastConvexArgs()).toMatchObject({
+        limit: 200,
+        query: 'CNC',
+      })
+    })
+  })
+
+  it('only requests query-specific rule scores for newly loaded resume ids', async () => {
+    mockState.sessionKeywords = ['销售']
+    mockState.convexResumes = [
+      buildResume({ id: 'resume-1', name: 'First Candidate', roleSignals: [] }),
+      buildResume({ id: 'resume-2', name: 'Second Candidate', roleSignals: [] }),
+    ]
+    mockState.matchApiResponse = {
+      success: true,
+      results: [
+        { resumeId: 'resume-1', score: 88 },
+        { resumeId: 'resume-2', score: 77 },
+      ],
+    }
+
+    const { rerender } = renderHook(() => useResumeListState())
+
+    await waitFor(() => {
+      expect(rawApiClient.POST).toHaveBeenCalledWith('/api/resumes/match', expect.objectContaining({
+        body: expect.objectContaining({
+          resumeIds: ['resume-1', 'resume-2'],
+        }),
+      }))
+    })
+
+    mockState.convexResumes = [
+      ...mockState.convexResumes,
+      buildResume({ id: 'resume-3', name: 'Third Candidate', roleSignals: [] }),
+    ]
+    mockState.matchApiResponse = {
+      success: true,
+      results: [
+        { resumeId: 'resume-3', score: 66 },
+      ],
+    }
+    rerender()
+
+    await waitFor(() => {
+      expect(rawApiClient.POST).toHaveBeenLastCalledWith('/api/resumes/match', expect.objectContaining({
+        body: expect.objectContaining({
+          resumeIds: ['resume-3'],
+        }),
+      }))
+    })
   })
 
   it('filters the main review lane to the active collection source', () => {
@@ -380,6 +468,9 @@ describe('useResumeListState role filter regression', () => {
     window.history.replaceState({}, '', '/')
     mockState.filters = {}
     mockState.cloneConvexResumesOnRead = false
+    mockState.convexHasMore = false
+    mockState.convexLoadingMore = false
+    mockState.useConvexResumesArgs = []
     mockState.sessionLocation = '广东'
     mockState.sessionKeywords = []
     mockState.sessionJobDescriptionId = undefined

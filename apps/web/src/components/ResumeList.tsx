@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw, FileText, AlertTriangle, History, Upload } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { ResumeCard, ResumeCardSkeleton } from '@/components/ResumeCard'
-import { ResumeDetail } from '@/components/ResumeDetail'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { FilterPanel } from '@/components/FilterPanel'
@@ -14,13 +14,30 @@ import { BulkActionBar } from '@/components/BulkActionBar'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { CollectResumesButton } from '@/components/CollectResumesButton'
 import { ShareLinkButton } from '@/components/ShareLinkButton'
-import { SearchHistoryDialog } from '@/components/SearchHistoryDialog'
-import { ManualResumeImportDialog } from '@/components/ManualResumeImportDialog'
 import { useResumeListState } from '@/hooks/useResumeListState'
 import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
+
+const loadResumeDetail = () => import('@/components/ResumeDetail')
+const loadSearchHistoryDialog = () => import('@/components/SearchHistoryDialog')
+const loadManualResumeImportDialog = () => import('@/components/ManualResumeImportDialog')
+
+const ResumeDetail = lazy(async () => {
+  const module = await loadResumeDetail()
+  return { default: module.ResumeDetail }
+})
+
+const SearchHistoryDialog = lazy(async () => {
+  const module = await loadSearchHistoryDialog()
+  return { default: module.SearchHistoryDialog }
+})
+
+const ManualResumeImportDialog = lazy(async () => {
+  const module = await loadManualResumeImportDialog()
+  return { default: module.ManualResumeImportDialog }
+})
 
 export function ResumeList() {
   const { t } = useTranslation()
@@ -47,11 +64,15 @@ export function ResumeList() {
     blockedCount,
     bulkExportFormat,
     displayedResumes,
+    loadedConvexResumeCount,
+    canLoadMoreResumes,
+    convexLoadingMore,
     searchHistory,
     searchHistoryLoading,
     setBulkExportFormat,
     handleAnalyzeAll,
     handleRefresh,
+    handleLoadMoreResumes,
     handleQuickStartApply,
     handleQuickConstraintApply,
     handleCollectionSourceChange,
@@ -81,6 +102,9 @@ export function ResumeList() {
   const [detailResume, setDetailResume] = useState<ResumeItem | ConvexResumeItem | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [manualImportOpen, setManualImportOpen] = useState(false)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const [listScrollMargin, setListScrollMargin] = useState(0)
 
   const detailKey = useMemo(() => {
     if (!detailResume) return undefined
@@ -91,6 +115,106 @@ export function ResumeList() {
     if (!detailKey) return undefined
     return displayedResumes.find((entry) => entry.key === detailKey)?.match
   }, [detailKey, displayedResumes])
+  const shouldVirtualize = displayedResumes.length > 40
+  const rowVirtualizer = useWindowVirtualizer({
+    count: displayedResumes.length,
+    estimateSize: () => 360,
+    overscan: 6,
+    scrollMargin: listScrollMargin,
+  })
+
+  useEffect(() => {
+    const updateScrollMargin = () => {
+      setListScrollMargin(listRef.current?.offsetTop ?? 0)
+    }
+
+    updateScrollMargin()
+    window.addEventListener('resize', updateScrollMargin)
+    return () => window.removeEventListener('resize', updateScrollMargin)
+  }, [displayedResumes.length, shouldVirtualize])
+
+  useEffect(() => {
+    if (!canLoadMoreResumes || convexLoadingMore) {
+      return
+    }
+
+    const target = loadMoreRef.current
+    if (!target) {
+      return
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) {
+        return
+      }
+
+      handleLoadMoreResumes()
+    }, {
+      rootMargin: '600px 0px',
+    })
+
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [canLoadMoreResumes, convexLoadingMore, displayedResumes.length, handleLoadMoreResumes])
+
+  useEffect(() => {
+    if (activeLoading || displayedResumes.length === 0) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadResumeDetail()
+    }, 1200)
+
+    return () => window.clearTimeout(timer)
+  }, [activeLoading, displayedResumes.length])
+
+  const renderResumeCard = (entry: (typeof displayedResumes)[number]) => {
+    const ingestData = hasIngestData(entry.resume) ? entry.resume.ingestData : undefined
+
+    return (
+      <ResumeCard
+        key={entry.key}
+        resume={entry.resume}
+        matchResult={entry.match}
+        ruleScore={entry.ruleScore}
+        industryTags={ingestData?.industryTags}
+        companyHits={ingestData?.companyHits}
+        brandHits={ingestData?.brandHits}
+        roleSignals={ingestData?.roleSignals}
+        brandDisplayResolve={brandDisplayResolve}
+        roleTypes={ingestData?.roleSignals?.map((signal) => signal.type) ?? []}
+        experienceLevel={ingestData?.experienceLevel}
+        onTagClick={handleToggleTag}
+        onCompanyClick={handleToggleCompany}
+        onExperienceLevelClick={handleToggleExperienceLevel}
+        activeTagFilters={activeTagFilters}
+        activeCompanyFilters={activeCompanyFilters}
+        activeExperienceLevelFilter={selectedExperienceLevel}
+        showAiScore={entry.match?.scoreSource === 'ai'}
+        actionType={entry.action}
+        onAction={(action) => handleCardAction(entry.key, action)}
+        blocked={entry.blocked}
+        candidateStatus={entry.status}
+        candidateStatusMeta={entry.statusMeta ? {
+          notes: entry.statusMeta.notes,
+          updatedAt: entry.statusMeta.updatedAt,
+        } : undefined}
+        onToggleBlock={(reason) => handleToggleBlock(entry.identityKey, entry.blocked, reason)}
+        onCandidateStatusChange={(status, notes) => handleCandidateStatusChange(entry.identityKey, status, notes)}
+        onViewDetails={() => {
+          void loadResumeDetail()
+          setDetailResume(entry.resume)
+          trackReviewedResume(entry.key)
+        }}
+        selected={selectedIds.has(entry.key)}
+        onSelect={() => handleToggleSelect(entry.key)}
+        isReviewed={reviewedIdsSet.has(entry.key)}
+        aiScoreFeedback={getAiFeedback(entry.key, 'ai_score')}
+        onAiFeedback={(target, sentiment) => handleAiFeedback(entry.key, target, sentiment)}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -116,7 +240,14 @@ export function ResumeList() {
               variant="outline"
               size="sm"
               className="gap-2"
+              onMouseEnter={() => {
+                void loadSearchHistoryDialog()
+              }}
+              onFocus={() => {
+                void loadSearchHistoryDialog()
+              }}
               onClick={() => {
+                void loadSearchHistoryDialog()
                 setHistoryRequested(true)
                 setHistoryOpen(true)
               }}
@@ -150,7 +281,16 @@ export function ResumeList() {
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={() => setManualImportOpen(true)}
+              onMouseEnter={() => {
+                void loadManualResumeImportDialog()
+              }}
+              onFocus={() => {
+                void loadManualResumeImportDialog()
+              }}
+              onClick={() => {
+                void loadManualResumeImportDialog()
+                setManualImportOpen(true)
+              }}
             >
               <Upload className="h-4 w-4" />
               {t('manualResumeImport.title', 'Import resumes')}
@@ -238,88 +378,112 @@ export function ResumeList() {
             description={t('resumes.noResumesDesc', 'Try adjusting your filters or search keywords.')}
           />
         ) : (
-          displayedResumes.map((entry) => {
-            const ingestData = hasIngestData(entry.resume) ? entry.resume.ingestData : undefined
+          <>
+            {shouldVirtualize ? (
+              <div ref={listRef}>
+                <div
+                  className="relative w-full"
+                  style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const entry = displayedResumes[virtualRow.index]
+                    if (!entry) {
+                      return null
+                    }
 
-            return (
-              <ResumeCard
-                key={entry.key}
-                resume={entry.resume}
-                matchResult={entry.match}
-                ruleScore={entry.ruleScore}
-                industryTags={ingestData?.industryTags}
-                companyHits={ingestData?.companyHits}
-                brandHits={ingestData?.brandHits}
-                roleSignals={ingestData?.roleSignals}
-                brandDisplayResolve={brandDisplayResolve}
-                roleTypes={ingestData?.roleSignals?.map((signal) => signal.type) ?? []}
-                experienceLevel={ingestData?.experienceLevel}
-                onTagClick={handleToggleTag}
-                onCompanyClick={handleToggleCompany}
-                onExperienceLevelClick={handleToggleExperienceLevel}
-                activeTagFilters={activeTagFilters}
-                activeCompanyFilters={activeCompanyFilters}
-                activeExperienceLevelFilter={selectedExperienceLevel}
-                showAiScore={entry.match?.scoreSource === 'ai'}
-                actionType={entry.action}
-                onAction={(action) => handleCardAction(entry.key, action)}
-                blocked={entry.blocked}
-                candidateStatus={entry.status}
-                candidateStatusMeta={entry.statusMeta ? {
-                  notes: entry.statusMeta.notes,
-                  updatedAt: entry.statusMeta.updatedAt,
-                } : undefined}
-                onToggleBlock={(reason) => handleToggleBlock(entry.identityKey, entry.blocked, reason)}
-                onCandidateStatusChange={(status, notes) => handleCandidateStatusChange(entry.identityKey, status, notes)}
-                onViewDetails={() => {
-                  setDetailResume(entry.resume)
-                  trackReviewedResume(entry.key)
-                }}
-                selected={selectedIds.has(entry.key)}
-                onSelect={() => handleToggleSelect(entry.key)}
-                isReviewed={reviewedIdsSet.has(entry.key)}
-                aiScoreFeedback={getAiFeedback(entry.key, 'ai_score')}
-                onAiFeedback={(target, sentiment) => handleAiFeedback(entry.key, target, sentiment)}
-              />
-            )
-          })
+                    return (
+                      <div
+                        key={entry.key}
+                        data-index={virtualRow.index}
+                        ref={rowVirtualizer.measureElement}
+                        className="absolute left-0 top-0 w-full pb-4"
+                        style={{ transform: `translateY(${virtualRow.start - listScrollMargin}px)` }}
+                      >
+                        {renderResumeCard(entry)}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div ref={listRef} className="grid gap-4">
+                {displayedResumes.map((entry) => renderResumeCard(entry))}
+              </div>
+            )}
+
+            {(canLoadMoreResumes || convexLoadingMore) && (
+              <div ref={loadMoreRef} className="flex flex-col items-center gap-2 py-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={handleLoadMoreResumes}
+                  disabled={convexLoadingMore}
+                >
+                  <RefreshCw className={cn('h-4 w-4', convexLoadingMore && 'animate-spin')} />
+                  {convexLoadingMore
+                    ? t('resumes.loadingMore', 'Loading more...')
+                    : t('debugIngest.loadMore', 'Load More')}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {t('resumes.loadedCount', {
+                    defaultValue: 'Loaded {{loaded}} resumes so far',
+                    loaded: loadedConvexResumeCount,
+                  })}
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      <ResumeDetail
-        resume={detailResume}
-        matchResult={detailMatch}
-        open={Boolean(detailResume)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDetailResume(null)
-          }
-        }}
-        aiScoreFeedback={detailKey ? getAiFeedback(detailKey, 'ai_score') : undefined}
-        aiSummaryFeedback={detailKey ? getAiFeedback(detailKey, 'ai_summary') : undefined}
-        onAiFeedback={detailKey ? (target, sentiment) => handleAiFeedback(detailKey, target, sentiment) : undefined}
-      />
+      {detailResume ? (
+        <Suspense fallback={null}>
+          <ResumeDetail
+            resume={detailResume}
+            matchResult={detailMatch}
+            open={Boolean(detailResume)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setDetailResume(null)
+              }
+            }}
+            aiScoreFeedback={detailKey ? getAiFeedback(detailKey, 'ai_score') : undefined}
+            aiSummaryFeedback={detailKey ? getAiFeedback(detailKey, 'ai_summary') : undefined}
+            onAiFeedback={detailKey ? (target, sentiment) => handleAiFeedback(detailKey, target, sentiment) : undefined}
+          />
+        </Suspense>
+      ) : null}
 
-      <SearchHistoryDialog
-        open={historyOpen}
-        onOpenChange={(open) => {
-          if (open) {
-            setHistoryRequested(true)
-          }
-          setHistoryOpen(open)
-        }}
-        items={searchHistory}
-        loading={searchHistoryLoading}
-        onApply={handleApplySearchHistory}
-      />
+      {historyOpen ? (
+        <Suspense fallback={null}>
+          <SearchHistoryDialog
+            open={historyOpen}
+            onOpenChange={(open) => {
+              if (open) {
+                setHistoryRequested(true)
+              }
+              setHistoryOpen(open)
+            }}
+            items={searchHistory}
+            loading={searchHistoryLoading}
+            onApply={handleApplySearchHistory}
+          />
+        </Suspense>
+      ) : null}
 
-      <ManualResumeImportDialog
-        open={manualImportOpen}
-        onOpenChange={setManualImportOpen}
-        location={sessionLocation}
-        keywords={sessionKeywords}
-        onImported={handleRefresh}
-      />
+      {manualImportOpen ? (
+        <Suspense fallback={null}>
+          <ManualResumeImportDialog
+            open={manualImportOpen}
+            onOpenChange={setManualImportOpen}
+            location={sessionLocation}
+            keywords={sessionKeywords}
+            onImported={handleRefresh}
+          />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

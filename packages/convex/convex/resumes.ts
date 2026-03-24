@@ -194,8 +194,8 @@ type DeleteResumesResult = {
 };
 
 const DEFAULT_RESUME_LIMIT = 50;
-export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 200;
-export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 400;
+export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 2000;
+export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 4000;
 const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
 const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
 const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
@@ -797,7 +797,7 @@ export const searchWithTagExpansion = query({
         jobDescriptionId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const limit = args.limit || 50;
+        const { limit, overfetchLimit } = resolveListWithIngestWindow(args.limit);
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
         const mode = args.mode ?? "AND";
         const keywordGroups = normalizeTagExpansionKeywordGroups(args.keywordGroups);
@@ -819,7 +819,7 @@ export const searchWithTagExpansion = query({
             (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
         );
         const provenanceByResumeId = new Map<string, SearchProvenance[]>();
-        const fetchLimit = Math.min(Math.max(limit * 2, 100), 400);
+        const fetchLimit = overfetchLimit;
         const searchQuery = buildTagExpansionSearchQuery(keywordGroups, mode);
 
         const matches = searchQuery
