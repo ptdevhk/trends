@@ -1153,12 +1153,6 @@ export const listWithIngestDataPaginated = query({
                 ? page.page.filter((resume) => matchesResumeListFilters(resume, filters))
                 : page.page;
 
-            if (filters && page.page.length > 0) {
-                console.log(
-                    `[perf:paginate] raw=${page.page.length} filtered=${filtered.length} rejection=${(((page.page.length - filtered.length) / page.page.length) * 100).toFixed(1)}%`
-                );
-            }
-
             return {
                 page: filtered,
                 continueCursor: page.continueCursor,
