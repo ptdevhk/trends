@@ -153,9 +153,12 @@ describe("listWithIngestDataPaginated", () => {
     expect(takeCalled).toBe(true);
   });
 
-  it("falls back to offset/overfetch path when resume filters are set", async () => {
+  it("uses native paginate() with post-filtering when resume filters are set", async () => {
     let paginateCalled = false;
     let takeCalled = false;
+
+    const resumeA = { ...buildResumeDoc("resume-a", 90), content: { name: "Alice", location: "东莞" } };
+    const resumeB = { ...buildResumeDoc("resume-b", 80), content: { name: "Bob", location: "深圳" } };
 
     const ctx = {
       db: {
@@ -164,11 +167,15 @@ describe("listWithIngestDataPaginated", () => {
             order: () => ({
               paginate: async () => {
                 paginateCalled = true;
-                return { page: [], continueCursor: "", isDone: true };
+                return {
+                  page: [resumeA, resumeB],
+                  continueCursor: "cursor-next",
+                  isDone: false,
+                };
               },
               take: async () => {
                 takeCalled = true;
-                return [buildResumeDoc("resume-a", 90)];
+                return [];
               },
             }),
           }),
@@ -176,12 +183,15 @@ describe("listWithIngestDataPaginated", () => {
       },
     };
 
-    await handler(ctx, {
+    const result = await handler(ctx, {
       paginationOpts: { cursor: null, numItems: 10 },
       locations: ["东莞"],
     });
 
-    expect(paginateCalled).toBe(false);
-    expect(takeCalled).toBe(true);
+    expect(paginateCalled).toBe(true);
+    expect(takeCalled).toBe(false);
+    expect(result.page).toHaveLength(1);
+    expect((result.page[0] as { content: { name: string } }).content.name).toBe("Alice");
+    expect(result.continueCursor).toBe("cursor-next");
   });
 });
