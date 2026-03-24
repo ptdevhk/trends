@@ -140,6 +140,27 @@ describe('useConvexResumes', () => {
     })
   })
 
+  it('forwards safe base filters to the paginated list query', () => {
+    renderHook(() => useConvexResumes(200, undefined, 'jd-1', {
+      filters: {
+        minExperience: 3,
+        maxExperience: 8,
+        education: ['bachelor'],
+        locations: ['Dongguan'],
+      },
+    }))
+
+    const listCall = usePaginatedQueryMock.mock.calls.find(([, args]) => args !== 'skip' && !('query' in (args as Record<string, unknown>)))
+
+    expect(listCall?.[1]).toMatchObject({
+      jobDescriptionId: 'jd-1',
+      minExperience: 3,
+      maxExperience: 8,
+      education: ['bachelor'],
+      locations: ['Dongguan'],
+    })
+  })
+
   it('uses the paginated search query after keyword expansion resolves', async () => {
     usePaginatedQueryMock.mockImplementation((_query, args) => ({
       results: args === 'skip' ? [] : [buildSearchEntry('resume-1', 'Alice')],

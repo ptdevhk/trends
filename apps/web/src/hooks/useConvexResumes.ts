@@ -12,6 +12,13 @@ export const MAX_CONVEX_RESUME_LIMIT = 2000
 
 export type ConvexResumeSortBy = 'experience' | 'extractedAt'
 
+export type ConvexResumeFilters = {
+  minExperience?: number
+  maxExperience?: number
+  education?: string[]
+  locations?: string[]
+}
+
 export type ConvexResumeAnalysis = {
   score: number
   summary: string
@@ -667,6 +674,7 @@ export function useConvexResumes(
   options?: {
     sortBy?: ConvexResumeSortBy
     sortOrder?: 'asc' | 'desc'
+    filters?: ConvexResumeFilters
   }
 ) {
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
@@ -769,6 +777,7 @@ export function useConvexResumes(
               expandedFrom,
             })),
             jobDescriptionId: normalizedJobDescriptionId,
+            ...(options?.filters ?? {}),
             ...(options?.sortBy ? {
               sortBy: options.sortBy,
               sortOrder: resolvedSortOrder,
@@ -788,6 +797,7 @@ export function useConvexResumes(
         ? 'skip'
         : {
             jobDescriptionId: normalizedJobDescriptionId,
+            ...(options?.filters ?? {}),
             ...(options?.sortBy ? {
               sortBy: options.sortBy,
               sortOrder: resolvedSortOrder,
