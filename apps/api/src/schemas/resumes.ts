@@ -863,6 +863,215 @@ export const ResumeExportBinaryResponseSchema = z
   .string()
   .openapi({ format: "binary" });
 
+export const ReviewPacketRunStatusSchema = z
+  .enum(["exported", "feedback_imported", "summary_sent", "failed"])
+  .openapi("ReviewPacketRunStatus");
+
+export const ReviewPacketSummaryCountSchema = z
+  .object({
+    key: z.string(),
+    label: z.string(),
+    count: z.number().int(),
+  })
+  .openapi("ReviewPacketSummaryCount");
+
+export const ReviewPacketRunSchema = z
+  .object({
+    id: z.string().openapi({ example: "review-packet-123" }),
+    workspaceSlug: z.string().openapi({ example: "hr" }),
+    source: ResumeExportSourceSchema,
+    sampleName: z.string().optional().openapi({ example: "sample-initial" }),
+    sessionId: z.string().optional().openapi({ example: "session-123" }),
+    jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),
+    format: z.enum(["csv", "xlsx"]).openapi({ example: "xlsx" }),
+    status: ReviewPacketRunStatusSchema,
+    totalCount: z.number().int().openapi({ example: 25 }),
+    packetFilename: z.string().optional().openapi({ example: "review-packet-review-packet-123.xlsx" }),
+    exportedAt: z.string().openapi({ example: "2026-03-20T09:00:00+08:00" }),
+    feedbackImportedAt: z.string().optional().openapi({ example: "2026-03-20T11:30:00+08:00" }),
+    summarySentAt: z.string().optional().openapi({ example: "2026-03-20T11:45:00+08:00" }),
+    summaryChannel: z.string().optional().openapi({ example: "wechat_work" }),
+    stats: z
+      .object({
+        import: z
+          .object({
+            importedAt: z.string(),
+            fileName: z.string(),
+            totalRows: z.number().int(),
+            matchedRows: z.number().int(),
+            importedRows: z.number().int(),
+            reviewedCount: z.number().int(),
+            statusUpdates: z.number().int(),
+            actionUpdates: z.number().int(),
+            noteUpdates: z.number().int(),
+            invalidRows: z.number().int(),
+            duplicateRows: z.number().int(),
+            warningCount: z.number().int(),
+            matchedByProfileUrlCount: z.number().int(),
+            nameMismatchCount: z.number().int(),
+            warnings: z.array(z.string()),
+          })
+          .optional(),
+        summary: z
+          .object({
+            previewedAt: z.string().optional(),
+            sentAt: z.string().optional(),
+            channel: z.string().optional(),
+            reviewedCount: z.number().int(),
+            pendingCount: z.number().int(),
+            warningCount: z.number().int(),
+            statusBreakdown: z.record(z.number().int()),
+            actionBreakdown: z.record(z.number().int()),
+          })
+          .optional(),
+      })
+      .optional(),
+    error: z.string().optional(),
+  })
+  .openapi("ReviewPacketRun");
+
+export const ReviewPacketTrackedExportResponseSchema = z
+  .object({
+    success: z.literal(true),
+    run: ReviewPacketRunSchema,
+    downloadPath: z.string().openapi({ example: "/api/resumes/review-packets/review-packet-123/download" }),
+  })
+  .openapi("ReviewPacketTrackedExportResponse");
+
+export const ReviewPacketExportRequestSchema = z
+  .object({
+    format: z.enum(["csv", "xlsx"]).default("csv").openapi({ example: "csv" }),
+    source: ResumeExportSourceSchema,
+    sample: z.string().optional().openapi({ example: "sample-initial" }),
+    userComment: z.string().optional().openapi({ example: "Batch note" }),
+    referenceNote: z.string().optional().openapi({ example: "Internal export" }),
+    industryDbV2Stats: IndustryDbV2StatsSchema.optional(),
+    debug: z.boolean().optional().openapi({ example: false }),
+    sessionId: z.string().optional().openapi({ example: "session-123" }),
+    jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),
+    entries: z.array(ResumeExportEntryContextSchema).min(1).max(2000),
+  })
+  .superRefine((value, ctx) => {
+    if (value.source === "sample" && !value.sample?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "sample is required when source is sample",
+        path: ["sample"],
+      });
+    }
+    if (value.source === "convex" && value.sample !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "sample is only allowed when source is sample",
+        path: ["sample"],
+      });
+    }
+  })
+  .openapi("ReviewPacketExportRequest");
+
+export const ReviewPacketRunsResponseSchema = z
+  .object({
+    success: z.literal(true),
+    items: z.array(ReviewPacketRunSchema),
+  })
+  .openapi("ReviewPacketRunsResponse");
+
+export const ReviewPacketFeedbackImportRequestSchema = z
+  .object({
+    file: z.any().openapi({
+      type: "string",
+      format: "binary",
+    }),
+    updatedBy: z.string().optional().openapi({ example: "hr.lead" }),
+  })
+  .openapi("ReviewPacketFeedbackImportRequest");
+
+export const ReviewPacketFeedbackImportFormSchema = z.object({
+  file: z.instanceof(File),
+  updatedBy: z.string().optional(),
+});
+
+export const ReviewPacketFeedbackImportResponseSchema = z
+  .object({
+    success: z.literal(true),
+    run: ReviewPacketRunSchema,
+    summary: z.object({
+      fileName: z.string(),
+      totalRows: z.number().int(),
+      matchedRows: z.number().int(),
+      importedRows: z.number().int(),
+      reviewedCount: z.number().int(),
+      statusUpdates: z.number().int(),
+      actionUpdates: z.number().int(),
+      noteUpdates: z.number().int(),
+      invalidRows: z.number().int(),
+      duplicateRows: z.number().int(),
+      warningCount: z.number().int(),
+      matchedByProfileUrlCount: z.number().int(),
+      nameMismatchCount: z.number().int(),
+    }),
+    warnings: z.array(z.string()),
+  })
+  .openapi("ReviewPacketFeedbackImportResponse");
+
+export const ReviewPacketSummaryDataSchema = z
+  .object({
+    packetId: z.string(),
+    workspaceSlug: z.string(),
+    source: ResumeExportSourceSchema,
+    sampleName: z.string().optional(),
+    sessionId: z.string().optional(),
+    jobDescriptionId: z.string().optional(),
+    exportedAt: z.string(),
+    feedbackImportedAt: z.string().optional(),
+    summarySentAt: z.string().optional(),
+    totalExported: z.number().int(),
+    reviewedCount: z.number().int(),
+    pendingCount: z.number().int(),
+    warningCount: z.number().int(),
+    statusBreakdown: z.array(ReviewPacketSummaryCountSchema),
+    actionBreakdown: z.array(ReviewPacketSummaryCountSchema),
+    warnings: z.array(z.string()),
+  })
+  .openapi("ReviewPacketSummaryData");
+
+export const ReviewPacketSummaryPreviewRequestSchema = z
+  .object({
+    templateId: z.string().optional().openapi({ example: "review-packet-wechat" }),
+  })
+  .openapi("ReviewPacketSummaryPreviewRequest");
+
+export const ReviewPacketSummaryPreviewResponseSchema = z
+  .object({
+    success: z.literal(true),
+    run: ReviewPacketRunSchema,
+    channel: z.literal("wechat_work"),
+    templateId: z.string(),
+    content: z.string(),
+    data: ReviewPacketSummaryDataSchema,
+  })
+  .openapi("ReviewPacketSummaryPreviewResponse");
+
+export const ReviewPacketSummarySendRequestSchema = z
+  .object({
+    templateId: z.string().optional().openapi({ example: "review-packet-wechat" }),
+    webhookUrl: z.string().url().optional().openapi({ example: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***" }),
+  })
+  .openapi("ReviewPacketSummarySendRequest");
+
+export const ReviewPacketSummarySendResponseSchema = z
+  .object({
+    success: z.literal(true),
+    run: ReviewPacketRunSchema,
+    channel: z.literal("wechat_work"),
+    templateId: z.string(),
+    delivery: z.object({
+      errcode: z.number().optional(),
+      errmsg: z.string().optional(),
+    }).passthrough(),
+  })
+  .openapi("ReviewPacketSummarySendResponse");
+
 export const MatchRequestSchema = z
   .object({
     sessionId: z.string().optional().openapi({ example: "session-123" }),

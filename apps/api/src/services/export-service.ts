@@ -91,6 +91,11 @@ type ExportRow = {
   referenceNote: string;
 };
 
+type ReviewPacketRow = ExportRow & {
+  packetRunId: string;
+  exportedAt: string;
+};
+
 export type ExportFile = {
   extension: ExportFormat;
   contentType: string;
@@ -296,6 +301,7 @@ function toRow(
 }
 
 type ExcelColumn = { header: string; key: keyof ExportRow; width: number };
+type ReviewPacketExcelColumn = { header: string; key: keyof ReviewPacketRow; width: number };
 
 const STANDARD_EXCEL_COLUMNS_HEAD: ExcelColumn[] = [
   { header: "Resume ID", key: "resumeId", width: 24 },
@@ -352,6 +358,14 @@ export type ExportBatchMeta = {
   referenceNote?: string;
 };
 
+export type ReviewPacketExportOptions = {
+  packetRunId: string;
+  exportedAt: string;
+  batchMeta?: ExportBatchMeta;
+  industryDbV2Stats?: IndustryDbV2BatchStats;
+  debug?: boolean;
+};
+
 function applyBatchMeta(row: ExportRow, batchMeta?: ExportBatchMeta): ExportRow {
   if (!batchMeta) {
     return row;
@@ -362,6 +376,83 @@ function applyBatchMeta(row: ExportRow, batchMeta?: ExportBatchMeta): ExportRow 
     userComment: batchMeta.userComment ?? row.userComment,
     referenceNote: batchMeta.referenceNote ?? row.referenceNote,
   };
+}
+
+const REVIEW_PACKET_EXCEL_COLUMNS_HEAD: ReviewPacketExcelColumn[] = [
+  { header: "Resume ID", key: "resumeId", width: 24 },
+  { header: "Packet Run ID", key: "packetRunId", width: 40 },
+  { header: "Exported At", key: "exportedAt", width: 28 },
+  { header: "Name", key: "name", width: 16 },
+  { header: "Job Intention", key: "jobIntention", width: 20 },
+  { header: "Location", key: "location", width: 14 },
+  { header: "Experience", key: "experience", width: 14 },
+  { header: "Education", key: "education", width: 14 },
+  { header: "Age", key: "age", width: 10 },
+  { header: "Expected Salary", key: "expectedSalary", width: 16 },
+  { header: "AI Score", key: "aiScore", width: 10 },
+  { header: "Industry DB", key: "industryDb", width: 14 },
+  { header: "Related Exp", key: "relatedExp", width: 14 },
+];
+
+const REVIEW_PACKET_DEBUG_EXCEL_COLUMNS: ReviewPacketExcelColumn[] = [
+  { header: "Industry DB V2 Raw", key: "industryDbV2Raw", width: 18 },
+  { header: "Industry DB V2 Normalized", key: "industryDbV2Normalized", width: 24 },
+];
+
+const REVIEW_PACKET_EXCEL_COLUMNS_MACHINE_TAIL: ReviewPacketExcelColumn[] = [
+  { header: "Rule Score", key: "ruleScore", width: 10 },
+  { header: "Recommendation", key: "recommendation", width: 16 },
+  { header: "Score Source", key: "scoreSource", width: 12 },
+  { header: "Industry Tags", key: "industryTags", width: 22 },
+  { header: "Brand Hits", key: "brandHits", width: 34 },
+  { header: "Company Hits", key: "companyHits", width: 22 },
+  { header: "Role Evidence", key: "roleEvidence", width: 34 },
+  { header: "Matched Work Entries", key: "matchedWorkEntries", width: 44 },
+  { header: "Profile URL", key: "profileUrl", width: 28 },
+  { header: "Work History", key: "workHistory", width: 44 },
+  { header: "Self Intro", key: "selfIntro", width: 48 },
+  { header: "AI Summary", key: "aiSummary", width: 48 },
+];
+
+const REVIEW_PACKET_EXCEL_COLUMNS_HUMAN: ReviewPacketExcelColumn[] = [
+  { header: "Status", key: "status", width: 16 },
+  { header: "Action", key: "action", width: 12 },
+  { header: "User Comment", key: "userComment", width: 36 },
+  { header: "Reference Note", key: "referenceNote", width: 36 },
+];
+
+function getReviewPacketExcelColumns(debug: boolean): ReviewPacketExcelColumn[] {
+  return debug
+    ? [
+        ...REVIEW_PACKET_EXCEL_COLUMNS_HEAD,
+        ...REVIEW_PACKET_DEBUG_EXCEL_COLUMNS,
+        ...REVIEW_PACKET_EXCEL_COLUMNS_MACHINE_TAIL,
+        ...REVIEW_PACKET_EXCEL_COLUMNS_HUMAN,
+      ]
+    : [
+        ...REVIEW_PACKET_EXCEL_COLUMNS_HEAD,
+        ...REVIEW_PACKET_EXCEL_COLUMNS_MACHINE_TAIL,
+        ...REVIEW_PACKET_EXCEL_COLUMNS_HUMAN,
+      ];
+}
+
+function toReviewPacketRow(row: ExportRow, options: { packetRunId: string; exportedAt: string }): ReviewPacketRow {
+  return {
+    ...row,
+    packetRunId: options.packetRunId,
+    exportedAt: options.exportedAt,
+  };
+}
+
+function toReviewPacketCsvRow(
+  row: ReviewPacketRow,
+  debug: boolean
+): Record<string, string | number | ""> {
+  const record: Record<string, string | number | ""> = {};
+  for (const column of getReviewPacketExcelColumns(debug)) {
+    record[column.header] = row[column.key];
+  }
+  return record;
 }
 
 export class ExportService {
@@ -413,11 +504,71 @@ export class ExportService {
     };
   }
 
+  async exportReviewPacket(
+    format: ExportFormat,
+    entries: ResumeExportEntry[],
+    options: ReviewPacketExportOptions,
+  ): Promise<ExportFile> {
+    const batchNormalizer = createBatchNormalizer(options.industryDbV2Stats);
+    const debug = options.debug ?? false;
+    const rows = entries.map((entry) =>
+      toReviewPacketRow(
+        applyBatchMeta(
+          toRow(
+            entry,
+            batchNormalizer,
+            this.brandDisplayResolver,
+            this.companyPatternAliasLookup
+          ),
+          options.batchMeta
+        ),
+        {
+          packetRunId: options.packetRunId,
+          exportedAt: options.exportedAt,
+        }
+      )
+    );
+
+    if (format === "xlsx") {
+      const content = await this.toReviewPacketXlsx(rows, debug);
+      return {
+        extension: "xlsx",
+        contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        content,
+      };
+    }
+
+    const csv = Papa.unparse(rows.map((row) => toReviewPacketCsvRow(row, debug)), {
+      header: true,
+      newline: "\n",
+    });
+    return {
+      extension: "csv",
+      contentType: "text/csv; charset=utf-8",
+      content: Buffer.from(csv, "utf8"),
+    };
+  }
+
   private async toXlsx(rows: ExportRow[], debug: boolean): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Resumes");
 
     sheet.columns = getExcelColumns(debug);
+    rows.forEach((row) => sheet.addRow(row));
+    sheet.getRow(1).font = { bold: true };
+
+    const data = await workbook.xlsx.writeBuffer();
+    if (data instanceof ArrayBuffer) {
+      return Buffer.from(data);
+    }
+    return Buffer.from(data);
+  }
+
+  private async toReviewPacketXlsx(rows: ReviewPacketRow[], debug: boolean): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Review Packet");
+
+    sheet.columns = getReviewPacketExcelColumns(debug);
     rows.forEach((row) => sheet.addRow(row));
     sheet.getRow(1).font = { bold: true };
 
