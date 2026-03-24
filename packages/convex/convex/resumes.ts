@@ -199,6 +199,9 @@ type ResumeListFilterArgs = {
     maxSalary?: number;
 };
 
+type ResumeListSortBy = "name" | "experience" | "extractedAt";
+type ResumeListSortOrder = "asc" | "desc";
+
 type DeleteResumesResult = {
     requested: number;
     deleted: number;
@@ -474,6 +477,66 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     }
 
     return true;
+}
+
+function resolveResumeListSortOrder(sortOrder: ResumeListSortOrder | undefined): ResumeListSortOrder {
+    if (sortOrder === "asc" || sortOrder === "desc") {
+        return sortOrder;
+    }
+    return "asc";
+}
+
+function compareResumeListSort(
+    left: Doc<"resumes">,
+    right: Doc<"resumes">,
+    sortBy: ResumeListSortBy,
+    sortOrder: ResumeListSortOrder
+): number {
+    const direction = sortOrder === "desc" ? -1 : 1;
+    const leftContent = isRecord(left.content) ? left.content : {};
+    const rightContent = isRecord(right.content) ? right.content : {};
+
+    if (sortBy === "experience") {
+        const leftExperience = parseExperienceYears(toStringValue(leftContent.experience)) ?? -1;
+        const rightExperience = parseExperienceYears(toStringValue(rightContent.experience)) ?? -1;
+        const diff = (leftExperience - rightExperience) * direction;
+        if (diff !== 0) {
+            return diff;
+        }
+    } else if (sortBy === "extractedAt") {
+        const leftTime = Date.parse(toStringValue(leftContent.extractedAt)) || 0;
+        const rightTime = Date.parse(toStringValue(rightContent.extractedAt)) || 0;
+        const diff = (leftTime - rightTime) * direction;
+        if (diff !== 0) {
+            return diff;
+        }
+    } else {
+        const leftName = toStringValue(leftContent.name).toLowerCase();
+        const rightName = toStringValue(rightContent.name).toLowerCase();
+        const diff = leftName.localeCompare(rightName) * direction;
+        if (diff !== 0) {
+            return diff;
+        }
+    }
+
+    return 0;
+}
+
+function sortResumeDocs(
+    resumes: Doc<"resumes">[],
+    options: {
+        jobDescriptionId?: string;
+        sortBy?: ResumeListSortBy;
+        sortOrder?: ResumeListSortOrder;
+    }
+): Doc<"resumes">[] {
+    if (options.sortBy) {
+        const { sortBy } = options;
+        const resolvedSortOrder = resolveResumeListSortOrder(options.sortOrder);
+        return [...resumes].sort((left, right) => compareResumeListSort(left, right, sortBy, resolvedSortOrder));
+    }
+
+    return sortByIngestRuleScore(resumes, options.jobDescriptionId);
 }
 
 function resolveListWithIngestPageWindow(requestedLimit: number | undefined, requestedOffset: number | undefined): {
@@ -868,6 +931,8 @@ export const listWithIngestDataPage = query({
         limit: v.optional(v.number()),
         offset: v.optional(v.number()),
         jobDescriptionId: v.optional(v.string()),
+        sortBy: v.optional(v.union(v.literal("name"), v.literal("experience"), v.literal("extractedAt"))),
+        sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
         minExperience: v.optional(v.number()),
         maxExperience: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
@@ -885,7 +950,11 @@ export const listWithIngestDataPage = query({
             .withIndex("by_primaryRuleScore")
             .order("desc")
             .take(overfetchLimit);
-        const sorted = sortByIngestRuleScore(candidates, jobDescriptionId)
+        const sorted = sortResumeDocs(candidates, {
+            jobDescriptionId,
+            sortBy: args.sortBy,
+            sortOrder: args.sortOrder,
+        })
             .filter((resume) => matchesResumeListFilters(resume, filters))
             .slice(0, scanLimit);
         return {
@@ -1092,6 +1161,8 @@ export const searchWithTagExpansionPage = query({
         limit: v.optional(v.number()),
         offset: v.optional(v.number()),
         jobDescriptionId: v.optional(v.string()),
+        sortBy: v.optional(v.union(v.literal("name"), v.literal("experience"), v.literal("extractedAt"))),
+        sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
         minExperience: v.optional(v.number()),
         maxExperience: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
@@ -1153,6 +1224,16 @@ export const searchWithTagExpansionPage = query({
 
         const merged = mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, overfetchLimit)
             .filter((entry) => matchesResumeListFilters(entry.resume, filters));
+        let sorted = merged;
+        if (args.sortBy) {
+            const sortBy = args.sortBy;
+            sorted = [...merged].sort((left, right) => compareResumeListSort(
+                left.resume,
+                right.resume,
+                sortBy,
+                resolveResumeListSortOrder(args.sortOrder)
+            ));
+        }
 
         return {
             expansion: {
@@ -1161,8 +1242,8 @@ export const searchWithTagExpansionPage = query({
                 groups: keywordGroups,
                 mode,
             },
-            total: merged.length,
-            results: merged.slice(offset, offset + pageLimit),
+            total: sorted.length,
+            results: sorted.slice(offset, offset + pageLimit),
         };
     },
 });

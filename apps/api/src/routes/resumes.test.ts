@@ -355,6 +355,47 @@ describe("resume routes", () => {
     }));
   });
 
+  it("keeps source pagination when a keyword search uses a non-score sort", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+        return convexSuccess({
+          expansion: {
+            original: "cnc sales",
+            expanded: ["cnc", "sales"],
+            groups: [
+              { original: "cnc", variants: ["cnc"] },
+              { original: "sales", variants: ["sales"] },
+            ],
+            mode: "AND",
+          },
+          results: [
+            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), provenance: [{ term: "cnc", source: "searchText" }] },
+          ],
+          total: 4,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&offset=2&sortBy=name&sortOrder=desc");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:searchWithTagExpansionPage",
+      args: expect.objectContaining({ limit: 2, offset: 2, sortBy: "name", sortOrder: "desc" }),
+    }));
+  });
+
   it("keeps source pagination when resume filters are pushed into the convex page query", async () => {
     const calls: ConvexCall[] = [];
 
@@ -388,7 +429,39 @@ describe("resume routes", () => {
     }));
   });
 
-  it("falls back to overfetch when local sorting must run before paging", async () => {
+  it("keeps source pagination when a non-score sort is pushed into the convex page query", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:listWithIngestDataPage") {
+        return convexSuccess({
+          results: [
+            buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
+            buildConvexResumeRecord("resume-live-4", { name: "Dylan" }),
+          ],
+          total: 4,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=experience");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:listWithIngestDataPage",
+      args: expect.objectContaining({ limit: 2, offset: 2, sortBy: "experience", sortOrder: "asc" }),
+    }));
+  });
+
+  it("falls back to overfetch when score sorting still depends on local match storage", async () => {
     const calls: ConvexCall[] = [];
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -408,7 +481,7 @@ describe("resume routes", () => {
     });
 
     const app = createApp();
-    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=experience");
+    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=score");
 
     expect(response.status).toBe(200);
     const payload = await response.json();

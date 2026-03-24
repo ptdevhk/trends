@@ -767,6 +767,8 @@ async function prepareConvexCandidates(params: {
   location?: string;
   limit?: number;
   offset?: number;
+  sortBy?: "name" | "experience" | "extractedAt";
+  sortOrder?: "asc" | "desc";
   filters?: {
     minExperience?: number;
     maxExperience?: number;
@@ -829,6 +831,7 @@ async function prepareConvexCandidates(params: {
       })),
       limit: params.limit,
       ...(params.paged ? { offset: params.offset } : {}),
+      ...(params.paged && params.sortBy ? { sortBy: params.sortBy, sortOrder: params.sortOrder } : {}),
       ...(params.paged && params.filters ? params.filters : {}),
       jobDescriptionId: params.jobDescriptionId,
     });
@@ -866,6 +869,7 @@ async function prepareConvexCandidates(params: {
   const value = await callConvexQuery(params.paged ? "resumes:listWithIngestDataPage" : "resumes:listWithIngestData", {
     limit: params.limit,
     ...(params.paged ? { offset: params.offset } : {}),
+    ...(params.paged && params.sortBy ? { sortBy: params.sortBy, sortOrder: params.sortOrder } : {}),
     ...(params.paged && params.filters ? params.filters : {}),
     jobDescriptionId: params.jobDescriptionId,
   });
@@ -903,6 +907,13 @@ function resolveConvexResumeFetchLimit(limit: number | undefined, offset: number
 
   const pageSize = typeof limit === "number" ? limit : DEFAULT_CONVEX_RESUME_PAGE_SIZE;
   return offset + pageSize;
+}
+
+function resolveResumeSortOrder(sortBy: "score" | "name" | "experience" | "extractedAt" | undefined, sortOrder: "asc" | "desc" | undefined): "asc" | "desc" | undefined {
+  if (!sortBy || sortBy === "score") {
+    return sortOrder;
+  }
+  return sortOrder || "asc";
 }
 
 function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
@@ -1431,12 +1442,14 @@ app.openapi(getResumesRoute, (c) => {
       return (async () => {
         const resolvedJobId = jobDescriptionId?.trim() || undefined;
         const hasLocalMatchFilters = minMatchScore !== undefined || (recommendation?.length ?? 0) > 0;
-        const canUseSourcePagination = !hasLocalMatchFilters && !sortBy;
+        const canUseSourcePagination = !hasLocalMatchFilters && sortBy !== "score";
         const convexFetchLimit = canUseSourcePagination ? limit : resolveConvexResumeFetchLimit(limit, offset);
         const { prepared, keywordExpansion: liveExpansion, total: convexTotal } = await prepareConvexCandidates({
           keywords: keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [],
           limit: convexFetchLimit,
           offset: canUseSourcePagination ? offset : undefined,
+          sortBy: canUseSourcePagination && sortBy ? sortBy : undefined,
+          sortOrder: canUseSourcePagination ? resolveResumeSortOrder(sortBy, sortOrder) : undefined,
           filters: canUseSourcePagination
             ? {
                 minExperience,
