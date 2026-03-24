@@ -14,6 +14,7 @@ import {
   MAX_CONVEX_RESUME_LIMIT,
   useConvexResumes,
   type ConvexResumeItem,
+  type ConvexResumeSortBy,
 } from '@/hooks/useConvexResumes'
 import { useSession } from '@/hooks/useSession'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
@@ -627,19 +628,34 @@ export function useResumeListState(loadSearchHistory = false) {
     return kw
   }, [sessionKeywords])
 
+  const convexSourceSortBy = useMemo<ConvexResumeSortBy | undefined>(() => {
+    if (filters.sortBy === 'experience' || filters.sortBy === 'extractedAt') {
+      return filters.sortBy
+    }
+    return undefined
+  }, [filters.sortBy])
+  const convexSourceSortOrder = useMemo(
+    () => (convexSourceSortBy ? (filters.sortOrder ?? 'desc') : undefined),
+    [convexSourceSortBy, filters.sortOrder]
+  )
   const convexQueryScopeKey = useMemo(
     () => JSON.stringify({
       jobDescriptionId: jobDescriptionId?.trim() ?? '',
       query: expandedQuery ?? '',
+      sortBy: convexSourceSortBy ?? '',
+      sortOrder: convexSourceSortOrder ?? '',
     }),
-    [expandedQuery, jobDescriptionId]
+    [convexSourceSortBy, convexSourceSortOrder, expandedQuery, jobDescriptionId]
   )
   const {
     resumes: convexResumes,
     loading: convexLoading,
     loadingMore: convexLoadingMore,
     hasMore: convexHasMore,
-  } = useConvexResumes(requestedConvexLimit, expandedQuery, jobDescriptionId)
+  } = useConvexResumes(requestedConvexLimit, expandedQuery, jobDescriptionId, {
+    sortBy: convexSourceSortBy,
+    sortOrder: convexSourceSortOrder,
+  })
   const analysisTasks = useQuery(api.analysis_tasks.list)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)
@@ -1047,7 +1063,9 @@ export function useResumeListState(loadSearchHistory = false) {
         }
       })
 
-    result = [...result].sort((a: ScoredConvexResume, b: ScoredConvexResume) => b._ruleScore - a._ruleScore)
+    if (!convexSourceSortBy) {
+      result = [...result].sort((a: ScoredConvexResume, b: ScoredConvexResume) => b._ruleScore - a._ruleScore)
+    }
 
     const showBlocked = filters.showBlocked === true
     if (!showBlocked) {
@@ -1174,6 +1192,7 @@ export function useResumeListState(loadSearchHistory = false) {
     selectedExperienceLevel,
     selectedTags,
     currentPromptVersion,
+    convexSourceSortBy,
     sessionKeywords,
     sessionCollectionSource,
     sessionLocation,
@@ -1479,6 +1498,10 @@ export function useResumeListState(loadSearchHistory = false) {
   ])
 
   const displayedResumes = useMemo(() => {
+    if (mode === 'ai' && convexSourceSortBy) {
+      return enrichedResumes
+    }
+
     const sortBy = filters.sortBy ?? 'score'
     const sortOrder = filters.sortOrder ?? 'desc'
     const direction = sortOrder === 'asc' ? 1 : -1
@@ -1501,7 +1524,7 @@ export function useResumeListState(loadSearchHistory = false) {
       const scoreB = b.match?.score ?? b.ruleScore ?? 0
       return (scoreA - scoreB) * direction
     })
-  }, [enrichedResumes, filters.sortBy, filters.sortOrder])
+  }, [convexSourceSortBy, enrichedResumes, filters.sortBy, filters.sortOrder, mode])
 
   const displayedResumeMap = useMemo(
     () => new Map(displayedResumes.map((entry) => [entry.key, entry.resume])),
