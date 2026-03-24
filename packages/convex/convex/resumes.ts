@@ -6,10 +6,14 @@ import { v } from "convex/values";
 
 import {
     buildResumeAnalysisStorageKey,
+    buildWorkHistoryEntryText,
+    formatLocationHierarchySearchText,
     formatLocationHierarchyLabel,
     isResumeAnalysisKeyForJobDescription,
+    isLocationMatch,
     normalizeResumeLocationHierarchy,
     resolveResumeAnalysisSourceKey,
+    selectLatestWorkHistory,
 } from "@trends/shared";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 import { mergeSearchTextWithIngestData } from "./search_text";
@@ -185,6 +189,16 @@ type ResumeBackupFilterSets = {
     sourceHosts?: Set<string>;
 };
 
+type ResumeListFilterArgs = {
+    minExperience?: number;
+    maxExperience?: number;
+    education?: string[];
+    skills?: string[];
+    locations?: string[];
+    minSalary?: number;
+    maxSalary?: number;
+};
+
 type DeleteResumesResult = {
     requested: number;
     deleted: number;
@@ -304,6 +318,162 @@ export function resolveListWithIngestWindow(requestedLimit: number | undefined):
         limit,
         overfetchLimit: Math.min(Math.max(limit * 3, limit), MAX_SAFE_LIST_WITH_INGEST_OVERFETCH),
     };
+}
+
+function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): ResumeListFilterArgs | undefined {
+    if (!filters) {
+        return undefined;
+    }
+
+    const education = filters.education?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
+    const skills = filters.skills?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
+    const locations = filters.locations?.map((value) => value.trim()).filter((value) => value.length > 0);
+
+    const normalized: ResumeListFilterArgs = {
+        ...(filters.minExperience === undefined ? {} : { minExperience: filters.minExperience }),
+        ...(filters.maxExperience === undefined ? {} : { maxExperience: filters.maxExperience }),
+        ...(education && education.length > 0 ? { education } : {}),
+        ...(skills && skills.length > 0 ? { skills } : {}),
+        ...(locations && locations.length > 0 ? { locations } : {}),
+        ...(filters.minSalary === undefined ? {} : { minSalary: filters.minSalary }),
+        ...(filters.maxSalary === undefined ? {} : { maxSalary: filters.maxSalary }),
+    };
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function parseExperienceYears(value: string): number | null {
+    if (!value) {
+        return null;
+    }
+    const normalized = value.trim();
+    if (!normalized) {
+        return null;
+    }
+    if (/应届|无经验/.test(normalized)) {
+        return 0;
+    }
+    const match = normalized.match(/(\d+)(?:\s*[-~到]\s*(\d+))?/);
+    if (!match) {
+        return null;
+    }
+    const min = Number(match[1]);
+    const max = match[2] ? Number(match[2]) : min;
+    return Number.isNaN(max) ? null : max;
+}
+
+function normalizeEducationLevel(value: string): string | null {
+    if (!value) {
+        return null;
+    }
+    const normalized = value.trim();
+    if (!normalized) {
+        return null;
+    }
+    if (/博士/.test(normalized)) return "phd";
+    if (/硕士|研究生/.test(normalized)) return "master";
+    if (/本科/.test(normalized)) return "bachelor";
+    if (/大专|专科/.test(normalized)) return "associate";
+    if (/中专|高中|中技/.test(normalized)) return "high_school";
+    return null;
+}
+
+function parseSalaryRange(value: string): { min?: number; max?: number } | null {
+    if (!value) {
+        return null;
+    }
+    const normalized = value.replace(/\s/g, "");
+    if (!normalized || /面议/.test(normalized)) {
+        return null;
+    }
+    const match = normalized.match(/(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?/);
+    if (!match) {
+        return null;
+    }
+    const min = Number(match[1]);
+    const max = match[2] ? Number(match[2]) : undefined;
+    if (Number.isNaN(min)) {
+        return null;
+    }
+    return { min, max };
+}
+
+function buildResumeFilterSearchText(content: Record<string, unknown>): string {
+    const locationText = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content)) || toStringValue(content.location);
+    const latestWorkHistory = selectLatestWorkHistory(content.workHistory);
+    const parts = [
+        toStringValue(content.name),
+        toStringValue(content.education),
+        locationText,
+        toStringValue(content.expectedSalary),
+        ...latestWorkHistory.map((entry) => buildWorkHistoryEntryText(entry)),
+    ];
+    return parts.join(" ").toLowerCase();
+}
+
+function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFilterArgs | undefined): boolean {
+    if (!filters) {
+        return true;
+    }
+
+    const content = isRecord(resume.content) ? resume.content : {};
+
+    if (filters.minExperience !== undefined || filters.maxExperience !== undefined) {
+        const experience = parseExperienceYears(toStringValue(content.experience));
+        if (experience === null) {
+            return false;
+        }
+        if (filters.minExperience !== undefined && experience < filters.minExperience) {
+            return false;
+        }
+        if (filters.maxExperience !== undefined && experience > filters.maxExperience) {
+            return false;
+        }
+    }
+
+    if (filters.education?.length) {
+        const level = normalizeEducationLevel(toStringValue(content.education));
+        if (!level || !filters.education.includes(level)) {
+            return false;
+        }
+    }
+
+    if (filters.locations?.length) {
+        const location = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content)) || toStringValue(content.location);
+        const hasLocation = filters.locations.some((target) => isLocationMatch(location, target));
+        if (!hasLocation) {
+            return false;
+        }
+    }
+
+    if (filters.skills?.length) {
+        const haystack = buildResumeFilterSearchText(content);
+        const hasSkill = filters.skills.some((skill) => haystack.includes(skill));
+        if (!hasSkill) {
+            return false;
+        }
+    }
+
+    if (filters.minSalary !== undefined || filters.maxSalary !== undefined) {
+        const salary = parseSalaryRange(toStringValue(content.expectedSalary));
+        if (!salary) {
+            return false;
+        }
+        if (filters.minSalary !== undefined) {
+            const maxSalary = salary.max ?? salary.min;
+            if (maxSalary !== undefined && maxSalary < filters.minSalary) {
+                return false;
+            }
+        }
+        if (filters.maxSalary !== undefined) {
+            const minSalary = salary.min ?? salary.max;
+            if (minSalary !== undefined && minSalary > filters.maxSalary) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 function resolveListWithIngestPageWindow(requestedLimit: number | undefined, requestedOffset: number | undefined): {
@@ -698,16 +868,26 @@ export const listWithIngestDataPage = query({
         limit: v.optional(v.number()),
         offset: v.optional(v.number()),
         jobDescriptionId: v.optional(v.string()),
+        minExperience: v.optional(v.number()),
+        maxExperience: v.optional(v.number()),
+        education: v.optional(v.array(v.string())),
+        skills: v.optional(v.array(v.string())),
+        locations: v.optional(v.array(v.string())),
+        minSalary: v.optional(v.number()),
+        maxSalary: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const { offset, pageLimit, scanLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+        const filters = normalizeResumeListFilters(args);
         const candidates = await ctx.db
             .query("resumes")
             .withIndex("by_primaryRuleScore")
             .order("desc")
             .take(overfetchLimit);
-        const sorted = sortByIngestRuleScore(candidates, jobDescriptionId).slice(0, scanLimit);
+        const sorted = sortByIngestRuleScore(candidates, jobDescriptionId)
+            .filter((resume) => matchesResumeListFilters(resume, filters))
+            .slice(0, scanLimit);
         return {
             total: sorted.length,
             results: sorted.slice(offset, offset + pageLimit),
@@ -912,10 +1092,18 @@ export const searchWithTagExpansionPage = query({
         limit: v.optional(v.number()),
         offset: v.optional(v.number()),
         jobDescriptionId: v.optional(v.string()),
+        minExperience: v.optional(v.number()),
+        maxExperience: v.optional(v.number()),
+        education: v.optional(v.array(v.string())),
+        skills: v.optional(v.array(v.string())),
+        locations: v.optional(v.array(v.string())),
+        minSalary: v.optional(v.number()),
+        maxSalary: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
-        const { offset, pageLimit, scanLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
+        const { offset, pageLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+        const filters = normalizeResumeListFilters(args);
         const mode = args.mode ?? "AND";
         const keywordGroups = normalizeTagExpansionKeywordGroups(args.keywordGroups);
         const expandedTerms = collectExpandedTerms(keywordGroups);
@@ -963,7 +1151,8 @@ export const searchWithTagExpansionPage = query({
             return true;
         });
 
-        const merged = mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, scanLimit);
+        const merged = mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, overfetchLimit)
+            .filter((entry) => matchesResumeListFilters(entry.resume, filters));
 
         return {
             expansion: {
