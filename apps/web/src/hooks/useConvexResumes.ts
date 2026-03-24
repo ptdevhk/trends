@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery } from '@trends/shared'
 import { usePaginatedQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -815,13 +815,40 @@ export function useConvexResumes(
   const activePaginatedResultsLength = normalizedQuery ? paginatedSearchResults.results.length : paginatedListResults.results.length
   const activePaginatedLoadMore = normalizedQuery ? paginatedSearchResults.loadMore : paginatedListResults.loadMore
 
+  const paginationStatsRef = useRef({ roundTrips: 0, startTime: 0, logged: false })
+  const filtersKey = JSON.stringify(options?.filters ?? null)
+
+  useEffect(() => {
+    paginationStatsRef.current = { roundTrips: 0, startTime: 0, logged: false }
+  }, [normalizedQuery, normalizedJobDescriptionId, filtersKey, options?.sortBy, resolvedSortOrder])
+
   useEffect(() => {
     if (mockPayload || limit <= 0) {
       return
     }
 
     if (activePaginatedStatus !== 'CanLoadMore' || activePaginatedResultsLength >= limit) {
+      const stats = paginationStatsRef.current
+      if (import.meta.env.DEV && stats.roundTrips > 0 && !stats.logged) {
+        stats.logged = true
+        const elapsed = Math.round(performance.now() - stats.startTime)
+        console.log(
+          `[perf:pagination] done trips=${stats.roundTrips} total=${elapsed}ms results=${activePaginatedResultsLength} status=${activePaginatedStatus}`
+        )
+      }
       return
+    }
+
+    const stats = paginationStatsRef.current
+    if (stats.roundTrips === 0) {
+      stats.startTime = performance.now()
+    }
+    stats.roundTrips++
+
+    if (import.meta.env.DEV) {
+      console.log(
+        `[perf:pagination] trip=${stats.roundTrips} results=${activePaginatedResultsLength}/${limit} elapsed=${Math.round(performance.now() - stats.startTime)}ms`
+      )
     }
 
     activePaginatedLoadMore(Math.min(CONVEX_RESUME_PAGE_SIZE, limit - activePaginatedResultsLength))

@@ -1144,10 +1144,20 @@ export const listWithIngestDataPaginated = query({
                     numItems: resolvePaginatedResumePageLimit(args.paginationOpts.numItems),
                 });
 
+            const filtered = filters
+                ? page.page.filter((resume) => matchesResumeListFilters(resume, filters))
+                : page.page;
+
+            const rawSize = page.page.length;
+            const filteredSize = filtered.length;
+            if (filters && rawSize > 0) {
+                console.log(
+                    `[perf:paginate] raw=${rawSize} filtered=${filteredSize} rejection=${(((rawSize - filteredSize) / rawSize) * 100).toFixed(1)}%`
+                );
+            }
+
             return {
-                page: filters
-                    ? page.page.filter((resume) => matchesResumeListFilters(resume, filters))
-                    : page.page,
+                page: filtered,
                 continueCursor: page.continueCursor,
                 isDone: page.isDone,
             };
