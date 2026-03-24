@@ -43,10 +43,7 @@ vi.mock('sonner', () => ({
 
 function renderSettingsRoute(initialEntry: string) {
   return render(
-    <MemoryRouter
-      initialEntries={[initialEntry]}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/:teamSlug/system/settings" element={<SystemSettingsLayout />}>
           <Route index element={<DebugConfig />} />
