@@ -129,6 +129,50 @@ const ResumeStructuredDetailsShape = {
   digitalIdentity: z.union([z.string(), ResumeImportDigitalIdentitySchema]).optional(),
 };
 
+const ResumeIngestMatchedWorkEntrySchema = z
+  .object({
+    companyName: z.string().optional().openapi({ example: "FANUC" }),
+    jobTitle: z.string().optional().openapi({ example: "Sales Engineer" }),
+    years: z.number().openapi({ example: 3 }),
+    industryVerified: z.boolean().openapi({ example: true }),
+    matchedSignals: z.array(z.string()).openapi({ example: ["sales", "cnc"] }),
+  })
+  .openapi("ResumeIngestMatchedWorkEntry");
+
+const ResumeIngestRoleSignalSchema = z
+  .object({
+    type: z.string().openapi({ example: "sales" }),
+    matchedSignals: z.array(z.string()).openapi({ example: ["销售工程师", "销售"] }),
+    signalCount: z.number().optional().openapi({ example: 2 }),
+    occurrences: z.number().optional().openapi({ example: 2 }),
+    years: z.number().openapi({ example: 5 }),
+    industryVerifiedYears: z.number().optional().openapi({ example: 5 }),
+    roleRelevantYears: z.number().optional().openapi({ example: 5 }),
+    industryVerifiedRelevantYears: z.number().optional().openapi({ example: 5 }),
+    matchedWorkEntries: z.array(ResumeIngestMatchedWorkEntrySchema).optional(),
+    verifyIn: z.string().openapi({ example: "workHistory" }),
+  })
+  .openapi("ResumeIngestRoleSignal");
+
+const ResumeIngestBrandHitSchema = z
+  .object({
+    brand: z.string().openapi({ example: "fanuc" }),
+    role: z.string().openapi({ example: "both" }),
+    source: z.string().openapi({ example: "workHistory" }),
+    context: z.string().openapi({ example: "employer" }),
+  })
+  .openapi("ResumeIngestBrandHit");
+
+const ResumeIngestDataSchema = z
+  .object({
+    industryTags: z.array(z.string()).optional().openapi({ example: ["industrial-machinery"] }),
+    brandHits: z.array(ResumeIngestBrandHitSchema).optional(),
+    companyHits: z.array(z.string()).optional().openapi({ example: ["fanuc"] }),
+    industryDbV2Raw: z.number().optional().openapi({ example: 12 }),
+    roleSignals: z.array(ResumeIngestRoleSignalSchema).optional(),
+  })
+  .openapi("ResumeIngestData");
+
 export const ResumeItemSchema = z
   .object({
     name: z.string().openapi({ example: "Alex Chen" }),
@@ -145,6 +189,7 @@ export const ResumeItemSchema = z
     workHistory: z.array(ResumeWorkHistorySchema),
     ...ResumeStructuredDetailsShape,
     noticePeriodDays: z.number().int().optional(),
+    ingestData: ResumeIngestDataSchema.optional(),
     extractedAt: z.string().openapi({ example: "2026-02-03T10:00:00.000Z" }),
     resumeId: z.string().optional().openapi({ example: "R123456" }),
     perUserId: z.string().optional().openapi({ example: "U987654" }),
