@@ -6,6 +6,7 @@ import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { rawApiClient } from '@/lib/api-helpers'
 import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import { useResumeListState } from './useResumeListState'
+import type { ConvexResumeSortBy } from '@/hooks/useConvexResumes'
 
 let capturedExportPayload: unknown = null
 const createObjectUrlMock = vi.fn(() => 'blob:mock')
@@ -20,6 +21,10 @@ const mockState = vi.hoisted(() => ({
     limit?: number
     query?: string
     jobDescriptionId?: string
+    options?: {
+      sortBy?: ConvexResumeSortBy
+      sortOrder?: 'asc' | 'desc'
+    }
   }>,
   cloneConvexResumesOnRead: false,
   filters: {} as Record<string, unknown>,
@@ -148,8 +153,16 @@ vi.mock('@/hooks/useConvexResumes', () => ({
   DEFAULT_CONVEX_RESUME_LIMIT: 200,
   CONVEX_RESUME_PAGE_SIZE: 200,
   MAX_CONVEX_RESUME_LIMIT: 2000,
-  useConvexResumes: (limit?: number, query?: string, jobDescriptionId?: string) => {
-    mockState.useConvexResumesArgs.push({ limit, query, jobDescriptionId })
+  useConvexResumes: (
+    limit?: number,
+    query?: string,
+    jobDescriptionId?: string,
+    options?: {
+      sortBy?: ConvexResumeSortBy
+      sortOrder?: 'asc' | 'desc'
+    }
+  ) => {
+    mockState.useConvexResumesArgs.push({ limit, query, jobDescriptionId, options })
     return {
       resumes: mockState.cloneConvexResumesOnRead
         ? [...mockState.convexResumes]
@@ -356,6 +369,53 @@ describe('useResumeListState role filter regression', () => {
         limit: 200,
         query: 'CNC',
       })
+    })
+
+    mockState.filters = {
+      sortBy: 'experience',
+      sortOrder: 'desc',
+    }
+    rerender()
+
+    await waitFor(() => {
+      expect(getLastConvexArgs()).toMatchObject({
+        limit: 200,
+        options: {
+          sortBy: 'experience',
+          sortOrder: 'desc',
+        },
+      })
+    })
+  })
+
+  it('pushes experience sorting into the Convex hook for AI mode', () => {
+    mockState.filters = {
+      sortBy: 'experience',
+      sortOrder: 'asc',
+    }
+
+    renderHook(() => useResumeListState())
+
+    expect(getLastConvexArgs()).toMatchObject({
+      limit: 200,
+      options: {
+        sortBy: 'experience',
+        sortOrder: 'asc',
+      },
+    })
+  })
+
+  it('keeps name sorting local to preserve the existing UI comparator', () => {
+    mockState.filters = {
+      sortBy: 'name',
+      sortOrder: 'asc',
+    }
+
+    renderHook(() => useResumeListState())
+
+    expect(getLastConvexArgs()).toMatchObject({
+      limit: 200,
+      options: {},
     })
   })
 

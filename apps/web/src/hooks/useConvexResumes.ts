@@ -10,6 +10,8 @@ export const DEFAULT_CONVEX_RESUME_LIMIT = 200
 export const CONVEX_RESUME_PAGE_SIZE = 200
 export const MAX_CONVEX_RESUME_LIMIT = 2000
 
+export type ConvexResumeSortBy = 'experience' | 'extractedAt'
+
 export type ConvexResumeAnalysis = {
   score: number
   summary: string
@@ -658,10 +660,19 @@ function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
   }
 }
 
-export function useConvexResumes(limit: number = DEFAULT_CONVEX_RESUME_LIMIT, query?: string, jobDescriptionId?: string) {
+export function useConvexResumes(
+  limit: number = DEFAULT_CONVEX_RESUME_LIMIT,
+  query?: string,
+  jobDescriptionId?: string,
+  options?: {
+    sortBy?: ConvexResumeSortBy
+    sortOrder?: 'asc' | 'desc'
+  }
+) {
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
   const normalizedQuery = query?.trim() || undefined
-  const scopeKey = `${normalizedJobDescriptionId ?? ''}::${normalizedQuery ?? ''}`
+  const resolvedSortOrder = options?.sortBy ? (options.sortOrder ?? 'desc') : undefined
+  const scopeKey = `${normalizedJobDescriptionId ?? ''}::${normalizedQuery ?? ''}::${options?.sortBy ?? ''}::${resolvedSortOrder ?? ''}`
   const mockPayload = useMemo(() => readMockConvexResumePayload(), [])
   const mockKeywordExpansion = useMemo(
     () => normalizedQuery ? buildFallbackKeywordExpansion(normalizedQuery) : null,
@@ -744,11 +755,33 @@ export function useConvexResumes(limit: number = DEFAULT_CONVEX_RESUME_LIMIT, qu
     }
   }, [mockKeywordExpansion, mockPayload, normalizedQuery])
 
+  const pagedSearchResults = useQuery(
+    api.resumes.searchWithTagExpansionPage,
+    mockPayload
+      ? 'skip'
+      : normalizedQuery && keywordExpansion && options?.sortBy
+        ? {
+            query: normalizedQuery,
+            keywordGroups: keywordExpansion.groups,
+            mode: keywordExpansion.mode,
+            sourceMappings: Object.entries(keywordExpansion.sourceMapping).map(([term, expandedFrom]) => ({
+              term,
+              expandedFrom,
+            })),
+            limit,
+            offset: 0,
+            jobDescriptionId: normalizedJobDescriptionId,
+            sortBy: options.sortBy,
+            sortOrder: resolvedSortOrder,
+          }
+        : 'skip'
+  )
+
   const searchResults = useQuery(
     api.resumes.searchWithTagExpansion,
     mockPayload
       ? 'skip'
-      : normalizedQuery && keywordExpansion
+      : normalizedQuery && keywordExpansion && !options?.sortBy
         ? {
             query: normalizedQuery,
             keywordGroups: keywordExpansion.groups,
@@ -763,11 +796,26 @@ export function useConvexResumes(limit: number = DEFAULT_CONVEX_RESUME_LIMIT, qu
         : 'skip'
   )
 
+  const pagedListResults = useQuery(
+    api.resumes.listWithIngestDataPage,
+    mockPayload
+      ? 'skip'
+      : normalizedQuery || !options?.sortBy
+        ? 'skip'
+        : {
+            limit,
+            offset: 0,
+            jobDescriptionId: normalizedJobDescriptionId,
+            sortBy: options.sortBy,
+            sortOrder: resolvedSortOrder,
+          }
+  )
+
   const listResults = useQuery(
     api.resumes.listWithIngestData,
     mockPayload
       ? 'skip'
-      : normalizedQuery ? 'skip' : { limit, jobDescriptionId: normalizedJobDescriptionId }
+      : normalizedQuery || options?.sortBy ? 'skip' : { limit, jobDescriptionId: normalizedJobDescriptionId }
   )
 
   const mappedResumes = useMemo(() => (
@@ -783,12 +831,12 @@ export function useConvexResumes(limit: number = DEFAULT_CONVEX_RESUME_LIMIT, qu
           })))
         : (mockPayload.list ?? []).slice(0, limit).map(mapResumeDoc)
       : normalizedQuery
-        ? (searchResults?.results ?? []).map((entry) => ({
+        ? ((options?.sortBy ? pagedSearchResults?.results : searchResults?.results) ?? []).map((entry) => ({
             ...mapResumeDoc(entry.resume),
             _provenance: entry.provenance,
           }))
-        : (listResults ?? []).map(mapResumeDoc)
-  ), [limit, listResults, mockKeywordExpansion, mockPayload, normalizedQuery, searchResults])
+        : ((options?.sortBy ? pagedListResults?.results : listResults) ?? []).map(mapResumeDoc)
+  ), [limit, listResults, mockKeywordExpansion, mockPayload, normalizedQuery, options?.sortBy, pagedListResults?.results, pagedSearchResults?.results, searchResults])
 
   const isLoading = mockPayload
     ? false
@@ -804,13 +852,15 @@ export function useConvexResumes(limit: number = DEFAULT_CONVEX_RESUME_LIMIT, qu
     }
 
     return normalizedQuery
-      ? (searchResults?.results?.length ?? 0) >= limit
-      : (listResults?.length ?? 0) >= limit
-  }, [limit, listResults, mockPayload, normalizedQuery, searchResults])
+      ? (((options?.sortBy ? pagedSearchResults?.results?.length : searchResults?.results?.length) ?? 0) >= limit)
+      : (((options?.sortBy ? pagedListResults?.results?.length : listResults?.length) ?? 0) >= limit)
+  }, [limit, listResults?.length, mockPayload, normalizedQuery, options?.sortBy, pagedListResults?.results?.length, pagedSearchResults?.results?.length, searchResults?.results?.length])
 
   const resolvedExpansion = mockPayload
     ? (mockPayload.search?.expansion ?? mockKeywordExpansion)
-    : searchResults?.expansion
+    : options?.sortBy
+      ? pagedSearchResults?.expansion
+      : searchResults?.expansion
 
   const [cachedState, setCachedState] = useState<{
     scopeKey: string
