@@ -827,19 +827,19 @@ export function useConvexResumes(
       return
     }
 
+    const stats = paginationStatsRef.current
+
     if (activePaginatedStatus !== 'CanLoadMore' || activePaginatedResultsLength >= limit) {
-      const stats = paginationStatsRef.current
       if (import.meta.env.DEV && stats.roundTrips > 0 && !stats.logged) {
         stats.logged = true
         const elapsed = Math.round(performance.now() - stats.startTime)
         console.log(
-          `[perf:pagination] done trips=${stats.roundTrips} total=${elapsed}ms results=${activePaginatedResultsLength} status=${activePaginatedStatus}`
+          `[perf:paginate] done trips=${stats.roundTrips} total=${elapsed}ms results=${activePaginatedResultsLength} status=${activePaginatedStatus}`
         )
       }
       return
     }
 
-    const stats = paginationStatsRef.current
     if (stats.roundTrips === 0) {
       stats.startTime = performance.now()
     }
@@ -847,7 +847,7 @@ export function useConvexResumes(
 
     if (import.meta.env.DEV) {
       console.log(
-        `[perf:pagination] trip=${stats.roundTrips} results=${activePaginatedResultsLength}/${limit} elapsed=${Math.round(performance.now() - stats.startTime)}ms`
+        `[perf:paginate] trip=${stats.roundTrips} results=${activePaginatedResultsLength}/${limit} elapsed=${Math.round(performance.now() - stats.startTime)}ms`
       )
     }
 
