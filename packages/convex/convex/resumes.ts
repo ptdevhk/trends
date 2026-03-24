@@ -306,6 +306,23 @@ export function resolveListWithIngestWindow(requestedLimit: number | undefined):
     };
 }
 
+function resolveListWithIngestPageWindow(requestedLimit: number | undefined, requestedOffset: number | undefined): {
+    offset: number;
+    pageLimit: number;
+    scanLimit: number;
+    overfetchLimit: number;
+} {
+    const offset = Math.max(Math.trunc(requestedOffset ?? 0), 0);
+    const pageLimit = Math.min(Math.max(requestedLimit || DEFAULT_RESUME_LIMIT, 1), MAX_SAFE_LIST_WITH_INGEST_LIMIT);
+    const { limit: scanLimit, overfetchLimit } = resolveListWithIngestWindow(offset + pageLimit);
+    return {
+        offset,
+        pageLimit,
+        scanLimit,
+        overfetchLimit,
+    };
+}
+
 export function resolveResumeScanBatchSize(requestedLimit: number | undefined): number {
     const normalizedLimit = typeof requestedLimit === "number" && Number.isFinite(requestedLimit)
         ? Math.trunc(requestedLimit)
@@ -676,6 +693,28 @@ export const listWithIngestData = query({
     },
 });
 
+export const listWithIngestDataPage = query({
+    args: {
+        limit: v.optional(v.number()),
+        offset: v.optional(v.number()),
+        jobDescriptionId: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const { offset, pageLimit, scanLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
+        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+        const candidates = await ctx.db
+            .query("resumes")
+            .withIndex("by_primaryRuleScore")
+            .order("desc")
+            .take(overfetchLimit);
+        const sorted = sortByIngestRuleScore(candidates, jobDescriptionId).slice(0, scanLimit);
+        return {
+            total: sorted.length,
+            results: sorted.slice(offset, offset + pageLimit),
+        };
+    },
+});
+
 export const listIngestDiagnostics = query({
     args: {
         paginationOpts: paginationOptsValidator,
@@ -854,6 +893,87 @@ export const searchWithTagExpansion = query({
                 mode,
             },
             results: mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, limit),
+        };
+    },
+});
+
+export const searchWithTagExpansionPage = query({
+    args: {
+        query: v.string(),
+        keywordGroups: v.array(v.object({
+            original: v.string(),
+            variants: v.array(v.string()),
+        })),
+        mode: v.optional(v.union(v.literal("AND"), v.literal("OR"))),
+        sourceMappings: v.optional(v.array(v.object({
+            term: v.string(),
+            expandedFrom: v.string(),
+        }))),
+        limit: v.optional(v.number()),
+        offset: v.optional(v.number()),
+        jobDescriptionId: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const { offset, pageLimit, scanLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
+        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+        const mode = args.mode ?? "AND";
+        const keywordGroups = normalizeTagExpansionKeywordGroups(args.keywordGroups);
+        const expandedTerms = collectExpandedTerms(keywordGroups);
+
+        if (expandedTerms.length === 0 || keywordGroups.length === 0) {
+            return {
+                expansion: {
+                    original: args.query,
+                    expanded: [],
+                    groups: [],
+                    mode,
+                },
+                total: 0,
+                results: [],
+            };
+        }
+
+        const sourceMapping = Object.fromEntries(
+            (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
+        );
+        const provenanceByResumeId = new Map<string, SearchProvenance[]>();
+        const searchQuery = buildTagExpansionSearchQuery(keywordGroups, mode);
+
+        const matches = searchQuery
+            ? await ctx.db
+                .query("resumes")
+                .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
+                .take(overfetchLimit)
+            : [];
+
+        const filteredDocs = matches.filter((doc) => {
+            const normalizedSearchText = (doc.searchText || "").toLowerCase();
+            const matched = matchesTagExpansionSearchText(normalizedSearchText, keywordGroups, mode);
+
+            if (!matched) {
+                return false;
+            }
+
+            const provenance = collectSearchTextProvenance(normalizedSearchText, keywordGroups, sourceMapping);
+            if (provenance.length === 0) {
+                return false;
+            }
+
+            provenanceByResumeId.set(String(doc._id), provenance);
+            return true;
+        });
+
+        const merged = mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, scanLimit);
+
+        return {
+            expansion: {
+                original: args.query,
+                expanded: expandedTerms,
+                groups: keywordGroups,
+                mode,
+            },
+            total: merged.length,
+            results: merged.slice(offset, offset + pageLimit),
         };
     },
 });

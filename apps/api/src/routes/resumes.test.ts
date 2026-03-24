@@ -92,7 +92,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansion") {
+      if (call.pathName === "resumes:searchWithTagExpansionPage") {
         return convexSuccess({
           expansion: {
             original: "cnc 销售",
@@ -127,6 +127,7 @@ describe("resume routes", () => {
               provenance: [{ term: "销售", source: "searchText" }],
             },
           ],
+          total: 1,
         });
       }
 
@@ -150,7 +151,10 @@ describe("resume routes", () => {
         location: "东莞",
       })
     );
-    expect(calls[0]?.pathName).toBe("resumes:searchWithTagExpansion");
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:searchWithTagExpansionPage",
+      args: expect.objectContaining({ limit: 5 }),
+    }));
   });
 
   it("returns read-only convex query scores with debug metadata", async () => {
@@ -251,30 +255,31 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:listWithIngestData") {
-        return convexSuccess([
-          buildConvexResumeRecord("resume-live-1", { name: "Alice" }),
-          buildConvexResumeRecord("resume-live-2", { name: "Bob" }),
-          buildConvexResumeRecord("resume-live-3", {
-            name: "Carla",
-            ingestData: {
-              industryTags: ["industrial-machinery"],
-              companyHits: ["fanuc"],
-              roleSignals: [
-                {
-                  type: "sales",
-                  matchedSignals: ["销售工程师"],
-                  years: 4,
-                  industryVerifiedYears: 4,
-                  signalCount: 1,
-                  occurrences: 1,
-                  verifyIn: "workHistory",
-                },
-              ],
-            },
-          }),
-          buildConvexResumeRecord("resume-live-4", { name: "Dylan" }),
-        ]);
+      if (call.pathName === "resumes:listWithIngestDataPage") {
+        return convexSuccess({
+          results: [
+            buildConvexResumeRecord("resume-live-3", {
+              name: "Carla",
+              ingestData: {
+                industryTags: ["industrial-machinery"],
+                companyHits: ["fanuc"],
+                roleSignals: [
+                  {
+                    type: "sales",
+                    matchedSignals: ["销售工程师"],
+                    years: 4,
+                    industryVerifiedYears: 4,
+                    signalCount: 1,
+                    occurrences: 1,
+                    verifyIn: "workHistory",
+                  },
+                ],
+              },
+            }),
+            buildConvexResumeRecord("resume-live-4", { name: "Dylan" }),
+          ],
+          total: 4,
+        });
       }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`);
@@ -298,8 +303,8 @@ describe("resume routes", () => {
       roleSignals: expect.arrayContaining([expect.objectContaining({ type: "sales" })]),
     }));
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:listWithIngestData",
-      args: expect.objectContaining({ limit: 4 }),
+      pathName: "resumes:listWithIngestDataPage",
+      args: expect.objectContaining({ limit: 2, offset: 2 }),
     }));
   });
 
@@ -310,7 +315,7 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansion") {
+      if (call.pathName === "resumes:searchWithTagExpansionPage") {
         return convexSuccess({
           expansion: {
             original: "cnc sales",
@@ -322,11 +327,10 @@ describe("resume routes", () => {
             mode: "AND",
           },
           results: [
-            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "cnc", source: "searchText" }] },
-            { resume: buildConvexResumeRecord("resume-live-2", { name: "Bob" }), provenance: [{ term: "sales", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), provenance: [{ term: "cnc", source: "searchText" }] },
           ],
+          total: 4,
         });
       }
 
@@ -346,7 +350,39 @@ describe("resume routes", () => {
     }));
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansion",
+      pathName: "resumes:searchWithTagExpansionPage",
+      args: expect.objectContaining({ limit: 2, offset: 2 }),
+    }));
+  });
+
+  it("falls back to overfetch when local filters must run before paging", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:listWithIngestData") {
+        return convexSuccess([
+          buildConvexResumeRecord("resume-live-1", { name: "Alice" }),
+          buildConvexResumeRecord("resume-live-2", { name: "Bob" }),
+          buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
+          buildConvexResumeRecord("resume-live-4", { name: "Dylan" }),
+        ]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&locations=%E4%B8%9C%E8%8E%9E");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:listWithIngestData",
       args: expect.objectContaining({ limit: 4 }),
     }));
   });
