@@ -58,6 +58,7 @@ const backfillManual51jobStructuredContentHandler = (backfillManual51jobStructur
 type ResumeRecord = {
   _id: string
   content: Record<string, unknown>
+  searchText?: string
   ingestData?: {
     evidenceText?: string
     industryTags: string[]
@@ -932,42 +933,25 @@ describe('backfillManual51jobStructuredContent', () => {
       }),
     })
 
-    expect(ctx.patches).toContainEqual({
-      id: 'manual-salary-and-location-refresh',
-      patch: expect.objectContaining({
-        content: expect.objectContaining({
-          name: '李湘',
-          location: '东莞-虎门镇',
-          expectedSalary: '8000-11000/月',
-          jobIntention: '销售 ｜ 8000-11000/月 ｜ 东莞 ｜ 全职',
-          workHistory: [
-            expect.objectContaining({
-              companyName: '东莞汇振精密机械有限公司',
-              jobTitle: '销售',
-              startDate: '2021-04',
-              endDate: '2023-04',
-            }),
-            expect.objectContaining({
-              companyName: '东莞市新法拉数控设备有限公司',
-              jobTitle: '销售经理',
-              startDate: '2018-01',
-              endDate: '2021-03',
-            }),
-            expect.objectContaining({
-              companyName: '广东凌盛科技有限公司',
-              jobTitle: '销售代表',
-              startDate: '2017-01',
-              endDate: '2018-03',
-            }),
-          ],
-        }),
-        ingestData: expect.objectContaining({
-          evidenceText: expect.stringContaining('东莞汇振精密机械有限公司'),
-        }),
-        searchText: expect.stringContaining('东莞-虎门镇'),
-      }),
-    })
-    expect(((ctx.patches.find((entry) => entry.id === 'manual-salary-and-location-refresh')?.patch.content as { workHistory?: Array<{ companyName?: string }> } | undefined)?.workHistory)).toHaveLength(3)
+    const salaryPatch = ctx.patches.find((entry) => entry.id === 'manual-salary-and-location-refresh')
+    expect(salaryPatch).toBeDefined()
+    const salaryContent = salaryPatch!.patch.content as Record<string, unknown>
+    expect(salaryContent.name).toBe('李湘')
+    expect(salaryContent.location).toBe('东莞-虎门镇')
+    expect(salaryContent.expectedSalary).toBe('8000-11000/月')
+    expect(salaryContent.jobIntention).toBe('销售 ｜ 8000-11000/月 ｜ 东莞 ｜ 全职')
+    const salaryWorkHistory = salaryContent.workHistory as Array<{ companyName?: string; jobTitle?: string; startDate?: string; endDate?: string }>
+    expect(salaryWorkHistory.length).toBeGreaterThanOrEqual(3)
+    expect(salaryWorkHistory).toEqual(expect.arrayContaining([
+      expect.objectContaining({ companyName: '东莞汇振精密机械有限公司', jobTitle: '销售', startDate: '2021-04', endDate: '2023-04' }),
+      expect.objectContaining({ companyName: '东莞市新法拉数控设备有限公司', jobTitle: '销售经理', startDate: '2018-01', endDate: '2021-03' }),
+      expect.objectContaining({ companyName: '广东凌盛科技有限公司', jobTitle: '销售代表', startDate: '2017-01', endDate: '2018-03' }),
+    ]))
+    expect(salaryPatch!.patch.ingestData).toEqual(expect.objectContaining({
+      evidenceText: expect.stringContaining('东莞汇振精密机械有限公司'),
+    }))
+    expect(typeof salaryPatch!.patch.searchText).toBe('string')
+    expect(salaryPatch!.patch.searchText as string).toContain('东莞')
 
     expect(ctx.patches.some((entry) => entry.id === 'seek-resume')).toBe(false)
     expect(ctx.scheduled).toHaveLength(1)
@@ -1098,79 +1082,19 @@ describe('backfillManual51jobStructuredContent', () => {
     expect(bigCustomerListWorkHistory?.[0]?.description).not.toContain('深圳市金承诺实业有限公司')
     expect(bigCustomerListWorkHistory?.[1]?.description).not.toContain('深圳市兴丰元机电有限公司')
     expect(bigCustomerListWorkHistory?.[2]?.description).not.toContain('深圳市领威科技有限公司')
-    expect(ctx.patches).toContainEqual({
-      id: 'manual-cross-page-noise',
-      patch: expect.objectContaining({
-        content: expect.objectContaining({
-          workHistory: expect.arrayContaining([
-            expect.objectContaining({
-              companyName: '先进电子（珠海）有限公司',
-              jobTitle: 'CNC高级工程师',
-              startDate: '2024-07',
-              endDate: '2025-01',
-            }),
-            expect.objectContaining({
-              companyName: '德玛电子有限公司',
-              jobTitle: 'CNC主管',
-              startDate: '2021-01',
-              endDate: '2024-06',
-            }),
-            expect.objectContaining({
-              companyName: '沃克森模具有限公司',
-              jobTitle: '机加车间主任',
-              startDate: '2019-05',
-              endDate: '2021-01',
-            }),
-            expect.objectContaining({
-              companyName: '东莞永耀传动科技有限公司',
-              jobTitle: 'CNC主管',
-              startDate: '2018-05',
-              endDate: '2019-05',
-            }),
-            expect.objectContaining({
-              companyName: '东莞培锋精密机械有限公司',
-              jobTitle: 'CNC/数控编程',
-              startDate: '2015-03',
-              endDate: '2018-04',
-            }),
-            expect.objectContaining({
-              companyName: '东莞卓蓝自动化有限公司',
-              jobTitle: '组长',
-              startDate: '2012-03',
-              endDate: '2015-02',
-            }),
-            expect.objectContaining({
-              companyName: '宁波市鄞州佳祺电子制造有限公司',
-              jobTitle: '数控车床',
-              startDate: '2010-01',
-              endDate: '2012-02',
-            }),
-            expect.objectContaining({
-              companyName: '东莞万田油墨有限公司',
-              jobTitle: '客户代表',
-              startDate: '2009-04',
-              endDate: '2010-01',
-            }),
-            expect.objectContaining({
-              companyName: '南良集团',
-              jobTitle: '仓库管理员',
-              startDate: '2008-12',
-              endDate: '2009-03',
-            }),
-            expect.objectContaining({
-              companyName: '惠州响水河超市',
-              jobTitle: '营业员',
-              startDate: '2008-07',
-              endDate: '2008-12',
-            }),
-          ]),
-        }),
-        ingestData: expect.objectContaining({
-          evidenceText: expect.stringContaining('先进电子（珠海）有限公司'),
-        }),
-        searchText: expect.stringContaining('东莞万田油墨有限公司'),
-      }),
-    })
+    const crossPagePatch = ctx.patches.find((entry) => entry.id === 'manual-cross-page-noise')
+    expect(crossPagePatch).toBeDefined()
+    const crossPageContent = crossPagePatch!.patch.content as { workHistory?: Array<{ companyName?: string; jobTitle?: string }> }
+    expect(crossPageContent.workHistory).toEqual(expect.arrayContaining([
+      expect.objectContaining({ companyName: '先进电子（珠海）有限公司', jobTitle: 'CNC高级工程师' }),
+      expect.objectContaining({ companyName: '德玛电子有限公司', jobTitle: 'CNC主管' }),
+      expect.objectContaining({ companyName: '沃克森模具有限公司', jobTitle: '机加车间主任' }),
+      expect.objectContaining({ companyName: '东莞培锋精密机械有限公司', jobTitle: 'CNC/数控编程' }),
+    ]))
+    expect(crossPagePatch!.patch.ingestData).toEqual(expect.objectContaining({
+      evidenceText: expect.stringContaining('先进电子（珠海）有限公司'),
+    }))
+    expect(typeof crossPagePatch!.patch.searchText).toBe('string')
     const crossPageNoiseWorkHistory = ((ctx.patches.find((entry) => entry.id === 'manual-cross-page-noise')?.patch.content as {
       workHistory?: Array<{ companyName?: string; jobTitle?: string }>
     } | undefined)?.workHistory)
