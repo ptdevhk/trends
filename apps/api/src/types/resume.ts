@@ -42,11 +42,14 @@ export type ResumeIngestMatchedWorkEntry = {
 export type ResumeIngestRoleSignal = {
   type: string;
   matchedSignals: string[];
+  signalCount: number;
+  occurrences: number;
   years: number;
   industryVerifiedYears?: number;
   roleRelevantYears?: number;
   industryVerifiedRelevantYears?: number;
   matchedWorkEntries?: ResumeIngestMatchedWorkEntry[];
+  verifyIn: string;
 };
 
 export type ResumeIngestData = {

@@ -53,6 +53,33 @@ function convexSuccess(value: unknown): Response {
   );
 }
 
+function buildConvexResumeRecord(
+  resumeId: string,
+  overrides: {
+    name?: string;
+    source?: string;
+    primaryRuleScore?: number;
+    ingestData?: Record<string, unknown>;
+  } = {}
+) {
+  return {
+    _id: resumeId,
+    source: overrides.source ?? "seek",
+    primaryRuleScore: overrides.primaryRuleScore ?? 0,
+    content: {
+      name: overrides.name ?? resumeId,
+      location: "东莞",
+      experience: "5 years",
+      education: "Bachelor",
+      jobIntention: "Sales Engineer",
+      profileUrl: `https://example.com/${resumeId}`,
+      workHistory: [{ raw: "2020-2025 CNC 销售工程师" }],
+      extractedAt: "2026-03-24T00:00:00.000Z",
+    },
+    ingestData: overrides.ingestData,
+  };
+}
+
 describe("resume routes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -215,6 +242,113 @@ describe("resume routes", () => {
     expect(createSessionSpy).not.toHaveBeenCalled();
     expect(saveMatchesSpy).not.toHaveBeenCalled();
     expect(createRunSpy).not.toHaveBeenCalled();
+  });
+
+  it("fetches a large enough convex list window before applying offset pagination", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:listWithIngestData") {
+        return convexSuccess([
+          buildConvexResumeRecord("resume-live-1", { name: "Alice" }),
+          buildConvexResumeRecord("resume-live-2", { name: "Bob" }),
+          buildConvexResumeRecord("resume-live-3", {
+            name: "Carla",
+            ingestData: {
+              industryTags: ["industrial-machinery"],
+              companyHits: ["fanuc"],
+              roleSignals: [
+                {
+                  type: "sales",
+                  matchedSignals: ["销售工程师"],
+                  years: 4,
+                  industryVerifiedYears: 4,
+                  signalCount: 1,
+                  occurrences: 1,
+                  verifyIn: "workHistory",
+                },
+              ],
+            },
+          }),
+          buildConvexResumeRecord("resume-live-4", { name: "Dylan" }),
+        ]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 4,
+      returned: 2,
+      source: "convex",
+    }));
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
+    expect(payload.data[0]?.ingestData).toEqual(expect.objectContaining({
+      industryTags: ["industrial-machinery"],
+      companyHits: ["fanuc"],
+      roleSignals: expect.arrayContaining([expect.objectContaining({ type: "sales" })]),
+    }));
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:listWithIngestData",
+      args: expect.objectContaining({ limit: 4 }),
+    }));
+  });
+
+  it("fetches a large enough convex search window before applying offset pagination", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:searchWithTagExpansion") {
+        return convexSuccess({
+          expansion: {
+            original: "cnc sales",
+            expanded: ["cnc", "sales"],
+            groups: [
+              { original: "cnc", variants: ["cnc"] },
+              { original: "sales", variants: ["sales"] },
+            ],
+            mode: "AND",
+          },
+          results: [
+            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "cnc", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-2", { name: "Bob" }), provenance: [{ term: "sales", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), provenance: [{ term: "cnc", source: "searchText" }] },
+          ],
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&offset=2");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 4,
+      returned: 2,
+      source: "convex",
+    }));
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:searchWithTagExpansion",
+      args: expect.objectContaining({ limit: 4 }),
+    }));
   });
 
   it("rejects convex or read-only match-stream requests", async () => {

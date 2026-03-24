@@ -170,19 +170,26 @@ function normalizeRoleSignals(value: unknown): ResumeIngestRoleSignal[] | undefi
         return null;
       }
 
+      const matchedSignals = toStringArray(item.matchedSignals);
+      const signalCount = toOptionalNumber(item.signalCount) ?? matchedSignals.length;
+      const occurrences = toOptionalNumber(item.occurrences) ?? matchedSignals.length;
       const industryVerifiedYears = toOptionalNumber(item.industryVerifiedYears);
       const roleRelevantYears = toOptionalNumber(item.roleRelevantYears);
       const industryVerifiedRelevantYears = toOptionalNumber(item.industryVerifiedRelevantYears);
       const matchedWorkEntries = normalizeMatchedWorkEntries(item.matchedWorkEntries);
+      const verifyIn = toStringValue(item.verifyIn) || "workHistory";
 
       return {
         type,
-        matchedSignals: toStringArray(item.matchedSignals),
+        matchedSignals,
+        signalCount,
+        occurrences,
         years,
         ...(industryVerifiedYears === undefined ? {} : { industryVerifiedYears }),
         ...(roleRelevantYears === undefined ? {} : { roleRelevantYears }),
         ...(industryVerifiedRelevantYears === undefined ? {} : { industryVerifiedRelevantYears }),
         ...(matchedWorkEntries ? { matchedWorkEntries } : {}),
+        verifyIn,
       } satisfies ResumeIngestRoleSignal;
     })
     .filter((item): item is ResumeIngestRoleSignal => item !== null);

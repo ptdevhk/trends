@@ -4222,6 +4222,77 @@ export interface components {
             /** @example https://example.com */
             websiteUrl?: string;
         };
+        ResumeIngestBrandHit: {
+            /** @example fanuc */
+            brand: string;
+            /** @example both */
+            role: string;
+            /** @example workHistory */
+            source: string;
+            /** @example employer */
+            context: string;
+        };
+        ResumeIngestMatchedWorkEntry: {
+            /** @example FANUC */
+            companyName?: string;
+            /** @example Sales Engineer */
+            jobTitle?: string;
+            /** @example 3 */
+            years: number;
+            /** @example true */
+            industryVerified: boolean;
+            /**
+             * @example [
+             *       "sales",
+             *       "cnc"
+             *     ]
+             */
+            matchedSignals: string[];
+        };
+        ResumeIngestRoleSignal: {
+            /** @example sales */
+            type: string;
+            /**
+             * @example [
+             *       "销售工程师",
+             *       "销售"
+             *     ]
+             */
+            matchedSignals: string[];
+            /** @example 2 */
+            signalCount?: number;
+            /** @example 2 */
+            occurrences?: number;
+            /** @example 5 */
+            years: number;
+            /** @example 5 */
+            industryVerifiedYears?: number;
+            /** @example 5 */
+            roleRelevantYears?: number;
+            /** @example 5 */
+            industryVerifiedRelevantYears?: number;
+            matchedWorkEntries?: components["schemas"]["ResumeIngestMatchedWorkEntry"][];
+            /** @example workHistory */
+            verifyIn: string;
+        };
+        ResumeIngestData: {
+            /**
+             * @example [
+             *       "industrial-machinery"
+             *     ]
+             */
+            industryTags?: string[];
+            brandHits?: components["schemas"]["ResumeIngestBrandHit"][];
+            /**
+             * @example [
+             *       "fanuc"
+             *     ]
+             */
+            companyHits?: string[];
+            /** @example 12 */
+            industryDbV2Raw?: number;
+            roleSignals?: components["schemas"]["ResumeIngestRoleSignal"][];
+        };
         ResumeItem: {
             /** @example Alex Chen */
             name: string;
@@ -4255,6 +4326,7 @@ export interface components {
             rightToWork?: string | boolean | components["schemas"]["ResumeImportRightToWork"];
             digitalIdentity?: string | components["schemas"]["ResumeImportDigitalIdentity"];
             noticePeriodDays?: number;
+            ingestData?: components["schemas"]["ResumeIngestData"];
             /** @example 2026-02-03T10:00:00.000Z */
             extractedAt: string;
             /** @example R123456 */

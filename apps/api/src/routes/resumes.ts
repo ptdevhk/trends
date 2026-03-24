@@ -101,6 +101,7 @@ const exportService = new ExportService(
 );
 
 const DEFAULT_AI_TOP_N = 20;
+const DEFAULT_CONVEX_RESUME_PAGE_SIZE = 50;
 
 type MatchMode = "rules_only" | "hybrid" | "ai_only";
 
@@ -550,22 +551,29 @@ function prepareResumeCandidate(params: {
   provenance?: ResumeSearchProvenance[];
   ingestData?: unknown;
 }): PreparedResumeCandidate {
-  const ingestData = params.ingestData ?? params.resume.ingestData;
-  const resume = params.resume.resumeId
+  const rawIngestData = params.ingestData ?? params.resume.ingestData;
+  const parsedIngestData = params.resume.ingestData ?? buildResumeIngestData(params.ingestData);
+  const baseResume = params.resume.resumeId
     ? params.resume
     : {
         ...params.resume,
         resumeId: params.resumeId,
       };
+  const resume = parsedIngestData
+    ? {
+        ...baseResume,
+        ingestData: parsedIngestData,
+      }
+    : baseResume;
   return {
     resume,
     resumeId: params.resumeId,
     indexData: params.indexData ?? createFallbackIndex(resume, params.resumeId),
     primaryRuleScore: params.primaryRuleScore,
     provenance: params.provenance,
-    brandHits: parseBrandHits(isRecord(ingestData) ? ingestData.brandHits : undefined),
-    companyHits: toStringArray(isRecord(ingestData) ? ingestData.companyHits : undefined),
-    roleSignals: parseRoleSignals(isRecord(ingestData) ? ingestData.roleSignals : undefined),
+    brandHits: parseBrandHits(isRecord(rawIngestData) ? rawIngestData.brandHits : undefined),
+    companyHits: toStringArray(isRecord(rawIngestData) ? rawIngestData.companyHits : undefined),
+    roleSignals: parseRoleSignals(isRecord(rawIngestData) ? rawIngestData.roleSignals : undefined),
   };
 }
 
@@ -864,6 +872,15 @@ async function prepareConvexCandidates(params: {
   };
 }
 
+function resolveConvexResumeFetchLimit(limit: number | undefined, offset: number | undefined): number | undefined {
+  if (typeof offset !== "number" || offset <= 0) {
+    return limit;
+  }
+
+  const pageSize = typeof limit === "number" ? limit : DEFAULT_CONVEX_RESUME_PAGE_SIZE;
+  return offset + pageSize;
+}
+
 function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
   return {
     name: resume.name,
@@ -878,6 +895,25 @@ function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
     selfIntro: resume.selfIntro,
     workHistory: resume.workHistory,
     ingestData: resume.ingestData,
+  };
+}
+
+function normalizeExportResumePayload(
+  resume: z.infer<typeof ResumeExportResolvedResumeSchema>
+): ExportResumePayload {
+  return {
+    name: resume.name,
+    jobIntention: resume.jobIntention,
+    location: resume.location,
+    age: resume.age,
+    experience: resume.experience,
+    education: resume.education,
+    expectedSalary: resume.expectedSalary,
+    profileUrl: resume.profileUrl,
+    source: resume.source,
+    selfIntro: resume.selfIntro,
+    workHistory: resume.workHistory,
+    ingestData: buildResumeIngestData(resume.ingestData),
   };
 }
 
@@ -923,7 +959,7 @@ async function resolveConvexExportResumeMap(
     if (!parsedResume.success) {
       return;
     }
-    resolved.set(resumeId, parsedResume.data);
+    resolved.set(resumeId, normalizeExportResumePayload(parsedResume.data));
   });
 
   return resolved;
@@ -988,7 +1024,9 @@ async function resolveExportRequest(
   let entries: ResumeExportEntry[];
 
   if (!isCanonicalExportRequest(request)) {
-    entries = request.entries.map((entry) => toExportEntry(entry.key, entry.resume, toExportEntryFields(entry)));
+    entries = request.entries.map((entry) => (
+      toExportEntry(entry.key, normalizeExportResumePayload(entry.resume), toExportEntryFields(entry))
+    ));
   } else {
     const resolvedResumes = request.source === "sample"
       ? resolveSampleExportResumeMap(request.sample ?? "", request.entries)
@@ -1367,9 +1405,10 @@ app.openapi(getResumesRoute, (c) => {
   try {
     if (source === "convex") {
       return (async () => {
+        const convexFetchLimit = resolveConvexResumeFetchLimit(limit, offset);
         const { prepared, keywordExpansion: liveExpansion } = await prepareConvexCandidates({
           keywords: keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [],
-          limit,
+          limit: convexFetchLimit,
           jobDescriptionId: jobDescriptionId?.trim() || undefined,
         });
 
