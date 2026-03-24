@@ -1,28 +1,62 @@
-import { type ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { Header } from '@/components/Header'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ResumesPage } from '@/pages/ResumesPage'
-import { DebugPage } from '@/pages/DebugPage'
-import DebugJDs from '@/pages/DebugJDs'
-import DebugAI from '@/pages/DebugAI'
-import DebugConfig from '@/pages/DebugConfig'
-import DebugIngest from '@/pages/DebugIngest'
-import DebugAiTaggingResults from '@/pages/DebugAiTaggingResults'
-import { BlacklistPage } from '@/pages/BlacklistPage'
-import { SearchProfilesPage } from '@/pages/SearchProfilesPage'
-import SearchAnalyticsPage from '@/pages/SearchAnalyticsPage'
 import SettingsLayout from '@/layouts/SettingsLayout'
 import SystemLayout from '@/layouts/SystemLayout'
 import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
 import { ResumeFieldUsagePolicyProvider } from '@/contexts/ResumeFieldUsagePolicyContext'
-import { SystemSettingsConfigSourcesPage } from '@/pages/system-settings/SystemSettingsConfigSourcesPage'
-import { SystemSettingsKeywordsPage } from '@/pages/system-settings/SystemSettingsKeywordsPage'
-import { SystemSettingsLocationsPage } from '@/pages/system-settings/SystemSettingsLocationsPage'
-import { SystemSettingsOperationsPage } from '@/pages/system-settings/SystemSettingsOperationsPage'
-import { SystemSettingsRuntimePage } from '@/pages/system-settings/SystemSettingsRuntimePage'
+
+const LazyDebugPage = lazy(async () => {
+  const module = await import('@/pages/DebugPage')
+  return { default: module.DebugPage }
+})
+
+const LazyDebugJDs = lazy(() => import('@/pages/DebugJDs'))
+const LazyDebugAI = lazy(() => import('@/pages/DebugAI'))
+const LazyDebugConfig = lazy(() => import('@/pages/DebugConfig'))
+const LazyDebugIngest = lazy(() => import('@/pages/DebugIngest'))
+const LazyDebugAiTaggingResults = lazy(() => import('@/pages/DebugAiTaggingResults'))
+
+const LazyBlacklistPage = lazy(async () => {
+  const module = await import('@/pages/BlacklistPage')
+  return { default: module.BlacklistPage }
+})
+
+const LazySearchProfilesPage = lazy(async () => {
+  const module = await import('@/pages/SearchProfilesPage')
+  return { default: module.SearchProfilesPage }
+})
+
+const LazySearchAnalyticsPage = lazy(() => import('@/pages/SearchAnalyticsPage'))
+
+const LazySystemSettingsConfigSourcesPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsConfigSourcesPage')
+  return { default: module.SystemSettingsConfigSourcesPage }
+})
+
+const LazySystemSettingsKeywordsPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsKeywordsPage')
+  return { default: module.SystemSettingsKeywordsPage }
+})
+
+const LazySystemSettingsLocationsPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsLocationsPage')
+  return { default: module.SystemSettingsLocationsPage }
+})
+
+const LazySystemSettingsOperationsPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsOperationsPage')
+  return { default: module.SystemSettingsOperationsPage }
+})
+
+const LazySystemSettingsRuntimePage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsRuntimePage')
+  return { default: module.SystemSettingsRuntimePage }
+})
 
 function MainShell() {
   return (
@@ -34,6 +68,14 @@ function MainShell() {
       </main>
       <footer className="border-t py-6 mt-8" />
     </div>
+  )
+}
+
+function RouteSuspense({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<div className="py-6 text-sm text-muted-foreground">Loading...</div>}>
+      {children}
+    </Suspense>
   )
 }
 
@@ -63,7 +105,11 @@ function AdminGate({ children }: { children: ReactNode }) {
 
 function WorkspaceDebugPage() {
   const { slug } = useWorkspace()
-  return <DebugPage basePath={`/${slug}/system/data`} />
+  return (
+    <RouteSuspense>
+      <LazyDebugPage basePath={`/${slug}/system/data`} />
+    </RouteSuspense>
+  )
 }
 
 function ProfilesLegacyRedirect() {
@@ -102,7 +148,14 @@ function App() {
 
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<Navigate to="blocks" replace />} />
-              <Route path="blocks" element={<BlacklistPage />} />
+              <Route
+                path="blocks"
+                element={(
+                  <RouteSuspense>
+                    <LazyBlacklistPage />
+                  </RouteSuspense>
+                )}
+              />
             </Route>
 
             <Route
@@ -115,19 +168,103 @@ function App() {
             >
               <Route index element={<Navigate to="settings" replace />} />
               <Route path="settings" element={<SystemSettingsLayout />}>
-                <Route index element={<DebugConfig />} />
-                <Route path="operations" element={<SystemSettingsOperationsPage />} />
-                <Route path="runtime" element={<SystemSettingsRuntimePage />} />
-                <Route path="config-sources" element={<SystemSettingsConfigSourcesPage />} />
-                <Route path="keywords" element={<SystemSettingsKeywordsPage />} />
-                <Route path="locations" element={<SystemSettingsLocationsPage />} />
+                <Route
+                  index
+                  element={(
+                    <RouteSuspense>
+                      <LazyDebugConfig />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="operations"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsOperationsPage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="runtime"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsRuntimePage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="config-sources"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsConfigSourcesPage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="keywords"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsKeywordsPage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="locations"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsLocationsPage />
+                    </RouteSuspense>
+                  )}
+                />
               </Route>
-              <Route path="jds" element={<DebugJDs />} />
-              <Route path="profiles" element={<SearchProfilesPage />} />
-              <Route path="ai-debugger" element={<DebugAI />} />
-              <Route path="ai-tagging" element={<DebugAiTaggingResults />} />
-              <Route path="ingest" element={<DebugIngest />} />
-              <Route path="search-analytics" element={<SearchAnalyticsPage />} />
+              <Route
+                path="jds"
+                element={(
+                  <RouteSuspense>
+                    <LazyDebugJDs />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="profiles"
+                element={(
+                  <RouteSuspense>
+                    <LazySearchProfilesPage />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="ai-debugger"
+                element={(
+                  <RouteSuspense>
+                    <LazyDebugAI />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="ai-tagging"
+                element={(
+                  <RouteSuspense>
+                    <LazyDebugAiTaggingResults />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="ingest"
+                element={(
+                  <RouteSuspense>
+                    <LazyDebugIngest />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="search-analytics"
+                element={(
+                  <RouteSuspense>
+                    <LazySearchAnalyticsPage />
+                  </RouteSuspense>
+                )}
+              />
               <Route path="data/*" element={<WorkspaceDebugPage />} />
             </Route>
 

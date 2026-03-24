@@ -6,6 +6,10 @@ import type { Doc } from '../../../../packages/convex/convex/_generated/dataMode
 import { rawApiClient } from '@/lib/api-helpers'
 import type { ResumeItem } from './useResumes'
 
+export const DEFAULT_CONVEX_RESUME_LIMIT = 200
+export const CONVEX_RESUME_PAGE_SIZE = 200
+export const MAX_CONVEX_RESUME_LIMIT = 2000
+
 export type ConvexResumeAnalysis = {
   score: number
   summary: string
@@ -654,9 +658,10 @@ function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
   }
 }
 
-export function useConvexResumes(limit: number = 200, query?: string, jobDescriptionId?: string) {
+export function useConvexResumes(limit: number = DEFAULT_CONVEX_RESUME_LIMIT, query?: string, jobDescriptionId?: string) {
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
   const normalizedQuery = query?.trim() || undefined
+  const scopeKey = `${normalizedJobDescriptionId ?? ''}::${normalizedQuery ?? ''}`
   const mockPayload = useMemo(() => readMockConvexResumePayload(), [])
   const mockKeywordExpansion = useMemo(
     () => normalizedQuery ? buildFallbackKeywordExpansion(normalizedQuery) : null,
@@ -771,23 +776,89 @@ export function useConvexResumes(limit: number = 200, query?: string, jobDescrip
         ? ((mockKeywordExpansion?.mode === 'OR'
             ? filterMockSearchResults(mockPayload.search?.results ?? [], mockKeywordExpansion)
             : applyMockExpansionProvenance(mockPayload.search?.results ?? [], mockKeywordExpansion ?? buildFallbackKeywordExpansion(normalizedQuery)))
+          .slice(0, limit)
           .map((entry) => ({
             ...mapResumeDoc(entry.resume),
             _provenance: entry.provenance,
           })))
-        : (mockPayload.list ?? []).map(mapResumeDoc)
+        : (mockPayload.list ?? []).slice(0, limit).map(mapResumeDoc)
       : normalizedQuery
         ? (searchResults?.results ?? []).map((entry) => ({
             ...mapResumeDoc(entry.resume),
             _provenance: entry.provenance,
           }))
         : (listResults ?? []).map(mapResumeDoc)
-  ), [listResults, mockKeywordExpansion, mockPayload, normalizedQuery, searchResults])
+  ), [limit, listResults, mockKeywordExpansion, mockPayload, normalizedQuery, searchResults])
+
+  const isLoading = mockPayload
+    ? false
+    : normalizedQuery
+      ? (expansionLoading || searchResults === undefined)
+      : listResults === undefined
+
+  const hasMore = useMemo(() => {
+    if (mockPayload) {
+      return normalizedQuery
+        ? (mockPayload.search?.results?.length ?? 0) > limit
+        : (mockPayload.list?.length ?? 0) > limit
+    }
+
+    return normalizedQuery
+      ? (searchResults?.results?.length ?? 0) >= limit
+      : (listResults?.length ?? 0) >= limit
+  }, [limit, listResults, mockPayload, normalizedQuery, searchResults])
+
+  const resolvedExpansion = mockPayload
+    ? (mockPayload.search?.expansion ?? mockKeywordExpansion)
+    : searchResults?.expansion
+
+  const [cachedState, setCachedState] = useState<{
+    scopeKey: string
+    resumes: ConvexResumeItem[]
+    hasMore: boolean
+    expansion: unknown
+  }>({
+    scopeKey,
+    resumes: [],
+    hasMore: false,
+    expansion: undefined,
+  })
+
+  useEffect(() => {
+    setCachedState((current) => (
+      current.scopeKey === scopeKey
+        ? current
+        : {
+            scopeKey,
+            resumes: [],
+            hasMore: false,
+            expansion: undefined,
+          }
+    ))
+  }, [scopeKey])
+
+  useEffect(() => {
+    if (isLoading) {
+      return
+    }
+
+    setCachedState({
+      scopeKey,
+      resumes: mappedResumes,
+      hasMore,
+      expansion: resolvedExpansion,
+    })
+  }, [hasMore, isLoading, mappedResumes, resolvedExpansion, scopeKey])
+
+  const hasCachedResumes = cachedState.scopeKey === scopeKey && cachedState.resumes.length > 0
+  const loadingMore = isLoading && hasCachedResumes
 
   return {
-    resumes: mappedResumes,
-    loading: mockPayload ? false : normalizedQuery ? (expansionLoading || searchResults === undefined) : listResults === undefined,
+    resumes: loadingMore ? cachedState.resumes : mappedResumes,
+    loading: isLoading && !hasCachedResumes,
+    loadingMore,
+    hasMore: loadingMore ? cachedState.hasMore : hasMore,
     jobDescriptionId: normalizedJobDescriptionId,
-    expansion: mockPayload ? (mockPayload.search?.expansion ?? mockKeywordExpansion) : searchResults?.expansion,
+    expansion: loadingMore ? cachedState.expansion : resolvedExpansion,
   }
 }

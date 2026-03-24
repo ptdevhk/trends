@@ -10,6 +10,55 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return undefined
+          }
+
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/react-router-dom/') ||
+            id.includes('/@remix-run/router/')
+          ) {
+            return 'react-vendor'
+          }
+
+          if (id.includes('/convex/')) {
+            return 'convex-vendor'
+          }
+
+          if (
+            id.includes('/i18next/') ||
+            id.includes('/react-i18next/') ||
+            id.includes('/i18next-browser-languagedetector/')
+          ) {
+            return 'i18n-vendor'
+          }
+
+          if (id.includes('/@radix-ui/')) {
+            return 'radix-vendor'
+          }
+
+          if (
+            id.includes('/date-fns/') ||
+            id.includes('/lucide-react/') ||
+            id.includes('/sonner/') ||
+            id.includes('/clsx/') ||
+            id.includes('/class-variance-authority/') ||
+            id.includes('/tailwind-merge/')
+          ) {
+            return 'ui-vendor'
+          }
+
+          return undefined
+        },
+      },
+    },
+  },
   server: {
     host: true,
     port: 5173,

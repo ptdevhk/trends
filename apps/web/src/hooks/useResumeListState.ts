@@ -8,7 +8,13 @@ import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { isSalesRequiredContext } from '@trends/shared'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
-import { useConvexResumes, type ConvexResumeItem } from '@/hooks/useConvexResumes'
+import {
+  CONVEX_RESUME_PAGE_SIZE,
+  DEFAULT_CONVEX_RESUME_LIMIT,
+  MAX_CONVEX_RESUME_LIMIT,
+  useConvexResumes,
+  type ConvexResumeItem,
+} from '@/hooks/useConvexResumes'
 import { useSession } from '@/hooks/useSession'
 import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
@@ -91,17 +97,6 @@ function normalizeKeywordFingerprint(keywords: readonly string[] | undefined): s
 
 function areKeywordListsEqual(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
   return normalizeKeywordFingerprint(left) === normalizeKeywordFingerprint(right)
-}
-
-function areScoreMapsEqual(left: Record<string, number>, right: Record<string, number>): boolean {
-  const leftEntries = Object.entries(left)
-  const rightEntries = Object.entries(right)
-
-  if (leftEntries.length !== rightEntries.length) {
-    return false
-  }
-
-  return leftEntries.every(([key, value]) => right[key] === value)
 }
 
 function appendKeywordToken(current: string[], token: string): string[] {
@@ -535,12 +530,16 @@ export function useResumeListState(loadSearchHistory = false) {
   const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<ExperienceLevelFilter | undefined>(undefined)
   const [appliedSearchHistoryId, setAppliedSearchHistoryId] = useState<string | undefined>(undefined)
   const [queryRuleScoreMap, setQueryRuleScoreMap] = useState<Record<string, number>>({})
+  const [requestedConvexLimit, setRequestedConvexLimit] = useState(DEFAULT_CONVEX_RESUME_LIMIT)
   const [mode] = useState<'ai'>('ai')
   const hydratedSessionIdRef = useRef<string | null>(null)
   const hasInitializedUrlHydrationRef = useRef(false)
   const lastAppliedUrlStateRef = useRef<string | null>(null)
   const skipNextUrlSyncRef = useRef(false)
   const isUrlPushingRef = useRef(false)
+  const queryRuleScoreScopeRef = useRef<string | null>(null)
+  const queryRuleScoreMapScopeRef = useRef<string | null>(null)
+  const completedQueryRuleScoreIdsRef = useRef<Set<string>>(new Set())
   const initialWindowSearchStateRef = useRef<{
     hasUrlParams: boolean
     hasKeywordParam: boolean
@@ -628,7 +627,19 @@ export function useResumeListState(loadSearchHistory = false) {
     return kw
   }, [sessionKeywords])
 
-  const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(200, expandedQuery, jobDescriptionId)
+  const convexQueryScopeKey = useMemo(
+    () => JSON.stringify({
+      jobDescriptionId: jobDescriptionId?.trim() ?? '',
+      query: expandedQuery ?? '',
+    }),
+    [expandedQuery, jobDescriptionId]
+  )
+  const {
+    resumes: convexResumes,
+    loading: convexLoading,
+    loadingMore: convexLoadingMore,
+    hasMore: convexHasMore,
+  } = useConvexResumes(requestedConvexLimit, expandedQuery, jobDescriptionId)
   const analysisTasks = useQuery(api.analysis_tasks.list)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)
@@ -655,6 +666,10 @@ export function useResumeListState(loadSearchHistory = false) {
       ),
     [convexResumes]
   )
+  const querySpecificScoreScopeKey = useMemo(
+    () => `${sessionLocation.trim()}::${querySpecificKeywordsKey}`,
+    [querySpecificKeywordsKey, sessionLocation]
+  )
   const querySpecificScoreRequest = useMemo(() => {
     if (!keywordOnlyQueryScoring) {
       return null
@@ -670,10 +685,15 @@ export function useResumeListState(loadSearchHistory = false) {
       keywords,
       location: sessionLocation.trim(),
       resumeIds,
+      scopeKey: querySpecificScoreScopeKey,
     }
-  }, [keywordOnlyQueryScoring, querySpecificKeywordsKey, querySpecificResumeIdsKey, sessionLocation])
+  }, [keywordOnlyQueryScoring, querySpecificKeywordsKey, querySpecificResumeIdsKey, querySpecificScoreScopeKey, sessionLocation])
 
   const activeLoading = mode === 'ai' ? convexLoading : loading
+  const loadedConvexResumeCount = convexResumes.length
+  const canLoadMoreResumes = mode === 'ai'
+    && convexHasMore
+    && requestedConvexLimit < MAX_CONVEX_RESUME_LIMIT
   const hasActiveTask = useMemo(() => {
     if (!analysisTasks || analysisTasks.length === 0) {
       return false
@@ -684,14 +704,51 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [analysisTasks, currentPromptVersion, jobDescriptionId, sessionKeywords, sessionLocation])
 
   useEffect(() => {
+    if (!querySpecificScoreRequest) {
+      queryRuleScoreScopeRef.current = null
+      queryRuleScoreMapScopeRef.current = null
+      completedQueryRuleScoreIdsRef.current = new Set()
+      setQueryRuleScoreMap((current) => (Object.keys(current).length === 0 ? current : {}))
+      return
+    }
+
+    if (queryRuleScoreScopeRef.current === querySpecificScoreRequest.scopeKey) {
+      return
+    }
+
+    queryRuleScoreScopeRef.current = querySpecificScoreRequest.scopeKey
+    queryRuleScoreMapScopeRef.current = null
+    completedQueryRuleScoreIdsRef.current = new Set()
+    setQueryRuleScoreMap((current) => (Object.keys(current).length === 0 ? current : {}))
+  }, [querySpecificScoreRequest])
+
+  useEffect(() => {
     let active = true
 
     if (!querySpecificScoreRequest) {
-      setQueryRuleScoreMap((current) => (Object.keys(current).length === 0 ? current : {}))
       return () => {
         active = false
       }
     }
+
+    const activeQueryRuleScoreMap = queryRuleScoreMapScopeRef.current === querySpecificScoreRequest.scopeKey
+      ? queryRuleScoreMap
+      : {}
+    const pendingResumeIds = querySpecificScoreRequest.resumeIds.filter((resumeId) =>
+      activeQueryRuleScoreMap[resumeId] === undefined && !completedQueryRuleScoreIdsRef.current.has(resumeId)
+    )
+
+    if (pendingResumeIds.length === 0) {
+      return () => {
+        active = false
+      }
+    }
+
+    for (const resumeId of pendingResumeIds) {
+      completedQueryRuleScoreIdsRef.current.add(resumeId)
+    }
+
+    const scopeKey = querySpecificScoreRequest.scopeKey
 
     void rawApiClient
       .POST<{
@@ -707,33 +764,55 @@ export function useResumeListState(loadSearchHistory = false) {
           mode: 'rules_only',
           keywords: querySpecificScoreRequest.keywords,
           location: querySpecificScoreRequest.location,
-          resumeIds: querySpecificScoreRequest.resumeIds,
+          resumeIds: pendingResumeIds,
         },
       })
       .then(({ data, error }) => {
-        if (!active || error || !data?.success) {
-          if (active) {
-            setQueryRuleScoreMap((current) => (Object.keys(current).length === 0 ? current : {}))
+        if (!active || queryRuleScoreScopeRef.current !== scopeKey) {
+          return
+        }
+
+        if (error || !data?.success) {
+          for (const resumeId of pendingResumeIds) {
+            completedQueryRuleScoreIdsRef.current.delete(resumeId)
           }
           return
         }
 
-        const nextMap = Object.fromEntries(
-          (data.results ?? []).map((item) => [item.resumeId, item.score])
-        )
-        setQueryRuleScoreMap((current) => (areScoreMapsEqual(current, nextMap) ? current : nextMap))
+        queryRuleScoreMapScopeRef.current = scopeKey
+        setQueryRuleScoreMap((current) => {
+          let changed = false
+          const nextMap = { ...current }
+
+          for (const item of data.results ?? []) {
+            if (nextMap[item.resumeId] === item.score) {
+              continue
+            }
+
+            nextMap[item.resumeId] = item.score
+            changed = true
+          }
+
+          return changed ? nextMap : current
+        })
       })
       .catch((error: unknown) => {
         console.error('Failed to load query-specific resume scores', error)
-        if (active) {
-          setQueryRuleScoreMap((current) => (Object.keys(current).length === 0 ? current : {}))
+        if (active && queryRuleScoreScopeRef.current === scopeKey) {
+          for (const resumeId of pendingResumeIds) {
+            completedQueryRuleScoreIdsRef.current.delete(resumeId)
+          }
         }
       })
 
     return () => {
       active = false
     }
-  }, [querySpecificScoreRequest])
+  }, [queryRuleScoreMap, querySpecificScoreRequest])
+
+  useEffect(() => {
+    setRequestedConvexLimit(DEFAULT_CONVEX_RESUME_LIMIT)
+  }, [convexQueryScopeKey])
 
   useEffect(() => {
     if (!activeHasUrlParams) {
@@ -1113,11 +1192,20 @@ export function useResumeListState(loadSearchHistory = false) {
 
   const handleRefresh = useCallback(async () => {
     if (mode === 'ai') {
+      setRequestedConvexLimit(DEFAULT_CONVEX_RESUME_LIMIT)
       return
     }
     await reloadSamples()
     await refresh()
-  }, [mode, reloadSamples, refresh])
+  }, [mode, refresh, reloadSamples])
+
+  const handleLoadMoreResumes = useCallback(() => {
+    setRequestedConvexLimit((current) => (
+      current >= MAX_CONVEX_RESUME_LIMIT
+        ? current
+        : Math.min(current + CONVEX_RESUME_PAGE_SIZE, MAX_CONVEX_RESUME_LIMIT)
+    ))
+  }, [])
 
   const handleJobChange = useCallback(
     (value: string) => {
@@ -1868,11 +1956,15 @@ export function useResumeListState(loadSearchHistory = false) {
     blockedCount,
     bulkExportFormat,
     displayedResumes,
+    loadedConvexResumeCount,
+    canLoadMoreResumes,
+    convexLoadingMore,
     searchHistory,
     searchHistoryLoading,
     setBulkExportFormat,
     handleAnalyzeAll,
     handleRefresh,
+    handleLoadMoreResumes,
     handleQuickStartApply,
     handleQuickConstraintApply,
     handleCollectionSourceChange,
