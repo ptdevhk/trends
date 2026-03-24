@@ -1,4 +1,4 @@
-import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { action, internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
 import { api } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
@@ -201,6 +201,27 @@ type ResumeListFilterArgs = {
 
 type ResumeListSortBy = "name" | "experience" | "extractedAt";
 type ResumeListSortOrder = "asc" | "desc";
+
+type ResumeListPageArgs = ResumeListFilterArgs & {
+    limit?: number;
+    offset?: number;
+    jobDescriptionId?: string;
+    sortBy?: ResumeListSortBy;
+    sortOrder?: ResumeListSortOrder;
+};
+
+type SearchWithTagExpansionPageArgs = ResumeListPageArgs & {
+    query: string;
+    keywordGroups: Array<{
+        original: string;
+        variants: string[];
+    }>;
+    mode?: "AND" | "OR";
+    sourceMappings?: Array<{
+        term: string;
+        expandedFrom: string;
+    }>;
+};
 
 type DeleteResumesResult = {
     requested: number;
@@ -556,6 +577,41 @@ function resolveListWithIngestPageWindow(requestedLimit: number | undefined, req
     };
 }
 
+function resolvePaginatedResumeOffsetCursor(cursor: string | null | undefined): number {
+    if (!cursor) {
+        return 0;
+    }
+
+    const parsed = Number.parseInt(cursor, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        return 0;
+    }
+
+    return parsed;
+}
+
+function resolvePaginatedResumePageLimit(numItems: number | undefined): number {
+    if (typeof numItems !== "number" || !Number.isFinite(numItems)) {
+        return DEFAULT_RESUME_LIMIT;
+    }
+
+    return Math.min(Math.max(Math.trunc(numItems), 1), MAX_SAFE_LIST_WITH_INGEST_LIMIT);
+}
+
+function buildPaginatedOffsetResult<T>(page: T[], total: number, offset: number): {
+    page: T[];
+    continueCursor: string;
+    isDone: boolean;
+} {
+    const nextOffset = offset + page.length;
+    const isDone = nextOffset >= total;
+    return {
+        page,
+        continueCursor: isDone ? "" : String(nextOffset),
+        isDone,
+    };
+}
+
 export function resolveResumeScanBatchSize(requestedLimit: number | undefined): number {
     const normalizedLimit = typeof requestedLimit === "number" && Number.isFinite(requestedLimit)
         ? Math.trunc(requestedLimit)
@@ -845,6 +901,123 @@ function mergeResumeDocs(
         .slice(0, limit);
 }
 
+async function runListWithIngestDataPageQuery(
+    ctx: QueryCtx,
+    args: ResumeListPageArgs
+): Promise<{
+    total: number;
+    results: Doc<"resumes">[];
+}> {
+    const { offset, pageLimit, scanLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
+    const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+    const filters = normalizeResumeListFilters(args);
+    const candidates = await ctx.db
+        .query("resumes")
+        .withIndex("by_primaryRuleScore")
+        .order("desc")
+        .take(overfetchLimit);
+    const sorted = sortResumeDocs(candidates, {
+        jobDescriptionId,
+        sortBy: args.sortBy,
+        sortOrder: args.sortOrder,
+    })
+        .filter((resume) => matchesResumeListFilters(resume, filters))
+        .slice(0, scanLimit);
+
+    return {
+        total: sorted.length,
+        results: sorted.slice(offset, offset + pageLimit),
+    };
+}
+
+async function runSearchWithTagExpansionPageQuery(
+    ctx: QueryCtx,
+    args: SearchWithTagExpansionPageArgs
+): Promise<{
+    expansion: {
+        original: string;
+        expanded: string[];
+        groups: TagExpansionKeywordGroup[];
+        mode: "AND" | "OR";
+    };
+    total: number;
+    results: Array<{ resume: Doc<"resumes">; provenance: SearchProvenance[] }>;
+}> {
+    const { offset, pageLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
+    const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+    const filters = normalizeResumeListFilters(args);
+    const mode = args.mode ?? "AND";
+    const keywordGroups = normalizeTagExpansionKeywordGroups(args.keywordGroups);
+    const expandedTerms = collectExpandedTerms(keywordGroups);
+
+    if (expandedTerms.length === 0 || keywordGroups.length === 0) {
+        return {
+            expansion: {
+                original: args.query,
+                expanded: [],
+                groups: [],
+                mode,
+            },
+            total: 0,
+            results: [],
+        };
+    }
+
+    const sourceMapping = Object.fromEntries(
+        (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
+    );
+    const provenanceByResumeId = new Map<string, SearchProvenance[]>();
+    const searchQuery = buildTagExpansionSearchQuery(keywordGroups, mode);
+
+    const matches = searchQuery
+        ? await ctx.db
+            .query("resumes")
+            .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
+            .take(overfetchLimit)
+        : [];
+
+    const filteredDocs = matches.filter((doc) => {
+        const normalizedSearchText = (doc.searchText || "").toLowerCase();
+        const matched = matchesTagExpansionSearchText(normalizedSearchText, keywordGroups, mode);
+
+        if (!matched) {
+            return false;
+        }
+
+        const provenance = collectSearchTextProvenance(normalizedSearchText, keywordGroups, sourceMapping);
+        if (provenance.length === 0) {
+            return false;
+        }
+
+        provenanceByResumeId.set(String(doc._id), provenance);
+        return true;
+    });
+
+    const merged = mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, overfetchLimit)
+        .filter((entry) => matchesResumeListFilters(entry.resume, filters));
+    let sorted = merged;
+    if (args.sortBy) {
+        const sortBy = args.sortBy;
+        sorted = [...merged].sort((left, right) => compareResumeListSort(
+            left.resume,
+            right.resume,
+            sortBy,
+            resolveResumeListSortOrder(args.sortOrder)
+        ));
+    }
+
+    return {
+        expansion: {
+            original: args.query,
+            expanded: expandedTerms,
+            groups: keywordGroups,
+            mode,
+        },
+        total: sorted.length,
+        results: sorted.slice(offset, offset + pageLimit),
+    };
+}
+
 export const count = action({
     args: {},
     handler: async (ctx) => {
@@ -941,26 +1114,33 @@ export const listWithIngestDataPage = query({
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
     },
+    handler: async (ctx, args) => runListWithIngestDataPageQuery(ctx, args),
+});
+
+export const listWithIngestDataPaginated = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        jobDescriptionId: v.optional(v.string()),
+        sortBy: v.optional(v.union(v.literal("name"), v.literal("experience"), v.literal("extractedAt"))),
+        sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+        minExperience: v.optional(v.number()),
+        maxExperience: v.optional(v.number()),
+        education: v.optional(v.array(v.string())),
+        skills: v.optional(v.array(v.string())),
+        locations: v.optional(v.array(v.string())),
+        minSalary: v.optional(v.number()),
+        maxSalary: v.optional(v.number()),
+    },
     handler: async (ctx, args) => {
-        const { offset, pageLimit, scanLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
-        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
-        const filters = normalizeResumeListFilters(args);
-        const candidates = await ctx.db
-            .query("resumes")
-            .withIndex("by_primaryRuleScore")
-            .order("desc")
-            .take(overfetchLimit);
-        const sorted = sortResumeDocs(candidates, {
-            jobDescriptionId,
-            sortBy: args.sortBy,
-            sortOrder: args.sortOrder,
-        })
-            .filter((resume) => matchesResumeListFilters(resume, filters))
-            .slice(0, scanLimit);
-        return {
-            total: sorted.length,
-            results: sorted.slice(offset, offset + pageLimit),
-        };
+        const offset = resolvePaginatedResumeOffsetCursor(args.paginationOpts.cursor);
+        const limit = resolvePaginatedResumePageLimit(args.paginationOpts.numItems);
+        const page = await runListWithIngestDataPageQuery(ctx, {
+            ...args,
+            limit,
+            offset,
+        });
+
+        return buildPaginatedOffsetResult(page.results, page.total, offset);
     },
 });
 
@@ -1171,80 +1351,43 @@ export const searchWithTagExpansionPage = query({
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
     },
+    handler: async (ctx, args) => runSearchWithTagExpansionPageQuery(ctx, args),
+});
+
+export const searchWithTagExpansionPaginated = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        query: v.string(),
+        keywordGroups: v.array(v.object({
+            original: v.string(),
+            variants: v.array(v.string()),
+        })),
+        mode: v.optional(v.union(v.literal("AND"), v.literal("OR"))),
+        sourceMappings: v.optional(v.array(v.object({
+            term: v.string(),
+            expandedFrom: v.string(),
+        }))),
+        jobDescriptionId: v.optional(v.string()),
+        sortBy: v.optional(v.union(v.literal("name"), v.literal("experience"), v.literal("extractedAt"))),
+        sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+        minExperience: v.optional(v.number()),
+        maxExperience: v.optional(v.number()),
+        education: v.optional(v.array(v.string())),
+        skills: v.optional(v.array(v.string())),
+        locations: v.optional(v.array(v.string())),
+        minSalary: v.optional(v.number()),
+        maxSalary: v.optional(v.number()),
+    },
     handler: async (ctx, args) => {
-        const { offset, pageLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
-        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
-        const filters = normalizeResumeListFilters(args);
-        const mode = args.mode ?? "AND";
-        const keywordGroups = normalizeTagExpansionKeywordGroups(args.keywordGroups);
-        const expandedTerms = collectExpandedTerms(keywordGroups);
-
-        if (expandedTerms.length === 0 || keywordGroups.length === 0) {
-            return {
-                expansion: {
-                    original: args.query,
-                    expanded: [],
-                    groups: [],
-                    mode,
-                },
-                total: 0,
-                results: [],
-            };
-        }
-
-        const sourceMapping = Object.fromEntries(
-            (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
-        );
-        const provenanceByResumeId = new Map<string, SearchProvenance[]>();
-        const searchQuery = buildTagExpansionSearchQuery(keywordGroups, mode);
-
-        const matches = searchQuery
-            ? await ctx.db
-                .query("resumes")
-                .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
-                .take(overfetchLimit)
-            : [];
-
-        const filteredDocs = matches.filter((doc) => {
-            const normalizedSearchText = (doc.searchText || "").toLowerCase();
-            const matched = matchesTagExpansionSearchText(normalizedSearchText, keywordGroups, mode);
-
-            if (!matched) {
-                return false;
-            }
-
-            const provenance = collectSearchTextProvenance(normalizedSearchText, keywordGroups, sourceMapping);
-            if (provenance.length === 0) {
-                return false;
-            }
-
-            provenanceByResumeId.set(String(doc._id), provenance);
-            return true;
+        const offset = resolvePaginatedResumeOffsetCursor(args.paginationOpts.cursor);
+        const limit = resolvePaginatedResumePageLimit(args.paginationOpts.numItems);
+        const page = await runSearchWithTagExpansionPageQuery(ctx, {
+            ...args,
+            limit,
+            offset,
         });
 
-        const merged = mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, overfetchLimit)
-            .filter((entry) => matchesResumeListFilters(entry.resume, filters));
-        let sorted = merged;
-        if (args.sortBy) {
-            const sortBy = args.sortBy;
-            sorted = [...merged].sort((left, right) => compareResumeListSort(
-                left.resume,
-                right.resume,
-                sortBy,
-                resolveResumeListSortOrder(args.sortOrder)
-            ));
-        }
-
-        return {
-            expansion: {
-                original: args.query,
-                expanded: expandedTerms,
-                groups: keywordGroups,
-                mode,
-            },
-            total: sorted.length,
-            results: sorted.slice(offset, offset + pageLimit),
-        };
+        return buildPaginatedOffsetResult(page.results, page.total, offset);
     },
 });
 
