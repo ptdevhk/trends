@@ -1134,7 +1134,7 @@ export const listWithIngestDataPaginated = query({
     handler: async (ctx, args) => {
         const filters = normalizeResumeListFilters(args);
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
-        if (!jobDescriptionId && !args.sortBy && !filters) {
+        if (!jobDescriptionId && !args.sortBy) {
             const page = await ctx.db
                 .query("resumes")
                 .withIndex("by_primaryRuleScore")
@@ -1145,7 +1145,9 @@ export const listWithIngestDataPaginated = query({
                 });
 
             return {
-                page: page.page,
+                page: filters
+                    ? page.page.filter((resume) => matchesResumeListFilters(resume, filters))
+                    : page.page,
                 continueCursor: page.continueCursor,
                 isDone: page.isDone,
             };
