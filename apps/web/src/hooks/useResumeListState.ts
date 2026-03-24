@@ -13,6 +13,7 @@ import {
   DEFAULT_CONVEX_RESUME_LIMIT,
   MAX_CONVEX_RESUME_LIMIT,
   useConvexResumes,
+  type ConvexResumeFilters,
   type ConvexResumeItem,
   type ConvexResumeSortBy,
 } from '@/hooks/useConvexResumes'
@@ -638,14 +639,25 @@ export function useResumeListState(loadSearchHistory = false) {
     () => (convexSourceSortBy ? (filters.sortOrder ?? 'desc') : undefined),
     [convexSourceSortBy, filters.sortOrder]
   )
+  const convexSourceFilters = useMemo<ConvexResumeFilters | undefined>(() => {
+    const normalized: ConvexResumeFilters = {
+      ...(typeof filters.minExperience === 'number' ? { minExperience: filters.minExperience } : {}),
+      ...(typeof filters.maxExperience === 'number' ? { maxExperience: filters.maxExperience } : {}),
+      ...(Array.isArray(filters.education) && filters.education.length > 0 ? { education: filters.education } : {}),
+      ...(Array.isArray(filters.locations) && filters.locations.length > 0 ? { locations: filters.locations } : {}),
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined
+  }, [filters.education, filters.locations, filters.maxExperience, filters.minExperience])
   const convexQueryScopeKey = useMemo(
     () => JSON.stringify({
       jobDescriptionId: jobDescriptionId?.trim() ?? '',
       query: expandedQuery ?? '',
       sortBy: convexSourceSortBy ?? '',
       sortOrder: convexSourceSortOrder ?? '',
+      filters: convexSourceFilters ?? null,
     }),
-    [convexSourceSortBy, convexSourceSortOrder, expandedQuery, jobDescriptionId]
+    [convexSourceFilters, convexSourceSortBy, convexSourceSortOrder, expandedQuery, jobDescriptionId]
   )
   const {
     resumes: convexResumes,
@@ -653,6 +665,7 @@ export function useResumeListState(loadSearchHistory = false) {
     loadingMore: convexLoadingMore,
     hasMore: convexHasMore,
   } = useConvexResumes(requestedConvexLimit, expandedQuery, jobDescriptionId, {
+    filters: convexSourceFilters,
     sortBy: convexSourceSortBy,
     sortOrder: convexSourceSortOrder,
   })

@@ -6,7 +6,7 @@ import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
 import { rawApiClient } from '@/lib/api-helpers'
 import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import { useResumeListState } from './useResumeListState'
-import type { ConvexResumeSortBy } from '@/hooks/useConvexResumes'
+import type { ConvexResumeFilters, ConvexResumeSortBy } from '@/hooks/useConvexResumes'
 
 let capturedExportPayload: unknown = null
 const createObjectUrlMock = vi.fn(() => 'blob:mock')
@@ -24,6 +24,7 @@ const mockState = vi.hoisted(() => ({
     options?: {
       sortBy?: ConvexResumeSortBy
       sortOrder?: 'asc' | 'desc'
+      filters?: ConvexResumeFilters
     }
   }>,
   cloneConvexResumesOnRead: false,
@@ -160,6 +161,7 @@ vi.mock('@/hooks/useConvexResumes', () => ({
     options?: {
       sortBy?: ConvexResumeSortBy
       sortOrder?: 'asc' | 'desc'
+      filters?: ConvexResumeFilters
     }
   ) => {
     mockState.useConvexResumesArgs.push({ limit, query, jobDescriptionId, options })
@@ -401,6 +403,29 @@ describe('useResumeListState role filter regression', () => {
       options: {
         sortBy: 'experience',
         sortOrder: 'asc',
+      },
+    })
+  })
+
+  it('pushes safe base filters into the Convex hook for AI mode', () => {
+    mockState.filters = {
+      minExperience: 3,
+      maxExperience: 8,
+      education: ['bachelor'],
+      locations: ['Dongguan'],
+    }
+
+    renderHook(() => useResumeListState())
+
+    expect(getLastConvexArgs()).toMatchObject({
+      limit: 200,
+      options: {
+        filters: {
+          minExperience: 3,
+          maxExperience: 8,
+          education: ['bachelor'],
+          locations: ['Dongguan'],
+        },
       },
     })
   })
