@@ -61,7 +61,21 @@ export function resetResumeScreeningDb(): void {
   }
 }
 
+function getExistingTableNames(db: Database.Database): Set<string> {
+  const rows = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+    .all() as Array<{ name?: unknown }>;
+
+  return new Set(
+    rows
+      .map((row) => (typeof row.name === "string" ? row.name : ""))
+      .filter((name) => name.length > 0)
+  );
+}
+
 function initSchema(db: Database.Database): void {
+  const existingTables = getExistingTableNames(db);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -181,9 +195,14 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_review_packet_runs_exported ON review_packet_runs(exported_at DESC);
   `);
 
-  ensureColumn(db, "resume_matches", "breakdown", "TEXT");
-  ensureColumn(db, "resume_matches", "score_source", "TEXT DEFAULT 'ai'");
-  ensureColumn(db, "search_sessions", "workspace_slug", "TEXT DEFAULT 'dev'");
+  if (existingTables.has("resume_matches")) {
+    ensureColumn(db, "resume_matches", "breakdown", "TEXT");
+    ensureColumn(db, "resume_matches", "score_source", "TEXT DEFAULT 'ai'");
+  }
+
+  if (existingTables.has("search_sessions")) {
+    ensureColumn(db, "search_sessions", "workspace_slug", "TEXT DEFAULT 'dev'");
+  }
 }
 
 function isDuplicateColumnError(error: unknown, column: string): boolean {
@@ -201,10 +220,6 @@ function ensureColumn(
   column: string,
   definition: string
 ): void {
-  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<Record<string, unknown>>;
-  const exists = rows.some((row) => String(row.name) === column);
-  if (exists) return;
-
   try {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   } catch (error) {
