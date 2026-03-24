@@ -236,8 +236,12 @@ function buildResume(params: {
   source?: string
   profileType?: string
   primaryRuleScore?: number
+  experience?: string
+  education?: string
   location?: string
   locationHierarchy?: ConvexResumeItem['locationHierarchy']
+  expectedSalary?: string
+  workHistory?: ConvexResumeItem['workHistory']
   brandHits?: ConvexIngestData['brandHits']
   companyHits?: string[]
   industryTags?: string[]
@@ -265,14 +269,14 @@ function buildResume(params: {
     activityStatus: 'Active',
     age: '30',
     ageNumber: 30,
-    experience: '5 years',
-    education: 'Bachelor',
+    experience: params.experience ?? '5 years',
+    education: params.education ?? 'Bachelor',
     location: params.location ?? 'Dongguan',
     locationHierarchy: params.locationHierarchy,
     selfIntro: 'Test intro',
     jobIntention: 'Test role',
-    expectedSalary: '10k-20k',
-    workHistory: [{ raw: 'Test work history', companyName: 'Example Co.', jobTitle: 'Sales Engineer' }],
+    expectedSalary: params.expectedSalary ?? '10k-20k',
+    workHistory: params.workHistory ?? [{ raw: 'Test work history', companyName: 'Example Co.', jobTitle: 'Sales Engineer' }],
     profileEducation: [{ institution: 'Example University', qualification: 'Bachelor' }],
     skills: ['CNC', { name: 'Account management', yearsOfExperience: 3 }],
     languages: ['English', { name: 'Mandarin', proficiency: 'professional' }],
@@ -412,7 +416,10 @@ describe('useResumeListState role filter regression', () => {
       minExperience: 3,
       maxExperience: 8,
       education: ['bachelor'],
+      skills: ['fanuc'],
       locations: ['Dongguan'],
+      minSalary: 10,
+      maxSalary: 20,
     }
 
     renderHook(() => useResumeListState())
@@ -424,10 +431,45 @@ describe('useResumeListState role filter regression', () => {
           minExperience: 3,
           maxExperience: 8,
           education: ['bachelor'],
+          skills: ['fanuc'],
           locations: ['Dongguan'],
+          minSalary: 10,
+          maxSalary: 20,
         },
       },
     })
+  })
+
+  it('applies skills and salary filters in AI mode', () => {
+    mockState.filters = {
+      skills: ['fanuc'],
+      minSalary: 15,
+    }
+    mockState.convexResumes = [
+      buildResume({
+        id: 'resume-1',
+        name: 'High Salary Match',
+        expectedSalary: '20k-30k',
+        workHistory: [{ raw: 'FANUC CNC service and maintenance', companyName: 'Fanuc', jobTitle: 'Engineer' }],
+        roleSignals: [],
+      }),
+      buildResume({
+        id: 'resume-2',
+        name: 'Low Salary Match',
+        expectedSalary: '8k-12k',
+        workHistory: [{ raw: 'FANUC field service', companyName: 'Fanuc', jobTitle: 'Technician' }],
+        roleSignals: [],
+      }),
+      buildResume({
+        id: 'resume-3',
+        name: 'High Salary No Skill',
+        expectedSalary: '20k-30k',
+        workHistory: [{ raw: 'PLC automation sales', companyName: 'Other Co.', jobTitle: 'Sales' }],
+        roleSignals: [],
+      }),
+    ]
+
+    expect(getDisplayedResumeNames()).toEqual(['High Salary Match'])
   })
 
   it('keeps name sorting local to preserve the existing UI comparator', () => {

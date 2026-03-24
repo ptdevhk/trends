@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery } from 'convex/react'
-import { formatKeywordQuery, formatLocationHierarchySearchText, isLocationMatch, normalizeKeywordPhrases } from '@trends/shared'
+import {
+  buildWorkHistoryEntryText,
+  formatKeywordQuery,
+  formatLocationHierarchySearchText,
+  isLocationMatch,
+  normalizeKeywordPhrases,
+  selectLatestWorkHistory,
+} from '@trends/shared'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
@@ -491,6 +498,45 @@ function matchesEducationFilter(educationValue: string | undefined, selectedEduc
   })
 }
 
+function parseSalaryRange(value: string | undefined): { min?: number; max?: number } | null {
+  if (!value) {
+    return null
+  }
+
+  const normalized = value.replace(/\s/g, '')
+  if (!normalized || /面议/.test(normalized)) {
+    return null
+  }
+
+  const match = normalized.match(/(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?/)
+  if (!match) {
+    return null
+  }
+
+  const min = Number(match[1])
+  const max = match[2] ? Number(match[2]) : undefined
+  if (Number.isNaN(min)) {
+    return null
+  }
+
+  return { min, max }
+}
+
+function buildResumeFilterSearchText(resume: ConvexResumeItem): string {
+  const parts = [
+    resume.name,
+    resume.education,
+    getResumeLocationText(resume),
+    resume.expectedSalary,
+    ...selectLatestWorkHistory(resume.workHistory).map((entry) => buildWorkHistoryEntryText(entry)),
+  ]
+
+  return parts
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value.length > 0)
+    .join(' ')
+}
+
 export function useResumeListState(loadSearchHistory = false) {
   const { t } = useTranslation()
   const location = useLocation()
@@ -644,11 +690,14 @@ export function useResumeListState(loadSearchHistory = false) {
       ...(typeof filters.minExperience === 'number' ? { minExperience: filters.minExperience } : {}),
       ...(typeof filters.maxExperience === 'number' ? { maxExperience: filters.maxExperience } : {}),
       ...(Array.isArray(filters.education) && filters.education.length > 0 ? { education: filters.education } : {}),
+      ...(Array.isArray(filters.skills) && filters.skills.length > 0 ? { skills: filters.skills } : {}),
       ...(Array.isArray(filters.locations) && filters.locations.length > 0 ? { locations: filters.locations } : {}),
+      ...(typeof filters.minSalary === 'number' ? { minSalary: filters.minSalary } : {}),
+      ...(typeof filters.maxSalary === 'number' ? { maxSalary: filters.maxSalary } : {}),
     }
 
     return Object.keys(normalized).length > 0 ? normalized : undefined
-  }, [filters.education, filters.locations, filters.maxExperience, filters.minExperience])
+  }, [filters.education, filters.locations, filters.maxExperience, filters.maxSalary, filters.minExperience, filters.minSalary, filters.skills])
   const convexQueryScopeKey = useMemo(
     () => JSON.stringify({
       jobDescriptionId: jobDescriptionId?.trim() ?? '',
@@ -1146,6 +1195,38 @@ export function useResumeListState(loadSearchHistory = false) {
       result = result.filter((resume: ScoredConvexResume) =>
         matchesEducationFilter(resume.education, filters.education ?? [])
       )
+    }
+
+    if (filters.skills?.length) {
+      result = result.filter((resume: ScoredConvexResume) => {
+        const haystack = buildResumeFilterSearchText(resume)
+        return filters.skills?.some((skill) => haystack.includes(normalizeFilterToken(skill))) ?? false
+      })
+    }
+
+    if (typeof filters.minSalary === 'number' || typeof filters.maxSalary === 'number') {
+      result = result.filter((resume: ScoredConvexResume) => {
+        const salary = parseSalaryRange(resume.expectedSalary)
+        if (!salary) {
+          return false
+        }
+
+        if (typeof filters.minSalary === 'number') {
+          const maxSalary = salary.max ?? salary.min
+          if (typeof maxSalary === 'number' && maxSalary < filters.minSalary) {
+            return false
+          }
+        }
+
+        if (typeof filters.maxSalary === 'number') {
+          const minSalary = salary.min ?? salary.max
+          if (typeof minSalary === 'number' && minSalary > filters.maxSalary) {
+            return false
+          }
+        }
+
+        return true
+      })
     }
 
     const minMatchScore = filters.minMatchScore

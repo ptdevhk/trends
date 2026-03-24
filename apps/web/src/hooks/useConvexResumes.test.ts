@@ -146,7 +146,10 @@ describe('useConvexResumes', () => {
         minExperience: 3,
         maxExperience: 8,
         education: ['bachelor'],
+        skills: ['fanuc'],
         locations: ['Dongguan'],
+        minSalary: 10,
+        maxSalary: 20,
       },
     }))
 
@@ -157,7 +160,10 @@ describe('useConvexResumes', () => {
       minExperience: 3,
       maxExperience: 8,
       education: ['bachelor'],
+      skills: ['fanuc'],
       locations: ['Dongguan'],
+      minSalary: 10,
+      maxSalary: 20,
     })
   })
 
