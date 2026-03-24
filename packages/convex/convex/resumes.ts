@@ -234,6 +234,7 @@ type DeleteResumesResult = {
 const DEFAULT_RESUME_LIMIT = 50;
 export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 2000;
 export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 4000;
+const FILTERED_PAGINATE_OVERFETCH_MULTIPLIER = 3;
 const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
 const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
 const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
@@ -1135,24 +1136,26 @@ export const listWithIngestDataPaginated = query({
         const filters = normalizeResumeListFilters(args);
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
         if (!jobDescriptionId && !args.sortBy) {
+            const requestedPageSize = resolvePaginatedResumePageLimit(args.paginationOpts.numItems);
+            const numItems = filters
+                ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_LIST_WITH_INGEST_LIMIT)
+                : requestedPageSize;
             const page = await ctx.db
                 .query("resumes")
                 .withIndex("by_primaryRuleScore")
                 .order("desc")
                 .paginate({
                     ...args.paginationOpts,
-                    numItems: resolvePaginatedResumePageLimit(args.paginationOpts.numItems),
+                    numItems,
                 });
 
             const filtered = filters
                 ? page.page.filter((resume) => matchesResumeListFilters(resume, filters))
                 : page.page;
 
-            const rawSize = page.page.length;
-            const filteredSize = filtered.length;
-            if (filters && rawSize > 0) {
+            if (filters && page.page.length > 0) {
                 console.log(
-                    `[perf:paginate] raw=${rawSize} filtered=${filteredSize} rejection=${(((rawSize - filteredSize) / rawSize) * 100).toFixed(1)}%`
+                    `[perf:paginate] raw=${page.page.length} filtered=${filtered.length} rejection=${(((page.page.length - filtered.length) / page.page.length) * 100).toFixed(1)}%`
                 );
             }
 
