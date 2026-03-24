@@ -8,12 +8,17 @@ import {
 } from "./resume-field-usage-policy";
 
 describe("resume field usage policy", () => {
-  it("excludes jobIntention and selfIntro from the default protected surfaces", () => {
-    for (const surface of ["analysis", "presentation", "outreach", "debug"] as const) {
+  it("excludes jobIntention and selfIntro from all protected surfaces, plus resumeSnippet from analysis", () => {
+    for (const surface of ["presentation", "outreach", "debug"] as const) {
       expect(getDisallowedResumeFieldKeys(surface)).toEqual(["jobIntention", "selfIntro"]);
       expect(isResumeFieldAllowed("jobIntention", surface)).toBe(false);
       expect(isResumeFieldAllowed("selfIntro", surface)).toBe(false);
     }
+
+    expect(getDisallowedResumeFieldKeys("analysis")).toEqual(["jobIntention", "resumeSnippet", "selfIntro"]);
+    expect(isResumeFieldAllowed("jobIntention", "analysis")).toBe(false);
+    expect(isResumeFieldAllowed("resumeSnippet", "analysis")).toBe(false);
+    expect(isResumeFieldAllowed("selfIntro", "analysis")).toBe(false);
   });
 
   it("merges per-surface workspace overrides without affecting other surfaces", () => {
