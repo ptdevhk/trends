@@ -4,12 +4,14 @@ const pragmaMock = vi.fn();
 const execMock = vi.fn();
 const prepareMock = vi.fn();
 const closeMock = vi.fn();
-const constructorMock = vi.fn(() => ({
+const constructorMock = vi.fn(function MockDatabase() {
+  return {
   pragma: pragmaMock,
   exec: execMock,
   prepare: prepareMock,
   close: closeMock,
-}));
+  };
+});
 
 vi.mock("better-sqlite3", () => ({
   default: constructorMock,

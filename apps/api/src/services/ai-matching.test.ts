@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AIMatchingService } from "./ai-matching.js";
 
@@ -22,6 +22,14 @@ class CapturingAIMatchingService extends AIMatchingService {
 }
 
 describe("AIMatchingService", () => {
+    beforeEach(() => {
+        vi.stubEnv("AI_OUTPUT_LOCALE", "");
+    });
+
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
     it("hydrates verified companies from companyHits and caps non-sales profiles", async () => {
         const service = new CapturingAIMatchingService();
         const result = await service.matchResume({

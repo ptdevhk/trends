@@ -59,10 +59,7 @@ function makeResume(
 
 function renderPage() {
   return render(
-    <MemoryRouter
-      initialEntries={['/debug/findings']}
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter initialEntries={['/debug/findings']}>
       <Routes>
         <Route path="/debug/*" element={<DebugPage />} />
       </Routes>
