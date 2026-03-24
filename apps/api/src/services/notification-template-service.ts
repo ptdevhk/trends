@@ -80,6 +80,9 @@ function resolveValue(token: string, ctx: RenderContext): unknown {
   const trimmed = token.trim();
   if (trimmed === "this") return ctx.thisValue;
   if (trimmed === "@index") return ctx.index;
+  if (trimmed.startsWith("this.") && isRecord(ctx.thisValue)) {
+    return getPathValue(ctx.thisValue, trimmed.slice("this.".length));
+  }
   return getPathValue(ctx.root, trimmed);
 }
 
@@ -291,4 +294,3 @@ export class NotificationTemplateService {
 }
 
 export const notificationTemplateService = new NotificationTemplateService();
-
