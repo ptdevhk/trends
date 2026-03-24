@@ -766,10 +766,13 @@ async function prepareConvexCandidates(params: {
   keywords?: string[];
   location?: string;
   limit?: number;
+  offset?: number;
   jobDescriptionId?: string;
+  paged?: boolean;
 }): Promise<{
   prepared: PreparedResumeCandidate[];
   keywordExpansion?: ResumeKeywordExpansion;
+  total?: number;
 }> {
   const resumeIds = Array.from(new Set((params.resumeIds ?? []).map((resumeId) => resumeId.trim()).filter(Boolean)));
   if (resumeIds.length > 0) {
@@ -807,7 +810,7 @@ async function prepareConvexCandidates(params: {
   if (normalizedKeywords.length > 0) {
     const canonicalKeywordQuery = formatKeywordQuery(normalizedKeywords);
     const keywordExpansion = resumeService.expandSearchQuery(canonicalKeywordQuery);
-    const value = await callConvexQuery("resumes:searchWithTagExpansion", {
+    const value = await callConvexQuery(params.paged ? "resumes:searchWithTagExpansionPage" : "resumes:searchWithTagExpansion", {
       query: canonicalKeywordQuery,
       keywordGroups: keywordExpansion?.groups ?? [],
       mode: keywordExpansion?.mode ?? "AND",
@@ -816,6 +819,7 @@ async function prepareConvexCandidates(params: {
         expandedFrom,
       })),
       limit: params.limit,
+      ...(params.paged ? { offset: params.offset } : {}),
       jobDescriptionId: params.jobDescriptionId,
     });
 
@@ -842,19 +846,27 @@ async function prepareConvexCandidates(params: {
       })];
     });
 
-    return { prepared, keywordExpansion };
+    return {
+      prepared,
+      keywordExpansion,
+      total: params.paged ? (toOptionalNumber(value.total) ?? prepared.length) : undefined,
+    };
   }
 
-  const value = await callConvexQuery("resumes:listWithIngestData", {
+  const value = await callConvexQuery(params.paged ? "resumes:listWithIngestDataPage" : "resumes:listWithIngestData", {
     limit: params.limit,
+    ...(params.paged ? { offset: params.offset } : {}),
     jobDescriptionId: params.jobDescriptionId,
   });
-  if (!Array.isArray(value)) {
+  const items = params.paged && isRecord(value) && Array.isArray(value.results)
+    ? value.results
+    : value;
+  if (!Array.isArray(items)) {
     throw new Error("Invalid resume list response from Convex");
   }
 
   return {
-    prepared: value.flatMap((item) => {
+    prepared: items.flatMap((item) => {
       if (!isRecord(item)) {
         return [];
       }
@@ -869,6 +881,7 @@ async function prepareConvexCandidates(params: {
         ingestData: item.ingestData,
       })];
     }),
+    total: params.paged && isRecord(value) ? (toOptionalNumber(value.total) ?? undefined) : undefined,
   };
 }
 
@@ -879,6 +892,24 @@ function resolveConvexResumeFetchLimit(limit: number | undefined, offset: number
 
   const pageSize = typeof limit === "number" ? limit : DEFAULT_CONVEX_RESUME_PAGE_SIZE;
   return offset + pageSize;
+}
+
+function hasResumeListFilters(params: {
+  minExperience?: number;
+  maxExperience?: number;
+  education?: string[];
+  skills?: string[];
+  locations?: string[];
+  minSalary?: number;
+  maxSalary?: number;
+}): boolean {
+  return params.minExperience !== undefined
+    || params.maxExperience !== undefined
+    || (params.education?.length ?? 0) > 0
+    || (params.skills?.length ?? 0) > 0
+    || (params.locations?.length ?? 0) > 0
+    || params.minSalary !== undefined
+    || params.maxSalary !== undefined;
 }
 
 function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
@@ -1405,11 +1436,25 @@ app.openapi(getResumesRoute, (c) => {
   try {
     if (source === "convex") {
       return (async () => {
-        const convexFetchLimit = resolveConvexResumeFetchLimit(limit, offset);
-        const { prepared, keywordExpansion: liveExpansion } = await prepareConvexCandidates({
+        const resolvedJobId = jobDescriptionId?.trim() || undefined;
+        const hasLocalResumeFilters = hasResumeListFilters({
+          minExperience,
+          maxExperience,
+          education,
+          skills,
+          locations,
+          minSalary,
+          maxSalary,
+        });
+        const hasLocalMatchFilters = minMatchScore !== undefined || (recommendation?.length ?? 0) > 0;
+        const canUseSourcePagination = !hasLocalResumeFilters && !hasLocalMatchFilters && !sortBy;
+        const convexFetchLimit = canUseSourcePagination ? limit : resolveConvexResumeFetchLimit(limit, offset);
+        const { prepared, keywordExpansion: liveExpansion, total: convexTotal } = await prepareConvexCandidates({
           keywords: keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [],
           limit: convexFetchLimit,
-          jobDescriptionId: jobDescriptionId?.trim() || undefined,
+          offset: canUseSourcePagination ? offset : undefined,
+          jobDescriptionId: resolvedJobId,
+          paged: canUseSourcePagination,
         });
 
         let filtered = prepared.map((item) => item.resume);
@@ -1429,7 +1474,6 @@ app.openapi(getResumesRoute, (c) => {
         }));
 
         let matchMap: Map<string, { score: number; recommendation: string }> | null = null;
-        const resolvedJobId = jobDescriptionId?.trim() || undefined;
         const needsMatchContext = Boolean(
           resolvedJobId
           && (minMatchScore !== undefined || (recommendation?.length ?? 0) > 0 || sortBy === "score")
@@ -1486,15 +1530,19 @@ app.openapi(getResumesRoute, (c) => {
           });
         }
 
-        const start = offset ?? 0;
-        const end = typeof limit === "number" ? start + limit : undefined;
-        const paged = end ? working.slice(start, end) : working.slice(start);
-        const limited = paged.map((item) => item.resume);
+        const limited = canUseSourcePagination
+          ? working.map((item) => item.resume)
+          : (() => {
+              const start = offset ?? 0;
+              const end = typeof limit === "number" ? start + limit : undefined;
+              const paged = end ? working.slice(start, end) : working.slice(start);
+              return paged.map((item) => item.resume);
+            })();
 
         return c.json({
           success: true as const,
           summary: {
-            total: working.length,
+            total: canUseSourcePagination ? (convexTotal ?? working.length) : working.length,
             returned: limited.length,
             query: keyword,
             source,
