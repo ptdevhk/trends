@@ -161,7 +161,7 @@ function parseUrlLike(value: string): URL | null {
   }
 }
 
-function normalizeProfileIdentityKey(value: string | undefined, source?: string): string | undefined {
+export function normalizeProfileIdentityKey(value: string | undefined, source?: string): string | undefined {
   if (!value) {
     return undefined;
   }

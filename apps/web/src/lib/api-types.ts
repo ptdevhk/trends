@@ -1038,6 +1038,460 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/review-packets/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a tracked review packet export run */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReviewPacketExportRequest"];
+                };
+            };
+            responses: {
+                /** @description Tracked review packet export metadata */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReviewPacketTrackedExportResponse"];
+                    };
+                };
+                /** @description Selected resumes could not be resolved */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Tracked export failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/review-packets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List tracked review packet runs */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Review packet runs */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReviewPacketRunsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/review-packets/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get tracked review packet run metadata */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Review packet run */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            run: components["schemas"]["ReviewPacketRun"];
+                        };
+                    };
+                };
+                /** @description Run not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Run lookup failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/review-packets/{runId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download a tracked review packet file */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Review packet file */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    };
+                };
+                /** @description Run not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Download failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/review-packets/{runId}/feedback-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import reviewed CSV/XLSX feedback for a tracked review packet */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": components["schemas"]["ReviewPacketFeedbackImportRequest"];
+                };
+            };
+            responses: {
+                /** @description Feedback import result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReviewPacketFeedbackImportResponse"];
+                    };
+                };
+                /** @description Invalid import payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Run not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Feedback import failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/review-packets/{runId}/summary-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview the WeChat summary for a tracked review packet */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReviewPacketSummaryPreviewRequest"];
+                };
+            };
+            responses: {
+                /** @description Summary preview */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReviewPacketSummaryPreviewResponse"];
+                    };
+                };
+                /** @description Run not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Summary preview failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/review-packets/{runId}/summary-send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send the WeChat summary for a tracked review packet */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReviewPacketSummarySendRequest"];
+                };
+            };
+            responses: {
+                /** @description Summary send result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReviewPacketSummarySendResponse"];
+                    };
+                };
+                /** @description Run not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Summary send failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/verify-token": {
         parameters: {
             query?: never;
@@ -4966,6 +5420,193 @@ export interface components {
             }[];
         };
         ResumeExportRequest: components["schemas"]["ResumeExportCanonicalRequest"] | components["schemas"]["ResumeExportLegacyRequest"];
+        /** @enum {string} */
+        ReviewPacketRunStatus: "exported" | "feedback_imported" | "summary_sent" | "failed";
+        ReviewPacketRun: {
+            /** @example review-packet-123 */
+            id: string;
+            /** @example hr */
+            workspaceSlug: string;
+            source: components["schemas"]["ResumeExportSource"];
+            /** @example sample-initial */
+            sampleName?: string;
+            /** @example session-123 */
+            sessionId?: string;
+            /** @example lathe-sales */
+            jobDescriptionId?: string;
+            /**
+             * @example xlsx
+             * @enum {string}
+             */
+            format: "csv" | "xlsx";
+            status: components["schemas"]["ReviewPacketRunStatus"];
+            /** @example 25 */
+            totalCount: number;
+            /** @example review-packet-review-packet-123.xlsx */
+            packetFilename?: string;
+            /** @example 2026-03-20T09:00:00+08:00 */
+            exportedAt: string;
+            /** @example 2026-03-20T11:30:00+08:00 */
+            feedbackImportedAt?: string;
+            /** @example 2026-03-20T11:45:00+08:00 */
+            summarySentAt?: string;
+            /** @example wechat_work */
+            summaryChannel?: string;
+            stats?: {
+                import?: {
+                    importedAt: string;
+                    fileName: string;
+                    totalRows: number;
+                    matchedRows: number;
+                    importedRows: number;
+                    reviewedCount: number;
+                    statusUpdates: number;
+                    actionUpdates: number;
+                    noteUpdates: number;
+                    invalidRows: number;
+                    duplicateRows: number;
+                    warningCount: number;
+                    matchedByProfileUrlCount: number;
+                    nameMismatchCount: number;
+                    warnings: string[];
+                };
+                summary?: {
+                    previewedAt?: string;
+                    sentAt?: string;
+                    channel?: string;
+                    reviewedCount: number;
+                    pendingCount: number;
+                    warningCount: number;
+                    statusBreakdown: {
+                        [key: string]: number;
+                    };
+                    actionBreakdown: {
+                        [key: string]: number;
+                    };
+                };
+            };
+            error?: string;
+        };
+        ReviewPacketTrackedExportResponse: {
+            /** @enum {boolean} */
+            success: true;
+            run: components["schemas"]["ReviewPacketRun"];
+            /** @example /api/resumes/review-packets/review-packet-123/download */
+            downloadPath: string;
+        };
+        ReviewPacketExportRequest: {
+            /**
+             * @default csv
+             * @example csv
+             * @enum {string}
+             */
+            format: "csv" | "xlsx";
+            source: components["schemas"]["ResumeExportSource"];
+            /** @example sample-initial */
+            sample?: string;
+            /** @example Batch note */
+            userComment?: string;
+            /** @example Internal export */
+            referenceNote?: string;
+            industryDbV2Stats?: components["schemas"]["IndustryDbV2Stats"];
+            /** @example false */
+            debug?: boolean;
+            /** @example session-123 */
+            sessionId?: string;
+            /** @example lathe-sales */
+            jobDescriptionId?: string;
+            entries: components["schemas"]["ResumeExportEntryContext"][];
+        };
+        ReviewPacketRunsResponse: {
+            /** @enum {boolean} */
+            success: true;
+            items: components["schemas"]["ReviewPacketRun"][];
+        };
+        ReviewPacketFeedbackImportResponse: {
+            /** @enum {boolean} */
+            success: true;
+            run: components["schemas"]["ReviewPacketRun"];
+            summary: {
+                fileName: string;
+                totalRows: number;
+                matchedRows: number;
+                importedRows: number;
+                reviewedCount: number;
+                statusUpdates: number;
+                actionUpdates: number;
+                noteUpdates: number;
+                invalidRows: number;
+                duplicateRows: number;
+                warningCount: number;
+                matchedByProfileUrlCount: number;
+                nameMismatchCount: number;
+            };
+            warnings: string[];
+        };
+        ReviewPacketFeedbackImportRequest: {
+            /** Format: binary */
+            file?: string;
+            /** @example hr.lead */
+            updatedBy?: string;
+        };
+        ReviewPacketSummaryCount: {
+            key: string;
+            label: string;
+            count: number;
+        };
+        ReviewPacketSummaryData: {
+            packetId: string;
+            workspaceSlug: string;
+            source: components["schemas"]["ResumeExportSource"];
+            sampleName?: string;
+            sessionId?: string;
+            jobDescriptionId?: string;
+            exportedAt: string;
+            feedbackImportedAt?: string;
+            summarySentAt?: string;
+            totalExported: number;
+            reviewedCount: number;
+            pendingCount: number;
+            warningCount: number;
+            statusBreakdown: components["schemas"]["ReviewPacketSummaryCount"][];
+            actionBreakdown: components["schemas"]["ReviewPacketSummaryCount"][];
+            warnings: string[];
+        };
+        ReviewPacketSummaryPreviewResponse: {
+            /** @enum {boolean} */
+            success: true;
+            run: components["schemas"]["ReviewPacketRun"];
+            /** @enum {string} */
+            channel: "wechat_work";
+            templateId: string;
+            content: string;
+            data: components["schemas"]["ReviewPacketSummaryData"];
+        };
+        ReviewPacketSummaryPreviewRequest: {
+            /** @example review-packet-wechat */
+            templateId?: string;
+        };
+        ReviewPacketSummarySendResponse: {
+            /** @enum {boolean} */
+            success: true;
+            run: components["schemas"]["ReviewPacketRun"];
+            /** @enum {string} */
+            channel: "wechat_work";
+            templateId: string;
+            delivery: {
+                errcode?: number;
+                errmsg?: string;
+            };
+        };
+        ReviewPacketSummarySendRequest: {
+            /** @example review-packet-wechat */
+            templateId?: string;
+            /**
+             * Format: uri
+             * @example https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***
+             */
+            webhookUrl?: string;
+        };
         ResumeFilters: {
             minExperience?: number;
             maxExperience?: number;
