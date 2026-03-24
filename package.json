@@ -43,13 +43,13 @@
   },
   "license": "ISC",
   "devDependencies": {
-    "@vitest/coverage-v8": "^1.6.1",
+    "@vitest/coverage-v8": "^4.1.1",
     "@playwright/test": "^1.58.2",
     "@types/node": "^25.0.10",
     "playwright": "^1.58.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^1.6.0",
+    "vitest": "^4.1.1",
     "yaml": "^2.8.2"
   }
 }

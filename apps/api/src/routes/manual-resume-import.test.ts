@@ -136,10 +136,12 @@ async function expectUnreadablePdfUploadFailure(options: {
   const destroy = vi.fn(async () => undefined);
 
   vi.doMock("pdf-parse", () => ({
-    PDFParse: vi.fn().mockImplementation(() => ({
-      getText: vi.fn(async () => ({ text: options.extractedText })),
-      destroy,
-    })),
+    PDFParse: vi.fn(function MockPdfParse() {
+      return {
+        getText: vi.fn(async () => ({ text: options.extractedText })),
+        destroy,
+      };
+    }),
   }));
 
   const formData = new FormData();
