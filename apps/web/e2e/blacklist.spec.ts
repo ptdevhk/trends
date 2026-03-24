@@ -15,6 +15,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 async function mockBlocksApi(page: Page, initialItems: BlockItem[]) {
   let items = [...initialItems]
+  let listRequestCount = 0
   const patchPayloads: Array<{ identityKey: string; reason?: string }> = []
   const deletedIdentityKeys: string[] = []
 
@@ -24,6 +25,7 @@ async function mockBlocksApi(page: Page, initialItems: BlockItem[]) {
     const url = new URL(request.url())
 
     if (method === 'GET') {
+      listRequestCount += 1
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -88,6 +90,7 @@ async function mockBlocksApi(page: Page, initialItems: BlockItem[]) {
 
   return {
     getItems: () => items,
+    getListRequestCount: () => listRequestCount,
     patchPayloads,
     deletedIdentityKeys,
   }
@@ -95,7 +98,7 @@ async function mockBlocksApi(page: Page, initialItems: BlockItem[]) {
 
 test.describe('Blacklist page', () => {
   test('inline reason edit sends PATCH and updates row', async ({ page }) => {
-    const { patchPayloads } = await mockBlocksApi(page, [
+    const { patchPayloads, getListRequestCount } = await mockBlocksApi(page, [
       {
         _id: 'block-1',
         identityKey: 'candidate-1',
@@ -107,6 +110,9 @@ test.describe('Blacklist page', () => {
     ])
 
     await page.goto('/dev/settings/blocks')
+    await page.waitForLoadState('networkidle')
+    await expect.poll(() => getListRequestCount()).toBeGreaterThan(0)
+    await expect(page.getByTestId('blacklist-page')).toBeVisible()
     const row = page.locator('[data-testid="blacklist-row"][data-identity-key="candidate-1"]')
     await expect(row).toBeVisible()
 
@@ -124,7 +130,7 @@ test.describe('Blacklist page', () => {
   })
 
   test('bulk unblock sends DELETE per selected row and removes rows', async ({ page }) => {
-    const { deletedIdentityKeys, getItems } = await mockBlocksApi(page, [
+    const { deletedIdentityKeys, getItems, getListRequestCount } = await mockBlocksApi(page, [
       {
         _id: 'block-1',
         identityKey: 'candidate-1',
@@ -144,6 +150,9 @@ test.describe('Blacklist page', () => {
     ])
 
     await page.goto('/dev/settings/blocks')
+    await page.waitForLoadState('networkidle')
+    await expect.poll(() => getListRequestCount()).toBeGreaterThan(0)
+    await expect(page.getByTestId('blacklist-page')).toBeVisible()
     await expect(page.locator('[data-testid="blacklist-row"]')).toHaveCount(2)
 
     await page
