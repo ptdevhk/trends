@@ -767,6 +767,15 @@ async function prepareConvexCandidates(params: {
   location?: string;
   limit?: number;
   offset?: number;
+  filters?: {
+    minExperience?: number;
+    maxExperience?: number;
+    education?: string[];
+    skills?: string[];
+    locations?: string[];
+    minSalary?: number;
+    maxSalary?: number;
+  };
   jobDescriptionId?: string;
   paged?: boolean;
 }): Promise<{
@@ -820,6 +829,7 @@ async function prepareConvexCandidates(params: {
       })),
       limit: params.limit,
       ...(params.paged ? { offset: params.offset } : {}),
+      ...(params.paged && params.filters ? params.filters : {}),
       jobDescriptionId: params.jobDescriptionId,
     });
 
@@ -856,6 +866,7 @@ async function prepareConvexCandidates(params: {
   const value = await callConvexQuery(params.paged ? "resumes:listWithIngestDataPage" : "resumes:listWithIngestData", {
     limit: params.limit,
     ...(params.paged ? { offset: params.offset } : {}),
+    ...(params.paged && params.filters ? params.filters : {}),
     jobDescriptionId: params.jobDescriptionId,
   });
   const items = params.paged && isRecord(value) && Array.isArray(value.results)
@@ -892,24 +903,6 @@ function resolveConvexResumeFetchLimit(limit: number | undefined, offset: number
 
   const pageSize = typeof limit === "number" ? limit : DEFAULT_CONVEX_RESUME_PAGE_SIZE;
   return offset + pageSize;
-}
-
-function hasResumeListFilters(params: {
-  minExperience?: number;
-  maxExperience?: number;
-  education?: string[];
-  skills?: string[];
-  locations?: string[];
-  minSalary?: number;
-  maxSalary?: number;
-}): boolean {
-  return params.minExperience !== undefined
-    || params.maxExperience !== undefined
-    || (params.education?.length ?? 0) > 0
-    || (params.skills?.length ?? 0) > 0
-    || (params.locations?.length ?? 0) > 0
-    || params.minSalary !== undefined
-    || params.maxSalary !== undefined;
 }
 
 function toExportResumePayload(resume: ResumeItem): ExportResumePayload {
@@ -1437,22 +1430,24 @@ app.openapi(getResumesRoute, (c) => {
     if (source === "convex") {
       return (async () => {
         const resolvedJobId = jobDescriptionId?.trim() || undefined;
-        const hasLocalResumeFilters = hasResumeListFilters({
-          minExperience,
-          maxExperience,
-          education,
-          skills,
-          locations,
-          minSalary,
-          maxSalary,
-        });
         const hasLocalMatchFilters = minMatchScore !== undefined || (recommendation?.length ?? 0) > 0;
-        const canUseSourcePagination = !hasLocalResumeFilters && !hasLocalMatchFilters && !sortBy;
+        const canUseSourcePagination = !hasLocalMatchFilters && !sortBy;
         const convexFetchLimit = canUseSourcePagination ? limit : resolveConvexResumeFetchLimit(limit, offset);
         const { prepared, keywordExpansion: liveExpansion, total: convexTotal } = await prepareConvexCandidates({
           keywords: keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [],
           limit: convexFetchLimit,
           offset: canUseSourcePagination ? offset : undefined,
+          filters: canUseSourcePagination
+            ? {
+                minExperience,
+                maxExperience,
+                education,
+                skills,
+                locations,
+                minSalary,
+                maxSalary,
+              }
+            : undefined,
           jobDescriptionId: resolvedJobId,
           paged: canUseSourcePagination,
         });

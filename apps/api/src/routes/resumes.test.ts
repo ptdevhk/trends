@@ -355,7 +355,40 @@ describe("resume routes", () => {
     }));
   });
 
-  it("falls back to overfetch when local filters must run before paging", async () => {
+  it("keeps source pagination when resume filters are pushed into the convex page query", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:listWithIngestDataPage") {
+        return convexSuccess({
+          results: [
+            buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
+            buildConvexResumeRecord("resume-live-4", { name: "Dylan" }),
+          ],
+          total: 2,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&locations=%E4%B8%9C%E8%8E%9E");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:listWithIngestDataPage",
+      args: expect.objectContaining({ limit: 2, offset: 2, locations: ["东莞"] }),
+    }));
+  });
+
+  it("falls back to overfetch when local sorting must run before paging", async () => {
     const calls: ConvexCall[] = [];
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -375,12 +408,11 @@ describe("resume routes", () => {
     });
 
     const app = createApp();
-    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&locations=%E4%B8%9C%E8%8E%9E");
+    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&sortBy=experience");
 
     expect(response.status).toBe(200);
     const payload = await response.json();
     expect(payload.success).toBe(true);
-    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
       pathName: "resumes:listWithIngestData",
       args: expect.objectContaining({ limit: 4 }),
