@@ -1301,6 +1301,39 @@ export const listWithIngestData = query({
     },
 });
 
+export const getSummaryWindow = query({
+    args: {
+        fromTimestamp: v.number(),
+        toTimestamp: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const rows = await ctx.db
+            .query("resumes")
+            .withIndex("by_crawledAt", (q) =>
+                q.gte("crawledAt", args.fromTimestamp).lt("crawledAt", args.toTimestamp)
+            )
+            .collect();
+
+        const bySource = new Map<string, number>();
+        for (const row of rows) {
+            const sourceKey = row.source.trim() || "unknown";
+            bySource.set(sourceKey, (bySource.get(sourceKey) ?? 0) + 1);
+        }
+
+        return {
+            total: rows.length,
+            bySource: Array.from(bySource.entries())
+                .map(([key, count]) => ({ key, count }))
+                .sort((left, right) => {
+                    if (right.count !== left.count) {
+                        return right.count - left.count;
+                    }
+                    return left.key.localeCompare(right.key);
+                }),
+        };
+    },
+});
+
 export const listWithIngestDataPage = query({
     args: {
         limit: v.optional(v.number()),

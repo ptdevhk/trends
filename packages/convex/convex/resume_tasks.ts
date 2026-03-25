@@ -640,6 +640,38 @@ export const getSummary = query({
     },
 });
 
+export const getSummaryWindow = query({
+    args: {
+        fromTimestamp: v.number(),
+        toTimestamp: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const tasks = await ctx.db.query("collection_tasks").collect();
+        const matching = tasks.filter((task) =>
+            typeof task.completedAt === "number"
+            && task.completedAt >= args.fromTimestamp
+            && task.completedAt < args.toTimestamp
+        );
+
+        const byStatus = new Map<string, number>();
+        for (const task of matching) {
+            byStatus.set(task.status, (byStatus.get(task.status) ?? 0) + 1);
+        }
+
+        return {
+            total: matching.length,
+            byStatus: Array.from(byStatus.entries())
+                .map(([key, count]) => ({ key, count }))
+                .sort((left, right) => {
+                    if (right.count !== left.count) {
+                        return right.count - left.count;
+                    }
+                    return left.key.localeCompare(right.key);
+                }),
+        };
+    },
+});
+
 const RESET_TABLES = [
     "collection_tasks",
     "resumes",

@@ -24,6 +24,7 @@ import {
   configRoutes,
   notificationRoutes,
   workerRoutes,
+  summariesRoutes,
 } from "./routes/index.js";
 import { config } from "./services/config.js";
 import { workspaceMiddleware } from "./middleware/workspace.js";
@@ -53,6 +54,7 @@ export const openApiConfig = {
     { name: "Scoring Evaluation", description: "Scoring quality analysis, auto-tuning, and rollback" },
     { name: "Filter Presets", description: "Filter preset management" },
     { name: "Config", description: "Runtime configuration management" },
+    { name: "Summaries", description: "Workspace summary previews and delivery" },
   ],
 };
 
@@ -93,6 +95,7 @@ export function createApp() {
   app.route("/api/filter-presets", filterPresetsRoutes);
   app.route("/api/config", configRoutes);
   app.route("/api/notifications", notificationRoutes);
+  app.route("/api/summaries", summariesRoutes);
 
   // OpenAPI documentation endpoint
   app.doc("/doc", openApiConfig);
@@ -133,6 +136,7 @@ export function createApp() {
         search_analytics: "/api/search-analytics",
         scoring_evaluation: "/api/scoring-evaluation/report",
         config: "/api/config",
+        summaries: "/api/summaries/preview",
       },
     });
   });
