@@ -22,7 +22,7 @@
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: seed-matches clear-matches verify-critical-path verify-workflow-dataset benchmark-critical-path benchmark-critical-path-seeded benchmark-parallelism-matrix benchmark-dev-resume-latency
+.PHONY: seed-matches clear-matches verify-critical-path verify-workflow-dataset benchmark-critical-path benchmark-critical-path-seeded benchmark-parallelism-matrix benchmark-dev-resume-latency verify-dev-resume-latency
 
 # =============================================================================
 # Development (Full Experience)
@@ -852,6 +852,20 @@ benchmark-dev-resume-latency:
 		npx tsx scripts/benchmark-dev-resume-latency.ts $(ARGS); \
 	fi
 
+# Run the local /dev/resumes regression gate against the latest prior artifact
+verify-dev-resume-latency:
+	@$(MAKE) benchmark-dev-resume-latency \
+		URL="$(or $(URL),http://127.0.0.1:5173/dev/resumes)" \
+		RUNS="$(or $(RUNS),1)" \
+		WARMUP="$(or $(WARMUP),1)" \
+		TIMEOUT_MS="$(or $(TIMEOUT_MS),30000)" \
+		REFRESH="$(if $(filter undefined,$(origin REFRESH)),true,$(REFRESH))" \
+		BASELINE="$(or $(BASELINE),latest)" \
+		STRICT="$(if $(filter undefined,$(origin STRICT)),true,$(STRICT))" \
+		JSON="$(JSON)" \
+		OUT="$(OUT)" \
+		ARGS="$(ARGS)"
+
 # Refresh resume sample data automatically via CDP
 refresh-sample:
 	@KEYWORD="$(or $(KEYWORD),销售)" SAMPLE="$(or $(SAMPLE),sample-initial)" \
@@ -1140,6 +1154,7 @@ help:
 	@echo "  benchmark-critical-path-seeded Run seeded-only benchmark profile"
 	@echo "  benchmark-parallelism-matrix Run AI/submit parallelism benchmark matrix"
 	@echo "  benchmark-dev-resume-latency Measure local /dev/resumes before/after make dev-convex-refresh"
+	@echo "  verify-dev-resume-latency Run strict local /dev/resumes regression gate against latest artifact"
 	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
 	@echo "  chrome-debug   Start Google Chrome with remote debugging (port 9222)"
