@@ -72,7 +72,11 @@ sources:
     priority: 2
 
 # ============================================================
-# NOTIFICATION SETTINGS
+# NOTIFICATION METADATA
+# Current runtime note:
+# - apps/worker/profile_loader.py does not execute this block today
+# - apps/worker/scheduler.py only schedules crawl jobs from profile YAML
+# - keep summary delivery on the dedicated summary pipeline for now
 # ============================================================
 
 notifications:
@@ -91,23 +95,6 @@ notifications:
         - hr@company.com
         - manager@company.com
   
-  triggers:
-    # Notify immediately when high-match candidate found (score >= 80)
-    - event: new_high_match
-      threshold: 80
-      channels: [wechat_work]
-      
-    # Daily summary at 6:00 PM
-    - event: daily_summary
-      time: "18:00"
-      channels: [email]
-      
-    # Weekly report on Friday
-    - event: weekly_report
-      day: friday
-      time: "17:00"
-      channels: [email]
-
 # ============================================================
 # OPTIONAL AI REVIEW SETTINGS
 # ============================================================
