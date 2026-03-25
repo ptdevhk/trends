@@ -398,7 +398,26 @@ describe("summary preview route", () => {
 
     const sendSpy = vi.spyOn(summaryTelegramBridge, "send").mockResolvedValue({
       ok: true,
+      channel: "telegram",
+      accountsConfigured: 1,
+      accountsSelected: 1,
+      accountsAttempted: 1,
       accountsSent: 1,
+      batchCountPerAccount: 2,
+      totalBatches: 2,
+      batchSizes: [3800, 240],
+      maxBytesPerBatch: 4000,
+      usedOverrideBotToken: false,
+      usedOverrideChatId: false,
+      accounts: [
+        {
+          index: 1,
+          chatIdHint: "***1234",
+          attempted: true,
+          sent: true,
+          batchesPlanned: 2,
+        },
+      ],
     });
 
     const app = createApp();
@@ -420,7 +439,41 @@ describe("summary preview route", () => {
       success: boolean;
       channel: string;
       dryRun: boolean;
-      delivery: { ok: boolean; accountsSent: number };
+      delivery: {
+        ok: boolean;
+        channel: string;
+        accountsConfigured: number;
+        accountsSelected: number;
+        accountsAttempted: number;
+        accountsSent: number;
+        batchCountPerAccount: number;
+        totalBatches: number;
+        batchSizes: number[];
+        maxBytesPerBatch: number;
+        usedOverrideBotToken: boolean;
+        usedOverrideChatId: boolean;
+        accounts: Array<{
+          index: number;
+          chatIdHint: string;
+          attempted: boolean;
+          sent: boolean;
+          batchesPlanned: number;
+        }>;
+      };
+      report: {
+        scopes?: {
+          sharedIngest: {
+            totals: {
+              newResumes: number;
+            };
+          };
+          workspaceActivity: {
+            totals: {
+              contactActions: number;
+            };
+          };
+        };
+      };
       run: {
         status: string;
         triggerSource: string;
@@ -430,7 +483,29 @@ describe("summary preview route", () => {
     expect(payload.success).toBe(true);
     expect(payload.channel).toBe("telegram");
     expect(payload.dryRun).toBe(false);
-    expect(payload.delivery).toEqual({ ok: true, accountsSent: 1 });
+    expect(payload.delivery).toEqual({
+      ok: true,
+      channel: "telegram",
+      accountsConfigured: 1,
+      accountsSelected: 1,
+      accountsAttempted: 1,
+      accountsSent: 1,
+      batchCountPerAccount: 2,
+      totalBatches: 2,
+      batchSizes: [3800, 240],
+      maxBytesPerBatch: 4000,
+      usedOverrideBotToken: false,
+      usedOverrideChatId: false,
+      accounts: [
+        {
+          index: 1,
+          chatIdHint: "***1234",
+          attempted: true,
+          sent: true,
+          batchesPlanned: 2,
+        },
+      ],
+    });
     expect(payload.report.scopes?.sharedIngest.totals.newResumes).toBe(2);
     expect(payload.report.scopes?.workspaceActivity.totals.contactActions).toBe(1);
     expect(payload.run).toMatchObject({

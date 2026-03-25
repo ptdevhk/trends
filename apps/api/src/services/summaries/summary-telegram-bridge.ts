@@ -9,9 +9,29 @@ export type SummaryTelegramBridgeRequest = {
   chatId?: string;
 };
 
+export type SummaryTelegramDeliveryAccount = {
+  index: number;
+  chatIdHint: string;
+  attempted: boolean;
+  sent: boolean;
+  batchesPlanned: number;
+  skippedReason?: string;
+};
+
 export type SummaryTelegramBridgeResult = {
   ok: boolean;
+  channel: "telegram";
+  accountsConfigured: number;
+  accountsSelected: number;
+  accountsAttempted: number;
   accountsSent: number;
+  batchCountPerAccount: number;
+  totalBatches: number;
+  batchSizes: number[];
+  maxBytesPerBatch: number;
+  usedOverrideBotToken: boolean;
+  usedOverrideChatId: boolean;
+  accounts: SummaryTelegramDeliveryAccount[];
 };
 
 type SummaryTelegramBridgeDependencies = {

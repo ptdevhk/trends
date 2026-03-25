@@ -13,16 +13,22 @@ from trendradar.core.config import (
     parse_multi_account_config,
     validate_paired_configs,
 )
-from trendradar.notification.batch import truncate_to_bytes
+from trendradar.notification.batch import (
+    add_batch_headers,
+    get_max_batch_header_size,
+    truncate_to_bytes,
+)
 from trendradar.notification.senders import send_to_telegram
+
+TELEGRAM_BATCH_BYTES = 4000
 
 
 def split_rendered_content(content: str, max_bytes: int) -> List[str]:
     normalized = content.replace("\r\n", "\n").strip()
     if not normalized:
-      return [""]
+        return [""]
     if len(normalized.encode("utf-8")) <= max_bytes:
-      return [normalized]
+        return [normalized]
 
     batches: List[str] = []
     current = ""
@@ -51,6 +57,13 @@ def split_rendered_content(content: str, max_bytes: int) -> List[str]:
     return batches or [normalized]
 
 
+def plan_telegram_batches(content: str, max_bytes: int = TELEGRAM_BATCH_BYTES) -> List[str]:
+    escaped_content = html.escape(content)
+    header_reserve = get_max_batch_header_size("telegram")
+    batches = split_rendered_content(escaped_content, max_bytes - header_reserve)
+    return add_batch_headers(batches, "telegram", max_bytes)
+
+
 def build_splitter(content: str):
     escaped_content = html.escape(content)
 
@@ -58,6 +71,14 @@ def build_splitter(content: str):
         return split_rendered_content(escaped_content, max_bytes)
 
     return split_content_func
+
+
+def mask_chat_id(chat_id: str) -> str:
+    normalized = str(chat_id or "").strip()
+    if not normalized:
+        return "(missing)"
+    suffix = normalized[-4:] if len(normalized) > 4 else normalized
+    return f"***{suffix}"
 
 
 def main() -> int:
@@ -87,12 +108,29 @@ def main() -> int:
         tokens = limit_accounts(tokens, max_accounts, "Telegram")
         chat_ids = chat_ids[: len(tokens)]
         split_content_func = build_splitter(content)
+        planned_batches = plan_telegram_batches(content)
+        batch_count_per_account = len(planned_batches)
+        batch_sizes = [len(batch.encode("utf-8")) for batch in planned_batches]
 
         sent = 0
+        attempted = 0
+        account_entries = []
         for index, token in enumerate(tokens):
             chat_id = chat_ids[index] if index < len(chat_ids) else ""
-            if not token or not chat_id:
+            attempted_account = bool(token and chat_id)
+            account_entry = {
+                "index": index + 1,
+                "chatIdHint": mask_chat_id(chat_id),
+                "attempted": attempted_account,
+                "sent": False,
+                "batchesPlanned": batch_count_per_account if attempted_account else 0,
+            }
+            if not attempted_account:
+                account_entry["skippedReason"] = "missing token or chat_id"
+                account_entries.append(account_entry)
                 continue
+
+            attempted += 1
             ok = send_to_telegram(
                 bot_token=token,
                 chat_id=chat_id,
@@ -102,11 +140,30 @@ def main() -> int:
             )
             if ok:
                 sent += 1
+                account_entry["sent"] = True
+            account_entries.append(account_entry)
 
     if sent <= 0:
         raise RuntimeError("Telegram summary delivery failed")
 
-    json.dump({"ok": True, "accountsSent": sent}, sys.stdout)
+    json.dump(
+        {
+            "ok": True,
+            "channel": "telegram",
+            "accountsConfigured": count,
+            "accountsSelected": len(tokens),
+            "accountsAttempted": attempted,
+            "accountsSent": sent,
+            "batchCountPerAccount": batch_count_per_account,
+            "totalBatches": batch_count_per_account * attempted,
+            "batchSizes": batch_sizes,
+            "maxBytesPerBatch": TELEGRAM_BATCH_BYTES,
+            "usedOverrideBotToken": bool(payload.get("botToken")),
+            "usedOverrideChatId": bool(payload.get("chatId")),
+            "accounts": account_entries,
+        },
+        sys.stdout,
+    )
     return 0
 
 
