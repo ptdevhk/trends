@@ -26,7 +26,6 @@
     "test": "vitest run",
     "test:extension:keyword-mode": "tsx scripts/test-extension-keyword-mode.ts",
     "test:api:search-profiles": "vitest run apps/api/src/routes/search-profiles.test.ts",
-    "test:worker:resume-tasks": "uv run pytest tests/test_resume_tasks.py -q",
     "test:e2e:collect-url": "tsx scripts/e2e-smoke.ts --collect-only",
     "test:e2e:live-job5156-detail": "tsx scripts/e2e-smoke.ts --live-job5156-detail https://hr.job5156.com/resume/view/987654",
     "test:e2e:live-seek-my": "tsx scripts/e2e-smoke.ts --live-seek-my-recommended https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
