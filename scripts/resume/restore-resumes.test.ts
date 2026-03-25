@@ -107,7 +107,7 @@ describe("restore-resumes", () => {
     expect(summary.files.map((entry) => entry.count)).toEqual([20, 20, 20]);
   });
 
-  it("resets once before importing the whole directory in replace mode", async () => {
+  it("resets until the API reports the workspace is fully cleared before importing", async () => {
     const dir = await createTempDir();
     tempDirs.push(dir);
 
@@ -123,6 +123,7 @@ describe("restore-resumes", () => {
     });
 
     const requests: string[] = [];
+    let resetCalls = 0;
     const summary = await runRestoreResumes(
       {
         apiUrl: "http://localhost:3000",
@@ -134,12 +135,34 @@ describe("restore-resumes", () => {
       {
         fetch: vi.fn(async (input) => {
           const url = typeof input === "string" ? input : input.toString();
-          requests.push(new URL(url).pathname);
+          const pathName = new URL(url).pathname;
+          requests.push(pathName);
+          if (pathName === "/api/resumes/reset") {
+            resetCalls += 1;
+          }
           return new Response(
             JSON.stringify({
               success: true,
-              submitted: 20,
-              count: 40,
+              ...(pathName === "/api/resumes/reset"
+                ? resetCalls === 1
+                  ? {
+                      count: 200,
+                      partial: true,
+                      deleted: {
+                        resumes: 200,
+                      },
+                    }
+                  : {
+                      count: 12,
+                      partial: false,
+                      deleted: {
+                        resumes: 12,
+                        analysis_tasks: 5,
+                      },
+                    }
+                : {
+                    submitted: 20,
+                  }),
             }),
             {
               status: 200,
@@ -152,10 +175,20 @@ describe("restore-resumes", () => {
 
     expect(requests).toEqual([
       "/api/resumes/reset",
+      "/api/resumes/reset",
       "/api/resumes/import",
       "/api/resumes/import",
     ]);
     expect(summary.reset).toBe(true);
+    expect(summary.resetResult).toEqual({
+      success: true,
+      count: 212,
+      partial: false,
+      deleted: {
+        resumes: 212,
+        analysis_tasks: 5,
+      },
+    });
     expect(summary.files).toHaveLength(2);
   });
 

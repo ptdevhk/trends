@@ -166,7 +166,7 @@ func TestResumeDeployBackupWriteCreatesRunDirAndWorkspaceFile(t *testing.T) {
 	}
 }
 
-func TestResumeRestoreCommandReplaceModeCallsResetThenImport(t *testing.T) {
+func TestResumeRestoreCommandReplaceModeResetsUntilCompleteBeforeImport(t *testing.T) {
 	backupFile := filepath.Join(t.TempDir(), "resume-backup.tar.gz")
 	writeTestPortableBackupFile(t, backupFile, map[string]any{
 		"metadata": map[string]any{
@@ -182,11 +182,22 @@ func TestResumeRestoreCommandReplaceModeCallsResetThenImport(t *testing.T) {
 	})
 
 	var callOrder []string
+	resetCalls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callOrder = append(callOrder, r.URL.Path)
 
 		switch r.URL.Path {
 		case "/api/resumes/reset":
+			resetCalls += 1
+			if resetCalls == 1 {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"success": true,
+					"count":   200,
+					"partial": true,
+					"deleted": map[string]int{"resumes": 200},
+				})
+				return
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"success": true,
 				"count":   1,
@@ -232,11 +243,17 @@ func TestResumeRestoreCommandReplaceModeCallsResetThenImport(t *testing.T) {
 		t.Fatalf("resume restore command failed: %v", err)
 	}
 
-	if len(callOrder) != 2 || callOrder[0] != "/api/resumes/reset" || callOrder[1] != "/api/resumes/import" {
+	if len(callOrder) != 3 || callOrder[0] != "/api/resumes/reset" || callOrder[1] != "/api/resumes/reset" || callOrder[2] != "/api/resumes/import" {
 		t.Fatalf("unexpected call order: %+v", callOrder)
 	}
 	if !strings.Contains(output.String(), `"mode": "replace"`) {
 		t.Fatalf("unexpected command output: %s", output.String())
+	}
+	if !strings.Contains(output.String(), `"resetCount": 201`) {
+		t.Fatalf("unexpected reset count in output: %s", output.String())
+	}
+	if !strings.Contains(output.String(), `"resetPartial": false`) {
+		t.Fatalf("unexpected reset partial state in output: %s", output.String())
 	}
 }
 

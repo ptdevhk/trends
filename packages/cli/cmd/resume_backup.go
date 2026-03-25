@@ -496,6 +496,22 @@ func resolveResumeRestorePaths(inputPath string) ([]string, error) {
 	return files, nil
 }
 
+func resetResumesFully(ctx context.Context, apiClient *client.Client) (int, error) {
+	totalResetCount := 0
+
+	for {
+		resetResponse, err := apiClient.ResetResumes(ctx)
+		if err != nil {
+			return 0, err
+		}
+
+		totalResetCount += resetResponse.Count
+		if !resetResponse.Partial {
+			return totalResetCount, nil
+		}
+	}
+}
+
 func restoreResumeBackupPath(ctx context.Context, apiClient *client.Client, inputPath string, mode string, yes bool) (*resumeRestoreResult, error) {
 	normalizedMode, err := normalizeResumeRestoreMode(mode)
 	if err != nil {
@@ -513,12 +529,10 @@ func restoreResumeBackupPath(ctx context.Context, apiClient *client.Client, inpu
 	resetCount := 0
 	resetPartial := false
 	if normalizedMode == "replace" {
-		resetResponse, err := apiClient.ResetResumes(ctx)
+		resetCount, err = resetResumesFully(ctx, apiClient)
 		if err != nil {
 			return nil, err
 		}
-		resetCount = resetResponse.Count
-		resetPartial = resetResponse.Partial
 	}
 
 	result := &resumeRestoreResult{
