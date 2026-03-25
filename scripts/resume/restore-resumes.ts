@@ -27,6 +27,13 @@ type RestoreFileSummary = {
   importResult: Record<string, unknown>;
 };
 
+type RestoreResetSummary = {
+  success: true;
+  count: number;
+  partial: boolean;
+  deleted: Record<string, number>;
+};
+
 export type RestoreRunSummary = {
   success: true;
   apiUrl: string;
@@ -185,6 +192,55 @@ async function parseJsonRecord(
   return decoded;
 }
 
+function readResetCount(result: Record<string, unknown>): number {
+  const count = result.count;
+  return typeof count === "number" && Number.isFinite(count) ? count : 0;
+}
+
+function mergeDeletedCounts(target: Record<string, number>, deleted: unknown): void {
+  if (!isRecord(deleted)) {
+    return;
+  }
+
+  for (const [key, value] of Object.entries(deleted)) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      continue;
+    }
+    target[key] = (target[key] ?? 0) + value;
+  }
+}
+
+async function resetResumesFully(
+  apiUrl: string,
+  workspace: string,
+  runtime: RestoreRuntime,
+): Promise<RestoreResetSummary> {
+  let totalCount = 0;
+  const deleted: Record<string, number> = {};
+
+  while (true) {
+    const resetResponse = await postJson(
+      apiUrl,
+      workspace,
+      "/api/resumes/reset",
+      {},
+      runtime,
+    );
+    const resetResult = await parseJsonRecord(resetResponse, "reset request failed");
+    totalCount += readResetCount(resetResult);
+    mergeDeletedCounts(deleted, resetResult.deleted);
+
+    if (resetResult.partial !== true) {
+      return {
+        success: true,
+        count: totalCount,
+        partial: false,
+        deleted,
+      };
+    }
+  }
+}
+
 export async function runRestoreResumes(
   params: {
     apiUrl: string;
@@ -203,14 +259,11 @@ export async function runRestoreResumes(
 
   let resetResult: Record<string, unknown> | undefined;
   if (params.mode === "replace") {
-    const resetResponse = await postJson(
+    resetResult = await resetResumesFully(
       params.apiUrl,
       params.workspace,
-      "/api/resumes/reset",
-      {},
       runtime,
     );
-    resetResult = await parseJsonRecord(resetResponse, "reset request failed");
   }
 
   const files: RestoreFileSummary[] = [];
