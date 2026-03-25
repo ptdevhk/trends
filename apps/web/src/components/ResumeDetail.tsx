@@ -24,6 +24,7 @@ interface ResumeDetailProps {
   matchResult?: MatchingResult
   open: boolean
   onOpenChange: (open: boolean) => void
+  loading?: boolean
   aiScoreFeedback?: AiFeedbackSentiment
   aiSummaryFeedback?: AiFeedbackSentiment
   onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
@@ -48,7 +49,16 @@ function matchesStructuredWorkEntry(
   return Boolean(companyMatches || titleMatches)
 }
 
-export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreFeedback, aiSummaryFeedback, onAiFeedback }: ResumeDetailProps) {
+export function ResumeDetail({
+  resume,
+  matchResult,
+  open,
+  onOpenChange,
+  loading = false,
+  aiScoreFeedback,
+  aiSummaryFeedback,
+  onAiFeedback,
+}: ResumeDetailProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const [isInfoExpanded, setIsInfoExpanded] = useState(false)
@@ -130,6 +140,11 @@ export function ResumeDetail({ resume, matchResult, open, onOpenChange, aiScoreF
         <div className="grid gap-4">
           <div className="text-sm relative">
             <div className="mb-2 flex flex-wrap items-center gap-2">
+              {loading ? (
+                <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700 text-[10px]">
+                  {t('common.loading', 'Loading')}...
+                </Badge>
+              ) : null}
               {sourceLabel ? (
                 <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 text-[10px]">
                   {sourceLabel}

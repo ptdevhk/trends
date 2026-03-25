@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { RefreshCw, FileText, AlertTriangle, History, Upload } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import type { ResumeItem } from '@/hooks/useResumes'
-import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import { useConvexResumeDetail, type ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { ResumeCard, ResumeCardSkeleton } from '@/components/ResumeCard'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -39,9 +39,14 @@ const ManualResumeImportDialog = lazy(async () => {
   return { default: module.ManualResumeImportDialog }
 })
 
+function isConvexResumeEntry(resume: ResumeItem | ConvexResumeItem): resume is ConvexResumeItem {
+  return 'source' in resume && 'crawledAt' in resume
+}
+
 export function ResumeList() {
   const { t } = useTranslation()
   const [historyRequested, setHistoryRequested] = useState(false)
+  const [hasCompletedInitialListLoad, setHasCompletedInitialListLoad] = useState(false)
   const {
     sessionLocation,
     sessionKeywords,
@@ -96,11 +101,19 @@ export function ResumeList() {
     handleAiFeedback,
     getAiFeedback,
   } = useResumeListState(historyRequested)
-  useSyncNotifications()
+  useEffect(() => {
+    if (!activeLoading) {
+      setHasCompletedInitialListLoad(true)
+    }
+  }, [activeLoading])
+
+  const backgroundEnhancementsEnabled = hasCompletedInitialListLoad
+  useSyncNotifications(backgroundEnhancementsEnabled)
   const { slug: workspaceSlug } = useWorkspace()
-  const { resolve: brandDisplayResolve } = useBrandDisplayMap()
+  const { resolve: brandDisplayResolve } = useBrandDisplayMap(backgroundEnhancementsEnabled)
 
   const [detailResume, setDetailResume] = useState<ResumeItem | ConvexResumeItem | null>(null)
+  const [detailResumeId, setDetailResumeId] = useState<ConvexResumeItem['resumeId'] | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [manualImportOpen, setManualImportOpen] = useState(false)
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -116,6 +129,8 @@ export function ResumeList() {
     if (!detailKey) return undefined
     return displayedResumes.find((entry) => entry.key === detailKey)?.match
   }, [detailKey, displayedResumes])
+  const { resume: detailResumeFromConvex, loading: detailResumeLoading } = useConvexResumeDetail(detailResumeId)
+  const resolvedDetailResume = detailResumeFromConvex ?? detailResume
   const shouldVirtualize = displayedResumes.length > 40
   const rowVirtualizer = useWindowVirtualizer({
     count: displayedResumes.length,
@@ -206,6 +221,7 @@ export function ResumeList() {
         onViewDetails={() => {
           void loadResumeDetail()
           setDetailResume(entry.resume)
+          setDetailResumeId(isConvexResumeEntry(entry.resume) ? entry.resume.resumeId : null)
           trackReviewedResume(entry.key)
         }}
         selected={selectedIds.has(entry.key)}
@@ -443,14 +459,16 @@ export function ResumeList() {
       {detailResume ? (
         <Suspense fallback={null}>
           <ResumeDetail
-            resume={detailResume}
+            resume={resolvedDetailResume}
             matchResult={detailMatch}
             open={Boolean(detailResume)}
             onOpenChange={(open) => {
               if (!open) {
                 setDetailResume(null)
+                setDetailResumeId(null)
               }
             }}
+            loading={detailResumeLoading}
             aiScoreFeedback={detailKey ? getAiFeedback(detailKey, 'ai_score') : undefined}
             aiSummaryFeedback={detailKey ? getAiFeedback(detailKey, 'ai_summary') : undefined}
             onAiFeedback={detailKey ? (target, sentiment) => handleAiFeedback(detailKey, target, sentiment) : undefined}

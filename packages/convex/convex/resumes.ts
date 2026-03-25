@@ -189,6 +189,53 @@ type ResumeBackupFilterSets = {
     sourceHosts?: Set<string>;
 };
 
+type ResumeListProjectedDoc = {
+    _id: Doc<"resumes">["_id"];
+    externalId: string;
+    identityKey?: string;
+    age?: number;
+    content: Record<string, unknown>;
+    crawledAt: number;
+    source: string;
+    tags: string[];
+    analysis?: Doc<"resumes">["analysis"];
+    analyses?: Doc<"resumes">["analyses"];
+    primaryRuleScore?: number;
+    ingestData?: {
+        industryTags: string[];
+        brandHits?: Array<{
+            brand: string;
+            role: string;
+            source: string;
+            context: string;
+        }>;
+        companyHits?: string[];
+        industryDbV2Raw?: number;
+        roleSignals?: Array<{
+            type: string;
+            matchedSignals: string[];
+            signalCount: number;
+            occurrences: number;
+            years: number;
+            industryVerifiedYears?: number;
+            roleRelevantYears?: number;
+            industryVerifiedRelevantYears?: number;
+            matchedWorkEntries?: Array<{
+                companyName?: string;
+                jobTitle?: string;
+                years: number;
+                industryVerified: boolean;
+                matchedSignals: string[];
+            }>;
+            verifyIn: string;
+        }>;
+        ruleScores: unknown;
+        experienceLevel: string;
+        computedAt: number;
+        skillsVersion: number;
+    };
+};
+
 type ResumeListFilterArgs = {
     minExperience?: number;
     maxExperience?: number;
@@ -342,6 +389,158 @@ export function resolveListWithIngestWindow(requestedLimit: number | undefined):
     return {
         limit,
         overfetchLimit: Math.min(Math.max(limit * 3, limit), MAX_SAFE_LIST_WITH_INGEST_OVERFETCH),
+    };
+}
+
+function projectResumeBaseContent(
+    resume: Doc<"resumes">,
+    workHistory: unknown,
+): Record<string, unknown> {
+    const content = isRecord(resume.content) ? resume.content : {};
+    const locationHierarchy = normalizeResumeLocationHierarchy(content);
+    const name = toOptionalStringValue(content.name);
+    const profileUrl = toOptionalStringValue(content.profileUrl)
+        ?? toOptionalStringValue(content.profile_url)
+        ?? toOptionalStringValue(content.profileURL)
+        ?? toOptionalStringValue(content.url);
+    const activityStatus = toOptionalStringValue(content.activityStatus);
+    const age = toOptionalStringValue(content.age);
+    const experience = toOptionalStringValue(content.experience);
+    const education = toOptionalStringValue(content.education);
+    const location = toOptionalStringValue(content.location);
+    const selfIntro = toOptionalStringValue(content.selfIntro);
+    const jobIntention = toOptionalStringValue(content.jobIntention);
+    const expectedSalary = toOptionalStringValue(content.expectedSalary);
+    const extractedAt = toOptionalStringValue(content.extractedAt);
+    const resumeId = toOptionalStringValue(content.resumeId);
+    const perUserId = toOptionalStringValue(content.perUserId);
+    const profileId = toOptionalStringValue(content.profileId);
+    const profileType = toOptionalStringValue(content.profileType);
+
+    return {
+        ...(name ? { name } : {}),
+        ...(profileUrl ? { profileUrl } : {}),
+        ...(activityStatus ? { activityStatus } : {}),
+        ...(age ? { age } : {}),
+        ...(experience ? { experience } : {}),
+        ...(education ? { education } : {}),
+        ...(location ? { location } : {}),
+        ...(locationHierarchy ? { locationHierarchy } : {}),
+        ...(selfIntro ? { selfIntro } : {}),
+        ...(jobIntention ? { jobIntention } : {}),
+        ...(expectedSalary ? { expectedSalary } : {}),
+        ...(Array.isArray(workHistory) && workHistory.length > 0 ? { workHistory } : {}),
+        ...(extractedAt ? { extractedAt } : {}),
+        ...(resumeId ? { resumeId } : {}),
+        ...(perUserId ? { perUserId } : {}),
+        ...(profileId ? { profileId } : {}),
+        ...(profileType ? { profileType } : {}),
+        externalId: resume.externalId,
+    };
+}
+
+function projectResumeListWorkHistory(workHistory: unknown): Array<Record<string, string>> {
+    return selectLatestWorkHistory(workHistory).map((entry) => {
+        const projected = {
+            ...(entry.companyName ? { companyName: entry.companyName } : {}),
+            ...(entry.jobTitle ? { jobTitle: entry.jobTitle } : {}),
+            ...(entry.startDate ? { startDate: entry.startDate } : {}),
+            ...(entry.endDate ? { endDate: entry.endDate } : {}),
+        };
+
+        if (Object.keys(projected).length > 0) {
+            return projected;
+        }
+
+        return entry.raw ? { raw: entry.raw.slice(0, 160) } : {};
+    });
+}
+
+function projectResumeListContent(resume: Doc<"resumes">): Record<string, unknown> {
+    const content = isRecord(resume.content) ? resume.content : {};
+    return projectResumeBaseContent(resume, projectResumeListWorkHistory(content.workHistory));
+}
+
+function projectResumeDetailContent(resume: Doc<"resumes">): Record<string, unknown> {
+    const content = isRecord(resume.content) ? resume.content : {};
+    const workHistory = Array.isArray(content.workHistory) ? content.workHistory : [];
+    return projectResumeBaseContent(resume, workHistory);
+}
+
+function projectResumeListIngestData(
+    ingestData: Doc<"resumes">["ingestData"],
+): ResumeListProjectedDoc["ingestData"] {
+    if (!ingestData) {
+        return undefined;
+    }
+
+    return {
+        industryTags: ingestData.industryTags,
+        ...(ingestData.brandHits
+            ? {
+                brandHits: ingestData.brandHits.map((hit) => ({
+                    brand: hit.brand,
+                    role: hit.role,
+                    source: hit.source,
+                    context: hit.context,
+                })),
+            }
+            : {}),
+        ...(ingestData.companyHits ? { companyHits: ingestData.companyHits } : {}),
+        ...(ingestData.industryDbV2Raw === undefined ? {} : { industryDbV2Raw: ingestData.industryDbV2Raw }),
+        ...(ingestData.roleSignals
+            ? {
+                roleSignals: ingestData.roleSignals.map((signal) => ({
+                    type: signal.type,
+                    matchedSignals: signal.matchedSignals,
+                    signalCount: signal.signalCount,
+                    occurrences: signal.occurrences,
+                    years: signal.years,
+                    ...(signal.industryVerifiedYears === undefined ? {} : { industryVerifiedYears: signal.industryVerifiedYears }),
+                    ...(signal.roleRelevantYears === undefined ? {} : { roleRelevantYears: signal.roleRelevantYears }),
+                    ...(signal.industryVerifiedRelevantYears === undefined ? {} : { industryVerifiedRelevantYears: signal.industryVerifiedRelevantYears }),
+                    verifyIn: signal.verifyIn,
+                })),
+            }
+            : {}),
+        ruleScores: ingestData.ruleScores,
+        experienceLevel: ingestData.experienceLevel,
+        computedAt: ingestData.computedAt,
+        skillsVersion: ingestData.skillsVersion,
+    };
+}
+
+function projectResumeListDoc(resume: Doc<"resumes">): ResumeListProjectedDoc {
+    return {
+        _id: resume._id,
+        externalId: resume.externalId,
+        ...(resume.identityKey ? { identityKey: resume.identityKey } : {}),
+        ...(resume.age === undefined ? {} : { age: resume.age }),
+        content: projectResumeListContent(resume),
+        crawledAt: resume.crawledAt,
+        source: resume.source,
+        tags: resume.tags,
+        ...(resume.analysis ? { analysis: resume.analysis } : {}),
+        ...(resume.analyses ? { analyses: resume.analyses } : {}),
+        ...(resume.primaryRuleScore === undefined ? {} : { primaryRuleScore: resume.primaryRuleScore }),
+        ...(resume.ingestData ? { ingestData: projectResumeListIngestData(resume.ingestData) } : {}),
+    };
+}
+
+function projectResumeDetailDoc(resume: Doc<"resumes">): ResumeListProjectedDoc {
+    return {
+        _id: resume._id,
+        externalId: resume.externalId,
+        ...(resume.identityKey ? { identityKey: resume.identityKey } : {}),
+        ...(resume.age === undefined ? {} : { age: resume.age }),
+        content: projectResumeDetailContent(resume),
+        crawledAt: resume.crawledAt,
+        source: resume.source,
+        tags: resume.tags,
+        ...(resume.analysis ? { analysis: resume.analysis } : {}),
+        ...(resume.analyses ? { analyses: resume.analyses } : {}),
+        ...(resume.primaryRuleScore === undefined ? {} : { primaryRuleScore: resume.primaryRuleScore }),
+        ...(resume.ingestData ? { ingestData: projectResumeListIngestData(resume.ingestData) } : {}),
     };
 }
 
@@ -1096,7 +1295,9 @@ export const listWithIngestData = query({
             .withIndex("by_primaryRuleScore")
             .order("desc")
             .take(overfetchLimit);
-        return sortByIngestRuleScore(candidates, jobDescriptionId).slice(0, limit);
+        return sortByIngestRuleScore(candidates, jobDescriptionId)
+            .slice(0, limit)
+            .map(projectResumeListDoc);
     },
 });
 
@@ -1115,7 +1316,13 @@ export const listWithIngestDataPage = query({
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
     },
-    handler: async (ctx, args) => runListWithIngestDataPageQuery(ctx, args),
+    handler: async (ctx, args) => {
+        const result = await runListWithIngestDataPageQuery(ctx, args);
+        return {
+            total: result.total,
+            results: result.results.map(projectResumeListDoc),
+        };
+    },
 });
 
 export const listWithIngestDataPaginated = query({
@@ -1154,7 +1361,7 @@ export const listWithIngestDataPaginated = query({
                 : page.page;
 
             return {
-                page: filtered,
+                page: filtered.map(projectResumeListDoc),
                 continueCursor: page.continueCursor,
                 isDone: page.isDone,
             };
@@ -1168,7 +1375,7 @@ export const listWithIngestDataPaginated = query({
             offset,
         });
 
-        return buildPaginatedOffsetResult(page.results, page.total, offset);
+        return buildPaginatedOffsetResult(page.results.map(projectResumeListDoc), page.total, offset);
     },
 });
 
@@ -1349,7 +1556,11 @@ export const searchWithTagExpansion = query({
                 groups: keywordGroups,
                 mode,
             },
-            results: mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, limit),
+            results: mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, limit)
+                .map((entry) => ({
+                    resume: projectResumeListDoc(entry.resume),
+                    provenance: entry.provenance,
+                })),
         };
     },
 });
@@ -1379,7 +1590,17 @@ export const searchWithTagExpansionPage = query({
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
     },
-    handler: async (ctx, args) => runSearchWithTagExpansionPageQuery(ctx, args),
+    handler: async (ctx, args) => {
+        const result = await runSearchWithTagExpansionPageQuery(ctx, args);
+        return {
+            expansion: result.expansion,
+            total: result.total,
+            results: result.results.map((entry) => ({
+                resume: projectResumeListDoc(entry.resume),
+                provenance: entry.provenance,
+            })),
+        };
+    },
 });
 
 export const searchWithTagExpansionPaginated = query({
@@ -1415,7 +1636,10 @@ export const searchWithTagExpansionPaginated = query({
             offset,
         });
 
-        return buildPaginatedOffsetResult(page.results, page.total, offset);
+        return buildPaginatedOffsetResult(page.results.map((entry) => ({
+            resume: projectResumeListDoc(entry.resume),
+            provenance: entry.provenance,
+        })), page.total, offset);
     },
 });
 
@@ -1423,6 +1647,18 @@ export const getResume = internalQuery({
     args: { resumeId: v.id("resumes") },
     handler: async (ctx, args) => {
         return await ctx.db.get(args.resumeId);
+    },
+});
+
+export const getResumeDetail = query({
+    args: { resumeId: v.id("resumes") },
+    handler: async (ctx, args) => {
+        const resume = await ctx.db.get(args.resumeId);
+        if (!resume) {
+            return null;
+        }
+
+        return projectResumeDetailDoc(resume);
     },
 });
 

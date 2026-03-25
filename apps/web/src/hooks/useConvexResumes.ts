@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { normalizeProfileUrlForDisplay, normalizeSharedResumeFields, parseKeywordQuery } from '@trends/shared'
-import { usePaginatedQuery } from 'convex/react'
+import { usePaginatedQuery, useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { rawApiClient } from '@/lib/api-helpers'
@@ -122,6 +122,54 @@ export type ConvexResumeItem = ResumeItem & {
   }>
 }
 
+type ResumeListDocLike = {
+  _id: Doc<'resumes'>['_id']
+  identityKey?: string
+  age?: number
+  externalId: string
+  crawledAt: number
+  analysis?: unknown
+  analyses?: unknown
+  primaryRuleScore?: number
+  ingestData?: {
+    industryTags: string[]
+    synonymHits?: string[]
+    brandHits?: Array<{
+      brand: string
+      role: string
+      source: string
+      context: string
+    }>
+    companyHits?: string[]
+    industryDbV2Raw?: number
+    roleSignals?: Array<{
+      type: string
+      matchedSignals: string[]
+      signalCount: number
+      occurrences: number
+      years: number
+      industryVerifiedYears?: number
+      roleRelevantYears?: number
+      industryVerifiedRelevantYears?: number
+      matchedWorkEntries?: Array<{
+        companyName?: string
+        jobTitle?: string
+        years: number
+        industryVerified: boolean
+        matchedSignals: string[]
+      }>
+      verifyIn: string
+    }>
+    ruleScores: unknown
+    experienceLevel: string
+    computedAt: number
+    skillsVersion: number
+  }
+  source: string
+  tags: string[]
+  content: Record<string, unknown>
+}
+
 type KeywordExpansionSummary = {
   groups: Array<{
     original: string
@@ -133,10 +181,10 @@ type KeywordExpansionSummary = {
 }
 
 type MockConvexResumePayload = {
-  list?: Doc<'resumes'>[]
+  list?: ResumeListDocLike[]
   search?: {
     results?: Array<{
-      resume: Doc<'resumes'>
+      resume: ResumeListDocLike
       provenance?: Array<{
         term: string
         source: 'searchText' | 'industryTags' | 'companyHits' | 'synonymHits'
@@ -174,7 +222,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function buildMockSearchText(doc: Doc<'resumes'>): string {
+function buildMockSearchText(doc: ResumeListDocLike): string {
   const content = isRecord(doc.content) ? doc.content : {}
   const fragments = [
     toStringValue(content.name),
@@ -636,7 +684,7 @@ function readMockConvexResumePayload(): MockConvexResumePayload | null {
   return value as MockConvexResumePayload
 }
 
-function mapResumeDoc(doc: Doc<'resumes'>): ConvexResumeItem {
+function mapResumeDoc(doc: ResumeListDocLike): ConvexResumeItem {
   const content = isRecord(doc.content) ? doc.content : {}
   const profileUrl = normalizeProfileUrlForDisplay(
     content.profileUrl ?? content.profile_url ?? content.profileURL ?? content.url,
@@ -891,4 +939,13 @@ export function useConvexResumes(
     jobDescriptionId: normalizedJobDescriptionId,
     expansion: resolvedExpansion,
   }
+}
+
+export function useConvexResumeDetail(resumeId: Doc<'resumes'>['_id'] | null | undefined) {
+  const detailDoc = useQuery(api.resumes.getResumeDetail, resumeId ? { resumeId } : 'skip')
+
+  return useMemo(() => ({
+    resume: detailDoc ? mapResumeDoc(detailDoc) : null,
+    loading: resumeId !== null && resumeId !== undefined && detailDoc === undefined,
+  }), [detailDoc, resumeId])
 }

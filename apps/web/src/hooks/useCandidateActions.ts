@@ -24,14 +24,14 @@ function setFeedbackState(
   }
 }
 
-export function useCandidateActions(sessionId?: string, jobDescriptionId?: string) {
+export function useCandidateActions(sessionId?: string, jobDescriptionId?: string, enabled: boolean = true) {
   const [actionsByResume, setActionsByResume] = useState<Record<string, CandidateActionType>>({})
   const [aiFeedbackByResume, setAiFeedbackByResume] = useState<Record<string, AiFeedbackState>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const loadActions = useCallback(async () => {
-    if (!sessionId) return
+    if (!enabled || !sessionId) return
     setLoading(true)
     setError(null)
 
@@ -75,7 +75,7 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
     setActionsByResume(nextActionsByResume)
     setAiFeedbackByResume(nextAiFeedbackByResume)
     setLoading(false)
-  }, [jobDescriptionId, sessionId])
+  }, [enabled, jobDescriptionId, sessionId])
 
   const saveAction = useCallback(
     async (payload: { resumeId: string; actionType: CandidateActionType; actionData?: Record<string, unknown> }) => {
@@ -127,15 +127,20 @@ export function useCandidateActions(sessionId?: string, jobDescriptionId?: strin
   )
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false)
+      setError(null)
+      return
+    }
     void loadActions()
-  }, [loadActions])
+  }, [enabled, loadActions])
 
   useEffect(() => {
-    if (!sessionId) {
+    if (!enabled || !sessionId) {
       setActionsByResume({})
       setAiFeedbackByResume({})
     }
-  }, [sessionId])
+  }, [enabled, sessionId])
 
   return {
     actions: actionsByResume,
