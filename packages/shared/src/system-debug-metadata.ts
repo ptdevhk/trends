@@ -241,6 +241,13 @@ export const SYSTEM_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/system/profiles"],
   },
   {
+    id: "summaries",
+    titleKey: "summaries.nav",
+    defaultTitle: "Summary Runs",
+    hrefSuffix: "/system/summaries",
+    matchesSuffixes: ["/system/summaries"],
+  },
+  {
     id: "ai-debugger",
     titleKey: "nav.debugAi",
     defaultTitle: "AI Debugger",
