@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ptdevhk/trends/packages/cli/internal/client"
 	"github.com/spf13/cobra"
@@ -81,7 +82,7 @@ func newWorkerSummaryRunCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			headers := []string{"run_id", "status", "channel", "dry_run", "trigger_source", "window_end"}
+			headers := []string{"run_id", "status", "channel", "dry_run", "trigger_source", "window_end", "delivery"}
 			rows := [][]string{{
 				response.Run.ID,
 				response.Run.Status,
@@ -89,6 +90,7 @@ func newWorkerSummaryRunCmd() *cobra.Command {
 				boolToString(response.DryRun),
 				response.Run.TriggerSource,
 				response.Run.WindowEnd,
+				summaryDeliverySummary(response.Delivery),
 			}}
 			return writeOutput(cmd, headers, rows, response)
 		},
@@ -119,7 +121,7 @@ func newWorkerSummaryHistoryCmd() *cobra.Command {
 				return err
 			}
 
-			headers := []string{"id", "status", "channel", "dry_run", "trigger_source", "started_at", "window_end"}
+			headers := []string{"id", "status", "channel", "dry_run", "trigger_source", "started_at", "window_end", "delivery"}
 			rows := make([][]string, 0, len(response.Items))
 			for _, item := range response.Items {
 				rows = append(rows, []string{
@@ -130,6 +132,7 @@ func newWorkerSummaryHistoryCmd() *cobra.Command {
 					item.TriggerSource,
 					item.StartedAt,
 					item.WindowEnd,
+					summaryDeliverySummary(item.Delivery),
 				})
 			}
 			return writeOutput(cmd, headers, rows, response)
@@ -151,7 +154,7 @@ func newWorkerSummaryShowCmd() *cobra.Command {
 				return err
 			}
 
-			headers := []string{"id", "status", "channel", "dry_run", "trigger_source", "started_at", "finished_at"}
+			headers := []string{"id", "status", "channel", "dry_run", "trigger_source", "started_at", "finished_at", "delivery", "accounts", "error"}
 			rows := [][]string{{
 				response.Item.ID,
 				response.Item.Status,
@@ -160,6 +163,9 @@ func newWorkerSummaryShowCmd() *cobra.Command {
 				response.Item.TriggerSource,
 				response.Item.StartedAt,
 				response.Item.FinishedAt,
+				summaryDeliverySummary(response.Item.Delivery),
+				summaryDeliveryAccounts(response.Item.Delivery),
+				emptyDash(response.Item.Error),
 			}}
 			return writeOutput(cmd, headers, rows, response)
 		},
@@ -213,4 +219,73 @@ func newWorkerRunCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&once, "once", true, "Run once immediately")
 	return cmd
+}
+
+func summaryDeliverySummary(delivery *client.SummaryDelivery) string {
+	if delivery == nil {
+		return "-"
+	}
+
+	if delivery.MessageID != "" {
+		return "message:" + delivery.MessageID
+	}
+
+	if delivery.AccountsSelected > 0 || delivery.AccountsAttempted > 0 || delivery.AccountsSent > 0 {
+		denominator := delivery.AccountsAttempted
+		if denominator == 0 {
+			denominator = delivery.AccountsSelected
+		}
+		if denominator == 0 {
+			denominator = delivery.AccountsConfigured
+		}
+
+		parts := []string{fmt.Sprintf("%d/%d sent", delivery.AccountsSent, denominator)}
+		if delivery.TotalBatches > 0 {
+			parts = append(parts, fmt.Sprintf("%d batches", delivery.TotalBatches))
+		}
+		if delivery.UsedOverrideBotToken || delivery.UsedOverrideChatID {
+			parts = append(parts, "override")
+		}
+		return strings.Join(parts, ", ")
+	}
+
+	if delivery.Channel != "" {
+		return delivery.Channel
+	}
+	if delivery.OK {
+		return "ok"
+	}
+
+	return "available"
+}
+
+func summaryDeliveryAccounts(delivery *client.SummaryDelivery) string {
+	if delivery == nil || len(delivery.Accounts) == 0 {
+		return "-"
+	}
+
+	parts := make([]string, 0, len(delivery.Accounts))
+	for _, account := range delivery.Accounts {
+		status := "skipped"
+		if account.Sent {
+			status = "sent"
+		} else if account.Attempted {
+			status = "failed"
+		}
+
+		part := fmt.Sprintf("%d:%s:%s", account.Index, account.ChatIDHint, status)
+		if account.BatchesPlanned > 0 {
+			part += fmt.Sprintf("(%db)", account.BatchesPlanned)
+		}
+		parts = append(parts, part)
+	}
+
+	return strings.Join(parts, ", ")
+}
+
+func emptyDash(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "-"
+	}
+	return value
 }
