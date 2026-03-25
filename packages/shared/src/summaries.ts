@@ -48,4 +48,10 @@ export type SummaryPreviewRequest = {
 export type SummarySendRequest = SummaryPreviewRequest & {
   channel: SummaryChannel;
   dryRun?: boolean;
+  templateId?: string;
+  to?: string;
+  subject?: string;
+  webhookUrl?: string;
+  botToken?: string;
+  chatId?: string;
 };

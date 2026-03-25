@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
 import { SummaryDataService } from "../services/summaries/summary-data-service.js";
+import { summaryDispatcher } from "../services/summaries/summary-dispatcher.js";
 import { SummaryRenderer } from "../services/summaries/summary-renderer.js";
 
 const app = new OpenAPIHono();
@@ -50,6 +51,30 @@ const SummaryPreviewResponseSchema = z.object({
   success: z.literal(true),
   report: SummaryReportSchema,
   markdown: z.string(),
+});
+
+const SummaryChannelSchema = z.enum(["email", "wechat_work", "feishu", "telegram"]);
+
+const SummaryRunRequestSchema = SummaryPreviewRequestSchema.extend({
+  channel: SummaryChannelSchema,
+  dryRun: z.boolean().default(false),
+  templateId: z.string().min(1).optional(),
+  to: z.string().email().optional(),
+  subject: z.string().min(1).optional(),
+  webhookUrl: z.string().url().optional(),
+  botToken: z.string().min(1).optional(),
+  chatId: z.string().min(1).optional(),
+});
+
+const SummaryRunResponseSchema = z.object({
+  success: z.literal(true),
+  channel: SummaryChannelSchema,
+  dryRun: z.boolean(),
+  templateId: z.string(),
+  subject: z.string().optional(),
+  report: SummaryReportSchema,
+  content: z.string(),
+  delivery: z.object({}).catchall(z.unknown()).optional(),
 });
 
 const ErrorSchema = z.object({
@@ -108,6 +133,79 @@ app.openapi(previewRoute, async (c) => {
     }, 200);
   } catch (error) {
     console.error("Failed to preview summary:", error);
+    return c.json({
+      success: false as const,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }, 500);
+  }
+});
+
+const runRoute = createRoute({
+  method: "post",
+  path: "/run",
+  tags: ["Summaries"],
+  summary: "Render and optionally send a workspace daily summary",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: SummaryRunRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Summary run result",
+      content: {
+        "application/json": {
+          schema: SummaryRunResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: "Summary run error",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(runRoute, async (c) => {
+  try {
+    const body = c.req.valid("json");
+    const workspaceSlug = body.workspaceSlug?.trim() || c.var.workspaceSlug;
+    const report = await summaryDataService.buildSummaryReport({
+      workspaceSlug,
+      period: body.period,
+      endAt: body.endAt,
+    });
+    const dispatched = await summaryDispatcher.dispatch(report, {
+      channel: body.channel,
+      dryRun: body.dryRun,
+      templateId: body.templateId,
+      to: body.to,
+      subject: body.subject,
+      webhookUrl: body.webhookUrl,
+      botToken: body.botToken,
+      chatId: body.chatId,
+    });
+
+    return c.json({
+      success: true as const,
+      channel: dispatched.channel,
+      dryRun: dispatched.dryRun,
+      templateId: dispatched.templateId,
+      subject: dispatched.subject,
+      report,
+      content: dispatched.content,
+      delivery: dispatched.delivery,
+    }, 200);
+  } catch (error) {
+    console.error("Failed to run summary:", error);
     return c.json({
       success: false as const,
       error: error instanceof Error ? error.message : "Unknown error",

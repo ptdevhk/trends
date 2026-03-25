@@ -8,6 +8,7 @@ function createFixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "summaries-route-"));
   fs.mkdirSync(path.join(root, "output"), { recursive: true });
   fs.mkdirSync(path.join(root, "config", "resume"), { recursive: true });
+  fs.mkdirSync(path.join(root, "config", "notifications"), { recursive: true });
   fs.writeFileSync(path.join(root, "pyproject.toml"), "", "utf8");
   fs.writeFileSync(
     path.join(root, "config", "resume", "skills.md"),
@@ -23,6 +24,33 @@ function createFixtureRoot(): string {
       "- aliases: FANUC, 发那科",
       "- tier: 1",
       "",
+    ].join("\n"),
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(root, "config", "notifications", "summary-daily.md"),
+    [
+      "---",
+      'subject: "Daily Ops Summary {{workspaceSlug}}"',
+      "---",
+      "",
+      "# Daily Ops Summary",
+      "",
+      "- Workspace: {{workspaceSlug}}",
+      "- Generated: {{generatedAt}}",
+      "",
+      "## Totals",
+      "- New resumes: {{totals.newResumes}}",
+      "- Candidate status updates: {{totals.candidateStatusUpdates}}",
+      "",
+      "{{#if breakdowns.actionsByType}}",
+      "## Candidate Actions",
+      "{{#each breakdowns.actionsByType}}",
+      "- {{this.label}}: {{this.count}}",
+      "{{/each}}",
+      "{{/if}}",
+      "",
+      "_Generated at {{timestamp}}_",
     ].join("\n"),
     "utf8"
   );
@@ -82,12 +110,14 @@ async function loadSummaryModules(root: string) {
   const { SessionManager } = await import("../services/session-manager");
   const { ActionStorage } = await import("../services/action-storage");
   const { ReviewPacketStorage } = await import("../services/review-packet-storage");
+  const { summaryTelegramBridge } = await import("../services/summaries/summary-telegram-bridge");
   const { resetResumeScreeningDb } = await import("../services/database");
   return {
     createApp,
     SessionManager,
     ActionStorage,
     ReviewPacketStorage,
+    summaryTelegramBridge,
     resetResumeScreeningDb,
   };
 }
@@ -217,5 +247,126 @@ describe("summary preview route", () => {
       "resume_tasks:getSummaryWindow",
     ]);
     expect(calls[1]?.args.workspaceSlug).toBe("hr");
+  });
+
+  it("supports summary run dry-runs without sending", async () => {
+    root = createFixtureRoot();
+    const {
+      createApp,
+      SessionManager,
+      ActionStorage,
+    } = await loadSummaryModules(root);
+
+    const sessionManager = new SessionManager(root);
+    const actionStorage = new ActionStorage(root);
+    const session = sessionManager.createSession({ workspaceSlug: "hr" });
+    actionStorage.saveAction({ sessionId: session.id, resumeId: "resume-1", actionType: "shortlist" });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "resumes:getSummaryWindow") {
+        return convexSuccess({ total: 1, bySource: [{ key: "seek", count: 1 }] });
+      }
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+      if (call.pathName === "resume_tasks:getSummaryWindow") {
+        return convexSuccess({ total: 0, byStatus: [] });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/summaries/run", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        period: "daily",
+        channel: "wechat_work",
+        dryRun: true,
+        endAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json() as {
+      success: boolean;
+      dryRun: boolean;
+      templateId: string;
+      subject?: string;
+      content: string;
+      delivery?: unknown;
+    };
+    expect(payload.success).toBe(true);
+    expect(payload.dryRun).toBe(true);
+    expect(payload.templateId).toBe("summary-daily");
+    expect(payload.subject).toBe("Daily Ops Summary hr");
+    expect(payload.content).toContain("# Daily Ops Summary");
+    expect(payload.delivery).toBeUndefined();
+  });
+
+  it("routes telegram summary sends through the bridge", async () => {
+    root = createFixtureRoot();
+    const {
+      createApp,
+      SessionManager,
+      ActionStorage,
+      summaryTelegramBridge,
+    } = await loadSummaryModules(root);
+
+    const sessionManager = new SessionManager(root);
+    const actionStorage = new ActionStorage(root);
+    const session = sessionManager.createSession({ workspaceSlug: "hr" });
+    actionStorage.saveAction({ sessionId: session.id, resumeId: "resume-1", actionType: "contact" });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "resumes:getSummaryWindow") {
+        return convexSuccess({ total: 2, bySource: [{ key: "job5156", count: 2 }] });
+      }
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+      if (call.pathName === "resume_tasks:getSummaryWindow") {
+        return convexSuccess({ total: 1, byStatus: [{ key: "completed", count: 1 }] });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const sendSpy = vi.spyOn(summaryTelegramBridge, "send").mockResolvedValue({
+      ok: true,
+      accountsSent: 1,
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/summaries/run", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        period: "daily",
+        channel: "telegram",
+        endAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json() as {
+      success: boolean;
+      channel: string;
+      dryRun: boolean;
+      delivery: { ok: boolean; accountsSent: number };
+    };
+    expect(payload.success).toBe(true);
+    expect(payload.channel).toBe("telegram");
+    expect(payload.dryRun).toBe(false);
+    expect(payload.delivery).toEqual({ ok: true, accountsSent: 1 });
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(sendSpy.mock.calls[0]?.[0].content).toContain("# Daily Ops Summary");
   });
 });
