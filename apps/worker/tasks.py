@@ -291,3 +291,72 @@ def run_scoring_auto_tune(
         logger.error("[Task] scoring auto-tune failed: %s", error)
         logger.debug(traceback.format_exc())
         return False
+
+
+def run_workspace_summary(
+    api_base_url: Optional[str] = None,
+    workspace_slug: str = "dev",
+    channel: str = "telegram",
+    dry_run: bool = False,
+    template_id: Optional[str] = None,
+    end_at: Optional[str] = None,
+    to: Optional[str] = None,
+    subject: Optional[str] = None,
+    webhook_url: Optional[str] = None,
+    bot_token: Optional[str] = None,
+    chat_id: Optional[str] = None,
+) -> bool:
+    base_url = _worker_api_base_url(api_base_url)
+    normalized_workspace = workspace_slug.strip() or "dev"
+    normalized_channel = channel.strip() or "telegram"
+    logger.info(
+        "[Task] Starting workspace summary (workspace=%s, channel=%s, dry_run=%s)",
+        normalized_workspace,
+        normalized_channel,
+        dry_run,
+    )
+
+    request_body: Dict[str, Any] = {
+        "workspaceSlug": normalized_workspace,
+        "period": "daily",
+        "channel": normalized_channel,
+        "dryRun": bool(dry_run),
+    }
+
+    if template_id and template_id.strip():
+        request_body["templateId"] = template_id.strip()
+    if end_at and end_at.strip():
+        request_body["endAt"] = end_at.strip()
+    if to and to.strip():
+        request_body["to"] = to.strip()
+    if subject and subject.strip():
+        request_body["subject"] = subject.strip()
+    if webhook_url and webhook_url.strip():
+        request_body["webhookUrl"] = webhook_url.strip()
+    if bot_token and bot_token.strip():
+        request_body["botToken"] = bot_token.strip()
+    if chat_id and chat_id.strip():
+        request_body["chatId"] = chat_id.strip()
+
+    try:
+        response = _request_json(
+            f"{base_url}/api/summaries/run",
+            method="POST",
+            body=request_body,
+        )
+
+        if response.get("success") is not True:
+            logger.error("[Task] workspace summary request failed: %s", response)
+            return False
+
+        logger.info(
+            "[Task] workspace summary completed (channel=%s, dry_run=%s, template=%s)",
+            response.get("channel"),
+            response.get("dryRun"),
+            response.get("templateId"),
+        )
+        return True
+    except Exception as error:
+        logger.error("[Task] workspace summary failed: %s", error)
+        logger.debug(traceback.format_exc())
+        return False

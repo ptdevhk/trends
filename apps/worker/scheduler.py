@@ -31,6 +31,7 @@ from apps.worker.tasks import (
     health_check,
     run_skills_version_check,
     run_scoring_auto_tune,
+    run_workspace_summary,
 )
 from apps.worker.timezone import bootstrap_worker_timezone, resolve_worker_timezone
 from apps.worker.profile_loader import ProfileLoader
@@ -347,6 +348,38 @@ class WorkerScheduler:
         )
         logger.info("Scheduled scoring auto-tune job with cron: %s (dry_run=%s)", cron_expression, dry_run)
 
+    def add_workspace_summary_job(self) -> None:
+        """Schedule an optional workspace summary trigger."""
+        cron_expression = os.environ.get("WORKER_SUMMARY_CRON", "").strip()
+        if not cron_expression:
+            logger.info("Workspace summary job disabled; set WORKER_SUMMARY_CRON to enable it")
+            return
+
+        workspace_slug = os.environ.get("WORKER_SUMMARY_WORKSPACE", "").strip() or "dev"
+        channel = os.environ.get("WORKER_SUMMARY_CHANNEL", "").strip() or "telegram"
+        dry_run_env = os.environ.get("WORKER_SUMMARY_DRY_RUN", "").strip().lower()
+        dry_run = dry_run_env in {"1", "true", "yes", "on"}
+        template_id = os.environ.get("WORKER_SUMMARY_TEMPLATE_ID", "").strip() or None
+        end_at = os.environ.get("WORKER_SUMMARY_END_AT", "").strip() or None
+
+        self.add_custom_job(
+            func=run_workspace_summary,
+            job_id="workspace_summary",
+            cron_expression=cron_expression,
+            workspace_slug=workspace_slug,
+            channel=channel,
+            dry_run=dry_run,
+            template_id=template_id,
+            end_at=end_at,
+        )
+        logger.info(
+            "Scheduled workspace summary job with cron: %s (workspace=%s, channel=%s, dry_run=%s)",
+            cron_expression,
+            workspace_slug,
+            channel,
+            dry_run,
+        )
+
     def start(self) -> None:
         """Start the scheduler."""
         logger.info("Starting Worker Scheduler")
@@ -359,6 +392,7 @@ class WorkerScheduler:
         self.load_profile_jobs()
         self.add_skills_version_check_job()
         self.add_scoring_auto_tune_job()
+        self.add_workspace_summary_job()
 
         # Run immediately if requested
         if self.run_immediately:

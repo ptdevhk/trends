@@ -44,4 +44,21 @@ app.post("/run", async (c) => {
     }
 });
 
+app.post("/summary", async (c) => {
+    const body = await c.req.text();
+    const contentType = c.req.header("Content-Type") || "application/json";
+    try {
+        return await proxyToWorker("/worker/summary", {
+            method: "POST",
+            headers: {
+                "Content-Type": contentType,
+            },
+            body,
+        });
+    } catch (error) {
+        console.error("Failed to proxy summary trigger:", error);
+        return c.json({ error: "Failed to connect to worker API" }, 503);
+    }
+});
+
 export default app;
