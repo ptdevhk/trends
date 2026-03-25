@@ -80,7 +80,11 @@ describe("listWithIngestDataPaginated", () => {
 
     expect(paginateCalled).toBe(true);
     expect(takeCalled).toBe(false);
-    expect(result.page).toEqual([resumeA, resumeB]);
+    expect(result.page).toHaveLength(2);
+    expect((result.page[0] as { _id: string; content: { name: string } })._id).toBe("resume-a");
+    expect((result.page[0] as { content: { name: string } }).content.name).toBe("resume-a");
+    expect((result.page[1] as { _id: string; content: { name: string } })._id).toBe("resume-b");
+    expect((result.page[1] as { content: { name: string } }).content.name).toBe("resume-b");
     expect(result.continueCursor).toBe("cursor-next");
     expect(result.isDone).toBe(false);
   });

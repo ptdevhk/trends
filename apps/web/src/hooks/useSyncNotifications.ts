@@ -6,13 +6,19 @@ import { api } from '../../../../packages/convex/convex/_generated/api'
 
 const EVENT_STALE_MS = 30_000
 
-export function useSyncNotifications() {
+export function useSyncNotifications(enabled: boolean = true) {
   const { t } = useTranslation()
-  const latestEvent = useQuery(api.sync_events.getLatest)
+  const latestEvent = useQuery(api.sync_events.getLatest, enabled ? {} : 'skip')
   const initializedRef = useRef(false)
   const lastSeenTimestampRef = useRef(0)
 
   useEffect(() => {
+    if (!enabled) {
+      initializedRef.current = false
+      lastSeenTimestampRef.current = 0
+      return
+    }
+
     if (latestEvent === undefined) {
       return
     }
@@ -53,5 +59,5 @@ export function useSyncNotifications() {
         defaultValue: `Sync failed: ${latestEvent.error || 'Unknown error'}`,
       })
     )
-  }, [latestEvent, t])
+  }, [enabled, latestEvent, t])
 }

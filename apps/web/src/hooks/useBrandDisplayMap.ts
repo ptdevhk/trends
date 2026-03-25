@@ -8,10 +8,14 @@ type BrandDisplayEntry = {
 
 type BrandDisplayMap = Record<string, BrandDisplayEntry>
 
-export function useBrandDisplayMap() {
+export function useBrandDisplayMap(enabled: boolean = true) {
   const [map, setMap] = useState<BrandDisplayMap | null>(null)
 
   useEffect(() => {
+    if (!enabled) {
+      return
+    }
+
     let mounted = true
 
     rawApiClient
@@ -28,7 +32,7 @@ export function useBrandDisplayMap() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [enabled])
 
   const resolve = useCallback(
     (brandId: string) => {
@@ -41,4 +45,3 @@ export function useBrandDisplayMap() {
 
   return useMemo(() => ({ resolve }), [resolve])
 }
-

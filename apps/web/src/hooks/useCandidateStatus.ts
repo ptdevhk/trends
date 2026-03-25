@@ -27,12 +27,17 @@ type StatusUpdateResponse = {
   item?: CandidateStatusRecord
 }
 
-export function useCandidateStatus() {
+export function useCandidateStatus(enabled: boolean = true) {
   const [items, setItems] = useState<CandidateStatusRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false)
+      setError(null)
+      return
+    }
     setLoading(true)
     setError(null)
     const { data, error: apiError } = await rawApiClient.GET<StatusListResponse>('/api/candidate-status')
@@ -43,7 +48,7 @@ export function useCandidateStatus() {
     }
     setItems(Array.isArray(data.items) ? data.items : [])
     setLoading(false)
-  }, [])
+  }, [enabled])
 
   const updateStatus = useCallback(
     async (identityKey: string, status: CandidateStatus, notes?: string) => {
@@ -72,8 +77,12 @@ export function useCandidateStatus() {
   )
 
   useEffect(() => {
+    if (!enabled) {
+      setItems([])
+      return
+    }
     void load()
-  }, [load])
+  }, [enabled, load])
 
   const statusByIdentity = useMemo(() => {
     const map: Record<string, CandidateStatusRecord> = {}

@@ -584,6 +584,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const [appliedSearchHistoryId, setAppliedSearchHistoryId] = useState<string | undefined>(undefined)
   const [queryRuleScoreMap, setQueryRuleScoreMap] = useState<Record<string, number>>({})
   const [requestedConvexLimit, setRequestedConvexLimit] = useState(DEFAULT_CONVEX_RESUME_LIMIT)
+  const [hasCompletedInitialConvexLoad, setHasCompletedInitialConvexLoad] = useState(false)
   const [mode] = useState<'ai'>('ai')
   const hydratedSessionIdRef = useRef<string | null>(null)
   const hasInitializedUrlHydrationRef = useRef(false)
@@ -670,10 +671,6 @@ export function useResumeListState(loadSearchHistory = false) {
     return normalizedJobDescriptionId || normalizedKeywords.join('|') || 'global'
   }, [jobDescriptionId, sessionKeywords])
 
-  const { actions, saveAction, getAiFeedback } = useCandidateActions(sessionActionScope, jobDescriptionId)
-  const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks()
-  const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus()
-
   const expandedQuery = useMemo(() => {
     const kw = formatKeywordQuery(sessionKeywords).trim()
     if (!kw) return undefined
@@ -723,6 +720,20 @@ export function useResumeListState(loadSearchHistory = false) {
     sortBy: convexSourceSortBy,
     sortOrder: convexSourceSortOrder,
   })
+  useEffect(() => {
+    if (mode !== 'ai' || !convexLoading) {
+      setHasCompletedInitialConvexLoad(true)
+    }
+  }, [convexLoading, mode])
+
+  const auxiliaryResumeDataEnabled = mode !== 'ai' || hasCompletedInitialConvexLoad
+  const { actions, saveAction, getAiFeedback } = useCandidateActions(
+    sessionActionScope,
+    jobDescriptionId,
+    auxiliaryResumeDataEnabled,
+  )
+  const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(auxiliaryResumeDataEnabled)
+  const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(auxiliaryResumeDataEnabled)
   const analysisTasks = useQuery(api.analysis_tasks.list)
   const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
   const [analyzing, setAnalyzing] = useState(false)

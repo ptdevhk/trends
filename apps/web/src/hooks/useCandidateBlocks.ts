@@ -15,12 +15,17 @@ type BlocksResponse = {
   items?: CandidateBlock[]
 }
 
-export function useCandidateBlocks() {
+export function useCandidateBlocks(enabled: boolean = true) {
   const [items, setItems] = useState<CandidateBlock[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false)
+      setError(null)
+      return
+    }
     setLoading(true)
     setError(null)
     const { data, error: apiError } = await rawApiClient.GET<BlocksResponse>('/api/blocks')
@@ -33,7 +38,7 @@ export function useCandidateBlocks() {
 
     setItems(Array.isArray(data.items) ? data.items : [])
     setLoading(false)
-  }, [])
+  }, [enabled])
 
   const blockCandidates = useCallback(
     async (identityKeys: string[], reason?: string, blockedBy?: string) => {
@@ -113,8 +118,12 @@ export function useCandidateBlocks() {
   )
 
   useEffect(() => {
+    if (!enabled) {
+      setItems([])
+      return
+    }
     void load()
-  }, [load])
+  }, [enabled, load])
 
   const blocksByIdentity = useMemo(() => {
     const map: Record<string, CandidateBlock> = {}
