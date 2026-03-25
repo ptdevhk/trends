@@ -16,8 +16,8 @@ class ProfileLoader:
         Load all enabled search profiles from the config directory.
         Returns a list of profile dictionaries containing:
         - id: Profile ID
-        - schedule: Cron expression
-        - limit: Max resumes to collect
+        - schedule: Active runtime schedule metadata
+        - limit: Max resumes to collect (legacy compatibility alias)
         - location: Target location
         - keywords: Search keywords
         """
@@ -41,12 +41,25 @@ class ProfileLoader:
                 if not cron:
                     logger.warning(f"Profile {filepath} enabled but missing cron expression")
                     continue
+
+                max_candidates = schedule.get("maxCandidates")
+                if max_candidates is None:
+                    max_candidates = schedule.get("limit", 50)
+
+                runtime_schedule = {
+                    "enabled": True,
+                    "cron": cron,
+                    "timezone": schedule.get("timezone"),
+                    "maxCandidates": max_candidates,
+                    "notifyOnlyOnNew": schedule.get("notifyOnlyOnNew"),
+                }
                     
                 profile = {
                     "id": data.get("id"),
                     "name": data.get("name"),
                     "cron": cron,
-                    "limit": schedule.get("limit", 50),
+                    "limit": max_candidates,
+                    "schedule": runtime_schedule,
                     "location": data.get("location"),
                     "keywords": data.get("keywords", []),
                     "filters": data.get("filters"),

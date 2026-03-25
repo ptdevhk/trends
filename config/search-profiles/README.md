@@ -5,8 +5,24 @@ This directory contains pre-configured search profiles that combine:
 - Keywords
 - Job Description reference
 - Filter settings
-- Automation settings (scheduling, notifications)
+- Automation settings (currently crawl scheduling only)
 - Source routing and optional AI review behavior
+
+## Runtime Status
+
+The current worker runtime actively uses these profile fields:
+- `location`
+- `keywords`
+- `requiredKeywords`
+- `filters`
+- `jobDescription`
+- `schedule.enabled`
+- `schedule.cron`
+- `schedule.timezone`
+- `schedule.maxCandidates`
+
+The current worker runtime does **not** yet execute profile-level notification or summary triggers from YAML.
+Keep summary delivery on the dedicated summary pipeline and env-driven worker summary job for now.
 
 ## Usage
 
@@ -51,7 +67,8 @@ schedule:
   cron: "0 9 * * 1-5"  # Mon-Fri 9:00 AM
   timezone: Asia/Shanghai
 
-# Notifications
+# Notifications metadata
+# Note: this block is not executed by the current worker runtime.
 notifications:
   enabled: true
   channels:
@@ -60,9 +77,6 @@ notifications:
     - type: email
       recipients:
         - hr@company.com
-  triggers:
-    - event: new_high_match    # Score >= 80
-    - event: daily_summary
 
 # Optional AI review settings
 # Keep deterministic scoring as the default engine; use AI only on shortlisted resumes.
@@ -97,4 +111,4 @@ curl -X POST http://localhost:3000/api/search-profiles/quick-start \
 
 ## Files
 
-- `dongguan-lathe-sales.yaml`: example routing preset with deterministic filters, notifications, and an optional review lane
+- `dongguan-lathe-sales.yaml`: example routing preset with active crawl scheduling plus optional metadata blocks that are not all executed by the worker today
