@@ -232,7 +232,7 @@ describe('ReviewPacketsPage', () => {
     render(<ReviewPacketsPage />)
 
     expect(await screen.findByRole('button', { name: 'run-1' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Preview summary' }))
+    await user.click(await screen.findByRole('button', { name: 'Preview summary' }))
 
     await waitFor(() => {
       expect(postMock).toHaveBeenCalledWith(
