@@ -24,23 +24,49 @@ type WorkerTriggerResponse struct {
 	Message    string `json:"message"`
 }
 
+type SummaryDeliveryAccount struct {
+	Index          int    `json:"index"`
+	ChatIDHint     string `json:"chatIdHint"`
+	Attempted      bool   `json:"attempted"`
+	Sent           bool   `json:"sent"`
+	BatchesPlanned int    `json:"batchesPlanned"`
+	SkippedReason  string `json:"skippedReason,omitempty"`
+}
+
+type SummaryDelivery struct {
+	Channel              string                   `json:"channel,omitempty"`
+	OK                   bool                     `json:"ok,omitempty"`
+	MessageID            string                   `json:"messageId,omitempty"`
+	AccountsConfigured   int                      `json:"accountsConfigured,omitempty"`
+	AccountsSelected     int                      `json:"accountsSelected,omitempty"`
+	AccountsAttempted    int                      `json:"accountsAttempted,omitempty"`
+	AccountsSent         int                      `json:"accountsSent,omitempty"`
+	BatchCountPerAccount int                      `json:"batchCountPerAccount,omitempty"`
+	TotalBatches         int                      `json:"totalBatches,omitempty"`
+	BatchSizes           []int                    `json:"batchSizes,omitempty"`
+	MaxBytesPerBatch     int                      `json:"maxBytesPerBatch,omitempty"`
+	UsedOverrideBotToken bool                     `json:"usedOverrideBotToken,omitempty"`
+	UsedOverrideChatID   bool                     `json:"usedOverrideChatId,omitempty"`
+	Accounts             []SummaryDeliveryAccount `json:"accounts,omitempty"`
+}
+
 type SummaryRun struct {
-	ID            string         `json:"id"`
-	WorkspaceSlug string         `json:"workspaceSlug"`
-	Period        string         `json:"period"`
-	TriggerSource string         `json:"triggerSource"`
-	Status        string         `json:"status"`
-	Channel       string         `json:"channel,omitempty"`
-	TemplateID    string         `json:"templateId,omitempty"`
-	DryRun        bool           `json:"dryRun"`
-	WindowStart   string         `json:"windowStart"`
-	WindowEnd     string         `json:"windowEnd"`
-	StartedAt     string         `json:"startedAt"`
-	FinishedAt    string         `json:"finishedAt,omitempty"`
-	Report        map[string]any `json:"report"`
-	Content       string         `json:"content,omitempty"`
-	Delivery      map[string]any `json:"delivery,omitempty"`
-	Error         string         `json:"error,omitempty"`
+	ID            string           `json:"id"`
+	WorkspaceSlug string           `json:"workspaceSlug"`
+	Period        string           `json:"period"`
+	TriggerSource string           `json:"triggerSource"`
+	Status        string           `json:"status"`
+	Channel       string           `json:"channel,omitempty"`
+	TemplateID    string           `json:"templateId,omitempty"`
+	DryRun        bool             `json:"dryRun"`
+	WindowStart   string           `json:"windowStart"`
+	WindowEnd     string           `json:"windowEnd"`
+	StartedAt     string           `json:"startedAt"`
+	FinishedAt    string           `json:"finishedAt,omitempty"`
+	Report        map[string]any   `json:"report"`
+	Content       string           `json:"content,omitempty"`
+	Delivery      *SummaryDelivery `json:"delivery,omitempty"`
+	Error         string           `json:"error,omitempty"`
 }
 
 type SummaryRunRequest struct {
@@ -59,15 +85,15 @@ type SummaryRunRequest struct {
 }
 
 type SummaryRunInvocationResponse struct {
-	Success    bool           `json:"success"`
-	Channel    string         `json:"channel"`
-	DryRun     bool           `json:"dryRun"`
-	TemplateID string         `json:"templateId"`
-	Subject    string         `json:"subject,omitempty"`
-	Report     map[string]any `json:"report"`
-	Content    string         `json:"content"`
-	Delivery   map[string]any `json:"delivery,omitempty"`
-	Run        SummaryRun     `json:"run"`
+	Success    bool             `json:"success"`
+	Channel    string           `json:"channel"`
+	DryRun     bool             `json:"dryRun"`
+	TemplateID string           `json:"templateId"`
+	Subject    string           `json:"subject,omitempty"`
+	Report     map[string]any   `json:"report"`
+	Content    string           `json:"content"`
+	Delivery   *SummaryDelivery `json:"delivery,omitempty"`
+	Run        SummaryRun       `json:"run"`
 }
 
 type SummaryRunListResponse struct {
