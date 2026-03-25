@@ -15,6 +15,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
   const { t } = useTranslation()
   const { slug, name, isAdmin } = useWorkspace()
   const resumesPath = `/${slug}/resumes`
+  const reviewPacketsPath = `/${slug}/review-packets`
   const settingsPath = `/${slug}/settings`
   const systemPath = `/${slug}/system`
 
@@ -42,6 +43,17 @@ export function Header({ leftAction }: HeaderProps = {}) {
               }
             >
               {t('nav.resumes')}
+            </NavLink>
+            <NavLink
+              to={reviewPacketsPath}
+              className={({ isActive }) =>
+                cn(
+                  'transition-colors hover:text-foreground',
+                  isActive ? 'text-foreground' : 'text-muted-foreground'
+                )
+              }
+            >
+              {t('nav.reviewPackets', { defaultValue: 'Review packets' })}
             </NavLink>
             <NavLink
               to={settingsPath}
@@ -86,6 +98,17 @@ export function Header({ leftAction }: HeaderProps = {}) {
               }
             >
               {t('nav.resumes')}
+            </NavLink>
+            <NavLink
+              to={reviewPacketsPath}
+              className={({ isActive }) =>
+                cn(
+                  'transition-colors hover:text-foreground',
+                  isActive ? 'text-foreground' : 'text-muted-foreground'
+                )
+              }
+            >
+              {t('nav.reviewPackets', { defaultValue: 'Review packets' })}
             </NavLink>
             <NavLink
               to={settingsPath}

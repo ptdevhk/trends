@@ -4,6 +4,7 @@ import { Toaster } from 'sonner'
 import { Header } from '@/components/Header'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ResumesPage } from '@/pages/ResumesPage'
+import { ReviewPacketsPage } from '@/pages/ReviewPacketsPage'
 import SettingsLayout from '@/layouts/SettingsLayout'
 import SystemLayout from '@/layouts/SystemLayout'
 import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
@@ -131,6 +132,7 @@ function App() {
         <Routes>
           <Route path="/" element={<PreserveSearchNavigate pathname="/dev/resumes" />} />
           <Route path="/resumes" element={<PreserveSearchNavigate pathname="/dev/resumes" />} />
+          <Route path="/review-packets" element={<PreserveSearchNavigate pathname="/dev/review-packets" />} />
           <Route path="/profiles" element={<ProfilesLegacyRedirect />} />
           <Route path="/system/*" element={<LegacySystemRedirect />} />
           <Route path="/config/jds" element={<PreserveSearchNavigate pathname="/dev/system/jds" />} />
@@ -144,6 +146,7 @@ function App() {
 
             <Route element={<MainShell />}>
               <Route path="resumes" element={<ResumesPage />} />
+              <Route path="review-packets" element={<ReviewPacketsPage />} />
             </Route>
 
             <Route path="settings" element={<SettingsLayout />}>
