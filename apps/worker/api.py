@@ -290,6 +290,7 @@ async def trigger_worker_summary(request: WorkerSummaryTriggerRequest):
         workspace_slug=request.workspaceSlug,
         channel=request.channel,
         dry_run=request.dryRun,
+        trigger_source="worker_manual",
         template_id=request.templateId,
         end_at=request.endAt,
         to=request.to,

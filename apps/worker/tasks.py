@@ -298,6 +298,7 @@ def run_workspace_summary(
     workspace_slug: str = "dev",
     channel: str = "telegram",
     dry_run: bool = False,
+    trigger_source: str = "worker_manual",
     template_id: Optional[str] = None,
     end_at: Optional[str] = None,
     to: Optional[str] = None,
@@ -321,6 +322,7 @@ def run_workspace_summary(
         "period": "daily",
         "channel": normalized_channel,
         "dryRun": bool(dry_run),
+        "triggerSource": trigger_source.strip() if trigger_source.strip() else "worker_manual",
     }
 
     if template_id and template_id.strip():

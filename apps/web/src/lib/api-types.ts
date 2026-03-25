@@ -4491,6 +4491,72 @@ export interface paths {
                                 notes: string[];
                             };
                             markdown: string;
+                            run: {
+                                id: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                period: "daily";
+                                /** @enum {string} */
+                                triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
+                                /** @enum {string} */
+                                status: "previewed" | "dry_run" | "sent" | "failed";
+                                /** @enum {string} */
+                                channel?: "email" | "wechat_work" | "feishu" | "telegram";
+                                templateId?: string;
+                                dryRun: boolean;
+                                windowStart: string;
+                                windowEnd: string;
+                                startedAt: string;
+                                finishedAt?: string;
+                                report: {
+                                    workspaceSlug: string;
+                                    /** @enum {string} */
+                                    period: "daily";
+                                    generatedAt: string;
+                                    window: {
+                                        startAt: string;
+                                        endAt: string;
+                                        timezone: string;
+                                    };
+                                    totals: {
+                                        newResumes: number;
+                                        candidateStatusUpdates: number;
+                                        shortlistActions: number;
+                                        rejectActions: number;
+                                        contactActions: number;
+                                        collectionTasksCompleted: number;
+                                        collectionTasksFailed: number;
+                                    };
+                                    breakdowns: {
+                                        resumesBySource: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        candidateStatusByValue: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        actionsByType: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        collectionTasksByStatus: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                    };
+                                    notes: string[];
+                                };
+                                content?: string;
+                                delivery?: {
+                                    [key: string]: unknown;
+                                };
+                                error?: string;
+                            };
                         };
                     };
                 };
@@ -4547,6 +4613,8 @@ export interface paths {
                         channel: "email" | "wechat_work" | "feishu" | "telegram";
                         /** @default false */
                         dryRun?: boolean;
+                        /** @enum {string} */
+                        triggerSource?: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
                         templateId?: string;
                         /** Format: email */
                         to?: string;
@@ -4620,6 +4688,72 @@ export interface paths {
                             delivery?: {
                                 [key: string]: unknown;
                             };
+                            run: {
+                                id: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                period: "daily";
+                                /** @enum {string} */
+                                triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
+                                /** @enum {string} */
+                                status: "previewed" | "dry_run" | "sent" | "failed";
+                                /** @enum {string} */
+                                channel?: "email" | "wechat_work" | "feishu" | "telegram";
+                                templateId?: string;
+                                dryRun: boolean;
+                                windowStart: string;
+                                windowEnd: string;
+                                startedAt: string;
+                                finishedAt?: string;
+                                report: {
+                                    workspaceSlug: string;
+                                    /** @enum {string} */
+                                    period: "daily";
+                                    generatedAt: string;
+                                    window: {
+                                        startAt: string;
+                                        endAt: string;
+                                        timezone: string;
+                                    };
+                                    totals: {
+                                        newResumes: number;
+                                        candidateStatusUpdates: number;
+                                        shortlistActions: number;
+                                        rejectActions: number;
+                                        contactActions: number;
+                                        collectionTasksCompleted: number;
+                                        collectionTasksFailed: number;
+                                    };
+                                    breakdowns: {
+                                        resumesBySource: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        candidateStatusByValue: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        actionsByType: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        collectionTasksByStatus: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                    };
+                                    notes: string[];
+                                };
+                                content?: string;
+                                delivery?: {
+                                    [key: string]: unknown;
+                                };
+                                error?: string;
+                            };
                         };
                     };
                 };
@@ -4638,6 +4772,233 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/summaries/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List persisted workspace summary runs */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Summary run list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                id: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                period: "daily";
+                                /** @enum {string} */
+                                triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
+                                /** @enum {string} */
+                                status: "previewed" | "dry_run" | "sent" | "failed";
+                                /** @enum {string} */
+                                channel?: "email" | "wechat_work" | "feishu" | "telegram";
+                                templateId?: string;
+                                dryRun: boolean;
+                                windowStart: string;
+                                windowEnd: string;
+                                startedAt: string;
+                                finishedAt?: string;
+                                report: {
+                                    workspaceSlug: string;
+                                    /** @enum {string} */
+                                    period: "daily";
+                                    generatedAt: string;
+                                    window: {
+                                        startAt: string;
+                                        endAt: string;
+                                        timezone: string;
+                                    };
+                                    totals: {
+                                        newResumes: number;
+                                        candidateStatusUpdates: number;
+                                        shortlistActions: number;
+                                        rejectActions: number;
+                                        contactActions: number;
+                                        collectionTasksCompleted: number;
+                                        collectionTasksFailed: number;
+                                    };
+                                    breakdowns: {
+                                        resumesBySource: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        candidateStatusByValue: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        actionsByType: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        collectionTasksByStatus: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                    };
+                                    notes: string[];
+                                };
+                                content?: string;
+                                delivery?: {
+                                    [key: string]: unknown;
+                                };
+                                error?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/summaries/runs/{runId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one persisted workspace summary run */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    runId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Summary run detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            item: {
+                                id: string;
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                period: "daily";
+                                /** @enum {string} */
+                                triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
+                                /** @enum {string} */
+                                status: "previewed" | "dry_run" | "sent" | "failed";
+                                /** @enum {string} */
+                                channel?: "email" | "wechat_work" | "feishu" | "telegram";
+                                templateId?: string;
+                                dryRun: boolean;
+                                windowStart: string;
+                                windowEnd: string;
+                                startedAt: string;
+                                finishedAt?: string;
+                                report: {
+                                    workspaceSlug: string;
+                                    /** @enum {string} */
+                                    period: "daily";
+                                    generatedAt: string;
+                                    window: {
+                                        startAt: string;
+                                        endAt: string;
+                                        timezone: string;
+                                    };
+                                    totals: {
+                                        newResumes: number;
+                                        candidateStatusUpdates: number;
+                                        shortlistActions: number;
+                                        rejectActions: number;
+                                        contactActions: number;
+                                        collectionTasksCompleted: number;
+                                        collectionTasksFailed: number;
+                                    };
+                                    breakdowns: {
+                                        resumesBySource: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        candidateStatusByValue: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        actionsByType: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                        collectionTasksByStatus: {
+                                            key: string;
+                                            label: string;
+                                            count: number;
+                                        }[];
+                                    };
+                                    notes: string[];
+                                };
+                                content?: string;
+                                delivery?: {
+                                    [key: string]: unknown;
+                                };
+                                error?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Run not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;

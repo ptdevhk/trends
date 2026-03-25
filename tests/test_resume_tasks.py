@@ -148,6 +148,7 @@ def test_run_workspace_summary_posts_summary_request(monkeypatch) -> None:
         "period": "daily",
         "channel": "telegram",
         "dryRun": True,
+        "triggerSource": "worker_manual",
         "templateId": "summary-daily",
         "endAt": "2026-03-26T12:00:00Z",
     }
@@ -205,4 +206,5 @@ def test_add_workspace_summary_job_uses_env_config(monkeypatch) -> None:
     assert calls[0]["workspace_slug"] == "hr"
     assert calls[0]["channel"] == "telegram"
     assert calls[0]["dry_run"] is True
+    assert calls[0]["trigger_source"] == "worker_schedule"
     assert calls[0]["template_id"] == "summary-daily"
