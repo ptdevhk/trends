@@ -62,6 +62,7 @@
     "star": "Bulk star",
     "reject": "Bulk reject",
     "block": "Bulk block",
+    "reviewPacket": "Review packet",
     "blocked": "Blocked",
     "manageBlocked": "Manage",
     "export": "Export"

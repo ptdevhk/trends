@@ -3,11 +3,14 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReviewPacketsPage } from './ReviewPacketsPage'
 
-const { getMock, postMock, toastSuccessMock, toastErrorMock, tMock } = vi.hoisted(() => ({
+const { getMock, postMock, toastSuccessMock, toastErrorMock, searchParamsState, tMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
   postMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  searchParamsState: {
+    value: new URLSearchParams(),
+  },
   tMock: vi.fn((_key: string, options?: { defaultValue?: string; count?: number }) => {
     if (typeof options?.defaultValue === 'string') {
       return options.defaultValue.replace('{{count}}', String(options.count ?? ''))
@@ -27,6 +30,10 @@ vi.mock('sonner', () => ({
     success: (...args: unknown[]) => toastSuccessMock(...args),
     error: (...args: unknown[]) => toastErrorMock(...args),
   },
+}))
+
+vi.mock('react-router-dom', () => ({
+  useSearchParams: () => [searchParamsState.value, vi.fn()],
 }))
 
 vi.mock('@/lib/api-helpers', () => ({
@@ -62,6 +69,7 @@ const exportedRun = {
 describe('ReviewPacketsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    searchParamsState.value = new URLSearchParams()
   })
 
   it('creates a tracked export run from manual resume IDs', async () => {
@@ -240,5 +248,43 @@ describe('ReviewPacketsPage', () => {
     expect(await screen.findByDisplayValue('Boss summary content')).toBeInTheDocument()
     expect(toastSuccessMock).toHaveBeenCalledWith('Summary preview generated')
     expect(toastErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('prefills the export form from route search params', async () => {
+    searchParamsState.value = new URLSearchParams(
+      'source=sample&format=csv&sample=sample-initial&jobDescriptionId=lathe-sales&sessionId=session-123&resumeIds=resume-1,resume-2'
+    )
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/resumes/review-packets') {
+        return {
+          data: {
+            success: true,
+            items: [existingRun],
+          },
+        }
+      }
+
+      if (path === '/api/resumes/review-packets/run-1') {
+        return {
+          data: {
+            success: true,
+            run: existingRun,
+          },
+        }
+      }
+
+      return { data: { success: true } }
+    })
+
+    render(<ReviewPacketsPage />)
+
+    expect(await screen.findByRole('button', { name: 'run-1' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Source')).toHaveValue('sample')
+    expect(screen.getByLabelText('Format')).toHaveValue('csv')
+    expect(screen.getByLabelText('Sample name')).toHaveValue('sample-initial')
+    expect(screen.getByLabelText('Session ID')).toHaveValue('session-123')
+    expect(screen.getByLabelText('Job description ID')).toHaveValue('lathe-sales')
+    expect(screen.getByLabelText('Resume IDs')).toHaveValue('resume-1\nresume-2')
   })
 })

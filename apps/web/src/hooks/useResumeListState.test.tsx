@@ -1157,6 +1157,30 @@ describe('useResumeListState role filter regression', () => {
     expect(parsedBody.industryDbV2Stats).toEqual(mockState.searchHistory[0].industryDbV2Stats)
   })
 
+  it('opens the review packets page with selected resume ids and current context', () => {
+    mockState.sessionJobDescriptionId = 'lathe-sales'
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleToggleSelect('resume-ideal-cnc-sales')
+      result.current.handleToggleSelect('resume-zhang-machinery-sales')
+    })
+
+    act(() => {
+      result.current.handleOpenReviewPacket()
+    })
+
+    expect(mockState.navigate).toHaveBeenCalledTimes(1)
+    const navigateTarget = mockState.navigate.mock.calls[0]?.[0] as { pathname: string; search: string }
+    expect(navigateTarget.pathname).toBe('/dev/review-packets')
+
+    const params = new URLSearchParams(navigateTarget.search)
+    expect(params.get('source')).toBe('convex')
+    expect(params.get('format')).toBe('csv')
+    expect(params.get('jobDescriptionId')).toBe('lathe-sales')
+    expect(params.get('resumeIds')).toBe('resume-ideal-cnc-sales,resume-zhang-machinery-sales')
+  })
+
   it('applies saved search history and updates opened timestamp', async () => {
     mockState.searchHistory = [
       {
