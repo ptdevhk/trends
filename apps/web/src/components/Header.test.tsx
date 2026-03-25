@@ -37,6 +37,7 @@ vi.mock('react-i18next', () => ({
         'app.title': 'Trends',
         'app.subtitle': 'Trends',
         'nav.resumes': 'Resumes',
+        'nav.reviewPackets': 'Review packets',
         'nav.settings': 'Settings',
       }
       return values[key] ?? key
@@ -103,8 +104,15 @@ describe('Header', () => {
     })
   })
 
-  it('does not attach resume reset state to settings or system links', () => {
+  it('does not attach resume reset state to review packets, settings, or system links', () => {
     render(<Header />)
+
+    const reviewPacketLinks = screen.getAllByRole('link', { name: 'Review packets' })
+    expect(reviewPacketLinks).toHaveLength(2)
+    reviewPacketLinks.forEach((link) => {
+      expect(link).toHaveAttribute('href', '/dev/review-packets')
+      expect(link).toHaveAttribute('data-reset', 'false')
+    })
 
     const settingsLinks = screen.getAllByRole('link', { name: 'Settings' })
     expect(settingsLinks).toHaveLength(2)

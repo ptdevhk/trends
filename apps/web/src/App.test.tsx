@@ -14,6 +14,10 @@ vi.mock('@/pages/ResumesPage', () => ({
   ResumesPage: () => <div>Resumes Page</div>,
 }))
 
+vi.mock('@/pages/ReviewPacketsPage', () => ({
+  ReviewPacketsPage: () => <div>Review Packets Page</div>,
+}))
+
 vi.mock('@/pages/DebugPage', () => ({
   DebugPage: ({ basePath }: { basePath: string }) => <div>Debug Page {basePath}</div>,
 }))
@@ -98,6 +102,19 @@ describe('App redirects', () => {
     })
 
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()
+  })
+
+  it('preserves search params when redirecting /review-packets to /dev/review-packets', async () => {
+    window.history.replaceState({}, '', '/review-packets?source=convex&sessionId=session-123')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/dev/review-packets')
+      expect(window.location.search).toBe('?source=convex&sessionId=session-123')
+    })
+
+    expect(screen.getByText('Review Packets Page')).toBeInTheDocument()
   })
 
   it('preserves search params when redirecting a workspace index route to resumes', async () => {
