@@ -4515,6 +4515,135 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/summaries/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Render and optionally send a workspace daily summary */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        workspaceSlug?: string;
+                        /**
+                         * @default daily
+                         * @enum {string}
+                         */
+                        period?: "daily";
+                        /** Format: date-time */
+                        endAt?: string;
+                        /** @enum {string} */
+                        channel: "email" | "wechat_work" | "feishu" | "telegram";
+                        /** @default false */
+                        dryRun?: boolean;
+                        templateId?: string;
+                        /** Format: email */
+                        to?: string;
+                        subject?: string;
+                        /** Format: uri */
+                        webhookUrl?: string;
+                        botToken?: string;
+                        chatId?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Summary run result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            /** @enum {string} */
+                            channel: "email" | "wechat_work" | "feishu" | "telegram";
+                            dryRun: boolean;
+                            templateId: string;
+                            subject?: string;
+                            report: {
+                                workspaceSlug: string;
+                                /** @enum {string} */
+                                period: "daily";
+                                generatedAt: string;
+                                window: {
+                                    startAt: string;
+                                    endAt: string;
+                                    timezone: string;
+                                };
+                                totals: {
+                                    newResumes: number;
+                                    candidateStatusUpdates: number;
+                                    shortlistActions: number;
+                                    rejectActions: number;
+                                    contactActions: number;
+                                    collectionTasksCompleted: number;
+                                    collectionTasksFailed: number;
+                                };
+                                breakdowns: {
+                                    resumesBySource: {
+                                        key: string;
+                                        label: string;
+                                        count: number;
+                                    }[];
+                                    candidateStatusByValue: {
+                                        key: string;
+                                        label: string;
+                                        count: number;
+                                    }[];
+                                    actionsByType: {
+                                        key: string;
+                                        label: string;
+                                        count: number;
+                                    }[];
+                                    collectionTasksByStatus: {
+                                        key: string;
+                                        label: string;
+                                        count: number;
+                                    }[];
+                                };
+                                notes: string[];
+                            };
+                            content: string;
+                            delivery?: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Summary run error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
