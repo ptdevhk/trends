@@ -7,7 +7,7 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { CheckCircle, XCircle, Download, Users, Star, Ban } from 'lucide-react'
+import { CheckCircle, XCircle, Download, Users, Star, Ban, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,7 @@ interface BulkActionBarProps {
     onSelectHighScore?: () => void
     onClearSelection?: () => void
     onBulkAction?: (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export', format?: ResumeExportFormat) => void
+    onOpenReviewPacket?: () => void | Promise<void>
     blockedCount?: number
     blocksSettingsPath?: string
     disabled?: boolean
@@ -38,6 +39,7 @@ export function BulkActionBar({
     onSelectHighScore,
     onClearSelection,
     onBulkAction,
+    onOpenReviewPacket,
     blockedCount = 0,
     blocksSettingsPath,
     disabled = false,
@@ -45,18 +47,20 @@ export function BulkActionBar({
     const { t } = useTranslation()
     const [loading, setLoading] = useState<string | null>(null)
 
-    const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export') => {
+    const handleAction = useCallback(async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export' | 'review-packet') => {
         setLoading(action)
         try {
             if (action === 'export') {
                 await onBulkAction?.('export', exportFormat)
+            } else if (action === 'review-packet') {
+                await onOpenReviewPacket?.()
             } else {
                 await onBulkAction?.(action)
             }
         } finally {
             setLoading(null)
         }
-    }, [onBulkAction, exportFormat])
+    }, [onBulkAction, exportFormat, onOpenReviewPacket])
 
     return (
         <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-muted/50 border">
@@ -159,6 +163,16 @@ export function BulkActionBar({
                 >
                     <XCircle className={cn('mr-1 h-4 w-4', loading === 'reject' && 'animate-spin')} />
                     {t('bulkActions.reject', '批量拒绝')}
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAction('review-packet')}
+                    disabled={disabled || selectedCount === 0 || loading !== null}
+                    className="text-sky-700 border-sky-200 hover:bg-sky-50"
+                >
+                    <FileText className={cn('mr-1 h-4 w-4', loading === 'review-packet' && 'animate-spin')} />
+                    {t('bulkActions.reviewPacket', 'Review packet')}
                 </Button>
                 <Button
                     variant="outline"

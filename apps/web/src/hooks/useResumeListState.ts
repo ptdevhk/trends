@@ -150,6 +150,11 @@ function normalizeFilterList(values: string[] | undefined): string[] | undefined
   return normalized.sort()
 }
 
+function resolveWorkspaceSlugFromPathname(pathname: string): string {
+  const slug = pathname.split('/').filter(Boolean)[0]
+  return slug && slug.length > 0 ? slug : 'dev'
+}
+
 function serializeLocationFilter(values: string[] | undefined): string {
   if (!Array.isArray(values) || values.length === 0) {
     return ''
@@ -1806,6 +1811,42 @@ export function useResumeListState(loadSearchHistory = false) {
     [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t]
   )
 
+  const handleOpenReviewPacket = useCallback(() => {
+    if (selectedIds.size === 0) {
+      return
+    }
+
+    const selectedEntries = displayedResumes.filter((entry) => selectedIds.has(entry.key))
+    if (selectedEntries.length === 0) {
+      return
+    }
+
+    if (mode !== 'ai' && !selectedSample) {
+      toast.error(t('bulk.exportFailed', { defaultValue: 'Export failed: sample context is missing. Please refresh and try again.' }))
+      return
+    }
+
+    const params = new URLSearchParams()
+    params.set('source', mode === 'ai' ? 'convex' : 'sample')
+    params.set('format', bulkExportFormat)
+    params.set('resumeIds', selectedEntries.map((entry) => entry.key).join(','))
+
+    const normalizedSample = normalizeOptionalString(selectedSample)
+    if (mode !== 'ai' && normalizedSample) {
+      params.set('sample', normalizedSample)
+    }
+
+    const normalizedJobDescriptionId = normalizeOptionalString(jobDescriptionId)
+    if (normalizedJobDescriptionId) {
+      params.set('jobDescriptionId', normalizedJobDescriptionId)
+    }
+
+    navigate({
+      pathname: `/${resolveWorkspaceSlugFromPathname(location.pathname)}/review-packets`,
+      search: `?${params.toString()}`,
+    })
+  }, [bulkExportFormat, displayedResumes, jobDescriptionId, location.pathname, mode, navigate, selectedIds, selectedSample, t])
+
   const actionFeedbackLabels = useMemo<Partial<Record<CandidateActionType, string>>>(
     () => ({
       shortlist: t('resumes.actions.shortlist', '入围'),
@@ -2099,6 +2140,7 @@ export function useResumeListState(loadSearchHistory = false) {
     handleClearSelection,
     handleToggleSelect,
     handleBulkAction,
+    handleOpenReviewPacket,
     handleCardAction,
     handleAiFeedback,
     getAiFeedback,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Download, FileUp, RefreshCw, Send, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import type { BadgeProps } from '@/components/ui/badge'
 import { Badge } from '@/components/ui/badge'
@@ -200,6 +201,7 @@ function isReviewPacketFormat(value: string): value is ReviewPacketFormat {
 
 export function ReviewPacketsPage() {
   const { t } = useTranslation()
+  const [searchParams] = useSearchParams()
   const feedbackFileInputRef = useRef<HTMLInputElement | null>(null)
   const selectedRunIdRef = useRef<string | null>(null)
 
@@ -228,6 +230,27 @@ export function ReviewPacketsPage() {
   const [feedbackUpdatedBy, setFeedbackUpdatedBy] = useState('')
   const [summaryTemplateId, setSummaryTemplateId] = useState(DEFAULT_TEMPLATE_ID)
   const [summaryWebhookUrl, setSummaryWebhookUrl] = useState('')
+
+  useEffect(() => {
+    const sourceParam = searchParams.get('source')
+    if (sourceParam && isReviewPacketSource(sourceParam)) {
+      setSource(sourceParam)
+    }
+
+    const formatParam = searchParams.get('format')
+    if (formatParam && isReviewPacketFormat(formatParam)) {
+      setFormat(formatParam)
+    }
+
+    setSampleName(searchParams.get('sample') ?? '')
+    setSessionId(searchParams.get('sessionId') ?? '')
+    setJobDescriptionId(searchParams.get('jobDescriptionId') ?? '')
+    setUserComment(searchParams.get('userComment') ?? '')
+    setReferenceNote(searchParams.get('referenceNote') ?? '')
+
+    const resumeIdsParam = searchParams.get('resumeIds')
+    setResumeIdsText(resumeIdsParam ? parseResumeIds(resumeIdsParam).join('\n') : '')
+  }, [searchParams])
 
   const loadRuns = useCallback(async (preferredRunId?: string) => {
     setRunsLoading(true)

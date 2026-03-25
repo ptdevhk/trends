@@ -62,6 +62,7 @@
     "star": "批量標星",
     "reject": "批量拒絕",
     "block": "批量封鎖",
+    "reviewPacket": "評審包",
     "blocked": "封鎖",
     "manageBlocked": "管理",
     "export": "匯出"
