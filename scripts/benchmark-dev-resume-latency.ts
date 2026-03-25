@@ -69,6 +69,7 @@ type RefreshReport = {
 };
 
 type RegressionSeverity = "ok" | "warning" | "failure";
+type RegressionStatus = "PASS" | "WARN" | "FAIL";
 
 type RegressionComparison = {
     phase: "before" | "after";
@@ -83,6 +84,7 @@ type RegressionComparison = {
 type RegressionReport = {
     baselinePath: string;
     strict: boolean;
+    status: RegressionStatus;
     comparisons: RegressionComparison[];
     warnings: RegressionComparison[];
     failures: RegressionComparison[];
@@ -124,7 +126,7 @@ function printUsage(): void {
     console.log("  --warmup=<n>           Discarded warmup probes per phase (default: 1)");
     console.log("  --timeout-ms=<n>       Page/browser timeout in ms (default: 30000)");
     console.log("  --refresh=<bool>       Run `make dev-convex-refresh` between phases (default: true)");
-    console.log("  --baseline=<path>      Baseline benchmark JSON for regression comparison");
+    console.log("  --baseline=<path|latest> Baseline benchmark JSON for regression comparison");
     console.log("  --strict               Exit non-zero only when slowdown >25% vs baseline");
     console.log("  --json                 Print machine-readable JSON");
     console.log("  --out[=<path>]         Write JSON artifact to path, or auto-generate under output/benchmarks");
@@ -209,6 +211,46 @@ function resolveOutputPath(projectRoot: string, outOption: string | "auto" | nul
         return path.join(projectRoot, "output", "benchmarks", `dev-resume-latency-${formatTimestampForFile(new Date())}.json`);
     }
     return path.resolve(process.cwd(), outOption);
+}
+
+function listBenchmarkArtifacts(projectRoot: string): string[] {
+    const benchmarksDir = path.join(projectRoot, "output", "benchmarks");
+    if (!fs.existsSync(benchmarksDir)) {
+        return [];
+    }
+
+    return fs.readdirSync(benchmarksDir)
+        .filter((entry) => /^dev-resume-latency-\d{8}-\d{6}\.json$/.test(entry))
+        .sort((left, right) => right.localeCompare(left))
+        .map((entry) => path.join(benchmarksDir, entry));
+}
+
+function resolveBaselinePath(
+    projectRoot: string,
+    baselineOption: string | null,
+    outputPath: string | null,
+): string | null {
+    if (!baselineOption) {
+        return null;
+    }
+
+    if (baselineOption !== "latest") {
+        return path.resolve(process.cwd(), baselineOption);
+    }
+
+    const resolvedOutputPath = outputPath ? path.resolve(outputPath) : null;
+    const candidates = listBenchmarkArtifacts(projectRoot).filter((candidate) => {
+        if (!resolvedOutputPath) {
+            return true;
+        }
+        return path.resolve(candidate) !== resolvedOutputPath;
+    });
+
+    if (candidates.length === 0) {
+        throw new Error("No prior dev resume latency benchmark artifact found for BASELINE=latest");
+    }
+
+    return candidates[0];
 }
 
 function parseOutOption(argv: string[]): string | "auto" | null {
@@ -632,12 +674,16 @@ function compareAgainstBaseline(
         }
     }
 
+    const warnings = comparisons.filter((comparison) => comparison.severity === "warning");
+    const failures = comparisons.filter((comparison) => comparison.severity === "failure");
+
     return {
         baselinePath: path.resolve(process.cwd(), baselinePath),
         strict,
+        status: failures.length > 0 ? "FAIL" : warnings.length > 0 ? "WARN" : "PASS",
         comparisons,
-        warnings: comparisons.filter((comparison) => comparison.severity === "warning"),
-        failures: comparisons.filter((comparison) => comparison.severity === "failure"),
+        warnings,
+        failures,
     };
 }
 
@@ -664,6 +710,7 @@ function printHumanSummary(report: BenchmarkReport): void {
     }
     if (report.regression) {
         console.log("");
+        console.log(`Regression status: ${report.regression.status}`);
         console.log(`Baseline: ${report.regression.baselinePath}`);
         for (const comparison of report.regression.comparisons) {
             const sign = comparison.deltaPct >= 0 ? "+" : "";
@@ -678,6 +725,7 @@ async function main(): Promise<void> {
     const options = parseCliArgs(process.argv.slice(2));
     const projectRoot = resolveProjectRoot();
     const outputPath = resolveOutputPath(projectRoot, options.out);
+    const resolvedBaselinePath = resolveBaselinePath(projectRoot, options.baseline, outputPath);
     const startedAt = new Date().toISOString();
     const browser = await launchBrowser();
 
@@ -701,7 +749,7 @@ async function main(): Promise<void> {
             runs: options.runs,
             warmup: options.warmup,
             timeoutMs: options.timeoutMs,
-            baseline: options.baseline,
+            baseline: resolvedBaselinePath,
             strict: options.strict,
             refresh,
             before,
@@ -710,8 +758,8 @@ async function main(): Promise<void> {
             regression: null,
         };
 
-        if (options.baseline) {
-            report.regression = compareAgainstBaseline(report, options.baseline, options.strict);
+        if (resolvedBaselinePath) {
+            report.regression = compareAgainstBaseline(report, resolvedBaselinePath, options.strict);
         }
 
         if (outputPath) {
