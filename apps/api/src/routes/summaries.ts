@@ -1,12 +1,20 @@
+import { randomUUID } from "node:crypto";
+
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { isValidWorkspace, type WorkspaceSlug } from "@trends/shared";
 
 import { SummaryDataService } from "../services/summaries/summary-data-service.js";
 import { summaryDispatcher } from "../services/summaries/summary-dispatcher.js";
 import { SummaryRenderer } from "../services/summaries/summary-renderer.js";
+import {
+  WorkspaceSummaryRunStorage,
+  type StoredWorkspaceSummaryRun,
+} from "../services/workspace-summary-run-storage.js";
 
 const app = new OpenAPIHono();
 const summaryDataService = new SummaryDataService();
 const summaryRenderer = new SummaryRenderer();
+const workspaceSummaryRunStorage = new WorkspaceSummaryRunStorage();
 
 const SummaryCountEntrySchema = z.object({
   key: z.string(),
@@ -47,17 +55,45 @@ const SummaryPreviewRequestSchema = z.object({
   endAt: z.string().datetime({ offset: true }).optional(),
 });
 
+const SummaryTriggerSourceSchema = z.enum([
+  "api_preview",
+  "api_manual",
+  "worker_manual",
+  "worker_schedule",
+]);
+
+const SummaryChannelSchema = z.enum(["email", "wechat_work", "feishu", "telegram"]);
+
+const StoredSummaryRunSchema = z.object({
+  id: z.string(),
+  workspaceSlug: z.string(),
+  period: z.literal("daily"),
+  triggerSource: SummaryTriggerSourceSchema,
+  status: z.enum(["previewed", "dry_run", "sent", "failed"]),
+  channel: SummaryChannelSchema.optional(),
+  templateId: z.string().optional(),
+  dryRun: z.boolean(),
+  windowStart: z.string(),
+  windowEnd: z.string(),
+  startedAt: z.string(),
+  finishedAt: z.string().optional(),
+  report: SummaryReportSchema,
+  content: z.string().optional(),
+  delivery: z.object({}).catchall(z.unknown()).optional(),
+  error: z.string().optional(),
+});
+
 const SummaryPreviewResponseSchema = z.object({
   success: z.literal(true),
   report: SummaryReportSchema,
   markdown: z.string(),
+  run: StoredSummaryRunSchema,
 });
-
-const SummaryChannelSchema = z.enum(["email", "wechat_work", "feishu", "telegram"]);
 
 const SummaryRunRequestSchema = SummaryPreviewRequestSchema.extend({
   channel: SummaryChannelSchema,
   dryRun: z.boolean().default(false),
+  triggerSource: SummaryTriggerSourceSchema.optional(),
   templateId: z.string().min(1).optional(),
   to: z.string().email().optional(),
   subject: z.string().min(1).optional(),
@@ -75,12 +111,76 @@ const SummaryRunResponseSchema = z.object({
   report: SummaryReportSchema,
   content: z.string(),
   delivery: z.object({}).catchall(z.unknown()).optional(),
+  run: StoredSummaryRunSchema,
+});
+
+const SummaryRunsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+const SummaryRunListResponseSchema = z.object({
+  success: z.literal(true),
+  items: z.array(StoredSummaryRunSchema),
+});
+
+const SummaryRunDetailResponseSchema = z.object({
+  success: z.literal(true),
+  item: StoredSummaryRunSchema,
 });
 
 const ErrorSchema = z.object({
   success: z.literal(false),
   error: z.string(),
 });
+
+function isSummaryReport(value: unknown): value is z.infer<typeof SummaryReportSchema> {
+  return SummaryReportSchema.safeParse(value).success;
+}
+
+function toPublicSummaryRun(run: StoredWorkspaceSummaryRun): z.infer<typeof StoredSummaryRunSchema> {
+  return {
+    ...run,
+    report: isSummaryReport(run.report)
+      ? run.report
+      : {
+        workspaceSlug: run.workspaceSlug,
+        period: "daily",
+        generatedAt: run.finishedAt ?? run.startedAt,
+        window: {
+          startAt: run.windowStart,
+          endAt: run.windowEnd,
+          timezone: "unknown",
+        },
+        totals: {
+          newResumes: 0,
+          candidateStatusUpdates: 0,
+          shortlistActions: 0,
+          rejectActions: 0,
+          contactActions: 0,
+          collectionTasksCompleted: 0,
+          collectionTasksFailed: 0,
+        },
+        breakdowns: {
+          resumesBySource: [],
+          candidateStatusByValue: [],
+          actionsByType: [],
+          collectionTasksByStatus: [],
+        },
+        notes: [],
+      },
+  };
+}
+
+function resolveWorkspaceSlug(value: string | undefined, fallback: WorkspaceSlug): WorkspaceSlug {
+  const candidate = value?.trim();
+  if (!candidate) {
+    return fallback;
+  }
+  if (!isValidWorkspace(candidate)) {
+    throw new Error(`Invalid workspace slug: ${candidate}. Allowed: dev, hr`);
+  }
+  return candidate;
+}
 
 const previewRoute = createRoute({
   method: "post",
@@ -119,17 +219,30 @@ const previewRoute = createRoute({
 app.openapi(previewRoute, async (c) => {
   try {
     const body = c.req.valid("json");
-    const workspaceSlug = body.workspaceSlug?.trim() || c.var.workspaceSlug;
+    const workspaceSlug = resolveWorkspaceSlug(body.workspaceSlug, c.var.workspaceSlug);
     const report = await summaryDataService.buildSummaryReport({
       workspaceSlug,
       period: body.period,
       endAt: body.endAt,
     });
+    const markdown = summaryRenderer.renderMarkdown(report);
+    const run = workspaceSummaryRunStorage.createRun({
+      id: randomUUID(),
+      workspaceSlug,
+      triggerSource: "api_preview",
+      status: "previewed",
+      dryRun: true,
+      windowStart: report.window.startAt,
+      windowEnd: report.window.endAt,
+      report,
+      content: markdown,
+    });
 
     return c.json({
       success: true as const,
       report,
-      markdown: summaryRenderer.renderMarkdown(report),
+      markdown,
+      run: toPublicSummaryRun(run),
     }, 200);
   } catch (error) {
     console.error("Failed to preview summary:", error);
@@ -175,14 +288,29 @@ const runRoute = createRoute({
 });
 
 app.openapi(runRoute, async (c) => {
+  let workspaceSlug = c.var.workspaceSlug;
+  let triggerSource: z.infer<typeof SummaryTriggerSourceSchema> = "api_manual";
+  let dryRun = false;
+  let channel: z.infer<typeof SummaryChannelSchema> | undefined;
+  let templateId: string | undefined;
+  let report: z.infer<typeof SummaryReportSchema> | undefined;
+  let preview: { content: string; templateId: string; subject?: string } | undefined;
   try {
     const body = c.req.valid("json");
-    const workspaceSlug = body.workspaceSlug?.trim() || c.var.workspaceSlug;
-    const report = await summaryDataService.buildSummaryReport({
+    workspaceSlug = resolveWorkspaceSlug(body.workspaceSlug, c.var.workspaceSlug);
+    dryRun = body.dryRun;
+    channel = body.channel;
+    templateId = body.templateId;
+    report = await summaryDataService.buildSummaryReport({
       workspaceSlug,
       period: body.period,
       endAt: body.endAt,
     });
+    preview = summaryDispatcher.buildPreview(report, {
+      templateId: body.templateId,
+    });
+    triggerSource = body.triggerSource ?? "api_manual";
+    const runId = randomUUID();
     const dispatched = await summaryDispatcher.dispatch(report, {
       channel: body.channel,
       dryRun: body.dryRun,
@@ -192,6 +320,20 @@ app.openapi(runRoute, async (c) => {
       webhookUrl: body.webhookUrl,
       botToken: body.botToken,
       chatId: body.chatId,
+    });
+    const run = workspaceSummaryRunStorage.createRun({
+      id: runId,
+      workspaceSlug,
+      triggerSource,
+      status: dispatched.dryRun ? "dry_run" : "sent",
+      channel: dispatched.channel,
+      templateId: dispatched.templateId,
+      dryRun: dispatched.dryRun,
+      windowStart: report.window.startAt,
+      windowEnd: report.window.endAt,
+      report,
+      content: dispatched.content,
+      delivery: dispatched.delivery,
     });
 
     return c.json({
@@ -203,14 +345,109 @@ app.openapi(runRoute, async (c) => {
       report,
       content: dispatched.content,
       delivery: dispatched.delivery,
+      run: toPublicSummaryRun(run),
     }, 200);
   } catch (error) {
+    if (report) {
+      workspaceSummaryRunStorage.createRun({
+        id: randomUUID(),
+        workspaceSlug,
+        triggerSource,
+        status: "failed",
+        channel,
+        templateId,
+        dryRun,
+        windowStart: report.window.startAt,
+        windowEnd: report.window.endAt,
+        report,
+        content: preview?.content,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
     console.error("Failed to run summary:", error);
     return c.json({
       success: false as const,
       error: error instanceof Error ? error.message : "Unknown error",
     }, 500);
   }
+});
+
+const listRunsRoute = createRoute({
+  method: "get",
+  path: "/runs",
+  tags: ["Summaries"],
+  summary: "List persisted workspace summary runs",
+  request: {
+    query: SummaryRunsQuerySchema,
+  },
+  responses: {
+    200: {
+      description: "Summary run list",
+      content: {
+        "application/json": {
+          schema: SummaryRunListResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(listRunsRoute, async (c) => {
+  const query = c.req.valid("query");
+  const items = workspaceSummaryRunStorage
+    .listRuns(c.var.workspaceSlug, query.limit)
+    .map((item) => toPublicSummaryRun(item));
+
+  return c.json({
+    success: true as const,
+    items,
+  }, 200);
+});
+
+const getRunRoute = createRoute({
+  method: "get",
+  path: "/runs/{runId}",
+  tags: ["Summaries"],
+  summary: "Get one persisted workspace summary run",
+  request: {
+    params: z.object({
+      runId: z.string().min(1),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Summary run detail",
+      content: {
+        "application/json": {
+          schema: SummaryRunDetailResponseSchema,
+        },
+      },
+    },
+    404: {
+      description: "Run not found",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(getRunRoute, async (c) => {
+  const { runId } = c.req.valid("param");
+  const item = workspaceSummaryRunStorage.getRun(runId, c.var.workspaceSlug);
+  if (!item) {
+    return c.json({
+      success: false as const,
+      error: `Summary run not found: ${runId}`,
+    }, 404);
+  }
+
+  return c.json({
+    success: true as const,
+    item: toPublicSummaryRun(item),
+  }, 200);
 });
 
 export default app;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ptdevhk/trends/packages/cli/internal/client"
 	"github.com/spf13/cobra"
 )
 
@@ -16,9 +17,155 @@ func newWorkerCmd() *cobra.Command {
 	workerCmd.AddCommand(
 		newWorkerStatusCmd(),
 		newWorkerRunCmd(),
+		newWorkerSummaryCmd(),
 	)
 
 	return workerCmd
+}
+
+func newWorkerSummaryCmd() *cobra.Command {
+	summaryCmd := &cobra.Command{
+		Use:   "summary",
+		Short: "Workspace summary operations",
+	}
+
+	summaryCmd.AddCommand(
+		newWorkerSummaryRunCmd(),
+		newWorkerSummaryHistoryCmd(),
+		newWorkerSummaryShowCmd(),
+	)
+
+	return summaryCmd
+}
+
+func newWorkerSummaryRunCmd() *cobra.Command {
+	var channel string
+	var dryRun bool
+	var templateID string
+	var endAt string
+	var to string
+	var subject string
+	var webhookURL string
+	var botToken string
+	var chatID string
+	var viaWorker bool
+
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Run a workspace summary manually",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			request := client.SummaryRunRequest{
+				Channel:       channel,
+				DryRun:        dryRun,
+				TemplateID:    templateID,
+				EndAt:         endAt,
+				To:            to,
+				Subject:       subject,
+				WebhookURL:    webhookURL,
+				BotToken:      botToken,
+				ChatID:        chatID,
+				TriggerSource: "api_manual",
+			}
+
+			if viaWorker {
+				response, err := newAPIClient().TriggerWorkerSummary(context.Background(), request)
+				if err != nil {
+					return err
+				}
+				headers := []string{"mode", "started_at", "finished_at", "message"}
+				rows := [][]string{{response.Mode, response.StartedAt, response.FinishedAt, response.Message}}
+				return writeOutput(cmd, headers, rows, response)
+			}
+
+			response, err := newAPIClient().RunWorkspaceSummary(context.Background(), request)
+			if err != nil {
+				return err
+			}
+			headers := []string{"run_id", "status", "channel", "dry_run", "trigger_source", "window_end"}
+			rows := [][]string{{
+				response.Run.ID,
+				response.Run.Status,
+				response.Channel,
+				boolToString(response.DryRun),
+				response.Run.TriggerSource,
+				response.Run.WindowEnd,
+			}}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().StringVar(&channel, "channel", "telegram", "Summary delivery channel")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Render without sending externally")
+	cmd.Flags().StringVar(&templateID, "template-id", "", "Optional notification template ID")
+	cmd.Flags().StringVar(&endAt, "end-at", "", "Optional ISO8601 end time")
+	cmd.Flags().StringVar(&to, "to", "", "Optional email recipient for email channel")
+	cmd.Flags().StringVar(&subject, "subject", "", "Optional message subject override")
+	cmd.Flags().StringVar(&webhookURL, "webhook-url", "", "Optional webhook override for WeChat Work or Feishu")
+	cmd.Flags().StringVar(&botToken, "bot-token", "", "Optional Telegram bot token override")
+	cmd.Flags().StringVar(&chatID, "chat-id", "", "Optional Telegram chat ID override")
+	cmd.Flags().BoolVar(&viaWorker, "via-worker", false, "Trigger through the worker summary endpoint instead of the API summary route")
+	return cmd
+}
+
+func newWorkerSummaryHistoryCmd() *cobra.Command {
+	var limit int
+
+	cmd := &cobra.Command{
+		Use:   "history",
+		Short: "List persisted workspace summary runs",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().ListWorkspaceSummaryRuns(context.Background(), limit)
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"id", "status", "channel", "dry_run", "trigger_source", "started_at", "window_end"}
+			rows := make([][]string, 0, len(response.Items))
+			for _, item := range response.Items {
+				rows = append(rows, []string{
+					item.ID,
+					item.Status,
+					item.Channel,
+					boolToString(item.DryRun),
+					item.TriggerSource,
+					item.StartedAt,
+					item.WindowEnd,
+				})
+			}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().IntVar(&limit, "limit", 20, "Maximum summary runs to fetch")
+	return cmd
+}
+
+func newWorkerSummaryShowCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "show <run-id>",
+		Short: "Show one persisted workspace summary run",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().GetWorkspaceSummaryRun(context.Background(), args[0])
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"id", "status", "channel", "dry_run", "trigger_source", "started_at", "finished_at"}
+			rows := [][]string{{
+				response.Item.ID,
+				response.Item.Status,
+				response.Item.Channel,
+				boolToString(response.Item.DryRun),
+				response.Item.TriggerSource,
+				response.Item.StartedAt,
+				response.Item.FinishedAt,
+			}}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	return cmd
 }
 
 func newWorkerStatusCmd() *cobra.Command {

@@ -222,6 +222,11 @@ describe("summary preview route", () => {
         };
       };
       markdown: string;
+      run: {
+        status: string;
+        triggerSource: string;
+        dryRun: boolean;
+      };
     };
 
     expect(payload.success).toBe(true);
@@ -241,6 +246,11 @@ describe("summary preview route", () => {
       { key: "shortlist", label: "Shortlist", count: 1 },
     ]);
     expect(payload.markdown).toContain("# Daily Ops Summary");
+    expect(payload.run).toMatchObject({
+      status: "previewed",
+      triggerSource: "api_preview",
+      dryRun: true,
+    });
     expect(calls.map((call) => call.pathName)).toEqual([
       "resumes:getSummaryWindow",
       "candidate_status:list",
@@ -299,6 +309,11 @@ describe("summary preview route", () => {
       subject?: string;
       content: string;
       delivery?: unknown;
+      run: {
+        status: string;
+        triggerSource: string;
+        dryRun: boolean;
+      };
     };
     expect(payload.success).toBe(true);
     expect(payload.dryRun).toBe(true);
@@ -306,6 +321,11 @@ describe("summary preview route", () => {
     expect(payload.subject).toBe("Daily Ops Summary hr");
     expect(payload.content).toContain("# Daily Ops Summary");
     expect(payload.delivery).toBeUndefined();
+    expect(payload.run).toMatchObject({
+      status: "dry_run",
+      triggerSource: "api_manual",
+      dryRun: true,
+    });
   });
 
   it("routes telegram summary sends through the bridge", async () => {
@@ -361,12 +381,144 @@ describe("summary preview route", () => {
       channel: string;
       dryRun: boolean;
       delivery: { ok: boolean; accountsSent: number };
+      run: {
+        status: string;
+        triggerSource: string;
+        dryRun: boolean;
+      };
     };
     expect(payload.success).toBe(true);
     expect(payload.channel).toBe("telegram");
     expect(payload.dryRun).toBe(false);
     expect(payload.delivery).toEqual({ ok: true, accountsSent: 1 });
+    expect(payload.run).toMatchObject({
+      status: "sent",
+      triggerSource: "api_manual",
+      dryRun: false,
+    });
     expect(sendSpy).toHaveBeenCalledTimes(1);
     expect(sendSpy.mock.calls[0]?.[0].content).toContain("# Daily Ops Summary");
+  });
+
+  it("lists and fetches persisted summary runs for the active workspace", async () => {
+    root = createFixtureRoot();
+    const {
+      createApp,
+      SessionManager,
+      ActionStorage,
+    } = await loadSummaryModules(root);
+
+    const sessionManager = new SessionManager(root);
+    const actionStorage = new ActionStorage(root);
+    const hrSession = sessionManager.createSession({ workspaceSlug: "hr" });
+    const otherSession = sessionManager.createSession({ workspaceSlug: "dev" });
+    actionStorage.saveAction({ sessionId: hrSession.id, resumeId: "resume-1", actionType: "shortlist" });
+    actionStorage.saveAction({ sessionId: otherSession.id, resumeId: "resume-9", actionType: "reject" });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "resumes:getSummaryWindow") {
+        return convexSuccess({ total: 1, bySource: [{ key: "seek", count: 1 }] });
+      }
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+      if (call.pathName === "resume_tasks:getSummaryWindow") {
+        return convexSuccess({ total: 0, byStatus: [] });
+      }
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const previewResponse = await app.request("/api/summaries/preview", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        period: "daily",
+        endAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    });
+    const previewPayload = await previewResponse.json() as {
+      run: { id: string };
+    };
+
+    const runResponse = await app.request("/api/summaries/run", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        period: "daily",
+        channel: "telegram",
+        dryRun: true,
+        endAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    });
+    const runPayload = await runResponse.json() as {
+      run: { id: string };
+    };
+
+    await app.request("/api/summaries/preview", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify({
+        period: "daily",
+        endAt: new Date(Date.now() + 60_000).toISOString(),
+      }),
+    });
+
+    const listResponse = await app.request("/api/summaries/runs?limit=10", {
+      method: "GET",
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+    });
+    expect(listResponse.status).toBe(200);
+    const listPayload = await listResponse.json() as {
+      success: boolean;
+      items: Array<{ id: string; workspaceSlug: string; status: string }>;
+    };
+    expect(listPayload.success).toBe(true);
+    expect(listPayload.items).toHaveLength(2);
+    expect(listPayload.items.map((item) => item.id).sort()).toEqual([
+      previewPayload.run.id,
+      runPayload.run.id,
+    ].sort());
+    expect(listPayload.items.every((item) => item.workspaceSlug === "hr")).toBe(true);
+
+    const detailResponse = await app.request(`/api/summaries/runs/${runPayload.run.id}`, {
+      method: "GET",
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+    });
+    expect(detailResponse.status).toBe(200);
+    const detailPayload = await detailResponse.json() as {
+      success: boolean;
+      item: { id: string; status: string; workspaceSlug: string };
+    };
+    expect(detailPayload).toMatchObject({
+      success: true,
+      item: {
+        id: runPayload.run.id,
+        status: "dry_run",
+        workspaceSlug: "hr",
+      },
+    });
+
+    const missingResponse = await app.request(`/api/summaries/runs/${previewPayload.run.id}`, {
+      method: "GET",
+      headers: {
+        "X-Workspace-Slug": "dev",
+      },
+    });
+    expect(missingResponse.status).toBe(404);
   });
 });

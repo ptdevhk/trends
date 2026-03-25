@@ -369,6 +369,7 @@ class WorkerScheduler:
             workspace_slug=workspace_slug,
             channel=channel,
             dry_run=dry_run,
+            trigger_source="worker_schedule",
             template_id=template_id,
             end_at=end_at,
         )

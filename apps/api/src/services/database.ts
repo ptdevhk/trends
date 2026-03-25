@@ -169,6 +169,28 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_actions_user ON candidate_actions(user_id);
     CREATE INDEX IF NOT EXISTS idx_actions_type ON candidate_actions(action_type);
 
+    CREATE TABLE IF NOT EXISTS workspace_summary_runs (
+      id TEXT PRIMARY KEY,
+      workspace_slug TEXT NOT NULL DEFAULT 'dev',
+      period TEXT NOT NULL DEFAULT 'daily',
+      trigger_source TEXT NOT NULL,
+      status TEXT NOT NULL,
+      channel TEXT,
+      template_id TEXT,
+      dry_run INTEGER NOT NULL DEFAULT 0,
+      window_start TEXT NOT NULL,
+      window_end TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      finished_at TEXT,
+      report_json TEXT NOT NULL,
+      content_text TEXT,
+      delivery_json TEXT,
+      error TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_workspace_summary_runs_workspace ON workspace_summary_runs(workspace_slug);
+    CREATE INDEX IF NOT EXISTS idx_workspace_summary_runs_started ON workspace_summary_runs(started_at DESC);
+
     CREATE TABLE IF NOT EXISTS review_packet_runs (
       id TEXT PRIMARY KEY,
       workspace_slug TEXT NOT NULL DEFAULT 'dev',
