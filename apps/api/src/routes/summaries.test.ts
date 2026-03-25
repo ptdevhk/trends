@@ -39,13 +39,24 @@ function createFixtureRoot(): string {
       "- Workspace: {{workspaceSlug}}",
       "- Generated: {{generatedAt}}",
       "",
-      "## Totals",
-      "- New resumes: {{totals.newResumes}}",
-      "- Candidate status updates: {{totals.candidateStatusUpdates}}",
+      "{{#if scopes.sharedIngest}}",
+      "## Shared Ingest Totals",
+      "- New resumes: {{scopes.sharedIngest.totals.newResumes}}",
+      "- Collection tasks completed: {{scopes.sharedIngest.totals.collectionTasksCompleted}}",
+      "- Collection tasks failed: {{scopes.sharedIngest.totals.collectionTasksFailed}}",
+      "{{/if}}",
       "",
-      "{{#if breakdowns.actionsByType}}",
+      "{{#if scopes.workspaceActivity}}",
+      "## Workspace Activity",
+      "- Candidate status updates: {{scopes.workspaceActivity.totals.candidateStatusUpdates}}",
+      "- Shortlist actions: {{scopes.workspaceActivity.totals.shortlistActions}}",
+      "- Reject actions: {{scopes.workspaceActivity.totals.rejectActions}}",
+      "- Contact actions: {{scopes.workspaceActivity.totals.contactActions}}",
+      "{{/if}}",
+      "",
+      "{{#if scopes.workspaceActivity.breakdowns.actionsByType}}",
       "## Candidate Actions",
-      "{{#each breakdowns.actionsByType}}",
+      "{{#each scopes.workspaceActivity.breakdowns.actionsByType}}",
       "- {{this.label}}: {{this.count}}",
       "{{/each}}",
       "{{/if}}",
@@ -217,6 +228,17 @@ describe("summary preview route", () => {
       report: {
         workspaceSlug: string;
         totals: Record<string, number>;
+        scopes?: {
+          sharedIngest: {
+            totals: Record<string, number>;
+          };
+          workspaceActivity: {
+            totals: Record<string, number>;
+            breakdowns: {
+              actionsByType: Array<{ key: string; count: number }>;
+            };
+          };
+        };
         breakdowns: {
           actionsByType: Array<{ key: string; count: number }>;
         };
@@ -240,12 +262,29 @@ describe("summary preview route", () => {
       collectionTasksCompleted: 1,
       collectionTasksFailed: 1,
     });
+    expect(payload.report.scopes?.sharedIngest.totals).toMatchObject({
+      newResumes: 4,
+      collectionTasksCompleted: 1,
+      collectionTasksFailed: 1,
+    });
+    expect(payload.report.scopes?.workspaceActivity.totals).toMatchObject({
+      candidateStatusUpdates: 2,
+      shortlistActions: 1,
+      rejectActions: 1,
+      contactActions: 1,
+    });
     expect(payload.report.breakdowns.actionsByType).toEqual([
       { key: "contact", label: "Contact", count: 1 },
       { key: "reject", label: "Reject", count: 1 },
       { key: "shortlist", label: "Shortlist", count: 1 },
     ]);
-    expect(payload.markdown).toContain("# Daily Ops Summary");
+    expect(payload.report.scopes?.workspaceActivity.breakdowns.actionsByType).toEqual([
+      { key: "contact", label: "Contact", count: 1 },
+      { key: "reject", label: "Reject", count: 1 },
+      { key: "shortlist", label: "Shortlist", count: 1 },
+    ]);
+    expect(payload.markdown).toContain("## Shared Ingest Totals");
+    expect(payload.markdown).toContain("## Workspace Activity");
     expect(payload.run).toMatchObject({
       status: "previewed",
       triggerSource: "api_preview",
@@ -319,7 +358,8 @@ describe("summary preview route", () => {
     expect(payload.dryRun).toBe(true);
     expect(payload.templateId).toBe("summary-daily");
     expect(payload.subject).toBe("Daily Ops Summary hr");
-    expect(payload.content).toContain("# Daily Ops Summary");
+    expect(payload.content).toContain("## Shared Ingest Totals");
+    expect(payload.content).toContain("## Workspace Activity");
     expect(payload.delivery).toBeUndefined();
     expect(payload.run).toMatchObject({
       status: "dry_run",
@@ -391,6 +431,8 @@ describe("summary preview route", () => {
     expect(payload.channel).toBe("telegram");
     expect(payload.dryRun).toBe(false);
     expect(payload.delivery).toEqual({ ok: true, accountsSent: 1 });
+    expect(payload.report.scopes?.sharedIngest.totals.newResumes).toBe(2);
+    expect(payload.report.scopes?.workspaceActivity.totals.contactActions).toBe(1);
     expect(payload.run).toMatchObject({
       status: "sent",
       triggerSource: "api_manual",

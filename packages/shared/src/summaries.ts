@@ -24,6 +24,33 @@ export type SummaryCountEntry = {
   count: number;
 };
 
+export type SummarySharedIngestTotals = Pick<
+  SummaryTotals,
+  "newResumes" | "collectionTasksCompleted" | "collectionTasksFailed"
+>;
+
+export type SummaryWorkspaceActivityTotals = Pick<
+  SummaryTotals,
+  "candidateStatusUpdates" | "shortlistActions" | "rejectActions" | "contactActions"
+>;
+
+export type SummaryScopes = {
+  sharedIngest: {
+    totals: SummarySharedIngestTotals;
+    breakdowns: {
+      resumesBySource: SummaryCountEntry[];
+      collectionTasksByStatus: SummaryCountEntry[];
+    };
+  };
+  workspaceActivity: {
+    totals: SummaryWorkspaceActivityTotals;
+    breakdowns: {
+      candidateStatusByValue: SummaryCountEntry[];
+      actionsByType: SummaryCountEntry[];
+    };
+  };
+};
+
 export type SummaryReport = {
   workspaceSlug: string;
   period: SummaryPeriod;
@@ -36,6 +63,7 @@ export type SummaryReport = {
     actionsByType: SummaryCountEntry[];
     collectionTasksByStatus: SummaryCountEntry[];
   };
+  scopes?: SummaryScopes;
   notes: string[];
 };
 
