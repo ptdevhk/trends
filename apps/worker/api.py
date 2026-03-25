@@ -37,7 +37,7 @@ from mcp_server.services.data_service import DataService
 from mcp_server.utils.errors import DataNotFoundError
 from apps.worker.timezone import bootstrap_worker_timezone
 from apps.worker.status_store import resolve_worker_status_path
-from apps.worker.tasks import run_crawl_analyze
+from apps.worker.tasks import run_crawl_analyze, run_workspace_summary
 from trendradar.utils.time import format_iso_offset_time
 
 WORKER_TIMEZONE = bootstrap_worker_timezone()
@@ -180,6 +180,21 @@ class WorkerTriggerResponse(BaseModel):
     message: str
 
 
+class WorkerSummaryTriggerRequest(BaseModel):
+    """Manual worker summary trigger request."""
+
+    workspaceSlug: str = Field(default="dev", min_length=1)
+    channel: str = Field(default="telegram", min_length=1)
+    dryRun: bool = False
+    templateId: Optional[str] = None
+    endAt: Optional[str] = None
+    to: Optional[str] = None
+    subject: Optional[str] = None
+    webhookUrl: Optional[str] = None
+    botToken: Optional[str] = None
+    chatId: Optional[str] = None
+
+
 # ============================================
 # Endpoints
 # ============================================
@@ -261,6 +276,38 @@ async def trigger_worker_run(
         started_at=started_at,
         finished_at=finished_at,
         message="Worker run completed",
+    )
+
+
+@router.post("/worker/summary", response_model=WorkerTriggerResponse, tags=["System"])
+async def trigger_worker_summary(request: WorkerSummaryTriggerRequest):
+    """
+    Trigger a one-time workspace summary run immediately.
+    """
+    started_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+    success = await asyncio.to_thread(
+        run_workspace_summary,
+        workspace_slug=request.workspaceSlug,
+        channel=request.channel,
+        dry_run=request.dryRun,
+        template_id=request.templateId,
+        end_at=request.endAt,
+        to=request.to,
+        subject=request.subject,
+        webhook_url=request.webhookUrl,
+        bot_token=request.botToken,
+        chat_id=request.chatId,
+    )
+    finished_at = format_iso_offset_time(timezone=WORKER_TIMEZONE)
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Summary task failed")
+
+    return WorkerTriggerResponse(
+        mode="summary",
+        started_at=started_at,
+        finished_at=finished_at,
+        message=f"Summary task completed for {request.workspaceSlug}",
     )
 
 
