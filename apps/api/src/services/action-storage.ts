@@ -64,6 +64,14 @@ export type CandidateAction = {
   createdAt: string;
 };
 
+export type CandidateActionWindowSummary = {
+  total: number;
+  breakdown: Array<{
+    actionType: CandidateActionType;
+    count: number;
+  }>;
+};
+
 function parseJson(value: unknown): Record<string, unknown> | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined;
   try {
@@ -221,6 +229,63 @@ export class ActionStorage {
         );
 
     return rows.map((row) => normalizeAction(row));
+  }
+
+  summarizeActionsInWindow(params: {
+    workspaceSlug: string;
+    startAt: string;
+    endAt: string;
+  }): CandidateActionWindowSummary {
+    const rows = this.db
+      .prepare(
+        `
+        SELECT
+          ca.action_type,
+          COUNT(*) AS count
+        FROM candidate_actions ca
+        LEFT JOIN search_sessions persisted_session
+          ON persisted_session.id = ca.session_id
+        LEFT JOIN search_sessions scoped_session
+          ON scoped_session.id = json_extract(ca.action_data, '$.scopeId')
+        LEFT JOIN review_packet_runs persisted_packet
+          ON persisted_packet.id = CASE
+            WHEN ca.session_id LIKE 'review-packet:%' THEN substr(ca.session_id, 15)
+            ELSE NULL
+          END
+        LEFT JOIN review_packet_runs scoped_packet
+          ON scoped_packet.id = CASE
+            WHEN json_extract(ca.action_data, '$.scopeId') LIKE 'review-packet:%'
+              THEN substr(json_extract(ca.action_data, '$.scopeId'), 15)
+            ELSE NULL
+          END
+        WHERE ca.created_at >= ?
+          AND ca.created_at < ?
+          AND COALESCE(
+            persisted_session.workspace_slug,
+            scoped_session.workspace_slug,
+            persisted_packet.workspace_slug,
+            scoped_packet.workspace_slug
+          ) = ?
+        GROUP BY ca.action_type
+        ORDER BY count DESC, ca.action_type ASC
+      `
+      )
+      .all(params.startAt, params.endAt, params.workspaceSlug) as Array<{
+      action_type?: unknown;
+      count?: unknown;
+    }>;
+
+    const breakdown = rows
+      .map((row) => ({
+        actionType: String(row.action_type) as CandidateActionType,
+        count: Number(row.count ?? 0),
+      }))
+      .filter((row) => row.count > 0);
+
+    return {
+      total: breakdown.reduce((sum, item) => sum + item.count, 0),
+      breakdown,
+    };
   }
 
   private hasPersistedSession(sessionId: string): boolean {

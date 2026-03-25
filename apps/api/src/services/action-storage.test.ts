@@ -157,4 +157,48 @@ describe("ActionStorage", () => {
       expect(latest.map((action) => action.actionType).sort()).toEqual(["ai_score_like", "star"]);
     });
   });
+
+  it("summarizes actions in a workspace window using persisted sessions and review packets", () => {
+    root = createFixtureRoot();
+    storage = new ActionStorage(root);
+    const db = getResumeScreeningDb(root);
+    const now = new Date().toISOString();
+
+    db.prepare(
+      `
+      INSERT INTO search_sessions (id, workspace_slug, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      `
+    ).run("session-hr", "hr", "active", now, now);
+    db.prepare(
+      `
+      INSERT INTO search_sessions (id, workspace_slug, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      `
+    ).run("session-dev", "dev", "active", now, now);
+    db.prepare(
+      `
+      INSERT INTO review_packet_runs (
+        id, workspace_slug, source, format, status, total_count, exported_at, items_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    ).run("packet-hr", "hr", "convex", "csv", "exported", 0, now, "[]");
+
+    storage.saveAction({ sessionId: "session-hr", resumeId: "r1", actionType: "shortlist" });
+    storage.saveAction({ sessionId: "session-dev", resumeId: "r2", actionType: "reject" });
+    storage.saveAction({ sessionId: "review-packet:packet-hr", resumeId: "r3", actionType: "contact" });
+    storage.saveAction({ sessionId: "scope:untracked", resumeId: "r4", actionType: "star" });
+
+    const summary = storage.summarizeActionsInWindow({
+      workspaceSlug: "hr",
+      startAt: "2000-01-01T00:00:00.000Z",
+      endAt: "2999-01-01T00:00:00.000Z",
+    });
+
+    expect(summary.total).toBe(2);
+    expect(summary.breakdown).toEqual([
+      { actionType: "contact", count: 1 },
+      { actionType: "shortlist", count: 1 },
+    ]);
+  });
 });
