@@ -2,6 +2,7 @@ import type {
   SummaryCountEntry,
   SummaryPeriod,
   SummaryReport,
+  SummaryScopes,
   SummaryTotals,
   SummaryWindow,
 } from "@trends/shared";
@@ -206,6 +207,40 @@ function toSummaryTotals(params: {
   };
 }
 
+function toSummaryScopes(params: {
+  totals: SummaryTotals;
+  resumeEntries: SummaryCountEntry[];
+  candidateStatusEntries: SummaryCountEntry[];
+  actionEntries: SummaryCountEntry[];
+  taskEntries: SummaryCountEntry[];
+}): SummaryScopes {
+  return {
+    sharedIngest: {
+      totals: {
+        newResumes: params.totals.newResumes,
+        collectionTasksCompleted: params.totals.collectionTasksCompleted,
+        collectionTasksFailed: params.totals.collectionTasksFailed,
+      },
+      breakdowns: {
+        resumesBySource: params.resumeEntries,
+        collectionTasksByStatus: params.taskEntries,
+      },
+    },
+    workspaceActivity: {
+      totals: {
+        candidateStatusUpdates: params.totals.candidateStatusUpdates,
+        shortlistActions: params.totals.shortlistActions,
+        rejectActions: params.totals.rejectActions,
+        contactActions: params.totals.contactActions,
+      },
+      breakdowns: {
+        candidateStatusByValue: params.candidateStatusEntries,
+        actionsByType: params.actionEntries,
+      },
+    },
+  };
+}
+
 export class SummaryDataService {
   private readonly actionStorage: Pick<ActionStorage, "summarizeActionsInWindow">;
   private readonly now: () => Date;
@@ -241,11 +276,19 @@ export class SummaryDataService {
       endAt: window.endAt,
     });
 
+    const resumeEntries = normalizeConvexEntries(resumeSummary.bySource);
     const candidateStatusEntries = normalizeConvexEntries(candidateStatusSummary.byStatus, STATUS_LABELS);
     const actionEntries = normalizeActionEntries(actionSummary.breakdown);
     const taskEntries = normalizeConvexEntries(collectionTaskSummary.byStatus, TASK_STATUS_LABELS);
     const totals = toSummaryTotals({
       resumeSummary,
+      candidateStatusEntries,
+      actionEntries,
+      taskEntries,
+    });
+    const scopes = toSummaryScopes({
+      totals,
+      resumeEntries,
       candidateStatusEntries,
       actionEntries,
       taskEntries,
@@ -258,14 +301,15 @@ export class SummaryDataService {
       window,
       totals,
       breakdowns: {
-        resumesBySource: normalizeConvexEntries(resumeSummary.bySource),
+        resumesBySource: resumeEntries,
         candidateStatusByValue: candidateStatusEntries,
         actionsByType: actionEntries,
         collectionTasksByStatus: taskEntries,
       },
+      scopes,
       notes: [
-        "Resume and collection-task counts are shared ingest totals because those records are not workspace-scoped today.",
-        "Action counts include only workspace-linked rows resolved through persisted sessions or review-packet runs.",
+        "Shared ingest totals come from the global resume and collection-task pools in the current workspace model.",
+        "Workspace activity totals cover candidate-status updates and persisted workspace-linked actions only.",
       ],
     };
   }

@@ -4488,6 +4488,47 @@ export interface paths {
                                         count: number;
                                     }[];
                                 };
+                                scopes?: {
+                                    sharedIngest: {
+                                        totals: {
+                                            newResumes: number;
+                                            collectionTasksCompleted: number;
+                                            collectionTasksFailed: number;
+                                        };
+                                        breakdowns: {
+                                            resumesBySource: {
+                                                key: string;
+                                                label: string;
+                                                count: number;
+                                            }[];
+                                            collectionTasksByStatus: {
+                                                key: string;
+                                                label: string;
+                                                count: number;
+                                            }[];
+                                        };
+                                    };
+                                    workspaceActivity: {
+                                        totals: {
+                                            candidateStatusUpdates: number;
+                                            shortlistActions: number;
+                                            rejectActions: number;
+                                            contactActions: number;
+                                        };
+                                        breakdowns: {
+                                            candidateStatusByValue: {
+                                                key: string;
+                                                label: string;
+                                                count: number;
+                                            }[];
+                                            actionsByType: {
+                                                key: string;
+                                                label: string;
+                                                count: number;
+                                            }[];
+                                        };
+                                    };
+                                };
                                 notes: string[];
                             };
                             markdown: string;
@@ -4548,6 +4589,47 @@ export interface paths {
                                             label: string;
                                             count: number;
                                         }[];
+                                    };
+                                    scopes?: {
+                                        sharedIngest: {
+                                            totals: {
+                                                newResumes: number;
+                                                collectionTasksCompleted: number;
+                                                collectionTasksFailed: number;
+                                            };
+                                            breakdowns: {
+                                                resumesBySource: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                                collectionTasksByStatus: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                            };
+                                        };
+                                        workspaceActivity: {
+                                            totals: {
+                                                candidateStatusUpdates: number;
+                                                shortlistActions: number;
+                                                rejectActions: number;
+                                                contactActions: number;
+                                            };
+                                            breakdowns: {
+                                                candidateStatusByValue: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                                actionsByType: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                            };
+                                        };
                                     };
                                     notes: string[];
                                 };
@@ -4682,6 +4764,47 @@ export interface paths {
                                         count: number;
                                     }[];
                                 };
+                                scopes?: {
+                                    sharedIngest: {
+                                        totals: {
+                                            newResumes: number;
+                                            collectionTasksCompleted: number;
+                                            collectionTasksFailed: number;
+                                        };
+                                        breakdowns: {
+                                            resumesBySource: {
+                                                key: string;
+                                                label: string;
+                                                count: number;
+                                            }[];
+                                            collectionTasksByStatus: {
+                                                key: string;
+                                                label: string;
+                                                count: number;
+                                            }[];
+                                        };
+                                    };
+                                    workspaceActivity: {
+                                        totals: {
+                                            candidateStatusUpdates: number;
+                                            shortlistActions: number;
+                                            rejectActions: number;
+                                            contactActions: number;
+                                        };
+                                        breakdowns: {
+                                            candidateStatusByValue: {
+                                                key: string;
+                                                label: string;
+                                                count: number;
+                                            }[];
+                                            actionsByType: {
+                                                key: string;
+                                                label: string;
+                                                count: number;
+                                            }[];
+                                        };
+                                    };
+                                };
                                 notes: string[];
                             };
                             content: string;
@@ -4745,6 +4868,47 @@ export interface paths {
                                             label: string;
                                             count: number;
                                         }[];
+                                    };
+                                    scopes?: {
+                                        sharedIngest: {
+                                            totals: {
+                                                newResumes: number;
+                                                collectionTasksCompleted: number;
+                                                collectionTasksFailed: number;
+                                            };
+                                            breakdowns: {
+                                                resumesBySource: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                                collectionTasksByStatus: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                            };
+                                        };
+                                        workspaceActivity: {
+                                            totals: {
+                                                candidateStatusUpdates: number;
+                                                shortlistActions: number;
+                                                rejectActions: number;
+                                                contactActions: number;
+                                            };
+                                            breakdowns: {
+                                                candidateStatusByValue: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                                actionsByType: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                            };
+                                        };
                                     };
                                     notes: string[];
                                 };
@@ -4864,6 +5028,47 @@ export interface paths {
                                             count: number;
                                         }[];
                                     };
+                                    scopes?: {
+                                        sharedIngest: {
+                                            totals: {
+                                                newResumes: number;
+                                                collectionTasksCompleted: number;
+                                                collectionTasksFailed: number;
+                                            };
+                                            breakdowns: {
+                                                resumesBySource: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                                collectionTasksByStatus: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                            };
+                                        };
+                                        workspaceActivity: {
+                                            totals: {
+                                                candidateStatusUpdates: number;
+                                                shortlistActions: number;
+                                                rejectActions: number;
+                                                contactActions: number;
+                                            };
+                                            breakdowns: {
+                                                candidateStatusByValue: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                                actionsByType: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                            };
+                                        };
+                                    };
                                     notes: string[];
                                 };
                                 content?: string;
@@ -4970,6 +5175,47 @@ export interface paths {
                                             label: string;
                                             count: number;
                                         }[];
+                                    };
+                                    scopes?: {
+                                        sharedIngest: {
+                                            totals: {
+                                                newResumes: number;
+                                                collectionTasksCompleted: number;
+                                                collectionTasksFailed: number;
+                                            };
+                                            breakdowns: {
+                                                resumesBySource: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                                collectionTasksByStatus: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                            };
+                                        };
+                                        workspaceActivity: {
+                                            totals: {
+                                                candidateStatusUpdates: number;
+                                                shortlistActions: number;
+                                                rejectActions: number;
+                                                contactActions: number;
+                                            };
+                                            breakdowns: {
+                                                candidateStatusByValue: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                                actionsByType: {
+                                                    key: string;
+                                                    label: string;
+                                                    count: number;
+                                                }[];
+                                            };
+                                        };
                                     };
                                     notes: string[];
                                 };

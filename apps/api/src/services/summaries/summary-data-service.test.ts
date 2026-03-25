@@ -73,6 +73,47 @@ describe("SummaryDataService", () => {
       { key: "interviewing", label: "Interviewing", count: 1 },
       { key: "offer", label: "Offer", count: 1 },
     ]);
-    expect(report.notes).toHaveLength(2);
+    expect(report.scopes).toEqual({
+      sharedIngest: {
+        totals: {
+          newResumes: 5,
+          collectionTasksCompleted: 1,
+          collectionTasksFailed: 1,
+        },
+        breakdowns: {
+          resumesBySource: [
+            { key: "job5156", label: "job5156", count: 3 },
+            { key: "seek", label: "seek", count: 2 },
+          ],
+          collectionTasksByStatus: [
+            { key: "completed", label: "Completed", count: 1 },
+            { key: "failed", label: "Failed", count: 1 },
+          ],
+        },
+      },
+      workspaceActivity: {
+        totals: {
+          candidateStatusUpdates: 2,
+          shortlistActions: 1,
+          rejectActions: 1,
+          contactActions: 1,
+        },
+        breakdowns: {
+          candidateStatusByValue: [
+            { key: "interviewing", label: "Interviewing", count: 1 },
+            { key: "offer", label: "Offer", count: 1 },
+          ],
+          actionsByType: [
+            { key: "contact", label: "Contact", count: 1 },
+            { key: "reject", label: "Reject", count: 1 },
+            { key: "shortlist", label: "Shortlist", count: 1 },
+          ],
+        },
+      },
+    });
+    expect(report.notes).toEqual([
+      "Shared ingest totals come from the global resume and collection-task pools in the current workspace model.",
+      "Workspace activity totals cover candidate-status updates and persisted workspace-linked actions only.",
+    ]);
   });
 });

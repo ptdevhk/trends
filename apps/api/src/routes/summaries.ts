@@ -22,6 +22,57 @@ const SummaryCountEntrySchema = z.object({
   count: z.number().int(),
 });
 
+const SummaryTotalsSchema = z.object({
+  newResumes: z.number().int(),
+  candidateStatusUpdates: z.number().int(),
+  shortlistActions: z.number().int(),
+  rejectActions: z.number().int(),
+  contactActions: z.number().int(),
+  collectionTasksCompleted: z.number().int(),
+  collectionTasksFailed: z.number().int(),
+});
+
+const SummaryBreakdownsSchema = z.object({
+  resumesBySource: z.array(SummaryCountEntrySchema),
+  candidateStatusByValue: z.array(SummaryCountEntrySchema),
+  actionsByType: z.array(SummaryCountEntrySchema),
+  collectionTasksByStatus: z.array(SummaryCountEntrySchema),
+});
+
+const SummarySharedIngestTotalsSchema = SummaryTotalsSchema.pick({
+  newResumes: true,
+  collectionTasksCompleted: true,
+  collectionTasksFailed: true,
+});
+
+const SummaryWorkspaceActivityTotalsSchema = SummaryTotalsSchema.pick({
+  candidateStatusUpdates: true,
+  shortlistActions: true,
+  rejectActions: true,
+  contactActions: true,
+});
+
+const SummarySharedIngestBreakdownsSchema = SummaryBreakdownsSchema.pick({
+  resumesBySource: true,
+  collectionTasksByStatus: true,
+});
+
+const SummaryWorkspaceActivityBreakdownsSchema = SummaryBreakdownsSchema.pick({
+  candidateStatusByValue: true,
+  actionsByType: true,
+});
+
+const SummaryScopesSchema = z.object({
+  sharedIngest: z.object({
+    totals: SummarySharedIngestTotalsSchema,
+    breakdowns: SummarySharedIngestBreakdownsSchema,
+  }),
+  workspaceActivity: z.object({
+    totals: SummaryWorkspaceActivityTotalsSchema,
+    breakdowns: SummaryWorkspaceActivityBreakdownsSchema,
+  }),
+});
+
 const SummaryReportSchema = z.object({
   workspaceSlug: z.string(),
   period: z.literal("daily"),
@@ -31,21 +82,9 @@ const SummaryReportSchema = z.object({
     endAt: z.string(),
     timezone: z.string(),
   }),
-  totals: z.object({
-    newResumes: z.number().int(),
-    candidateStatusUpdates: z.number().int(),
-    shortlistActions: z.number().int(),
-    rejectActions: z.number().int(),
-    contactActions: z.number().int(),
-    collectionTasksCompleted: z.number().int(),
-    collectionTasksFailed: z.number().int(),
-  }),
-  breakdowns: z.object({
-    resumesBySource: z.array(SummaryCountEntrySchema),
-    candidateStatusByValue: z.array(SummaryCountEntrySchema),
-    actionsByType: z.array(SummaryCountEntrySchema),
-    collectionTasksByStatus: z.array(SummaryCountEntrySchema),
-  }),
+  totals: SummaryTotalsSchema,
+  breakdowns: SummaryBreakdownsSchema,
+  scopes: SummaryScopesSchema.optional(),
   notes: z.array(z.string()),
 });
 
@@ -137,6 +176,34 @@ function isSummaryReport(value: unknown): value is z.infer<typeof SummaryReportS
   return SummaryReportSchema.safeParse(value).success;
 }
 
+function createEmptySummaryScopes(): z.infer<typeof SummaryScopesSchema> {
+  return {
+    sharedIngest: {
+      totals: {
+        newResumes: 0,
+        collectionTasksCompleted: 0,
+        collectionTasksFailed: 0,
+      },
+      breakdowns: {
+        resumesBySource: [],
+        collectionTasksByStatus: [],
+      },
+    },
+    workspaceActivity: {
+      totals: {
+        candidateStatusUpdates: 0,
+        shortlistActions: 0,
+        rejectActions: 0,
+        contactActions: 0,
+      },
+      breakdowns: {
+        candidateStatusByValue: [],
+        actionsByType: [],
+      },
+    },
+  };
+}
+
 function toPublicSummaryRun(run: StoredWorkspaceSummaryRun): z.infer<typeof StoredSummaryRunSchema> {
   return {
     ...run,
@@ -166,6 +233,7 @@ function toPublicSummaryRun(run: StoredWorkspaceSummaryRun): z.infer<typeof Stor
           actionsByType: [],
           collectionTasksByStatus: [],
         },
+        scopes: createEmptySummaryScopes(),
         notes: [],
       },
   };
