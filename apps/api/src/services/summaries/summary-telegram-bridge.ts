@@ -61,7 +61,7 @@ export class SummaryTelegramBridge {
         }
 
         try {
-          resolve(JSON.parse(stdout) as SummaryTelegramBridgeResult);
+          resolve(parseSummaryTelegramBridgeOutput(stdout));
         } catch (error) {
           reject(new Error(`Invalid Telegram summary bridge output: ${String(error)}`));
         }
@@ -70,6 +70,27 @@ export class SummaryTelegramBridge {
       child.stdin.write(JSON.stringify(payload));
       child.stdin.end();
     });
+  }
+}
+
+export function parseSummaryTelegramBridgeOutput(stdout: string): SummaryTelegramBridgeResult {
+  const trimmed = stdout.trim();
+  if (!trimmed) {
+    throw new Error("empty stdout");
+  }
+
+  try {
+    return JSON.parse(trimmed) as SummaryTelegramBridgeResult;
+  } catch {
+    const lines = trimmed.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      try {
+        return JSON.parse(lines[index]!) as SummaryTelegramBridgeResult;
+      } catch {
+        continue;
+      }
+    }
+    throw new Error("no JSON object found in stdout");
   }
 }
 

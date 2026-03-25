@@ -66,33 +66,33 @@ def main() -> int:
     if not content:
         raise ValueError("content is required")
 
-    config = load_config()
-    if payload.get("botToken"):
-        config["TELEGRAM_BOT_TOKEN"] = str(payload["botToken"])
-    if payload.get("chatId"):
-        config["TELEGRAM_CHAT_ID"] = str(payload["chatId"])
+    with contextlib.redirect_stdout(sys.stderr):
+        config = load_config()
+        if payload.get("botToken"):
+            config["TELEGRAM_BOT_TOKEN"] = str(payload["botToken"])
+        if payload.get("chatId"):
+            config["TELEGRAM_CHAT_ID"] = str(payload["chatId"])
 
-    tokens = parse_multi_account_config(config.get("TELEGRAM_BOT_TOKEN", ""))
-    chat_ids = parse_multi_account_config(config.get("TELEGRAM_CHAT_ID", ""))
-    valid, count = validate_paired_configs(
-        {"bot_token": tokens, "chat_id": chat_ids},
-        "Telegram",
-        required_keys=["bot_token", "chat_id"],
-    )
-    if not valid or count <= 0:
-        raise ValueError("Telegram configuration is missing bot token or chat id")
+        tokens = parse_multi_account_config(config.get("TELEGRAM_BOT_TOKEN", ""))
+        chat_ids = parse_multi_account_config(config.get("TELEGRAM_CHAT_ID", ""))
+        valid, count = validate_paired_configs(
+            {"bot_token": tokens, "chat_id": chat_ids},
+            "Telegram",
+            required_keys=["bot_token", "chat_id"],
+        )
+        if not valid or count <= 0:
+            raise ValueError("Telegram configuration is missing bot token or chat id")
 
-    max_accounts = config.get("MAX_ACCOUNTS_PER_CHANNEL", 3)
-    tokens = limit_accounts(tokens, max_accounts, "Telegram")
-    chat_ids = chat_ids[: len(tokens)]
-    split_content_func = build_splitter(content)
+        max_accounts = config.get("MAX_ACCOUNTS_PER_CHANNEL", 3)
+        tokens = limit_accounts(tokens, max_accounts, "Telegram")
+        chat_ids = chat_ids[: len(tokens)]
+        split_content_func = build_splitter(content)
 
-    sent = 0
-    for index, token in enumerate(tokens):
-        chat_id = chat_ids[index] if index < len(chat_ids) else ""
-        if not token or not chat_id:
-            continue
-        with contextlib.redirect_stdout(sys.stderr):
+        sent = 0
+        for index, token in enumerate(tokens):
+            chat_id = chat_ids[index] if index < len(chat_ids) else ""
+            if not token or not chat_id:
+                continue
             ok = send_to_telegram(
                 bot_token=token,
                 chat_id=chat_id,
@@ -100,8 +100,8 @@ def main() -> int:
                 report_type="Resume Ops Summary",
                 split_content_func=split_content_func,
             )
-        if ok:
-            sent += 1
+            if ok:
+                sent += 1
 
     if sent <= 0:
         raise RuntimeError("Telegram summary delivery failed")
