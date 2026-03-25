@@ -834,6 +834,8 @@ benchmark-dev-resume-latency:
 		WARMUP="$(or $(WARMUP),1)" \
 		TIMEOUT_MS="$(or $(TIMEOUT_MS),30000)" \
 		REFRESH="$(if $(filter undefined,$(origin REFRESH)),true,$(REFRESH))" \
+		BASELINE="$(BASELINE)" \
+		STRICT="$(STRICT)" \
 		JSON="$(JSON)" \
 		OUT="$(OUT)" \
 		bun scripts/benchmark-dev-resume-latency.ts $(ARGS); \
@@ -843,6 +845,8 @@ benchmark-dev-resume-latency:
 		WARMUP="$(or $(WARMUP),1)" \
 		TIMEOUT_MS="$(or $(TIMEOUT_MS),30000)" \
 		REFRESH="$(if $(filter undefined,$(origin REFRESH)),true,$(REFRESH))" \
+		BASELINE="$(BASELINE)" \
+		STRICT="$(STRICT)" \
 		JSON="$(JSON)" \
 		OUT="$(OUT)" \
 		npx tsx scripts/benchmark-dev-resume-latency.ts $(ARGS); \

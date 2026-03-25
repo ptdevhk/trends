@@ -12,6 +12,8 @@ type CliOptions = {
     warmup: number;
     timeoutMs: number;
     refresh: boolean;
+    baseline: string | null;
+    strict: boolean;
     json: boolean;
     out: string | "auto" | null;
 };
@@ -66,6 +68,26 @@ type RefreshReport = {
     exitCode: number | null;
 };
 
+type RegressionSeverity = "ok" | "warning" | "failure";
+
+type RegressionComparison = {
+    phase: "before" | "after";
+    metric: "medianReadyMs" | "medianTtfbMs";
+    baselineMs: number;
+    currentMs: number;
+    deltaMs: number;
+    deltaPct: number;
+    severity: RegressionSeverity;
+};
+
+type RegressionReport = {
+    baselinePath: string;
+    strict: boolean;
+    comparisons: RegressionComparison[];
+    warnings: RegressionComparison[];
+    failures: RegressionComparison[];
+};
+
 type BenchmarkReport = {
     startedAt: string;
     finishedAt: string;
@@ -73,6 +95,8 @@ type BenchmarkReport = {
     runs: number;
     warmup: number;
     timeoutMs: number;
+    baseline: string | null;
+    strict: boolean;
     refresh: RefreshReport;
     before: PhaseReport;
     after: PhaseReport | null;
@@ -83,6 +107,7 @@ type BenchmarkReport = {
         memAvailableMiB: number | null;
         convexRssMiB: number | null;
     } | null;
+    regression: RegressionReport | null;
 };
 
 const DEFAULT_URL = "http://127.0.0.1:5173/dev/resumes";
@@ -99,6 +124,8 @@ function printUsage(): void {
     console.log("  --warmup=<n>           Discarded warmup probes per phase (default: 1)");
     console.log("  --timeout-ms=<n>       Page/browser timeout in ms (default: 30000)");
     console.log("  --refresh=<bool>       Run `make dev-convex-refresh` between phases (default: true)");
+    console.log("  --baseline=<path>      Baseline benchmark JSON for regression comparison");
+    console.log("  --strict               Exit non-zero only when slowdown >25% vs baseline");
     console.log("  --json                 Print machine-readable JSON");
     console.log("  --out[=<path>]         Write JSON artifact to path, or auto-generate under output/benchmarks");
     console.log("  --help                 Show this help");
@@ -126,6 +153,10 @@ function hasCliFlag(argv: string[], name: string): boolean {
     return argv.includes(`--${name}`);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
     if (value === undefined) {
         return fallback;
@@ -149,6 +180,10 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
         return fallback;
     }
     return parsed;
+}
+
+function parseNumber(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function resolveProjectRoot(): string {
@@ -211,6 +246,11 @@ function parseCliArgs(argv: string[]): CliOptions {
         warmup: parsePositiveInt(readCliValue(argv, "warmup") ?? process.env.WARMUP, DEFAULT_WARMUP),
         timeoutMs: parsePositiveInt(readCliValue(argv, "timeout-ms") ?? process.env.TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
         refresh: parseBoolean(readCliValue(argv, "refresh") ?? process.env.REFRESH, true),
+        baseline: (() => {
+            const value = readCliValue(argv, "baseline") ?? process.env.BASELINE;
+            return value && value.trim().length > 0 ? value.trim() : null;
+        })(),
+        strict: hasCliFlag(argv, "strict") || parseBoolean(process.env.STRICT, false),
         json: hasCliFlag(argv, "json") || parseBoolean(process.env.JSON, false),
         out: parseOutOption(argv),
     };
@@ -495,6 +535,116 @@ function buildDelta(before: PhaseReport, after: PhaseReport | null) {
     };
 }
 
+type ComparablePhaseSummary = {
+    medianReadyMs: number | null;
+    medianTtfbMs: number | null;
+};
+
+function parseComparablePhaseSummary(value: unknown): ComparablePhaseSummary | null {
+    if (!isRecord(value)) {
+        return null;
+    }
+
+    const summary = isRecord(value.summary) ? value.summary : value;
+    const parsed = {
+        medianReadyMs: parseNumber(summary.medianReadyMs),
+        medianTtfbMs: parseNumber(summary.medianTtfbMs ?? summary.shellTtfbMs),
+    };
+
+    if (parsed.medianReadyMs === null && parsed.medianTtfbMs === null) {
+        return null;
+    }
+
+    return parsed;
+}
+
+function readBaselinePhases(baselinePath: string): Record<"before" | "after", ComparablePhaseSummary | null> {
+    const resolvedPath = path.resolve(process.cwd(), baselinePath);
+    if (!fs.existsSync(resolvedPath)) {
+        throw new Error(`Baseline file not found: ${resolvedPath}`);
+    }
+
+    const payload: unknown = JSON.parse(fs.readFileSync(resolvedPath, "utf8"));
+    if (!isRecord(payload)) {
+        throw new Error(`Baseline file is not a JSON object: ${resolvedPath}`);
+    }
+
+    const before = parseComparablePhaseSummary(payload.before);
+    const after = parseComparablePhaseSummary(payload.after);
+
+    if (!before && !after) {
+        throw new Error(`Baseline file missing before/after summary data: ${resolvedPath}`);
+    }
+
+    return { before, after };
+}
+
+function compareAgainstBaseline(
+    report: BenchmarkReport,
+    baselinePath: string,
+    strict: boolean,
+): RegressionReport {
+    const baseline = readBaselinePhases(baselinePath);
+    const comparisons: RegressionComparison[] = [];
+    const metrics: Array<{ name: "medianReadyMs" | "medianTtfbMs"; minBaselineMs: number }> = [
+        { name: "medianReadyMs", minBaselineMs: 1 },
+        // Tiny shell TTFB values are too noisy for percentage-based regression gating.
+        { name: "medianTtfbMs", minBaselineMs: 50 },
+    ];
+    const phases: Array<"before" | "after"> = ["before", "after"];
+
+    for (const phase of phases) {
+        const currentPhase = phase === "before"
+            ? parseComparablePhaseSummary(report.before.summary)
+            : report.after
+                ? parseComparablePhaseSummary(report.after.summary)
+                : null;
+        const baselinePhase = baseline[phase];
+
+        if (!currentPhase || !baselinePhase) {
+            continue;
+        }
+
+        for (const metric of metrics) {
+            const currentValue = currentPhase[metric.name];
+            const baselineValue = baselinePhase[metric.name];
+            if (currentValue === null || baselineValue === null || baselineValue < metric.minBaselineMs) {
+                continue;
+            }
+
+            const deltaMs = currentValue - baselineValue;
+            const deltaPct = (deltaMs / baselineValue) * 100;
+            const severity: RegressionSeverity = deltaPct > 25
+                ? "failure"
+                : deltaPct > 15
+                    ? "warning"
+                    : "ok";
+
+            comparisons.push({
+                phase,
+                metric: metric.name,
+                baselineMs: baselineValue,
+                currentMs: currentValue,
+                deltaMs,
+                deltaPct,
+                severity,
+            });
+        }
+    }
+
+    return {
+        baselinePath: path.resolve(process.cwd(), baselinePath),
+        strict,
+        comparisons,
+        warnings: comparisons.filter((comparison) => comparison.severity === "warning"),
+        failures: comparisons.filter((comparison) => comparison.severity === "failure"),
+    };
+}
+
+function shouldFailStrict(regression: RegressionReport | null): boolean {
+    return Boolean(regression?.strict && regression.failures.length > 0);
+}
+
 function printHumanSummary(report: BenchmarkReport): void {
     const before = report.before;
     const after = report.after;
@@ -511,6 +661,16 @@ function printHumanSummary(report: BenchmarkReport): void {
     console.log(`Refresh: ${report.refresh.status} (${report.refresh.durationMs} ms)`);
     if (delta) {
         console.log(`Delta: median ready ${delta.medianReadyMs ?? "n/a"} ms, shell TTFB ${delta.shellTtfbMs ?? "n/a"} ms, swap used ${delta.swapUsedMiB ?? "n/a"} MiB, mem available ${delta.memAvailableMiB ?? "n/a"} MiB, convex RSS ${delta.convexRssMiB ?? "n/a"} MiB`);
+    }
+    if (report.regression) {
+        console.log("");
+        console.log(`Baseline: ${report.regression.baselinePath}`);
+        for (const comparison of report.regression.comparisons) {
+            const sign = comparison.deltaPct >= 0 ? "+" : "";
+            console.log(
+                `[regression] phase=${comparison.phase} metric=${comparison.metric} baseline=${comparison.baselineMs} current=${comparison.currentMs} delta=${sign}${comparison.deltaPct.toFixed(2)}% (${comparison.severity})`
+            );
+        }
     }
 }
 
@@ -541,11 +701,18 @@ async function main(): Promise<void> {
             runs: options.runs,
             warmup: options.warmup,
             timeoutMs: options.timeoutMs,
+            baseline: options.baseline,
+            strict: options.strict,
             refresh,
             before,
             after,
             delta: buildDelta(before, after),
+            regression: null,
         };
+
+        if (options.baseline) {
+            report.regression = compareAgainstBaseline(report, options.baseline, options.strict);
+        }
 
         if (outputPath) {
             fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -559,6 +726,10 @@ async function main(): Promise<void> {
             if (outputPath) {
                 console.log(`Wrote benchmark artifact: ${outputPath}`);
             }
+        }
+
+        if (shouldFailStrict(report.regression)) {
+            process.exitCode = 1;
         }
     } finally {
         await browser.close();
