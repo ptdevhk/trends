@@ -103,6 +103,32 @@ const SummaryTriggerSourceSchema = z.enum([
 
 const SummaryChannelSchema = z.enum(["email", "wechat_work", "feishu", "telegram"]);
 
+const SummaryDeliveryAccountSchema = z.object({
+  index: z.number().int(),
+  chatIdHint: z.string(),
+  attempted: z.boolean(),
+  sent: z.boolean(),
+  batchesPlanned: z.number().int(),
+  skippedReason: z.string().optional(),
+});
+
+const SummaryDeliverySchema = z.object({
+  channel: SummaryChannelSchema.optional(),
+  ok: z.boolean().optional(),
+  messageId: z.string().optional(),
+  accountsConfigured: z.number().int().optional(),
+  accountsSelected: z.number().int().optional(),
+  accountsAttempted: z.number().int().optional(),
+  accountsSent: z.number().int().optional(),
+  batchCountPerAccount: z.number().int().optional(),
+  totalBatches: z.number().int().optional(),
+  batchSizes: z.array(z.number().int()).optional(),
+  maxBytesPerBatch: z.number().int().optional(),
+  usedOverrideBotToken: z.boolean().optional(),
+  usedOverrideChatId: z.boolean().optional(),
+  accounts: z.array(SummaryDeliveryAccountSchema).optional(),
+}).catchall(z.unknown());
+
 const StoredSummaryRunSchema = z.object({
   id: z.string(),
   workspaceSlug: z.string(),
@@ -118,7 +144,7 @@ const StoredSummaryRunSchema = z.object({
   finishedAt: z.string().optional(),
   report: SummaryReportSchema,
   content: z.string().optional(),
-  delivery: z.object({}).catchall(z.unknown()).optional(),
+  delivery: SummaryDeliverySchema.optional(),
   error: z.string().optional(),
 });
 
@@ -149,7 +175,7 @@ const SummaryRunResponseSchema = z.object({
   subject: z.string().optional(),
   report: SummaryReportSchema,
   content: z.string(),
-  delivery: z.object({}).catchall(z.unknown()).optional(),
+  delivery: SummaryDeliverySchema.optional(),
   run: StoredSummaryRunSchema,
 });
 

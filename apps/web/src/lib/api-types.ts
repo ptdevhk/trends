@@ -4635,6 +4635,29 @@ export interface paths {
                                 };
                                 content?: string;
                                 delivery?: {
+                                    /** @enum {string} */
+                                    channel?: "email" | "wechat_work" | "feishu" | "telegram";
+                                    ok?: boolean;
+                                    messageId?: string;
+                                    accountsConfigured?: number;
+                                    accountsSelected?: number;
+                                    accountsAttempted?: number;
+                                    accountsSent?: number;
+                                    batchCountPerAccount?: number;
+                                    totalBatches?: number;
+                                    batchSizes?: number[];
+                                    maxBytesPerBatch?: number;
+                                    usedOverrideBotToken?: boolean;
+                                    usedOverrideChatId?: boolean;
+                                    accounts?: {
+                                        index: number;
+                                        chatIdHint: string;
+                                        attempted: boolean;
+                                        sent: boolean;
+                                        batchesPlanned: number;
+                                        skippedReason?: string;
+                                    }[];
+                                } & {
                                     [key: string]: unknown;
                                 };
                                 error?: string;
@@ -4809,6 +4832,29 @@ export interface paths {
                             };
                             content: string;
                             delivery?: {
+                                /** @enum {string} */
+                                channel?: "email" | "wechat_work" | "feishu" | "telegram";
+                                ok?: boolean;
+                                messageId?: string;
+                                accountsConfigured?: number;
+                                accountsSelected?: number;
+                                accountsAttempted?: number;
+                                accountsSent?: number;
+                                batchCountPerAccount?: number;
+                                totalBatches?: number;
+                                batchSizes?: number[];
+                                maxBytesPerBatch?: number;
+                                usedOverrideBotToken?: boolean;
+                                usedOverrideChatId?: boolean;
+                                accounts?: {
+                                    index: number;
+                                    chatIdHint: string;
+                                    attempted: boolean;
+                                    sent: boolean;
+                                    batchesPlanned: number;
+                                    skippedReason?: string;
+                                }[];
+                            } & {
                                 [key: string]: unknown;
                             };
                             run: {
@@ -4914,6 +4960,29 @@ export interface paths {
                                 };
                                 content?: string;
                                 delivery?: {
+                                    /** @enum {string} */
+                                    channel?: "email" | "wechat_work" | "feishu" | "telegram";
+                                    ok?: boolean;
+                                    messageId?: string;
+                                    accountsConfigured?: number;
+                                    accountsSelected?: number;
+                                    accountsAttempted?: number;
+                                    accountsSent?: number;
+                                    batchCountPerAccount?: number;
+                                    totalBatches?: number;
+                                    batchSizes?: number[];
+                                    maxBytesPerBatch?: number;
+                                    usedOverrideBotToken?: boolean;
+                                    usedOverrideChatId?: boolean;
+                                    accounts?: {
+                                        index: number;
+                                        chatIdHint: string;
+                                        attempted: boolean;
+                                        sent: boolean;
+                                        batchesPlanned: number;
+                                        skippedReason?: string;
+                                    }[];
+                                } & {
                                     [key: string]: unknown;
                                 };
                                 error?: string;
@@ -5073,6 +5142,29 @@ export interface paths {
                                 };
                                 content?: string;
                                 delivery?: {
+                                    /** @enum {string} */
+                                    channel?: "email" | "wechat_work" | "feishu" | "telegram";
+                                    ok?: boolean;
+                                    messageId?: string;
+                                    accountsConfigured?: number;
+                                    accountsSelected?: number;
+                                    accountsAttempted?: number;
+                                    accountsSent?: number;
+                                    batchCountPerAccount?: number;
+                                    totalBatches?: number;
+                                    batchSizes?: number[];
+                                    maxBytesPerBatch?: number;
+                                    usedOverrideBotToken?: boolean;
+                                    usedOverrideChatId?: boolean;
+                                    accounts?: {
+                                        index: number;
+                                        chatIdHint: string;
+                                        attempted: boolean;
+                                        sent: boolean;
+                                        batchesPlanned: number;
+                                        skippedReason?: string;
+                                    }[];
+                                } & {
                                     [key: string]: unknown;
                                 };
                                 error?: string;
@@ -5221,6 +5313,29 @@ export interface paths {
                                 };
                                 content?: string;
                                 delivery?: {
+                                    /** @enum {string} */
+                                    channel?: "email" | "wechat_work" | "feishu" | "telegram";
+                                    ok?: boolean;
+                                    messageId?: string;
+                                    accountsConfigured?: number;
+                                    accountsSelected?: number;
+                                    accountsAttempted?: number;
+                                    accountsSent?: number;
+                                    batchCountPerAccount?: number;
+                                    totalBatches?: number;
+                                    batchSizes?: number[];
+                                    maxBytesPerBatch?: number;
+                                    usedOverrideBotToken?: boolean;
+                                    usedOverrideChatId?: boolean;
+                                    accounts?: {
+                                        index: number;
+                                        chatIdHint: string;
+                                        attempted: boolean;
+                                        sent: boolean;
+                                        batchesPlanned: number;
+                                        skippedReason?: string;
+                                    }[];
+                                } & {
                                     [key: string]: unknown;
                                 };
                                 error?: string;
