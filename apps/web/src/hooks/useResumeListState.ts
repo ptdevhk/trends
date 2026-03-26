@@ -1852,11 +1852,6 @@ export function useResumeListState(loadSearchHistory = false) {
       params.set('jobDescriptionId', normalizedJobDescriptionId)
     }
 
-    const normalizedSessionId = normalizeOptionalString(appliedSearchHistory?.sessionKey)
-    if (normalizedSessionId) {
-      params.set('sessionId', normalizedSessionId)
-    }
-
     const normalizedReferenceNote = normalizeOptionalString(appliedSearchHistory?.notes)
     if (normalizedReferenceNote) {
       params.set('referenceNote', normalizedReferenceNote)
@@ -1868,7 +1863,6 @@ export function useResumeListState(loadSearchHistory = false) {
     })
   }, [
     appliedSearchHistory?.notes,
-    appliedSearchHistory?.sessionKey,
     bulkExportFormat,
     displayedResumes,
     jobDescriptionId,
