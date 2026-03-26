@@ -191,6 +191,75 @@ def test_run_workspace_summary_falls_back_to_daily_for_invalid_period(monkeypatc
 
     assert ok is True
     assert captured["body"]["period"] == "daily"
+    assert captured["body"]["channel"] == "telegram"
+
+
+def test_list_summary_profiles_runtime_normalizes_payload(monkeypatch) -> None:
+    monkeypatch.setattr(
+        tasks,
+        "_request_json",
+        lambda *_args, **_kwargs: {
+            "success": True,
+            "items": [
+                {
+                    "workspaceSlug": "dev",
+                    "profileId": "daily-ops",
+                    "name": "Daily Ops",
+                    "cron": "0 9 * * *",
+                    "period": "monthly",
+                    "channel": "slack",
+                    "dryRun": 1,
+                    "templateId": "summary-daily",
+                },
+                {
+                    "workspaceSlug": "hr",
+                    "profileId": "hr-weekly",
+                    "name": "HR Weekly",
+                    "cron": "0 10 * * 1",
+                    "period": "weekly",
+                    "channel": "email",
+                    "dryRun": False,
+                    "to": "ops@example.com",
+                    "subject": "Weekly HR Summary",
+                },
+                {
+                    "workspaceSlug": "hr",
+                    "profileId": "missing-email",
+                    "name": "Missing Email",
+                    "cron": "0 8 * * *",
+                    "period": "daily",
+                    "channel": "email",
+                    "dryRun": False,
+                },
+            ],
+        },
+    )
+
+    items = tasks.list_summary_profiles_runtime(api_base_url="http://localhost:3000/")
+
+    assert items == [
+        {
+            "workspaceSlug": "dev",
+            "profileId": "daily-ops",
+            "name": "Daily Ops",
+            "cron": "0 9 * * *",
+            "period": "daily",
+            "channel": "telegram",
+            "dryRun": True,
+            "templateId": "summary-daily",
+        },
+        {
+            "workspaceSlug": "hr",
+            "profileId": "hr-weekly",
+            "name": "HR Weekly",
+            "cron": "0 10 * * 1",
+            "period": "weekly",
+            "channel": "email",
+            "dryRun": False,
+            "to": "ops@example.com",
+            "subject": "Weekly HR Summary",
+        },
+    ]
 
 
 def test_add_workspace_summary_job_requires_cron(monkeypatch) -> None:
@@ -237,3 +306,60 @@ def test_add_workspace_summary_job_uses_env_config(monkeypatch) -> None:
     assert calls[0]["dry_run"] is True
     assert calls[0]["trigger_source"] == "worker_schedule"
     assert calls[0]["template_id"] == "summary-daily"
+    assert calls[0]["job_name"] == "Workspace Summary (hr)"
+
+
+def test_add_summary_profile_jobs_schedules_runtime_profiles(monkeypatch) -> None:
+    calls: list[dict[str, Any]] = []
+
+    monkeypatch.setattr(
+        worker_scheduler,
+        "list_summary_profiles_runtime",
+        lambda api_base_url=None: [
+            {
+                "workspaceSlug": "dev",
+                "profileId": "daily-ops",
+                "name": "Daily Ops",
+                "cron": "0 9 * * *",
+                "period": "daily",
+                "channel": "telegram",
+                "dryRun": False,
+            },
+            {
+                "workspaceSlug": "hr",
+                "profileId": "weekly-email",
+                "name": "Weekly Email",
+                "cron": "0 10 * * 1",
+                "period": "weekly",
+                "channel": "email",
+                "dryRun": True,
+                "to": "ops@example.com",
+                "subject": "Weekly HR Summary",
+            },
+        ],
+    )
+    scheduler = worker_scheduler.WorkerScheduler(timezone="UTC")
+
+    def fake_add_custom_job(**kwargs: Any) -> None:
+        calls.append(kwargs)
+
+    monkeypatch.setattr(scheduler, "add_custom_job", fake_add_custom_job)
+
+    scheduler.add_summary_profile_jobs(api_base_url="http://localhost:3000")
+
+    assert len(calls) == 2
+    assert calls[0]["func"] is tasks.run_workspace_summary
+    assert calls[0]["job_id"] == "workspace_summary:dev:daily-ops"
+    assert calls[0]["job_name"] == "Summary Profile: dev / Daily Ops"
+    assert calls[0]["cron_expression"] == "0 9 * * *"
+    assert calls[0]["workspace_slug"] == "dev"
+    assert calls[0]["period"] == "daily"
+    assert calls[0]["channel"] == "telegram"
+    assert calls[0]["dry_run"] is False
+    assert calls[0]["trigger_source"] == "worker_schedule"
+
+    assert calls[1]["job_id"] == "workspace_summary:hr:weekly-email"
+    assert calls[1]["job_name"] == "Summary Profile: hr / Weekly Email"
+    assert calls[1]["channel"] == "email"
+    assert calls[1]["to"] == "ops@example.com"
+    assert calls[1]["subject"] == "Weekly HR Summary"
