@@ -8,6 +8,41 @@ const app = new OpenAPIHono();
 const sessionManager = new SessionManager(config.projectRoot);
 
 const SessionStatusSchema = z.enum(["active", "completed", "archived"]);
+const CandidateStatusSchema = z.enum([
+  "new",
+  "contacted",
+  "interviewing",
+  "interviewed_pass",
+  "interviewed_reject",
+  "offer",
+  "hired",
+  "withdrawn",
+]);
+const SessionFiltersSchema = ResumeFiltersSchema.extend({
+  minRoleYears: z.number().min(0).optional(),
+  roleFilterType: z.string().optional(),
+  minSalesYears: z.number().min(0).optional(),
+  minAge: z.number().min(0).optional(),
+  maxAge: z.number().min(0).optional(),
+  status: z.array(CandidateStatusSchema).optional(),
+  showBlocked: z.boolean().optional(),
+});
+const SearchSessionCollectionSourceSchema = z.object({
+  type: z.enum(["job5156", "seek"]),
+  exactUrl: z.string().optional(),
+});
+const SearchSessionStateSchema = z.object({
+  location: z.string().optional().openapi({ example: "Kuala Lumpur MY" }),
+  keywords: z.array(z.string()).optional().openapi({ example: ["Sales Engineer", "CNC"] }),
+  requiredKeywords: z.array(z.string()).optional().openapi({ example: ["machine tools"] }),
+  jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),
+  selectedTags: z.array(z.string()).optional().openapi({ example: ["STAR"] }),
+  selectedCompanies: z.array(z.string()).optional().openapi({ example: ["fanuc"] }),
+  selectedExperienceLevel: z.enum(["senior", "mid", "junior"]).optional().openapi({ example: "mid" }),
+  collectionSource: SearchSessionCollectionSourceSchema.optional(),
+  collectUrl: z.string().optional().openapi({ example: "https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1" }),
+  filters: SessionFiltersSchema.optional(),
+});
 
 const SearchSessionSchema = z.object({
   id: z.string().openapi({ example: "session-123" }),
@@ -15,7 +50,9 @@ const SearchSessionSchema = z.object({
   userId: z.string().optional().openapi({ example: "user-1" }),
   jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),
   sampleName: z.string().optional().openapi({ example: "sample-initial" }),
-  filters: ResumeFiltersSchema.optional(),
+  filters: SessionFiltersSchema.optional(),
+  shareTitle: z.string().optional().openapi({ example: "Kuala Lumpur · Sales Engineer" }),
+  searchState: SearchSessionStateSchema.optional(),
   status: SessionStatusSchema.openapi({ example: "active" }),
   createdAt: z.string().openapi({ example: "2026-02-05T08:00:00.000Z" }),
   updatedAt: z.string().openapi({ example: "2026-02-05T08:00:00.000Z" }),
@@ -31,14 +68,18 @@ const SessionCreateSchema = z.object({
   userId: z.string().optional(),
   jobDescriptionId: z.string().optional(),
   sampleName: z.string().optional(),
-  filters: ResumeFiltersSchema.optional(),
+  filters: SessionFiltersSchema.optional(),
+  shareTitle: z.string().optional(),
+  searchState: SearchSessionStateSchema.optional(),
 });
 
 const SessionUpdateSchema = z.object({
   userId: z.string().optional(),
   jobDescriptionId: z.string().optional(),
   sampleName: z.string().optional(),
-  filters: ResumeFiltersSchema.optional(),
+  filters: SessionFiltersSchema.optional(),
+  shareTitle: z.string().nullable().optional(),
+  searchState: SearchSessionStateSchema.nullable().optional(),
   status: SessionStatusSchema.optional(),
   expiresAt: z.string().optional(),
 });
@@ -46,6 +87,15 @@ const SessionUpdateSchema = z.object({
 const SessionIdParamSchema = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "session-123" }),
 });
+
+function normalizeOptionalString(value: string | null | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
 
 const createSessionRoute = createRoute({
   method: "post",
@@ -76,6 +126,8 @@ app.openapi(createSessionRoute, (c) => {
     jobDescriptionId: body.jobDescriptionId,
     sampleName: body.sampleName,
     filters: body.filters,
+    shareTitle: normalizeOptionalString(body.shareTitle),
+    searchState: body.searchState ?? undefined,
   });
   return c.json({ success: true as const, session }, 200);
 });
@@ -142,6 +194,8 @@ app.openapi(updateSessionRoute, (c) => {
     jobDescriptionId: body.jobDescriptionId,
     sampleName: body.sampleName,
     filters: body.filters,
+    shareTitle: body.shareTitle === null ? null : normalizeOptionalString(body.shareTitle),
+    searchState: body.searchState === null ? null : body.searchState,
     status: body.status,
     expiresAt: body.expiresAt,
   }, workspaceSlug);

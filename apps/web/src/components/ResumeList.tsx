@@ -62,6 +62,8 @@ export function ResumeList() {
     hasActiveTask,
     disableAnalyzeButton,
     selectedIds,
+    shareTitle,
+    shareState,
     selectedExperienceLevel,
     activeTagFilters,
     activeCompanyFilters,
@@ -98,6 +100,7 @@ export function ResumeList() {
     handleToggleBlock,
     handleCandidateStatusChange,
     handleResetAll,
+    ensureApiSession,
     handleAiFeedback,
     getAiFeedback,
   } = useResumeListState(historyRequested)
@@ -354,7 +357,11 @@ export function ResumeList() {
         defaultCollapsed={true}
         headerAction={
           <div className="flex items-center gap-2">
-            <ShareLinkButton />
+            <ShareLinkButton
+              shareTitle={shareTitle}
+              state={shareState}
+              ensureApiSession={ensureApiSession}
+            />
             <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleRefresh} disabled={activeLoading}>
               <RefreshCw className={cn('h-3.5 w-3.5', activeLoading && 'animate-spin')} />
             </Button>

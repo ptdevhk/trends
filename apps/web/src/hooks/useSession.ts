@@ -21,6 +21,18 @@ export type ExternalSessionState = {
   filters?: Partial<ResumeFilters>
 }
 
+export type ResumeSearchShareState = ExternalSessionState & {
+  requiredKeywords?: string[]
+  selectedTags?: string[]
+  selectedCompanies?: string[]
+  selectedExperienceLevel?: 'senior' | 'mid' | 'junior'
+}
+
+export type EnsureApiSessionOptions = {
+  shareTitle?: string
+  searchState?: ResumeSearchShareState
+}
+
 export type SearchHistoryItem = {
   id: Id<'search_history'>
   sessionKey: string
@@ -94,6 +106,74 @@ function normalizeStringList(values: string[] | undefined): string[] {
     seen.add(token)
     normalized.push(token)
   })
+
+  return normalized
+}
+
+function normalizeShareExperienceLevel(
+  value: string | undefined,
+): ResumeSearchShareState['selectedExperienceLevel'] | undefined {
+  const normalized = normalizeOptionalString(value)?.toLowerCase()
+  if (normalized === 'senior' || normalized === 'mid' || normalized === 'junior') {
+    return normalized
+  }
+  return undefined
+}
+
+function normalizeShareFilters(
+  filters: Partial<ResumeFilters> | undefined,
+): Partial<ResumeFilters> | undefined {
+  if (!filters) {
+    return undefined
+  }
+
+  const hasActiveFilters = Object.values(filters).some((value) => {
+    if (Array.isArray(value)) {
+      return value.length > 0
+    }
+    if (typeof value === 'boolean') {
+      return value
+    }
+    return value !== undefined
+  })
+
+  return hasActiveFilters ? filters : undefined
+}
+
+function normalizeShareState(
+  state: ResumeSearchShareState | undefined,
+): ResumeSearchShareState | undefined {
+  if (!state) {
+    return undefined
+  }
+
+  const normalized: ResumeSearchShareState = {
+    location: normalizeOptionalString(state.location),
+    keywords: normalizeStringList(state.keywords),
+    requiredKeywords: normalizeStringList(state.requiredKeywords),
+    jobDescriptionId: normalizeOptionalString(state.jobDescriptionId),
+    selectedTags: normalizeStringList(state.selectedTags),
+    selectedCompanies: normalizeStringList(state.selectedCompanies),
+    selectedExperienceLevel: normalizeShareExperienceLevel(state.selectedExperienceLevel),
+    collectionSource: normalizeCollectionSource(state.collectionSource),
+    collectUrl: normalizeOptionalString(state.collectUrl),
+    filters: normalizeShareFilters(state.filters),
+  }
+
+  if (
+    !normalized.location
+    && !normalized.jobDescriptionId
+    && !normalized.collectUrl
+    && !normalized.collectionSource
+    && (normalized.keywords?.length ?? 0) === 0
+    && (normalized.requiredKeywords?.length ?? 0) === 0
+    && (normalized.selectedTags?.length ?? 0) === 0
+    && (normalized.selectedCompanies?.length ?? 0) === 0
+    && !normalized.selectedExperienceLevel
+    && !normalized.filters
+  ) {
+    return undefined
+  }
 
   return normalized
 }
@@ -232,10 +312,18 @@ export function useSession(loadSearchHistory = false) {
     setApiSessionId((current) => (current === nextSessionId ? current : nextSessionId))
   }, [apiSessionStorageKey])
 
-  const ensureApiSession = useCallback(async () => {
+  const rememberApiSessionId = useCallback((nextSessionId: string | undefined) => {
+    persistApiSessionId(normalizeOptionalString(nextSessionId))
+  }, [persistApiSessionId])
+
+  const ensureApiSession = useCallback(async (options?: EnsureApiSessionOptions) => {
+    const shareTitle = normalizeOptionalString(options?.shareTitle)
+    const searchState = normalizeShareState(options?.searchState)
     const body = {
       jobDescriptionId: normalizeOptionalString(jobDescriptionId),
       filters: Object.keys(filters).length > 0 ? filters : undefined,
+      shareTitle,
+      searchState,
     }
 
     if (apiSessionId) {
@@ -376,6 +464,7 @@ export function useSession(loadSearchHistory = false) {
     saveSearchHistory,
     markSearchHistoryOpened,
     ensureApiSession,
+    rememberApiSessionId,
     loading: !hasHydratedInitialState,
   }
 }

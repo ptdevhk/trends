@@ -49,6 +49,12 @@ describe('useUrlSearchState location parsing', () => {
     expect(state.requiredKeywords).toEqual(['CNC', 'machine tools'])
   })
 
+  it('parses sid without treating it as explicit URL search state', () => {
+    const state = parseUrlSearchState(new URLSearchParams('sid=session-share-1'))
+
+    expect(state.shareSessionId).toBe('session-share-1')
+  })
+
   it('serializes canonical OR phrase queries when syncing to the URL', () => {
     const currentParams = new URLSearchParams()
     useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
@@ -103,5 +109,32 @@ describe('useUrlSearchState location parsing', () => {
     const [updater] = setSearchParamsMock.mock.calls[0] ?? []
     const updatedParams = updater(new URLSearchParams()) as URLSearchParams
     expect(updatedParams.get('rkw')).toBe('CNC,machine tools')
+  })
+
+  it('removes sid when syncing explicit state back into the URL', () => {
+    const currentParams = new URLSearchParams('sid=session-share-1')
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    const nextState: UrlSearchState = {
+      shareSessionId: 'session-share-1',
+      location: 'Dongguan',
+      keywords: ['CNC'],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+      filters: {},
+    }
+
+    result.current.syncToUrl(nextState)
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(currentParams) as URLSearchParams
+    expect(updatedParams.get('sid')).toBeNull()
+    expect(updatedParams.get('location')).toBe('Dongguan')
+    expect(updatedParams.get('keyword')).toBe('CNC')
   })
 })

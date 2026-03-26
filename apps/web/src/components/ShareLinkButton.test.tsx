@@ -1,0 +1,109 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ShareLinkButton } from './ShareLinkButton'
+
+const { toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
+  toastSuccessMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: (...args: unknown[]) => toastSuccessMock(...args),
+    error: (...args: unknown[]) => toastErrorMock(...args),
+  },
+}))
+
+describe('ShareLinkButton', () => {
+  const clipboardWriteTextMock = vi.fn(async () => {})
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    window.history.replaceState({}, '', '/dev/resumes')
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteTextMock,
+      },
+    })
+  })
+
+  it('copies the current URL directly for simple shareable search state', async () => {
+    window.history.replaceState({}, '', '/dev/resumes?location=Dongguan&keyword=CNC')
+    const ensureApiSession = vi.fn(async () => 'session-share-1')
+
+    render(
+      <ShareLinkButton
+        shareTitle="Dongguan · CNC"
+        state={{
+          location: 'Dongguan',
+          keywords: ['CNC'],
+          requiredKeywords: [],
+          filters: {},
+          selectedTags: [],
+          selectedCompanies: [],
+        }}
+        ensureApiSession={ensureApiSession}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '分享' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteTextMock).toHaveBeenCalledWith(
+        `${window.location.origin}/dev/resumes?location=Dongguan&keyword=CNC`
+      )
+    })
+
+    expect(ensureApiSession).not.toHaveBeenCalled()
+    expect(toastSuccessMock).toHaveBeenCalledWith('已复制分享链接')
+  })
+
+  it('creates and copies a short sid link for bulky or session-backed state', async () => {
+    window.history.replaceState({}, '', '/dev/resumes?location=Kuala+Lumpur+MY&keyword=%22Sales+Engineer%22')
+    const ensureApiSession = vi.fn(async () => 'session-share-1')
+
+    render(
+      <ShareLinkButton
+        shareTitle="Kuala Lumpur · Sales Engineer"
+        state={{
+          location: 'Kuala Lumpur MY',
+          keywords: ['Sales Engineer'],
+          requiredKeywords: ['CNC'],
+          collectionSource: {
+            type: 'seek',
+            exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+          },
+          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+          filters: {
+            minAge: 28,
+          },
+          selectedTags: ['STAR'],
+          selectedCompanies: ['Acme'],
+          selectedExperienceLevel: 'mid',
+          jobDescriptionId: 'lathe-sales',
+        }}
+        ensureApiSession={ensureApiSession}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '分享' }))
+
+    await waitFor(() => {
+      expect(ensureApiSession).toHaveBeenCalledWith({
+        shareTitle: 'Kuala Lumpur · Sales Engineer',
+        searchState: expect.objectContaining({
+          location: 'Kuala Lumpur MY',
+          keywords: ['Sales Engineer'],
+          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+        }),
+      })
+    })
+
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith(
+      `${window.location.origin}/dev/resumes?sid=session-share-1`
+    )
+    expect(toastSuccessMock).toHaveBeenCalledWith('已复制会话链接')
+  })
+})

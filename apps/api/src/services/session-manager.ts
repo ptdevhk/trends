@@ -10,9 +10,16 @@ export type ResumeFilters = {
   offset?: number;
   minExperience?: number;
   maxExperience?: number;
+  minRoleYears?: number;
+  roleFilterType?: string;
+  minSalesYears?: number;
+  minAge?: number;
+  maxAge?: number;
   education?: string[];
   skills?: string[];
   locations?: string[];
+  status?: CandidateStatus[];
+  showBlocked?: boolean;
   minSalary?: number;
   maxSalary?: number;
   minMatchScore?: number;
@@ -22,6 +29,33 @@ export type ResumeFilters = {
 };
 
 export type SearchSessionStatus = "active" | "completed" | "archived";
+export type CandidateStatus =
+  | "new"
+  | "contacted"
+  | "interviewing"
+  | "interviewed_pass"
+  | "interviewed_reject"
+  | "offer"
+  | "hired"
+  | "withdrawn";
+
+export type SearchSessionCollectionSource = {
+  type: "job5156" | "seek";
+  exactUrl?: string;
+};
+
+export type SearchSessionState = {
+  location?: string;
+  keywords?: string[];
+  requiredKeywords?: string[];
+  jobDescriptionId?: string;
+  selectedTags?: string[];
+  selectedCompanies?: string[];
+  selectedExperienceLevel?: "senior" | "mid" | "junior";
+  collectionSource?: SearchSessionCollectionSource;
+  collectUrl?: string;
+  filters?: ResumeFilters;
+};
 
 export type SearchSession = {
   id: string;
@@ -30,17 +64,23 @@ export type SearchSession = {
   jobDescriptionId?: string;
   sampleName?: string;
   filters?: ResumeFilters;
+  shareTitle?: string;
+  searchState?: SearchSessionState;
   status: SearchSessionStatus;
   createdAt: string;
   updatedAt: string;
   expiresAt?: string;
 };
 
-type SessionUpdateInput = Partial<Omit<SearchSession, "jobDescriptionId" | "userId" | "sampleName" | "expiresAt">> & {
+type SessionUpdateInput = {
   userId?: string | null;
   jobDescriptionId?: string | null;
   sampleName?: string | null;
+  filters?: ResumeFilters;
+  status?: SearchSessionStatus;
   expiresAt?: string | null;
+  shareTitle?: string | null;
+  searchState?: SearchSessionState | null;
 };
 
 function toIsoNow(): string {
@@ -64,6 +104,8 @@ function normalizeSession(row: Record<string, unknown>): SearchSession {
     jobDescriptionId: row.job_description_id ? String(row.job_description_id) : undefined,
     sampleName: row.sample_name ? String(row.sample_name) : undefined,
     filters: parseJson<ResumeFilters>(row.filters) ?? undefined,
+    shareTitle: row.share_title ? String(row.share_title) : undefined,
+    searchState: parseJson<SearchSessionState>(row.search_state) ?? undefined,
     status: (row.status ? String(row.status) : "active") as SearchSessionStatus,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -84,6 +126,8 @@ export class SessionManager {
     jobDescriptionId?: string;
     sampleName?: string;
     filters?: ResumeFilters;
+    shareTitle?: string;
+    searchState?: SearchSessionState;
   } = {}): SearchSession {
     const id = randomUUID();
     const now = toIsoNow();
@@ -98,11 +142,13 @@ export class SessionManager {
           job_description_id,
           sample_name,
           filters,
+          share_title,
+          search_state,
           status,
           created_at,
           updated_at,
           expires_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         id,
@@ -111,6 +157,8 @@ export class SessionManager {
         params.jobDescriptionId ?? null,
         params.sampleName ?? null,
         params.filters ? JSON.stringify(params.filters) : null,
+        params.shareTitle ?? null,
+        params.searchState ? JSON.stringify(params.searchState) : null,
         "active",
         now,
         now,
@@ -124,6 +172,8 @@ export class SessionManager {
       jobDescriptionId: params.jobDescriptionId,
       sampleName: params.sampleName,
       filters: params.filters,
+      shareTitle: params.shareTitle,
+      searchState: params.searchState,
       status: "active",
       createdAt: now,
       updatedAt: now,
@@ -178,6 +228,14 @@ export class SessionManager {
     if (updates.filters !== undefined) {
       fields.push("filters = ?");
       values.push(updates.filters ? JSON.stringify(updates.filters) : null);
+    }
+    if (updates.shareTitle !== undefined) {
+      fields.push("share_title = ?");
+      values.push(updates.shareTitle ?? null);
+    }
+    if (updates.searchState !== undefined) {
+      fields.push("search_state = ?");
+      values.push(updates.searchState ? JSON.stringify(updates.searchState) : null);
     }
     if (updates.status !== undefined) {
       fields.push("status = ?");
