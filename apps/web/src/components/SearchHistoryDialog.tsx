@@ -99,6 +99,12 @@ export function SearchHistoryDialog({
                     <div className="text-xs text-muted-foreground">
                       {t('quickStart.history.createdAt', 'Created')}: {formatTimestamp(item.createdAt)}
                     </div>
+
+                    {item.notes ? (
+                      <div className="rounded-md bg-muted/50 px-2.5 py-2 text-xs text-muted-foreground">
+                        {item.notes}
+                      </div>
+                    ) : null}
                   </div>
 
                   <Button

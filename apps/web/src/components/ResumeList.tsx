@@ -251,88 +251,97 @@ export function ResumeList() {
         }}
         onApplyQuickFilters={handleQuickConstraintApply}
         extraActions={
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onMouseEnter={() => {
-                void loadSearchHistoryDialog()
-              }}
-              onFocus={() => {
-                void loadSearchHistoryDialog()
-              }}
-              onClick={() => {
-                void loadSearchHistoryDialog()
-                setHistoryRequested(true)
-                setHistoryOpen(true)
-              }}
-            >
-              <History className="h-4 w-4" />
-              {t('quickStart.history.button', 'History')}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => {
-                void handleSaveCurrentSearch()
-              }}
-            >
-              <History className="h-4 w-4" />
-              {t('quickStart.history.save', 'Save search')}
-            </Button>
-            <CollectResumesButton
-              location={sessionLocation}
-              keywords={sessionKeywords}
-              collectionSource={sessionCollectionSource}
-              onCollectionSourceChange={handleCollectionSourceChange}
-              collectUrl={sessionCollectUrl}
-              minAge={filters.minAge}
-              maxAge={filters.maxAge}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onMouseEnter={() => {
-                void loadManualResumeImportDialog()
-              }}
-              onFocus={() => {
-                void loadManualResumeImportDialog()
-              }}
-              onClick={() => {
-                void loadManualResumeImportDialog()
-                setManualImportOpen(true)
-              }}
-            >
-              <Upload className="h-4 w-4" />
-              {t('manualResumeImport.title', 'Import resumes')}
-            </Button>
-            {!selectedIds.size && (
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 rounded-full border border-border/70 bg-background/90 p-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 rounded-full"
+                  onMouseEnter={() => {
+                    void loadSearchHistoryDialog()
+                  }}
+                  onFocus={() => {
+                    void loadSearchHistoryDialog()
+                  }}
+                  onClick={() => {
+                    void loadSearchHistoryDialog()
+                    setHistoryRequested(true)
+                    setHistoryOpen(true)
+                  }}
+                >
+                  <History className="h-4 w-4" />
+                  {t('quickStart.history.button', 'History')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 rounded-full"
+                  onClick={() => {
+                    void handleSaveCurrentSearch()
+                  }}
+                >
+                  <History className="h-4 w-4" />
+                  {t('quickStart.history.save', 'Save search')}
+                </Button>
+              </div>
+
+              <CollectResumesButton
+                location={sessionLocation}
+                keywords={sessionKeywords}
+                collectionSource={sessionCollectionSource}
+                onCollectionSourceChange={handleCollectionSourceChange}
+                collectUrl={sessionCollectUrl}
+                minAge={filters.minAge}
+                maxAge={filters.maxAge}
+              />
+
               <Button
-                onClick={handleAnalyzeAll}
-                disabled={disableAnalyzeButton}
+                type="button"
+                variant="outline"
                 size="sm"
                 className="gap-2"
+                onMouseEnter={() => {
+                  void loadManualResumeImportDialog()
+                }}
+                onFocus={() => {
+                  void loadManualResumeImportDialog()
+                }}
+                onClick={() => {
+                  void loadManualResumeImportDialog()
+                  setManualImportOpen(true)
+                }}
               >
-                {analyzing || hasActiveTask ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    {t('aiTasks.analyzing', 'Analyzing...')}
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4" />
-                    {t('resumes.analyzeAll')}
-                  </>
-                )}
+                <Upload className="h-4 w-4" />
+                {t('manualResumeImport.title', 'Import resumes')}
               </Button>
-            )}
-            <AnalysisTaskMonitor />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {!selectedIds.size && (
+                <Button
+                  onClick={handleAnalyzeAll}
+                  disabled={disableAnalyzeButton}
+                  size="sm"
+                  className="gap-2"
+                >
+                  {analyzing || hasActiveTask ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      {t('aiTasks.analyzing', 'Analyzing...')}
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4" />
+                      {t('resumes.analyzeAll')}
+                    </>
+                  )}
+                </Button>
+              )}
+              <AnalysisTaskMonitor />
+            </div>
           </div>
         }
         onResetAll={handleResetAll}

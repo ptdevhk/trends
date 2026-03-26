@@ -245,6 +245,9 @@ function getProfileQuickConstraints(profile: SearchProfileDetails): {
   }
 }
 
+const shellFieldCardClassName = 'space-y-1.5 rounded-xl border border-border/70 bg-background/90 p-3 shadow-sm'
+const shellFieldLabelClassName = 'text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'
+
 async function fetchAutoMatchedProfile(
   inputLocation: string,
   inputKeywords: string[],
@@ -862,83 +865,126 @@ export function QuickStartPanel({
   }, [quickMinRoleYears, quickMaxAge, activeRoleType, onApplyQuickFilters, quickFilters?.minRoleYears, quickFilters?.maxAge, quickFilters?.roleFilterType])
 
   return (
-    <div className="rounded-lg bg-background border px-4 py-4 shadow-sm">
+    <div className="rounded-lg border bg-background px-4 py-4 shadow-sm">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-4 flex-1">
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor="quickstart-location"
-                className="text-sm font-medium whitespace-nowrap text-muted-foreground"
-              >
-                {t('quickStart.location', '位置')}
-              </label>
-              <div className="flex items-center gap-1">
-                <input
-                  id="quickstart-location"
-                  type="text"
-                  value={location}
-                  onChange={(event) => {
-                    setCollectUrl(undefined)
-                    setLocation(event.target.value)
-                  }}
-                  placeholder={t('quickStart.locationTooltip', '位置 (逗号分隔)')}
-                  title={t('quickStart.locationTooltip', '支持多个位置，用逗号分隔，最多10个')}
-                  className="h-9 w-40 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                />
+        <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-muted/40 p-4">
+          <div className="flex flex-col gap-4">
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                {t('quickStart.shellEyebrow', 'Search workspace')}
+              </p>
+              <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold text-foreground">
+                    {t('quickStart.shellTitle', 'Start from a keyword, workflow, or JD')}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {t(
+                      'quickStart.shellDescription',
+                      'Keep the top shell focused on search. History, collection, and maintenance actions stay one step lower.'
+                    )}
+                  </p>
+                </div>
+                {onResetAll ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 gap-1 self-start px-3 text-sm font-medium text-foreground/80 hover:bg-background hover:text-foreground lg:self-auto"
+                    onClick={onResetAll}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    {t('quickStart.resetKeywords', '重置')}
+                  </Button>
+                ) : null}
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium whitespace-nowrap text-muted-foreground">
-                {t('quickStart.customKeywords', '关键词')}
-              </label>
-              <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  value={customKeyword}
-                  onChange={(event) => {
-                    const value = event.target.value
-                    setCustomKeyword(value)
-                    setCollectUrl(undefined)
-                    setSelectedKeywords(parseKeywordQuery(value).keywords)
-                  }}
-                  placeholder={t('quickStart.customKeywordPlaceholder', '关键词（支持引号 OR，或用逗号分隔短语）...')}
-                  className="h-9 w-full sm:w-64 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                />
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(180px,0.7fr)_minmax(220px,0.85fr)]">
+              <div className={shellFieldCardClassName}>
+                <label className={shellFieldLabelClassName}>
+                  {t('quickStart.customKeywords', '关键词')}
+                </label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={customKeyword}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setCustomKeyword(value)
+                      setCollectUrl(undefined)
+                      setSelectedKeywords(parseKeywordQuery(value).keywords)
+                    }}
+                    placeholder={t('quickStart.customKeywordPlaceholder', '关键词（支持引号 OR，或用逗号分隔短语）...')}
+                    className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              </div>
+
+              <div className={shellFieldCardClassName}>
+                <label
+                  htmlFor="quickstart-location"
+                  className={shellFieldLabelClassName}
+                >
+                  {t('quickStart.location', '位置')}
+                </label>
+                <div className="flex items-center gap-1">
+                  <input
+                    id="quickstart-location"
+                    type="text"
+                    value={location}
+                    onChange={(event) => {
+                      setCollectUrl(undefined)
+                      setLocation(event.target.value)
+                    }}
+                    placeholder={t('quickStart.locationTooltip', '位置 (逗号分隔)')}
+                    title={t('quickStart.locationTooltip', '支持多个位置，用逗号分隔，最多10个')}
+                    className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              </div>
+
+              <div className={shellFieldCardClassName}>
+                <label className={shellFieldLabelClassName}>
+                  {t('quickStart.manualJd', '手动职位(可选)')}
+                </label>
+                <div className="min-w-0">
+                  <JobDescriptionSelect
+                    value={jobDescriptionId}
+                    onChange={handleJobChange}
+                    disabled={!onJobChange}
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium whitespace-nowrap text-muted-foreground">
-                {t('quickStart.manualJd', '手动职位(可选)')}
-              </label>
-              <div className="w-48">
-                <JobDescriptionSelect
-                  value={jobDescriptionId}
-                  onChange={handleJobChange}
-                  disabled={!onJobChange}
-                />
-              </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground/80">
+                {t('quickStart.shellHintLabel', 'Quick start:')}
+              </span>
+              <span>
+                {t('quickStart.shellHintBody', 'Pick a workflow for guided defaults, or type directly and refine later.')}
+              </span>
             </div>
-
-            {onResetAll && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-9 gap-1 px-3 text-sm font-medium text-foreground/80 hover:text-foreground hover:bg-muted"
-                onClick={onResetAll}
-              >
-                <RotateCcw className="h-4 w-4" />
-                {t('quickStart.resetKeywords', '重置')}
-              </Button>
-            )}
           </div>
+        </div>
 
-          <div className="flex-shrink-0">
-            {extraActions}
-          </div>
+        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border/70 bg-muted/25 px-3 py-3">
+          <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            {t('quickStart.workflows', 'Workflow')}
+          </span>
+          {workflowSeeds.map((workflow) => (
+            <Button
+              key={workflow.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-full border-border/70 bg-background px-3 text-xs"
+              onClick={() => handleApplyWorkflow(workflow)}
+            >
+              {workflow.label}
+            </Button>
+          ))}
         </div>
 
         <KeywordChips
@@ -949,23 +995,19 @@ export function QuickStartPanel({
           market={currentMarket}
         />
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">
-            {t('quickStart.workflows', 'Workflow')}:
-          </span>
-          {workflowSeeds.map((workflow) => (
-            <Button
-              key={workflow.id}
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 rounded-full px-3 text-xs"
-              onClick={() => handleApplyWorkflow(workflow)}
-            >
-              {workflow.label}
-            </Button>
-          ))}
-        </div>
+        {extraActions ? (
+          <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {t('quickStart.shortcutsTitle', 'Shortcuts')}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {t('quickStart.shortcutsDescription', 'Recent searches, collection, and operator tools stay here.')}
+              </span>
+            </div>
+            {extraActions}
+          </div>
+        ) : null}
 
         {selectedConvexJobDescriptionProfile ? (
           <div className="rounded-md border border-muted/60 bg-muted/20 px-3 py-2">
