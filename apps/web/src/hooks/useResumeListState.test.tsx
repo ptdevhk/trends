@@ -1157,7 +1157,7 @@ describe('useResumeListState role filter regression', () => {
     expect(parsedBody.industryDbV2Stats).toEqual(mockState.searchHistory[0].industryDbV2Stats)
   })
 
-  it('opens the review packets page with selected resume ids and current context', () => {
+  it('opens the review packets page with selected resume ids, current context, and note prefill', () => {
     mockState.sessionJobDescriptionId = 'lathe-sales'
     mockState.searchHistory = [
       {
@@ -1199,7 +1199,7 @@ describe('useResumeListState role filter regression', () => {
     expect(params.get('source')).toBe('convex')
     expect(params.get('format')).toBe('csv')
     expect(params.get('jobDescriptionId')).toBe('lathe-sales')
-    expect(params.get('sessionId')).toBe('session-1')
+    expect(params.get('sessionId')).toBeNull()
     expect(params.get('referenceNote')).toBe('Priority shortlist for HR sync')
     expect(params.get('resumeIds')).toBe('resume-ideal-cnc-sales,resume-zhang-machinery-sales')
   })
