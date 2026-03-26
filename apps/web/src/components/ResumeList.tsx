@@ -19,6 +19,7 @@ import { useSyncNotifications } from '@/hooks/useSyncNotifications'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { buildResumeKey, hasIngestData } from '@/lib/resume-scoring'
 import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
+import { shouldPreloadOnPointerDown } from '@/lib/pointer-preload'
 
 const loadResumeDetail = () => import('@/components/ResumeDetail')
 const loadSearchHistoryDialog = () => import('@/components/SearchHistoryDialog')
@@ -194,6 +195,13 @@ export function ResumeList() {
     return () => window.clearTimeout(timer)
   }, [activeLoading, displayedResumes.length])
 
+  const preloadHistoryDialog = () => {
+    void loadSearchHistoryDialog()
+  }
+  const preloadManualImportDialog = () => {
+    void loadManualResumeImportDialog()
+  }
+
   const renderResumeCard = (entry: (typeof displayedResumes)[number]) => {
     const ingestData = hasIngestData(entry.resume) ? entry.resume.ingestData : undefined
 
@@ -282,14 +290,19 @@ export function ResumeList() {
                   variant="ghost"
                   size="sm"
                   className="h-10 gap-2 rounded-full px-3"
-                  onMouseEnter={() => {
-                    void loadSearchHistoryDialog()
+                  onPointerEnter={() => {
+                    preloadHistoryDialog()
                   }}
                   onFocus={() => {
-                    void loadSearchHistoryDialog()
+                    preloadHistoryDialog()
+                  }}
+                  onPointerDown={(event) => {
+                    if (shouldPreloadOnPointerDown(event.pointerType)) {
+                      preloadHistoryDialog()
+                    }
                   }}
                   onClick={() => {
-                    void loadSearchHistoryDialog()
+                    preloadHistoryDialog()
                     setHistoryRequested(true)
                     setHistoryOpen(true)
                   }}
@@ -326,14 +339,19 @@ export function ResumeList() {
                 variant="outline"
                 size="sm"
                 className="h-10 gap-2 px-3"
-                onMouseEnter={() => {
-                  void loadManualResumeImportDialog()
+                onPointerEnter={() => {
+                  preloadManualImportDialog()
                 }}
                 onFocus={() => {
-                  void loadManualResumeImportDialog()
+                  preloadManualImportDialog()
+                }}
+                onPointerDown={(event) => {
+                  if (shouldPreloadOnPointerDown(event.pointerType)) {
+                    preloadManualImportDialog()
+                  }
                 }}
                 onClick={() => {
-                  void loadManualResumeImportDialog()
+                  preloadManualImportDialog()
                   setManualImportOpen(true)
                 }}
               >
