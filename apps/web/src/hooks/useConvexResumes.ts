@@ -844,7 +844,7 @@ export function useConvexResumes(
     api.resumes.listWithIngestDataPaginated,
     mockPayload
       ? 'skip'
-      : normalizedQuery
+      : normalizedQuery && !normalizedJobDescriptionId
         ? 'skip'
         : {
             jobDescriptionId: normalizedJobDescriptionId,
@@ -859,9 +859,23 @@ export function useConvexResumes(
     }
   )
 
-  const activePaginatedStatus = normalizedQuery ? paginatedSearchResults.status : paginatedListResults.status
-  const activePaginatedResultsLength = normalizedQuery ? paginatedSearchResults.results.length : paginatedListResults.results.length
-  const activePaginatedLoadMore = normalizedQuery ? paginatedSearchResults.loadMore : paginatedListResults.loadMore
+  const useJobDescriptionFallback = Boolean(
+    normalizedQuery
+      && normalizedJobDescriptionId
+      && !expansionLoading
+      && paginatedSearchResults.status === 'Exhausted'
+      && paginatedSearchResults.results.length === 0
+  )
+
+  const activePaginatedStatus = normalizedQuery
+    ? (useJobDescriptionFallback ? paginatedListResults.status : paginatedSearchResults.status)
+    : paginatedListResults.status
+  const activePaginatedResultsLength = normalizedQuery
+    ? (useJobDescriptionFallback ? paginatedListResults.results.length : paginatedSearchResults.results.length)
+    : paginatedListResults.results.length
+  const activePaginatedLoadMore = normalizedQuery
+    ? (useJobDescriptionFallback ? paginatedListResults.loadMore : paginatedSearchResults.loadMore)
+    : paginatedListResults.loadMore
 
   useEffect(() => {
     if (mockPayload || limit <= 0) {
@@ -901,17 +915,19 @@ export function useConvexResumes(
           })))
         : (mockPayload.list ?? []).slice(0, limit).map(mapResumeDoc)
       : normalizedQuery
-        ? visibleSearchResults.map((entry) => ({
-            ...mapResumeDoc(entry.resume),
-            _provenance: entry.provenance,
-          }))
+        ? useJobDescriptionFallback
+          ? visibleListResults.map(mapResumeDoc)
+          : visibleSearchResults.map((entry) => ({
+              ...mapResumeDoc(entry.resume),
+              _provenance: entry.provenance,
+            }))
         : visibleListResults.map(mapResumeDoc)
-  ), [limit, mockKeywordExpansion, mockPayload, normalizedQuery, visibleListResults, visibleSearchResults])
+  ), [limit, mockKeywordExpansion, mockPayload, normalizedQuery, useJobDescriptionFallback, visibleListResults, visibleSearchResults])
 
   const isLoading = mockPayload
     ? false
     : normalizedQuery
-      ? (expansionLoading || paginatedSearchResults.status === 'LoadingFirstPage')
+      ? (expansionLoading || activePaginatedStatus === 'LoadingFirstPage')
       : paginatedListResults.status === 'LoadingFirstPage'
 
   const hasMore = useMemo(() => {
