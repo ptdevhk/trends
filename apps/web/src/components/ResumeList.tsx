@@ -65,6 +65,7 @@ export function ResumeList() {
     activeSessionTitle,
     activeSessionLabel,
     activeSessionDescription,
+    activeSessionNote,
     activeSessionId,
     shareTitle,
     shareState,
@@ -270,6 +271,7 @@ export function ResumeList() {
         activeSessionTitle={activeSessionTitle}
         activeSessionLabel={activeSessionLabel}
         activeSessionDescription={activeSessionDescription}
+        activeSessionNote={activeSessionNote}
         activeSessionId={activeSessionId}
         extraActions={
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">

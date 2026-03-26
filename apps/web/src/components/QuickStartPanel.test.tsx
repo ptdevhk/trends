@@ -444,6 +444,7 @@ describe('QuickStartPanel quick-filter display', () => {
         activeSessionTitle="Kuala Lumpur · Sales Engineer"
         activeSessionLabel="Shared link"
         activeSessionDescription="Opened from a durable sid link and ready to refine or reshare."
+        activeSessionNote="Priority shortlist for HR sync"
         activeSessionId="shared-session-1"
       />
     )
@@ -452,6 +453,8 @@ describe('QuickStartPanel quick-filter display', () => {
     expect(screen.getByText('Kuala Lumpur · Sales Engineer')).toBeInTheDocument()
     expect(screen.getByText('Shared link')).toBeInTheDocument()
     expect(screen.getByText('shared-ses…')).toBeInTheDocument()
+    expect(screen.getByText('Context note')).toBeInTheDocument()
+    expect(screen.getByText('Priority shortlist for HR sync')).toBeInTheDocument()
   })
 
   it('does not auto-apply min years when no JD is selected', async () => {

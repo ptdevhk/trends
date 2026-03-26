@@ -1334,6 +1334,7 @@ describe('useResumeListState role filter regression', () => {
       },
     })
     expect(result.current.activeSessionLabel).toBe('Shared link')
+    expect(result.current.activeSessionNote).toBe('Priority shortlist for HR sync')
     expect(result.current.activeSessionId).toBe('shared-session-1')
   })
 
@@ -1444,6 +1445,35 @@ describe('useResumeListState role filter regression', () => {
     expect(result.current.activeSessionTitle).toBe('Saved search')
     expect(result.current.activeSessionLabel).toBe('Saved search')
     expect(result.current.activeSessionDescription).toContain('Reopened from saved history')
+    expect(result.current.activeSessionNote).toBeUndefined()
+  })
+
+  it('surfaces the saved-search note in the active session summary after reopening history', async () => {
+    mockState.searchHistory = [
+      {
+        id: 'history-1',
+        sessionKey: 'session-1',
+        title: 'Saved search',
+        location: '苏州',
+        keywords: ['CNC', '销售'],
+        jobDescriptionId: 'lathe-sales',
+        filters: { minAge: 28 },
+        selectedTags: ['STAR'],
+        selectedCompanies: ['Acme'],
+        selectedExperienceLevel: 'mid',
+        notes: 'Priority shortlist for HR sync',
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
+    })
+
+    expect(result.current.activeSessionTitle).toBe('Saved search')
+    expect(result.current.activeSessionNote).toBe('Priority shortlist for HR sync')
   })
 
   it('promotes the active session to a shared-link summary after a durable link is copied', () => {
