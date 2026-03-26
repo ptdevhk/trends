@@ -1,16 +1,18 @@
 import { formatKeywordInput, normalizeKeywordPhrases, parseKeywordQuery } from '@trends/shared'
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
-import { Pencil, RotateCcw } from 'lucide-react'
+import { MessageSquareMore, Pencil, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from 'convex/react'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
 import { JobDescriptionEditor } from './JobDescriptionEditor'
 import { KeywordChips } from './KeywordChips'
 import { SearchProfileEditorDialog, type SearchProfileDetails, type SearchProfileFilters } from './SearchProfileEditorDialog'
+import { SearchAssistantDrawer } from './SearchAssistantDrawer'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import type { SearchHistoryItem } from '@/hooks/useSession'
 import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import {
@@ -90,6 +92,10 @@ interface QuickStartPanelProps {
     roleFilterType?: string
     maxAge?: number
   }) => void
+  assistantHistory?: SearchHistoryItem[]
+  assistantHistoryLoading?: boolean
+  onApplyAssistantHistory?: (item: SearchHistoryItem) => void | Promise<void>
+  onAssistantOpen?: () => void
   extraActions?: React.ReactNode
   onResetAll?: () => void
 }
@@ -290,6 +296,10 @@ export function QuickStartPanel({
   onJobChange,
   quickFilters,
   onApplyQuickFilters,
+  assistantHistory = [],
+  assistantHistoryLoading = false,
+  onApplyAssistantHistory,
+  onAssistantOpen,
   extraActions,
   onResetAll,
 }: QuickStartPanelProps) {
@@ -312,6 +322,7 @@ export function QuickStartPanel({
   const [matching, setMatching] = useState(false)
   const [showJdEditor, setShowJdEditor] = useState(false)
   const [showProfileEditor, setShowProfileEditor] = useState(false)
+  const [assistantOpen, setAssistantOpen] = useState(false)
   const [workflowSeeds, setWorkflowSeeds] = useState<QuickStartWorkflow[]>([])
   const lastJobDescriptionIdRef = useRef(jobDescriptionId.trim())
 
@@ -885,18 +896,33 @@ export function QuickStartPanel({
                     )}
                   </p>
                 </div>
-                {onResetAll ? (
+                <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="h-10 gap-1.5 self-start rounded-lg px-3 text-sm font-medium text-foreground/80 hover:bg-background hover:text-foreground lg:self-auto"
-                    onClick={onResetAll}
+                    className="h-10 gap-1.5 rounded-lg px-3 text-sm"
+                    onClick={() => {
+                      onAssistantOpen?.()
+                      setAssistantOpen(true)
+                    }}
                   >
-                    <RotateCcw className="h-4 w-4" />
-                    {t('quickStart.resetKeywords', '重置')}
+                    <MessageSquareMore className="h-4 w-4" />
+                    {t('quickStart.assistant.button', 'Assistant')}
                   </Button>
-                ) : null}
+                  {onResetAll ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-10 gap-1.5 rounded-lg px-3 text-sm font-medium text-foreground/80 hover:bg-background hover:text-foreground"
+                      onClick={onResetAll}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      {t('quickStart.resetKeywords', '重置')}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </div>
 
@@ -1131,6 +1157,39 @@ export function QuickStartPanel({
           onSaved={handleProfileEditorSaved}
         />
       )}
+
+      <SearchAssistantDrawer
+        open={assistantOpen}
+        onOpenChange={setAssistantOpen}
+        location={location}
+        keywords={normalizedKeywords}
+        jobDescriptionId={jobDescriptionId}
+        workflows={workflowSeeds.map((workflow) => ({
+          id: workflow.id,
+          label: workflow.label,
+          location: workflow.location,
+          keywords: normalizeKeywordPhrases(workflow.keywords),
+        }))}
+        onApplyWorkflow={(workflow) => {
+          const nextWorkflow = workflowSeeds.find((item) => item.id === workflow.id)
+          if (!nextWorkflow) {
+            return
+          }
+          handleApplyWorkflow(nextWorkflow)
+        }}
+        matching={matching}
+        matchedProfile={autoMatchResult ? {
+          name: autoMatchResult.profile.name,
+          confidence: autoMatchResult.confidence,
+          jobDescriptionId: autoMatchResult.profile.jobDescription,
+          matchedKeywords: autoMatchResult.matchedKeywords,
+          filterSummary: getFilterSummary(autoMatchResult.profile, yearsLabel, ageUnit),
+        } : null}
+        onUseMatchedProfile={handleUseMatchedConfig}
+        historyItems={assistantHistory}
+        historyLoading={assistantHistoryLoading}
+        onApplyHistoryItem={onApplyAssistantHistory}
+      />
     </div>
   )
 }
