@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { QuickStartPanel } from './QuickStartPanel'
 import type { SearchHistoryItem } from '@/hooks/useSession'
@@ -357,6 +358,83 @@ describe('QuickStartPanel quick-filter display', () => {
     }))
   })
 
+  it('preserves externally restored location and keywords when a saved search includes a JD', async () => {
+    const onApplyConfig = vi.fn()
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path.includes('/api/config/custom-keywords')) {
+        return {
+          data: {
+            success: true,
+            tags: [],
+            categories: [],
+            systemLocations: [],
+            workflowSeeds: [],
+          },
+        }
+      }
+
+      if (path.includes('/api/job-descriptions/lathe-sales')) {
+        return {
+          data: {
+            success: true,
+            item: {
+              location: '东莞',
+              autoMatch: {
+                keywords: ['车床', 'STAR'],
+              },
+              requiredRoles: [{ type: 'sales', min_years: 1 }],
+            },
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+          item: {
+            requiredRoles: [],
+          },
+        },
+      }
+    })
+
+    const { rerender } = render(
+      <QuickStartPanel
+        defaultLocation=""
+        defaultKeywords={[]}
+        jobDescriptionId=""
+        onApplyConfig={onApplyConfig}
+      />
+    )
+
+    rerender(
+      <QuickStartPanel
+        defaultLocation="China"
+        defaultKeywords={['CNC', '销售']}
+        jobDescriptionId="lathe-sales"
+        onApplyConfig={onApplyConfig}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: '位置' })).toHaveValue('China')
+      expect(screen.getByDisplayValue('CNC 销售')).toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(onApplyConfig).toHaveBeenLastCalledWith({
+        location: 'China',
+        keywords: ['CNC', '销售'],
+        jobDescriptionId: 'lathe-sales',
+        collectionSource: {
+          type: 'job5156',
+        },
+        collectUrl: undefined,
+      })
+    })
+  })
+
   it('shows the current session summary when a shared or reopened search is active', () => {
     render(
       <QuickStartPanel
@@ -397,6 +475,70 @@ describe('QuickStartPanel quick-filter display', () => {
     expect(
       onApplyQuickFilters.mock.calls.some(([value]) => value?.minRoleYears === 1)
     ).toBe(false)
+  })
+
+  it('still auto-fills JD defaults for a manual JD selection', async () => {
+    const user = userEvent.setup()
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path.includes('/api/config/custom-keywords')) {
+        return {
+          data: {
+            success: true,
+            tags: [],
+            categories: [],
+            systemLocations: [],
+            workflowSeeds: [],
+          },
+        }
+      }
+
+      if (path.includes('/api/job-descriptions/lathe-sales')) {
+        return {
+          data: {
+            success: true,
+            item: {
+              location: '东莞',
+              autoMatch: {
+                keywords: ['车床'],
+              },
+              requiredRoles: [{ type: 'sales', min_years: 1 }],
+            },
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+          item: {
+            requiredRoles: [],
+          },
+        },
+      }
+    })
+
+    function StatefulQuickStartPanel() {
+      const [jobDescriptionId, setJobDescriptionId] = useState('')
+
+      return (
+        <QuickStartPanel
+          defaultLocation="广东"
+          defaultKeywords={[]}
+          jobDescriptionId={jobDescriptionId}
+          onJobChange={setJobDescriptionId}
+        />
+      )
+    }
+
+    render(<StatefulQuickStartPanel />)
+
+    await user.selectOptions(screen.getByTestId('job-description-select'), 'lathe-sales')
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: '位置' })).toHaveValue('东莞')
+      expect(screen.getByDisplayValue('车床')).toBeInTheDocument()
+    })
   })
 
   it('applies workflow seeds from the config payload', async () => {

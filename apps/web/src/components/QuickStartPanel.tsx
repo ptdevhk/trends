@@ -343,8 +343,42 @@ export function QuickStartPanel({
   const [showProfileEditor, setShowProfileEditor] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [workflowSeeds, setWorkflowSeeds] = useState<QuickStartWorkflow[]>([])
-  const lastJobDescriptionIdRef = useRef(jobDescriptionId.trim())
+  const normalizedJobDescriptionId = jobDescriptionId.trim()
+  const normalizedDefaultLocation = defaultLocation.trim()
+  const normalizedDefaultKeywordsSignature = normalizeKeywordPhrases(defaultKeywords).join('\u0000')
+  const currentExternalShellStateSignature = [
+    normalizedJobDescriptionId,
+    normalizedDefaultLocation,
+    normalizedDefaultKeywordsSignature,
+  ].join('\u0001')
+  const lastJobDescriptionIdRef = useRef(normalizedJobDescriptionId)
+  const previousExternalShellStateRef = useRef({
+    jobDescriptionId: normalizedJobDescriptionId,
+    location: normalizedDefaultLocation,
+    keywordsSignature: normalizedDefaultKeywordsSignature,
+  })
+  const skipNextJobDescriptionAutofillRef = useRef<string | null>(null)
   const hasRequestedHistoryRef = useRef(false)
+
+  const previousExternalShellState = previousExternalShellStateRef.current
+  const jobDescriptionChangedFromExternalState = previousExternalShellState.jobDescriptionId !== normalizedJobDescriptionId
+  const externalLocationChanged = previousExternalShellState.location !== normalizedDefaultLocation
+  const externalKeywordsChanged = previousExternalShellState.keywordsSignature !== normalizedDefaultKeywordsSignature
+
+  if (
+    normalizedJobDescriptionId
+    && jobDescriptionChangedFromExternalState
+    && (externalLocationChanged || externalKeywordsChanged)
+    && (normalizedDefaultLocation.length > 0 || normalizedDefaultKeywordsSignature.length > 0)
+  ) {
+    skipNextJobDescriptionAutofillRef.current = currentExternalShellStateSignature
+  }
+
+  previousExternalShellStateRef.current = {
+    jobDescriptionId: normalizedJobDescriptionId,
+    location: normalizedDefaultLocation,
+    keywordsSignature: normalizedDefaultKeywordsSignature,
+  }
 
   const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
   const selectedConvexJobDescription = useMemo(() => {
@@ -379,7 +413,6 @@ export function QuickStartPanel({
   }, [defaultCollectionSource])
 
   useEffect(() => {
-    const normalizedJobDescriptionId = jobDescriptionId.trim()
     const hasJobSelectionChanged = lastJobDescriptionIdRef.current !== normalizedJobDescriptionId
 
     if (hasJobSelectionChanged) {
@@ -409,11 +442,11 @@ export function QuickStartPanel({
     } else {
       setQuickMaxAge('')
     }
-  }, [jobDescriptionId, quickFilters?.maxAge, quickFilters?.minRoleYears, effectiveDefaultMinRoleYears, jdMaxAge])
+  }, [normalizedJobDescriptionId, quickFilters?.maxAge, quickFilters?.minRoleYears, effectiveDefaultMinRoleYears, jdMaxAge])
 
   useEffect(() => {
-    const normalizedJobDescriptionId = jobDescriptionId.trim()
     if (!normalizedJobDescriptionId) {
+      skipNextJobDescriptionAutofillRef.current = null
       setActiveRoleType(undefined)
       setJdMinRoleYears(undefined)
       setJdMaxAge(undefined)
@@ -429,6 +462,9 @@ export function QuickStartPanel({
         return
       }
 
+      const shouldPreserveExternalShellState =
+        skipNextJobDescriptionAutofillRef.current === currentExternalShellStateSignature
+
       setActiveRoleType(undefined)
       setJdMinRoleYears(
         typeof selectedConvexJobDescriptionDetail?.minExperience === 'number'
@@ -441,11 +477,15 @@ export function QuickStartPanel({
           : undefined
       )
 
-      if (selectedConvexJobDescriptionDetail?.location) {
+      if (!shouldPreserveExternalShellState && selectedConvexJobDescriptionDetail?.location) {
         setLocation(selectedConvexJobDescriptionDetail.location)
       }
 
-      if (selectedConvexJobDescriptionDetail?.customKeywords && selectedConvexJobDescriptionDetail.customKeywords.length > 0) {
+      if (
+        !shouldPreserveExternalShellState
+        && selectedConvexJobDescriptionDetail?.customKeywords
+        && selectedConvexJobDescriptionDetail.customKeywords.length > 0
+      ) {
         setSelectedKeywords(selectedConvexJobDescriptionDetail.customKeywords.map(k => k.trim()))
         setCustomKeyword(formatKeywordInput(selectedConvexJobDescriptionDetail.customKeywords))
       }
@@ -469,7 +509,10 @@ export function QuickStartPanel({
         setJdMinRoleYears(requiredRole?.min_years)
         setJdMaxAge(undefined)
 
-        if (!selectedConvexJobDescriptionDetail && response.data?.item) {
+        const shouldPreserveExternalShellState =
+          skipNextJobDescriptionAutofillRef.current === currentExternalShellStateSignature
+
+        if (!selectedConvexJobDescriptionDetail && response.data?.item && !shouldPreserveExternalShellState) {
           const itemLocation = response.data.item.location
           const autoMatchKeywords = response.data.item.autoMatch?.keywords
 
@@ -500,7 +543,7 @@ export function QuickStartPanel({
     return () => {
       cancelled = true
     }
-  }, [jobDescriptionId, convexJobDescriptions, selectedConvexJobDescription, selectedConvexJobDescriptionDetail])
+  }, [currentExternalShellStateSignature, normalizedJobDescriptionId, convexJobDescriptions, selectedConvexJobDescription, selectedConvexJobDescriptionDetail])
 
   useEffect(() => {
     if (hasRequestedHistoryRef.current || !onRequestHistory || assistantHistoryLoading || assistantHistory.length > 0) {
