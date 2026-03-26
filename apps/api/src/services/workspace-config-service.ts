@@ -6,6 +6,10 @@ import {
   resolveResumeFieldUsagePolicy,
   type ResumeFieldUsagePolicy,
   type ResumeFieldUsagePolicyOverrides,
+  type SummaryChannel,
+  type SummaryPeriod,
+  type SummaryProfileRecord,
+  type SummaryProfilesConfig,
 } from "@trends/shared";
 import { findProjectRoot } from "./db.js";
 import {
@@ -57,6 +61,10 @@ function readNumber(value: unknown): number | null {
   return null;
 }
 
+function readBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
 function parseMarkets(value: unknown): Array<"CN" | "MY"> | undefined {
   if (!Array.isArray(value)) {
     return undefined;
@@ -67,7 +75,7 @@ function parseMarkets(value: unknown): Array<"CN" | "MY"> | undefined {
 }
 
 function parseVisible(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
+  return readBoolean(value) ?? undefined;
 }
 
 function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSeed["collectionSource"] | null {
@@ -128,6 +136,109 @@ function mergeUnknown(baseValue: unknown, overrideValue: unknown): unknown {
   }
 
   return overrideValue;
+}
+
+function parseSummaryPeriod(value: unknown): SummaryPeriod | null {
+  return value === "daily" || value === "weekly" ? value : null;
+}
+
+function parseSummaryChannel(value: unknown): SummaryChannel | null {
+  return value === "email" || value === "wechat_work" || value === "feishu" || value === "telegram"
+    ? value
+    : null;
+}
+
+function parseSummaryProfileSchedule(value: unknown): SummaryProfileRecord["schedule"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const cron = readString(value.cron);
+  if (!cron) {
+    return null;
+  }
+
+  return { cron };
+}
+
+function parseSummaryProfileRequest(value: unknown): SummaryProfileRecord["request"] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const period = parseSummaryPeriod(value.period);
+  const channel = parseSummaryChannel(value.channel);
+  const dryRun = readBoolean(value.dryRun);
+  if (!period || !channel || dryRun === null) {
+    return null;
+  }
+
+  const request: SummaryProfileRecord["request"] = {
+    period,
+    channel,
+    dryRun,
+  };
+
+  const templateId = readString(value.templateId) ?? undefined;
+  if (templateId) {
+    request.templateId = templateId;
+  }
+
+  if (channel === "email") {
+    const to = readString(value.to) ?? undefined;
+    if (!to) {
+      return null;
+    }
+    request.to = to;
+
+    const subject = readString(value.subject) ?? undefined;
+    if (subject) {
+      request.subject = subject;
+    }
+  }
+
+  return request;
+}
+
+function parseSummaryProfileRecord(value: unknown): SummaryProfileRecord | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = readString(value.id);
+  const name = readString(value.name);
+  const enabled = readBoolean(value.enabled);
+  const schedule = parseSummaryProfileSchedule(value.schedule);
+  const request = parseSummaryProfileRequest(value.request);
+  if (!id || !name || enabled === null || !schedule || !request) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    enabled,
+    schedule,
+    request,
+  };
+}
+
+function parseSummaryProfilesConfig(value: unknown): SummaryProfilesConfig {
+  if (!isRecord(value)) {
+    return { profiles: [] };
+  }
+
+  const profiles = Array.isArray(value.profiles)
+    ? value.profiles
+        .map((item) => parseSummaryProfileRecord(item))
+        .filter((item): item is SummaryProfileRecord => item !== null)
+    : [];
+
+  return { profiles };
+}
+
+function sanitizeSummaryProfilesConfig(config: SummaryProfilesConfig): SummaryProfilesConfig {
+  return parseSummaryProfilesConfig(config);
 }
 
 function parseCustomKeywordTag(value: unknown): CustomKeywordTag | null {
@@ -458,6 +569,7 @@ const FILTER_PRESETS_KEY = "filter-presets";
 const RULE_WEIGHTS_KEY = "rule-weights";
 const LEARNING_LOG_KEY = "learning-log";
 const RESUME_FIELD_USAGE_POLICY_KEY = "resume-field-usage-policy";
+const SUMMARY_PROFILES_KEY = "summary-profiles";
 
 export class WorkspaceConfigService {
   readonly projectRoot: string;
@@ -673,6 +785,15 @@ export class WorkspaceConfigService {
       presets: Array.from(presetsById.values()),
       categories: Array.from(categoriesById.values()),
     };
+  }
+
+  async getWorkspaceSummaryProfiles(workspaceSlug: string): Promise<SummaryProfilesConfig> {
+    const entry = await this.getWorkspaceConfigEntry(workspaceSlug, SUMMARY_PROFILES_KEY);
+    return parseSummaryProfilesConfig(entry?.configValue);
+  }
+
+  async setWorkspaceSummaryProfiles(workspaceSlug: string, config: SummaryProfilesConfig): Promise<void> {
+    await this.upsertWorkspaceConfigEntry(workspaceSlug, SUMMARY_PROFILES_KEY, sanitizeSummaryProfilesConfig(config));
   }
 
   async getWorkspaceRuleWeights(workspaceSlug: string): Promise<RuleWeightsConfigOverrides | undefined> {

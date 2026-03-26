@@ -1,11 +1,19 @@
 import { randomUUID } from "node:crypto";
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { isValidWorkspace, type WorkspaceSlug } from "@trends/shared";
+import {
+  WORKSPACE_TEAMS,
+  isValidWorkspace,
+  type SummaryProfileRecord as SummaryProfileRecordType,
+  type SummaryProfileRuntimeItem as SummaryProfileRuntimeItemType,
+  type SummaryProfilesConfig as SummaryProfilesConfigType,
+  type WorkspaceSlug,
+} from "@trends/shared";
 
 import { SummaryDataService } from "../services/summaries/summary-data-service.js";
 import { summaryDispatcher } from "../services/summaries/summary-dispatcher.js";
 import { SummaryRenderer } from "../services/summaries/summary-renderer.js";
+import { workspaceConfigService } from "../services/workspace-config-service.js";
 import {
   WorkspaceSummaryRunStorage,
   type StoredWorkspaceSummaryRun,
@@ -15,7 +23,9 @@ const app = new OpenAPIHono();
 const summaryDataService = new SummaryDataService();
 const summaryRenderer = new SummaryRenderer();
 const workspaceSummaryRunStorage = new WorkspaceSummaryRunStorage();
+const KNOWN_WORKSPACE_SLUGS = Object.keys(WORKSPACE_TEAMS).filter(isValidWorkspace);
 const SummaryPeriodSchema = z.enum(["daily", "weekly"]);
+const WorkspaceSlugSchema = z.string().min(1);
 
 const SummaryCountEntrySchema = z.object({
   key: z.string(),
@@ -205,6 +215,55 @@ const SummaryRunDetailResponseSchema = z.object({
   item: StoredSummaryRunSchema,
 });
 
+const SummaryProfileScheduleSchema = z.object({
+  cron: z.string().trim().min(1),
+});
+
+const SummaryProfileRequestSchema = z.object({
+  period: SummaryPeriodSchema,
+  channel: SummaryChannelSchema,
+  dryRun: z.boolean(),
+  templateId: z.string().trim().min(1).optional(),
+  to: z.string().trim().email().optional(),
+  subject: z.string().trim().min(1).optional(),
+});
+
+const SummaryProfileSchema = z.object({
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  enabled: z.boolean(),
+  schedule: SummaryProfileScheduleSchema,
+  request: SummaryProfileRequestSchema,
+});
+
+const SummaryProfilesListResponseSchema = z.object({
+  success: z.literal(true),
+  profiles: z.array(SummaryProfileSchema),
+});
+
+const SummaryProfileDetailResponseSchema = z.object({
+  success: z.literal(true),
+  profile: SummaryProfileSchema,
+});
+
+const SummaryProfileRuntimeItemSchema = z.object({
+  workspaceSlug: WorkspaceSlugSchema,
+  profileId: z.string(),
+  name: z.string(),
+  cron: z.string(),
+  period: SummaryPeriodSchema,
+  channel: SummaryChannelSchema,
+  dryRun: z.boolean(),
+  templateId: z.string().optional(),
+  to: z.string().optional(),
+  subject: z.string().optional(),
+});
+
+const SummaryProfilesRuntimeResponseSchema = z.object({
+  success: z.literal(true),
+  items: z.array(SummaryProfileRuntimeItemSchema),
+});
+
 const ErrorSchema = z.object({
   success: z.literal(false),
   error: z.string(),
@@ -287,6 +346,427 @@ function resolveWorkspaceSlug(value: string | undefined, fallback: WorkspaceSlug
   }
   return candidate;
 }
+
+function cloneSummaryProfile(profile: SummaryProfileRecordType): SummaryProfileRecordType {
+  const isEmailProfile = profile.request.channel === "email";
+  return {
+    id: profile.id,
+    name: profile.name,
+    enabled: profile.enabled,
+    schedule: {
+      cron: profile.schedule.cron,
+    },
+    request: {
+      period: profile.request.period,
+      channel: profile.request.channel,
+      dryRun: profile.request.dryRun,
+      ...(profile.request.templateId ? { templateId: profile.request.templateId } : {}),
+      ...(isEmailProfile && profile.request.to ? { to: profile.request.to } : {}),
+      ...(isEmailProfile && profile.request.subject ? { subject: profile.request.subject } : {}),
+    },
+  };
+}
+
+function getSummaryProfileValidationError(profile: SummaryProfileRecordType): string | null {
+  if (profile.request.channel === "email" && !profile.request.to) {
+    return "Email recipient is required";
+  }
+
+  return null;
+}
+
+function findSummaryProfile(
+  config: SummaryProfilesConfigType,
+  profileId: string,
+): SummaryProfileRecordType | undefined {
+  return config.profiles.find((profile) => profile.id === profileId);
+}
+
+function toSummaryProfileRuntimeItem(
+  workspaceSlug: WorkspaceSlug,
+  profile: SummaryProfileRecordType,
+): SummaryProfileRuntimeItemType {
+  return {
+    workspaceSlug,
+    profileId: profile.id,
+    name: profile.name,
+    cron: profile.schedule.cron,
+    period: profile.request.period,
+    channel: profile.request.channel,
+    dryRun: profile.request.dryRun,
+    ...(profile.request.templateId ? { templateId: profile.request.templateId } : {}),
+    ...(profile.request.to ? { to: profile.request.to } : {}),
+    ...(profile.request.subject ? { subject: profile.request.subject } : {}),
+  };
+}
+
+const listProfilesRoute = createRoute({
+  method: "get",
+  path: "/profiles",
+  tags: ["Summaries"],
+  summary: "List workspace summary profiles",
+  responses: {
+    200: {
+      description: "Workspace summary profiles",
+      content: {
+        "application/json": {
+          schema: SummaryProfilesListResponseSchema,
+        },
+      },
+    },
+    403: {
+      description: "Forbidden",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(listProfilesRoute, async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+
+  const config = await workspaceConfigService.getWorkspaceSummaryProfiles(c.var.workspaceSlug);
+  return c.json({
+    success: true as const,
+    profiles: config.profiles.map((profile) => cloneSummaryProfile(profile)),
+  }, 200);
+});
+
+const createProfileRoute = createRoute({
+  method: "post",
+  path: "/profiles",
+  tags: ["Summaries"],
+  summary: "Create workspace summary profile",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: SummaryProfileSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    400: {
+      description: "Invalid summary profile",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    201: {
+      description: "Summary profile created",
+      content: {
+        "application/json": {
+          schema: SummaryProfileDetailResponseSchema,
+        },
+      },
+    },
+    403: {
+      description: "Forbidden",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    409: {
+      description: "Duplicate profile id",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(createProfileRoute, async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+
+  const payload = c.req.valid("json");
+  const profile = cloneSummaryProfile(payload);
+  const validationError = getSummaryProfileValidationError(profile);
+  if (validationError) {
+    return c.json({ success: false as const, error: validationError }, 400);
+  }
+
+  const config = await workspaceConfigService.getWorkspaceSummaryProfiles(c.var.workspaceSlug);
+  if (findSummaryProfile(config, profile.id)) {
+    return c.json({
+      success: false as const,
+      error: `Summary profile already exists: ${profile.id}`,
+    }, 409);
+  }
+
+  await workspaceConfigService.setWorkspaceSummaryProfiles(c.var.workspaceSlug, {
+    profiles: [...config.profiles, profile],
+  });
+
+  return c.json({
+    success: true as const,
+    profile,
+  }, 201);
+});
+
+const runtimeProfilesRoute = createRoute({
+  method: "get",
+  path: "/profiles/runtime",
+  tags: ["Summaries"],
+  summary: "List enabled summary profiles across known workspaces for worker runtime",
+  responses: {
+    200: {
+      description: "Runtime summary profile list",
+      content: {
+        "application/json": {
+          schema: SummaryProfilesRuntimeResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(runtimeProfilesRoute, async (c) => {
+  const configs = await Promise.all(
+    KNOWN_WORKSPACE_SLUGS.map(async (workspaceSlug) => ({
+      workspaceSlug,
+      config: await workspaceConfigService.getWorkspaceSummaryProfiles(workspaceSlug),
+    })),
+  );
+
+  const items = configs.flatMap(({ workspaceSlug, config }) =>
+    config.profiles
+      .filter((profile) => profile.enabled)
+      .map((profile) => toSummaryProfileRuntimeItem(workspaceSlug, profile)),
+  );
+
+  return c.json({
+    success: true as const,
+    items,
+  }, 200);
+});
+
+const getProfileRoute = createRoute({
+  method: "get",
+  path: "/profiles/{profileId}",
+  tags: ["Summaries"],
+  summary: "Get one workspace summary profile",
+  request: {
+    params: z.object({
+      profileId: z.string().trim().min(1),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Summary profile detail",
+      content: {
+        "application/json": {
+          schema: SummaryProfileDetailResponseSchema,
+        },
+      },
+    },
+    403: {
+      description: "Forbidden",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: {
+      description: "Summary profile not found",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(getProfileRoute, async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+
+  const { profileId } = c.req.valid("param");
+  const config = await workspaceConfigService.getWorkspaceSummaryProfiles(c.var.workspaceSlug);
+  const profile = findSummaryProfile(config, profileId);
+  if (!profile) {
+    return c.json({
+      success: false as const,
+      error: `Summary profile not found: ${profileId}`,
+    }, 404);
+  }
+
+  return c.json({
+    success: true as const,
+    profile: cloneSummaryProfile(profile),
+  }, 200);
+});
+
+const updateProfileRoute = createRoute({
+  method: "put",
+  path: "/profiles/{profileId}",
+  tags: ["Summaries"],
+  summary: "Update one workspace summary profile",
+  request: {
+    params: z.object({
+      profileId: z.string().trim().min(1),
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: SummaryProfileSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    400: {
+      description: "Invalid summary profile",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    200: {
+      description: "Summary profile updated",
+      content: {
+        "application/json": {
+          schema: SummaryProfileDetailResponseSchema,
+        },
+      },
+    },
+    403: {
+      description: "Forbidden",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: {
+      description: "Summary profile not found",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(updateProfileRoute, async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+
+  const { profileId } = c.req.valid("param");
+  const payload = c.req.valid("json");
+  const nextProfileBase = cloneSummaryProfile(payload);
+  const validationError = getSummaryProfileValidationError(nextProfileBase);
+  if (validationError) {
+    return c.json({ success: false as const, error: validationError }, 400);
+  }
+
+  const config = await workspaceConfigService.getWorkspaceSummaryProfiles(c.var.workspaceSlug);
+  const profileIndex = config.profiles.findIndex((profile) => profile.id === profileId);
+  if (profileIndex === -1) {
+    return c.json({
+      success: false as const,
+      error: `Summary profile not found: ${profileId}`,
+    }, 404);
+  }
+
+  const existingProfile = config.profiles[profileIndex];
+  const nextProfile: SummaryProfileRecordType = {
+    ...nextProfileBase,
+    id: existingProfile.id,
+  };
+  const nextProfiles = [...config.profiles];
+  nextProfiles[profileIndex] = nextProfile;
+
+  await workspaceConfigService.setWorkspaceSummaryProfiles(c.var.workspaceSlug, {
+    profiles: nextProfiles,
+  });
+
+  return c.json({
+    success: true as const,
+    profile: nextProfile,
+  }, 200);
+});
+
+const deleteProfileRoute = createRoute({
+  method: "delete",
+  path: "/profiles/{profileId}",
+  tags: ["Summaries"],
+  summary: "Delete one workspace summary profile",
+  request: {
+    params: z.object({
+      profileId: z.string().trim().min(1),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Summary profile deleted",
+      content: {
+        "application/json": {
+          schema: z.object({
+            success: z.literal(true),
+          }),
+        },
+      },
+    },
+    403: {
+      description: "Forbidden",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: {
+      description: "Summary profile not found",
+      content: {
+        "application/json": {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(deleteProfileRoute, async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+
+  const { profileId } = c.req.valid("param");
+  const config = await workspaceConfigService.getWorkspaceSummaryProfiles(c.var.workspaceSlug);
+  const nextProfiles = config.profiles.filter((profile) => profile.id !== profileId);
+  if (nextProfiles.length === config.profiles.length) {
+    return c.json({
+      success: false as const,
+      error: `Summary profile not found: ${profileId}`,
+    }, 404);
+  }
+
+  await workspaceConfigService.setWorkspaceSummaryProfiles(c.var.workspaceSlug, {
+    profiles: nextProfiles,
+  });
+
+  return c.json({ success: true as const }, 200);
+});
 
 const previewRoute = createRoute({
   method: "post",
