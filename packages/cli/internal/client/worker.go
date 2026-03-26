@@ -7,13 +7,23 @@ import (
 )
 
 type WorkerStatus struct {
-	JobsExecuted int    `json:"jobs_executed"`
-	JobsFailed   int    `json:"jobs_failed"`
-	JobsMissed   int    `json:"jobs_missed"`
-	LastRun      string `json:"last_run"`
-	LastSuccess  string `json:"last_success"`
-	LastFailure  string `json:"last_failure"`
-	Running      bool   `json:"running"`
+	JobsExecuted  int         `json:"jobs_executed"`
+	JobsFailed    int         `json:"jobs_failed"`
+	JobsMissed    int         `json:"jobs_missed"`
+	LastRun       string      `json:"last_run"`
+	LastSuccess   string      `json:"last_success"`
+	LastFailure   string      `json:"last_failure"`
+	ScheduleType  string      `json:"schedule_type"`
+	ScheduleValue string      `json:"schedule_value"`
+	Running       bool        `json:"running"`
+	Jobs          []WorkerJob `json:"jobs"`
+}
+
+type WorkerJob struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	NextRun string `json:"next_run"`
+	Trigger string `json:"trigger"`
 }
 
 type WorkerTriggerResponse struct {

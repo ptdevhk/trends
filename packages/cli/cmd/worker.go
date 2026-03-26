@@ -194,12 +194,14 @@ func newWorkerStatusCmd() *cobra.Command {
 				return err
 			}
 
-			headers := []string{"running", "jobs_executed", "jobs_failed", "jobs_missed", "last_run", "last_success", "last_failure"}
+			headers := []string{"running", "jobs_executed", "jobs_failed", "jobs_missed", "schedule", "job_count", "last_run", "last_success", "last_failure"}
 			rows := [][]string{{
 				boolToString(status.Running),
 				fmt.Sprintf("%d", status.JobsExecuted),
 				fmt.Sprintf("%d", status.JobsFailed),
 				fmt.Sprintf("%d", status.JobsMissed),
+				formatWorkerSchedule(status),
+				fmt.Sprintf("%d", len(status.Jobs)),
 				status.LastRun,
 				status.LastSuccess,
 				status.LastFailure,
@@ -310,4 +312,24 @@ func emptyDash(value string) string {
 		return "-"
 	}
 	return value
+}
+
+func formatWorkerSchedule(status *client.WorkerStatus) string {
+	if status == nil {
+		return "-"
+	}
+
+	value := strings.TrimSpace(status.ScheduleValue)
+	if value == "" {
+		return "-"
+	}
+
+	switch strings.TrimSpace(status.ScheduleType) {
+	case "cron":
+		return "Cron: " + value
+	case "interval":
+		return "Every " + value
+	default:
+		return value
+	}
 }
