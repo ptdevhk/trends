@@ -129,6 +129,7 @@ async function loadSummaryModules(root: string) {
   const { ActionStorage } = await import("../services/action-storage");
   const { ReviewPacketStorage } = await import("../services/review-packet-storage");
   const { summaryTelegramBridge } = await import("../services/summaries/summary-telegram-bridge");
+  const { workspaceConfigService } = await import("../services/workspace-config-service");
   const { resetResumeScreeningDb } = await import("../services/database");
   return {
     createApp,
@@ -136,7 +137,39 @@ async function loadSummaryModules(root: string) {
     ActionStorage,
     ReviewPacketStorage,
     summaryTelegramBridge,
+    workspaceConfigService,
     resetResumeScreeningDb,
+  };
+}
+
+function createSummaryProfile(overrides: {
+  id?: string;
+  name?: string;
+  enabled?: boolean;
+  cron?: string;
+  period?: "daily" | "weekly";
+  channel?: "email" | "wechat_work" | "feishu" | "telegram";
+  dryRun?: boolean;
+  templateId?: string;
+  to?: string;
+  subject?: string;
+} = {}) {
+  const channel = overrides.channel ?? "telegram";
+  return {
+    id: overrides.id ?? "daily-ops",
+    name: overrides.name ?? "Daily Ops",
+    enabled: overrides.enabled ?? true,
+    schedule: {
+      cron: overrides.cron ?? "0 9 * * *",
+    },
+    request: {
+      period: overrides.period ?? "daily",
+      channel,
+      dryRun: overrides.dryRun ?? false,
+      ...(overrides.templateId ? { templateId: overrides.templateId } : {}),
+      ...(channel === "email" && overrides.to ? { to: overrides.to } : {}),
+      ...(channel === "email" && overrides.subject ? { subject: overrides.subject } : {}),
+    },
   };
 }
 
@@ -774,5 +807,294 @@ describe("summary preview route", () => {
       },
     });
     expect(missingResponse.status).toBe(404);
+  });
+
+  it("creates and lists workspace summary profiles for admin workspaces", async () => {
+    root = createFixtureRoot();
+    const {
+      createApp,
+      workspaceConfigService,
+    } = await loadSummaryModules(root);
+
+    const profile = createSummaryProfile();
+    const getProfilesSpy = vi.spyOn(workspaceConfigService, "getWorkspaceSummaryProfiles")
+      .mockResolvedValueOnce({ profiles: [] })
+      .mockResolvedValueOnce({ profiles: [profile] });
+    const setProfilesSpy = vi.spyOn(workspaceConfigService, "setWorkspaceSummaryProfiles").mockResolvedValue();
+
+    const app = createApp();
+    const createResponse = await app.request("/api/summaries/profiles", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify(profile),
+    });
+
+    expect(createResponse.status).toBe(201);
+    expect(setProfilesSpy).toHaveBeenCalledWith("dev", {
+      profiles: [profile],
+    });
+    expect(await createResponse.json()).toEqual({
+      success: true,
+      profile,
+    });
+
+    const listResponse = await app.request("/api/summaries/profiles", {
+      headers: {
+        "X-Workspace-Slug": "dev",
+      },
+    });
+
+    expect(listResponse.status).toBe(200);
+    expect(getProfilesSpy).toHaveBeenCalledTimes(2);
+    expect(await listResponse.json()).toEqual({
+      success: true,
+      profiles: [profile],
+    });
+  });
+
+  it("blocks hr users from reading or mutating workspace summary profiles", async () => {
+    root = createFixtureRoot();
+    const {
+      createApp,
+      workspaceConfigService,
+    } = await loadSummaryModules(root);
+
+    const getProfilesSpy = vi.spyOn(workspaceConfigService, "getWorkspaceSummaryProfiles");
+    const setProfilesSpy = vi.spyOn(workspaceConfigService, "setWorkspaceSummaryProfiles").mockResolvedValue();
+
+    const app = createApp();
+    const listResponse = await app.request("/api/summaries/profiles", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+    });
+    expect(listResponse.status).toBe(403);
+    expect(await listResponse.json()).toEqual({
+      success: false,
+      error: "Admin access required",
+    });
+
+    const createResponse = await app.request("/api/summaries/profiles", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify(createSummaryProfile()),
+    });
+    expect(createResponse.status).toBe(403);
+    expect(await createResponse.json()).toEqual({
+      success: false,
+      error: "Admin access required",
+    });
+    expect(getProfilesSpy).not.toHaveBeenCalled();
+    expect(setProfilesSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate summary profile ids in the same workspace", async () => {
+    root = createFixtureRoot();
+    const {
+      createApp,
+      workspaceConfigService,
+    } = await loadSummaryModules(root);
+
+    const profile = createSummaryProfile();
+    vi.spyOn(workspaceConfigService, "getWorkspaceSummaryProfiles").mockResolvedValue({
+      profiles: [profile],
+    });
+    const setProfilesSpy = vi.spyOn(workspaceConfigService, "setWorkspaceSummaryProfiles").mockResolvedValue();
+
+    const app = createApp();
+    const response = await app.request("/api/summaries/profiles", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify(profile),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      success: false,
+      error: `Summary profile already exists: ${profile.id}`,
+    });
+    expect(setProfilesSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 for missing workspace-local summary profiles", async () => {
+    root = createFixtureRoot();
+    const {
+      createApp,
+      workspaceConfigService,
+    } = await loadSummaryModules(root);
+
+    vi.spyOn(workspaceConfigService, "getWorkspaceSummaryProfiles").mockResolvedValue({
+      profiles: [],
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/summaries/profiles/missing-profile", {
+      headers: {
+        "X-Workspace-Slug": "dev",
+      },
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({
+      success: false,
+      error: "Summary profile not found: missing-profile",
+    });
+  });
+
+  it("preserves immutable summary profile ids on update", async () => {
+    root = createFixtureRoot();
+    const {
+      createApp,
+      workspaceConfigService,
+    } = await loadSummaryModules(root);
+
+    const existingProfile = createSummaryProfile({ id: "daily-ops", name: "Daily Ops" });
+    vi.spyOn(workspaceConfigService, "getWorkspaceSummaryProfiles").mockResolvedValue({
+      profiles: [existingProfile],
+    });
+    const setProfilesSpy = vi.spyOn(workspaceConfigService, "setWorkspaceSummaryProfiles").mockResolvedValue();
+
+    const app = createApp();
+    const response = await app.request("/api/summaries/profiles/daily-ops", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify(createSummaryProfile({
+        id: "renamed-profile",
+        name: "Updated Daily Ops",
+        cron: "0 10 * * *",
+      })),
+    });
+
+    expect(response.status).toBe(200);
+    expect(setProfilesSpy).toHaveBeenCalledWith("dev", {
+      profiles: [
+        createSummaryProfile({
+          id: "daily-ops",
+          name: "Updated Daily Ops",
+          cron: "0 10 * * *",
+        }),
+      ],
+    });
+    expect(await response.json()).toEqual({
+      success: true,
+      profile: createSummaryProfile({
+        id: "daily-ops",
+        name: "Updated Daily Ops",
+        cron: "0 10 * * *",
+      }),
+    });
+  });
+
+  it("deletes workspace-local summary profiles", async () => {
+    root = createFixtureRoot();
+    const {
+      createApp,
+      workspaceConfigService,
+    } = await loadSummaryModules(root);
+
+    const keptProfile = createSummaryProfile({ id: "weekly-ops", period: "weekly", name: "Weekly Ops" });
+    vi.spyOn(workspaceConfigService, "getWorkspaceSummaryProfiles").mockResolvedValue({
+      profiles: [
+        createSummaryProfile({ id: "daily-ops" }),
+        keptProfile,
+      ],
+    });
+    const setProfilesSpy = vi.spyOn(workspaceConfigService, "setWorkspaceSummaryProfiles").mockResolvedValue();
+
+    const app = createApp();
+    const response = await app.request("/api/summaries/profiles/daily-ops", {
+      method: "DELETE",
+      headers: {
+        "X-Workspace-Slug": "dev",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(setProfilesSpy).toHaveBeenCalledWith("dev", {
+      profiles: [keptProfile],
+    });
+    expect(await response.json()).toEqual({ success: true });
+  });
+
+  it("aggregates only enabled runtime profiles across known workspaces", async () => {
+    root = createFixtureRoot();
+    const {
+      createApp,
+      workspaceConfigService,
+    } = await loadSummaryModules(root);
+
+    vi.spyOn(workspaceConfigService, "getWorkspaceSummaryProfiles").mockImplementation(async (workspaceSlug) => {
+      if (workspaceSlug === "dev") {
+        return {
+          profiles: [
+            createSummaryProfile({ id: "dev-daily", name: "Dev Daily" }),
+            createSummaryProfile({ id: "dev-disabled", enabled: false, name: "Dev Disabled" }),
+          ],
+        };
+      }
+
+      if (workspaceSlug === "hr") {
+        return {
+          profiles: [
+            createSummaryProfile({
+              id: "hr-weekly",
+              name: "HR Weekly",
+              period: "weekly",
+              channel: "email",
+              to: "ops@example.com",
+              subject: "Weekly HR Summary",
+            }),
+          ],
+        };
+      }
+
+      return { profiles: [] };
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/summaries/profiles/runtime", {
+      headers: {
+        "X-Workspace-Slug": "hr",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      items: [
+        {
+          workspaceSlug: "dev",
+          profileId: "dev-daily",
+          name: "Dev Daily",
+          cron: "0 9 * * *",
+          period: "daily",
+          channel: "telegram",
+          dryRun: false,
+        },
+        {
+          workspaceSlug: "hr",
+          profileId: "hr-weekly",
+          name: "HR Weekly",
+          cron: "0 9 * * *",
+          period: "weekly",
+          channel: "email",
+          dryRun: false,
+          to: "ops@example.com",
+          subject: "Weekly HR Summary",
+        },
+      ],
+    });
   });
 });

@@ -92,3 +92,41 @@ export type SummarySendRequest = SummaryPreviewRequest & {
   botToken?: string;
   chatId?: string;
 };
+
+export type SummaryProfileSchedule = {
+  cron: string;
+};
+
+export type SummaryProfileRequest = {
+  period: SummaryPeriod;
+  channel: SummaryChannel;
+  dryRun: boolean;
+  templateId?: string;
+  to?: string;
+  subject?: string;
+};
+
+export type SummaryProfileRecord = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  schedule: SummaryProfileSchedule;
+  request: SummaryProfileRequest;
+};
+
+export type SummaryProfilesConfig = {
+  profiles: SummaryProfileRecord[];
+};
+
+export type SummaryProfileRuntimeItem = {
+  workspaceSlug: string;
+  profileId: string;
+  name: string;
+  cron: string;
+  period: SummaryPeriod;
+  channel: SummaryChannel;
+  dryRun: boolean;
+  templateId?: string;
+  to?: string;
+  subject?: string;
+};

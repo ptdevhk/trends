@@ -4406,6 +4406,475 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/summaries/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List workspace summary profiles */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Workspace summary profiles */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            profiles: {
+                                id: string;
+                                name: string;
+                                enabled: boolean;
+                                schedule: {
+                                    cron: string;
+                                };
+                                request: {
+                                    /** @enum {string} */
+                                    period: "daily" | "weekly";
+                                    /** @enum {string} */
+                                    channel: "email" | "wechat_work" | "feishu" | "telegram";
+                                    dryRun: boolean;
+                                    templateId?: string;
+                                    /** Format: email */
+                                    to?: string;
+                                    subject?: string;
+                                };
+                            }[];
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create workspace summary profile */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        id: string;
+                        name: string;
+                        enabled: boolean;
+                        schedule: {
+                            cron: string;
+                        };
+                        request: {
+                            /** @enum {string} */
+                            period: "daily" | "weekly";
+                            /** @enum {string} */
+                            channel: "email" | "wechat_work" | "feishu" | "telegram";
+                            dryRun: boolean;
+                            templateId?: string;
+                            /** Format: email */
+                            to?: string;
+                            subject?: string;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Summary profile created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            profile: {
+                                id: string;
+                                name: string;
+                                enabled: boolean;
+                                schedule: {
+                                    cron: string;
+                                };
+                                request: {
+                                    /** @enum {string} */
+                                    period: "daily" | "weekly";
+                                    /** @enum {string} */
+                                    channel: "email" | "wechat_work" | "feishu" | "telegram";
+                                    dryRun: boolean;
+                                    templateId?: string;
+                                    /** Format: email */
+                                    to?: string;
+                                    subject?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid summary profile */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Duplicate profile id */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/summaries/profiles/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List enabled summary profiles across known workspaces for worker runtime */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Runtime summary profile list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                workspaceSlug: string;
+                                profileId: string;
+                                name: string;
+                                cron: string;
+                                /** @enum {string} */
+                                period: "daily" | "weekly";
+                                /** @enum {string} */
+                                channel: "email" | "wechat_work" | "feishu" | "telegram";
+                                dryRun: boolean;
+                                templateId?: string;
+                                to?: string;
+                                subject?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/summaries/profiles/{profileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one workspace summary profile */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    profileId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Summary profile detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            profile: {
+                                id: string;
+                                name: string;
+                                enabled: boolean;
+                                schedule: {
+                                    cron: string;
+                                };
+                                request: {
+                                    /** @enum {string} */
+                                    period: "daily" | "weekly";
+                                    /** @enum {string} */
+                                    channel: "email" | "wechat_work" | "feishu" | "telegram";
+                                    dryRun: boolean;
+                                    templateId?: string;
+                                    /** Format: email */
+                                    to?: string;
+                                    subject?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Summary profile not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        /** Update one workspace summary profile */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    profileId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        id: string;
+                        name: string;
+                        enabled: boolean;
+                        schedule: {
+                            cron: string;
+                        };
+                        request: {
+                            /** @enum {string} */
+                            period: "daily" | "weekly";
+                            /** @enum {string} */
+                            channel: "email" | "wechat_work" | "feishu" | "telegram";
+                            dryRun: boolean;
+                            templateId?: string;
+                            /** Format: email */
+                            to?: string;
+                            subject?: string;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Summary profile updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            profile: {
+                                id: string;
+                                name: string;
+                                enabled: boolean;
+                                schedule: {
+                                    cron: string;
+                                };
+                                request: {
+                                    /** @enum {string} */
+                                    period: "daily" | "weekly";
+                                    /** @enum {string} */
+                                    channel: "email" | "wechat_work" | "feishu" | "telegram";
+                                    dryRun: boolean;
+                                    templateId?: string;
+                                    /** Format: email */
+                                    to?: string;
+                                    subject?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid summary profile */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Summary profile not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Delete one workspace summary profile */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    profileId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Summary profile deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Summary profile not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/summaries/preview": {
         parameters: {
             query?: never;
