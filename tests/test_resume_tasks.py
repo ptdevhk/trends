@@ -363,3 +363,54 @@ def test_add_summary_profile_jobs_schedules_runtime_profiles(monkeypatch) -> Non
     assert calls[1]["channel"] == "email"
     assert calls[1]["to"] == "ops@example.com"
     assert calls[1]["subject"] == "Weekly HR Summary"
+
+
+def test_start_saves_rebuilt_jobs_before_initial_crawl(monkeypatch) -> None:
+    order: list[str] = []
+    scheduler = worker_scheduler.WorkerScheduler(run_immediately=True, timezone="UTC")
+
+    monkeypatch.setattr(scheduler, "add_crawl_job", lambda: order.append("add_crawl_job"))
+    monkeypatch.setattr(scheduler, "load_profile_jobs", lambda: order.append("load_profile_jobs"))
+    monkeypatch.setattr(
+        scheduler,
+        "add_skills_version_check_job",
+        lambda: order.append("add_skills_version_check_job"),
+    )
+    monkeypatch.setattr(
+        scheduler,
+        "add_scoring_auto_tune_job",
+        lambda: order.append("add_scoring_auto_tune_job"),
+    )
+    monkeypatch.setattr(
+        scheduler,
+        "add_summary_profile_jobs",
+        lambda: order.append("add_summary_profile_jobs"),
+    )
+    monkeypatch.setattr(
+        scheduler,
+        "add_workspace_summary_job",
+        lambda: order.append("add_workspace_summary_job"),
+    )
+    monkeypatch.setattr(scheduler, "_save_stats", lambda: order.append("save_stats"))
+    monkeypatch.setattr(
+        worker_scheduler,
+        "run_crawl_analyze",
+        lambda **_kwargs: order.append("run_crawl_analyze") or True,
+    )
+    monkeypatch.setattr(scheduler.scheduler, "get_jobs", lambda: [])
+    monkeypatch.setattr(scheduler.scheduler, "start", lambda: order.append("scheduler.start"))
+
+    scheduler.start()
+
+    assert order == [
+        "add_crawl_job",
+        "load_profile_jobs",
+        "add_skills_version_check_job",
+        "add_scoring_auto_tune_job",
+        "add_summary_profile_jobs",
+        "add_workspace_summary_job",
+        "save_stats",
+        "run_crawl_analyze",
+        "save_stats",
+        "scheduler.start",
+    ]
