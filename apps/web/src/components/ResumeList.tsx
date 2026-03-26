@@ -253,6 +253,12 @@ export function ResumeList() {
           maxAge: filters.maxAge,
         }}
         onApplyQuickFilters={handleQuickConstraintApply}
+        assistantHistory={searchHistory}
+        assistantHistoryLoading={historyRequested && searchHistoryLoading}
+        onApplyAssistantHistory={handleApplySearchHistory}
+        onAssistantOpen={() => {
+          setHistoryRequested(true)
+        }}
         extraActions={
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-2">

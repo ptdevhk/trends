@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { QuickStartPanel } from './QuickStartPanel'
+import type { SearchHistoryItem } from '@/hooks/useSession'
 
 const { getMock, postMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
@@ -257,6 +258,46 @@ describe('QuickStartPanel quick-filter display', () => {
     expect(searchGrid.className).toContain('xl:grid-cols-[minmax(0,1.45fr)_minmax(180px,0.7fr)_minmax(220px,0.85fr)]')
     expect(jobDescriptionCard.className).toContain('lg:col-span-2')
     expect(jobDescriptionCard.className).toContain('xl:col-span-1')
+  })
+
+  it('opens the assistant drawer and surfaces recent saved searches', async () => {
+    const user = userEvent.setup()
+    const onAssistantOpen = vi.fn()
+
+    render(
+      <QuickStartPanel
+        defaultLocation="广东"
+        defaultKeywords={['CNC']}
+        jobDescriptionId=""
+        onAssistantOpen={onAssistantOpen}
+        assistantHistory={[
+          {
+            id: 'history-1' as SearchHistoryItem['id'],
+            sessionKey: 'session-1',
+            title: '广东 · CNC',
+            location: '广东',
+            keywords: ['CNC'],
+            filters: {},
+            selectedTags: ['STAR'],
+            selectedCompanies: [],
+            createdAt: Date.UTC(2026, 2, 26, 10, 0, 0),
+            lastOpenedAt: Date.UTC(2026, 2, 26, 11, 0, 0),
+          },
+        ]}
+        onApplyAssistantHistory={vi.fn(async () => {})}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Assistant' }))
+
+    expect(onAssistantOpen).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('search-assistant-drawer')).toBeInTheDocument()
+    expect(screen.getByText('广东 · CNC')).toBeInTheDocument()
+    expect(screen.getByText('Workflow starts')).toBeInTheDocument()
   })
 
   it('does not auto-apply min years when no JD is selected', async () => {
