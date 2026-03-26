@@ -12,6 +12,7 @@ type CliOptions = {
     warmup: number;
     timeoutMs: number;
     refresh: boolean;
+    refreshSettleMs: number;
     baseline: string | null;
     strict: boolean;
     json: boolean;
@@ -97,6 +98,7 @@ type BenchmarkReport = {
     runs: number;
     warmup: number;
     timeoutMs: number;
+    refreshSettleMs: number;
     baseline: string | null;
     strict: boolean;
     refresh: RefreshReport;
@@ -116,6 +118,7 @@ const DEFAULT_URL = "http://127.0.0.1:5173/dev/resumes";
 const DEFAULT_RUNS = 2;
 const DEFAULT_WARMUP = 1;
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_REFRESH_SETTLE_MS = 30_000;
 
 function printUsage(): void {
     console.log("Usage: benchmark-dev-resume-latency.ts [options]");
@@ -126,6 +129,7 @@ function printUsage(): void {
     console.log("  --warmup=<n>           Discarded warmup probes per phase (default: 1)");
     console.log("  --timeout-ms=<n>       Page/browser timeout in ms (default: 30000)");
     console.log("  --refresh=<bool>       Run `make dev-convex-refresh` between phases (default: true)");
+    console.log("  --refresh-settle-ms=<n> Wait after refresh before the after-phase probe (default: 30000)");
     console.log("  --baseline=<path|latest> Baseline benchmark JSON for regression comparison");
     console.log("  --strict               Exit non-zero only when slowdown >25% vs baseline");
     console.log("  --json                 Print machine-readable JSON");
@@ -179,6 +183,17 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
     }
     const parsed = Number.parseInt(value, 10);
     if (!Number.isFinite(parsed) || parsed <= 0) {
+        return fallback;
+    }
+    return parsed;
+}
+
+function parseNonNegativeInt(value: string | undefined, fallback: number): number {
+    if (!value) {
+        return fallback;
+    }
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) {
         return fallback;
     }
     return parsed;
@@ -288,6 +303,10 @@ function parseCliArgs(argv: string[]): CliOptions {
         warmup: parsePositiveInt(readCliValue(argv, "warmup") ?? process.env.WARMUP, DEFAULT_WARMUP),
         timeoutMs: parsePositiveInt(readCliValue(argv, "timeout-ms") ?? process.env.TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
         refresh: parseBoolean(readCliValue(argv, "refresh") ?? process.env.REFRESH, true),
+        refreshSettleMs: parseNonNegativeInt(
+            readCliValue(argv, "refresh-settle-ms") ?? process.env.REFRESH_SETTLE_MS,
+            DEFAULT_REFRESH_SETTLE_MS,
+        ),
         baseline: (() => {
             const value = readCliValue(argv, "baseline") ?? process.env.BASELINE;
             return value && value.trim().length > 0 ? value.trim() : null;
@@ -691,6 +710,12 @@ function shouldFailStrict(regression: RegressionReport | null): boolean {
     return Boolean(regression?.strict && regression.failures.length > 0);
 }
 
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
+}
+
 function printHumanSummary(report: BenchmarkReport): void {
     const before = report.before;
     const after = report.after;
@@ -739,6 +764,9 @@ async function main(): Promise<void> {
         }
 
         if (refresh.status === "success") {
+            if (options.refreshSettleMs > 0) {
+                await sleep(options.refreshSettleMs);
+            }
             after = await runPhase("after", browser, options);
         }
 
@@ -749,6 +777,7 @@ async function main(): Promise<void> {
             runs: options.runs,
             warmup: options.warmup,
             timeoutMs: options.timeoutMs,
+            refreshSettleMs: options.refreshSettleMs,
             baseline: resolvedBaselinePath,
             strict: options.strict,
             refresh,
