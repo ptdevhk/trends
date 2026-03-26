@@ -566,6 +566,7 @@ export function useResumeListState(loadSearchHistory = false) {
     searchHistoryLoading,
     saveSearchHistory,
     markSearchHistoryOpened,
+    ensureApiSession,
   } = useSession(loadSearchHistory)
 
   const {
@@ -1822,7 +1823,7 @@ export function useResumeListState(loadSearchHistory = false) {
     [apiBaseUrl, appliedSearchHistory?.industryDbV2Stats, blockCandidates, bulkExportFormat, displayedResumes, mode, saveAction, selectedIds, selectedSample, sendLearningFeedback, t]
   )
 
-  const handleOpenReviewPacket = useCallback(() => {
+  const handleOpenReviewPacket = useCallback(async () => {
     if (selectedIds.size === 0) {
       return
     }
@@ -1852,6 +1853,11 @@ export function useResumeListState(loadSearchHistory = false) {
       params.set('jobDescriptionId', normalizedJobDescriptionId)
     }
 
+    const bridgedSessionId = await ensureApiSession()
+    if (bridgedSessionId) {
+      params.set('sessionId', bridgedSessionId)
+    }
+
     const normalizedReferenceNote = normalizeOptionalString(appliedSearchHistory?.notes)
     if (normalizedReferenceNote) {
       params.set('referenceNote', normalizedReferenceNote)
@@ -1865,6 +1871,7 @@ export function useResumeListState(loadSearchHistory = false) {
     appliedSearchHistory?.notes,
     bulkExportFormat,
     displayedResumes,
+    ensureApiSession,
     jobDescriptionId,
     location.pathname,
     mode,
