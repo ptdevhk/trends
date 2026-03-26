@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, RotateCcw, Send, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import { PageHeader } from '@/components/PageHeader'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { rawApiClient } from '@/lib/api-helpers'
@@ -12,12 +15,58 @@ import type { paths } from '@/lib/api-types'
 
 type SummaryRunListResponse = paths['/api/summaries/runs']['get']['responses'][200]['content']['application/json']
 type SummaryRunDetailResponse = paths['/api/summaries/runs/{runId}']['get']['responses'][200]['content']['application/json']
+type SummaryRunRequest = NonNullable<paths['/api/summaries/run']['post']['requestBody']>['content']['application/json']
+type SummaryRunResponse = paths['/api/summaries/run']['post']['responses'][200]['content']['application/json']
 type SummaryRunItem = SummaryRunListResponse['items'][number]
 type SummaryRunDetailItem = SummaryRunDetailResponse['item']
 type SummaryDelivery = NonNullable<SummaryRunDetailItem['delivery']>
 type SummaryDeliveryAccount = NonNullable<SummaryDelivery['accounts']>[number]
+type SummaryPeriod = NonNullable<SummaryRunRequest['period']>
+type SummaryChannel = NonNullable<SummaryRunRequest['channel']>
+type SummaryRunFormState = {
+  period: SummaryPeriod
+  channel: SummaryChannel
+  templateId: string
+  endAt: string
+  to: string
+  subject: string
+  webhookUrl: string
+  botToken: string
+  chatId: string
+}
 
 const SUMMARY_RUN_LIST_LIMIT = 20
+const DEFAULT_SUMMARY_RUN_FORM: SummaryRunFormState = {
+  period: 'daily',
+  channel: 'telegram',
+  templateId: '',
+  endAt: '',
+  to: '',
+  subject: '',
+  webhookUrl: '',
+  botToken: '',
+  chatId: '',
+}
+
+const SUMMARY_PERIOD_OPTIONS: Array<{ value: SummaryPeriod; label: string }> = [
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+]
+
+const SUMMARY_CHANNEL_OPTIONS: Array<{ value: SummaryChannel; label: string }> = [
+  { value: 'telegram', label: 'Telegram' },
+  { value: 'wechat_work', label: 'WeChat Work' },
+  { value: 'feishu', label: 'Feishu' },
+  { value: 'email', label: 'Email' },
+]
+
+function isSummaryPeriod(value: string): value is SummaryPeriod {
+  return value === 'daily' || value === 'weekly'
+}
+
+function isSummaryChannel(value: string): value is SummaryChannel {
+  return value === 'telegram' || value === 'wechat_work' || value === 'feishu' || value === 'email'
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -48,6 +97,11 @@ function extractApiErrorMessage(error: unknown): string | null {
   }
 
   return readString(error.error)
+}
+
+function normalizeOptionalString(value: string): string | undefined {
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
 }
 
 function formatTimestamp(value: string | undefined): string {
@@ -162,14 +216,20 @@ function getRunStatusVariant(status: SummaryRunItem['status']) {
   return 'outline' as const
 }
 
+function mergeRunIntoList(runs: SummaryRunItem[], run: SummaryRunDetailItem): SummaryRunItem[] {
+  return [run, ...runs.filter((item) => item.id !== run.id)].slice(0, SUMMARY_RUN_LIST_LIMIT)
+}
+
 export function SummaryRunsPage() {
   const { t } = useTranslation()
   const [runs, setRuns] = useState<SummaryRunItem[]>([])
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [selectedRun, setSelectedRun] = useState<SummaryRunDetailItem | null>(null)
+  const [runForm, setRunForm] = useState<SummaryRunFormState>(DEFAULT_SUMMARY_RUN_FORM)
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [submittingMode, setSubmittingMode] = useState<'preview' | 'send' | null>(null)
 
   const loadRunDetail = useCallback(async (runId: string) => {
     setDetailLoading(true)
@@ -234,6 +294,117 @@ export function SummaryRunsPage() {
 
   const selectedRunSummary = formatDeliverySummary(selectedRun?.delivery)
   const selectedRunComparisonSummary = formatComparisonSummary(selectedRun)
+  const submittingPreview = submittingMode === 'preview'
+  const submittingSend = submittingMode === 'send'
+  const submitting = submittingMode !== null
+
+  function updateRunForm<Key extends keyof SummaryRunFormState>(key: Key, value: SummaryRunFormState[Key]) {
+    setRunForm((current) => ({
+      ...current,
+      [key]: value,
+    }))
+  }
+
+  function buildRunRequest(dryRun: boolean): SummaryRunRequest {
+    const request: SummaryRunRequest = {
+      period: runForm.period,
+      channel: runForm.channel,
+      dryRun,
+    }
+
+    const templateId = normalizeOptionalString(runForm.templateId)
+    if (templateId) {
+      request.templateId = templateId
+    }
+
+    const endAt = normalizeOptionalString(runForm.endAt)
+    if (endAt) {
+      request.endAt = endAt
+    }
+
+    if (runForm.channel === 'email') {
+      const to = normalizeOptionalString(runForm.to)
+      if (to) {
+        request.to = to
+      }
+
+      const subject = normalizeOptionalString(runForm.subject)
+      if (subject) {
+        request.subject = subject
+      }
+    }
+
+    if (runForm.channel === 'wechat_work' || runForm.channel === 'feishu') {
+      const webhookUrl = normalizeOptionalString(runForm.webhookUrl)
+      if (webhookUrl) {
+        request.webhookUrl = webhookUrl
+      }
+    }
+
+    if (runForm.channel === 'telegram') {
+      const botToken = normalizeOptionalString(runForm.botToken)
+      if (botToken) {
+        request.botToken = botToken
+      }
+
+      const chatId = normalizeOptionalString(runForm.chatId)
+      if (chatId) {
+        request.chatId = chatId
+      }
+    }
+
+    return request
+  }
+
+  async function handleRunAction(mode: 'preview' | 'send') {
+    setSubmittingMode(mode)
+    try {
+      const { data, error } = await rawApiClient.POST<SummaryRunResponse>('/api/summaries/run', {
+        body: buildRunRequest(mode === 'preview'),
+      })
+      if (error || !data?.success) {
+        throw new Error(extractApiErrorMessage(error) ?? `Failed to ${mode} summary`)
+      }
+
+      setRuns((current) => mergeRunIntoList(current, data.run))
+      setSelectedRunId(data.run.id)
+      setSelectedRun(data.run)
+      toast.success(
+        mode === 'preview'
+          ? t('summaries.previewSuccess', { defaultValue: 'Summary preview generated' })
+          : t('summaries.sendSuccess', { defaultValue: 'Summary sent' }),
+      )
+    } catch (error) {
+      console.error(`Failed to ${mode} summary`, error)
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : mode === 'preview'
+            ? t('summaries.previewError', { defaultValue: 'Failed to preview summary' })
+            : t('summaries.sendError', { defaultValue: 'Failed to send summary' }),
+      )
+    } finally {
+      setSubmittingMode(null)
+    }
+  }
+
+  function handleUseSelectedRun() {
+    if (!selectedRun) {
+      return
+    }
+
+    setRunForm({
+      period: selectedRun.period,
+      channel: selectedRun.channel ?? DEFAULT_SUMMARY_RUN_FORM.channel,
+      templateId: selectedRun.templateId ?? '',
+      endAt: selectedRun.windowEnd,
+      to: '',
+      subject: '',
+      webhookUrl: '',
+      botToken: '',
+      chatId: '',
+    })
+  }
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -329,6 +500,191 @@ export function SummaryRunsPage() {
         </Card>
 
         <div className="space-y-6 min-w-0">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <CardTitle>{t('summaries.runTitle', { defaultValue: 'Run summary' })}</CardTitle>
+                  <CardDescription>
+                    {t('summaries.runDescription', {
+                      defaultValue: 'Preview the outbound summary content as a dry-run, then send it through the selected channel using the existing summary ledger.',
+                    })}
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUseSelectedRun}
+                  disabled={!selectedRun || submitting}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  {t('summaries.useSelectedRun', { defaultValue: 'Use selected run' })}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="summary-period">
+                    {t('summaries.formPeriod', { defaultValue: 'Period' })}
+                  </Label>
+                  <Select
+                    id="summary-period"
+                    value={runForm.period}
+                    onChange={(event) => {
+                      if (isSummaryPeriod(event.target.value)) {
+                        updateRunForm('period', event.target.value)
+                      }
+                    }}
+                    options={SUMMARY_PERIOD_OPTIONS}
+                    disabled={submitting}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="summary-channel">
+                    {t('summaries.formChannel', { defaultValue: 'Channel' })}
+                  </Label>
+                  <Select
+                    id="summary-channel"
+                    value={runForm.channel}
+                    onChange={(event) => {
+                      if (isSummaryChannel(event.target.value)) {
+                        updateRunForm('channel', event.target.value)
+                      }
+                    }}
+                    options={SUMMARY_CHANNEL_OPTIONS}
+                    disabled={submitting}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="summary-template-id">
+                    {t('summaries.formTemplateId', { defaultValue: 'Template ID' })}
+                  </Label>
+                  <Input
+                    id="summary-template-id"
+                    value={runForm.templateId}
+                    onChange={(event) => updateRunForm('templateId', event.target.value)}
+                    placeholder="summary-daily"
+                    disabled={submitting}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="summary-end-at">
+                    {t('summaries.formEndAt', { defaultValue: 'Window end (ISO8601)' })}
+                  </Label>
+                  <Input
+                    id="summary-end-at"
+                    value={runForm.endAt}
+                    onChange={(event) => updateRunForm('endAt', event.target.value)}
+                    placeholder="2026-03-26T00:00:00Z"
+                    disabled={submitting}
+                  />
+                </div>
+              </div>
+
+              {runForm.channel === 'email' ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="summary-to">
+                      {t('summaries.formEmailTo', { defaultValue: 'Email recipient' })}
+                    </Label>
+                    <Input
+                      id="summary-to"
+                      value={runForm.to}
+                      onChange={(event) => updateRunForm('to', event.target.value)}
+                      placeholder="ops@example.com"
+                      disabled={submitting}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="summary-subject">
+                      {t('summaries.formSubject', { defaultValue: 'Subject override' })}
+                    </Label>
+                    <Input
+                      id="summary-subject"
+                      value={runForm.subject}
+                      onChange={(event) => updateRunForm('subject', event.target.value)}
+                      placeholder="Weekly Ops Summary dev"
+                      disabled={submitting}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {(runForm.channel === 'wechat_work' || runForm.channel === 'feishu') ? (
+                <div className="space-y-2">
+                  <Label htmlFor="summary-webhook-url">
+                    {t('summaries.formWebhookUrl', { defaultValue: 'Webhook URL override' })}
+                  </Label>
+                  <Input
+                    id="summary-webhook-url"
+                    value={runForm.webhookUrl}
+                    onChange={(event) => updateRunForm('webhookUrl', event.target.value)}
+                    placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***"
+                    disabled={submitting}
+                  />
+                </div>
+              ) : null}
+
+              {runForm.channel === 'telegram' ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="summary-bot-token">
+                      {t('summaries.formBotToken', { defaultValue: 'Telegram bot token override' })}
+                    </Label>
+                    <Input
+                      id="summary-bot-token"
+                      value={runForm.botToken}
+                      onChange={(event) => updateRunForm('botToken', event.target.value)}
+                      placeholder="123456:ABCDEF"
+                      disabled={submitting}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="summary-chat-id">
+                      {t('summaries.formChatId', { defaultValue: 'Telegram chat ID override' })}
+                    </Label>
+                    <Input
+                      id="summary-chat-id"
+                      value={runForm.chatId}
+                      onChange={(event) => updateRunForm('chatId', event.target.value)}
+                      placeholder="-1001234567890"
+                      disabled={submitting}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    void handleRunAction('preview')
+                  }}
+                  disabled={submitting}
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  {submittingPreview
+                    ? t('summaries.previewSubmitting', { defaultValue: 'Previewing…' })
+                    : t('summaries.previewAction', { defaultValue: 'Preview summary' })}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    void handleRunAction('send')
+                  }}
+                  disabled={submitting}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  {submittingSend
+                    ? t('summaries.sendSubmitting', { defaultValue: 'Sending…' })
+                    : t('summaries.sendAction', { defaultValue: 'Send summary' })}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>{t('summaries.detailTitle', { defaultValue: 'Run detail' })}</CardTitle>
