@@ -17,8 +17,16 @@ func TestWorkerStatusUsesAPIProxyWhenSuccessful(t *testing.T) {
 			t.Fatalf("unexpected proxy path: %s", r.URL.Path)
 		}
 		_ = json.NewEncoder(w).Encode(WorkerStatus{
-			Running:      true,
-			JobsExecuted: 5,
+			Running:       true,
+			JobsExecuted:  5,
+			ScheduleType:  "cron",
+			ScheduleValue: "0 9 * * *",
+			Jobs: []WorkerJob{{
+				ID:      "workspace_summary:dev:daily-ops",
+				Name:    "Summary Profile: dev / Daily Ops",
+				NextRun: "2026-03-27T09:00:00Z",
+				Trigger: "cron[0 9 * * *]",
+			}},
 		})
 	}))
 	defer proxy.Close()
@@ -40,6 +48,9 @@ func TestWorkerStatusUsesAPIProxyWhenSuccessful(t *testing.T) {
 	if status.JobsExecuted != 5 || !status.Running {
 		t.Fatalf("unexpected status: %+v", status)
 	}
+	if status.ScheduleValue != "0 9 * * *" || len(status.Jobs) != 1 || status.Jobs[0].ID != "workspace_summary:dev:daily-ops" {
+		t.Fatalf("expected schedule metadata and jobs to be preserved: %+v", status)
+	}
 	if proxyCalls != 1 || workerCalls != 0 {
 		t.Fatalf("unexpected call counts: proxy=%d worker=%d", proxyCalls, workerCalls)
 	}
@@ -60,8 +71,16 @@ func TestWorkerStatusFallsBackToWorkerURL(t *testing.T) {
 			t.Fatalf("unexpected worker path: %s", r.URL.Path)
 		}
 		_ = json.NewEncoder(w).Encode(WorkerStatus{
-			Running:      false,
-			JobsExecuted: 9,
+			Running:       false,
+			JobsExecuted:  9,
+			ScheduleType:  "interval",
+			ScheduleValue: "30m",
+			Jobs: []WorkerJob{{
+				ID:      "crawl_analyze",
+				Name:    "Crawl & Analyze",
+				NextRun: "2026-03-27T00:30:00Z",
+				Trigger: "interval[0:30:00]",
+			}},
 		})
 	}))
 	defer worker.Close()
@@ -75,6 +94,9 @@ func TestWorkerStatusFallsBackToWorkerURL(t *testing.T) {
 	}
 	if status.JobsExecuted != 9 || status.Running {
 		t.Fatalf("unexpected status: %+v", status)
+	}
+	if status.ScheduleType != "interval" || len(status.Jobs) != 1 || status.Jobs[0].ID != "crawl_analyze" {
+		t.Fatalf("expected fallback status to include jobs metadata: %+v", status)
 	}
 	if proxyCalls != 1 || workerCalls != 1 {
 		t.Fatalf("unexpected call counts: proxy=%d worker=%d", proxyCalls, workerCalls)

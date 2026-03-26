@@ -251,8 +251,16 @@ func TestRunMCPToolWorkerStatus(t *testing.T) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		_ = json.NewEncoder(w).Encode(client.WorkerStatus{
-			Running:      true,
-			JobsExecuted: 4,
+			Running:       true,
+			JobsExecuted:  4,
+			ScheduleType:  "cron",
+			ScheduleValue: "0 9 * * *",
+			Jobs: []client.WorkerJob{{
+				ID:      "workspace_summary:dev:daily-ops",
+				Name:    "Summary Profile: dev / Daily Ops",
+				NextRun: "2026-03-27T09:00:00Z",
+				Trigger: "cron[0 9 * * *]",
+			}},
 		})
 	}))
 	defer server.Close()
@@ -264,6 +272,9 @@ func TestRunMCPToolWorkerStatus(t *testing.T) {
 		t.Fatalf("runMCPTool returned error: %v", err)
 	}
 	if !strings.Contains(text, `"jobs_executed": 4`) || !strings.Contains(text, `"running": true`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
+	}
+	if !strings.Contains(text, `"schedule_value": "0 9 * * *"`) || !strings.Contains(text, `"id": "workspace_summary:dev:daily-ops"`) {
 		t.Fatalf("unexpected MCP tool output: %s", text)
 	}
 }
@@ -333,8 +344,16 @@ func TestRunMCPToolWorkerStatusFallsBackToWorkerURL(t *testing.T) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		_ = json.NewEncoder(w).Encode(client.WorkerStatus{
-			Running:      false,
-			JobsExecuted: 9,
+			Running:       false,
+			JobsExecuted:  9,
+			ScheduleType:  "interval",
+			ScheduleValue: "30m",
+			Jobs: []client.WorkerJob{{
+				ID:      "crawl_analyze",
+				Name:    "Crawl & Analyze",
+				NextRun: "2026-03-27T00:30:00Z",
+				Trigger: "interval[0:30:00]",
+			}},
 		})
 	}))
 	defer worker.Close()
@@ -346,6 +365,9 @@ func TestRunMCPToolWorkerStatusFallsBackToWorkerURL(t *testing.T) {
 		t.Fatalf("runMCPTool returned error: %v", err)
 	}
 	if !strings.Contains(text, `"jobs_executed": 9`) || !strings.Contains(text, `"running": false`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
+	}
+	if !strings.Contains(text, `"schedule_type": "interval"`) || !strings.Contains(text, `"id": "crawl_analyze"`) {
 		t.Fatalf("unexpected MCP tool output: %s", text)
 	}
 }
