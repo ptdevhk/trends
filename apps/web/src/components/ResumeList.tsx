@@ -62,6 +62,10 @@ export function ResumeList() {
     hasActiveTask,
     disableAnalyzeButton,
     selectedIds,
+    activeSessionTitle,
+    activeSessionLabel,
+    activeSessionDescription,
+    activeSessionId,
     shareTitle,
     shareState,
     selectedExperienceLevel,
@@ -262,6 +266,10 @@ export function ResumeList() {
         onRequestHistory={() => {
           setHistoryRequested(true)
         }}
+        activeSessionTitle={activeSessionTitle}
+        activeSessionLabel={activeSessionLabel}
+        activeSessionDescription={activeSessionDescription}
+        activeSessionId={activeSessionId}
         extraActions={
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-2">

@@ -357,6 +357,25 @@ describe('QuickStartPanel quick-filter display', () => {
     }))
   })
 
+  it('shows the current session summary when a shared or reopened search is active', () => {
+    render(
+      <QuickStartPanel
+        defaultLocation="广东"
+        defaultKeywords={['CNC']}
+        jobDescriptionId=""
+        activeSessionTitle="Kuala Lumpur · Sales Engineer"
+        activeSessionLabel="Shared link"
+        activeSessionDescription="Opened from a durable sid link and ready to refine or reshare."
+        activeSessionId="shared-session-1"
+      />
+    )
+
+    expect(screen.getByTestId('quickstart-active-session')).toBeInTheDocument()
+    expect(screen.getByText('Kuala Lumpur · Sales Engineer')).toBeInTheDocument()
+    expect(screen.getByText('Shared link')).toBeInTheDocument()
+    expect(screen.getByText('shared-ses…')).toBeInTheDocument()
+  })
+
   it('does not auto-apply min years when no JD is selected', async () => {
     const onApplyQuickFilters = vi.fn()
 

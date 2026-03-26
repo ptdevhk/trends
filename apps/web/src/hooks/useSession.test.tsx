@@ -283,6 +283,7 @@ describe('useSession', () => {
         searchState: undefined,
       },
     })
+    expect(result.current.apiSessionId).toBe('api-session-1')
     expect(localStorage.getItem(`trends.resume.apiSessionId.dev.${sessionKey}`)).toBe('api-session-1')
   })
 
@@ -390,6 +391,8 @@ describe('useSession', () => {
       result.current.rememberApiSessionId('shared-session-id')
       result.current.setFilters({ minExperience: 6 })
     })
+
+    expect(result.current.apiSessionId).toBe('shared-session-id')
 
     await act(async () => {
       await result.current.ensureApiSession()

@@ -444,6 +444,7 @@ export function useSession(loadSearchHistory = false) {
   }, [markSearchHistoryOpenedMutation, slug])
 
   return {
+    apiSessionId,
     location,
     setLocation,
     keywords,
