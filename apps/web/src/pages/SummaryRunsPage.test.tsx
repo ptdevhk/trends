@@ -4,9 +4,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SummaryRunsPage } from './SummaryRunsPage'
 
-const { getMock, postMock, toastErrorMock, toastSuccessMock, tMock } = vi.hoisted(() => ({
+const { getMock, postMock, putMock, deleteMock, toastErrorMock, toastSuccessMock, tMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
   postMock: vi.fn(),
+  putMock: vi.fn(),
+  deleteMock: vi.fn(),
   toastErrorMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   tMock: vi.fn((_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key),
@@ -29,6 +31,8 @@ vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: {
     GET: (...args: unknown[]) => getMock(...args),
     POST: (...args: unknown[]) => postMock(...args),
+    PUT: (...args: unknown[]) => putMock(...args),
+    DELETE: (...args: unknown[]) => deleteMock(...args),
   },
 }))
 
@@ -111,6 +115,23 @@ type SummaryRun = {
     }>
   }
   error?: string
+}
+
+type SummaryProfile = {
+  id: string
+  name: string
+  enabled: boolean
+  schedule: {
+    cron: string
+  }
+  request: {
+    period: 'daily' | 'weekly'
+    channel: 'telegram' | 'wechat_work' | 'feishu' | 'email'
+    dryRun: boolean
+    templateId?: string
+    to?: string
+    subject?: string
+  }
 }
 
 function renderSummaryRunsPage() {
@@ -273,8 +294,35 @@ function createDailyFailedRun(): SummaryRun {
   }
 }
 
-function createListAndDetailMocks(detailRun: SummaryRun, extraRuns: SummaryRun[] = []) {
+function createSummaryProfile(overrides: Partial<SummaryProfile> = {}): SummaryProfile {
+  return {
+    id: 'daily-ops',
+    name: 'Daily Ops',
+    enabled: true,
+    schedule: {
+      cron: '0 9 * * 1-5',
+    },
+    request: {
+      period: 'daily',
+      channel: 'telegram',
+      dryRun: false,
+      templateId: 'summary-daily',
+    },
+    ...overrides,
+  }
+}
+
+function createPageMocks(detailRun: SummaryRun, extraRuns: SummaryRun[] = [], profiles: SummaryProfile[] = []) {
   getMock.mockImplementation(async (path: string) => {
+    if (path === '/api/summaries/profiles') {
+      return {
+        data: {
+          success: true,
+          profiles,
+        },
+      }
+    }
+
     if (path === '/api/summaries/runs') {
       return {
         data: {
@@ -324,12 +372,12 @@ describe('SummaryRunsPage', () => {
     const user = userEvent.setup()
     const weeklyRun = createWeeklyRun()
     const failedRun = createDailyFailedRun()
-    createListAndDetailMocks(weeklyRun, [failedRun])
+    createPageMocks(weeklyRun, [failedRun])
 
     renderSummaryRunsPage()
 
     expect(await screen.findByText('run-1')).toBeInTheDocument()
-    expect(await screen.findAllByText('Weekly')).toHaveLength(3)
+    expect((await screen.findAllByText('Weekly')).length).toBeGreaterThanOrEqual(3)
     expect(await screen.findAllByText(/1\/1 sent • 2 batches • override/i)).toHaveLength(2)
     expect(await screen.findByText(/Compared with previous week • shared ingest \+2 resumes • workspace \+1 status/i)).toBeInTheDocument()
     expect(await screen.findByText(/Previous period window/i)).toBeInTheDocument()
@@ -351,7 +399,7 @@ describe('SummaryRunsPage', () => {
   it('reuses the selected run and submits preview and send actions', async () => {
     const user = userEvent.setup()
     const weeklyRun = createWeeklyRun()
-    createListAndDetailMocks(weeklyRun)
+    createPageMocks(weeklyRun)
 
     postMock.mockImplementation(async (path: string, options?: unknown) => {
       expect(path).toBe('/api/summaries/run')
@@ -491,7 +539,7 @@ describe('SummaryRunsPage', () => {
   it('shows an error toast for failed run actions and preserves the current detail', async () => {
     const user = userEvent.setup()
     const weeklyRun = createWeeklyRun()
-    createListAndDetailMocks(weeklyRun)
+    createPageMocks(weeklyRun)
 
     postMock.mockResolvedValue({
       error: {
@@ -510,5 +558,171 @@ describe('SummaryRunsPage', () => {
     })
     expect(toastErrorMock).toHaveBeenCalledWith('Failed to send summary')
     expect(screen.getByText('Rendered summary content')).toBeInTheDocument()
+  })
+
+  it('loads summary profiles, shows restart guidance, and updates the selected profile', async () => {
+    const user = userEvent.setup()
+    const weeklyRun = createWeeklyRun()
+    const dailyOps = createSummaryProfile()
+    const weeklyEmail = createSummaryProfile({
+      id: 'weekly-email',
+      name: 'Weekly Email',
+      enabled: false,
+      schedule: {
+        cron: '0 10 * * 1',
+      },
+      request: {
+        period: 'weekly',
+        channel: 'email',
+        dryRun: true,
+        to: 'ops@example.com',
+        subject: 'Weekly HR Summary',
+      },
+    })
+
+    createPageMocks(weeklyRun, [], [dailyOps, weeklyEmail])
+    putMock.mockResolvedValue({
+      data: {
+        success: true,
+        profile: {
+          ...weeklyEmail,
+          name: 'Weekly Email v2',
+          enabled: true,
+          request: {
+            ...weeklyEmail.request,
+            dryRun: false,
+            subject: 'Updated HR Summary',
+          },
+        },
+      },
+    })
+
+    renderSummaryRunsPage()
+
+    expect(await screen.findByText('Summary profiles')).toBeInTheDocument()
+    expect(screen.getByText('Changes apply after the next worker restart.')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('daily-ops')).toBeDisabled()
+    expect(screen.getByDisplayValue('Daily Ops')).toBeInTheDocument()
+
+    await user.click(screen.getByText('Weekly Email'))
+
+    expect(await screen.findByDisplayValue('weekly-email')).toBeDisabled()
+    expect(screen.getByDisplayValue('Weekly Email')).toBeInTheDocument()
+    expect(screen.getByLabelText('Profile period')).toHaveValue('weekly')
+    expect(screen.getByLabelText('Profile channel')).toHaveValue('email')
+    expect(screen.getByLabelText('Profile email recipient')).toHaveValue('ops@example.com')
+    expect(screen.getByLabelText('Profile email subject')).toHaveValue('Weekly HR Summary')
+
+    await user.clear(screen.getByLabelText('Profile name'))
+    await user.type(screen.getByLabelText('Profile name'), 'Weekly Email v2')
+    await user.clear(screen.getByLabelText('Profile email subject'))
+    await user.type(screen.getByLabelText('Profile email subject'), 'Updated HR Summary')
+    await user.click(screen.getByRole('checkbox', { name: 'Enabled after restart' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Dry run only' }))
+    await user.click(screen.getByRole('button', { name: 'Save profile' }))
+
+    await waitFor(() => {
+      expect(putMock).toHaveBeenCalledTimes(1)
+    })
+    expect(putMock.mock.calls[0]?.[0]).toBe('/api/summaries/profiles/weekly-email')
+    expect(putMock.mock.calls[0]?.[1]).toMatchObject({
+      body: {
+        id: 'weekly-email',
+        name: 'Weekly Email v2',
+        enabled: true,
+        schedule: {
+          cron: '0 10 * * 1',
+        },
+        request: {
+          period: 'weekly',
+          channel: 'email',
+          dryRun: false,
+          to: 'ops@example.com',
+          subject: 'Updated HR Summary',
+        },
+      },
+    })
+    expect(await screen.findByDisplayValue('Weekly Email v2')).toBeInTheDocument()
+    expect(toastSuccessMock).toHaveBeenCalledWith('Summary profile saved')
+  })
+
+  it('creates and deletes summary profiles from the page editor', async () => {
+    const user = userEvent.setup()
+    const weeklyRun = createWeeklyRun()
+    const createdProfile = createSummaryProfile({
+      id: 'nightly-email',
+      name: 'Nightly Email',
+      enabled: true,
+      schedule: {
+        cron: '0 20 * * *',
+      },
+      request: {
+        period: 'daily',
+        channel: 'email',
+        dryRun: true,
+        to: 'night@example.com',
+        subject: 'Nightly digest',
+      },
+    })
+
+    createPageMocks(weeklyRun)
+    postMock.mockResolvedValue({
+      data: {
+        success: true,
+        profile: createdProfile,
+      },
+    })
+    deleteMock.mockResolvedValue({
+      data: {
+        success: true,
+      },
+    })
+
+    renderSummaryRunsPage()
+
+    expect(await screen.findByText(/No summary profiles saved yet/i)).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Profile ID'), 'nightly-email')
+    await user.type(screen.getByLabelText('Profile name'), 'Nightly Email')
+    await user.clear(screen.getByLabelText('Cron expression'))
+    await user.type(screen.getByLabelText('Cron expression'), '0 20 * * *')
+    await user.selectOptions(screen.getByLabelText('Profile channel'), 'email')
+    await user.type(screen.getByLabelText('Profile email recipient'), 'night@example.com')
+    await user.type(screen.getByLabelText('Profile email subject'), 'Nightly digest')
+    await user.click(screen.getByRole('button', { name: 'Create profile' }))
+
+    await waitFor(() => {
+      expect(postMock).toHaveBeenCalledTimes(1)
+    })
+    expect(postMock.mock.calls[0]?.[0]).toBe('/api/summaries/profiles')
+    expect(postMock.mock.calls[0]?.[1]).toMatchObject({
+      body: {
+        id: 'nightly-email',
+        name: 'Nightly Email',
+        enabled: false,
+        schedule: {
+          cron: '0 20 * * *',
+        },
+        request: {
+          period: 'daily',
+          channel: 'email',
+          dryRun: true,
+          to: 'night@example.com',
+          subject: 'Nightly digest',
+        },
+      },
+    })
+    expect(await screen.findByText('Nightly Email')).toBeInTheDocument()
+    expect(toastSuccessMock).toHaveBeenCalledWith('Summary profile created')
+
+    await user.click(screen.getByRole('button', { name: 'Delete profile' }))
+
+    await waitFor(() => {
+      expect(deleteMock).toHaveBeenCalledTimes(1)
+    })
+    expect(deleteMock.mock.calls[0]?.[0]).toBe('/api/summaries/profiles/nightly-email')
+    expect(await screen.findByText(/No summary profiles saved yet/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Profile ID')).toHaveValue('')
+    expect(toastSuccessMock).toHaveBeenCalledWith('Summary profile deleted')
   })
 })
