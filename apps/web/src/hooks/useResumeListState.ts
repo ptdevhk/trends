@@ -595,6 +595,8 @@ export function useResumeListState(loadSearchHistory = false) {
   const [requiredKeywords, setRequiredKeywords] = useState<string[]>([])
   const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<ExperienceLevelFilter | undefined>(undefined)
   const [appliedSearchHistoryId, setAppliedSearchHistoryId] = useState<string | undefined>(undefined)
+  const [copiedShareSessionId, setCopiedShareSessionId] = useState<string | undefined>(undefined)
+  const [copiedShareScopeSignature, setCopiedShareScopeSignature] = useState<string | undefined>(undefined)
   const [queryRuleScoreMap, setQueryRuleScoreMap] = useState<Record<string, number>>({})
   const [requestedConvexLimit, setRequestedConvexLimit] = useState(DEFAULT_CONVEX_RESUME_LIMIT)
   const [hasCompletedInitialConvexLoad, setHasCompletedInitialConvexLoad] = useState(false)
@@ -2227,6 +2229,34 @@ export function useResumeListState(loadSearchHistory = false) {
     () => buildSearchHistoryTitle(sessionLocation, sessionKeywords, jobDescriptionId),
     [jobDescriptionId, sessionKeywords, sessionLocation]
   )
+  const shareScopeSignature = useMemo(
+    () => JSON.stringify({
+      title: shareTitle,
+      location: normalizeOptionalString(sessionLocation),
+      keywords: sessionKeywords,
+      requiredKeywords,
+      jobDescriptionId: normalizeOptionalString(jobDescriptionId),
+      collectionSource: sessionCollectionSource ?? null,
+      collectUrl: normalizeOptionalString(sessionCollectUrl),
+      filters: normalizeUrlFilters(filters),
+      selectedTags,
+      selectedCompanies,
+      selectedExperienceLevel,
+    }),
+    [
+      filters,
+      jobDescriptionId,
+      requiredKeywords,
+      selectedCompanies,
+      selectedExperienceLevel,
+      selectedTags,
+      sessionCollectUrl,
+      sessionCollectionSource,
+      sessionKeywords,
+      sessionLocation,
+      shareTitle,
+    ]
+  )
   const linkedShareSessionId = !activeHasUrlParams ? activeShareSessionId : undefined
   const hasShareableSessionContext = useMemo(
     () => Boolean(
@@ -2238,11 +2268,27 @@ export function useResumeListState(loadSearchHistory = false) {
     ),
     [jobDescriptionId, sessionCollectUrl, sessionCollectionSource, sessionKeywords, sessionLocation]
   )
+  useEffect(() => {
+    if (!copiedShareSessionId || !copiedShareScopeSignature) {
+      return
+    }
+
+    if (copiedShareScopeSignature !== shareScopeSignature) {
+      setCopiedShareSessionId(undefined)
+      setCopiedShareScopeSignature(undefined)
+    }
+  }, [copiedShareScopeSignature, copiedShareSessionId, shareScopeSignature])
+
   const activeSessionId = linkedShareSessionId
+    ?? copiedShareSessionId
     ?? (apiSessionId && hasShareableSessionContext ? apiSessionId : undefined)
   const activeSessionTitle = useMemo(() => {
     if (linkedShareSessionId) {
       return hydratedShareSessionTitle ?? shareTitle
+    }
+
+    if (copiedShareSessionId) {
+      return shareTitle
     }
 
     if (appliedSearchHistory) {
@@ -2255,6 +2301,7 @@ export function useResumeListState(loadSearchHistory = false) {
 
     return undefined
   }, [
+    copiedShareSessionId,
     linkedShareSessionId,
     apiSessionId,
     appliedSearchHistory,
@@ -2267,6 +2314,10 @@ export function useResumeListState(loadSearchHistory = false) {
       return 'Shared link'
     }
 
+    if (copiedShareSessionId) {
+      return 'Shared link'
+    }
+
     if (appliedSearchHistory) {
       return 'Saved search'
     }
@@ -2276,10 +2327,14 @@ export function useResumeListState(loadSearchHistory = false) {
     }
 
     return undefined
-  }, [linkedShareSessionId, apiSessionId, appliedSearchHistory, hasShareableSessionContext])
+  }, [copiedShareSessionId, linkedShareSessionId, apiSessionId, appliedSearchHistory, hasShareableSessionContext])
   const activeSessionDescription = useMemo(() => {
     if (linkedShareSessionId) {
       return 'Opened from a durable sid link and ready to refine or reshare.'
+    }
+
+    if (copiedShareSessionId) {
+      return 'Short durable link copied for this search and ready to reopen or share.'
     }
 
     if (appliedSearchHistory) {
@@ -2291,7 +2346,16 @@ export function useResumeListState(loadSearchHistory = false) {
     }
 
     return undefined
-  }, [linkedShareSessionId, apiSessionId, appliedSearchHistory, hasShareableSessionContext])
+  }, [copiedShareSessionId, linkedShareSessionId, apiSessionId, appliedSearchHistory, hasShareableSessionContext])
+  const handleShareSessionCopied = useCallback((sessionId: string | undefined) => {
+    const normalizedSessionId = normalizeOptionalString(sessionId)
+    if (!normalizedSessionId) {
+      return
+    }
+
+    setCopiedShareSessionId(normalizedSessionId)
+    setCopiedShareScopeSignature(shareScopeSignature)
+  }, [shareScopeSignature])
   const shareState = useMemo<ResumeSearchShareState>(() => {
     const normalizedLocation = normalizeOptionalString(sessionLocation)
     const locationFilters = normalizedLocation
@@ -2397,5 +2461,6 @@ export function useResumeListState(loadSearchHistory = false) {
     handleCandidateStatusChange,
     handleResetAll,
     ensureApiSession,
+    handleShareSessionCopied,
   }
 }

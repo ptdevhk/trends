@@ -8,6 +8,11 @@ type ShareLinkButtonProps = {
   shareTitle: string
   state: ResumeSearchShareState
   ensureApiSession: (options?: EnsureApiSessionOptions) => Promise<string | undefined>
+  onCopyState?: (payload: {
+    shareUrl: string
+    sessionId?: string
+    usedSessionLink: boolean
+  }) => void
 }
 
 function countActiveFilters(filters: ResumeSearchShareState['filters']): number {
@@ -83,12 +88,13 @@ async function copyText(text: string): Promise<void> {
   }
 }
 
-export function ShareLinkButton({ shareTitle, state, ensureApiSession }: ShareLinkButtonProps) {
+export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopyState }: ShareLinkButtonProps) {
   const handleCopy = useCallback(async () => {
     try {
       const currentUrl = new URL(window.location.href)
       let shareUrl = currentUrl.toString()
-      let usedSessionLink = false
+      let copiedSessionId = currentUrl.searchParams.get('sid')?.trim() || undefined
+      let usedSessionLink = Boolean(copiedSessionId)
 
       if (shouldPersistShareLink(currentUrl, state)) {
         const sessionId = await ensureApiSession({
@@ -97,17 +103,23 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession }: ShareLi
         })
         if (sessionId) {
           shareUrl = buildSessionShareUrl(sessionId)
+          copiedSessionId = sessionId
           usedSessionLink = true
         }
       }
 
       await copyText(shareUrl)
+      onCopyState?.({
+        shareUrl,
+        sessionId: copiedSessionId,
+        usedSessionLink,
+      })
       toast.success(usedSessionLink ? '已复制会话链接' : '已复制分享链接')
     } catch (error) {
       console.error('Failed to copy share URL', error)
       toast.error('复制链接失败，请手动复制地址栏 URL')
     }
-  }, [ensureApiSession, shareTitle, state])
+  }, [ensureApiSession, onCopyState, shareTitle, state])
 
   return (
     <Button
