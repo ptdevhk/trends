@@ -20,6 +20,8 @@ const {
   useQueryMock,
   useMutationMock,
   workspaceMock,
+  rawApiPostMock,
+  rawApiPatchMock,
   saveSessionMutationMock,
   addReviewedItemMutationMock,
   saveSearchHistoryMutationMock,
@@ -30,6 +32,8 @@ const {
   workspaceMock: {
     slug: 'dev',
   },
+  rawApiPostMock: vi.fn(),
+  rawApiPatchMock: vi.fn(),
   saveSessionMutationMock: vi.fn(),
   addReviewedItemMutationMock: vi.fn(),
   saveSearchHistoryMutationMock: vi.fn(async () => 'history-1'),
@@ -49,6 +53,13 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
   useWorkspace: () => ({ slug: workspaceMock.slug }),
 }))
 
+vi.mock('@/lib/api-helpers', () => ({
+  rawApiClient: {
+    POST: (...args: unknown[]) => rawApiPostMock(...args),
+    PATCH: (...args: unknown[]) => rawApiPatchMock(...args),
+  },
+}))
+
 vi.mock('sonner', () => ({
   toast: {
     info: (...args: unknown[]) => toastInfoMock(...args),
@@ -60,6 +71,8 @@ describe('useSession', () => {
     vi.clearAllMocks()
     localStorage.clear()
     workspaceMock.slug = 'dev'
+    rawApiPostMock.mockResolvedValue({ data: { success: true, session: { id: 'api-session-1' } } })
+    rawApiPatchMock.mockResolvedValue({ data: { success: true, session: { id: 'api-session-1' } } })
 
     useQueryMock.mockImplementation((query) => {
       if (query === 'list-history-query') {
@@ -241,6 +254,69 @@ describe('useSession', () => {
       id: 'history-hr',
       workspaceSlug: 'hr',
     })
+  })
+
+  it('creates and persists an API search session id for the current local session', async () => {
+    const { result } = renderHook(() => useSession())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    act(() => {
+      result.current.setJobDescriptionId('lathe-sales')
+      result.current.setFilters({ minExperience: 3 })
+    })
+
+    let ensuredSessionId: string | undefined
+    await act(async () => {
+      ensuredSessionId = await result.current.ensureApiSession()
+    })
+
+    const sessionKey = localStorage.getItem('trends.resume.sessionKey.dev')
+    expect(ensuredSessionId).toBe('api-session-1')
+    expect(rawApiPostMock).toHaveBeenCalledWith('/api/sessions', {
+      body: {
+        jobDescriptionId: 'lathe-sales',
+        filters: { minExperience: 3 },
+      },
+    })
+    expect(localStorage.getItem(`trends.resume.apiSessionId.dev.${sessionKey}`)).toBe('api-session-1')
+  })
+
+  it('updates an existing persisted API session id before reusing it', async () => {
+    localStorage.setItem('trends.resume.sessionKey.dev', 'existing-session-key')
+    localStorage.setItem('trends.resume.apiSessionId.dev.existing-session-key', 'api-session-existing')
+    rawApiPatchMock.mockResolvedValueOnce({
+      data: {
+        success: true,
+        session: { id: 'api-session-existing' },
+      },
+    })
+
+    const { result } = renderHook(() => useSession())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    act(() => {
+      result.current.setFilters({ minExperience: 5 })
+    })
+
+    let ensuredSessionId: string | undefined
+    await act(async () => {
+      ensuredSessionId = await result.current.ensureApiSession()
+    })
+
+    expect(ensuredSessionId).toBe('api-session-existing')
+    expect(rawApiPatchMock).toHaveBeenCalledWith('/api/sessions/api-session-existing', {
+      body: {
+        jobDescriptionId: undefined,
+        filters: { minExperience: 5 },
+      },
+    })
+    expect(rawApiPostMock).not.toHaveBeenCalled()
   })
 
   it('clears location when external state explicitly provides an empty location', async () => {

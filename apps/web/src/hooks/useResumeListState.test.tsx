@@ -43,6 +43,7 @@ const mockState = vi.hoisted(() => ({
   setJobDescriptionId: vi.fn(),
   setCollectionSource: vi.fn(),
   setCollectUrl: vi.fn(),
+  ensureApiSession: vi.fn(async () => 'api-session-1'),
   trackReviewedResume: vi.fn(),
   applyExternalState: vi.fn(),
   saveSearchHistory: vi.fn(async () => 'history-1'),
@@ -124,6 +125,7 @@ vi.mock('@/hooks/useSession', () => ({
     searchHistoryLoading: false,
     saveSearchHistory: mockState.saveSearchHistory,
     markSearchHistoryOpened: mockState.markSearchHistoryOpened,
+    ensureApiSession: mockState.ensureApiSession,
   }),
 }))
 
@@ -604,6 +606,7 @@ describe('useResumeListState role filter regression', () => {
     mockState.sessionJobDescriptionId = undefined
     mockState.sessionCollectionSource = undefined
     mockState.sessionCollectUrl = ''
+    mockState.ensureApiSession.mockResolvedValue('api-session-1')
     mockState.blocksByIdentity = {}
     mockState.statusByIdentity = {}
     mockState.searchHistory = []
@@ -1157,7 +1160,7 @@ describe('useResumeListState role filter regression', () => {
     expect(parsedBody.industryDbV2Stats).toEqual(mockState.searchHistory[0].industryDbV2Stats)
   })
 
-  it('opens the review packets page with selected resume ids, current context, and note prefill', () => {
+  it('opens the review packets page with selected resume ids, current context, and bridged session id', async () => {
     mockState.sessionJobDescriptionId = 'lathe-sales'
     mockState.searchHistory = [
       {
@@ -1178,7 +1181,7 @@ describe('useResumeListState role filter regression', () => {
     ]
     const { result } = renderHook(() => useResumeListState())
 
-    act(() => {
+    await act(async () => {
       result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
     })
 
@@ -1187,8 +1190,8 @@ describe('useResumeListState role filter regression', () => {
       result.current.handleToggleSelect('resume-zhang-machinery-sales')
     })
 
-    act(() => {
-      result.current.handleOpenReviewPacket()
+    await act(async () => {
+      await result.current.handleOpenReviewPacket()
     })
 
     expect(mockState.navigate).toHaveBeenCalledTimes(1)
@@ -1199,7 +1202,7 @@ describe('useResumeListState role filter regression', () => {
     expect(params.get('source')).toBe('convex')
     expect(params.get('format')).toBe('csv')
     expect(params.get('jobDescriptionId')).toBe('lathe-sales')
-    expect(params.get('sessionId')).toBeNull()
+    expect(params.get('sessionId')).toBe('api-session-1')
     expect(params.get('referenceNote')).toBe('Priority shortlist for HR sync')
     expect(params.get('resumeIds')).toBe('resume-ideal-cnc-sales,resume-zhang-machinery-sales')
   })

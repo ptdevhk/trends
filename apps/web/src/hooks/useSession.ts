@@ -7,6 +7,7 @@ import {
   resolveCollectionSource,
   type CollectionSource,
 } from '@/lib/search-profile-sources'
+import { rawApiClient } from '@/lib/api-helpers'
 import type { ResumeFilters } from '@/types/resume'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { toIndustryDbV2Stats, type IndustryDbV2Stats } from '@/lib/resume-scoring'
@@ -58,6 +59,13 @@ type SaveSearchHistoryInput = {
   resumeIds?: string[]
 }
 
+type SearchSessionApiResponse = {
+  success: boolean
+  session?: {
+    id?: string
+  }
+}
+
 const AUTO_RESTORE_SCREENING_SESSION = false
 const DEFAULT_SESSION_LOCATION = ''
 
@@ -100,6 +108,14 @@ export function useSession(loadSearchHistory = false) {
     localStorage.setItem(storageKey, newKey)
     return newKey
   })
+  const apiSessionStorageKey = `trends.resume.apiSessionId.${slug}.${sessionKey}`
+  const [apiSessionId, setApiSessionId] = useState<string | undefined>(() => {
+    const storedSessionKey = localStorage.getItem(storageKey)
+    if (!storedSessionKey) {
+      return undefined
+    }
+    return normalizeOptionalString(localStorage.getItem(`trends.resume.apiSessionId.${slug}.${storedSessionKey}`) ?? undefined)
+  })
 
   useEffect(() => {
     const stored = localStorage.getItem(storageKey)
@@ -112,6 +128,10 @@ export function useSession(loadSearchHistory = false) {
     localStorage.setItem(storageKey, newKey)
     setSessionKey(newKey)
   }, [storageKey])
+
+  useEffect(() => {
+    setApiSessionId(normalizeOptionalString(localStorage.getItem(apiSessionStorageKey) ?? undefined))
+  }, [apiSessionStorageKey])
 
   const activeSession = useQuery(
     api.sessions.getActiveSession,
@@ -202,6 +222,47 @@ export function useSession(loadSearchHistory = false) {
     () => new Set(activeSession?.reviewedResumeIds || []),
     [activeSession?.reviewedResumeIds]
   )
+
+  const persistApiSessionId = useCallback((nextSessionId: string | undefined) => {
+    if (nextSessionId) {
+      localStorage.setItem(apiSessionStorageKey, nextSessionId)
+    } else {
+      localStorage.removeItem(apiSessionStorageKey)
+    }
+    setApiSessionId((current) => (current === nextSessionId ? current : nextSessionId))
+  }, [apiSessionStorageKey])
+
+  const ensureApiSession = useCallback(async () => {
+    const body = {
+      jobDescriptionId: normalizeOptionalString(jobDescriptionId),
+      filters: Object.keys(filters).length > 0 ? filters : undefined,
+    }
+
+    if (apiSessionId) {
+      const { data, error } = await rawApiClient.PATCH<SearchSessionApiResponse>(
+        `/api/sessions/${apiSessionId}`,
+        { body }
+      )
+
+      const updatedSessionId = normalizeOptionalString(data?.session?.id)
+      if (!error && data?.success && updatedSessionId) {
+        persistApiSessionId(updatedSessionId)
+        return updatedSessionId
+      }
+    }
+
+    const { data, error } = await rawApiClient.POST<SearchSessionApiResponse>('/api/sessions', {
+      body,
+    })
+    const createdSessionId = normalizeOptionalString(data?.session?.id)
+    if (error || !data?.success || !createdSessionId) {
+      console.error('Failed to ensure API search session', error ?? data)
+      return undefined
+    }
+
+    persistApiSessionId(createdSessionId)
+    return createdSessionId
+  }, [apiSessionId, filters, jobDescriptionId, persistApiSessionId])
 
   const applyExternalState = useCallback((state: ExternalSessionState) => {
     if (state.location !== undefined) {
@@ -314,6 +375,7 @@ export function useSession(loadSearchHistory = false) {
     searchHistoryLoading: loadSearchHistory && historyRecords === undefined,
     saveSearchHistory,
     markSearchHistoryOpened,
+    ensureApiSession,
     loading: !hasHydratedInitialState,
   }
 }
