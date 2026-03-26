@@ -43,6 +43,7 @@ const mockState = vi.hoisted(() => ({
   setJobDescriptionId: vi.fn(),
   setCollectionSource: vi.fn(),
   setCollectUrl: vi.fn(),
+  apiSessionId: undefined as string | undefined,
   ensureApiSession: vi.fn(async () => 'api-session-1'),
   rememberApiSessionId: vi.fn(),
   trackReviewedResume: vi.fn(),
@@ -119,6 +120,7 @@ vi.mock('@/hooks/useSession', () => ({
     setCollectionSource: mockState.setCollectionSource,
     collectUrl: mockState.sessionCollectUrl,
     setCollectUrl: mockState.setCollectUrl,
+    apiSessionId: mockState.apiSessionId,
     filters: mockState.filters,
     setFilters: mockState.setFilters,
     reviewedIdsSet: new Set<string>(),
@@ -615,6 +617,7 @@ describe('useResumeListState role filter regression', () => {
     mockState.sessionJobDescriptionId = undefined
     mockState.sessionCollectionSource = undefined
     mockState.sessionCollectUrl = ''
+    mockState.apiSessionId = undefined
     mockState.ensureApiSession.mockResolvedValue('api-session-1')
     mockState.sessionGetResponse = { data: { success: true } }
     mockState.blocksByIdentity = {}
@@ -1283,6 +1286,7 @@ describe('useResumeListState role filter regression', () => {
         success: true,
         session: {
           id: 'shared-session-1',
+          shareTitle: 'Kuala Lumpur · Sales Engineer',
           searchState: {
             location: 'Kuala Lumpur MY',
             keywords: ['Sales Engineer'],
@@ -1304,7 +1308,7 @@ describe('useResumeListState role filter regression', () => {
       },
     }
 
-    renderHook(() => useResumeListState())
+    const { result } = renderHook(() => useResumeListState())
 
     await waitFor(() => {
       expect(rawApiClient.GET).toHaveBeenCalledWith('/api/sessions/shared-session-1')
@@ -1324,6 +1328,9 @@ describe('useResumeListState role filter regression', () => {
         minAge: 28,
       },
     })
+    expect(result.current.activeSessionTitle).toBe('Kuala Lumpur · Sales Engineer')
+    expect(result.current.activeSessionLabel).toBe('Shared link')
+    expect(result.current.activeSessionId).toBe('shared-session-1')
   })
 
   it('prefers explicit URL params over sid hydration when both are present', async () => {
@@ -1338,7 +1345,7 @@ describe('useResumeListState role filter regression', () => {
       keywords: ['CNC'],
     }
 
-    renderHook(() => useResumeListState())
+    const { result } = renderHook(() => useResumeListState())
 
     await waitFor(() => {
       expect(mockState.applyExternalState).toHaveBeenCalledWith({
@@ -1352,6 +1359,35 @@ describe('useResumeListState role filter regression', () => {
     })
 
     expect(rawApiClient.GET).not.toHaveBeenCalled()
+    expect(result.current.activeSessionLabel).toBeUndefined()
+  })
+
+  it('surfaces a saved-search session summary after reopening history', async () => {
+    mockState.searchHistory = [
+      {
+        id: 'history-1',
+        sessionKey: 'session-1',
+        title: 'Saved search',
+        location: '苏州',
+        keywords: ['CNC', '销售'],
+        jobDescriptionId: 'lathe-sales',
+        filters: { minAge: 28 },
+        selectedTags: ['STAR'],
+        selectedCompanies: ['Acme'],
+        selectedExperienceLevel: 'mid',
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
+    })
+
+    expect(result.current.activeSessionTitle).toBe('Saved search')
+    expect(result.current.activeSessionLabel).toBe('Saved search')
+    expect(result.current.activeSessionDescription).toContain('Reopened from saved history')
   })
 
   it('passes current convex resume ids when saving search history', async () => {

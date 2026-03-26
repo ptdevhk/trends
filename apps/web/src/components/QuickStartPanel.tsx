@@ -97,6 +97,10 @@ interface QuickStartPanelProps {
   onApplyAssistantHistory?: (item: SearchHistoryItem) => void | Promise<void>
   onAssistantOpen?: () => void
   onRequestHistory?: () => void
+  activeSessionTitle?: string
+  activeSessionLabel?: string
+  activeSessionDescription?: string
+  activeSessionId?: string
   extraActions?: React.ReactNode
   onResetAll?: () => void
 }
@@ -238,6 +242,15 @@ function parseLocationParts(value: string): string[] {
   return parts
 }
 
+function formatSessionIdPreview(value: string | undefined): string | undefined {
+  const normalized = value?.trim()
+  if (!normalized) {
+    return undefined
+  }
+
+  return normalized.length > 10 ? `${normalized.slice(0, 10)}…` : normalized
+}
+
 function normalizeProfileKeywords(profile: SearchProfileDetails): string[] {
   return normalizeKeywordPhrases(profile.keywords)
 }
@@ -302,6 +315,10 @@ export function QuickStartPanel({
   onApplyAssistantHistory,
   onAssistantOpen,
   onRequestHistory,
+  activeSessionTitle,
+  activeSessionLabel,
+  activeSessionDescription,
+  activeSessionId,
   extraActions,
   onResetAll,
 }: QuickStartPanelProps) {
@@ -534,6 +551,10 @@ export function QuickStartPanel({
       .sort((left, right) => (right.lastOpenedAt ?? right.createdAt) - (left.lastOpenedAt ?? left.createdAt))
       .slice(0, 2),
     [assistantHistory]
+  )
+  const activeSessionIdPreview = useMemo(
+    () => formatSessionIdPreview(activeSessionId),
+    [activeSessionId]
   )
   const currentCollectionSource = useMemo<CollectionSource>(
     () => resolveCollectionSource(collectionSource, collectUrl) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 },
@@ -1036,6 +1057,41 @@ export function QuickStartPanel({
             </Button>
           ))}
         </div>
+
+        {activeSessionTitle ? (
+          <section
+            data-testid="quickstart-active-session"
+            className="rounded-xl border border-border/70 bg-background/80 px-3 py-3 shadow-sm sm:px-4"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 space-y-1">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {t('quickStart.activeSession', 'Current session')}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {activeSessionTitle}
+                  </span>
+                  {activeSessionLabel ? (
+                    <Badge variant="outline" className="h-6 px-2 text-[10px] font-normal">
+                      {activeSessionLabel}
+                    </Badge>
+                  ) : null}
+                  {activeSessionIdPreview ? (
+                    <Badge variant="secondary" className="h-6 px-2 font-mono text-[10px] font-normal">
+                      {activeSessionIdPreview}
+                    </Badge>
+                  ) : null}
+                </div>
+                {activeSessionDescription ? (
+                  <p className="text-sm text-muted-foreground">
+                    {activeSessionDescription}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {assistantHistoryLoading || recentHistoryItems.length > 0 ? (
           <section

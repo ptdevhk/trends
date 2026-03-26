@@ -557,6 +557,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const location = useLocation()
   const navigate = useNavigate()
   const {
+    apiSessionId,
     location: sessionLocation,
     setLocation: setSessionLocation,
     keywords: sessionKeywords,
@@ -615,6 +616,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const [hasCompletedUrlHydration, setHasCompletedUrlHydration] = useState(false)
   const [hasCompletedShareSessionHydration, setHasCompletedShareSessionHydration] = useState(false)
   const hydratedShareSessionIdRef = useRef<string | null>(null)
+  const [hydratedShareSessionTitle, setHydratedShareSessionTitle] = useState<string | undefined>(undefined)
 
   if (!initialWindowSearchStateRef.current) {
     const params = new URLSearchParams(window.location.search)
@@ -1085,12 +1087,14 @@ export function useResumeListState(loadSearchHistory = false) {
   useEffect(() => {
     if (activeHasUrlParams) {
       hydratedShareSessionIdRef.current = null
+      setHydratedShareSessionTitle(undefined)
       setHasCompletedShareSessionHydration(true)
       return
     }
 
     if (!activeShareSessionId) {
       hydratedShareSessionIdRef.current = null
+      setHydratedShareSessionTitle(undefined)
       setHasCompletedShareSessionHydration(true)
       return
     }
@@ -1114,12 +1118,21 @@ export function useResumeListState(loadSearchHistory = false) {
         const sharedSearchState = data?.session?.searchState
         if (error || !data?.success || !sharedSearchState) {
           console.error('Failed to hydrate shared search session', error ?? data)
+          setHydratedShareSessionTitle(undefined)
           setHasCompletedShareSessionHydration(true)
           return
         }
 
         skipNextUrlSyncRef.current = true
         rememberApiSessionId(activeShareSessionId)
+        setHydratedShareSessionTitle(
+          normalizeOptionalString(data.session?.shareTitle)
+            ?? buildSearchHistoryTitle(
+              sharedSearchState.location ?? '',
+              sharedSearchState.keywords ?? [],
+              sharedSearchState.jobDescriptionId,
+            )
+        )
         applyExternalState({
           location: sharedSearchState.location,
           keywords: sharedSearchState.keywords,
@@ -1141,6 +1154,7 @@ export function useResumeListState(loadSearchHistory = false) {
         }
 
         console.error('Failed to hydrate shared search session', error)
+        setHydratedShareSessionTitle(undefined)
         setHasCompletedShareSessionHydration(true)
       })
 
@@ -2213,6 +2227,71 @@ export function useResumeListState(loadSearchHistory = false) {
     () => buildSearchHistoryTitle(sessionLocation, sessionKeywords, jobDescriptionId),
     [jobDescriptionId, sessionKeywords, sessionLocation]
   )
+  const linkedShareSessionId = !activeHasUrlParams ? activeShareSessionId : undefined
+  const hasShareableSessionContext = useMemo(
+    () => Boolean(
+      normalizeOptionalString(sessionLocation)
+      || sessionKeywords.length > 0
+      || normalizeOptionalString(jobDescriptionId)
+      || normalizeOptionalString(sessionCollectUrl)
+      || sessionCollectionSource
+    ),
+    [jobDescriptionId, sessionCollectUrl, sessionCollectionSource, sessionKeywords, sessionLocation]
+  )
+  const activeSessionId = linkedShareSessionId
+    ?? (apiSessionId && hasShareableSessionContext ? apiSessionId : undefined)
+  const activeSessionTitle = useMemo(() => {
+    if (linkedShareSessionId) {
+      return hydratedShareSessionTitle ?? shareTitle
+    }
+
+    if (appliedSearchHistory) {
+      return appliedSearchHistory.title
+    }
+
+    if (apiSessionId && hasShareableSessionContext) {
+      return shareTitle
+    }
+
+    return undefined
+  }, [
+    linkedShareSessionId,
+    apiSessionId,
+    appliedSearchHistory,
+    hasShareableSessionContext,
+    hydratedShareSessionTitle,
+    shareTitle,
+  ])
+  const activeSessionLabel = useMemo(() => {
+    if (linkedShareSessionId) {
+      return 'Shared link'
+    }
+
+    if (appliedSearchHistory) {
+      return 'Saved search'
+    }
+
+    if (apiSessionId && hasShareableSessionContext) {
+      return 'Share-ready'
+    }
+
+    return undefined
+  }, [linkedShareSessionId, apiSessionId, appliedSearchHistory, hasShareableSessionContext])
+  const activeSessionDescription = useMemo(() => {
+    if (linkedShareSessionId) {
+      return 'Opened from a durable sid link and ready to refine or reshare.'
+    }
+
+    if (appliedSearchHistory) {
+      return 'Reopened from saved history so you can continue the same search with less re-entry.'
+    }
+
+    if (apiSessionId && hasShareableSessionContext) {
+      return 'This search already has a persisted session record for short durable share links.'
+    }
+
+    return undefined
+  }, [linkedShareSessionId, apiSessionId, appliedSearchHistory, hasShareableSessionContext])
   const shareState = useMemo<ResumeSearchShareState>(() => {
     const normalizedLocation = normalizeOptionalString(sessionLocation)
     const locationFilters = normalizedLocation
@@ -2267,6 +2346,10 @@ export function useResumeListState(loadSearchHistory = false) {
     hasActiveTask,
     disableAnalyzeButton,
     selectedIds,
+    activeSessionTitle,
+    activeSessionLabel,
+    activeSessionDescription,
+    activeSessionId,
     shareTitle,
     shareState,
     selectedTags,
