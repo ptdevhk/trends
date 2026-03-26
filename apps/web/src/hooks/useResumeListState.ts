@@ -1852,11 +1852,33 @@ export function useResumeListState(loadSearchHistory = false) {
       params.set('jobDescriptionId', normalizedJobDescriptionId)
     }
 
+    const normalizedSessionId = normalizeOptionalString(appliedSearchHistory?.sessionKey)
+    if (normalizedSessionId) {
+      params.set('sessionId', normalizedSessionId)
+    }
+
+    const normalizedReferenceNote = normalizeOptionalString(appliedSearchHistory?.notes)
+    if (normalizedReferenceNote) {
+      params.set('referenceNote', normalizedReferenceNote)
+    }
+
     navigate({
       pathname: `/${resolveWorkspaceSlugFromPathname(location.pathname)}/review-packets`,
       search: `?${params.toString()}`,
     })
-  }, [bulkExportFormat, displayedResumes, jobDescriptionId, location.pathname, mode, navigate, selectedIds, selectedSample, t])
+  }, [
+    appliedSearchHistory?.notes,
+    appliedSearchHistory?.sessionKey,
+    bulkExportFormat,
+    displayedResumes,
+    jobDescriptionId,
+    location.pathname,
+    mode,
+    navigate,
+    selectedIds,
+    selectedSample,
+    t,
+  ])
 
   const actionFeedbackLabels = useMemo<Partial<Record<CandidateActionType, string>>>(
     () => ({
