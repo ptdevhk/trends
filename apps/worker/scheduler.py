@@ -442,6 +442,9 @@ class WorkerScheduler:
         self.add_summary_profile_jobs()
         self.add_workspace_summary_job()
 
+        # Persist the rebuilt job list before any startup crawl can block status visibility.
+        self._save_stats()
+
         # Run immediately if requested
         if self.run_immediately:
             logger.info("Running initial crawl immediately...")
