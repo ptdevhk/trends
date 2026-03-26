@@ -1159,7 +1159,28 @@ describe('useResumeListState role filter regression', () => {
 
   it('opens the review packets page with selected resume ids and current context', () => {
     mockState.sessionJobDescriptionId = 'lathe-sales'
+    mockState.searchHistory = [
+      {
+        id: 'history-1',
+        sessionKey: 'session-1',
+        title: 'Saved search',
+        location: '苏州',
+        keywords: ['CNC', '销售'],
+        jobDescriptionId: 'lathe-sales',
+        filters: {},
+        selectedTags: [],
+        selectedCompanies: [],
+        selectedExperienceLevel: undefined,
+        notes: 'Priority shortlist for HR sync',
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
     const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
+    })
 
     act(() => {
       result.current.handleToggleSelect('resume-ideal-cnc-sales')
@@ -1178,6 +1199,8 @@ describe('useResumeListState role filter regression', () => {
     expect(params.get('source')).toBe('convex')
     expect(params.get('format')).toBe('csv')
     expect(params.get('jobDescriptionId')).toBe('lathe-sales')
+    expect(params.get('sessionId')).toBe('session-1')
+    expect(params.get('referenceNote')).toBe('Priority shortlist for HR sync')
     expect(params.get('resumeIds')).toBe('resume-ideal-cnc-sales,resume-zhang-machinery-sales')
   })
 

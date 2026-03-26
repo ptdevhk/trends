@@ -252,7 +252,7 @@ describe('ReviewPacketsPage', () => {
 
   it('prefills the export form from route search params', async () => {
     searchParamsState.value = new URLSearchParams(
-      'source=sample&format=csv&sample=sample-initial&jobDescriptionId=lathe-sales&sessionId=session-123&resumeIds=resume-1,resume-2'
+      'source=sample&format=csv&sample=sample-initial&jobDescriptionId=lathe-sales&sessionId=session-123&referenceNote=Internal%20handoff&resumeIds=resume-1,resume-2'
     )
 
     getMock.mockImplementation(async (path: string) => {
@@ -285,6 +285,7 @@ describe('ReviewPacketsPage', () => {
     expect(screen.getByLabelText('Sample name')).toHaveValue('sample-initial')
     expect(screen.getByLabelText('Session ID')).toHaveValue('session-123')
     expect(screen.getByLabelText('Job description ID')).toHaveValue('lathe-sales')
+    expect(screen.getByLabelText('Reference note')).toHaveValue('Internal handoff')
     expect(screen.getByLabelText('Resume IDs')).toHaveValue('resume-1\nresume-2')
   })
 })
