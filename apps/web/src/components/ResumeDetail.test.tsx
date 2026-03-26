@@ -6,17 +6,22 @@ import { ResumeDetail } from './ResumeDetail'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    t: (key: string, fallback?: string | { defaultValue?: string }) => {
+      if (typeof fallback === 'string') {
+        return fallback
+      }
+      return fallback?.defaultValue ?? key
+    },
   }),
 }))
 
 vi.mock('@/components/ui/dialog', () => ({
   Dialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogContent: ({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={className} {...props}>{children}</div>,
+  DialogDescription: ({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={className} {...props}>{children}</div>,
+  DialogFooter: ({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={className} {...props}>{children}</div>,
+  DialogHeader: ({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={className} {...props}>{children}</div>,
+  DialogTitle: ({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div className={className} {...props}>{children}</div>,
 }))
 
 vi.mock('@/components/ui/button', () => ({
@@ -94,5 +99,59 @@ describe('ResumeDetail latest work history', () => {
 
     expect(screen.queryByText('Sales Engineer')).not.toBeInTheDocument()
     expect(screen.queryByText('Test intro')).not.toBeInTheDocument()
+  })
+
+  it('uses tablet-friendly responsive layout classes for the detail surface', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Dongguan',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+        matchResult={{
+          resumeId: 'resume-1',
+          score: 84,
+          recommendation: 'strong_match',
+          highlights: ['Strong CNC background'],
+          concerns: ['Limited region coverage'],
+          summary: 'Strong overall fit.',
+          matchedAt: '2026-03-13T00:00:00.000Z',
+          breakdown: {
+            skills: 90,
+            experience: 88,
+            industry: 85,
+            stability: 70,
+            location: 65,
+          },
+        }}
+      />,
+    )
+
+    const content = screen.getByTestId('resume-detail-content')
+
+    expect(content.className).toContain('md:max-w-3xl')
+    expect(content.className).toContain('lg:max-w-4xl')
+
+    await user.click(screen.getByRole('button', { name: 'Expand' }))
+
+    expect(screen.getByTestId('resume-detail-primary-grid').className).toContain('sm:grid-cols-2')
+    expect(screen.getByTestId('resume-detail-expanded-grid').className).toContain('sm:grid-cols-2')
+    expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('grid-cols-2')
+    expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('md:grid-cols-3')
+    expect(screen.getByTestId('resume-detail-breakdown-grid').className).toContain('xl:grid-cols-5')
   })
 })

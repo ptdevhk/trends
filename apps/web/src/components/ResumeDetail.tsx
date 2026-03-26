@@ -129,7 +129,10 @@ export function ResumeDetail({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        data-testid="resume-detail-content"
+        className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-2xl overflow-y-auto p-4 sm:w-full sm:p-6 md:max-w-3xl lg:max-w-4xl"
+      >
         <DialogHeader>
           <DialogTitle>{t('resumes.detail.title')}</DialogTitle>
           <DialogDescription className="sr-only">
@@ -138,7 +141,7 @@ export function ResumeDetail({
         </DialogHeader>
 
         <div className="grid gap-4">
-          <div className="text-sm relative">
+          <div className="relative pr-24 text-sm sm:pr-28">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               {loading ? (
                 <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700 text-[10px]">
@@ -151,7 +154,10 @@ export function ResumeDetail({
                 </Badge>
               ) : null}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div
+              data-testid="resume-detail-primary-grid"
+              className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4"
+            >
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.name')}</p>
                 <p className="font-medium">{displayResume.name || '--'}</p>
@@ -164,7 +170,7 @@ export function ResumeDetail({
             <Button
               variant="ghost"
               size="sm"
-              className="absolute right-0 top-0 text-muted-foreground hover:text-foreground h-8 px-2"
+              className="absolute right-0 top-0 h-9 px-2 text-muted-foreground hover:text-foreground"
               onClick={() => setIsInfoExpanded(!isInfoExpanded)}
             >
               {isInfoExpanded ? t('common.collapse', 'Collapse') : t('common.expand', 'Expand')}
@@ -173,7 +179,10 @@ export function ResumeDetail({
           </div>
 
           {isInfoExpanded && (
-            <div className="grid grid-cols-2 gap-4 text-sm pt-2 border-t">
+            <div
+              data-testid="resume-detail-expanded-grid"
+              className="grid grid-cols-1 gap-3 border-t pt-2 text-sm sm:grid-cols-2 sm:gap-4"
+            >
               <div>
                 <p className="text-muted-foreground">{t('resumes.columns.experience')}</p>
                 <p className="font-medium">{displayResume.experience || '--'}</p>
@@ -310,7 +319,7 @@ export function ResumeDetail({
                 <p className="text-sm text-foreground">{matchResult.summary}</p>
               </div>
 
-              <div className={`grid gap-4 mb-3 ${matchResult.highlights?.length && matchResult.concerns?.length ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className={`mb-3 grid gap-4 ${matchResult.highlights?.length && matchResult.concerns?.length ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
                 {matchResult.highlights && matchResult.highlights.length > 0 && (
                   <div>
                     <h4 className="text-xs font-semibold text-green-600 mb-1">Highlights</h4>
@@ -332,7 +341,10 @@ export function ResumeDetail({
               {matchResult.breakdown && (
                 <div className="bg-background rounded p-2 border">
                   <h4 className="text-xs font-semibold mb-2">Detailed Breakdown</h4>
-                  <div className="grid grid-cols-5 gap-2 text-center">
+                  <div
+                    data-testid="resume-detail-breakdown-grid"
+                    className="grid grid-cols-2 gap-2 text-center md:grid-cols-3 xl:grid-cols-5"
+                  >
                     {Object.entries(matchResult.breakdown).map(([k, v]) => (
                       <div key={k} className="flex flex-col">
                         <span className="text-[10px] text-muted-foreground uppercase truncate" title={k}>{k.replace('_', ' ')}</span>
@@ -343,8 +355,8 @@ export function ResumeDetail({
                 </div>
               )}
               {onAiFeedback ? (
-                <div className="mt-3 flex items-center justify-end border-t border-slate-200 dark:border-slate-800 pt-3">
-                  <span className="text-xs text-muted-foreground mr-3">Summary Feedback</span>
+                <div className="mt-3 flex flex-col gap-2 border-t border-slate-200 pt-3 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-end">
+                  <span className="text-xs text-muted-foreground sm:mr-3">Summary Feedback</span>
                   <AiFeedbackButtons
                     feedback={aiSummaryFeedback}
                     label="AI summary"
@@ -357,10 +369,10 @@ export function ResumeDetail({
           )}
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
           {hasProfileUrl ? (
             <a
-              className={buttonVariants()}
+              className={buttonVariants({ className: 'w-full sm:w-auto' })}
               href={profileUrl}
               target="_blank"
               rel="noreferrer"
@@ -368,7 +380,7 @@ export function ResumeDetail({
               {t('resumes.detail.profileLink')}
             </a>
           ) : null}
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button variant="secondary" className="w-full sm:w-auto" onClick={() => onOpenChange(false)}>
             {t('resumes.detail.close')}
           </Button>
         </DialogFooter>

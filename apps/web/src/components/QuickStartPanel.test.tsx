@@ -241,6 +241,24 @@ describe('QuickStartPanel quick-filter display', () => {
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
   })
 
+  it('keeps the shell compact until large tablet and desktop breakpoints', () => {
+    render(
+      <QuickStartPanel
+        defaultLocation="广东"
+        defaultKeywords={[]}
+        jobDescriptionId=""
+      />
+    )
+
+    const searchGrid = screen.getByTestId('quickstart-search-grid')
+    const jobDescriptionCard = screen.getByTestId('quickstart-jd-card')
+
+    expect(searchGrid.className).toContain('lg:grid-cols-[minmax(0,1.3fr)_minmax(220px,0.85fr)]')
+    expect(searchGrid.className).toContain('xl:grid-cols-[minmax(0,1.45fr)_minmax(180px,0.7fr)_minmax(220px,0.85fr)]')
+    expect(jobDescriptionCard.className).toContain('lg:col-span-2')
+    expect(jobDescriptionCard.className).toContain('xl:col-span-1')
+  })
+
   it('does not auto-apply min years when no JD is selected', async () => {
     const onApplyQuickFilters = vi.fn()
 

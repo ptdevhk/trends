@@ -169,22 +169,22 @@ export function FilterPanel({
     window.setTimeout(() => setClearing(false), 200)
   }
 
-  const toolbarButtonClassName = 'h-8 text-xs'
+  const toolbarButtonClassName = 'h-10 px-3 text-sm'
 
   return (
     <div className={cn("rounded-lg border bg-card shadow-sm transition-all duration-200", className)}>
-      <div className="px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
+      <div className="px-3 py-3 sm:px-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <button
             type="button"
             aria-expanded={!isCollapsed}
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden whitespace-nowrap text-left"
+            className="flex min-h-10 min-w-0 flex-1 items-center gap-2 overflow-hidden whitespace-nowrap rounded-lg text-left"
           >
             <h3 className="shrink-0 text-sm font-semibold text-foreground/90">{t('resumes.filters.title')}</h3>
             {isCollapsed ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />}
             {activeFilterBadges.length > 0 && (
-              <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap text-xs text-muted-foreground">
+              <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-hidden text-xs text-muted-foreground">
                 {activeFilterBadges.map((badge, i) => (
                   <Badge key={i} variant="secondary" className="font-normal text-[10px] sm:text-xs px-1.5 sm:px-2 py-0 border-transparent bg-muted/60 text-muted-foreground whitespace-nowrap">
                     {badge}
@@ -194,9 +194,9 @@ export function FilterPanel({
             )}
           </button>
 
-          <div className="flex shrink-0 items-center justify-end gap-2">
+          <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 lg:w-auto">
             {headerAction}
-            {headerAction && <div className="hidden h-5 w-px bg-border sm:block" aria-hidden="true" />}
+            {headerAction && <div className="hidden h-5 w-px bg-border lg:block" aria-hidden="true" />}
             <Button
               size="sm"
               variant="ghost"
@@ -214,11 +214,11 @@ export function FilterPanel({
       </div>
 
       {!isCollapsed && (
-        <div className="border-t px-4 pb-4 pt-4">
+        <div className="border-t px-3 pb-4 pt-4 sm:px-4">
           <div className="grid gap-6 pt-2">
 
             {/* Row 1: Numeric Filters */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.minExperience')}</label>
@@ -275,7 +275,7 @@ export function FilterPanel({
             </div>
 
             {/* Row 2: Text Filters */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.skills')}</label>
                 <Input
@@ -299,9 +299,9 @@ export function FilterPanel({
             {/* Row 3: Education */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.education.title')}</label>
-              <div className="flex flex-wrap gap-4">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 {EDUCATION_LEVELS.map((level) => (
-                  <label key={level.value} className="flex cursor-pointer items-center gap-2 text-sm text-foreground/80 hover:text-foreground">
+                  <label key={level.value} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-background px-3 py-2.5 text-sm text-foreground/80 hover:text-foreground">
                     <Checkbox
                       checked={educationSet.has(level.value)}
                       onCheckedChange={() => toggleEducation(level.value)}
@@ -315,9 +315,9 @@ export function FilterPanel({
             {/* Row 4: Status and Block Toggle */}
             <div className="space-y-3">
               <label className="text-xs font-medium text-muted-foreground">{t('resumes.filters.status')}</label>
-              <div className="flex flex-wrap gap-4">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 {STATUS_OPTIONS.map((item) => (
-                  <label key={item.value} className="flex cursor-pointer items-center gap-2 text-sm text-foreground/80 hover:text-foreground">
+                  <label key={item.value} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-background px-3 py-2.5 text-sm text-foreground/80 hover:text-foreground">
                     <Checkbox
                       checked={statusSet.has(item.value)}
                       onCheckedChange={() => toggleStatus(item.value)}
@@ -327,7 +327,7 @@ export function FilterPanel({
                 ))}
               </div>
 
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground/80 hover:text-foreground">
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-background px-3 py-2.5 text-sm text-foreground/80 hover:text-foreground">
                 <Checkbox
                   checked={showBlocked}
                   onCheckedChange={(checked) => setShowBlocked(checked === true)}

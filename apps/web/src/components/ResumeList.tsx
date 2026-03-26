@@ -254,14 +254,14 @@ export function ResumeList() {
         }}
         onApplyQuickFilters={handleQuickConstraintApply}
         extraActions={
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap items-center gap-2 rounded-full border border-border/70 bg-background/90 p-1">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="gap-2 rounded-full"
+                  className="h-10 gap-2 rounded-full px-3"
                   onMouseEnter={() => {
                     void loadSearchHistoryDialog()
                   }}
@@ -281,7 +281,7 @@ export function ResumeList() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="gap-2 rounded-full"
+                  className="h-10 gap-2 rounded-full px-3"
                   onClick={() => {
                     void handleSaveCurrentSearch()
                   }}
@@ -305,7 +305,7 @@ export function ResumeList() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="gap-2"
+                className="h-10 gap-2 px-3"
                 onMouseEnter={() => {
                   void loadManualResumeImportDialog()
                 }}
@@ -328,7 +328,7 @@ export function ResumeList() {
                   onClick={handleAnalyzeAll}
                   disabled={disableAnalyzeButton}
                   size="sm"
-                  className="gap-2"
+                  className="h-10 gap-2 px-4"
                 >
                   {analyzing || hasActiveTask ? (
                     <>
@@ -356,13 +356,13 @@ export function ResumeList() {
         className=""
         defaultCollapsed={true}
         headerAction={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ShareLinkButton
               shareTitle={shareTitle}
               state={shareState}
               ensureApiSession={ensureApiSession}
             />
-            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleRefresh} disabled={activeLoading}>
+            <Button size="sm" variant="ghost" className="h-10 w-10 p-0" onClick={handleRefresh} disabled={activeLoading}>
               <RefreshCw className={cn('h-3.5 w-3.5', activeLoading && 'animate-spin')} />
             </Button>
           </div>
