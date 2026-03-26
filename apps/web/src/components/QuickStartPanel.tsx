@@ -96,6 +96,7 @@ interface QuickStartPanelProps {
   assistantHistoryLoading?: boolean
   onApplyAssistantHistory?: (item: SearchHistoryItem) => void | Promise<void>
   onAssistantOpen?: () => void
+  onRequestHistory?: () => void
   extraActions?: React.ReactNode
   onResetAll?: () => void
 }
@@ -300,6 +301,7 @@ export function QuickStartPanel({
   assistantHistoryLoading = false,
   onApplyAssistantHistory,
   onAssistantOpen,
+  onRequestHistory,
   extraActions,
   onResetAll,
 }: QuickStartPanelProps) {
@@ -325,6 +327,7 @@ export function QuickStartPanel({
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [workflowSeeds, setWorkflowSeeds] = useState<QuickStartWorkflow[]>([])
   const lastJobDescriptionIdRef = useRef(jobDescriptionId.trim())
+  const hasRequestedHistoryRef = useRef(false)
 
   const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
   const selectedConvexJobDescription = useMemo(() => {
@@ -483,6 +486,15 @@ export function QuickStartPanel({
   }, [jobDescriptionId, convexJobDescriptions, selectedConvexJobDescription, selectedConvexJobDescriptionDetail])
 
   useEffect(() => {
+    if (hasRequestedHistoryRef.current || !onRequestHistory || assistantHistoryLoading || assistantHistory.length > 0) {
+      return
+    }
+
+    hasRequestedHistoryRef.current = true
+    onRequestHistory()
+  }, [assistantHistory.length, assistantHistoryLoading, onRequestHistory])
+
+  useEffect(() => {
     let cancelled = false
 
     const loadWorkflowSeeds = async () => {
@@ -516,6 +528,12 @@ export function QuickStartPanel({
   const normalizedKeywords = useMemo(
     () => normalizeKeywordPhrases(selectedKeywords),
     [selectedKeywords]
+  )
+  const recentHistoryItems = useMemo(
+    () => [...assistantHistory]
+      .sort((left, right) => (right.lastOpenedAt ?? right.createdAt) - (left.lastOpenedAt ?? left.createdAt))
+      .slice(0, 2),
+    [assistantHistory]
   )
   const currentCollectionSource = useMemo<CollectionSource>(
     () => resolveCollectionSource(collectionSource, collectUrl) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 },
@@ -1018,6 +1036,82 @@ export function QuickStartPanel({
             </Button>
           ))}
         </div>
+
+        {assistantHistoryLoading || recentHistoryItems.length > 0 ? (
+          <section
+            data-testid="quickstart-recent-history"
+            className="rounded-xl border border-border/70 bg-background/80 px-3 py-3 shadow-sm sm:px-4"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {t('quickStart.continueWork', 'Continue work')}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {t('quickStart.continueWorkDescription', 'Reuse a saved search in one tap instead of rebuilding the same shell state.')}
+                </p>
+              </div>
+              {recentHistoryItems.length > 0 ? (
+                <Badge variant="outline" className="h-6 px-2 text-[10px] font-normal">
+                  {t('quickStart.continueWorkRecentCount', '{{count}} recent', { count: recentHistoryItems.length })}
+                </Badge>
+              ) : null}
+            </div>
+
+            {assistantHistoryLoading ? (
+              <div className="mt-3 rounded-xl border border-dashed border-border/70 px-3 py-3 text-sm text-muted-foreground">
+                {t('quickStart.continueWorkLoading', 'Loading recent saved searches...')}
+              </div>
+            ) : (
+              <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                {recentHistoryItems.map((item) => (
+                  <Button
+                    key={item.id}
+                    type="button"
+                    variant="outline"
+                    className="h-auto justify-start rounded-xl border-border/70 bg-muted/20 px-3 py-3 text-left"
+                    onClick={() => {
+                      void onApplyAssistantHistory?.(item)
+                    }}
+                  >
+                    <div className="flex w-full items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-2">
+                        <div className="truncate text-sm font-medium text-foreground">
+                          {item.title}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {item.location ? (
+                            <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
+                              {item.location}
+                            </Badge>
+                          ) : null}
+                          {item.keywords.slice(0, 3).map((keyword) => (
+                            <Badge key={`${item.id}-${keyword}`} variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
+                              {keyword}
+                            </Badge>
+                          ))}
+                          {item.jobDescriptionId ? (
+                            <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
+                              {item.jobDescriptionId}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        {item.notes ? (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {item.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                      <span className="pt-0.5 text-xs font-medium text-primary">
+                        {t('quickStart.continueWorkAction', 'Continue')}
+                      </span>
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : null}
 
         <KeywordChips
           value={selectedKeywords}

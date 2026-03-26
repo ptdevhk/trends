@@ -296,8 +296,65 @@ describe('QuickStartPanel quick-filter display', () => {
 
     expect(onAssistantOpen).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('search-assistant-drawer')).toBeInTheDocument()
-    expect(screen.getByText('广东 · CNC')).toBeInTheDocument()
+    expect(screen.getAllByText('广东 · CNC').length).toBeGreaterThan(0)
     expect(screen.getByText('Workflow starts')).toBeInTheDocument()
+  })
+
+  it('requests history on mount so recent searches can become one-tap shortcuts', () => {
+    const onRequestHistory = vi.fn()
+
+    render(
+      <QuickStartPanel
+        defaultLocation="广东"
+        defaultKeywords={['CNC']}
+        jobDescriptionId=""
+        onRequestHistory={onRequestHistory}
+      />
+    )
+
+    expect(onRequestHistory).toHaveBeenCalledTimes(1)
+  })
+
+  it('exposes recent searches as one-tap continue cards', async () => {
+    const user = userEvent.setup()
+    const onApplyAssistantHistory = vi.fn(async () => {})
+
+    render(
+      <QuickStartPanel
+        defaultLocation="广东"
+        defaultKeywords={['CNC']}
+        jobDescriptionId=""
+        assistantHistory={[
+          {
+            id: 'history-2' as SearchHistoryItem['id'],
+            sessionKey: 'session-2',
+            title: 'Kuala Lumpur MY · CNC Sales',
+            location: 'Kuala Lumpur MY',
+            keywords: ['CNC', 'Sales'],
+            jobDescriptionId: 'seek-malaysia-sales',
+            filters: {},
+            selectedTags: [],
+            selectedCompanies: [],
+            notes: 'Resume shortlist for Malaysia flow',
+            createdAt: Date.UTC(2026, 2, 26, 12, 0, 0),
+            lastOpenedAt: Date.UTC(2026, 2, 26, 13, 0, 0),
+          },
+        ]}
+        onApplyAssistantHistory={onApplyAssistantHistory}
+      />
+    )
+
+    expect(screen.getByTestId('quickstart-recent-history')).toBeInTheDocument()
+    expect(screen.getByText('Kuala Lumpur MY · CNC Sales')).toBeInTheDocument()
+    expect(screen.getByText('Resume shortlist for Malaysia flow')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Kuala Lumpur MY · CNC Sales/i }))
+
+    expect(onApplyAssistantHistory).toHaveBeenCalledTimes(1)
+    expect(onApplyAssistantHistory).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Kuala Lumpur MY · CNC Sales',
+      jobDescriptionId: 'seek-malaysia-sales',
+    }))
   })
 
   it('does not auto-apply min years when no JD is selected', async () => {
