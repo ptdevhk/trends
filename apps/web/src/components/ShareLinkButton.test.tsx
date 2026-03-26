@@ -15,8 +15,18 @@ vi.mock('sonner', () => ({
   },
 }))
 
+vi.mock('@/components/ui/dialog', () => ({
+  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (open ? <div>{children}</div> : null),
+  DialogContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}))
+
 describe('ShareLinkButton', () => {
   const clipboardWriteTextMock = vi.fn(async () => {})
+  const execCommandMock = vi.fn(() => true)
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -26,6 +36,10 @@ describe('ShareLinkButton', () => {
       value: {
         writeText: clipboardWriteTextMock,
       },
+    })
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: execCommandMock,
     })
   })
 
@@ -149,5 +163,37 @@ describe('ShareLinkButton', () => {
       sessionId: 'session-share-2',
       usedSessionLink: true,
     })
+  })
+
+  it('opens a fallback dialog with the prepared link when automatic copy fails', async () => {
+    clipboardWriteTextMock.mockRejectedValueOnce(new Error('clipboard blocked'))
+    execCommandMock.mockReturnValue(false)
+    const ensureApiSession = vi.fn(async () => 'session-share-1')
+
+    render(
+      <ShareLinkButton
+        shareTitle="Kuala Lumpur · Sales Engineer"
+        state={{
+          location: 'Kuala Lumpur MY',
+          keywords: ['Sales Engineer'],
+          requiredKeywords: ['CNC'],
+          collectionSource: {
+            type: 'seek',
+            exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+          },
+          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+          filters: {},
+          selectedTags: [],
+          selectedCompanies: [],
+        }}
+        ensureApiSession={ensureApiSession}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '分享' }))
+
+    expect(await screen.findByTestId('share-link-fallback-dialog')).toBeInTheDocument()
+    expect(screen.getByDisplayValue(`${window.location.origin}/dev/resumes?sid=session-share-1`)).toBeInTheDocument()
+    expect(toastErrorMock).toHaveBeenCalledWith('自动复制失败，请手动复制下方链接')
   })
 })
