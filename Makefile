@@ -148,6 +148,7 @@ dev-convex-restart:
 dev-convex-refresh:
 	@project_root="$(CURDIR)"; \
 	convex_port="$${CONVEX_PORT:-3210}"; \
+	refresh_wait_secs="$${CONVEX_REFRESH_WAIT_SECS:-45}"; \
 	tmux_session="$${CONVEX_TMUX_SESSION:-trends-convex}"; \
 	$(MAKE) dev-convex-stop || exit $$?; \
 	if ! command -v tmux >/dev/null 2>&1; then \
@@ -159,7 +160,8 @@ dev-convex-refresh:
 		tmux kill-session -t "$$tmux_session" 2>/dev/null || true; \
 	fi; \
 	tmux new-session -d -s "$$tmux_session" "cd '$$project_root/packages/convex' && if command -v bun >/dev/null 2>&1; then bun run dev; else npm run dev; fi"; \
-	for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do \
+	echo "Waiting up to $$refresh_wait_secs seconds for local Convex to become ready..."; \
+	for _ in $$(seq 1 "$$refresh_wait_secs"); do \
 		if curl -fsS "http://127.0.0.1:$$convex_port/version" >/dev/null 2>&1; then \
 			echo "Local Convex refreshed and ready at http://127.0.0.1:$$convex_port via tmux session $$tmux_session"; \
 			exit 0; \
