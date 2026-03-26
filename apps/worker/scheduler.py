@@ -29,6 +29,7 @@ from apscheduler.events import (
 from apps.worker.tasks import (
     run_crawl_analyze,
     health_check,
+    list_summary_profiles_runtime,
     run_skills_version_check,
     run_scoring_auto_tune,
     normalize_summary_period,
@@ -235,6 +236,7 @@ class WorkerScheduler:
         job_id: str,
         interval_minutes: Optional[int] = None,
         cron_expression: Optional[str] = None,
+        job_name: Optional[str] = None,
         **kwargs,
     ) -> None:
         """
@@ -254,12 +256,18 @@ class WorkerScheduler:
         else:
             raise ValueError("Either interval_minutes or cron_expression must be specified")
 
+        add_job_kwargs = {
+            "id": job_id,
+            "kwargs": kwargs,
+            "replace_existing": True,
+        }
+        if job_name is not None:
+            add_job_kwargs["name"] = job_name
+
         self.scheduler.add_job(
             func,
             trigger=trigger,
-            id=job_id,
-            kwargs=kwargs,
-            replace_existing=True,
+            **add_job_kwargs,
         )
         logger.info(f"Added custom job: {job_id}")
 
@@ -367,6 +375,7 @@ class WorkerScheduler:
         self.add_custom_job(
             func=run_workspace_summary,
             job_id="workspace_summary",
+            job_name=f"Workspace Summary ({workspace_slug})",
             cron_expression=cron_expression,
             workspace_slug=workspace_slug,
             period=period,
@@ -385,6 +394,39 @@ class WorkerScheduler:
             dry_run,
         )
 
+    def add_summary_profile_jobs(self, api_base_url: Optional[str] = None) -> None:
+        """Load and schedule summary profile jobs from the API runtime view."""
+        try:
+            runtime_items = list_summary_profiles_runtime(api_base_url=api_base_url)
+            for item in runtime_items:
+                workspace_slug = item["workspaceSlug"]
+                profile_id = item["profileId"]
+                cron = item["cron"]
+                job_id = f"workspace_summary:{workspace_slug}:{profile_id}"
+                self.add_custom_job(
+                    func=run_workspace_summary,
+                    job_id=job_id,
+                    job_name=f"Summary Profile: {workspace_slug} / {item['name']}",
+                    cron_expression=cron,
+                    workspace_slug=workspace_slug,
+                    period=item["period"],
+                    channel=item["channel"],
+                    dry_run=bool(item["dryRun"]),
+                    trigger_source="worker_schedule",
+                    template_id=item.get("templateId"),
+                    to=item.get("to"),
+                    subject=item.get("subject"),
+                )
+                logger.info(
+                    "Scheduled summary profile job: %s (%s, channel=%s, period=%s)",
+                    job_id,
+                    cron,
+                    item["channel"],
+                    item["period"],
+                )
+        except Exception as e:
+            logger.error(f"Failed to load summary profile jobs: {e}")
+
     def start(self) -> None:
         """Start the scheduler."""
         logger.info("Starting Worker Scheduler")
@@ -397,6 +439,7 @@ class WorkerScheduler:
         self.load_profile_jobs()
         self.add_skills_version_check_job()
         self.add_scoring_auto_tune_job()
+        self.add_summary_profile_jobs()
         self.add_workspace_summary_job()
 
         # Run immediately if requested

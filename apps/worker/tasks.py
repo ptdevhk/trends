@@ -23,6 +23,7 @@ from trendradar.utils.time import get_configured_time
 logger = logging.getLogger(__name__)
 
 VALID_SUMMARY_PERIODS = {"daily", "weekly"}
+VALID_SUMMARY_CHANNELS = {"email", "wechat_work", "feishu", "telegram"}
 
 
 def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool:
@@ -141,6 +142,15 @@ def normalize_summary_period(period: Optional[str]) -> str:
     return "daily"
 
 
+def normalize_summary_channel(channel: Optional[str]) -> str:
+    normalized = (channel or "").strip().lower()
+    if normalized in VALID_SUMMARY_CHANNELS:
+        return normalized
+    if normalized:
+        logger.warning("[Task] Invalid summary channel %s, falling back to telegram", channel)
+    return "telegram"
+
+
 def _skills_state_path() -> Path:
     return Path("apps/worker/skills-version-state.json")
 
@@ -166,6 +176,63 @@ def _request_json(url: str, method: str = "GET", body: Optional[Dict[str, Any]] 
         raise RuntimeError(f"HTTP {error.code} from {url}: {detail}") from error
     except URLError as error:
         raise RuntimeError(f"Network error for {url}: {error}") from error
+
+
+def list_summary_profiles_runtime(api_base_url: Optional[str] = None) -> list[Dict[str, Any]]:
+    base_url = _worker_api_base_url(api_base_url)
+    response = _request_json(f"{base_url}/api/summaries/profiles/runtime")
+    if response.get("success") is not True:
+        raise RuntimeError(f"Summary profile runtime request failed: {response}")
+
+    raw_items = response.get("items")
+    if not isinstance(raw_items, list):
+        raise RuntimeError("Summary profile runtime payload is missing items[]")
+
+    items: list[Dict[str, Any]] = []
+    for raw_item in raw_items:
+        if not isinstance(raw_item, dict):
+            continue
+
+        workspace_slug = str(raw_item.get("workspaceSlug") or "").strip()
+        profile_id = str(raw_item.get("profileId") or "").strip()
+        cron = str(raw_item.get("cron") or "").strip()
+        name = str(raw_item.get("name") or profile_id).strip()
+        if not workspace_slug or not profile_id or not cron:
+            continue
+
+        channel = normalize_summary_channel(raw_item.get("channel"))
+        item: Dict[str, Any] = {
+            "workspaceSlug": workspace_slug,
+            "profileId": profile_id,
+            "name": name or profile_id,
+            "cron": cron,
+            "period": normalize_summary_period(raw_item.get("period")),
+            "channel": channel,
+            "dryRun": bool(raw_item.get("dryRun")),
+        }
+
+        template_id = raw_item.get("templateId")
+        if isinstance(template_id, str) and template_id.strip():
+            item["templateId"] = template_id.strip()
+
+        if channel == "email":
+            recipient = raw_item.get("to")
+            if not isinstance(recipient, str) or not recipient.strip():
+                logger.warning(
+                    "[Task] Skipping summary profile runtime item without email recipient (%s:%s)",
+                    workspace_slug,
+                    profile_id,
+                )
+                continue
+            item["to"] = recipient.strip()
+
+            subject = raw_item.get("subject")
+            if isinstance(subject, str) and subject.strip():
+                item["subject"] = subject.strip()
+
+        items.append(item)
+
+    return items
 
 
 def _load_last_skills_version() -> Optional[int]:
@@ -322,7 +389,7 @@ def run_workspace_summary(
     base_url = _worker_api_base_url(api_base_url)
     normalized_workspace = workspace_slug.strip() or "dev"
     normalized_period = normalize_summary_period(period)
-    normalized_channel = channel.strip() or "telegram"
+    normalized_channel = normalize_summary_channel(channel)
     logger.info(
         "[Task] Starting workspace summary (workspace=%s, period=%s, channel=%s, dry_run=%s)",
         normalized_workspace,
