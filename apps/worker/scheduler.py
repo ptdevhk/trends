@@ -31,6 +31,7 @@ from apps.worker.tasks import (
     health_check,
     run_skills_version_check,
     run_scoring_auto_tune,
+    normalize_summary_period,
     run_workspace_summary,
 )
 from apps.worker.timezone import bootstrap_worker_timezone, resolve_worker_timezone
@@ -357,6 +358,7 @@ class WorkerScheduler:
 
         workspace_slug = os.environ.get("WORKER_SUMMARY_WORKSPACE", "").strip() or "dev"
         channel = os.environ.get("WORKER_SUMMARY_CHANNEL", "").strip() or "telegram"
+        period = normalize_summary_period(os.environ.get("WORKER_SUMMARY_PERIOD"))
         dry_run_env = os.environ.get("WORKER_SUMMARY_DRY_RUN", "").strip().lower()
         dry_run = dry_run_env in {"1", "true", "yes", "on"}
         template_id = os.environ.get("WORKER_SUMMARY_TEMPLATE_ID", "").strip() or None
@@ -367,6 +369,7 @@ class WorkerScheduler:
             job_id="workspace_summary",
             cron_expression=cron_expression,
             workspace_slug=workspace_slug,
+            period=period,
             channel=channel,
             dry_run=dry_run,
             trigger_source="worker_schedule",
@@ -374,9 +377,10 @@ class WorkerScheduler:
             end_at=end_at,
         )
         logger.info(
-            "Scheduled workspace summary job with cron: %s (workspace=%s, channel=%s, dry_run=%s)",
+            "Scheduled workspace summary job with cron: %s (workspace=%s, period=%s, channel=%s, dry_run=%s)",
             cron_expression,
             workspace_slug,
+            period,
             channel,
             dry_run,
         )

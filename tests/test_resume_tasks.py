@@ -134,6 +134,7 @@ def test_run_workspace_summary_posts_summary_request(monkeypatch) -> None:
     ok = tasks.run_workspace_summary(
         api_base_url="http://localhost:3000/",
         workspace_slug="hr",
+        period="weekly",
         channel="telegram",
         dry_run=True,
         template_id="summary-daily",
@@ -145,7 +146,7 @@ def test_run_workspace_summary_posts_summary_request(monkeypatch) -> None:
     assert captured["method"] == "POST"
     assert captured["body"] == {
         "workspaceSlug": "hr",
-        "period": "daily",
+        "period": "weekly",
         "channel": "telegram",
         "dryRun": True,
         "triggerSource": "worker_manual",
@@ -164,6 +165,32 @@ def test_run_workspace_summary_returns_false_when_api_fails(monkeypatch) -> None
     ok = tasks.run_workspace_summary(api_base_url="http://localhost:3000", workspace_slug="dev")
 
     assert ok is False
+
+
+def test_run_workspace_summary_falls_back_to_daily_for_invalid_period(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_request_json(url: str, method: str = "GET", body: dict[str, Any] | None = None) -> dict[str, Any]:
+        captured["url"] = url
+        captured["method"] = method
+        captured["body"] = body
+        return {
+            "success": True,
+            "channel": "telegram",
+            "dryRun": True,
+            "templateId": "summary-daily",
+        }
+
+    monkeypatch.setattr(tasks, "_request_json", fake_request_json)
+
+    ok = tasks.run_workspace_summary(
+        api_base_url="http://localhost:3000",
+        workspace_slug="dev",
+        period="monthly",
+    )
+
+    assert ok is True
+    assert captured["body"]["period"] == "daily"
 
 
 def test_add_workspace_summary_job_requires_cron(monkeypatch) -> None:
@@ -188,6 +215,7 @@ def test_add_workspace_summary_job_uses_env_config(monkeypatch) -> None:
     monkeypatch.setenv("WORKER_SUMMARY_CRON", "15 18 * * 1-5")
     monkeypatch.setenv("WORKER_SUMMARY_WORKSPACE", "hr")
     monkeypatch.setenv("WORKER_SUMMARY_CHANNEL", "telegram")
+    monkeypatch.setenv("WORKER_SUMMARY_PERIOD", "weekly")
     monkeypatch.setenv("WORKER_SUMMARY_DRY_RUN", "true")
     monkeypatch.setenv("WORKER_SUMMARY_TEMPLATE_ID", "summary-daily")
     scheduler = worker_scheduler.WorkerScheduler(timezone="UTC")
@@ -204,6 +232,7 @@ def test_add_workspace_summary_job_uses_env_config(monkeypatch) -> None:
     assert calls[0]["job_id"] == "workspace_summary"
     assert calls[0]["cron_expression"] == "15 18 * * 1-5"
     assert calls[0]["workspace_slug"] == "hr"
+    assert calls[0]["period"] == "weekly"
     assert calls[0]["channel"] == "telegram"
     assert calls[0]["dry_run"] is True
     assert calls[0]["trigger_source"] == "worker_schedule"

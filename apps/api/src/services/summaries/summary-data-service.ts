@@ -1,10 +1,13 @@
 import type {
+  SummaryComparison,
   SummaryCountEntry,
   SummaryPeriod,
   SummaryReport,
   SummaryScopes,
+  SummarySharedIngestTotals,
   SummaryTotals,
   SummaryWindow,
+  SummaryWorkspaceActivityTotals,
 } from "@trends/shared";
 
 import {
@@ -13,7 +16,12 @@ import {
 } from "../action-storage.js";
 import { config } from "../config.js";
 import { resolveConvexUrl } from "../resume-import-service.js";
-import { formatIsoOffsetInTimezone } from "../timezone.js";
+import {
+  formatIsoOffsetInTimezone,
+  getLocalDatePartsInTimezone,
+  resolveLocalMidnightUtc,
+  type LocalDateParts,
+} from "../timezone.js";
 
 type ConvexSummaryEntry = {
   key: string;
@@ -35,6 +43,25 @@ type SummaryDataServiceDependencies = {
   now?: () => Date;
   queryConvex?: (pathName: string, args: Record<string, unknown>) => Promise<unknown>;
 };
+
+type SummaryWindowRange = {
+  fromTimestamp: number;
+  toTimestamp: number;
+  window: SummaryWindow;
+};
+
+type SummaryWindowSet = {
+  current: SummaryWindowRange;
+  previous: SummaryWindowRange;
+};
+
+type SummaryMetrics = {
+  totals: SummaryTotals;
+  breakdowns: SummaryReport["breakdowns"];
+  scopes: SummaryScopes;
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const ACTION_LABELS: Record<CandidateActionType, string> = {
   star: "Star",
@@ -138,22 +165,107 @@ function buildWindow(params: {
   endAt?: string;
   now: () => Date;
   timezone: string;
-}): { fromTimestamp: number; toTimestamp: number; window: SummaryWindow } {
-  const endDate = params.endAt ? new Date(params.endAt) : params.now();
-  if (Number.isNaN(endDate.getTime())) {
+}): SummaryWindowSet {
+  const anchorDate = params.endAt ? new Date(params.endAt) : params.now();
+  if (Number.isNaN(anchorDate.getTime())) {
     throw new Error("Invalid endAt value");
   }
 
-  const durationMs = params.period === "daily" ? 24 * 60 * 60 * 1000 : 0;
-  const startDate = new Date(endDate.getTime() - durationMs);
+  if (params.period === "daily") {
+    const currentEnd = anchorDate;
+    const currentStart = new Date(currentEnd.getTime() - DAY_MS);
+    const previousEnd = currentStart;
+    const previousStart = new Date(previousEnd.getTime() - DAY_MS);
+    return {
+      current: buildWindowRange(currentStart, currentEnd, params.timezone),
+      previous: buildWindowRange(previousStart, previousEnd, params.timezone),
+    };
+  }
 
+  const localAnchorDate = getLocalDatePartsInTimezone(anchorDate, params.timezone);
+  const currentWeekStart = getWeekStartLocalDate(localAnchorDate);
+  const currentWeekEnd = shiftLocalDateParts(currentWeekStart, 7);
+  const previousWeekStart = shiftLocalDateParts(currentWeekStart, -7);
+
+  const currentStart = resolveLocalMidnightUtc(currentWeekStart, params.timezone);
+  const currentEnd = resolveLocalMidnightUtc(currentWeekEnd, params.timezone);
+  const previousStart = resolveLocalMidnightUtc(previousWeekStart, params.timezone);
+  return {
+    current: buildWindowRange(currentStart, currentEnd, params.timezone),
+    previous: buildWindowRange(previousStart, currentStart, params.timezone),
+  };
+}
+
+function buildWindowRange(startDate: Date, endDate: Date, timezone: string): SummaryWindowRange {
   return {
     fromTimestamp: startDate.getTime(),
     toTimestamp: endDate.getTime(),
-    window: {
-      startAt: formatIsoOffsetInTimezone(startDate, params.timezone),
-      endAt: formatIsoOffsetInTimezone(endDate, params.timezone),
-      timezone: params.timezone,
+    window: buildSummaryWindow(startDate, endDate, timezone),
+  };
+}
+
+function buildSummaryWindow(startDate: Date, endDate: Date, timezone: string): SummaryWindow {
+  return {
+    startAt: formatIsoOffsetInTimezone(startDate, timezone),
+    endAt: formatIsoOffsetInTimezone(endDate, timezone),
+    timezone,
+  };
+}
+
+function shiftLocalDateParts(parts: LocalDateParts, days: number): LocalDateParts {
+  const shifted = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  };
+}
+
+function getWeekStartLocalDate(parts: LocalDateParts): LocalDateParts {
+  const weekday = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+  const daysSinceMonday = (weekday + 6) % 7;
+  return shiftLocalDateParts(parts, -daysSinceMonday);
+}
+
+function subtractSharedIngestTotals(
+  current: SummarySharedIngestTotals,
+  previous: SummarySharedIngestTotals,
+): SummarySharedIngestTotals {
+  return {
+    newResumes: current.newResumes - previous.newResumes,
+    collectionTasksCompleted: current.collectionTasksCompleted - previous.collectionTasksCompleted,
+    collectionTasksFailed: current.collectionTasksFailed - previous.collectionTasksFailed,
+  };
+}
+
+function subtractWorkspaceActivityTotals(
+  current: SummaryWorkspaceActivityTotals,
+  previous: SummaryWorkspaceActivityTotals,
+): SummaryWorkspaceActivityTotals {
+  return {
+    candidateStatusUpdates: current.candidateStatusUpdates - previous.candidateStatusUpdates,
+    shortlistActions: current.shortlistActions - previous.shortlistActions,
+    rejectActions: current.rejectActions - previous.rejectActions,
+    contactActions: current.contactActions - previous.contactActions,
+  };
+}
+
+function buildComparison(
+  previousWindow: SummaryWindow,
+  currentScopes: SummaryScopes,
+  previousScopes: SummaryScopes,
+): SummaryComparison {
+  return {
+    previousWindow,
+    totalsDelta: {
+      sharedIngest: subtractSharedIngestTotals(
+        currentScopes.sharedIngest.totals,
+        previousScopes.sharedIngest.totals,
+      ),
+      workspaceActivity: subtractWorkspaceActivityTotals(
+        currentScopes.workspaceActivity.totals,
+        previousScopes.workspaceActivity.totals,
+      ),
     },
   };
 }
@@ -257,23 +369,56 @@ export class SummaryDataService {
     period: SummaryPeriod;
     endAt?: string;
   }): Promise<SummaryReport> {
-    const { fromTimestamp, toTimestamp, window } = buildWindow({
+    const windows = buildWindow({
       period: params.period,
       endAt: params.endAt,
       now: this.now,
       timezone: config.timezone,
     });
 
+    const [currentMetrics, previousMetrics] = await Promise.all([
+      this.buildWindowMetrics(params.workspaceSlug, windows.current),
+      this.buildWindowMetrics(params.workspaceSlug, windows.previous),
+    ]);
+
+    return {
+      workspaceSlug: params.workspaceSlug,
+      period: params.period,
+      generatedAt: formatIsoOffsetInTimezone(this.now(), config.timezone),
+      window: windows.current.window,
+      comparison: buildComparison(
+        windows.previous.window,
+        currentMetrics.scopes,
+        previousMetrics.scopes,
+      ),
+      totals: currentMetrics.totals,
+      breakdowns: currentMetrics.breakdowns,
+      scopes: currentMetrics.scopes,
+      notes: [
+        "Shared ingest totals come from the global resume and collection-task pools in the current workspace model.",
+        "Workspace activity totals cover candidate-status updates and persisted workspace-linked actions only.",
+      ],
+    };
+  }
+
+  private async buildWindowMetrics(
+    workspaceSlug: string,
+    windowRange: SummaryWindowRange,
+  ): Promise<SummaryMetrics> {
     const [resumeSummary, candidateStatusSummary, collectionTaskSummary] = await Promise.all([
-      this.loadResumeSummary(fromTimestamp, toTimestamp),
-      this.loadCandidateStatusSummary(params.workspaceSlug, fromTimestamp, toTimestamp),
-      this.loadCollectionTaskSummary(fromTimestamp, toTimestamp),
+      this.loadResumeSummary(windowRange.fromTimestamp, windowRange.toTimestamp),
+      this.loadCandidateStatusSummary(
+        workspaceSlug,
+        windowRange.fromTimestamp,
+        windowRange.toTimestamp,
+      ),
+      this.loadCollectionTaskSummary(windowRange.fromTimestamp, windowRange.toTimestamp),
     ]);
 
     const actionSummary = this.actionStorage.summarizeActionsInWindow({
-      workspaceSlug: params.workspaceSlug,
-      startAt: window.startAt,
-      endAt: window.endAt,
+      workspaceSlug,
+      startAt: windowRange.window.startAt,
+      endAt: windowRange.window.endAt,
     });
 
     const resumeEntries = normalizeConvexEntries(resumeSummary.bySource);
@@ -286,19 +431,8 @@ export class SummaryDataService {
       actionEntries,
       taskEntries,
     });
-    const scopes = toSummaryScopes({
-      totals,
-      resumeEntries,
-      candidateStatusEntries,
-      actionEntries,
-      taskEntries,
-    });
 
     return {
-      workspaceSlug: params.workspaceSlug,
-      period: params.period,
-      generatedAt: formatIsoOffsetInTimezone(this.now(), config.timezone),
-      window,
       totals,
       breakdowns: {
         resumesBySource: resumeEntries,
@@ -306,11 +440,13 @@ export class SummaryDataService {
         actionsByType: actionEntries,
         collectionTasksByStatus: taskEntries,
       },
-      scopes,
-      notes: [
-        "Shared ingest totals come from the global resume and collection-task pools in the current workspace model.",
-        "Workspace activity totals cover candidate-status updates and persisted workspace-linked actions only.",
-      ],
+      scopes: toSummaryScopes({
+        totals,
+        resumeEntries,
+        candidateStatusEntries,
+        actionEntries,
+        taskEntries,
+      }),
     };
   }
 

@@ -4415,7 +4415,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Preview a workspace daily summary */
+        /** Preview a workspace summary */
         post: {
             parameters: {
                 query?: never;
@@ -4431,7 +4431,7 @@ export interface paths {
                          * @default daily
                          * @enum {string}
                          */
-                        period?: "daily";
+                        period?: "daily" | "weekly";
                         /** Format: date-time */
                         endAt?: string;
                     };
@@ -4450,12 +4450,32 @@ export interface paths {
                             report: {
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily";
+                                period: "daily" | "weekly";
                                 generatedAt: string;
                                 window: {
                                     startAt: string;
                                     endAt: string;
                                     timezone: string;
+                                };
+                                comparison?: {
+                                    previousWindow: {
+                                        startAt: string;
+                                        endAt: string;
+                                        timezone: string;
+                                    };
+                                    totalsDelta: {
+                                        sharedIngest: {
+                                            newResumes: number;
+                                            collectionTasksCompleted: number;
+                                            collectionTasksFailed: number;
+                                        };
+                                        workspaceActivity: {
+                                            candidateStatusUpdates: number;
+                                            shortlistActions: number;
+                                            rejectActions: number;
+                                            contactActions: number;
+                                        };
+                                    };
                                 };
                                 totals: {
                                     newResumes: number;
@@ -4536,7 +4556,7 @@ export interface paths {
                                 id: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily";
+                                period: "daily" | "weekly";
                                 /** @enum {string} */
                                 triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
                                 /** @enum {string} */
@@ -4552,12 +4572,32 @@ export interface paths {
                                 report: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    period: "daily";
+                                    period: "daily" | "weekly";
                                     generatedAt: string;
                                     window: {
                                         startAt: string;
                                         endAt: string;
                                         timezone: string;
+                                    };
+                                    comparison?: {
+                                        previousWindow: {
+                                            startAt: string;
+                                            endAt: string;
+                                            timezone: string;
+                                        };
+                                        totalsDelta: {
+                                            sharedIngest: {
+                                                newResumes: number;
+                                                collectionTasksCompleted: number;
+                                                collectionTasksFailed: number;
+                                            };
+                                            workspaceActivity: {
+                                                candidateStatusUpdates: number;
+                                                shortlistActions: number;
+                                                rejectActions: number;
+                                                contactActions: number;
+                                            };
+                                        };
                                     };
                                     totals: {
                                         newResumes: number;
@@ -4695,7 +4735,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Render and optionally send a workspace daily summary */
+        /** Render and optionally send a workspace summary */
         post: {
             parameters: {
                 query?: never;
@@ -4711,7 +4751,7 @@ export interface paths {
                          * @default daily
                          * @enum {string}
                          */
-                        period?: "daily";
+                        period?: "daily" | "weekly";
                         /** Format: date-time */
                         endAt?: string;
                         /** @enum {string} */
@@ -4749,12 +4789,32 @@ export interface paths {
                             report: {
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily";
+                                period: "daily" | "weekly";
                                 generatedAt: string;
                                 window: {
                                     startAt: string;
                                     endAt: string;
                                     timezone: string;
+                                };
+                                comparison?: {
+                                    previousWindow: {
+                                        startAt: string;
+                                        endAt: string;
+                                        timezone: string;
+                                    };
+                                    totalsDelta: {
+                                        sharedIngest: {
+                                            newResumes: number;
+                                            collectionTasksCompleted: number;
+                                            collectionTasksFailed: number;
+                                        };
+                                        workspaceActivity: {
+                                            candidateStatusUpdates: number;
+                                            shortlistActions: number;
+                                            rejectActions: number;
+                                            contactActions: number;
+                                        };
+                                    };
                                 };
                                 totals: {
                                     newResumes: number;
@@ -4861,7 +4921,7 @@ export interface paths {
                                 id: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily";
+                                period: "daily" | "weekly";
                                 /** @enum {string} */
                                 triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
                                 /** @enum {string} */
@@ -4877,12 +4937,32 @@ export interface paths {
                                 report: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    period: "daily";
+                                    period: "daily" | "weekly";
                                     generatedAt: string;
                                     window: {
                                         startAt: string;
                                         endAt: string;
                                         timezone: string;
+                                    };
+                                    comparison?: {
+                                        previousWindow: {
+                                            startAt: string;
+                                            endAt: string;
+                                            timezone: string;
+                                        };
+                                        totalsDelta: {
+                                            sharedIngest: {
+                                                newResumes: number;
+                                                collectionTasksCompleted: number;
+                                                collectionTasksFailed: number;
+                                            };
+                                            workspaceActivity: {
+                                                candidateStatusUpdates: number;
+                                                shortlistActions: number;
+                                                rejectActions: number;
+                                                contactActions: number;
+                                            };
+                                        };
                                     };
                                     totals: {
                                         newResumes: number;
@@ -5043,7 +5123,7 @@ export interface paths {
                                 id: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily";
+                                period: "daily" | "weekly";
                                 /** @enum {string} */
                                 triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
                                 /** @enum {string} */
@@ -5059,12 +5139,32 @@ export interface paths {
                                 report: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    period: "daily";
+                                    period: "daily" | "weekly";
                                     generatedAt: string;
                                     window: {
                                         startAt: string;
                                         endAt: string;
                                         timezone: string;
+                                    };
+                                    comparison?: {
+                                        previousWindow: {
+                                            startAt: string;
+                                            endAt: string;
+                                            timezone: string;
+                                        };
+                                        totalsDelta: {
+                                            sharedIngest: {
+                                                newResumes: number;
+                                                collectionTasksCompleted: number;
+                                                collectionTasksFailed: number;
+                                            };
+                                            workspaceActivity: {
+                                                candidateStatusUpdates: number;
+                                                shortlistActions: number;
+                                                rejectActions: number;
+                                                contactActions: number;
+                                            };
+                                        };
                                     };
                                     totals: {
                                         newResumes: number;
@@ -5214,7 +5314,7 @@ export interface paths {
                                 id: string;
                                 workspaceSlug: string;
                                 /** @enum {string} */
-                                period: "daily";
+                                period: "daily" | "weekly";
                                 /** @enum {string} */
                                 triggerSource: "api_preview" | "api_manual" | "worker_manual" | "worker_schedule";
                                 /** @enum {string} */
@@ -5230,12 +5330,32 @@ export interface paths {
                                 report: {
                                     workspaceSlug: string;
                                     /** @enum {string} */
-                                    period: "daily";
+                                    period: "daily" | "weekly";
                                     generatedAt: string;
                                     window: {
                                         startAt: string;
                                         endAt: string;
                                         timezone: string;
+                                    };
+                                    comparison?: {
+                                        previousWindow: {
+                                            startAt: string;
+                                            endAt: string;
+                                            timezone: string;
+                                        };
+                                        totalsDelta: {
+                                            sharedIngest: {
+                                                newResumes: number;
+                                                collectionTasksCompleted: number;
+                                                collectionTasksFailed: number;
+                                            };
+                                            workspaceActivity: {
+                                                candidateStatusUpdates: number;
+                                                shortlistActions: number;
+                                                rejectActions: number;
+                                                contactActions: number;
+                                            };
+                                        };
                                     };
                                     totals: {
                                         newResumes: number;

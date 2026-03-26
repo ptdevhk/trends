@@ -5,6 +5,12 @@ import yaml from "js-yaml";
 
 export const DEFAULT_TIMEZONE = "Asia/Hong_Kong";
 
+export type LocalDateParts = {
+  year: number;
+  month: number;
+  day: number;
+};
+
 type ResolveTimezoneOptions = {
   envTimezone?: string;
   projectRoot?: string;
@@ -117,6 +123,68 @@ function getDateParts(date: Date, timezone: string): {
     second: values.get("second") ?? "00",
     offset: normalizeOffset(values.get("timeZoneName") ?? "GMT+00:00"),
   };
+}
+
+function parseOffsetMinutes(offset: string): number {
+  const match = /^([+-])(\d{2}):(\d{2})$/.exec(offset);
+  if (!match) {
+    return 0;
+  }
+
+  const sign = match[1] === "-" ? -1 : 1;
+  return sign * (Number.parseInt(match[2], 10) * 60 + Number.parseInt(match[3], 10));
+}
+
+function isLocalMidnight(parts: LocalDateParts, rendered: ReturnType<typeof getDateParts>): boolean {
+  return Number.parseInt(rendered.year, 10) === parts.year
+    && Number.parseInt(rendered.month, 10) === parts.month
+    && Number.parseInt(rendered.day, 10) === parts.day
+    && rendered.hour === "00"
+    && rendered.minute === "00"
+    && rendered.second === "00";
+}
+
+export function getLocalDatePartsInTimezone(
+  value: Date | number | string,
+  timezone: string,
+): LocalDateParts {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Invalid date value");
+  }
+
+  const parts = getDateParts(date, timezone);
+  return {
+    year: Number.parseInt(parts.year, 10),
+    month: Number.parseInt(parts.month, 10),
+    day: Number.parseInt(parts.day, 10),
+  };
+}
+
+export function resolveLocalMidnightUtc(parts: LocalDateParts, timezone: string): Date {
+  const baseUtcMidnight = Date.UTC(parts.year, parts.month - 1, parts.day, 0, 0, 0);
+  let candidateMs = baseUtcMidnight;
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const candidate = new Date(candidateMs);
+    const rendered = getDateParts(candidate, timezone);
+    if (isLocalMidnight(parts, rendered)) {
+      return candidate;
+    }
+
+    const offsetMinutes = parseOffsetMinutes(rendered.offset);
+    candidateMs = baseUtcMidnight - offsetMinutes * 60 * 1000;
+  }
+
+  const resolved = new Date(candidateMs);
+  const rendered = getDateParts(resolved, timezone);
+  if (!isLocalMidnight(parts, rendered)) {
+    throw new Error(
+      `Unable to resolve local midnight for ${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")} in ${timezone}`,
+    );
+  }
+
+  return resolved;
 }
 
 export function formatIsoOffsetInTimezone(

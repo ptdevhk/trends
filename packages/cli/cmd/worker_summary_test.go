@@ -22,7 +22,7 @@ func TestWorkerSummaryRunCommandWritesJSON(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if request["workspaceSlug"] != "ops" || request["period"] != "daily" {
+		if request["workspaceSlug"] != "ops" || request["period"] != "weekly" {
 			t.Fatalf("unexpected request: %#v", request)
 		}
 		if request["triggerSource"] != "api_manual" {
@@ -36,6 +36,7 @@ func TestWorkerSummaryRunCommandWritesJSON(t *testing.T) {
 			"templateId": "summary-daily",
 			"run": map[string]any{
 				"id":            "run-1",
+				"period":        "weekly",
 				"status":        "dry_run",
 				"triggerSource": "api_manual",
 				"windowEnd":     "2026-03-26T12:00:00Z",
@@ -51,7 +52,7 @@ func TestWorkerSummaryRunCommandWritesJSON(t *testing.T) {
 	var output bytes.Buffer
 	cmd.SetOut(&output)
 	cmd.SetErr(&output)
-	cmd.SetArgs([]string{"--dry-run"})
+	cmd.SetArgs([]string{"--dry-run", "--period", "weekly"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("worker summary run command failed: %v", err)
@@ -62,7 +63,7 @@ func TestWorkerSummaryRunCommandWritesJSON(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing run payload: %#v", payload)
 	}
-	if run["id"] != "run-1" || run["status"] != "dry_run" {
+	if run["id"] != "run-1" || run["status"] != "dry_run" || run["period"] != "weekly" {
 		t.Fatalf("unexpected output payload: %#v", payload)
 	}
 }
@@ -80,7 +81,7 @@ func TestWorkerSummaryRunViaWorkerCommandWritesJSON(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if request["workspaceSlug"] != "ops" || request["period"] != "daily" {
+		if request["workspaceSlug"] != "ops" || request["period"] != "weekly" {
 			t.Fatalf("unexpected request: %#v", request)
 		}
 
@@ -101,7 +102,7 @@ func TestWorkerSummaryRunViaWorkerCommandWritesJSON(t *testing.T) {
 	var output bytes.Buffer
 	cmd.SetOut(&output)
 	cmd.SetErr(&output)
-	cmd.SetArgs([]string{"--via-worker", "--dry-run"})
+	cmd.SetArgs([]string{"--via-worker", "--dry-run", "--period", "weekly"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("worker summary via-worker command failed: %v", err)
@@ -110,6 +111,25 @@ func TestWorkerSummaryRunViaWorkerCommandWritesJSON(t *testing.T) {
 	payload := decodeCommandJSON(t, output)
 	if payload["mode"] != "summary" {
 		t.Fatalf("unexpected output payload: %#v", payload)
+	}
+}
+
+func TestWorkerSummaryRunCommandRejectsInvalidPeriod(t *testing.T) {
+	setResumeCLIConfig(t, "http://127.0.0.1:1", "ops")
+	setCLIOutput(t, "json")
+
+	cmd := newWorkerSummaryRunCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--period", "monthly"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected invalid period error")
+	}
+	if !strings.Contains(err.Error(), "expected daily or weekly") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -132,6 +152,7 @@ func TestWorkerSummaryRunCommandWritesTableDeliverySummary(t *testing.T) {
 			},
 			"run": map[string]any{
 				"id":            "run-2",
+				"period":        "weekly",
 				"status":        "sent",
 				"triggerSource": "api_manual",
 				"windowEnd":     "2026-03-26T12:00:00Z",
@@ -153,7 +174,7 @@ func TestWorkerSummaryRunCommandWritesTableDeliverySummary(t *testing.T) {
 	}
 
 	text := output.String()
-	if !strings.Contains(text, "1/1 sent, 2 batches") {
+	if !strings.Contains(text, "weekly") || !strings.Contains(text, "1/1 sent, 2 batches") {
 		t.Fatalf("expected delivery summary in table output, got: %s", text)
 	}
 }
@@ -171,6 +192,7 @@ func TestWorkerSummaryHistoryCommandWritesJSON(t *testing.T) {
 			"success": true,
 			"items": []map[string]any{{
 				"id":            "run-1",
+				"period":        "weekly",
 				"status":        "sent",
 				"triggerSource": "worker_schedule",
 			}},
@@ -197,7 +219,7 @@ func TestWorkerSummaryHistoryCommandWritesJSON(t *testing.T) {
 		t.Fatalf("unexpected output payload: %#v", payload)
 	}
 	item, ok := items[0].(map[string]any)
-	if !ok || item["triggerSource"] != "worker_schedule" {
+	if !ok || item["triggerSource"] != "worker_schedule" || item["period"] != "weekly" {
 		t.Fatalf("unexpected item payload: %#v", payload)
 	}
 }
@@ -208,6 +230,7 @@ func TestWorkerSummaryHistoryCommandWritesTableDeliverySummary(t *testing.T) {
 			"success": true,
 			"items": []map[string]any{{
 				"id":            "run-3",
+				"period":        "weekly",
 				"status":        "sent",
 				"triggerSource": "worker_schedule",
 				"delivery": map[string]any{
@@ -234,7 +257,7 @@ func TestWorkerSummaryHistoryCommandWritesTableDeliverySummary(t *testing.T) {
 	}
 
 	text := output.String()
-	if !strings.Contains(text, "1/1 sent, 3 batches") {
+	if !strings.Contains(text, "weekly") || !strings.Contains(text, "1/1 sent, 3 batches") {
 		t.Fatalf("expected delivery summary in history table output, got: %s", text)
 	}
 }
@@ -249,6 +272,7 @@ func TestWorkerSummaryShowCommandWritesJSON(t *testing.T) {
 			"success": true,
 			"item": map[string]any{
 				"id":            "run-7",
+				"period":        "weekly",
 				"status":        "failed",
 				"triggerSource": "api_manual",
 				"error":         "boom",
@@ -275,7 +299,7 @@ func TestWorkerSummaryShowCommandWritesJSON(t *testing.T) {
 	if !ok {
 		t.Fatalf("unexpected output payload: %#v", payload)
 	}
-	if item["id"] != "run-7" || item["error"] != "boom" {
+	if item["id"] != "run-7" || item["error"] != "boom" || item["period"] != "weekly" {
 		t.Fatalf("unexpected item payload: %#v", payload)
 	}
 }
@@ -286,6 +310,7 @@ func TestWorkerSummaryShowCommandWritesTableDeliveryDetails(t *testing.T) {
 			"success": true,
 			"item": map[string]any{
 				"id":            "run-8",
+				"period":        "weekly",
 				"status":        "sent",
 				"channel":       "telegram",
 				"triggerSource": "api_manual",
@@ -337,7 +362,7 @@ func TestWorkerSummaryShowCommandWritesTableDeliveryDetails(t *testing.T) {
 	}
 
 	text := output.String()
-	if !strings.Contains(text, "1/1 sent, 2 batches, override") {
+	if !strings.Contains(text, "weekly") || !strings.Contains(text, "1/1 sent, 2 batches, override") {
 		t.Fatalf("expected delivery summary in show table output, got: %s", text)
 	}
 	if !strings.Contains(text, "1:***1234:sent(2b), 2:***5678:skipped") {

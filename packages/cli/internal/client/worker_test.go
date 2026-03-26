@@ -171,7 +171,7 @@ func TestRunWorkspaceSummaryPostsRunRequest(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if request.WorkspaceSlug != "ops" || request.Period != "daily" {
+		if request.WorkspaceSlug != "ops" || request.Period != "weekly" {
 			t.Fatalf("unexpected workspace request: %+v", request)
 		}
 		if request.TriggerSource != "api_manual" || request.Channel != "telegram" {
@@ -197,6 +197,7 @@ func TestRunWorkspaceSummaryPostsRunRequest(t *testing.T) {
 
 	response, err := c.RunWorkspaceSummary(context.Background(), SummaryRunRequest{
 		Channel:       "telegram",
+		Period:        "weekly",
 		DryRun:        true,
 		TriggerSource: "api_manual",
 	})
@@ -284,7 +285,7 @@ func TestTriggerWorkerSummaryPostsWorkerSummaryRequest(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if request.WorkspaceSlug != "ops" || request.Period != "daily" {
+		if request.WorkspaceSlug != "ops" || request.Period != "weekly" {
 			t.Fatalf("unexpected workspace request: %+v", request)
 		}
 		if request.Channel != "telegram" || !request.DryRun {
@@ -304,6 +305,7 @@ func TestTriggerWorkerSummaryPostsWorkerSummaryRequest(t *testing.T) {
 
 	response, err := c.TriggerWorkerSummary(context.Background(), SummaryRunRequest{
 		Channel: "telegram",
+		Period:  "weekly",
 		DryRun:  true,
 	})
 	if err != nil {

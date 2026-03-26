@@ -31,12 +31,13 @@ function createFixtureRoot(): string {
     path.join(root, "config", "notifications", "summary-daily.md"),
     [
       "---",
-      'subject: "Daily Ops Summary {{workspaceSlug}}"',
+      'subject: "{{summaryTitle}} {{workspaceSlug}}"',
       "---",
       "",
-      "# Daily Ops Summary",
+      "# {{summaryTitle}}",
       "",
       "- Workspace: {{workspaceSlug}}",
+      "- Period: {{period}}",
       "- Generated: {{generatedAt}}",
       "",
       "{{#if scopes.sharedIngest}}",
@@ -59,6 +60,12 @@ function createFixtureRoot(): string {
       "{{#each scopes.workspaceActivity.breakdowns.actionsByType}}",
       "- {{this.label}}: {{this.count}}",
       "{{/each}}",
+      "{{/if}}",
+      "",
+      "{{#if comparison}}",
+      "## Previous Period Comparison",
+      "- Previous Window Start: {{comparison.previousWindow.startAt}}",
+      "- Previous Window End: {{comparison.previousWindow.endAt}}",
       "{{/if}}",
       "",
       "_Generated at {{timestamp}}_",
@@ -227,6 +234,17 @@ describe("summary preview route", () => {
       success: boolean;
       report: {
         workspaceSlug: string;
+        comparison?: {
+          previousWindow: {
+            startAt: string;
+            endAt: string;
+          };
+          totalsDelta: {
+            sharedIngest: {
+              newResumes: number;
+            };
+          };
+        };
         totals: Record<string, number>;
         scopes?: {
           sharedIngest: {
@@ -245,6 +263,7 @@ describe("summary preview route", () => {
       };
       markdown: string;
       run: {
+        period: string;
         status: string;
         triggerSource: string;
         dryRun: boolean;
@@ -285,17 +304,23 @@ describe("summary preview route", () => {
     ]);
     expect(payload.markdown).toContain("## Shared Ingest Totals");
     expect(payload.markdown).toContain("## Workspace Activity");
+    expect(payload.markdown).toContain("## Previous Period Comparison");
+    expect(payload.report.comparison?.totalsDelta.sharedIngest.newResumes).toBe(0);
     expect(payload.run).toMatchObject({
+      period: "daily",
       status: "previewed",
       triggerSource: "api_preview",
       dryRun: true,
     });
-    expect(calls.map((call) => call.pathName)).toEqual([
-      "resumes:getSummaryWindow",
-      "candidate_status:list",
-      "resume_tasks:getSummaryWindow",
-    ]);
-    expect(calls[1]?.args.workspaceSlug).toBe("hr");
+    expect(calls).toHaveLength(6);
+    expect(calls.filter((call) => call.pathName === "resumes:getSummaryWindow")).toHaveLength(2);
+    expect(calls.filter((call) => call.pathName === "candidate_status:list")).toHaveLength(2);
+    expect(calls.filter((call) => call.pathName === "resume_tasks:getSummaryWindow")).toHaveLength(2);
+    expect(
+      calls
+        .filter((call) => call.pathName === "candidate_status:list")
+        .every((call) => call.args.workspaceSlug === "hr"),
+    ).toBe(true);
   });
 
   it("supports summary run dry-runs without sending", async () => {
@@ -360,6 +385,7 @@ describe("summary preview route", () => {
     expect(payload.subject).toBe("Daily Ops Summary hr");
     expect(payload.content).toContain("## Shared Ingest Totals");
     expect(payload.content).toContain("## Workspace Activity");
+    expect(payload.content).toContain("## Previous Period Comparison");
     expect(payload.delivery).toBeUndefined();
     expect(payload.run).toMatchObject({
       status: "dry_run",
@@ -517,6 +543,116 @@ describe("summary preview route", () => {
     expect(sendSpy.mock.calls[0]?.[0].content).toContain("# Daily Ops Summary");
   });
 
+  it("supports weekly previews and persists the weekly run period", async () => {
+    root = createFixtureRoot();
+    const { createApp } = await loadSummaryModules(root);
+
+    const currentWeekStart = Date.parse("2026-03-22T16:00:00.000Z");
+    const previousWeekStart = Date.parse("2026-03-15T16:00:00.000Z");
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName === "resumes:getSummaryWindow") {
+        if (call.args.fromTimestamp === currentWeekStart) {
+          return convexSuccess({ total: 7, bySource: [{ key: "seek", count: 7 }] });
+        }
+        if (call.args.fromTimestamp === previousWeekStart) {
+          return convexSuccess({ total: 3, bySource: [{ key: "job5156", count: 3 }] });
+        }
+      }
+
+      if (call.pathName === "candidate_status:list") {
+        return convexSuccess([]);
+      }
+
+      if (call.pathName === "resume_tasks:getSummaryWindow") {
+        if (call.args.fromTimestamp === currentWeekStart) {
+          return convexSuccess({
+            total: 2,
+            byStatus: [
+              { key: "completed", count: 1 },
+              { key: "failed", count: 1 },
+            ],
+          });
+        }
+        if (call.args.fromTimestamp === previousWeekStart) {
+          return convexSuccess({
+            total: 1,
+            byStatus: [{ key: "completed", count: 1 }],
+          });
+        }
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/summaries/preview", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify({
+        period: "weekly",
+        endAt: "2026-03-26T04:00:00.000Z",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json() as {
+      report: {
+        period: string;
+        window: {
+          startAt: string;
+          endAt: string;
+          timezone: string;
+        };
+        comparison?: {
+          previousWindow: {
+            startAt: string;
+            endAt: string;
+            timezone: string;
+          };
+          totalsDelta: {
+            sharedIngest: {
+              newResumes: number;
+              collectionTasksCompleted: number;
+              collectionTasksFailed: number;
+            };
+          };
+        };
+      };
+      markdown: string;
+      run: {
+        period: string;
+      };
+    };
+
+    expect(payload.report.period).toBe("weekly");
+    expect(payload.report.window).toEqual({
+      startAt: "2026-03-23T00:00:00+08:00",
+      endAt: "2026-03-30T00:00:00+08:00",
+      timezone: "Asia/Hong_Kong",
+    });
+    expect(payload.report.comparison).toMatchObject({
+      previousWindow: {
+        startAt: "2026-03-16T00:00:00+08:00",
+        endAt: "2026-03-23T00:00:00+08:00",
+        timezone: "Asia/Hong_Kong",
+      },
+      totalsDelta: {
+        sharedIngest: {
+          newResumes: 4,
+          collectionTasksCompleted: 0,
+          collectionTasksFailed: 1,
+        },
+      },
+    });
+    expect(payload.markdown).toContain("# Weekly Ops Summary");
+    expect(payload.run.period).toBe("weekly");
+  });
+
   it("lists and fetches persisted summary runs for the active workspace", async () => {
     root = createFixtureRoot();
     const {
@@ -609,6 +745,7 @@ describe("summary preview route", () => {
       runPayload.run.id,
     ].sort());
     expect(listPayload.items.every((item) => item.workspaceSlug === "hr")).toBe(true);
+    expect(listPayload.items.every((item) => item.period === "daily")).toBe(true);
 
     const detailResponse = await app.request(`/api/summaries/runs/${runPayload.run.id}`, {
       method: "GET",

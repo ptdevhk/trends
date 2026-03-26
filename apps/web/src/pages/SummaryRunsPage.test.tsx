@@ -55,7 +55,7 @@ describe('SummaryRunsPage', () => {
               {
                 id: 'run-1',
                 workspaceSlug: 'dev',
-                period: 'daily',
+                period: 'weekly',
                 triggerSource: 'api_manual',
                 status: 'sent',
                 channel: 'telegram',
@@ -66,12 +66,32 @@ describe('SummaryRunsPage', () => {
                 finishedAt: '2026-03-26T00:05:30Z',
                 report: {
                   workspaceSlug: 'dev',
-                  period: 'daily',
+                  period: 'weekly',
                   generatedAt: '2026-03-26T00:05:00Z',
                   window: {
                     startAt: '2026-03-25T00:00:00Z',
                     endAt: '2026-03-26T00:00:00Z',
                     timezone: 'UTC',
+                  },
+                  comparison: {
+                    previousWindow: {
+                      startAt: '2026-03-18T00:00:00Z',
+                      endAt: '2026-03-25T00:00:00Z',
+                      timezone: 'UTC',
+                    },
+                    totalsDelta: {
+                      sharedIngest: {
+                        newResumes: 2,
+                        collectionTasksCompleted: 1,
+                        collectionTasksFailed: 0,
+                      },
+                      workspaceActivity: {
+                        candidateStatusUpdates: 1,
+                        shortlistActions: 1,
+                        rejectActions: 0,
+                        contactActions: 1,
+                      },
+                    },
                   },
                   totals: {
                     newResumes: 2,
@@ -155,7 +175,7 @@ describe('SummaryRunsPage', () => {
             item: {
               id: 'run-1',
               workspaceSlug: 'dev',
-              period: 'daily',
+              period: 'weekly',
               triggerSource: 'api_manual',
               status: 'sent',
               channel: 'telegram',
@@ -166,12 +186,32 @@ describe('SummaryRunsPage', () => {
               finishedAt: '2026-03-26T00:05:30Z',
               report: {
                 workspaceSlug: 'dev',
-                period: 'daily',
+                period: 'weekly',
                 generatedAt: '2026-03-26T00:05:00Z',
                 window: {
                   startAt: '2026-03-25T00:00:00Z',
                   endAt: '2026-03-26T00:00:00Z',
                   timezone: 'UTC',
+                },
+                comparison: {
+                  previousWindow: {
+                    startAt: '2026-03-18T00:00:00Z',
+                    endAt: '2026-03-25T00:00:00Z',
+                    timezone: 'UTC',
+                  },
+                  totalsDelta: {
+                    sharedIngest: {
+                      newResumes: 2,
+                      collectionTasksCompleted: 1,
+                      collectionTasksFailed: 0,
+                    },
+                    workspaceActivity: {
+                      candidateStatusUpdates: 1,
+                      shortlistActions: 1,
+                      rejectActions: 0,
+                      contactActions: 1,
+                    },
+                  },
                 },
                 totals: {
                   newResumes: 2,
@@ -292,7 +332,11 @@ describe('SummaryRunsPage', () => {
     renderSummaryRunsPage()
 
     expect(await screen.findByText('run-1')).toBeInTheDocument()
+    expect(await screen.findAllByText('Weekly')).toHaveLength(2)
     expect(await screen.findAllByText(/1\/1 sent • 2 batches • override/i)).toHaveLength(2)
+    expect(await screen.findByText(/Compared with previous week • shared ingest \+2 resumes • workspace \+1 status/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Previous period window/i)).toBeInTheDocument()
+    expect(await screen.findByText(/2026-03-18T00:00:00Z → 2026-03-25T00:00:00Z/i)).toBeInTheDocument()
     expect(await screen.findByText('***1234')).toBeInTheDocument()
     expect(await screen.findByText('Rendered summary content')).toBeInTheDocument()
     expect(await screen.findByText('First run note')).toBeInTheDocument()

@@ -15,6 +15,7 @@ const app = new OpenAPIHono();
 const summaryDataService = new SummaryDataService();
 const summaryRenderer = new SummaryRenderer();
 const workspaceSummaryRunStorage = new WorkspaceSummaryRunStorage();
+const SummaryPeriodSchema = z.enum(["daily", "weekly"]);
 
 const SummaryCountEntrySchema = z.object({
   key: z.string(),
@@ -73,15 +74,26 @@ const SummaryScopesSchema = z.object({
   }),
 });
 
+const SummaryWindowSchema = z.object({
+  startAt: z.string(),
+  endAt: z.string(),
+  timezone: z.string(),
+});
+
+const SummaryComparisonSchema = z.object({
+  previousWindow: SummaryWindowSchema,
+  totalsDelta: z.object({
+    sharedIngest: SummarySharedIngestTotalsSchema,
+    workspaceActivity: SummaryWorkspaceActivityTotalsSchema,
+  }),
+});
+
 const SummaryReportSchema = z.object({
   workspaceSlug: z.string(),
-  period: z.literal("daily"),
+  period: SummaryPeriodSchema,
   generatedAt: z.string(),
-  window: z.object({
-    startAt: z.string(),
-    endAt: z.string(),
-    timezone: z.string(),
-  }),
+  window: SummaryWindowSchema,
+  comparison: SummaryComparisonSchema.optional(),
   totals: SummaryTotalsSchema,
   breakdowns: SummaryBreakdownsSchema,
   scopes: SummaryScopesSchema.optional(),
@@ -90,7 +102,7 @@ const SummaryReportSchema = z.object({
 
 const SummaryPreviewRequestSchema = z.object({
   workspaceSlug: z.string().min(1).optional(),
-  period: z.literal("daily").default("daily"),
+  period: SummaryPeriodSchema.default("daily"),
   endAt: z.string().datetime({ offset: true }).optional(),
 });
 
@@ -132,7 +144,7 @@ const SummaryDeliverySchema = z.object({
 const StoredSummaryRunSchema = z.object({
   id: z.string(),
   workspaceSlug: z.string(),
-  period: z.literal("daily"),
+  period: SummaryPeriodSchema,
   triggerSource: SummaryTriggerSourceSchema,
   status: z.enum(["previewed", "dry_run", "sent", "failed"]),
   channel: SummaryChannelSchema.optional(),
@@ -237,7 +249,7 @@ function toPublicSummaryRun(run: StoredWorkspaceSummaryRun): z.infer<typeof Stor
       ? run.report
       : {
         workspaceSlug: run.workspaceSlug,
-        period: "daily",
+        period: run.period,
         generatedAt: run.finishedAt ?? run.startedAt,
         window: {
           startAt: run.windowStart,
@@ -280,7 +292,7 @@ const previewRoute = createRoute({
   method: "post",
   path: "/preview",
   tags: ["Summaries"],
-  summary: "Preview a workspace daily summary",
+  summary: "Preview a workspace summary",
   request: {
     body: {
       content: {
@@ -323,6 +335,7 @@ app.openapi(previewRoute, async (c) => {
     const run = workspaceSummaryRunStorage.createRun({
       id: randomUUID(),
       workspaceSlug,
+      period: report.period,
       triggerSource: "api_preview",
       status: "previewed",
       dryRun: true,
@@ -351,7 +364,7 @@ const runRoute = createRoute({
   method: "post",
   path: "/run",
   tags: ["Summaries"],
-  summary: "Render and optionally send a workspace daily summary",
+  summary: "Render and optionally send a workspace summary",
   request: {
     body: {
       content: {
@@ -418,6 +431,7 @@ app.openapi(runRoute, async (c) => {
     const run = workspaceSummaryRunStorage.createRun({
       id: runId,
       workspaceSlug,
+      period: report.period,
       triggerSource,
       status: dispatched.dryRun ? "dry_run" : "sent",
       channel: dispatched.channel,
@@ -446,6 +460,7 @@ app.openapi(runRoute, async (c) => {
       workspaceSummaryRunStorage.createRun({
         id: randomUUID(),
         workspaceSlug,
+        period: report.period,
         triggerSource,
         status: "failed",
         channel,

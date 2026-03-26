@@ -1,10 +1,11 @@
 ---
-subject: "Daily Ops Summary {{workspaceSlug}}"
+subject: "{{summaryTitle}} {{workspaceSlug}}"
 ---
 
-# Daily Ops Summary
+# {{summaryTitle}}
 
 - Workspace: {{workspaceSlug}}
+- Period: {{period}}
 - Generated: {{generatedAt}}
 - Window Start: {{window.startAt}}
 - Window End: {{window.endAt}}
@@ -51,6 +52,19 @@ subject: "Daily Ops Summary {{workspaceSlug}}"
 {{#each scopes.workspaceActivity.breakdowns.actionsByType}}
 - {{this.label}}: {{this.count}}
 {{/each}}
+{{/if}}
+
+{{#if comparison}}
+## Previous Period Comparison
+- Previous Window Start: {{comparison.previousWindow.startAt}}
+- Previous Window End: {{comparison.previousWindow.endAt}}
+- Shared ingest new resumes delta: {{comparison.totalsDelta.sharedIngest.newResumes}}
+- Shared ingest completed tasks delta: {{comparison.totalsDelta.sharedIngest.collectionTasksCompleted}}
+- Shared ingest failed tasks delta: {{comparison.totalsDelta.sharedIngest.collectionTasksFailed}}
+- Workspace activity candidate status delta: {{comparison.totalsDelta.workspaceActivity.candidateStatusUpdates}}
+- Workspace activity shortlist delta: {{comparison.totalsDelta.workspaceActivity.shortlistActions}}
+- Workspace activity reject delta: {{comparison.totalsDelta.workspaceActivity.rejectActions}}
+- Workspace activity contact delta: {{comparison.totalsDelta.workspaceActivity.contactActions}}
 {{/if}}
 
 {{#if notes}}

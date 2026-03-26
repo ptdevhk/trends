@@ -22,6 +22,8 @@ from trendradar.utils.time import get_configured_time
 
 logger = logging.getLogger(__name__)
 
+VALID_SUMMARY_PERIODS = {"daily", "weekly"}
+
 
 def run_crawl_analyze(config_overrides: Optional[Dict[str, Any]] = None) -> bool:
     """
@@ -128,6 +130,15 @@ def health_check() -> bool:
 def _worker_api_base_url(override: Optional[str] = None) -> str:
     base_url = override or os.environ.get("TRENDS_API_URL", "http://localhost:3000")
     return base_url.rstrip("/")
+
+
+def normalize_summary_period(period: Optional[str]) -> str:
+    normalized = (period or "").strip().lower()
+    if normalized in VALID_SUMMARY_PERIODS:
+        return normalized
+    if normalized:
+        logger.warning("[Task] Invalid summary period %s, falling back to daily", period)
+    return "daily"
 
 
 def _skills_state_path() -> Path:
@@ -296,6 +307,7 @@ def run_scoring_auto_tune(
 def run_workspace_summary(
     api_base_url: Optional[str] = None,
     workspace_slug: str = "dev",
+    period: str = "daily",
     channel: str = "telegram",
     dry_run: bool = False,
     trigger_source: str = "worker_manual",
@@ -309,17 +321,19 @@ def run_workspace_summary(
 ) -> bool:
     base_url = _worker_api_base_url(api_base_url)
     normalized_workspace = workspace_slug.strip() or "dev"
+    normalized_period = normalize_summary_period(period)
     normalized_channel = channel.strip() or "telegram"
     logger.info(
-        "[Task] Starting workspace summary (workspace=%s, channel=%s, dry_run=%s)",
+        "[Task] Starting workspace summary (workspace=%s, period=%s, channel=%s, dry_run=%s)",
         normalized_workspace,
+        normalized_period,
         normalized_channel,
         dry_run,
     )
 
     request_body: Dict[str, Any] = {
         "workspaceSlug": normalized_workspace,
-        "period": "daily",
+        "period": normalized_period,
         "channel": normalized_channel,
         "dryRun": bool(dry_run),
         "triggerSource": trigger_source.strip() if trigger_source.strip() else "worker_manual",
@@ -352,7 +366,8 @@ def run_workspace_summary(
             return False
 
         logger.info(
-            "[Task] workspace summary completed (channel=%s, dry_run=%s, template=%s)",
+            "[Task] workspace summary completed (period=%s, channel=%s, dry_run=%s, template=%s)",
+            normalized_period,
             response.get("channel"),
             response.get("dryRun"),
             response.get("templateId"),

@@ -116,4 +116,127 @@ describe("SummaryDataService", () => {
       "Workspace activity totals cover candidate-status updates and persisted workspace-linked actions only.",
     ]);
   });
+
+  it("builds a weekly report with previous-period comparison totals", async () => {
+    const currentWeekStart = Date.parse("2026-03-22T16:00:00.000Z");
+    const previousWeekStart = Date.parse("2026-03-15T16:00:00.000Z");
+    const service = new SummaryDataService({
+      now: () => new Date("2026-03-26T04:00:00.000Z"),
+      actionStorage: {
+        summarizeActionsInWindow: ({ startAt }) => {
+          if (startAt === "2026-03-23T00:00:00+08:00") {
+            return {
+              total: 4,
+              breakdown: [
+                { actionType: "shortlist", count: 3 },
+                { actionType: "contact", count: 1 },
+              ],
+            };
+          }
+
+          return {
+            total: 3,
+            breakdown: [
+              { actionType: "shortlist", count: 1 },
+              { actionType: "reject", count: 2 },
+            ],
+          };
+        },
+      },
+      queryConvex: async (pathName, args) => {
+        if (pathName === "resumes:getSummaryWindow") {
+          if (args.fromTimestamp === currentWeekStart) {
+            return {
+              total: 8,
+              bySource: [
+                { key: "seek", count: 5 },
+                { key: "job5156", count: 3 },
+              ],
+            };
+          }
+
+          if (args.fromTimestamp === previousWeekStart) {
+            return {
+              total: 5,
+              bySource: [
+                { key: "job5156", count: 3 },
+                { key: "seek", count: 2 },
+              ],
+            };
+          }
+        }
+
+        if (pathName === "candidate_status:list") {
+          return [
+            { status: "interviewing", updatedAt: Date.parse("2026-03-24T00:00:00.000Z") },
+            { status: "offer", updatedAt: Date.parse("2026-03-25T10:00:00.000Z") },
+            { status: "offer", updatedAt: Date.parse("2026-03-18T10:00:00.000Z") },
+          ];
+        }
+
+        if (pathName === "resume_tasks:getSummaryWindow") {
+          if (args.fromTimestamp === currentWeekStart) {
+            return {
+              total: 3,
+              byStatus: [
+                { key: "completed", count: 2 },
+                { key: "failed", count: 1 },
+              ],
+            };
+          }
+
+          if (args.fromTimestamp === previousWeekStart) {
+            return {
+              total: 1,
+              byStatus: [{ key: "completed", count: 1 }],
+            };
+          }
+        }
+
+        throw new Error(`Unexpected Convex path: ${pathName}`);
+      },
+    });
+
+    const report = await service.buildSummaryReport({
+      workspaceSlug: "hr",
+      period: "weekly",
+      endAt: "2026-03-26T04:00:00.000Z",
+    });
+
+    expect(report.period).toBe("weekly");
+    expect(report.window).toEqual({
+      startAt: "2026-03-23T00:00:00+08:00",
+      endAt: "2026-03-30T00:00:00+08:00",
+      timezone: "Asia/Hong_Kong",
+    });
+    expect(report.totals).toEqual({
+      newResumes: 8,
+      candidateStatusUpdates: 2,
+      shortlistActions: 3,
+      rejectActions: 0,
+      contactActions: 1,
+      collectionTasksCompleted: 2,
+      collectionTasksFailed: 1,
+    });
+    expect(report.comparison).toEqual({
+      previousWindow: {
+        startAt: "2026-03-16T00:00:00+08:00",
+        endAt: "2026-03-23T00:00:00+08:00",
+        timezone: "Asia/Hong_Kong",
+      },
+      totalsDelta: {
+        sharedIngest: {
+          newResumes: 3,
+          collectionTasksCompleted: 1,
+          collectionTasksFailed: 1,
+        },
+        workspaceActivity: {
+          candidateStatusUpdates: 1,
+          shortlistActions: 2,
+          rejectActions: -2,
+          contactActions: 1,
+        },
+      },
+    });
+  });
 });
