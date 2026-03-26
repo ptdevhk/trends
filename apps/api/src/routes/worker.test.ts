@@ -30,6 +30,7 @@ describe("worker proxy routes", () => {
     const app = createApp();
     const body = JSON.stringify({
       workspaceSlug: "hr",
+      period: "weekly",
       channel: "telegram",
       dryRun: true,
       templateId: "summary-daily",

@@ -8,6 +8,8 @@ import {
   DEFAULT_TIMEZONE,
   formatDateInTimezone,
   formatIsoOffsetInTimezone,
+  getLocalDatePartsInTimezone,
+  resolveLocalMidnightUtc,
   resolveTimezone,
 } from "../timezone";
 
@@ -83,5 +85,43 @@ describe("timezone formatting helpers", () => {
   it("formats date key in target timezone to avoid UTC day shifts", () => {
     const dateKey = formatDateInTimezone("2026-02-11T23:30:00Z", "Asia/Hong_Kong");
     expect(dateKey).toBe("2026-02-12");
+  });
+
+  it("reads local date parts in the target timezone", () => {
+    expect(getLocalDatePartsInTimezone("2026-02-11T23:30:00Z", "Asia/Hong_Kong")).toEqual({
+      year: 2026,
+      month: 2,
+      day: 12,
+    });
+  });
+
+  it("resolves local midnight in a non-DST timezone", () => {
+    const resolved = resolveLocalMidnightUtc(
+      { year: 2026, month: 3, day: 23 },
+      "Asia/Hong_Kong",
+    );
+
+    expect(resolved.toISOString()).toBe("2026-03-22T16:00:00.000Z");
+    expect(formatIsoOffsetInTimezone(resolved, "Asia/Hong_Kong")).toBe("2026-03-23T00:00:00+08:00");
+  });
+
+  it("resolves local midnight across the spring DST transition", () => {
+    const resolved = resolveLocalMidnightUtc(
+      { year: 2026, month: 3, day: 30 },
+      "Europe/London",
+    );
+
+    expect(resolved.toISOString()).toBe("2026-03-29T23:00:00.000Z");
+    expect(formatIsoOffsetInTimezone(resolved, "Europe/London")).toBe("2026-03-30T00:00:00+01:00");
+  });
+
+  it("resolves local midnight after the fall DST transition", () => {
+    const resolved = resolveLocalMidnightUtc(
+      { year: 2026, month: 10, day: 26 },
+      "Europe/London",
+    );
+
+    expect(resolved.toISOString()).toBe("2026-10-26T00:00:00.000Z");
+    expect(formatIsoOffsetInTimezone(resolved, "Europe/London")).toBe("2026-10-26T00:00:00+00:00");
   });
 });

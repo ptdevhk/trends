@@ -22,7 +22,7 @@ import sys
 import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -184,6 +184,7 @@ class WorkerSummaryTriggerRequest(BaseModel):
     """Manual worker summary trigger request."""
 
     workspaceSlug: str = Field(default="dev", min_length=1)
+    period: Literal["daily", "weekly"] = "daily"
     channel: str = Field(default="telegram", min_length=1)
     dryRun: bool = False
     templateId: Optional[str] = None
@@ -288,6 +289,7 @@ async def trigger_worker_summary(request: WorkerSummaryTriggerRequest):
     success = await asyncio.to_thread(
         run_workspace_summary,
         workspace_slug=request.workspaceSlug,
+        period=request.period,
         channel=request.channel,
         dry_run=request.dryRun,
         trigger_source="worker_manual",

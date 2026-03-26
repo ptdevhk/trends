@@ -66,6 +66,24 @@ function formatTimestamp(value: string | undefined): string {
   }).format(parsed)
 }
 
+function formatPeriodLabel(period: SummaryRunItem['period'] | SummaryRunDetailItem['period'] | undefined): string {
+  if (period === 'weekly') {
+    return 'Weekly'
+  }
+  return 'Daily'
+}
+
+function formatDelta(value: number | undefined): string {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '0'
+  }
+  return value > 0 ? `+${value}` : String(value)
+}
+
+function formatComparisonLabel(period: SummaryRunDetailItem['period'] | undefined): string {
+  return period === 'weekly' ? 'Compared with previous week' : 'Compared with previous day'
+}
+
 function formatDeliverySummary(delivery: SummaryRunItem['delivery']): string {
   if (!delivery) {
     return '—'
@@ -114,6 +132,21 @@ function formatAccountStatus(account: SummaryDeliveryAccount): string {
     return 'failed'
   }
   return 'skipped'
+}
+
+function formatComparisonSummary(item: SummaryRunDetailItem | null): string {
+  const comparison = item?.report.comparison
+  if (!comparison) {
+    return '—'
+  }
+
+  const shared = comparison.totalsDelta.sharedIngest
+  const workspace = comparison.totalsDelta.workspaceActivity
+  return [
+    `${formatComparisonLabel(item?.report.period)}`,
+    `shared ingest ${formatDelta(shared.newResumes)} resumes`,
+    `workspace ${formatDelta(workspace.candidateStatusUpdates)} status`,
+  ].join(' • ')
 }
 
 function getRunStatusVariant(status: SummaryRunItem['status']) {
@@ -200,6 +233,7 @@ export function SummaryRunsPage() {
   }, [loadRuns])
 
   const selectedRunSummary = formatDeliverySummary(selectedRun?.delivery)
+  const selectedRunComparisonSummary = formatComparisonSummary(selectedRun)
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -255,6 +289,7 @@ export function SummaryRunsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t('summaries.columnRun', { defaultValue: 'Run' })}</TableHead>
+                    <TableHead>{t('summaries.columnPeriod', { defaultValue: 'Period' })}</TableHead>
                     <TableHead>{t('summaries.columnStatus', { defaultValue: 'Status' })}</TableHead>
                     <TableHead>{t('summaries.columnStarted', { defaultValue: 'Started' })}</TableHead>
                     <TableHead>{t('summaries.columnDelivery', { defaultValue: 'Delivery' })}</TableHead>
@@ -275,6 +310,9 @@ export function SummaryRunsPage() {
                           <div className="text-xs text-muted-foreground">
                             {run.triggerSource} • {run.channel || 'preview'}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{formatPeriodLabel(run.period)}</Badge>
                         </TableCell>
                         <TableCell>
                           <Badge variant={getRunStatusVariant(run.status)}>{run.status}</Badge>
@@ -313,6 +351,10 @@ export function SummaryRunsPage() {
                       <div className="mt-1"><Badge variant={getRunStatusVariant(selectedRun.status)}>{selectedRun.status}</Badge></div>
                     </div>
                     <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailPeriod', { defaultValue: 'Period' })}</div>
+                      <div className="mt-1 text-sm">{formatPeriodLabel(selectedRun.period)}</div>
+                    </div>
+                    <div>
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailWindow', { defaultValue: 'Window' })}</div>
                       <div className="mt-1 text-sm">{selectedRun.windowStart} → {selectedRun.windowEnd}</div>
                     </div>
@@ -332,7 +374,39 @@ export function SummaryRunsPage() {
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailDelivery', { defaultValue: 'Delivery' })}</div>
                       <div className="mt-1 text-sm">{selectedRunSummary}</div>
                     </div>
+                    <div className="sm:col-span-2">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailComparison', { defaultValue: 'Comparison' })}</div>
+                      <div className="mt-1 text-sm">{selectedRunComparisonSummary}</div>
+                    </div>
                   </div>
+
+                  {selectedRun.report.comparison ? (
+                    <div className="space-y-2">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailComparisonWindow', { defaultValue: 'Previous period window' })}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {selectedRun.report.comparison.previousWindow.startAt} → {selectedRun.report.comparison.previousWindow.endAt}
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-md border p-3">
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailComparisonShared', { defaultValue: 'Shared ingest deltas' })}</div>
+                          <div className="mt-2 space-y-1 text-sm">
+                            <div>{t('summaries.detailComparisonResumes', { defaultValue: 'New resumes' })}: {formatDelta(selectedRun.report.comparison.totalsDelta.sharedIngest.newResumes)}</div>
+                            <div>{t('summaries.detailComparisonCompleted', { defaultValue: 'Completed tasks' })}: {formatDelta(selectedRun.report.comparison.totalsDelta.sharedIngest.collectionTasksCompleted)}</div>
+                            <div>{t('summaries.detailComparisonFailed', { defaultValue: 'Failed tasks' })}: {formatDelta(selectedRun.report.comparison.totalsDelta.sharedIngest.collectionTasksFailed)}</div>
+                          </div>
+                        </div>
+                        <div className="rounded-md border p-3">
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('summaries.detailComparisonWorkspace', { defaultValue: 'Workspace activity deltas' })}</div>
+                          <div className="mt-2 space-y-1 text-sm">
+                            <div>{t('summaries.detailComparisonStatus', { defaultValue: 'Candidate status updates' })}: {formatDelta(selectedRun.report.comparison.totalsDelta.workspaceActivity.candidateStatusUpdates)}</div>
+                            <div>{t('summaries.detailComparisonShortlist', { defaultValue: 'Shortlist actions' })}: {formatDelta(selectedRun.report.comparison.totalsDelta.workspaceActivity.shortlistActions)}</div>
+                            <div>{t('summaries.detailComparisonReject', { defaultValue: 'Reject actions' })}: {formatDelta(selectedRun.report.comparison.totalsDelta.workspaceActivity.rejectActions)}</div>
+                            <div>{t('summaries.detailComparisonContact', { defaultValue: 'Contact actions' })}: {formatDelta(selectedRun.report.comparison.totalsDelta.workspaceActivity.contactActions)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
                   {selectedRun.delivery?.accounts && selectedRun.delivery.accounts.length > 0 ? (
                     <div className="space-y-2">

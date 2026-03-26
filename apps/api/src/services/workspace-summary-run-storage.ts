@@ -1,3 +1,5 @@
+import type { SummaryPeriod } from "@trends/shared";
+
 import { config } from "./config.js";
 import { getResumeScreeningDb } from "./database.js";
 import { formatIsoOffsetInTimezone } from "./timezone.js";
@@ -13,7 +15,7 @@ export type WorkspaceSummaryTriggerSource =
 export type StoredWorkspaceSummaryRun = {
   id: string;
   workspaceSlug: string;
-  period: "daily";
+  period: SummaryPeriod;
   triggerSource: WorkspaceSummaryTriggerSource;
   status: WorkspaceSummaryRunStatus;
   channel?: "email" | "wechat_work" | "feishu" | "telegram";
@@ -73,11 +75,15 @@ function normalizeChannel(value: unknown): StoredWorkspaceSummaryRun["channel"] 
   return undefined;
 }
 
+function normalizePeriod(value: unknown): SummaryPeriod {
+  return value === "weekly" ? "weekly" : "daily";
+}
+
 function normalizeRun(row: Record<string, unknown>): StoredWorkspaceSummaryRun {
   return {
     id: String(row.id),
     workspaceSlug: row.workspace_slug ? String(row.workspace_slug) : "dev",
-    period: "daily",
+    period: normalizePeriod(row.period),
     triggerSource: normalizeTriggerSource(row.trigger_source),
     status: normalizeStatus(row.status),
     channel: normalizeChannel(row.channel),
@@ -104,6 +110,7 @@ export class WorkspaceSummaryRunStorage {
   createRun(params: {
     id: string;
     workspaceSlug: string;
+    period: SummaryPeriod;
     triggerSource: WorkspaceSummaryTriggerSource;
     status: WorkspaceSummaryRunStatus;
     channel?: StoredWorkspaceSummaryRun["channel"];
@@ -133,7 +140,7 @@ export class WorkspaceSummaryRunStorage {
       .run(
         params.id,
         params.workspaceSlug,
-        "daily",
+        params.period,
         params.triggerSource,
         params.status,
         params.channel ?? null,

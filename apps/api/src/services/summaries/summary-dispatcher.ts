@@ -35,6 +35,10 @@ export type SummaryDispatchResult = SummaryDispatchPreview & {
 
 const DEFAULT_TEMPLATE_ID = "summary-daily";
 
+function getSummaryTitle(report: Pick<SummaryReport, "period">): string {
+  return report.period === "weekly" ? "Weekly Ops Summary" : "Daily Ops Summary";
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -59,6 +63,7 @@ function buildTemplateData(report: SummaryReport): Record<string, unknown> {
   return {
     ...report,
     timestamp: report.generatedAt,
+    summaryTitle: getSummaryTitle(report),
   };
 }
 
@@ -101,7 +106,7 @@ export class SummaryDispatcher {
         throw new Error("Email recipient is required");
       }
 
-      const subject = request.subject?.trim() || preview.subject || `Daily Ops Summary (${report.workspaceSlug})`;
+      const subject = request.subject?.trim() || preview.subject || `${getSummaryTitle(report)} (${report.workspaceSlug})`;
       const delivery = await this.notifications.sendEmail({
         to: request.to,
         subject,

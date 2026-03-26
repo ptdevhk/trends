@@ -41,6 +41,7 @@ func newWorkerSummaryCmd() *cobra.Command {
 
 func newWorkerSummaryRunCmd() *cobra.Command {
 	var channel string
+	var period string
 	var dryRun bool
 	var templateID string
 	var endAt string
@@ -55,8 +56,13 @@ func newWorkerSummaryRunCmd() *cobra.Command {
 		Use:   "run",
 		Short: "Run a workspace summary manually",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			normalizedPeriod, err := normalizeSummaryPeriodFlag(period)
+			if err != nil {
+				return err
+			}
 			request := client.SummaryRunRequest{
 				Channel:       channel,
+				Period:        normalizedPeriod,
 				DryRun:        dryRun,
 				TemplateID:    templateID,
 				EndAt:         endAt,
@@ -82,9 +88,10 @@ func newWorkerSummaryRunCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			headers := []string{"run_id", "status", "channel", "dry_run", "trigger_source", "window_end", "delivery"}
+			headers := []string{"run_id", "period", "status", "channel", "dry_run", "trigger_source", "window_end", "delivery"}
 			rows := [][]string{{
 				response.Run.ID,
+				response.Run.Period,
 				response.Run.Status,
 				response.Channel,
 				boolToString(response.DryRun),
@@ -97,6 +104,7 @@ func newWorkerSummaryRunCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&channel, "channel", "telegram", "Summary delivery channel")
+	cmd.Flags().StringVar(&period, "period", "daily", "Summary period (daily or weekly)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Render without sending externally")
 	cmd.Flags().StringVar(&templateID, "template-id", "", "Optional notification template ID")
 	cmd.Flags().StringVar(&endAt, "end-at", "", "Optional ISO8601 end time")
@@ -121,11 +129,12 @@ func newWorkerSummaryHistoryCmd() *cobra.Command {
 				return err
 			}
 
-			headers := []string{"id", "status", "channel", "dry_run", "trigger_source", "started_at", "window_end", "delivery"}
+			headers := []string{"id", "period", "status", "channel", "dry_run", "trigger_source", "started_at", "window_end", "delivery"}
 			rows := make([][]string, 0, len(response.Items))
 			for _, item := range response.Items {
 				rows = append(rows, []string{
 					item.ID,
+					item.Period,
 					item.Status,
 					item.Channel,
 					boolToString(item.DryRun),
@@ -154,9 +163,10 @@ func newWorkerSummaryShowCmd() *cobra.Command {
 				return err
 			}
 
-			headers := []string{"id", "status", "channel", "dry_run", "trigger_source", "started_at", "finished_at", "delivery", "accounts", "error"}
+			headers := []string{"id", "period", "status", "channel", "dry_run", "trigger_source", "started_at", "finished_at", "delivery", "accounts", "error"}
 			rows := [][]string{{
 				response.Item.ID,
+				response.Item.Period,
 				response.Item.Status,
 				response.Item.Channel,
 				boolToString(response.Item.DryRun),
@@ -219,6 +229,18 @@ func newWorkerRunCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&once, "once", true, "Run once immediately")
 	return cmd
+}
+
+func normalizeSummaryPeriodFlag(value string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch normalized {
+	case "", "daily":
+		return "daily", nil
+	case "weekly":
+		return "weekly", nil
+	default:
+		return "", fmt.Errorf("invalid --period %q: expected daily or weekly", value)
+	}
 }
 
 func summaryDeliverySummary(delivery *client.SummaryDelivery) string {

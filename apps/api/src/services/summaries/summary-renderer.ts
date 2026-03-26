@@ -1,4 +1,4 @@
-import type { SummaryCountEntry, SummaryReport } from "@trends/shared";
+import type { SummaryCountEntry, SummaryPeriod, SummaryReport } from "@trends/shared";
 
 function renderCountList(entries: SummaryCountEntry[]): string[] {
   if (entries.length === 0) {
@@ -8,15 +8,25 @@ function renderCountList(entries: SummaryCountEntry[]): string[] {
   return entries.map((entry) => `- ${entry.label}: ${entry.count}`);
 }
 
+function getSummaryTitle(period: SummaryPeriod): string {
+  return period === "weekly" ? "Weekly Ops Summary" : "Daily Ops Summary";
+}
+
+function formatDelta(value: number): string {
+  return value > 0 ? `+${value}` : String(value);
+}
+
 export class SummaryRenderer {
   renderMarkdown(report: SummaryReport): string {
     const sharedIngest = report.scopes?.sharedIngest;
     const workspaceActivity = report.scopes?.workspaceActivity;
+    const comparison = report.comparison;
 
     return [
-      `# Daily Ops Summary`,
+      `# ${getSummaryTitle(report.period)}`,
       ``,
       `- Workspace: ${report.workspaceSlug}`,
+      `- Period: ${report.period}`,
       `- Generated: ${report.generatedAt}`,
       `- Window: ${report.window.startAt} -> ${report.window.endAt}`,
       `- Timezone: ${report.window.timezone}`,
@@ -44,6 +54,20 @@ export class SummaryRenderer {
       `## Candidate Actions`,
       ...renderCountList(workspaceActivity?.breakdowns.actionsByType ?? report.breakdowns.actionsByType),
       ``,
+      ...(comparison
+        ? [
+          `## Previous Period Comparison`,
+          `- Previous Window: ${comparison.previousWindow.startAt} -> ${comparison.previousWindow.endAt}`,
+          `- Shared ingest new resumes delta: ${formatDelta(comparison.totalsDelta.sharedIngest.newResumes)}`,
+          `- Shared ingest completed tasks delta: ${formatDelta(comparison.totalsDelta.sharedIngest.collectionTasksCompleted)}`,
+          `- Shared ingest failed tasks delta: ${formatDelta(comparison.totalsDelta.sharedIngest.collectionTasksFailed)}`,
+          `- Workspace activity candidate status delta: ${formatDelta(comparison.totalsDelta.workspaceActivity.candidateStatusUpdates)}`,
+          `- Workspace activity shortlist delta: ${formatDelta(comparison.totalsDelta.workspaceActivity.shortlistActions)}`,
+          `- Workspace activity reject delta: ${formatDelta(comparison.totalsDelta.workspaceActivity.rejectActions)}`,
+          `- Workspace activity contact delta: ${formatDelta(comparison.totalsDelta.workspaceActivity.contactActions)}`,
+          ``,
+        ]
+        : []),
       `## Notes`,
       ...report.notes.map((note) => `- ${note}`),
       ``,

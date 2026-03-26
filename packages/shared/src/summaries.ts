@@ -1,4 +1,4 @@
-export type SummaryPeriod = "daily";
+export type SummaryPeriod = "daily" | "weekly";
 
 export type SummaryChannel = "email" | "wechat_work" | "feishu" | "telegram";
 
@@ -34,6 +34,14 @@ export type SummaryWorkspaceActivityTotals = Pick<
   "candidateStatusUpdates" | "shortlistActions" | "rejectActions" | "contactActions"
 >;
 
+export type SummaryComparison = {
+  previousWindow: SummaryWindow;
+  totalsDelta: {
+    sharedIngest: SummarySharedIngestTotals;
+    workspaceActivity: SummaryWorkspaceActivityTotals;
+  };
+};
+
 export type SummaryScopes = {
   sharedIngest: {
     totals: SummarySharedIngestTotals;
@@ -56,6 +64,7 @@ export type SummaryReport = {
   period: SummaryPeriod;
   generatedAt: string;
   window: SummaryWindow;
+  comparison?: SummaryComparison;
   totals: SummaryTotals;
   breakdowns: {
     resumesBySource: SummaryCountEntry[];
