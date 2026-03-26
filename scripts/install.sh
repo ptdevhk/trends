@@ -814,7 +814,9 @@ plan_upgrade_action() {
     elif is_truthy "${FORCE:-}"; then
         UPGRADE_ACTION="full"
     elif [[ -n "$deployed_sha" && -n "$target_sha" && "$deployed_sha" == "$target_sha" && "$tracked_drift" -eq 0 ]]; then
-        if [[ "$frontend_env_changed_flag" -eq 1 ]]; then
+        if frontend_dist_requires_rebuild; then
+            UPGRADE_ACTION="full"
+        elif [[ "$frontend_env_changed_flag" -eq 1 ]]; then
             UPGRADE_ACTION="full"
         elif [[ "$env_changed" -eq 1 ]]; then
             UPGRADE_ACTION="env-only"
@@ -936,6 +938,7 @@ build_artifacts() {
 
     log_info "Building @trends/web..."
     run_as_service_user "cd '$INSTALL_DIR' && npm run --workspace @trends/web build"
+    write_frontend_build_meta
 }
 
 read_env_var_from_file() {
@@ -967,6 +970,79 @@ read_env_var_from_file() {
     fi
 
     printf '%s' "$value"
+}
+
+frontend_dist_metadata_path() {
+    printf '%s' "$INSTALL_DIR/apps/web/dist/.trends-build-meta"
+}
+
+write_frontend_build_meta() {
+    local web_dir="$INSTALL_DIR/apps/web"
+    local dist_dir="$web_dir/dist"
+    local metadata_path=""
+    local current_sha=""
+    local current_branch=""
+    local built_at=""
+
+    if [[ ! -d "$web_dir" || ! -d "$dist_dir" ]]; then
+        log_warn "Skipping frontend build metadata write because $dist_dir is missing."
+        return 0
+    fi
+
+    metadata_path="$(frontend_dist_metadata_path)"
+    current_sha="$(run_install_repo_git rev-parse HEAD 2>/dev/null || true)"
+    current_branch="$(run_install_repo_git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    cat > "$metadata_path" <<EOF
+git_sha=$current_sha
+git_branch=$current_branch
+built_at=$built_at
+EOF
+    chmod 600 "$metadata_path"
+    chown "$SERVICE_USER:$SERVICE_GROUP" "$metadata_path"
+}
+
+frontend_dist_requires_rebuild() {
+    local web_dir="$INSTALL_DIR/apps/web"
+    local index_path="$web_dir/dist/index.html"
+    local metadata_path=""
+    local current_sha=""
+    local current_commit_ts=""
+    local built_sha=""
+    local index_mtime=""
+
+    if [[ ! -d "$web_dir" ]]; then
+        return 1
+    fi
+
+    current_sha="$(run_install_repo_git rev-parse HEAD 2>/dev/null || true)"
+    current_commit_ts="$(run_install_repo_git show -s --format=%ct HEAD 2>/dev/null || true)"
+    metadata_path="$(frontend_dist_metadata_path)"
+
+    if [[ ! -f "$index_path" ]]; then
+        log_warn "Detected missing frontend dist index at $index_path; forcing a full upgrade."
+        return 0
+    fi
+
+    index_mtime="$(stat -c %Y "$index_path" 2>/dev/null || true)"
+    if [[ -n "$current_commit_ts" && -n "$index_mtime" && "$index_mtime" -lt "$current_commit_ts" ]]; then
+        log_warn "Detected stale frontend dist index at $index_path (older than deployed commit); forcing a full upgrade."
+        return 0
+    fi
+
+    if [[ ! -f "$metadata_path" ]]; then
+        log_warn "Detected missing frontend build metadata at $metadata_path; forcing a full upgrade."
+        return 0
+    fi
+
+    built_sha="$(read_env_var_from_file "$metadata_path" "git_sha" || true)"
+    if [[ -z "$built_sha" || -z "$current_sha" || "$built_sha" != "$current_sha" ]]; then
+        log_warn "Detected frontend build metadata drift (built sha: ${built_sha:-<missing>}, expected: ${current_sha:-<missing>}); forcing a full upgrade."
+        return 0
+    fi
+
+    return 1
 }
 
 write_prefixed_env_snapshot() {

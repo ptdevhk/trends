@@ -342,7 +342,7 @@ refresh-env:
 	sudo chown trends:trends /opt/trends/apps/web/.env.production; \
 	sudo -u trends -H sh -lc 'set -a && [ -f /etc/trends/env ] && . /etc/trends/env && set +a && cd /opt/trends && ./scripts/sync-convex-env.sh'; \
 	echo "Rebuilding web bundle..."; \
-	sudo -u trends -H sh -lc 'cd /opt/trends && npm run --workspace @trends/web build'; \
+	sudo -u trends -H sh -lc 'cd /opt/trends && npm run --workspace @trends/web build && printf "git_sha=%s\ngit_branch=%s\nbuilt_at=%s\n" "$$(git rev-parse HEAD 2>/dev/null || true)" "$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)" "$$(date -u +%Y-%m-%dT%H:%M:%SZ)" > apps/web/dist/.trends-build-meta && chmod 600 apps/web/dist/.trends-build-meta'; \
 	sudo systemctl daemon-reload; \
 	sudo systemctl restart trends-api trends-worker trends-worker-api trends-mcp; \
 	echo "✅ Environment refreshed and services restarted"; \
