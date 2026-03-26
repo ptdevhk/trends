@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, RefreshCw, RotateCcw, Send, Sparkles, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -304,6 +305,7 @@ function upsertProfile(profiles: SummaryProfileItem[], nextProfile: SummaryProfi
 
 export function SummaryRunsPage() {
   const { t } = useTranslation()
+  const { teamSlug } = useParams()
   const [runs, setRuns] = useState<SummaryRunItem[]>([])
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [selectedRun, setSelectedRun] = useState<SummaryRunDetailItem | null>(null)
@@ -317,6 +319,7 @@ export function SummaryRunsPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [submittingMode, setSubmittingMode] = useState<'preview' | 'send' | null>(null)
   const [profileSubmittingMode, setProfileSubmittingMode] = useState<'create' | 'update' | 'delete' | null>(null)
+  const operationsHref = `/${teamSlug ?? 'dev'}/system/settings/operations`
 
   const loadRunDetail = useCallback(async (runId: string) => {
     setDetailLoading(true)
@@ -840,6 +843,19 @@ export function SummaryRunsPage() {
                   {t('summaries.profileRestartDescription', {
                     defaultValue: 'The scheduler rebuilds profile jobs on startup. The worker API does not live-reload summary profiles yet, and cron timing still uses the global worker timezone.',
                   })}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    {t('summaries.profileRestartVisibilityHint', {
+                      defaultValue: 'Runtime updates can take a few seconds after save. After restart, confirm the rebuilt job in worker status.',
+                    })}
+                  </p>
+                  <Link
+                    to={operationsHref}
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  >
+                    {t('summaries.profileOpenWorkerStatus', { defaultValue: 'Open worker status' })}
+                  </Link>
                 </div>
               </div>
 
