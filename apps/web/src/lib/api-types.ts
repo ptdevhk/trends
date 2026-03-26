@@ -2433,6 +2433,8 @@ export interface paths {
                                 status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                 showBlocked?: boolean;
                             };
+                            /** @example Priority shortlist for HR sync */
+                            referenceNote?: string;
                         };
                     };
                 };
@@ -2520,6 +2522,8 @@ export interface paths {
                                         status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                         showBlocked?: boolean;
                                     };
+                                    /** @example Priority shortlist for HR sync */
+                                    referenceNote?: string;
                                 };
                                 /**
                                  * @example active
@@ -2645,6 +2649,8 @@ export interface paths {
                                         status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                         showBlocked?: boolean;
                                     };
+                                    /** @example Priority shortlist for HR sync */
+                                    referenceNote?: string;
                                 };
                                 /**
                                  * @example active
@@ -2752,6 +2758,8 @@ export interface paths {
                                 status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                 showBlocked?: boolean;
                             };
+                            /** @example Priority shortlist for HR sync */
+                            referenceNote?: string;
                         } | null;
                         /** @enum {string} */
                         status?: "active" | "completed" | "archived";
@@ -2842,6 +2850,8 @@ export interface paths {
                                         status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                         showBlocked?: boolean;
                                     };
+                                    /** @example Priority shortlist for HR sync */
+                                    referenceNote?: string;
                                 };
                                 /**
                                  * @example active

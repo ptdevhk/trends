@@ -313,6 +313,7 @@ describe('useSession', () => {
           filters: {
             minAge: 28,
           },
+          referenceNote: '  Priority shortlist for HR sync  ',
         },
       })
     })
@@ -338,6 +339,7 @@ describe('useSession', () => {
           filters: {
             minAge: 28,
           },
+          referenceNote: 'Priority shortlist for HR sync',
         },
       },
     })

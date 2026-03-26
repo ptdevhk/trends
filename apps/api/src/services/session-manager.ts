@@ -55,6 +55,7 @@ export type SearchSessionState = {
   collectionSource?: SearchSessionCollectionSource;
   collectUrl?: string;
   filters?: ResumeFilters;
+  referenceNote?: string;
 };
 
 export type SearchSession = {

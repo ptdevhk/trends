@@ -42,6 +42,7 @@ const SearchSessionStateSchema = z.object({
   collectionSource: SearchSessionCollectionSourceSchema.optional(),
   collectUrl: z.string().optional().openapi({ example: "https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1" }),
   filters: SessionFiltersSchema.optional(),
+  referenceNote: z.string().optional().openapi({ example: "Priority shortlist for HR sync" }),
 });
 
 const SearchSessionSchema = z.object({

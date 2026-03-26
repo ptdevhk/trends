@@ -26,6 +26,7 @@ export type ResumeSearchShareState = ExternalSessionState & {
   selectedTags?: string[]
   selectedCompanies?: string[]
   selectedExperienceLevel?: 'senior' | 'mid' | 'junior'
+  referenceNote?: string
 }
 
 export type EnsureApiSessionOptions = {
@@ -158,6 +159,7 @@ function normalizeShareState(
     collectionSource: normalizeCollectionSource(state.collectionSource),
     collectUrl: normalizeOptionalString(state.collectUrl),
     filters: normalizeShareFilters(state.filters),
+    referenceNote: normalizeOptionalString(state.referenceNote),
   }
 
   if (
@@ -171,6 +173,7 @@ function normalizeShareState(
     && (normalized.selectedCompanies?.length ?? 0) === 0
     && !normalized.selectedExperienceLevel
     && !normalized.filters
+    && !normalized.referenceNote
   ) {
     return undefined
   }

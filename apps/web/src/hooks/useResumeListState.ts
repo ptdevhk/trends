@@ -619,6 +619,7 @@ export function useResumeListState(loadSearchHistory = false) {
   const [hasCompletedShareSessionHydration, setHasCompletedShareSessionHydration] = useState(false)
   const hydratedShareSessionIdRef = useRef<string | null>(null)
   const [hydratedShareSessionTitle, setHydratedShareSessionTitle] = useState<string | undefined>(undefined)
+  const [hydratedShareSessionReferenceNote, setHydratedShareSessionReferenceNote] = useState<string | undefined>(undefined)
 
   if (!initialWindowSearchStateRef.current) {
     const params = new URLSearchParams(window.location.search)
@@ -1109,6 +1110,7 @@ export function useResumeListState(loadSearchHistory = false) {
     let active = true
     hydratedShareSessionIdRef.current = activeShareSessionId
     setHasCompletedShareSessionHydration(false)
+    setHydratedShareSessionReferenceNote(undefined)
 
     void rawApiClient
       .GET<SearchSessionApiResponse>(`/api/sessions/${encodeURIComponent(activeShareSessionId)}`)
@@ -1121,6 +1123,7 @@ export function useResumeListState(loadSearchHistory = false) {
         if (error || !data?.success || !sharedSearchState) {
           console.error('Failed to hydrate shared search session', error ?? data)
           setHydratedShareSessionTitle(undefined)
+          setHydratedShareSessionReferenceNote(undefined)
           setHasCompletedShareSessionHydration(true)
           return
         }
@@ -1135,6 +1138,7 @@ export function useResumeListState(loadSearchHistory = false) {
               sharedSearchState.jobDescriptionId,
             )
         )
+        setHydratedShareSessionReferenceNote(normalizeOptionalString(sharedSearchState.referenceNote))
         applyExternalState({
           location: sharedSearchState.location,
           keywords: sharedSearchState.keywords,
@@ -1157,6 +1161,7 @@ export function useResumeListState(loadSearchHistory = false) {
 
         console.error('Failed to hydrate shared search session', error)
         setHydratedShareSessionTitle(undefined)
+        setHydratedShareSessionReferenceNote(undefined)
         setHasCompletedShareSessionHydration(true)
       })
 
@@ -1624,6 +1629,10 @@ export function useResumeListState(loadSearchHistory = false) {
     () => searchHistory.find((entry) => entry.id === appliedSearchHistoryId),
     [appliedSearchHistoryId, searchHistory]
   )
+  const continuityReferenceNote = useMemo(
+    () => normalizeOptionalString(appliedSearchHistory?.notes) ?? hydratedShareSessionReferenceNote,
+    [appliedSearchHistory?.notes, hydratedShareSessionReferenceNote]
+  )
 
   const enrichedResumes = useMemo<EnrichedResume[]>(() => {
     if (mode === 'ai') {
@@ -1794,6 +1803,7 @@ export function useResumeListState(loadSearchHistory = false) {
 
   const resetResumeSearchState = useCallback(() => {
     setAppliedSearchHistoryId(undefined)
+    setHydratedShareSessionReferenceNote(undefined)
     applyExternalState({
       location: '',
       keywords: [],
@@ -1965,7 +1975,7 @@ export function useResumeListState(loadSearchHistory = false) {
       params.set('sessionId', bridgedSessionId)
     }
 
-    const normalizedReferenceNote = normalizeOptionalString(appliedSearchHistory?.notes)
+    const normalizedReferenceNote = continuityReferenceNote
     if (normalizedReferenceNote) {
       params.set('referenceNote', normalizedReferenceNote)
     }
@@ -1975,8 +1985,8 @@ export function useResumeListState(loadSearchHistory = false) {
       search: `?${params.toString()}`,
     })
   }, [
-    appliedSearchHistory?.notes,
     bulkExportFormat,
+    continuityReferenceNote,
     displayedResumes,
     ensureApiSession,
     jobDescriptionId,
@@ -2208,6 +2218,7 @@ export function useResumeListState(loadSearchHistory = false) {
 
   const handleApplySearchHistory = useCallback(async (entry: SearchHistoryItem) => {
     skipNextUrlSyncRef.current = true
+    setHydratedShareSessionReferenceNote(undefined)
     applyExternalState({
       location: entry.location,
       keywords: entry.keywords,
@@ -2242,8 +2253,10 @@ export function useResumeListState(loadSearchHistory = false) {
       selectedTags,
       selectedCompanies,
       selectedExperienceLevel,
+      referenceNote: continuityReferenceNote,
     }),
     [
+      continuityReferenceNote,
       filters,
       jobDescriptionId,
       requiredKeywords,
@@ -2376,8 +2389,10 @@ export function useResumeListState(loadSearchHistory = false) {
       selectedTags,
       selectedCompanies,
       selectedExperienceLevel,
+      referenceNote: continuityReferenceNote,
     }
   }, [
+    continuityReferenceNote,
     filters,
     jobDescriptionId,
     requiredKeywords,
