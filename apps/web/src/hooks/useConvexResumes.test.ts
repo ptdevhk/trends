@@ -7,15 +7,15 @@ const rawApiGetMock = vi.fn(async (path?: unknown, options?: unknown) => {
   void path
   void options
   return {
-  data: {
-    success: true,
-    summary: {
-      groups: [{ original: 'cnc', variants: ['cnc'] }],
-      mode: 'AND' as const,
-      expandedTo: ['cnc'],
-      sourceMapping: {},
+    data: {
+      success: true,
+      summary: {
+        groups: [{ original: 'cnc', variants: ['cnc'] }],
+        mode: 'AND' as const,
+        expandedTo: ['cnc'],
+        sourceMapping: {},
+      },
     },
-  },
   }
 })
 
@@ -187,6 +187,45 @@ describe('useConvexResumes', () => {
         query: 'CNC',
         keywordGroups: [{ original: 'cnc', variants: ['cnc'] }],
       })
+    })
+  })
+
+  it('falls back to the JD list query when a JD-backed keyword search returns no matches', async () => {
+    usePaginatedQueryMock.mockImplementation((_query, args) => {
+      if (args === 'skip') {
+        return {
+          results: [],
+          status: 'Exhausted',
+          isLoading: false,
+          loadMore: loadMoreMock,
+        }
+      }
+
+      if ('query' in (args as Record<string, unknown>)) {
+        return {
+          results: [],
+          status: 'Exhausted',
+          isLoading: false,
+          loadMore: loadMoreMock,
+        }
+      }
+
+      return {
+        results: [buildResumeDoc('resume-fallback', 'Fallback Candidate')],
+        status: 'Exhausted',
+        isLoading: false,
+        loadMore: loadMoreMock,
+      }
+    })
+
+    const { result } = renderHook(() => useConvexResumes(200, 'CNC', 'lathe-sales'))
+
+    await waitFor(() => {
+      expect(rawApiGetMock).toHaveBeenCalled()
+    })
+
+    await waitFor(() => {
+      expect(result.current.resumes.map((resume) => resume.name)).toEqual(['Fallback Candidate'])
     })
   })
 })

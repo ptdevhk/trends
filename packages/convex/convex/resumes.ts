@@ -51,14 +51,32 @@ function toRuleScores(value: unknown): Record<string, number> {
     return scores;
 }
 
-function getIngestRuleScore(resume: Doc<"resumes">, jobDescriptionId: string | undefined): number {
-    if (!jobDescriptionId) {
-        return 0;
+function resolveRuleScoreLookupKeys(jobDescriptionId: string | undefined): string[] {
+    const normalized = toOptionalStringValue(jobDescriptionId);
+    if (!normalized) {
+        return [];
     }
 
-    const score = toRuleScores(resume.ingestData?.ruleScores)[jobDescriptionId];
-    if (typeof score === "number" && Number.isFinite(score)) {
-        return score;
+    const keys = new Set<string>([normalized]);
+    if (normalized.startsWith("jd-")) {
+        const legacySlug = normalized.slice(3).trim();
+        if (legacySlug) {
+            keys.add(legacySlug);
+        }
+    } else {
+        keys.add(`jd-${normalized}`);
+    }
+
+    return Array.from(keys);
+}
+
+function getIngestRuleScore(resume: Doc<"resumes">, jobDescriptionId: string | undefined): number {
+    const ruleScores = toRuleScores(resume.ingestData?.ruleScores);
+    for (const key of resolveRuleScoreLookupKeys(jobDescriptionId)) {
+        const score = ruleScores[key];
+        if (typeof score === "number" && Number.isFinite(score)) {
+            return score;
+        }
     }
     return 0;
 }
@@ -282,6 +300,7 @@ const DEFAULT_RESUME_LIMIT = 50;
 export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 2000;
 export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 4000;
 const FILTERED_PAGINATE_OVERFETCH_MULTIPLIER = 3;
+const MAX_SAFE_JD_PAGINATE_SCAN = 250;
 const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
 const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
 const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
@@ -1375,11 +1394,19 @@ export const listWithIngestDataPaginated = query({
     handler: async (ctx, args) => {
         const filters = normalizeResumeListFilters(args);
         const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
-        if (!jobDescriptionId && !args.sortBy) {
+        if (!args.sortBy) {
             const requestedPageSize = resolvePaginatedResumePageLimit(args.paginationOpts.numItems);
-            const numItems = filters
-                ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_LIST_WITH_INGEST_LIMIT)
-                : requestedPageSize;
+            const numItems = jobDescriptionId
+                ? Math.min(
+                    Math.max(
+                        requestedPageSize,
+                        filters ? Math.ceil(requestedPageSize * 1.5) : requestedPageSize
+                    ),
+                    MAX_SAFE_JD_PAGINATE_SCAN
+                )
+                : filters
+                    ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_LIST_WITH_INGEST_LIMIT)
+                    : requestedPageSize;
             const page = await ctx.db
                 .query("resumes")
                 .withIndex("by_primaryRuleScore")
@@ -1392,9 +1419,12 @@ export const listWithIngestDataPaginated = query({
             const filtered = filters
                 ? page.page.filter((resume) => matchesResumeListFilters(resume, filters))
                 : page.page;
+            const ranked = jobDescriptionId
+                ? sortByIngestRuleScore(filtered, jobDescriptionId)
+                : filtered;
 
             return {
-                page: filtered.map(projectResumeListDoc),
+                page: ranked.map(projectResumeListDoc),
                 continueCursor: page.continueCursor,
                 isDone: page.isDone,
             };

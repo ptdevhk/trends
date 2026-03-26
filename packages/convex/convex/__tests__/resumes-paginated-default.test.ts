@@ -30,7 +30,7 @@ const handler = (
   listWithIngestDataPaginated as unknown as ConvexHandler<PaginatedArgs, PaginatedResult>
 )._handler;
 
-function buildResumeDoc(id: string, primaryRuleScore: number) {
+function buildResumeDoc(id: string, primaryRuleScore: number, ruleScores?: Record<string, number>) {
   return {
     _id: id,
     externalId: `test:${id}`,
@@ -38,6 +38,13 @@ function buildResumeDoc(id: string, primaryRuleScore: number) {
     tags: [],
     crawledAt: Date.now(),
     content: { name: id },
+    ingestData: ruleScores ? {
+      ruleScores,
+      industryTags: [],
+      experienceLevel: "mid",
+      computedAt: 1,
+      skillsVersion: 1,
+    } : undefined,
     primaryRuleScore,
   };
 }
@@ -89,7 +96,7 @@ describe("listWithIngestDataPaginated", () => {
     expect(result.isDone).toBe(false);
   });
 
-  it("falls back to offset/overfetch path when jobDescriptionId is set", async () => {
+  it("uses native paginate() for JD-only requests to avoid large overfetch scans", async () => {
     let paginateCalled = false;
     let takeCalled = false;
 
@@ -120,9 +127,39 @@ describe("listWithIngestDataPaginated", () => {
       jobDescriptionId: "jd-1",
     });
 
-    expect(paginateCalled).toBe(false);
-    expect(takeCalled).toBe(true);
+    expect(paginateCalled).toBe(true);
+    expect(takeCalled).toBe(false);
     expect(result.page.length).toBeLessThanOrEqual(10);
+  });
+
+  it("matches canonical rule score keys when the request passes a slug jobDescriptionId", async () => {
+    const lowerPrimaryHigherJd = buildResumeDoc("resume-a", 70, { "jd-lathe-sales": 88 });
+    const higherPrimaryLowerJd = buildResumeDoc("resume-b", 95, { "jd-lathe-sales": 40 });
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            order: () => ({
+              paginate: async () => ({
+                page: [higherPrimaryLowerJd, lowerPrimaryHigherJd],
+                continueCursor: "",
+                isDone: true,
+              }),
+              take: async () => [],
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await handler(ctx, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      jobDescriptionId: "lathe-sales",
+    });
+
+    expect((result.page[0] as { _id: string })._id).toBe("resume-a");
+    expect((result.page[1] as { _id: string })._id).toBe("resume-b");
   });
 
   it("falls back to offset/overfetch path when sortBy is set", async () => {
