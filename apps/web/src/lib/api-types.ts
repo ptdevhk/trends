@@ -2372,7 +2372,68 @@ export interface paths {
                         userId?: string;
                         jobDescriptionId?: string;
                         sampleName?: string;
-                        filters?: components["schemas"]["ResumeFilters"];
+                        filters?: components["schemas"]["ResumeFilters"] & {
+                            minRoleYears?: number;
+                            roleFilterType?: string;
+                            minSalesYears?: number;
+                            minAge?: number;
+                            maxAge?: number;
+                            status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
+                            showBlocked?: boolean;
+                        };
+                        shareTitle?: string;
+                        searchState?: {
+                            /** @example Kuala Lumpur MY */
+                            location?: string;
+                            /**
+                             * @example [
+                             *       "Sales Engineer",
+                             *       "CNC"
+                             *     ]
+                             */
+                            keywords?: string[];
+                            /**
+                             * @example [
+                             *       "machine tools"
+                             *     ]
+                             */
+                            requiredKeywords?: string[];
+                            /** @example lathe-sales */
+                            jobDescriptionId?: string;
+                            /**
+                             * @example [
+                             *       "STAR"
+                             *     ]
+                             */
+                            selectedTags?: string[];
+                            /**
+                             * @example [
+                             *       "fanuc"
+                             *     ]
+                             */
+                            selectedCompanies?: string[];
+                            /**
+                             * @example mid
+                             * @enum {string}
+                             */
+                            selectedExperienceLevel?: "senior" | "mid" | "junior";
+                            collectionSource?: {
+                                /** @enum {string} */
+                                type: "job5156" | "seek";
+                                exactUrl?: string;
+                            };
+                            /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
+                            collectUrl?: string;
+                            filters?: components["schemas"]["ResumeFilters"] & {
+                                minRoleYears?: number;
+                                roleFilterType?: string;
+                                minSalesYears?: number;
+                                minAge?: number;
+                                maxAge?: number;
+                                status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
+                                showBlocked?: boolean;
+                            };
+                        };
                     };
                 };
             };
@@ -2397,7 +2458,69 @@ export interface paths {
                                 jobDescriptionId?: string;
                                 /** @example sample-initial */
                                 sampleName?: string;
-                                filters?: components["schemas"]["ResumeFilters"];
+                                filters?: components["schemas"]["ResumeFilters"] & {
+                                    minRoleYears?: number;
+                                    roleFilterType?: string;
+                                    minSalesYears?: number;
+                                    minAge?: number;
+                                    maxAge?: number;
+                                    status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
+                                    showBlocked?: boolean;
+                                };
+                                /** @example Kuala Lumpur · Sales Engineer */
+                                shareTitle?: string;
+                                searchState?: {
+                                    /** @example Kuala Lumpur MY */
+                                    location?: string;
+                                    /**
+                                     * @example [
+                                     *       "Sales Engineer",
+                                     *       "CNC"
+                                     *     ]
+                                     */
+                                    keywords?: string[];
+                                    /**
+                                     * @example [
+                                     *       "machine tools"
+                                     *     ]
+                                     */
+                                    requiredKeywords?: string[];
+                                    /** @example lathe-sales */
+                                    jobDescriptionId?: string;
+                                    /**
+                                     * @example [
+                                     *       "STAR"
+                                     *     ]
+                                     */
+                                    selectedTags?: string[];
+                                    /**
+                                     * @example [
+                                     *       "fanuc"
+                                     *     ]
+                                     */
+                                    selectedCompanies?: string[];
+                                    /**
+                                     * @example mid
+                                     * @enum {string}
+                                     */
+                                    selectedExperienceLevel?: "senior" | "mid" | "junior";
+                                    collectionSource?: {
+                                        /** @enum {string} */
+                                        type: "job5156" | "seek";
+                                        exactUrl?: string;
+                                    };
+                                    /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
+                                    collectUrl?: string;
+                                    filters?: components["schemas"]["ResumeFilters"] & {
+                                        minRoleYears?: number;
+                                        roleFilterType?: string;
+                                        minSalesYears?: number;
+                                        minAge?: number;
+                                        maxAge?: number;
+                                        status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
+                                        showBlocked?: boolean;
+                                    };
+                                };
                                 /**
                                  * @example active
                                  * @enum {string}
@@ -2460,7 +2583,69 @@ export interface paths {
                                 jobDescriptionId?: string;
                                 /** @example sample-initial */
                                 sampleName?: string;
-                                filters?: components["schemas"]["ResumeFilters"];
+                                filters?: components["schemas"]["ResumeFilters"] & {
+                                    minRoleYears?: number;
+                                    roleFilterType?: string;
+                                    minSalesYears?: number;
+                                    minAge?: number;
+                                    maxAge?: number;
+                                    status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
+                                    showBlocked?: boolean;
+                                };
+                                /** @example Kuala Lumpur · Sales Engineer */
+                                shareTitle?: string;
+                                searchState?: {
+                                    /** @example Kuala Lumpur MY */
+                                    location?: string;
+                                    /**
+                                     * @example [
+                                     *       "Sales Engineer",
+                                     *       "CNC"
+                                     *     ]
+                                     */
+                                    keywords?: string[];
+                                    /**
+                                     * @example [
+                                     *       "machine tools"
+                                     *     ]
+                                     */
+                                    requiredKeywords?: string[];
+                                    /** @example lathe-sales */
+                                    jobDescriptionId?: string;
+                                    /**
+                                     * @example [
+                                     *       "STAR"
+                                     *     ]
+                                     */
+                                    selectedTags?: string[];
+                                    /**
+                                     * @example [
+                                     *       "fanuc"
+                                     *     ]
+                                     */
+                                    selectedCompanies?: string[];
+                                    /**
+                                     * @example mid
+                                     * @enum {string}
+                                     */
+                                    selectedExperienceLevel?: "senior" | "mid" | "junior";
+                                    collectionSource?: {
+                                        /** @enum {string} */
+                                        type: "job5156" | "seek";
+                                        exactUrl?: string;
+                                    };
+                                    /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
+                                    collectUrl?: string;
+                                    filters?: components["schemas"]["ResumeFilters"] & {
+                                        minRoleYears?: number;
+                                        roleFilterType?: string;
+                                        minSalesYears?: number;
+                                        minAge?: number;
+                                        maxAge?: number;
+                                        status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
+                                        showBlocked?: boolean;
+                                    };
+                                };
                                 /**
                                  * @example active
                                  * @enum {string}
@@ -2506,7 +2691,68 @@ export interface paths {
                         userId?: string;
                         jobDescriptionId?: string;
                         sampleName?: string;
-                        filters?: components["schemas"]["ResumeFilters"];
+                        filters?: components["schemas"]["ResumeFilters"] & {
+                            minRoleYears?: number;
+                            roleFilterType?: string;
+                            minSalesYears?: number;
+                            minAge?: number;
+                            maxAge?: number;
+                            status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
+                            showBlocked?: boolean;
+                        };
+                        shareTitle?: string | null;
+                        searchState?: {
+                            /** @example Kuala Lumpur MY */
+                            location?: string;
+                            /**
+                             * @example [
+                             *       "Sales Engineer",
+                             *       "CNC"
+                             *     ]
+                             */
+                            keywords?: string[];
+                            /**
+                             * @example [
+                             *       "machine tools"
+                             *     ]
+                             */
+                            requiredKeywords?: string[];
+                            /** @example lathe-sales */
+                            jobDescriptionId?: string;
+                            /**
+                             * @example [
+                             *       "STAR"
+                             *     ]
+                             */
+                            selectedTags?: string[];
+                            /**
+                             * @example [
+                             *       "fanuc"
+                             *     ]
+                             */
+                            selectedCompanies?: string[];
+                            /**
+                             * @example mid
+                             * @enum {string}
+                             */
+                            selectedExperienceLevel?: "senior" | "mid" | "junior";
+                            collectionSource?: {
+                                /** @enum {string} */
+                                type: "job5156" | "seek";
+                                exactUrl?: string;
+                            };
+                            /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
+                            collectUrl?: string;
+                            filters?: components["schemas"]["ResumeFilters"] & {
+                                minRoleYears?: number;
+                                roleFilterType?: string;
+                                minSalesYears?: number;
+                                minAge?: number;
+                                maxAge?: number;
+                                status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
+                                showBlocked?: boolean;
+                            };
+                        } | null;
                         /** @enum {string} */
                         status?: "active" | "completed" | "archived";
                         expiresAt?: string;
@@ -2534,7 +2780,69 @@ export interface paths {
                                 jobDescriptionId?: string;
                                 /** @example sample-initial */
                                 sampleName?: string;
-                                filters?: components["schemas"]["ResumeFilters"];
+                                filters?: components["schemas"]["ResumeFilters"] & {
+                                    minRoleYears?: number;
+                                    roleFilterType?: string;
+                                    minSalesYears?: number;
+                                    minAge?: number;
+                                    maxAge?: number;
+                                    status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
+                                    showBlocked?: boolean;
+                                };
+                                /** @example Kuala Lumpur · Sales Engineer */
+                                shareTitle?: string;
+                                searchState?: {
+                                    /** @example Kuala Lumpur MY */
+                                    location?: string;
+                                    /**
+                                     * @example [
+                                     *       "Sales Engineer",
+                                     *       "CNC"
+                                     *     ]
+                                     */
+                                    keywords?: string[];
+                                    /**
+                                     * @example [
+                                     *       "machine tools"
+                                     *     ]
+                                     */
+                                    requiredKeywords?: string[];
+                                    /** @example lathe-sales */
+                                    jobDescriptionId?: string;
+                                    /**
+                                     * @example [
+                                     *       "STAR"
+                                     *     ]
+                                     */
+                                    selectedTags?: string[];
+                                    /**
+                                     * @example [
+                                     *       "fanuc"
+                                     *     ]
+                                     */
+                                    selectedCompanies?: string[];
+                                    /**
+                                     * @example mid
+                                     * @enum {string}
+                                     */
+                                    selectedExperienceLevel?: "senior" | "mid" | "junior";
+                                    collectionSource?: {
+                                        /** @enum {string} */
+                                        type: "job5156" | "seek";
+                                        exactUrl?: string;
+                                    };
+                                    /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
+                                    collectUrl?: string;
+                                    filters?: components["schemas"]["ResumeFilters"] & {
+                                        minRoleYears?: number;
+                                        roleFilterType?: string;
+                                        minSalesYears?: number;
+                                        minAge?: number;
+                                        maxAge?: number;
+                                        status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
+                                        showBlocked?: boolean;
+                                    };
+                                };
                                 /**
                                  * @example active
                                  * @enum {string}

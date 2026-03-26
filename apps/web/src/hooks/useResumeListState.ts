@@ -40,7 +40,7 @@ import type { components } from '@/lib/api-types'
 import { getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from '@/lib/analysis-utils'
 import { isResumeHomeResetState } from '@/lib/resume-home-navigation'
 import { withWorkspaceHeaders } from '@/lib/workspace-ref'
-import type { SearchHistoryItem } from '@/hooks/useSession'
+import type { ResumeSearchShareState, SearchHistoryItem } from '@/hooks/useSession'
 import {
   aiFeedbackToActionType,
   type AiFeedbackSentiment,
@@ -74,6 +74,14 @@ type JobDescriptionApiResponse = {
 }
 
 type ResumeExportRequestBody = components['schemas']['ResumeExportCanonicalRequest']
+type SearchSessionApiResponse = {
+  success: boolean
+  session?: {
+    id?: string
+    shareTitle?: string
+    searchState?: ResumeSearchShareState
+  }
+}
 
 type ScoredConvexResume = ConvexResumeItem & {
   _ruleScore: number
@@ -196,6 +204,7 @@ function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFil
 
 function normalizeUrlSearchStateValue(state: Partial<UrlSearchState> | undefined): UrlSearchState {
   return {
+    shareSessionId: normalizeOptionalString(state?.shareSessionId),
     location: normalizeOptionalString(state?.location),
     keywords: Array.isArray(state?.keywords) ? state.keywords : [],
     requiredKeywords: Array.isArray(state?.requiredKeywords) ? state.requiredKeywords : [],
@@ -207,11 +216,12 @@ function normalizeUrlSearchStateValue(state: Partial<UrlSearchState> | undefined
   }
 }
 
-function buildSearchHistoryTitle(location: string, keywords: string[]): string {
+function buildSearchHistoryTitle(location: string, keywords: string[], jobDescriptionId?: string): string {
   const normalizedLocation = location.trim()
   const normalizedKeywords = formatKeywordQuery(keywords).trim()
-
-  const parts = [normalizedLocation, normalizedKeywords].filter((value) => value.length > 0)
+  const normalizedJobDescriptionId = normalizeOptionalString(jobDescriptionId)
+  const primarySubject = normalizedKeywords || normalizedJobDescriptionId || ''
+  const parts = [normalizedLocation, primarySubject].filter((value) => value.length > 0)
   return parts.join(' · ') || 'Untitled search'
 }
 
@@ -567,6 +577,7 @@ export function useResumeListState(loadSearchHistory = false) {
     saveSearchHistory,
     markSearchHistoryOpened,
     ensureApiSession,
+    rememberApiSessionId,
   } = useSession(loadSearchHistory)
 
   const {
@@ -602,6 +613,8 @@ export function useResumeListState(loadSearchHistory = false) {
     parsedState: ReturnType<typeof parseUrlSearchState>
   } | null>(null)
   const [hasCompletedUrlHydration, setHasCompletedUrlHydration] = useState(false)
+  const [hasCompletedShareSessionHydration, setHasCompletedShareSessionHydration] = useState(false)
+  const hydratedShareSessionIdRef = useRef<string | null>(null)
 
   if (!initialWindowSearchStateRef.current) {
     const params = new URLSearchParams(window.location.search)
@@ -630,6 +643,10 @@ export function useResumeListState(loadSearchHistory = false) {
   const activeParsedUrlState = hasUrlParams
     ? normalizedParsedUrlState
     : initialWindowSearchState.parsedState
+  const activeShareSessionId = normalizeOptionalString(parsedUrlState.shareSessionId)
+    ?? (!hasInitializedUrlHydrationRef.current
+      ? normalizeOptionalString(initialWindowSearchState.parsedState.shareSessionId)
+      : undefined)
   const activeUrlStateSignature = useMemo(
     () => JSON.stringify({
       hasKeywordParam: activeHasKeywordParam,
@@ -646,6 +663,7 @@ export function useResumeListState(loadSearchHistory = false) {
     }),
     [activeHasJobDescriptionParam, activeHasKeywordParam, activeHasUrlParams, activeParsedUrlState]
   )
+  const hasCompletedSearchHydration = hasCompletedUrlHydration && hasCompletedShareSessionHydration
 
   const {
     resumes,
@@ -1065,7 +1083,79 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [hasCompletedUrlHydration, hasHydratedUrlState])
 
   useEffect(() => {
-    if (!hasCompletedUrlHydration) {
+    if (activeHasUrlParams) {
+      hydratedShareSessionIdRef.current = null
+      setHasCompletedShareSessionHydration(true)
+      return
+    }
+
+    if (!activeShareSessionId) {
+      hydratedShareSessionIdRef.current = null
+      setHasCompletedShareSessionHydration(true)
+      return
+    }
+
+    if (hydratedShareSessionIdRef.current === activeShareSessionId) {
+      setHasCompletedShareSessionHydration(true)
+      return
+    }
+
+    let active = true
+    hydratedShareSessionIdRef.current = activeShareSessionId
+    setHasCompletedShareSessionHydration(false)
+
+    void rawApiClient
+      .GET<SearchSessionApiResponse>(`/api/sessions/${encodeURIComponent(activeShareSessionId)}`)
+      .then(({ data, error }) => {
+        if (!active) {
+          return
+        }
+
+        const sharedSearchState = data?.session?.searchState
+        if (error || !data?.success || !sharedSearchState) {
+          console.error('Failed to hydrate shared search session', error ?? data)
+          setHasCompletedShareSessionHydration(true)
+          return
+        }
+
+        skipNextUrlSyncRef.current = true
+        rememberApiSessionId(activeShareSessionId)
+        applyExternalState({
+          location: sharedSearchState.location,
+          keywords: sharedSearchState.keywords,
+          jobDescriptionId: sharedSearchState.jobDescriptionId ?? '',
+          collectionSource: sharedSearchState.collectionSource ?? null,
+          collectUrl: sharedSearchState.collectUrl ?? '',
+          filters: sharedSearchState.filters ?? {},
+        })
+        setAppliedSearchHistoryId(undefined)
+        setSelectedTags(sharedSearchState.selectedTags ?? [])
+        setSelectedCompanies(sharedSearchState.selectedCompanies ?? [])
+        setRequiredKeywords(sharedSearchState.requiredKeywords ?? [])
+        setSelectedExperienceLevel(sharedSearchState.selectedExperienceLevel)
+        setHasCompletedShareSessionHydration(true)
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return
+        }
+
+        console.error('Failed to hydrate shared search session', error)
+        setHasCompletedShareSessionHydration(true)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [
+    activeHasUrlParams,
+    activeShareSessionId,
+    applyExternalState,
+    rememberApiSessionId,
+  ])
+
+  useEffect(() => {
+    if (!hasCompletedSearchHydration) {
       return
     }
 
@@ -1104,7 +1194,7 @@ export function useResumeListState(loadSearchHistory = false) {
     return () => window.clearTimeout(timer)
   }, [
     filters,
-    hasCompletedUrlHydration,
+    hasCompletedSearchHydration,
     jobDescriptionId,
     requiredKeywords,
     selectedCompanies,
@@ -1698,6 +1788,7 @@ export function useResumeListState(loadSearchHistory = false) {
     })
     setSelectedTags([])
     setSelectedCompanies([])
+    setRequiredKeywords([])
     setSelectedExperienceLevel(undefined)
   }, [applyExternalState])
 
@@ -2077,7 +2168,7 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [setSessionCollectionSource])
 
   const handleSaveCurrentSearch = useCallback(async () => {
-    const title = buildSearchHistoryTitle(sessionLocation, sessionKeywords)
+    const title = buildSearchHistoryTitle(sessionLocation, sessionKeywords, jobDescriptionId)
     const saved = await saveSearchHistory({
       title,
       location: sessionLocation,
@@ -2112,10 +2203,49 @@ export function useResumeListState(loadSearchHistory = false) {
     setAppliedSearchHistoryId(entry.id)
     setSelectedTags(entry.selectedTags)
     setSelectedCompanies(entry.selectedCompanies)
+    setRequiredKeywords([])
     setSelectedExperienceLevel(toExperienceLevel(entry.selectedExperienceLevel))
     await markSearchHistoryOpened(entry.id)
     toast.success(t('quickStart.history.applySuccess', 'Applied saved search'))
   }, [applyExternalState, markSearchHistoryOpened, t])
+
+  const shareTitle = useMemo(
+    () => buildSearchHistoryTitle(sessionLocation, sessionKeywords, jobDescriptionId),
+    [jobDescriptionId, sessionKeywords, sessionLocation]
+  )
+  const shareState = useMemo<ResumeSearchShareState>(() => {
+    const normalizedLocation = normalizeOptionalString(sessionLocation)
+    const locationFilters = normalizedLocation
+      ? normalizedLocation.split(/[,，、]+/).map((item) => item.trim()).filter(Boolean)
+      : (Array.isArray(filters.locations) ? filters.locations : [])
+
+    return {
+      location: normalizedLocation,
+      keywords: sessionKeywords,
+      requiredKeywords,
+      jobDescriptionId: normalizeOptionalString(jobDescriptionId),
+      collectionSource: sessionCollectionSource,
+      collectUrl: normalizeOptionalString(sessionCollectUrl),
+      filters: {
+        ...filters,
+        locations: locationFilters,
+      },
+      selectedTags,
+      selectedCompanies,
+      selectedExperienceLevel,
+    }
+  }, [
+    filters,
+    jobDescriptionId,
+    requiredKeywords,
+    selectedCompanies,
+    selectedExperienceLevel,
+    selectedTags,
+    sessionCollectUrl,
+    sessionCollectionSource,
+    sessionKeywords,
+    sessionLocation,
+  ])
 
   return {
     sessionLocation,
@@ -2137,6 +2267,8 @@ export function useResumeListState(loadSearchHistory = false) {
     hasActiveTask,
     disableAnalyzeButton,
     selectedIds,
+    shareTitle,
+    shareState,
     selectedTags,
     selectedCompanies,
     requiredKeywords,
@@ -2181,5 +2313,6 @@ export function useResumeListState(loadSearchHistory = false) {
     handleToggleBlock,
     handleCandidateStatusChange,
     handleResetAll,
+    ensureApiSession,
   }
 }

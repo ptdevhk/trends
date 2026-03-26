@@ -31,6 +31,7 @@ const KNOWN_PARAM_KEYS = [
 export type ExperienceLevelFilter = 'senior' | 'mid' | 'junior'
 
 export type UrlSearchState = {
+  shareSessionId?: string
   location?: string
   keywords: string[]
   requiredKeywords: string[]
@@ -184,6 +185,8 @@ export function hasKnownUrlSearchParams(searchParams: URLSearchParams): boolean 
 }
 
 export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchState {
+  const shareSessionIdRaw = searchParams.get('sid')
+  const shareSessionId = shareSessionIdRaw?.trim() || undefined
   const locationRaw = getFirstParam(searchParams, ['loc', 'location'])
   const normalizedLocation = locationRaw?.trim() || ''
   const locationFromLocationParam = normalizeUniqueValues(parseLocationParam(normalizedLocation))
@@ -259,6 +262,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
   }
 
   return {
+    shareSessionId,
     location,
     keywords,
     requiredKeywords,
@@ -293,6 +297,7 @@ export function useUrlSearchState() {
         KNOWN_PARAM_KEYS.forEach((key) => {
           nextParams.delete(key)
         })
+        nextParams.delete('sid')
 
         const normalizedKeywords = normalizeUniqueValues(state.keywords)
         const normalizedTags = normalizeUniqueValues(state.selectedTags)

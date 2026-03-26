@@ -95,6 +95,8 @@ function initSchema(db: Database.Database): void {
       job_description_id TEXT,
       sample_name TEXT,
       filters TEXT,
+      share_title TEXT,
+      search_state TEXT,
       status TEXT DEFAULT 'active',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -224,6 +226,8 @@ function initSchema(db: Database.Database): void {
 
   if (existingTables.has("search_sessions")) {
     ensureColumn(db, "search_sessions", "workspace_slug", "TEXT DEFAULT 'dev'");
+    ensureColumn(db, "search_sessions", "share_title", "TEXT");
+    ensureColumn(db, "search_sessions", "search_state", "TEXT");
   }
 }
 

@@ -279,9 +279,67 @@ describe('useSession', () => {
       body: {
         jobDescriptionId: 'lathe-sales',
         filters: { minExperience: 3 },
+        shareTitle: undefined,
+        searchState: undefined,
       },
     })
     expect(localStorage.getItem(`trends.resume.apiSessionId.dev.${sessionKey}`)).toBe('api-session-1')
+  })
+
+  it('persists share metadata when ensuring an API session for a durable share link', async () => {
+    const { result } = renderHook(() => useSession())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    await act(async () => {
+      await result.current.ensureApiSession({
+        shareTitle: 'Kuala Lumpur · Sales Engineer',
+        searchState: {
+          location: 'Kuala Lumpur MY',
+          keywords: ['Sales Engineer', 'CNC'],
+          requiredKeywords: ['machine tools'],
+          jobDescriptionId: 'lathe-sales',
+          selectedTags: ['STAR'],
+          selectedCompanies: ['Acme'],
+          selectedExperienceLevel: 'mid',
+          collectionSource: {
+            type: 'seek',
+            exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+          },
+          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+          filters: {
+            minAge: 28,
+          },
+        },
+      })
+    })
+
+    expect(rawApiPostMock).toHaveBeenCalledWith('/api/sessions', {
+      body: {
+        jobDescriptionId: undefined,
+        filters: undefined,
+        shareTitle: 'Kuala Lumpur · Sales Engineer',
+        searchState: {
+          location: 'Kuala Lumpur MY',
+          keywords: ['Sales Engineer', 'CNC'],
+          requiredKeywords: ['machine tools'],
+          jobDescriptionId: 'lathe-sales',
+          selectedTags: ['STAR'],
+          selectedCompanies: ['Acme'],
+          selectedExperienceLevel: 'mid',
+          collectionSource: {
+            type: 'seek',
+            exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+          },
+          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+          filters: {
+            minAge: 28,
+          },
+        },
+      },
+    })
   })
 
   it('updates an existing persisted API session id before reusing it', async () => {
@@ -314,9 +372,37 @@ describe('useSession', () => {
       body: {
         jobDescriptionId: undefined,
         filters: { minExperience: 5 },
+        shareTitle: undefined,
+        searchState: undefined,
       },
     })
     expect(rawApiPostMock).not.toHaveBeenCalled()
+  })
+
+  it('can adopt a shared API session id and reuse it for later updates', async () => {
+    const { result } = renderHook(() => useSession())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    act(() => {
+      result.current.rememberApiSessionId('shared-session-id')
+      result.current.setFilters({ minExperience: 6 })
+    })
+
+    await act(async () => {
+      await result.current.ensureApiSession()
+    })
+
+    expect(rawApiPatchMock).toHaveBeenCalledWith('/api/sessions/shared-session-id', {
+      body: {
+        jobDescriptionId: undefined,
+        filters: { minExperience: 6 },
+        shareTitle: undefined,
+        searchState: undefined,
+      },
+    })
   })
 
   it('clears location when external state explicitly provides an empty location', async () => {

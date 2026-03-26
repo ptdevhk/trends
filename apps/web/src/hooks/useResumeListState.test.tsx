@@ -44,6 +44,7 @@ const mockState = vi.hoisted(() => ({
   setCollectionSource: vi.fn(),
   setCollectUrl: vi.fn(),
   ensureApiSession: vi.fn(async () => 'api-session-1'),
+  rememberApiSessionId: vi.fn(),
   trackReviewedResume: vi.fn(),
   applyExternalState: vi.fn(),
   saveSearchHistory: vi.fn(async () => 'history-1'),
@@ -58,6 +59,7 @@ const mockState = vi.hoisted(() => ({
   saveAction: vi.fn(async () => {}),
   syncToUrl: vi.fn(),
   urlParsedState: {
+    shareSessionId: undefined as string | undefined,
     location: undefined as string | undefined,
     keywords: [] as string[],
     requiredKeywords: [] as string[],
@@ -70,6 +72,7 @@ const mockState = vi.hoisted(() => ({
   urlHasParams: false,
   urlHasKeywordParam: false,
   urlHasJobDescriptionParam: false,
+  sessionGetResponse: { data: { success: true } } as { data: Record<string, unknown> },
   locationPathname: '/dev/resumes',
   locationSearch: '',
   locationHash: '',
@@ -126,6 +129,7 @@ vi.mock('@/hooks/useSession', () => ({
     saveSearchHistory: mockState.saveSearchHistory,
     markSearchHistoryOpened: mockState.markSearchHistoryOpened,
     ensureApiSession: mockState.ensureApiSession,
+    rememberApiSessionId: mockState.rememberApiSessionId,
   }),
 }))
 
@@ -206,7 +210,12 @@ vi.mock('@/hooks/useCandidateStatus', () => ({
 vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: {
     POST: vi.fn(async () => ({ data: mockState.matchApiResponse })),
-    GET: vi.fn(async () => ({ data: { success: true } })),
+    GET: vi.fn(async (path: string) => {
+      if (path.startsWith('/api/sessions/')) {
+        return mockState.sessionGetResponse
+      }
+      return { data: { success: true } }
+    }),
   },
 }))
 
@@ -607,12 +616,14 @@ describe('useResumeListState role filter regression', () => {
     mockState.sessionCollectionSource = undefined
     mockState.sessionCollectUrl = ''
     mockState.ensureApiSession.mockResolvedValue('api-session-1')
+    mockState.sessionGetResponse = { data: { success: true } }
     mockState.blocksByIdentity = {}
     mockState.statusByIdentity = {}
     mockState.searchHistory = []
     mockState.matchApiResponse = { success: true, results: [] }
     document.body.innerHTML = ''
     mockState.urlParsedState = {
+      shareSessionId: undefined,
       location: undefined,
       keywords: [],
       jobDescriptionId: undefined,
@@ -1260,6 +1271,89 @@ describe('useResumeListState role filter regression', () => {
     expect(result.current.appliedSearchHistoryId).toBe('history-1')
   })
 
+  it('hydrates persisted share-session state from sid links when explicit params are absent', async () => {
+    window.history.replaceState({}, '', '/dev/resumes?sid=shared-session-1')
+    mockState.locationSearch = '?sid=shared-session-1'
+    mockState.urlParsedState = {
+      ...mockState.urlParsedState,
+      shareSessionId: 'shared-session-1',
+    }
+    mockState.sessionGetResponse = {
+      data: {
+        success: true,
+        session: {
+          id: 'shared-session-1',
+          searchState: {
+            location: 'Kuala Lumpur MY',
+            keywords: ['Sales Engineer'],
+            requiredKeywords: ['CNC'],
+            jobDescriptionId: 'lathe-sales',
+            collectionSource: {
+              type: 'seek',
+              exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+            },
+            collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+            selectedTags: ['STAR'],
+            selectedCompanies: ['Acme'],
+            selectedExperienceLevel: 'mid',
+            filters: {
+              minAge: 28,
+            },
+          },
+        },
+      },
+    }
+
+    renderHook(() => useResumeListState())
+
+    await waitFor(() => {
+      expect(rawApiClient.GET).toHaveBeenCalledWith('/api/sessions/shared-session-1')
+    })
+
+    expect(mockState.rememberApiSessionId).toHaveBeenCalledWith('shared-session-1')
+    expect(mockState.applyExternalState).toHaveBeenCalledWith({
+      location: 'Kuala Lumpur MY',
+      keywords: ['Sales Engineer'],
+      jobDescriptionId: 'lathe-sales',
+      collectionSource: {
+        type: 'seek',
+        exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+      },
+      collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+      filters: {
+        minAge: 28,
+      },
+    })
+  })
+
+  it('prefers explicit URL params over sid hydration when both are present', async () => {
+    window.history.replaceState({}, '', '/dev/resumes?sid=shared-session-1&location=Dongguan&keyword=CNC')
+    mockState.locationSearch = '?sid=shared-session-1&location=Dongguan&keyword=CNC'
+    mockState.urlHasParams = true
+    mockState.urlHasKeywordParam = true
+    mockState.urlParsedState = {
+      ...mockState.urlParsedState,
+      shareSessionId: 'shared-session-1',
+      location: 'Dongguan',
+      keywords: ['CNC'],
+    }
+
+    renderHook(() => useResumeListState())
+
+    await waitFor(() => {
+      expect(mockState.applyExternalState).toHaveBeenCalledWith({
+        location: 'Dongguan',
+        keywords: ['CNC'],
+        jobDescriptionId: undefined,
+        collectionSource: null,
+        collectUrl: '',
+        filters: {},
+      })
+    })
+
+    expect(rawApiClient.GET).not.toHaveBeenCalled()
+  })
+
   it('passes current convex resume ids when saving search history', async () => {
     mockState.saveSearchHistory.mockClear()
     const { result } = renderHook(() => useResumeListState())
@@ -1447,6 +1541,7 @@ describe('useResumeListState role filter regression', () => {
   it('allows manual profile apply to bypass the URL hydration guard', () => {
     mockState.sessionLocation = ''
     mockState.urlParsedState = {
+      shareSessionId: undefined,
       location: '广东',
       keywords: ['CNC'],
       jobDescriptionId: undefined,
