@@ -865,15 +865,15 @@ export function QuickStartPanel({
   }, [quickMinRoleYears, quickMaxAge, activeRoleType, onApplyQuickFilters, quickFilters?.minRoleYears, quickFilters?.maxAge, quickFilters?.roleFilterType])
 
   return (
-    <div className="rounded-lg border bg-background px-4 py-4 shadow-sm">
+    <div className="rounded-lg border bg-background px-3 py-3 shadow-sm sm:px-4 sm:py-4">
       <div className="flex flex-col gap-4">
-        <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-muted/40 p-4">
+        <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-muted/40 p-3 sm:p-4">
           <div className="flex flex-col gap-4">
             <div className="space-y-1">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                 {t('quickStart.shellEyebrow', 'Search workspace')}
               </p>
-              <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                 <div className="space-y-1">
                   <h2 className="text-lg font-semibold text-foreground">
                     {t('quickStart.shellTitle', 'Start from a keyword, workflow, or JD')}
@@ -890,7 +890,7 @@ export function QuickStartPanel({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-9 gap-1 self-start px-3 text-sm font-medium text-foreground/80 hover:bg-background hover:text-foreground lg:self-auto"
+                    className="h-10 gap-1.5 self-start rounded-lg px-3 text-sm font-medium text-foreground/80 hover:bg-background hover:text-foreground lg:self-auto"
                     onClick={onResetAll}
                   >
                     <RotateCcw className="h-4 w-4" />
@@ -900,7 +900,10 @@ export function QuickStartPanel({
               </div>
             </div>
 
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(180px,0.7fr)_minmax(220px,0.85fr)]">
+            <div
+              data-testid="quickstart-search-grid"
+              className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(220px,0.85fr)] xl:grid-cols-[minmax(0,1.45fr)_minmax(180px,0.7fr)_minmax(220px,0.85fr)]"
+            >
               <div className={shellFieldCardClassName}>
                 <label className={shellFieldLabelClassName}>
                   {t('quickStart.customKeywords', '关键词')}
@@ -944,7 +947,10 @@ export function QuickStartPanel({
                 </div>
               </div>
 
-              <div className={shellFieldCardClassName}>
+              <div
+                data-testid="quickstart-jd-card"
+                className={`${shellFieldCardClassName} lg:col-span-2 xl:col-span-1`}
+              >
                 <label className={shellFieldLabelClassName}>
                   {t('quickStart.manualJd', '手动职位(可选)')}
                 </label>
@@ -979,7 +985,7 @@ export function QuickStartPanel({
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 rounded-full border-border/70 bg-background px-3 text-xs"
+              className="h-10 rounded-full border-border/70 bg-background px-3.5 text-xs"
               onClick={() => handleApplyWorkflow(workflow)}
             >
               {workflow.label}
@@ -996,7 +1002,7 @@ export function QuickStartPanel({
         />
 
         {extraActions ? (
-          <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-3">
+          <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-3 sm:px-4">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {t('quickStart.shortcutsTitle', 'Shortcuts')}
@@ -1094,7 +1100,7 @@ export function QuickStartPanel({
               ) : null}
             </div>
             <div className="mt-3 flex items-center gap-3">
-              <Button size="sm" onClick={handleUseMatchedConfig}>
+              <Button size="sm" className="h-10 px-4" onClick={handleUseMatchedConfig}>
                 {t('quickStart.useConfig', 'Use this config')}
               </Button>
               <Button

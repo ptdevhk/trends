@@ -113,7 +113,7 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession }: ShareLi
     <Button
       size="sm"
       variant="ghost"
-      className="h-8 gap-1.5 px-2"
+      className="h-10 gap-1.5 px-3"
       onClick={() => {
         void handleCopy()
       }}

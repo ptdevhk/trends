@@ -29,14 +29,19 @@ describe('FilterPanel', () => {
     )
 
     const toggle = screen.getByRole('button', { name: /resumes\.filters\.title/i })
+    const clearButton = screen.getByRole('button', { name: 'resumes.filters.clear' })
+    const applyButton = screen.getByRole('button', { name: 'resumes.filters.apply' })
 
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle.className).toContain('min-h-10')
     expect(screen.getByText('≥1年')).toBeInTheDocument()
     expect(screen.getByText('25-35岁')).toBeInTheDocument()
     expect(screen.getByText('广东, 江苏')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '分享' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'resumes.filters.clear' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'resumes.filters.apply' })).toBeInTheDocument()
+    expect(clearButton).toBeInTheDocument()
+    expect(clearButton).toHaveClass('h-10')
+    expect(applyButton).toBeInTheDocument()
+    expect(applyButton).toHaveClass('h-10')
 
     await user.click(toggle)
 
