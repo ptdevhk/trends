@@ -100,6 +100,7 @@ interface QuickStartPanelProps {
   activeSessionTitle?: string
   activeSessionLabel?: string
   activeSessionDescription?: string
+  activeSessionNote?: string
   activeSessionId?: string
   extraActions?: React.ReactNode
   onResetAll?: () => void
@@ -318,6 +319,7 @@ export function QuickStartPanel({
   activeSessionTitle,
   activeSessionLabel,
   activeSessionDescription,
+  activeSessionNote,
   activeSessionId,
   extraActions,
   onResetAll,
@@ -1130,6 +1132,14 @@ export function QuickStartPanel({
                   <p className="text-sm text-muted-foreground">
                     {activeSessionDescription}
                   </p>
+                ) : null}
+                {activeSessionNote ? (
+                  <div className="rounded-lg border border-border/70 bg-muted/35 px-2.5 py-2 text-xs text-muted-foreground">
+                    <span className="mr-1 font-medium uppercase tracking-[0.14em] text-foreground/70">
+                      {t('quickStart.activeSessionNote', 'Context note')}
+                    </span>
+                    <span>{activeSessionNote}</span>
+                  </div>
                 ) : null}
               </div>
             </div>

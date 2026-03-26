@@ -2360,6 +2360,7 @@ export function useResumeListState(loadSearchHistory = false) {
 
     return undefined
   }, [copiedShareSessionId, linkedShareSessionId, apiSessionId, appliedSearchHistory, hasShareableSessionContext])
+  const activeSessionNote = activeSessionTitle ? continuityReferenceNote : undefined
   const handleShareSessionCopied = useCallback((sessionId: string | undefined) => {
     const normalizedSessionId = normalizeOptionalString(sessionId)
     if (!normalizedSessionId) {
@@ -2428,6 +2429,7 @@ export function useResumeListState(loadSearchHistory = false) {
     activeSessionTitle,
     activeSessionLabel,
     activeSessionDescription,
+    activeSessionNote,
     activeSessionId,
     shareTitle,
     shareState,
