@@ -63,6 +63,7 @@ describe('ShareLinkButton', () => {
   it('creates and copies a short sid link for bulky or session-backed state', async () => {
     window.history.replaceState({}, '', '/dev/resumes?location=Kuala+Lumpur+MY&keyword=%22Sales+Engineer%22')
     const ensureApiSession = vi.fn(async () => 'session-share-1')
+    const onCopyState = vi.fn()
 
     render(
       <ShareLinkButton
@@ -85,6 +86,7 @@ describe('ShareLinkButton', () => {
           jobDescriptionId: 'lathe-sales',
         }}
         ensureApiSession={ensureApiSession}
+        onCopyState={onCopyState}
       />
     )
 
@@ -104,6 +106,48 @@ describe('ShareLinkButton', () => {
     expect(clipboardWriteTextMock).toHaveBeenCalledWith(
       `${window.location.origin}/dev/resumes?sid=session-share-1`
     )
+    expect(onCopyState).toHaveBeenCalledWith({
+      shareUrl: `${window.location.origin}/dev/resumes?sid=session-share-1`,
+      sessionId: 'session-share-1',
+      usedSessionLink: true,
+    })
     expect(toastSuccessMock).toHaveBeenCalledWith('已复制会话链接')
+  })
+
+  it('reports the existing sid when copying a shared-link URL directly', async () => {
+    window.history.replaceState({}, '', '/dev/resumes?sid=session-share-2')
+    const ensureApiSession = vi.fn(async () => 'session-share-3')
+    const onCopyState = vi.fn()
+
+    render(
+      <ShareLinkButton
+        shareTitle="Shared search"
+        state={{
+          location: undefined,
+          keywords: [],
+          requiredKeywords: [],
+          filters: {},
+          selectedTags: [],
+          selectedCompanies: [],
+        }}
+        ensureApiSession={ensureApiSession}
+        onCopyState={onCopyState}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '分享' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteTextMock).toHaveBeenCalledWith(
+        `${window.location.origin}/dev/resumes?sid=session-share-2`
+      )
+    })
+
+    expect(ensureApiSession).not.toHaveBeenCalled()
+    expect(onCopyState).toHaveBeenCalledWith({
+      shareUrl: `${window.location.origin}/dev/resumes?sid=session-share-2`,
+      sessionId: 'session-share-2',
+      usedSessionLink: true,
+    })
   })
 })

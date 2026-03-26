@@ -1390,6 +1390,23 @@ describe('useResumeListState role filter regression', () => {
     expect(result.current.activeSessionDescription).toContain('Reopened from saved history')
   })
 
+  it('promotes the active session to a shared-link summary after a durable link is copied', () => {
+    mockState.apiSessionId = 'api-session-1'
+    mockState.sessionLocation = 'Dongguan'
+    mockState.sessionKeywords = ['CNC']
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleShareSessionCopied('session-share-1')
+    })
+
+    expect(result.current.activeSessionTitle).toBe('Dongguan · CNC')
+    expect(result.current.activeSessionLabel).toBe('Shared link')
+    expect(result.current.activeSessionId).toBe('session-share-1')
+    expect(result.current.activeSessionDescription).toContain('Short durable link copied')
+  })
+
   it('passes current convex resume ids when saving search history', async () => {
     mockState.saveSearchHistory.mockClear()
     const { result } = renderHook(() => useResumeListState())

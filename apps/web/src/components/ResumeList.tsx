@@ -105,6 +105,7 @@ export function ResumeList() {
     handleCandidateStatusChange,
     handleResetAll,
     ensureApiSession,
+    handleShareSessionCopied,
     handleAiFeedback,
     getAiFeedback,
   } = useResumeListState(historyRequested)
@@ -378,6 +379,11 @@ export function ResumeList() {
               shareTitle={shareTitle}
               state={shareState}
               ensureApiSession={ensureApiSession}
+              onCopyState={({ sessionId, usedSessionLink }) => {
+                if (usedSessionLink) {
+                  handleShareSessionCopied(sessionId)
+                }
+              }}
             />
             <Button size="sm" variant="ghost" className="h-10 w-10 p-0" onClick={handleRefresh} disabled={activeLoading}>
               <RefreshCw className={cn('h-3.5 w-3.5', activeLoading && 'animate-spin')} />
