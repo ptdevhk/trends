@@ -128,6 +128,45 @@ describe('ShareLinkButton', () => {
     expect(toastSuccessMock).toHaveBeenCalledWith('已复制会话链接')
   })
 
+  it('creates a durable sid link when share state includes a reference note', async () => {
+    window.history.replaceState({}, '', '/dev/resumes?location=China&keyword=CNC')
+    const ensureApiSession = vi.fn(async () => 'session-share-note')
+
+    render(
+      <ShareLinkButton
+        shareTitle="China · CNC"
+        state={{
+          location: 'China',
+          keywords: ['CNC'],
+          requiredKeywords: [],
+          filters: {},
+          selectedTags: [],
+          selectedCompanies: [],
+          referenceNote: 'Priority shortlist for HR sync',
+        }}
+        ensureApiSession={ensureApiSession}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '分享' }))
+
+    await waitFor(() => {
+      expect(ensureApiSession).toHaveBeenCalledWith({
+        shareTitle: 'China · CNC',
+        searchState: expect.objectContaining({
+          location: 'China',
+          keywords: ['CNC'],
+          referenceNote: 'Priority shortlist for HR sync',
+        }),
+      })
+    })
+
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith(
+      `${window.location.origin}/dev/resumes?sid=session-share-note`
+    )
+    expect(toastSuccessMock).toHaveBeenCalledWith('已复制会话链接')
+  })
+
   it('reports the existing sid when copying a shared-link URL directly', async () => {
     window.history.replaceState({}, '', '/dev/resumes?sid=session-share-2')
     const ensureApiSession = vi.fn(async () => 'session-share-3')

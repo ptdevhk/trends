@@ -51,6 +51,10 @@ function shouldPersistShareLink(currentUrl: URL, state: ResumeSearchShareState):
     return false
   }
 
+  if (state.referenceNote) {
+    return true
+  }
+
   if (state.collectionSource || state.collectUrl) {
     return true
   }

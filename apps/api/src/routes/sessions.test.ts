@@ -91,6 +91,7 @@ describe("session routes", () => {
             minAge: 28,
             status: ["offer"],
           },
+          referenceNote: "Priority shortlist for HR sync",
         },
       }),
     });
@@ -104,6 +105,7 @@ describe("session routes", () => {
         shareTitle?: string;
         searchState?: {
           location?: string;
+          referenceNote?: string;
           filters?: {
             minAge?: number;
             status?: string[];
@@ -117,6 +119,7 @@ describe("session routes", () => {
     expect(createdPayload.session.shareTitle).toBe("Kuala Lumpur · Sales Engineer");
     expect(createdPayload.session.searchState).toMatchObject({
       location: "Kuala Lumpur MY",
+      referenceNote: "Priority shortlist for HR sync",
       filters: {
         minAge: 28,
         status: ["offer"],
@@ -139,6 +142,7 @@ describe("session routes", () => {
         };
         searchState?: {
           requiredKeywords?: string[];
+          referenceNote?: string;
           selectedTags?: string[];
           selectedCompanies?: string[];
           selectedExperienceLevel?: string;
@@ -151,6 +155,7 @@ describe("session routes", () => {
     expect(getPayload.session.filters).toMatchObject({ minAge: 28 });
     expect(getPayload.session.searchState).toMatchObject({
       requiredKeywords: ["machine tools"],
+      referenceNote: "Priority shortlist for HR sync",
       selectedTags: ["STAR"],
       selectedCompanies: ["fanuc"],
       selectedExperienceLevel: "mid",

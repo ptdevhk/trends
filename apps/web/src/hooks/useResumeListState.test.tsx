@@ -1303,6 +1303,7 @@ describe('useResumeListState role filter regression', () => {
             filters: {
               minAge: 28,
             },
+            referenceNote: 'Priority shortlist for HR sync',
           },
         },
       },
@@ -1312,6 +1313,10 @@ describe('useResumeListState role filter regression', () => {
 
     await waitFor(() => {
       expect(rawApiClient.GET).toHaveBeenCalledWith('/api/sessions/shared-session-1')
+    })
+
+    await waitFor(() => {
+      expect(result.current.activeSessionTitle).toBe('Kuala Lumpur · Sales Engineer')
     })
 
     expect(mockState.rememberApiSessionId).toHaveBeenCalledWith('shared-session-1')
@@ -1328,9 +1333,60 @@ describe('useResumeListState role filter regression', () => {
         minAge: 28,
       },
     })
-    expect(result.current.activeSessionTitle).toBe('Kuala Lumpur · Sales Engineer')
     expect(result.current.activeSessionLabel).toBe('Shared link')
     expect(result.current.activeSessionId).toBe('shared-session-1')
+  })
+
+  it('keeps the hydrated sid reference note when opening review packets', async () => {
+    window.history.replaceState({}, '', '/dev/resumes?sid=shared-session-1')
+    mockState.locationSearch = '?sid=shared-session-1'
+    mockState.urlParsedState = {
+      ...mockState.urlParsedState,
+      shareSessionId: 'shared-session-1',
+    }
+    mockState.sessionJobDescriptionId = 'lathe-sales'
+    mockState.sessionGetResponse = {
+      data: {
+        success: true,
+        session: {
+          id: 'shared-session-1',
+          shareTitle: 'China · CNC 销售',
+          searchState: {
+            location: 'China',
+            keywords: ['CNC 销售'],
+            jobDescriptionId: 'lathe-sales',
+            filters: {},
+            referenceNote: 'Priority shortlist for HR sync',
+          },
+        },
+      },
+    }
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await waitFor(() => {
+      expect(rawApiClient.GET).toHaveBeenCalledWith('/api/sessions/shared-session-1')
+    })
+
+    await waitFor(() => {
+      expect(result.current.activeSessionId).toBe('shared-session-1')
+    })
+
+    act(() => {
+      result.current.handleToggleSelect('resume-ideal-cnc-sales')
+      result.current.handleToggleSelect('resume-zhang-machinery-sales')
+    })
+
+    await act(async () => {
+      await result.current.handleOpenReviewPacket()
+    })
+
+    const navigateTarget = mockState.navigate.mock.calls[0]?.[0] as { pathname: string; search: string }
+    const params = new URLSearchParams(navigateTarget.search)
+
+    expect(params.get('jobDescriptionId')).toBe('lathe-sales')
+    expect(params.get('sessionId')).toBe('api-session-1')
+    expect(params.get('referenceNote')).toBe('Priority shortlist for HR sync')
   })
 
   it('prefers explicit URL params over sid hydration when both are present', async () => {
