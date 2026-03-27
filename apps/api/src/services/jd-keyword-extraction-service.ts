@@ -102,6 +102,7 @@ function heuristicExtractKeywords(text: string): string[] {
       .split(/[\n,;|，、；]+/g)
       .map((item) => compactWhitespace(
         item
+          .trim()
           .replace(/^[A-Za-z][A-Za-z\s/()-]{0,30}:\s*/, "")
           .replace(/\b(requirements?|responsibilities|job description|about the role)\b/gi, ""),
       ))
