@@ -744,7 +744,7 @@ describe("resume routes", () => {
     expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
   });
 
-  it("pages score-sorted keyword convex results through filtered keyword pages when local resume filters are present", async () => {
+  it("pages score-sorted keyword convex results through exact keyword scan pages when local resume filters are present", async () => {
     const calls: ConvexCall[] = [];
     const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
     const getMatchesByResumeIdsSpy = vi
@@ -758,22 +758,14 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
         return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          total: 2,
-          results: [
+          page: [
             { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "cnc", source: "searchText" }] },
           ],
+          continueCursor: "",
+          isDone: true,
         });
       }
 
@@ -797,18 +789,17 @@ describe("resume routes", () => {
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
     expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-3"], "jd-1");
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionPage",
+      pathName: "resumes:searchWithTagExpansionScanPage",
       args: expect.objectContaining({
-        limit: 250,
-        offset: 0,
-        jobDescriptionId: "jd-1",
+        paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
         locations: ["东莞"],
       }),
     }));
+    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansionPage")).toBe(false);
     expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
   });
 
-  it("pages bounded score-sorted keyword convex results through keyword page scans without source-side resume filters", async () => {
+  it("pages bounded score-sorted keyword convex results through exact keyword scan pages without source-side resume filters", async () => {
     const calls: ConvexCall[] = [];
     const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
     const getMatchesByResumeIdsSpy = vi
@@ -822,21 +813,14 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
         return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          results: [
+          page: [
             { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "cnc", source: "searchText" }] },
           ],
+          continueCursor: "",
+          isDone: true,
         });
       }
 
@@ -858,13 +842,16 @@ describe("resume routes", () => {
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
     expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-3"], "jd-1");
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionPage",
-      args: expect.objectContaining({ limit: 250, offset: 0, jobDescriptionId: "jd-1" }),
+      pathName: "resumes:searchWithTagExpansionScanPage",
+      args: expect.objectContaining({
+        paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
+      }),
     }));
+    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansionPage")).toBe(false);
     expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
   });
 
-  it("scans oversized score-sorted keyword searches through cursor pages instead of falling back to widened overfetch", async () => {
+  it("scans oversized score-sorted keyword searches through exact cursor pages without fallback overfetch", async () => {
     const calls: ConvexCall[] = [];
     const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
     const getMatchesByResumeIdsSpy = vi
@@ -877,25 +864,6 @@ describe("resume routes", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
-
-      if (call.pathName === "resumes:searchWithTagExpansionPage") {
-        return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          total: 2501,
-          results: [
-            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
-            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "cnc", source: "searchText" }] },
-          ],
-        });
-      }
 
       if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
         return convexSuccess({
@@ -926,21 +894,18 @@ describe("resume routes", () => {
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
     expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-3"], "jd-1");
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionPage",
-      args: expect.objectContaining({ limit: 250, offset: 0, jobDescriptionId: "jd-1" }),
-    }));
-    expect(calls[1]).toEqual(expect.objectContaining({
       pathName: "resumes:searchWithTagExpansionScanPage",
       args: expect.objectContaining({
         paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
       }),
     }));
-    expect(calls[2]).toEqual(expect.objectContaining({
+    expect(calls[1]).toEqual(expect.objectContaining({
       pathName: "resumes:searchWithTagExpansionScanPage",
       args: expect.objectContaining({
         paginationOpts: expect.objectContaining({ cursor: "scan-2", numItems: 250 }),
       }),
     }));
+    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansionPage")).toBe(false);
     expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
   });
 
@@ -1077,23 +1042,15 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
         return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          total: 3,
-          results: [
+          page: [
             { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice", location: "东莞" }), provenance: [{ term: "sales", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-2", { name: "Bob", location: "东莞", primaryRuleScore: 10 }), provenance: [{ term: "cnc", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla", location: "东莞" }), provenance: [{ term: "cnc", source: "searchText" }] },
           ],
+          continueCursor: "",
+          isDone: true,
         });
       }
 
@@ -1117,8 +1074,10 @@ describe("resume routes", () => {
     expect(getMatchesPageSpy).not.toHaveBeenCalled();
     expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-2", "resume-live-3"], "jd-1");
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionPage",
-      args: expect.objectContaining({ limit: 250, offset: 0, jobDescriptionId: "jd-1" }),
+      pathName: "resumes:searchWithTagExpansionScanPage",
+      args: expect.objectContaining({
+        paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
+      }),
     }));
   });
 
