@@ -215,6 +215,19 @@ type ResumeMatchContext = {
 type ResumeMatchContextEntry = ResumeMatchContext & {
   resumeId: string;
 };
+type ExactKeywordScanCandidate = {
+  candidate: PreparedResumeCandidate;
+  identityKey: string;
+  crawledAt: number;
+  jobRuleScore: number;
+  primaryRuleScore: number;
+  provenance: ResumeSearchProvenance[];
+};
+type SortableKeywordMatchEntry = {
+  candidate: PreparedResumeCandidate;
+  match: ResumeMatchContext | undefined;
+  sortMetadata?: ExactKeywordScanCandidate;
+};
 type ReviewPacketResolvedRecord = {
   resumeId: string;
   resume: ExportResumePayload;
@@ -1014,6 +1027,254 @@ function loadResumeMatchContextMap(
   return matchMap;
 }
 
+function dedupeResumeSearchProvenance(items: ResumeSearchProvenance[] | undefined): ResumeSearchProvenance[] {
+  const deduped: ResumeSearchProvenance[] = [];
+  const seen = new Set<string>();
+
+  for (const item of items ?? []) {
+    const key = `${item.source}|${item.term}|${item.expandedFrom ?? ""}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(item);
+  }
+
+  return deduped;
+}
+
+function resolveProjectedResumeRuleScore(resumeRecord: Record<string, unknown>, jobDescriptionId: string): number {
+  const ingestData = isRecord(resumeRecord.ingestData) ? resumeRecord.ingestData : null;
+  const ruleScores = ingestData && isRecord(ingestData.ruleScores) ? ingestData.ruleScores : null;
+  return ruleScores ? (toOptionalNumber(ruleScores[jobDescriptionId]) ?? 0) : 0;
+}
+
+function compareExactKeywordScanCandidates(left: ExactKeywordScanCandidate, right: ExactKeywordScanCandidate): number {
+  const ruleScoreDiff = right.jobRuleScore - left.jobRuleScore;
+  if (ruleScoreDiff !== 0) {
+    return ruleScoreDiff;
+  }
+
+  const primaryRuleScoreDiff = right.primaryRuleScore - left.primaryRuleScore;
+  if (primaryRuleScoreDiff !== 0) {
+    return primaryRuleScoreDiff;
+  }
+
+  return right.crawledAt - left.crawledAt;
+}
+
+function parseExactKeywordScanCandidate(
+  value: unknown,
+  jobDescriptionId: string,
+): ExactKeywordScanCandidate | null {
+  if (!isRecord(value) || !isRecord(value.resume)) {
+    return null;
+  }
+
+  const resumeRecord = value.resume;
+  const resumeId = toStringValue(resumeRecord._id);
+  if (!resumeId) {
+    return null;
+  }
+
+  const provenance = dedupeResumeSearchProvenance(parseConvexProvenance(value.provenance));
+  const candidate = prepareResumeCandidate({
+    resume: toResumeItemFromRecord(
+      isRecord(resumeRecord.content) ? resumeRecord.content : {},
+      toStringValue(resumeRecord.source),
+    ),
+    resumeId,
+    primaryRuleScore: toOptionalNumber(resumeRecord.primaryRuleScore),
+    provenance,
+    ingestData: resumeRecord.ingestData,
+  });
+
+  return {
+    candidate,
+    identityKey: toStringValue(resumeRecord.identityKey) || resumeId,
+    crawledAt: toOptionalNumber(resumeRecord.crawledAt) ?? 0,
+    jobRuleScore: resolveProjectedResumeRuleScore(resumeRecord, jobDescriptionId),
+    primaryRuleScore: toOptionalNumber(resumeRecord.primaryRuleScore) ?? 0,
+    provenance,
+  };
+}
+
+function mergeExactKeywordScanCandidate(
+  existing: ExactKeywordScanCandidate,
+  incoming: ExactKeywordScanCandidate,
+): ExactKeywordScanCandidate {
+  const mergedProvenance = dedupeResumeSearchProvenance([
+    ...existing.provenance,
+    ...incoming.provenance,
+  ]);
+  const preferred = compareExactKeywordScanCandidates(existing, incoming) <= 0
+    ? existing
+    : incoming;
+
+  return {
+    ...preferred,
+    provenance: mergedProvenance,
+    candidate: {
+      ...preferred.candidate,
+      ...(mergedProvenance.length > 0 ? { provenance: mergedProvenance } : {}),
+    },
+  };
+}
+
+function sortKeywordMatchEntries(
+  entries: SortableKeywordMatchEntry[],
+  sortBy: "score" | "name" | "experience" | "extractedAt" | undefined,
+  sortOrder: "asc" | "desc" | undefined,
+): SortableKeywordMatchEntry[] {
+  if (!sortBy) {
+    return entries;
+  }
+
+  const direction = (sortOrder || (sortBy === "score" ? "desc" : "asc")) === "desc" ? -1 : 1;
+  return [...entries].sort((left, right) => {
+    if (sortBy === "score") {
+      const leftScore = left.match?.score ?? -1;
+      const rightScore = right.match?.score ?? -1;
+      return (leftScore - rightScore) * direction;
+    }
+    if (sortBy === "experience") {
+      const leftExperience = parseExperienceYears(left.candidate.resume.experience) ?? -1;
+      const rightExperience = parseExperienceYears(right.candidate.resume.experience) ?? -1;
+      return (leftExperience - rightExperience) * direction;
+    }
+    if (sortBy === "extractedAt") {
+      const leftTime = Date.parse(left.candidate.resume.extractedAt || "") || 0;
+      const rightTime = Date.parse(right.candidate.resume.extractedAt || "") || 0;
+      return (leftTime - rightTime) * direction;
+    }
+
+    const leftName = left.candidate.resume.name?.toLowerCase() ?? "";
+    const rightName = right.candidate.resume.name?.toLowerCase() ?? "";
+    return leftName.localeCompare(rightName) * direction;
+  });
+}
+
+async function prepareKeywordMatchPageByCursor(params: {
+  jobDescriptionId: string;
+  keywords: string[];
+  offset?: number;
+  limit?: number;
+  minScore?: number;
+  recommendation?: MatchingResult["recommendation"][];
+  sortBy?: "score" | "name" | "experience" | "extractedAt";
+  sortOrder?: "asc" | "desc";
+  resumeFilters?: ResumeFilters;
+}): Promise<{
+  prepared: PreparedResumeCandidate[];
+  total: number;
+  matchMap: Map<string, ResumeMatchContext>;
+  keywordExpansion?: ResumeKeywordExpansion;
+}> {
+  const canonicalKeywordQuery = formatKeywordQuery(params.keywords);
+  const keywordExpansion = resumeService.expandSearchQuery(canonicalKeywordQuery);
+  const merged = new Map<string, ExactKeywordScanCandidate>();
+  let cursor: string | null = null;
+
+  while (true) {
+    const value = await callConvexQuery("resumes:searchWithTagExpansionScanPage", {
+      paginationOpts: {
+        cursor,
+        numItems: MATCH_STORAGE_FILTER_SCAN_BATCH_SIZE,
+      },
+      query: canonicalKeywordQuery,
+      keywordGroups: keywordExpansion?.groups ?? [],
+      mode: keywordExpansion?.mode ?? "AND",
+      sourceMappings: Object.entries(keywordExpansion?.sourceMapping ?? {}).map(([term, expandedFrom]) => ({
+        term,
+        expandedFrom,
+      })),
+      ...(params.resumeFilters ?? {}),
+    });
+
+    if (!isConvexPaginatedQueryPage(value)) {
+      throw new Error("Invalid paginated keyword scan response from Convex");
+    }
+
+    for (const item of value.page) {
+      const parsed = parseExactKeywordScanCandidate(item, params.jobDescriptionId);
+      if (!parsed) {
+        continue;
+      }
+      const existing = merged.get(parsed.identityKey);
+      merged.set(
+        parsed.identityKey,
+        existing ? mergeExactKeywordScanCandidate(existing, parsed) : parsed,
+      );
+    }
+
+    if (value.isDone) {
+      break;
+    }
+
+    if (!value.continueCursor) {
+      throw new Error("Convex keyword scan returned an unfinished page without a continueCursor");
+    }
+    cursor = value.continueCursor;
+  }
+
+  const fullMatchMap = loadResumeMatchContextMap(
+    params.jobDescriptionId,
+    Array.from(merged.values()).map((entry) => entry.candidate.resumeId),
+  );
+  const allowedRecommendations = params.recommendation?.length
+    ? new Set(params.recommendation)
+    : null;
+
+  let working: SortableKeywordMatchEntry[] = Array.from(merged.values()).map((entry) => ({
+    candidate: entry.candidate,
+    match: fullMatchMap.get(entry.candidate.resumeId),
+    sortMetadata: entry,
+  }));
+
+  const minScore = params.minScore;
+  if (typeof minScore === "number") {
+    working = working.filter((entry) => entry.match && entry.match.score >= minScore);
+  }
+
+  if (allowedRecommendations) {
+    working = working.filter((entry) => entry.match && allowedRecommendations.has(entry.match.recommendation));
+  }
+
+  working = params.sortBy
+    ? sortKeywordMatchEntries(working, params.sortBy, params.sortOrder)
+    : [...working].sort((left, right) => {
+        const leftMetadata = left.sortMetadata;
+        const rightMetadata = right.sortMetadata;
+        if (!leftMetadata || !rightMetadata) {
+          return 0;
+        }
+
+        if (rightMetadata.provenance.length !== leftMetadata.provenance.length) {
+          return rightMetadata.provenance.length - leftMetadata.provenance.length;
+        }
+        return compareExactKeywordScanCandidates(leftMetadata, rightMetadata);
+      });
+
+  const pageOffset = typeof params.offset === "number" ? Math.max(0, params.offset) : 0;
+  const pageLimit = typeof params.limit === "number" ? Math.max(1, params.limit) : DEFAULT_CONVEX_RESUME_PAGE_SIZE;
+  const paged = working.slice(pageOffset, pageOffset + pageLimit);
+
+  return {
+    prepared: paged.map((entry) => entry.candidate),
+    total: working.length,
+    matchMap: createResumeMatchContextMap(
+      paged.flatMap((entry) => entry.match
+        ? [{
+            resumeId: entry.candidate.resumeId,
+            score: entry.match.score,
+            recommendation: entry.match.recommendation,
+          }]
+        : []),
+    ),
+    keywordExpansion,
+  };
+}
+
 async function prepareFilteredMatchStoragePage(params: {
   jobDescriptionId: string;
   offset?: number;
@@ -1088,7 +1349,7 @@ async function prepareKeywordMatchPage(params: {
   limit?: number;
   minScore?: number;
   recommendation?: MatchingResult["recommendation"][];
-  sortByScore: boolean;
+  sortBy?: "score" | "name" | "experience" | "extractedAt";
   sortOrder?: "asc" | "desc";
   resumeFilters?: ResumeFilters;
 }): Promise<{
@@ -1096,13 +1357,12 @@ async function prepareKeywordMatchPage(params: {
   total: number;
   matchMap: Map<string, ResumeMatchContext>;
   keywordExpansion?: ResumeKeywordExpansion;
-} | null> {
+}> {
   const pageOffset = typeof params.offset === "number" ? Math.max(0, params.offset) : 0;
   const pageLimit = typeof params.limit === "number" ? Math.max(1, params.limit) : DEFAULT_CONVEX_RESUME_PAGE_SIZE;
   const allowedRecommendations = params.recommendation?.length
     ? new Set(params.recommendation)
     : null;
-  const direction = (params.sortOrder || "desc") === "desc" ? -1 : 1;
   const allPrepared: PreparedResumeCandidate[] = [];
   let keywordExpansion: ResumeKeywordExpansion | undefined;
   let scanOffset = 0;
@@ -1122,7 +1382,7 @@ async function prepareKeywordMatchPage(params: {
     total = preparedResult.total ?? 0;
 
     if (total > MAX_SAFE_CONVEX_POST_FILTER_LIMIT) {
-      return null;
+      return prepareKeywordMatchPageByCursor(params);
     }
 
     if (preparedResult.prepared.length === 0) {
@@ -1140,7 +1400,7 @@ async function prepareKeywordMatchPage(params: {
     params.jobDescriptionId,
     allPrepared.map((item) => item.resumeId),
   );
-  let working = allPrepared.map((candidate) => ({
+  let working: SortableKeywordMatchEntry[] = allPrepared.map((candidate) => ({
     candidate,
     match: fullMatchMap.get(candidate.resumeId),
   }));
@@ -1154,12 +1414,8 @@ async function prepareKeywordMatchPage(params: {
     working = working.filter((entry) => entry.match && allowedRecommendations.has(entry.match.recommendation));
   }
 
-  if (params.sortByScore) {
-    working = [...working].sort((left, right) => {
-      const scoreLeft = left.match?.score ?? -1;
-      const scoreRight = right.match?.score ?? -1;
-      return (scoreLeft - scoreRight) * direction;
-    });
+  if (params.sortBy) {
+    working = sortKeywordMatchEntries(working, params.sortBy, params.sortOrder);
   }
 
   const paged = working.slice(pageOffset, pageOffset + pageLimit);
@@ -2092,33 +2348,15 @@ app.openapi(getResumesRoute, (c) => {
             limit,
             minScore: minMatchScore,
             recommendation: normalizedRecommendations,
-            sortByScore: sortBy === "score",
+            sortBy,
             sortOrder: resolveResumeSortOrder(sortBy, sortOrder) || "desc",
             resumeFilters: localResumeFilters,
           });
-          if (keywordMatchPage) {
-            prepared = keywordMatchPage.prepared;
-            matchMap = keywordMatchPage.matchMap;
-            totalCount = keywordMatchPage.total;
-            liveExpansion = keywordMatchPage.keywordExpansion;
-            usesPrePagedMatchResults = true;
-          } else {
-            const convexFetchLimit = resolveConvexResumeFetchLimit({
-              limit,
-              offset,
-              requiresMatchPagination,
-              hasLocalResumeFilters,
-              hasKeywordQuery: normalizedKeywords.length > 0,
-            });
-            const preparedResult = await prepareConvexCandidates({
-              keywords: normalizedKeywords,
-              limit: convexFetchLimit,
-              jobDescriptionId: resolvedJobId,
-            });
-            prepared = preparedResult.prepared;
-            liveExpansion = preparedResult.keywordExpansion;
-            totalCount = preparedResult.total;
-          }
+          prepared = keywordMatchPage.prepared;
+          matchMap = keywordMatchPage.matchMap;
+          totalCount = keywordMatchPage.total;
+          liveExpansion = keywordMatchPage.keywordExpansion;
+          usesPrePagedMatchResults = true;
         } else {
           const convexFetchLimit = canUseSourcePagination ? limit : resolveConvexResumeFetchLimit({
             limit,

@@ -290,6 +290,23 @@ type SearchWithTagExpansionPageArgs = ResumeListPageArgs & {
     }>;
 };
 
+type SearchWithTagExpansionScanPageArgs = ResumeListFilterArgs & {
+    paginationOpts: {
+        cursor: string | null;
+        numItems: number;
+    };
+    query: string;
+    keywordGroups: Array<{
+        original: string;
+        variants: string[];
+    }>;
+    mode?: "AND" | "OR";
+    sourceMappings?: Array<{
+        term: string;
+        expandedFrom: string;
+    }>;
+};
+
 type DeleteResumesResult = {
     requested: number;
     deleted: number;
@@ -1290,6 +1307,91 @@ async function runSearchWithTagExpansionPageQuery(
     };
 }
 
+async function runSearchWithTagExpansionScanPageQuery(
+    ctx: QueryCtx,
+    args: SearchWithTagExpansionScanPageArgs
+): Promise<{
+    expansion: {
+        original: string;
+        expanded: string[];
+        groups: TagExpansionKeywordGroup[];
+        mode: "AND" | "OR";
+    };
+    page: Array<{ resume: ResumeListProjectedDoc; provenance: SearchProvenance[] }>;
+    continueCursor: string;
+    isDone: boolean;
+}> {
+    const filters = normalizeResumeListFilters(args);
+    const mode = args.mode ?? "AND";
+    const keywordGroups = normalizeTagExpansionKeywordGroups(args.keywordGroups);
+    const expandedTerms = collectExpandedTerms(keywordGroups);
+
+    if (expandedTerms.length === 0 || keywordGroups.length === 0) {
+        return {
+            expansion: {
+                original: args.query,
+                expanded: [],
+                groups: [],
+                mode,
+            },
+            page: [],
+            continueCursor: "",
+            isDone: true,
+        };
+    }
+
+    const sourceMapping = Object.fromEntries(
+        (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
+    );
+    const searchQuery = buildTagExpansionSearchQuery(keywordGroups, mode);
+    const pageSize = Math.min(
+        Math.max(Math.trunc(args.paginationOpts.numItems), 1),
+        MAX_SAFE_JD_PAGINATE_SCAN,
+    );
+
+    const searchPage = searchQuery
+        ? await ctx.db
+            .query("resumes")
+            .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
+            .paginate({
+                ...args.paginationOpts,
+                numItems: pageSize,
+            })
+        : {
+            page: [] as Doc<"resumes">[],
+            continueCursor: "",
+            isDone: true,
+        };
+
+    return {
+        expansion: {
+            original: args.query,
+            expanded: expandedTerms,
+            groups: keywordGroups,
+            mode,
+        },
+        page: searchPage.page.flatMap((doc) => {
+            const normalizedSearchText = (doc.searchText || "").toLowerCase();
+            const matched = matchesTagExpansionSearchText(normalizedSearchText, keywordGroups, mode);
+            if (!matched || !matchesResumeListFilters(doc, filters)) {
+                return [];
+            }
+
+            const provenance = collectSearchTextProvenance(normalizedSearchText, keywordGroups, sourceMapping);
+            if (provenance.length === 0) {
+                return [];
+            }
+
+            return [{
+                resume: projectResumeListDoc(doc),
+                provenance,
+            }];
+        }),
+        continueCursor: searchPage.continueCursor,
+        isDone: searchPage.isDone,
+    };
+}
+
 export const count = action({
     args: {},
     handler: async (ctx) => {
@@ -1760,6 +1862,39 @@ export const searchWithTagExpansionPaginated = query({
             resume: projectResumeListDoc(entry.resume),
             provenance: entry.provenance,
         })), page.total, offset);
+    },
+});
+
+export const searchWithTagExpansionScanPage = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        query: v.string(),
+        keywordGroups: v.array(v.object({
+            original: v.string(),
+            variants: v.array(v.string()),
+        })),
+        mode: v.optional(v.union(v.literal("AND"), v.literal("OR"))),
+        sourceMappings: v.optional(v.array(v.object({
+            term: v.string(),
+            expandedFrom: v.string(),
+        }))),
+        minExperience: v.optional(v.number()),
+        maxExperience: v.optional(v.number()),
+        education: v.optional(v.array(v.string())),
+        skills: v.optional(v.array(v.string())),
+        requiredKeywords: v.optional(v.array(v.string())),
+        locations: v.optional(v.array(v.string())),
+        minSalary: v.optional(v.number()),
+        maxSalary: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const page = await runSearchWithTagExpansionScanPageQuery(ctx, args);
+        return {
+            expansion: page.expansion,
+            page: page.page,
+            continueCursor: page.continueCursor,
+            isDone: page.isDone,
+        };
     },
 });
 
