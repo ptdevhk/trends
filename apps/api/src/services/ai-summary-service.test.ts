@@ -141,23 +141,76 @@ Strong overlap around machine tools and CNC sales backgrounds.
   it("fails before the AI call when the runtime has no API key", async () => {
     loadAIConfigMock.mockReturnValue(createAIConfig({ apiKey: "" }));
     getWorkspaceConfigValueMock.mockResolvedValue(undefined);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const service = new AiSummaryService();
-
-    await expect(
-      service.generateSummary({
-        workspaceSlug: "dev",
-        query: "cnc",
-        results: [
-          {
-            id: "resume-1",
-            name: "Lee",
-            snippet: "CNC applications engineer",
-          },
-        ],
-      }),
-    ).rejects.toThrow("Missing AI_API_KEY environment variable");
+    const result = await service.generateSummary({
+      workspaceSlug: "dev",
+      query: "cnc",
+      location: "China",
+      results: [
+        {
+          id: "resume-1",
+          name: "Lee",
+          title: "Sales Engineer",
+          location: "Shenzhen",
+          score: 82,
+          keywords: ["CNC", "Sales"],
+          snippet: "CNC applications engineer",
+        },
+      ],
+    });
 
     expect(callChatCompletionMock).not.toHaveBeenCalled();
+    expect(result.model).toBe("heuristic/search-summary-fallback");
+    expect(result.summary).toContain('Visible results for "cnc" currently include 1 candidates.');
+    expect(result.summary).toContain("Shared themes are strongest around CNC, Sales.");
+    expect(result.summary).toContain("Keep the location filter on China");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "AI summary generation unavailable, using heuristic fallback",
+      expect.any(Error),
+    );
+  });
+
+  it("falls back to a heuristic summary when the AI call itself fails", async () => {
+    loadAIConfigMock.mockReturnValue(createAIConfig());
+    getWorkspaceConfigValueMock.mockResolvedValue("anthropic/claude-3-5-haiku-20241022");
+    callChatCompletionMock.mockRejectedValue(new Error("provider timeout"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const service = new AiSummaryService();
+    const result = await service.generateSummary({
+      workspaceSlug: "dev",
+      query: "machine tools sales",
+      results: [
+        {
+          id: "resume-1",
+          name: "Jane Tan",
+          title: "Regional Sales Manager",
+          location: "Kuala Lumpur",
+          score: 92.4,
+          keywords: ["Machine Tools", "CNC"],
+          snippet: "Led CNC sales across SEA markets.",
+        },
+        {
+          id: "resume-2",
+          name: "Alex Lim",
+          title: "Sales Engineer",
+          location: "Johor",
+          score: 87.2,
+          keywords: ["Machine Tools", "Automation"],
+          snippet: "Built machine tools pipeline coverage.",
+        },
+      ],
+    });
+
+    expect(result.model).toBe("heuristic/search-summary-fallback");
+    expect(result.summary).toContain('Visible results for "machine tools sales" currently include 2 candidates.');
+    expect(result.summary).toContain("Shared themes are strongest around Machine Tools");
+    expect(result.summary).toContain("Visible scores range from 87 to 92");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "AI summary generation unavailable, using heuristic fallback",
+      expect.any(Error),
+    );
   });
 });
