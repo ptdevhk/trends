@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { jobDescriptionService } from "../services/job-description-service.js";
+import { jdKeywordExtractionService } from "../services/jd-keyword-extraction-service.js";
 import { DataNotFoundError } from "../services/errors.js";
 
 const app = new OpenAPIHono();
@@ -40,6 +41,10 @@ const CreateRequestSchema = z.object({
   overwrite: z.boolean().optional(),
 });
 
+const ExtractKeywordsRequestSchema = z.object({
+  text: z.string().trim().min(20).max(20000),
+});
+
 const MatchResponseSchema = z.object({
   success: z.literal(true),
   matched: z.string().optional(),
@@ -48,6 +53,17 @@ const MatchResponseSchema = z.object({
   matchedKeywords: z.array(z.string()),
   filterPreset: z.string().optional(),
   suggestedFilters: z.record(z.unknown()).optional(),
+});
+
+const ExtractKeywordsResponseSchema = z.object({
+  success: z.literal(true),
+  keywords: z.array(z.string()),
+  model: z.string(),
+});
+
+const ErrorResponseSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
 });
 
 type ConvexJobDescriptionRecord = {
@@ -363,6 +379,50 @@ const statsRoute = createRoute({
 app.openapi(statsRoute, (c) => {
   const stats = jobDescriptionService.getStats();
   return c.json({ success: true as const, stats }, 200);
+});
+
+// ============================================================
+// POST /api/job-descriptions/extract-keywords
+// ============================================================
+const extractKeywordsRoute = createRoute({
+  method: "post",
+  path: "/api/job-descriptions/extract-keywords",
+  tags: ["job-descriptions"],
+  summary: "Extract search keywords from pasted job description text",
+  request: {
+    body: {
+      content: { "application/json": { schema: ExtractKeywordsRequestSchema } },
+    },
+  },
+  responses: {
+    200: {
+      content: { "application/json": { schema: ExtractKeywordsResponseSchema } },
+      description: "Extracted keywords",
+    },
+    500: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Keyword extraction failed",
+    },
+  },
+});
+
+app.openapi(extractKeywordsRoute, async (c) => {
+  const { text } = c.req.valid("json");
+  try {
+    const extracted = await jdKeywordExtractionService.extractKeywords({ text });
+
+    return c.json({
+      success: true as const,
+      keywords: extracted.keywords,
+      model: extracted.model,
+    }, 200);
+  } catch (error) {
+    console.error("Failed to extract job description keywords", error);
+    return c.json({
+      success: false as const,
+      error: "Failed to extract keywords from the job description",
+    }, 500);
+  }
 });
 
 // ============================================================

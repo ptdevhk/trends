@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { CandidateStatus, ResumeFilters } from '@/types/resume'
 
 const KNOWN_PARAM_KEYS = [
+  'q',
   'loc',
   'location',
   'kw',
@@ -32,6 +33,7 @@ export type ExperienceLevelFilter = 'senior' | 'mid' | 'junior'
 
 export type UrlSearchState = {
   shareSessionId?: string
+  query?: string
   location?: string
   keywords: string[]
   requiredKeywords: string[]
@@ -187,6 +189,8 @@ export function hasKnownUrlSearchParams(searchParams: URLSearchParams): boolean 
 export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchState {
   const shareSessionIdRaw = searchParams.get('sid')
   const shareSessionId = shareSessionIdRaw?.trim() || undefined
+  const queryRaw = getFirstParam(searchParams, ['q', 'kw', 'keyword'])
+  const query = queryRaw?.trim() || undefined
   const locationRaw = getFirstParam(searchParams, ['loc', 'location'])
   const normalizedLocation = locationRaw?.trim() || ''
   const locationFromLocationParam = normalizeUniqueValues(parseLocationParam(normalizedLocation))
@@ -195,8 +199,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     ? locationFromLocsParam
     : locationFromLocationParam
   const location = normalizedLocation || (effectiveLocations.length > 0 ? effectiveLocations.join(',') : undefined)
-  const keywordRaw = getFirstParam(searchParams, ['kw', 'keyword'])
-  const keywords = normalizeUniqueValues(parseKeywordParam(keywordRaw))
+  const keywords = normalizeUniqueValues(parseKeywordParam(query ?? null))
   const requiredKeywords = normalizeUniqueValues(parseCsvParam(searchParams.get('rkw')))
   const jobDescriptionRaw = searchParams.get('jd')
   const jobDescriptionId = jobDescriptionRaw?.trim() || undefined
@@ -263,6 +266,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
 
   return {
     shareSessionId,
+    query,
     location,
     keywords,
     requiredKeywords,
@@ -276,7 +280,8 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
 
 export function useUrlSearchState() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const hasKeywordParam = searchParams.has('kw')
+  const hasKeywordParam = searchParams.has('q')
+    || searchParams.has('kw')
     || searchParams.has('keyword')
   const hasJobDescriptionParam = searchParams.has('jd')
 
@@ -302,6 +307,7 @@ export function useUrlSearchState() {
         const normalizedKeywords = normalizeUniqueValues(state.keywords)
         const normalizedTags = normalizeUniqueValues(state.selectedTags)
         const normalizedCompanies = normalizeUniqueValues(state.selectedCompanies)
+        const normalizedQuery = state.query?.trim()
         const hasKeywords = normalizedKeywords.length > 0
 
         const normalizedLocation = state.location?.trim()
@@ -316,7 +322,7 @@ export function useUrlSearchState() {
           ? locationForUrlParts.join(',')
           : normalizedLocation
         setParam(nextParams, 'location', locationForUrl)
-        setParam(nextParams, 'keyword', hasKeywords ? formatKeywordQuery(normalizedKeywords) : undefined)
+        setParam(nextParams, 'q', normalizedQuery || (hasKeywords ? formatKeywordQuery(normalizedKeywords) : undefined))
         const normalizedRequiredKeywords = normalizeUniqueValues(state.requiredKeywords)
         setParam(nextParams, 'rkw', normalizedRequiredKeywords.length > 0 ? normalizedRequiredKeywords.join(',') : undefined)
         setParam(nextParams, 'jd', state.jobDescriptionId?.trim())

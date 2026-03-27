@@ -5,6 +5,8 @@ import { prettyJSON } from "hono/pretty-json";
 
 import {
   healthRoutes,
+  aiSummaryRoutes,
+  taxonomyRoutes,
   trendsRoutes,
   topicsRoutes,
   searchRoutes,
@@ -75,6 +77,8 @@ export function createApp() {
 
   // Mount routes
   app.route("/", healthRoutes);
+  app.route("/", aiSummaryRoutes);
+  app.route("/", taxonomyRoutes);
   app.route("/", trendsRoutes);
   app.route("/", topicsRoutes);
   app.route("/", searchRoutes);

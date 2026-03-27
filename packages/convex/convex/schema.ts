@@ -387,6 +387,37 @@ export default defineSchema({
         .index("by_searchHistoryId", ["searchHistoryId"])
         .index("by_workspace", ["workspaceSlug"]),
 
+    ai_summary_cache: defineTable({
+        urlHash: v.string(),
+        workspaceSlug: v.string(),
+        query: v.string(),
+        facets: v.optional(v.string()),
+        resultCount: v.number(),
+        resultSetHash: v.string(),
+        summary: v.string(),
+        model: v.string(),
+        generatedAt: v.number(),
+        expiresAt: v.number(),
+    })
+        .index("by_workspace_url_hash", ["workspaceSlug", "urlHash"])
+        .index("by_expires_at", ["expiresAt"]),
+
+    taxonomy_clusters: defineTable({
+        workspaceSlug: v.string(),
+        name: v.string(),
+        slug: v.string(),
+        parentSlug: v.optional(v.string()),
+        tags: v.array(v.string()),
+        source: v.union(v.literal("human"), v.literal("ai"), v.literal("merged")),
+        confidence: v.optional(v.number()),
+        status: v.union(v.literal("active"), v.literal("draft"), v.literal("archived")),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_workspace", ["workspaceSlug"])
+        .index("by_workspace_slug", ["workspaceSlug", "slug"])
+        .index("by_workspace_status", ["workspaceSlug", "status"]),
+
     workspace_config: defineTable({
         workspaceSlug: v.string(),
         configKey: v.string(),

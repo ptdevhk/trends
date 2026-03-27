@@ -43,6 +43,369 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/search-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate or return a cached AI summary for the current resume search result set */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        urlHash: string;
+                        query: string;
+                        location?: string;
+                        jobDescriptionId?: string;
+                        facets?: {
+                            selectedTags?: string[];
+                            selectedCompanies?: string[];
+                            selectedExperienceLevel?: string;
+                        };
+                        resultCount: number;
+                        resultSetHash: string;
+                        results: {
+                            id: string;
+                            keywords?: string[];
+                            location?: string;
+                            name: string;
+                            score?: number;
+                            snippet: string;
+                            title?: string;
+                        }[];
+                        forceRefresh?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description AI summary response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            summary: string;
+                            model: string;
+                            generatedAt: number;
+                            shouldRefresh?: boolean;
+                        };
+                    };
+                };
+                /** @description AI summary generation failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taxonomy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List taxonomy clusters for the current workspace */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Taxonomy clusters */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                id: string;
+                                workspaceSlug: string;
+                                name: string;
+                                slug: string;
+                                parentSlug?: string;
+                                tags: string[];
+                                /** @enum {string} */
+                                source: "human" | "ai" | "merged";
+                                confidence?: number;
+                                /** @enum {string} */
+                                status: "active" | "draft" | "archived";
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Taxonomy request failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create or update a taxonomy cluster */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        id?: string;
+                        name: string;
+                        slug: string;
+                        parentSlug?: string;
+                        tags: string[];
+                        /**
+                         * @default human
+                         * @enum {string}
+                         */
+                        source?: "human" | "ai" | "merged";
+                        confidence?: number;
+                        /**
+                         * @default active
+                         * @enum {string}
+                         */
+                        status?: "active" | "draft" | "archived";
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated taxonomy clusters */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                id: string;
+                                workspaceSlug: string;
+                                name: string;
+                                slug: string;
+                                parentSlug?: string;
+                                tags: string[];
+                                /** @enum {string} */
+                                source: "human" | "ai" | "merged";
+                                confidence?: number;
+                                /** @enum {string} */
+                                status: "active" | "draft" | "archived";
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Taxonomy request failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taxonomy/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create draft taxonomy suggestions from uncategorized resume tags */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        limit?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Suggested taxonomy clusters */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                id: string;
+                                workspaceSlug: string;
+                                name: string;
+                                slug: string;
+                                parentSlug?: string;
+                                tags: string[];
+                                /** @enum {string} */
+                                source: "human" | "ai" | "merged";
+                                confidence?: number;
+                                /** @enum {string} */
+                                status: "active" | "draft" | "archived";
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Taxonomy request failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taxonomy/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a taxonomy cluster */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Remaining taxonomy clusters */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                id: string;
+                                workspaceSlug: string;
+                                name: string;
+                                slug: string;
+                                parentSlug?: string;
+                                tags: string[];
+                                /** @enum {string} */
+                                source: "human" | "ai" | "merged";
+                                confidence?: number;
+                                /** @enum {string} */
+                                status: "active" | "draft" | "archived";
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Taxonomy request failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trends": {
         parameters: {
             query?: never;
@@ -2217,6 +2580,66 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/job-descriptions/extract-keywords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extract search keywords from pasted job description text */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        text: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Extracted keywords */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            keywords: string[];
+                            model: string;
+                        };
+                    };
+                };
+                /** @description Keyword extraction failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;

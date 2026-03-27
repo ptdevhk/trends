@@ -851,11 +851,13 @@ export function useConvexResumes(
   query?: string,
   jobDescriptionId?: string,
   options?: {
+    enabled?: boolean
     sortBy?: ConvexResumeSortBy
     sortOrder?: 'asc' | 'desc'
     filters?: ConvexResumeFilters
   }
 ) {
+  const enabled = options?.enabled ?? true
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
   const normalizedQuery = query?.trim() || undefined
   const useExactKeywordScan = Boolean(normalizedQuery && normalizedJobDescriptionId)
@@ -871,6 +873,14 @@ export function useConvexResumes(
 
   useEffect(() => {
     let active = true
+
+    if (!enabled) {
+      setKeywordExpansion(null)
+      setExpansionLoading(false)
+      return () => {
+        active = false
+      }
+    }
 
     if (mockPayload) {
       setKeywordExpansion(mockKeywordExpansion)
@@ -941,13 +951,13 @@ export function useConvexResumes(
     return () => {
       active = false
     }
-  }, [mockKeywordExpansion, mockPayload, normalizedQuery])
+  }, [enabled, mockKeywordExpansion, mockPayload, normalizedQuery])
 
   const paginatedSearchResults = usePaginatedQuery(
     api.resumes.searchWithTagExpansionPaginated,
     mockPayload
       ? 'skip'
-      : !useExactKeywordScan && normalizedQuery && keywordExpansion
+      : enabled && !useExactKeywordScan && normalizedQuery && keywordExpansion
         ? {
             query: normalizedQuery,
             keywordGroups: keywordExpansion.groups,
@@ -973,7 +983,7 @@ export function useConvexResumes(
     api.resumes.searchWithTagExpansionScanPage,
     mockPayload
       ? 'skip'
-      : normalizedQuery && normalizedJobDescriptionId && keywordExpansion
+      : enabled && normalizedQuery && normalizedJobDescriptionId && keywordExpansion
         ? {
             query: normalizedQuery,
             keywordGroups: keywordExpansion.groups,
@@ -994,7 +1004,9 @@ export function useConvexResumes(
     api.resumes.listWithIngestDataPaginated,
     mockPayload
       ? 'skip'
-      : normalizedQuery && !normalizedJobDescriptionId
+      : !enabled
+        ? 'skip'
+        : normalizedQuery && !normalizedJobDescriptionId
         ? 'skip'
         : {
             jobDescriptionId: normalizedJobDescriptionId,
@@ -1033,7 +1045,7 @@ export function useConvexResumes(
   useEffect(() => {
     let active = true
 
-    if (!useExactKeywordScan || !normalizedJobDescriptionId) {
+    if (!enabled || !useExactKeywordScan || !normalizedJobDescriptionId) {
       setExactKeywordMatchMap((current) => (Object.keys(current).length === 0 ? current : {}))
       return () => {
         active = false
@@ -1092,7 +1104,7 @@ export function useConvexResumes(
     return () => {
       active = false
     }
-  }, [exactKeywordMatchScopeKey, exactKeywordResumeIds, normalizedJobDescriptionId, useExactKeywordScan])
+  }, [enabled, exactKeywordMatchScopeKey, exactKeywordResumeIds, normalizedJobDescriptionId, useExactKeywordScan])
 
   const dedupedExactKeywordEntries = useMemo(() => {
     if (mockPayload || !useExactKeywordScan) {
@@ -1209,13 +1221,19 @@ export function useConvexResumes(
     visibleSearchResults,
   ])
 
-  const isLoading = mockPayload
+  const isLoading = !enabled
+    ? false
+    : mockPayload
     ? false
     : normalizedQuery
       ? (expansionLoading || activePaginatedStatus === 'LoadingFirstPage')
       : paginatedListResults.status === 'LoadingFirstPage'
 
   const hasMore = useMemo(() => {
+    if (!enabled) {
+      return false
+    }
+
     if (mockPayload) {
       return normalizedQuery
         ? (mockPayload.search?.results?.length ?? 0) > limit
@@ -1223,17 +1241,18 @@ export function useConvexResumes(
     }
 
     return activePaginatedResultsLength > limit || activePaginatedStatus === 'CanLoadMore' || activePaginatedStatus === 'LoadingMore'
-  }, [activePaginatedResultsLength, activePaginatedStatus, limit, mockPayload, normalizedQuery])
+  }, [activePaginatedResultsLength, activePaginatedStatus, enabled, limit, mockPayload, normalizedQuery])
 
   const resolvedExpansion = mockPayload
     ? (mockPayload.search?.expansion ?? mockKeywordExpansion)
     : keywordExpansion
 
-  const loadingMore = !mockPayload
+  const loadingMore = enabled
+    && !mockPayload
     && activePaginatedStatus === 'LoadingMore'
 
   return {
-    resumes: mappedResumes,
+    resumes: enabled ? mappedResumes : [],
     loading: isLoading,
     loadingMore,
     hasMore,

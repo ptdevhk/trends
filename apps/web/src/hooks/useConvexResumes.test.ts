@@ -2,8 +2,21 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useConvexResumes } from './useConvexResumes'
 
+type KeywordExpansionResponse = {
+  data?: {
+    success: boolean
+    summary?: {
+      groups?: Array<{ original: string; variants: string[] }>
+      mode?: 'AND' | 'OR'
+      expandedTo?: string[]
+      sourceMapping?: Record<string, string>
+    }
+  }
+  error?: Error
+}
+
 const loadMoreMock = vi.fn()
-const rawApiGetMock = vi.fn(async (path?: unknown, options?: unknown) => {
+const rawApiGetMock = vi.fn(async (path?: unknown, options?: unknown): Promise<KeywordExpansionResponse> => {
   void path
   void options
   return {
@@ -223,6 +236,43 @@ describe('useConvexResumes', () => {
     })
   })
 
+  it('falls back to local keyword expansion when the expansion request fails', async () => {
+    rawApiGetMock.mockResolvedValueOnce({
+      error: new Error('network failed'),
+    })
+    usePaginatedQueryMock.mockImplementation((_query, args) => ({
+      results: args === 'skip' ? [] : [buildSearchEntry('resume-1', 'Alice')],
+      status: 'Exhausted',
+      isLoading: false,
+      loadMore: loadMoreMock,
+    }))
+
+    const { result } = renderHook(() => useConvexResumes(200, 'CNC Sales'))
+
+    await waitFor(() => {
+      const searchCall = usePaginatedQueryMock.mock.calls.find(([, args]) => args !== 'skip' && 'query' in (args as Record<string, unknown>))
+      expect(searchCall?.[1]).toMatchObject({
+        query: 'CNC Sales',
+        keywordGroups: [
+          { original: 'cnc', variants: ['cnc'] },
+          { original: 'sales', variants: ['sales'] },
+        ],
+        mode: 'AND',
+        sourceMappings: [],
+      })
+    })
+
+    expect(result.current.expansion).toEqual({
+      groups: [
+        { original: 'cnc', variants: ['cnc'] },
+        { original: 'sales', variants: ['sales'] },
+      ],
+      mode: 'AND',
+      expandedTo: ['cnc', 'sales'],
+      sourceMapping: {},
+    })
+  })
+
   it('forwards required keywords to the paginated search query', async () => {
     usePaginatedQueryMock.mockImplementation((_query, args) => ({
       results: args === 'skip' ? [] : [buildSearchEntry('resume-1', 'Alice')],
@@ -378,5 +428,94 @@ describe('useConvexResumes', () => {
         'Third Candidate',
       ])
     })
+  })
+
+  it('merges duplicate provenance while preserving explicit newest sort on exact keyword scans', async () => {
+    rawApiPostMock.mockResolvedValue({
+      data: {
+        success: true,
+        results: [
+          { resumeId: 'resume-best-match', score: 91, recommendation: 'match' },
+          { resumeId: 'resume-lower-match', score: 30, recommendation: 'potential' },
+          { resumeId: 'resume-newest', score: 72, recommendation: 'match' },
+        ],
+      },
+    })
+
+    usePaginatedQueryMock.mockImplementation((_query, args) => {
+      if (args === 'skip') {
+        return {
+          results: [],
+          status: 'Exhausted',
+          isLoading: false,
+          loadMore: loadMoreMock,
+        }
+      }
+
+      if ('query' in (args as Record<string, unknown>)) {
+        return {
+          results: [
+            {
+              resume: buildResumeDoc('resume-best-match', 'Best Match Duplicate', {
+                identityKey: 'identity-1',
+                primaryRuleScore: 60,
+                extractedAt: '2026-03-02T00:00:00.000Z',
+                crawledAt: 1_700_000_000_000,
+              }),
+              provenance: [{ term: 'cnc', source: 'searchText' }],
+            },
+            {
+              resume: buildResumeDoc('resume-lower-match', 'Lower Match Duplicate', {
+                identityKey: 'identity-1',
+                primaryRuleScore: 90,
+                extractedAt: '2026-03-10T00:00:00.000Z',
+                crawledAt: 1_700_000_000_100,
+              }),
+              provenance: [{ term: 'servo', source: 'searchText' }],
+            },
+            {
+              resume: buildResumeDoc('resume-newest', 'Newest Candidate', {
+                identityKey: 'identity-2',
+                primaryRuleScore: 70,
+                extractedAt: '2026-03-15T00:00:00.000Z',
+                crawledAt: 1_700_000_000_200,
+              }),
+              provenance: [{ term: 'automation', source: 'searchText' }],
+            },
+          ],
+          status: 'Exhausted',
+          isLoading: false,
+          loadMore: loadMoreMock,
+        }
+      }
+
+      return {
+        results: [],
+        status: 'Exhausted',
+        isLoading: false,
+        loadMore: loadMoreMock,
+      }
+    })
+
+    const { result } = renderHook(() => useConvexResumes(200, 'CNC servo', 'jd-1', {
+      sortBy: 'extractedAt',
+      sortOrder: 'desc',
+    }))
+
+    await waitFor(() => {
+      expect(rawApiPostMock).toHaveBeenCalled()
+    })
+
+    await waitFor(() => {
+      expect(result.current.resumes.map((resume) => resume.name)).toEqual([
+        'Newest Candidate',
+        'Best Match Duplicate',
+      ])
+    })
+
+    expect(result.current.resumes[1]?._provenance).toEqual([
+      { term: 'cnc', source: 'searchText' },
+      { term: 'servo', source: 'searchText' },
+    ])
   })
 })
