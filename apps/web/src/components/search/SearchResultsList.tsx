@@ -1,5 +1,5 @@
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { EmptyState } from '@/components/EmptyState'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -83,7 +83,7 @@ export function SearchResultsList({
     return () => observer.disconnect()
   }, [hasMore, loadingMore, onLoadMore])
 
-  const virtualItems = useMemo(() => rowVirtualizer.getVirtualItems(), [rowVirtualizer])
+  const virtualItems = rowVirtualizer.getVirtualItems()
 
   if (loading) {
     return <SearchResultsSkeleton />
