@@ -30,6 +30,7 @@ function getSnippetText(item: ResumeSearchResultItem): string {
 }
 
 export function SnippetCard({ expanded, item, onToggleExpanded }: SnippetCardProps) {
+  const analysis = item.analysis ?? item.resume.analysis
   const visibleKeywords = (
     item.resume._provenance?.map((entry) => entry.term)
     ?? item.resume.ingestData?.industryTags
@@ -63,6 +64,12 @@ export function SnippetCard({ expanded, item, onToggleExpanded }: SnippetCardPro
               {getSnippetText(item)}
             </p>
 
+            {item.scoreSource === 'ai' && analysis?.summary ? (
+              <p className="line-clamp-2 text-xs leading-5 text-slate-500">
+                AI summary: {analysis.summary}
+              </p>
+            ) : null}
+
             <div className="flex flex-wrap gap-2">
               {visibleKeywords.map((keyword) => (
                 <Badge key={`${item.key}-${keyword}`} variant="secondary">
@@ -74,11 +81,18 @@ export function SnippetCard({ expanded, item, onToggleExpanded }: SnippetCardPro
 
           <div className="flex shrink-0 items-center gap-3">
             {typeof item.score === 'number' ? (
-              <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-700">
-                <span className="inline-flex items-center gap-1">
-                  <Star className="h-3.5 w-3.5" />
-                  {Math.round(item.score)}
-                </span>
+              <div className="flex items-center gap-2">
+                <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-700">
+                  <span className="inline-flex items-center gap-1">
+                    <Star className="h-3.5 w-3.5" />
+                    {Math.round(item.score)}
+                  </span>
+                </div>
+                {item.scoreSource ? (
+                  <Badge variant="outline" className="uppercase">
+                    {item.scoreSource === 'ai' ? 'AI' : 'Rule'}
+                  </Badge>
+                ) : null}
               </div>
             ) : null}
             <Button type="button" variant="outline" className="rounded-full" onClick={onToggleExpanded}>

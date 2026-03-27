@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { formatKeywordQuery } from '@trends/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
+import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
@@ -18,6 +19,8 @@ const {
   toastErrorMock: vi.fn(),
   toastInfoMock: vi.fn(),
 }))
+
+const CURRENT_PROMPT_VERSION = getCurrentResumeAiPromptVersion()
 
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
   api: {
@@ -275,7 +278,16 @@ describe('useResumeSearchState', () => {
     }))
 
     resumesMock.push(
-      createResume(1, { primaryRuleScore: 72 }),
+      createResume(1, {
+        primaryRuleScore: 72,
+        analysis: {
+          score: 93,
+          summary: 'Best AI match',
+          highlights: [],
+          recommendation: 'strong_match',
+          promptVersion: CURRENT_PROMPT_VERSION,
+        },
+      }),
       createResume(2, { primaryRuleScore: 91 }),
       createResume(3, { primaryRuleScore: 84 }),
     )
@@ -284,10 +296,12 @@ describe('useResumeSearchState', () => {
 
     expect(result.current.activeSort).toBe('score')
     expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-1',
       'resume-2',
       'resume-3',
-      'resume-1',
     ])
+    expect(result.current.filteredResults[0]?.scoreSource).toBe('ai')
+    expect(result.current.filteredResults[0]?.analysis?.summary).toBe('Best AI match')
   })
 
   it('derives raw and cluster tags, applies local filters, and sorts matching results', () => {
@@ -613,6 +627,7 @@ describe('useResumeSearchState', () => {
           summary: 'Strong fit',
           highlights: [],
           recommendation: 'strong_match',
+          promptVersion: CURRENT_PROMPT_VERSION,
           breakdown: {
             industry_db: 55,
           },
@@ -642,9 +657,13 @@ describe('useResumeSearchState', () => {
             resumeId: 'resume-1',
             status: 'contacted',
             match: {
-              score: 88,
+              score: 91,
               recommendation: 'strong_match',
-              scoreSource: 'rule',
+              scoreSource: 'ai',
+              summary: 'Strong fit',
+              breakdown: {
+                industry_db: 55,
+              },
             },
             ruleScore: 88,
             userComment: 'Call first',

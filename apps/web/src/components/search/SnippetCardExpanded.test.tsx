@@ -68,8 +68,10 @@ function createResult(index: number, overrides: Partial<ResumeSearchResultItem> 
   return {
     key: overrides.key ?? `resume-${index}`,
     identityKey: overrides.identityKey ?? `identity-${index}`,
+    analysis: overrides.analysis,
     blocked: overrides.blocked ?? false,
     score: overrides.score ?? 90,
+    scoreSource: overrides.scoreSource ?? 'ai',
     status: overrides.status ?? 'interviewed_reject',
     statusMeta: overrides.statusMeta,
     resume: overrides.resume ?? createResume(index),
@@ -88,10 +90,35 @@ describe('SnippetCardExpanded', () => {
   })
 
   it('renders snapshot, metadata, signals, and a safe source-profile link', () => {
-    render(<SnippetCardExpanded item={createResult(1)} />)
+    render(
+      <SnippetCardExpanded
+        item={createResult(1, {
+          analysis: {
+            score: 90,
+            summary: 'Strong CNC sales fit with current machine-tool coverage.',
+            highlights: ['CNC sales', 'FANUC', 'Channel development'],
+            concerns: ['No Mandarin listed'],
+            recommendation: 'strong_match',
+            breakdown: {
+              industry_db: 48,
+              related_exp: 24,
+            },
+          },
+        })}
+      />
+    )
 
     expect(screen.getByText('Snapshot')).toBeInTheDocument()
     expect(screen.getByText('Strong machine-tools operator with channel sales depth.')).toBeInTheDocument()
+    expect(screen.getByText('AI analysis')).toBeInTheDocument()
+    expect(screen.getByText('Strong CNC sales fit with current machine-tool coverage.')).toBeInTheDocument()
+    expect(screen.getByText('CNC sales')).toBeInTheDocument()
+    expect(screen.getByText('Channel development')).toBeInTheDocument()
+    expect(screen.getByText('No Mandarin listed')).toBeInTheDocument()
+    expect(screen.getByText('industry db')).toBeInTheDocument()
+    expect(screen.getByText('48')).toBeInTheDocument()
+    expect(screen.getByText('related exp')).toBeInTheDocument()
+    expect(screen.getByText('24')).toBeInTheDocument()
     expect(screen.getByText('Recent work')).toBeInTheDocument()
     expect(screen.getByText('Sales Engineer @ FANUC')).toBeInTheDocument()
     expect(screen.getByText('Account Manager @ DMG MORI')).toBeInTheDocument()
@@ -101,7 +128,7 @@ describe('SnippetCardExpanded', () => {
     expect(screen.getByText('Machine Tools')).toBeInTheDocument()
     expect(screen.getByText('Automation')).toBeInTheDocument()
     expect(screen.getByText('Robotics')).toBeInTheDocument()
-    expect(screen.getByText('FANUC')).toBeInTheDocument()
+    expect(screen.getAllByText('FANUC').length).toBeGreaterThan(0)
     expect(screen.getByText('DMG MORI')).toBeInTheDocument()
     expect(screen.getByText('senior')).toBeInTheDocument()
 
@@ -114,6 +141,7 @@ describe('SnippetCardExpanded', () => {
     render(
       <SnippetCardExpanded
         item={createResult(2, {
+          scoreSource: 'rule',
           status: 'new',
           resume: createResume(2, {
             profileUrl: 'javascript:alert(1)',
@@ -137,6 +165,8 @@ describe('SnippetCardExpanded', () => {
       />
     )
 
+    expect(screen.getByText('Score source')).toBeInTheDocument()
+    expect(screen.getByText('AI summary is not available for this resume. The current visible score comes from rule scoring only.')).toBeInTheDocument()
     expect(screen.getByText('No summary available for this resume yet.')).toBeInTheDocument()
     expect(screen.getByText('No structured work history available.')).toBeInTheDocument()
     expect(screen.getByText('No location')).toBeInTheDocument()
