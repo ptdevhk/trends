@@ -5,6 +5,8 @@ import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 
 let virtualRows: Array<{ index: number; start: number }> = [{ index: 0, start: 0 }]
+const observeMock = vi.fn()
+const disconnectMock = vi.fn()
 const virtualizer = {
   getTotalSize: () => 480,
   getVirtualItems: () => virtualRows,
@@ -15,7 +17,13 @@ vi.mock('@tanstack/react-virtual', () => ({
 }))
 
 vi.mock('@/components/search/SnippetCard', () => ({
-  SnippetCard: ({ item }: { item: ResumeSearchResultItem }) => <div>{item.key}</div>,
+  SnippetCard: ({
+    expanded,
+    item,
+  }: {
+    expanded: boolean
+    item: ResumeSearchResultItem
+  }) => <div>{`${item.key}:${expanded ? 'expanded' : 'collapsed'}`}</div>,
 }))
 
 describe('SearchResultsList', () => {
@@ -23,9 +31,19 @@ describe('SearchResultsList', () => {
     virtualRows = [{ index: 0, start: 0 }]
     vi.clearAllMocks()
 
+    observeMock.mockImplementation(() => {})
+    disconnectMock.mockImplementation(() => {})
     vi.stubGlobal('IntersectionObserver', class {
-      observe() {}
-      disconnect() {}
+      constructor(private readonly callback: (entries: Array<{ isIntersecting: boolean }>) => void) {}
+
+      observe(target: Element) {
+        observeMock(target)
+        this.callback([{ isIntersecting: true }])
+      }
+
+      disconnect() {
+        disconnectMock()
+      }
     })
   })
 
@@ -86,7 +104,7 @@ describe('SearchResultsList', () => {
       />
     )
 
-    expect(screen.getByText('resume-0')).toBeInTheDocument()
+    expect(screen.getByText('resume-0:collapsed')).toBeInTheDocument()
 
     virtualRows = [{ index: 1, start: 120 }]
     rerender(
@@ -100,7 +118,44 @@ describe('SearchResultsList', () => {
       />
     )
 
-    expect(screen.getByText('resume-1')).toBeInTheDocument()
-    expect(screen.queryByText('resume-0')).not.toBeInTheDocument()
+    expect(screen.getByText('resume-1:collapsed')).toBeInTheDocument()
+    expect(screen.queryByText('resume-0:collapsed')).not.toBeInTheDocument()
+  })
+
+  it('triggers load more when the sentinel intersects and more results are available', () => {
+    const onLoadMore = vi.fn()
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore
+        items={Array.from({ length: 2 }, (_, index) => createItem(index))}
+        onLoadMore={onLoadMore}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(observeMock).toHaveBeenCalledTimes(1)
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Scroll for more')).toBeInTheDocument()
+  })
+
+  it('renders the full non-virtualized list when any result is expanded', () => {
+    const items = Array.from({ length: 45 }, (_, index) => createItem(index))
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set(['resume-1'])}
+        hasMore={false}
+        items={items}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('resume-0:collapsed')).toBeInTheDocument()
+    expect(screen.getByText('resume-1:expanded')).toBeInTheDocument()
+    expect(screen.getByText('resume-44:collapsed')).toBeInTheDocument()
+    expect(screen.getByText('End of results')).toBeInTheDocument()
   })
 })
