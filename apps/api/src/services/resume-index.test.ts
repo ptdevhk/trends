@@ -10,10 +10,71 @@ import { ResumeIndexService } from "./resume-index";
 
 import type { ResumeItem } from "../types/resume";
 
+const TEST_SKILLS_MD = `---
+version: 1
+updated_at: '2026-03-27'
+description: Test skills knowledge file
+---
+
+# Skills Knowledge
+
+## Domain Taxonomy
+
+### machinery
+- displayName: Machinery
+- keywords: 机床, 车床, cnc, 数控, machine tools, machining center, precision machinery
+
+### sales
+- displayName: Sales
+- keywords: 销售, sales, sales engineer, business development manager, account manager
+
+### metrology
+- displayName: Metrology
+- keywords: 测量, metrology, coordinate measuring machine, quality inspection
+
+## Synonym Table
+
+- 机床: machine tools, cnc machines
+- 销售工程师: sales engineer, technical sales engineer
+- 业务拓展: business development, business development manager
+- 大客户: key account, key account manager, account manager
+- 测量: metrology, quality inspection
+- CMM: coordinate measuring machine
+
+## Experience Signals
+
+### mid
+- displayName: Mid
+- keywords: specialist
+
+## Company Patterns
+
+- FANUC [role: both] (aliases: 发那科, Fanuc)
+
+## Industry Context
+
+### Test
+Machine tools and metrology
+
+## Exclusion Patterns
+
+- exclude: ad, promo
+
+## Learning Log
+
+- 2026-03-27: test fixture
+`;
+
 function createFixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "resume-index-"));
   fs.mkdirSync(path.join(root, "config", "resume"), { recursive: true });
   fs.mkdirSync(path.join(root, "config", "job-descriptions"), { recursive: true });
+
+  fs.writeFileSync(
+    path.join(root, "config", "resume", "skills.md"),
+    TEST_SKILLS_MD,
+    "utf8"
+  );
 
   fs.writeFileSync(
     path.join(root, "config", "resume", "skills_words.txt"),
@@ -184,6 +245,55 @@ describe("ResumeIndexService", () => {
 
       const index = service.buildIndex("sample:seek", resumes);
       expect(index.get("R2001")?.locationCity).toBe("Kuala Lumpur");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("derives English manufacturing and recruiter phrases from canonical skills knowledge", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new ResumeIndexService(root);
+      const resumes: ResumeItem[] = [
+        {
+          name: "Alex Tan",
+          profileUrl: "https://my.employer.seek.com/candidates/2",
+          activityStatus: "Active",
+          age: "33",
+          experience: "8 years",
+          education: "Bachelor",
+          location: "Selangor, Malaysia",
+          selfIntro: "",
+          jobIntention: "Business Development Manager",
+          expectedSalary: "",
+          workHistory: [
+            {
+              raw: "2020-01~2024-12 Precision Motion Sdn Bhd Business Development Manager",
+              companyName: "Precision Motion Sdn Bhd",
+              jobTitle: "Business Development Manager",
+              description: "Handled machine tools distributors and coordinate measuring machine accounts",
+              startDate: "2020-01",
+              endDate: "2024-12",
+            },
+          ],
+          extractedAt: "2026-03-27T00:00:00.000Z",
+          resumeId: "R3001",
+          profileType: "seek",
+        },
+      ];
+
+      const index = service.buildIndex("sample:seek-english-vocab", resumes);
+      const entry = index.get("R3001");
+
+      expect(entry?.skills).toEqual(expect.arrayContaining([
+        "business development manager",
+        "machine tools",
+        "coordinate measuring machine",
+      ]));
+      expect(entry?.industryTags).toEqual(expect.arrayContaining(["machinery", "sales", "metrology"]));
+      expect(entry?.searchText).toContain("business development manager");
+      expect(entry?.searchText).toContain("machine tools");
     } finally {
       cleanupFixtureRoot(root);
     }
