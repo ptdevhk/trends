@@ -673,6 +673,95 @@ describe("resume routes", () => {
     }));
   });
 
+  it("widens the convex fetch window when score sorting falls back to local resume filters", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
+    const getMatchesByResumeIdsSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesByResumeIds")
+      .mockReturnValue([
+        buildStoredMatch("resume-live-3", { id: 3, score: 96 }),
+        buildStoredMatch("resume-live-1", { id: 1, score: 81 }),
+      ]);
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:listWithIngestData") {
+        return convexSuccess([
+          buildConvexResumeRecord("resume-live-1", { name: "Alice" }),
+          buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
+        ]);
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&limit=2&sortBy=score&jobDescriptionId=jd-1&locations=%E4%B8%9C%E8%8E%9E");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Alice"]);
+    expect(getMatchesPageSpy).not.toHaveBeenCalled();
+    expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-3"], "jd-1");
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:listWithIngestData",
+      args: expect.objectContaining({ limit: 250, jobDescriptionId: "jd-1" }),
+    }));
+  });
+
+  it("widens the convex fetch window when score-sorted keyword searches cannot use match-storage pagination", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
+    const getMatchesByResumeIdsSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesByResumeIds")
+      .mockReturnValue([
+        buildStoredMatch("resume-live-3", { id: 3, score: 96 }),
+        buildStoredMatch("resume-live-1", { id: 1, score: 81 }),
+      ]);
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:searchWithTagExpansion") {
+        return convexSuccess({
+          expansion: {
+            original: "cnc sales",
+            expanded: ["cnc", "sales"],
+            groups: [
+              { original: "cnc", variants: ["cnc"] },
+              { original: "sales", variants: ["sales"] },
+            ],
+            mode: "AND",
+          },
+          results: [
+            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "cnc", source: "searchText" }] },
+          ],
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&limit=2&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Alice"]);
+    expect(getMatchesPageSpy).not.toHaveBeenCalled();
+    expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-3"], "jd-1");
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:searchWithTagExpansion",
+      args: expect.objectContaining({ limit: 250, jobDescriptionId: "jd-1" }),
+    }));
+  });
+
   it("pages score-sorted convex results through match storage and preserves explicit-id order", async () => {
     const calls: ConvexCall[] = [];
     const getMatchesPageSpy = vi
