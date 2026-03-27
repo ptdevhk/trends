@@ -18,7 +18,7 @@ export function MobileFilterSheet({ open, onOpenChange, ...props }: MobileFilter
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[75vh] overflow-y-auto px-6 pb-6">
-          <FacetSidebar embedded {...props} />
+          <FacetSidebar {...props} embedded />
         </div>
       </DialogContent>
     </Dialog>
