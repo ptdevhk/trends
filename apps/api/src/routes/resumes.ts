@@ -1081,7 +1081,7 @@ async function prepareFilteredMatchStoragePage(params: {
   };
 }
 
-async function prepareFilteredKeywordMatchPage(params: {
+async function prepareKeywordMatchPage(params: {
   jobDescriptionId: string;
   keywords: string[];
   offset?: number;
@@ -1090,7 +1090,7 @@ async function prepareFilteredKeywordMatchPage(params: {
   recommendation?: MatchingResult["recommendation"][];
   sortByScore: boolean;
   sortOrder?: "asc" | "desc";
-  resumeFilters: ResumeFilters;
+  resumeFilters?: ResumeFilters;
 }): Promise<{
   prepared: PreparedResumeCandidate[];
   total: number;
@@ -2038,11 +2038,10 @@ app.openapi(getResumesRoute, (c) => {
           && normalizedKeywords.length === 0
           && hasLocalResumeFilters
         );
-        const canUseFilteredKeywordPagination = Boolean(
+        const canUseKeywordMatchPagination = Boolean(
           resolvedJobId
           && requiresMatchPagination
           && normalizedKeywords.length > 0
-          && hasLocalResumeFilters
         );
         const canUseSourcePagination = !requiresMatchPagination;
         let usesPrePagedMatchResults = canUseMatchStoragePagination || canUseFilteredMatchStoragePagination;
@@ -2085,8 +2084,8 @@ app.openapi(getResumesRoute, (c) => {
           prepared = filteredMatchPage.prepared;
           matchMap = filteredMatchPage.matchMap;
           totalCount = filteredMatchPage.total;
-        } else if (canUseFilteredKeywordPagination && resolvedJobId) {
-          const filteredKeywordPage = await prepareFilteredKeywordMatchPage({
+        } else if (canUseKeywordMatchPagination && resolvedJobId) {
+          const keywordMatchPage = await prepareKeywordMatchPage({
             jobDescriptionId: resolvedJobId,
             keywords: normalizedKeywords,
             offset,
@@ -2097,11 +2096,11 @@ app.openapi(getResumesRoute, (c) => {
             sortOrder: resolveResumeSortOrder(sortBy, sortOrder) || "desc",
             resumeFilters: localResumeFilters,
           });
-          if (filteredKeywordPage) {
-            prepared = filteredKeywordPage.prepared;
-            matchMap = filteredKeywordPage.matchMap;
-            totalCount = filteredKeywordPage.total;
-            liveExpansion = filteredKeywordPage.keywordExpansion;
+          if (keywordMatchPage) {
+            prepared = keywordMatchPage.prepared;
+            matchMap = keywordMatchPage.matchMap;
+            totalCount = keywordMatchPage.total;
+            liveExpansion = keywordMatchPage.keywordExpansion;
             usesPrePagedMatchResults = true;
           } else {
             const convexFetchLimit = resolveConvexResumeFetchLimit({
