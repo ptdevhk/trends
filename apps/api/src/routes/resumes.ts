@@ -208,6 +208,13 @@ type PreparedResumeCandidate = {
   companyHits: string[];
   roleSignals: RoleSignalSummary[];
 };
+type ResumeMatchContext = {
+  score: number;
+  recommendation: MatchingResult["recommendation"];
+};
+type ResumeMatchContextEntry = ResumeMatchContext & {
+  resumeId: string;
+};
 type ReviewPacketResolvedRecord = {
   resumeId: string;
   resume: ExportResumePayload;
@@ -974,6 +981,39 @@ function filterPreparedCandidatesByResumeFilters(
   return prepared.filter((item) => allowed.has(item.resume));
 }
 
+function createResumeMatchContextMap(matches: Array<StoredMatch | ResumeMatchContextEntry>): Map<string, ResumeMatchContext> {
+  return new Map(matches.map((match) => [
+    match.resumeId,
+    {
+      score: match.score,
+      recommendation: match.recommendation,
+    },
+  ]));
+}
+
+function loadResumeMatchContextMap(
+  jobDescriptionId: string,
+  resumeIds: string[],
+): Map<string, ResumeMatchContext> {
+  const normalizedResumeIds = Array.from(new Set(
+    resumeIds.map((resumeId) => resumeId.trim()).filter(Boolean),
+  ));
+  const matchMap = new Map<string, ResumeMatchContext>();
+
+  for (let index = 0; index < normalizedResumeIds.length; index += MATCH_STORAGE_FILTER_SCAN_BATCH_SIZE) {
+    const batchIds = normalizedResumeIds.slice(index, index + MATCH_STORAGE_FILTER_SCAN_BATCH_SIZE);
+    const matches = matchStorage.getMatchesByResumeIds(batchIds, jobDescriptionId);
+    for (const match of matches) {
+      matchMap.set(match.resumeId, {
+        score: match.score,
+        recommendation: match.recommendation,
+      });
+    }
+  }
+
+  return matchMap;
+}
+
 async function prepareFilteredMatchStoragePage(params: {
   jobDescriptionId: string;
   offset?: number;
@@ -985,12 +1025,12 @@ async function prepareFilteredMatchStoragePage(params: {
 }): Promise<{
   prepared: PreparedResumeCandidate[];
   total: number;
-  matchMap: Map<string, { score: number; recommendation: MatchingResult["recommendation"] }>;
+  matchMap: Map<string, ResumeMatchContext>;
 }> {
   const pageOffset = typeof params.offset === "number" ? Math.max(0, params.offset) : 0;
   const pageLimit = typeof params.limit === "number" ? Math.max(1, params.limit) : DEFAULT_CONVEX_RESUME_PAGE_SIZE;
   const pageEnd = pageOffset + pageLimit;
-  const matchMap = new Map<string, { score: number; recommendation: MatchingResult["recommendation"] }>();
+  const matchMap = new Map<string, ResumeMatchContext>();
   const pagedPrepared: PreparedResumeCandidate[] = [];
   let filteredCount = 0;
   let scanOffset = 0;
@@ -1015,15 +1055,7 @@ async function prepareFilteredMatchStoragePage(params: {
       resumeIds: matchPage.matches.map((match) => match.resumeId),
     })).prepared;
     const filteredBatch = filterPreparedCandidatesByResumeFilters(preparedBatch, params.resumeFilters);
-    const batchMatchMap = new Map(
-      matchPage.matches.map((match) => [
-        match.resumeId,
-        {
-          score: match.score,
-          recommendation: match.recommendation,
-        },
-      ]),
-    );
+    const batchMatchMap = createResumeMatchContextMap(matchPage.matches);
 
     for (const candidate of filteredBatch) {
       if (filteredCount >= pageOffset && filteredCount < pageEnd) {
@@ -1046,6 +1078,104 @@ async function prepareFilteredMatchStoragePage(params: {
     prepared: pagedPrepared,
     total: filteredCount,
     matchMap,
+  };
+}
+
+async function prepareFilteredKeywordMatchPage(params: {
+  jobDescriptionId: string;
+  keywords: string[];
+  offset?: number;
+  limit?: number;
+  minScore?: number;
+  recommendation?: MatchingResult["recommendation"][];
+  sortByScore: boolean;
+  sortOrder?: "asc" | "desc";
+  resumeFilters: ResumeFilters;
+}): Promise<{
+  prepared: PreparedResumeCandidate[];
+  total: number;
+  matchMap: Map<string, ResumeMatchContext>;
+  keywordExpansion?: ResumeKeywordExpansion;
+} | null> {
+  const pageOffset = typeof params.offset === "number" ? Math.max(0, params.offset) : 0;
+  const pageLimit = typeof params.limit === "number" ? Math.max(1, params.limit) : DEFAULT_CONVEX_RESUME_PAGE_SIZE;
+  const allowedRecommendations = params.recommendation?.length
+    ? new Set(params.recommendation)
+    : null;
+  const direction = (params.sortOrder || "desc") === "desc" ? -1 : 1;
+  const allPrepared: PreparedResumeCandidate[] = [];
+  let keywordExpansion: ResumeKeywordExpansion | undefined;
+  let scanOffset = 0;
+  let total = 0;
+
+  while (true) {
+    const preparedResult = await prepareConvexCandidates({
+      keywords: params.keywords,
+      limit: MATCH_STORAGE_FILTER_SCAN_BATCH_SIZE,
+      offset: scanOffset,
+      filters: params.resumeFilters,
+      jobDescriptionId: params.jobDescriptionId,
+      paged: true,
+    });
+
+    keywordExpansion ??= preparedResult.keywordExpansion;
+    total = preparedResult.total ?? 0;
+
+    if (total > MAX_SAFE_CONVEX_POST_FILTER_LIMIT) {
+      return null;
+    }
+
+    if (preparedResult.prepared.length === 0) {
+      break;
+    }
+
+    allPrepared.push(...preparedResult.prepared);
+    scanOffset += preparedResult.prepared.length;
+    if (scanOffset >= total) {
+      break;
+    }
+  }
+
+  const fullMatchMap = loadResumeMatchContextMap(
+    params.jobDescriptionId,
+    allPrepared.map((item) => item.resumeId),
+  );
+  let working = allPrepared.map((candidate) => ({
+    candidate,
+    match: fullMatchMap.get(candidate.resumeId),
+  }));
+
+  const minScore = params.minScore;
+  if (typeof minScore === "number") {
+    working = working.filter((entry) => entry.match && entry.match.score >= minScore);
+  }
+
+  if (allowedRecommendations) {
+    working = working.filter((entry) => entry.match && allowedRecommendations.has(entry.match.recommendation));
+  }
+
+  if (params.sortByScore) {
+    working = [...working].sort((left, right) => {
+      const scoreLeft = left.match?.score ?? -1;
+      const scoreRight = right.match?.score ?? -1;
+      return (scoreLeft - scoreRight) * direction;
+    });
+  }
+
+  const paged = working.slice(pageOffset, pageOffset + pageLimit);
+  return {
+    prepared: paged.map((entry) => entry.candidate),
+    total: working.length,
+    matchMap: createResumeMatchContextMap(
+      paged.flatMap((entry) => entry.match
+        ? [{
+            resumeId: entry.candidate.resumeId,
+            score: entry.match.score,
+            recommendation: entry.match.recommendation,
+          }]
+        : []),
+    ),
+    keywordExpansion,
   };
 }
 
@@ -1908,8 +2038,14 @@ app.openapi(getResumesRoute, (c) => {
           && normalizedKeywords.length === 0
           && hasLocalResumeFilters
         );
+        const canUseFilteredKeywordPagination = Boolean(
+          resolvedJobId
+          && requiresMatchPagination
+          && normalizedKeywords.length > 0
+          && hasLocalResumeFilters
+        );
         const canUseSourcePagination = !requiresMatchPagination;
-        const usesMatchStoragePagination = canUseMatchStoragePagination || canUseFilteredMatchStoragePagination;
+        let usesPrePagedMatchResults = canUseMatchStoragePagination || canUseFilteredMatchStoragePagination;
         const matchSortOrder = sortBy === "score"
           ? resolveResumeSortOrder(sortBy, sortOrder) || "desc"
           : "desc";
@@ -1917,7 +2053,7 @@ app.openapi(getResumesRoute, (c) => {
         let prepared: PreparedResumeCandidate[] = [];
         let liveExpansion: ResumeKeywordExpansion | undefined;
         let totalCount: number | undefined;
-        let matchMap: Map<string, { score: number; recommendation: MatchingResult["recommendation"] }> | null = null;
+        let matchMap: Map<string, ResumeMatchContext> | null = null;
 
         if (canUseMatchStoragePagination && resolvedJobId) {
           const matchPage = matchStorage.getMatchesPageForJob({
@@ -1949,6 +2085,41 @@ app.openapi(getResumesRoute, (c) => {
           prepared = filteredMatchPage.prepared;
           matchMap = filteredMatchPage.matchMap;
           totalCount = filteredMatchPage.total;
+        } else if (canUseFilteredKeywordPagination && resolvedJobId) {
+          const filteredKeywordPage = await prepareFilteredKeywordMatchPage({
+            jobDescriptionId: resolvedJobId,
+            keywords: normalizedKeywords,
+            offset,
+            limit,
+            minScore: minMatchScore,
+            recommendation: normalizedRecommendations,
+            sortByScore: sortBy === "score",
+            sortOrder: resolveResumeSortOrder(sortBy, sortOrder) || "desc",
+            resumeFilters: localResumeFilters,
+          });
+          if (filteredKeywordPage) {
+            prepared = filteredKeywordPage.prepared;
+            matchMap = filteredKeywordPage.matchMap;
+            totalCount = filteredKeywordPage.total;
+            liveExpansion = filteredKeywordPage.keywordExpansion;
+            usesPrePagedMatchResults = true;
+          } else {
+            const convexFetchLimit = resolveConvexResumeFetchLimit({
+              limit,
+              offset,
+              requiresMatchPagination,
+              hasLocalResumeFilters,
+              hasKeywordQuery: normalizedKeywords.length > 0,
+            });
+            const preparedResult = await prepareConvexCandidates({
+              keywords: normalizedKeywords,
+              limit: convexFetchLimit,
+              jobDescriptionId: resolvedJobId,
+            });
+            prepared = preparedResult.prepared;
+            liveExpansion = preparedResult.keywordExpansion;
+            totalCount = preparedResult.total;
+          }
         } else {
           const convexFetchLimit = canUseSourcePagination ? limit : resolveConvexResumeFetchLimit({
             limit,
@@ -1973,7 +2144,7 @@ app.openapi(getResumesRoute, (c) => {
         }
 
         let filtered = prepared.map((item) => item.resume);
-        filtered = usesMatchStoragePagination
+        filtered = usesPrePagedMatchResults
           ? filtered
           : resumeService.filterResumes(filtered, localResumeFilters);
 
@@ -1988,15 +2159,14 @@ app.openapi(getResumesRoute, (c) => {
         );
 
         if (!matchMap && needsMatchContext && resolvedJobId) {
-          const matches = matchStorage.getMatchesByResumeIds(
+          matchMap = loadResumeMatchContextMap(
+            resolvedJobId,
             prepared.map((item) => item.resumeId),
-            resolvedJobId
           );
-          matchMap = new Map(matches.map((match) => [match.resumeId, match]));
         }
 
         let working = enriched;
-        if (!usesMatchStoragePagination && matchMap) {
+        if (!usesPrePagedMatchResults && matchMap) {
           if (minMatchScore !== undefined) {
             working = working.filter((item) => {
               const match = matchMap?.get(item.id);
@@ -2012,7 +2182,7 @@ app.openapi(getResumesRoute, (c) => {
           }
         }
 
-        if (!usesMatchStoragePagination && sortBy) {
+        if (!usesPrePagedMatchResults && sortBy) {
           const order = sortOrder || (sortBy === "score" ? "desc" : "asc");
           const direction = order === "desc" ? -1 : 1;
 
@@ -2038,7 +2208,7 @@ app.openapi(getResumesRoute, (c) => {
           });
         }
 
-        const isAlreadyPaged = canUseSourcePagination || usesMatchStoragePagination;
+        const isAlreadyPaged = canUseSourcePagination || usesPrePagedMatchResults;
         const limited = isAlreadyPaged
           ? working.map((item) => item.resume)
           : (() => {

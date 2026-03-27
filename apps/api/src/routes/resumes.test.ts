@@ -742,7 +742,71 @@ describe("resume routes", () => {
     expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
   });
 
-  it("widens the convex fetch window when score-sorted keyword searches cannot use match-storage pagination", async () => {
+  it("pages score-sorted keyword convex results through filtered keyword pages when local resume filters are present", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
+    const getMatchesByResumeIdsSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesByResumeIds")
+      .mockReturnValue([
+        buildStoredMatch("resume-live-1", { id: 1, score: 96 }),
+        buildStoredMatch("resume-live-3", { id: 3, score: 81 }),
+      ]);
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+        return convexSuccess({
+          expansion: {
+            original: "cnc sales",
+            expanded: ["cnc", "sales"],
+            groups: [
+              { original: "cnc", variants: ["cnc"] },
+              { original: "sales", variants: ["sales"] },
+            ],
+            mode: "AND",
+          },
+          total: 2,
+          results: [
+            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "cnc", source: "searchText" }] },
+          ],
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request(
+      "/api/resumes?source=convex&limit=1&offset=1&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales&locations=%E4%B8%9C%E8%8E%9E"
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 2,
+      returned: 1,
+      source: "convex",
+    }));
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla"]);
+    expect(getMatchesPageSpy).not.toHaveBeenCalled();
+    expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-3"], "jd-1");
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:searchWithTagExpansionPage",
+      args: expect.objectContaining({
+        limit: 250,
+        offset: 0,
+        jobDescriptionId: "jd-1",
+        locations: ["东莞"],
+      }),
+    }));
+    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
+  });
+
+  it("widens the convex fetch window when score-sorted keyword searches without source-side resume filters cannot use match-storage pagination", async () => {
     const calls: ConvexCall[] = [];
     const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
     const getMatchesByResumeIdsSpy = vi
