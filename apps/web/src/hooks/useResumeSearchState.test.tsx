@@ -508,6 +508,54 @@ describe('useResumeSearchState', () => {
     })
   })
 
+  it('clears only facet filters while preserving the active search context', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
+      selectedCompanies: ['FANUC'],
+      selectedExperienceLevel: 'senior',
+      filters: {
+        minExperience: 5,
+        maxExperience: 12,
+        locations: ['Malaysia'],
+        education: ['Bachelor'],
+        status: ['contacted'],
+        minMatchScore: 80,
+      },
+    }))
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    act(() => {
+      result.current.clearFacetFilters()
+    })
+
+    expect(result.current.queryInput).toBe('machine tools')
+    expect(syncToUrlMock).toHaveBeenCalledWith({
+      shareSessionId: undefined,
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+      filters: {
+        minExperience: 5,
+        maxExperience: 12,
+        locations: ['Malaysia'],
+        education: undefined,
+        status: undefined,
+        minMatchScore: undefined,
+      },
+    })
+  })
+
   it('only grows the resume window when more results are available and not already loading more', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
