@@ -104,6 +104,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description AI summary generation failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
             };
         };
         delete?: never;

@@ -41,6 +41,11 @@ const SearchSummaryResponseSchema = z.object({
   shouldRefresh: z.boolean().optional(),
 });
 
+const SearchSummaryErrorResponseSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
+});
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -92,6 +97,14 @@ const searchSummaryRoute = createRoute({
       content: {
         "application/json": {
           schema: SearchSummaryResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: "AI summary generation failed",
+      content: {
+        "application/json": {
+          schema: SearchSummaryErrorResponseSchema,
         },
       },
     },
@@ -177,7 +190,10 @@ app.openapi(searchSummaryRoute, async (c) => {
       }, 200);
     }
 
-    throw error;
+    return c.json({
+      success: false as const,
+      error: "Failed to generate AI search summary",
+    }, 500);
   }
 });
 

@@ -287,4 +287,37 @@ describe("ai summary routes", () => {
       expect.any(Error),
     )
   })
+
+  it("returns a stable json error when summary generation fails without usable cache", async () => {
+    vi.spyOn(aiSummaryService, "generateSummary").mockRejectedValue(new Error("LLM unavailable"))
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+
+      expect(call.method).toBe("query")
+      expect(call.pathName).toBe("ai_summary_cache:get")
+
+      return convexSuccess(null)
+    })
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    const app = createTestApp()
+    const response = await app.request("/api/resumes/search-summary", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "hr",
+      },
+      body: JSON.stringify(createSummaryRequestBody()),
+    })
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({
+      success: false,
+      error: "Failed to generate AI search summary",
+    })
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Failed to generate AI search summary",
+      expect.any(Error),
+    )
+  })
 })
