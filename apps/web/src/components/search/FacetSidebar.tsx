@@ -8,6 +8,7 @@ export type FacetSidebarProps = {
   embedded?: boolean
   facetCounts: FacetCounts
   minScore?: number
+  selectedClusters: string[]
   selectedCompanies: string[]
   selectedEducation: string[]
   selectedExperienceLevel?: ExperienceLevelFilter
@@ -17,6 +18,7 @@ export type FacetSidebarProps = {
   onSetExperienceLevel: (value: ExperienceLevelFilter | undefined) => void
   onSetMinScore: (value: number | undefined) => void
   onToggleCompany: (value: string) => void
+  onToggleCluster: (value: string) => void
   onToggleEducation: (value: string) => void
   onToggleStatus: (value: CandidateStatus) => void
   onToggleTag: (value: string) => void
@@ -62,6 +64,7 @@ export function FacetSidebar({
   embedded = false,
   facetCounts,
   minScore,
+  selectedClusters,
   selectedCompanies,
   selectedEducation,
   selectedExperienceLevel,
@@ -71,6 +74,7 @@ export function FacetSidebar({
   onSetExperienceLevel,
   onSetMinScore,
   onToggleCompany,
+  onToggleCluster,
   onToggleEducation,
   onToggleStatus,
   onToggleTag,
@@ -87,6 +91,12 @@ export function FacetSidebar({
         </button>
       </div>
 
+      <FacetGroup
+        title="Skill Clusters"
+        items={facetCounts.clusters}
+        selectedValues={selectedClusters}
+        onToggle={onToggleCluster}
+      />
       <FacetGroup title="Tags" items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
       <FacetGroup title="Companies" items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
       <ExperienceLevelGroup selectedExperienceLevel={selectedExperienceLevel} onSetExperienceLevel={onSetExperienceLevel} />

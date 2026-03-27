@@ -59,7 +59,7 @@ export function FacetGroup({
                 )}
                 onClick={() => onToggle(item.value)}
               >
-                {item.value}
+                {item.label ?? item.value}
                 <span className={cn('ml-2 text-xs', active ? 'text-slate-200' : 'text-muted-foreground')}>
                   {item.count}
                 </span>

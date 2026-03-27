@@ -64,6 +64,11 @@ const LazySystemSettingsRuntimePage = lazy(async () => {
   return { default: module.SystemSettingsRuntimePage }
 })
 
+const LazySystemSettingsTaxonomyPage = lazy(async () => {
+  const module = await import('@/pages/system-settings/SystemSettingsTaxonomyPage')
+  return { default: module.SystemSettingsTaxonomyPage }
+})
+
 function MainShell() {
   return (
     <div className="min-h-screen bg-background">
@@ -213,6 +218,14 @@ function App() {
                   element={(
                     <RouteSuspense>
                       <LazySystemSettingsKeywordsPage />
+                    </RouteSuspense>
+                  )}
+                />
+                <Route
+                  path="taxonomy"
+                  element={(
+                    <RouteSuspense>
+                      <LazySystemSettingsTaxonomyPage />
                     </RouteSuspense>
                   )}
                 />

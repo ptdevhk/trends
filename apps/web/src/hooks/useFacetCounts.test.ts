@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { useFacetCounts } from '@/hooks/useFacetCounts'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import type { TaxonomyClusterInput } from '@/lib/taxonomy'
 
 function createResume(overrides: Partial<ConvexResumeItem>): ConvexResumeItem {
   return {
@@ -53,6 +54,19 @@ function createResult(overrides: Partial<ResumeSearchResultItem>): ResumeSearchR
 
 describe('useFacetCounts', () => {
   it('aggregates facet counts from search results', () => {
+    const taxonomyClusters: TaxonomyClusterInput[] = [
+      {
+        name: 'Manufacturing Systems',
+        slug: 'manufacturing-systems',
+        tags: [],
+      },
+      {
+        name: 'Automation Stack',
+        slug: 'automation-stack',
+        parentSlug: 'manufacturing-systems',
+        tags: ['Machine Tools', 'Automation'],
+      },
+    ]
     const { result } = renderHook(() => useFacetCounts([
       createResult({ key: 'one', score: 85, status: 'new' }),
       createResult({
@@ -77,27 +91,30 @@ describe('useFacetCounts', () => {
           },
         }),
       }),
-    ]))
+    ], taxonomyClusters))
 
+    expect(result.current.clusters).toEqual([
+      { value: 'manufacturing-systems', label: 'Manufacturing Systems', count: 2 },
+    ])
     expect(result.current.tags.slice(0, 2)).toEqual([
-      { value: 'Machine Tools', count: 2 },
-      { value: 'Automation', count: 1 },
+      { value: 'Machine Tools', label: undefined, count: 2 },
+      { value: 'Automation', label: undefined, count: 1 },
     ])
     expect(result.current.companies).toEqual([
-      { value: 'DMG MORI', count: 1 },
-      { value: 'FANUC', count: 1 },
+      { value: 'DMG MORI', label: undefined, count: 1 },
+      { value: 'FANUC', label: undefined, count: 1 },
     ])
     expect(result.current.experienceLevels).toEqual([
-      { value: 'mid', count: 1 },
-      { value: 'senior', count: 1 },
+      { value: 'mid', label: undefined, count: 1 },
+      { value: 'senior', label: undefined, count: 1 },
     ])
     expect(result.current.education).toEqual([
-      { value: 'Bachelor', count: 1 },
-      { value: 'Master', count: 1 },
+      { value: 'Bachelor', label: undefined, count: 1 },
+      { value: 'Master', label: undefined, count: 1 },
     ])
     expect(result.current.statuses).toEqual([
-      { value: 'contacted', count: 1 },
-      { value: 'new', count: 1 },
+      { value: 'contacted', label: undefined, count: 1 },
+      { value: 'new', label: undefined, count: 1 },
     ])
     expect(result.current.minScoreOptions).toEqual([
       { value: '60', count: 2 },

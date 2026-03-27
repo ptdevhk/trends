@@ -1,5 +1,6 @@
 export { default as healthRoutes } from "./health.js";
 export { default as aiSummaryRoutes } from "./ai-summary.js";
+export { default as taxonomyRoutes } from "./taxonomy.js";
 export { default as trendsRoutes } from "./trends.js";
 export { default as topicsRoutes } from "./topics.js";
 export { default as searchRoutes } from "./search.js";

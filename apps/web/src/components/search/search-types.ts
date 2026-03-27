@@ -8,9 +8,11 @@ export type SearchSortValue = 'relevance' | 'newest' | 'experience'
 export type FacetValueCount = {
   value: string
   count: number
+  label?: string
 }
 
 export type FacetCounts = {
+  clusters: FacetValueCount[]
   tags: FacetValueCount[]
   companies: FacetValueCount[]
   experienceLevels: FacetValueCount[]

@@ -12,6 +12,14 @@ import {
   type ExperienceLevelFilter,
   type UrlSearchState,
 } from '@/hooks/useUrlSearchState'
+import {
+  createTaxonomyClusterResolver,
+  fromClusterFilterToken,
+  isClusterFilterToken,
+  toClusterFilterToken,
+  type TaxonomyClusterInput,
+  type TaxonomyClusterResolver,
+} from '@/lib/taxonomy'
 import { toIndustryDbV2Stats } from '@/lib/resume-scoring'
 import { resolveCollectionSource } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
@@ -185,18 +193,32 @@ function sortResults(results: ResumeSearchResultItem[], sortValue: SearchSortVal
   })
 }
 
-function matchesLocalFilters(item: ResumeSearchResultItem, state: UrlSearchState): boolean {
-  const normalizedSelectedTags = state.selectedTags.map((value) => value.toLowerCase())
+function matchesLocalFilters(
+  item: ResumeSearchResultItem,
+  state: UrlSearchState,
+  selectedRawTags: string[],
+  selectedClusterTags: string[],
+  taxonomyResolver: TaxonomyClusterResolver,
+): boolean {
+  const normalizedSelectedTags = selectedRawTags.map((value) => value.toLowerCase())
+  const normalizedSelectedClusters = selectedClusterTags.map((value) => value.toLowerCase())
   const normalizedSelectedCompanies = state.selectedCompanies.map((value) => value.toLowerCase())
   const normalizedEducation = (state.filters.education ?? []).map((value) => value.toLowerCase())
   const normalizedStatuses = state.filters.status ?? []
   const industryTags = item.resume.ingestData?.industryTags?.map((value) => value.toLowerCase()) ?? []
+  const matchedClusters = new Set(
+    taxonomyResolver.resolveTagClusters(item.resume.ingestData?.industryTags).map((cluster) => cluster.slug.toLowerCase()),
+  )
   const companyHits = item.resume.ingestData?.companyHits?.map((value) => value.toLowerCase()) ?? []
   const education = item.resume.education?.trim().toLowerCase() ?? ''
   const experienceLevel = item.resume.ingestData?.experienceLevel?.trim().toLowerCase()
   const minScore = state.filters.minMatchScore
 
   if (normalizedSelectedTags.length > 0 && !normalizedSelectedTags.every((tag) => industryTags.includes(tag))) {
+    return false
+  }
+
+  if (normalizedSelectedClusters.length > 0 && !normalizedSelectedClusters.every((slug) => matchedClusters.has(slug))) {
     return false
   }
 
@@ -278,6 +300,10 @@ export function useResumeSearchState() {
   const saveSearchHistory = useMutation(api.sessions.saveSearchHistory)
   const markSearchHistoryOpened = useMutation(api.sessions.markSearchHistoryOpened)
   const searchHistoryRecords = useQuery(api.sessions.listSearchHistory, { workspaceSlug: slug })
+  const taxonomyClusterRecords = useQuery(api.taxonomy_clusters.list, {
+    workspaceSlug: slug,
+    status: 'active',
+  })
   const { statusByIdentity } = useCandidateStatus(true)
   const { blocksByIdentity } = useCandidateBlocks(true)
 
@@ -337,6 +363,31 @@ export function useResumeSearchState() {
     () => toRecentSearchItems(searchHistoryRecords).slice(0, 10),
     [searchHistoryRecords]
   )
+  const taxonomyClusters = useMemo<TaxonomyClusterInput[]>(
+    () => (taxonomyClusterRecords ?? []).map((cluster) => ({
+      name: cluster.name,
+      slug: cluster.slug,
+      parentSlug: cluster.parentSlug,
+      tags: cluster.tags,
+    })),
+    [taxonomyClusterRecords]
+  )
+  const taxonomyResolver = useMemo(
+    () => createTaxonomyClusterResolver(taxonomyClusters),
+    [taxonomyClusters]
+  )
+  const selectedClusterTags = useMemo(
+    () => normalizeStringList(
+      parsedState.selectedTags
+        .filter((value) => isClusterFilterToken(value))
+        .map((value) => fromClusterFilterToken(value))
+    ),
+    [parsedState.selectedTags]
+  )
+  const selectedRawTags = useMemo(
+    () => normalizeStringList(parsedState.selectedTags.filter((value) => !isClusterFilterToken(value))),
+    [parsedState.selectedTags]
+  )
 
   const results = useMemo<ResumeSearchResultItem[]>(() => {
     return resumeQuery.resumes.map((resume) => {
@@ -355,11 +406,20 @@ export function useResumeSearchState() {
   }, [blocksByIdentity, parsedState.jobDescriptionId, resumeQuery.resumes, statusByIdentity])
 
   const filteredResults = useMemo(
-    () => sortResults(results.filter((item) => matchesLocalFilters(item, parsedState)), activeSort),
-    [activeSort, parsedState, results]
+    () => sortResults(
+      results.filter((item) => matchesLocalFilters(
+        item,
+        parsedState,
+        selectedRawTags,
+        selectedClusterTags,
+        taxonomyResolver,
+      )),
+      activeSort
+    ),
+    [activeSort, parsedState, results, selectedClusterTags, selectedRawTags, taxonomyResolver]
   )
 
-  const facetCounts: FacetCounts = useFacetCounts(results)
+  const facetCounts: FacetCounts = useFacetCounts(results, taxonomyClusters)
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
@@ -475,6 +535,20 @@ export function useResumeSearchState() {
     const nextTags = parsedState.selectedTags.some((value) => value.toLowerCase() === normalized.toLowerCase())
       ? parsedState.selectedTags.filter((value) => value.toLowerCase() !== normalized.toLowerCase())
       : [...parsedState.selectedTags, normalized]
+
+    setSelectedTags(nextTags)
+  }, [parsedState.selectedTags, setSelectedTags])
+
+  const toggleCluster = useCallback((clusterSlug: string) => {
+    const normalized = clusterSlug.trim().toLowerCase()
+    if (!normalized) {
+      return
+    }
+
+    const token = toClusterFilterToken(normalized)
+    const nextTags = parsedState.selectedTags.some((value) => value.trim().toLowerCase() === token)
+      ? parsedState.selectedTags.filter((value) => value.trim().toLowerCase() !== token)
+      : [...parsedState.selectedTags, token]
 
     setSelectedTags(nextTags)
   }, [parsedState.selectedTags, setSelectedTags])
@@ -607,6 +681,8 @@ export function useResumeSearchState() {
     queryInput,
     recentSearches,
     results,
+    selectedClusterTags,
+    selectedRawTags,
     searchHistoryLoading: searchHistoryRecords === undefined,
     setMinScoreFilter,
     setQueryInput,
@@ -615,7 +691,9 @@ export function useResumeSearchState() {
     setSelectedTags,
     setSort,
     submitSearch,
+    taxonomyClusters,
     toggleCompany,
+    toggleCluster,
     toggleEducation,
     toggleStatus,
     toggleTag,

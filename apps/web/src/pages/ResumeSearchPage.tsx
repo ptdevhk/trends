@@ -31,21 +31,35 @@ export function ResumeSearchPage() {
     queryInput,
     recentSearches,
     searchHistoryLoading,
+    selectedClusterTags,
+    selectedRawTags,
     setMinScoreFilter,
     setQueryInput,
     setSelectedExperienceLevel,
     setSort,
     submitSearch,
+    taxonomyClusters,
     toggleCompany,
+    toggleCluster,
     toggleEducation,
     toggleStatus,
     toggleTag,
   } = useResumeSearchState()
+  const selectedSummaryTags = useMemo(() => {
+    const clusterNamesBySlug = new Map(
+      taxonomyClusters.map((cluster) => [cluster.slug.trim().toLowerCase(), cluster.name]),
+    )
+
+    return [
+      ...selectedRawTags,
+      ...selectedClusterTags.map((slug) => clusterNamesBySlug.get(slug.trim().toLowerCase()) ?? slug),
+    ]
+  }, [selectedClusterTags, selectedRawTags, taxonomyClusters])
   const aiSummary = useAiSearchSummary({
     query: activeQuery,
     location: parsedState.location,
     jobDescriptionId: parsedState.jobDescriptionId,
-    selectedTags: parsedState.selectedTags,
+    selectedTags: selectedSummaryTags,
     selectedCompanies: parsedState.selectedCompanies,
     selectedExperienceLevel: parsedState.selectedExperienceLevel,
     results: filteredResults,
@@ -54,11 +68,13 @@ export function ResumeSearchPage() {
   const mobileFilterProps = useMemo(() => ({
     facetCounts,
     minScore: parsedState.filters.minMatchScore,
-    selectedTags: parsedState.selectedTags,
+    selectedClusters: selectedClusterTags,
+    selectedTags: selectedRawTags,
     selectedCompanies: parsedState.selectedCompanies,
     selectedExperienceLevel: parsedState.selectedExperienceLevel,
     selectedEducation: parsedState.filters.education ?? [],
     selectedStatuses: parsedState.filters.status ?? [],
+    onToggleCluster: toggleCluster,
     onToggleTag: toggleTag,
     onToggleCompany: toggleCompany,
     onSetExperienceLevel: setSelectedExperienceLevel,
@@ -74,10 +90,12 @@ export function ResumeSearchPage() {
     parsedState.filters.status,
     parsedState.selectedCompanies,
     parsedState.selectedExperienceLevel,
-    parsedState.selectedTags,
     setMinScoreFilter,
     setSelectedExperienceLevel,
+    selectedClusterTags,
+    selectedRawTags,
     toggleCompany,
+    toggleCluster,
     toggleEducation,
     toggleStatus,
     toggleTag,

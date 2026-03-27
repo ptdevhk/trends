@@ -338,6 +338,13 @@ export const SYSTEM_SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [
     matchesSuffixes: ["/system/settings/keywords"],
   },
   {
+    id: "taxonomy",
+    titleKey: "debugConfig.settingsNavTaxonomy",
+    defaultTitle: "Taxonomy",
+    hrefSuffix: "/system/settings/taxonomy",
+    matchesSuffixes: ["/system/settings/taxonomy"],
+  },
+  {
     id: "locations",
     titleKey: "debugConfig.settingsNavLocations",
     defaultTitle: "Locations",

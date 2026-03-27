@@ -112,6 +112,235 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/taxonomy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List taxonomy clusters for the current workspace */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Taxonomy clusters */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                id: string;
+                                workspaceSlug: string;
+                                name: string;
+                                slug: string;
+                                parentSlug?: string;
+                                tags: string[];
+                                /** @enum {string} */
+                                source: "human" | "ai" | "merged";
+                                confidence?: number;
+                                /** @enum {string} */
+                                status: "active" | "draft" | "archived";
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create or update a taxonomy cluster */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        id?: string;
+                        name: string;
+                        slug: string;
+                        parentSlug?: string;
+                        tags: string[];
+                        /**
+                         * @default human
+                         * @enum {string}
+                         */
+                        source?: "human" | "ai" | "merged";
+                        confidence?: number;
+                        /**
+                         * @default active
+                         * @enum {string}
+                         */
+                        status?: "active" | "draft" | "archived";
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated taxonomy clusters */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                id: string;
+                                workspaceSlug: string;
+                                name: string;
+                                slug: string;
+                                parentSlug?: string;
+                                tags: string[];
+                                /** @enum {string} */
+                                source: "human" | "ai" | "merged";
+                                confidence?: number;
+                                /** @enum {string} */
+                                status: "active" | "draft" | "archived";
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taxonomy/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create draft taxonomy suggestions from uncategorized resume tags */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        limit?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Suggested taxonomy clusters */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                id: string;
+                                workspaceSlug: string;
+                                name: string;
+                                slug: string;
+                                parentSlug?: string;
+                                tags: string[];
+                                /** @enum {string} */
+                                source: "human" | "ai" | "merged";
+                                confidence?: number;
+                                /** @enum {string} */
+                                status: "active" | "draft" | "archived";
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/taxonomy/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a taxonomy cluster */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Remaining taxonomy clusters */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                id: string;
+                                workspaceSlug: string;
+                                name: string;
+                                slug: string;
+                                parentSlug?: string;
+                                tags: string[];
+                                /** @enum {string} */
+                                source: "human" | "ai" | "merged";
+                                confidence?: number;
+                                /** @enum {string} */
+                                status: "active" | "draft" | "archived";
+                                createdAt: number;
+                                updatedAt: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trends": {
         parameters: {
             query?: never;

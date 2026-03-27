@@ -134,7 +134,7 @@ export interface BrandKeywordItem {
 }
 
 export type AgentNumericField = 'batchSize' | 'parallelism' | 'timeout' | 'temperature'
-export type SystemSettingsSubpageId = 'overview' | 'operations' | 'runtime' | 'config-sources' | 'keywords' | 'locations'
+export type SystemSettingsSubpageId = 'overview' | 'operations' | 'runtime' | 'config-sources' | 'keywords' | 'taxonomy' | 'locations'
 
 export interface SystemSettingsSubpageDefinition {
   id: SystemSettingsSubpageId
@@ -165,6 +165,10 @@ const SYSTEM_SETTINGS_SUBPAGE_COPY: Record<SystemSettingsSubpageId, Pick<SystemS
   keywords: {
     descriptionKey: 'debugConfig.keywordsPageDescription',
     defaultDescription: 'Manage editable keywords and review derived brand data.',
+  },
+  taxonomy: {
+    descriptionKey: 'debugConfig.taxonomyPageDescription',
+    defaultDescription: 'Manage grouped resume skill clusters used by the search facet sidebar.',
   },
   locations: {
     descriptionKey: 'debugConfig.locationsPageDescription',
