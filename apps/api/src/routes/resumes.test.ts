@@ -444,6 +444,129 @@ describe("resume routes", () => {
     }));
   });
 
+  it("keeps filtered keyword searches on the paged convex route for sparse seek lanes", async () => {
+    const calls: ConvexCall[] = [];
+    const keeKimLoong = buildConvexResumeRecord("resume-live-5", {
+      name: "Kee Kim Loong",
+      source: "hk.employer.seek.com",
+      ingestData: {
+        industryTags: ["机械", "销售"],
+        companyHits: [],
+        brandHits: [],
+        roleSignals: [
+          { type: "sales", matchedSignals: ["sales", "sales engineer"] },
+          { type: "engineer", matchedSignals: ["engineer"] },
+        ],
+      },
+    });
+    keeKimLoong.content = {
+      ...keeKimLoong.content,
+      location: "Kuala Lumpur, MY",
+    };
+    const johnsonLeeWeiTao = buildConvexResumeRecord("resume-live-6", {
+      name: "Johnson Lee Wei Tao",
+      source: "hk.employer.seek.com",
+      ingestData: {
+        industryTags: ["销售"],
+        companyHits: [],
+        brandHits: [],
+        roleSignals: [
+          { type: "sales", matchedSignals: ["sales", "sales engineer", "account"] },
+          { type: "engineer", matchedSignals: ["engineer", "design"] },
+        ],
+      },
+    });
+    johnsonLeeWeiTao.content = {
+      ...johnsonLeeWeiTao.content,
+      location: "Kuala Lumpur, MY",
+    };
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+        return convexSuccess({
+          expansion: {
+            original: "\"machine tools\"",
+            expanded: [
+              "machine tools",
+              "机床",
+              "机械设备",
+              "加工设备",
+              "加工中心",
+              "cnc machine",
+              "cnc machines",
+              "precision machinery",
+            ],
+            groups: [
+              {
+                original: "machine tools",
+                variants: [
+                  "machine tools",
+                  "机床",
+                  "机械设备",
+                  "加工设备",
+                  "加工中心",
+                  "cnc machine",
+                  "cnc machines",
+                  "precision machinery",
+                ],
+              },
+            ],
+            mode: "AND",
+          },
+          results: [
+            {
+              resume: keeKimLoong,
+              provenance: [{ term: "machine tools", source: "searchText" }],
+            },
+            {
+              resume: johnsonLeeWeiTao,
+              provenance: [{ term: "precision machinery", source: "searchText", expandedFrom: "machine tools" }],
+            },
+          ],
+          total: 2,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request(
+      "/api/resumes?source=convex&q=%22machine%20tools%22&locations=Kuala%20Lumpur%20MY&jobDescriptionId=seek-malaysia-sales&limit=5"
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 2,
+      returned: 2,
+      source: "convex",
+      query: "\"machine tools\"",
+    }));
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual([
+      "Kee Kim Loong",
+      "Johnson Lee Wei Tao",
+    ]);
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:searchWithTagExpansionPage",
+      args: expect.objectContaining({
+        limit: 5,
+        locations: ["Kuala Lumpur MY"],
+        jobDescriptionId: "seek-malaysia-sales",
+        keywordGroups: expect.arrayContaining([
+          expect.objectContaining({
+            original: "machine tools",
+            variants: expect.arrayContaining(["machine tools", "precision machinery"]),
+          }),
+        ]),
+      }),
+    }));
+  });
+
   it("keeps source pagination when resume filters are pushed into the convex page query", async () => {
     const calls: ConvexCall[] = [];
 
