@@ -1,5 +1,5 @@
-import { ResumeList } from '@/components/ResumeList'
+import { ResumeSearchPage } from '@/pages/ResumeSearchPage'
 
 export function ResumesPage() {
-  return <ResumeList />
+  return <ResumeSearchPage />
 }

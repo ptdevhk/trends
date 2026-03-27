@@ -707,6 +707,11 @@ export class WorkspaceConfigService {
     return mergeUnknown(systemConfig, entry.configValue);
   }
 
+  async getWorkspaceConfigValue(workspaceSlug: string, configKey: string): Promise<unknown> {
+    const entry = await this.getWorkspaceConfigEntry(workspaceSlug, configKey);
+    return entry?.configValue;
+  }
+
   async setAgentOverrides(workspaceSlug: string, configValue: unknown): Promise<void> {
     await this.upsertWorkspaceConfigEntry(workspaceSlug, AGENT_OVERRIDES_KEY, configValue);
   }

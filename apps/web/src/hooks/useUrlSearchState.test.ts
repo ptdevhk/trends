@@ -26,9 +26,10 @@ describe('useUrlSearchState location parsing', () => {
 
   it('parses canonical quoted OR phrase queries without flattening phrases', () => {
     const state = parseUrlSearchState(
-      new URLSearchParams('location=Kuala+Lumpur+MY&keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22')
+      new URLSearchParams('location=Kuala+Lumpur+MY&q=%22Sales+Engineer%22+OR+%22Sales+Manager%22')
     )
 
+    expect(state.query).toBe('"Sales Engineer" OR "Sales Manager"')
     expect(state.location).toBe('Kuala Lumpur MY')
     expect(state.filters.locations).toEqual(['Kuala Lumpur MY'])
     expect(state.keywords).toEqual(['Sales Engineer', 'Sales Manager'])
@@ -37,6 +38,7 @@ describe('useUrlSearchState location parsing', () => {
   it('keeps legacy whitespace keyword queries backward compatible', () => {
     const state = parseUrlSearchState(new URLSearchParams('keyword=CNC+%E9%94%80%E5%94%AE'))
 
+    expect(state.query).toBe('CNC 销售')
     expect(state.keywords).toEqual(['CNC', '销售'])
   })
 
@@ -62,6 +64,7 @@ describe('useUrlSearchState location parsing', () => {
     const { result } = renderHook(() => useUrlSearchState())
 
     const nextState: UrlSearchState = {
+      query: '"Sales Engineer" OR "Sales Manager"',
       location: 'Kuala Lumpur MY',
       keywords: ['Sales Engineer', 'Sales Manager'],
       requiredKeywords: [],
@@ -83,7 +86,7 @@ describe('useUrlSearchState location parsing', () => {
 
     const updatedParams = updater(new URLSearchParams()) as URLSearchParams
     expect(updatedParams.get('location')).toBe('Kuala Lumpur MY')
-    expect(updatedParams.get('keyword')).toBe('"Sales Engineer" OR "Sales Manager"')
+    expect(updatedParams.get('q')).toBe('"Sales Engineer" OR "Sales Manager"')
     expect(updatedParams.get('rkw')).toBeNull()
   })
 
@@ -94,6 +97,7 @@ describe('useUrlSearchState location parsing', () => {
     const { result } = renderHook(() => useUrlSearchState())
 
     const nextState: UrlSearchState = {
+      query: '"Sales Engineer" OR "Sales Manager"',
       location: 'Kuala Lumpur MY',
       keywords: ['Sales Engineer', 'Sales Manager'],
       requiredKeywords: ['CNC', 'machine tools'],
@@ -119,6 +123,7 @@ describe('useUrlSearchState location parsing', () => {
 
     const nextState: UrlSearchState = {
       shareSessionId: 'session-share-1',
+      query: 'CNC',
       location: 'Dongguan',
       keywords: ['CNC'],
       requiredKeywords: [],
@@ -135,6 +140,6 @@ describe('useUrlSearchState location parsing', () => {
     const updatedParams = updater(currentParams) as URLSearchParams
     expect(updatedParams.get('sid')).toBeNull()
     expect(updatedParams.get('location')).toBe('Dongguan')
-    expect(updatedParams.get('keyword')).toBe('CNC')
+    expect(updatedParams.get('q')).toBe('CNC')
   })
 })

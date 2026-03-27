@@ -387,6 +387,21 @@ export default defineSchema({
         .index("by_searchHistoryId", ["searchHistoryId"])
         .index("by_workspace", ["workspaceSlug"]),
 
+    ai_summary_cache: defineTable({
+        urlHash: v.string(),
+        workspaceSlug: v.string(),
+        query: v.string(),
+        facets: v.optional(v.string()),
+        resultCount: v.number(),
+        resultSetHash: v.string(),
+        summary: v.string(),
+        model: v.string(),
+        generatedAt: v.number(),
+        expiresAt: v.number(),
+    })
+        .index("by_url_hash", ["urlHash"])
+        .index("by_expires_at", ["expiresAt"]),
+
     workspace_config: defineTable({
         workspaceSlug: v.string(),
         configKey: v.string(),

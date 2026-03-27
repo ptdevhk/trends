@@ -43,6 +43,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/search-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate or return a cached AI summary for the current resume search result set */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        urlHash: string;
+                        query: string;
+                        location?: string;
+                        jobDescriptionId?: string;
+                        facets?: {
+                            selectedTags?: string[];
+                            selectedCompanies?: string[];
+                            selectedExperienceLevel?: string;
+                        };
+                        resultCount: number;
+                        resultSetHash: string;
+                        results: {
+                            id: string;
+                            keywords?: string[];
+                            location?: string;
+                            name: string;
+                            score?: number;
+                            snippet: string;
+                            title?: string;
+                        }[];
+                        forceRefresh?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description AI summary response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            summary: string;
+                            model: string;
+                            generatedAt: number;
+                            shouldRefresh?: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trends": {
         parameters: {
             query?: never;

@@ -1,0 +1,74 @@
+import { useMemo } from 'react'
+import type { FacetCounts, FacetValueCount, ResumeSearchResultItem } from '@/components/search/search-types'
+
+const MIN_SCORE_OPTIONS = [60, 70, 80, 90] as const
+
+function incrementCount(map: Map<string, number>, value: string | undefined) {
+  const normalized = value?.trim()
+  if (!normalized) {
+    return
+  }
+
+  map.set(normalized, (map.get(normalized) ?? 0) + 1)
+}
+
+function incrementMany(map: Map<string, number>, values: string[] | undefined) {
+  if (!values) {
+    return
+  }
+
+  const seen = new Set<string>()
+  values.forEach((value) => {
+    const normalized = value.trim()
+    if (!normalized || seen.has(normalized)) {
+      return
+    }
+
+    seen.add(normalized)
+    incrementCount(map, normalized)
+  })
+}
+
+function toSortedCounts(map: Map<string, number>): FacetValueCount[] {
+  return Array.from(map.entries())
+    .map(([value, count]) => ({ value, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count
+      }
+
+      return left.value.localeCompare(right.value)
+    })
+}
+
+export function useFacetCounts(results: ResumeSearchResultItem[]): FacetCounts {
+  return useMemo(() => {
+    const tagCounts = new Map<string, number>()
+    const companyCounts = new Map<string, number>()
+    const experienceCounts = new Map<string, number>()
+    const educationCounts = new Map<string, number>()
+    const statusCounts = new Map<string, number>()
+
+    results.slice(0, 2000).forEach((item) => {
+      incrementMany(tagCounts, item.resume.ingestData?.industryTags)
+      incrementMany(companyCounts, item.resume.ingestData?.companyHits)
+      incrementCount(experienceCounts, item.resume.ingestData?.experienceLevel)
+      incrementCount(educationCounts, item.resume.education)
+      incrementCount(statusCounts, item.status)
+    })
+
+    const minScoreOptions = MIN_SCORE_OPTIONS.map((threshold) => ({
+      value: String(threshold),
+      count: results.filter((item) => (item.score ?? 0) >= threshold).length,
+    }))
+
+    return {
+      tags: toSortedCounts(tagCounts),
+      companies: toSortedCounts(companyCounts),
+      experienceLevels: toSortedCounts(experienceCounts),
+      education: toSortedCounts(educationCounts),
+      statuses: toSortedCounts(statusCounts),
+      minScoreOptions,
+    }
+  }, [results])
+}

@@ -204,6 +204,7 @@ function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFil
 function normalizeUrlSearchStateValue(state: Partial<UrlSearchState> | undefined): UrlSearchState {
   return {
     shareSessionId: normalizeOptionalString(state?.shareSessionId),
+    query: normalizeOptionalString(state?.query),
     location: normalizeOptionalString(state?.location),
     keywords: Array.isArray(state?.keywords) ? state.keywords : [],
     requiredKeywords: Array.isArray(state?.requiredKeywords) ? state.requiredKeywords : [],
