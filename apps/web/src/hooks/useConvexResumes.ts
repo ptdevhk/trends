@@ -205,6 +205,15 @@ type IndexedMockSearchResult = MockSearchResult & {
   provenance: SearchProvenance[]
 }
 
+type SearchResultEntry = {
+  resume: ResumeListDocLike
+  provenance?: SearchProvenance[]
+}
+
+type ExactKeywordMatchContext = {
+  score: number
+}
+
 function buildFallbackKeywordExpansion(query: string): KeywordExpansionSummary {
   const parsed = parseKeywordQuery(query)
   const terms = parsed.keywords
@@ -719,6 +728,124 @@ function mapResumeDoc(doc: ResumeListDocLike): ConvexResumeItem {
   }
 }
 
+function getResumeIdentityKey(doc: ResumeListDocLike): string {
+  const identityKey = typeof doc.identityKey === 'string' ? doc.identityKey.trim() : ''
+  return identityKey || String(doc._id)
+}
+
+function mergeSearchProvenance(
+  left: SearchProvenance[] | undefined,
+  right: SearchProvenance[] | undefined,
+): SearchProvenance[] {
+  const merged: SearchProvenance[] = []
+  const seen = new Set<string>()
+
+  for (const entry of [...(left ?? []), ...(right ?? [])]) {
+    const key = `${entry.term}::${entry.source}::${entry.expandedFrom ?? ''}`
+    if (seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    merged.push(entry)
+  }
+
+  return merged
+}
+
+function getKeywordMatchScore(
+  entry: SearchResultEntry,
+  matchMap: Readonly<Record<string, ExactKeywordMatchContext>>,
+): number {
+  return matchMap[String(entry.resume._id)]?.score ?? -1
+}
+
+function getKeywordPrimaryRuleScore(entry: SearchResultEntry): number {
+  return typeof entry.resume.primaryRuleScore === 'number' ? entry.resume.primaryRuleScore : 0
+}
+
+function compareExactKeywordDuplicateSelection(
+  left: SearchResultEntry,
+  right: SearchResultEntry,
+  matchMap: Readonly<Record<string, ExactKeywordMatchContext>>,
+): number {
+  const matchScoreDiff = getKeywordMatchScore(right, matchMap) - getKeywordMatchScore(left, matchMap)
+  if (matchScoreDiff !== 0) {
+    return matchScoreDiff
+  }
+
+  const primaryRuleDiff = getKeywordPrimaryRuleScore(right) - getKeywordPrimaryRuleScore(left)
+  if (primaryRuleDiff !== 0) {
+    return primaryRuleDiff
+  }
+
+  return right.resume.crawledAt - left.resume.crawledAt
+}
+
+function parseKeywordEntryExperience(entry: SearchResultEntry): number {
+  const content = isRecord(entry.resume.content) ? entry.resume.content : {}
+  const matched = toStringValue(content.experience).match(/\d+(?:\.\d+)?/)
+  if (!matched?.[0]) {
+    return -1
+  }
+
+  const parsed = Number(matched[0])
+  return Number.isFinite(parsed) ? parsed : -1
+}
+
+function parseKeywordEntryExtractedAt(entry: SearchResultEntry): number {
+  const content = isRecord(entry.resume.content) ? entry.resume.content : {}
+  const timestamp = Date.parse(toStringValue(content.extractedAt))
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function sortKeywordEntries(
+  entries: SearchResultEntry[],
+  sortBy: ConvexResumeSortBy | undefined,
+  sortOrder: 'asc' | 'desc' | undefined,
+): SearchResultEntry[] {
+  if (!sortBy) {
+    return entries
+  }
+
+  const direction = (sortOrder ?? 'desc') === 'desc' ? -1 : 1
+  return [...entries].sort((left, right) => {
+    if (sortBy === 'experience') {
+      return (parseKeywordEntryExperience(left) - parseKeywordEntryExperience(right)) * direction
+    }
+
+    return (parseKeywordEntryExtractedAt(left) - parseKeywordEntryExtractedAt(right)) * direction
+  })
+}
+
+function dedupeExactKeywordEntries(
+  entries: SearchResultEntry[],
+  matchMap: Readonly<Record<string, ExactKeywordMatchContext>>,
+): SearchResultEntry[] {
+  const deduped = new Map<string, SearchResultEntry>()
+
+  for (const entry of entries) {
+    const identityKey = getResumeIdentityKey(entry.resume)
+    const existing = deduped.get(identityKey)
+    if (!existing) {
+      deduped.set(identityKey, {
+        ...entry,
+        provenance: mergeSearchProvenance(undefined, entry.provenance),
+      })
+      continue
+    }
+
+    const preferred = compareExactKeywordDuplicateSelection(existing, entry, matchMap) <= 0
+      ? existing
+      : entry
+    deduped.set(identityKey, {
+      ...preferred,
+      provenance: mergeSearchProvenance(existing.provenance, entry.provenance),
+    })
+  }
+
+  return Array.from(deduped.values())
+}
+
 export function useConvexResumes(
   limit: number = DEFAULT_CONVEX_RESUME_LIMIT,
   query?: string,
@@ -731,6 +858,7 @@ export function useConvexResumes(
 ) {
   const normalizedJobDescriptionId = jobDescriptionId?.trim() || undefined
   const normalizedQuery = query?.trim() || undefined
+  const useExactKeywordScan = Boolean(normalizedQuery && normalizedJobDescriptionId)
   const resolvedSortOrder = options?.sortBy ? (options.sortOrder ?? 'desc') : undefined
   const initialNumItems = Math.min(limit, CONVEX_RESUME_PAGE_SIZE)
   const mockPayload = useMemo(() => readMockConvexResumePayload(), [])
@@ -819,7 +947,7 @@ export function useConvexResumes(
     api.resumes.searchWithTagExpansionPaginated,
     mockPayload
       ? 'skip'
-      : normalizedQuery && keywordExpansion
+      : !useExactKeywordScan && normalizedQuery && keywordExpansion
         ? {
             query: normalizedQuery,
             keywordGroups: keywordExpansion.groups,
@@ -834,6 +962,27 @@ export function useConvexResumes(
               sortBy: options.sortBy,
               sortOrder: resolvedSortOrder,
             } : {}),
+          }
+        : 'skip',
+    {
+      initialNumItems,
+    }
+  )
+
+  const paginatedKeywordScanResults = usePaginatedQuery(
+    api.resumes.searchWithTagExpansionScanPage,
+    mockPayload
+      ? 'skip'
+      : normalizedQuery && normalizedJobDescriptionId && keywordExpansion
+        ? {
+            query: normalizedQuery,
+            keywordGroups: keywordExpansion.groups,
+            mode: keywordExpansion.mode,
+            sourceMappings: Object.entries(keywordExpansion.sourceMapping).map(([term, expandedFrom]) => ({
+              term,
+              expandedFrom,
+            })),
+            ...(options?.filters ?? {}),
           }
         : 'skip',
     {
@@ -860,22 +1009,138 @@ export function useConvexResumes(
     }
   )
 
+  const [exactKeywordMatchMap, setExactKeywordMatchMap] = useState<Record<string, ExactKeywordMatchContext>>({})
+  const exactKeywordResumeIds = useMemo(() => {
+    if (!useExactKeywordScan) {
+      return []
+    }
+
+    return Array.from(new Set(
+      paginatedKeywordScanResults.results.map((entry) => String(entry.resume._id))
+    )).sort()
+  }, [paginatedKeywordScanResults.results, useExactKeywordScan])
+  const exactKeywordMatchScopeKey = useMemo(() => {
+    if (!useExactKeywordScan) {
+      return ''
+    }
+
+    return JSON.stringify({
+      jobDescriptionId: normalizedJobDescriptionId,
+      resumeIds: exactKeywordResumeIds,
+    })
+  }, [exactKeywordResumeIds, normalizedJobDescriptionId, useExactKeywordScan])
+
+  useEffect(() => {
+    let active = true
+
+    if (!useExactKeywordScan || !normalizedJobDescriptionId) {
+      setExactKeywordMatchMap((current) => (Object.keys(current).length === 0 ? current : {}))
+      return () => {
+        active = false
+      }
+    }
+
+    if (exactKeywordResumeIds.length === 0) {
+      setExactKeywordMatchMap((current) => (Object.keys(current).length === 0 ? current : {}))
+      return () => {
+        active = false
+      }
+    }
+
+    void rawApiClient
+      .POST<{
+        success: boolean
+        results?: Array<{
+          resumeId: string
+          score: number
+          recommendation: string
+        }>
+      }>('/api/resumes/match', {
+        body: {
+          source: 'convex',
+          persist: false,
+          mode: 'rules_only',
+          jobDescriptionId: normalizedJobDescriptionId,
+          resumeIds: exactKeywordResumeIds,
+        },
+      })
+      .then(({ data, error }) => {
+        if (!active) {
+          return
+        }
+
+        if (error || !data?.success) {
+          setExactKeywordMatchMap({})
+          return
+        }
+
+        const nextMatchMap: Record<string, ExactKeywordMatchContext> = {}
+        for (const item of data.results ?? []) {
+          nextMatchMap[item.resumeId] = {
+            score: item.score,
+          }
+        }
+        setExactKeywordMatchMap(nextMatchMap)
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to load exact keyword match scores', error)
+        if (active) {
+          setExactKeywordMatchMap({})
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [exactKeywordMatchScopeKey, exactKeywordResumeIds, normalizedJobDescriptionId, useExactKeywordScan])
+
+  const dedupedExactKeywordEntries = useMemo(() => {
+    if (mockPayload || !useExactKeywordScan) {
+      return []
+    }
+
+    return sortKeywordEntries(
+      dedupeExactKeywordEntries(paginatedKeywordScanResults.results, exactKeywordMatchMap),
+      options?.sortBy,
+      resolvedSortOrder,
+    )
+  }, [
+    exactKeywordMatchMap,
+    mockPayload,
+    options?.sortBy,
+    paginatedKeywordScanResults.results,
+    resolvedSortOrder,
+    useExactKeywordScan,
+  ])
+
   const useJobDescriptionFallback = Boolean(
     normalizedQuery
       && normalizedJobDescriptionId
       && !expansionLoading
-      && paginatedSearchResults.status === 'Exhausted'
-      && paginatedSearchResults.results.length === 0
+      && (useExactKeywordScan ? paginatedKeywordScanResults.status : paginatedSearchResults.status) === 'Exhausted'
+      && (useExactKeywordScan ? paginatedKeywordScanResults.results.length : paginatedSearchResults.results.length) === 0
   )
 
   const activePaginatedStatus = normalizedQuery
-    ? (useJobDescriptionFallback ? paginatedListResults.status : paginatedSearchResults.status)
+    ? (useJobDescriptionFallback
+        ? paginatedListResults.status
+        : useExactKeywordScan
+          ? paginatedKeywordScanResults.status
+          : paginatedSearchResults.status)
     : paginatedListResults.status
   const activePaginatedResultsLength = normalizedQuery
-    ? (useJobDescriptionFallback ? paginatedListResults.results.length : paginatedSearchResults.results.length)
+    ? (useJobDescriptionFallback
+        ? paginatedListResults.results.length
+        : useExactKeywordScan
+          ? dedupedExactKeywordEntries.length
+          : paginatedSearchResults.results.length)
     : paginatedListResults.results.length
   const activePaginatedLoadMore = normalizedQuery
-    ? (useJobDescriptionFallback ? paginatedListResults.loadMore : paginatedSearchResults.loadMore)
+    ? (useJobDescriptionFallback
+        ? paginatedListResults.loadMore
+        : useExactKeywordScan
+          ? paginatedKeywordScanResults.loadMore
+          : paginatedSearchResults.loadMore)
     : paginatedListResults.loadMore
 
   useEffect(() => {
@@ -898,6 +1163,10 @@ export function useConvexResumes(
     () => paginatedSearchResults.results.slice(0, limit),
     [limit, paginatedSearchResults.results]
   )
+  const visibleExactKeywordEntries = useMemo(
+    () => dedupedExactKeywordEntries.slice(0, limit),
+    [dedupedExactKeywordEntries, limit]
+  )
   const visibleListResults = useMemo(
     () => paginatedListResults.results.slice(0, limit),
     [limit, paginatedListResults.results]
@@ -918,12 +1187,27 @@ export function useConvexResumes(
       : normalizedQuery
         ? useJobDescriptionFallback
           ? visibleListResults.map(mapResumeDoc)
+          : useExactKeywordScan
+            ? visibleExactKeywordEntries.map((entry) => ({
+                ...mapResumeDoc(entry.resume),
+                _provenance: entry.provenance,
+              }))
           : visibleSearchResults.map((entry) => ({
               ...mapResumeDoc(entry.resume),
               _provenance: entry.provenance,
             }))
         : visibleListResults.map(mapResumeDoc)
-  ), [limit, mockKeywordExpansion, mockPayload, normalizedQuery, useJobDescriptionFallback, visibleListResults, visibleSearchResults])
+  ), [
+    limit,
+    mockKeywordExpansion,
+    mockPayload,
+    normalizedQuery,
+    useExactKeywordScan,
+    useJobDescriptionFallback,
+    visibleExactKeywordEntries,
+    visibleListResults,
+    visibleSearchResults,
+  ])
 
   const isLoading = mockPayload
     ? false
