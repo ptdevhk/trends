@@ -160,15 +160,15 @@ function buildUrlState(
   overrides: Partial<UrlSearchState>,
 ): UrlSearchState {
   return {
-    shareSessionId: overrides.shareSessionId ?? state.shareSessionId,
-    query: overrides.query ?? state.query,
-    location: overrides.location ?? state.location,
+    shareSessionId: 'shareSessionId' in overrides ? overrides.shareSessionId : state.shareSessionId,
+    query: 'query' in overrides ? overrides.query : state.query,
+    location: 'location' in overrides ? overrides.location : state.location,
     keywords: overrides.keywords ?? state.keywords,
     requiredKeywords: overrides.requiredKeywords ?? state.requiredKeywords,
-    jobDescriptionId: overrides.jobDescriptionId ?? state.jobDescriptionId,
+    jobDescriptionId: 'jobDescriptionId' in overrides ? overrides.jobDescriptionId : state.jobDescriptionId,
     selectedTags: overrides.selectedTags ?? state.selectedTags,
     selectedCompanies: overrides.selectedCompanies ?? state.selectedCompanies,
-    selectedExperienceLevel: overrides.selectedExperienceLevel ?? state.selectedExperienceLevel,
+    selectedExperienceLevel: 'selectedExperienceLevel' in overrides ? overrides.selectedExperienceLevel : state.selectedExperienceLevel,
     filters: overrides.filters ?? state.filters,
   }
 }
