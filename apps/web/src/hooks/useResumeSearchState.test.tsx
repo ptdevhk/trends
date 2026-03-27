@@ -556,6 +556,77 @@ describe('useResumeSearchState', () => {
     })
   })
 
+  it('removes tag-like facet selections case-insensitively while preserving the active search context', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: ['Machine Tools', 'cluster:manufacturing-systems'],
+      selectedCompanies: ['FANUC'],
+      selectedExperienceLevel: 'senior',
+      filters: {
+        minExperience: 5,
+        education: ['Bachelor'],
+        status: ['contacted'],
+        minMatchScore: 80,
+      },
+    }))
+
+    const { result } = renderHook(() => useResumeSearchState())
+    const baseSyncedState = {
+      shareSessionId: undefined,
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedExperienceLevel: 'senior',
+      filters: {
+        minExperience: 5,
+        education: ['Bachelor'],
+        status: ['contacted'],
+        minMatchScore: 80,
+      },
+    }
+
+    act(() => {
+      result.current.toggleTag(' machine tools ')
+      result.current.toggleCluster(' Manufacturing-Systems ')
+      result.current.toggleCompany(' fanuc ')
+      result.current.toggleEducation(' bachelor ')
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(1, {
+      ...baseSyncedState,
+      selectedTags: ['cluster:manufacturing-systems'],
+      selectedCompanies: ['FANUC'],
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(2, {
+      ...baseSyncedState,
+      selectedTags: ['Machine Tools'],
+      selectedCompanies: ['FANUC'],
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(3, {
+      ...baseSyncedState,
+      selectedTags: ['Machine Tools', 'cluster:manufacturing-systems'],
+      selectedCompanies: [],
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(4, {
+      ...baseSyncedState,
+      selectedTags: ['Machine Tools', 'cluster:manufacturing-systems'],
+      selectedCompanies: ['FANUC'],
+      filters: {
+        ...baseSyncedState.filters,
+        education: [],
+      },
+    })
+  })
+
   it('only grows the resume window when more results are available and not already loading more', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
