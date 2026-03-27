@@ -315,4 +315,75 @@ describe("taxonomy routes", () => {
       },
     ])
   })
+
+  it("deletes a taxonomy cluster in the current workspace and returns the refreshed registry", async () => {
+    const calls: Array<{ method: "query" | "mutation"; pathName: string; args: Record<string, unknown> }> = []
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+
+      if (call.method === "mutation" && call.pathName === "taxonomy_clusters:remove") {
+        return convexSuccess(true)
+      }
+
+      if (call.method === "query" && call.pathName === "taxonomy_clusters:list") {
+        return convexSuccess([
+          createTaxonomyRecord({
+            _id: "cluster-2",
+            name: "Automation",
+            slug: "automation",
+            parentSlug: "",
+            source: "merged",
+            status: "active",
+          }),
+        ])
+      }
+
+      throw new Error(`Unexpected convex call: ${call.method} ${call.pathName}`)
+    })
+
+    const app = createTestApp()
+    const response = await app.request("/api/taxonomy/cluster-1", {
+      method: "DELETE",
+      headers: {
+        "X-Workspace-Slug": "dev",
+      },
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      success: true,
+      items: [
+        {
+          id: "cluster-2",
+          workspaceSlug: "dev",
+          name: "Automation",
+          slug: "automation",
+          tags: ["Machine Tools", "Automation"],
+          source: "merged",
+          confidence: 0.81,
+          status: "active",
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ],
+    })
+    expect(calls).toEqual([
+      {
+        method: "mutation",
+        pathName: "taxonomy_clusters:remove",
+        args: {
+          id: "cluster-1",
+          workspaceSlug: "dev",
+        },
+      },
+      {
+        method: "query",
+        pathName: "taxonomy_clusters:list",
+        args: {
+          workspaceSlug: "dev",
+        },
+      },
+    ])
+  })
 })
