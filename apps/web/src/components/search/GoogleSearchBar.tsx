@@ -98,6 +98,11 @@ export function GoogleSearchBar({
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
               event.preventDefault()
+              if (jdPopoverOpen) {
+                setJdPopoverOpen(false)
+                return
+              }
+
               onClear()
             }
           }}
