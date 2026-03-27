@@ -862,7 +862,7 @@ describe("resume routes", () => {
     expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
   });
 
-  it("widens the convex fetch window when score-sorted keyword searches exceed the safe paged scan limit", async () => {
+  it("scans oversized score-sorted keyword searches through cursor pages instead of falling back to widened overfetch", async () => {
     const calls: ConvexCall[] = [];
     const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
     const getMatchesByResumeIdsSpy = vi
@@ -895,21 +895,19 @@ describe("resume routes", () => {
         });
       }
 
-      if (call.pathName === "resumes:searchWithTagExpansion") {
+      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
         return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          results: [
-            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
-            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "cnc", source: "searchText" }] },
-          ],
+          page: call.args.paginationOpts && isRecord(call.args.paginationOpts) && call.args.paginationOpts.cursor === "scan-2"
+            ? [
+                { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "cnc", source: "searchText" }] },
+              ]
+            : [
+                { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
+              ],
+          continueCursor: call.args.paginationOpts && isRecord(call.args.paginationOpts) && call.args.paginationOpts.cursor === "scan-2"
+            ? ""
+            : "scan-2",
+          isDone: Boolean(call.args.paginationOpts && isRecord(call.args.paginationOpts) && call.args.paginationOpts.cursor === "scan-2"),
         });
       }
 
@@ -930,9 +928,18 @@ describe("resume routes", () => {
       args: expect.objectContaining({ limit: 250, offset: 0, jobDescriptionId: "jd-1" }),
     }));
     expect(calls[1]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansion",
-      args: expect.objectContaining({ limit: 250, jobDescriptionId: "jd-1" }),
+      pathName: "resumes:searchWithTagExpansionScanPage",
+      args: expect.objectContaining({
+        paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
+      }),
     }));
+    expect(calls[2]).toEqual(expect.objectContaining({
+      pathName: "resumes:searchWithTagExpansionScanPage",
+      args: expect.objectContaining({
+        paginationOpts: expect.objectContaining({ cursor: "scan-2", numItems: 250 }),
+      }),
+    }));
+    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
   });
 
   it("pages score-sorted convex results through match storage and preserves explicit-id order", async () => {
