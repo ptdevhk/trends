@@ -103,6 +103,7 @@ app.openapi(searchSummaryRoute, async (c) => {
   const workspaceSlug = c.var.workspaceSlug;
   const now = Date.now();
   const cached = await callConvex("query", "ai_summary_cache:get", {
+    workspaceSlug,
     urlHash: body.urlHash,
   }) as {
     summary?: string;

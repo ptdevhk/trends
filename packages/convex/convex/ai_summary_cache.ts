@@ -3,12 +3,13 @@ import { v } from "convex/values";
 
 export const get = query({
     args: {
+        workspaceSlug: v.string(),
         urlHash: v.string(),
     },
     handler: async (ctx, args) => {
         const records = await ctx.db
             .query("ai_summary_cache")
-            .withIndex("by_url_hash", (q) => q.eq("urlHash", args.urlHash))
+            .withIndex("by_workspace_url_hash", (q) => q.eq("workspaceSlug", args.workspaceSlug).eq("urlHash", args.urlHash))
             .collect();
 
         return records.sort((left, right) => right.generatedAt - left.generatedAt)[0] ?? null;
@@ -31,7 +32,7 @@ export const upsert = mutation({
     handler: async (ctx, args) => {
         const existing = await ctx.db
             .query("ai_summary_cache")
-            .withIndex("by_url_hash", (q) => q.eq("urlHash", args.urlHash))
+            .withIndex("by_workspace_url_hash", (q) => q.eq("workspaceSlug", args.workspaceSlug).eq("urlHash", args.urlHash))
             .collect();
 
         const [primaryRecord, ...duplicateRecords] = existing.sort((left, right) => right.generatedAt - left.generatedAt);

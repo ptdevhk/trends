@@ -399,7 +399,7 @@ export default defineSchema({
         generatedAt: v.number(),
         expiresAt: v.number(),
     })
-        .index("by_url_hash", ["urlHash"])
+        .index("by_workspace_url_hash", ["workspaceSlug", "urlHash"])
         .index("by_expires_at", ["expiresAt"]),
 
     taxonomy_clusters: defineTable({
