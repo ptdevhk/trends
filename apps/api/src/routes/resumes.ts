@@ -972,6 +972,7 @@ function hasResumeListFilters(params: {
   maxExperience?: number;
   education?: string[];
   skills?: string[];
+  requiredKeywords?: string[];
   locations?: string[];
   minSalary?: number;
   maxSalary?: number;
@@ -980,6 +981,7 @@ function hasResumeListFilters(params: {
     || typeof params.maxExperience === "number"
     || (params.education?.length ?? 0) > 0
     || (params.skills?.length ?? 0) > 0
+    || (params.requiredKeywords?.length ?? 0) > 0
     || (params.locations?.length ?? 0) > 0
     || typeof params.minSalary === "number"
     || typeof params.maxSalary === "number";
@@ -1743,6 +1745,7 @@ app.openapi(getResumesRoute, (c) => {
     maxExperience,
     education,
     skills,
+    requiredKeywords,
     locations,
     minSalary,
     maxSalary,
@@ -1762,6 +1765,7 @@ app.openapi(getResumesRoute, (c) => {
       return (async () => {
         const resolvedJobId = jobDescriptionId?.trim() || undefined;
         const normalizedKeywords = keyword ? normalizeKeywords(parseKeywordQuery(keyword).keywords) : [];
+        const normalizedRequiredKeywords = normalizeKeywords(requiredKeywords);
         const normalizedRecommendations = normalizeMatchRecommendations(recommendation);
         const hasLocalMatchFilters = minMatchScore !== undefined || (normalizedRecommendations?.length ?? 0) > 0;
         const hasLocalResumeFilters = hasResumeListFilters({
@@ -1769,6 +1773,7 @@ app.openapi(getResumesRoute, (c) => {
           maxExperience,
           education,
           skills,
+          requiredKeywords: normalizedRequiredKeywords,
           locations,
           minSalary,
           maxSalary,
@@ -1821,6 +1826,7 @@ app.openapi(getResumesRoute, (c) => {
                   maxExperience,
                   education,
                   skills,
+                  requiredKeywords: normalizedRequiredKeywords,
                   locations,
                   minSalary,
                   maxSalary,
@@ -1840,6 +1846,7 @@ app.openapi(getResumesRoute, (c) => {
           maxExperience,
           education,
           skills,
+          requiredKeywords: normalizedRequiredKeywords,
           locations,
           minSalary,
           maxSalary,
@@ -1955,6 +1962,7 @@ app.openapi(getResumesRoute, (c) => {
       maxExperience,
       education,
       skills,
+      requiredKeywords: normalizeKeywords(requiredKeywords),
       locations,
       minSalary,
       maxSalary,

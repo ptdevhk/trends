@@ -147,6 +147,7 @@ describe('useConvexResumes', () => {
         maxExperience: 8,
         education: ['bachelor'],
         skills: ['fanuc'],
+        requiredKeywords: ['machine tools', 'cnc'],
         locations: ['Dongguan'],
         minSalary: 10,
         maxSalary: 20,
@@ -161,6 +162,7 @@ describe('useConvexResumes', () => {
       maxExperience: 8,
       education: ['bachelor'],
       skills: ['fanuc'],
+      requiredKeywords: ['machine tools', 'cnc'],
       locations: ['Dongguan'],
       minSalary: 10,
       maxSalary: 20,
@@ -186,6 +188,33 @@ describe('useConvexResumes', () => {
       expect(searchCall?.[1]).toMatchObject({
         query: 'CNC',
         keywordGroups: [{ original: 'cnc', variants: ['cnc'] }],
+      })
+    })
+  })
+
+  it('forwards required keywords to the paginated search query', async () => {
+    usePaginatedQueryMock.mockImplementation((_query, args) => ({
+      results: args === 'skip' ? [] : [buildSearchEntry('resume-1', 'Alice')],
+      status: 'Exhausted',
+      isLoading: false,
+      loadMore: loadMoreMock,
+    }))
+
+    renderHook(() => useConvexResumes(200, 'CNC', 'jd-1', {
+      filters: {
+        requiredKeywords: ['machine tools', 'cnc'],
+      },
+    }))
+
+    await waitFor(() => {
+      expect(rawApiGetMock).toHaveBeenCalled()
+    })
+
+    await waitFor(() => {
+      const searchCall = usePaginatedQueryMock.mock.calls.find(([, args]) => args !== 'skip' && 'query' in (args as Record<string, unknown>))
+      expect(searchCall?.[1]).toMatchObject({
+        jobDescriptionId: 'jd-1',
+        requiredKeywords: ['machine tools', 'cnc'],
       })
     })
   })

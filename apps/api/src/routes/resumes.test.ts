@@ -567,6 +567,47 @@ describe("resume routes", () => {
     }));
   });
 
+  it("pushes required keywords into paged convex keyword searches", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+        return convexSuccess({
+          expansion: {
+            original: "cnc sales",
+            expanded: ["cnc", "sales"],
+            groups: [
+              { original: "cnc", variants: ["cnc"] },
+              { original: "sales", variants: ["sales"] },
+            ],
+            mode: "AND",
+          },
+          results: [
+            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
+          ],
+          total: 1,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&q=cnc%20sales&limit=2&requiredKeywords=machine%20tools,CNC");
+
+    expect(response.status).toBe(200);
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:searchWithTagExpansionPage",
+      args: expect.objectContaining({
+        limit: 2,
+        requiredKeywords: ["machine tools", "cnc"],
+      }),
+    }));
+  });
+
   it("keeps source pagination when resume filters are pushed into the convex page query", async () => {
     const calls: ConvexCall[] = [];
 
@@ -588,7 +629,7 @@ describe("resume routes", () => {
     });
 
     const app = createApp();
-    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&locations=%E4%B8%9C%E8%8E%9E");
+    const response = await app.request("/api/resumes?source=convex&limit=2&offset=2&locations=%E4%B8%9C%E8%8E%9E&requiredKeywords=CNC");
 
     expect(response.status).toBe(200);
     const payload = await response.json();
@@ -596,7 +637,7 @@ describe("resume routes", () => {
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
       pathName: "resumes:listWithIngestDataPage",
-      args: expect.objectContaining({ limit: 2, offset: 2, locations: ["东莞"] }),
+      args: expect.objectContaining({ limit: 2, offset: 2, locations: ["东莞"], requiredKeywords: ["cnc"] }),
     }));
   });
 

@@ -4,6 +4,7 @@ import {
   buildWorkHistoryEntryText,
   formatLocationHierarchySearchText,
   isLocationMatch,
+  normalizeKeywordPhrases,
   normalizeProfileUrlForDisplay,
   normalizeSharedResumeFields,
   selectLatestWorkHistory,
@@ -43,6 +44,7 @@ export type ResumeFilters = {
   maxExperience?: number;
   education?: string[];
   skills?: string[];
+  requiredKeywords?: string[];
   locations?: string[];
   minSalary?: number;
   maxSalary?: number;
@@ -253,6 +255,20 @@ function buildSearchText(item: ResumeItem): string {
     ...latestWorkHistory.map((entry) => buildWorkHistoryEntryText(entry)),
   ];
   return parts.join(" ").toLowerCase();
+}
+
+function matchesAllRequiredKeywords(text: string, requiredKeywords: string[] | undefined): boolean {
+  const normalizedKeywords = normalizeKeywordPhrases(requiredKeywords ?? []).map((keyword) => keyword.toLowerCase());
+  if (normalizedKeywords.length === 0) {
+    return true;
+  }
+
+  const haystack = text.trim().toLowerCase();
+  if (!haystack) {
+    return false;
+  }
+
+  return normalizedKeywords.every((keyword) => haystack.includes(keyword));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -574,6 +590,11 @@ export class ResumeService {
         const haystack = buildSearchText(item);
         const hasSkill = filters.skills.some((skill) => haystack.includes(skill.toLowerCase()));
         if (!hasSkill) return false;
+      }
+
+      if (filters.requiredKeywords?.length) {
+        const haystack = buildSearchText(item);
+        if (!matchesAllRequiredKeywords(haystack, filters.requiredKeywords)) return false;
       }
 
       if (filters.minSalary !== undefined || filters.maxSalary !== undefined) {
