@@ -21,6 +21,7 @@ vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
 
 const {
   blocksByIdentityMock,
+  convexQueryStateMock,
   markSearchHistoryOpenedMutationMock,
   parsedStateMock,
   resumesMock,
@@ -30,11 +31,17 @@ const {
   syncToUrlMock,
   taxonomyClusterRecordsMock,
   useFacetCountsMock,
+  useConvexResumesMock,
   useMutationMock,
   useQueryMock,
   workspaceMock,
 } = vi.hoisted(() => ({
   blocksByIdentityMock: {} as Record<string, boolean>,
+  convexQueryStateMock: {
+    hasMore: false,
+    loading: false,
+    loadingMore: false,
+  },
   markSearchHistoryOpenedMutationMock: vi.fn(async () => {}),
   parsedStateMock: {} as UrlSearchState,
   resumesMock: [] as ConvexResumeItem[],
@@ -44,6 +51,7 @@ const {
   syncToUrlMock: vi.fn(),
   taxonomyClusterRecordsMock: [] as Array<Record<string, unknown>>,
   useFacetCountsMock: vi.fn(),
+  useConvexResumesMock: vi.fn(),
   useMutationMock: vi.fn(),
   useQueryMock: vi.fn(),
   workspaceMock: {
@@ -80,12 +88,7 @@ vi.mock('@/hooks/useCandidateBlocks', () => ({
 }))
 
 vi.mock('@/hooks/useConvexResumes', () => ({
-  useConvexResumes: () => ({
-    resumes: resumesMock,
-    hasMore: false,
-    loading: false,
-    loadingMore: false,
-  }),
+  useConvexResumes: (...args: unknown[]) => useConvexResumesMock(...args),
 }))
 
 vi.mock('@/hooks/useFacetCounts', () => ({
@@ -147,6 +150,11 @@ function createResume(index: number, overrides: Partial<ConvexResumeItem> = {}):
   }
 }
 
+function lastResumeLimitCall(): number | undefined {
+  const lastCall = useConvexResumesMock.mock.calls[useConvexResumesMock.mock.calls.length - 1]
+  return lastCall?.[0] as number | undefined
+}
+
 describe('useResumeSearchState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -170,6 +178,9 @@ describe('useResumeSearchState', () => {
     taxonomyClusterRecordsMock.splice?.(0, taxonomyClusterRecordsMock.length)
     Object.keys(statusByIdentityMock).forEach((key) => delete statusByIdentityMock[key])
     Object.keys(blocksByIdentityMock).forEach((key) => delete blocksByIdentityMock[key])
+    convexQueryStateMock.hasMore = false
+    convexQueryStateMock.loading = false
+    convexQueryStateMock.loadingMore = false
 
     useFacetCountsMock.mockReturnValue({
       clusters: [],
@@ -200,6 +211,13 @@ describe('useResumeSearchState', () => {
       }
       return vi.fn()
     })
+
+    useConvexResumesMock.mockImplementation(() => ({
+      resumes: resumesMock,
+      hasMore: convexQueryStateMock.hasMore,
+      loading: convexQueryStateMock.loading,
+      loadingMore: convexQueryStateMock.loadingMore,
+    }))
   })
 
   afterEach(() => {
@@ -406,5 +424,124 @@ describe('useResumeSearchState', () => {
       selectedExperienceLevel: 'senior',
       resumeIds: Array.from({ length: 50 }, (_, index) => `resume-${index + 1}`),
     })
+  })
+
+  it('syncs submit, clear, and sort actions back into canonical url state', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      location: 'Malaysia',
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
+      selectedCompanies: ['FANUC'],
+      selectedExperienceLevel: 'senior',
+      filters: {
+        education: ['Bachelor'],
+        status: ['contacted'],
+        minMatchScore: 80,
+      },
+    }))
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    act(() => {
+      result.current.submitSearch('  servo automation  ')
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(1, {
+      shareSessionId: undefined,
+      query: 'servo automation',
+      location: 'Malaysia',
+      keywords: ['servo', 'automation'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
+      selectedCompanies: ['FANUC'],
+      selectedExperienceLevel: 'senior',
+      filters: {
+        education: ['Bachelor'],
+        status: ['contacted'],
+        minMatchScore: 80,
+      },
+    })
+
+    act(() => {
+      result.current.setSort('newest')
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(2, {
+      shareSessionId: undefined,
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
+      selectedCompanies: ['FANUC'],
+      selectedExperienceLevel: 'senior',
+      filters: {
+        education: ['Bachelor'],
+        status: ['contacted'],
+        minMatchScore: 80,
+        sortBy: 'extractedAt',
+        sortOrder: 'desc',
+      },
+    })
+
+    act(() => {
+      result.current.clearSearch()
+    })
+
+    expect(result.current.queryInput).toBe('')
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(3, {
+      shareSessionId: undefined,
+      query: undefined,
+      location: 'Malaysia',
+      keywords: [],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+      filters: {},
+    })
+  })
+
+  it('only grows the resume window when more results are available and not already loading more', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+    }))
+    convexQueryStateMock.hasMore = true
+
+    const { result, rerender } = renderHook(() => useResumeSearchState())
+
+    expect(lastResumeLimitCall()).toBe(200)
+
+    act(() => {
+      result.current.loadMore()
+    })
+
+    expect(lastResumeLimitCall()).toBe(400)
+
+    convexQueryStateMock.loadingMore = true
+    rerender()
+
+    act(() => {
+      result.current.loadMore()
+    })
+
+    expect(lastResumeLimitCall()).toBe(400)
+
+    convexQueryStateMock.loadingMore = false
+    convexQueryStateMock.hasMore = false
+    rerender()
+
+    act(() => {
+      result.current.loadMore()
+    })
+
+    expect(lastResumeLimitCall()).toBe(400)
   })
 })
