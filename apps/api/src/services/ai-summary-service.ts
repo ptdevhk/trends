@@ -3,6 +3,7 @@ import { callChatCompletion } from "./ai-chat-client.js";
 import { workspaceConfigService } from "./workspace-config-service.js";
 
 const DEFAULT_AI_SUMMARY_MODEL = process.env.AI_SUMMARY_MODEL || "anthropic/claude-3-haiku-20240307";
+const FALLBACK_AI_SUMMARY_MODEL = "heuristic/search-summary-fallback";
 
 type SummaryCandidate = {
   id: string;
@@ -48,6 +49,55 @@ function stripCodeFence(value: string): string {
     .trim();
 }
 
+function collectTopValues(values: Array<string | undefined>, limit: number): string[] {
+  const counts = new Map<string, { label: string; count: number }>();
+
+  values.forEach((value) => {
+    const normalized = normalizeOptionalString(value);
+    if (!normalized) {
+      return;
+    }
+
+    const key = normalized.toLowerCase();
+    const current = counts.get(key);
+    if (current) {
+      current.count += 1;
+      return;
+    }
+
+    counts.set(key, {
+      label: normalized,
+      count: 1,
+    });
+  });
+
+  return [...counts.values()]
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+    .slice(0, limit)
+    .map((item) => item.label);
+}
+
+function summarizeScoreRange(results: SummaryCandidate[]): string {
+  const scores = results
+    .map((candidate) => candidate.score)
+    .filter((score): score is number => typeof score === "number" && Number.isFinite(score));
+
+  if (scores.length === 0) {
+    return "Visible candidates do not include score metadata.";
+  }
+
+  const sorted = [...scores].sort((left, right) => left - right);
+  const min = Math.round(sorted[0] ?? 0);
+  const max = Math.round(sorted[sorted.length - 1] ?? 0);
+  const average = Math.round(sorted.reduce((sum, score) => sum + score, 0) / sorted.length);
+
+  if (min === max) {
+    return `Visible scores are tightly clustered at ${min}.`;
+  }
+
+  return `Visible scores range from ${min} to ${max}, with the current set centered around ${average}.`;
+}
+
 export class AiSummaryService {
   async resolveModel(workspaceSlug: string): Promise<string> {
     const workspaceOverride = await workspaceConfigService.getWorkspaceConfigValue(workspaceSlug, "ai_summary_model");
@@ -66,32 +116,40 @@ export class AiSummaryService {
       };
     }
 
-    const config = loadAIConfig();
-    if (!config.apiKey) {
-      throw new Error("Missing AI_API_KEY environment variable");
+    try {
+      const config = loadAIConfig();
+      if (!config.apiKey) {
+        throw new Error("Missing AI_API_KEY environment variable");
+      }
+
+      const model = await this.resolveModel(request.workspaceSlug);
+      if (!model.includes("/")) {
+        throw new Error(`Invalid AI summary model: ${model}`);
+      }
+
+      const message = this.buildUserPrompt(request);
+      const content = await this.callLLM(config, model, [
+        {
+          role: "system",
+          content: "You summarize resume search results for recruiters. Stay factual, compact, and read-only. Do not invent candidate details or recommend contacting anyone directly.",
+        },
+        {
+          role: "user",
+          content: message,
+        },
+      ]);
+
+      return {
+        model,
+        summary: stripCodeFence(content),
+      };
+    } catch (error) {
+      console.error("AI summary generation unavailable, using heuristic fallback", error);
+      return {
+        model: FALLBACK_AI_SUMMARY_MODEL,
+        summary: this.buildFallbackSummary(request),
+      };
     }
-
-    const model = await this.resolveModel(request.workspaceSlug);
-    if (!model.includes("/")) {
-      throw new Error(`Invalid AI summary model: ${model}`);
-    }
-
-    const message = this.buildUserPrompt(request);
-    const content = await this.callLLM(config, model, [
-      {
-        role: "system",
-        content: "You summarize resume search results for recruiters. Stay factual, compact, and read-only. Do not invent candidate details or recommend contacting anyone directly.",
-      },
-      {
-        role: "user",
-        content: message,
-      },
-    ]);
-
-    return {
-      model,
-      summary: stripCodeFence(content),
-    };
   }
 
   private buildUserPrompt(request: GenerateSummaryRequest): string {
@@ -123,6 +181,41 @@ export class AiSummaryService {
       "Candidate snippets:",
       candidateLines,
     ].filter(Boolean).join("\n");
+  }
+
+  private buildFallbackSummary(request: GenerateSummaryRequest): string {
+    const topKeywords = collectTopValues(request.results.flatMap((candidate) => candidate.keywords ?? []), 3);
+    const topTitles = collectTopValues(request.results.map((candidate) => candidate.title), 3);
+    const topLocations = collectTopValues(request.results.map((candidate) => candidate.location), 2);
+    const refinementHints = collectTopValues([
+      ...request.facets?.selectedTags ?? [],
+      ...request.facets?.selectedCompanies ?? [],
+      ...topKeywords,
+    ], 3);
+
+    const firstParagraph = [
+      `Visible results for "${request.query}" currently include ${request.results.length} candidates.`,
+      topKeywords.length > 0
+        ? `Shared themes are strongest around ${topKeywords.join(", ")}.`
+        : topTitles.length > 0
+          ? `Shared themes are strongest around titles such as ${topTitles.join(", ")}.`
+          : undefined,
+    ].filter(Boolean).join(" ");
+
+    const secondParagraph = [
+      topTitles.length > 0 ? `Common titles include ${topTitles.join(", ")}.` : undefined,
+      topLocations.length > 0 ? `Visible locations are concentrated in ${topLocations.join(", ")}.` : undefined,
+      summarizeScoreRange(request.results),
+    ].filter(Boolean).join(" ");
+
+    const thirdParagraph = [
+      request.location ? `Keep the location filter on ${request.location} if that market is still the priority.` : undefined,
+      refinementHints.length > 0
+        ? `Useful next refinements are ${refinementHints.join(", ")}.`
+        : "Useful next refinements are narrower role, company, or location filters.",
+    ].filter(Boolean).join(" ");
+
+    return [firstParagraph, secondParagraph, thirdParagraph].join("\n\n");
   }
 
   private async callLLM(
