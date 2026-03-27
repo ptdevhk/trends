@@ -106,6 +106,14 @@ function getKeywordFingerprint(keyword: string): string {
   return keyword.trim().toLowerCase();
 }
 
+function isHotKeywordSeed(item: IndustryKeyword): boolean {
+  return (
+    item.source === "system" &&
+    typeof item.id === "string" &&
+    item.id.startsWith("seed-")
+  );
+}
+
 function deduplicateKeywords(items: IndustryKeyword[]): IndustryKeyword[] {
   const seen = new Set<string>();
   const deduplicated: IndustryKeyword[] = [];
@@ -322,7 +330,7 @@ export function useIndustryKeywords() {
   }, [allKeywords]);
 
   const hotKeywords = useMemo(() => {
-    return [...customKeywords];
+    return customKeywords.filter(isHotKeywordSeed);
   }, [customKeywords]);
 
   return {
