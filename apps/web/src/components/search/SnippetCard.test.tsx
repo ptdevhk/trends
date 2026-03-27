@@ -64,8 +64,10 @@ function createResult(index: number, overrides: Partial<ResumeSearchResultItem> 
   return {
     key: overrides.key ?? `resume-${index}`,
     identityKey: overrides.identityKey ?? `identity-${index}`,
+    analysis: overrides.analysis,
     blocked: overrides.blocked ?? false,
     score: hasScoreOverride ? overrides.score : 87.6,
+    scoreSource: overrides.scoreSource ?? 'ai',
     status: overrides.status ?? 'new',
     statusMeta: overrides.statusMeta,
     resume: overrides.resume ?? createResume(index),
@@ -84,7 +86,14 @@ describe('SnippetCard', () => {
     render(
       <SnippetCard
         expanded
-        item={createResult(1)}
+        item={createResult(1, {
+          analysis: {
+            score: 87.6,
+            summary: 'Strong CNC sales coverage across Malaysia.',
+            highlights: [],
+            recommendation: 'strong_match',
+          },
+        })}
         onToggleExpanded={onToggleExpanded}
       />
     )
@@ -96,9 +105,11 @@ describe('SnippetCard', () => {
     expect(screen.getByText('6 years')).toBeInTheDocument()
     expect(screen.getByText('senior')).toBeInTheDocument()
     expect(screen.getByText('88')).toBeInTheDocument()
+    expect(screen.getByText('AI')).toBeInTheDocument()
     expect(screen.getByText('CNC')).toBeInTheDocument()
     expect(screen.getByText('Machine Tools')).toBeInTheDocument()
     expect(screen.getByText('Malaysia')).toBeInTheDocument()
+    expect(screen.getByText(/AI summary: Strong CNC sales coverage across Malaysia\./i)).toBeInTheDocument()
     expect(screen.queryByText('Ignored')).not.toBeInTheDocument()
     expect(screen.getByText('Expanded card for Candidate 1')).toBeInTheDocument()
 
@@ -115,6 +126,7 @@ describe('SnippetCard', () => {
       <SnippetCard
         expanded={false}
         item={createResult(2, {
+          scoreSource: undefined,
           score: undefined,
           resume: createResume(2, {
             name: '',

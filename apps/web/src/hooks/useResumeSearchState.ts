@@ -29,7 +29,15 @@ import {
   type TaxonomyClusterInput,
   type TaxonomyClusterResolver,
 } from '@/lib/taxonomy'
-import { toIndustryDbV2Stats } from '@/lib/resume-scoring'
+import {
+  getAnalysisForJob,
+  toIndustryDbV2Stats,
+  toRecommendation,
+} from '@/lib/resume-scoring'
+import {
+  getCurrentResumeAiPromptVersion,
+  resolveResumeAnalysisSourceKey,
+} from '@/lib/analysis-utils'
 import { resolveCollectionSource } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import type {
@@ -118,7 +126,15 @@ function parseExperienceYears(value: string | undefined): number {
 function resolveScore(
   resume: ConvexResumeItem,
   jobDescriptionId: string | undefined,
+  analysis: ConvexResumeItem['analysis'],
 ): number | undefined {
+  if (
+    typeof analysis?.score === 'number' &&
+    Number.isFinite(analysis.score)
+  ) {
+    return analysis.score
+  }
+
   const normalizedJobDescriptionId = normalizeOptionalString(jobDescriptionId)
   const ruleScores = resume.ingestData?.ruleScores ?? {}
 
@@ -142,14 +158,52 @@ function resolveScore(
     return resume.primaryRuleScore
   }
 
-  if (
-    typeof resume.analysis?.score === 'number' &&
-    Number.isFinite(resume.analysis.score)
-  ) {
-    return resume.analysis.score
+  return undefined
+}
+
+function resolveSearchAnalysis(
+  resume: ConvexResumeItem,
+  jobDescriptionId: string | undefined,
+  keywords: string[],
+  location: string | undefined,
+  currentPromptVersion: number,
+): ConvexResumeItem['analysis'] {
+  const matchedAnalysis = getAnalysisForJob(
+    resume,
+    jobDescriptionId,
+    keywords,
+    {
+      location,
+      promptVersion: currentPromptVersion,
+      sourceKey: resolveResumeAnalysisSourceKey({
+        source: resume.source,
+      }),
+    },
+  )
+
+  if (matchedAnalysis) {
+    return matchedAnalysis
   }
 
-  return undefined
+  const fallbackAnalysis = resume.analysis
+  if (!fallbackAnalysis) {
+    return undefined
+  }
+
+  if (fallbackAnalysis.promptVersion !== currentPromptVersion) {
+    return undefined
+  }
+
+  const ingestComputedAt = resume.ingestData?.computedAt
+  if (
+    typeof ingestComputedAt === 'number' &&
+    typeof fallbackAnalysis.analyzedAt === 'number' &&
+    ingestComputedAt > fallbackAnalysis.analyzedAt
+  ) {
+    return undefined
+  }
+
+  return fallbackAnalysis
 }
 
 function hasExplicitSearchContext(state: UrlSearchState): boolean {
@@ -262,17 +316,20 @@ function buildSearchExportMatch(
     return undefined
   }
 
-  const analysis = item.resume.analysis
-  const matchesAiScore =
-    typeof analysis?.score === 'number' &&
-    Number.isFinite(analysis.score) &&
-    analysis.score === item.score
+  const analysis = item.analysis
+  const usesAiScore = item.scoreSource === 'ai' && Boolean(analysis)
 
   return {
     score: item.score,
-    recommendation: resolveExportRecommendation(item.score),
-    scoreSource: matchesAiScore ? 'ai' : 'rule',
-    ...(matchesAiScore && analysis?.breakdown
+    recommendation:
+      usesAiScore && analysis
+        ? toRecommendation(analysis.recommendation)
+        : resolveExportRecommendation(item.score),
+    scoreSource: usesAiScore ? 'ai' : 'rule',
+    ...(usesAiScore && analysis?.summary
+      ? { summary: analysis.summary }
+      : {}),
+    ...(usesAiScore && analysis?.breakdown
       ? { breakdown: analysis.breakdown }
       : {}),
   }
@@ -493,6 +550,15 @@ export function useResumeSearchState() {
 
   const isLanding = !hasExplicitSearchContext(parsedState)
   const activeQuery = normalizeOptionalString(parsedState.query)
+  const currentPromptVersion = useMemo(() => getCurrentResumeAiPromptVersion(), [])
+  const analysisKeywords = useMemo(
+    () =>
+      normalizeStringList([
+        ...parsedState.keywords,
+        ...parseKeywordQuery(activeQuery ?? '').keywords,
+      ]),
+    [activeQuery, parsedState.keywords],
+  )
   const backendFilters = useMemo<ConvexResumeFilters>(
     () => ({
       minExperience: parsedState.filters.minExperience,
@@ -565,19 +631,41 @@ export function useResumeSearchState() {
     return resumeQuery.resumes.map((resume) => {
       const identityKey = resume.identityKey?.trim() || resume.externalId
       const statusRecord = statusByIdentity[identityKey]
+      const analysis = resolveSearchAnalysis(
+        resume,
+        parsedState.jobDescriptionId,
+        analysisKeywords,
+        parsedState.location,
+        currentPromptVersion,
+      )
+      const score = resolveScore(
+        resume,
+        parsedState.jobDescriptionId,
+        analysis,
+      )
       return {
         key: `${resume.resumeId}`,
         identityKey,
         resume,
         blocked: Boolean(blocksByIdentity[identityKey]),
-        score: resolveScore(resume, parsedState.jobDescriptionId),
+        analysis,
+        score,
+        scoreSource:
+          typeof score === 'number'
+            ? analysis && analysis.score === score
+              ? 'ai'
+              : 'rule'
+            : undefined,
         status: statusRecord?.status ?? 'new',
         statusMeta: statusRecord,
       }
     })
   }, [
+    analysisKeywords,
     blocksByIdentity,
+    currentPromptVersion,
     parsedState.jobDescriptionId,
+    parsedState.location,
     resumeQuery.resumes,
     statusByIdentity,
   ])

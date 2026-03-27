@@ -16,8 +16,14 @@ function formatStatusLabel(value: string): string {
   return value.replace(/_/g, ' ')
 }
 
+function formatBreakdownLabel(value: string): string {
+  return value.replace(/_/g, ' ')
+}
+
 export function SnippetCardExpanded({ item }: SnippetCardExpandedProps) {
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
+  const analysis = item.analysis ?? item.resume.analysis
+  const hasAiAnalysis = item.scoreSource === 'ai' && Boolean(analysis)
   const presentationResume = useMemo(
     () => sanitizeResumeRecordForSurface(item.resume, 'presentation', fieldUsagePolicy),
     [fieldUsagePolicy, item.resume]
@@ -65,6 +71,73 @@ export function SnippetCardExpanded({ item }: SnippetCardExpandedProps) {
         </div>
 
         <div className="space-y-4">
+          <div className="rounded-3xl border bg-white p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                {hasAiAnalysis ? 'AI analysis' : 'Score source'}
+              </div>
+              {typeof item.score === 'number' ? (
+                <Badge variant="outline" className="uppercase">
+                  {item.scoreSource === 'ai' ? `AI ${Math.round(item.score)}` : `Rule ${Math.round(item.score)}`}
+                </Badge>
+              ) : null}
+            </div>
+            {hasAiAnalysis && analysis ? (
+              <div className="space-y-4 text-sm text-slate-700">
+                <p className="leading-6">{analysis.summary || 'No AI summary available for this resume yet.'}</p>
+
+                {analysis.highlights.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                      Highlights
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {analysis.highlights.slice(0, 6).map((highlight) => (
+                        <Badge key={highlight} variant="secondary">{highlight}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {analysis.concerns && analysis.concerns.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                      Concerns
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {analysis.concerns.slice(0, 6).map((concern) => (
+                        <Badge key={concern} variant="outline">{concern}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {analysis.breakdown && Object.keys(analysis.breakdown).length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                      Breakdown
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {Object.entries(analysis.breakdown).map(([label, value]) => (
+                        <div
+                          key={label}
+                          className="flex items-center justify-between rounded-2xl border bg-slate-50 px-3 py-2"
+                        >
+                          <span className="capitalize text-slate-600">{formatBreakdownLabel(label)}</span>
+                          <span className="font-semibold text-slate-900">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm leading-6 text-slate-700">
+                AI summary is not available for this resume. The current visible score comes from rule scoring only.
+              </p>
+            )}
+          </div>
+
           <div className="rounded-3xl border bg-white p-4">
             <div className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
               Resume metadata

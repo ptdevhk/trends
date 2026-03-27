@@ -4,6 +4,7 @@ import type { CandidateStatus } from '@/types/resume'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 
 export type SearchSortValue = 'score' | 'newest' | 'experience'
+export type SearchScoreSource = 'ai' | 'rule'
 
 export type FacetValueCount = {
   value: string
@@ -26,7 +27,9 @@ export type ResumeSearchResultItem = {
   identityKey: string
   resume: ConvexResumeItem
   blocked: boolean
+  analysis?: ConvexResumeItem['analysis']
   score?: number
+  scoreSource?: SearchScoreSource
   status: CandidateStatus
   statusMeta?: CandidateStatusRecord
 }
