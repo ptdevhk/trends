@@ -12,7 +12,8 @@ import { deriveResumeIdentity } from "./lib/resume_identity";
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 
 const jobDescriptionType = v.union(v.literal("system"), v.literal("custom"));
-const WORKSPACE_DEMO_DEV_MACHINERY_SALES_SLUG = "workspace-demo-dev-machinery-sales";
+const WORKSPACE_DEMO_DEV_MACHINERY_SALES_SLUG =
+  "workspace-demo-dev-machinery-sales";
 
 function normalizeWorkspaceSlug(input: string | undefined): string {
   const normalized = input?.trim();
@@ -92,10 +93,7 @@ function buildSeekMalaysiaSalesDemoResume(seededAt: number) {
     expectedSalary: "MYR 8,000 - MYR 12,000",
     summary:
       "Sales Engineer / Sales Manager for CNC machine tools with Kuala Lumpur coverage and nationwide Malaysia accounts.",
-    companies: [
-      "Precision Machines Malaysia Sdn Bhd",
-      "STAR Micronics Asia",
-    ],
+    companies: ["Precision Machines Malaysia Sdn Bhd", "STAR Micronics Asia"],
     workHistory: [
       {
         raw: "2021-04~Present Precision Machines Malaysia Sdn Bhd Senior Sales Engineer\nHandled CNC machine tool sales, distributor development, and Kuala Lumpur key accounts.",
@@ -169,13 +167,11 @@ function buildSeekMalaysiaSalesDemoResume(seededAt: number) {
         brand: "STAR",
         role: "sales engineer",
         source: "workHistory",
-        context: "Sold STAR sliding headstock lathes and automation solutions across Malaysia.",
+        context:
+          "Sold STAR sliding headstock lathes and automation solutions across Malaysia.",
       },
     ],
-    companyHits: [
-      "Precision Machines Malaysia Sdn Bhd",
-      "STAR Micronics Asia",
-    ],
+    companyHits: ["Precision Machines Malaysia Sdn Bhd", "STAR Micronics Asia"],
     roleSignals: [
       {
         type: "sales",
@@ -198,11 +194,7 @@ function buildSeekMalaysiaSalesDemoResume(seededAt: number) {
             jobTitle: "Senior Sales Engineer",
             years: 4,
             industryVerified: true,
-            matchedSignals: [
-              "sales engineer",
-              "machine tools",
-              "cnc",
-            ],
+            matchedSignals: ["sales engineer", "machine tools", "cnc"],
           },
           {
             companyName: "STAR Micronics Asia",
@@ -375,7 +367,8 @@ export const seedJobDescriptions = mutation({
         }
         if (
           item.customKeywords &&
-          stableSerialize(existing.customKeywords ?? []) !== stableSerialize(item.customKeywords)
+          stableSerialize(existing.customKeywords ?? []) !==
+            stableSerialize(item.customKeywords)
         ) {
           patch.customKeywords = item.customKeywords;
         }
@@ -576,16 +569,16 @@ export const seedWorkspaceDemoData = mutation({
 
     const searchProfiles = [
       {
-        name: "机械销售-Demo",
+        name: "CNC 销售-China",
         criteria: {
-          keywords: ["机床", "销售"],
-          locations: [""],
+          keywords: ["CNC", "销售"],
+          locations: ["China"],
         },
         profile: {
-          name: "机械销售-Demo",
+          name: "CNC 销售-China",
           status: "active" as const,
-          location: "",
-          keywords: ["机床", "销售"],
+          location: "China",
+          keywords: ["CNC", "销售"],
           filters: {
             minExperience: 1,
             minAge: 25,
@@ -596,23 +589,23 @@ export const seedWorkspaceDemoData = mutation({
         lastRunAt: seededAt - 3_600_000,
       },
       {
-        name: "Workspace Demo · HR Resume Ops",
+        name: "CNC Sales-MY",
         criteria: {
-          keywords: ["招聘", "简历", "人事", "筛选"],
-          locations: ["东莞", "广州"],
+          keywords: ["CNC", "Sales"],
+          locations: ["Kuala Lumpur MY"],
         },
         profile: {
-          name: "Workspace Demo · HR Resume Ops",
+          name: "CNC Sales-MY",
           status: "active" as const,
-          location: "东莞,广州",
-          keywords: ["招聘", "简历", "人事", "筛选"],
+          location: "Kuala Lumpur MY",
+          keywords: ["CNC", "Sales"],
           filters: {
             minExperience: 1,
             minAge: 25,
             maxAge: 35,
           },
         },
-        workspaceSlug: "hr",
+        workspaceSlug: "dev",
         lastRunAt: seededAt - 1_800_000,
       },
     ];
@@ -866,9 +859,9 @@ export const seedWorkspaceDemoData = mutation({
           existing.workspaceSlug !== item.workspaceSlug ||
           existing.location !== item.location ||
           stableSerialize(existing.industryTags ?? []) !==
-          stableSerialize(item.industryTags ?? []) ||
+            stableSerialize(item.industryTags ?? []) ||
           stableSerialize(existing.customKeywords ?? []) !==
-          stableSerialize(item.customKeywords ?? []) ||
+            stableSerialize(item.customKeywords ?? []) ||
           existing.minExperience !== item.minExperience ||
           existing.maxAge !== item.maxAge ||
           existing.enabled !== true;
@@ -923,9 +916,9 @@ export const seedWorkspaceDemoData = mutation({
       if (existing) {
         const needsUpdate =
           stableSerialize(existing.criteria) !==
-          stableSerialize(item.criteria) ||
+            stableSerialize(item.criteria) ||
           stableSerialize(existing.profile ?? {}) !==
-          stableSerialize(item.profile ?? {}) ||
+            stableSerialize(item.profile ?? {}) ||
           existing.workspaceSlug !== targetWorkspaceSlug ||
           existing.lastRunAt !== item.lastRunAt;
         if (needsUpdate) {
@@ -967,7 +960,7 @@ export const seedWorkspaceDemoData = mutation({
           existing.status !== item.status ||
           stableSerialize(existing.config) !== stableSerialize(item.config) ||
           stableSerialize(existing.reviewedResumeIds) !==
-          stableSerialize(item.reviewedResumeIds) ||
+            stableSerialize(item.reviewedResumeIds) ||
           existing.workspaceSlug !== targetWorkspaceSlug ||
           existing.lastActive !== item.lastActive;
         if (needsUpdate) {
@@ -994,8 +987,14 @@ export const seedWorkspaceDemoData = mutation({
       result.screeningSessions.inserted += 1;
     }
 
-    const existingSearchHistory = await ctx.db.query("search_history").collect();
-    const searchHistoryKey = (sessionKeyValue: string, title: string, workspaceSlug: string | undefined) =>
+    const existingSearchHistory = await ctx.db
+      .query("search_history")
+      .collect();
+    const searchHistoryKey = (
+      sessionKeyValue: string,
+      title: string,
+      workspaceSlug: string | undefined,
+    ) =>
       `${sessionKeyValue}::${title}::${normalizeWorkspaceSlug(workspaceSlug)}`;
     const existingSearchHistoryByKey = new Map(
       existingSearchHistory.map((entry) => [
@@ -1005,18 +1004,27 @@ export const seedWorkspaceDemoData = mutation({
     );
     for (const item of searchHistory) {
       const targetWorkspaceSlug = normalizeWorkspaceSlug(item.workspaceSlug);
-      const key = searchHistoryKey(item.sessionKey, item.title, targetWorkspaceSlug);
+      const key = searchHistoryKey(
+        item.sessionKey,
+        item.title,
+        targetWorkspaceSlug,
+      );
       const existing = existingSearchHistoryByKey.get(key);
       if (existing) {
         const needsUpdate =
           existing.location !== item.location ||
-          stableSerialize(existing.keywords) !== stableSerialize(item.keywords) ||
+          stableSerialize(existing.keywords) !==
+            stableSerialize(item.keywords) ||
           existing.jobDescriptionId !== item.jobDescriptionId ||
-          stableSerialize(existing.collectionSource ?? null) !== stableSerialize(item.collectionSource ?? null) ||
+          stableSerialize(existing.collectionSource ?? null) !==
+            stableSerialize(item.collectionSource ?? null) ||
           existing.collectUrl !== item.collectUrl ||
-          stableSerialize(existing.filters ?? {}) !== stableSerialize(item.filters ?? {}) ||
-          stableSerialize(existing.selectedTags ?? []) !== stableSerialize(item.selectedTags ?? []) ||
-          stableSerialize(existing.selectedCompanies ?? []) !== stableSerialize(item.selectedCompanies ?? []) ||
+          stableSerialize(existing.filters ?? {}) !==
+            stableSerialize(item.filters ?? {}) ||
+          stableSerialize(existing.selectedTags ?? []) !==
+            stableSerialize(item.selectedTags ?? []) ||
+          stableSerialize(existing.selectedCompanies ?? []) !==
+            stableSerialize(item.selectedCompanies ?? []) ||
           existing.selectedExperienceLevel !== item.selectedExperienceLevel ||
           existing.workspaceSlug !== targetWorkspaceSlug ||
           existing.createdAt !== item.createdAt ||

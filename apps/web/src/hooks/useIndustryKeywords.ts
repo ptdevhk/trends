@@ -32,7 +32,13 @@ type IndustryKeywordsResponse = {
     id: number;
     keyword: string;
     english?: string;
-    category: "machining" | "lathe" | "edm" | "measurement" | "smt" | "3d_printing";
+    category:
+      | "machining"
+      | "lathe"
+      | "edm"
+      | "measurement"
+      | "smt"
+      | "3d_printing";
   }>;
 };
 
@@ -179,8 +185,12 @@ function normalizeCategory(category: string): KeywordCategory {
 export function useIndustryKeywords() {
   const [keywords, setKeywords] = useState<IndustryKeyword[]>([]);
   const [customKeywords, setCustomKeywords] = useState<IndustryKeyword[]>([]);
-  const [systemLocationKeywords, setSystemLocationKeywords] = useState<IndustryKeyword[]>([]);
-  const [workflowSeeds, setWorkflowSeeds] = useState<CustomKeywordWorkflowSeed[]>([]);
+  const [systemLocationKeywords, setSystemLocationKeywords] = useState<
+    IndustryKeyword[]
+  >([]);
+  const [workflowSeeds, setWorkflowSeeds] = useState<
+    CustomKeywordWorkflowSeed[]
+  >([]);
   const [brandKeywords, setBrandKeywords] = useState<IndustryKeyword[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -189,11 +199,13 @@ export function useIndustryKeywords() {
     setLoading(true);
     setError(null);
 
-    const [industryResponse, customResponse, brandResponse] = await Promise.all([
-      rawApiClient.GET<IndustryKeywordsResponse>("/api/industry/keywords"),
-      rawApiClient.GET<CustomKeywordsResponse>("/api/config/custom-keywords"),
-      rawApiClient.GET<BrandsResponse>("/api/industry/brands"),
-    ]);
+    const [industryResponse, customResponse, brandResponse] = await Promise.all(
+      [
+        rawApiClient.GET<IndustryKeywordsResponse>("/api/industry/keywords"),
+        rawApiClient.GET<CustomKeywordsResponse>("/api/config/custom-keywords"),
+        rawApiClient.GET<BrandsResponse>("/api/industry/brands"),
+      ],
+    );
 
     const { data: industryData, error: industryError } = industryResponse;
     if (industryError || !industryData?.success) {
@@ -232,7 +244,9 @@ export function useIndustryKeywords() {
           });
         }
       }
-      setCustomKeywords(mappedCustomKeywords.filter((item) => item.visible !== false));
+      setCustomKeywords(
+        mappedCustomKeywords.filter((item) => item.visible !== false),
+      );
 
       const mappedSystemLocationKeywords: IndustryKeyword[] = [];
       if (Array.isArray(customData.systemLocations)) {
@@ -286,10 +300,10 @@ export function useIndustryKeywords() {
   const allKeywords = useMemo(() => {
     // Custom keywords take priority over brand keywords with the same text
     const customSet = new Set(
-      customKeywords.map((item) => getKeywordFingerprint(item.keyword))
+      customKeywords.map((item) => getKeywordFingerprint(item.keyword)),
     );
     const deduplicatedBrands = brandKeywords.filter(
-      (item) => !customSet.has(getKeywordFingerprint(item.keyword))
+      (item) => !customSet.has(getKeywordFingerprint(item.keyword)),
     );
     return deduplicateKeywords([
       ...keywords,
@@ -308,16 +322,8 @@ export function useIndustryKeywords() {
   }, [allKeywords]);
 
   const hotKeywords = useMemo(() => {
-    const customSet = new Set(customKeywords.map((item) => getKeywordFingerprint(item.keyword)));
-    const categoryChips = CATEGORY_ORDER
-      .filter((category) => category !== "custom")
-      .flatMap((category) => grouped[category].slice(0, 3));
-    const filteredCategoryChips = categoryChips.filter(
-      (chip) => !customSet.has(getKeywordFingerprint(chip.keyword))
-    );
-
-    return [...customKeywords, ...filteredCategoryChips];
-  }, [customKeywords, grouped]);
+    return [...customKeywords];
+  }, [customKeywords]);
 
   return {
     keywords: allKeywords,

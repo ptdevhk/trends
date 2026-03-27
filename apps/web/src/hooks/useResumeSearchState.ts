@@ -5,7 +5,11 @@ import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus } from '@/hooks/useCandidateStatus'
-import { useConvexResumes, type ConvexResumeFilters, type ConvexResumeItem } from '@/hooks/useConvexResumes'
+import {
+  useConvexResumes,
+  type ConvexResumeFilters,
+  type ConvexResumeItem,
+} from '@/hooks/useConvexResumes'
 import { useFacetCounts } from '@/hooks/useFacetCounts'
 import {
   useUrlSearchState,
@@ -56,7 +60,9 @@ type SearchHistoryRecord = {
   lastOpenedAt?: number
 }
 
-function normalizeOptionalString(value: string | undefined): string | undefined {
+function normalizeOptionalString(
+  value: string | undefined,
+): string | undefined {
   const normalized = value?.trim()
   return normalized ? normalized : undefined
 }
@@ -97,7 +103,10 @@ function parseExperienceYears(value: string | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function resolveScore(resume: ConvexResumeItem, jobDescriptionId: string | undefined): number | undefined {
+function resolveScore(
+  resume: ConvexResumeItem,
+  jobDescriptionId: string | undefined,
+): number | undefined {
   const normalizedJobDescriptionId = normalizeOptionalString(jobDescriptionId)
   const ruleScores = resume.ingestData?.ruleScores ?? {}
 
@@ -114,11 +123,17 @@ function resolveScore(resume: ConvexResumeItem, jobDescriptionId: string | undef
     }
   }
 
-  if (typeof resume.primaryRuleScore === 'number' && Number.isFinite(resume.primaryRuleScore)) {
+  if (
+    typeof resume.primaryRuleScore === 'number' &&
+    Number.isFinite(resume.primaryRuleScore)
+  ) {
     return resume.primaryRuleScore
   }
 
-  if (typeof resume.analysis?.score === 'number' && Number.isFinite(resume.analysis.score)) {
+  if (
+    typeof resume.analysis?.score === 'number' &&
+    Number.isFinite(resume.analysis.score)
+  ) {
     return resume.analysis.score
   }
 
@@ -127,19 +142,19 @@ function resolveScore(resume: ConvexResumeItem, jobDescriptionId: string | undef
 
 function hasExplicitSearchContext(state: UrlSearchState): boolean {
   return Boolean(
-    normalizeOptionalString(state.query)
-    || normalizeOptionalString(state.location)
-    || normalizeOptionalString(state.jobDescriptionId)
-    || state.requiredKeywords.length > 0
-    || state.selectedTags.length > 0
-    || state.selectedCompanies.length > 0
-    || state.selectedExperienceLevel
-    || (state.filters.education?.length ?? 0) > 0
-    || (state.filters.status?.length ?? 0) > 0
-    || typeof state.filters.minMatchScore === 'number'
-    || typeof state.filters.minExperience === 'number'
-    || typeof state.filters.maxExperience === 'number'
-    || (state.filters.locations?.length ?? 0) > 0
+    normalizeOptionalString(state.query) ||
+    normalizeOptionalString(state.location) ||
+    normalizeOptionalString(state.jobDescriptionId) ||
+    state.requiredKeywords.length > 0 ||
+    state.selectedTags.length > 0 ||
+    state.selectedCompanies.length > 0 ||
+    state.selectedExperienceLevel ||
+    (state.filters.education?.length ?? 0) > 0 ||
+    (state.filters.status?.length ?? 0) > 0 ||
+    typeof state.filters.minMatchScore === 'number' ||
+    typeof state.filters.minExperience === 'number' ||
+    typeof state.filters.maxExperience === 'number' ||
+    (state.filters.locations?.length ?? 0) > 0,
   )
 }
 
@@ -160,20 +175,32 @@ function buildUrlState(
   overrides: Partial<UrlSearchState>,
 ): UrlSearchState {
   return {
-    shareSessionId: 'shareSessionId' in overrides ? overrides.shareSessionId : state.shareSessionId,
+    shareSessionId:
+      'shareSessionId' in overrides
+        ? overrides.shareSessionId
+        : state.shareSessionId,
     query: 'query' in overrides ? overrides.query : state.query,
     location: 'location' in overrides ? overrides.location : state.location,
     keywords: overrides.keywords ?? state.keywords,
     requiredKeywords: overrides.requiredKeywords ?? state.requiredKeywords,
-    jobDescriptionId: 'jobDescriptionId' in overrides ? overrides.jobDescriptionId : state.jobDescriptionId,
+    jobDescriptionId:
+      'jobDescriptionId' in overrides
+        ? overrides.jobDescriptionId
+        : state.jobDescriptionId,
     selectedTags: overrides.selectedTags ?? state.selectedTags,
     selectedCompanies: overrides.selectedCompanies ?? state.selectedCompanies,
-    selectedExperienceLevel: 'selectedExperienceLevel' in overrides ? overrides.selectedExperienceLevel : state.selectedExperienceLevel,
+    selectedExperienceLevel:
+      'selectedExperienceLevel' in overrides
+        ? overrides.selectedExperienceLevel
+        : state.selectedExperienceLevel,
     filters: overrides.filters ?? state.filters,
   }
 }
 
-function sortResults(results: ResumeSearchResultItem[], sortValue: SearchSortValue): ResumeSearchResultItem[] {
+function sortResults(
+  results: ResumeSearchResultItem[],
+  sortValue: SearchSortValue,
+): ResumeSearchResultItem[] {
   if (sortValue === 'relevance') {
     return results
   }
@@ -189,7 +216,10 @@ function sortResults(results: ResumeSearchResultItem[], sortValue: SearchSortVal
       return rightTimestamp - leftTimestamp
     }
 
-    return parseExperienceYears(right.resume.experience) - parseExperienceYears(left.resume.experience)
+    return (
+      parseExperienceYears(right.resume.experience) -
+      parseExperienceYears(left.resume.experience)
+    )
   })
 }
 
@@ -200,41 +230,77 @@ function matchesLocalFilters(
   selectedClusterTags: string[],
   taxonomyResolver: TaxonomyClusterResolver,
 ): boolean {
-  const normalizedSelectedTags = selectedRawTags.map((value) => value.toLowerCase())
-  const normalizedSelectedClusters = selectedClusterTags.map((value) => value.toLowerCase())
-  const normalizedSelectedCompanies = state.selectedCompanies.map((value) => value.toLowerCase())
-  const normalizedEducation = (state.filters.education ?? []).map((value) => value.toLowerCase())
-  const normalizedStatuses = state.filters.status ?? []
-  const industryTags = item.resume.ingestData?.industryTags?.map((value) => value.toLowerCase()) ?? []
-  const matchedClusters = new Set(
-    taxonomyResolver.resolveTagClusters(item.resume.ingestData?.industryTags).map((cluster) => cluster.slug.toLowerCase()),
+  const normalizedSelectedTags = selectedRawTags.map((value) =>
+    value.toLowerCase(),
   )
-  const companyHits = item.resume.ingestData?.companyHits?.map((value) => value.toLowerCase()) ?? []
+  const normalizedSelectedClusters = selectedClusterTags.map((value) =>
+    value.toLowerCase(),
+  )
+  const normalizedSelectedCompanies = state.selectedCompanies.map((value) =>
+    value.toLowerCase(),
+  )
+  const normalizedEducation = (state.filters.education ?? []).map((value) =>
+    value.toLowerCase(),
+  )
+  const normalizedStatuses = state.filters.status ?? []
+  const industryTags =
+    item.resume.ingestData?.industryTags?.map((value) => value.toLowerCase()) ??
+    []
+  const matchedClusters = new Set(
+    taxonomyResolver
+      .resolveTagClusters(item.resume.ingestData?.industryTags)
+      .map((cluster) => cluster.slug.toLowerCase()),
+  )
+  const companyHits =
+    item.resume.ingestData?.companyHits?.map((value) => value.toLowerCase()) ??
+    []
   const education = item.resume.education?.trim().toLowerCase() ?? ''
-  const experienceLevel = item.resume.ingestData?.experienceLevel?.trim().toLowerCase()
+  const experienceLevel = item.resume.ingestData?.experienceLevel
+    ?.trim()
+    .toLowerCase()
   const minScore = state.filters.minMatchScore
 
-  if (normalizedSelectedTags.length > 0 && !normalizedSelectedTags.every((tag) => industryTags.includes(tag))) {
+  if (
+    normalizedSelectedTags.length > 0 &&
+    !normalizedSelectedTags.every((tag) => industryTags.includes(tag))
+  ) {
     return false
   }
 
-  if (normalizedSelectedClusters.length > 0 && !normalizedSelectedClusters.every((slug) => matchedClusters.has(slug))) {
+  if (
+    normalizedSelectedClusters.length > 0 &&
+    !normalizedSelectedClusters.every((slug) => matchedClusters.has(slug))
+  ) {
     return false
   }
 
-  if (normalizedSelectedCompanies.length > 0 && !normalizedSelectedCompanies.some((company) => companyHits.includes(company))) {
+  if (
+    normalizedSelectedCompanies.length > 0 &&
+    !normalizedSelectedCompanies.some((company) =>
+      companyHits.includes(company),
+    )
+  ) {
     return false
   }
 
-  if (state.selectedExperienceLevel && experienceLevel !== state.selectedExperienceLevel) {
+  if (
+    state.selectedExperienceLevel &&
+    experienceLevel !== state.selectedExperienceLevel
+  ) {
     return false
   }
 
-  if (normalizedEducation.length > 0 && !normalizedEducation.includes(education)) {
+  if (
+    normalizedEducation.length > 0 &&
+    !normalizedEducation.includes(education)
+  ) {
     return false
   }
 
-  if (normalizedStatuses.length > 0 && !normalizedStatuses.includes(item.status)) {
+  if (
+    normalizedStatuses.length > 0 &&
+    !normalizedStatuses.includes(item.status)
+  ) {
     return false
   }
 
@@ -245,7 +311,9 @@ function matchesLocalFilters(
   return true
 }
 
-function toRecentSearchItems(records: SearchHistoryRecord[] | undefined): ResumeSearchRecentItem[] {
+function toRecentSearchItems(
+  records: SearchHistoryRecord[] | undefined,
+): ResumeSearchRecentItem[] {
   if (!records) {
     return []
   }
@@ -265,7 +333,9 @@ function toRecentSearchItems(records: SearchHistoryRecord[] | undefined): Resume
     filters: record.filters ?? {},
     selectedTags: normalizeStringList(record.selectedTags),
     selectedCompanies: normalizeStringList(record.selectedCompanies),
-    selectedExperienceLevel: normalizeOptionalString(record.selectedExperienceLevel),
+    selectedExperienceLevel: normalizeOptionalString(
+      record.selectedExperienceLevel,
+    ),
     collectionTaskId: normalizeOptionalString(record.collectionTaskId),
     analysisTaskId: normalizeOptionalString(record.analysisTaskId),
     notes: normalizeOptionalString(record.notes),
@@ -294,11 +364,17 @@ export function useResumeSearchState() {
   const { slug } = useWorkspace()
   const { parsedState, syncToUrl } = useUrlSearchState()
   const storageKey = `${SESSION_KEY_PREFIX}.${slug}`
-  const [sessionKey, setSessionKey] = useState(() => ensureStoredSessionKey(storageKey))
-  const [queryInput, setQueryInput] = useState(() => parsedState.query ?? formatKeywordQuery(parsedState.keywords))
+  const [sessionKey, setSessionKey] = useState(() =>
+    ensureStoredSessionKey(storageKey),
+  )
+  const [queryInput, setQueryInput] = useState(
+    () => parsedState.query ?? formatKeywordQuery(parsedState.keywords),
+  )
   const [resumeLimit, setResumeLimit] = useState(INITIAL_RESUME_LIMIT)
   const saveSearchHistory = useMutation(api.sessions.saveSearchHistory)
-  const markSearchHistoryOpened = useMutation(api.sessions.markSearchHistoryOpened)
+  const markSearchHistoryOpened = useMutation(
+    api.sessions.markSearchHistoryOpened,
+  )
   const recentSearchHistoryRecords = useQuery(api.sessions.recentSearches, {
     sessionKey,
     workspaceSlug: slug,
@@ -339,17 +415,20 @@ export function useResumeSearchState() {
 
   const isLanding = !hasExplicitSearchContext(parsedState)
   const activeQuery = normalizeOptionalString(parsedState.query)
-  const backendFilters = useMemo<ConvexResumeFilters>(() => ({
-    minExperience: parsedState.filters.minExperience,
-    maxExperience: parsedState.filters.maxExperience,
-    requiredKeywords: parsedState.requiredKeywords,
-    locations: parsedState.filters.locations,
-  }), [
-    parsedState.filters.locations,
-    parsedState.filters.maxExperience,
-    parsedState.filters.minExperience,
-    parsedState.requiredKeywords,
-  ])
+  const backendFilters = useMemo<ConvexResumeFilters>(
+    () => ({
+      minExperience: parsedState.filters.minExperience,
+      maxExperience: parsedState.filters.maxExperience,
+      requiredKeywords: parsedState.requiredKeywords,
+      locations: parsedState.filters.locations,
+    }),
+    [
+      parsedState.filters.locations,
+      parsedState.filters.maxExperience,
+      parsedState.filters.minExperience,
+      parsedState.requiredKeywords,
+    ],
+  )
   const activeSort = resolveSortValue(parsedState.filters)
   const resumeQuery = useConvexResumes(
     resumeLimit,
@@ -358,39 +437,50 @@ export function useResumeSearchState() {
     {
       enabled: !isLanding,
       filters: backendFilters,
-      ...(activeSort === 'newest' ? { sortBy: 'extractedAt' as const, sortOrder: 'desc' as const } : {}),
-      ...(activeSort === 'experience' ? { sortBy: 'experience' as const, sortOrder: 'desc' as const } : {}),
-    }
+      ...(activeSort === 'newest'
+        ? { sortBy: 'extractedAt' as const, sortOrder: 'desc' as const }
+        : {}),
+      ...(activeSort === 'experience'
+        ? { sortBy: 'experience' as const, sortOrder: 'desc' as const }
+        : {}),
+    },
   )
 
   const recentSearches = useMemo(
     () => toRecentSearchItems(recentSearchHistoryRecords),
-    [recentSearchHistoryRecords]
+    [recentSearchHistoryRecords],
   )
   const taxonomyClusters = useMemo<TaxonomyClusterInput[]>(
-    () => (taxonomyClusterRecords ?? []).map((cluster) => ({
-      name: cluster.name,
-      slug: cluster.slug,
-      parentSlug: cluster.parentSlug,
-      tags: cluster.tags,
-    })),
-    [taxonomyClusterRecords]
+    () =>
+      (taxonomyClusterRecords ?? []).map((cluster) => ({
+        name: cluster.name,
+        slug: cluster.slug,
+        parentSlug: cluster.parentSlug,
+        tags: cluster.tags,
+      })),
+    [taxonomyClusterRecords],
   )
   const taxonomyResolver = useMemo(
     () => createTaxonomyClusterResolver(taxonomyClusters),
-    [taxonomyClusters]
+    [taxonomyClusters],
   )
   const selectedClusterTags = useMemo(
-    () => normalizeStringList(
-      parsedState.selectedTags
-        .filter((value) => isClusterFilterToken(value))
-        .map((value) => fromClusterFilterToken(value))
-    ),
-    [parsedState.selectedTags]
+    () =>
+      normalizeStringList(
+        parsedState.selectedTags
+          .filter((value) => isClusterFilterToken(value))
+          .map((value) => fromClusterFilterToken(value)),
+      ),
+    [parsedState.selectedTags],
   )
   const selectedRawTags = useMemo(
-    () => normalizeStringList(parsedState.selectedTags.filter((value) => !isClusterFilterToken(value))),
-    [parsedState.selectedTags]
+    () =>
+      normalizeStringList(
+        parsedState.selectedTags.filter(
+          (value) => !isClusterFilterToken(value),
+        ),
+      ),
+    [parsedState.selectedTags],
   )
 
   const results = useMemo<ResumeSearchResultItem[]>(() => {
@@ -407,32 +497,48 @@ export function useResumeSearchState() {
         statusMeta: statusRecord,
       }
     })
-  }, [blocksByIdentity, parsedState.jobDescriptionId, resumeQuery.resumes, statusByIdentity])
+  }, [
+    blocksByIdentity,
+    parsedState.jobDescriptionId,
+    resumeQuery.resumes,
+    statusByIdentity,
+  ])
 
   const filteredResults = useMemo(
-    () => sortResults(
-      results.filter((item) => matchesLocalFilters(
-        item,
-        parsedState,
-        selectedRawTags,
-        selectedClusterTags,
-        taxonomyResolver,
-      )),
-      activeSort
-    ),
-    [activeSort, parsedState, results, selectedClusterTags, selectedRawTags, taxonomyResolver]
+    () =>
+      sortResults(
+        results.filter((item) =>
+          matchesLocalFilters(
+            item,
+            parsedState,
+            selectedRawTags,
+            selectedClusterTags,
+            taxonomyResolver,
+          ),
+        ),
+        activeSort,
+      ),
+    [
+      activeSort,
+      parsedState,
+      results,
+      selectedClusterTags,
+      selectedRawTags,
+      taxonomyResolver,
+    ],
   )
 
   const facetCounts: FacetCounts = useFacetCounts(results, taxonomyClusters)
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
-  const filterCount = parsedState.selectedTags.length
-    + parsedState.selectedCompanies.length
-    + (parsedState.selectedExperienceLevel ? 1 : 0)
-    + (parsedState.filters.education?.length ?? 0)
-    + (parsedState.filters.status?.length ?? 0)
-    + (typeof parsedState.filters.minMatchScore === 'number' ? 1 : 0)
+  const filterCount =
+    parsedState.selectedTags.length +
+    parsedState.selectedCompanies.length +
+    (parsedState.selectedExperienceLevel ? 1 : 0) +
+    (parsedState.filters.education?.length ?? 0) +
+    (parsedState.filters.status?.length ?? 0) +
+    (typeof parsedState.filters.minMatchScore === 'number' ? 1 : 0)
 
   const lastSavedFingerprintRef = useRef<string>('')
   useEffect(() => {
@@ -440,7 +546,9 @@ export function useResumeSearchState() {
       return
     }
 
-    const normalizedKeywords = parseKeywordQuery(parsedState.query ?? formatKeywordQuery(parsedState.keywords)).keywords
+    const normalizedKeywords = parseKeywordQuery(
+      parsedState.query ?? formatKeywordQuery(parsedState.keywords),
+    ).keywords
     if (normalizedKeywords.length === 0 && !parsedState.jobDescriptionId) {
       return
     }
@@ -465,10 +573,15 @@ export function useResumeSearchState() {
       void saveSearchHistory({
         sessionKey,
         workspaceSlug: slug,
-        title: normalizeOptionalString([
-          normalizeOptionalString(parsedState.location),
-          normalizeOptionalString(parsedState.query) ?? formatKeywordQuery(normalizedKeywords),
-        ].filter(Boolean).join(' · ')),
+        title: normalizeOptionalString(
+          [
+            normalizeOptionalString(parsedState.location),
+            normalizeOptionalString(parsedState.query) ??
+              formatKeywordQuery(normalizedKeywords),
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        ),
         location: parsedState.location ?? '',
         keywords: normalizedKeywords,
         jobDescriptionId: parsedState.jobDescriptionId,
@@ -476,188 +589,265 @@ export function useResumeSearchState() {
         selectedTags: parsedState.selectedTags,
         selectedCompanies: parsedState.selectedCompanies,
         selectedExperienceLevel: parsedState.selectedExperienceLevel,
-        resumeIds: results.slice(0, 50).map((item) => String(item.resume.resumeId)),
+        resumeIds: results
+          .slice(0, 50)
+          .map((item) => String(item.resume.resumeId)),
       })
     }, 800)
 
     return () => window.clearTimeout(timer)
   }, [isLanding, parsedState, results, saveSearchHistory, sessionKey, slug])
 
-  const submitSearch = useCallback((nextQuery?: string) => {
-    const resolvedQuery = normalizeOptionalString(nextQuery ?? queryInput)
-    const nextKeywords = parseKeywordQuery(resolvedQuery ?? '').keywords
+  const submitSearch = useCallback(
+    (
+      nextQuery?: string,
+      options?: {
+        location?: string
+      },
+    ) => {
+      const resolvedQuery = normalizeOptionalString(nextQuery ?? queryInput)
+      const nextKeywords = parseKeywordQuery(resolvedQuery ?? '').keywords
 
-    syncToUrl(buildUrlState(parsedState, {
-      query: resolvedQuery,
-      keywords: nextKeywords,
-    }))
-  }, [parsedState, queryInput, syncToUrl])
+      syncToUrl(
+        buildUrlState(parsedState, {
+          query: resolvedQuery,
+          keywords: nextKeywords,
+          location: options?.location ?? parsedState.location,
+        }),
+      )
+    },
+    [parsedState, queryInput, syncToUrl],
+  )
 
   const clearSearch = useCallback(() => {
     setQueryInput('')
-    syncToUrl(buildUrlState(parsedState, {
-      query: undefined,
-      keywords: [],
-      requiredKeywords: [],
-      jobDescriptionId: undefined,
-      selectedTags: [],
-      selectedCompanies: [],
-      selectedExperienceLevel: undefined,
-      filters: {},
-    }))
+    syncToUrl(
+      buildUrlState(parsedState, {
+        query: undefined,
+        keywords: [],
+        requiredKeywords: [],
+        jobDescriptionId: undefined,
+        selectedTags: [],
+        selectedCompanies: [],
+        selectedExperienceLevel: undefined,
+        filters: {},
+      }),
+    )
   }, [parsedState, syncToUrl])
 
-  const applyRecentSearch = useCallback(async (item: ResumeSearchRecentItem) => {
-    await markSearchHistoryOpened({ id: item.id, workspaceSlug: slug })
+  const applyRecentSearch = useCallback(
+    async (item: ResumeSearchRecentItem) => {
+      await markSearchHistoryOpened({ id: item.id, workspaceSlug: slug })
 
-    const query = formatKeywordQuery(item.keywords)
-    setQueryInput(query)
-    syncToUrl({
-      query,
-      shareSessionId: undefined,
-      location: normalizeOptionalString(item.location),
-      keywords: item.keywords,
-      requiredKeywords: [],
-      jobDescriptionId: item.jobDescriptionId,
-      selectedTags: item.selectedTags,
-      selectedCompanies: item.selectedCompanies,
-      selectedExperienceLevel: (item.selectedExperienceLevel as ExperienceLevelFilter | undefined) ?? undefined,
-      filters: item.filters ?? {},
-    })
-  }, [markSearchHistoryOpened, slug, syncToUrl])
+      const query = formatKeywordQuery(item.keywords)
+      setQueryInput(query)
+      syncToUrl({
+        query,
+        shareSessionId: undefined,
+        location: normalizeOptionalString(item.location),
+        keywords: item.keywords,
+        requiredKeywords: [],
+        jobDescriptionId: item.jobDescriptionId,
+        selectedTags: item.selectedTags,
+        selectedCompanies: item.selectedCompanies,
+        selectedExperienceLevel:
+          (item.selectedExperienceLevel as ExperienceLevelFilter | undefined) ??
+          undefined,
+        filters: item.filters ?? {},
+      })
+    },
+    [markSearchHistoryOpened, slug, syncToUrl],
+  )
 
-  const setSelectedTags = useCallback((selectedTags: string[]) => {
-    syncToUrl(buildUrlState(parsedState, { selectedTags }))
-  }, [parsedState, syncToUrl])
+  const setSelectedTags = useCallback(
+    (selectedTags: string[]) => {
+      syncToUrl(buildUrlState(parsedState, { selectedTags }))
+    },
+    [parsedState, syncToUrl],
+  )
 
-  const toggleTag = useCallback((tag: string) => {
-    const normalized = tag.trim()
-    if (!normalized) {
-      return
-    }
+  const toggleTag = useCallback(
+    (tag: string) => {
+      const normalized = tag.trim()
+      if (!normalized) {
+        return
+      }
 
-    const nextTags = parsedState.selectedTags.some((value) => value.toLowerCase() === normalized.toLowerCase())
-      ? parsedState.selectedTags.filter((value) => value.toLowerCase() !== normalized.toLowerCase())
-      : [...parsedState.selectedTags, normalized]
+      const nextTags = parsedState.selectedTags.some(
+        (value) => value.toLowerCase() === normalized.toLowerCase(),
+      )
+        ? parsedState.selectedTags.filter(
+            (value) => value.toLowerCase() !== normalized.toLowerCase(),
+          )
+        : [...parsedState.selectedTags, normalized]
 
-    setSelectedTags(nextTags)
-  }, [parsedState.selectedTags, setSelectedTags])
+      setSelectedTags(nextTags)
+    },
+    [parsedState.selectedTags, setSelectedTags],
+  )
 
-  const toggleCluster = useCallback((clusterSlug: string) => {
-    const normalized = clusterSlug.trim().toLowerCase()
-    if (!normalized) {
-      return
-    }
+  const toggleCluster = useCallback(
+    (clusterSlug: string) => {
+      const normalized = clusterSlug.trim().toLowerCase()
+      if (!normalized) {
+        return
+      }
 
-    const token = toClusterFilterToken(normalized)
-    const nextTags = parsedState.selectedTags.some((value) => value.trim().toLowerCase() === token)
-      ? parsedState.selectedTags.filter((value) => value.trim().toLowerCase() !== token)
-      : [...parsedState.selectedTags, token]
+      const token = toClusterFilterToken(normalized)
+      const nextTags = parsedState.selectedTags.some(
+        (value) => value.trim().toLowerCase() === token,
+      )
+        ? parsedState.selectedTags.filter(
+            (value) => value.trim().toLowerCase() !== token,
+          )
+        : [...parsedState.selectedTags, token]
 
-    setSelectedTags(nextTags)
-  }, [parsedState.selectedTags, setSelectedTags])
+      setSelectedTags(nextTags)
+    },
+    [parsedState.selectedTags, setSelectedTags],
+  )
 
-  const setSelectedCompanies = useCallback((selectedCompanies: string[]) => {
-    syncToUrl(buildUrlState(parsedState, { selectedCompanies }))
-  }, [parsedState, syncToUrl])
+  const setSelectedCompanies = useCallback(
+    (selectedCompanies: string[]) => {
+      syncToUrl(buildUrlState(parsedState, { selectedCompanies }))
+    },
+    [parsedState, syncToUrl],
+  )
 
-  const toggleCompany = useCallback((company: string) => {
-    const normalized = company.trim()
-    if (!normalized) {
-      return
-    }
+  const toggleCompany = useCallback(
+    (company: string) => {
+      const normalized = company.trim()
+      if (!normalized) {
+        return
+      }
 
-    const nextCompanies = parsedState.selectedCompanies.some((value) => value.toLowerCase() === normalized.toLowerCase())
-      ? parsedState.selectedCompanies.filter((value) => value.toLowerCase() !== normalized.toLowerCase())
-      : [...parsedState.selectedCompanies, normalized]
+      const nextCompanies = parsedState.selectedCompanies.some(
+        (value) => value.toLowerCase() === normalized.toLowerCase(),
+      )
+        ? parsedState.selectedCompanies.filter(
+            (value) => value.toLowerCase() !== normalized.toLowerCase(),
+          )
+        : [...parsedState.selectedCompanies, normalized]
 
-    setSelectedCompanies(nextCompanies)
-  }, [parsedState.selectedCompanies, setSelectedCompanies])
+      setSelectedCompanies(nextCompanies)
+    },
+    [parsedState.selectedCompanies, setSelectedCompanies],
+  )
 
-  const setSelectedExperienceLevel = useCallback((selectedExperienceLevel: ExperienceLevelFilter | undefined) => {
-    syncToUrl(buildUrlState(parsedState, { selectedExperienceLevel }))
-  }, [parsedState, syncToUrl])
+  const setSelectedExperienceLevel = useCallback(
+    (selectedExperienceLevel: ExperienceLevelFilter | undefined) => {
+      syncToUrl(buildUrlState(parsedState, { selectedExperienceLevel }))
+    },
+    [parsedState, syncToUrl],
+  )
 
-  const setEducationFilters = useCallback((education: string[]) => {
-    syncToUrl(buildUrlState(parsedState, {
-      filters: {
+  const setEducationFilters = useCallback(
+    (education: string[]) => {
+      syncToUrl(
+        buildUrlState(parsedState, {
+          filters: {
+            ...parsedState.filters,
+            education,
+          },
+        }),
+      )
+    },
+    [parsedState, syncToUrl],
+  )
+
+  const toggleEducation = useCallback(
+    (educationValue: string) => {
+      const normalized = educationValue.trim()
+      if (!normalized) {
+        return
+      }
+
+      const current = parsedState.filters.education ?? []
+      const nextEducation = current.some(
+        (value) => value.toLowerCase() === normalized.toLowerCase(),
+      )
+        ? current.filter(
+            (value) => value.toLowerCase() !== normalized.toLowerCase(),
+          )
+        : [...current, normalized]
+
+      setEducationFilters(nextEducation)
+    },
+    [parsedState.filters.education, setEducationFilters],
+  )
+
+  const setStatusFilters = useCallback(
+    (status: CandidateStatus[]) => {
+      syncToUrl(
+        buildUrlState(parsedState, {
+          filters: {
+            ...parsedState.filters,
+            status,
+          },
+        }),
+      )
+    },
+    [parsedState, syncToUrl],
+  )
+
+  const toggleStatus = useCallback(
+    (status: CandidateStatus) => {
+      const current = parsedState.filters.status ?? []
+      const nextStatus = current.includes(status)
+        ? current.filter((value) => value !== status)
+        : [...current, status]
+
+      setStatusFilters(nextStatus)
+    },
+    [parsedState.filters.status, setStatusFilters],
+  )
+
+  const setMinScoreFilter = useCallback(
+    (minMatchScore: number | undefined) => {
+      syncToUrl(
+        buildUrlState(parsedState, {
+          filters: {
+            ...parsedState.filters,
+            minMatchScore,
+          },
+        }),
+      )
+    },
+    [parsedState, syncToUrl],
+  )
+
+  const setSort = useCallback(
+    (sortValue: SearchSortValue) => {
+      const nextFilters: Partial<ResumeFilters> = {
         ...parsedState.filters,
-        education,
-      },
-    }))
-  }, [parsedState, syncToUrl])
+        sortBy:
+          sortValue === 'newest'
+            ? 'extractedAt'
+            : sortValue === 'experience'
+              ? 'experience'
+              : undefined,
+        sortOrder: sortValue === 'relevance' ? undefined : 'desc',
+      }
 
-  const toggleEducation = useCallback((educationValue: string) => {
-    const normalized = educationValue.trim()
-    if (!normalized) {
-      return
-    }
-
-    const current = parsedState.filters.education ?? []
-    const nextEducation = current.some((value) => value.toLowerCase() === normalized.toLowerCase())
-      ? current.filter((value) => value.toLowerCase() !== normalized.toLowerCase())
-      : [...current, normalized]
-
-    setEducationFilters(nextEducation)
-  }, [parsedState.filters.education, setEducationFilters])
-
-  const setStatusFilters = useCallback((status: CandidateStatus[]) => {
-    syncToUrl(buildUrlState(parsedState, {
-      filters: {
-        ...parsedState.filters,
-        status,
-      },
-    }))
-  }, [parsedState, syncToUrl])
-
-  const toggleStatus = useCallback((status: CandidateStatus) => {
-    const current = parsedState.filters.status ?? []
-    const nextStatus = current.includes(status)
-      ? current.filter((value) => value !== status)
-      : [...current, status]
-
-    setStatusFilters(nextStatus)
-  }, [parsedState.filters.status, setStatusFilters])
-
-  const setMinScoreFilter = useCallback((minMatchScore: number | undefined) => {
-    syncToUrl(buildUrlState(parsedState, {
-      filters: {
-        ...parsedState.filters,
-        minMatchScore,
-      },
-    }))
-  }, [parsedState, syncToUrl])
-
-  const setSort = useCallback((sortValue: SearchSortValue) => {
-    const nextFilters: Partial<ResumeFilters> = {
-      ...parsedState.filters,
-      sortBy:
-        sortValue === 'newest'
-          ? 'extractedAt'
-          : sortValue === 'experience'
-            ? 'experience'
-            : undefined,
-      sortOrder:
-        sortValue === 'relevance'
-          ? undefined
-          : 'desc',
-    }
-
-    syncToUrl(buildUrlState(parsedState, { filters: nextFilters }))
-  }, [parsedState, syncToUrl])
+      syncToUrl(buildUrlState(parsedState, { filters: nextFilters }))
+    },
+    [parsedState, syncToUrl],
+  )
 
   const clearFacetFilters = useCallback(() => {
-    syncToUrl(buildUrlState(parsedState, {
-      selectedTags: [],
-      selectedCompanies: [],
-      selectedExperienceLevel: undefined,
-      filters: {
-        ...parsedState.filters,
-        education: undefined,
-        status: undefined,
-        minMatchScore: undefined,
-      },
-    }))
+    syncToUrl(
+      buildUrlState(parsedState, {
+        selectedTags: [],
+        selectedCompanies: [],
+        selectedExperienceLevel: undefined,
+        filters: {
+          ...parsedState.filters,
+          education: undefined,
+          status: undefined,
+          minMatchScore: undefined,
+        },
+      }),
+    )
   }, [parsedState, syncToUrl])
 
   const loadMore = useCallback(() => {
