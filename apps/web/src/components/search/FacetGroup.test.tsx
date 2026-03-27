@@ -54,4 +54,49 @@ describe('FacetGroup', () => {
 
     expect(onToggle).toHaveBeenCalledWith('Automation')
   })
+
+  it('collapses expanded values again after show less', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <FacetGroup
+        title="Tags"
+        items={[
+          { value: 'Machine Tools', count: 12 },
+          { value: 'Automation', count: 7 },
+          { value: 'Robotics', count: 4 },
+        ]}
+        maxVisible={2}
+        selectedValues={[]}
+        onToggle={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Show 1 more' }))
+    expect(screen.getByRole('button', { name: /Robotics/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Show less' }))
+
+    expect(screen.queryByRole('button', { name: /Robotics/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show 1 more' })).toBeInTheDocument()
+  })
+
+  it('omits the show-more control when the visible limit already covers every value', () => {
+    render(
+      <FacetGroup
+        title="Tags"
+        items={[
+          { value: 'Machine Tools', count: 12 },
+          { value: 'Automation', count: 7 },
+        ]}
+        maxVisible={2}
+        selectedValues={[]}
+        onToggle={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /Machine Tools/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Automation/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Show /i })).not.toBeInTheDocument()
+  })
 })
