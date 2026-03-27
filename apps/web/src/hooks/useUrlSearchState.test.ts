@@ -280,4 +280,33 @@ describe('useUrlSearchState location parsing', () => {
     expect(updatedParams.get('edu')).toBe('Bachelor,Master')
     expect(updatedParams.get('status')).toBe('contacted,offer')
   })
+
+  it('clears explicit sort params when syncing back to default relevance ordering', () => {
+    const currentParams = new URLSearchParams('q=machine+tools&location=Malaysia&sort=experience&order=desc')
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    const nextState: UrlSearchState = {
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+      filters: {},
+    }
+
+    result.current.syncToUrl(nextState)
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(currentParams) as URLSearchParams
+
+    expect(updatedParams.get('q')).toBe('machine tools')
+    expect(updatedParams.get('location')).toBe('Malaysia')
+    expect(updatedParams.get('sort')).toBeNull()
+    expect(updatedParams.get('order')).toBeNull()
+  })
 })
