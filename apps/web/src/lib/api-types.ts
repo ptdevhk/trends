@@ -169,6 +169,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Taxonomy request failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
             };
         };
         put?: never;
@@ -227,6 +240,19 @@ export interface paths {
                                 createdAt: number;
                                 updatedAt: number;
                             }[];
+                        };
+                    };
+                };
+                /** @description Taxonomy request failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
                         };
                     };
                 };
@@ -290,6 +316,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Taxonomy request failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
             };
         };
         delete?: never;
@@ -344,6 +383,19 @@ export interface paths {
                                 createdAt: number;
                                 updatedAt: number;
                             }[];
+                        };
+                    };
+                };
+                /** @description Taxonomy request failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
                         };
                     };
                 };

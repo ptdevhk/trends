@@ -173,6 +173,30 @@ describe("taxonomy routes", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
+  it("returns a stable json error when taxonomy loading fails", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("convex unavailable", { status: 502 }),
+    )
+
+    const app = createTestApp()
+    const response = await app.request("/api/taxonomy", {
+      headers: {
+        "X-Workspace-Slug": "dev",
+      },
+    })
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({
+      success: false,
+      error: "Failed to load taxonomy clusters",
+    })
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Failed to load taxonomy clusters",
+      expect.any(Error),
+    )
+  })
+
   it("upserts a taxonomy cluster in the current workspace and returns the refreshed registry", async () => {
     const calls: Array<{ method: "query" | "mutation"; pathName: string; args: Record<string, unknown> }> = []
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

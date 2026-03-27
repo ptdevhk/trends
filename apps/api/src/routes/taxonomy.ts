@@ -23,6 +23,11 @@ const TaxonomyResponseSchema = z.object({
   items: z.array(TaxonomyClusterSchema),
 });
 
+const TaxonomyErrorResponseSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
+});
+
 const TaxonomyUpsertSchema = z.object({
   id: z.string().optional(),
   name: z.string().trim().min(1),
@@ -102,6 +107,14 @@ function toTaxonomyCluster(value: unknown): TaxonomyClusterResponse | null {
   };
 }
 
+function toTaxonomyItems(value: unknown): TaxonomyClusterResponse[] {
+  return Array.isArray(value)
+    ? value
+        .map((item) => toTaxonomyCluster(item))
+        .filter((item): item is NonNullable<ReturnType<typeof toTaxonomyCluster>> => item !== null)
+    : [];
+}
+
 app.use("/api/taxonomy", requireAdmin);
 app.use("/api/taxonomy/*", requireAdmin);
 
@@ -119,17 +132,27 @@ const listRoute = createRoute({
         },
       },
     },
+    500: {
+      description: "Taxonomy request failed",
+      content: {
+        "application/json": {
+          schema: TaxonomyErrorResponseSchema,
+        },
+      },
+    },
   },
 });
 
 app.openapi(listRoute, async (c) => {
-  const value = await callConvex("query", "taxonomy_clusters:list", {
-    workspaceSlug: c.var.workspaceSlug,
-  });
-  const items = Array.isArray(value)
-    ? value.map((item) => toTaxonomyCluster(item)).filter((item): item is NonNullable<ReturnType<typeof toTaxonomyCluster>> => item !== null)
-    : [];
-  return c.json({ success: true as const, items }, 200);
+  try {
+    const value = await callConvex("query", "taxonomy_clusters:list", {
+      workspaceSlug: c.var.workspaceSlug,
+    });
+    return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);
+  } catch (error) {
+    console.error("Failed to load taxonomy clusters", error);
+    return c.json({ success: false as const, error: "Failed to load taxonomy clusters" }, 500);
+  }
 });
 
 const upsertRoute = createRoute({
@@ -155,22 +178,32 @@ const upsertRoute = createRoute({
         },
       },
     },
+    500: {
+      description: "Taxonomy request failed",
+      content: {
+        "application/json": {
+          schema: TaxonomyErrorResponseSchema,
+        },
+      },
+    },
   },
 });
 
 app.openapi(upsertRoute, async (c) => {
-  const body = c.req.valid("json");
-  await callConvex("mutation", "taxonomy_clusters:upsert", {
-    ...body,
-    workspaceSlug: c.var.workspaceSlug,
-  });
-  const value = await callConvex("query", "taxonomy_clusters:list", {
-    workspaceSlug: c.var.workspaceSlug,
-  });
-  const items = Array.isArray(value)
-    ? value.map((item) => toTaxonomyCluster(item)).filter((item): item is NonNullable<ReturnType<typeof toTaxonomyCluster>> => item !== null)
-    : [];
-  return c.json({ success: true as const, items }, 200);
+  try {
+    const body = c.req.valid("json");
+    await callConvex("mutation", "taxonomy_clusters:upsert", {
+      ...body,
+      workspaceSlug: c.var.workspaceSlug,
+    });
+    const value = await callConvex("query", "taxonomy_clusters:list", {
+      workspaceSlug: c.var.workspaceSlug,
+    });
+    return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);
+  } catch (error) {
+    console.error("Failed to save taxonomy cluster", error);
+    return c.json({ success: false as const, error: "Failed to save taxonomy cluster" }, 500);
+  }
 });
 
 const suggestRoute = createRoute({
@@ -196,19 +229,29 @@ const suggestRoute = createRoute({
         },
       },
     },
+    500: {
+      description: "Taxonomy request failed",
+      content: {
+        "application/json": {
+          schema: TaxonomyErrorResponseSchema,
+        },
+      },
+    },
   },
 });
 
 app.openapi(suggestRoute, async (c) => {
-  const body = c.req.valid("json");
-  const value = await callConvex("mutation", "taxonomy_clusters:suggest", {
-    workspaceSlug: c.var.workspaceSlug,
-    limit: body.limit,
-  });
-  const items = Array.isArray(value)
-    ? value.map((item) => toTaxonomyCluster(item)).filter((item): item is NonNullable<ReturnType<typeof toTaxonomyCluster>> => item !== null)
-    : [];
-  return c.json({ success: true as const, items }, 200);
+  try {
+    const body = c.req.valid("json");
+    const value = await callConvex("mutation", "taxonomy_clusters:suggest", {
+      workspaceSlug: c.var.workspaceSlug,
+      limit: body.limit,
+    });
+    return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);
+  } catch (error) {
+    console.error("Failed to suggest taxonomy clusters", error);
+    return c.json({ success: false as const, error: "Failed to suggest taxonomy clusters" }, 500);
+  }
 });
 
 const deleteRoute = createRoute({
@@ -228,22 +271,32 @@ const deleteRoute = createRoute({
         },
       },
     },
+    500: {
+      description: "Taxonomy request failed",
+      content: {
+        "application/json": {
+          schema: TaxonomyErrorResponseSchema,
+        },
+      },
+    },
   },
 });
 
 app.openapi(deleteRoute, async (c) => {
-  const { id } = c.req.valid("param");
-  await callConvex("mutation", "taxonomy_clusters:remove", {
-    id,
-    workspaceSlug: c.var.workspaceSlug,
-  });
-  const value = await callConvex("query", "taxonomy_clusters:list", {
-    workspaceSlug: c.var.workspaceSlug,
-  });
-  const items = Array.isArray(value)
-    ? value.map((item) => toTaxonomyCluster(item)).filter((item): item is NonNullable<ReturnType<typeof toTaxonomyCluster>> => item !== null)
-    : [];
-  return c.json({ success: true as const, items }, 200);
+  try {
+    const { id } = c.req.valid("param");
+    await callConvex("mutation", "taxonomy_clusters:remove", {
+      id,
+      workspaceSlug: c.var.workspaceSlug,
+    });
+    const value = await callConvex("query", "taxonomy_clusters:list", {
+      workspaceSlug: c.var.workspaceSlug,
+    });
+    return c.json({ success: true as const, items: toTaxonomyItems(value) }, 200);
+  } catch (error) {
+    console.error("Failed to delete taxonomy cluster", error);
+    return c.json({ success: false as const, error: "Failed to delete taxonomy cluster" }, 500);
+  }
 });
 
 export default app;
