@@ -1,4 +1,5 @@
-import { aiConfig, loadAIConfig } from "./ai-config.js";
+import { loadAIConfig } from "./ai-config.js";
+import { callChatCompletion } from "./ai-chat-client.js";
 import { workspaceConfigService } from "./workspace-config-service.js";
 
 const DEFAULT_AI_SUMMARY_MODEL = process.env.AI_SUMMARY_MODEL || "anthropic/claude-3-haiku-20240307";
@@ -29,11 +30,6 @@ type GenerateSummaryRequest = {
 function normalizeOptionalString(value: string | undefined): string | undefined {
   const normalized = value?.trim();
   return normalized && normalized.length > 0 ? normalized : undefined;
-}
-
-function extractModelName(model: string): string {
-  const parts = model.split("/");
-  return parts.length > 1 ? parts.slice(1).join("/") : model;
 }
 
 function compactWhitespace(value: string): string {
@@ -134,48 +130,13 @@ export class AiSummaryService {
     model: string,
     messages: Array<{ role: string; content: string }>,
   ): Promise<string> {
-    const baseUrl = config.apiBase || aiConfig.apiBase || "https://api.openai.com/v1";
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), config.timeout);
-
-    try {
-      const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: extractModelName(model),
-          messages,
-          temperature: 0.1,
-          max_tokens: Math.min(config.maxTokens, 900),
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`AI summary request failed with status ${response.status}: ${await response.text()}`);
-      }
-
-      const payload = await response.json() as {
-        choices?: Array<{ message?: { content?: string }; text?: string }>;
-      };
-      const content = payload.choices?.[0]?.message?.content ?? payload.choices?.[0]?.text;
-      if (!content) {
-        throw new Error("No summary content returned from AI provider");
-      }
-
-      return content;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new Error(`AI summary request timed out after ${config.timeout}ms`);
-      }
-      throw error;
-    }
+    return callChatCompletion({
+      config,
+      model,
+      messages,
+      temperature: 0.1,
+      maxTokens: 900,
+    });
   }
 }
 

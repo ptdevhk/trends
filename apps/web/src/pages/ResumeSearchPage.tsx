@@ -1,3 +1,4 @@
+import { formatKeywordQuery } from '@trends/shared'
 import { useMemo, useState } from 'react'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
 import { FacetBadge } from '@/components/search/FacetBadge'
@@ -64,6 +65,11 @@ export function ResumeSearchPage() {
     selectedExperienceLevel: parsedState.selectedExperienceLevel,
     results: filteredResults,
   })
+  const applyExtractedKeywords = (keywords: string[]) => {
+    const query = formatKeywordQuery(keywords)
+    setQueryInput(query)
+    submitSearch(query)
+  }
 
   const mobileFilterProps = useMemo(() => ({
     facetCounts,
@@ -112,6 +118,7 @@ export function ResumeSearchPage() {
           recentSearches={recentSearches}
           recentSearchesLoading={searchHistoryLoading}
           onApplyRecentSearch={applyRecentSearch}
+          onApplyExtractedKeywords={applyExtractedKeywords}
           onChangeQuery={setQueryInput}
           onClearQuery={clearSearch}
           onSubmitQuery={submitSearch}
@@ -128,6 +135,7 @@ export function ResumeSearchPage() {
             recentSearches={recentSearches}
             sortValue={activeSort}
             onApplyRecentSearch={applyRecentSearch}
+            onApplyExtractedKeywords={applyExtractedKeywords}
             onChangeQuery={setQueryInput}
             onClearQuery={clearSearch}
             onSubmitQuery={submitSearch}

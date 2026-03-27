@@ -1,6 +1,7 @@
-import { Clock3, Search, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Clock3, FileText, Search, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { JdPastePopover } from '@/components/search/JdPastePopover'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
@@ -11,6 +12,7 @@ type GoogleSearchBarProps = {
   recentSearches: ResumeSearchRecentItem[]
   value: string
   onApplyRecentSearch: (item: ResumeSearchRecentItem) => void | Promise<void>
+  onApplyExtractedKeywords?: (keywords: string[]) => void
   onChange: (value: string) => void
   onClear: () => void
   onSubmit: (value?: string) => void
@@ -27,12 +29,15 @@ export function GoogleSearchBar({
   recentSearches,
   value,
   onApplyRecentSearch,
+  onApplyExtractedKeywords,
   onChange,
   onClear,
   onSubmit,
   placeholder = 'Search resumes by keywords, brands, roles, or locations',
 }: GoogleSearchBarProps) {
   const [focused, setFocused] = useState(false)
+  const [jdPopoverOpen, setJdPopoverOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
   const trimmedValue = value.trim()
   const filteredRecentSearches = useMemo(() => {
     if (!trimmedValue) {
@@ -47,8 +52,23 @@ export function GoogleSearchBar({
     ).slice(0, 6)
   }, [recentSearches, trimmedValue])
 
+  useEffect(() => {
+    if (!jdPopoverOpen) {
+      return undefined
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setJdPopoverOpen(false)
+      }
+    }
+
+    window.addEventListener('mousedown', handlePointerDown)
+    return () => window.removeEventListener('mousedown', handlePointerDown)
+  }, [jdPopoverOpen])
+
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <form
         className={cn(
           'relative flex items-center overflow-hidden rounded-full border bg-background/95 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.85)] transition-shadow focus-within:shadow-[0_20px_60px_-30px_rgba(15,23,42,0.55)]',
@@ -56,6 +76,7 @@ export function GoogleSearchBar({
         )}
         onSubmit={(event) => {
           event.preventDefault()
+          setJdPopoverOpen(false)
           onSubmit(trimmedValue)
         }}
       >
@@ -81,6 +102,21 @@ export function GoogleSearchBar({
             }
           }}
         />
+        {onApplyExtractedKeywords ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="mr-1 rounded-full text-muted-foreground"
+            onClick={() => {
+              setFocused(false)
+              setJdPopoverOpen((current) => !current)
+            }}
+          >
+            <FileText className="h-4 w-4" />
+            <span className="sr-only">Paste job description</span>
+          </Button>
+        ) : null}
         {trimmedValue ? (
           <Button
             type="button"
@@ -100,7 +136,15 @@ export function GoogleSearchBar({
         </div>
       </form>
 
-      {focused && filteredRecentSearches.length > 0 ? (
+      {jdPopoverOpen && onApplyExtractedKeywords ? (
+        <JdPastePopover
+          compact={compact}
+          onApplyKeywords={onApplyExtractedKeywords}
+          onClose={() => setJdPopoverOpen(false)}
+        />
+      ) : null}
+
+      {focused && !jdPopoverOpen && filteredRecentSearches.length > 0 ? (
         <div className="absolute inset-x-0 top-[calc(100%+0.75rem)] z-30 overflow-hidden rounded-3xl border bg-background shadow-xl">
           <div className="border-b px-4 py-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
             Recent searches

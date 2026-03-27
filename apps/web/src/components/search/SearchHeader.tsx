@@ -13,6 +13,7 @@ type SearchHeaderProps = {
   recentSearches: ResumeSearchRecentItem[]
   sortValue: SearchSortValue
   onApplyRecentSearch: (item: ResumeSearchRecentItem) => void | Promise<void>
+  onApplyExtractedKeywords: (keywords: string[]) => void
   onChangeQuery: (value: string) => void
   onClearQuery: () => void
   onSubmitQuery: (value?: string) => void
@@ -29,6 +30,7 @@ export function SearchHeader({
   recentSearches,
   sortValue,
   onApplyRecentSearch,
+  onApplyExtractedKeywords,
   onChangeQuery,
   onClearQuery,
   onSubmitQuery,
@@ -43,6 +45,7 @@ export function SearchHeader({
           loading={loading}
           recentSearches={recentSearches}
           onApplyRecentSearch={onApplyRecentSearch}
+          onApplyExtractedKeywords={onApplyExtractedKeywords}
           onChange={onChangeQuery}
           onClear={onClearQuery}
           onSubmit={onSubmitQuery}

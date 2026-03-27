@@ -9,6 +9,7 @@ type SearchHeroProps = {
   recentSearches: ResumeSearchRecentItem[]
   recentSearchesLoading?: boolean
   onApplyRecentSearch: (item: ResumeSearchRecentItem) => void | Promise<void>
+  onApplyExtractedKeywords: (keywords: string[]) => void
   onChangeQuery: (value: string) => void
   onClearQuery: () => void
   onSubmitQuery: (value?: string) => void
@@ -20,6 +21,7 @@ export function SearchHero({
   recentSearches,
   recentSearchesLoading = false,
   onApplyRecentSearch,
+  onApplyExtractedKeywords,
   onChangeQuery,
   onClearQuery,
   onSubmitQuery,
@@ -51,6 +53,7 @@ export function SearchHero({
             loading={loading}
             recentSearches={recentSearches}
             onApplyRecentSearch={onApplyRecentSearch}
+            onApplyExtractedKeywords={onApplyExtractedKeywords}
             onChange={onChangeQuery}
             onClear={onClearQuery}
             onSubmit={onSubmitQuery}
