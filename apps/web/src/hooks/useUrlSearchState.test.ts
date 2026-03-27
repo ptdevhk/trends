@@ -17,6 +17,29 @@ describe('useUrlSearchState location parsing', () => {
     vi.clearAllMocks()
   })
 
+  it('reports url-state presence flags without treating sid alone as explicit search state', () => {
+    useSearchParamsMock.mockReturnValue([new URLSearchParams('sid=session-share-1'), setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    expect(result.current.hasUrlParams).toBe(false)
+    expect(result.current.hasKeywordParam).toBe(false)
+    expect(result.current.hasJobDescriptionParam).toBe(false)
+    expect(result.current.parsedState.shareSessionId).toBe('session-share-1')
+  })
+
+  it('detects legacy keyword params and jd params as explicit url search state', () => {
+    useSearchParamsMock.mockReturnValue([new URLSearchParams('kw=CNC+Sales&jd=jd-123'), setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    expect(result.current.hasUrlParams).toBe(true)
+    expect(result.current.hasKeywordParam).toBe(true)
+    expect(result.current.hasJobDescriptionParam).toBe(true)
+    expect(result.current.parsedState.query).toBe('CNC Sales')
+    expect(result.current.parsedState.jobDescriptionId).toBe('jd-123')
+  })
+
   it('preserves spaced locations as a single location token', () => {
     const state = parseUrlSearchState(new URLSearchParams('location=Kuala+Lumpur+MY'))
 
@@ -205,5 +228,56 @@ describe('useUrlSearchState location parsing', () => {
 
     expect(state.selectedTags).toEqual(['cluster:manufacturing-systems', 'Machine Tools'])
     expect(state.query).toBe('machine tools')
+  })
+
+  it('clears legacy params and deduplicates canonical values when syncing to the url', () => {
+    const currentParams = new URLSearchParams(
+      'sid=session-share-1&kw=legacy&keyword=legacy&loc=Oldtown&locs=Oldtown%2COldtown&minExp=3&maxExp=9&status=new'
+    )
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    const nextState: UrlSearchState = {
+      query: undefined,
+      location: 'Dongguan,Shenzhen',
+      keywords: ['CNC', 'Sales', 'cnc'],
+      requiredKeywords: ['Machine Tools', 'machine tools'],
+      jobDescriptionId: 'jd-456',
+      selectedTags: ['cluster:manufacturing-systems', 'Machine Tools', 'machine tools'],
+      selectedCompanies: ['FANUC', ' fanuc ', 'DMG MORI'],
+      selectedExperienceLevel: 'mid',
+      filters: {
+        minExperience: 5,
+        maxExperience: 12,
+        education: ['Bachelor', 'bachelor', 'Master'],
+        status: ['contacted', 'contacted', 'offer'],
+      },
+    }
+
+    result.current.syncToUrl(nextState)
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(currentParams) as URLSearchParams
+
+    expect(updatedParams.get('sid')).toBeNull()
+    expect(updatedParams.get('kw')).toBeNull()
+    expect(updatedParams.get('keyword')).toBeNull()
+    expect(updatedParams.get('loc')).toBeNull()
+    expect(updatedParams.get('locs')).toBeNull()
+    expect(updatedParams.get('minExp')).toBeNull()
+    expect(updatedParams.get('maxExp')).toBeNull()
+
+    expect(updatedParams.get('location')).toBe('Dongguan,Shenzhen')
+    expect(updatedParams.get('q')).toBe('CNC Sales')
+    expect(updatedParams.get('rkw')).toBe('Machine Tools')
+    expect(updatedParams.get('jd')).toBe('jd-456')
+    expect(updatedParams.get('tags')).toBe('cluster:manufacturing-systems,Machine Tools')
+    expect(updatedParams.get('co')).toBe('FANUC,DMG MORI')
+    expect(updatedParams.get('exp')).toBe('mid')
+    expect(updatedParams.get('minRoleYears')).toBe('5')
+    expect(updatedParams.get('maxRoleYears')).toBe('12')
+    expect(updatedParams.get('edu')).toBe('Bachelor,Master')
+    expect(updatedParams.get('status')).toBe('contacted,offer')
   })
 })
