@@ -127,10 +127,36 @@ vi.mock('@/components/search/AiSummaryPanel', () => ({
 
 vi.mock('@/components/search/SearchResultsList', () => ({
   SearchResultsList: ({
+    expandedIds,
+    hasMore,
     items,
+    loading,
+    loadingMore,
+    onLoadMore,
+    onToggleExpanded,
   }: {
+    expandedIds: Set<string>
+    hasMore: boolean
     items: ResumeSearchResultItem[]
-  }) => <div>Results List {items.length}</div>,
+    loading?: boolean
+    loadingMore?: boolean
+    onLoadMore: () => void
+    onToggleExpanded: (key: string) => void
+  }) => (
+    <div>
+      <div>
+        Results List {items.length} hasMore:{String(hasMore)} loading:{String(loading)} loadingMore:{String(loadingMore)} expanded:{Array.from(expandedIds).join('|') || 'none'}
+      </div>
+      {items[0] ? (
+        <button type="button" onClick={() => onToggleExpanded(items[0].key)}>
+          Toggle first result
+        </button>
+      ) : null}
+      <button type="button" onClick={onLoadMore}>
+        Load more results
+      </button>
+    </div>
+  ),
 }))
 
 function createResume(index: number): ConvexResumeItem {
@@ -309,7 +335,7 @@ describe('ResumeSearchPage', () => {
 
     expect(screen.queryByText(/Landing Hero/)).not.toBeInTheDocument()
     expect(screen.getByText('Header machine tools 2')).toBeInTheDocument()
-    expect(screen.getByText('Results List 2')).toBeInTheDocument()
+    expect(screen.getByText('Results List 2 hasMore:false loading:false loadingMore:false expanded:none')).toBeInTheDocument()
     expect(screen.getByText('Sidebar clusters:manufacturing-systems tags:Machine Tools')).toBeInTheDocument()
     expect(screen.getByText('Mobile Filter Sheet closed clusters:manufacturing-systems tags:Machine Tools')).toBeInTheDocument()
     expect(screen.getByText('AI Summary Summary text generated:123 loading:false')).toBeInTheDocument()
@@ -331,5 +357,49 @@ describe('ResumeSearchPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Facet badge 3 inline' }))
     expect(screen.getByText('Mobile Filter Sheet open clusters:manufacturing-systems tags:Machine Tools')).toBeInTheDocument()
+  })
+
+  it('falls back to cluster slugs for AI summary tags and preserves local result-shell state interactions', async () => {
+    const user = userEvent.setup()
+    const state = createResumeSearchState({
+      activeQuery: 'servo automation',
+      filteredResults: [createResult(1)],
+      hasMore: true,
+      isLanding: false,
+      loadingMore: true,
+      loadMore: vi.fn(),
+      parsedState: createParsedState({
+        selectedTags: ['Machine Tools', 'cluster:unknown-cluster'],
+      }),
+      queryInput: 'servo automation',
+      selectedClusterTags: ['unknown-cluster'],
+      selectedRawTags: ['Machine Tools'],
+      taxonomyClusters: [],
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+    useAiSearchSummaryMock.mockReturnValue({
+      generatedAt: undefined,
+      loading: true,
+      summary: undefined,
+    })
+
+    render(<ResumeSearchPage />)
+
+    expect(screen.getByText('AI Summary none generated:none loading:true')).toBeInTheDocument()
+    expect(screen.getByText('Results List 1 hasMore:true loading:false loadingMore:true expanded:none')).toBeInTheDocument()
+    expect(useAiSearchSummaryMock).toHaveBeenCalledWith(expect.objectContaining({
+      query: 'servo automation',
+      selectedTags: ['Machine Tools', 'unknown-cluster'],
+      results: state.filteredResults,
+    }))
+
+    await user.click(screen.getByRole('button', { name: 'Toggle first result' }))
+    expect(screen.getByText('Results List 1 hasMore:true loading:false loadingMore:true expanded:resume-1')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Toggle first result' }))
+    expect(screen.getByText('Results List 1 hasMore:true loading:false loadingMore:true expanded:none')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Load more results' }))
+    expect(state.loadMore).toHaveBeenCalledTimes(1)
   })
 })
