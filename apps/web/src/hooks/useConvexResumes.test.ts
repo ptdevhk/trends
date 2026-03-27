@@ -18,6 +18,15 @@ const rawApiGetMock = vi.fn(async (path?: unknown, options?: unknown) => {
     },
   }
 })
+const rawApiPostMock = vi.fn(async (...args: unknown[]) => {
+  void args
+  return {
+    data: {
+      success: true,
+      results: [] as Array<{ resumeId: string; score: number; recommendation: string }>,
+    },
+  }
+})
 
 type PaginatedResult = {
   results: Array<Record<string, unknown>>
@@ -40,25 +49,38 @@ vi.mock('convex/react', () => ({
 vi.mock('@/lib/api-helpers', () => ({
   rawApiClient: {
     GET: (path: unknown, options?: unknown) => rawApiGetMock(path, options),
+    POST: (path: unknown, options?: unknown) => rawApiPostMock(path, options),
   },
 }))
 
-function buildResumeDoc(id: string, name: string): Record<string, unknown> {
+function buildResumeDoc(
+  id: string,
+  name: string,
+  overrides?: {
+    identityKey?: string
+    primaryRuleScore?: number
+    experience?: string
+    extractedAt?: string
+    crawledAt?: number
+  },
+): Record<string, unknown> {
   return {
     _id: id,
     externalId: `ext-${id}`,
     source: 'hr.job5156.com',
     tags: [],
-    crawledAt: 1_700_000_000_000,
+    identityKey: overrides?.identityKey,
+    crawledAt: overrides?.crawledAt ?? 1_700_000_000_000,
+    primaryRuleScore: overrides?.primaryRuleScore,
     content: {
       name,
-      experience: '5 years',
+      experience: overrides?.experience ?? '5 years',
       education: 'Bachelor',
       location: 'Dongguan',
       selfIntro: 'Intro',
       jobIntention: 'Sales Engineer',
       expectedSalary: '10k-20k',
-      extractedAt: '2026-03-01T00:00:00.000Z',
+      extractedAt: overrides?.extractedAt ?? '2026-03-01T00:00:00.000Z',
     },
     ingestData: {
       industryTags: [],
@@ -83,6 +105,15 @@ function buildSearchEntry(id: string, name: string): Record<string, unknown> {
 describe('useConvexResumes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    rawApiPostMock.mockImplementation(async (...args: unknown[]) => {
+      void args
+      return {
+        data: {
+          success: true,
+          results: [] as Array<{ resumeId: string; score: number; recommendation: string }>,
+        },
+      }
+    })
     usePaginatedQueryMock.mockImplementation((_query, args) => ({
       results: args === 'skip' ? [] : [buildResumeDoc('resume-1', 'Alice')],
       status: 'Exhausted',
@@ -211,11 +242,24 @@ describe('useConvexResumes', () => {
     })
 
     await waitFor(() => {
-      const searchCall = usePaginatedQueryMock.mock.calls.find(([, args]) => args !== 'skip' && 'query' in (args as Record<string, unknown>))
+      const searchCall = usePaginatedQueryMock.mock.calls.find(([, args]) =>
+        args !== 'skip'
+        && 'query' in (args as Record<string, unknown>)
+        && !('jobDescriptionId' in (args as Record<string, unknown>))
+      )
       expect(searchCall?.[1]).toMatchObject({
-        jobDescriptionId: 'jd-1',
         requiredKeywords: ['machine tools', 'cnc'],
       })
+    })
+
+    expect(rawApiPostMock).toHaveBeenCalledWith('/api/resumes/match', {
+      body: {
+        source: 'convex',
+        persist: false,
+        mode: 'rules_only',
+        jobDescriptionId: 'jd-1',
+        resumeIds: ['resume-1'],
+      },
     })
   })
 
@@ -255,6 +299,84 @@ describe('useConvexResumes', () => {
 
     await waitFor(() => {
       expect(result.current.resumes.map((resume) => resume.name)).toEqual(['Fallback Candidate'])
+    })
+  })
+
+  it('prefers the best JD match when exact keyword scan returns duplicate identities', async () => {
+    rawApiPostMock.mockResolvedValue({
+      data: {
+        success: true,
+        results: [
+          { resumeId: 'resume-low-match', score: 35, recommendation: 'potential' },
+          { resumeId: 'resume-best-match', score: 91, recommendation: 'match' },
+          { resumeId: 'resume-third', score: 72, recommendation: 'match' },
+        ],
+      },
+    })
+
+    usePaginatedQueryMock.mockImplementation((_query, args) => {
+      if (args === 'skip') {
+        return {
+          results: [],
+          status: 'Exhausted',
+          isLoading: false,
+          loadMore: loadMoreMock,
+        }
+      }
+
+      if ('query' in (args as Record<string, unknown>)) {
+        return {
+          results: [
+            {
+              resume: buildResumeDoc('resume-low-match', 'Lower Match Duplicate', {
+                identityKey: 'identity-1',
+                primaryRuleScore: 90,
+                crawledAt: 1_700_000_000_000,
+              }),
+              provenance: [{ term: 'cnc', source: 'searchText' }],
+            },
+            {
+              resume: buildResumeDoc('resume-best-match', 'Best Match Duplicate', {
+                identityKey: 'identity-1',
+                primaryRuleScore: 60,
+                crawledAt: 1_700_000_000_100,
+              }),
+              provenance: [{ term: 'sales', source: 'searchText' }],
+            },
+            {
+              resume: buildResumeDoc('resume-third', 'Third Candidate', {
+                identityKey: 'identity-2',
+                primaryRuleScore: 70,
+                crawledAt: 1_700_000_000_200,
+              }),
+              provenance: [{ term: 'cnc', source: 'searchText' }],
+            },
+          ],
+          status: 'Exhausted',
+          isLoading: false,
+          loadMore: loadMoreMock,
+        }
+      }
+
+      return {
+        results: [],
+        status: 'Exhausted',
+        isLoading: false,
+        loadMore: loadMoreMock,
+      }
+    })
+
+    const { result } = renderHook(() => useConvexResumes(200, 'CNC sales', 'jd-1'))
+
+    await waitFor(() => {
+      expect(rawApiPostMock).toHaveBeenCalled()
+    })
+
+    await waitFor(() => {
+      expect(result.current.resumes.map((resume) => resume.name)).toEqual([
+        'Best Match Duplicate',
+        'Third Candidate',
+      ])
     })
   })
 })
