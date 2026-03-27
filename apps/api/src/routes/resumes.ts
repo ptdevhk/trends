@@ -131,6 +131,8 @@ const feedbackSummaryService = new FeedbackSummaryService();
 
 const DEFAULT_AI_TOP_N = 20;
 const DEFAULT_CONVEX_RESUME_PAGE_SIZE = 50;
+const MAX_SAFE_CONVEX_POST_FILTER_SCAN = 250;
+const MAX_SAFE_CONVEX_POST_FILTER_LIMIT = 2000;
 
 type MatchMode = "rules_only" | "hybrid" | "ai_only";
 
@@ -959,13 +961,29 @@ async function prepareConvexCandidates(params: {
   };
 }
 
-function resolveConvexResumeFetchLimit(limit: number | undefined, offset: number | undefined): number | undefined {
-  if (typeof offset !== "number" || offset <= 0) {
-    return limit;
+function resolveConvexResumeFetchLimit(params: {
+  limit: number | undefined;
+  offset: number | undefined;
+  requiresMatchPagination: boolean;
+  hasLocalResumeFilters: boolean;
+  hasKeywordQuery: boolean;
+}): number | undefined {
+  const pageSize = typeof params.limit === "number" ? params.limit : DEFAULT_CONVEX_RESUME_PAGE_SIZE;
+  const requestedOffset = typeof params.offset === "number" && params.offset > 0 ? params.offset : 0;
+  const requestedWindow = requestedOffset + pageSize;
+
+  if (!params.requiresMatchPagination) {
+    return params.limit;
   }
 
-  const pageSize = typeof limit === "number" ? limit : DEFAULT_CONVEX_RESUME_PAGE_SIZE;
-  return offset + pageSize;
+  if (!params.hasLocalResumeFilters && !params.hasKeywordQuery) {
+    return requestedWindow;
+  }
+
+  return Math.min(
+    Math.max(requestedWindow, MAX_SAFE_CONVEX_POST_FILTER_SCAN),
+    MAX_SAFE_CONVEX_POST_FILTER_LIMIT,
+  );
 }
 
 function hasResumeListFilters(params: {
@@ -1814,7 +1832,13 @@ app.openapi(getResumesRoute, (c) => {
             })).prepared;
           }
         } else {
-          const convexFetchLimit = canUseSourcePagination ? limit : resolveConvexResumeFetchLimit(limit, offset);
+          const convexFetchLimit = canUseSourcePagination ? limit : resolveConvexResumeFetchLimit({
+            limit,
+            offset,
+            requiresMatchPagination,
+            hasLocalResumeFilters,
+            hasKeywordQuery: normalizedKeywords.length > 0,
+          });
           const preparedResult = await prepareConvexCandidates({
             keywords: normalizedKeywords,
             limit: convexFetchLimit,
