@@ -123,4 +123,119 @@ describe('useFacetCounts', () => {
       { value: '90', count: 0 },
     ])
   })
+
+  it('counts a parent taxonomy cluster at most once per resume even when multiple child tags match it', () => {
+    const taxonomyClusters: TaxonomyClusterInput[] = [
+      {
+        name: 'Manufacturing Systems',
+        slug: 'manufacturing-systems',
+        tags: [],
+      },
+      {
+        name: 'Automation Stack',
+        slug: 'automation-stack',
+        parentSlug: 'manufacturing-systems',
+        tags: ['Machine Tools', 'Automation'],
+      },
+    ]
+
+    const { result } = renderHook(() => useFacetCounts([
+      createResult({
+        key: 'one',
+        resume: createResume({
+          ingestData: {
+            industryTags: ['Machine Tools', 'Automation'],
+            synonymHits: [],
+            brandHits: [],
+            companyHits: ['FANUC'],
+            ruleScores: {},
+            experienceLevel: 'mid',
+            computedAt: Date.now(),
+            skillsVersion: 1,
+          },
+        }),
+      }),
+      createResult({
+        key: 'two',
+        resume: createResume({
+          resumeId: 'resume-2' as ConvexResumeItem['resumeId'],
+          externalId: 'resume-2',
+          ingestData: {
+            industryTags: ['Automation'],
+            synonymHits: [],
+            brandHits: [],
+            companyHits: ['DMG MORI'],
+            ruleScores: {},
+            experienceLevel: 'senior',
+            computedAt: Date.now(),
+            skillsVersion: 1,
+          },
+        }),
+      }),
+    ], taxonomyClusters))
+
+    expect(result.current.clusters).toEqual([
+      { value: 'manufacturing-systems', label: 'Manufacturing Systems', count: 2 },
+    ])
+  })
+
+  it('limits facet bucket computation to the first 2000 results', () => {
+    const manyResults = Array.from({ length: 2001 }, (_, index) => createResult({
+      key: `resume-${index + 1}`,
+      status: 'new',
+      resume: createResume({
+        resumeId: `resume-${index + 1}` as ConvexResumeItem['resumeId'],
+        externalId: `resume-${index + 1}`,
+        education: 'Bachelor',
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'mid',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+        },
+      }),
+    }))
+
+    manyResults[2000] = createResult({
+      key: 'resume-over-limit',
+      status: 'contacted',
+      resume: createResume({
+        resumeId: 'resume-over-limit' as ConvexResumeItem['resumeId'],
+        externalId: 'resume-over-limit',
+        education: 'Doctorate',
+        ingestData: {
+          industryTags: ['Robotics'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['DMG MORI'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+        },
+      }),
+    })
+
+    const { result } = renderHook(() => useFacetCounts(manyResults))
+
+    expect(result.current.tags).toEqual([
+      { value: 'Machine Tools', label: undefined, count: 2000 },
+    ])
+    expect(result.current.companies).toEqual([
+      { value: 'FANUC', label: undefined, count: 2000 },
+    ])
+    expect(result.current.experienceLevels).toEqual([
+      { value: 'mid', label: undefined, count: 2000 },
+    ])
+    expect(result.current.education).toEqual([
+      { value: 'Bachelor', label: undefined, count: 2000 },
+    ])
+    expect(result.current.statuses).toEqual([
+      { value: 'new', label: undefined, count: 2000 },
+    ])
+  })
 })
