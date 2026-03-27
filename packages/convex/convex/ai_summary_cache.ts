@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const get = query({
@@ -48,7 +48,7 @@ export const upsert = mutation({
     },
 });
 
-export const cleanupExpired = mutation({
+export const cleanupExpired = internalMutation({
     args: {
         now: v.optional(v.number()),
     },
