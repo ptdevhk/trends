@@ -26,6 +26,8 @@ function formatGeneratedAt(value: number | undefined): string | null {
 }
 
 export function AiSummaryPanel({ generatedAt, loading = false, summary }: AiSummaryPanelProps) {
+  const generatedAtLabel = formatGeneratedAt(generatedAt)
+
   return (
     <Card className="hidden rounded-[1.75rem] border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white shadow-[0_28px_70px_-46px_rgba(15,23,42,0.9)] md:block">
       <CardContent className="space-y-4 p-6">
@@ -46,8 +48,8 @@ export function AiSummaryPanel({ generatedAt, loading = false, summary }: AiSumm
           </p>
         )}
 
-        {formatGeneratedAt(generatedAt) ? (
-          <div className="text-xs text-slate-400">{formatGeneratedAt(generatedAt)}</div>
+        {generatedAtLabel ? (
+          <div className="text-xs text-slate-400">{generatedAtLabel}</div>
         ) : null}
       </CardContent>
     </Card>
