@@ -55,8 +55,10 @@ export const cleanupExpired = internalMutation({
     },
     handler: async (ctx, args) => {
         const now = args.now ?? Date.now();
-        const records = await ctx.db.query("ai_summary_cache").collect();
-        const expiredRecords = records.filter((record) => record.expiresAt <= now);
+        const expiredRecords = await ctx.db
+            .query("ai_summary_cache")
+            .withIndex("by_expires_at", (q) => q.lte("expiresAt", now))
+            .collect();
 
         for (const record of expiredRecords) {
             await ctx.db.delete(record._id);

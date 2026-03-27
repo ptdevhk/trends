@@ -55,27 +55,48 @@ function createCacheDb(records: CacheRecord[]) {
         expect(tableName).toBe("ai_summary_cache")
 
         return {
-          withIndex(indexName: string, apply: (q: { eq: (field: string, value: string) => unknown }) => { clauses: Array<{ field: string; value: string }> }) {
-            expect(indexName).toBe("by_workspace_url_hash")
+          withIndex(indexName: string, apply: (q: unknown) => unknown) {
+            expect(indexName === "by_workspace_url_hash" || indexName === "by_expires_at").toBe(true)
+            if (indexName === "by_workspace_url_hash") {
+              const chain = {
+                clauses: [] as Array<{ field: string; value: string }>,
+                eq(field: string, value: string) {
+                  this.clauses.push({ field, value })
+                  return this
+                },
+              }
+              const clauseChain = apply(chain as never) as { clauses: Array<{ field: string; value: string }> }
+
+              return {
+                async collect() {
+                  return records
+                    .filter((record) => clauseChain.clauses.every((clause) => record[clause.field as keyof CacheRecord] === clause.value))
+                    .map((record) => ({ ...record }))
+                },
+              }
+            }
+
             const chain = {
-              clauses: [] as Array<{ field: string; value: string }>,
-              eq(field: string, value: string) {
-                this.clauses.push({ field, value })
+              field: "" as string,
+              value: 0,
+              lte(field: string, value: number) {
+                this.field = field
+                this.value = value
                 return this
               },
             }
-            const clauseChain = apply(chain as never)
+            const clause = apply(chain as never) as { field: string; value: number }
 
             return {
               async collect() {
                 return records
-                  .filter((record) => clauseChain.clauses.every((clause) => record[clause.field as keyof CacheRecord] === clause.value))
+                  .filter((record) => {
+                    const candidate = record[clause.field as keyof CacheRecord]
+                    return typeof candidate === "number" && candidate <= clause.value
+                  })
                   .map((record) => ({ ...record }))
               },
             }
-          },
-          async collect() {
-            return records.map((record) => ({ ...record }))
           },
         }
       },
