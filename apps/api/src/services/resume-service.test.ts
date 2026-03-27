@@ -132,6 +132,49 @@ describe("ResumeService", () => {
     expect(locationMatches.map((item) => item.name)).toEqual(["Yap Kae Wen"]);
   });
 
+  it("applies required keyword filters with all-keyword semantics", () => {
+    const root = createFixtureRoot();
+    roots.push(root);
+
+    const service = new ResumeService(root);
+    const items = [
+      {
+        name: "Both Terms",
+        profileUrl: "https://example.com/both",
+        activityStatus: "Active",
+        age: "30",
+        experience: "5 years",
+        education: "Bachelor",
+        location: "Dongguan",
+        selfIntro: "",
+        jobIntention: "Sales Engineer",
+        expectedSalary: "10k-20k",
+        workHistory: [{ raw: "2020-2025 machine tools cnc sales engineer" }],
+        extractedAt: "2026-03-27T00:00:00.000Z",
+      },
+      {
+        name: "One Term",
+        profileUrl: "https://example.com/one",
+        activityStatus: "Active",
+        age: "29",
+        experience: "4 years",
+        education: "Bachelor",
+        location: "Dongguan",
+        selfIntro: "",
+        jobIntention: "Sales Engineer",
+        expectedSalary: "10k-20k",
+        workHistory: [{ raw: "2020-2025 machine tools sales engineer" }],
+        extractedAt: "2026-03-27T00:00:00.000Z",
+      },
+    ];
+
+    const filtered = service.filterResumes(items, {
+      requiredKeywords: ["machine tools", "cnc"],
+    });
+
+    expect(filtered.map((item) => item.name)).toEqual(["Both Terms"]);
+  });
+
   it("still normalizes Job5156 sample profile URLs into canonical display URLs", () => {
     const root = createFixtureRoot();
     roots.push(root);

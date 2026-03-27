@@ -54,7 +54,6 @@ import {
 import {
   buildLearningObservation,
   buildResumeKey,
-  buildRuleScoringText,
   computeDirectIndustryDb,
   getAnalysisForJob,
   hasIngestData,
@@ -552,6 +551,23 @@ function buildResumeFilterSearchText(resume: ConvexResumeItem): string {
     .join(' ')
 }
 
+function matchesAllRequiredKeywords(text: string, requiredKeywords: string[]): boolean {
+  const normalizedKeywords = normalizeKeywordPhrases(requiredKeywords)
+    .map((keyword) => normalizeFilterToken(keyword))
+    .filter((keyword) => keyword.length > 0)
+
+  if (normalizedKeywords.length === 0) {
+    return true
+  }
+
+  const haystack = text.trim().toLowerCase()
+  if (!haystack) {
+    return false
+  }
+
+  return normalizedKeywords.every((keyword) => haystack.includes(keyword))
+}
+
 export function useResumeListState(loadSearchHistory = false) {
   const { t } = useTranslation()
   const location = useLocation()
@@ -717,13 +733,14 @@ export function useResumeListState(loadSearchHistory = false) {
       ...(typeof filters.maxExperience === 'number' ? { maxExperience: filters.maxExperience } : {}),
       ...(Array.isArray(filters.education) && filters.education.length > 0 ? { education: filters.education } : {}),
       ...(Array.isArray(filters.skills) && filters.skills.length > 0 ? { skills: filters.skills } : {}),
+      ...(requiredKeywords.length > 0 ? { requiredKeywords } : {}),
       ...(Array.isArray(filters.locations) && filters.locations.length > 0 ? { locations: filters.locations } : {}),
       ...(typeof filters.minSalary === 'number' ? { minSalary: filters.minSalary } : {}),
       ...(typeof filters.maxSalary === 'number' ? { maxSalary: filters.maxSalary } : {}),
     }
 
     return Object.keys(normalized).length > 0 ? normalized : undefined
-  }, [filters.education, filters.locations, filters.maxExperience, filters.maxSalary, filters.minExperience, filters.minSalary, filters.skills])
+  }, [filters.education, filters.locations, filters.maxExperience, filters.maxSalary, filters.minExperience, filters.minSalary, filters.skills, requiredKeywords])
   const convexQueryScopeKey = useMemo(
     () => JSON.stringify({
       jobDescriptionId: jobDescriptionId?.trim() ?? '',
@@ -1394,10 +1411,9 @@ export function useResumeListState(loadSearchHistory = false) {
     }
 
     if (requiredKeywords.length > 0) {
-      const normalizedRequired = requiredKeywords.map(normalizeFilterToken).filter((kw) => kw.length > 0)
       result = result.filter((resume: ScoredConvexResume) => {
-        const text = buildRuleScoringText(resume).toLowerCase()
-        return normalizedRequired.every((kw) => text.includes(kw))
+        const text = buildResumeFilterSearchText(resume)
+        return matchesAllRequiredKeywords(text, requiredKeywords)
       })
     }
 

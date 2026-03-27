@@ -11,6 +11,7 @@ import {
     formatLocationHierarchyLabel,
     isResumeAnalysisKeyForJobDescription,
     isLocationMatch,
+    normalizeKeywordPhrases,
     normalizeResumeLocationHierarchy,
     resolveResumeAnalysisSourceKey,
     selectLatestWorkHistory,
@@ -259,6 +260,7 @@ type ResumeListFilterArgs = {
     maxExperience?: number;
     education?: string[];
     skills?: string[];
+    requiredKeywords?: string[];
     locations?: string[];
     minSalary?: number;
     maxSalary?: number;
@@ -589,6 +591,9 @@ function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): 
 
     const education = filters.education?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
     const skills = filters.skills?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
+    const requiredKeywords = normalizeKeywordPhrases(filters.requiredKeywords ?? [])
+        .map((value) => value.toLowerCase())
+        .filter((value) => value.length > 0);
     const locations = filters.locations?.map((value) => value.trim()).filter((value) => value.length > 0);
 
     const normalized: ResumeListFilterArgs = {
@@ -596,6 +601,7 @@ function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): 
         ...(filters.maxExperience === undefined ? {} : { maxExperience: filters.maxExperience }),
         ...(education && education.length > 0 ? { education } : {}),
         ...(skills && skills.length > 0 ? { skills } : {}),
+        ...(requiredKeywords.length > 0 ? { requiredKeywords } : {}),
         ...(locations && locations.length > 0 ? { locations } : {}),
         ...(filters.minSalary === undefined ? {} : { minSalary: filters.minSalary }),
         ...(filters.maxSalary === undefined ? {} : { maxSalary: filters.maxSalary }),
@@ -673,6 +679,21 @@ function buildResumeFilterSearchText(content: Record<string, unknown>): string {
     return parts.join(" ").toLowerCase();
 }
 
+function matchesAllRequiredKeywords(text: string, requiredKeywords: string[] | undefined): boolean {
+    const normalizedKeywords = normalizeKeywordPhrases(requiredKeywords ?? [])
+        .map((keyword) => keyword.toLowerCase());
+    if (normalizedKeywords.length === 0) {
+        return true;
+    }
+
+    const haystack = text.trim().toLowerCase();
+    if (!haystack) {
+        return false;
+    }
+
+    return normalizedKeywords.every((keyword) => haystack.includes(keyword));
+}
+
 function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFilterArgs | undefined): boolean {
     if (!filters) {
         return true;
@@ -712,6 +733,13 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
         const haystack = buildResumeFilterSearchText(content);
         const hasSkill = filters.skills.some((skill) => haystack.includes(skill));
         if (!hasSkill) {
+            return false;
+        }
+    }
+
+    if (filters.requiredKeywords?.length) {
+        const haystack = buildResumeFilterSearchText(content);
+        if (!matchesAllRequiredKeywords(haystack, filters.requiredKeywords)) {
             return false;
         }
     }
@@ -1389,6 +1417,7 @@ export const listWithIngestDataPage = query({
         maxExperience: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
         skills: v.optional(v.array(v.string())),
+        requiredKeywords: v.optional(v.array(v.string())),
         locations: v.optional(v.array(v.string())),
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
@@ -1412,6 +1441,7 @@ export const listWithIngestDataPaginated = query({
         maxExperience: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
         skills: v.optional(v.array(v.string())),
+        requiredKeywords: v.optional(v.array(v.string())),
         locations: v.optional(v.array(v.string())),
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
@@ -1674,6 +1704,7 @@ export const searchWithTagExpansionPage = query({
         maxExperience: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
         skills: v.optional(v.array(v.string())),
+        requiredKeywords: v.optional(v.array(v.string())),
         locations: v.optional(v.array(v.string())),
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
@@ -1711,6 +1742,7 @@ export const searchWithTagExpansionPaginated = query({
         maxExperience: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
         skills: v.optional(v.array(v.string())),
+        requiredKeywords: v.optional(v.array(v.string())),
         locations: v.optional(v.array(v.string())),
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),

@@ -509,6 +509,10 @@ export const ResumesQuerySchema = z.object({
     param: { name: "skills", in: "query" },
     example: "CNC,FANUC",
   }),
+  requiredKeywords: CsvStringArraySchema.openapi({
+    param: { name: "requiredKeywords", in: "query" },
+    example: "machine tools,CNC",
+  }),
   locations: CsvStringArraySchema.openapi({
     param: { name: "locations", in: "query" },
     example: "东莞,深圳",

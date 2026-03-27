@@ -368,6 +368,7 @@ export interface paths {
                     maxExperience?: string;
                     education?: string[];
                     skills?: string[];
+                    requiredKeywords?: string[];
                     locations?: string[];
                     minSalary?: string;
                     maxSalary?: string;

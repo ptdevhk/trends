@@ -17,6 +17,7 @@ export type ConvexResumeFilters = {
   maxExperience?: number
   education?: string[]
   skills?: string[]
+  requiredKeywords?: string[]
   locations?: string[]
   minSalary?: number
   maxSalary?: number
