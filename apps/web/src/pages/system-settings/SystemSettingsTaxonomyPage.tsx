@@ -358,10 +358,13 @@ export function SystemSettingsTaxonomyPage() {
                 value={form.name}
                 onChange={(event) => {
                   const name = event.target.value
+                  const nextAutoSlug = slugifyTaxonomyValue(name)
                   setForm((current) => ({
                     ...current,
                     name,
-                    slug: current.slug ? current.slug : slugifyTaxonomyValue(name),
+                    slug: !current.slug || current.slug === slugifyTaxonomyValue(current.name)
+                      ? nextAutoSlug
+                      : current.slug,
                   }))
                 }}
                 placeholder="Backend Languages"
