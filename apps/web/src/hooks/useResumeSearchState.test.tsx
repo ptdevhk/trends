@@ -627,6 +627,69 @@ describe('useResumeSearchState', () => {
     })
   })
 
+  it('clears optional experience-level and min-score facets while preserving the active search context', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: ['cluster:manufacturing-systems'],
+      selectedCompanies: ['FANUC'],
+      selectedExperienceLevel: 'senior',
+      filters: {
+        minExperience: 5,
+        maxExperience: 12,
+        locations: ['Malaysia'],
+        education: ['Bachelor'],
+        status: ['contacted'],
+        minMatchScore: 80,
+      },
+    }))
+
+    const { result } = renderHook(() => useResumeSearchState())
+    const baseSyncedState = {
+      shareSessionId: undefined,
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: ['cluster:manufacturing-systems'],
+      selectedCompanies: ['FANUC'],
+      filters: {
+        minExperience: 5,
+        maxExperience: 12,
+        locations: ['Malaysia'],
+        education: ['Bachelor'],
+        status: ['contacted'],
+      },
+    }
+
+    act(() => {
+      result.current.setSelectedExperienceLevel(undefined)
+      result.current.setMinScoreFilter(undefined)
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(1, {
+      ...baseSyncedState,
+      selectedExperienceLevel: undefined,
+      filters: {
+        ...baseSyncedState.filters,
+        minMatchScore: 80,
+      },
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(2, {
+      ...baseSyncedState,
+      selectedExperienceLevel: 'senior',
+      filters: {
+        ...baseSyncedState.filters,
+        minMatchScore: undefined,
+      },
+    })
+  })
+
   it('only grows the resume window when more results are available and not already loading more', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
