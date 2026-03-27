@@ -411,6 +411,25 @@ export function resolveListWithIngestWindow(requestedLimit: number | undefined):
     };
 }
 
+export function resolveSearchWithTagExpansionTakeLimit(params: {
+    limit: number | undefined;
+    offset: number | undefined;
+    hasFilters: boolean;
+    jobDescriptionId?: string;
+}): number {
+    const { offset, pageLimit, overfetchLimit } = resolveListWithIngestPageWindow(params.limit, params.offset);
+    const requestedWindow = offset + pageLimit;
+
+    if (!params.hasFilters && !params.jobDescriptionId?.trim()) {
+        return overfetchLimit;
+    }
+
+    return Math.min(
+        Math.max(overfetchLimit, requestedWindow, MAX_SAFE_JD_PAGINATE_SCAN),
+        MAX_SAFE_LIST_WITH_INGEST_OVERFETCH,
+    );
+}
+
 function projectResumeBaseContent(
     resume: Doc<"resumes">,
     workHistory: unknown,
@@ -1162,7 +1181,7 @@ async function runSearchWithTagExpansionPageQuery(
     total: number;
     results: Array<{ resume: Doc<"resumes">; provenance: SearchProvenance[] }>;
 }> {
-    const { offset, pageLimit, overfetchLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
+    const { offset, pageLimit } = resolveListWithIngestPageWindow(args.limit, args.offset);
     const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
     const filters = normalizeResumeListFilters(args);
     const mode = args.mode ?? "AND";
@@ -1187,12 +1206,18 @@ async function runSearchWithTagExpansionPageQuery(
     );
     const provenanceByResumeId = new Map<string, SearchProvenance[]>();
     const searchQuery = buildTagExpansionSearchQuery(keywordGroups, mode);
+    const takeLimit = resolveSearchWithTagExpansionTakeLimit({
+        limit: args.limit,
+        offset: args.offset,
+        hasFilters: filters !== undefined,
+        jobDescriptionId,
+    });
 
     const matches = searchQuery
         ? await ctx.db
             .query("resumes")
             .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
-            .take(overfetchLimit)
+            .take(takeLimit)
         : [];
 
     const filteredDocs = matches.filter((doc) => {
@@ -1212,7 +1237,7 @@ async function runSearchWithTagExpansionPageQuery(
         return true;
     });
 
-    const merged = mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, overfetchLimit)
+    const merged = mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, takeLimit)
         .filter((entry) => matchesResumeListFilters(entry.resume, filters));
     let sorted = merged;
     if (args.sortBy) {

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { projectIngestDiagnosticsRow, resolveListWithIngestWindow, resolveResumeScanBatchSize } from "../resumes";
+import {
+    projectIngestDiagnosticsRow,
+    resolveListWithIngestWindow,
+    resolveResumeScanBatchSize,
+    resolveSearchWithTagExpansionTakeLimit,
+} from "../resumes";
 
 describe("resolveListWithIngestWindow", () => {
     it("uses the default list window when no limit is provided", () => {
@@ -25,6 +30,25 @@ describe("resolveResumeScanBatchSize", () => {
 
     it("clamps oversized scan batches to the safe maximum", () => {
         expect(resolveResumeScanBatchSize(5_000)).toBe(50);
+    });
+});
+
+describe("resolveSearchWithTagExpansionTakeLimit", () => {
+    it("keeps the default narrow overfetch for unconstrained keyword pages", () => {
+        expect(resolveSearchWithTagExpansionTakeLimit({
+            limit: 5,
+            offset: 0,
+            hasFilters: false,
+        })).toBe(15);
+    });
+
+    it("widens the search take window for filtered job-scoped keyword pages", () => {
+        expect(resolveSearchWithTagExpansionTakeLimit({
+            limit: 5,
+            offset: 0,
+            hasFilters: true,
+            jobDescriptionId: "jd-seek-malaysia-sales",
+        })).toBe(250);
     });
 });
 
