@@ -21,6 +21,9 @@ vi.mock('@/components/ui/dialog', () => ({
     open: boolean
   }) => (
     <div data-testid="dialog-root" data-open={String(open)}>
+      <button type="button" onClick={() => onOpenChange(true)}>
+        Open dialog
+      </button>
       <button type="button" onClick={() => onOpenChange(false)}>
         Close dialog
       </button>
@@ -109,5 +112,33 @@ describe('MobileFilterSheet', () => {
     await user.click(screen.getByRole('button', { name: 'Close dialog' }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('forwards the dialog open state and both open-change directions', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+
+    render(
+      <MobileFilterSheet
+        {...buildProps({
+          open: false,
+          onOpenChange,
+          selectedClusters: ['manufacturing-systems'],
+        })}
+      />
+    )
+
+    expect(screen.getByTestId('dialog-root')).toHaveAttribute('data-open', 'false')
+    expect(facetSidebarMock).toHaveBeenCalledWith(expect.objectContaining({
+      embedded: true,
+      selectedClusters: ['manufacturing-systems'],
+      selectedTags: ['Machine Tools'],
+    }))
+
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }))
+    await user.click(screen.getByRole('button', { name: 'Close dialog' }))
+
+    expect(onOpenChange).toHaveBeenNthCalledWith(1, true)
+    expect(onOpenChange).toHaveBeenNthCalledWith(2, false)
   })
 })
