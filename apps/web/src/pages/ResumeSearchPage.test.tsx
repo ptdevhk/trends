@@ -8,9 +8,11 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
 
 const {
+  useIndustryKeywordsMock,
   useAiSearchSummaryMock,
   useResumeSearchStateMock,
 } = vi.hoisted(() => ({
+  useIndustryKeywordsMock: vi.fn(),
   useAiSearchSummaryMock: vi.fn(),
   useResumeSearchStateMock: vi.fn(),
 }))
@@ -23,22 +25,60 @@ vi.mock('@/hooks/useResumeSearchState', () => ({
   useResumeSearchState: () => useResumeSearchStateMock(),
 }))
 
+vi.mock('@/hooks/useIndustryKeywords', () => ({
+  useIndustryKeywords: () => useIndustryKeywordsMock(),
+}))
+
 vi.mock('@/components/search/MigrationBanner', () => ({
   MigrationBanner: () => <div>Migration Banner</div>,
 }))
 
 vi.mock('@/components/search/SearchHero', () => ({
   SearchHero: ({
+    hotKeywords,
+    onApplyWorkflowSeed,
+    onToggleHotKeyword,
     queryInput,
     onApplyExtractedKeywords,
+    workflowSeeds,
   }: {
+    hotKeywords?: Array<{ keyword: string }>
+    onApplyWorkflowSeed?: (seed: {
+      keywords: string[]
+      location: string
+    }) => void
+    onToggleHotKeyword?: (keyword: string) => void
     queryInput: string
     onApplyExtractedKeywords: (keywords: string[]) => void
+    workflowSeeds?: Array<{ label: string }>
   }) => (
     <div>
       <div>Landing Hero {queryInput}</div>
-      <button type="button" onClick={() => onApplyExtractedKeywords(['Machine Tools', 'Business Development'])}>
+      <div>
+        Landing Hero Seeds {workflowSeeds?.length ?? 0} Hot{' '}
+        {hotKeywords?.length ?? 0}
+      </div>
+      <button
+        type="button"
+        onClick={() =>
+          onApplyExtractedKeywords(['Machine Tools', 'Business Development'])
+        }
+      >
         Apply Hero JD
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onApplyWorkflowSeed?.({
+            keywords: ['CNC', 'Sales'],
+            location: 'Kuala Lumpur MY',
+          })
+        }
+      >
+        Apply Hero Workflow Seed
+      </button>
+      <button type="button" onClick={() => onToggleHotKeyword?.('CNC')}>
+        Toggle Hero Hot Keyword
       </button>
     </div>
   ),
@@ -55,8 +95,15 @@ vi.mock('@/components/search/SearchHeader', () => ({
     onApplyExtractedKeywords: (keywords: string[]) => void
   }) => (
     <div>
-      <div>Header {activeQuery} {activeResultCount}</div>
-      <button type="button" onClick={() => onApplyExtractedKeywords(['Machine Tools', 'Business Development'])}>
+      <div>
+        Header {activeQuery} {activeResultCount}
+      </div>
+      <button
+        type="button"
+        onClick={() =>
+          onApplyExtractedKeywords(['Machine Tools', 'Business Development'])
+        }
+      >
         Apply Header JD
       </button>
     </div>
@@ -72,7 +119,8 @@ vi.mock('@/components/search/FacetSidebar', () => ({
     selectedTags: string[]
   }) => (
     <div>
-      Sidebar clusters:{selectedClusters.join('|')} tags:{selectedTags.join('|')}
+      Sidebar clusters:{selectedClusters.join('|')} tags:
+      {selectedTags.join('|')}
     </div>
   ),
 }))
@@ -104,7 +152,8 @@ vi.mock('@/components/search/MobileFilterSheet', () => ({
     selectedTags: string[]
   }) => (
     <div>
-      Mobile Filter Sheet {open ? 'open' : 'closed'} clusters:{selectedClusters.join('|')} tags:{selectedTags.join('|')}
+      Mobile Filter Sheet {open ? 'open' : 'closed'} clusters:
+      {selectedClusters.join('|')} tags:{selectedTags.join('|')}
     </div>
   ),
 }))
@@ -120,7 +169,8 @@ vi.mock('@/components/search/AiSummaryPanel', () => ({
     summary?: string
   }) => (
     <div>
-      AI Summary {summary ?? 'none'} generated:{generatedAt ?? 'none'} loading:{String(loading)}
+      AI Summary {summary ?? 'none'} generated:{generatedAt ?? 'none'} loading:
+      {String(loading)}
     </div>
   ),
 }))
@@ -145,7 +195,9 @@ vi.mock('@/components/search/SearchResultsList', () => ({
   }) => (
     <div>
       <div>
-        Results List {items.length} hasMore:{String(hasMore)} loading:{String(loading)} loadingMore:{String(loadingMore)} expanded:{Array.from(expandedIds).join('|') || 'none'}
+        Results List {items.length} hasMore:{String(hasMore)} loading:
+        {String(loading)} loadingMore:{String(loadingMore)} expanded:
+        {Array.from(expandedIds).join('|') || 'none'}
       </div>
       {items[0] ? (
         <button type="button" onClick={() => onToggleExpanded(items[0].key)}>
@@ -204,7 +256,9 @@ function createResult(index: number): ResumeSearchResultItem {
   }
 }
 
-function createParsedState(overrides: Partial<UrlSearchState> = {}): UrlSearchState {
+function createParsedState(
+  overrides: Partial<UrlSearchState> = {},
+): UrlSearchState {
   return {
     query: undefined,
     location: undefined,
@@ -253,7 +307,12 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     setSelectedExperienceLevel: vi.fn(),
     setSort: vi.fn(),
     submitSearch: vi.fn(),
-    taxonomyClusters: [] as Array<{ name: string; slug: string; tags: string[]; parentSlug?: string }>,
+    taxonomyClusters: [] as Array<{
+      name: string
+      slug: string
+      tags: string[]
+      parentSlug?: string
+    }>,
     toggleCompany: vi.fn(),
     toggleCluster: vi.fn(),
     toggleEducation: vi.fn(),
@@ -266,6 +325,10 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
 describe('ResumeSearchPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useIndustryKeywordsMock.mockReturnValue({
+      hotKeywords: [],
+      workflowSeeds: [],
+    })
     useAiSearchSummaryMock.mockReturnValue({
       generatedAt: undefined,
       loading: false,
@@ -284,14 +347,60 @@ describe('ResumeSearchPage', () => {
 
     expect(screen.getByText('Migration Banner')).toBeInTheDocument()
     expect(screen.getByText('Landing Hero machine tools')).toBeInTheDocument()
+    expect(screen.getByText('Landing Hero Seeds 0 Hot 0')).toBeInTheDocument()
     expect(screen.queryByText(/Header /)).not.toBeInTheDocument()
     expect(screen.queryByText(/Results List/)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Apply Hero JD' }))
 
-    const expectedQuery = formatKeywordQuery(['Machine Tools', 'Business Development'])
+    const expectedQuery = formatKeywordQuery([
+      'Machine Tools',
+      'Business Development',
+    ])
     expect(state.setQueryInput).toHaveBeenCalledWith(expectedQuery)
     expect(state.submitSearch).toHaveBeenCalledWith(expectedQuery)
+  })
+
+  it('wires workflow seed and hot keyword handlers into the landing hero', async () => {
+    const user = userEvent.setup()
+    const state = createResumeSearchState({
+      queryInput: 'machine tools',
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+    useIndustryKeywordsMock.mockReturnValue({
+      hotKeywords: [{ id: 'hot-1', keyword: 'CNC' }],
+      workflowSeeds: [
+        {
+          id: 'workflow-1',
+          label: 'Malaysia · SEEK · CNC Sales',
+          market: 'MY',
+          location: 'Kuala Lumpur MY',
+          keywords: ['CNC', 'Sales'],
+        },
+      ],
+    })
+
+    render(<ResumeSearchPage />)
+
+    expect(screen.getByText('Landing Hero Seeds 1 Hot 1')).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Apply Hero Workflow Seed' }),
+    )
+    expect(state.setQueryInput).toHaveBeenCalledWith(
+      formatKeywordQuery(['CNC', 'Sales']),
+    )
+    expect(state.submitSearch).toHaveBeenCalledWith(
+      formatKeywordQuery(['CNC', 'Sales']),
+      { location: 'Kuala Lumpur MY' },
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Toggle Hero Hot Keyword' }),
+    )
+    expect(state.setQueryInput).toHaveBeenCalledWith(
+      formatKeywordQuery(['machine', 'tools', 'CNC']),
+    )
   })
 
   it('renders the active results shell, maps cluster names for AI summary, and opens the mobile filter sheet from the badge', async () => {
@@ -335,28 +444,53 @@ describe('ResumeSearchPage', () => {
 
     expect(screen.queryByText(/Landing Hero/)).not.toBeInTheDocument()
     expect(screen.getByText('Header machine tools 2')).toBeInTheDocument()
-    expect(screen.getByText('Results List 2 hasMore:false loading:false loadingMore:false expanded:none')).toBeInTheDocument()
-    expect(screen.getByText('Sidebar clusters:manufacturing-systems tags:Machine Tools')).toBeInTheDocument()
-    expect(screen.getByText('Mobile Filter Sheet closed clusters:manufacturing-systems tags:Machine Tools')).toBeInTheDocument()
-    expect(screen.getByText('AI Summary Summary text generated:123 loading:false')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Results List 2 hasMore:false loading:false loadingMore:false expanded:none',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Sidebar clusters:manufacturing-systems tags:Machine Tools',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Mobile Filter Sheet closed clusters:manufacturing-systems tags:Machine Tools',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('AI Summary Summary text generated:123 loading:false'),
+    ).toBeInTheDocument()
 
-    expect(useAiSearchSummaryMock).toHaveBeenCalledWith(expect.objectContaining({
-      query: 'machine tools',
-      location: 'Kuala Lumpur',
-      jobDescriptionId: 'jd-1',
-      selectedCompanies: ['FANUC'],
-      selectedExperienceLevel: 'senior',
-      selectedTags: ['Machine Tools', 'Manufacturing Systems'],
-      results: state.filteredResults,
-    }))
+    expect(useAiSearchSummaryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: 'machine tools',
+        location: 'Kuala Lumpur',
+        jobDescriptionId: 'jd-1',
+        selectedCompanies: ['FANUC'],
+        selectedExperienceLevel: 'senior',
+        selectedTags: ['Machine Tools', 'Manufacturing Systems'],
+        results: state.filteredResults,
+      }),
+    )
 
     await user.click(screen.getByRole('button', { name: 'Apply Header JD' }))
-    const expectedQuery = formatKeywordQuery(['Machine Tools', 'Business Development'])
+    const expectedQuery = formatKeywordQuery([
+      'Machine Tools',
+      'Business Development',
+    ])
     expect(state.setQueryInput).toHaveBeenCalledWith(expectedQuery)
     expect(state.submitSearch).toHaveBeenCalledWith(expectedQuery)
 
-    await user.click(screen.getByRole('button', { name: 'Facet badge 3 inline' }))
-    expect(screen.getByText('Mobile Filter Sheet open clusters:manufacturing-systems tags:Machine Tools')).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Facet badge 3 inline' }),
+    )
+    expect(
+      screen.getByText(
+        'Mobile Filter Sheet open clusters:manufacturing-systems tags:Machine Tools',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('falls back to cluster slugs for AI summary tags and preserves local result-shell state interactions', async () => {
@@ -385,19 +519,39 @@ describe('ResumeSearchPage', () => {
 
     render(<ResumeSearchPage />)
 
-    expect(screen.getByText('AI Summary none generated:none loading:true')).toBeInTheDocument()
-    expect(screen.getByText('Results List 1 hasMore:true loading:false loadingMore:true expanded:none')).toBeInTheDocument()
-    expect(useAiSearchSummaryMock).toHaveBeenCalledWith(expect.objectContaining({
-      query: 'servo automation',
-      selectedTags: ['Machine Tools', 'unknown-cluster'],
-      results: state.filteredResults,
-    }))
+    expect(
+      screen.getByText('AI Summary none generated:none loading:true'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Results List 1 hasMore:true loading:false loadingMore:true expanded:none',
+      ),
+    ).toBeInTheDocument()
+    expect(useAiSearchSummaryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: 'servo automation',
+        selectedTags: ['Machine Tools', 'unknown-cluster'],
+        results: state.filteredResults,
+      }),
+    )
 
-    await user.click(screen.getByRole('button', { name: 'Toggle first result' }))
-    expect(screen.getByText('Results List 1 hasMore:true loading:false loadingMore:true expanded:resume-1')).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Toggle first result' }),
+    )
+    expect(
+      screen.getByText(
+        'Results List 1 hasMore:true loading:false loadingMore:true expanded:resume-1',
+      ),
+    ).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Toggle first result' }))
-    expect(screen.getByText('Results List 1 hasMore:true loading:false loadingMore:true expanded:none')).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Toggle first result' }),
+    )
+    expect(
+      screen.getByText(
+        'Results List 1 hasMore:true loading:false loadingMore:true expanded:none',
+      ),
+    ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Load more results' }))
     expect(state.loadMore).toHaveBeenCalledTimes(1)

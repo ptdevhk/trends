@@ -1,4 +1,4 @@
-import { formatKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { useMemo, useState } from 'react'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
 import { FacetBadge } from '@/components/search/FacetBadge'
@@ -9,11 +9,13 @@ import { SearchHeader } from '@/components/search/SearchHeader'
 import { SearchHero } from '@/components/search/SearchHero'
 import { SearchResultsList } from '@/components/search/SearchResultsList'
 import { useAiSearchSummary } from '@/hooks/useAiSearchSummary'
+import { useIndustryKeywords } from '@/hooks/useIndustryKeywords'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
 
 export function ResumeSearchPage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const { hotKeywords, workflowSeeds } = useIndustryKeywords()
   const {
     activeQuery,
     activeSort,
@@ -48,12 +50,17 @@ export function ResumeSearchPage() {
   } = useResumeSearchState()
   const selectedSummaryTags = useMemo(() => {
     const clusterNamesBySlug = new Map(
-      taxonomyClusters.map((cluster) => [cluster.slug.trim().toLowerCase(), cluster.name]),
+      taxonomyClusters.map((cluster) => [
+        cluster.slug.trim().toLowerCase(),
+        cluster.name,
+      ]),
     )
 
     return [
       ...selectedRawTags,
-      ...selectedClusterTags.map((slug) => clusterNamesBySlug.get(slug.trim().toLowerCase()) ?? slug),
+      ...selectedClusterTags.map(
+        (slug) => clusterNamesBySlug.get(slug.trim().toLowerCase()) ?? slug,
+      ),
     ]
   }, [selectedClusterTags, selectedRawTags, taxonomyClusters])
   const aiSummary = useAiSearchSummary({
@@ -71,41 +78,70 @@ export function ResumeSearchPage() {
     submitSearch(query)
   }
 
-  const mobileFilterProps = useMemo(() => ({
-    facetCounts,
-    minScore: parsedState.filters.minMatchScore,
-    selectedClusters: selectedClusterTags,
-    selectedTags: selectedRawTags,
-    selectedCompanies: parsedState.selectedCompanies,
-    selectedExperienceLevel: parsedState.selectedExperienceLevel,
-    selectedEducation: parsedState.filters.education ?? [],
-    selectedStatuses: parsedState.filters.status ?? [],
-    onToggleCluster: toggleCluster,
-    onToggleTag: toggleTag,
-    onToggleCompany: toggleCompany,
-    onSetExperienceLevel: setSelectedExperienceLevel,
-    onToggleEducation: toggleEducation,
-    onToggleStatus: toggleStatus,
-    onSetMinScore: setMinScoreFilter,
-    onClearAll: clearFacetFilters,
-  }), [
-    clearFacetFilters,
-    facetCounts,
-    parsedState.filters.education,
-    parsedState.filters.minMatchScore,
-    parsedState.filters.status,
-    parsedState.selectedCompanies,
-    parsedState.selectedExperienceLevel,
-    setMinScoreFilter,
-    setSelectedExperienceLevel,
-    selectedClusterTags,
-    selectedRawTags,
-    toggleCompany,
-    toggleCluster,
-    toggleEducation,
-    toggleStatus,
-    toggleTag,
-  ])
+  const applyWorkflowSeed = (seed: {
+    keywords: string[]
+    location: string
+  }) => {
+    const query = formatKeywordQuery(seed.keywords)
+    setQueryInput(query)
+    submitSearch(query, { location: seed.location })
+  }
+
+  const toggleHotKeyword = (keyword: string) => {
+    const normalizedKeyword = keyword.trim()
+    if (!normalizedKeyword) {
+      return
+    }
+
+    const parsedQuery = parseKeywordQuery(queryInput)
+    const nextKeywords = parsedQuery.keywords.some(
+      (item) => item.toLowerCase() === normalizedKeyword.toLowerCase(),
+    )
+      ? parsedQuery.keywords
+      : [...parsedQuery.keywords, normalizedKeyword]
+    const nextQuery = formatKeywordQuery(nextKeywords, parsedQuery.mode)
+
+    setQueryInput(nextQuery)
+  }
+
+  const mobileFilterProps = useMemo(
+    () => ({
+      facetCounts,
+      minScore: parsedState.filters.minMatchScore,
+      selectedClusters: selectedClusterTags,
+      selectedTags: selectedRawTags,
+      selectedCompanies: parsedState.selectedCompanies,
+      selectedExperienceLevel: parsedState.selectedExperienceLevel,
+      selectedEducation: parsedState.filters.education ?? [],
+      selectedStatuses: parsedState.filters.status ?? [],
+      onToggleCluster: toggleCluster,
+      onToggleTag: toggleTag,
+      onToggleCompany: toggleCompany,
+      onSetExperienceLevel: setSelectedExperienceLevel,
+      onToggleEducation: toggleEducation,
+      onToggleStatus: toggleStatus,
+      onSetMinScore: setMinScoreFilter,
+      onClearAll: clearFacetFilters,
+    }),
+    [
+      clearFacetFilters,
+      facetCounts,
+      parsedState.filters.education,
+      parsedState.filters.minMatchScore,
+      parsedState.filters.status,
+      parsedState.selectedCompanies,
+      parsedState.selectedExperienceLevel,
+      setMinScoreFilter,
+      setSelectedExperienceLevel,
+      selectedClusterTags,
+      selectedRawTags,
+      toggleCompany,
+      toggleCluster,
+      toggleEducation,
+      toggleStatus,
+      toggleTag,
+    ],
+  )
 
   return (
     <div className="space-y-6">
@@ -117,8 +153,12 @@ export function ResumeSearchPage() {
           queryInput={queryInput}
           recentSearches={recentSearches}
           recentSearchesLoading={searchHistoryLoading}
+          workflowSeeds={workflowSeeds}
+          hotKeywords={hotKeywords}
           onApplyRecentSearch={applyRecentSearch}
           onApplyExtractedKeywords={applyExtractedKeywords}
+          onApplyWorkflowSeed={applyWorkflowSeed}
+          onToggleHotKeyword={toggleHotKeyword}
           onChangeQuery={setQueryInput}
           onClearQuery={clearSearch}
           onSubmitQuery={submitSearch}
@@ -151,7 +191,10 @@ export function ResumeSearchPage() {
 
             <div className="hidden shrink-0 md:block min-[1440px]:hidden">
               <div className="sticky top-24">
-                <FacetBadge activeCount={filterCount} onClick={() => setFiltersOpen(true)} />
+                <FacetBadge
+                  activeCount={filterCount}
+                  onClick={() => setFiltersOpen(true)}
+                />
               </div>
             </div>
 
@@ -185,7 +228,11 @@ export function ResumeSearchPage() {
           </div>
 
           <div className="fixed bottom-5 right-5 z-30 md:hidden">
-            <FacetBadge floating activeCount={filterCount} onClick={() => setFiltersOpen(true)} />
+            <FacetBadge
+              floating
+              activeCount={filterCount}
+              onClick={() => setFiltersOpen(true)}
+            />
           </div>
 
           <MobileFilterSheet
