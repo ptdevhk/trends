@@ -57,6 +57,7 @@ export function useFacetCounts(
   taxonomyClusters?: TaxonomyClusterInput[],
 ): FacetCounts {
   return useMemo(() => {
+    const limitedResults = results.slice(0, 2000)
     const taxonomyResolver = createTaxonomyClusterResolver(taxonomyClusters)
     const clusterCounts = new Map<string, number>()
     const clusterLabels = new Map(
@@ -68,7 +69,7 @@ export function useFacetCounts(
     const educationCounts = new Map<string, number>()
     const statusCounts = new Map<string, number>()
 
-    results.slice(0, 2000).forEach((item) => {
+    limitedResults.forEach((item) => {
       taxonomyResolver.resolveTagClusters(item.resume.ingestData?.industryTags).forEach((cluster) => {
         incrementCount(clusterCounts, cluster.slug)
       })
@@ -81,7 +82,7 @@ export function useFacetCounts(
 
     const minScoreOptions = MIN_SCORE_OPTIONS.map((threshold) => ({
       value: String(threshold),
-      count: results.filter((item) => (item.score ?? 0) >= threshold).length,
+      count: limitedResults.filter((item) => (item.score ?? 0) >= threshold).length,
     }))
 
     return {

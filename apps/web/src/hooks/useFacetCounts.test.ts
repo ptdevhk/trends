@@ -182,6 +182,7 @@ describe('useFacetCounts', () => {
   it('limits facet bucket computation to the first 2000 results', () => {
     const manyResults = Array.from({ length: 2001 }, (_, index) => createResult({
       key: `resume-${index + 1}`,
+      score: 95,
       status: 'new',
       resume: createResume({
         resumeId: `resume-${index + 1}` as ConvexResumeItem['resumeId'],
@@ -202,6 +203,7 @@ describe('useFacetCounts', () => {
 
     manyResults[2000] = createResult({
       key: 'resume-over-limit',
+      score: 10,
       status: 'contacted',
       resume: createResume({
         resumeId: 'resume-over-limit' as ConvexResumeItem['resumeId'],
@@ -236,6 +238,12 @@ describe('useFacetCounts', () => {
     ])
     expect(result.current.statuses).toEqual([
       { value: 'new', label: undefined, count: 2000 },
+    ])
+    expect(result.current.minScoreOptions).toEqual([
+      { value: '60', count: 2000 },
+      { value: '70', count: 2000 },
+      { value: '80', count: 2000 },
+      { value: '90', count: 2000 },
     ])
   })
 })
