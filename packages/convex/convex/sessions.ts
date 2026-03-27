@@ -74,6 +74,14 @@ function buildHistoryTitle(location: string, keywords: string[]): string {
     return parts.join(" · ") || "Untitled search";
 }
 
+function sortByHistoryRecency<T extends { createdAt: number; lastOpenedAt?: number }>(records: T[]): T[] {
+    return [...records].sort((left, right) => {
+        const leftTimestamp = left.lastOpenedAt ?? left.createdAt;
+        const rightTimestamp = right.lastOpenedAt ?? right.createdAt;
+        return rightTimestamp - leftTimestamp;
+    });
+}
+
 const INDUSTRY_DB_V2_COHORT_MAX_SIZE = 2000;
 const INDUSTRY_DB_V2_HISTOGRAM_SIZE = 51;
 
@@ -301,7 +309,7 @@ export const listSearchHistory = query({
             .collect();
         const cohortBySearchHistoryId = new Map(cohorts.map((cohort) => [String(cohort.searchHistoryId), cohort]));
 
-        return records
+        return sortByHistoryRecency(records
             .map((record) => {
                 const cohort = cohortBySearchHistoryId.get(String(record._id));
                 return {
@@ -319,12 +327,27 @@ export const listSearchHistory = query({
                         }
                         : undefined,
                 };
-            })
-            .sort((left, right) => {
-                const leftTimestamp = left.lastOpenedAt ?? left.createdAt;
-                const rightTimestamp = right.lastOpenedAt ?? right.createdAt;
-                return rightTimestamp - leftTimestamp;
-            });
+            }));
+    },
+});
+
+export const recentSearches = query({
+    args: {
+        sessionKey: v.string(),
+        workspaceSlug: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const limit = Math.max(1, Math.min(Math.floor(args.limit ?? 10), 10));
+        const records = await ctx.db
+            .query("search_history")
+            .withIndex("by_sessionKey", (q) => q.eq("sessionKey", args.sessionKey))
+            .collect();
+
+        return sortByHistoryRecency(records
+            .filter((record) => belongsToWorkspace(record.workspaceSlug, workspaceSlug)))
+            .slice(0, limit);
     },
 });
 

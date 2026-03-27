@@ -299,7 +299,11 @@ export function useResumeSearchState() {
   const [resumeLimit, setResumeLimit] = useState(INITIAL_RESUME_LIMIT)
   const saveSearchHistory = useMutation(api.sessions.saveSearchHistory)
   const markSearchHistoryOpened = useMutation(api.sessions.markSearchHistoryOpened)
-  const searchHistoryRecords = useQuery(api.sessions.listSearchHistory, { workspaceSlug: slug })
+  const recentSearchHistoryRecords = useQuery(api.sessions.recentSearches, {
+    sessionKey,
+    workspaceSlug: slug,
+    limit: 10,
+  })
   const taxonomyClusterRecords = useQuery(api.taxonomy_clusters.list, {
     workspaceSlug: slug,
     status: 'active',
@@ -360,8 +364,8 @@ export function useResumeSearchState() {
   )
 
   const recentSearches = useMemo(
-    () => toRecentSearchItems(searchHistoryRecords).slice(0, 10),
-    [searchHistoryRecords]
+    () => toRecentSearchItems(recentSearchHistoryRecords),
+    [recentSearchHistoryRecords]
   )
   const taxonomyClusters = useMemo<TaxonomyClusterInput[]>(
     () => (taxonomyClusterRecords ?? []).map((cluster) => ({
@@ -683,7 +687,7 @@ export function useResumeSearchState() {
     results,
     selectedClusterTags,
     selectedRawTags,
-    searchHistoryLoading: searchHistoryRecords === undefined,
+    searchHistoryLoading: recentSearchHistoryRecords === undefined,
     setMinScoreFilter,
     setQueryInput,
     setSelectedCompanies,

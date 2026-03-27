@@ -9,7 +9,7 @@ import type { UrlSearchState } from '@/hooks/useUrlSearchState'
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
   api: {
     sessions: {
-      listSearchHistory: 'list-search-history-query',
+      recentSearches: 'recent-searches-query',
       saveSearchHistory: 'save-search-history-mutation',
       markSearchHistoryOpened: 'mark-search-history-opened-mutation',
     },
@@ -25,7 +25,7 @@ const {
   parsedStateMock,
   resumesMock,
   saveSearchHistoryMutationMock,
-  searchHistoryRecordsMock,
+  recentSearchHistoryRecordsMock,
   statusByIdentityMock,
   syncToUrlMock,
   taxonomyClusterRecordsMock,
@@ -39,7 +39,7 @@ const {
   parsedStateMock: {} as UrlSearchState,
   resumesMock: [] as ConvexResumeItem[],
   saveSearchHistoryMutationMock: vi.fn(async () => 'history-1'),
-  searchHistoryRecordsMock: [] as Array<Record<string, unknown>>,
+  recentSearchHistoryRecordsMock: [] as Array<Record<string, unknown>>,
   statusByIdentityMock: {} as Record<string, { status: ResumeSearchResultItem['status'] }>,
   syncToUrlMock: vi.fn(),
   taxonomyClusterRecordsMock: [] as Array<Record<string, unknown>>,
@@ -166,7 +166,7 @@ describe('useResumeSearchState', () => {
     parsedStateMock.filters = {}
 
     resumesMock.splice(0, resumesMock.length)
-    searchHistoryRecordsMock.splice?.(0, searchHistoryRecordsMock.length)
+    recentSearchHistoryRecordsMock.splice?.(0, recentSearchHistoryRecordsMock.length)
     taxonomyClusterRecordsMock.splice?.(0, taxonomyClusterRecordsMock.length)
     Object.keys(statusByIdentityMock).forEach((key) => delete statusByIdentityMock[key])
     Object.keys(blocksByIdentityMock).forEach((key) => delete blocksByIdentityMock[key])
@@ -182,8 +182,8 @@ describe('useResumeSearchState', () => {
     })
 
     useQueryMock.mockImplementation((query) => {
-      if (query === 'list-search-history-query') {
-        return searchHistoryRecordsMock
+      if (query === 'recent-searches-query') {
+        return recentSearchHistoryRecordsMock
       }
       if (query === 'taxonomy-clusters-list-query') {
         return taxonomyClusterRecordsMock
@@ -282,7 +282,7 @@ describe('useResumeSearchState', () => {
     const historyKeywords = ['Machine Tools', 'Sales']
     const expectedQuery = formatKeywordQuery(historyKeywords)
 
-    searchHistoryRecordsMock.push(
+    recentSearchHistoryRecordsMock.push(
       {
         _id: 'history-1',
         sessionKey: 'session-1',
@@ -339,6 +339,18 @@ describe('useResumeSearchState', () => {
       },
     })
     expect(result.current.queryInput).toBe(expectedQuery)
+  })
+
+  it('loads recent searches from the active session only', () => {
+    localStorage.setItem('trends.resume.search.sessionKey.dev', 'session-dev')
+
+    renderHook(() => useResumeSearchState())
+
+    expect(useQueryMock).toHaveBeenCalledWith('recent-searches-query', {
+      sessionKey: 'session-dev',
+      workspaceSlug: 'dev',
+      limit: 10,
+    })
   })
 
   it('debounces search-history persistence and caps saved resume ids to the first 50', async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { backfillWorkspaceSlugs } from '../migrations'
-import { DEFAULT_WORKSPACE_SLUG, listSearchHistory } from '../sessions'
+import { DEFAULT_WORKSPACE_SLUG, listSearchHistory, recentSearches } from '../sessions'
 
 type BackfillWorkspaceSlugsResult = {
   defaultWorkspace: string
@@ -17,6 +17,11 @@ type ConvexHandler<TArgs, TResult> = {
 
 const listSearchHistoryHandler = (listSearchHistory as unknown as ConvexHandler<
   { workspaceSlug?: string },
+  SearchHistoryRecord[]
+>)._handler
+
+const recentSearchesHandler = (recentSearches as unknown as ConvexHandler<
+  { sessionKey: string; workspaceSlug?: string; limit?: number },
   SearchHistoryRecord[]
 >)._handler
 
@@ -62,26 +67,26 @@ function createSearchHistoryDb(records: SearchHistoryRecord[]) {
     db: {
       query(tableName: string): QueryBuilder {
         if (tableName === 'search_history') {
-          const buildRecords = (workspaceSlug?: string) => {
-            const next = workspaceSlug === undefined
+          const buildRecords = (fieldName?: string, value?: string) => {
+            const next = value === undefined
               ? records
-              : records.filter((record) => record.workspaceSlug === workspaceSlug)
+              : records.filter((record) => record[fieldName as keyof SearchHistoryRecord] === value)
             return next.map((record) => ({ ...record }))
           }
 
           return {
             withIndex(indexName, apply) {
-              expect(indexName).toBe('by_workspace')
+              expect(indexName === 'by_workspace' || indexName === 'by_sessionKey').toBe(true)
               const clause = apply({
                 eq(field, value) {
                   return { field, value }
                 },
               }) as { field: string; value: string }
-              expect(clause.field).toBe('workspaceSlug')
+              expect(clause.field === 'workspaceSlug' || clause.field === 'sessionKey').toBe(true)
 
               return {
                 async collect() {
-                  return buildRecords(clause.value)
+                  return buildRecords(clause.field, clause.value)
                 },
               }
             },
@@ -198,5 +203,57 @@ describe('search history workspace rollout safety', () => {
 
     const hrResults = await listSearchHistoryHandler(ctx as never, { workspaceSlug: 'hr' })
     expect(hrResults.map((record) => record._id)).toEqual(['hr-history'])
+  })
+
+  it('returns the most recent searches for the active session only', async () => {
+    const now = Date.UTC(2026, 2, 27, 11, 0, 0)
+    const records: SearchHistoryRecord[] = [
+      {
+        _id: 'session-older',
+        sessionKey: 'session-a',
+        title: 'Older search',
+        location: 'Malaysia',
+        keywords: ['CNC'],
+        workspaceSlug: DEFAULT_WORKSPACE_SLUG,
+        createdAt: now - 5_000,
+      },
+      {
+        _id: 'session-newer',
+        sessionKey: 'session-a',
+        title: 'Newer search',
+        location: 'Malaysia',
+        keywords: ['Machine Tools'],
+        workspaceSlug: DEFAULT_WORKSPACE_SLUG,
+        createdAt: now - 4_000,
+        lastOpenedAt: now,
+      },
+      {
+        _id: 'other-session',
+        sessionKey: 'session-b',
+        title: 'Other session',
+        location: 'Malaysia',
+        keywords: ['Robotics'],
+        workspaceSlug: DEFAULT_WORKSPACE_SLUG,
+        createdAt: now - 1_000,
+      },
+      {
+        _id: 'other-workspace',
+        sessionKey: 'session-a',
+        title: 'Other workspace',
+        location: 'Shenzhen',
+        keywords: ['Sales'],
+        workspaceSlug: 'hr',
+        createdAt: now - 500,
+      },
+    ]
+    const ctx = createSearchHistoryDb(records)
+
+    const result = await recentSearchesHandler(ctx as never, {
+      sessionKey: 'session-a',
+      workspaceSlug: DEFAULT_WORKSPACE_SLUG,
+      limit: 1,
+    })
+
+    expect(result.map((record) => record._id)).toEqual(['session-newer'])
   })
 })
