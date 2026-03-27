@@ -226,6 +226,10 @@ vi.mock('@/components/search/SearchResultsList', () => ({
   ),
 }))
 
+vi.mock('@/components/AnalysisTaskMonitor', () => ({
+  AnalysisTaskMonitor: () => <div>Analysis Task Monitor</div>,
+}))
+
 function createResume(index: number): ConvexResumeItem {
   return {
     resumeId: `resume-${index}` as ConvexResumeItem['resumeId'],
@@ -292,9 +296,13 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
   return {
     activeQuery: undefined,
     activeSort: 'score',
+    analysisCandidateCount: 0,
+    analyzeResults: vi.fn(),
+    analyzingResults: false,
     applyRecentSearch: vi.fn(),
     clearFacetFilters: vi.fn(),
     clearSearch: vi.fn(),
+    disableAnalyzeResults: true,
     exportFormat: 'csv',
     exportingResults: false,
     exportResults: vi.fn(),
@@ -310,6 +318,7 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     filterCount: 0,
     filteredResults: [] as ResumeSearchResultItem[],
     hasMore: false,
+    hasActiveAnalysisTask: false,
     isLanding: true,
     loading: false,
     loadingMore: false,
@@ -483,6 +492,8 @@ describe('ResumeSearchPage', () => {
     expect(
       screen.getByText('AI Summary Summary text generated:123 loading:false'),
     ).toBeInTheDocument()
+    expect(screen.getByText('Resume AI analysis')).toBeInTheDocument()
+    expect(screen.getByText('Analysis Task Monitor')).toBeInTheDocument()
 
     expect(useAiSearchSummaryMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -598,5 +609,25 @@ describe('ResumeSearchPage', () => {
 
     expect(state.setExportFormat).toHaveBeenCalledWith('xlsx')
     expect(state.exportResults).toHaveBeenCalledTimes(1)
+  })
+
+  it('wires the search-first analyze action into the page controls', async () => {
+    const user = userEvent.setup()
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      analysisCandidateCount: 2,
+      analyzeResults: vi.fn(),
+      disableAnalyzeResults: false,
+      filteredResults: [createResult(1)],
+      hasActiveAnalysisTask: false,
+      isLanding: false,
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await user.click(screen.getByRole('button', { name: /Analyze top 2/i }))
+
+    expect(state.analyzeResults).toHaveBeenCalledTimes(1)
   })
 })

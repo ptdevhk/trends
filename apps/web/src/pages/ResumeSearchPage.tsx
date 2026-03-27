@@ -1,5 +1,7 @@
 import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
+import { RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
 import { FacetBadge } from '@/components/search/FacetBadge'
 import { FacetSidebar } from '@/components/search/FacetSidebar'
@@ -8,6 +10,7 @@ import { MobileFilterSheet } from '@/components/search/MobileFilterSheet'
 import { SearchHeader } from '@/components/search/SearchHeader'
 import { SearchHero } from '@/components/search/SearchHero'
 import { SearchResultsList } from '@/components/search/SearchResultsList'
+import { Button } from '@/components/ui/button'
 import { useAiSearchSummary } from '@/hooks/useAiSearchSummary'
 import { useIndustryKeywords } from '@/hooks/useIndustryKeywords'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
@@ -19,9 +22,13 @@ export function ResumeSearchPage() {
   const {
     activeQuery,
     activeSort,
+    analysisCandidateCount,
+    analyzeResults,
+    analyzingResults,
     applyRecentSearch,
     clearFacetFilters,
     clearSearch,
+    disableAnalyzeResults,
     exportFormat,
     exportingResults,
     exportResults,
@@ -29,6 +36,7 @@ export function ResumeSearchPage() {
     filterCount,
     filteredResults,
     hasMore,
+    hasActiveAnalysisTask,
     isLanding,
     loading,
     loadingMore,
@@ -207,6 +215,43 @@ export function ResumeSearchPage() {
             </div>
 
             <div className="min-w-0 flex-1 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border bg-white/80 px-4 py-3 shadow-sm">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-slate-900">
+                    Resume AI analysis
+                  </div>
+                  <p className="text-sm text-slate-600">
+                    Generate per-resume AI summaries and breakdowns for the top visible matches.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-10 gap-2 rounded-full px-4"
+                    disabled={disableAnalyzeResults}
+                    onClick={() => {
+                      void analyzeResults()
+                    }}
+                  >
+                    {analyzingResults || hasActiveAnalysisTask ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4" />
+                        {analysisCandidateCount > 0
+                          ? `Analyze top ${analysisCandidateCount}`
+                          : 'Analyze top results'}
+                      </>
+                    )}
+                  </Button>
+                  <AnalysisTaskMonitor />
+                </div>
+              </div>
+
               <AiSummaryPanel
                 generatedAt={aiSummary.generatedAt}
                 loading={aiSummary.loading}

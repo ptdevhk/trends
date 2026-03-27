@@ -21,6 +21,7 @@ import {
   submitResumeExportDownload,
   type ResumeExportRequestBody,
 } from '@/lib/resume-export'
+import { rawApiClient } from '@/lib/api-helpers'
 import {
   createTaxonomyClusterResolver,
   fromClusterFilterToken,
@@ -55,6 +56,15 @@ import type {
 const INITIAL_RESUME_LIMIT = 200
 const RESUME_PAGE_INCREMENT = 200
 const SESSION_KEY_PREFIX = 'trends.resume.search.sessionKey'
+const ANALYSIS_DISPATCH_COOLDOWN_MS = 2000
+
+type JobDescriptionApiResponse = {
+  success: boolean
+  item?: {
+    title?: string
+  }
+  content?: string
+}
 
 type SearchHistoryRecord = {
   _id: SearchHistoryItem['id']
@@ -501,11 +511,15 @@ export function useResumeSearchState() {
   )
   const [exportFormat, setExportFormat] = useState<ResumeExportFormat>('csv')
   const [exportingResults, setExportingResults] = useState(false)
+  const [analyzingResults, setAnalyzingResults] = useState(false)
+  const [lastAnalysisDispatchTime, setLastAnalysisDispatchTime] = useState(0)
   const [resumeLimit, setResumeLimit] = useState(INITIAL_RESUME_LIMIT)
   const saveSearchHistory = useMutation(api.sessions.saveSearchHistory)
   const markSearchHistoryOpened = useMutation(
     api.sessions.markSearchHistoryOpened,
   )
+  const dispatchAnalysis = useMutation(api.analysis_tasks.dispatch)
+  const analysisTasks = useQuery(api.analysis_tasks.list)
   const recentSearchHistoryRecords = useQuery(api.sessions.recentSearches, {
     sessionKey,
     workspaceSlug: slug,
@@ -698,6 +712,32 @@ export function useResumeSearchState() {
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
+  const analysisCandidateLimit =
+    Number(import.meta.env.VITE_ANALYSIS_TOP_N) || 10
+  const analysisCandidates = useMemo(
+    () =>
+      filteredResults
+        .filter(
+          (item) =>
+            !item.analysis &&
+            typeof item.resume.resumeId === 'string',
+        )
+        .slice(0, analysisCandidateLimit),
+    [analysisCandidateLimit, filteredResults],
+  )
+  const hasActiveAnalysisTask = useMemo(
+    () =>
+      (analysisTasks ?? []).some(
+        (task) => task.status === 'pending' || task.status === 'processing',
+      ),
+    [analysisTasks],
+  )
+  const disableAnalyzeResults =
+    isLanding ||
+    filteredResults.length === 0 ||
+    analyzingResults ||
+    hasActiveAnalysisTask ||
+    (!parsedState.jobDescriptionId && analysisKeywords.length === 0)
   const filterCount =
     parsedState.selectedTags.length +
     parsedState.selectedCompanies.length +
@@ -1051,12 +1091,92 @@ export function useResumeSearchState() {
     }
   }, [apiBaseUrl, exportFormat, filteredResults])
 
+  const analyzeResults = useCallback(async () => {
+    if (filteredResults.length === 0) {
+      return
+    }
+
+    if (hasActiveAnalysisTask) {
+      toast.info('Please wait for current analysis to complete.')
+      return
+    }
+
+    const now = Date.now()
+    if (now - lastAnalysisDispatchTime < ANALYSIS_DISPATCH_COOLDOWN_MS) {
+      toast.info('Please wait for current analysis to complete.')
+      return
+    }
+
+    if (analysisCandidates.length === 0) {
+      toast.info('No new candidates to analyze among top matches.')
+      return
+    }
+
+    setAnalyzingResults(true)
+    try {
+      const resumeIds = analysisCandidates.map((item) => item.resume.resumeId)
+      const normalizedLocation = normalizeOptionalString(parsedState.location)
+      const keywords =
+        analysisKeywords.length > 0 ? analysisKeywords : undefined
+      let jobDescriptionTitle: string | undefined
+      let jobDescriptionContent: string | undefined
+
+      if (parsedState.jobDescriptionId) {
+        try {
+          const { data } = await rawApiClient.GET<JobDescriptionApiResponse>(
+            `/api/job-descriptions/${parsedState.jobDescriptionId}`,
+          )
+          if (data?.success) {
+            jobDescriptionTitle = normalizeOptionalString(data.item?.title)
+            jobDescriptionContent = normalizeOptionalString(data.content)
+          }
+        } catch (error) {
+          console.error('Failed to fetch JD content for analysis dispatch', error)
+        }
+      }
+
+      await dispatchAnalysis({
+        ...(parsedState.jobDescriptionId
+          ? { jobDescriptionId: parsedState.jobDescriptionId }
+          : {}),
+        ...(jobDescriptionTitle ? { jobDescriptionTitle } : {}),
+        ...(jobDescriptionContent ? { jobDescriptionContent } : {}),
+        ...(keywords ? { keywords } : {}),
+        ...(normalizedLocation ? { location: normalizedLocation } : {}),
+        promptVersion: currentPromptVersion,
+        resumeIds,
+      })
+
+      setLastAnalysisDispatchTime(Date.now())
+      toast.success(`Analyzing top ${resumeIds.length} candidates...`)
+    } catch (error) {
+      console.error('Failed to dispatch search analysis task', error)
+      toast.error('Failed to start AI analysis. Please try again.')
+    } finally {
+      setAnalyzingResults(false)
+    }
+  }, [
+    analysisCandidates,
+    analysisKeywords,
+    currentPromptVersion,
+    dispatchAnalysis,
+    filteredResults.length,
+    hasActiveAnalysisTask,
+    lastAnalysisDispatchTime,
+    parsedState.jobDescriptionId,
+    parsedState.location,
+  ])
+
   return {
     activeQuery,
     activeSort,
+    analysisCandidateCount: analysisCandidates.length,
+    analyzeResults,
     applyRecentSearch,
+    analyzingResults,
     clearFacetFilters,
     clearSearch,
+    disableAnalyzeResults,
     exportFormat,
     exportingResults,
     exportResults,
@@ -1064,6 +1184,7 @@ export function useResumeSearchState() {
     filterCount,
     filteredResults,
     hasMore,
+    hasActiveAnalysisTask,
     isLanding,
     loading,
     loadingMore,
