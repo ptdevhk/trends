@@ -57,6 +57,7 @@ function buildConvexResumeRecord(
   resumeId: string,
   overrides: {
     name?: string;
+    location?: string;
     source?: string;
     primaryRuleScore?: number;
     ingestData?: Record<string, unknown>;
@@ -68,7 +69,7 @@ function buildConvexResumeRecord(
     primaryRuleScore: overrides.primaryRuleScore ?? 0,
     content: {
       name: overrides.name ?? resumeId,
-      location: "东莞",
+      location: overrides.location ?? "东莞",
       experience: "5 years",
       education: "Bachelor",
       jobIntention: "Sales Engineer",
@@ -84,6 +85,7 @@ function buildConvexExportResumeRecord(
   resumeId: string,
   overrides: {
     name?: string;
+    location?: string;
     source?: string;
     ingestData?: Record<string, unknown>;
   } = {}
@@ -92,7 +94,7 @@ function buildConvexExportResumeRecord(
     resumeId,
     resume: {
       name: overrides.name ?? resumeId,
-      location: "东莞",
+      location: overrides.location ?? "东莞",
       experience: "5 years",
       education: "Bachelor",
       jobIntention: "Sales Engineer",
@@ -673,24 +675,34 @@ describe("resume routes", () => {
     }));
   });
 
-  it("widens the convex fetch window when score sorting falls back to local resume filters", async () => {
+  it("pages score-sorted convex results through filtered match storage when local resume filters are present", async () => {
     const calls: ConvexCall[] = [];
-    const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
+    const getMatchesPageSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesPageForJob")
+      .mockReturnValue({
+        matches: [
+          buildStoredMatch("resume-live-1", { id: 1, score: 96 }),
+          buildStoredMatch("resume-live-2", { id: 2, score: 90 }),
+          buildStoredMatch("resume-live-3", { id: 3, score: 81 }),
+        ],
+        total: 3,
+      });
     const getMatchesByResumeIdsSpy = vi
       .spyOn(MatchStorage.prototype, "getMatchesByResumeIds")
-      .mockReturnValue([
-        buildStoredMatch("resume-live-3", { id: 3, score: 96 }),
-        buildStoredMatch("resume-live-1", { id: 1, score: 81 }),
-      ]);
+      .mockReturnValue([]);
 
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:listWithIngestData") {
+      if (call.pathName === "resumes:getByIdsForExport") {
         return convexSuccess([
-          buildConvexResumeRecord("resume-live-1", { name: "Alice" }),
-          buildConvexResumeRecord("resume-live-3", { name: "Carla" }),
+          buildConvexExportResumeRecord("resume-live-3", { name: "Carla" }),
+          buildConvexExportResumeRecord("resume-live-2", {
+            name: "Bob",
+            location: "深圳",
+          }),
+          buildConvexExportResumeRecord("resume-live-1", { name: "Alice" }),
         ]);
       }
 
@@ -698,18 +710,36 @@ describe("resume routes", () => {
     });
 
     const app = createApp();
-    const response = await app.request("/api/resumes?source=convex&limit=2&sortBy=score&jobDescriptionId=jd-1&locations=%E4%B8%9C%E8%8E%9E");
+    const response = await app.request(
+      "/api/resumes?source=convex&limit=1&offset=1&sortBy=score&jobDescriptionId=jd-1&locations=%E4%B8%9C%E8%8E%9E"
+    );
 
     expect(response.status).toBe(200);
     const payload = await response.json();
     expect(payload.success).toBe(true);
-    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Alice"]);
-    expect(getMatchesPageSpy).not.toHaveBeenCalled();
-    expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-3"], "jd-1");
-    expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:listWithIngestData",
-      args: expect.objectContaining({ limit: 250, jobDescriptionId: "jd-1" }),
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 2,
+      returned: 1,
+      source: "convex",
     }));
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla"]);
+    expect(getMatchesPageSpy).toHaveBeenCalledWith(expect.objectContaining({
+      jobDescriptionId: "jd-1",
+      limit: 250,
+      offset: 0,
+      sortOrder: "desc",
+    }));
+    expect(getMatchesByResumeIdsSpy).not.toHaveBeenCalled();
+    expect(calls).toEqual([
+      expect.objectContaining({
+        pathName: "resumes:getByIdsForExport",
+        args: expect.objectContaining({
+          resumeIds: ["resume-live-1", "resume-live-2", "resume-live-3"],
+        }),
+      }),
+    ]);
+    expect(calls.some((call) => call.pathName === "resumes:listWithIngestData")).toBe(false);
+    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
   });
 
   it("widens the convex fetch window when score-sorted keyword searches cannot use match-storage pagination", async () => {
