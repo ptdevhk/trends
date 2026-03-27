@@ -715,6 +715,64 @@ describe('useResumeSearchState', () => {
     })
   })
 
+  it('toggles status filters while preserving the active search context', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: ['cluster:manufacturing-systems'],
+      selectedCompanies: ['FANUC'],
+      selectedExperienceLevel: 'senior',
+      filters: {
+        minExperience: 5,
+        education: ['Bachelor'],
+        status: ['contacted'],
+        minMatchScore: 80,
+      },
+    }))
+
+    const { result } = renderHook(() => useResumeSearchState())
+    const baseSyncedState = {
+      shareSessionId: undefined,
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: ['cluster:manufacturing-systems'],
+      selectedCompanies: ['FANUC'],
+      selectedExperienceLevel: 'senior',
+      filters: {
+        minExperience: 5,
+        education: ['Bachelor'],
+        minMatchScore: 80,
+      },
+    }
+
+    act(() => {
+      result.current.toggleStatus('contacted')
+      result.current.toggleStatus('offer')
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(1, {
+      ...baseSyncedState,
+      filters: {
+        ...baseSyncedState.filters,
+        status: [],
+      },
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(2, {
+      ...baseSyncedState,
+      filters: {
+        ...baseSyncedState.filters,
+        status: ['contacted', 'offer'],
+      },
+    })
+  })
+
   it('only grows the resume window when more results are available and not already loading more', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
