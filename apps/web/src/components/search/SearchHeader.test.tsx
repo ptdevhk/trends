@@ -6,13 +6,21 @@ import type { ResumeSearchRecentItem } from '@/components/search/search-types'
 
 vi.mock('@/components/search/GoogleSearchBar', () => ({
   GoogleSearchBar: ({
+    onApplyExtractedKeywords,
+    onChange,
+    onClear,
     compact,
     loading,
+    onSubmit,
     recentSearches,
     value,
   }: {
+    onApplyExtractedKeywords: (keywords: string[]) => void
+    onChange: (value: string) => void
+    onClear: () => void
     compact?: boolean
     loading?: boolean
+    onSubmit: (value?: string) => void
     recentSearches: ResumeSearchRecentItem[]
     value: string
   }) => (
@@ -20,6 +28,18 @@ vi.mock('@/components/search/GoogleSearchBar', () => ({
       <div>
         Search Header Bar {compact ? 'compact' : 'full'} {value} {loading ? 'loading' : 'idle'} {recentSearches.length}
       </div>
+      <button type="button" onClick={() => onChange('changed from header bar')}>
+        Change from header bar
+      </button>
+      <button type="button" onClick={onClear}>
+        Clear from header bar
+      </button>
+      <button type="button" onClick={() => onApplyExtractedKeywords(['servo', 'automation'])}>
+        Extract from header bar
+      </button>
+      <button type="button" onClick={() => onSubmit('submitted from header')}>
+        Submit from header bar
+      </button>
     </div>
   ),
 }))
@@ -92,5 +112,63 @@ describe('SearchHeader', () => {
     )
 
     expect(screen.getByText('3 results')).toBeInTheDocument()
+  })
+
+  it('forwards header search-bar callbacks to the parent handlers', async () => {
+    const user = userEvent.setup()
+    const onApplyExtractedKeywords = vi.fn()
+    const onChangeQuery = vi.fn()
+    const onClearQuery = vi.fn()
+    const onSubmitQuery = vi.fn()
+
+    render(
+      <SearchHeader
+        activeResultCount={42}
+        loading
+        queryInput="servo automation"
+        recentSearches={[buildRecentSearch()]}
+        sortValue="relevance"
+        onApplyRecentSearch={vi.fn()}
+        onApplyExtractedKeywords={onApplyExtractedKeywords}
+        onChangeQuery={onChangeQuery}
+        onClearQuery={onClearQuery}
+        onSubmitQuery={onSubmitQuery}
+        onSortChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Search Header Bar compact servo automation loading 1')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Change from header bar' }))
+    await user.click(screen.getByRole('button', { name: 'Clear from header bar' }))
+    await user.click(screen.getByRole('button', { name: 'Extract from header bar' }))
+    await user.click(screen.getByRole('button', { name: 'Submit from header bar' }))
+
+    expect(onChangeQuery).toHaveBeenCalledWith('changed from header bar')
+    expect(onClearQuery).toHaveBeenCalledTimes(1)
+    expect(onApplyExtractedKeywords).toHaveBeenCalledWith(['servo', 'automation'])
+    expect(onSubmitQuery).toHaveBeenCalledWith('submitted from header')
+  })
+
+  it('omits the location and job description badges when that metadata is absent', () => {
+    render(
+      <SearchHeader
+        activeQuery="machine tools"
+        activeResultCount={7}
+        queryInput="machine tools"
+        recentSearches={[]}
+        sortValue="relevance"
+        onApplyRecentSearch={vi.fn()}
+        onApplyExtractedKeywords={vi.fn()}
+        onChangeQuery={vi.fn()}
+        onClearQuery={vi.fn()}
+        onSubmitQuery={vi.fn()}
+        onSortChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('7 results for "machine tools"')).toBeInTheDocument()
+    expect(screen.queryByText('Malaysia')).not.toBeInTheDocument()
+    expect(screen.queryByText(/JD /)).not.toBeInTheDocument()
   })
 })
