@@ -58,6 +58,7 @@ function buildConvexResumeRecord(
   overrides: {
     name?: string;
     location?: string;
+    identityKey?: string;
     source?: string;
     primaryRuleScore?: number;
     ingestData?: Record<string, unknown>;
@@ -65,6 +66,7 @@ function buildConvexResumeRecord(
 ) {
   return {
     _id: resumeId,
+    identityKey: overrides.identityKey,
     source: overrides.source ?? "seek",
     primaryRuleScore: overrides.primaryRuleScore ?? 0,
     content: {
@@ -940,6 +942,184 @@ describe("resume routes", () => {
       }),
     }));
     expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansion")).toBe(false);
+  });
+
+  it("keeps the best-scoring duplicate identity when oversized keyword scans merge exact cursor pages", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
+    const getMatchesByResumeIdsSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesByResumeIds")
+      .mockImplementation((resumeIds) => {
+        const ordered = Array.isArray(resumeIds) ? resumeIds : [];
+        return ordered.flatMap((resumeId) => {
+          if (resumeId === "resume-live-1") {
+            return [buildStoredMatch("resume-live-1", { id: 1, score: 70 })];
+          }
+          if (resumeId === "resume-live-2") {
+            return [buildStoredMatch("resume-live-2", { id: 2, score: 95 })];
+          }
+          if (resumeId === "resume-live-3") {
+            return [buildStoredMatch("resume-live-3", { id: 3, score: 81 })];
+          }
+          return [];
+        });
+      });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+        return convexSuccess({
+          expansion: {
+            original: "cnc sales",
+            expanded: ["cnc", "sales"],
+            groups: [
+              { original: "cnc", variants: ["cnc"] },
+              { original: "sales", variants: ["sales"] },
+            ],
+            mode: "AND",
+          },
+          total: 2501,
+          results: [
+            {
+              resume: buildConvexResumeRecord("resume-live-1", {
+                name: "Alice Older",
+                identityKey: "dup-1",
+                primaryRuleScore: 99,
+              }),
+              provenance: [{ term: "sales", source: "searchText" }],
+            },
+          ],
+        });
+      }
+
+      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+        return convexSuccess({
+          page: call.args.paginationOpts && isRecord(call.args.paginationOpts) && call.args.paginationOpts.cursor === "scan-2"
+            ? [
+                {
+                  resume: buildConvexResumeRecord("resume-live-2", {
+                    name: "Alice Better",
+                    identityKey: "dup-1",
+                    primaryRuleScore: 10,
+                  }),
+                  provenance: [{ term: "cnc", source: "searchText" }],
+                },
+                {
+                  resume: buildConvexResumeRecord("resume-live-3", {
+                    name: "Carla",
+                    identityKey: "dup-2",
+                    primaryRuleScore: 40,
+                  }),
+                  provenance: [{ term: "cnc", source: "searchText" }],
+                },
+              ]
+            : [
+                {
+                  resume: buildConvexResumeRecord("resume-live-1", {
+                    name: "Alice Older",
+                    identityKey: "dup-1",
+                    primaryRuleScore: 99,
+                  }),
+                  provenance: [{ term: "sales", source: "searchText" }],
+                },
+              ],
+          continueCursor: call.args.paginationOpts && isRecord(call.args.paginationOpts) && call.args.paginationOpts.cursor === "scan-2"
+            ? ""
+            : "scan-2",
+          isDone: Boolean(call.args.paginationOpts && isRecord(call.args.paginationOpts) && call.args.paginationOpts.cursor === "scan-2"),
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes?source=convex&limit=2&sortBy=score&jobDescriptionId=jd-1&q=cnc%20sales");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 2,
+      returned: 2,
+      source: "convex",
+    }));
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Alice Better", "Carla"]);
+    expect(getMatchesPageSpy).not.toHaveBeenCalled();
+    expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-2", "resume-live-3"], "jd-1");
+    expect(calls.some((call) => call.pathName === "resumes:searchWithTagExpansionScanPage")).toBe(true);
+  });
+
+  it("keeps explicit non-score keyword sorts when match filters require keyword scan pagination", async () => {
+    const calls: ConvexCall[] = [];
+    const getMatchesPageSpy = vi.spyOn(MatchStorage.prototype, "getMatchesPageForJob");
+    const getMatchesByResumeIdsSpy = vi
+      .spyOn(MatchStorage.prototype, "getMatchesByResumeIds")
+      .mockImplementation((resumeIds) => {
+        const ordered = Array.isArray(resumeIds) ? resumeIds : [];
+        return ordered.flatMap((resumeId) => {
+          if (resumeId === "resume-live-1") {
+            return [buildStoredMatch("resume-live-1", { id: 1, score: 88 })];
+          }
+          if (resumeId === "resume-live-2") {
+            return [buildStoredMatch("resume-live-2", { id: 2, score: 74 })];
+          }
+          if (resumeId === "resume-live-3") {
+            return [buildStoredMatch("resume-live-3", { id: 3, score: 91 })];
+          }
+          return [];
+        });
+      });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+        return convexSuccess({
+          expansion: {
+            original: "cnc sales",
+            expanded: ["cnc", "sales"],
+            groups: [
+              { original: "cnc", variants: ["cnc"] },
+              { original: "sales", variants: ["sales"] },
+            ],
+            mode: "AND",
+          },
+          total: 3,
+          results: [
+            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice", location: "东莞" }), provenance: [{ term: "sales", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-2", { name: "Bob", location: "东莞", primaryRuleScore: 10 }), provenance: [{ term: "cnc", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla", location: "东莞" }), provenance: [{ term: "cnc", source: "searchText" }] },
+          ],
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request(
+      "/api/resumes?source=convex&limit=2&jobDescriptionId=jd-1&q=cnc%20sales&minMatchScore=70&sortBy=name&sortOrder=desc"
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.success).toBe(true);
+    expect(payload.summary).toEqual(expect.objectContaining({
+      total: 3,
+      returned: 2,
+      source: "convex",
+    }));
+    expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Bob"]);
+    expect(getMatchesPageSpy).not.toHaveBeenCalled();
+    expect(getMatchesByResumeIdsSpy).toHaveBeenCalledWith(["resume-live-1", "resume-live-2", "resume-live-3"], "jd-1");
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:searchWithTagExpansionPage",
+      args: expect.objectContaining({ limit: 250, offset: 0, jobDescriptionId: "jd-1" }),
+    }));
   });
 
   it("pages score-sorted convex results through match storage and preserves explicit-id order", async () => {
