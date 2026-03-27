@@ -1,6 +1,6 @@
 ---
-version: 7
-updated_at: '2026-03-13'
+version: 8
+updated_at: '2026-03-27'
 description: >
   简历筛选技能知识库（zh-Hans 主文件）。
   用于背景计算代理的确定性匹配、同义词扩展与预评分。
@@ -17,15 +17,15 @@ description: >
 
 ### machinery
 - displayName: 机械
-- keywords: 机床, 车床, 加工中心, 机械, 设备, cnc, 数控
+- keywords: 机床, 车床, 加工中心, 机械, 设备, cnc, 数控, machine tools, machining center, precision machinery, precision machining, cnc machine
 
 ### sales
 - displayName: 销售
-- keywords: 销售, 业务, 销售工程师, 业务拓展, sales, account, key account, bd, business development
+- keywords: 销售, 业务, 销售工程师, 销售经理, 业务拓展, 大客户, 渠道, sales, account, key account, bd, business development, sales engineer, sales manager, account manager, business development manager, key account manager, channel sales, channel manager
 
 ### metrology
 - displayName: 测量
-- keywords: 测量, 三维扫描, 3d, cmm, metrology, scan
+- keywords: 测量, 三维扫描, 3d, cmm, metrology, measurement, 3d scanning, coordinate measuring machine, quality inspection, scan
 
 ### software
 - displayName: 软件
@@ -35,20 +35,24 @@ description: >
 
 将变体术语映射到标准形式，用于搜索扩展与匹配归一化。
 
-- 机床: 机械设备, 加工设备
+- 机床: 机械设备, 加工设备, machine tools, cnc machine, cnc machines, precision machinery
 - 车床: CNC车床, 数控车床, cnc lathe
-- 加工中心: machining center, machining-center, 加工设备, machine tool
+- 加工中心: machining center, machining-center, vertical machining center, horizontal machining center, 加工设备, machine tool, precision machining
 - 五轴: 5-axis, 五轴联动
 - 夹具: 治具, fixture
 - 数控: CNC, Computer Numerical Control, 数控加工
 - 销售: 业务, 商务, 销售员
-- 销售工程师: sales engineer, 售前销售, 技术销售
-- 大客户: 渠道客户, key account, 关键客户
-- 机床销售: 车床销售, cnc销售, 数控机床销售
+- 销售工程师: sales engineer, technical sales, technical sales engineer, 售前销售, 技术销售
+- 销售经理: sales manager, regional sales manager, territory sales manager
+- 业务拓展: business development, business development manager, bd manager
+- 大客户: 渠道客户, key account, key account manager, account manager, 关键客户
+- 渠道: channel sales, channel manager, channel partner, channel partners, distributor, distributors, dealer, dealers
+- 机床销售: 车床销售, cnc销售, 数控机床销售, machine tool sales, cnc machine sales
+- 应用工程师: application engineer, applications engineer
 - 机器人: robot, 工业机器人
-- 测量: 计量, measurement, 质量检测
-- 三维扫描: 3D扫描, 3d-scan, 三维测量
-- CMM: 三坐标, 三坐标测量机
+- 测量: 计量, measurement, metrology, quality inspection, dimensional inspection, 质量检测
+- 三维扫描: 3D扫描, 3d-scan, 3d scanning, 3d scanner, 三维测量
+- CMM: 三坐标, 三坐标测量机, coordinate measuring machine
 - 软件: software, 程序, 应用
 
 ## 经验等级信号
@@ -149,10 +153,10 @@ description: >
 机械加工场景包含 CNC（Computer Numerical Control，计算机数控）机床、加工中心、车床与五轴系统。核心品牌包括 FANUC、SIEMENS、STAR、BROTHER 与 MITSUBISHI，相关数控信号统一归入 machinery 领域。
 
 ### 销售与业务拓展
-制造业设备 B2B 销售通常需要设备技术理解、客户关系管理与渠道开发能力。优先关注销售工程师、大客户与业务拓展等复合角色表达，避免将泛化 engineer 词汇直接视为销售信号。
+制造业设备 B2B 销售通常需要设备技术理解、客户关系管理与渠道开发能力。优先关注销售工程师、销售经理、大客户、渠道销售与业务拓展等复合角色表达，覆盖常见英文头衔如 sales engineer、account manager、business development manager，避免将泛化 engineer 词汇直接视为销售信号。
 
 ### 测量与质量
-精密测量通常依赖 CMM（三坐标测量机）、3D 扫描与质量检测流程，是制造业 QA/QC 的关键环节。
+精密测量通常依赖 CMM（三坐标测量机）、3D 扫描与质量检测流程，是制造业 QA/QC 的关键环节；英文 Seek 简历中常见的 metrology、quality inspection 与 coordinate measuring machine 也应归入同一测量语义。
 
 ## 排除模式
 

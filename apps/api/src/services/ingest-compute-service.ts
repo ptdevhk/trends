@@ -363,7 +363,24 @@ const INDUSTRY_DB_V2_CONTEXT_WEIGHTS: Record<Exclude<BrandContext, "employer">, 
   general: 0.3,
 };
 const DEFAULT_ROLE_SIGNAL_LIBRARY: Record<string, string[]> = {
-  sales: ["销售", "业务开发", "大客户", "渠道", "销售经理", "销售工程师", "sales", "account"],
+  sales: [
+    "销售",
+    "业务开发",
+    "大客户",
+    "渠道",
+    "销售经理",
+    "销售工程师",
+    "sales",
+    "account",
+    "sales engineer",
+    "sales manager",
+    "account manager",
+    "key account manager",
+    "business development",
+    "business development manager",
+    "channel sales",
+    "channel manager",
+  ],
   engineer: ["工程师", "设计", "研发", "开发", "编程", "调试", "维修", "技术", "engineer", "developer", "design"],
 };
 const ROLE_SIGNAL_MATCH_WEIGHTS = {

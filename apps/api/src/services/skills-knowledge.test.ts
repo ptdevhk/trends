@@ -18,19 +18,22 @@ description: Test skills knowledge file
 
 ### machinery
 - displayName: Machinery
-- keywords: 机床, 车床, lathe, machining, cnc, 数控, fanuc, star
+- keywords: 机床, 车床, lathe, machining, cnc, 数控, fanuc, star, machine tools, precision machinery
 
 ### sales
 - displayName: Sales
-- keywords: 销售, 客户, 销售工程师, sales, account, key account
+- keywords: 销售, 客户, 销售工程师, sales, account, key account, sales engineer, business development manager, account manager
 
 ## Synonym Table
 
-- 机床: 机械设备, 加工设备
+- 机床: 机械设备, 加工设备, machine tools, cnc machines
 - 车床: CNC车床, 数控车床, cnc lathe
 - 数控: CNC, Computer Numerical Control
 - 销售: 业务, 商务
 - 销售工程师: sales engineer, 技术销售
+- 业务拓展: business development, business development manager, bd manager
+- 大客户: 渠道客户, key account, key account manager, account manager
+- 渠道: channel sales, distributor, dealer
 - 机床销售: 车床销售, cnc销售
 - 销售岗位: 机床销售
 - 哈斯: 哈斯机床
@@ -168,6 +171,16 @@ describe("SkillsKnowledgeService", () => {
       expect(expandedFromEnglish).toContain("cnc");
       expect(expandedFromEnglish).toContain("数控");
 
+      const expandedBusinessDevelopment = service.expandQueryWithSynonyms(["Business Development Manager"]);
+      expect(expandedBusinessDevelopment).toContain("business development manager");
+      expect(expandedBusinessDevelopment).toContain("business development");
+      expect(expandedBusinessDevelopment).toContain("业务拓展");
+
+      const expandedManufacturing = service.expandQueryWithSynonyms(["machine tools"]);
+      expect(expandedManufacturing).toContain("machine tools");
+      expect(expandedManufacturing).toContain("机床");
+      expect(expandedManufacturing).toContain("cnc machines");
+
       const expandedWithDeduping = service.expandQueryWithSynonyms(["CNC", "cnc", "a"]);
       expect(expandedWithDeduping[0]).toBe("cnc");
       expect(expandedWithDeduping).not.toContain("a");
@@ -189,6 +202,8 @@ describe("SkillsKnowledgeService", () => {
       expect(vocab.has("cnc")).toBe(true);
       expect(vocab.has("销售工程师")).toBe(true);
       expect(vocab.has("销售")).toBe(true);
+      expect(vocab.has("business development manager")).toBe(true);
+      expect(vocab.has("machine tools")).toBe(true);
 
       // Synonym variants
       expect(vocab.has("机械设备")).toBe(true);

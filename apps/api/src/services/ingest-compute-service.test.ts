@@ -460,6 +460,39 @@ describe("IngestComputeService", () => {
     ]));
   });
 
+  it("should recognize English business-development sales titles in work history", () => {
+    const result = service.computeOne("resume-bd-manager", {
+      data: [
+        {
+          ...SAMPLE_RESUME_ENGINEER.data[0],
+          jobIntention: "Business Development Manager",
+          selfIntro: "Focused on machine tools channel growth in Malaysia.",
+          workHistory: [
+            {
+              raw: "2021-01~2024-12 Acme Precision Sdn Bhd Business Development Manager",
+              companyName: "Acme Precision Sdn Bhd",
+              jobTitle: "Business Development Manager",
+              description: "Managed channel sales and key account manager coverage for machine tools distributors",
+              startDate: "2021-01",
+              endDate: "2024-12",
+            },
+          ],
+        },
+      ],
+    });
+
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+
+    expect(salesRole).toBeDefined();
+    expect(salesRole?.matchedSignals).toEqual(expect.arrayContaining([
+      "business development",
+      "business development manager",
+      "channel sales",
+      "key account manager",
+    ]));
+    expect(salesRole?.years).toBeGreaterThan(3);
+  });
+
   it("should build tag envelope with confidence and provenance", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
