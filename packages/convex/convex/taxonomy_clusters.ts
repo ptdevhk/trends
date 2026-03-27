@@ -106,25 +106,31 @@ export const upsert = mutation({
         const slug = slugify(args.slug || args.name);
         const tags = normalizeStringList(args.tags);
         const parentSlug = normalizeOptionalString(args.parentSlug);
+        const normalizedParentSlug = parentSlug ? slugify(parentSlug) : undefined;
         const updatedAt = Date.now();
 
         if (!name || !slug || tags.length === 0) {
             throw new Error("Missing taxonomy cluster fields");
         }
 
-        const existingBySlug = await ctx.db
-            .query("taxonomy_clusters")
-            .withIndex("by_workspace_slug", (q) => q.eq("workspaceSlug", workspaceSlug).eq("slug", slug))
-            .unique();
-        const existing = args.id
-            ? await ctx.db.get(args.id)
-            : existingBySlug;
+        const existingById = args.id ? await ctx.db.get(args.id) : null;
+        if (existingById && existingById.workspaceSlug !== workspaceSlug) {
+            throw new Error("Taxonomy cluster not found in workspace");
+        }
+
+        const existingBySlug = existingById
+            ? null
+            : await ctx.db
+                .query("taxonomy_clusters")
+                .withIndex("by_workspace_slug", (q) => q.eq("workspaceSlug", workspaceSlug).eq("slug", slug))
+                .unique();
+        const existing = existingById ?? existingBySlug;
 
         const patch = {
             workspaceSlug,
             name,
             slug,
-            parentSlug,
+            parentSlug: normalizedParentSlug,
             tags,
             source: args.source,
             confidence: args.confidence,
