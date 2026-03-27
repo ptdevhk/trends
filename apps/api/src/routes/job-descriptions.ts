@@ -61,6 +61,11 @@ const ExtractKeywordsResponseSchema = z.object({
   model: z.string(),
 });
 
+const ErrorResponseSchema = z.object({
+  success: z.literal(false),
+  error: z.string(),
+});
+
 type ConvexJobDescriptionRecord = {
   _id?: unknown;
   title?: unknown;
@@ -394,18 +399,30 @@ const extractKeywordsRoute = createRoute({
       content: { "application/json": { schema: ExtractKeywordsResponseSchema } },
       description: "Extracted keywords",
     },
+    500: {
+      content: { "application/json": { schema: ErrorResponseSchema } },
+      description: "Keyword extraction failed",
+    },
   },
 });
 
 app.openapi(extractKeywordsRoute, async (c) => {
   const { text } = c.req.valid("json");
-  const extracted = await jdKeywordExtractionService.extractKeywords({ text });
+  try {
+    const extracted = await jdKeywordExtractionService.extractKeywords({ text });
 
-  return c.json({
-    success: true as const,
-    keywords: extracted.keywords,
-    model: extracted.model,
-  }, 200);
+    return c.json({
+      success: true as const,
+      keywords: extracted.keywords,
+      model: extracted.model,
+    }, 200);
+  } catch (error) {
+    console.error("Failed to extract job description keywords", error);
+    return c.json({
+      success: false as const,
+      error: "Failed to extract keywords from the job description",
+    }, 500);
+  }
 });
 
 // ============================================================

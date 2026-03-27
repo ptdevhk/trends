@@ -2560,6 +2560,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Keyword extraction failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
             };
         };
         delete?: never;

@@ -74,4 +74,29 @@ describe("job description routes", () => {
     expect(response.status).toBe(400)
     expect(extractKeywordsMock).not.toHaveBeenCalled()
   })
+
+  it("returns a stable json error when keyword extraction fails", async () => {
+    extractKeywordsMock.mockRejectedValue(new Error("AI provider unavailable"))
+
+    const app = createTestApp()
+    const response = await app.request("/api/job-descriptions/extract-keywords", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Slug": "dev",
+      },
+      body: JSON.stringify({
+        text: "Machine tools sales lead for CNC capital equipment across Malaysia and Singapore with channel and distributor ownership.",
+      }),
+    })
+
+    expect(response.status).toBe(500)
+    expect(extractKeywordsMock).toHaveBeenCalledWith({
+      text: "Machine tools sales lead for CNC capital equipment across Malaysia and Singapore with channel and distributor ownership.",
+    })
+    expect(await response.json()).toEqual({
+      success: false,
+      error: "Failed to extract keywords from the job description",
+    })
+  })
 })
