@@ -88,15 +88,24 @@ vi.mock('@/components/search/SearchHeader', () => ({
   SearchHeader: ({
     activeQuery,
     activeResultCount,
+    exportFormat,
+    exportingResults,
     onApplyExtractedKeywords,
+    onExportFormatChange,
+    onExportResults,
   }: {
     activeQuery?: string
     activeResultCount: number
+    exportFormat: 'csv' | 'xlsx'
+    exportingResults?: boolean
     onApplyExtractedKeywords: (keywords: string[]) => void
+    onExportFormatChange: (format: 'csv' | 'xlsx') => void
+    onExportResults: () => void
   }) => (
     <div>
       <div>
-        Header {activeQuery} {activeResultCount}
+        Header {activeQuery} {activeResultCount} export:{exportFormat} exporting:
+        {String(exportingResults)}
       </div>
       <button
         type="button"
@@ -105,6 +114,12 @@ vi.mock('@/components/search/SearchHeader', () => ({
         }
       >
         Apply Header JD
+      </button>
+      <button type="button" onClick={() => onExportFormatChange('xlsx')}>
+        Change Header Export Format
+      </button>
+      <button type="button" onClick={onExportResults}>
+        Export Header Results
       </button>
     </div>
   ),
@@ -276,10 +291,13 @@ function createParsedState(
 function createResumeSearchState(overrides: Record<string, unknown> = {}) {
   return {
     activeQuery: undefined,
-    activeSort: 'relevance',
+    activeSort: 'score',
     applyRecentSearch: vi.fn(),
     clearFacetFilters: vi.fn(),
     clearSearch: vi.fn(),
+    exportFormat: 'csv',
+    exportingResults: false,
+    exportResults: vi.fn(),
     facetCounts: {
       clusters: [],
       tags: [],
@@ -302,6 +320,7 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     searchHistoryLoading: false,
     selectedClusterTags: [] as string[],
     selectedRawTags: [] as string[],
+    setExportFormat: vi.fn(),
     setMinScoreFilter: vi.fn(),
     setQueryInput: vi.fn(),
     setSelectedExperienceLevel: vi.fn(),
@@ -443,7 +462,9 @@ describe('ResumeSearchPage', () => {
     render(<ResumeSearchPage />)
 
     expect(screen.queryByText(/Landing Hero/)).not.toBeInTheDocument()
-    expect(screen.getByText('Header machine tools 2')).toBeInTheDocument()
+    expect(
+      screen.getByText('Header machine tools 2 export:csv exporting:false'),
+    ).toBeInTheDocument()
     expect(
       screen.getByText(
         'Results List 2 hasMore:false loading:false loadingMore:false expanded:none',
@@ -555,5 +576,27 @@ describe('ResumeSearchPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Load more results' }))
     expect(state.loadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('wires header export controls into the search-state actions', async () => {
+    const user = userEvent.setup()
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      filteredResults: [createResult(1)],
+      isLanding: false,
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Change Header Export Format' }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Export Header Results' }),
+    )
+
+    expect(state.setExportFormat).toHaveBeenCalledWith('xlsx')
+    expect(state.exportResults).toHaveBeenCalledTimes(1)
   })
 })

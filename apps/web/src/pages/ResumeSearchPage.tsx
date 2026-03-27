@@ -22,6 +22,9 @@ export function ResumeSearchPage() {
     applyRecentSearch,
     clearFacetFilters,
     clearSearch,
+    exportFormat,
+    exportingResults,
+    exportResults,
     facetCounts,
     filterCount,
     filteredResults,
@@ -36,6 +39,7 @@ export function ResumeSearchPage() {
     searchHistoryLoading,
     selectedClusterTags,
     selectedRawTags,
+    setExportFormat,
     setMinScoreFilter,
     setQueryInput,
     setSelectedExperienceLevel,
@@ -168,6 +172,8 @@ export function ResumeSearchPage() {
           <SearchHeader
             activeQuery={activeQuery}
             activeResultCount={filteredResults.length}
+            exportFormat={exportFormat}
+            exportingResults={exportingResults}
             jobDescriptionId={parsedState.jobDescriptionId}
             loading={loading}
             location={parsedState.location}
@@ -178,6 +184,8 @@ export function ResumeSearchPage() {
             onApplyExtractedKeywords={applyExtractedKeywords}
             onChangeQuery={setQueryInput}
             onClearQuery={clearSearch}
+            onExportFormatChange={setExportFormat}
+            onExportResults={exportResults}
             onSubmitQuery={submitSearch}
             onSortChange={setSort}
           />

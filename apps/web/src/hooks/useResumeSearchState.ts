@@ -1,6 +1,7 @@
 import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
@@ -17,6 +18,10 @@ import {
   type UrlSearchState,
 } from '@/hooks/useUrlSearchState'
 import {
+  submitResumeExportDownload,
+  type ResumeExportRequestBody,
+} from '@/lib/resume-export'
+import {
   createTaxonomyClusterResolver,
   fromClusterFilterToken,
   isClusterFilterToken,
@@ -27,7 +32,11 @@ import {
 import { toIndustryDbV2Stats } from '@/lib/resume-scoring'
 import { resolveCollectionSource } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
-import type { CandidateStatus, ResumeFilters } from '@/types/resume'
+import type {
+  CandidateStatus,
+  ResumeExportFormat,
+  ResumeFilters,
+} from '@/types/resume'
 import type {
   FacetCounts,
   ResumeSearchRecentItem,
@@ -59,6 +68,9 @@ type SearchHistoryRecord = {
   createdAt: number
   lastOpenedAt?: number
 }
+
+type ResumeExportEntryMatch =
+  NonNullable<ResumeExportRequestBody['entries'][number]['match']>
 
 function normalizeOptionalString(
   value: string | undefined,
@@ -167,7 +179,7 @@ function resolveSortValue(filters: Partial<ResumeFilters>): SearchSortValue {
     return 'newest'
   }
 
-  return 'relevance'
+  return 'score'
 }
 
 function buildUrlState(
@@ -201,8 +213,10 @@ function sortResults(
   results: ResumeSearchResultItem[],
   sortValue: SearchSortValue,
 ): ResumeSearchResultItem[] {
-  if (sortValue === 'relevance') {
-    return results
+  if (sortValue === 'score') {
+    return [...results].sort(
+      (left, right) => (right.score ?? -1) - (left.score ?? -1),
+    )
   }
 
   return [...results].sort((left, right) => {
@@ -221,6 +235,64 @@ function sortResults(
       parseExperienceYears(left.resume.experience)
     )
   })
+}
+
+function resolveExportRecommendation(
+  score: number,
+): ResumeExportEntryMatch['recommendation'] {
+  if (score >= 85) {
+    return 'strong_match'
+  }
+
+  if (score >= 70) {
+    return 'match'
+  }
+
+  if (score >= 50) {
+    return 'potential'
+  }
+
+  return 'no_match'
+}
+
+function buildSearchExportMatch(
+  item: ResumeSearchResultItem,
+): ResumeExportEntryMatch | undefined {
+  if (typeof item.score !== 'number' || !Number.isFinite(item.score)) {
+    return undefined
+  }
+
+  const analysis = item.resume.analysis
+  const matchesAiScore =
+    typeof analysis?.score === 'number' &&
+    Number.isFinite(analysis.score) &&
+    analysis.score === item.score
+
+  return {
+    score: item.score,
+    recommendation: resolveExportRecommendation(item.score),
+    scoreSource: matchesAiScore ? 'ai' : 'rule',
+    ...(matchesAiScore && analysis?.breakdown
+      ? { breakdown: analysis.breakdown }
+      : {}),
+  }
+}
+
+function buildSearchExportEntry(
+  item: ResumeSearchResultItem,
+): ResumeExportRequestBody['entries'][number] {
+  const match = buildSearchExportMatch(item)
+  const userComment = normalizeOptionalString(item.statusMeta?.notes)
+
+  return {
+    resumeId: item.key,
+    status: item.status,
+    ...(match ? { match } : {}),
+    ...(typeof item.resume.primaryRuleScore === 'number'
+      ? { ruleScore: item.resume.primaryRuleScore }
+      : {}),
+    ...(userComment ? { userComment } : {}),
+  }
 }
 
 function matchesLocalFilters(
@@ -370,6 +442,8 @@ export function useResumeSearchState() {
   const [queryInput, setQueryInput] = useState(
     () => parsedState.query ?? formatKeywordQuery(parsedState.keywords),
   )
+  const [exportFormat, setExportFormat] = useState<ResumeExportFormat>('csv')
+  const [exportingResults, setExportingResults] = useState(false)
   const [resumeLimit, setResumeLimit] = useState(INITIAL_RESUME_LIMIT)
   const saveSearchHistory = useMutation(api.sessions.saveSearchHistory)
   const markSearchHistoryOpened = useMutation(
@@ -386,6 +460,10 @@ export function useResumeSearchState() {
   })
   const { statusByIdentity } = useCandidateStatus(true)
   const { blocksByIdentity } = useCandidateBlocks(true)
+  const apiBaseUrl = useMemo(() => {
+    const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
+    return rawBaseUrl.replace(/\/api\/?$/, '')
+  }, [])
 
   useEffect(() => {
     setQueryInput(parsedState.query ?? formatKeywordQuery(parsedState.keywords))
@@ -826,7 +904,7 @@ export function useResumeSearchState() {
             : sortValue === 'experience'
               ? 'experience'
               : undefined,
-        sortOrder: sortValue === 'relevance' ? undefined : 'desc',
+        sortOrder: sortValue === 'score' ? undefined : 'desc',
       }
 
       syncToUrl(buildUrlState(parsedState, { filters: nextFilters }))
@@ -858,12 +936,42 @@ export function useResumeSearchState() {
     setResumeLimit((current) => current + RESUME_PAGE_INCREMENT)
   }, [hasMore, loadingMore])
 
+  const exportResults = useCallback(async () => {
+    if (filteredResults.length === 0) {
+      return
+    }
+
+    setExportingResults(true)
+    try {
+      const exportRequest: ResumeExportRequestBody = {
+        format: exportFormat,
+        source: 'convex',
+        entries: filteredResults.map(buildSearchExportEntry),
+      }
+
+      await submitResumeExportDownload(apiBaseUrl, exportRequest)
+      toast.info(`Started export for ${filteredResults.length} resumes`)
+    } catch (error) {
+      console.error('Failed to export search results', error)
+      const message =
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : 'Export failed. Please try again.'
+      toast.error(message)
+    } finally {
+      setExportingResults(false)
+    }
+  }, [apiBaseUrl, exportFormat, filteredResults])
+
   return {
     activeQuery,
     activeSort,
     applyRecentSearch,
     clearFacetFilters,
     clearSearch,
+    exportFormat,
+    exportingResults,
+    exportResults,
     facetCounts,
     filterCount,
     filteredResults,
@@ -879,6 +987,7 @@ export function useResumeSearchState() {
     selectedRawTags,
     searchHistoryLoading: recentSearchHistoryRecords === undefined,
     setMinScoreFilter,
+    setExportFormat,
     setQueryInput,
     setSelectedCompanies,
     setSelectedExperienceLevel,
