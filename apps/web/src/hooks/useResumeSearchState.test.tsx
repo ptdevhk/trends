@@ -440,6 +440,8 @@ describe('useResumeSearchState', () => {
         education: ['Bachelor'],
         status: ['contacted'],
         minMatchScore: 80,
+        sortBy: 'experience',
+        sortOrder: 'desc',
       },
     }))
 
@@ -463,6 +465,8 @@ describe('useResumeSearchState', () => {
         education: ['Bachelor'],
         status: ['contacted'],
         minMatchScore: 80,
+        sortBy: 'experience',
+        sortOrder: 'desc',
       },
     })
 
@@ -490,11 +494,32 @@ describe('useResumeSearchState', () => {
     })
 
     act(() => {
+      result.current.setSort('relevance')
+    })
+
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(3, {
+      shareSessionId: undefined,
+      query: 'machine tools',
+      location: 'Malaysia',
+      keywords: ['machine tools'],
+      requiredKeywords: ['CNC'],
+      jobDescriptionId: 'jd-123',
+      selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
+      selectedCompanies: ['FANUC'],
+      selectedExperienceLevel: 'senior',
+      filters: {
+        education: ['Bachelor'],
+        status: ['contacted'],
+        minMatchScore: 80,
+      },
+    })
+
+    act(() => {
       result.current.clearSearch()
     })
 
     expect(result.current.queryInput).toBe('')
-    expect(syncToUrlMock).toHaveBeenNthCalledWith(3, {
+    expect(syncToUrlMock).toHaveBeenNthCalledWith(4, {
       shareSessionId: undefined,
       query: undefined,
       location: 'Malaysia',
