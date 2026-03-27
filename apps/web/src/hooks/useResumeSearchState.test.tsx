@@ -8,16 +8,20 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
 
 const {
+  dispatchAnalysisMutationMock,
   exportDownloadMock,
   toastErrorMock,
   toastInfoMock,
+  toastSuccessMock,
 } = vi.hoisted(() => ({
+  dispatchAnalysisMutationMock: vi.fn(async () => 'analysis-task-1'),
   exportDownloadMock: vi.fn(async (apiBaseUrl: string, payload: unknown) => {
     void apiBaseUrl
     void payload
   }),
   toastErrorMock: vi.fn(),
   toastInfoMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
 }))
 
 const CURRENT_PROMPT_VERSION = getCurrentResumeAiPromptVersion()
@@ -28,6 +32,10 @@ vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
       recentSearches: 'recent-searches-query',
       saveSearchHistory: 'save-search-history-mutation',
       markSearchHistoryOpened: 'mark-search-history-opened-mutation',
+    },
+    analysis_tasks: {
+      dispatch: 'analysis-tasks-dispatch-mutation',
+      list: 'analysis-tasks-list-query',
     },
     taxonomy_clusters: {
       list: 'taxonomy-clusters-list-query',
@@ -47,6 +55,7 @@ vi.mock('sonner', () => ({
   toast: {
     error: (message: unknown) => toastErrorMock(message),
     info: (message: unknown) => toastInfoMock(message),
+    success: (message: unknown) => toastSuccessMock(message),
   },
 }))
 
@@ -58,6 +67,7 @@ const {
   resumesMock,
   saveSearchHistoryMutationMock,
   recentSearchHistoryRecordsMock,
+  analysisTasksMock,
   statusByIdentityMock,
   syncToUrlMock,
   taxonomyClusterRecordsMock,
@@ -78,6 +88,7 @@ const {
   resumesMock: [] as ConvexResumeItem[],
   saveSearchHistoryMutationMock: vi.fn(async () => 'history-1'),
   recentSearchHistoryRecordsMock: [] as Array<Record<string, unknown>>,
+  analysisTasksMock: [] as Array<Record<string, unknown>>,
   statusByIdentityMock: {} as Record<string, CandidateStatusRecord>,
   syncToUrlMock: vi.fn(),
   taxonomyClusterRecordsMock: [] as Array<Record<string, unknown>>,
@@ -221,6 +232,7 @@ describe('useResumeSearchState', () => {
 
     resumesMock.splice(0, resumesMock.length)
     recentSearchHistoryRecordsMock.splice?.(0, recentSearchHistoryRecordsMock.length)
+    analysisTasksMock.splice?.(0, analysisTasksMock.length)
     taxonomyClusterRecordsMock.splice?.(0, taxonomyClusterRecordsMock.length)
     Object.keys(statusByIdentityMock).forEach((key) => delete statusByIdentityMock[key])
     Object.keys(blocksByIdentityMock).forEach((key) => delete blocksByIdentityMock[key])
@@ -242,6 +254,9 @@ describe('useResumeSearchState', () => {
       if (query === 'recent-searches-query') {
         return recentSearchHistoryRecordsMock
       }
+      if (query === 'analysis-tasks-list-query') {
+        return analysisTasksMock
+      }
       if (query === 'taxonomy-clusters-list-query') {
         return taxonomyClusterRecordsMock
       }
@@ -255,6 +270,9 @@ describe('useResumeSearchState', () => {
       if (mutation === 'mark-search-history-opened-mutation') {
         return markSearchHistoryOpenedMutationMock
       }
+      if (mutation === 'analysis-tasks-dispatch-mutation') {
+        return dispatchAnalysisMutationMock
+      }
       return vi.fn()
     })
 
@@ -265,6 +283,7 @@ describe('useResumeSearchState', () => {
       loadingMore: convexQueryStateMock.loadingMore,
     }))
     exportDownloadMock.mockResolvedValue(undefined)
+    dispatchAnalysisMutationMock.mockResolvedValue('analysis-task-1')
   })
 
   afterEach(() => {
@@ -682,6 +701,38 @@ describe('useResumeSearchState', () => {
       },
     )
     expect(toastInfoMock).toHaveBeenCalledWith('Started export for 2 resumes')
+  })
+
+  it('dispatches analysis for top visible results without cached analysis', async () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      location: 'China',
+    }))
+
+    resumesMock.push(
+      createResume(1, { primaryRuleScore: 88 }),
+      createResume(2, { primaryRuleScore: 79 }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.analysisCandidateCount).toBe(2)
+    expect(result.current.disableAnalyzeResults).toBe(false)
+
+    await act(async () => {
+      await result.current.analyzeResults()
+    })
+
+    expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
+      keywords: ['machine tools', 'machine', 'tools'],
+      location: 'China',
+      promptVersion: CURRENT_PROMPT_VERSION,
+      resumeIds: ['resume-1', 'resume-2'],
+    })
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      'Analyzing top 2 candidates...',
+    )
   })
 
   it('clears only facet filters while preserving the active search context', () => {
