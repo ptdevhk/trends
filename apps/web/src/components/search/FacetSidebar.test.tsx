@@ -45,6 +45,38 @@ describe('FacetSidebar', () => {
     vi.clearAllMocks()
   })
 
+  it('renders bare embedded content without the desktop card wrapper', async () => {
+    const user = userEvent.setup()
+    const onClearAll = vi.fn()
+    const { container } = render(
+      <FacetSidebar
+        embedded
+        facetCounts={buildFacetCounts()}
+        selectedClusters={[]}
+        selectedCompanies={[]}
+        selectedEducation={[]}
+        selectedStatuses={[]}
+        selectedTags={[]}
+        onClearAll={onClearAll}
+        onSetExperienceLevel={vi.fn()}
+        onSetMinScore={vi.fn()}
+        onToggleCluster={vi.fn()}
+        onToggleCompany={vi.fn()}
+        onToggleEducation={vi.fn()}
+        onToggleStatus={vi.fn()}
+        onToggleTag={vi.fn()}
+      />
+    )
+
+    expect(container.firstElementChild).toHaveClass('space-y-6')
+    expect(container.firstElementChild).not.toHaveClass('rounded-[1.75rem]')
+    expect(screen.getByText('Refine the current result set without leaving the search flow.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Reset' }))
+
+    expect(onClearAll).toHaveBeenCalledTimes(1)
+  })
+
   it('forwards reset and filter toggle actions', async () => {
     const user = userEvent.setup()
     const onClearAll = vi.fn()
