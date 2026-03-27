@@ -67,6 +67,18 @@ function createResult(index: number, overrides: Partial<ResumeSearchResultItem> 
   }
 }
 
+function createDeferredResponse() {
+  let resolve!: (value: unknown) => void
+  const promise = new Promise<unknown>((innerResolve) => {
+    resolve = innerResolve
+  })
+
+  return {
+    promise,
+    resolve,
+  }
+}
+
 async function advanceDebounceWindow(milliseconds = 2000) {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(milliseconds)
@@ -305,5 +317,104 @@ describe('useAiSearchSummary', () => {
     expect(result.current.loading).toBe(false)
     expect(result.current.summary).toBeUndefined()
     expect(result.current.generatedAt).toBeUndefined()
+  })
+
+  it('clears a previous summary when the payload becomes invalid', async () => {
+    postMock.mockResolvedValueOnce({
+      data: {
+        success: true,
+        summary: 'Cached summary',
+        generatedAt: 1710000000000,
+      },
+    })
+
+    const { result, rerender } = renderHook(
+      (props: Parameters<typeof useAiSearchSummary>[0]) => useAiSearchSummary(props),
+      {
+        initialProps: {
+          query: 'machine tools',
+          results: [createResult(1)],
+          selectedCompanies: [],
+          selectedTags: [],
+        },
+      }
+    )
+
+    await advanceDebounceWindow()
+
+    expect(result.current.summary).toBe('Cached summary')
+    expect(result.current.generatedAt).toBe(1710000000000)
+
+    rerender({
+      query: '   ',
+      results: [createResult(1)],
+      selectedCompanies: [],
+      selectedTags: [],
+    })
+
+    expect(result.current.loading).toBe(false)
+    expect(result.current.summary).toBeUndefined()
+    expect(result.current.generatedAt).toBeUndefined()
+    expect(postMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores stale in-flight responses after the payload changes', async () => {
+    const staleResponse = createDeferredResponse()
+    postMock.mockReturnValueOnce(staleResponse.promise).mockResolvedValueOnce({
+      data: {
+        success: true,
+        summary: 'Fresh summary',
+        generatedAt: 1710000300000,
+      },
+    })
+
+    const { result, rerender } = renderHook(
+      (props: Parameters<typeof useAiSearchSummary>[0]) => useAiSearchSummary(props),
+      {
+        initialProps: {
+          query: 'machine tools',
+          results: [createResult(1)],
+          selectedCompanies: [],
+          selectedTags: ['Machine Tools'],
+        },
+      }
+    )
+
+    await advanceDebounceWindow()
+    expect(postMock).toHaveBeenCalledTimes(1)
+    expect(result.current.loading).toBe(true)
+
+    rerender({
+      query: 'servo automation',
+      results: [createResult(2)],
+      selectedCompanies: [],
+      selectedTags: ['Servo'],
+    })
+
+    await act(async () => {
+      staleResponse.resolve({
+        data: {
+          success: true,
+          summary: 'Stale summary',
+          generatedAt: 1710000000000,
+        },
+      })
+      await Promise.resolve()
+    })
+
+    expect(result.current.summary).toBeUndefined()
+
+    await advanceDebounceWindow()
+
+    expect(postMock).toHaveBeenCalledTimes(2)
+    expect(postMock.mock.calls[1]?.[1]).toEqual({
+      body: expect.objectContaining({
+        query: 'servo automation',
+        forceRefresh: false,
+      }),
+    })
+    expect(result.current.summary).toBe('Fresh summary')
+    expect(result.current.generatedAt).toBe(1710000300000)
+    expect(result.current.loading).toBe(false)
   })
 })
