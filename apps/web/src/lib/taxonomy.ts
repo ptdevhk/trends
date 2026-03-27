@@ -89,7 +89,7 @@ export function isClusterFilterToken(value: string): boolean {
 }
 
 export function fromClusterFilterToken(value: string): string {
-  return value.trim().slice(CLUSTER_FILTER_PREFIX.length)
+  return value.trim().slice(CLUSTER_FILTER_PREFIX.length).trim().toLowerCase()
 }
 
 export function createEmptyTaxonomyClusterForm(): TaxonomyClusterFormState {
@@ -150,8 +150,8 @@ export function parseTaxonomyCluster(value: unknown): TaxonomyCluster | null {
     id,
     workspaceSlug,
     name,
-    slug,
-    parentSlug: typeof value.parentSlug === 'string' && value.parentSlug.trim().length > 0 ? value.parentSlug.trim() : undefined,
+    slug: slug.toLowerCase(),
+    parentSlug: typeof value.parentSlug === 'string' && value.parentSlug.trim().length > 0 ? value.parentSlug.trim().toLowerCase() : undefined,
     tags: Array.isArray(value.tags) ? normalizeStringList(value.tags.filter((item): item is string => typeof item === 'string')) : [],
     source,
     confidence: typeof value.confidence === 'number' ? value.confidence : undefined,
