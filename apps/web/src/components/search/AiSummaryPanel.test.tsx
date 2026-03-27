@@ -29,4 +29,37 @@ describe('AiSummaryPanel', () => {
     expect(screen.getByText('Strong machine-tools coverage with a narrow senior skew.')).toBeInTheDocument()
     expect(screen.getByText('Generated 5 minutes ago')).toBeInTheDocument()
   })
+
+  it('shows loading skeletons instead of summary copy while pending', () => {
+    const { container } = render(
+      <AiSummaryPanel
+        generatedAt={Date.parse('2026-03-27T18:09:30.000Z')}
+        loading
+        summary="This copy should stay hidden while loading."
+      />
+    )
+
+    expect(screen.queryByText('This copy should stay hidden while loading.')).not.toBeInTheDocument()
+    expect(screen.getByText('Generated 1 minute ago')).toBeInTheDocument()
+    expect(container.querySelectorAll('.animate-pulse')).toHaveLength(3)
+  })
+
+  it('renders the just-now timing branch for freshly generated summaries', () => {
+    render(
+      <AiSummaryPanel
+        generatedAt={Date.parse('2026-03-27T18:09:40.000Z')}
+        summary="Fresh summary."
+      />
+    )
+
+    expect(screen.getByText('Fresh summary.')).toBeInTheDocument()
+    expect(screen.getByText('Generated just now')).toBeInTheDocument()
+  })
+
+  it('omits the timing footer when no generated timestamp is provided', () => {
+    render(<AiSummaryPanel summary="Summary without cache metadata." />)
+
+    expect(screen.getByText('Summary without cache metadata.')).toBeInTheDocument()
+    expect(screen.queryByText(/Generated /)).not.toBeInTheDocument()
+  })
 })
