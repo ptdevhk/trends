@@ -3,7 +3,7 @@ import type { SearchHistoryItem } from '@/hooks/useSession'
 import type { CandidateStatus } from '@/types/resume'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 
-export type SearchSortValue = 'relevance' | 'newest' | 'experience'
+export type SearchSortValue = 'score' | 'newest' | 'experience'
 
 export type FacetValueCount = {
   value: string

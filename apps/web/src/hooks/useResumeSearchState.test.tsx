@@ -2,9 +2,22 @@ import { act, renderHook } from '@testing-library/react'
 import { formatKeywordQuery } from '@trends/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
-import type { ResumeSearchResultItem } from '@/components/search/search-types'
+import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
+
+const {
+  exportDownloadMock,
+  toastErrorMock,
+  toastInfoMock,
+} = vi.hoisted(() => ({
+  exportDownloadMock: vi.fn(async (apiBaseUrl: string, payload: unknown) => {
+    void apiBaseUrl
+    void payload
+  }),
+  toastErrorMock: vi.fn(),
+  toastInfoMock: vi.fn(),
+}))
 
 vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
   api: {
@@ -16,6 +29,21 @@ vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
     taxonomy_clusters: {
       list: 'taxonomy-clusters-list-query',
     },
+  },
+}))
+
+vi.mock('@/lib/resume-export', () => ({
+  submitResumeExportDownload: (apiBaseUrl: string, payload: unknown) => {
+    void apiBaseUrl
+    void payload
+    return exportDownloadMock(apiBaseUrl, payload)
+  },
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: (message: unknown) => toastErrorMock(message),
+    info: (message: unknown) => toastInfoMock(message),
   },
 }))
 
@@ -47,7 +75,7 @@ const {
   resumesMock: [] as ConvexResumeItem[],
   saveSearchHistoryMutationMock: vi.fn(async () => 'history-1'),
   recentSearchHistoryRecordsMock: [] as Array<Record<string, unknown>>,
-  statusByIdentityMock: {} as Record<string, { status: ResumeSearchResultItem['status'] }>,
+  statusByIdentityMock: {} as Record<string, CandidateStatusRecord>,
   syncToUrlMock: vi.fn(),
   taxonomyClusterRecordsMock: [] as Array<Record<string, unknown>>,
   useFacetCountsMock: vi.fn(),
@@ -107,6 +135,21 @@ function createParsedState(overrides: Partial<UrlSearchState> = {}): UrlSearchSt
     selectedCompanies: [],
     selectedExperienceLevel: undefined,
     filters: {},
+    ...overrides,
+  }
+}
+
+function createStatusRecord(
+  identityKey: string,
+  status: CandidateStatusRecord['status'],
+  overrides: Partial<CandidateStatusRecord> = {},
+): CandidateStatusRecord {
+  return {
+    _id: `${identityKey}-status`,
+    identityKey,
+    workspaceSlug: 'dev',
+    status,
+    updatedAt: Date.now(),
     ...overrides,
   }
 }
@@ -218,10 +261,33 @@ describe('useResumeSearchState', () => {
       loading: convexQueryStateMock.loading,
       loadingMore: convexQueryStateMock.loadingMore,
     }))
+    exportDownloadMock.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('defaults to score-first ordering for loaded search results', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+    }))
+
+    resumesMock.push(
+      createResume(1, { primaryRuleScore: 72 }),
+      createResume(2, { primaryRuleScore: 91 }),
+      createResume(3, { primaryRuleScore: 84 }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.activeSort).toBe('score')
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-2',
+      'resume-3',
+      'resume-1',
+    ])
   })
 
   it('derives raw and cluster tags, applies local filters, and sorts matching results', () => {
@@ -272,9 +338,9 @@ describe('useResumeSearchState', () => {
         },
       }),
     )
-    statusByIdentityMock['identity-1'] = { status: 'contacted' }
-    statusByIdentityMock['identity-2'] = { status: 'contacted' }
-    statusByIdentityMock['identity-3'] = { status: 'contacted' }
+    statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'contacted')
+    statusByIdentityMock['identity-2'] = createStatusRecord('identity-2', 'contacted')
+    statusByIdentityMock['identity-3'] = createStatusRecord('identity-3', 'contacted')
 
     const { result } = renderHook(() => useResumeSearchState())
 
@@ -494,7 +560,7 @@ describe('useResumeSearchState', () => {
     })
 
     act(() => {
-      result.current.setSort('relevance')
+      result.current.setSort('score')
     })
 
     expect(syncToUrlMock).toHaveBeenNthCalledWith(3, {
@@ -531,6 +597,72 @@ describe('useResumeSearchState', () => {
       selectedExperienceLevel: undefined,
       filters: {},
     })
+  })
+
+  it('exports the current filtered results with score-first metadata', async () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+    }))
+
+    resumesMock.push(
+      createResume(1, {
+        primaryRuleScore: 88,
+        analysis: {
+          score: 91,
+          summary: 'Strong fit',
+          highlights: [],
+          recommendation: 'strong_match',
+          breakdown: {
+            industry_db: 55,
+          },
+        },
+      }),
+      createResume(2, {
+        primaryRuleScore: 79,
+      }),
+    )
+    statusByIdentityMock['identity-1'] = createStatusRecord('identity-1', 'contacted', {
+      notes: 'Call first',
+    })
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    await act(async () => {
+      await result.current.exportResults()
+    })
+
+    expect(exportDownloadMock).toHaveBeenCalledWith(
+      '',
+      {
+        format: 'csv',
+        source: 'convex',
+        entries: [
+          {
+            resumeId: 'resume-1',
+            status: 'contacted',
+            match: {
+              score: 88,
+              recommendation: 'strong_match',
+              scoreSource: 'rule',
+            },
+            ruleScore: 88,
+            userComment: 'Call first',
+          },
+          {
+            resumeId: 'resume-2',
+            status: 'new',
+            match: {
+              score: 79,
+              recommendation: 'match',
+              scoreSource: 'rule',
+            },
+            ruleScore: 79,
+          },
+        ],
+      },
+    )
+    expect(toastInfoMock).toHaveBeenCalledWith('Started export for 2 resumes')
   })
 
   it('clears only facet filters while preserving the active search context', () => {
