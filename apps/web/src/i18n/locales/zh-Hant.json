@@ -378,7 +378,7 @@
   "searchProfiles": {
     "nav": "搜尋配置",
     "title": "搜尋配置",
-    "subtitle": "管理基於配置檔的定時簡歷搜尋。",
+    "subtitle": "管理落地頁快捷入口和定時簡歷搜尋配置。",
     "refresh": "刷新",
     "create": "新增配置",
     "loading": "正在載入配置...",

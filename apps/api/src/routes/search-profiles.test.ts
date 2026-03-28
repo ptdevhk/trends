@@ -74,7 +74,62 @@ function getUpdateCall(calls: ConvexCall[]): ConvexCall {
   return updateCall
 }
 
+function getCreateCalls(calls: ConvexCall[]): ConvexCall[] {
+  return calls.filter((call) => call.pathName === 'search_profiles:create')
+}
+
 const runStatusFilePath = path.join(searchProfileService.projectRoot, 'output', 'search-profile-runs.json')
+const seededDongguanProfile = {
+  id: 'dongguan-lathe-sales',
+  name: '东莞车床销售招聘',
+  description: '东莞地区车床销售工程师岗位自动化招聘',
+  createdAt: '2026-02-06',
+  updatedAt: '2026-02-06',
+  status: 'active' as const,
+  location: '东莞',
+  keywords: ['车床', '销售', 'CNC', '数控'],
+  jobDescription: 'lathe-sales',
+  filterPreset: 'sales-mid',
+  filters: {
+    minExperience: 2,
+    maxExperience: null,
+    education: ['中专', '大专', '本科'],
+    salaryRange: {
+      min: 8000,
+      max: 20000,
+      currency: 'CNY',
+      period: 'month',
+    },
+    locations: ['东莞', '广州', '深圳'],
+  },
+  schedule: {
+    enabled: true,
+    cron: '0 9 * * 1-5',
+    timezone: 'Asia/Hong_Kong',
+    maxCandidates: 200,
+    notifyOnlyOnNew: true,
+  },
+  sources: [
+    {
+      type: 'job5156',
+      enabled: true,
+      priority: 1,
+    },
+    {
+      type: 'manual_upload',
+      enabled: true,
+      priority: 2,
+    },
+  ],
+  session: {
+    scope: 'per-position',
+    resetTriggers: ['/archive', '/close-position'],
+    retention: {
+      mode: 'until-closed',
+      archiveAfterDays: 90,
+    },
+  },
+}
 
 function removeRunStatusFile(): void {
   if (fs.existsSync(runStatusFilePath)) {
@@ -87,12 +142,42 @@ describe('search-profiles list route', () => {
     vi.restoreAllMocks()
   })
 
-  it('includes seeded system profiles with landing quick-start metadata', async () => {
+  it('materializes seeded template profiles into editable workspace records', async () => {
+    const records: Array<Record<string, unknown>> = []
+
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init)
 
       if (call.pathName === 'search_profiles:list') {
-        return convexSuccess([])
+        return convexSuccess(records)
+      }
+
+      if (call.pathName === 'search_profiles:create') {
+        if (!isRecord(call.args.profile)) {
+          throw new Error('Expected profile payload for seed materialization')
+        }
+
+        const logicalId = typeof call.args.profile.id === 'string' ? call.args.profile.id : `profile-${records.length + 1}`
+        const filters = isRecord(call.args.profile.filters) ? call.args.profile.filters : {}
+        const filterLocations = Array.isArray(filters.locations) ? filters.locations : []
+        const now = Date.now()
+        const record = {
+          _id: `search_profiles-${records.length + 1}`,
+          name: call.args.profile.name,
+          profileId: logicalId,
+          criteria: {
+            keywords: call.args.profile.keywords,
+            locations: filterLocations.length > 0
+              ? filterLocations
+              : [call.args.profile.location].filter(Boolean),
+          },
+          profile: call.args.profile,
+          workspaceSlug: call.args.workspaceSlug,
+          createdAt: now,
+          updatedAt: now,
+        }
+        records.push(record)
+        return convexSuccess(record)
       }
 
       throw new Error(`Unexpected convex path: ${call.pathName}`)
@@ -113,8 +198,6 @@ describe('search-profiles list route', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: 'job5156-cn-cnc-sales',
-          origin: 'system',
-          readOnly: true,
           quickStart: expect.objectContaining({
             enabled: true,
             rank: 1,
@@ -123,8 +206,6 @@ describe('search-profiles list route', () => {
         }),
         expect.objectContaining({
           id: 'seek-malaysia-sales',
-          origin: 'system',
-          readOnly: true,
           quickStart: expect.objectContaining({
             enabled: true,
             rank: 2,
@@ -133,6 +214,149 @@ describe('search-profiles list route', () => {
         }),
       ]),
     )
+    expect(records).toHaveLength(3)
+  })
+
+  it('exposes scheduled runtime profiles from workspace-managed storage across known workspaces', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+
+      if (call.pathName === 'search_profiles:list') {
+        const workspaceSlug = typeof call.args.workspaceSlug === 'string' ? call.args.workspaceSlug : 'dev'
+
+        if (workspaceSlug === 'dev') {
+          return convexSuccess([
+            {
+              _id: 'search_profiles-dev-1',
+              name: 'China Job5156 CNC Sales',
+              profileId: 'job5156-cn-cnc-sales',
+              criteria: {
+                keywords: ['CNC', '销售'],
+                locations: ['China'],
+              },
+              profile: {
+                id: 'job5156-cn-cnc-sales',
+                name: 'China Job5156 CNC Sales',
+                status: 'active',
+                location: 'China',
+                keywords: ['CNC', '销售'],
+                schedule: {
+                  enabled: true,
+                  cron: '0 9 * * 1-5',
+                  maxCandidates: 200,
+                },
+              },
+              workspaceSlug: 'dev',
+            },
+            {
+              _id: 'search_profiles-dev-2',
+              name: 'SEEK Malaysia CNC Sales',
+              profileId: 'seek-malaysia-sales',
+              criteria: {
+                keywords: ['CNC', 'Sales'],
+                locations: ['Kuala Lumpur MY'],
+              },
+              profile: {
+                id: 'seek-malaysia-sales',
+                name: 'SEEK Malaysia CNC Sales',
+                status: 'active',
+                location: 'Kuala Lumpur MY',
+                keywords: ['CNC', 'Sales'],
+                schedule: {
+                  enabled: false,
+                },
+              },
+              workspaceSlug: 'dev',
+            },
+            {
+              _id: 'search_profiles-dev-3',
+              name: '东莞车床销售招聘',
+              profileId: 'dongguan-lathe-sales',
+              criteria: {
+                keywords: ['车床', '销售', 'CNC', '数控'],
+                locations: ['东莞', '广州', '深圳'],
+              },
+              profile: {
+                id: 'dongguan-lathe-sales',
+                name: '东莞车床销售招聘',
+                status: 'active',
+                location: '东莞',
+                keywords: ['车床', '销售', 'CNC', '数控'],
+                schedule: {
+                  enabled: true,
+                  cron: '0 9 * * 1-5',
+                  maxCandidates: 200,
+                },
+              },
+              workspaceSlug: 'dev',
+            },
+          ])
+        }
+
+        if (workspaceSlug === 'hr') {
+          return convexSuccess([
+            {
+              _id: 'search_profiles-hr-1',
+              name: 'HR resume ops',
+              profileId: 'hr-profile-1',
+              criteria: {
+                keywords: ['招聘', '简历'],
+                locations: ['东莞'],
+              },
+              profile: {
+                id: 'hr-profile-1',
+                name: 'HR resume ops',
+                status: 'active',
+                location: '东莞',
+                keywords: ['招聘', '简历'],
+                schedule: {
+                  enabled: true,
+                  cron: '*/30 * * * *',
+                  maxCandidates: 50,
+                },
+              },
+              workspaceSlug: 'hr',
+            },
+          ])
+        }
+
+        return convexSuccess([])
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles/runtime', {
+      headers: {
+        'X-Workspace-Slug': 'dev',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    const payload = await response.json()
+
+    expect(payload).toEqual({
+      success: true,
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          workspaceSlug: 'dev',
+          profileId: 'job5156-cn-cnc-sales',
+          cron: '0 9 * * 1-5',
+        }),
+        expect.objectContaining({
+          workspaceSlug: 'dev',
+          profileId: 'dongguan-lathe-sales',
+          cron: '0 9 * * 1-5',
+        }),
+        expect.objectContaining({
+          workspaceSlug: 'hr',
+          profileId: 'hr-profile-1',
+          cron: '*/30 * * * *',
+        }),
+      ]),
+    })
+    expect(payload.items).toHaveLength(3)
   })
 })
 
@@ -216,13 +440,42 @@ describe('search-profiles run route', () => {
 
   it('dispatches normalized spaced profile keywords when request keyword is omitted', async () => {
     const calls: ConvexCall[] = []
+    let materialized = false
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init)
       calls.push(call)
 
       if (call.pathName === 'search_profiles:getById') {
-        return convexSuccess(null)
+        if (!materialized) {
+          return convexSuccess(null)
+        }
+
+        return convexSuccess({
+          _id: 'search_profiles-seeded-1',
+          profileId: 'dongguan-lathe-sales',
+          name: '东莞车床销售招聘',
+          profile: seededDongguanProfile,
+          criteria: {
+            keywords: ['车床', '销售', 'CNC', '数控'],
+            locations: ['东莞', '广州', '深圳'],
+          },
+          workspaceSlug: 'dev',
+        })
+      }
+      if (call.pathName === 'search_profiles:create') {
+        materialized = true
+        return convexSuccess({
+          _id: 'search_profiles-seeded-1',
+          profileId: 'dongguan-lathe-sales',
+          name: '东莞车床销售招聘',
+          profile: call.args.profile,
+          criteria: {
+            keywords: ['车床', '销售', 'CNC', '数控'],
+            locations: ['东莞', '广州', '深圳'],
+          },
+          workspaceSlug: 'dev',
+        })
       }
       if (call.pathName === 'resume_tasks:dispatch') {
         return convexSuccess('task-concat-default')
@@ -259,13 +512,42 @@ describe('search-profiles run route', () => {
 
   it('uses explicit request keyword without rewriting it', async () => {
     const calls: ConvexCall[] = []
+    let materialized = false
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init)
       calls.push(call)
 
       if (call.pathName === 'search_profiles:getById') {
-        return convexSuccess(null)
+        if (!materialized) {
+          return convexSuccess(null)
+        }
+
+        return convexSuccess({
+          _id: 'search_profiles-seeded-1',
+          profileId: 'dongguan-lathe-sales',
+          name: '东莞车床销售招聘',
+          profile: seededDongguanProfile,
+          criteria: {
+            keywords: ['车床', '销售', 'CNC', '数控'],
+            locations: ['东莞', '广州', '深圳'],
+          },
+          workspaceSlug: 'dev',
+        })
+      }
+      if (call.pathName === 'search_profiles:create') {
+        materialized = true
+        return convexSuccess({
+          _id: 'search_profiles-seeded-1',
+          profileId: 'dongguan-lathe-sales',
+          name: '东莞车床销售招聘',
+          profile: call.args.profile,
+          criteria: {
+            keywords: ['车床', '销售', 'CNC', '数控'],
+            locations: ['东莞', '广州', '深圳'],
+          },
+          workspaceSlug: 'dev',
+        })
       }
       if (call.pathName === 'resume_tasks:dispatch') {
         return convexSuccess('task-explicit-keyword')
@@ -304,13 +586,42 @@ describe('search-profiles run route', () => {
 
   it('passes age range overrides to Convex dispatch when provided', async () => {
     const calls: ConvexCall[] = []
+    let materialized = false
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init)
       calls.push(call)
 
       if (call.pathName === 'search_profiles:getById') {
-        return convexSuccess(null)
+        if (!materialized) {
+          return convexSuccess(null)
+        }
+
+        return convexSuccess({
+          _id: 'search_profiles-seeded-1',
+          profileId: 'dongguan-lathe-sales',
+          name: '东莞车床销售招聘',
+          profile: seededDongguanProfile,
+          criteria: {
+            keywords: ['车床', '销售', 'CNC', '数控'],
+            locations: ['东莞', '广州', '深圳'],
+          },
+          workspaceSlug: 'dev',
+        })
+      }
+      if (call.pathName === 'search_profiles:create') {
+        materialized = true
+        return convexSuccess({
+          _id: 'search_profiles-seeded-1',
+          profileId: 'dongguan-lathe-sales',
+          name: '东莞车床销售招聘',
+          profile: call.args.profile,
+          criteria: {
+            keywords: ['车床', '销售', 'CNC', '数控'],
+            locations: ['东莞', '广州', '深圳'],
+          },
+          workspaceSlug: 'dev',
+        })
       }
       if (call.pathName === 'resume_tasks:dispatch') {
         return convexSuccess('task-age-range')
@@ -437,6 +748,13 @@ describe('search-profiles status route', () => {
       },
     })
     expect(calls[1]).toMatchObject({
+      pathName: 'search_profiles:getById',
+      args: {
+        id: 'shared-profile',
+        workspaceSlug: 'hr',
+      },
+    })
+    expect(calls[2]).toMatchObject({
       pathName: 'resume_tasks:getById',
       args: {
         taskId: 'task-hr',
@@ -512,6 +830,100 @@ describe('search-profiles status route', () => {
 describe('search-profiles update route', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('materializes a seeded template profile into workspace storage before updating it', async () => {
+    const calls: ConvexCall[] = []
+    const existingCreatedAt = Date.now() - 1000
+    let seededRecord: Record<string, unknown> | null = null
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+
+      if (call.pathName === 'search_profiles:getById') {
+        return convexSuccess(seededRecord)
+      }
+
+      if (call.pathName === 'search_profiles:create') {
+        if (!isRecord(call.args.profile)) {
+          throw new Error('Expected seeded profile payload')
+        }
+
+        seededRecord = {
+          _id: 'search_profiles-seeded-1',
+          name: call.args.profile.name,
+          profileId: call.args.profile.id,
+          criteria: {
+            keywords: call.args.profile.keywords,
+            locations: [call.args.profile.location].filter(Boolean),
+          },
+          profile: call.args.profile,
+          workspaceSlug: 'dev',
+          createdAt: existingCreatedAt,
+          updatedAt: existingCreatedAt,
+        }
+        return convexSuccess(seededRecord)
+      }
+
+      if (call.pathName === 'search_profiles:update') {
+        if (!isRecord(call.args.profile) || !seededRecord) {
+          throw new Error('Expected updated seeded profile payload')
+        }
+
+        seededRecord = {
+          ...seededRecord,
+          name: call.args.profile.name,
+          criteria: {
+            keywords: call.args.profile.keywords,
+            locations: [call.args.profile.location].filter(Boolean),
+          },
+          profile: call.args.profile,
+          updatedAt: Date.now(),
+        }
+        return convexSuccess(seededRecord)
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles/job5156-cn-cnc-sales', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Workspace-Slug': 'dev',
+      },
+      body: JSON.stringify({
+        name: 'China Job5156 CNC Sales',
+        location: 'China',
+        keywords: ['CNC', '销售', '机床'],
+        status: 'active',
+        quickStart: {
+          enabled: true,
+          rank: 1,
+          label: 'China · Job5156 · CNC 销售',
+        },
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(getCreateCalls(calls)).toHaveLength(1)
+
+    const updateCall = getUpdateCall(calls)
+    expect(updateCall.args.id).toBe('search_profiles-seeded-1')
+    expect(isRecord(updateCall.args.profile)).toBe(true)
+    if (!isRecord(updateCall.args.profile)) {
+      throw new Error('Expected updated profile payload')
+    }
+    expect(updateCall.args.profile.id).toBe('job5156-cn-cnc-sales')
+    expect(updateCall.args.profile.seedSource).toBe('config/search-profiles')
+    expect(updateCall.args.profile.keywords).toEqual(['CNC', '销售', '机床'])
+
+    const payload = await response.json()
+    expect(payload.success).toBe(true)
+    expect(payload.profile.id).toBe('job5156-cn-cnc-sales')
+    expect(payload.profile.keywords).toEqual(['CNC', '销售', '机床'])
   })
 
   it('syncs linked custom JD auto_match keywords without moving other filters under auto_match', async () => {
@@ -905,5 +1317,121 @@ describe('search-profiles update route', () => {
       throw new Error('Expected record payload')
     }
     expect(updateCall.args.profile.location).toBe('')
+  })
+})
+
+describe('search-profiles delete route', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('tombstones a materialized seeded profile so it does not reappear on the next list', async () => {
+    const calls: ConvexCall[] = []
+    const records: Array<Record<string, unknown>> = []
+
+    function buildCriteria(profile: Record<string, unknown>) {
+      const filters = isRecord(profile.filters) ? profile.filters : {}
+      const filterLocations = Array.isArray(filters.locations) ? filters.locations : []
+      return {
+        keywords: Array.isArray(profile.keywords) ? profile.keywords : [],
+        locations: filterLocations.length > 0
+          ? filterLocations
+          : [profile.location].filter(Boolean),
+      }
+    }
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+      calls.push(call)
+
+      if (call.pathName === 'search_profiles:list') {
+        return convexSuccess(records)
+      }
+
+      if (call.pathName === 'search_profiles:getById') {
+        const found = records.find((record) => (
+          String(record._id) === call.args.id
+          || record.profileId === call.args.id
+        )) ?? null
+        return convexSuccess(found)
+      }
+
+      if (call.pathName === 'search_profiles:create') {
+        if (!isRecord(call.args.profile)) {
+          throw new Error('Expected profile payload for seeded create')
+        }
+
+        const profile = call.args.profile
+        const record = {
+          _id: `search_profiles-${records.length + 1}`,
+          name: profile.name,
+          profileId: profile.id,
+          criteria: buildCriteria(profile),
+          profile,
+          workspaceSlug: call.args.workspaceSlug,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }
+        records.push(record)
+        return convexSuccess(record)
+      }
+
+      if (call.pathName === 'search_profiles:update') {
+        const existingIndex = records.findIndex((record) => String(record._id) === call.args.id)
+        if (existingIndex < 0 || !isRecord(call.args.profile)) {
+          throw new Error('Expected existing seeded record for update')
+        }
+
+        const nextRecord = {
+          ...records[existingIndex],
+          name: call.args.profile.name,
+          criteria: buildCriteria(call.args.profile),
+          profile: call.args.profile,
+          updatedAt: Date.now(),
+        }
+        records.splice(existingIndex, 1, nextRecord)
+        return convexSuccess(nextRecord)
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const deleteResponse = await app.request('/api/search-profiles/seek-malaysia-sales', {
+      method: 'DELETE',
+      headers: {
+        'X-Workspace-Slug': 'dev',
+      },
+    })
+
+    expect(deleteResponse.status).toBe(200)
+    expect(await deleteResponse.json()).toEqual({ success: true })
+
+    const deleteUpdateCall = getUpdateCall(calls)
+    expect(isRecord(deleteUpdateCall.args.profile)).toBe(true)
+    if (!isRecord(deleteUpdateCall.args.profile)) {
+      throw new Error('Expected tombstone profile payload')
+    }
+    expect(deleteUpdateCall.args.profile.id).toBe('seek-malaysia-sales')
+    expect(deleteUpdateCall.args.profile.seedSource).toBe('config/search-profiles')
+    expect(typeof deleteUpdateCall.args.profile.deletedAt).toBe('number')
+
+    const listResponse = await app.request('/api/search-profiles', {
+      headers: {
+        'X-Workspace-Slug': 'dev',
+      },
+    })
+
+    expect(listResponse.status).toBe(200)
+    const listPayload = await listResponse.json()
+    expect(listPayload.success).toBe(true)
+    expect(listPayload.profiles).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'seek-malaysia-sales',
+        }),
+      ]),
+    )
+    expect(getCreateCalls(calls)).toHaveLength(3)
   })
 })

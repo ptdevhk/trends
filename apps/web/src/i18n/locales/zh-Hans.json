@@ -378,7 +378,7 @@
   "searchProfiles": {
     "nav": "搜索配置",
     "title": "搜索配置",
-    "subtitle": "管理基于配置文件的定时简历搜索。",
+    "subtitle": "管理落地页快捷入口和定时简历搜索配置。",
     "refresh": "刷新",
     "create": "新建配置",
     "loading": "正在加载配置...",

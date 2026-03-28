@@ -1,18 +1,14 @@
 /**
  * Search Profile Service
  *
- * Loads and manages search profiles from config/search-profiles/*.yaml
- * Supports auto-matching JD based on keywords and filter preset application
+ * Normalizes, validates, and keyword-matches search profile payloads.
  */
 
-import fs from "node:fs";
 import path from "node:path";
 
 import { normalizeKeywordPhrases } from "@trends/shared";
-import { parse as parseYaml } from "yaml";
 
 import { findProjectRoot } from "./db.js";
-import { DataNotFoundError } from "./errors.js";
 
 // Types
 export interface SearchProfile {
@@ -113,18 +109,6 @@ export interface SearchProfile {
             archiveAfterDays?: number;
         };
     };
-}
-
-export interface SearchProfileFile {
-    id: string;
-    name: string;
-    description?: string;
-    filename: string;
-    updatedAt: string;
-    status: "active" | "paused" | "archived";
-    location: string;
-    keywords: string[];
-    quickStart?: SearchProfile["quickStart"];
 }
 
 export interface AutoMatchResult {
@@ -284,13 +268,6 @@ function normalizeProfileId(rawId: string): string {
         .replace(/^-|-$/g, "");
 
     return normalized || "profile";
-}
-
-const DEFAULT_WORKSPACE_SLUG = "dev";
-
-function normalizeWorkspaceSlug(rawSlug?: string): string {
-    const normalized = rawSlug?.trim();
-    return normalized && normalized.length > 0 ? normalized : DEFAULT_WORKSPACE_SLUG;
 }
 
 function parseFilters(value: unknown): SearchProfile["filters"] | undefined {
@@ -556,59 +533,9 @@ function isSeekRecommendedCandidatesUrl(value: string | undefined): boolean {
 
 export class SearchProfileService {
     readonly projectRoot: string;
-    private cache: Map<string, SearchProfile> = new Map();
 
     constructor(projectRoot?: string) {
         this.projectRoot = projectRoot ? path.resolve(projectRoot) : findProjectRoot();
-    }
-
-    private getProfilesBaseDir(): string {
-        return path.join(this.projectRoot, "config", "search-profiles");
-    }
-
-    private getProfilesWorkspaceDir(workspaceSlug?: string): string {
-        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
-        const baseDir = this.getProfilesBaseDir();
-        if (normalizedWorkspace === DEFAULT_WORKSPACE_SLUG) {
-            return baseDir;
-        }
-        return path.join(baseDir, normalizedWorkspace);
-    }
-
-    private getProfilesListDirs(workspaceSlug?: string): string[] {
-        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
-        const baseDir = this.getProfilesBaseDir();
-        if (normalizedWorkspace === DEFAULT_WORKSPACE_SLUG) {
-            return [baseDir];
-        }
-        return [baseDir, this.getProfilesWorkspaceDir(normalizedWorkspace)];
-    }
-
-    private getProfilesLookupDirs(workspaceSlug?: string): string[] {
-        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
-        const baseDir = this.getProfilesBaseDir();
-        if (normalizedWorkspace === DEFAULT_WORKSPACE_SLUG) {
-            return [baseDir];
-        }
-        return [this.getProfilesWorkspaceDir(normalizedWorkspace), baseDir];
-    }
-
-    private findExistingProfilePath(id: string, workspaceSlug?: string): string | null {
-        const profileDirs = this.getProfilesLookupDirs(workspaceSlug);
-        for (const profilesDir of profileDirs) {
-            const candidates = [
-                path.join(profilesDir, `${id}.yaml`),
-                path.join(profilesDir, `${id}.yml`),
-            ];
-
-            for (const candidate of candidates) {
-                if (fs.existsSync(candidate)) {
-                    return candidate;
-                }
-            }
-        }
-
-        return null;
     }
 
     private coerceProfile(input: unknown, fallback?: SearchProfile): SearchProfile {
@@ -678,21 +605,6 @@ export class SearchProfileService {
         };
     }
 
-    private readProfileFromFile(filePath: string, fallbackId: string): SearchProfile {
-        const content = fs.readFileSync(filePath, "utf8");
-        const parsed = parseYaml(content);
-        const fallback: SearchProfile = {
-            id: fallbackId,
-            name: fallbackId,
-            status: "active",
-            location: "",
-            keywords: [],
-        };
-        const profile = this.coerceProfile(parsed, fallback);
-        profile.id = normalizeProfileId(profile.id || fallbackId);
-        return profile;
-    }
-
     private ensureRequiredCoreFields(profile: SearchProfile): void {
         if (!profile.id) {
             throw new Error("Profile id is required");
@@ -726,113 +638,6 @@ export class SearchProfileService {
         }
     }
 
-    private getCacheKey(workspaceSlug: string, profileId: string): string {
-        return `${workspaceSlug}:${profileId}`;
-    }
-
-    /**
-     * List all profile files
-     */
-    listProfiles(workspaceSlug?: string): SearchProfileFile[] {
-        const entriesById = new Map<string, SearchProfileFile>();
-
-        for (const dir of this.getProfilesListDirs(workspaceSlug)) {
-            if (!fs.existsSync(dir)) {
-                continue;
-            }
-
-            for (const filename of fs.readdirSync(dir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"))) {
-                const filePath = path.join(dir, filename);
-                const stat = fs.statSync(filePath);
-                const fallbackId = filename.replace(/\.(yaml|yml)$/i, "");
-                const profile = this.readProfileFromFile(filePath, fallbackId);
-
-                entriesById.set(profile.id, {
-                    id: profile.id,
-                    name: profile.name,
-                    description: profile.description,
-                    filename,
-                    updatedAt: stat.mtime.toISOString(),
-                    status: profile.status,
-                    location: profile.location,
-                    keywords: profile.keywords,
-                    quickStart: profile.quickStart,
-                } satisfies SearchProfileFile);
-            }
-        }
-
-        return Array.from(entriesById.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    }
-
-    /**
-     * Load a single profile by ID
-     */
-    loadProfile(id: string, workspaceSlug?: string): SearchProfile {
-        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
-        const normalizedId = normalizeProfileId(id);
-        const cacheKey = this.getCacheKey(normalizedWorkspace, normalizedId);
-
-        const cachedProfile = this.cache.get(cacheKey);
-        if (cachedProfile) {
-            return cachedProfile;
-        }
-
-        const existingPath = this.findExistingProfilePath(normalizedId, normalizedWorkspace);
-        if (!existingPath) {
-            const available = this.listProfiles(normalizedWorkspace).map((p) => p.id).join(", ");
-            throw new DataNotFoundError(`Search profile not found: ${normalizedId}`, {
-                suggestion: available ? `Available: ${available}` : "No search profiles available",
-            });
-        }
-
-        const profile = this.readProfileFromFile(existingPath, normalizedId);
-        this.cache.set(cacheKey, profile);
-        return profile;
-    }
-
-    /**
-     * Get effective filters (merge preset with custom filters)
-     */
-    getEffectiveFilters(profile: SearchProfile, presets: Record<string, unknown>): SearchProfile["filters"] {
-        const preset = profile.filterPreset ? presets[profile.filterPreset] : undefined;
-
-        return {
-            ...(isRecord(preset) ? parseFilters(preset) : {}),
-            ...profile.filters,
-        };
-    }
-
-    /**
-     * Find profile by keywords (auto-match)
-     */
-    findByKeywords(keywords: string[], location?: string, workspaceSlug?: string): AutoMatchResult {
-        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
-        const profiles = this.listProfiles(normalizedWorkspace)
-            .filter((p) => p.status === "active")
-            .map((profileFile) => this.loadProfile(profileFile.id, normalizedWorkspace));
-
-        return matchSearchProfilesByKeywords(profiles, keywords, location);
-    }
-
-    /**
-     * Clear cache
-     */
-    clearCache(): void {
-        this.cache.clear();
-    }
-
-    /**
-     * Get profile count
-     */
-    getStats(workspaceSlug?: string): { total: number; active: number; paused: number; archived: number } {
-        const profiles = this.listProfiles(workspaceSlug);
-        return {
-            total: profiles.length,
-            active: profiles.filter((p) => p.status === "active").length,
-            paused: profiles.filter((p) => p.status === "paused").length,
-            archived: profiles.filter((p) => p.status === "archived").length,
-        };
-    }
 }
 
 // Singleton

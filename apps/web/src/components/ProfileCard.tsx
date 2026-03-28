@@ -7,13 +7,10 @@ import { Badge } from '@/components/ui/badge'
 export type SearchProfileSummary = {
   id: string
   name: string
-  filename: string
   updatedAt: string
   status: 'active' | 'paused' | 'archived'
   location: string
   keywords: string[]
-  origin: 'system' | 'workspace'
-  readOnly: boolean
   quickStart?: {
     enabled: boolean
     rank?: number
@@ -55,10 +52,6 @@ function statusBadgeVariant(status: SearchProfileSummary['status']): 'default' |
   return 'outline'
 }
 
-function originBadgeLabel(origin: SearchProfileSummary['origin']): string {
-  return origin === 'system' ? 'seeded' : 'workspace'
-}
-
 function runStatusLabel(status: SearchProfileRunStatus['taskStatus']): string {
   if (status === 'pending') return 'pending'
   if (status === 'processing') return 'running'
@@ -90,7 +83,6 @@ export function ProfileCard({
             {profile.quickStart?.enabled ? (
               <Badge variant="secondary">quick start</Badge>
             ) : null}
-            <Badge variant="outline">{originBadgeLabel(profile.origin)}</Badge>
             <Badge variant={statusBadgeVariant(profile.status)}>{profile.status}</Badge>
           </div>
         </div>
@@ -127,7 +119,6 @@ export function ProfileCard({
           size="sm"
           variant="outline"
           onClick={() => onEdit(profile.id)}
-          disabled={profile.readOnly}
         >
           <Pencil className="h-3.5 w-3.5 mr-1" />
           Edit
@@ -136,7 +127,6 @@ export function ProfileCard({
           size="sm"
           variant="outline"
           onClick={() => onDelete(profile.id)}
-          disabled={profile.readOnly}
         >
           <Trash2 className="h-3.5 w-3.5 mr-1" />
           Delete

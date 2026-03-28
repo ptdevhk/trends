@@ -6,7 +6,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { generateStructuredJobDescriptionContent } from "@trends/shared";
+import {
+    findWorkspaceSearchProfileTemplate,
+    generateStructuredJobDescriptionContent,
+    getWorkspaceSearchProfileTemplates,
+    isValidWorkspace,
+    WORKSPACE_TEAMS,
+} from "@trends/shared";
 
 import {
     matchSearchProfilesByKeywords,
@@ -21,13 +27,10 @@ const app = new OpenAPIHono();
 const ProfileSummarySchema = z.object({
     id: z.string(),
     name: z.string(),
-    filename: z.string(),
     updatedAt: z.string(),
     status: z.enum(["active", "paused", "archived"]),
     location: z.string(),
     keywords: z.array(z.string()),
-    origin: z.enum(["system", "workspace"]),
-    readOnly: z.boolean(),
     quickStart: z.object({
         enabled: z.boolean(),
         rank: z.number().optional(),
@@ -58,6 +61,17 @@ const AutoMatchResponseSchema = z.object({
 });
 
 const ProfilePayloadSchema = z.record(z.unknown());
+const ProfileRuntimeItemSchema = z.object({
+    workspaceSlug: z.string().min(1),
+    profileId: z.string(),
+    name: z.string(),
+    cron: z.string(),
+    profile: ProfilePayloadSchema,
+});
+const ProfilesRuntimeResponseSchema = z.object({
+    success: z.literal(true),
+    items: z.array(ProfileRuntimeItemSchema),
+});
 
 const RunProfileRequestSchema = z.object({
     keyword: z.string().optional(),
@@ -353,6 +367,7 @@ async function getCollectionTaskStatus(taskId: string): Promise<Partial<ProfileR
 type ConvexSearchProfileRecord = {
     _id?: unknown;
     name?: unknown;
+    profileId?: unknown;
     profile?: unknown;
     criteria?: unknown;
     workspaceSlug?: unknown;
@@ -380,6 +395,8 @@ type JobDescriptionSyncPayload = {
 };
 
 const DEFAULT_WORKSPACE_SLUG = "dev";
+const CONFIG_SEED_SOURCE = "config/search-profiles";
+const KNOWN_WORKSPACE_SLUGS = Object.keys(WORKSPACE_TEAMS).filter(isValidWorkspace);
 
 function belongsToWorkspace(recordWorkspaceSlug: unknown, workspaceSlug: string): boolean {
     const normalizedRecordWorkspace = readString(recordWorkspaceSlug);
@@ -411,13 +428,50 @@ function buildProfileRunKeyword(value: string | undefined, profileKeywords: stri
     return normalizeKeywordList(profileKeywords).join(" ");
 }
 
+function readProfilePayload(record: ConvexSearchProfileRecord): Record<string, unknown> {
+    return isRecord(record.profile) ? record.profile : {};
+}
+
+function readLogicalProfileId(record: ConvexSearchProfileRecord): string | null {
+    const profilePayload = readProfilePayload(record);
+    const explicitId = readString(record.profileId) ?? readString(profilePayload.id);
+    if (explicitId) {
+        return searchProfileService.normalizeProfileIdentifier(explicitId);
+    }
+    return record._id ? String(record._id) : null;
+}
+
+function readDeletedAt(record: ConvexSearchProfileRecord): number | undefined {
+    const profilePayload = readProfilePayload(record);
+    return readNumber(profilePayload.deletedAt);
+}
+
+function isSeededFromConfig(record: ConvexSearchProfileRecord): boolean {
+    const profilePayload = readProfilePayload(record);
+    return readString(profilePayload.seedSource) === CONFIG_SEED_SOURCE;
+}
+
+function toStoredProfilePayload(
+    profile: SearchProfile,
+    options?: {
+        seededFromConfig?: boolean;
+        deletedAt?: number;
+    }
+): Record<string, unknown> {
+    return {
+        ...profile,
+        ...(options?.seededFromConfig ? { seedSource: CONFIG_SEED_SOURCE } : {}),
+        ...(typeof options?.deletedAt === "number" ? { deletedAt: options.deletedAt } : {}),
+    };
+}
+
 function toSearchProfile(record: ConvexSearchProfileRecord): SearchProfile | null {
-    const profileId = record._id ? String(record._id) : "";
+    const profileId = readLogicalProfileId(record) ?? "";
     if (!profileId) {
         return null;
     }
 
-    const profilePayload = isRecord(record.profile) ? record.profile : {};
+    const profilePayload = readProfilePayload(record);
     const criteria = isRecord(record.criteria) ? record.criteria : {};
     const criteriaKeywords = normalizeKeywordList(criteria.keywords);
     const criteriaLocations = normalizeKeywordList(criteria.locations);
@@ -454,6 +508,14 @@ function toSearchProfile(record: ConvexSearchProfileRecord): SearchProfile | nul
     return normalized;
 }
 
+type ResolvedCustomProfileRecord = {
+    storageId: string;
+    logicalId: string;
+    profile: SearchProfile;
+    seededFromConfig: boolean;
+    deletedAt?: number;
+};
+
 async function callConvex(
     type: "query" | "mutation",
     pathName: string,
@@ -483,24 +545,124 @@ async function callConvex(
     return payload.value;
 }
 
-async function listCustomProfiles(workspaceSlug: string): Promise<SearchProfile[]> {
+async function listCustomProfileRecords(
+    workspaceSlug: string,
+    options?: {
+        includeDeleted?: boolean;
+    }
+): Promise<ResolvedCustomProfileRecord[]> {
     const value = await callConvex("query", "search_profiles:list", { workspaceSlug });
     if (!Array.isArray(value)) {
         return [];
     }
 
-    return value
+    const records: ResolvedCustomProfileRecord[] = [];
+    value
         .filter((item): item is ConvexSearchProfileRecord => isRecord(item))
-        .map((item) => toSearchProfile(item))
-        .filter((item): item is SearchProfile => item !== null);
+        .forEach((item) => {
+            const profile = toSearchProfile(item);
+            const storageId = item._id ? String(item._id) : "";
+            const logicalId = profile?.id ?? "";
+            if (!profile || !storageId || !logicalId) {
+                return;
+            }
+
+            const deletedAt = readDeletedAt(item);
+            if (!options?.includeDeleted && typeof deletedAt === "number") {
+                return;
+            }
+
+            records.push({
+                storageId,
+                logicalId,
+                profile,
+                seededFromConfig: isSeededFromConfig(item),
+                ...(typeof deletedAt === "number" ? { deletedAt } : {}),
+            });
+        });
+
+    return records;
+}
+
+async function listCustomProfiles(workspaceSlug: string): Promise<SearchProfile[]> {
+    const records = await listCustomProfileRecords(workspaceSlug);
+    return records.map((record) => record.profile);
 }
 
 async function getCustomProfile(id: string, workspaceSlug: string): Promise<SearchProfile | null> {
+    const record = await findCustomProfileRecordById(id, workspaceSlug);
+    return record?.profile ?? null;
+}
+
+async function findCustomProfileRecordById(
+    id: string,
+    workspaceSlug: string,
+    options?: {
+        includeDeleted?: boolean;
+    }
+): Promise<ResolvedCustomProfileRecord | null> {
     const value = await callConvex("query", "search_profiles:getById", { id, workspaceSlug });
     if (!isRecord(value)) {
         return null;
     }
-    return toSearchProfile(value);
+
+    const record = value as ConvexSearchProfileRecord;
+    const profile = toSearchProfile(record);
+    const storageId = record._id ? String(record._id) : "";
+    const logicalId = profile?.id ?? "";
+    if (!profile || !storageId || !logicalId) {
+        return null;
+    }
+
+    const deletedAt = readDeletedAt(record);
+    if (!options?.includeDeleted && typeof deletedAt === "number") {
+        return null;
+    }
+
+    return {
+        storageId,
+        logicalId,
+        profile,
+        seededFromConfig: isSeededFromConfig(record),
+        deletedAt,
+    };
+}
+
+async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void> {
+    const existingRecords = await listCustomProfileRecords(workspaceSlug, { includeDeleted: true });
+    const existingIds = new Set(existingRecords.map((record) => record.logicalId));
+
+    for (const template of getWorkspaceSearchProfileTemplates(workspaceSlug)) {
+        const profile = searchProfileService.normalizeProfileInput(template.profile);
+        const logicalId = searchProfileService.normalizeProfileIdentifier(profile.id);
+        if (existingIds.has(logicalId)) {
+            continue;
+        }
+
+        await createCustomProfile(
+            toStoredProfilePayload(profile, { seededFromConfig: true }),
+            workspaceSlug,
+        );
+        existingIds.add(logicalId);
+    }
+}
+
+async function ensureWorkspaceProfileById(id: string, workspaceSlug: string): Promise<void> {
+    const existing = await findCustomProfileRecordById(id, workspaceSlug, { includeDeleted: true });
+    if (existing) {
+        return;
+    }
+
+    const template = findWorkspaceSearchProfileTemplate(id, workspaceSlug);
+    if (!template) {
+        return;
+    }
+
+    const profile = searchProfileService.normalizeProfileInput(template.profile);
+    await createCustomProfile(
+        toStoredProfilePayload(profile, { seededFromConfig: true }),
+        workspaceSlug,
+    );
 }
 
 async function getLinkedCustomJobDescription(
@@ -559,7 +721,7 @@ async function buildJobDescriptionSyncPayload(
 }
 
 async function createCustomProfile(
-    profile: SearchProfile,
+    profile: unknown,
     workspaceSlug: string,
     jobDescriptionSync?: JobDescriptionSyncPayload
 ): Promise<SearchProfile> {
@@ -581,7 +743,7 @@ async function createCustomProfile(
 
 async function updateCustomProfile(
     id: string,
-    profile: SearchProfile,
+    profile: unknown,
     workspaceSlug: string,
     jobDescriptionSync?: JobDescriptionSyncPayload
 ): Promise<SearchProfile> {
@@ -620,11 +782,12 @@ async function loadProfileById(id: string, workspaceSlug: string): Promise<Searc
         return custom;
     }
 
-    try {
-        return searchProfileService.loadProfile(id, workspaceSlug);
-    } catch {
+    const template = findWorkspaceSearchProfileTemplate(id, workspaceSlug);
+    if (!template) {
         return null;
     }
+
+    return searchProfileService.normalizeProfileInput(template.profile);
 }
 
 function compareProfileSummaries(
@@ -642,11 +805,30 @@ function compareProfileSummaries(
         return left.quickStart?.enabled ? -1 : 1;
     }
 
-    if (left.origin !== right.origin) {
-        return left.origin === "system" ? -1 : 1;
-    }
-
     return right.updatedAt.localeCompare(left.updatedAt);
+}
+
+function hasRuntimeSchedule(
+    profile: SearchProfile
+): profile is SearchProfile & { schedule: NonNullable<SearchProfile["schedule"]> } {
+    return profile.status === "active"
+        && profile.schedule?.enabled === true
+        && typeof profile.schedule.cron === "string"
+        && profile.schedule.cron.trim().length > 0;
+}
+
+function toProfileRuntimeItem(workspaceSlug: string, profile: SearchProfile): z.infer<typeof ProfileRuntimeItemSchema> {
+    const profilePayload: Record<string, unknown> = {
+        ...profile,
+    };
+
+    return {
+        workspaceSlug,
+        profileId: profile.id,
+        name: profile.name,
+        cron: profile.schedule!.cron!,
+        profile: profilePayload,
+    };
 }
 
 // ============================================================
@@ -673,6 +855,7 @@ const statsRoute = createRoute({
 });
 
 app.openapi(statsRoute, async (c) => {
+    await ensureWorkspaceSeedProfiles(c.var.workspaceSlug);
     const profiles = await listCustomProfiles(c.var.workspaceSlug);
     const stats = {
         total: profiles.length,
@@ -707,43 +890,59 @@ const listRoute = createRoute({
 });
 
 app.openapi(listRoute, async (c) => {
+    await ensureWorkspaceSeedProfiles(c.var.workspaceSlug);
     const workspaceProfiles = await listCustomProfiles(c.var.workspaceSlug);
-    const systemProfiles = searchProfileService.listProfiles(c.var.workspaceSlug)
-        .map((profileFile) => ({
-            id: profileFile.id,
-            name: profileFile.name,
-            filename: profileFile.filename,
-            updatedAt: profileFile.updatedAt,
-            status: profileFile.status,
-            location: profileFile.location,
-            keywords: profileFile.keywords,
-            origin: "system" as const,
-            readOnly: true,
-            quickStart: profileFile.quickStart,
-        }));
     const workspaceSummaries = workspaceProfiles.map((profile) => ({
         id: profile.id,
         name: profile.name,
-        filename: `${profile.id}.yaml`,
         updatedAt: profile.updatedAt ?? profile.createdAt ?? new Date().toISOString(),
         status: profile.status,
         location: profile.location,
         keywords: profile.keywords,
-        origin: "workspace" as const,
-        readOnly: false,
         quickStart: profile.quickStart,
     }));
 
     const summariesById = new Map<string, z.infer<typeof ProfileSummarySchema>>();
-    for (const summary of systemProfiles) {
-        summariesById.set(summary.id, summary);
-    }
     for (const summary of workspaceSummaries) {
         summariesById.set(summary.id, summary);
     }
 
     const summaries = Array.from(summariesById.values()).sort(compareProfileSummaries);
     return c.json({ success: true, profiles: summaries } as const);
+});
+
+const runtimeProfilesRoute = createRoute({
+    method: "get",
+    path: "/runtime",
+    tags: ["Search Profiles"],
+    summary: "List enabled runtime search profiles across known workspaces for worker scheduling",
+    responses: {
+        200: {
+            description: "Runtime search profile list",
+            content: {
+                "application/json": {
+                    schema: ProfilesRuntimeResponseSchema,
+                },
+            },
+        },
+    },
+});
+
+app.openapi(runtimeProfilesRoute, async (c) => {
+    const workspaceItems = await Promise.all(
+        KNOWN_WORKSPACE_SLUGS.map(async (workspaceSlug) => {
+            await ensureWorkspaceSeedProfiles(workspaceSlug);
+            const profiles = await listCustomProfiles(workspaceSlug);
+            return profiles
+                .filter(hasRuntimeSchedule)
+                .map((profile) => toProfileRuntimeItem(workspaceSlug, profile));
+        }),
+    );
+
+    return c.json({
+        success: true as const,
+        items: workspaceItems.flat(),
+    }, 200);
 });
 
 // ============================================================
@@ -778,10 +977,9 @@ const autoMatchRoute = createRoute({
 
 app.openapi(autoMatchRoute, async (c) => {
     const { keywords, location } = c.req.valid("json");
+    await ensureWorkspaceSeedProfiles(c.var.workspaceSlug);
     const customProfiles = await listCustomProfiles(c.var.workspaceSlug);
-    const customMatch = matchProfiles(customProfiles, keywords, location);
-    const systemMatch = searchProfileService.findByKeywords(keywords, location, c.var.workspaceSlug);
-    const result = customMatch.confidence >= systemMatch.confidence ? customMatch : systemMatch;
+    const result = matchProfiles(customProfiles, keywords, location);
 
     return c.json({
         success: true,
@@ -942,6 +1140,7 @@ app.openapi(runProfileRoute, async (c) => {
     const { id } = c.req.valid("param");
     const workspaceSlug = c.var.workspaceSlug;
 
+    await ensureWorkspaceProfileById(id, workspaceSlug);
     const profile = await loadProfileById(id, workspaceSlug);
     if (!profile) {
         return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
@@ -1013,34 +1212,6 @@ app.openapi(runProfileRoute, async (c) => {
 });
 
 // ============================================================
-// POST /api/search-profiles/reload
-// ============================================================
-const reloadRoute = createRoute({
-    method: "post",
-    path: "/reload",
-    tags: ["Search Profiles"],
-    summary: "Clear cache and reload profiles",
-    responses: {
-        200: {
-            description: "Cache cleared",
-            content: {
-                "application/json": {
-                    schema: z.object({
-                        success: z.literal(true),
-                        message: z.string(),
-                    }),
-                },
-            },
-        },
-    },
-});
-
-app.openapi(reloadRoute, (c) => {
-    searchProfileService.clearCache();
-    return c.json({ success: true, message: "Profile cache cleared" } as const);
-});
-
-// ============================================================
 // GET /api/search-profiles/:id/status
 // ============================================================
 const getProfileStatusRoute = createRoute({
@@ -1091,6 +1262,7 @@ app.openapi(getProfileStatusRoute, async (c) => {
     const { id } = c.req.valid("param");
     const workspaceSlug = c.var.workspaceSlug;
 
+    await ensureWorkspaceProfileById(id, workspaceSlug);
     const profile = await loadProfileById(id, workspaceSlug);
     if (!profile) {
         return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
@@ -1172,6 +1344,7 @@ const getRoute = createRoute({
 
 app.openapi(getRoute, async (c) => {
     const { id } = c.req.valid("param");
+    await ensureWorkspaceProfileById(id, c.var.workspaceSlug);
     const profile = await loadProfileById(id, c.var.workspaceSlug);
     if (!profile) {
         return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
@@ -1252,31 +1425,33 @@ app.openapi(updateProfileRoute, async (c) => {
     const payload = c.req.valid("json");
 
     try {
-        const existingCustom = await getCustomProfile(id, c.var.workspaceSlug);
+        await ensureWorkspaceProfileById(id, c.var.workspaceSlug);
+        const existingCustom = await findCustomProfileRecordById(id, c.var.workspaceSlug);
         if (!existingCustom) {
-            const systemProfile = await loadProfileById(id, c.var.workspaceSlug);
-            if (systemProfile) {
-                return c.json({ success: false as const, error: "System profiles are read-only" }, 403);
-            }
             return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);
         }
 
         const now = new Date().toISOString();
         const normalized = searchProfileService.normalizeProfileInput(
             {
-                ...existingCustom,
+                ...existingCustom.profile,
                 ...(isRecord(payload) ? payload : {}),
-                id: existingCustom.id,
-                createdAt: existingCustom.createdAt ?? now,
+                id: existingCustom.profile.id,
+                createdAt: existingCustom.profile.createdAt ?? now,
                 updatedAt: now,
             },
-            existingCustom
+            existingCustom.profile
         );
-        normalized.id = existingCustom.id;
+        normalized.id = existingCustom.profile.id;
         searchProfileService.validateProfile(normalized);
 
         const jobDescriptionSync = await buildJobDescriptionSyncPayload(normalized, c.var.workspaceSlug);
-        const profile = await updateCustomProfile(existingCustom.id, normalized, c.var.workspaceSlug, jobDescriptionSync);
+        const profile = await updateCustomProfile(
+            existingCustom.storageId,
+            toStoredProfilePayload(normalized, { seededFromConfig: existingCustom.seededFromConfig }),
+            c.var.workspaceSlug,
+            jobDescriptionSync,
+        );
         return c.json({ success: true as const, profile }, 200);
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update profile";
@@ -1330,15 +1505,24 @@ const deleteProfileRoute = createRoute({
 
 app.openapi(deleteProfileRoute, async (c) => {
     const { id } = c.req.valid("param");
-    const deleted = await deleteCustomProfile(id, c.var.workspaceSlug);
+    await ensureWorkspaceProfileById(id, c.var.workspaceSlug);
+    const existingCustom = await findCustomProfileRecordById(id, c.var.workspaceSlug);
 
-    if (deleted) {
+    if (existingCustom) {
+        if (existingCustom.seededFromConfig) {
+            await updateCustomProfile(
+                existingCustom.storageId,
+                toStoredProfilePayload(existingCustom.profile, {
+                    seededFromConfig: true,
+                    deletedAt: Date.now(),
+                }),
+                c.var.workspaceSlug,
+            );
+        } else {
+            await deleteCustomProfile(existingCustom.storageId, c.var.workspaceSlug);
+        }
+
         return c.json({ success: true as const }, 200);
-    }
-
-    const systemProfile = await loadProfileById(id, c.var.workspaceSlug);
-    if (systemProfile) {
-        return c.json({ success: false as const, error: "System profiles are read-only" }, 403);
     }
 
     return c.json({ success: false as const, error: `Profile not found: ${id}` }, 404);

@@ -378,7 +378,7 @@
   "searchProfiles": {
     "nav": "Search Profiles",
     "title": "Search Profiles",
-    "subtitle": "Manage scheduled profile-based resume searches.",
+    "subtitle": "Manage landing quick starts and scheduled profile-based resume searches.",
     "refresh": "Refresh",
     "create": "Create Profile",
     "loading": "Loading profiles...",
