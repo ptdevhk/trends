@@ -12,6 +12,14 @@ export type SearchProfileSummary = {
   status: 'active' | 'paused' | 'archived'
   location: string
   keywords: string[]
+  origin: 'system' | 'workspace'
+  readOnly: boolean
+  quickStart?: {
+    enabled: boolean
+    rank?: number
+    label?: string
+    description?: string
+  }
 }
 
 export type SearchProfileRunStatus = {
@@ -47,6 +55,10 @@ function statusBadgeVariant(status: SearchProfileSummary['status']): 'default' |
   return 'outline'
 }
 
+function originBadgeLabel(origin: SearchProfileSummary['origin']): string {
+  return origin === 'system' ? 'seeded' : 'workspace'
+}
+
 function runStatusLabel(status: SearchProfileRunStatus['taskStatus']): string {
   if (status === 'pending') return 'pending'
   if (status === 'processing') return 'running'
@@ -74,13 +86,25 @@ export function ProfileCard({
       <CardHeader className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base leading-tight">{profile.name}</CardTitle>
-          <Badge variant={statusBadgeVariant(profile.status)}>{profile.status}</Badge>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {profile.quickStart?.enabled ? (
+              <Badge variant="secondary">quick start</Badge>
+            ) : null}
+            <Badge variant="outline">{originBadgeLabel(profile.origin)}</Badge>
+            <Badge variant={statusBadgeVariant(profile.status)}>{profile.status}</Badge>
+          </div>
         </div>
         <div className="text-sm text-muted-foreground">
           {profile.location} · {profile.keywords.join(', ') || '--'}
         </div>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
+        {profile.quickStart?.enabled ? (
+          <div>
+            <span className="font-medium">Landing quick start:</span>{' '}
+            {profile.quickStart.label || profile.name}
+          </div>
+        ) : null}
         <div>
           <span className="font-medium">Schedule:</span> {scheduleLabel}
         </div>
@@ -99,11 +123,21 @@ export function ProfileCard({
           <Play className="h-3.5 w-3.5 mr-1" />
           Run Now
         </Button>
-        <Button size="sm" variant="outline" onClick={() => onEdit(profile.id)}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onEdit(profile.id)}
+          disabled={profile.readOnly}
+        >
           <Pencil className="h-3.5 w-3.5 mr-1" />
           Edit
         </Button>
-        <Button size="sm" variant="outline" onClick={() => onDelete(profile.id)}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onDelete(profile.id)}
+          disabled={profile.readOnly}
+        >
           <Trash2 className="h-3.5 w-3.5 mr-1" />
           Delete
         </Button>

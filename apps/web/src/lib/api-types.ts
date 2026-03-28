@@ -3732,6 +3732,15 @@ export interface paths {
                                 status: "active" | "paused" | "archived";
                                 location: string;
                                 keywords: string[];
+                                /** @enum {string} */
+                                origin: "system" | "workspace";
+                                readOnly: boolean;
+                                quickStart?: {
+                                    enabled: boolean;
+                                    rank?: number;
+                                    label?: string;
+                                    description?: string;
+                                };
                             }[];
                         };
                     };

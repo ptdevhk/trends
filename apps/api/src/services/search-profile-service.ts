@@ -65,6 +65,14 @@ export interface SearchProfile {
         jobUrl?: string;
     }>;
 
+    // Landing page quick start
+    quickStart?: {
+        enabled: boolean;
+        rank?: number;
+        label?: string;
+        description?: string;
+    };
+
     // Notifications
     notifications?: {
         enabled: boolean;
@@ -110,11 +118,13 @@ export interface SearchProfile {
 export interface SearchProfileFile {
     id: string;
     name: string;
+    description?: string;
     filename: string;
     updatedAt: string;
     status: "active" | "paused" | "archived";
     location: string;
     keywords: string[];
+    quickStart?: SearchProfile["quickStart"];
 }
 
 export interface AutoMatchResult {
@@ -127,6 +137,7 @@ export interface AutoMatchResult {
 
 type ProfileFilters = NonNullable<SearchProfile["filters"]>;
 type ProfileSalaryRange = NonNullable<ProfileFilters["salaryRange"]>;
+type ProfileQuickStart = NonNullable<SearchProfile["quickStart"]>;
 type ProfileSession = NonNullable<SearchProfile["session"]>;
 type ProfileRetention = NonNullable<ProfileSession["retention"]>;
 
@@ -380,6 +391,28 @@ function parseSources(value: unknown): SearchProfile["sources"] | undefined {
     return sources.length > 0 ? sources : undefined;
 }
 
+function parseQuickStart(value: unknown): SearchProfile["quickStart"] | undefined {
+    if (!isRecord(value)) return undefined;
+
+    const enabled = readBoolean(value.enabled) ?? false;
+    const rank = readNumber(value.rank);
+    const label = readString(value.label);
+    const description = readString(value.description);
+
+    if (!enabled && rank === undefined && !label && !description) {
+        return undefined;
+    }
+
+    const quickStart: ProfileQuickStart = {
+        enabled,
+        rank,
+        label,
+        description,
+    };
+
+    return quickStart;
+}
+
 function parseNotifications(value: unknown): SearchProfile["notifications"] | undefined {
     if (!isRecord(value)) return undefined;
 
@@ -533,7 +566,7 @@ export class SearchProfileService {
         return path.join(this.projectRoot, "config", "search-profiles");
     }
 
-    private getProfilesDir(workspaceSlug?: string): string {
+    private getProfilesWorkspaceDir(workspaceSlug?: string): string {
         const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
         const baseDir = this.getProfilesBaseDir();
         if (normalizedWorkspace === DEFAULT_WORKSPACE_SLUG) {
@@ -542,16 +575,36 @@ export class SearchProfileService {
         return path.join(baseDir, normalizedWorkspace);
     }
 
-    private findExistingProfilePath(id: string, workspaceSlug?: string): string | null {
-        const profilesDir = this.getProfilesDir(workspaceSlug);
-        const candidates = [
-            path.join(profilesDir, `${id}.yaml`),
-            path.join(profilesDir, `${id}.yml`),
-        ];
+    private getProfilesListDirs(workspaceSlug?: string): string[] {
+        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
+        const baseDir = this.getProfilesBaseDir();
+        if (normalizedWorkspace === DEFAULT_WORKSPACE_SLUG) {
+            return [baseDir];
+        }
+        return [baseDir, this.getProfilesWorkspaceDir(normalizedWorkspace)];
+    }
 
-        for (const candidate of candidates) {
-            if (fs.existsSync(candidate)) {
-                return candidate;
+    private getProfilesLookupDirs(workspaceSlug?: string): string[] {
+        const normalizedWorkspace = normalizeWorkspaceSlug(workspaceSlug);
+        const baseDir = this.getProfilesBaseDir();
+        if (normalizedWorkspace === DEFAULT_WORKSPACE_SLUG) {
+            return [baseDir];
+        }
+        return [this.getProfilesWorkspaceDir(normalizedWorkspace), baseDir];
+    }
+
+    private findExistingProfilePath(id: string, workspaceSlug?: string): string | null {
+        const profileDirs = this.getProfilesLookupDirs(workspaceSlug);
+        for (const profilesDir of profileDirs) {
+            const candidates = [
+                path.join(profilesDir, `${id}.yaml`),
+                path.join(profilesDir, `${id}.yml`),
+            ];
+
+            for (const candidate of candidates) {
+                if (fs.existsSync(candidate)) {
+                    return candidate;
+                }
             }
         }
 
@@ -596,6 +649,7 @@ export class SearchProfileService {
         const filters = hasOwn(record, "filters") ? parseFilters(record.filters) : fallback?.filters;
         const schedule = hasOwn(record, "schedule") ? parseSchedule(record.schedule) : fallback?.schedule;
         const sources = hasOwn(record, "sources") ? parseSources(record.sources) : fallback?.sources;
+        const quickStart = hasOwn(record, "quickStart") ? parseQuickStart(record.quickStart) : fallback?.quickStart;
         const notifications = hasOwn(record, "notifications")
             ? parseNotifications(record.notifications)
             : fallback?.notifications;
@@ -617,6 +671,7 @@ export class SearchProfileService {
             filters,
             schedule,
             sources,
+            quickStart,
             notifications,
             ai,
             session,
@@ -679,29 +734,34 @@ export class SearchProfileService {
      * List all profile files
      */
     listProfiles(workspaceSlug?: string): SearchProfileFile[] {
-        const dir = this.getProfilesDir(workspaceSlug);
-        if (!fs.existsSync(dir)) return [];
+        const entriesById = new Map<string, SearchProfileFile>();
 
-        const entries = fs.readdirSync(dir)
-            .filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"))
-            .map((filename) => {
+        for (const dir of this.getProfilesListDirs(workspaceSlug)) {
+            if (!fs.existsSync(dir)) {
+                continue;
+            }
+
+            for (const filename of fs.readdirSync(dir).filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"))) {
                 const filePath = path.join(dir, filename);
                 const stat = fs.statSync(filePath);
                 const fallbackId = filename.replace(/\.(yaml|yml)$/i, "");
                 const profile = this.readProfileFromFile(filePath, fallbackId);
 
-                return {
+                entriesById.set(profile.id, {
                     id: profile.id,
                     name: profile.name,
+                    description: profile.description,
                     filename,
                     updatedAt: stat.mtime.toISOString(),
                     status: profile.status,
                     location: profile.location,
                     keywords: profile.keywords,
-                } satisfies SearchProfileFile;
-            });
+                    quickStart: profile.quickStart,
+                } satisfies SearchProfileFile);
+            }
+        }
 
-        return entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+        return Array.from(entriesById.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     }
 
     /**

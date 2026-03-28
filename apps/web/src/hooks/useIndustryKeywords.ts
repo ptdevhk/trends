@@ -3,7 +3,6 @@ import { rawApiClient } from "@/lib/api-helpers";
 
 export type KeywordMarket = "CN" | "MY";
 export type ConfigSourceOrigin = "system" | "workspace";
-export type WorkflowSeedCollectionSourceType = "job5156" | "seek";
 
 export type KeywordCategory =
   | "machining"
@@ -75,19 +74,18 @@ type SystemLocationItem = {
   markets?: KeywordMarket[];
 };
 
-type CustomKeywordWorkflowSeed = {
+export type SearchProfileQuickStart = {
   id: string;
   label: string;
-  market: KeywordMarket;
   location: string;
   keywords: string[];
-  collectionSource: {
-    type: WorkflowSeedCollectionSourceType;
-    exactUrl?: string;
+  description?: string;
+  quickStart: {
+    enabled: boolean;
+    rank?: number;
+    label?: string;
+    description?: string;
   };
-  collectUrl?: string;
-  visible?: boolean;
-  source?: ConfigSourceOrigin;
 };
 
 type CustomKeywordsResponse = {
@@ -99,7 +97,23 @@ type CustomKeywordsResponse = {
   }>;
   tags?: CustomKeywordTag[];
   systemLocations?: SystemLocationItem[];
-  workflowSeeds?: CustomKeywordWorkflowSeed[];
+};
+
+type SearchProfilesResponse = {
+  success: boolean;
+  profiles?: Array<{
+    id: string;
+    name: string;
+    status: "active" | "paused" | "archived";
+    location: string;
+    keywords: string[];
+    quickStart?: {
+      enabled: boolean;
+      rank?: number;
+      label?: string;
+      description?: string;
+    };
+  }>;
 };
 
 function getKeywordFingerprint(keyword: string): string {
@@ -196,8 +210,8 @@ export function useIndustryKeywords() {
   const [systemLocationKeywords, setSystemLocationKeywords] = useState<
     IndustryKeyword[]
   >([]);
-  const [workflowSeeds, setWorkflowSeeds] = useState<
-    CustomKeywordWorkflowSeed[]
+  const [quickStartProfiles, setQuickStartProfiles] = useState<
+    SearchProfileQuickStart[]
   >([]);
   const [brandKeywords, setBrandKeywords] = useState<IndustryKeyword[]>([]);
   const [loading, setLoading] = useState(true);
@@ -207,11 +221,12 @@ export function useIndustryKeywords() {
     setLoading(true);
     setError(null);
 
-    const [industryResponse, customResponse, brandResponse] = await Promise.all(
+    const [industryResponse, customResponse, brandResponse, profilesResponse] = await Promise.all(
       [
         rawApiClient.GET<IndustryKeywordsResponse>("/api/industry/keywords"),
         rawApiClient.GET<CustomKeywordsResponse>("/api/config/custom-keywords"),
         rawApiClient.GET<BrandsResponse>("/api/industry/brands"),
+        rawApiClient.GET<SearchProfilesResponse>("/api/search-profiles"),
       ],
     );
 
@@ -220,7 +235,7 @@ export function useIndustryKeywords() {
       setKeywords([]);
       setCustomKeywords([]);
       setSystemLocationKeywords([]);
-      setWorkflowSeeds([]);
+      setQuickStartProfiles([]);
       setBrandKeywords([]);
       setError("Failed to load industry keywords");
       setLoading(false);
@@ -234,7 +249,6 @@ export function useIndustryKeywords() {
       console.error("Failed to load custom keywords", customError);
       setCustomKeywords([]);
       setSystemLocationKeywords([]);
-      setWorkflowSeeds([]);
     } else {
       const mappedCustomKeywords: IndustryKeyword[] = [];
       if (Array.isArray(customData.tags)) {
@@ -270,11 +284,6 @@ export function useIndustryKeywords() {
         }
       }
       setSystemLocationKeywords(mappedSystemLocationKeywords);
-
-      const mappedWorkflowSeeds = Array.isArray(customData.workflowSeeds)
-        ? customData.workflowSeeds.filter((item) => item.visible !== false)
-        : [];
-      setWorkflowSeeds(mappedWorkflowSeeds);
     }
 
     const { data: brandData, error: brandError } = brandResponse;
@@ -296,6 +305,38 @@ export function useIndustryKeywords() {
         }
       }
       setBrandKeywords(mappedBrands);
+    }
+
+    const { data: profilesData, error: profilesError } = profilesResponse;
+    if (profilesError || !profilesData?.success) {
+      console.error("Failed to load landing quick-start profiles", profilesError);
+      setQuickStartProfiles([]);
+    } else {
+      const mappedQuickStarts = Array.isArray(profilesData.profiles)
+        ? profilesData.profiles
+          .filter((profile) => (
+            profile.status === "active"
+            && profile.quickStart?.enabled === true
+          ))
+          .sort((left, right) => (
+            (left.quickStart?.rank ?? Number.MAX_SAFE_INTEGER)
+            - (right.quickStart?.rank ?? Number.MAX_SAFE_INTEGER)
+          ))
+          .map((profile) => ({
+            id: profile.id,
+            label: profile.quickStart?.label?.trim() || profile.name,
+            location: profile.location,
+            keywords: profile.keywords,
+            description: profile.quickStart?.description?.trim() || undefined,
+            quickStart: {
+              enabled: true,
+              rank: profile.quickStart?.rank,
+              label: profile.quickStart?.label?.trim() || undefined,
+              description: profile.quickStart?.description?.trim() || undefined,
+            },
+          }))
+        : [];
+      setQuickStartProfiles(mappedQuickStarts);
     }
 
     setLoading(false);
@@ -337,7 +378,7 @@ export function useIndustryKeywords() {
     keywords: allKeywords,
     grouped,
     hotKeywords,
-    workflowSeeds,
+    quickStartProfiles,
     loading,
     error,
     refresh: fetchKeywords,

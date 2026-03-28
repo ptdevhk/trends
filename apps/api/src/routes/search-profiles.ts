@@ -26,6 +26,14 @@ const ProfileSummarySchema = z.object({
     status: z.enum(["active", "paused", "archived"]),
     location: z.string(),
     keywords: z.array(z.string()),
+    origin: z.enum(["system", "workspace"]),
+    readOnly: z.boolean(),
+    quickStart: z.object({
+        enabled: z.boolean(),
+        rank: z.number().optional(),
+        label: z.string().optional(),
+        description: z.string().optional(),
+    }).optional(),
 });
 
 const StatsSchema = z.object({
@@ -613,10 +621,32 @@ async function loadProfileById(id: string, workspaceSlug: string): Promise<Searc
     }
 
     try {
-        return searchProfileService.loadProfile(id);
+        return searchProfileService.loadProfile(id, workspaceSlug);
     } catch {
         return null;
     }
+}
+
+function compareProfileSummaries(
+    left: z.infer<typeof ProfileSummarySchema>,
+    right: z.infer<typeof ProfileSummarySchema>
+): number {
+    const leftQuickStartRank = left.quickStart?.enabled ? left.quickStart.rank ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
+    const rightQuickStartRank = right.quickStart?.enabled ? right.quickStart.rank ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER;
+
+    if (leftQuickStartRank !== rightQuickStartRank) {
+        return leftQuickStartRank - rightQuickStartRank;
+    }
+
+    if (left.quickStart?.enabled !== right.quickStart?.enabled) {
+        return left.quickStart?.enabled ? -1 : 1;
+    }
+
+    if (left.origin !== right.origin) {
+        return left.origin === "system" ? -1 : 1;
+    }
+
+    return right.updatedAt.localeCompare(left.updatedAt);
 }
 
 // ============================================================
@@ -677,8 +707,21 @@ const listRoute = createRoute({
 });
 
 app.openapi(listRoute, async (c) => {
-    const profiles = await listCustomProfiles(c.var.workspaceSlug);
-    const summaries = profiles.map((profile) => ({
+    const workspaceProfiles = await listCustomProfiles(c.var.workspaceSlug);
+    const systemProfiles = searchProfileService.listProfiles(c.var.workspaceSlug)
+        .map((profileFile) => ({
+            id: profileFile.id,
+            name: profileFile.name,
+            filename: profileFile.filename,
+            updatedAt: profileFile.updatedAt,
+            status: profileFile.status,
+            location: profileFile.location,
+            keywords: profileFile.keywords,
+            origin: "system" as const,
+            readOnly: true,
+            quickStart: profileFile.quickStart,
+        }));
+    const workspaceSummaries = workspaceProfiles.map((profile) => ({
         id: profile.id,
         name: profile.name,
         filename: `${profile.id}.yaml`,
@@ -686,7 +729,20 @@ app.openapi(listRoute, async (c) => {
         status: profile.status,
         location: profile.location,
         keywords: profile.keywords,
+        origin: "workspace" as const,
+        readOnly: false,
+        quickStart: profile.quickStart,
     }));
+
+    const summariesById = new Map<string, z.infer<typeof ProfileSummarySchema>>();
+    for (const summary of systemProfiles) {
+        summariesById.set(summary.id, summary);
+    }
+    for (const summary of workspaceSummaries) {
+        summariesById.set(summary.id, summary);
+    }
+
+    const summaries = Array.from(summariesById.values()).sort(compareProfileSummaries);
     return c.json({ success: true, profiles: summaries } as const);
 });
 
@@ -724,7 +780,7 @@ app.openapi(autoMatchRoute, async (c) => {
     const { keywords, location } = c.req.valid("json");
     const customProfiles = await listCustomProfiles(c.var.workspaceSlug);
     const customMatch = matchProfiles(customProfiles, keywords, location);
-    const systemMatch = searchProfileService.findByKeywords(keywords, location);
+    const systemMatch = searchProfileService.findByKeywords(keywords, location, c.var.workspaceSlug);
     const result = customMatch.confidence >= systemMatch.confidence ? customMatch : systemMatch;
 
     return c.json({

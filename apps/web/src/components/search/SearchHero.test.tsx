@@ -65,15 +65,14 @@ function buildRecentSearch(
   }
 }
 
-function buildWorkflowSeed(
+function buildQuickStart(
   overrides: Partial<
-    NonNullable<SearchHeroProps['workflowSeeds']>[number]
+    NonNullable<SearchHeroProps['quickStarts']>[number]
   > = {},
 ) {
   return {
-    id: 'workflow-1',
+    id: 'profile-1',
     label: 'China · Job5156 · CNC 销售',
-    market: 'CN',
     location: 'China',
     keywords: ['CNC', '销售'],
     ...overrides,
@@ -97,11 +96,11 @@ function renderSearchHero(overrides: Partial<SearchHeroProps> = {}) {
     queryInput: '',
     recentSearches: [],
     recentSearchesLoading: false,
-    workflowSeeds: undefined,
+    quickStarts: undefined,
     hotKeywords: undefined,
     onApplyRecentSearch: vi.fn(),
     onApplyExtractedKeywords: vi.fn(),
-    onApplyWorkflowSeed: undefined,
+    onApplyQuickStart: undefined,
     onToggleHotKeyword: undefined,
     onChangeQuery: vi.fn(),
     onClearQuery: vi.fn(),
@@ -218,14 +217,13 @@ describe('SearchHero', () => {
     expect(onSubmitQuery).toHaveBeenCalledWith('submitted')
   })
 
-  it('renders quick-start cards from workflowSeeds', () => {
+  it('renders quick-start cards from profile-backed quick starts', () => {
     renderSearchHero({
-      workflowSeeds: [
-        buildWorkflowSeed(),
-        buildWorkflowSeed({
-          id: 'workflow-2',
+      quickStarts: [
+        buildQuickStart(),
+        buildQuickStart({
+          id: 'profile-2',
           label: 'Malaysia · SEEK · CNC Sales',
-          market: 'MY',
           location: 'Kuala Lumpur MY',
           keywords: ['CNC', 'Sales'],
         }),
@@ -259,20 +257,20 @@ describe('SearchHero', () => {
     expect(screen.getByRole('button', { name: 'China' })).toBeInTheDocument()
   })
 
-  it('clicking a quick-start card calls onApplyWorkflowSeed', async () => {
+  it('clicking a quick-start card calls onApplyQuickStart', async () => {
     const user = userEvent.setup()
-    const onApplyWorkflowSeed = vi.fn()
+    const onApplyQuickStart = vi.fn()
 
     renderSearchHero({
-      workflowSeeds: [buildWorkflowSeed()],
-      onApplyWorkflowSeed,
+      quickStarts: [buildQuickStart()],
+      onApplyQuickStart,
     })
 
     await user.click(
       screen.getByRole('button', { name: /China · Job5156 · CNC 销售/i }),
     )
 
-    expect(onApplyWorkflowSeed).toHaveBeenCalledWith({
+    expect(onApplyQuickStart).toHaveBeenCalledWith({
       keywords: ['CNC', '销售'],
       location: 'China',
     })

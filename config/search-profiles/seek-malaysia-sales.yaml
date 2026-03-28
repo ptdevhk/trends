@@ -42,3 +42,9 @@ session:
   retention:
     mode: until-closed
     archiveAfterDays: 90
+
+quickStart:
+  enabled: true
+  rank: 2
+  label: Malaysia · SEEK · CNC Sales
+  description: CNC, Sales · Kuala Lumpur MY

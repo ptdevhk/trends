@@ -3,12 +3,12 @@ import { GoogleSearchBar } from '@/components/search/GoogleSearchBar'
 import { Card, CardContent } from '@/components/ui/card'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
 
-type SearchHeroWorkflowSeed = {
+type SearchHeroQuickStart = {
   id: string
   label: string
-  market: string
   location: string
   keywords: string[]
+  description?: string
 }
 
 type SearchHeroHotKeyword = {
@@ -22,11 +22,11 @@ type SearchHeroProps = {
   queryInput: string
   recentSearches: ResumeSearchRecentItem[]
   recentSearchesLoading?: boolean
-  workflowSeeds?: SearchHeroWorkflowSeed[]
+  quickStarts?: SearchHeroQuickStart[]
   hotKeywords?: SearchHeroHotKeyword[]
   onApplyRecentSearch: (item: ResumeSearchRecentItem) => void | Promise<void>
   onApplyExtractedKeywords: (keywords: string[]) => void
-  onApplyWorkflowSeed?: (seed: { keywords: string[]; location: string }) => void
+  onApplyQuickStart?: (seed: { keywords: string[]; location: string }) => void
   onToggleHotKeyword?: (keyword: string) => void
   onChangeQuery: (value: string) => void
   onClearQuery: () => void
@@ -64,11 +64,11 @@ export function SearchHero({
   queryInput,
   recentSearches,
   recentSearchesLoading = false,
-  workflowSeeds = [],
+  quickStarts = [],
   hotKeywords = [],
   onApplyRecentSearch,
   onApplyExtractedKeywords,
-  onApplyWorkflowSeed,
+  onApplyQuickStart,
   onToggleHotKeyword,
   onChangeQuery,
   onClearQuery,
@@ -92,20 +92,20 @@ export function SearchHero({
           />
         </div>
 
-        {workflowSeeds.length > 0 ? (
+        {quickStarts.length > 0 ? (
           <div className="mx-auto w-full max-w-3xl text-left">
             <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
               <Zap className="h-3.5 w-3.5" />
               Quick Start
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {workflowSeeds.map((seed) => (
+              {quickStarts.map((seed) => (
                 <button
                   key={seed.id}
                   type="button"
                   className={INTERACTIVE_CARD_CLASS_NAME}
                   onClick={() =>
-                    void onApplyWorkflowSeed?.({
+                    void onApplyQuickStart?.({
                       keywords: seed.keywords,
                       location: seed.location,
                     })

@@ -1,0 +1,39 @@
+id: job5156-cn-cnc-sales
+name: China Job5156 CNC Sales
+description: China-wide Job5156 CNC sales search profile used for the landing quick start
+createdAt: "2026-03-28"
+updatedAt: "2026-03-28"
+status: active
+
+location: China
+keywords:
+  - CNC
+  - 销售
+
+jobDescription: lathe-sales
+
+filters:
+  minExperience: 2
+  maxExperience: null
+  locations:
+    - China
+
+schedule:
+  enabled: true
+  cron: "0 9 * * 1-5"
+  timezone: Asia/Shanghai
+  maxCandidates: 200
+
+sources:
+  - type: job5156
+    enabled: true
+    priority: 1
+  - type: seek
+    enabled: false
+    priority: 2
+
+quickStart:
+  enabled: true
+  rank: 1
+  label: China · Job5156 · CNC 销售
+  description: CNC, 销售 · China
