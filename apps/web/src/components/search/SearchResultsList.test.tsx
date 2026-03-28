@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchResultsList } from '@/components/search/SearchResultsList'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
@@ -120,6 +120,26 @@ describe('SearchResultsList', () => {
 
     expect(screen.getByText('resume-1:collapsed')).toBeInTheDocument()
     expect(screen.queryByText('resume-0:collapsed')).not.toBeInTheDocument()
+  })
+
+  it('subtracts the measured scroll margin from virtual row placement', async () => {
+    virtualRows = [{ index: 0, start: 120 }]
+    vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockReturnValue(80)
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={Array.from({ length: 45 }, (_, index) => createItem(index))}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    const content = await screen.findByText('resume-0:collapsed')
+    await waitFor(() => {
+      expect(content.parentElement).toHaveStyle({ transform: 'translateY(40px)' })
+    })
   })
 
   it('triggers load more when the sentinel intersects and more results are available', () => {
