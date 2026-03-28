@@ -328,6 +328,6 @@ describe('System settings routes', () => {
       expect(screen.getByText('The seeded China Job5156 and Malaysia SEEK quick starts now live in Search Profiles. Manage landing-entry presets and scheduled collectors there instead of in workflow-seed settings.')).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: 'Open Search Profiles' })).toHaveAttribute('href', '/dev/system/profiles')
+    expect(screen.getByRole('link', { name: 'Open Search Profiles' })).toHaveAttribute('href', '/dev/system/profiles?view=quick-starts')
   })
 })

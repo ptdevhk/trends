@@ -5,10 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SearchProfilesPage } from './SearchProfilesPage'
 
-const { getMock, postMock, deleteMock, setSearchParamsMock, toastSuccessMock, toastErrorMock, tMock } = vi.hoisted(() => ({
+const { getMock, postMock, deleteMock, routerState, setSearchParamsMock, toastSuccessMock, toastErrorMock, tMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
   postMock: vi.fn(),
   deleteMock: vi.fn(),
+  routerState: {
+    search: '',
+  },
   setSearchParamsMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
@@ -16,7 +19,7 @@ const { getMock, postMock, deleteMock, setSearchParamsMock, toastSuccessMock, to
 }))
 
 vi.mock('react-router-dom', () => ({
-  useSearchParams: () => [new URLSearchParams(), setSearchParamsMock],
+  useSearchParams: () => [new URLSearchParams(routerState.search), setSearchParamsMock],
 }))
 
 vi.mock('react-i18next', () => ({
@@ -86,7 +89,13 @@ vi.mock('@/components/ui/dialog', () => ({
 }))
 
 vi.mock('@/components/PageHeader', () => ({
-  PageHeader: ({ title }: { title?: string }) => <div>{title}</div>,
+  PageHeader: ({ title, description, actions }: { title?: string; description?: string; actions?: ReactNode }) => (
+    <div>
+      <div>{title}</div>
+      <div>{description}</div>
+      <div>{actions}</div>
+    </div>
+  ),
 }))
 
 vi.mock('@/components/SearchProfileEditorDialog', () => ({
@@ -97,6 +106,7 @@ describe('SearchProfilesPage run behavior', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.clearAllMocks()
+    routerState.search = ''
     vi.spyOn(globalThis, 'setInterval').mockImplementation(() => 1 as never)
     getMock.mockImplementation(async (path: string) => {
       if (path === '/api/search-profiles') {
@@ -331,5 +341,75 @@ describe('SearchProfilesPage run behavior', () => {
       expect(getMock.mock.calls.filter(([path]) => path === '/api/search-profiles/profile-1/status')).toHaveLength(2)
     })
     expect(toastSuccessMock).toHaveBeenCalledWith('Profile run started')
+  })
+
+  it('filters to landing quick starts when opened from the quick-start view', async () => {
+    routerState.search = 'view=quick-starts'
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/search-profiles') {
+        return {
+          data: {
+            success: true,
+            profiles: [
+              {
+                id: 'profile-1',
+                name: 'Quick Start Profile',
+                filename: 'profile-1.yaml',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: 'China',
+                keywords: ['CNC', '销售'],
+                origin: 'system',
+                readOnly: true,
+                quickStart: {
+                  enabled: true,
+                },
+              },
+              {
+                id: 'profile-2',
+                name: 'Scheduled Only Profile',
+                filename: 'profile-2.yaml',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: 'Dongguan',
+                keywords: ['车床', '销售'],
+                origin: 'workspace',
+                readOnly: false,
+              },
+            ],
+          },
+        }
+      }
+
+      if (path.endsWith('/status')) {
+        return {
+          data: {
+            success: true,
+            status: null,
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+          profile: {
+            id: 'profile-1',
+            name: 'Quick Start Profile',
+            status: 'active',
+            location: 'China',
+            keywords: ['CNC', '销售'],
+          },
+        },
+      }
+    })
+
+    render(<SearchProfilesPage />)
+
+    expect(await screen.findByText('This filtered view shows only profiles with landing quick-start metadata enabled.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Quick Start Profile' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run Scheduled Only Profile' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show All Profiles' })).toBeInTheDocument()
   })
 })
