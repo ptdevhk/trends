@@ -27,7 +27,7 @@ export function MigrationBanner() {
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Link className="inline-flex h-9 items-center rounded-md border border-sky-200 bg-white px-3 text-sm font-medium" to={`/${slug}/system/profiles`}>
+        <Link className="inline-flex h-9 items-center rounded-md border border-sky-200 bg-white px-3 text-sm font-medium" to={`/${slug}/system/profiles?view=quick-starts`}>
           Open Search Profiles
         </Link>
         <Button

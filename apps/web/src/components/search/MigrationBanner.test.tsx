@@ -30,7 +30,7 @@ describe('MigrationBanner', () => {
       expect(screen.getByText('Search Profiles still exist, but the primary resume route is now search-first.')).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: 'Open Search Profiles' })).toHaveAttribute('href', '/dev/system/profiles')
+    expect(screen.getByRole('link', { name: 'Open Search Profiles' })).toHaveAttribute('href', '/dev/system/profiles?view=quick-starts')
   })
 
   it('persists dismissal in local storage', async () => {
