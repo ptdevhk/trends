@@ -111,7 +111,7 @@ export function SearchResultsList({
               <div
                 key={item.key}
                 className="absolute left-0 top-0 w-full"
-                style={{ transform: `translateY(${virtualRow.start}px)` }}
+                style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
               >
                 <SnippetCard
                   item={item}
