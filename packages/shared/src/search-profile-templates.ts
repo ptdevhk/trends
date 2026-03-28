@@ -1,0 +1,249 @@
+export const DEFAULT_TEMPLATE_WORKSPACE_SLUG = "dev";
+
+export type SharedSearchProfileTemplate = {
+  workspaceSlug?: string;
+  profile: {
+    id: string;
+    name: string;
+    description?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    status: "active" | "paused" | "archived";
+    location: string;
+    keywords: string[];
+    requiredKeywords?: string[];
+    jobDescription?: string;
+    filterPreset?: string;
+    filters?: {
+      minExperience?: number;
+      maxExperience?: number | null;
+      minAge?: number;
+      maxAge?: number;
+      education?: string[];
+      salaryRange?: {
+        min?: number;
+        max?: number;
+        currency?: string;
+        period?: string;
+      };
+      locations?: string[];
+    };
+    schedule?: {
+      enabled: boolean;
+      cron?: string;
+      timezone?: string;
+      maxCandidates?: number;
+      notifyOnlyOnNew?: boolean;
+    };
+    sources?: Array<{
+      type: string;
+      enabled: boolean;
+      priority?: number;
+      jobUrl?: string;
+    }>;
+    quickStart?: {
+      enabled: boolean;
+      rank?: number;
+      label?: string;
+      description?: string;
+    };
+    session?: {
+      scope?: string;
+      resetTriggers?: string[];
+      retention?: {
+        mode?: string;
+        archiveAfterDays?: number;
+      };
+    };
+  };
+  seedLastRunOffsetMs?: number;
+};
+
+export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
+  {
+    workspaceSlug: DEFAULT_TEMPLATE_WORKSPACE_SLUG,
+    seedLastRunOffsetMs: 3_600_000,
+    profile: {
+      id: "job5156-cn-cnc-sales",
+      name: "China Job5156 CNC Sales",
+      description: "China-wide Job5156 CNC sales search profile used for the landing quick start",
+      createdAt: "2026-03-28",
+      updatedAt: "2026-03-28",
+      status: "active",
+      location: "China",
+      keywords: ["CNC", "销售"],
+      jobDescription: "lathe-sales",
+      filters: {
+        minExperience: 2,
+        maxExperience: null,
+        locations: ["China"],
+      },
+      schedule: {
+        enabled: true,
+        cron: "0 9 * * 1-5",
+        timezone: "Asia/Shanghai",
+        maxCandidates: 200,
+      },
+      sources: [
+        {
+          type: "job5156",
+          enabled: true,
+          priority: 1,
+        },
+        {
+          type: "seek",
+          enabled: false,
+          priority: 2,
+        },
+      ],
+      quickStart: {
+        enabled: true,
+        rank: 1,
+        label: "China · Job5156 · CNC 销售",
+        description: "CNC, 销售 · China",
+      },
+    },
+  },
+  {
+    workspaceSlug: DEFAULT_TEMPLATE_WORKSPACE_SLUG,
+    seedLastRunOffsetMs: 1_800_000,
+    profile: {
+      id: "seek-malaysia-sales",
+      name: "SEEK Malaysia CNC Sales",
+      description: "Malaysia SEEK workflow for Kuala Lumpur CNC sales hiring",
+      createdAt: "2026-03-17",
+      updatedAt: "2026-03-20",
+      status: "active",
+      location: "Kuala Lumpur MY",
+      keywords: ["CNC", "Sales"],
+      requiredKeywords: ["machine tools"],
+      jobDescription: "seek-malaysia-sales",
+      filters: {
+        minExperience: 2,
+        maxExperience: null,
+        maxAge: 45,
+        locations: ["Kuala Lumpur MY", "Malaysia"],
+      },
+      schedule: {
+        enabled: false,
+        timezone: "Asia/Kuala_Lumpur",
+        maxCandidates: 120,
+      },
+      sources: [
+        {
+          type: "seek",
+          enabled: true,
+          priority: 1,
+          jobUrl: "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
+        },
+        {
+          type: "job5156",
+          enabled: false,
+          priority: 2,
+        },
+      ],
+      session: {
+        scope: "per-position",
+        retention: {
+          mode: "until-closed",
+          archiveAfterDays: 90,
+        },
+      },
+      quickStart: {
+        enabled: true,
+        rank: 2,
+        label: "Malaysia · SEEK · CNC Sales",
+        description: "CNC, Sales · Kuala Lumpur MY",
+      },
+    },
+  },
+  {
+    workspaceSlug: DEFAULT_TEMPLATE_WORKSPACE_SLUG,
+    seedLastRunOffsetMs: 900_000,
+    profile: {
+      id: "dongguan-lathe-sales",
+      name: "东莞车床销售招聘",
+      description: "东莞地区车床销售工程师岗位自动化招聘",
+      createdAt: "2026-02-06",
+      updatedAt: "2026-02-06",
+      status: "active",
+      location: "东莞",
+      keywords: ["车床", "销售", "CNC", "数控"],
+      jobDescription: "lathe-sales",
+      filterPreset: "sales-mid",
+      filters: {
+        minExperience: 2,
+        maxExperience: null,
+        education: ["中专", "大专", "本科"],
+        salaryRange: {
+          min: 8000,
+          max: 20000,
+          currency: "CNY",
+          period: "month",
+        },
+        locations: ["东莞", "广州", "深圳"],
+      },
+      schedule: {
+        enabled: true,
+        cron: "0 9 * * 1-5",
+        timezone: "Asia/Hong_Kong",
+        maxCandidates: 200,
+        notifyOnlyOnNew: true,
+      },
+      sources: [
+        {
+          type: "job5156",
+          enabled: true,
+          priority: 1,
+        },
+        {
+          type: "manual_upload",
+          enabled: true,
+          priority: 2,
+        },
+      ],
+      session: {
+        scope: "per-position",
+        resetTriggers: ["/archive", "/close-position"],
+        retention: {
+          mode: "until-closed",
+          archiveAfterDays: 90,
+        },
+      },
+    },
+  },
+];
+
+export function normalizeTemplateWorkspaceSlug(workspaceSlug?: string): string {
+  const normalized = workspaceSlug?.trim();
+  return normalized && normalized.length > 0 ? normalized : DEFAULT_TEMPLATE_WORKSPACE_SLUG;
+}
+
+export function buildSearchProfileCriteria(profile: SharedSearchProfileTemplate["profile"]) {
+  const filterLocations = Array.isArray(profile.filters?.locations)
+    ? profile.filters.locations.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+  const locations = Array.from(new Set([profile.location, ...filterLocations].filter((item) => item && item.trim().length > 0)));
+
+  return {
+    keywords: [...profile.keywords],
+    locations,
+  };
+}
+
+export function getWorkspaceSearchProfileTemplates(workspaceSlug?: string): SharedSearchProfileTemplate[] {
+  const normalizedWorkspaceSlug = normalizeTemplateWorkspaceSlug(workspaceSlug);
+  return SEARCH_PROFILE_TEMPLATES.filter((template) => (
+    normalizeTemplateWorkspaceSlug(template.workspaceSlug) === normalizedWorkspaceSlug
+  ));
+}
+
+export function findWorkspaceSearchProfileTemplate(
+  id: string,
+  workspaceSlug?: string,
+): SharedSearchProfileTemplate | null {
+  const normalizedId = id.trim().toLowerCase();
+  return getWorkspaceSearchProfileTemplates(workspaceSlug).find((template) => (
+    template.profile.id.trim().toLowerCase() === normalizedId
+  )) ?? null;
+}

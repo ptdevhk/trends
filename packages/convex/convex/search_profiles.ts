@@ -46,6 +46,40 @@ function readStringArray(value: unknown): string[] {
   return Array.from(new Set(normalized));
 }
 
+function readProfileId(record: {
+  profileId?: string;
+  profile?: unknown;
+}): string | undefined {
+  const direct = readString(record.profileId);
+  if (direct) {
+    return direct;
+  }
+
+  const profile = asRecord(record.profile);
+  return readString(profile?.id);
+}
+
+function findSearchProfileRecordById(
+  records: Array<{
+    _id: Id<"search_profiles">;
+    name: string;
+    workspaceSlug?: string;
+    profileId?: string;
+    profile?: unknown;
+  }>,
+  id: string,
+  workspaceSlug: string,
+) {
+  const normalizedId = id.trim();
+  return records.find((record) => (
+    belongsToWorkspace(record.workspaceSlug, workspaceSlug)
+    && (
+      String(record._id) === normalizedId
+      || readProfileId(record) === normalizedId
+    )
+  ));
+}
+
 function normalizeCriteria(profile: unknown): { keywords: string[]; locations: string[] } {
   const record = asRecord(profile);
   if (!record) {
@@ -151,11 +185,8 @@ export const getById = query({
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
     const records = await ctx.db.query("search_profiles").collect();
-    const found = records.find((record) => String(record._id) === args.id);
+    const found = findSearchProfileRecordById(records, args.id, workspaceSlug);
     if (!found) {
-      return null;
-    }
-    if (!belongsToWorkspace(found.workspaceSlug, workspaceSlug)) {
       return null;
     }
     return found;
@@ -202,12 +233,9 @@ export const update = mutation({
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
     const records = await ctx.db.query("search_profiles").collect();
-    const existing = records.find((record) => String(record._id) === args.id);
+    const existing = findSearchProfileRecordById(records, args.id, workspaceSlug);
     if (!existing) {
       throw new Error(`Search profile not found: ${args.id}`);
-    }
-    if (!belongsToWorkspace(existing.workspaceSlug, workspaceSlug)) {
-      throw new Error("Cannot update search profile from another workspace");
     }
 
     const profile = asRecord(args.profile);
@@ -238,11 +266,8 @@ export const remove = mutation({
   handler: async (ctx, args) => {
     const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
     const records = await ctx.db.query("search_profiles").collect();
-    const existing = records.find((record) => String(record._id) === args.id);
+    const existing = findSearchProfileRecordById(records, args.id, workspaceSlug);
     if (!existing) {
-      return false;
-    }
-    if (!belongsToWorkspace(existing.workspaceSlug, workspaceSlug)) {
       return false;
     }
 

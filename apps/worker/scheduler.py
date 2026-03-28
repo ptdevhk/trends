@@ -274,9 +274,7 @@ class WorkerScheduler:
     def load_profile_jobs(self) -> None:
         """Load and schedule jobs from search profiles."""
         try:
-            # Determine config directory (relative to project root)
-            # Assuming CWD is project root
-            loader = ProfileLoader(config_dir="config/search-profiles")
+            loader = ProfileLoader()
             profiles = loader.load_profiles()
             
             for profile in profiles:

@@ -3726,15 +3726,11 @@ export interface paths {
                             profiles: {
                                 id: string;
                                 name: string;
-                                filename: string;
                                 updatedAt: string;
                                 /** @enum {string} */
                                 status: "active" | "paused" | "archived";
                                 location: string;
                                 keywords: string[];
-                                /** @enum {string} */
-                                origin: "system" | "workspace";
-                                readOnly: boolean;
                                 quickStart?: {
                                     enabled: boolean;
                                     rank?: number;
@@ -3794,6 +3790,54 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search-profiles/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List enabled runtime search profiles across known workspaces for worker scheduling */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Runtime search profile list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            items: {
+                                workspaceSlug: string;
+                                profileId: string;
+                                name: string;
+                                cron: string;
+                                profile: {
+                                    [key: string]: unknown;
+                                };
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3962,46 +4006,6 @@ export interface paths {
                             /** @enum {boolean} */
                             success: false;
                             error: string;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/search-profiles/reload": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Clear cache and reload profiles */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Cache cleared */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: true;
-                            message: string;
                         };
                     };
                 };

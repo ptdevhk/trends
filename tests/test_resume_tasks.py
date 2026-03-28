@@ -262,6 +262,71 @@ def test_list_summary_profiles_runtime_normalizes_payload(monkeypatch) -> None:
     ]
 
 
+def test_worker_scheduler_load_profile_jobs_schedules_runtime_profiles(monkeypatch) -> None:
+    calls: list[dict[str, Any]] = []
+    constructed: list[bool] = []
+
+    class FakeLoader:
+        def __init__(self) -> None:
+            constructed.append(True)
+
+        def load_profiles(self) -> list[dict[str, Any]]:
+            return [
+                {
+                    "id": "job5156-cn-cnc-sales",
+                    "cron": "0 9 * * 1-5",
+                    "location": "China",
+                    "keywords": ["CNC", "销售"],
+                    "workspaceSlug": "dev",
+                    "schedule": {"enabled": True, "cron": "0 9 * * 1-5"},
+                },
+            ]
+
+    monkeypatch.setattr(worker_scheduler, "ProfileLoader", FakeLoader)
+
+    scheduler = worker_scheduler.WorkerScheduler(timezone="UTC")
+    monkeypatch.setattr(scheduler, "add_custom_job", lambda **kwargs: calls.append(kwargs))
+
+    scheduler.load_profile_jobs()
+
+    assert constructed == [True]
+    assert calls == [
+        {
+            "func": worker_scheduler.run_resume_crawl_task,
+            "job_id": "crawl_profile_job5156-cn-cnc-sales",
+            "cron_expression": "0 9 * * 1-5",
+            "profile": {
+                "id": "job5156-cn-cnc-sales",
+                "cron": "0 9 * * 1-5",
+                "location": "China",
+                "keywords": ["CNC", "销售"],
+                "workspaceSlug": "dev",
+                "schedule": {"enabled": True, "cron": "0 9 * * 1-5"},
+            },
+        },
+    ]
+
+
+def test_worker_scheduler_load_profile_jobs_logs_and_skips_loader_failures(monkeypatch, caplog) -> None:
+    class BrokenLoader:
+        def __init__(self) -> None:
+            pass
+
+        def load_profiles(self) -> list[dict[str, Any]]:
+            raise RuntimeError("runtime unavailable")
+
+    monkeypatch.setattr(worker_scheduler, "ProfileLoader", BrokenLoader)
+
+    scheduler = worker_scheduler.WorkerScheduler(timezone="UTC")
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(scheduler, "add_custom_job", lambda **kwargs: calls.append(kwargs))
+
+    scheduler.load_profile_jobs()
+
+    assert calls == []
+    assert "Failed to load profile jobs: runtime unavailable" in caplog.text
+
+
 def test_add_workspace_summary_job_requires_cron(monkeypatch) -> None:
     calls: list[dict[str, Any]] = []
 

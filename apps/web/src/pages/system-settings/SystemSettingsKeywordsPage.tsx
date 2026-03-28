@@ -305,13 +305,13 @@ export function SystemSettingsKeywordsPage() {
                 <CardTitle>{t('quickStart.workflows', { defaultValue: 'Landing quick starts' })}</CardTitle>
                 <CardDescription>
                   {t('debugConfig.workflowSeedsDescription', {
-                    defaultValue: 'Search-first landing quick starts now come from Search Profiles so the same seeded searches can power scheduled collectors.',
+                    defaultValue: 'Search-first landing quick starts now live in the same Search Profiles workspace registry as every other profile.',
                   })}
                 </CardDescription>
               </div>
               <Link
                 className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
-                to={`/${slug}/system/profiles?view=quick-starts`}
+                to={`/${slug}/system/profiles`}
               >
                 {t('searchProfiles.title', { defaultValue: 'Open Search Profiles' })}
               </Link>
@@ -325,7 +325,7 @@ export function SystemSettingsKeywordsPage() {
             </div>
             <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
               {t('debugConfig.workflowSeedsMigrationSummary', {
-                defaultValue: 'The seeded China Job5156 and Malaysia SEEK quick starts now live in Search Profiles. Manage landing-entry presets and scheduled collectors there instead of in workflow-seed settings.',
+                defaultValue: 'Search Profiles is now the single page for landing quick starts and other profiles. The China Job5156 and Malaysia SEEK starter profiles are materialized into workspace-managed storage there, so you can edit them directly.',
               })}
             </div>
           </CardContent>

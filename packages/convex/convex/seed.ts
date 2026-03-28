@@ -3,8 +3,10 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
+  buildSearchProfileCriteria,
   buildLatestWorkHistoryEvidence,
   generateStructuredJobDescriptionContent,
+  getWorkspaceSearchProfileTemplates,
 } from "@trends/shared";
 import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 import { deriveResumeIdentity } from "./lib/resume_identity";
@@ -567,48 +569,15 @@ export const seedWorkspaceDemoData = mutation({
       },
     ];
 
-    const searchProfiles = [
-      {
-        name: "CNC 销售-China",
-        criteria: {
-          keywords: ["CNC", "销售"],
-          locations: ["China"],
-        },
-        profile: {
-          name: "CNC 销售-China",
-          status: "active" as const,
-          location: "China",
-          keywords: ["CNC", "销售"],
-          filters: {
-            minExperience: 1,
-            minAge: 25,
-            maxAge: 35,
-          },
-        },
-        workspaceSlug: "dev",
-        lastRunAt: seededAt - 3_600_000,
-      },
-      {
-        name: "CNC Sales-MY",
-        criteria: {
-          keywords: ["CNC", "Sales"],
-          locations: ["Kuala Lumpur MY"],
-        },
-        profile: {
-          name: "CNC Sales-MY",
-          status: "active" as const,
-          location: "Kuala Lumpur MY",
-          keywords: ["CNC", "Sales"],
-          filters: {
-            minExperience: 1,
-            minAge: 25,
-            maxAge: 35,
-          },
-        },
-        workspaceSlug: "dev",
-        lastRunAt: seededAt - 1_800_000,
-      },
-    ];
+    const searchProfiles = getWorkspaceSearchProfileTemplates("dev").map((template) => ({
+      name: template.profile.name,
+      criteria: buildSearchProfileCriteria(template.profile),
+      profile: template.profile,
+      workspaceSlug: template.workspaceSlug,
+      lastRunAt: typeof template.seedLastRunOffsetMs === "number"
+        ? seededAt - template.seedLastRunOffsetMs
+        : undefined,
+    }));
 
     const screeningSessions = [
       {

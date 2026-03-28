@@ -12,3 +12,4 @@ export * from "./resume-id.js";
 export * from "./system-debug-metadata.js";
 export * from "./keyword-query.js";
 export * from "./summaries.js";
+export * from "./search-profile-templates.js";

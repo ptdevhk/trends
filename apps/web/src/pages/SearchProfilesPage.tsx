@@ -111,10 +111,6 @@ function buildScheduleLabel(profile?: SearchProfileDetails): string {
   return profile.schedule.cron || 'enabled'
 }
 
-function isQuickStartProfile(profile: SearchProfileSummary): boolean {
-  return profile.quickStart?.enabled === true
-}
-
 export function SearchProfilesPage() {
   const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -248,29 +244,29 @@ export function SearchProfilesPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (searchParams.get('view') !== 'quick-starts') {
+      return
+    }
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('view')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
+
   const handleCreate = useCallback(() => {
     setEditingProfileId(null)
     setEditorOpen(true)
   }, [])
 
   const handleEdit = useCallback(async (profileId: string) => {
-    const summary = profiles.find((profile) => profile.id === profileId)
-    if (summary?.readOnly) {
-      toast.error(t('searchProfiles.readOnlyEdit', { defaultValue: 'Seeded profiles are managed from Search Profiles config and are read-only in this workspace UI.' }))
-      return
-    }
     setEditingProfileId(profileId)
     setEditorOpen(true)
-  }, [profiles, t])
+  }, [])
 
   const handleDelete = useCallback((profileId: string) => {
-    const summary = profiles.find((profile) => profile.id === profileId)
-    if (summary?.readOnly) {
-      toast.error(t('searchProfiles.readOnlyDelete', { defaultValue: 'Seeded profiles cannot be deleted from the workspace UI.' }))
-      return
-    }
     setDeletingProfileId(profileId)
-  }, [profiles, t])
+  }, [])
 
   const confirmDelete = useCallback(async () => {
     if (!deletingProfileId) {
@@ -397,14 +393,8 @@ export function SearchProfilesPage() {
     setSearchParams(nextParams, { replace: true })
   }, [handleEdit, profiles, searchParams, setSearchParams])
 
-  const showQuickStartsOnly = searchParams.get('view') === 'quick-starts'
-
   const cards = useMemo(() => {
-    const visibleProfiles = showQuickStartsOnly
-      ? profiles.filter(isQuickStartProfile)
-      : profiles
-
-    return visibleProfiles.map((profile) => {
+    return profiles.map((profile) => {
       const detail = profileDetails[profile.id]
       return {
         profile,
@@ -412,32 +402,19 @@ export function SearchProfilesPage() {
         runStatus: runStatuses[profile.id],
       }
     })
-  }, [profileDetails, profiles, runStatuses, showQuickStartsOnly])
-
-  const handleShowAllProfiles = useCallback(() => {
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.delete('view')
-    setSearchParams(nextParams, { replace: true })
-  }, [searchParams, setSearchParams])
+  }, [profileDetails, profiles, runStatuses])
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={t('searchProfiles.title', { defaultValue: 'Search Profiles' })}
-        description={showQuickStartsOnly
-          ? t('searchProfiles.quickStartsSubtitle', { defaultValue: 'Showing landing quick starts only. Open all profiles to manage scheduled collectors and non-landing searches.' })
-          : t('searchProfiles.subtitle', { defaultValue: 'Manage landing quick starts and scheduled profile-based resume searches.' })}
+        description={t('searchProfiles.subtitle', { defaultValue: 'Manage landing quick starts and scheduled profile-based resume searches.' })}
         actions={
           <>
             <Button variant="outline" onClick={() => void loadProfiles()} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               {t('searchProfiles.refresh', { defaultValue: 'Refresh' })}
             </Button>
-            {showQuickStartsOnly ? (
-              <Button variant="outline" onClick={handleShowAllProfiles}>
-                {t('searchProfiles.showAll', { defaultValue: 'Show All Profiles' })}
-              </Button>
-            ) : null}
             <Button onClick={handleCreate}>
               <Plus className="h-4 w-4 mr-2" />
               {t('searchProfiles.create', { defaultValue: 'Create Profile' })}
@@ -445,14 +422,6 @@ export function SearchProfilesPage() {
           </>
         }
       />
-
-      {showQuickStartsOnly ? (
-        <Card>
-          <CardContent className="pt-6 text-sm text-muted-foreground">
-            {t('searchProfiles.quickStartsNotice', { defaultValue: 'This filtered view shows only profiles with landing quick-start metadata enabled.' })}
-          </CardContent>
-        </Card>
-      ) : null}
 
       {loading ? (
         <Card>
@@ -464,15 +433,11 @@ export function SearchProfilesPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              {showQuickStartsOnly
-                ? t('searchProfiles.quickStartsEmptyTitle', { defaultValue: 'No landing quick starts yet' })
-                : t('searchProfiles.emptyTitle', { defaultValue: 'No profiles yet' })}
+              {t('searchProfiles.emptyTitle', { defaultValue: 'No profiles yet' })}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            {showQuickStartsOnly
-              ? t('searchProfiles.quickStartsEmptyDescription', { defaultValue: 'Enable landing quick-start metadata on a profile to surface it on the search landing page.' })
-              : t('searchProfiles.emptyDescription', { defaultValue: 'Create your first profile to enable one-click and scheduled runs.' })}
+            {t('searchProfiles.emptyDescription', { defaultValue: 'Create your first profile to enable one-click and scheduled runs.' })}
           </CardContent>
         </Card>
       ) : (

@@ -117,7 +117,6 @@ describe('SearchProfilesPage run behavior', () => {
               {
                 id: 'profile-1',
                 name: 'Profile 1',
-                filename: 'profile-1.yaml',
                 updatedAt: '2026-03-17T00:00:00.000Z',
                 status: 'active',
                 location: 'Kuala Lumpur MY',
@@ -162,7 +161,6 @@ describe('SearchProfilesPage run behavior', () => {
               {
                 id: 'profile-1',
                 name: 'Seek profile',
-                filename: 'seek-profile.yaml',
                 updatedAt: '2026-03-17T00:00:00.000Z',
                 status: 'active',
                 location: 'Kuala Lumpur MY',
@@ -258,7 +256,6 @@ describe('SearchProfilesPage run behavior', () => {
               {
                 id: 'profile-1',
                 name: 'Job5156 profile',
-                filename: 'job5156-profile.yaml',
                 updatedAt: '2026-03-17T00:00:00.000Z',
                 status: 'active',
                 location: '东莞',
@@ -343,7 +340,7 @@ describe('SearchProfilesPage run behavior', () => {
     expect(toastSuccessMock).toHaveBeenCalledWith('Profile run started')
   })
 
-  it('filters to landing quick starts when opened from the quick-start view', async () => {
+  it('keeps the legacy quick-start view URL on the unified page', async () => {
     routerState.search = 'view=quick-starts'
 
     getMock.mockImplementation(async (path: string) => {
@@ -355,13 +352,10 @@ describe('SearchProfilesPage run behavior', () => {
               {
                 id: 'profile-1',
                 name: 'Quick Start Profile',
-                filename: 'profile-1.yaml',
                 updatedAt: '2026-03-17T00:00:00.000Z',
                 status: 'active',
                 location: 'China',
                 keywords: ['CNC', '销售'],
-                origin: 'system',
-                readOnly: true,
                 quickStart: {
                   enabled: true,
                 },
@@ -369,13 +363,10 @@ describe('SearchProfilesPage run behavior', () => {
               {
                 id: 'profile-2',
                 name: 'Scheduled Only Profile',
-                filename: 'profile-2.yaml',
                 updatedAt: '2026-03-17T00:00:00.000Z',
                 status: 'active',
                 location: 'Dongguan',
                 keywords: ['车床', '销售'],
-                origin: 'workspace',
-                readOnly: false,
               },
             ],
           },
@@ -407,9 +398,16 @@ describe('SearchProfilesPage run behavior', () => {
 
     render(<SearchProfilesPage />)
 
-    expect(await screen.findByText('This filtered view shows only profiles with landing quick-start metadata enabled.')).toBeInTheDocument()
+    expect(await screen.findByText('Manage landing quick starts and scheduled profile-based resume searches.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run Quick Start Profile' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Run Scheduled Only Profile' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show All Profiles' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Scheduled Only Profile' })).toBeInTheDocument()
+    expect(screen.queryByText('This filtered view shows only profiles with landing quick-start metadata enabled.')).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(setSearchParamsMock).toHaveBeenCalledWith(expect.any(URLSearchParams), { replace: true })
+    })
+
+    const [nextParams] = setSearchParamsMock.mock.calls[0]
+    expect(nextParams.toString()).toBe('')
   })
 })
