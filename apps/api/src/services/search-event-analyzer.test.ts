@@ -8,8 +8,13 @@ import { resetResumeScreeningDb } from "./database";
 import { MatchStorage } from "./match-storage";
 import { SearchEventAnalyzer } from "./search-event-analyzer";
 
+function isoMinutesAgo(baseTimeMs: number, minutesAgo: number): string {
+  return new Date(baseTimeMs - minutesAgo * 60 * 1000).toISOString();
+}
+
 function createFixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "search-event-analyzer-"));
+  const baseTimeMs = Date.now();
   fs.mkdirSync(path.join(root, "config", "resume"), { recursive: true });
   fs.mkdirSync(path.join(root, "output"), { recursive: true });
   fs.writeFileSync(path.join(root, "pyproject.toml"), "", "utf8");
@@ -42,12 +47,12 @@ updated_at: '2026-02-25'
   );
 
   const events = [
-    { type: "search_query", query: "cnc 东莞", resultCount: 3, topScore: 90, ts: "2026-02-25T01:00:00.000Z" },
-    { type: "search_query", query: "cnc机台 东莞", resultCount: 0, ts: "2026-02-25T01:05:00.000Z" },
-    { type: "search_zero_results", query: "cnc机台 东莞", ts: "2026-02-25T01:05:00.000Z" },
-    { type: "candidate_action", resumeId: "r1", action: "shortlist", query: "cnc 东莞", ts: "2026-02-25T01:10:00.000Z" },
-    { type: "candidate_action", resumeId: "r2", action: "reject", query: "cnc 东莞", ts: "2026-02-25T01:11:00.000Z" },
-    { type: "candidate_action", resumeId: "r3", action: "shortlist", query: "cnc 东莞", ts: "2026-02-25T01:12:00.000Z" },
+    { type: "search_query", query: "cnc 东莞", resultCount: 3, topScore: 90, ts: isoMinutesAgo(baseTimeMs, 30) },
+    { type: "search_query", query: "cnc机台 东莞", resultCount: 0, ts: isoMinutesAgo(baseTimeMs, 25) },
+    { type: "search_zero_results", query: "cnc机台 东莞", ts: isoMinutesAgo(baseTimeMs, 25) },
+    { type: "candidate_action", resumeId: "r1", action: "shortlist", query: "cnc 东莞", ts: isoMinutesAgo(baseTimeMs, 20) },
+    { type: "candidate_action", resumeId: "r2", action: "reject", query: "cnc 东莞", ts: isoMinutesAgo(baseTimeMs, 19) },
+    { type: "candidate_action", resumeId: "r3", action: "shortlist", query: "cnc 东莞", ts: isoMinutesAgo(baseTimeMs, 18) },
   ];
   fs.writeFileSync(
     path.join(root, "output", "search-events.jsonl"),
