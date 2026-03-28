@@ -11,11 +11,17 @@ import { ScoringAutoTuner } from "./scoring-auto-tuner";
 import { WeightHistoryService } from "./weight-history";
 import { workspaceConfigService } from "./workspace-config-service";
 
+function createRecentIsoFactory(daysAgo = 2): (offsetMinutes: number) => string {
+  const baseMs = Date.now() - daysAgo * 24 * 60 * 60 * 1000;
+  return (offsetMinutes: number) => new Date(baseMs + offsetMinutes * 60 * 1000).toISOString();
+}
+
 function createFixtureRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "scoring-auto-tuner-"));
   fs.mkdirSync(path.join(root, "config", "resume"), { recursive: true });
   fs.mkdirSync(path.join(root, "output"), { recursive: true });
   fs.writeFileSync(path.join(root, "pyproject.toml"), "", "utf8");
+  const recentIso = createRecentIsoFactory();
 
   fs.writeFileSync(
     path.join(root, "config", "resume", "rule-weights.json5"),
@@ -65,13 +71,13 @@ updated_at: '2026-02-25'
   );
 
   const events = [
-    { type: "search_query", query: "cnc 东莞", resultCount: 4, topScore: 70, ts: "2026-02-25T02:00:00.000Z" },
-    { type: "search_query", query: "cnc机台 东莞", resultCount: 0, ts: "2026-02-25T02:05:00.000Z" },
-    { type: "search_zero_results", query: "cnc机台 东莞", ts: "2026-02-25T02:05:00.000Z" },
-    { type: "candidate_action", resumeId: "r1", action: "shortlist", query: "cnc 东莞", ts: "2026-02-25T02:10:00.000Z" },
-    { type: "candidate_action", resumeId: "r2", action: "reject", query: "cnc 东莞", ts: "2026-02-25T02:11:00.000Z" },
-    { type: "candidate_action", resumeId: "r3", action: "shortlist", query: "cnc 东莞", ts: "2026-02-25T02:12:00.000Z" },
-    { type: "candidate_action", resumeId: "r4", action: "reject", query: "cnc 东莞", ts: "2026-02-25T02:13:00.000Z" },
+    { type: "search_query", query: "cnc 东莞", resultCount: 4, topScore: 70, ts: recentIso(0) },
+    { type: "search_query", query: "cnc机台 东莞", resultCount: 0, ts: recentIso(5) },
+    { type: "search_zero_results", query: "cnc机台 东莞", ts: recentIso(5) },
+    { type: "candidate_action", resumeId: "r1", action: "shortlist", query: "cnc 东莞", ts: recentIso(10) },
+    { type: "candidate_action", resumeId: "r2", action: "reject", query: "cnc 东莞", ts: recentIso(11) },
+    { type: "candidate_action", resumeId: "r3", action: "shortlist", query: "cnc 东莞", ts: recentIso(12) },
+    { type: "candidate_action", resumeId: "r4", action: "reject", query: "cnc 东莞", ts: recentIso(13) },
   ];
   fs.writeFileSync(
     path.join(root, "output", "search-events.jsonl"),
