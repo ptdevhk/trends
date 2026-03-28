@@ -41,6 +41,12 @@ vi.mock('sonner', () => ({
   },
 }))
 
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({
+    slug: 'dev',
+  }),
+}))
+
 function renderSettingsRoute(initialEntry: string) {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -313,14 +319,15 @@ describe('System settings routes', () => {
     expect(screen.getByRole('button', { name: 'Add Keyword' })).toBeInTheDocument()
   })
 
-  it('renders workflow seed rows in the keywords route', async () => {
+  it('routes landing quick-start ownership to search profiles from the keywords page', async () => {
     renderSettingsRoute('/dev/system/settings/keywords')
 
     await waitFor(() => {
-      expect(screen.getByText('Workflow Seeds')).toBeInTheDocument()
-      expect(screen.getByText('China · Job5156 · CNC 销售')).toBeInTheDocument()
+      expect(screen.getByText('Landing quick starts')).toBeInTheDocument()
+      expect(screen.getByText('Legacy workflow-seed config remains for compatibility only. The search-first landing page now reads its quick starts from Search Profiles instead.')).toBeInTheDocument()
+      expect(screen.getByText('The seeded China Job5156 and Malaysia SEEK quick starts now live in Search Profiles. Manage landing-entry presets and scheduled collectors there instead of in workflow-seed settings.')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Malaysia · SEEK · CNC Sales')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Search Profiles' })).toHaveAttribute('href', '/dev/system/profiles')
   })
 })

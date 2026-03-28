@@ -36,26 +36,26 @@ vi.mock('@/components/search/MigrationBanner', () => ({
 vi.mock('@/components/search/SearchHero', () => ({
   SearchHero: ({
     hotKeywords,
-    onApplyWorkflowSeed,
+    onApplyQuickStart,
     onToggleHotKeyword,
     queryInput,
     onApplyExtractedKeywords,
-    workflowSeeds,
+    quickStarts,
   }: {
     hotKeywords?: Array<{ keyword: string }>
-    onApplyWorkflowSeed?: (seed: {
+    onApplyQuickStart?: (seed: {
       keywords: string[]
       location: string
     }) => void
     onToggleHotKeyword?: (keyword: string) => void
     queryInput: string
     onApplyExtractedKeywords: (keywords: string[]) => void
-    workflowSeeds?: Array<{ label: string }>
+    quickStarts?: Array<{ label: string }>
   }) => (
     <div>
       <div>Landing Hero {queryInput}</div>
       <div>
-        Landing Hero Seeds {workflowSeeds?.length ?? 0} Hot{' '}
+        Landing Hero Seeds {quickStarts?.length ?? 0} Hot{' '}
         {hotKeywords?.length ?? 0}
       </div>
       <button
@@ -69,13 +69,13 @@ vi.mock('@/components/search/SearchHero', () => ({
       <button
         type="button"
         onClick={() =>
-          onApplyWorkflowSeed?.({
+          onApplyQuickStart?.({
             keywords: ['CNC', 'Sales'],
             location: 'Kuala Lumpur MY',
           })
         }
       >
-        Apply Hero Workflow Seed
+        Apply Hero Quick Start
       </button>
       <button type="button" onClick={() => onToggleHotKeyword?.('CNC')}>
         Toggle Hero Hot Keyword
@@ -355,7 +355,7 @@ describe('ResumeSearchPage', () => {
     vi.clearAllMocks()
     useIndustryKeywordsMock.mockReturnValue({
       hotKeywords: [],
-      workflowSeeds: [],
+      quickStartProfiles: [],
     })
     useAiSearchSummaryMock.mockReturnValue({
       generatedAt: undefined,
@@ -389,7 +389,7 @@ describe('ResumeSearchPage', () => {
     expect(state.submitSearch).toHaveBeenCalledWith(expectedQuery)
   })
 
-  it('wires workflow seed and hot keyword handlers into the landing hero', async () => {
+  it('wires profile quick-start and hot keyword handlers into the landing hero', async () => {
     const user = userEvent.setup()
     const state = createResumeSearchState({
       queryInput: 'machine tools',
@@ -397,13 +397,16 @@ describe('ResumeSearchPage', () => {
     useResumeSearchStateMock.mockReturnValue(state)
     useIndustryKeywordsMock.mockReturnValue({
       hotKeywords: [{ id: 'hot-1', keyword: 'CNC' }],
-      workflowSeeds: [
+      quickStartProfiles: [
         {
-          id: 'workflow-1',
+          id: 'profile-1',
           label: 'Malaysia · SEEK · CNC Sales',
           market: 'MY',
           location: 'Kuala Lumpur MY',
           keywords: ['CNC', 'Sales'],
+          quickStart: {
+            enabled: true,
+          },
         },
       ],
     })
@@ -413,7 +416,7 @@ describe('ResumeSearchPage', () => {
     expect(screen.getByText('Landing Hero Seeds 1 Hot 1')).toBeInTheDocument()
 
     await user.click(
-      screen.getByRole('button', { name: 'Apply Hero Workflow Seed' }),
+      screen.getByRole('button', { name: 'Apply Hero Quick Start' }),
     )
     expect(state.setQueryInput).toHaveBeenCalledWith(
       formatKeywordQuery(['CNC', 'Sales']),

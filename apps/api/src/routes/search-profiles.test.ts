@@ -82,6 +82,60 @@ function removeRunStatusFile(): void {
   }
 }
 
+describe('search-profiles list route', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('includes seeded system profiles with landing quick-start metadata', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init)
+
+      if (call.pathName === 'search_profiles:list') {
+        return convexSuccess([])
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`)
+    })
+
+    const app = createApp()
+    const response = await app.request('/api/search-profiles', {
+      headers: {
+        'X-Workspace-Slug': 'dev',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    const payload = await response.json()
+
+    expect(payload.success).toBe(true)
+    expect(payload.profiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'job5156-cn-cnc-sales',
+          origin: 'system',
+          readOnly: true,
+          quickStart: expect.objectContaining({
+            enabled: true,
+            rank: 1,
+            label: 'China · Job5156 · CNC 销售',
+          }),
+        }),
+        expect.objectContaining({
+          id: 'seek-malaysia-sales',
+          origin: 'system',
+          readOnly: true,
+          quickStart: expect.objectContaining({
+            enabled: true,
+            rank: 2,
+            label: 'Malaysia · SEEK · CNC Sales',
+          }),
+        }),
+      ]),
+    )
+  })
+})
+
 describe('search-profiles run route', () => {
   beforeEach(() => {
     removeRunStatusFile()

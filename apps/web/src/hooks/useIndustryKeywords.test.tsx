@@ -58,19 +58,6 @@ describe('useIndustryKeywords', () => {
                 source: 'workspace',
               },
             ],
-            workflowSeeds: [
-              {
-                id: 'seek-my-cnc-sales',
-                label: 'Malaysia · SEEK · CNC Sales',
-                market: 'MY',
-                location: 'Kuala Lumpur MY',
-                keywords: ['CNC', 'Sales'],
-                collectionSource: {
-                  type: 'seek',
-                },
-                visible: true,
-              },
-            ],
           },
         })
       }
@@ -84,11 +71,33 @@ describe('useIndustryKeywords', () => {
         })
       }
 
+      if (path === '/api/search-profiles') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            profiles: [
+              {
+                id: 'job5156-cn-cnc-sales',
+                name: 'China Job5156 CNC Sales',
+                status: 'active',
+                location: 'China',
+                keywords: ['CNC', '销售'],
+                quickStart: {
+                  enabled: true,
+                  rank: 1,
+                  label: 'China · Job5156 · CNC 销售',
+                },
+              },
+            ],
+          },
+        })
+      }
+
       throw new Error(`Unexpected GET path: ${path}`)
     })
   })
 
-  it('keeps workspace custom tags in grouped keywords while limiting hotKeywords to system seed tags', async () => {
+  it('keeps workspace custom tags in grouped keywords while sourcing landing quick starts from search profiles', async () => {
     const { result } = renderHook(() => useIndustryKeywords())
 
     await waitFor(() => {
@@ -105,6 +114,12 @@ describe('useIndustryKeywords', () => {
       'HAAS',
       'STAR机床',
     ])
-    expect(result.current.workflowSeeds).toHaveLength(1)
+    expect(result.current.quickStartProfiles).toEqual([
+      expect.objectContaining({
+        id: 'job5156-cn-cnc-sales',
+        label: 'China · Job5156 · CNC 销售',
+        location: 'China',
+      }),
+    ])
   })
 })

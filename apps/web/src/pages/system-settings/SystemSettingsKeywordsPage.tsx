@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
@@ -14,24 +15,20 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   createEmptyCustomKeywordForm,
-  createEmptyWorkflowSeedForm,
   customKeywordToForm,
   parseBrandKeywordsPayload,
   parseCustomKeywordsPayload,
-  workflowSeedToForm,
   type BrandKeywordItem,
   type CustomKeywordCategory,
   type CustomKeywordFormState,
-  type CustomKeywordWorkflowSeed,
   type CustomKeywordTag,
   type KeywordMarket,
-  type WorkflowSeedFormState,
   useSettingsRequestJson,
 } from '@/pages/system-settings/lib'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 
 const MARKET_OPTIONS: Array<{ value: KeywordMarket; label: string }> = [
   { value: 'CN', label: 'CN' },
@@ -40,12 +37,12 @@ const MARKET_OPTIONS: Array<{ value: KeywordMarket; label: string }> = [
 
 export function SystemSettingsKeywordsPage() {
   const { t } = useTranslation()
+  const { slug } = useWorkspace()
   const { requestJson } = useSettingsRequestJson()
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [customKeywordTags, setCustomKeywordTags] = useState<CustomKeywordTag[]>([])
   const [customKeywordCategories, setCustomKeywordCategories] = useState<CustomKeywordCategory[]>([])
-  const [workflowSeeds, setWorkflowSeeds] = useState<CustomKeywordWorkflowSeed[]>([])
   const [brandKeywords, setBrandKeywords] = useState<BrandKeywordItem[]>([])
   const [customKeywordDialogOpen, setCustomKeywordDialogOpen] = useState(false)
   const [editingCustomKeywordId, setEditingCustomKeywordId] = useState<string | null>(null)
@@ -53,12 +50,6 @@ export function SystemSettingsKeywordsPage() {
   const [savingCustomKeyword, setSavingCustomKeyword] = useState(false)
   const [deleteCustomKeywordTargetId, setDeleteCustomKeywordTargetId] = useState<string | null>(null)
   const [deletingCustomKeyword, setDeletingCustomKeyword] = useState(false)
-  const [workflowSeedDialogOpen, setWorkflowSeedDialogOpen] = useState(false)
-  const [editingWorkflowSeedId, setEditingWorkflowSeedId] = useState<string | null>(null)
-  const [workflowSeedForm, setWorkflowSeedForm] = useState<WorkflowSeedFormState>(createEmptyWorkflowSeedForm)
-  const [savingWorkflowSeed, setSavingWorkflowSeed] = useState(false)
-  const [deleteWorkflowSeedTargetId, setDeleteWorkflowSeedTargetId] = useState<string | null>(null)
-  const [deletingWorkflowSeed, setDeletingWorkflowSeed] = useState(false)
 
   const loadCustomKeywords = useCallback(async () => {
     const payload = await requestJson('/api/config/custom-keywords')
@@ -69,7 +60,6 @@ export function SystemSettingsKeywordsPage() {
 
     setCustomKeywordTags(parsed.tags)
     setCustomKeywordCategories(parsed.categories)
-    setWorkflowSeeds(parsed.workflowSeeds)
   }, [requestJson])
 
   const loadBrandKeywords = useCallback(async () => {
@@ -184,103 +174,6 @@ export function SystemSettingsKeywordsPage() {
       setDeletingCustomKeyword(false)
     }
   }, [deleteCustomKeywordTargetId, loadCustomKeywords, requestJson, t])
-
-  const openAddWorkflowSeedDialog = useCallback(() => {
-    setEditingWorkflowSeedId(null)
-    setWorkflowSeedForm(createEmptyWorkflowSeedForm())
-    setWorkflowSeedDialogOpen(true)
-  }, [])
-
-  const openEditWorkflowSeedDialog = useCallback((seed: CustomKeywordWorkflowSeed) => {
-    setEditingWorkflowSeedId(seed.id)
-    setWorkflowSeedForm(workflowSeedToForm(seed))
-    setWorkflowSeedDialogOpen(true)
-  }, [])
-
-  const buildWorkflowSeedFromForm = useCallback((): CustomKeywordWorkflowSeed => {
-    const id = workflowSeedForm.id.trim()
-    const label = workflowSeedForm.label.trim()
-    const location = workflowSeedForm.location.trim()
-    const keywords = workflowSeedForm.keywords
-      .split(/[,，\n]+/)
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0)
-    const collectUrl = workflowSeedForm.collectUrl.trim()
-    const market = workflowSeedForm.market
-    const collectionSourceType = workflowSeedForm.collectionSourceType
-
-    if (!id || !label || keywords.length === 0) {
-      throw new Error('Missing required workflow seed fields')
-    }
-
-    return {
-      id,
-      label,
-      market,
-      location,
-      keywords,
-      collectionSource: collectUrl
-        ? {
-            type: collectionSourceType,
-            exactUrl: collectUrl,
-          }
-        : {
-            type: collectionSourceType,
-          },
-      collectUrl: collectUrl || undefined,
-      visible: workflowSeedForm.visible,
-    }
-  }, [workflowSeedForm])
-
-  const handleSaveWorkflowSeed = useCallback(async () => {
-    setSavingWorkflowSeed(true)
-
-    try {
-      const workflowSeed = buildWorkflowSeedFromForm()
-
-      if (editingWorkflowSeedId) {
-        await requestJson(`/api/config/custom-keywords/workflow-seeds/${encodeURIComponent(editingWorkflowSeedId)}`, {
-          method: 'PUT',
-          body: JSON.stringify(workflowSeed),
-        })
-      } else {
-        await requestJson('/api/config/custom-keywords/workflow-seeds', {
-          method: 'POST',
-          body: JSON.stringify(workflowSeed),
-        })
-      }
-
-      await loadCustomKeywords()
-      setWorkflowSeedDialogOpen(false)
-      toast.success(t('debugConfig.saved'))
-    } catch (error) {
-      console.error('Failed to save workflow seed', error)
-      toast.error(t('debugConfig.saveError'))
-    } finally {
-      setSavingWorkflowSeed(false)
-    }
-  }, [buildWorkflowSeedFromForm, editingWorkflowSeedId, loadCustomKeywords, requestJson, t])
-
-  const handleDeleteWorkflowSeed = useCallback(async () => {
-    if (!deleteWorkflowSeedTargetId) {
-      return
-    }
-
-    setDeletingWorkflowSeed(true)
-    try {
-      await requestJson(`/api/config/custom-keywords/workflow-seeds/${encodeURIComponent(deleteWorkflowSeedTargetId)}`, {
-        method: 'DELETE',
-      })
-      await loadCustomKeywords()
-      setDeleteWorkflowSeedTargetId(null)
-      toast.success(t('debugConfig.saved'))
-    } catch (error) {
-      console.error('Failed to delete workflow seed', error)
-      toast.error(t('debugConfig.saveError'))
-    } finally {
-      setDeletingWorkflowSeed(false)
-    }
-  }, [deleteWorkflowSeedTargetId, loadCustomKeywords, requestJson, t])
 
   return (
     <div className="space-y-6">
@@ -409,93 +302,31 @@ export function SystemSettingsKeywordsPage() {
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <CardTitle>{t('quickStart.workflows', { defaultValue: 'Workflow Seeds' })}</CardTitle>
+                <CardTitle>{t('quickStart.workflows', { defaultValue: 'Landing quick starts' })}</CardTitle>
                 <CardDescription>
                   {t('debugConfig.workflowSeedsDescription', {
-                    defaultValue: 'Manage CN and MY quick-start presets used by the resume workflow panel.',
+                    defaultValue: 'Search-first landing quick starts now come from Search Profiles so the same seeded searches can power scheduled collectors.',
                   })}
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">{workflowSeeds.length}</Badge>
-                <Button size="sm" onClick={openAddWorkflowSeedDialog}>
-                  {t('debugConfig.addWorkflowSeed', { defaultValue: 'Add Seed' })}
-                </Button>
-              </div>
+              <Link
+                className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                to={`/${slug}/system/profiles`}
+              >
+                {t('searchProfiles.title', { defaultValue: 'Open Search Profiles' })}
+              </Link>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('debugConfig.customKeywordId')}</TableHead>
-                    <TableHead>{t('debugConfig.workflowSeedLabel', { defaultValue: 'Label' })}</TableHead>
-                    <TableHead>{t('debugConfig.workflowSeedMarket', { defaultValue: 'Market' })}</TableHead>
-                    <TableHead>{t('debugConfig.workflowSeedLocation', { defaultValue: 'Location' })}</TableHead>
-                    <TableHead>{t('debugConfig.workflowSeedKeywords', { defaultValue: 'Keywords' })}</TableHead>
-                    <TableHead>{t('debugConfig.workflowSeedStatus', { defaultValue: 'Status' })}</TableHead>
-                    <TableHead className="text-right">{t('jdManagement.table.actions')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workflowSeeds.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="py-6 text-center text-muted-foreground">
-                        {loading ? t('trends.loading') : t('debug.none')}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    workflowSeeds.map((seed) => (
-                      <TableRow key={seed.id} className={seed.visible === false ? 'opacity-60' : undefined}>
-                        <TableCell className="font-mono text-xs">{seed.id}</TableCell>
-                        <TableCell className="font-medium">{seed.label}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {seed.market}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{seed.location || '-'}</TableCell>
-                        <TableCell className="max-w-[240px] whitespace-normal break-words text-xs text-muted-foreground">
-                          {seed.keywords.join(', ')}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            <Badge variant={seed.source === 'system' ? 'secondary' : 'outline'} className="w-fit text-xs">
-                              {seed.source ?? 'workspace'}
-                            </Badge>
-                            <Badge variant={seed.visible === false ? 'secondary' : 'default'} className="w-fit text-xs">
-                              {seed.visible === false ? 'Hidden' : 'Visible'}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                openEditWorkflowSeedDialog(seed)
-                              }}
-                            >
-                              {t('debugConfig.editWorkflowSeed', { defaultValue: 'Edit Seed' })}
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                setDeleteWorkflowSeedTargetId(seed.id)
-                              }}
-                            >
-                              {t('debugConfig.deleteWorkflowSeed', { defaultValue: 'Delete Seed' })}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+          <CardContent className="space-y-4">
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {t('debugConfig.workflowSeedsLegacyNotice', {
+                defaultValue: 'Legacy workflow-seed config remains for compatibility only. The search-first landing page now reads its quick starts from Search Profiles instead.',
+              })}
+            </div>
+            <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              {t('debugConfig.workflowSeedsMigrationSummary', {
+                defaultValue: 'The seeded China Job5156 and Malaysia SEEK quick starts now live in Search Profiles. Manage landing-entry presets and scheduled collectors there instead of in workflow-seed settings.',
+              })}
             </div>
           </CardContent>
         </Card>
@@ -669,135 +500,6 @@ export function SystemSettingsKeywordsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={workflowSeedDialogOpen} onOpenChange={setWorkflowSeedDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingWorkflowSeedId ? t('debugConfig.editWorkflowSeed', { defaultValue: 'Edit Seed' }) : t('debugConfig.addWorkflowSeed', { defaultValue: 'Add Seed' })}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="grid gap-3 py-2">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.customKeywordId')}</p>
-              <Input
-                value={workflowSeedForm.id}
-                onChange={(event) => {
-                  setWorkflowSeedForm((current) => ({ ...current, id: event.target.value }))
-                }}
-                disabled={Boolean(editingWorkflowSeedId)}
-              />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.workflowSeedLabel', { defaultValue: 'Label' })}</p>
-              <Input
-                value={workflowSeedForm.label}
-                onChange={(event) => {
-                  setWorkflowSeedForm((current) => ({ ...current, label: event.target.value }))
-                }}
-              />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.workflowSeedMarket', { defaultValue: 'Market' })}</p>
-              <Select
-                value={workflowSeedForm.market}
-                onChange={(event) => {
-                  setWorkflowSeedForm((current) => ({
-                    ...current,
-                    market: event.target.value === 'MY' ? 'MY' : 'CN',
-                  }))
-                }}
-                options={MARKET_OPTIONS}
-              />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.workflowSeedLocation', { defaultValue: 'Location' })}</p>
-              <Input
-                value={workflowSeedForm.location}
-                onChange={(event) => {
-                  setWorkflowSeedForm((current) => ({ ...current, location: event.target.value }))
-                }}
-                placeholder={t('debugConfig.workflowSeedLocationPlaceholder', { defaultValue: 'Optional location' })}
-              />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.workflowSeedKeywords', { defaultValue: 'Keywords' })}</p>
-              <Input
-                value={workflowSeedForm.keywords}
-                onChange={(event) => {
-                  setWorkflowSeedForm((current) => ({ ...current, keywords: event.target.value }))
-                }}
-                placeholder={t('debugConfig.workflowSeedKeywordsPlaceholder', {
-                  defaultValue: 'Sales Engineer, Sales Manager',
-                })}
-              />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.workflowSeedCollectionSource', { defaultValue: 'Collection source' })}</p>
-              <Select
-                value={workflowSeedForm.collectionSourceType}
-                onChange={(event) => {
-                  setWorkflowSeedForm((current) => ({
-                    ...current,
-                    collectionSourceType: event.target.value === 'seek' ? 'seek' : 'job5156',
-                  }))
-                }}
-                options={[
-                  { value: 'job5156', label: 'job5156' },
-                  { value: 'seek', label: 'seek' },
-                ]}
-              />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t('debugConfig.workflowSeedCollectUrl', { defaultValue: 'Collect URL' })}</p>
-              <Input
-                value={workflowSeedForm.collectUrl}
-                onChange={(event) => {
-                  setWorkflowSeedForm((current) => ({ ...current, collectUrl: event.target.value }))
-                }}
-                placeholder={t('debugConfig.workflowSeedCollectUrlPlaceholder', {
-                  defaultValue: 'Optional base or collect URL',
-                })}
-              />
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={workflowSeedForm.visible}
-                onCheckedChange={(checked) => {
-                  setWorkflowSeedForm((current) => ({
-                    ...current,
-                    visible: checked === true,
-                  }))
-                }}
-              />
-              <span>{t('debugConfig.workflowSeedVisible', { defaultValue: 'Visible' })}</span>
-            </label>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setWorkflowSeedDialogOpen(false)
-              }}
-              disabled={savingWorkflowSeed}
-            >
-              {t('jdManagement.cancel')}
-            </Button>
-            <Button
-              onClick={() => {
-                handleSaveWorkflowSeed().catch((error) => {
-                  console.error('Unexpected handleSaveWorkflowSeed failure', error)
-                })
-              }}
-              disabled={savingWorkflowSeed}
-            >
-              {savingWorkflowSeed ? `${t('debugConfig.save')}...` : t('debugConfig.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog
         open={deleteCustomKeywordTargetId !== null}
         onOpenChange={(open) => {
@@ -845,52 +547,6 @@ export function SystemSettingsKeywordsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={deleteWorkflowSeedTargetId !== null}
-        onOpenChange={(open) => {
-          if (!open && !deletingWorkflowSeed) {
-            setDeleteWorkflowSeedTargetId(null)
-          }
-        }}
-      >
-        <DialogContent
-          onEscapeKeyDown={(event) => {
-            if (deletingWorkflowSeed) {
-              event.preventDefault()
-            }
-          }}
-          onPointerDownOutside={(event) => {
-            if (deletingWorkflowSeed) {
-              event.preventDefault()
-            }
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>{t('debugConfig.deleteWorkflowSeed', { defaultValue: 'Delete Seed' })}</DialogTitle>
-            <DialogDescription>{t('debugConfig.confirmDelete')}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteWorkflowSeedTargetId(null)}
-              disabled={deletingWorkflowSeed}
-            >
-              {t('common.cancel', { defaultValue: 'Cancel' })}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                handleDeleteWorkflowSeed().catch((error) => {
-                  console.error('Unexpected handleDeleteWorkflowSeed failure', error)
-                })
-              }}
-              disabled={deletingWorkflowSeed}
-            >
-              {t('debugConfig.deleteWorkflowSeed', { defaultValue: 'Delete Seed' })}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

@@ -250,13 +250,23 @@ export function SearchProfilesPage() {
   }, [])
 
   const handleEdit = useCallback(async (profileId: string) => {
+    const summary = profiles.find((profile) => profile.id === profileId)
+    if (summary?.readOnly) {
+      toast.error(t('searchProfiles.readOnlyEdit', { defaultValue: 'Seeded profiles are managed from Search Profiles config and are read-only in this workspace UI.' }))
+      return
+    }
     setEditingProfileId(profileId)
     setEditorOpen(true)
-  }, [])
+  }, [profiles, t])
 
   const handleDelete = useCallback((profileId: string) => {
+    const summary = profiles.find((profile) => profile.id === profileId)
+    if (summary?.readOnly) {
+      toast.error(t('searchProfiles.readOnlyDelete', { defaultValue: 'Seeded profiles cannot be deleted from the workspace UI.' }))
+      return
+    }
     setDeletingProfileId(profileId)
-  }, [])
+  }, [profiles, t])
 
   const confirmDelete = useCallback(async () => {
     if (!deletingProfileId) {
@@ -398,7 +408,7 @@ export function SearchProfilesPage() {
     <div className="space-y-6">
       <PageHeader
         title={t('searchProfiles.title', { defaultValue: 'Search Profiles' })}
-        description={t('searchProfiles.subtitle', { defaultValue: 'Manage scheduled profile-based resume searches.' })}
+        description={t('searchProfiles.subtitle', { defaultValue: 'Manage landing quick starts and scheduled profile-based resume searches.' })}
         actions={
           <>
             <Button variant="outline" onClick={() => void loadProfiles()} disabled={loading}>

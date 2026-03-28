@@ -18,7 +18,7 @@ import { useResumeSearchState } from '@/hooks/useResumeSearchState'
 export function ResumeSearchPage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const { hotKeywords, workflowSeeds } = useIndustryKeywords()
+  const { hotKeywords, quickStartProfiles } = useIndustryKeywords()
   const {
     activeQuery,
     activeSort,
@@ -90,7 +90,7 @@ export function ResumeSearchPage() {
     submitSearch(query)
   }
 
-  const applyWorkflowSeed = (seed: {
+  const applyQuickStart = (seed: {
     keywords: string[]
     location: string
   }) => {
@@ -165,11 +165,11 @@ export function ResumeSearchPage() {
           queryInput={queryInput}
           recentSearches={recentSearches}
           recentSearchesLoading={searchHistoryLoading}
-          workflowSeeds={workflowSeeds}
+          quickStarts={quickStartProfiles}
           hotKeywords={hotKeywords}
           onApplyRecentSearch={applyRecentSearch}
           onApplyExtractedKeywords={applyExtractedKeywords}
-          onApplyWorkflowSeed={applyWorkflowSeed}
+          onApplyQuickStart={applyQuickStart}
           onToggleHotKeyword={toggleHotKeyword}
           onChangeQuery={setQueryInput}
           onClearQuery={clearSearch}
