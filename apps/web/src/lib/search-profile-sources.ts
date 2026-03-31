@@ -5,6 +5,8 @@ const EHIRE_51JOB_SEARCH_URL = 'https://ehire.51job.com/Revision/talent/search'
 const SEEK_TALENT_SEARCH_URL = 'https://my.employer.seek.com/candidates/recommended'
 const SEEK_HOST_SUFFIX = '.employer.seek.com'
 const SEEK_RECOMMENDED_PATH = '/candidates/recommended'
+export const JOB51_SAFE_LAUNCH_LIMIT = 50
+export const JOB51_SAFE_LAUNCH_MAX_PAGES = 1
 const CHINA_ROOT_LOCATION_LABELS = new Set([
   '中国',
   '中华人民共和国',
@@ -398,14 +400,17 @@ export function buildJob51CollectUrl({
   url.searchParams.set('tr_auto_sync', 'true')
 
   const normalizedCollectLimit = normalizeOptionalPositiveInt(collectLimit)
-  if (typeof normalizedCollectLimit === 'number') {
-    url.searchParams.set('tr_limit', String(normalizedCollectLimit))
-  }
-
+  const job51CollectLimit =
+    typeof normalizedCollectLimit === 'number'
+      ? Math.min(normalizedCollectLimit, JOB51_SAFE_LAUNCH_LIMIT)
+      : JOB51_SAFE_LAUNCH_LIMIT
   const normalizedMaxPages = normalizeOptionalPositiveInt(maxPages)
-  if (typeof normalizedMaxPages === 'number') {
-    url.searchParams.set('tr_max_pages', String(normalizedMaxPages))
-  }
+  const job51MaxPages =
+    typeof normalizedMaxPages === 'number'
+      ? Math.min(normalizedMaxPages, JOB51_SAFE_LAUNCH_MAX_PAGES)
+      : JOB51_SAFE_LAUNCH_MAX_PAGES
+  url.searchParams.set('tr_limit', String(job51CollectLimit))
+  url.searchParams.set('tr_max_pages', String(job51MaxPages))
 
   const normalizedMinAge = normalizeOptionalPositiveInt(minAge)
   if (typeof normalizedMinAge === 'number') {

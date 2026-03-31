@@ -11,6 +11,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
+  JOB51_SAFE_LAUNCH_LIMIT,
+  JOB51_SAFE_LAUNCH_MAX_PAGES,
   buildCollectionLaunchUrl,
   normalizeCollectionSource,
   resolveCollectionSource,
@@ -88,6 +90,7 @@ export function CollectResumesButton({
     [collectUrl, normalizedCollectionSource]
   )
   const selectedSourceType = normalizedSelection.type
+  const isJob51Selected = selectedSourceType === SEARCH_PROFILE_SOURCE_TYPES.job51
   const seekSource = useMemo(() => {
     return resolveCollectionSource(
       {
@@ -182,6 +185,10 @@ export function CollectResumesButton({
   ]), [t])
   const maxPagesLabel = t('quickStart.collectMaxPagesLabel', 'Collect page limit')
   const maxPagesPlaceholder = t('quickStart.collectMaxPagesPlaceholder', 'Pages')
+  const job51SafetyHint = t(
+    'quickStart.collectJob51SafetyHint',
+    `51job uses conservative mode: up to ${JOB51_SAFE_LAUNCH_LIMIT} resumes and ${JOB51_SAFE_LAUNCH_MAX_PAGES} page per run.`,
+  )
 
   const handleClick = () => {
     if (!launchUrl) {
@@ -262,13 +269,19 @@ export function CollectResumesButton({
           min={1}
           step={1}
           inputMode="numeric"
-          value={maxPagesInput}
+          value={isJob51Selected ? String(JOB51_SAFE_LAUNCH_MAX_PAGES) : maxPagesInput}
           onChange={handleMaxPagesChange}
           placeholder={maxPagesPlaceholder}
           aria-label={maxPagesLabel}
           className="h-9 w-24"
+          disabled={isJob51Selected}
         />
       </div>
+      {isJob51Selected ? (
+        <p className="text-xs text-muted-foreground">
+          {job51SafetyHint}
+        </p>
+      ) : null}
       {extensionVersion ? (
         <a
           href={EXTENSION_ZIP_URL}
