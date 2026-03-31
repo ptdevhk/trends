@@ -5,6 +5,8 @@ import aiSummaryRoutes from "./ai-summary";
 import { workspaceMiddleware } from "../middleware/workspace";
 import { aiSummaryService } from "../services/ai-summary-service";
 
+const DEFAULT_TEST_MODEL = "openai/gpt-4o-mini";
+
 const {
   resolveConvexUrlMock,
 } = vi.hoisted(() => ({
@@ -128,7 +130,7 @@ describe("ai summary routes", () => {
 
       return convexSuccess({
         summary: "Cached recruiter summary",
-        model: "anthropic/claude-3-haiku-20240307",
+        model: DEFAULT_TEST_MODEL,
         generatedAt: now - (55 * 60 * 1000),
         expiresAt: now + (5 * 60 * 1000),
         resultSetHash: "result-set-hash",
@@ -149,7 +151,7 @@ describe("ai summary routes", () => {
     expect(await response.json()).toEqual({
       success: true,
       summary: "Cached recruiter summary",
-      model: "anthropic/claude-3-haiku-20240307",
+      model: DEFAULT_TEST_MODEL,
       generatedAt: now - (55 * 60 * 1000),
       shouldRefresh: true,
     })
@@ -163,7 +165,7 @@ describe("ai summary routes", () => {
     vi.spyOn(Date, "now").mockReturnValue(now)
     const generateSummarySpy = vi.spyOn(aiSummaryService, "generateSummary").mockResolvedValue({
       summary: "Generated recruiter summary",
-      model: "anthropic/claude-3-haiku-20240307",
+      model: DEFAULT_TEST_MODEL,
     })
     const calls: Array<{ method: "query" | "mutation"; pathName: string; args: Record<string, unknown> }> = []
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -195,7 +197,7 @@ describe("ai summary routes", () => {
     expect(await response.json()).toEqual({
       success: true,
       summary: "Generated recruiter summary",
-      model: "anthropic/claude-3-haiku-20240307",
+      model: DEFAULT_TEST_MODEL,
       generatedAt: now,
     })
     expect(generateSummarySpy).toHaveBeenCalledWith({
@@ -234,7 +236,7 @@ describe("ai summary routes", () => {
           resultCount: 2,
           resultSetHash: "result-set-hash",
           summary: "Generated recruiter summary",
-          model: "anthropic/claude-3-haiku-20240307",
+          model: DEFAULT_TEST_MODEL,
           generatedAt: now,
           expiresAt: now + (60 * 60 * 1000),
         },
@@ -254,7 +256,7 @@ describe("ai summary routes", () => {
 
       return convexSuccess({
         summary: "Fallback cached recruiter summary",
-        model: "anthropic/claude-3-haiku-20240307",
+        model: DEFAULT_TEST_MODEL,
         generatedAt: now - (2 * 60 * 60 * 1000),
         expiresAt: now - 1,
         resultSetHash: "older-result-set-hash",
@@ -278,7 +280,7 @@ describe("ai summary routes", () => {
     expect(await response.json()).toEqual({
       success: true,
       summary: "Fallback cached recruiter summary",
-      model: "anthropic/claude-3-haiku-20240307",
+      model: DEFAULT_TEST_MODEL,
       generatedAt: now - (2 * 60 * 60 * 1000),
     })
     expect(fetchSpy).toHaveBeenCalledTimes(1)

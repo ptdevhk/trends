@@ -133,6 +133,7 @@ Strong overlap around machine tools and CNC sales backgrounds.
     });
 
     const call = callChatCompletionMock.mock.calls[0]?.[0] as { model: string };
+    expect(call.model).toBe("openai/gpt-4o-mini");
     expect(call.model).toContain("/");
     expect(call.model).not.toBe("claude-3-haiku");
     expect(result.model).toBe(call.model);

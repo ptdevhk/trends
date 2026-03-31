@@ -94,6 +94,7 @@ describe("JdKeywordExtractionService", () => {
 
     expect(call.temperature).toBe(0);
     expect(call.maxTokens).toBe(400);
+    expect(call.model).toBe("openai/gpt-4o-mini");
     expect(call.messages[0]?.content).toContain("Return JSON only");
     expect(call.messages[1]?.content).toContain("Extract the most useful resume-search keywords");
     expect(call.messages[1]?.content).toContain("Job description:");

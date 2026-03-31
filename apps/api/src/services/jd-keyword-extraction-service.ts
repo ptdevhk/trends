@@ -3,7 +3,8 @@ import { loadAIConfig } from "./ai-config.js";
 
 const DEFAULT_JD_KEYWORD_EXTRACTION_MODEL = process.env.JD_KEYWORD_EXTRACTION_MODEL
   || process.env.AI_SUMMARY_MODEL
-  || "anthropic/claude-3-haiku-20240307";
+  || process.env.AI_MODEL
+  || "openai/gpt-4o-mini";
 
 const GENERIC_FILLER_KEYWORDS = new Set([
   "communication",

@@ -2,7 +2,9 @@ import { loadAIConfig } from "./ai-config.js";
 import { callChatCompletion } from "./ai-chat-client.js";
 import { workspaceConfigService } from "./workspace-config-service.js";
 
-const DEFAULT_AI_SUMMARY_MODEL = process.env.AI_SUMMARY_MODEL || "anthropic/claude-3-haiku-20240307";
+const DEFAULT_AI_SUMMARY_MODEL = process.env.AI_SUMMARY_MODEL
+  || process.env.AI_MODEL
+  || "openai/gpt-4o-mini";
 const FALLBACK_AI_SUMMARY_MODEL = "heuristic/search-summary-fallback";
 
 type SummaryCandidate = {
