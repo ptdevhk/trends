@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import jobDescriptionsRoutes from "./job-descriptions";
 import { workspaceMiddleware } from "../middleware/workspace";
 
+const DEFAULT_TEST_MODEL = "openai/gpt-4o-mini";
+
 const {
   extractKeywordsMock,
 } = vi.hoisted(() => ({
@@ -32,7 +34,7 @@ describe("job description routes", () => {
   it("extracts recruiter keywords from pasted job description text", async () => {
     extractKeywordsMock.mockResolvedValue({
       keywords: ["Machine Tools", "Business Development", "CNC"],
-      model: "anthropic/claude-3-haiku-20240307",
+      model: DEFAULT_TEST_MODEL,
     })
 
     const app = createTestApp()
@@ -54,7 +56,7 @@ describe("job description routes", () => {
     expect(await response.json()).toEqual({
       success: true,
       keywords: ["Machine Tools", "Business Development", "CNC"],
-      model: "anthropic/claude-3-haiku-20240307",
+      model: DEFAULT_TEST_MODEL,
     })
   })
 
