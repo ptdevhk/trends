@@ -1,4 +1,4 @@
-import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -32,6 +32,8 @@ import {
 } from '@/lib/taxonomy'
 import {
   getAnalysisForJob,
+  computeDirectIndustryDb,
+  overrideIndustryDbBreakdown,
   toIndustryDbV2Stats,
   toRecommendation,
 } from '@/lib/resume-scoring'
@@ -56,7 +58,6 @@ import type {
 const INITIAL_RESUME_LIMIT = 200
 const RESUME_PAGE_INCREMENT = 200
 const SESSION_KEY_PREFIX = 'trends.resume.search.sessionKey'
-const ANALYSIS_DISPATCH_COOLDOWN_MS = 2000
 
 type JobDescriptionApiResponse = {
   success: boolean
@@ -271,6 +272,40 @@ function buildUrlState(
         : state.selectedExperienceLevel,
     filters: overrides.filters ?? state.filters,
   }
+}
+
+function clearSortFilters(
+  filters: Partial<ResumeFilters>,
+): Partial<ResumeFilters> {
+  const nextFilters: Partial<ResumeFilters> = { ...filters }
+  delete nextFilters.sortBy
+  delete nextFilters.sortOrder
+  return nextFilters
+}
+
+function buildSearchContextSignature(state: UrlSearchState): string {
+  return JSON.stringify({
+    query: normalizeOptionalString(state.query),
+    location: normalizeOptionalString(state.location),
+    keywords: normalizeStringList(state.keywords),
+    requiredKeywords: normalizeStringList(state.requiredKeywords),
+    jobDescriptionId: normalizeOptionalString(state.jobDescriptionId),
+    selectedTags: normalizeStringList(state.selectedTags),
+    selectedCompanies: normalizeStringList(state.selectedCompanies),
+    selectedExperienceLevel: state.selectedExperienceLevel,
+    filters: {
+      education: normalizeStringList(state.filters.education ?? []),
+      locations: normalizeStringList(state.filters.locations ?? []),
+      maxAge: state.filters.maxAge,
+      maxExperience: state.filters.maxExperience,
+      minAge: state.filters.minAge,
+      minExperience: state.filters.minExperience,
+      minMatchScore: state.filters.minMatchScore,
+      minRoleYears: state.filters.minRoleYears,
+      roleFilterType: normalizeOptionalString(state.filters.roleFilterType),
+      status: normalizeStringList(state.filters.status ?? []),
+    },
+  })
 }
 
 function sortResults(
@@ -512,7 +547,8 @@ export function useResumeSearchState() {
   const [exportFormat, setExportFormat] = useState<ResumeExportFormat>('csv')
   const [exportingResults, setExportingResults] = useState(false)
   const [analyzingResults, setAnalyzingResults] = useState(false)
-  const [lastAnalysisDispatchTime, setLastAnalysisDispatchTime] = useState(0)
+  const [autoAnalyzeSearchNonce, setAutoAnalyzeSearchNonce] = useState(0)
+  const [pendingAutoAnalyzeContextSignature, setPendingAutoAnalyzeContextSignature] = useState('')
   const [resumeLimit, setResumeLimit] = useState(INITIAL_RESUME_LIMIT)
   const saveSearchHistory = useMutation(api.sessions.saveSearchHistory)
   const markSearchHistoryOpened = useMutation(
@@ -564,6 +600,10 @@ export function useResumeSearchState() {
 
   const isLanding = !hasExplicitSearchContext(parsedState)
   const activeQuery = normalizeOptionalString(parsedState.query)
+  const currentSearchContextSignature = useMemo(
+    () => buildSearchContextSignature(parsedState),
+    [parsedState],
+  )
   const currentPromptVersion = useMemo(() => getCurrentResumeAiPromptVersion(), [])
   const analysisKeywords = useMemo(
     () =>
@@ -572,6 +612,11 @@ export function useResumeSearchState() {
         ...parseKeywordQuery(activeQuery ?? '').keywords,
       ]),
     [activeQuery, parsedState.keywords],
+  )
+  const salesRequiredContext = isSalesRequiredContext(
+    formatKeywordQuery(parsedState.keywords),
+    activeQuery,
+    parsedState.jobDescriptionId,
   )
   const backendFilters = useMemo<ConvexResumeFilters>(
     () => ({
@@ -652,21 +697,37 @@ export function useResumeSearchState() {
         parsedState.location,
         currentPromptVersion,
       )
+      const hasBrandHits = (resume.ingestData?.brandHits ?? []).some((hit) => hit.context !== 'employer')
+      const hasCompanyHits = (resume.ingestData?.companyHits?.length ?? 0) > 0
+      const normalizedAnalysis = analysis
+        ? overrideIndustryDbBreakdown(
+          analysis,
+          computeDirectIndustryDb(
+            resume.ingestData?.industryDbV2Raw,
+            hasBrandHits,
+            hasCompanyHits,
+          ),
+          {
+            salesRequired: salesRequiredContext,
+            roleSignals: resume.ingestData?.roleSignals,
+          },
+        )
+        : undefined
       const score = resolveScore(
         resume,
         parsedState.jobDescriptionId,
-        analysis,
+        normalizedAnalysis,
       )
       return {
         key: `${resume.resumeId}`,
         identityKey,
         resume,
         blocked: Boolean(blocksByIdentity[identityKey]),
-        analysis,
+        analysis: normalizedAnalysis,
         score,
         scoreSource:
           typeof score === 'number'
-            ? analysis && analysis.score === score
+            ? normalizedAnalysis && normalizedAnalysis.score === score
               ? 'ai'
               : 'rule'
             : undefined,
@@ -680,6 +741,7 @@ export function useResumeSearchState() {
     currentPromptVersion,
     parsedState.jobDescriptionId,
     parsedState.location,
+    salesRequiredContext,
     resumeQuery.resumes,
     statusByIdentity,
   ])
@@ -712,19 +774,32 @@ export function useResumeSearchState() {
   const hasMore = resumeQuery.hasMore
   const loading = !isLanding && resumeQuery.loading
   const loadingMore = resumeQuery.loadingMore
-  const analysisCandidateLimit =
-    Number(import.meta.env.VITE_ANALYSIS_TOP_N) || 10
   const analysisCandidates = useMemo(
     () =>
-      filteredResults
-        .filter(
-          (item) =>
-            !item.analysis &&
-            typeof item.resume.resumeId === 'string',
-        )
-        .slice(0, analysisCandidateLimit),
-    [analysisCandidateLimit, filteredResults],
+      results
+        .filter((item) => !item.analysis)
+        .sort((left, right) => (right.score ?? -1) - (left.score ?? -1)),
+    [results],
   )
+  const analysisCandidateResumeIds = useMemo(
+    () => analysisCandidates.map((item) => item.resume.resumeId),
+    [analysisCandidates],
+  )
+  const analysisCandidateSignature = useMemo(
+    () =>
+      [...analysisCandidateResumeIds]
+        .sort((left, right) => left.localeCompare(right))
+        .join('|'),
+    [analysisCandidateResumeIds],
+  )
+  const autoAnalyzeSignature = useMemo(() => {
+    if (autoAnalyzeSearchNonce === 0 || analysisCandidateSignature.length === 0) {
+      return ''
+    }
+
+    return `${autoAnalyzeSearchNonce}:${analysisCandidateSignature}`
+  }, [analysisCandidateSignature, autoAnalyzeSearchNonce])
+  const autoAnalyzeDispatchSignatureRef = useRef('')
   const hasActiveAnalysisTask = useMemo(
     () =>
       (analysisTasks ?? []).some(
@@ -734,7 +809,9 @@ export function useResumeSearchState() {
   )
   const disableAnalyzeResults =
     isLanding ||
-    filteredResults.length === 0 ||
+    loading ||
+    results.length === 0 ||
+    analysisCandidateResumeIds.length === 0 ||
     analyzingResults ||
     hasActiveAnalysisTask ||
     (!parsedState.jobDescriptionId && analysisKeywords.length === 0)
@@ -813,20 +890,23 @@ export function useResumeSearchState() {
     ) => {
       const resolvedQuery = normalizeOptionalString(nextQuery ?? queryInput)
       const nextKeywords = parseKeywordQuery(resolvedQuery ?? '').keywords
+      const nextState = buildUrlState(parsedState, {
+        query: resolvedQuery,
+        keywords: nextKeywords,
+        location: options?.location ?? parsedState.location,
+        filters: clearSortFilters(parsedState.filters),
+      })
 
-      syncToUrl(
-        buildUrlState(parsedState, {
-          query: resolvedQuery,
-          keywords: nextKeywords,
-          location: options?.location ?? parsedState.location,
-        }),
-      )
+      syncToUrl(nextState)
+      setPendingAutoAnalyzeContextSignature(buildSearchContextSignature(nextState))
+      setAutoAnalyzeSearchNonce((current) => current + 1)
     },
     [parsedState, queryInput, syncToUrl],
   )
 
   const clearSearch = useCallback(() => {
     setQueryInput('')
+    setPendingAutoAnalyzeContextSignature('')
     syncToUrl(
       buildUrlState(parsedState, {
         query: undefined,
@@ -847,7 +927,7 @@ export function useResumeSearchState() {
 
       const query = formatKeywordQuery(item.keywords)
       setQueryInput(query)
-      syncToUrl({
+      const nextState = {
         query,
         shareSessionId: undefined,
         location: normalizeOptionalString(item.location),
@@ -859,8 +939,14 @@ export function useResumeSearchState() {
         selectedExperienceLevel:
           (item.selectedExperienceLevel as ExperienceLevelFilter | undefined) ??
           undefined,
-        filters: item.filters ?? {},
-      })
+        filters: clearSortFilters(item.filters ?? {}),
+      }
+
+      syncToUrl(nextState)
+      setPendingAutoAnalyzeContextSignature(
+        buildSearchContextSignature(nextState),
+      )
+      setAutoAnalyzeSearchNonce((current) => current + 1)
     },
     [markSearchHistoryOpened, slug, syncToUrl],
   )
@@ -1092,7 +1178,8 @@ export function useResumeSearchState() {
   }, [apiBaseUrl, exportFormat, filteredResults])
 
   const analyzeResults = useCallback(async () => {
-    if (filteredResults.length === 0) {
+    if (analysisCandidateResumeIds.length === 0) {
+      toast.info('No new candidates to analyze among loaded results.')
       return
     }
 
@@ -1101,20 +1188,8 @@ export function useResumeSearchState() {
       return
     }
 
-    const now = Date.now()
-    if (now - lastAnalysisDispatchTime < ANALYSIS_DISPATCH_COOLDOWN_MS) {
-      toast.info('Please wait for current analysis to complete.')
-      return
-    }
-
-    if (analysisCandidates.length === 0) {
-      toast.info('No new candidates to analyze among top matches.')
-      return
-    }
-
     setAnalyzingResults(true)
     try {
-      const resumeIds = analysisCandidates.map((item) => item.resume.resumeId)
       const normalizedLocation = normalizeOptionalString(parsedState.location)
       const keywords =
         analysisKeywords.length > 0 ? analysisKeywords : undefined
@@ -1144,11 +1219,12 @@ export function useResumeSearchState() {
         ...(keywords ? { keywords } : {}),
         ...(normalizedLocation ? { location: normalizedLocation } : {}),
         promptVersion: currentPromptVersion,
-        resumeIds,
+        resumeIds: analysisCandidateResumeIds,
       })
 
-      setLastAnalysisDispatchTime(Date.now())
-      toast.success(`Analyzing top ${resumeIds.length} candidates...`)
+      toast.success(
+        `Analyzing loaded ${analysisCandidateResumeIds.length} resumes...`,
+      )
     } catch (error) {
       console.error('Failed to dispatch search analysis task', error)
       toast.error('Failed to start AI analysis. Please try again.')
@@ -1156,15 +1232,44 @@ export function useResumeSearchState() {
       setAnalyzingResults(false)
     }
   }, [
-    analysisCandidates,
+    analysisCandidateResumeIds,
     analysisKeywords,
     currentPromptVersion,
     dispatchAnalysis,
-    filteredResults.length,
     hasActiveAnalysisTask,
-    lastAnalysisDispatchTime,
     parsedState.jobDescriptionId,
     parsedState.location,
+  ])
+
+  useEffect(() => {
+    if (
+      isLanding ||
+      loading ||
+      analyzingResults ||
+      hasActiveAnalysisTask ||
+      pendingAutoAnalyzeContextSignature.length === 0 ||
+      pendingAutoAnalyzeContextSignature !== currentSearchContextSignature ||
+      autoAnalyzeSearchNonce === 0 ||
+      analysisCandidateResumeIds.length === 0 ||
+      autoAnalyzeSignature === '' ||
+      autoAnalyzeDispatchSignatureRef.current === autoAnalyzeSignature
+    ) {
+      return
+    }
+
+    autoAnalyzeDispatchSignatureRef.current = autoAnalyzeSignature
+    void analyzeResults()
+  }, [
+    analyzeResults,
+    analysisCandidateResumeIds.length,
+    autoAnalyzeSearchNonce,
+    autoAnalyzeSignature,
+    analyzingResults,
+    hasActiveAnalysisTask,
+    isLanding,
+    loading,
+    currentSearchContextSignature,
+    pendingAutoAnalyzeContextSignature,
   ])
 
   return {

@@ -75,6 +75,7 @@ const {
   useConvexResumesMock,
   useMutationMock,
   useQueryMock,
+  useUrlSearchStateMock,
   workspaceMock,
 } = vi.hoisted(() => ({
   blocksByIdentityMock: {} as Record<string, boolean>,
@@ -96,6 +97,7 @@ const {
   useConvexResumesMock: vi.fn(),
   useMutationMock: vi.fn(),
   useQueryMock: vi.fn(),
+  useUrlSearchStateMock: vi.fn(),
   workspaceMock: {
     slug: 'dev',
   },
@@ -111,10 +113,7 @@ vi.mock('@/contexts/WorkspaceContext', () => ({
 }))
 
 vi.mock('@/hooks/useUrlSearchState', () => ({
-  useUrlSearchState: () => ({
-    parsedState: parsedStateMock,
-    syncToUrl: syncToUrlMock,
-  }),
+  useUrlSearchState: (...args: unknown[]) => useUrlSearchStateMock(...args),
 }))
 
 vi.mock('@/hooks/useCandidateStatus', () => ({
@@ -249,6 +248,10 @@ describe('useResumeSearchState', () => {
       statuses: [],
       minScoreOptions: [],
     })
+    useUrlSearchStateMock.mockReturnValue({
+      parsedState: parsedStateMock,
+      syncToUrl: syncToUrlMock,
+    })
 
     useQueryMock.mockImplementation((query) => {
       if (query === 'recent-searches-query') {
@@ -300,11 +303,15 @@ describe('useResumeSearchState', () => {
       createResume(1, {
         primaryRuleScore: 72,
         analysis: {
-          score: 93,
+          score: 95,
           summary: 'Best AI match',
           highlights: [],
           recommendation: 'strong_match',
           promptVersion: CURRENT_PROMPT_VERSION,
+          breakdown: {
+            related_exp: 90,
+            industry_db: 10,
+          },
         },
       }),
       createResume(2, { primaryRuleScore: 91 }),
@@ -413,6 +420,8 @@ describe('useResumeSearchState', () => {
         filters: {
           education: ['Bachelor'],
           status: ['new'],
+          sortBy: 'experience',
+          sortOrder: 'desc',
         },
         createdAt: 1,
         lastOpenedAt: 2,
@@ -539,8 +548,6 @@ describe('useResumeSearchState', () => {
         education: ['Bachelor'],
         status: ['contacted'],
         minMatchScore: 80,
-        sortBy: 'experience',
-        sortOrder: 'desc',
       },
     }))
 
@@ -564,8 +571,6 @@ describe('useResumeSearchState', () => {
         education: ['Bachelor'],
         status: ['contacted'],
         minMatchScore: 80,
-        sortBy: 'experience',
-        sortOrder: 'desc',
       },
     })
 
@@ -642,13 +647,14 @@ describe('useResumeSearchState', () => {
       createResume(1, {
         primaryRuleScore: 88,
         analysis: {
-          score: 91,
+          score: 95,
           summary: 'Strong fit',
           highlights: [],
           recommendation: 'strong_match',
           promptVersion: CURRENT_PROMPT_VERSION,
           breakdown: {
-            industry_db: 55,
+            related_exp: 90,
+            industry_db: 10,
           },
         },
       }),
@@ -676,12 +682,13 @@ describe('useResumeSearchState', () => {
             resumeId: 'resume-1',
             status: 'contacted',
             match: {
-              score: 91,
+              score: 95,
               recommendation: 'strong_match',
               scoreSource: 'ai',
               summary: 'Strong fit',
               breakdown: {
-                industry_db: 55,
+                related_exp: 45,
+                industry_db: 50,
               },
             },
             ruleScore: 88,
@@ -703,7 +710,7 @@ describe('useResumeSearchState', () => {
     expect(toastInfoMock).toHaveBeenCalledWith('Started export for 2 resumes')
   })
 
-  it('dispatches analysis for top visible results without cached analysis', async () => {
+  it('auto-analyzes loaded results after an explicit search trigger', async () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
       keywords: ['machine tools'],
@@ -711,27 +718,42 @@ describe('useResumeSearchState', () => {
     }))
 
     resumesMock.push(
-      createResume(1, { primaryRuleScore: 88 }),
-      createResume(2, { primaryRuleScore: 79 }),
+      ...Array.from({ length: 12 }, (_, index) =>
+        createResume(index + 1, {
+          primaryRuleScore: 95 - index,
+        }),
+      ),
     )
 
     const { result } = renderHook(() => useResumeSearchState())
 
-    expect(result.current.analysisCandidateCount).toBe(2)
+    expect(result.current.analysisCandidateCount).toBe(12)
     expect(result.current.disableAnalyzeResults).toBe(false)
+    expect(dispatchAnalysisMutationMock).not.toHaveBeenCalled()
 
     await act(async () => {
-      await result.current.analyzeResults()
+      result.current.submitSearch('machine tools')
+      useUrlSearchStateMock.mockReturnValue({
+        parsedState: createParsedState({
+          query: 'machine tools',
+          keywords: ['machine', 'tools'],
+          location: 'China',
+        }),
+        syncToUrl: syncToUrlMock,
+      })
+      await Promise.resolve()
     })
 
+    expect(dispatchAnalysisMutationMock).toHaveBeenCalledTimes(1)
+
     expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
-      keywords: ['machine tools', 'machine', 'tools'],
+      keywords: ['machine', 'tools'],
       location: 'China',
       promptVersion: CURRENT_PROMPT_VERSION,
-      resumeIds: ['resume-1', 'resume-2'],
+      resumeIds: Array.from({ length: 12 }, (_, index) => `resume-${index + 1}`),
     })
     expect(toastSuccessMock).toHaveBeenCalledWith(
-      'Analyzing top 2 candidates...',
+      'Analyzing loaded 12 resumes...',
     )
   })
 

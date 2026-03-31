@@ -219,6 +219,11 @@ vi.mock('@/components/search/SearchResultsList', () => ({
           Toggle first result
         </button>
       ) : null}
+      {items[1] ? (
+        <button type="button" onClick={() => onToggleExpanded(items[1].key)}>
+          Toggle second result
+        </button>
+      ) : null}
       <button type="button" onClick={onLoadMore}>
         Load more results
       </button>
@@ -532,7 +537,7 @@ describe('ResumeSearchPage', () => {
     const user = userEvent.setup()
     const state = createResumeSearchState({
       activeQuery: 'servo automation',
-      filteredResults: [createResult(1)],
+      filteredResults: [createResult(1), createResult(2)],
       hasMore: true,
       isLanding: false,
       loadingMore: true,
@@ -559,7 +564,7 @@ describe('ResumeSearchPage', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Results List 1 hasMore:true loading:false loadingMore:true expanded:none',
+        'Results List 2 hasMore:true loading:false loadingMore:true expanded:none',
       ),
     ).toBeInTheDocument()
     expect(useAiSearchSummaryMock).toHaveBeenCalledWith(
@@ -575,16 +580,23 @@ describe('ResumeSearchPage', () => {
     )
     expect(
       screen.getByText(
-        'Results List 1 hasMore:true loading:false loadingMore:true expanded:resume-1',
+        'Results List 2 hasMore:true loading:false loadingMore:true expanded:resume-1',
       ),
     ).toBeInTheDocument()
 
     await user.click(
-      screen.getByRole('button', { name: 'Toggle first result' }),
+      screen.getByRole('button', { name: 'Toggle second result' }),
     )
     expect(
       screen.getByText(
-        'Results List 1 hasMore:true loading:false loadingMore:true expanded:none',
+        'Results List 2 hasMore:true loading:false loadingMore:true expanded:resume-2',
+      ),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Apply Header JD' }))
+    expect(
+      screen.getByText(
+        'Results List 2 hasMore:true loading:false loadingMore:true expanded:none',
       ),
     ).toBeInTheDocument()
 
@@ -629,7 +641,7 @@ describe('ResumeSearchPage', () => {
 
     render(<ResumeSearchPage />)
 
-    await user.click(screen.getByRole('button', { name: /Analyze top 2/i }))
+    await user.click(screen.getByRole('button', { name: /Analyze loaded 2/i }))
 
     expect(state.analyzeResults).toHaveBeenCalledTimes(1)
   })
