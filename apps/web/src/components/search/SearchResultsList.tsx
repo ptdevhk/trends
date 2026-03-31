@@ -59,8 +59,18 @@ export function SearchResultsList({
     }
 
     updateScrollMargin()
+    const parent = listRef.current?.parentElement
+    let resizeObserver: ResizeObserver | undefined
+    if (parent && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(updateScrollMargin)
+      resizeObserver.observe(parent)
+    }
+
     window.addEventListener('resize', updateScrollMargin)
-    return () => window.removeEventListener('resize', updateScrollMargin)
+    return () => {
+      window.removeEventListener('resize', updateScrollMargin)
+      resizeObserver?.disconnect()
+    }
   }, [items.length])
 
   useEffect(() => {
@@ -110,7 +120,9 @@ export function SearchResultsList({
             return (
               <div
                 key={item.key}
-                className="absolute left-0 top-0 w-full"
+                data-index={virtualRow.index}
+                ref={rowVirtualizer.measureElement}
+                className="absolute left-0 top-0 w-full pb-4"
                 style={{ transform: `translateY(${virtualRow.start - scrollMargin}px)` }}
               >
                 <SnippetCard

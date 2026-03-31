@@ -10,6 +10,7 @@ const disconnectMock = vi.fn()
 const virtualizer = {
   getTotalSize: () => 480,
   getVirtualItems: () => virtualRows,
+  measureElement: vi.fn(),
 }
 
 vi.mock('@tanstack/react-virtual', () => ({
@@ -44,6 +45,11 @@ describe('SearchResultsList', () => {
       disconnect() {
         disconnectMock()
       }
+    })
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
     })
   })
 
