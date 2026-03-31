@@ -2,6 +2,7 @@ import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { RefreshCw } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
+import { ModeToggle } from '@/components/ModeToggle'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
 import { FacetBadge } from '@/components/search/FacetBadge'
 import { FacetSidebar } from '@/components/search/FacetSidebar'
@@ -24,6 +25,8 @@ export function ResumeSearchPage() {
     activeSort,
     analysisCandidateCount,
     analyzeResults,
+    aiModeEnabled,
+    aiModeStats,
     analyzingResults,
     applyRecentSearch,
     clearFacetFilters,
@@ -47,6 +50,7 @@ export function ResumeSearchPage() {
     searchHistoryLoading,
     selectedClusterTags,
     selectedRawTags,
+    setAiModeEnabled,
     setExportFormat,
     setMinScoreFilter,
     setQueryInput,
@@ -260,12 +264,17 @@ export function ResumeSearchPage() {
                     Generate per-resume AI summaries and breakdowns for the loaded search results.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <ModeToggle
+                    mode={aiModeEnabled ? 'ai' : 'original'}
+                    onModeChange={(mode) => setAiModeEnabled(mode === 'ai')}
+                    aiStats={aiModeEnabled ? aiModeStats : undefined}
+                  />
                   <Button
                     type="button"
                     size="sm"
                     className="h-10 gap-2 rounded-full px-4"
-                    disabled={disableAnalyzeResults}
+                    disabled={disableAnalyzeResults || !aiModeEnabled}
                     onClick={() => {
                       void analyzeResults()
                     }}

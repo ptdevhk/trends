@@ -757,6 +757,138 @@ describe('useResumeSearchState', () => {
     )
   })
 
+  it('tracks AI mode stats and disables manual analysis while original mode is selected', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      location: 'Malaysia',
+    }))
+
+    resumesMock.push(
+      createResume(1, {
+        analysis: {
+          score: 92,
+          summary: 'Strong fit',
+          highlights: [],
+          recommendation: 'strong_match',
+          promptVersion: CURRENT_PROMPT_VERSION,
+          breakdown: {
+            related_exp: 50,
+            industry_db: 42,
+          },
+        },
+        ingestData: {
+          industryTags: ['Machine Tools', 'Automation'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: [],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+        },
+      }),
+      createResume(2, {
+        analysis: {
+          score: 78,
+          summary: 'Solid fit',
+          highlights: [],
+          recommendation: 'match',
+          promptVersion: CURRENT_PROMPT_VERSION,
+          breakdown: {
+            related_exp: 40,
+            industry_db: 38,
+          },
+        },
+        ingestData: {
+          industryTags: ['Machine Tools', 'Automation'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: [],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+        },
+      }),
+      createResume(3),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+    const analyzedResults = result.current.results.filter(
+      (item) => typeof item.analysis?.score === 'number',
+    )
+    const expectedAvgScore = Number(
+      (
+        analyzedResults.reduce(
+          (sum, item) => sum + (item.analysis?.score ?? 0),
+          0,
+        ) / analyzedResults.length
+      ).toFixed(2),
+    )
+
+    expect(result.current.aiModeEnabled).toBe(true)
+    expect(result.current.aiModeStats).toEqual({
+      avgScore: expectedAvgScore,
+      matched: analyzedResults.length,
+      processed: result.current.results.length,
+    })
+    expect(result.current.disableAnalyzeResults).toBe(false)
+
+    act(() => {
+      result.current.setAiModeEnabled(false)
+    })
+
+    expect(result.current.aiModeEnabled).toBe(false)
+    expect(result.current.disableAnalyzeResults).toBe(true)
+  })
+
+  it('does not auto-analyze or defer a suppressed run when AI mode is disabled', async () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      location: 'China',
+    }))
+
+    resumesMock.push(
+      ...Array.from({ length: 12 }, (_, index) =>
+        createResume(index + 1, {
+          primaryRuleScore: 95 - index,
+        }),
+      ),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    act(() => {
+      result.current.setAiModeEnabled(false)
+    })
+
+    await act(async () => {
+      result.current.submitSearch('machine tools')
+      useUrlSearchStateMock.mockReturnValue({
+        parsedState: createParsedState({
+          query: 'machine tools',
+          keywords: ['machine', 'tools'],
+          location: 'China',
+        }),
+        syncToUrl: syncToUrlMock,
+      })
+      await Promise.resolve()
+    })
+
+    expect(dispatchAnalysisMutationMock).not.toHaveBeenCalled()
+    expect(result.current.disableAnalyzeResults).toBe(true)
+
+    await act(async () => {
+      result.current.setAiModeEnabled(true)
+      await Promise.resolve()
+    })
+
+    expect(result.current.disableAnalyzeResults).toBe(false)
+    expect(dispatchAnalysisMutationMock).not.toHaveBeenCalled()
+  })
+
   it('clears only facet filters while preserving the active search context', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
