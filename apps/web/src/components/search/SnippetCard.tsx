@@ -20,17 +20,9 @@ function getPrimaryHeadline(item: ResumeSearchResultItem): string {
   return item.resume.jobIntention || 'Profile overview'
 }
 
-function getSnippetText(item: ResumeSearchResultItem): string {
-  const latestWorkEntry = item.resume.workHistory?.[0]
-  if (latestWorkEntry?.raw) {
-    return latestWorkEntry.raw
-  }
-
-  return item.resume.selfIntro || 'Open the card to inspect recent work history and extracted signals.'
-}
-
 export function SnippetCard({ expanded, item, onToggleExpanded }: SnippetCardProps) {
   const analysis = item.analysis ?? item.resume.analysis
+  const snippetText = item.resume.workHistory?.[0]?.raw || item.resume.selfIntro
   const visibleKeywords = (
     item.resume._provenance?.map((entry) => entry.term)
     ?? item.resume.ingestData?.industryTags
@@ -60,9 +52,11 @@ export function SnippetCard({ expanded, item, onToggleExpanded }: SnippetCardPro
               ) : null}
             </div>
 
-            <p className="line-clamp-2 text-sm leading-6 text-slate-700">
-              {getSnippetText(item)}
-            </p>
+            {snippetText ? (
+              <p className="line-clamp-2 text-sm leading-6 text-slate-700">
+                {snippetText}
+              </p>
+            ) : null}
 
             {item.scoreSource === 'ai' && analysis?.summary ? (
               <p className="line-clamp-2 text-xs leading-5 text-slate-500">
@@ -79,23 +73,28 @@ export function SnippetCard({ expanded, item, onToggleExpanded }: SnippetCardPro
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex w-full shrink-0 flex-wrap items-center gap-3 lg:w-auto lg:justify-end">
             {typeof item.score === 'number' ? (
-              <div className="flex items-center gap-2">
-                <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-700">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-semibold whitespace-nowrap text-amber-700">
                   <span className="inline-flex items-center gap-1">
                     <Star className="h-3.5 w-3.5" />
                     {Math.round(item.score)}
                   </span>
                 </div>
                 {item.scoreSource ? (
-                  <Badge variant="outline" className="uppercase">
+                  <Badge variant="outline" className="whitespace-nowrap uppercase">
                     {item.scoreSource === 'ai' ? 'AI' : 'Rule'}
                   </Badge>
                 ) : null}
               </div>
             ) : null}
-            <Button type="button" variant="outline" className="rounded-full" onClick={onToggleExpanded}>
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0 rounded-full whitespace-nowrap"
+              onClick={onToggleExpanded}
+            >
               {expanded ? 'Collapse' : 'Expand'}
               {expanded ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
             </Button>

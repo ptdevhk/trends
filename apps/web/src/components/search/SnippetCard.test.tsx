@@ -154,7 +154,9 @@ describe('SnippetCard', () => {
 
     expect(screen.getByText('Unnamed resume')).toBeInTheDocument()
     expect(screen.getByText('Profile overview')).toBeInTheDocument()
-    expect(screen.getByText('Open the card to inspect recent work history and extracted signals.')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Open the card to inspect recent work history and extracted signals.'),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Automation')).toBeInTheDocument()
     expect(screen.getByText('PLC')).toBeInTheDocument()
     expect(screen.getByText('CNC')).toBeInTheDocument()

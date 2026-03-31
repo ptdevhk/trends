@@ -40,13 +40,13 @@ export function SnippetCardExpanded({ item }: SnippetCardExpandedProps) {
 
   return (
     <div className="border-t bg-slate-50/70 px-5 py-5">
-      <div className="grid gap-4 lg:grid-cols-[1.3fr,0.9fr]">
-        <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr),minmax(0,0.9fr)]">
+        <div className="min-w-0 space-y-4">
           <div className="space-y-2">
             <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
               Snapshot
             </div>
-            <p className="text-sm leading-6 text-slate-700">
+            <p className="break-words text-sm leading-6 text-slate-700">
               {presentationResume.selfIntro?.trim() || presentationResume.jobIntention?.trim() || 'No summary available for this resume yet.'}
             </p>
           </div>
@@ -58,7 +58,7 @@ export function SnippetCardExpanded({ item }: SnippetCardExpandedProps) {
             </div>
             <div className="space-y-2">
               {workHistory.length > 0 ? workHistory.map((entry) => (
-                <div key={entry} className="rounded-2xl border bg-white px-3 py-2 text-sm text-slate-700">
+                <div key={entry} className="rounded-2xl border bg-white px-3 py-2 text-sm break-words text-slate-700">
                   {entry}
                 </div>
               )) : (
@@ -70,20 +70,20 @@ export function SnippetCardExpanded({ item }: SnippetCardExpandedProps) {
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="rounded-3xl border bg-white p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
                 {hasAiAnalysis ? 'AI analysis' : 'Score source'}
               </div>
               {typeof item.score === 'number' ? (
-                <Badge variant="outline" className="uppercase">
+                <Badge variant="outline" className="whitespace-nowrap uppercase">
                   {item.scoreSource === 'ai' ? `AI ${Math.round(item.score)}` : `Rule ${Math.round(item.score)}`}
                 </Badge>
               ) : null}
             </div>
             {hasAiAnalysis && analysis ? (
-              <div className="space-y-4 text-sm text-slate-700">
+              <div className="space-y-4 break-words text-sm text-slate-700">
                 <p className="leading-6">{analysis.summary || 'No AI summary available for this resume yet.'}</p>
 
                 {analysis.highlights.length > 0 ? (
@@ -121,10 +121,10 @@ export function SnippetCardExpanded({ item }: SnippetCardExpandedProps) {
                       {Object.entries(analysis.breakdown).map(([label, value]) => (
                         <div
                           key={label}
-                          className="flex items-center justify-between rounded-2xl border bg-slate-50 px-3 py-2"
+                          className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border bg-slate-50 px-3 py-2"
                         >
-                          <span className="capitalize text-slate-600">{formatBreakdownLabel(label)}</span>
-                          <span className="font-semibold text-slate-900">{value}</span>
+                          <span className="min-w-0 flex-1 break-words capitalize text-slate-600">{formatBreakdownLabel(label)}</span>
+                          <span className="shrink-0 font-semibold text-slate-900">{value}</span>
                         </div>
                       ))}
                     </div>

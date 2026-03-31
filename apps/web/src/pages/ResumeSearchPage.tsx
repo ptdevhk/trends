@@ -1,6 +1,6 @@
 import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { RefreshCw } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
 import { FacetBadge } from '@/components/search/FacetBadge'
@@ -60,6 +60,9 @@ export function ResumeSearchPage() {
     toggleStatus,
     toggleTag,
   } = useResumeSearchState()
+  const collapseExpandedCards = useCallback(() => {
+    setExpandedIds(new Set())
+  }, [])
   const selectedSummaryTags = useMemo(() => {
     const clusterNamesBySlug = new Map(
       taxonomyClusters.map((cluster) => [
@@ -85,6 +88,7 @@ export function ResumeSearchPage() {
     results: filteredResults,
   })
   const applyExtractedKeywords = (keywords: string[]) => {
+    collapseExpandedCards()
     const query = formatKeywordQuery(keywords)
     setQueryInput(query)
     submitSearch(query)
@@ -94,10 +98,42 @@ export function ResumeSearchPage() {
     keywords: string[]
     location: string
   }) => {
+    collapseExpandedCards()
     const query = formatKeywordQuery(seed.keywords)
     setQueryInput(query)
     submitSearch(query, { location: seed.location })
   }
+
+  const handleApplyRecentSearch = useCallback(
+    async (item: Parameters<typeof applyRecentSearch>[0]) => {
+      collapseExpandedCards()
+      await applyRecentSearch(item)
+    },
+    [applyRecentSearch, collapseExpandedCards],
+  )
+
+  const handleSubmitQuery = useCallback(
+    (value?: string) => {
+      collapseExpandedCards()
+      submitSearch(value)
+    },
+    [collapseExpandedCards, submitSearch],
+  )
+
+  const handleClearQuery = useCallback(() => {
+    collapseExpandedCards()
+    clearSearch()
+  }, [clearSearch, collapseExpandedCards])
+
+  const handleToggleExpanded = useCallback((key: string) => {
+    setExpandedIds((current) => {
+      if (current.has(key)) {
+        return new Set()
+      }
+
+      return new Set([key])
+    })
+  }, [])
 
   const toggleHotKeyword = (keyword: string) => {
     const normalizedKeyword = keyword.trim()
@@ -167,13 +203,13 @@ export function ResumeSearchPage() {
           recentSearchesLoading={searchHistoryLoading}
           quickStarts={quickStartProfiles}
           hotKeywords={hotKeywords}
-          onApplyRecentSearch={applyRecentSearch}
+          onApplyRecentSearch={handleApplyRecentSearch}
           onApplyExtractedKeywords={applyExtractedKeywords}
           onApplyQuickStart={applyQuickStart}
           onToggleHotKeyword={toggleHotKeyword}
           onChangeQuery={setQueryInput}
-          onClearQuery={clearSearch}
-          onSubmitQuery={submitSearch}
+          onClearQuery={handleClearQuery}
+          onSubmitQuery={handleSubmitQuery}
         />
       ) : (
         <>
@@ -188,13 +224,13 @@ export function ResumeSearchPage() {
             queryInput={queryInput}
             recentSearches={recentSearches}
             sortValue={activeSort}
-            onApplyRecentSearch={applyRecentSearch}
+            onApplyRecentSearch={handleApplyRecentSearch}
             onApplyExtractedKeywords={applyExtractedKeywords}
             onChangeQuery={setQueryInput}
-            onClearQuery={clearSearch}
+            onClearQuery={handleClearQuery}
             onExportFormatChange={setExportFormat}
             onExportResults={exportResults}
-            onSubmitQuery={submitSearch}
+            onSubmitQuery={handleSubmitQuery}
             onSortChange={setSort}
           />
 
@@ -221,7 +257,7 @@ export function ResumeSearchPage() {
                     Resume AI analysis
                   </div>
                   <p className="text-sm text-slate-600">
-                    Generate per-resume AI summaries and breakdowns for the top visible matches.
+                    Generate per-resume AI summaries and breakdowns for the loaded search results.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -243,8 +279,8 @@ export function ResumeSearchPage() {
                       <>
                         <RefreshCw className="h-4 w-4" />
                         {analysisCandidateCount > 0
-                          ? `Analyze top ${analysisCandidateCount}`
-                          : 'Analyze top results'}
+                          ? `Analyze loaded ${analysisCandidateCount}`
+                          : 'Analyze loaded results'}
                       </>
                     )}
                   </Button>
@@ -265,17 +301,7 @@ export function ResumeSearchPage() {
                 loading={loading}
                 loadingMore={loadingMore}
                 onLoadMore={loadMore}
-                onToggleExpanded={(key) => {
-                  setExpandedIds((current) => {
-                    const next = new Set(current)
-                    if (next.has(key)) {
-                      next.delete(key)
-                    } else {
-                      next.add(key)
-                    }
-                    return next
-                  })
-                }}
+                onToggleExpanded={handleToggleExpanded}
               />
             </div>
           </div>
