@@ -155,8 +155,18 @@ export function ResumeList() {
     }
 
     updateScrollMargin()
+    const parent = listRef.current?.parentElement
+    let resizeObserver: ResizeObserver | undefined
+    if (parent && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(updateScrollMargin)
+      resizeObserver.observe(parent)
+    }
+
     window.addEventListener('resize', updateScrollMargin)
-    return () => window.removeEventListener('resize', updateScrollMargin)
+    return () => {
+      window.removeEventListener('resize', updateScrollMargin)
+      resizeObserver?.disconnect()
+    }
   }, [displayedResumes.length, shouldVirtualize])
 
   useEffect(() => {
