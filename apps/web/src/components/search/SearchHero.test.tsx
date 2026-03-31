@@ -4,6 +4,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchHero } from '@/components/search/SearchHero'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      if (key === 'resumes.mode.ai') {
+        return 'AI Mode'
+      }
+
+      return key
+    },
+  }),
+}))
+
 type SearchHeroProps = Parameters<typeof SearchHero>[0]
 
 vi.mock('@/components/search/GoogleSearchBar', () => ({
@@ -92,8 +104,10 @@ function buildHotKeyword(
 
 function renderSearchHero(overrides: Partial<SearchHeroProps> = {}) {
   const props: SearchHeroProps = {
+    aiModeEnabled: true,
     loading: false,
     queryInput: '',
+    onAiModeChange: vi.fn(),
     recentSearches: [],
     recentSearchesLoading: false,
     quickStarts: undefined,
@@ -129,6 +143,7 @@ describe('SearchHero', () => {
     expect(
       screen.getByText('Search Bar machine tools idle 0'),
     ).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'AI Mode' })).toBeChecked()
   })
 
   it('shows the empty state when there are no recent searches', () => {
@@ -215,6 +230,19 @@ describe('SearchHero', () => {
     expect(onClearQuery).toHaveBeenCalledTimes(1)
     expect(onApplyExtractedKeywords).toHaveBeenCalledWith(['lathe', 'cnc'])
     expect(onSubmitQuery).toHaveBeenCalledWith('submitted')
+  })
+
+  it('forwards AI mode toggle changes to the parent handler', async () => {
+    const user = userEvent.setup()
+    const onAiModeChange = vi.fn()
+
+    renderSearchHero({
+      onAiModeChange,
+    })
+
+    await user.click(screen.getByRole('switch', { name: 'AI Mode' }))
+
+    expect(onAiModeChange).toHaveBeenCalledWith(false)
   })
 
   it('renders quick-start cards from profile-backed quick starts', () => {
