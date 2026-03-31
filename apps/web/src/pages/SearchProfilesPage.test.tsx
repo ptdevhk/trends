@@ -241,11 +241,102 @@ describe('SearchProfilesPage run behavior', () => {
     expect(openedUrl.searchParams.get('tr_max_age')).toBe('40')
     expect(postMock).not.toHaveBeenCalled()
     expect(getMock).toHaveBeenCalledTimes(3)
-    expect(toastSuccessMock).toHaveBeenCalledWith('Opened Seek collection in a new tab')
+    expect(toastSuccessMock).toHaveBeenCalledWith('Opened collection in a new tab')
   })
 
-  it('keeps worker-backed sources on the existing dispatch and status polling flow', async () => {
+  it('opens 51job profiles in conservative single-page mode', async () => {
     const user = userEvent.setup()
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/search-profiles') {
+        return {
+          data: {
+            success: true,
+            profiles: [
+              {
+                id: 'profile-1',
+                name: '51job profile',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: '东莞',
+                keywords: ['CNC', '销售'],
+              },
+            ],
+          },
+        }
+      }
+
+      if (path === '/api/search-profiles/profile-1') {
+        return {
+          data: {
+            success: true,
+            profile: {
+              id: 'profile-1',
+              name: '51job profile',
+              status: 'active',
+              location: '东莞',
+              keywords: ['CNC', '销售'],
+              filters: {
+                minAge: 25,
+                maxAge: 40,
+              },
+              schedule: {
+                enabled: true,
+                cron: '0 9 * * 1-5',
+                maxCandidates: 120,
+              },
+              sources: [
+                {
+                  type: '51job',
+                  enabled: true,
+                  priority: 1,
+                },
+              ],
+            },
+          },
+        }
+      }
+
+      if (path === '/api/search-profiles/profile-1/status') {
+        return {
+          data: {
+            success: true,
+            status: null,
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+        },
+      }
+    })
+
+    render(<SearchProfilesPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Run 51job profile' }))
+
+    await waitFor(() => {
+      expect(openSpy).toHaveBeenCalledTimes(1)
+    })
+
+    const openedUrl = new URL(String(openSpy.mock.calls[0]?.[0]))
+    expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://ehire.51job.com/Revision/talent/search')
+    expect(openedUrl.searchParams.get('keyword')).toBe('CNC 销售')
+    expect(openedUrl.searchParams.get('location')).toBe('东莞')
+    expect(openedUrl.searchParams.get('tr_limit')).toBe('50')
+    expect(openedUrl.searchParams.get('tr_max_pages')).toBe('1')
+    expect(openedUrl.searchParams.get('tr_min_age')).toBe('25')
+    expect(openedUrl.searchParams.get('tr_max_age')).toBe('40')
+    expect(postMock).not.toHaveBeenCalled()
+    expect(toastSuccessMock).toHaveBeenCalledWith('Opened collection in a new tab')
+  })
+
+  it('opens Job5156 profiles in a new tab when head-mode collection is enabled', async () => {
+    const user = userEvent.setup()
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
 
     getMock.mockImplementation(async (path: string) => {
       if (path === '/api/search-profiles') {
@@ -316,28 +407,22 @@ describe('SearchProfilesPage run behavior', () => {
       }
     })
 
-    postMock.mockResolvedValue({
-      data: {
-        success: true,
-        profileId: 'profile-1',
-        taskId: 'task-1',
-      },
-    })
-
     render(<SearchProfilesPage />)
 
     await user.click(await screen.findByRole('button', { name: 'Run Job5156 profile' }))
 
     await waitFor(() => {
-      expect(postMock).toHaveBeenCalledWith('/api/search-profiles/profile-1/run', {
-        body: {},
-      })
+      expect(openSpy).toHaveBeenCalledTimes(1)
     })
 
-    await waitFor(() => {
-      expect(getMock.mock.calls.filter(([path]) => path === '/api/search-profiles/profile-1/status')).toHaveLength(2)
-    })
-    expect(toastSuccessMock).toHaveBeenCalledWith('Profile run started')
+    const openedUrl = new URL(String(openSpy.mock.calls[0]?.[0]))
+    expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://hr.job5156.com/search')
+    expect(openedUrl.searchParams.get('keyword')).toBe('招聘 简历')
+    expect(openedUrl.searchParams.get('location')).toBe('东莞')
+    expect(openedUrl.searchParams.get('tr_limit')).toBe('120')
+    expect(openedUrl.searchParams.get('tr_max_pages')).toBe('10')
+    expect(postMock).not.toHaveBeenCalled()
+    expect(toastSuccessMock).toHaveBeenCalledWith('Opened collection in a new tab')
   })
 
   it('keeps the legacy quick-start view URL on the unified page', async () => {

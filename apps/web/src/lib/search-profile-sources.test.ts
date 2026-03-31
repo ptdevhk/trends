@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  JOB51_SAFE_LAUNCH_LIMIT,
+  JOB51_SAFE_LAUNCH_MAX_PAGES,
   SEARCH_PROFILE_SOURCE_TYPES,
   buildCollectionLaunchUrl,
+  buildJob51CollectUrl,
   buildJob5156CollectUrl,
   buildSeekCollectUrl,
   getActiveSearchProfileSource,
@@ -122,6 +125,27 @@ describe('search-profile-sources', () => {
     const url = new URL(collectUrl as string)
     expect(url.searchParams.get('location')).toBeNull()
     expect(url.searchParams.get('keyword')).toBe('CNC 销售')
+  })
+
+  it('caps 51job launch URLs to conservative single-page limits', () => {
+    const collectUrl = buildJob51CollectUrl({
+      location: '东莞',
+      keywords: ['CNC', '销售'],
+      collectLimit: 120,
+      maxPages: 10,
+      minAge: 25,
+      maxAge: 40,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(`${url.origin}${url.pathname}`).toBe('https://ehire.51job.com/Revision/talent/search')
+    expect(url.searchParams.get('keyword')).toBe('CNC 销售')
+    expect(url.searchParams.get('location')).toBe('东莞')
+    expect(url.searchParams.get('tr_limit')).toBe(String(JOB51_SAFE_LAUNCH_LIMIT))
+    expect(url.searchParams.get('tr_max_pages')).toBe(String(JOB51_SAFE_LAUNCH_MAX_PAGES))
+    expect(url.searchParams.get('tr_min_age')).toBe('25')
+    expect(url.searchParams.get('tr_max_age')).toBe('40')
   })
 
   it('preserves legacy seek exact URLs as a collection source fallback', () => {

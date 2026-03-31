@@ -1,5 +1,5 @@
 (() => {
-  /** @type {Window & { __trResumeHookInstalled?: boolean }} */
+  /** @type {Window & { __trResumeHookInstalled?: boolean, __trJob51NextPage?: number }} */
   const trWindow = window;
   if (trWindow.__trResumeHookInstalled) return;
   trWindow.__trResumeHookInstalled = true;
@@ -59,6 +59,7 @@
       try {
         const pathname = new URL(url).pathname.toLowerCase();
         if (
+          pathname.includes("/talent_hunt_resume_list") ||
           pathname.includes("/talent/search") ||
           pathname.includes("/talent/list") ||
           pathname.includes("/resume/search") ||
@@ -439,14 +440,41 @@
     const originalFetch = trWindow.fetch;
     trWindow.fetch = function (...args) {
       const requestUrl = normalizeUrl(args[0]);
-      const is51jobFetch = requestUrl.includes("ehire.51job.com") || requestUrl.includes("ehirej.51job.com");
+      const is51jobFetch =
+        requestUrl.includes("ehire.51job.com") ||
+        requestUrl.includes("ehirej.51job.com");
       if (!isGraphqlRequest(requestUrl) && !is51jobFetch) {
         return originalFetch.apply(this, args);
       }
 
       return Promise.resolve(parseRequestBody(args[0], args[1])).then(
-        (requestBody) =>
-          originalFetch.apply(this, args).then((res) => {
+        (requestBody) => {
+          const nextPageIndex = trWindow.__trJob51NextPage;
+          const shouldRewriteJob51Request =
+            is51jobFetch &&
+            requestUrl.includes("talent_hunt_resume_list") &&
+            typeof nextPageIndex === "number" &&
+            nextPageIndex > 1 &&
+            requestBody &&
+            typeof requestBody === "object";
+          const fetchArgs = shouldRewriteJob51Request
+            ? [
+                new Request(args[0], {
+                  ...(typeof args[1] === "object" && args[1] !== null
+                    ? args[1]
+                    : {}),
+                  body: JSON.stringify({
+                    ...requestBody,
+                    page_index: nextPageIndex,
+                  }),
+                }),
+              ]
+            : args;
+          if (shouldRewriteJob51Request) {
+            delete trWindow.__trJob51NextPage;
+          }
+
+          return originalFetch.apply(this, fetchArgs).then((res) => {
             try {
               const classification = classify(requestUrl, requestBody);
               if (classification) {
@@ -460,7 +488,8 @@
               // ignore
             }
             return res;
-          }),
+          });
+        },
       );
     };
   }

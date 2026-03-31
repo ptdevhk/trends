@@ -70,10 +70,24 @@ describe('CollectResumesButton', () => {
       'noopener,noreferrer'
     )
 
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Source' }), '51job')
+    expect(screen.getByRole('spinbutton', { name: 'Collect page limit' })).toBeDisabled()
+    expect(screen.getByText('51job uses conservative mode: up to 50 resumes and 1 page per run.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Collect' }))
+
+    const job51Url = new URL(openMock.mock.calls[1]?.[0] as string)
+    expect(`${job51Url.origin}${job51Url.pathname}`).toBe('https://ehire.51job.com/Revision/talent/search')
+    expect(job51Url.searchParams.get('keyword')).toBe('"Sales Engineer" OR "Sales Manager"')
+    expect(job51Url.searchParams.get('location')).toBe('Kuala Lumpur MY')
+    expect(job51Url.searchParams.get('tr_auto_sync')).toBe('true')
+    expect(job51Url.searchParams.get('tr_max_pages')).toBe('1')
+    expect(job51Url.searchParams.get('tr_min_age')).toBe('28')
+    expect(job51Url.searchParams.get('tr_max_age')).toBe('40')
+
     await user.selectOptions(screen.getByRole('combobox', { name: 'Source' }), 'job5156')
     await user.click(screen.getByRole('button', { name: 'Collect' }))
 
-    const job5156Url = new URL(openMock.mock.calls[1]?.[0] as string)
+    const job5156Url = new URL(openMock.mock.calls[2]?.[0] as string)
     expect(`${job5156Url.origin}${job5156Url.pathname}`).toBe('https://hr.job5156.com/search')
     expect(job5156Url.searchParams.get('keyword')).toBe('"Sales Engineer" OR "Sales Manager"')
     expect(job5156Url.searchParams.get('location')).toBe('Kuala Lumpur MY')
