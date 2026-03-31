@@ -2139,7 +2139,7 @@ export function useResumeListState(loadSearchHistory = false) {
     ))
     // Clear collectUrl when switching to non-Seek sources to prevent stale URL interference
     if (nextSource.type !== 'seek') {
-      setSessionCollectUrl((current) => (current ?? undefined) === current ? current : undefined)
+      setSessionCollectUrl(undefined)
     }
   }, [setSessionCollectUrl, setSessionCollectionSource])
 
