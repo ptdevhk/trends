@@ -1,6 +1,7 @@
 import { formatKeywordQuery, normalizeKeywordPhrases } from '@trends/shared'
 
 const JOB5156_SEARCH_URL = 'https://hr.job5156.com/search'
+const EHIRE_51JOB_SEARCH_URL = 'https://ehire.51job.com/Revision/talent/search'
 const SEEK_TALENT_SEARCH_URL = 'https://my.employer.seek.com/candidates/recommended'
 const SEEK_HOST_SUFFIX = '.employer.seek.com'
 const SEEK_RECOMMENDED_PATH = '/candidates/recommended'
@@ -16,11 +17,13 @@ const CHINA_ROOT_LOCATION_LABELS = new Set([
 
 export const SEARCH_PROFILE_SOURCE_TYPES = {
   job5156: 'job5156',
+  job51: '51job',
   seek: 'seek',
 } as const
 
 export type CollectionSourceType =
   | typeof SEARCH_PROFILE_SOURCE_TYPES.job5156
+  | typeof SEARCH_PROFILE_SOURCE_TYPES.job51
   | typeof SEARCH_PROFILE_SOURCE_TYPES.seek
 
 export type CollectionSource = {
@@ -74,7 +77,9 @@ function normalizeOptionalPositiveInt(value: number | undefined): number | undef
 }
 
 function isCollectionSourceType(value: string | undefined): value is CollectionSourceType {
-  return value === SEARCH_PROFILE_SOURCE_TYPES.job5156 || value === SEARCH_PROFILE_SOURCE_TYPES.seek
+  return value === SEARCH_PROFILE_SOURCE_TYPES.job5156
+    || value === SEARCH_PROFILE_SOURCE_TYPES.job51
+    || value === SEARCH_PROFILE_SOURCE_TYPES.seek
 }
 
 function compareSourcePriority(left: SearchProfileSource, right: SearchProfileSource): number {
@@ -241,6 +246,10 @@ export function getSearchProfileCollectionSource(
     }) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.seek }
   }
 
+  if (source.type === SEARCH_PROFILE_SOURCE_TYPES.job51) {
+    return { type: SEARCH_PROFILE_SOURCE_TYPES.job51 }
+  }
+
   return { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 }
 }
 
@@ -365,6 +374,52 @@ export function buildJob5156CollectUrl({
   return url.toString()
 }
 
+export function buildJob51CollectUrl({
+  location,
+  keywords,
+  collectLimit,
+  maxPages,
+  minAge,
+  maxAge,
+}: BuildJob5156CollectUrlInput): string | null {
+  const normalizedKeywords = normalizeKeywords(keywords)
+  if (normalizedKeywords.length === 0) {
+    return null
+  }
+
+  const url = new URL(EHIRE_51JOB_SEARCH_URL)
+  const normalizedLocation = location.trim()
+
+  url.searchParams.set('keyword', formatKeywordQuery(normalizedKeywords))
+  if (normalizedLocation.length > 0 && !isChinaRootLocationLabel(normalizedLocation)) {
+    url.searchParams.set('location', normalizedLocation)
+  }
+
+  url.searchParams.set('tr_auto_sync', 'true')
+
+  const normalizedCollectLimit = normalizeOptionalPositiveInt(collectLimit)
+  if (typeof normalizedCollectLimit === 'number') {
+    url.searchParams.set('tr_limit', String(normalizedCollectLimit))
+  }
+
+  const normalizedMaxPages = normalizeOptionalPositiveInt(maxPages)
+  if (typeof normalizedMaxPages === 'number') {
+    url.searchParams.set('tr_max_pages', String(normalizedMaxPages))
+  }
+
+  const normalizedMinAge = normalizeOptionalPositiveInt(minAge)
+  if (typeof normalizedMinAge === 'number') {
+    url.searchParams.set('tr_min_age', String(normalizedMinAge))
+  }
+
+  const normalizedMaxAge = normalizeOptionalPositiveInt(maxAge)
+  if (typeof normalizedMaxAge === 'number') {
+    url.searchParams.set('tr_max_age', String(normalizedMaxAge))
+  }
+
+  return url.toString()
+}
+
 export function buildCollectionLaunchUrl({
   source,
   location,
@@ -377,6 +432,17 @@ export function buildCollectionLaunchUrl({
   if (source.type === SEARCH_PROFILE_SOURCE_TYPES.seek) {
     return buildSeekCollectUrl({
       baseUrl: source.exactUrl,
+      location,
+      keywords,
+      collectLimit,
+      maxPages,
+      minAge,
+      maxAge,
+    })
+  }
+
+  if (source.type === SEARCH_PROFILE_SOURCE_TYPES.job51) {
+    return buildJob51CollectUrl({
       location,
       keywords,
       collectLimit,

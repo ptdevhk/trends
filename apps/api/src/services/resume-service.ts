@@ -297,6 +297,9 @@ function inferResumeSource(metadata?: ResumeMetadata): string | undefined {
   if (sourceKey === "seek") {
     return "seek";
   }
+  if (sourceKey === "51job") {
+    return "ehire.51job.com";
+  }
 
   return undefined;
 }

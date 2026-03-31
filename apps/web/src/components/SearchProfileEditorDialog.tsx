@@ -93,6 +93,8 @@ type ProfileFormState = {
 type SourceFormState = {
     job5156Enabled: boolean
     job5156Priority: string
+    job51Enabled: boolean
+    job51Priority: string
     seekEnabled: boolean
     seekPriority: string
     seekJobUrl: string
@@ -114,6 +116,8 @@ const DEFAULT_FORM: ProfileFormState = {
 const DEFAULT_SOURCES_FORM: SourceFormState = {
     job5156Enabled: true,
     job5156Priority: '1',
+    job51Enabled: false,
+    job51Priority: '3',
     seekEnabled: false,
     seekPriority: '2',
     seekJobUrl: '',
@@ -186,11 +190,14 @@ function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceF
     }
 
     const job5156Source = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job5156)
+    const job51Source = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job51)
     const seekSource = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
 
     return {
         job5156Enabled: job5156Source?.enabled ?? DEFAULT_SOURCES_FORM.job5156Enabled,
         job5156Priority: normalizeSourcePriority(job5156Source?.priority) || DEFAULT_SOURCES_FORM.job5156Priority,
+        job51Enabled: job51Source?.enabled ?? DEFAULT_SOURCES_FORM.job51Enabled,
+        job51Priority: normalizeSourcePriority(job51Source?.priority) || DEFAULT_SOURCES_FORM.job51Priority,
         seekEnabled: seekSource?.enabled ?? DEFAULT_SOURCES_FORM.seekEnabled,
         seekPriority: normalizeSourcePriority(seekSource?.priority) || DEFAULT_SOURCES_FORM.seekPriority,
         seekJobUrl: seekSource?.jobUrl ?? DEFAULT_SOURCES_FORM.seekJobUrl,
@@ -212,6 +219,7 @@ function splitKnownSources(sources: SearchProfileSource[] | undefined): {
         known: toSourcesFormState(sources),
         additional: sources.filter((source) => (
             source.type !== SEARCH_PROFILE_SOURCE_TYPES.job5156
+            && source.type !== SEARCH_PROFILE_SOURCE_TYPES.job51
             && source.type !== SEARCH_PROFILE_SOURCE_TYPES.seek
         )),
     }
@@ -224,6 +232,12 @@ function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: Sea
         type: SEARCH_PROFILE_SOURCE_TYPES.job5156,
         enabled: sourceForm.job5156Enabled,
         priority: parseOptionalNumber(sourceForm.job5156Priority),
+    })
+
+    sources.push({
+        type: SEARCH_PROFILE_SOURCE_TYPES.job51,
+        enabled: sourceForm.job51Enabled,
+        priority: parseOptionalNumber(sourceForm.job51Priority),
     })
 
     sources.push({
@@ -653,6 +667,38 @@ export function SearchProfileEditorDialog({
                                         onChange={(event) => setSourceForm((previous) => ({
                                             ...previous,
                                             job5156Priority: event.target.value,
+                                        }))}
+                                        className="h-8 w-24"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-md border p-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Checkbox
+                                        id="profile-source-job51"
+                                        checked={sourceForm.job51Enabled}
+                                        onCheckedChange={(checked) => setSourceForm((previous) => ({
+                                            ...previous,
+                                            job51Enabled: checked === true,
+                                        }))}
+                                    />
+                                    <Label htmlFor="profile-source-job51">51job eHire</Label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Label htmlFor="profile-source-job51-priority" className="text-sm text-muted-foreground">
+                                        {t('searchProfiles.fields.priority', { defaultValue: 'Priority' })}
+                                    </Label>
+                                    <Input
+                                        id="profile-source-job51-priority"
+                                        type="number"
+                                        min={1}
+                                        value={sourceForm.job51Priority}
+                                        onChange={(event) => setSourceForm((previous) => ({
+                                            ...previous,
+                                            job51Priority: event.target.value,
                                         }))}
                                         className="h-8 w-24"
                                     />

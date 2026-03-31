@@ -332,7 +332,7 @@ export default defineSchema({
             keywords: v.array(v.string()),
             jobDescriptionId: v.optional(v.string()),
             collectionSource: v.optional(v.object({
-                type: v.union(v.literal("job5156"), v.literal("seek")),
+                type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
                 exactUrl: v.optional(v.string()),
             })),
             collectUrl: v.optional(v.string()),
@@ -353,7 +353,7 @@ export default defineSchema({
         keywords: v.array(v.string()),
         jobDescriptionId: v.optional(v.string()),
         collectionSource: v.optional(v.object({
-            type: v.union(v.literal("job5156"), v.literal("seek")),
+            type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
             exactUrl: v.optional(v.string()),
         })),
         collectUrl: v.optional(v.string()),

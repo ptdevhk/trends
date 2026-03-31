@@ -4,7 +4,7 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 export const DEFAULT_WORKSPACE_SLUG = "dev";
 
 type CollectionSource = {
-    type: "job5156" | "seek";
+    type: "job5156" | "51job" | "seek";
     exactUrl?: string;
 };
 
@@ -43,7 +43,7 @@ function normalizeCollectionSource(
     legacyCollectUrl?: string,
 ): CollectionSource | undefined {
     const type = input?.type;
-    if (type === "job5156") {
+    if (type === "job5156" || type === "51job") {
         return { type };
     }
 
@@ -190,7 +190,7 @@ export const saveSession = mutation({
         keywords: v.array(v.string()),
         jobDescriptionId: v.optional(v.string()),
         collectionSource: v.optional(v.object({
-            type: v.union(v.literal("job5156"), v.literal("seek")),
+            type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
             exactUrl: v.optional(v.string()),
         })),
         collectUrl: v.optional(v.string()),
@@ -360,7 +360,7 @@ export const saveSearchHistory = mutation({
         keywords: v.array(v.string()),
         jobDescriptionId: v.optional(v.string()),
         collectionSource: v.optional(v.object({
-            type: v.union(v.literal("job5156"), v.literal("seek")),
+            type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
             exactUrl: v.optional(v.string()),
         })),
         collectUrl: v.optional(v.string()),

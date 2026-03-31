@@ -55,6 +55,25 @@
       return { kind: "insight", sourceKey: "job5156" };
     if (url.includes("/api/search/resume/v2"))
       return { kind: "search", sourceKey: "job5156" };
+    if (url.includes("ehire.51job.com")) {
+      try {
+        const pathname = new URL(url).pathname.toLowerCase();
+        if (
+          pathname.includes("/talent/search") ||
+          pathname.includes("/talent/list") ||
+          pathname.includes("/resume/search") ||
+          pathname.includes("/resume/list") ||
+          pathname.includes("/candidate/search") ||
+          pathname.includes("/candidate/list") ||
+          pathname.includes("/search/talent") ||
+          pathname.includes("/search/resume")
+        ) {
+          return { kind: "job51search", sourceKey: "51job" };
+        }
+      } catch {
+        // ignore
+      }
+    }
     if (url.includes("/graphql")) {
       const recommendedOperation = findGraphqlOperation(
         requestBody,
@@ -179,6 +198,7 @@
     const hostname = window.location.hostname.toLowerCase();
     if (hostname === "hr.job5156.com") return "job5156";
     if (hostname.endsWith(".employer.seek.com")) return "seek";
+    if (hostname === "ehire.51job.com") return "51job";
     return "unknown";
   };
   const parsePositiveInt = (value) => {
@@ -348,7 +368,9 @@
     const cardCount =
       sourceKey === "seek"
         ? Math.max(apiSnapshotCount, getSeekCardCount())
-        : document.querySelectorAll(".list-content__li_part").length;
+        : sourceKey === "51job"
+          ? apiSnapshotCount
+          : document.querySelectorAll(".list-content__li_part").length;
 
     return {
       extensionLoaded: readAttr("data-tr-resume-hook") === "true",
@@ -356,7 +378,7 @@
       sourceKey,
       apiSnapshotCount,
       domReady:
-        sourceKey === "seek"
+        sourceKey === "seek" || sourceKey === "51job"
           ? apiSnapshotCount > 0
           : document.querySelector(
               ".el-checkbox-group.resume-search-item-list-content-block",
@@ -417,7 +439,8 @@
     const originalFetch = trWindow.fetch;
     trWindow.fetch = function (...args) {
       const requestUrl = normalizeUrl(args[0]);
-      if (!isGraphqlRequest(requestUrl)) {
+      const is51jobFetch = requestUrl.includes("ehire.51job.com");
+      if (!isGraphqlRequest(requestUrl) && !is51jobFetch) {
         return originalFetch.apply(this, args);
       }
 
