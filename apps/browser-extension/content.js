@@ -2668,34 +2668,75 @@ function extract51JobResumes() {
   if (!Array.isArray(apiSnapshot.job51SearchRows)) return [];
   return apiSnapshot.job51SearchRows.map((row, index) => {
     const str = (v) => (v != null ? String(v) : "");
-    const name = str(row?.name || row?.userName || row?.candidateName || row?.fullName);
-    const age = str(row?.age || row?.realAge);
-    const experience = str(row?.workYear || row?.workYears || row?.experienceYears || row?.experience);
-    const education = str(row?.education || row?.educationLevel || row?.degree || row?.eduLevel);
-    const location = str(row?.location || row?.workCity || row?.city || row?.workLocation);
-    const jobIntention = str(row?.jobIntention || row?.desiredJob || row?.expectedPosition || row?.targetJob || row?.searchJob);
-    const expectedSalary = str(row?.expectedSalary || row?.desiredSalary || row?.expectSalary || row?.salaryExpect);
-    const activityStatus = str(row?.activityStatus || row?.lastLoginTime || row?.activeTime || row?.refreshTime);
-    const selfIntro = str(row?.selfIntro || row?.advantage || row?.profile || row?.highlight);
-    const resumeId = str(row?.resumeId || row?.resumeNo || row?.resumekey || row?.id);
-    const perUserId = str(row?.perUserId || row?.userId || row?.candidateId || row?.memberId);
-    const externalId = resumeId || perUserId;
-    const profileUrl = str(row?.profileUrl || row?.resumeUrl)
-      || (resumeId ? `https://${EHIRE_51JOB_HOST}/resume/${resumeId}` : "");
+    const stripHtml = (v) => str(v).replace(/<[^>]+>/g, "").trim();
+
+    const base = row?.base_info || {};
+    const recentWork = row?.recent_work_info || {};
+    const jobInt = row?.job_intention || {};
+    const resumeKey = str(row?.userid);
+
+    const name = stripHtml(base?.resume_name);
+    const sex = str(base?.sex_value);
+    const age = str(base?.age);
+    const experience = stripHtml(base?.work_year_value);
+    const education = stripHtml(base?.top_degree_value);
+    const location = stripHtml(base?.area_value);
+    const school = stripHtml(base?.top_school_name);
+    const major = stripHtml(base?.top_major_value);
+    const gender = sex;
+    const jobIntention = stripHtml(jobInt?.expect_work_function_value);
+    const expectedSalary = stripHtml(jobInt?.new_expect_salary);
+    const activityStatus = stripHtml(row?.active_type);
+    const recentCompany = stripHtml(recentWork?.recent_company);
+    const recentPosition = stripHtml(recentWork?.recent_position);
+    const resumeSnippet = stripHtml(row?.resume_slicing);
+
+    const workHistory = Array.isArray(row?.work_list)
+      ? row.work_list.map((w) => ({
+          raw: stripHtml(`${w.company_name} ${w.start_time} - ${w.end_time} ${w.job_name}`),
+          companyName: stripHtml(w.company_name),
+          jobTitle: stripHtml(w.job_name),
+          startDate: str(w.start_time),
+          endDate: str(w.end_time),
+          description: stripHtml(w.job_name),
+        }))
+      : [];
+
+    const profileEducation = Array.isArray(row?.education_list)
+      ? row.education_list.map((e) => ({
+          institution: stripHtml(e.school),
+          qualification: stripHtml(e.degree_value),
+          fieldOfStudy: stripHtml(e.major_value),
+          startDate: str(e.start_time),
+          endDate: str(e.end_time),
+        }))
+      : [];
+
+    const profileUrl = resumeKey
+      ? `https://${EHIRE_51JOB_HOST}/Revision/talent/search?userid=${resumeKey}`
+      : "";
+
     return {
       name,
+      gender,
       age,
       experience,
       education,
       location,
+      school,
+      major,
       jobIntention,
       expectedSalary,
       activityStatus,
-      selfIntro,
-      resumeId: resumeId || undefined,
-      perUserId: perUserId || undefined,
-      externalId: externalId || undefined,
+      recentCompany,
+      recentPosition,
+      resumeSnippet,
+      resumeId: resumeKey || undefined,
+      perUserId: undefined,
+      externalId: resumeKey || undefined,
       profileUrl,
+      workHistory,
+      profileEducation,
       pageIndex: index + 1,
       rawData: row,
       extractedAt: new Date().toISOString(),

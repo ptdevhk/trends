@@ -55,7 +55,6 @@
       return { kind: "insight", sourceKey: "job5156" };
     if (url.includes("/api/search/resume/v2"))
       return { kind: "search", sourceKey: "job5156" };
-<<<<<<< HEAD
     if (url.includes("ehire.51job.com") || url.includes("ehirej.51job.com")) {
       try {
         const pathname = new URL(url).pathname.toLowerCase();
@@ -440,7 +439,6 @@
     const originalFetch = trWindow.fetch;
     trWindow.fetch = function (...args) {
       const requestUrl = normalizeUrl(args[0]);
-<<<<<<< HEAD
       const is51jobFetch = requestUrl.includes("ehire.51job.com") || requestUrl.includes("ehirej.51job.com");
       if (!isGraphqlRequest(requestUrl) && !is51jobFetch) {
         return originalFetch.apply(this, args);
