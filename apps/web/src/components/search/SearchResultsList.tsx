@@ -44,11 +44,13 @@ export function SearchResultsList({
   const listRef = useRef<HTMLDivElement | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
-  const shouldVirtualize = items.length > 40 && expandedIds.size === 0
+  const hasAiSummaries = items.some((item) => Boolean((item.analysis ?? item.resume.analysis)?.summary))
+  const shouldVirtualize = items.length > 40 && expandedIds.size === 0 && !hasAiSummaries
 
   const rowVirtualizer = useWindowVirtualizer({
     count: items.length,
     estimateSize: () => 182,
+    getItemKey: (index) => items[index]?.key ?? index,
     overscan: 6,
     scrollMargin,
   })
@@ -72,6 +74,14 @@ export function SearchResultsList({
       resizeObserver?.disconnect()
     }
   }, [items.length])
+
+  useEffect(() => {
+    if (!shouldVirtualize) {
+      return
+    }
+
+    rowVirtualizer.measure()
+  }, [items, rowVirtualizer, shouldVirtualize])
 
   useEffect(() => {
     if (!hasMore || loadingMore) {
