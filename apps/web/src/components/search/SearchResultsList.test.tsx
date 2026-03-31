@@ -11,10 +11,15 @@ const virtualizer = {
   getTotalSize: () => 480,
   getVirtualItems: () => virtualRows,
   measureElement: vi.fn(),
+  measure: vi.fn(),
 }
+const useWindowVirtualizerMock = vi.fn((options: unknown) => {
+  void options
+  return virtualizer
+})
 
 vi.mock('@tanstack/react-virtual', () => ({
-  useWindowVirtualizer: () => virtualizer,
+  useWindowVirtualizer: (options: unknown) => useWindowVirtualizerMock(options),
 }))
 
 vi.mock('@/components/search/SnippetCard', () => ({
@@ -128,6 +133,43 @@ describe('SearchResultsList', () => {
     expect(screen.queryByText('resume-0:collapsed')).not.toBeInTheDocument()
   })
 
+  it('uses stable item keys and remeasures when virtualized items change', () => {
+    const items = Array.from({ length: 45 }, (_, index) => createItem(index))
+    const { rerender } = render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={items}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(useWindowVirtualizerMock).toHaveBeenCalled()
+    const firstCall = useWindowVirtualizerMock.mock.calls[0]
+    expect(firstCall).toBeDefined()
+    const firstCallOptions = firstCall?.[0] as unknown as { getItemKey: (index: number) => string | number }
+    expect(firstCallOptions.getItemKey(1)).toBe('resume-1')
+
+    virtualizer.measure.mockClear()
+    const reversedItems = [...items].reverse()
+    rerender(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={reversedItems}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    const latestCall = useWindowVirtualizerMock.mock.lastCall
+    expect(latestCall).toBeDefined()
+    const latestCallOptions = latestCall?.[0] as unknown as { getItemKey: (index: number) => string | number }
+    expect(latestCallOptions.getItemKey(0)).toBe('resume-44')
+    expect(virtualizer.measure).toHaveBeenCalledTimes(1)
+  })
+
   it('subtracts the measured scroll margin from virtual row placement', async () => {
     virtualRows = [{ index: 0, start: 120 }]
     vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockReturnValue(80)
@@ -181,6 +223,33 @@ describe('SearchResultsList', () => {
 
     expect(screen.getByText('resume-0:collapsed')).toBeInTheDocument()
     expect(screen.getByText('resume-1:expanded')).toBeInTheDocument()
+    expect(screen.getByText('resume-44:collapsed')).toBeInTheDocument()
+    expect(screen.getByText('End of results')).toBeInTheDocument()
+  })
+
+  it('renders the full non-virtualized list when AI summaries are present', () => {
+    const items = Array.from({ length: 45 }, (_, index) => ({
+      ...createItem(index),
+      analysis: {
+        analyzedAt: Date.now(),
+        highlights: [],
+        recommendation: 'match',
+        score: 90,
+        summary: `AI summary ${index}`,
+      },
+    }))
+
+    render(
+      <SearchResultsList
+        expandedIds={new Set()}
+        hasMore={false}
+        items={items}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('resume-0:collapsed')).toBeInTheDocument()
     expect(screen.getByText('resume-44:collapsed')).toBeInTheDocument()
     expect(screen.getByText('End of results')).toBeInTheDocument()
   })
