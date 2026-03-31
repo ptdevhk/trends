@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Select } from '@/components/ui/select'
 import {
     SEARCH_PROFILE_SOURCE_TYPES,
     isSeekRecommendedCandidatesUrl,
@@ -50,6 +51,8 @@ export type SearchProfileDetails = {
         maxCandidates?: number
     }
     sources?: SearchProfileSource[]
+    quickStart?: { enabled: boolean; rank?: number; label?: string; description?: string }
+    collectionMode?: 'head' | 'headless'
 }
 
 type ProfileResponse = {
@@ -88,6 +91,8 @@ type ProfileFormState = {
     maxAge: string
     cron: string
     enabled: boolean
+    quickStartEnabled: boolean
+    collectionMode: 'head' | 'headless'
 }
 
 type SourceFormState = {
@@ -111,6 +116,8 @@ const DEFAULT_FORM: ProfileFormState = {
     maxAge: '',
     cron: '0 9 * * 1-5',
     enabled: true,
+    quickStartEnabled: false,
+    collectionMode: 'head',
 }
 
 const DEFAULT_SOURCES_FORM: SourceFormState = {
@@ -262,6 +269,8 @@ function toFormState(profile: SearchProfileDetails): ProfileFormState {
         maxAge: typeof profile.filters?.maxAge === 'number' ? String(profile.filters.maxAge) : '',
         cron: profile.schedule?.cron || '',
         enabled: profile.status === 'active',
+        quickStartEnabled: profile.quickStart?.enabled ?? false,
+        collectionMode: profile.collectionMode ?? 'head',
     }
 }
 
@@ -498,6 +507,8 @@ export function SearchProfileEditorDialog({
                 cron: form.cron.trim() || undefined,
             },
             sources,
+            quickStart: { enabled: form.quickStartEnabled },
+            collectionMode: form.collectionMode,
         }
 
         setSubmitting(true)
@@ -757,6 +768,28 @@ export function SearchProfileEditorDialog({
                                 </div>
                             ) : null}
                         </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="profile-collection-mode">{t('searchProfiles.fields.collectionMode', { defaultValue: 'Collection Mode' })}</Label>
+                        <Select
+                            id="profile-collection-mode"
+                            value={form.collectionMode}
+                            onChange={(event) => setForm((previous) => ({ ...previous, collectionMode: event.target.value as 'head' | 'headless' }))}
+                            options={[
+                                { value: 'head', label: t('searchProfiles.fields.collectionModeHead', { defaultValue: 'Open tabs (default)' }) },
+                                { value: 'headless', label: t('searchProfiles.fields.collectionModeHeadless', { defaultValue: 'Legacy headless crawler' }) },
+                            ]}
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Checkbox
+                            checked={form.quickStartEnabled}
+                            onCheckedChange={(checked) => setForm((previous) => ({ ...previous, quickStartEnabled: checked === true }))}
+                            id="profile-quickstart"
+                        />
+                        <Label htmlFor="profile-quickstart">{t('searchProfiles.fields.quickStart', { defaultValue: 'Show in QuickStart' })}</Label>
                     </div>
 
                     <div className="flex items-center gap-2">
