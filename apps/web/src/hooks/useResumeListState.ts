@@ -2137,7 +2137,11 @@ export function useResumeListState(loadSearchHistory = false) {
         ? current
         : nextSource
     ))
-  }, [setSessionCollectionSource])
+    // Clear collectUrl when switching to non-Seek sources to prevent stale URL interference
+    if (nextSource.type !== 'seek') {
+      setSessionCollectUrl(undefined)
+    }
+  }, [setSessionCollectUrl, setSessionCollectionSource])
 
   const handleSaveCurrentSearch = useCallback(async () => {
     const title = buildSearchHistoryTitle(sessionLocation, sessionKeywords, jobDescriptionId)

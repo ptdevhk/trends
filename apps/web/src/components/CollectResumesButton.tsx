@@ -116,7 +116,7 @@ export function CollectResumesButton({
             exactUrl: seekSource?.exactUrl,
           }
         : {
-            type: SEARCH_PROFILE_SOURCE_TYPES.job5156,
+            type: selectedSourceType,
           },
       location: normalizedLocation,
       keywords: normalizedKeywords,
@@ -172,6 +172,10 @@ export function CollectResumesButton({
       label: t('quickStart.collectSourceJob5156', 'China · Job5156'),
     },
     {
+      value: SEARCH_PROFILE_SOURCE_TYPES.job51,
+      label: t('quickStart.collectSourceJob51', 'China · 51job eHire'),
+    },
+    {
       value: SEARCH_PROFILE_SOURCE_TYPES.seek,
       label: t('quickStart.collectSourceSeek', 'Malaysia · SEEK'),
     },
@@ -192,9 +196,12 @@ export function CollectResumesButton({
   }
 
   const handleSourceChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    const nextType = event.target.value === SEARCH_PROFILE_SOURCE_TYPES.seek
+    const rawValue = event.target.value
+    const nextType = rawValue === SEARCH_PROFILE_SOURCE_TYPES.seek
       ? SEARCH_PROFILE_SOURCE_TYPES.seek
-      : SEARCH_PROFILE_SOURCE_TYPES.job5156
+      : rawValue === SEARCH_PROFILE_SOURCE_TYPES.job51
+        ? SEARCH_PROFILE_SOURCE_TYPES.job51
+        : SEARCH_PROFILE_SOURCE_TYPES.job5156
 
     if (nextType === SEARCH_PROFILE_SOURCE_TYPES.seek) {
       onCollectionSourceChange?.({
@@ -205,7 +212,7 @@ export function CollectResumesButton({
     }
 
     onCollectionSourceChange?.({
-      type: SEARCH_PROFILE_SOURCE_TYPES.job5156,
+      type: nextType,
     })
   }
 

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Select } from '@/components/ui/select'
 import {
     SEARCH_PROFILE_SOURCE_TYPES,
     isSeekRecommendedCandidatesUrl,
@@ -50,6 +51,8 @@ export type SearchProfileDetails = {
         maxCandidates?: number
     }
     sources?: SearchProfileSource[]
+    quickStart?: { enabled: boolean; rank?: number; label?: string; description?: string }
+    collectionMode?: 'head' | 'headless'
 }
 
 type ProfileResponse = {
@@ -88,11 +91,15 @@ type ProfileFormState = {
     maxAge: string
     cron: string
     enabled: boolean
+    quickStartEnabled: boolean
+    collectionMode: 'head' | 'headless'
 }
 
 type SourceFormState = {
     job5156Enabled: boolean
     job5156Priority: string
+    job51Enabled: boolean
+    job51Priority: string
     seekEnabled: boolean
     seekPriority: string
     seekJobUrl: string
@@ -109,11 +116,15 @@ const DEFAULT_FORM: ProfileFormState = {
     maxAge: '',
     cron: '0 9 * * 1-5',
     enabled: true,
+    quickStartEnabled: false,
+    collectionMode: 'head',
 }
 
 const DEFAULT_SOURCES_FORM: SourceFormState = {
     job5156Enabled: true,
     job5156Priority: '1',
+    job51Enabled: false,
+    job51Priority: '3',
     seekEnabled: false,
     seekPriority: '2',
     seekJobUrl: '',
@@ -186,11 +197,14 @@ function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceF
     }
 
     const job5156Source = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job5156)
+    const job51Source = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.job51)
     const seekSource = sources.find((source) => source.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
 
     return {
         job5156Enabled: job5156Source?.enabled ?? DEFAULT_SOURCES_FORM.job5156Enabled,
         job5156Priority: normalizeSourcePriority(job5156Source?.priority) || DEFAULT_SOURCES_FORM.job5156Priority,
+        job51Enabled: job51Source?.enabled ?? DEFAULT_SOURCES_FORM.job51Enabled,
+        job51Priority: normalizeSourcePriority(job51Source?.priority) || DEFAULT_SOURCES_FORM.job51Priority,
         seekEnabled: seekSource?.enabled ?? DEFAULT_SOURCES_FORM.seekEnabled,
         seekPriority: normalizeSourcePriority(seekSource?.priority) || DEFAULT_SOURCES_FORM.seekPriority,
         seekJobUrl: seekSource?.jobUrl ?? DEFAULT_SOURCES_FORM.seekJobUrl,
@@ -212,6 +226,7 @@ function splitKnownSources(sources: SearchProfileSource[] | undefined): {
         known: toSourcesFormState(sources),
         additional: sources.filter((source) => (
             source.type !== SEARCH_PROFILE_SOURCE_TYPES.job5156
+            && source.type !== SEARCH_PROFILE_SOURCE_TYPES.job51
             && source.type !== SEARCH_PROFILE_SOURCE_TYPES.seek
         )),
     }
@@ -224,6 +239,12 @@ function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: Sea
         type: SEARCH_PROFILE_SOURCE_TYPES.job5156,
         enabled: sourceForm.job5156Enabled,
         priority: parseOptionalNumber(sourceForm.job5156Priority),
+    })
+
+    sources.push({
+        type: SEARCH_PROFILE_SOURCE_TYPES.job51,
+        enabled: sourceForm.job51Enabled,
+        priority: parseOptionalNumber(sourceForm.job51Priority),
     })
 
     sources.push({
@@ -248,6 +269,8 @@ function toFormState(profile: SearchProfileDetails): ProfileFormState {
         maxAge: typeof profile.filters?.maxAge === 'number' ? String(profile.filters.maxAge) : '',
         cron: profile.schedule?.cron || '',
         enabled: profile.status === 'active',
+        quickStartEnabled: profile.quickStart?.enabled ?? false,
+        collectionMode: profile.collectionMode ?? 'head',
     }
 }
 
@@ -484,6 +507,8 @@ export function SearchProfileEditorDialog({
                 cron: form.cron.trim() || undefined,
             },
             sources,
+            quickStart: { enabled: form.quickStartEnabled },
+            collectionMode: form.collectionMode,
         }
 
         setSubmitting(true)
@@ -664,6 +689,38 @@ export function SearchProfileEditorDialog({
                             <div className="flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
                                     <Checkbox
+                                        id="profile-source-job51"
+                                        checked={sourceForm.job51Enabled}
+                                        onCheckedChange={(checked) => setSourceForm((previous) => ({
+                                            ...previous,
+                                            job51Enabled: checked === true,
+                                        }))}
+                                    />
+                                    <Label htmlFor="profile-source-job51">51job eHire</Label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Label htmlFor="profile-source-job51-priority" className="text-sm text-muted-foreground">
+                                        {t('searchProfiles.fields.priority', { defaultValue: 'Priority' })}
+                                    </Label>
+                                    <Input
+                                        id="profile-source-job51-priority"
+                                        type="number"
+                                        min={1}
+                                        value={sourceForm.job51Priority}
+                                        onChange={(event) => setSourceForm((previous) => ({
+                                            ...previous,
+                                            job51Priority: event.target.value,
+                                        }))}
+                                        className="h-8 w-24"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-md border p-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Checkbox
                                         id="profile-source-seek"
                                         checked={sourceForm.seekEnabled}
                                         onCheckedChange={(checked) => setSourceForm((previous) => ({
@@ -711,6 +768,28 @@ export function SearchProfileEditorDialog({
                                 </div>
                             ) : null}
                         </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="profile-collection-mode">{t('searchProfiles.fields.collectionMode', { defaultValue: 'Collection Mode' })}</Label>
+                        <Select
+                            id="profile-collection-mode"
+                            value={form.collectionMode}
+                            onChange={(event) => setForm((previous) => ({ ...previous, collectionMode: event.target.value as 'head' | 'headless' }))}
+                            options={[
+                                { value: 'head', label: t('searchProfiles.fields.collectionModeHead', { defaultValue: 'Open tabs (default)' }) },
+                                { value: 'headless', label: t('searchProfiles.fields.collectionModeHeadless', { defaultValue: 'Legacy headless crawler' }) },
+                            ]}
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Checkbox
+                            checked={form.quickStartEnabled}
+                            onCheckedChange={(checked) => setForm((previous) => ({ ...previous, quickStartEnabled: checked === true }))}
+                            id="profile-quickstart"
+                        />
+                        <Label htmlFor="profile-quickstart">{t('searchProfiles.fields.quickStart', { defaultValue: 'Show in QuickStart' })}</Label>
                     </div>
 
                     <div className="flex items-center gap-2">

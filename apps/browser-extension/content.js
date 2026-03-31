@@ -49,10 +49,12 @@ const AUTO_LOCATION_PARAM = "location";
 const AUTO_KEYWORD_MODE_PARAM = "tr_kw_mode";
 const SAMPLE_NAME_PARAM = "tr_sample_name";
 const JOB5156_HOST = "hr.job5156.com";
+const EHIRE_51JOB_HOST = "ehire.51job.com";
 const SEEK_HOST_SUFFIX = ".employer.seek.com";
 const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
 const SOURCE_KEYS = {
   JOB5156: "job5156",
+  JOB51: "51job",
   SEEK: "seek",
   UNKNOWN: "unknown",
 };
@@ -75,6 +77,7 @@ const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
 
 const apiSnapshot = {
   searchRows: null,
+  job51SearchRows: null,
   attachInfo: null,
   chatInfo: null,
   insightInfo: null,
@@ -380,6 +383,7 @@ function buildExportMetadata(resumes) {
 function getCurrentSourceKey() {
   const hostname = window.location.hostname.toLowerCase();
   if (hostname === JOB5156_HOST) return SOURCE_KEYS.JOB5156;
+  if (hostname === EHIRE_51JOB_HOST) return SOURCE_KEYS.JOB51;
   if (hostname.endsWith(SEEK_HOST_SUFFIX)) return SOURCE_KEYS.SEEK;
   return SOURCE_KEYS.UNKNOWN;
 }
@@ -394,6 +398,9 @@ function isJob5156DetailPage() {
 function getApiSnapshotCount() {
   if (Array.isArray(apiSnapshot.searchRows)) {
     return apiSnapshot.searchRows.length;
+  }
+  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
+    return Array.isArray(apiSnapshot.job51SearchRows) ? apiSnapshot.job51SearchRows.length : 0;
   }
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     return getSeekSnapshotCount();
@@ -512,6 +519,9 @@ function isJob5156DetailRootReady(root, pathname) {
 }
 
 function isExtractionReady() {
+  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
+    return Array.isArray(apiSnapshot.job51SearchRows) && apiSnapshot.job51SearchRows.length > 0;
+  }
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     return isSeekSnapshotReady();
   }
@@ -2176,6 +2186,30 @@ function updateApiSnapshot(message) {
     }
     return;
   }
+  if (kind === "job51search") {
+    const rows =
+      payload?.data?.list ||
+      payload?.data?.items ||
+      payload?.data?.rows ||
+      payload?.list ||
+      payload?.items ||
+      payload?.rows ||
+      (Array.isArray(payload?.data) ? payload.data : null) ||
+      (Array.isArray(payload) ? payload : null);
+    if (Array.isArray(rows)) {
+      apiSnapshot.job51SearchRows = rows;
+      apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
+      try {
+        document.documentElement.setAttribute(
+          "data-tr-api-rows",
+          String(getApiSnapshotCount()),
+        );
+      } catch {
+        // ignore
+      }
+    }
+    return;
+  }
   if (kind === "attach") {
     apiSnapshot.attachInfo = payload?.data?.attachResumeInfo || null;
     return;
@@ -2625,7 +2659,49 @@ function extractSeekResumes() {
   });
 }
 
+function extract51JobResumes() {
+  if (!Array.isArray(apiSnapshot.job51SearchRows)) return [];
+  return apiSnapshot.job51SearchRows.map((row, index) => {
+    const str = (v) => (v != null ? String(v) : "");
+    const name = str(row?.name || row?.userName || row?.candidateName || row?.fullName);
+    const age = str(row?.age || row?.realAge);
+    const experience = str(row?.workYear || row?.workYears || row?.experienceYears || row?.experience);
+    const education = str(row?.education || row?.educationLevel || row?.degree || row?.eduLevel);
+    const location = str(row?.location || row?.workCity || row?.city || row?.workLocation);
+    const jobIntention = str(row?.jobIntention || row?.desiredJob || row?.expectedPosition || row?.targetJob || row?.searchJob);
+    const expectedSalary = str(row?.expectedSalary || row?.desiredSalary || row?.expectSalary || row?.salaryExpect);
+    const activityStatus = str(row?.activityStatus || row?.lastLoginTime || row?.activeTime || row?.refreshTime);
+    const selfIntro = str(row?.selfIntro || row?.advantage || row?.profile || row?.highlight);
+    const resumeId = str(row?.resumeId || row?.resumeNo || row?.resumekey || row?.id);
+    const perUserId = str(row?.perUserId || row?.userId || row?.candidateId || row?.memberId);
+    const externalId = resumeId || perUserId;
+    const profileUrl = str(row?.profileUrl || row?.resumeUrl)
+      || (resumeId ? `https://${EHIRE_51JOB_HOST}/resume/${resumeId}` : "");
+    return {
+      name,
+      age,
+      experience,
+      education,
+      location,
+      jobIntention,
+      expectedSalary,
+      activityStatus,
+      selfIntro,
+      resumeId: resumeId || undefined,
+      perUserId: perUserId || undefined,
+      externalId: externalId || undefined,
+      profileUrl,
+      pageIndex: index + 1,
+      rawData: row,
+      extractedAt: new Date().toISOString(),
+    };
+  });
+}
+
 function extractResumes() {
+  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
+    return extract51JobResumes();
+  }
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     if (isSeekProfileMode()) {
       if (hasSeekProfileSnapshot()) {

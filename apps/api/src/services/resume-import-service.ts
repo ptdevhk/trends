@@ -18,6 +18,7 @@ import {
 import { config } from "./config.js";
 
 const JOB5156_HOST = "hr.job5156.com";
+const EHIRE_51JOB_HOST = "ehire.51job.com";
 const RESUME_IMPORT_CONVEX_BATCH_SIZE = 200;
 
 type ResumeImportMetadata = z.infer<typeof ResumeImportMetadataSchema>;
@@ -174,6 +175,9 @@ function resolveResumeSource(metadata: ResumeImportMetadata): string {
   const sourceKey = normalizeSourceHost(metadata.sourceKey);
   if (sourceKey === "job5156") {
     return JOB5156_HOST;
+  }
+  if (sourceKey === "51job") {
+    return EHIRE_51JOB_HOST;
   }
 
   try {

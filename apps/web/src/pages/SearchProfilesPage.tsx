@@ -12,9 +12,10 @@ import { PageHeader } from '@/components/PageHeader'
 import { SearchProfileEditorDialog, type SearchProfileDetails } from '@/components/SearchProfileEditorDialog'
 import {
   SEARCH_PROFILE_SOURCE_TYPES,
-  buildSeekCollectUrl,
+  buildCollectionLaunchUrl,
   getActiveSearchProfileSource,
   isSeekRecommendedCandidatesUrl,
+  type CollectionSourceType,
 } from '@/lib/search-profile-sources'
 
 type ListProfilesResponse = {
@@ -303,14 +304,21 @@ export function SearchProfilesPage() {
     }
     const activeSource = getActiveSearchProfileSource(detail.sources)
 
-    if (activeSource?.type === SEARCH_PROFILE_SOURCE_TYPES.seek) {
-      if (!isSeekRecommendedCandidatesUrl(activeSource.jobUrl)) {
-        toast.error(t('searchProfiles.seekJobUrlMissing', { defaultValue: 'Seek Run Now requires an exact Seek recommended candidates URL.' }))
-        return
+    const isHeadMode = !detail.collectionMode || detail.collectionMode === 'head'
+
+    if (isHeadMode && activeSource) {
+      if (activeSource.type === SEARCH_PROFILE_SOURCE_TYPES.seek) {
+        if (!isSeekRecommendedCandidatesUrl(activeSource.jobUrl)) {
+          toast.error(t('searchProfiles.seekJobUrlMissing', { defaultValue: 'Seek Run Now requires an exact Seek recommended candidates URL.' }))
+          return
+        }
       }
 
-      const launchUrl = buildSeekCollectUrl({
-        baseUrl: activeSource.jobUrl,
+      const launchUrl = buildCollectionLaunchUrl({
+        source: {
+          type: activeSource.type as CollectionSourceType,
+          exactUrl: activeSource.jobUrl,
+        },
         location: detail.location,
         keywords: detail.keywords,
         collectLimit: detail.schedule?.maxCandidates ?? DEFAULT_PROFILE_RUN_LIMIT,
@@ -320,12 +328,12 @@ export function SearchProfilesPage() {
       })
 
       if (!launchUrl) {
-        toast.error(t('searchProfiles.seekRunError', { defaultValue: 'Failed to build Seek launch URL.' }))
+        toast.error(t('searchProfiles.buildUrlError', { defaultValue: 'Failed to build collection URL.' }))
         return
       }
 
       window.open(launchUrl, '_blank', 'noopener,noreferrer')
-      toast.success(t('searchProfiles.seekRunSuccess', { defaultValue: 'Opened Seek collection in a new tab' }))
+      toast.success(t('searchProfiles.openTabSuccess', { defaultValue: 'Opened collection in a new tab' }))
       return
     }
 
