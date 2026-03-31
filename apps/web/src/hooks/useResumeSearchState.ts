@@ -544,6 +544,7 @@ export function useResumeSearchState() {
   const [queryInput, setQueryInput] = useState(
     () => parsedState.query ?? formatKeywordQuery(parsedState.keywords),
   )
+  const [aiModeEnabled, setAiModeEnabled] = useState(true)
   const [exportFormat, setExportFormat] = useState<ResumeExportFormat>('csv')
   const [exportingResults, setExportingResults] = useState(false)
   const [analyzingResults, setAnalyzingResults] = useState(false)
@@ -800,6 +801,30 @@ export function useResumeSearchState() {
     return `${autoAnalyzeSearchNonce}:${analysisCandidateSignature}`
   }, [analysisCandidateSignature, autoAnalyzeSearchNonce])
   const autoAnalyzeDispatchSignatureRef = useRef('')
+  const aiModeStats = useMemo(() => {
+    const analyzedResults = results.filter(
+      (item) => typeof item.analysis?.score === 'number',
+    )
+
+    if (analyzedResults.length === 0) {
+      return undefined
+    }
+
+    const avgScore = Number(
+      (
+        analyzedResults.reduce(
+          (sum, item) => sum + (item.analysis?.score ?? 0),
+          0,
+        ) / analyzedResults.length
+      ).toFixed(2),
+    )
+
+    return {
+      avgScore,
+      matched: analyzedResults.length,
+      processed: results.length,
+    }
+  }, [results])
   const hasActiveAnalysisTask = useMemo(
     () =>
       (analysisTasks ?? []).some(
@@ -808,6 +833,7 @@ export function useResumeSearchState() {
     [analysisTasks],
   )
   const disableAnalyzeResults =
+    !aiModeEnabled ||
     isLanding ||
     loading ||
     results.length === 0 ||
@@ -881,6 +907,26 @@ export function useResumeSearchState() {
     return () => window.clearTimeout(timer)
   }, [isLanding, parsedState, results, saveSearchHistory, sessionKey, slug])
 
+  useEffect(() => {
+    if (aiModeEnabled) {
+      return
+    }
+
+    setPendingAutoAnalyzeContextSignature('')
+  }, [aiModeEnabled])
+
+  const armAutoAnalyze = useCallback((nextState: UrlSearchState) => {
+    if (!aiModeEnabled) {
+      setPendingAutoAnalyzeContextSignature('')
+      return
+    }
+
+    setPendingAutoAnalyzeContextSignature(
+      buildSearchContextSignature(nextState),
+    )
+    setAutoAnalyzeSearchNonce((current) => current + 1)
+  }, [aiModeEnabled])
+
   const submitSearch = useCallback(
     (
       nextQuery?: string,
@@ -898,10 +944,9 @@ export function useResumeSearchState() {
       })
 
       syncToUrl(nextState)
-      setPendingAutoAnalyzeContextSignature(buildSearchContextSignature(nextState))
-      setAutoAnalyzeSearchNonce((current) => current + 1)
+      armAutoAnalyze(nextState)
     },
-    [parsedState, queryInput, syncToUrl],
+    [armAutoAnalyze, parsedState, queryInput, syncToUrl],
   )
 
   const clearSearch = useCallback(() => {
@@ -943,12 +988,9 @@ export function useResumeSearchState() {
       }
 
       syncToUrl(nextState)
-      setPendingAutoAnalyzeContextSignature(
-        buildSearchContextSignature(nextState),
-      )
-      setAutoAnalyzeSearchNonce((current) => current + 1)
+      armAutoAnalyze(nextState)
     },
-    [markSearchHistoryOpened, slug, syncToUrl],
+    [armAutoAnalyze, markSearchHistoryOpened, slug, syncToUrl],
   )
 
   const setSelectedTags = useCallback(
@@ -1243,6 +1285,7 @@ export function useResumeSearchState() {
 
   useEffect(() => {
     if (
+      !aiModeEnabled ||
       isLanding ||
       loading ||
       analyzingResults ||
@@ -1261,6 +1304,7 @@ export function useResumeSearchState() {
     void analyzeResults()
   }, [
     analyzeResults,
+    aiModeEnabled,
     analysisCandidateResumeIds.length,
     autoAnalyzeSearchNonce,
     autoAnalyzeSignature,
@@ -1277,6 +1321,8 @@ export function useResumeSearchState() {
     activeSort,
     analysisCandidateCount: analysisCandidates.length,
     analyzeResults,
+    aiModeEnabled,
+    aiModeStats,
     applyRecentSearch,
     analyzingResults,
     clearFacetFilters,
@@ -1301,6 +1347,7 @@ export function useResumeSearchState() {
     selectedRawTags,
     searchHistoryLoading: recentSearchHistoryRecords === undefined,
     setMinScoreFilter,
+    setAiModeEnabled,
     setExportFormat,
     setQueryInput,
     setSelectedCompanies,

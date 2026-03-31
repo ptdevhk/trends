@@ -235,6 +235,33 @@ vi.mock('@/components/AnalysisTaskMonitor', () => ({
   AnalysisTaskMonitor: () => <div>Analysis Task Monitor</div>,
 }))
 
+vi.mock('@/components/ModeToggle', () => ({
+  ModeToggle: ({
+    aiStats,
+    mode,
+    onModeChange,
+  }: {
+    aiStats?: { avgScore: number; matched: number; processed?: number }
+    mode: 'ai' | 'original'
+    onModeChange: (mode: 'ai' | 'original') => void
+  }) => (
+    <div>
+      <div>
+        Mode Toggle {mode} stats:
+        {aiStats
+          ? `${aiStats.matched}/${aiStats.processed ?? aiStats.matched}/${aiStats.avgScore}`
+          : 'none'}
+      </div>
+      <button
+        type="button"
+        onClick={() => onModeChange(mode === 'ai' ? 'original' : 'ai')}
+      >
+        Switch Mode
+      </button>
+    </div>
+  ),
+}))
+
 function createResume(index: number): ConvexResumeItem {
   return {
     resumeId: `resume-${index}` as ConvexResumeItem['resumeId'],
@@ -303,6 +330,8 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     activeSort: 'score',
     analysisCandidateCount: 0,
     analyzeResults: vi.fn(),
+    aiModeEnabled: true,
+    aiModeStats: undefined,
     analyzingResults: false,
     applyRecentSearch: vi.fn(),
     clearFacetFilters: vi.fn(),
@@ -334,6 +363,7 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     searchHistoryLoading: false,
     selectedClusterTags: [] as string[],
     selectedRawTags: [] as string[],
+    setAiModeEnabled: vi.fn(),
     setExportFormat: vi.fn(),
     setMinScoreFilter: vi.fn(),
     setQueryInput: vi.fn(),
@@ -443,6 +473,11 @@ describe('ResumeSearchPage', () => {
     const user = userEvent.setup()
     const state = createResumeSearchState({
       activeQuery: 'machine tools',
+      aiModeStats: {
+        avgScore: 88.5,
+        matched: 1,
+        processed: 2,
+      },
       filterCount: 3,
       filteredResults: [createResult(1), createResult(2)],
       isLanding: false,
@@ -501,6 +536,7 @@ describe('ResumeSearchPage', () => {
       screen.getByText('AI Summary Summary text generated:123 loading:false'),
     ).toBeInTheDocument()
     expect(screen.getByText('Resume AI analysis')).toBeInTheDocument()
+    expect(screen.getByText('Mode Toggle ai stats:1/2/88.5')).toBeInTheDocument()
     expect(screen.getByText('Analysis Task Monitor')).toBeInTheDocument()
 
     expect(useAiSearchSummaryMock).toHaveBeenCalledWith(
@@ -644,5 +680,40 @@ describe('ResumeSearchPage', () => {
     await user.click(screen.getByRole('button', { name: /Analyze loaded 2/i }))
 
     expect(state.analyzeResults).toHaveBeenCalledTimes(1)
+  })
+
+  it('wires the AI mode toggle and keeps the analyze button disabled while original mode is selected', async () => {
+    const user = userEvent.setup()
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      analysisCandidateCount: 2,
+      aiModeEnabled: false,
+      aiModeStats: {
+        avgScore: 90,
+        matched: 2,
+        processed: 4,
+      },
+      disableAnalyzeResults: false,
+      filteredResults: [createResult(1)],
+      isLanding: false,
+      setAiModeEnabled: vi.fn(),
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+
+    render(<ResumeSearchPage />)
+
+    expect(
+      screen.getByText('Mode Toggle original stats:none'),
+    ).toBeInTheDocument()
+
+    const analyzeButton = screen.getByRole('button', {
+      name: /Analyze loaded 2/i,
+    })
+    expect(analyzeButton).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Switch Mode' }))
+
+    expect(state.setAiModeEnabled).toHaveBeenCalledWith(true)
+    expect(state.analyzeResults).not.toHaveBeenCalled()
   })
 })
