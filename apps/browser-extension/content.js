@@ -23,6 +23,9 @@ const SELECTORS = {
   seekPagination: 'nav[aria-label="Pagination of results"]',
   searchInput: ".el-autocomplete input.el-input__inner",
   searchButton: ".resume-search-item-search-input-block__input-button",
+  // 51job eHire selectors
+  job51SearchInput: ".talent_search_keywords_input input.el-input__inner",
+  job51SearchButton: "button.search_button",
   // Area selector (location filter modal)
   areaTrigger: ".resume-search-item-search-addre",
   areaModal: ".area-selector-item-block",
@@ -3029,6 +3032,21 @@ function getPaginationInfo() {
     return getSeekPaginationInfo();
   }
 
+  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
+    // 51job eHire: derive pagination from URL pageIndex param + API snapshot presence
+    const pageParam = (() => {
+      const m = window.location.href.match(/[?&]pageIndex=(\d+)/);
+      return m ? Math.max(1, parseInt(m[1], 10)) : 1;
+    })();
+    const hasData = Array.isArray(apiSnapshot.job51SearchRows) && apiSnapshot.job51SearchRows.length > 0;
+    return {
+      currentPage: pageParam,
+      totalPages: pageParam + (hasData ? 1 : 0), // conservative: assume more pages if data exists
+      totalItems: 0,
+      hasNextPage: hasData,
+    };
+  }
+
   if (isJob5156DetailPage()) {
     return {
       currentPage: 1,
@@ -3557,7 +3575,7 @@ function waitForApiRows({ timeoutMs = 5000, minCount = 1 } = {}) {
 }
 
 async function waitForExtractionData({ timeoutMs = 30000, minCount = 1 } = {}) {
-  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
+  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK || getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
     return waitForApiRows({ timeoutMs, minCount });
   }
 
@@ -3750,8 +3768,11 @@ function waitForSearchElements({ timeoutMs = 8000 } = {}) {
 
     const check = () => {
       if (done) return;
-      const input = document.querySelector(SELECTORS.searchInput);
-      const button = document.querySelector(SELECTORS.searchButton);
+      const sourceKey = getCurrentSourceKey();
+      const inputSel = sourceKey === SOURCE_KEYS.JOB51 ? SELECTORS.job51SearchInput : SELECTORS.searchInput;
+      const buttonSel = sourceKey === SOURCE_KEYS.JOB51 ? SELECTORS.job51SearchButton : SELECTORS.searchButton;
+      const input = document.querySelector(inputSel);
+      const button = document.querySelector(buttonSel);
       if (input && button) {
         done = true;
         cleanup();
@@ -4085,6 +4106,12 @@ function resolveAgeFilterActions(selectBox) {
 }
 
 async function autoApplyAgeFilterFromUrl() {
+  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
+    const range = getAgeRangeFromUrl();
+    setAutoAgeAttributes("skipped", range.minAge, range.maxAge);
+    return;
+  }
+
   const range = getAgeRangeFromUrl();
   if (!range.enabled) {
     setAutoAgeAttributes("skipped");
@@ -5280,11 +5307,13 @@ function getExternalAccessorStatus() {
   const cardCount =
     sourceKey === SOURCE_KEYS.SEEK
       ? Math.max(apiSnapshotCount, getSeekCardCount())
-      : isJob5156DetailPage()
-        ? isJob5156DetailReady()
-          ? 1
-          : 0
-        : document.querySelectorAll(SELECTORS.resumeCard).length;
+      : sourceKey === SOURCE_KEYS.JOB51
+        ? apiSnapshotCount
+        : isJob5156DetailPage()
+          ? isJob5156DetailReady()
+            ? 1
+            : 0
+          : document.querySelectorAll(SELECTORS.resumeCard).length;
   const autoSearch =
     document.documentElement.getAttribute("data-tr-auto-search") || "";
   const autoLocation =
