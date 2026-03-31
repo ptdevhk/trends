@@ -81,6 +81,7 @@ const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
 const apiSnapshot = {
   searchRows: null,
   job51SearchRows: null,
+  job51Total: null,
   attachInfo: null,
   chatInfo: null,
   insightInfo: null,
@@ -2201,6 +2202,7 @@ function updateApiSnapshot(message) {
       (Array.isArray(payload) ? payload : null);
     if (Array.isArray(rows)) {
       apiSnapshot.job51SearchRows = rows;
+      apiSnapshot.job51Total = payload?.data?.total ?? null;
       apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
       try {
         document.documentElement.setAttribute(
@@ -3033,17 +3035,21 @@ function getPaginationInfo() {
   }
 
   if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-    // 51job eHire: derive pagination from URL pageIndex param + API snapshot presence
+    // 51job eHire: derive pagination from URL pageIndex param + captured API total
     const pageParam = (() => {
       const m = window.location.href.match(/[?&]pageIndex=(\d+)/);
       return m ? Math.max(1, parseInt(m[1], 10)) : 1;
     })();
+    const pageSize = 50; // 51job default page size
+    const total = typeof apiSnapshot.job51Total === "number" ? apiSnapshot.job51Total : 0;
+    const totalItems = total > 0 ? total : 0;
+    const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : pageParam;
     const hasData = Array.isArray(apiSnapshot.job51SearchRows) && apiSnapshot.job51SearchRows.length > 0;
     return {
       currentPage: pageParam,
-      totalPages: pageParam + (hasData ? 1 : 0), // conservative: assume more pages if data exists
-      totalItems: 0,
-      hasNextPage: hasData,
+      totalPages,
+      totalItems,
+      hasNextPage: hasData && pageParam < totalPages,
     };
   }
 
@@ -3117,18 +3123,40 @@ function isDisabledPaginationControl(control) {
 }
 
 function goToNextPageInternal() {
-  const nextBtn =
-    getCurrentSourceKey() === SOURCE_KEYS.SEEK
-      ? getSeekNextPageLink()
-      : asHTMLElement(document.querySelector(SELECTORS.nextPageBtn));
+  const sourceKey = getCurrentSourceKey();
+  if (sourceKey === SOURCE_KEYS.SEEK) {
+    const nextBtn = getSeekNextPageLink();
+    if (!nextBtn || isDisabledPaginationControl(nextBtn)) return false;
+    nextBtn.click();
+    return true;
+  }
+  if (sourceKey === SOURCE_KEYS.JOB51) {
+    // 51job eHire uses URL pageIndex param — increment it and reload
+    const url = new URL(window.location.href);
+    const currentPage = parseInt(url.searchParams.get("pageIndex") || "1", 10);
+    url.searchParams.set("pageIndex", String(currentPage + 1));
+    window.location.href = url.toString();
+    return true;
+  }
+  const nextBtn = asHTMLElement(document.querySelector(SELECTORS.nextPageBtn));
   if (!nextBtn || isDisabledPaginationControl(nextBtn)) return false;
   nextBtn.click();
   return true;
 }
 
 function getNextPageButtonState() {
+  const sourceKey = getCurrentSourceKey();
+  if (sourceKey === SOURCE_KEYS.JOB51) {
+    const pagination = getPaginationInfo();
+    return {
+      exists: pagination.hasNextPage,
+      text: pagination.hasNextPage
+        ? `第${pagination.currentPage + 1}页`
+        : "无下一页",
+    };
+  }
   const nextBtn =
-    getCurrentSourceKey() === SOURCE_KEYS.SEEK
+    sourceKey === SOURCE_KEYS.SEEK
       ? getSeekNextPageLink()
       : document.querySelector(SELECTORS.nextPageBtn);
   if (!nextBtn) {
@@ -3595,6 +3623,10 @@ function clearCapturedResultsForNextPage() {
     apiSnapshot.seekRecommendedRequest = null;
     apiSnapshot.seekProfile = null;
     apiSnapshot.seekProfileRequest = null;
+  }
+  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
+    apiSnapshot.job51SearchRows = null;
+    apiSnapshot.job51Total = null;
   }
 }
 
