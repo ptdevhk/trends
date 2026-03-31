@@ -35,18 +35,24 @@ vi.mock('@/components/search/MigrationBanner', () => ({
 
 vi.mock('@/components/search/SearchHero', () => ({
   SearchHero: ({
+    aiModeEnabled,
+    aiModeStats,
     hotKeywords,
     onApplyQuickStart,
+    onAiModeChange,
     onToggleHotKeyword,
     queryInput,
     onApplyExtractedKeywords,
     quickStarts,
   }: {
+    aiModeEnabled: boolean
+    aiModeStats?: { avgScore: number; matched: number; processed?: number }
     hotKeywords?: Array<{ keyword: string }>
     onApplyQuickStart?: (seed: {
       keywords: string[]
       location: string
     }) => void
+    onAiModeChange: (enabled: boolean) => void
     onToggleHotKeyword?: (keyword: string) => void
     queryInput: string
     onApplyExtractedKeywords: (keywords: string[]) => void
@@ -80,6 +86,17 @@ vi.mock('@/components/search/SearchHero', () => ({
       <button type="button" onClick={() => onToggleHotKeyword?.('CNC')}>
         Toggle Hero Hot Keyword
       </button>
+      <button
+        type="button"
+        role="switch"
+        aria-label="AI Mode"
+        aria-checked={aiModeEnabled}
+        onClick={() => onAiModeChange(!aiModeEnabled)}
+      >
+        {aiModeEnabled ? 'On' : 'Off'}
+      </button>
+      <span>AI Mode</span>
+      {aiModeEnabled && aiModeStats ? <span>{aiModeStats.matched}</span> : null}
     </div>
   ),
 }))
@@ -245,19 +262,18 @@ vi.mock('@/components/ModeToggle', () => ({
     mode: 'ai' | 'original'
     onModeChange: (mode: 'ai' | 'original') => void
   }) => (
-    <div>
-      <div>
-        Mode Toggle {mode} stats:
-        {aiStats
-          ? `${aiStats.matched}/${aiStats.processed ?? aiStats.matched}/${aiStats.avgScore}`
-          : 'none'}
-      </div>
+    <div className="flex items-center gap-2">
       <button
         type="button"
+        role="switch"
+        aria-label="AI Mode"
+        aria-checked={mode === 'ai'}
         onClick={() => onModeChange(mode === 'ai' ? 'original' : 'ai')}
       >
-        Switch Mode
+        {mode === 'ai' ? 'On' : 'Off'}
       </button>
+      <span>AI Mode</span>
+      {mode === 'ai' && aiStats ? <span>{aiStats.matched}</span> : null}
     </div>
   ),
 }))
@@ -411,6 +427,8 @@ describe('ResumeSearchPage', () => {
     expect(screen.getByText('Migration Banner')).toBeInTheDocument()
     expect(screen.getByText('Landing Hero machine tools')).toBeInTheDocument()
     expect(screen.getByText('Landing Hero Seeds 0 Hot 0')).toBeInTheDocument()
+    expect(screen.getByText('AI Mode')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'AI Mode' })).toBeChecked()
     expect(screen.queryByText(/Header /)).not.toBeInTheDocument()
     expect(screen.queryByText(/Results List/)).not.toBeInTheDocument()
 
@@ -422,6 +440,9 @@ describe('ResumeSearchPage', () => {
     ])
     expect(state.setQueryInput).toHaveBeenCalledWith(expectedQuery)
     expect(state.submitSearch).toHaveBeenCalledWith(expectedQuery)
+
+    await user.click(screen.getByRole('switch', { name: 'AI Mode' }))
+    expect(state.setAiModeEnabled).toHaveBeenCalledWith(false)
   })
 
   it('wires profile quick-start and hot keyword handlers into the landing hero', async () => {
@@ -536,7 +557,9 @@ describe('ResumeSearchPage', () => {
       screen.getByText('AI Summary Summary text generated:123 loading:false'),
     ).toBeInTheDocument()
     expect(screen.getByText('Resume AI analysis')).toBeInTheDocument()
-    expect(screen.getByText('Mode Toggle ai stats:1/2/88.5')).toBeInTheDocument()
+    expect(screen.getByText('AI Mode')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'AI Mode' })).toBeChecked()
+    expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByText('Analysis Task Monitor')).toBeInTheDocument()
 
     expect(useAiSearchSummaryMock).toHaveBeenCalledWith(
@@ -703,15 +726,16 @@ describe('ResumeSearchPage', () => {
     render(<ResumeSearchPage />)
 
     expect(
-      screen.getByText('Mode Toggle original stats:none'),
+      screen.getByText('AI Mode'),
     ).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'AI Mode' })).not.toBeChecked()
 
     const analyzeButton = screen.getByRole('button', {
       name: /Analyze loaded 2/i,
     })
     expect(analyzeButton).toBeDisabled()
 
-    await user.click(screen.getByRole('button', { name: 'Switch Mode' }))
+    await user.click(screen.getByRole('switch', { name: 'AI Mode' }))
 
     expect(state.setAiModeEnabled).toHaveBeenCalledWith(true)
     expect(state.analyzeResults).not.toHaveBeenCalled()

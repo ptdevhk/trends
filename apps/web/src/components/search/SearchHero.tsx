@@ -1,4 +1,5 @@
 import { Clock3, Zap } from 'lucide-react'
+import { ModeToggle } from '@/components/ModeToggle'
 import { GoogleSearchBar } from '@/components/search/GoogleSearchBar'
 import { Card, CardContent } from '@/components/ui/card'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
@@ -20,6 +21,8 @@ type SearchHeroHotKeyword = {
 type SearchHeroProps = {
   loading?: boolean
   queryInput: string
+  aiModeEnabled: boolean
+  aiModeStats?: { avgScore: number; matched: number; processed?: number }
   recentSearches: ResumeSearchRecentItem[]
   recentSearchesLoading?: boolean
   quickStarts?: SearchHeroQuickStart[]
@@ -28,6 +31,7 @@ type SearchHeroProps = {
   onApplyExtractedKeywords: (keywords: string[]) => void
   onApplyQuickStart?: (seed: { keywords: string[]; location: string }) => void
   onToggleHotKeyword?: (keyword: string) => void
+  onAiModeChange: (enabled: boolean) => void
   onChangeQuery: (value: string) => void
   onClearQuery: () => void
   onSubmitQuery: (value?: string) => void
@@ -62,6 +66,8 @@ function deduplicateHotKeywords(
 export function SearchHero({
   loading = false,
   queryInput,
+  aiModeEnabled,
+  aiModeStats,
   recentSearches,
   recentSearchesLoading = false,
   quickStarts = [],
@@ -70,6 +76,7 @@ export function SearchHero({
   onApplyExtractedKeywords,
   onApplyQuickStart,
   onToggleHotKeyword,
+  onAiModeChange,
   onChangeQuery,
   onClearQuery,
   onSubmitQuery,
@@ -78,18 +85,28 @@ export function SearchHero({
 
   return (
     <section className="rounded-[2rem] border bg-white px-6 py-8 shadow-[0_28px_80px_-60px_rgba(15,23,42,0.5)] sm:px-10 sm:py-10">
-      <div className="mx-auto flex max-w-4xl flex-col gap-6">
-        <div className="mx-auto w-full max-w-3xl">
-          <GoogleSearchBar
-            value={queryInput}
-            loading={loading}
-            recentSearches={recentSearches}
-            onApplyRecentSearch={onApplyRecentSearch}
-            onApplyExtractedKeywords={onApplyExtractedKeywords}
-            onChange={onChangeQuery}
-            onClear={onClearQuery}
-            onSubmit={onSubmitQuery}
-          />
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+          <div className="min-w-0 flex-1">
+            <GoogleSearchBar
+              value={queryInput}
+              loading={loading}
+              recentSearches={recentSearches}
+              onApplyRecentSearch={onApplyRecentSearch}
+              onApplyExtractedKeywords={onApplyExtractedKeywords}
+              onChange={onChangeQuery}
+              onClear={onClearQuery}
+              onSubmit={onSubmitQuery}
+            />
+          </div>
+
+          <div className="self-end lg:self-center">
+            <ModeToggle
+              mode={aiModeEnabled ? 'ai' : 'original'}
+              onModeChange={(mode) => onAiModeChange(mode === 'ai')}
+              aiStats={aiModeStats}
+            />
+          </div>
         </div>
 
         {quickStarts.length > 0 ? (

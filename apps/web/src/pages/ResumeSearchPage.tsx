@@ -201,6 +201,8 @@ export function ResumeSearchPage() {
 
       {isLanding ? (
         <SearchHero
+          aiModeEnabled={aiModeEnabled}
+          aiModeStats={aiModeStats}
           loading={loading}
           queryInput={queryInput}
           recentSearches={recentSearches}
@@ -211,6 +213,7 @@ export function ResumeSearchPage() {
           onApplyExtractedKeywords={applyExtractedKeywords}
           onApplyQuickStart={applyQuickStart}
           onToggleHotKeyword={toggleHotKeyword}
+          onAiModeChange={setAiModeEnabled}
           onChangeQuery={setQueryInput}
           onClearQuery={handleClearQuery}
           onSubmitQuery={handleSubmitQuery}
@@ -268,7 +271,7 @@ export function ResumeSearchPage() {
                   <ModeToggle
                     mode={aiModeEnabled ? 'ai' : 'original'}
                     onModeChange={(mode) => setAiModeEnabled(mode === 'ai')}
-                    aiStats={aiModeEnabled ? aiModeStats : undefined}
+                    aiStats={aiModeStats}
                   />
                   <Button
                     type="button"
