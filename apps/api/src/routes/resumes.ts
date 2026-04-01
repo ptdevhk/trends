@@ -2678,87 +2678,6 @@ async function getConvexResumeDetail(resumeId: string): Promise<ResumeItem | nul
     : resume;
 }
 
-const getResumeDetailRoute = createRoute({
-  method: "get",
-  path: "/api/resumes/{resumeId}",
-  tags: ["resumes"],
-  summary: "Get one resume with detailed work experience",
-  description: "Returns one resume including structured work history for UI or CLI inspection",
-  request: {
-    params: ResumeDetailPathParamSchema,
-    query: ResumesQuerySchema.pick({
-      sample: true,
-      source: true,
-    }),
-  },
-  responses: {
-    200: {
-      content: {
-        "application/json": {
-          schema: ResumeDetailResponseSchema,
-        },
-      },
-      description: "Resume detail",
-    },
-    404: {
-      content: {
-        "application/json": {
-          schema: SimpleErrorSchema,
-        },
-      },
-      description: "Resume not found",
-    },
-  },
-});
-
-app.openapi(getResumeDetailRoute, async (c) => {
-  const resumeId = c.req.param("resumeId").trim();
-  const { sample, source } = c.req.valid("query");
-  const sampleName = sample?.trim() || undefined;
-
-  if (source === "convex") {
-    const resume = await getConvexResumeDetail(resumeId);
-    if (!resume) {
-      return c.json({
-        success: false as const,
-        error: `Resume not found: ${resumeId}`,
-      }, 404);
-    }
-
-    return c.json({
-      success: true as const,
-      source,
-      data: resume,
-    }, 200);
-  }
-
-  try {
-    const { items, sample: sampleInfo } = resumeService.loadSample(sampleName);
-    const resume = findSampleResumeByIdentifier(items, resumeId);
-    if (!resume) {
-      return c.json({
-        success: false as const,
-        error: `Resume not found: ${resumeId}`,
-      }, 404);
-    }
-
-    return c.json({
-      success: true as const,
-      source,
-      sample: sampleInfo,
-      data: resume,
-    }, 200);
-  } catch (error) {
-    if (error instanceof DataNotFoundError) {
-      return c.json({
-        success: false as const,
-        error: error.message,
-      }, 404);
-    }
-    throw error;
-  }
-});
-
 const matchResumesRoute = createRoute({
   method: "post",
   path: "/api/resumes/match",
@@ -4797,6 +4716,87 @@ app.post("/api/resumes/learning-feedback", async (c) => {
 app.get("/api/resumes/skills-version", (c) => {
   const version = skillsKnowledgeService.getVersion();
   return c.json({ success: true, version }, 200);
+});
+
+const getResumeDetailRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/{resumeId}",
+  tags: ["resumes"],
+  summary: "Get one resume with detailed work experience",
+  description: "Returns one resume including structured work history for UI or CLI inspection",
+  request: {
+    params: ResumeDetailPathParamSchema,
+    query: ResumesQuerySchema.pick({
+      sample: true,
+      source: true,
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ResumeDetailResponseSchema,
+        },
+      },
+      description: "Resume detail",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: SimpleErrorSchema,
+        },
+      },
+      description: "Resume not found",
+    },
+  },
+});
+
+app.openapi(getResumeDetailRoute, async (c) => {
+  const resumeId = c.req.param("resumeId").trim();
+  const { sample, source } = c.req.valid("query");
+  const sampleName = sample?.trim() || undefined;
+
+  if (source === "convex") {
+    const resume = await getConvexResumeDetail(resumeId);
+    if (!resume) {
+      return c.json({
+        success: false as const,
+        error: `Resume not found: ${resumeId}`,
+      }, 404);
+    }
+
+    return c.json({
+      success: true as const,
+      source,
+      data: resume,
+    }, 200);
+  }
+
+  try {
+    const { items, sample: sampleInfo } = resumeService.loadSample(sampleName);
+    const resume = findSampleResumeByIdentifier(items, resumeId);
+    if (!resume) {
+      return c.json({
+        success: false as const,
+        error: `Resume not found: ${resumeId}`,
+      }, 404);
+    }
+
+    return c.json({
+      success: true as const,
+      source,
+      sample: sampleInfo,
+      data: resume,
+    }, 200);
+  } catch (error) {
+    if (error instanceof DataNotFoundError) {
+      return c.json({
+        success: false as const,
+        error: error.message,
+      }, 404);
+    }
+    throw error;
+  }
 });
 
 app.post("/api/resumes/trigger-reingest", async (c) => {

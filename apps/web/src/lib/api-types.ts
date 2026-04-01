@@ -762,63 +762,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/resumes/{resumeId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get one resume with detailed work experience
-         * @description Returns one resume including structured work history for UI or CLI inspection
-         */
-        get: {
-            parameters: {
-                query?: {
-                    sample?: string;
-                    source?: "sample" | "convex";
-                };
-                header?: never;
-                path: {
-                    resumeId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Resume detail */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ResumeDetailResponse"];
-                    };
-                };
-                /** @description Resume not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            /** @enum {boolean} */
-                            success: false;
-                            error: string;
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/resumes/match": {
         parameters: {
             query?: never;
@@ -1907,6 +1850,63 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resumes/{resumeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one resume with detailed work experience
+         * @description Returns one resume including structured work history for UI or CLI inspection
+         */
+        get: {
+            parameters: {
+                query?: {
+                    sample?: string;
+                    source?: "sample" | "convex";
+                };
+                header?: never;
+                path: {
+                    resumeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resume detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeDetailResponse"];
+                    };
+                };
+                /** @description Resume not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7196,14 +7196,6 @@ export interface components {
             };
             data: components["schemas"]["ResumeItem"][];
         };
-        ResumeDetailResponse: {
-            /** @enum {boolean} */
-            success: true;
-            /** @enum {string} */
-            source: "sample" | "convex";
-            sample?: components["schemas"]["ResumeSample"];
-            data: components["schemas"]["ResumeItem"];
-        };
         /** @enum {string} */
         ResumeResultSource: "sample" | "convex";
         MatchBreakdown: {
@@ -7981,6 +7973,14 @@ export interface components {
              * @example https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***
              */
             webhookUrl?: string;
+        };
+        ResumeDetailResponse: {
+            /** @enum {boolean} */
+            success: true;
+            /** @enum {string} */
+            source: "sample" | "convex";
+            sample?: components["schemas"]["ResumeSample"];
+            data: components["schemas"]["ResumeItem"];
         };
         ResumeFilters: {
             minExperience?: number;

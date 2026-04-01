@@ -342,6 +342,20 @@ describe("resume routes", () => {
     }));
   });
 
+  it("keeps the static skills-version route from being shadowed by resume detail lookup", async () => {
+    const app = createApp();
+    const response = await app.request("/api/resumes/skills-version");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toEqual(
+      expect.objectContaining({
+        success: true,
+        version: expect.any(Number),
+      }),
+    );
+  });
+
   it("returns read-only convex query scores with debug metadata", async () => {
     const createSessionSpy = vi.spyOn(SessionManager.prototype, "createSession");
     const saveMatchesSpy = vi.spyOn(MatchStorage.prototype, "saveMatches");
