@@ -1,4 +1,4 @@
-import { buildWorkHistoryEntryText, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
+import { buildWorkHistoryDateRange, normalizeWorkHistoryEntry, sanitizeResumeRecordForSurface, selectLatestWorkHistory } from '@trends/shared'
 import { BriefcaseBusiness, ExternalLink, MapPin, School, Sparkles } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,31 @@ type SnippetCardExpandedProps = {
 
 function formatSnakeCaseLabel(value: string): string {
   return value.replace(/_/g, ' ')
+}
+
+function buildWorkHistorySupplement(entry: {
+  raw?: string
+  companyName?: string
+  jobTitle?: string
+  startDate?: string
+  endDate?: string
+}): string {
+  const raw = entry.raw?.trim()
+  if (!raw) {
+    return ''
+  }
+
+  let remainder = raw
+  const dateRange = buildWorkHistoryDateRange(entry.startDate, entry.endDate)
+  for (const token of [dateRange, entry.companyName, entry.jobTitle]) {
+    const normalizedToken = token?.trim()
+    if (!normalizedToken) {
+      continue
+    }
+    remainder = remainder.replace(normalizedToken, ' ')
+  }
+
+  return remainder.replace(/\s+/g, ' ').replace(/^[·•|/~-]+|[·•|/~-]+$/g, '').trim()
 }
 
 export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }: SnippetCardExpandedProps) {
@@ -106,10 +131,9 @@ export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }
     [fieldUsagePolicy, item.resume]
   )
   const workHistory = useMemo(
-    () => selectLatestWorkHistory(presentationResume.workHistory)
-      .map((entry) => buildWorkHistoryEntryText(entry))
-      .filter((entry) => entry.length > 0)
-      .slice(0, 4),
+    () => selectLatestWorkHistory(presentationResume.workHistory, { limit: 4 })
+      .map((entry) => normalizeWorkHistoryEntry(entry))
+      .filter((entry): entry is NonNullable<ReturnType<typeof normalizeWorkHistoryEntry>> => entry !== null),
     [presentationResume.workHistory]
   )
   const profileUrl = item.resume.profileUrl?.trim()
@@ -134,11 +158,31 @@ export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }
               {recentWorkLabel}
             </div>
             <div className="space-y-2">
-              {workHistory.length > 0 ? workHistory.map((entry) => (
-                <div key={entry} className="rounded-2xl border bg-white px-3 py-2 text-sm break-words text-slate-700">
-                  {entry}
-                </div>
-              )) : (
+              {workHistory.length > 0 ? workHistory.map((entry, index) => {
+                const heading = [entry.companyName, entry.jobTitle].filter(Boolean).join(' · ')
+                const dateLine = buildWorkHistoryDateRange(entry.startDate, entry.endDate)
+                const supplement = buildWorkHistorySupplement(entry)
+                const fallbackLine = entry.raw.trim()
+
+                return (
+                  <div
+                    key={`${heading || fallbackLine}-${index}`}
+                    className="rounded-2xl border bg-white px-3 py-3 text-sm break-words text-slate-700"
+                  >
+                    {heading ? (
+                      <div className="font-medium text-slate-900">{heading}</div>
+                    ) : (
+                      <div className="font-medium text-slate-900">{fallbackLine}</div>
+                    )}
+                    {dateLine ? (
+                      <div className="mt-1 text-xs text-muted-foreground">{dateLine}</div>
+                    ) : null}
+                    {supplement ? (
+                      <div className="mt-1 text-xs text-slate-500">{supplement}</div>
+                    ) : null}
+                  </div>
+                )
+              }) : (
                 <div className="rounded-2xl border border-dashed bg-white px-3 py-3 text-sm text-muted-foreground">
                   {noStructuredWorkHistoryLabel}
                 </div>

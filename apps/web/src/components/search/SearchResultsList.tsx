@@ -59,6 +59,10 @@ export function SearchResultsList({
   const [detailItem, setDetailItem] = useState<ResumeSearchResultItem | null>(null)
   const hasAiSummaries = items.some((item) => Boolean((item.analysis ?? item.resume.analysis)?.summary))
   const shouldVirtualize = items.length > 40 && expandedIds.size === 0 && !hasAiSummaries
+  const expandedKey = expandedIds.values().next().value
+  const expandedSourceItem = items.find((item) => item.key === expandedKey) ?? null
+  const expandedResumeId = expandedSourceItem?.resume.resumeId ?? null
+  const { resume: expandedResumeFromConvex } = useConvexResumeDetail(expandedResumeId)
   const detailResumeId = detailItem?.resume.resumeId ?? null
   const { resume: detailResumeFromConvex, loading: detailResumeLoading } = useConvexResumeDetail(detailResumeId)
   const resolvedDetailResume = detailResumeFromConvex ?? detailItem?.resume ?? null
@@ -167,16 +171,26 @@ export function SearchResultsList({
           })}
         </div>
       ) : (
-        items.map((item) => (
-          <SnippetCard
-            key={item.key}
-            item={item}
-            expanded={expandedIds.has(item.key)}
-            showAiScore={showAiScore}
-            onToggleExpanded={() => onToggleExpanded(item.key)}
-            onViewDetails={() => setDetailItem(item)}
-          />
-        ))
+        items.map((item) => {
+          const presentationItem =
+            item.key === expandedKey && expandedResumeFromConvex
+              ? {
+                  ...item,
+                  resume: expandedResumeFromConvex,
+                }
+              : item
+
+          return (
+            <SnippetCard
+              key={item.key}
+              item={presentationItem}
+              expanded={expandedIds.has(item.key)}
+              showAiScore={showAiScore}
+              onToggleExpanded={() => onToggleExpanded(item.key)}
+              onViewDetails={() => setDetailItem(presentationItem)}
+            />
+          )
+        })
       )}
 
       <div ref={loadMoreRef} className="py-2 text-center text-sm text-muted-foreground">
