@@ -27,13 +27,14 @@ function fixedNow(): Date {
 function buildExpectedFilePath(
   repoRoot: string,
   alias: SnapshotOptions["sources"][number],
+  count = 20,
 ): string {
   return path.join(
     repoRoot,
     "output",
     "resume-backups",
     "20260320-120000",
-    `resume-backup-${alias}-top20-20260320-120000.json`,
+    `resume-backup-${alias}-top${count}-20260320-120000.json`,
   );
 }
 
@@ -209,7 +210,7 @@ describe("snapshot-source-backups", () => {
     expect(written.resumes[0]?.sourceHost).toBe(SOURCE_HOSTS.seek);
   });
 
-  it("adds the unsafe limit override to live 51job launches", async () => {
+  it("adds the unsafe limit override to 200+ live 51job launches", async () => {
     const repoRoot = await createTestRepoRoot();
     repoRoots.push(repoRoot);
     const exec = vi.fn(async (_command: string, args: string[]) => {
@@ -234,7 +235,7 @@ describe("snapshot-source-backups", () => {
           sourceHost: SOURCE_HOSTS["51job"],
           url: launchUrl,
           status: { sourceKey: "51job" },
-          payload: createCollectedPayload("51job", 20),
+          payload: createCollectedPayload("51job", 250),
         }),
         stderr: "",
       };
@@ -243,6 +244,9 @@ describe("snapshot-source-backups", () => {
     const result = await runSnapshotSourceBackups(
       {
         ...baseOptions(repoRoot, "51job"),
+        count: 250,
+        maxPages: 8,
+        job51Url: `${DEFAULT_51JOB_URL}?keyword=CNC`,
         unsafeLimits: true,
       },
       {
@@ -256,10 +260,16 @@ describe("snapshot-source-backups", () => {
     expect(result.sources[0]).toMatchObject({
       alias: "51job",
       sourceHost: SOURCE_HOSTS["51job"],
-      launchUrl: `${DEFAULT_51JOB_URL}?tr_unsafe_limits=1`,
-      count: 20,
-      observedCount: 20,
+      launchUrl: `${DEFAULT_51JOB_URL}?keyword=CNC&tr_unsafe_limits=1`,
+      count: 250,
+      observedCount: 250,
     });
+    expect(exec).toHaveBeenCalledTimes(2);
+    for (const [, args] of exec.mock.calls) {
+      expect(args[args.indexOf("--limit") + 1]).toBe("250");
+      expect(args[args.indexOf("--max-pages") + 1]).toBe("8");
+    }
+    await access(buildExpectedFilePath(repoRoot, "51job", 250));
   });
 
   it("fails and leaves no output file when the collected snapshot is short", async () => {

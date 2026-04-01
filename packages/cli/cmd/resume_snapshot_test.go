@@ -23,7 +23,7 @@ func TestResumeSnapshotCommandPassesFlagsAndWritesJSON(t *testing.T) {
 		if request.Workspace != "ops" {
 			t.Fatalf("unexpected workspace: %q", request.Workspace)
 		}
-		if request.Count != 25 {
+		if request.Count != 250 {
 			t.Fatalf("unexpected count: %d", request.Count)
 		}
 		if request.MaxPages != 8 {
@@ -55,14 +55,14 @@ func TestResumeSnapshotCommandPassesFlagsAndWritesJSON(t *testing.T) {
 			RepoRoot:       "/repo",
 			RunStamp:       "20260323-010203",
 			OutputDir:      "output/resume-backups/20260323-010203",
-			CountPerSource: 25,
+			CountPerSource: 250,
 			Sources: []resumeSnapshotSourceResult{
 				{
 					Alias:         "job5156",
 					SourceHost:    "hr.job5156.com",
-					File:          "output/resume-backups/20260323-010203/resume-backup-job5156-top25-20260323-010203.json",
-					Count:         25,
-					ObservedCount: 25,
+					File:          "output/resume-backups/20260323-010203/resume-backup-job5156-top250-20260323-010203.json",
+					Count:         250,
+					ObservedCount: 250,
 					LaunchURL:     "https://hr.job5156.com/search",
 				},
 			},
@@ -77,7 +77,7 @@ func TestResumeSnapshotCommandPassesFlagsAndWritesJSON(t *testing.T) {
 		"--source", "job5156",
 		"--source", "51job",
 		"--source", "51job-manual",
-		"--count", "25",
+		"--count", "250",
 		"--max-pages", "8",
 		"--out-dir", "output/resume-backups/custom",
 		"--51job-url", "https://ehire.51job.com/Revision/talent/search",
