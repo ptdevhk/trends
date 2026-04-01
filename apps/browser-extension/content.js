@@ -55,6 +55,8 @@ const JOB5156_HOST = "hr.job5156.com";
 const EHIRE_51JOB_HOST = "ehire.51job.com";
 const SEEK_HOST_SUFFIX = ".employer.seek.com";
 const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
+const EHIRE_51JOB_PROFILE_URL_PREFIX =
+  "https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=";
 const SOURCE_KEYS = {
   JOB5156: "job5156",
   JOB51: "51job",
@@ -85,6 +87,11 @@ const JOB51_DETAIL_FETCH_CONCURRENCY = 1;
 const JOB51_DETAIL_FETCH_DELAY_MS = 20000;
 const DEFAULT_SEEK_PAGE_SIZE = 20;
 const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
+const DEFAULT_COLLECTION_GUARDS = {
+  job5156: "experience,jobIntention,selfIntro",
+  "51job": "",
+  seek: "",
+};
 
 const apiSnapshot = {
   searchRows: null,
@@ -325,6 +332,13 @@ async function getCollectionLimits() {
 }
 
 function resolveJob51CollectionLimits(limit, maxPages) {
+  const params = new URLSearchParams(window.location.search || "");
+  if (params.get("tr_unsafe_limits") === "1") {
+    return {
+      limit: limit > 0 ? limit : JOB51_SAFE_LIMIT,
+      maxPages: maxPages > 0 ? maxPages : JOB51_SAFE_MAX_PAGES,
+    };
+  }
   return {
     limit: limit > 0 ? Math.min(limit, JOB51_SAFE_LIMIT) : JOB51_SAFE_LIMIT,
     maxPages:
@@ -1992,21 +2006,69 @@ async function enrichSingleJob5156SearchResumeWithDetail(resume, extractedAt) {
   }
 }
 
-function applyJob5156CollectionGuards(resume) {
-  if (!resume || typeof resume !== "object") return null;
+const GUARD_FIELD_NAMES = new Set([
+  "experience",
+  "jobIntention",
+  "selfIntro",
+  "expectedSalary",
+  "workHistory",
+  "profileEducation",
+  "projectExperience",
+  "skills",
+  "licences",
+]);
+const GUARD_ARRAY_FIELD_NAMES = new Set([
+  "workHistory",
+  "profileEducation",
+  "projectExperience",
+  "skills",
+  "licences",
+]);
 
-  return {
-    ...resume,
-    experience: "",
-    jobIntention: "",
-    selfIntro: "",
-  };
+async function loadCollectionGuards() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(
+      { collectionGuards: DEFAULT_COLLECTION_GUARDS },
+      (items) => resolve(items.collectionGuards || {}),
+    );
+  });
+}
+
+function parseGuardFieldNames(csv) {
+  if (!csv || typeof csv !== "string") return [];
+  return Array.from(
+    new Set(
+      csv
+        .split(",")
+        .map((field) => field.trim())
+        .filter((field) => GUARD_FIELD_NAMES.has(field)),
+    ),
+  );
+}
+
+function applyCollectionGuards(resume, guardFieldNames) {
+  if (
+    !resume ||
+    typeof resume !== "object" ||
+    !Array.isArray(guardFieldNames) ||
+    guardFieldNames.length === 0
+  ) {
+    return resume;
+  }
+
+  const guarded = { ...resume };
+  for (const field of guardFieldNames) {
+    guarded[field] = GUARD_ARRAY_FIELD_NAMES.has(field) ? [] : "";
+  }
+  return guarded;
 }
 
 async function enrichJob5156SearchResumesWithDetail(resumes) {
   if (!Array.isArray(resumes) || resumes.length === 0) return [];
 
   const extractedAt = new Date().toISOString();
+  const collectionGuards = await loadCollectionGuards();
+  const guardFields = parseGuardFieldNames(collectionGuards?.job5156);
   const enriched = [];
 
   for (
@@ -2027,7 +2089,7 @@ async function enrichJob5156SearchResumesWithDetail(resumes) {
     enriched.push(
       ...batchResults
         .filter(Boolean)
-        .map((resume) => applyJob5156CollectionGuards(resume)),
+        .map((resume) => applyCollectionGuards(resume, guardFields)),
     );
   }
 
@@ -2243,6 +2305,8 @@ async function enrich51JobSearchResumesWithDetail(resumes) {
   if (!Array.isArray(resumes) || resumes.length === 0) return [];
 
   const extractedAt = new Date().toISOString();
+  const collectionGuards = await loadCollectionGuards();
+  const guardFields = parseGuardFieldNames(collectionGuards?.[SOURCE_KEYS.JOB51]);
   const enriched = [];
   let enrichedCount = 0;
 
@@ -2252,7 +2316,7 @@ async function enrich51JobSearchResumesWithDetail(resumes) {
       extractedAt,
     );
     if (result?.resume) {
-      enriched.push(result.resume);
+      enriched.push(applyCollectionGuards(result.resume, guardFields));
     }
     if (result?.enriched) {
       enrichedCount += 1;
@@ -3339,7 +3403,9 @@ function extract51JobResumes() {
         row?.memberId,
     );
     const externalId = resumeId || perUserId;
-    const profileUrl = normalizeJob51Text(row?.profileUrl || row?.resumeUrl);
+    const profileUrl = resumeId
+      ? EHIRE_51JOB_PROFILE_URL_PREFIX + encodeURIComponent(resumeId)
+      : normalizeJob51Text(row?.profileUrl || row?.resumeUrl);
     return {
       name,
       age,
@@ -3678,7 +3744,7 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
   const profileUrl = normalizeJob51Text(
     options.profileUrl ||
       (resumeId
-        ? `https://${EHIRE_51JOB_HOST}/Revision/talent/resume/detail?contentType=&resumeId=${encodeURIComponent(resumeId)}`
+        ? `${EHIRE_51JOB_PROFILE_URL_PREFIX}${encodeURIComponent(resumeId)}`
         : ""),
   );
   const baseInfo =

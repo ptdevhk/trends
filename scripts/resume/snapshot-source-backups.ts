@@ -24,15 +24,17 @@ const DEFAULT_OUT_DIR = "output/resume-backups";
 const DEFAULT_MANUAL_FILE = "~/Downloads/51job.rar";
 const DEFAULT_JOB5156_URL =
   "https://hr.job5156.com/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40";
+const DEFAULT_51JOB_URL = "https://ehire.51job.com/Revision/talent/search";
 const DEFAULT_SEEK_URL =
   "https://hk.employer.seek.com/candidates/recommended?jobId=90842915";
 
-export const SOURCE_ALIASES = ["job5156", "seek", "51job-manual"] as const;
+export const SOURCE_ALIASES = ["job5156", "seek", "51job", "51job-manual"] as const;
 export type SourceAlias = (typeof SOURCE_ALIASES)[number];
 
 const SOURCE_HOSTS: Record<SourceAlias, string> = {
   job5156: "hr.job5156.com",
   seek: "hk.employer.seek.com",
+  "51job": "ehire.51job.com",
   "51job-manual": "51job-manual",
 };
 
@@ -44,10 +46,12 @@ type SnapshotCliArgs = {
   outDir: string;
   sources: SourceAlias[];
   job5156Url: string;
+  job51Url: string;
   seekUrl: string;
   manualFile: string;
   cdpEndpoint: string;
   waitTimeoutSec: number;
+  unsafeLimits: boolean;
 };
 
 export type SnapshotOptions = SnapshotCliArgs & {
@@ -121,7 +125,7 @@ export type SnapshotRunSummary = {
   sources: SnapshotSourceResult[];
 };
 
-type BrowserSourceAlias = Extract<SourceAlias, "job5156" | "seek">;
+type BrowserSourceAlias = Extract<SourceAlias, "job5156" | "51job" | "seek">;
 
 type ManualSnapshotPayloadResult = {
   payload: ResumeBackupEnvelope;
@@ -148,17 +152,19 @@ function usage(): string {
     "Usage: bun run scripts/resume/snapshot-source-backups.ts [options]",
     "",
     "Options:",
-    "  --source <alias>           Repeatable source alias: job5156 | seek | 51job-manual",
+    "  --source <alias>           Repeatable source alias: job5156 | seek | 51job | 51job-manual",
     `  --count <number>           Resumes per source (default: ${DEFAULT_COUNT})`,
     `  --max-pages <number>       Browser pages per source collection (default: ${DEFAULT_MAX_PAGES})`,
     `  --api-url <url>            Retained for CLI compatibility (default: ${resolveApiUrl()})`,
     `  --workspace <slug>         Retained for CLI compatibility (default: ${resolveWorkspace()})`,
     `  --out-dir <path>           Output directory (default: ${DEFAULT_OUT_DIR})`,
     `  --job5156-url <url>        Direct Job5156 source URL (default: ${DEFAULT_JOB5156_URL})`,
+    `  --51job-url <url>          Direct 51job source URL (default: ${DEFAULT_51JOB_URL})`,
     `  --seek-url <url>           Direct SEEK source URL (default: ${DEFAULT_SEEK_URL})`,
     `  --manual-file <path>       Manual 51job archive path (default: ${DEFAULT_MANUAL_FILE})`,
     `  --cdp-endpoint <value>     Chrome DevTools endpoint or port (default: ${DEFAULT_CDP_ENDPOINT})`,
     `  --wait-timeout-sec <n>     Retained for CLI compatibility (default: ${DEFAULT_WAIT_TIMEOUT_SEC})`,
+    "  --unsafe-limits            Allow live 51job launches to bypass extension safe caps",
     "  --open-browser             Deprecated no-op retained for CLI compatibility",
     "  --help                     Show this help",
   ].join("\n");
@@ -260,6 +266,7 @@ export function parseCliArgs(argv: string[]): SnapshotCliArgs {
     sources: resolveRequestedSources(readCliValues(argv, "source")),
     job5156Url:
       readCliValue(argv, "job5156-url")?.trim() || DEFAULT_JOB5156_URL,
+    job51Url: readCliValue(argv, "51job-url")?.trim() || DEFAULT_51JOB_URL,
     seekUrl: readCliValue(argv, "seek-url")?.trim() || DEFAULT_SEEK_URL,
     manualFile:
       readCliValue(argv, "manual-file")?.trim() || DEFAULT_MANUAL_FILE,
@@ -269,6 +276,7 @@ export function parseCliArgs(argv: string[]): SnapshotCliArgs {
       readCliValue(argv, "wait-timeout-sec"),
       DEFAULT_WAIT_TIMEOUT_SEC,
     ),
+    unsafeLimits: hasCliFlag(argv, "unsafe-limits"),
   };
 }
 
@@ -598,6 +606,15 @@ function buildSourceLaunchUrl(
   if (alias === "job5156") {
     return options.job5156Url;
   }
+  if (alias === "51job") {
+    const launchUrl = options.job51Url;
+    if (!options.unsafeLimits) {
+      return launchUrl;
+    }
+    const parsedUrl = new URL(launchUrl);
+    parsedUrl.searchParams.set("tr_unsafe_limits", "1");
+    return parsedUrl.toString();
+  }
   if (alias === "seek") {
     return options.seekUrl;
   }
@@ -766,6 +783,7 @@ if (isMainModule) {
 }
 
 export {
+  DEFAULT_51JOB_URL,
   DEFAULT_JOB5156_URL,
   DEFAULT_MANUAL_FILE,
   DEFAULT_SEEK_URL,

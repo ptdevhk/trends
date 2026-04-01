@@ -38,6 +38,25 @@ function toOptionalStringValue(value: unknown): string | undefined {
     return normalized.length > 0 ? normalized : undefined;
 }
 
+function hasNonEmptyArray(value: unknown): boolean {
+    return Array.isArray(value) && value.length > 0;
+}
+
+function readRecordArray(value: unknown): Record<string, unknown>[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return value.filter(isRecord);
+}
+
+function hasResumeFieldValue(content: Record<string, unknown>, keys: string[]): boolean {
+    return keys.some((key) => Boolean(toOptionalStringValue(content[key])));
+}
+
+function hasWorkHistoryDescriptionEntries(value: unknown): boolean {
+    return readRecordArray(value).some((entry) => Boolean(toOptionalStringValue(entry.description)));
+}
+
 function toRuleScores(value: unknown): Record<string, number> {
     if (!isRecord(value)) {
         return {};
@@ -181,6 +200,20 @@ export type ResumeWorkflowDatasetRow = {
     content?: {
         profileType?: string;
     };
+};
+
+export type ResumeFieldCoverageDatasetRow = {
+    source: Doc<"resumes">["source"];
+    profileType?: string;
+    profileUrl: boolean;
+    resumeId: boolean;
+    workHistoryCount: number;
+    workHistoryHasDescription: boolean;
+    profileEducation: boolean;
+    jobIntention: boolean;
+    expectedSalary: boolean;
+    selfIntro: boolean;
+    skills: boolean;
 };
 
 type ResumeBackupRow = {
@@ -1643,6 +1676,45 @@ export const listWorkflowDatasetPage = query({
                 return {
                     source: resume.source,
                     ...(profileType ? { content: { profileType } } : {}),
+                };
+            }),
+        };
+    },
+});
+
+export const listFieldCoverageDatasetPage = query({
+    args: {
+        cursor: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.limit),
+            });
+
+        return {
+            continueCursor: page.continueCursor,
+            isDone: page.isDone,
+            page: page.page.map((resume): ResumeFieldCoverageDatasetRow => {
+                const content = isRecord(resume.content) ? resume.content : {};
+                const profileType = toOptionalStringValue(content.profileType);
+                const workHistory = readRecordArray(content.workHistory);
+                return {
+                    source: resume.source,
+                    ...(profileType ? { profileType } : {}),
+                    profileUrl: hasResumeFieldValue(content, ["profileUrl", "profile_url", "profileURL", "url"]),
+                    resumeId: hasResumeFieldValue(content, ["resumeId"]),
+                    workHistoryCount: workHistory.length,
+                    workHistoryHasDescription: hasWorkHistoryDescriptionEntries(workHistory),
+                    profileEducation: hasNonEmptyArray(content.profileEducation),
+                    jobIntention: hasResumeFieldValue(content, ["jobIntention"]),
+                    expectedSalary: hasResumeFieldValue(content, ["expectedSalary"]),
+                    selfIntro: hasResumeFieldValue(content, ["selfIntro"]),
+                    skills: hasNonEmptyArray(content.skills),
                 };
             }),
         };

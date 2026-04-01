@@ -29,17 +29,23 @@ func TestResumeSnapshotCommandPassesFlagsAndWritesJSON(t *testing.T) {
 		if request.MaxPages != 8 {
 			t.Fatalf("unexpected max pages: %d", request.MaxPages)
 		}
-		if len(request.Sources) != 2 || request.Sources[0] != "job5156" || request.Sources[1] != "51job-manual" {
+		if len(request.Sources) != 3 || request.Sources[0] != "job5156" || request.Sources[1] != "51job" || request.Sources[2] != "51job-manual" {
 			t.Fatalf("unexpected sources: %+v", request.Sources)
 		}
 		if request.OutDir != "output/resume-backups/custom" {
 			t.Fatalf("unexpected out dir: %q", request.OutDir)
+		}
+		if request.Job51URL != "https://ehire.51job.com/Revision/talent/search" {
+			t.Fatalf("unexpected 51job url: %q", request.Job51URL)
 		}
 		if request.ManualFile != "~/Downloads/51job.rar" {
 			t.Fatalf("unexpected manual file: %q", request.ManualFile)
 		}
 		if request.CDPEndpoint != "http://127.0.0.1:9333" {
 			t.Fatalf("unexpected cdp endpoint: %q", request.CDPEndpoint)
+		}
+		if !request.UnsafeLimits {
+			t.Fatal("expected unsafe limits to be enabled")
 		}
 
 		return &resumeSnapshotResult{
@@ -69,12 +75,15 @@ func TestResumeSnapshotCommandPassesFlagsAndWritesJSON(t *testing.T) {
 	cmd.SetErr(&output)
 	cmd.SetArgs([]string{
 		"--source", "job5156",
+		"--source", "51job",
 		"--source", "51job-manual",
 		"--count", "25",
 		"--max-pages", "8",
 		"--out-dir", "output/resume-backups/custom",
+		"--51job-url", "https://ehire.51job.com/Revision/talent/search",
 		"--manual-file", "~/Downloads/51job.rar",
 		"--cdp-endpoint", "http://127.0.0.1:9333",
+		"--unsafe-limits",
 	})
 
 	if err := cmd.Execute(); err != nil {

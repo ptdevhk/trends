@@ -29,11 +29,13 @@ DEFAULT_MAX_PAGES = 10
 
 SOURCE_URLS = {
     "job5156": "https://hr.job5156.com/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40",
+    "51job": "https://ehire.51job.com/Revision/talent/search",
     "seek": "https://hk.employer.seek.com/candidates/recommended?jobId=90842915",
 }
 
 SOURCE_HOSTS = {
     "job5156": "hr.job5156.com",
+    "51job": "ehire.51job.com",
     "seek": "hk.employer.seek.com",
 }
 
@@ -79,6 +81,9 @@ def is_supported_source_page(source: str, page_url: str) -> bool:
     if source == "job5156":
         return hostname == "hr.job5156.com" and pathname == "/search"
 
+    if source == "51job":
+        return hostname == "ehire.51job.com" and "/talent/search" in pathname
+
     if source == "seek":
         return hostname.endswith(".employer.seek.com") and pathname == "/candidates/recommended"
 
@@ -94,6 +99,13 @@ def describe_unsupported_source_page(source: str, page_url: str, page_title: str
         return (
             "SEEK requires an employer account selection before candidate pages are available. "
             f"Complete the account selection in Chrome, let it land on /candidates/recommended, then rerun. "
+            f"Requested page: {search_url}. Current page: {page_url}"
+        )
+
+    if source == "51job" and ("/login" in pathname or "login" in page_url.lower()):
+        return (
+            "51job redirected to a login page before the talent search results were available. "
+            "Log in inside Chrome, reopen the talent search page, then rerun. "
             f"Requested page: {search_url}. Current page: {page_url}"
         )
 

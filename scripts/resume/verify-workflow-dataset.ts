@@ -38,6 +38,20 @@ type ResumeDoc = {
 
 type WorkflowDatasetPageRow = Pick<ResumeDoc, "source" | "content">;
 
+type FieldCoverageDatasetPageRow = {
+  source: string;
+  profileType?: string;
+  profileUrl: boolean;
+  resumeId: boolean;
+  workHistoryCount: number;
+  workHistoryHasDescription: boolean;
+  profileEducation: boolean;
+  jobIntention: boolean;
+  expectedSalary: boolean;
+  selfIntro: boolean;
+  skills: boolean;
+};
+
 type SearchResult = {
   resume: ResumeDoc;
   provenance: Array<{
@@ -57,6 +71,7 @@ type CliOptions = {
   limit: number;
   top: number;
   jobDescriptionId?: string;
+  fieldCoverage: boolean;
   json: boolean;
 };
 
@@ -76,6 +91,20 @@ type VisibleResumeRow = {
   profileUrl?: string;
 };
 
+type FieldCoverageSourceSummary = {
+  sourceKey: string;
+  resumeCount: number;
+  profileUrlPct: number;
+  resumeIdPct: number;
+  workHistoryPct: number;
+  workHistoryDescriptionPct: number;
+  profileEducationPct: number;
+  jobIntentionPct: number;
+  expectedSalaryPct: number;
+  selfIntroPct: number;
+  skillsPct: number;
+};
+
 type WorkflowVerificationReport = {
   query: string;
   location?: string;
@@ -92,6 +121,7 @@ type WorkflowVerificationReport = {
   visibleCount: number;
   visibleBySourceHost: SourceCountRow[];
   visibleBySourceKey: SourceCountRow[];
+  fieldCoverageBySource?: FieldCoverageSourceSummary[];
   visibleResumes: VisibleResumeRow[];
 };
 
@@ -150,6 +180,7 @@ function parseCliOptions(): CliOptions {
     limit: parsePositiveInteger(readCliValue("limit"), DEFAULT_LIMIT, "limit"),
     top: parsePositiveInteger(readCliValue("top"), DEFAULT_TOP, "top"),
     jobDescriptionId: toOptionalString(readCliValue("job-description")),
+    fieldCoverage: hasCliFlag("field-coverage"),
     json: hasCliFlag("json"),
   };
 }
@@ -159,6 +190,24 @@ export function getResumeSourceKey(resume: ResumeDoc): string | undefined {
     sourceKey: resume.content?.profileType,
     source: resume.source,
   });
+}
+
+function resolveFieldCoverageSourceKey(row: FieldCoverageDatasetPageRow): string {
+  const sourceKey = resolveResumeAnalysisSourceKey({
+    sourceKey: row.profileType,
+    source: row.source,
+  });
+  if (sourceKey) {
+    return sourceKey;
+  }
+
+  const normalizedProfileType = toOptionalString(row.profileType)?.toLowerCase();
+  const normalizedSource = toOptionalString(row.source)?.toLowerCase();
+  if (normalizedProfileType === "51job" || normalizedSource === "ehire.51job.com") {
+    return "51job";
+  }
+
+  return normalizedProfileType ?? normalizedSource ?? "unknown";
 }
 
 export function matchesWorkflowFilters(
@@ -257,6 +306,99 @@ async function listWorkflowDatasetRows(client: ConvexHttpClient): Promise<Workfl
   }
 }
 
+async function listFieldCoverageDatasetRows(client: ConvexHttpClient): Promise<FieldCoverageDatasetPageRow[]> {
+  const rows: FieldCoverageDatasetPageRow[] = [];
+  let cursor: string | undefined;
+
+  while (true) {
+    const page = await client.query(api.resumes.listFieldCoverageDatasetPage, {
+      limit: WORKFLOW_DATASET_PAGE_SIZE,
+      ...(cursor ? { cursor } : {}),
+    });
+
+    rows.push(...(page.page as FieldCoverageDatasetPageRow[]));
+
+    if (page.isDone) {
+      return rows;
+    }
+
+    cursor = typeof page.continueCursor === "string" && page.continueCursor.length > 0
+      ? page.continueCursor
+      : undefined;
+    if (!cursor) {
+      throw new Error("listFieldCoverageDatasetPage returned an unfinished page without a continueCursor");
+    }
+  }
+}
+
+function toCoveragePercent(matchedCount: number, totalCount: number): number {
+  if (totalCount <= 0) {
+    return 0;
+  }
+  return Math.round((matchedCount / totalCount) * 1000) / 10;
+}
+
+export function buildFieldCoverageReport(rows: FieldCoverageDatasetPageRow[]): FieldCoverageSourceSummary[] {
+  const grouped = new Map<string, {
+    resumeCount: number;
+    profileUrlCount: number;
+    resumeIdCount: number;
+    workHistoryCount: number;
+    workHistoryDescriptionCount: number;
+    profileEducationCount: number;
+    jobIntentionCount: number;
+    expectedSalaryCount: number;
+    selfIntroCount: number;
+    skillsCount: number;
+  }>();
+
+  for (const row of rows) {
+    const sourceKey = resolveFieldCoverageSourceKey(row);
+    const current = grouped.get(sourceKey) ?? {
+      resumeCount: 0,
+      profileUrlCount: 0,
+      resumeIdCount: 0,
+      workHistoryCount: 0,
+      workHistoryDescriptionCount: 0,
+      profileEducationCount: 0,
+      jobIntentionCount: 0,
+      expectedSalaryCount: 0,
+      selfIntroCount: 0,
+      skillsCount: 0,
+    };
+    current.resumeCount += 1;
+    if (row.profileUrl) current.profileUrlCount += 1;
+    if (row.resumeId) current.resumeIdCount += 1;
+    if (row.workHistoryCount > 0) current.workHistoryCount += 1;
+    if (row.workHistoryHasDescription) current.workHistoryDescriptionCount += 1;
+    if (row.profileEducation) current.profileEducationCount += 1;
+    if (row.jobIntention) current.jobIntentionCount += 1;
+    if (row.expectedSalary) current.expectedSalaryCount += 1;
+    if (row.selfIntro) current.selfIntroCount += 1;
+    if (row.skills) current.skillsCount += 1;
+    grouped.set(sourceKey, current);
+  }
+
+  return Array.from(grouped.entries())
+    .map(([sourceKey, counts]) => {
+      const resumeCount = counts.resumeCount;
+      return {
+        sourceKey,
+        resumeCount,
+        profileUrlPct: toCoveragePercent(counts.profileUrlCount, resumeCount),
+        resumeIdPct: toCoveragePercent(counts.resumeIdCount, resumeCount),
+        workHistoryPct: toCoveragePercent(counts.workHistoryCount, resumeCount),
+        workHistoryDescriptionPct: toCoveragePercent(counts.workHistoryDescriptionCount, resumeCount),
+        profileEducationPct: toCoveragePercent(counts.profileEducationCount, resumeCount),
+        jobIntentionPct: toCoveragePercent(counts.jobIntentionCount, resumeCount),
+        expectedSalaryPct: toCoveragePercent(counts.expectedSalaryCount, resumeCount),
+        selfIntroPct: toCoveragePercent(counts.selfIntroCount, resumeCount),
+        skillsPct: toCoveragePercent(counts.skillsCount, resumeCount),
+      };
+    })
+    .sort((left, right) => right.resumeCount - left.resumeCount || left.sourceKey.localeCompare(right.sourceKey));
+}
+
 function toVisibleResumeRow(
   resume: ResumeDoc,
   jobDescriptionId: string | undefined,
@@ -301,6 +443,9 @@ function printReport(report: WorkflowVerificationReport): void {
   console.log(`Visible count after source/location filters: ${report.visibleCount}`);
   console.log(`Visible by source host: ${formatCounts(report.visibleBySourceHost)}`);
   console.log(`Visible by source key: ${formatCounts(report.visibleBySourceKey)}`);
+  if (report.fieldCoverageBySource?.length) {
+    console.log(`Field coverage by source: ${report.fieldCoverageBySource.map((row) => `${row.sourceKey}:${row.resumeCount}`).join(", ")}`);
+  }
 
   if (report.visibleResumes.length === 0) {
     console.log("Visible resumes: none");
@@ -325,9 +470,10 @@ function printReport(report: WorkflowVerificationReport): void {
 export async function buildWorkflowVerificationReport(options: CliOptions): Promise<WorkflowVerificationReport> {
   const client = new ConvexHttpClient(options.convexUrl);
 
-  const [allResumes, keywordExpansion] = await Promise.all([
+  const [allResumes, keywordExpansion, fieldCoverageRows] = await Promise.all([
     listWorkflowDatasetRows(client),
     fetchKeywordExpansion(options.apiBaseUrl, options.workspace, options.query),
+    options.fieldCoverage ? listFieldCoverageDatasetRows(client) : Promise.resolve(undefined),
   ]);
   const totalResumeCount = allResumes.length;
 
@@ -374,6 +520,7 @@ export async function buildWorkflowVerificationReport(options: CliOptions): Prom
     visibleCount: visibleMatches.length,
     visibleBySourceHost: countByKey(visibleMatches, (resume) => resume.source),
     visibleBySourceKey: countByKey(visibleMatches, getResumeSourceKey),
+    ...(fieldCoverageRows ? { fieldCoverageBySource: buildFieldCoverageReport(fieldCoverageRows) } : {}),
     visibleResumes,
   };
 }
