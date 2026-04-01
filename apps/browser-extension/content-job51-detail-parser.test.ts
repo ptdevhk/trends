@@ -79,6 +79,7 @@ async function loadHelpers(search: string): Promise<Job51ParserHelpers> {
     'stripHtmlTags',
     'normalizeJob51Text',
     'normalizeJob51MultilineText',
+    'isLikelyJob51LocationPlaceholderCompanyName',
     'buildWorkHistoryRawParts',
     'getJob51DetailRoot',
     'readJob51Text',
@@ -250,5 +251,71 @@ describe('job51 detail parser', () => {
       }),
     ])
     expect(String(resume.workHistory?.[0]?.description || '')).toContain('负责河南区域CNC销售工作')
+  })
+
+  it('drops location-like company placeholders while preserving detailed work descriptions', async () => {
+    const helpers = await loadHelpers('')
+
+    const [resume] = helpers.buildJob51DetailResumeFromPayload({
+      data: {
+        resumeid: '219816768',
+        username: '王先生',
+        displayage: '30岁',
+        workyear: '10',
+        activetimelabel: '1小时前活跃',
+        jobintention: [
+          {
+            expectfuncname: '销售工程师',
+            newdisplayexpectsalary: '8千-1.2万/月',
+            expectarea: [{ provincecity: '宁波', county: '' }],
+          },
+        ],
+        highestdegree: {
+          degree: '中技/中专',
+        },
+        work: [
+          {
+            compname: '宁波',
+            position: '销售工程师',
+            workindustry: '汽车研发/制造',
+            workdescribe: '机床销售、机床知识： 熟悉CNC数控机床、加工中心、车床、铣床、磨床等的工作原理及应用场景；了解发那科（FANUC）、西门子（SIEMENS）等主流数控系统。',
+            worktime: '3年6个月',
+            timefrom: '2022.10',
+            timeto: '至今',
+          },
+          {
+            compname: '宁波丰申智能装备有限公司',
+            position: '销售工程师',
+            workdescribe: '大客户销售、解决方案式销售、商务谈判、合同管理、市场分析。',
+            worktime: '4年6个月',
+            timefrom: '2021.10',
+            timeto: '至今',
+          },
+        ],
+      },
+    })
+
+    expect(resume).toMatchObject({
+      name: '王先生',
+      experience: '10',
+      jobIntention: '销售工程师',
+      education: '中技/中专',
+      location: '宁波',
+      activityStatus: '1小时前活跃',
+    })
+    expect(resume.workHistory).toEqual([
+      expect.objectContaining({
+        companyName: undefined,
+        jobTitle: '销售工程师',
+        startDate: '2022-10',
+        endDate: '至今',
+      }),
+      expect.objectContaining({
+        companyName: '宁波丰申智能装备有限公司',
+        jobTitle: '销售工程师',
+      }),
+    ])
+    expect(String(resume.workHistory?.[0]?.description || '')).toContain('机床销售、机床知识')
+    expect(String(resume.workHistory?.[0]?.raw || '')).not.toContain('· 宁波 ·')
   })
 })
