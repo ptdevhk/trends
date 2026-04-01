@@ -7,9 +7,11 @@
     "checkJs": true,
     "noEmit": true,
     "strict": false,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "types": ["chrome-types"],
     "typeRoots": ["./node_modules", "../../node_modules"]
   },
-  "include": ["*.js"]
+  "include": ["src/**/*.ts", "*.js", "*.test.ts"],
+  "exclude": ["content.js"]
 }

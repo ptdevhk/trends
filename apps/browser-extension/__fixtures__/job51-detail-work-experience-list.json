@@ -1,0 +1,106 @@
+{
+  "data": {
+    "base_info": {
+      "userid": "123456",
+      "accountid": "u-789",
+      "resume_name": "张先生",
+      "age": "32",
+      "work_year_value": "9年",
+      "top_degree_value": "本科",
+      "area_value": "东莞"
+    },
+    "job_intention": {
+      "expect_work_function_value": "销售经理",
+      "expect_job_area_value": "东莞",
+      "expect_salary": "20000元/月",
+      "professionSkill": "擅长数控机床、工业自动化与渠道型客户开发。"
+    },
+    "recent_work_info": {
+      "recent_position": "区域销售经理",
+      "working_years": "9年"
+    },
+    "selfIntro": "9年工业设备销售经验，长期负责华南制造业客户拓展。",
+    "workExperienceList": [
+      {
+        "startDate": "2021.03",
+        "endDate": "至今",
+        "companyName": "东莞市台工智能装备有限公司",
+        "position": "高级销售工程师",
+        "responsibility_list": [
+          "开发华南客户",
+          "维护大客户关系",
+          "推进自动化整线项目签约"
+        ],
+        "workDetail": "负责机床销售和渠道拓展\n维护大客户关系"
+      },
+      {
+        "startDate": "2018.06",
+        "endDate": "2021.02",
+        "companyName": "深圳市创世纪机械有限公司",
+        "position": "区域销售主管",
+        "responsibility_list": [
+          "管理广东区域代理商网络",
+          "制定季度销售预测"
+        ],
+        "workDetail": "主导重点客户招投标与交付协调。"
+      },
+      {
+        "startDate": "2015.04",
+        "endDate": "2018.05",
+        "companyName": "广州数控设备有限公司",
+        "position": "销售工程师",
+        "responsibility_list": [
+          "跟进3C行业客户设备选型",
+          "组织展会获客与线索转化"
+        ],
+        "workDetail": "负责华南区域加工中心、车铣复合设备推广。"
+      },
+      {
+        "startDate": "2013.07",
+        "endDate": "2015.03",
+        "companyName": "东莞怡合达自动化股份有限公司",
+        "position": "销售代表",
+        "responsibility_list": [
+          "开发自动化零部件经销商",
+          "跟进售前方案与报价"
+        ],
+        "workDetail": "协助KA客户完成非标自动化配件导入。"
+      }
+    ],
+    "educationInfoVoList": [
+      {
+        "schoolName": "广东工业大学",
+        "degree": "本科",
+        "major": "机械设计制造及其自动化",
+        "startDate": "2009.09",
+        "endDate": "2013.06"
+      }
+    ],
+    "itskill": [
+      {
+        "skill_name": "CRM",
+        "level": "熟练"
+      },
+      "Excel",
+      {
+        "skill_name": "招投标",
+        "level": "良好"
+      }
+    ],
+    "certification": [
+      {
+        "cert_name": "高级营销员",
+        "organization": "东莞市职业技能鉴定中心",
+        "issue_date": "2019.06"
+      }
+    ],
+    "train": [
+      {
+        "training_name": "Key Account Management",
+        "company": "前程无忧培训中心",
+        "start_date": "2018.05",
+        "end_date": "2018.06"
+      }
+    ]
+  }
+}

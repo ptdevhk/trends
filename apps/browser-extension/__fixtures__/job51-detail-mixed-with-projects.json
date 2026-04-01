@@ -1,0 +1,95 @@
+{
+  "result": {
+    "resume": {
+      "resumeId": "R-778899",
+      "accountid": "A-556677",
+      "userName": "李女士",
+      "displayage": "34",
+      "active_type": "3天前活跃",
+      "base_info": {
+        "userid": "R-778899",
+        "resume_name": "李女士",
+        "top_degree_value": "本科",
+        "area_value": "苏州"
+      },
+      "job_intention": {
+        "expect_work_function_value": "大客户销售经理",
+        "expect_job_area_value": "苏州,上海",
+        "new_expect_salary": "25-30万/年",
+        "professionSkill": "善于新能源设备、汽车零部件与自动化产线解决方案销售。"
+      },
+      "selfintro": "10年装备制造行业销售与项目协同经验，负责多地大客户开发与交付推进。",
+      "work": [
+        {
+          "company_name": "苏州汇川技术有限公司",
+          "job_name": "大客户销售经理",
+          "workdescribe": "负责华东新能源客户经营与年度框架协议签署。",
+          "working_years": "3年2个月",
+          "start_time": "2021.07",
+          "end_time": "至今",
+          "industry_tag": "工业自动化"
+        },
+        {
+          "company_name": "上海发那科机器人有限公司",
+          "job_name": "销售主管",
+          "workdescribe": "联动售前与交付团队推进机器人产线项目。",
+          "working_years": "4年1个月",
+          "start_time": "2017.06",
+          "end_time": "2021.06",
+          "industry_tag": "机器人"
+        }
+      ],
+      "project": [
+        {
+          "project_name": "新能源电池模组自动化产线",
+          "project_role": "项目销售负责人",
+          "project_desc": "完成客户需求梳理、方案路演、商务报价与签约。",
+          "timefrom": "2023.02",
+          "timeto": "2024.08"
+        },
+        {
+          "project_name": "Tier1零部件工厂数字化改造",
+          "project_role": "方案销售经理",
+          "project_desc": "协同MES与设备团队完成分阶段交付。",
+          "timefrom": "2022.03",
+          "timeto": "2022.12"
+        }
+      ],
+      "education": [
+        {
+          "school_name": "江南大学",
+          "degree_value": "本科",
+          "major": "市场营销",
+          "start_date": "2008.09",
+          "end_date": "2012.06"
+        }
+      ],
+      "certification": [
+        {
+          "certificate_name": "PMP",
+          "issuing_org": "PMI",
+          "issued_date": "2020.11"
+        }
+      ],
+      "train": [
+        {
+          "training_name": "战略客户销售训练营",
+          "company": "前程无忧培训中心",
+          "start_date": "2019.03",
+          "end_date": "2019.03"
+        }
+      ],
+      "itskill": [
+        {
+          "skill_name": "Salesforce",
+          "level": "熟练"
+        },
+        {
+          "skill_name": "项目管理",
+          "level": "熟练"
+        },
+        "Power BI"
+      ]
+    }
+  }
+}

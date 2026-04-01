@@ -1,2 +1,5 @@
 # Chrome debug profile (created by scripts/debug.sh)
 .chrome-debug-profile/
+content.js
+!src/lib/
+!src/lib/**

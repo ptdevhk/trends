@@ -1,0 +1,80 @@
+{
+  "data": {
+    "resumeid": "975386637",
+    "accountid": "121430648",
+    "username": "袁先生",
+    "displayage": "37岁",
+    "workyear": "9",
+    "activetimelabel": "2026.02.03",
+    "jobintention": [
+      {
+        "expectfuncname": "销售经理",
+        "newdisplayexpectsalary": "8千-1.2万/月",
+        "expectarea": [
+          {
+            "provincecity": "洛阳",
+            "county": ""
+          }
+        ]
+      }
+    ],
+    "highestdegree": {
+      "degree": "大专"
+    },
+    "work": [
+      {
+        "compname": "苏州德扬数控机械有限公司",
+        "position": "销售工程师",
+        "workdescribe": "负责河南区域CNC销售工作，年销售任务达标。",
+        "worktime": "4年3个月",
+        "timefrom": "2022.01",
+        "timeto": "至今",
+        "workindustry": "机械/设备/重工",
+        "companysize": "150-500人",
+        "companytype": "民营"
+      },
+      {
+        "compname": "宁波",
+        "position": "销售工程师",
+        "workdescribe": "机床销售、机床知识： 熟悉CNC数控机床、加工中心、车床、铣床、磨床等的工作原理及应用场景；了解发那科（FANUC）、西门子（SIEMENS）等主流数控系统。",
+        "worktime": "1年6个月",
+        "timefrom": "2020.07",
+        "timeto": "2021.12",
+        "workindustry": "汽车研发/制造"
+      },
+      {
+        "compname": "宁波丰申智能装备有限公司",
+        "position": "销售工程师",
+        "workdescribe": "大客户销售、解决方案式销售、商务谈判、合同管理、市场分析。",
+        "worktime": "2年2个月",
+        "timefrom": "2018.05",
+        "timeto": "2020.06",
+        "workindustry": "仪器仪表/工业自动化",
+        "companysize": "50-150人",
+        "companytype": "民营"
+      },
+      {
+        "compname": "洛阳汇工轴承科技有限公司",
+        "position": "区域招商主管",
+        "workdescribe": "<p>负责豫西工业品渠道招商与经销商维护。</p>",
+        "worktime": "1年11个月",
+        "timefrom": "2016.06",
+        "timeto": "2018.04",
+        "workindustry": "机械/设备/重工",
+        "companysize": "500-1000人",
+        "companytype": "民营"
+      },
+      {
+        "compname": "郑州博特硬质材料有限公司",
+        "position": "销售代表",
+        "workdescribe": "负责刀具与硬质合金材料客户拜访，跟进回款。",
+        "worktime": "2年9个月",
+        "timefrom": "2013.09",
+        "timeto": "2016.05",
+        "workindustry": "原材料和加工",
+        "companysize": "150-500人",
+        "companytype": "股份制企业"
+      }
+    ]
+  }
+}
