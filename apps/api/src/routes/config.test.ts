@@ -340,6 +340,22 @@ describe('config route workspace access', () => {
     expect(payload.metadata.capabilities.some((item: { id: string }) => item.id === 'cli-system-inspect')).toBe(true)
   })
 
+  it('loads resume display limits payload', async () => {
+    const app = createTestApp()
+    const response = await app.request('/api/config/resume-display-limits', {
+      headers: {
+        'X-Workspace-Slug': 'hr',
+      },
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      success: true,
+      latestWorkHistoryLimit: 3,
+      source: 'packages/shared/src/work-history-evidence.ts',
+    })
+  })
+
   it('loads config source detail by key', async () => {
     const getSourceSpy = vi.spyOn(configSourceInspector, 'getSource').mockReturnValue({
       key: 'resume-skills',

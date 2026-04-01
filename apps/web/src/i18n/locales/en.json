@@ -15,6 +15,17 @@
     "reviewPackets": "Review packets",
     "jds": "JDs"
   },
+  "common": {
+    "loading": "Loading",
+    "loadingMore": "Loading more...",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "collapse": "Collapse",
+    "expand": "Expand"
+  },
   "jdManagement": {
     "title": "Job Description Management",
     "subtitle": "Manage System and Custom Job Descriptions for AI Analysis.",
@@ -268,11 +279,52 @@
     },
     "detail": {
       "title": "Resume Details",
+      "description": "Review resume details and AI analysis summary.",
       "workHistory": "Work History",
       "selfIntro": "Self Introduction",
       "extractedAt": "Updated At",
       "profileLink": "View Original Profile",
-      "close": "Close"
+      "close": "Close",
+      "id": "ID",
+      "aiAnalysis": "AI Analysis",
+      "language": "Language:",
+      "highlights": "Highlights",
+      "concerns": "Concerns",
+      "detailedBreakdown": "Detailed Breakdown",
+      "summaryFeedback": "Summary Feedback",
+      "industryVerified": "Industry verified",
+      "aiScoreLabel": "AI score",
+      "aiSummaryLabel": "AI summary",
+      "promptVersion": "Prompt v{{version}}"
+    },
+    "experienceLevel": {
+      "senior": "Senior",
+      "mid": "Mid",
+      "junior": "Junior"
+    },
+    "roleLabels": {
+      "sales": "Sales",
+      "engineer": "Engineering",
+      "operator": "Operations",
+      "technician": "Technical",
+      "manager": "Management"
+    },
+    "card": {
+      "industryVerifiedSuffix": " (Industry verified)",
+      "relatedYears": "Related years: {{years}}",
+      "industryVerified": "Industry verified: {{years}}",
+      "matchedSignals": "Matched signals: {{signals}}",
+      "matchedExperience": "Matched experience: {{experience}}",
+      "unblock": "Unblock",
+      "block": "Block",
+      "blocked": "Blocked",
+      "blockCandidate": "Block candidate",
+      "blockCandidateDescription": "Add an optional note before blocking this candidate.",
+      "notePlaceholder": "Note",
+      "notePlaceholderInput": "Enter note...",
+      "notesTitle": "Notes",
+      "notesDescription": "Add a note for {{name}}.",
+      "currentPosition": "Current Position"
     },
     "searchPage": {
       "banner": {
@@ -687,6 +739,10 @@
     "customKeywordCategory": "Category",
     "configSources": "Config Sources",
     "configSourcesDescription": "Inspect allowlisted resume config files and prompt sources in read-only mode.",
+    "resumeDisplayLimits": "Resume display limits",
+    "resumeDisplayLimitsDescription": "Read-only limits used by resume presentation logic.",
+    "latestWorkHistoryEntries": "Latest work history entries",
+    "resumeDisplayLimitsSource": "Source file",
     "configSourcesLoadError": "Failed to load config source",
     "configSourceLabel": "Source",
     "configSourceType": "Type",

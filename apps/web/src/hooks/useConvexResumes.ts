@@ -253,6 +253,14 @@ function buildMockSearchText(doc: ResumeListDocLike): string {
           return [entry.raw, entry.companyName, entry.jobTitle, entry.description]
         })
       : []),
+    ...toStringArray(Array.isArray(content.projectExperience)
+      ? content.projectExperience.flatMap((entry) => {
+          if (!isRecord(entry)) {
+            return []
+          }
+          return [entry.raw, entry.companyName, entry.jobTitle, entry.description]
+        })
+      : []),
   ]
 
   return fragments

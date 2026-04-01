@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import { formatRoleYears, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl } from '@/lib/resume-scoring'
+import { formatRoleYears, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl } from '@/lib/resume-scoring'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 
 import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
@@ -66,6 +66,7 @@ export function ResumeDetail({
     () => (resume ? sanitizeResumeRecordForSurface(resume, 'presentation', fieldUsagePolicy) : null),
     [fieldUsagePolicy, resume],
   )
+  const contentLocale = getResumeContentLocale(resume)
 
   const workHistory = useMemo(() => {
     if (!presentationResume?.workHistory?.length) return []
@@ -131,12 +132,13 @@ export function ResumeDetail({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-testid="resume-detail-content"
+        lang={contentLocale}
         className="max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-2xl overflow-y-auto p-4 sm:w-full sm:p-6 md:max-w-3xl lg:max-w-4xl"
       >
         <DialogHeader>
           <DialogTitle>{t('resumes.detail.title')}</DialogTitle>
           <DialogDescription className="sr-only">
-            {t('resumes.detail.description', 'Review resume details and AI analysis summary.')}
+            {t('resumes.detail.description', { defaultValue: 'Review resume details and AI analysis summary.' })}
           </DialogDescription>
         </DialogHeader>
 
@@ -208,7 +210,7 @@ export function ResumeDetail({
                 <p className="font-medium">{displayResume.activityStatus || '--'}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">ID</p>
+                <p className="text-muted-foreground">{t('resumes.detail.id', { defaultValue: 'ID' })}</p>
                 <p className="font-medium">
                   {[displayResume.resumeId, displayResume.perUserId].filter(Boolean).join(' / ') || '--'}
                 </p>
@@ -256,13 +258,13 @@ export function ResumeDetail({
                                 variant="outline"
                                 className={annotation.industryVerified ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : ''}
                               >
-                                {getRoleLabel(annotation.type)}
+                                {t(`resumes.roleLabels.${annotation.type}`, { defaultValue: getRoleLabel(annotation.type) })}
                                 {' '}
                                 {formatRoleYears(annotation.years)}
                               </Badge>
                               {annotation.industryVerified ? (
                                 <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                                  行业验证
+                                  {t('resumes.detail.industryVerified', { defaultValue: 'Industry verified' })}
                                 </Badge>
                               ) : null}
                               {annotation.matchedSignals.map((signal) => (
@@ -287,7 +289,7 @@ export function ResumeDetail({
             <div className="rounded-lg border bg-slate-50 dark:bg-slate-900 p-4">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold flex items-center gap-2">
-                  AI Analysis
+                  {t('resumes.detail.aiAnalysis', { defaultValue: 'AI Analysis' })}
                   <Badge variant={matchResult.score >= 80 ? 'default' : matchResult.score >= 60 ? 'secondary' : 'outline'}>
                     {matchResult.score} 分
                   </Badge>
@@ -297,7 +299,7 @@ export function ResumeDetail({
                   {onAiFeedback ? (
                     <AiFeedbackButtons
                       feedback={aiScoreFeedback}
-                      label="AI score"
+                      label={t('resumes.detail.aiScoreLabel', { defaultValue: 'AI score' })}
                       testId="detail-ai-score-feedback"
                       onSelect={(sentiment) => onAiFeedback('ai_score', sentiment)}
                     />
@@ -307,10 +309,10 @@ export function ResumeDetail({
               {(matchResult.promptVersion != null || matchResult.locale) && (
                 <div className="flex items-center gap-3 mb-3 text-[11px] text-muted-foreground">
                   {matchResult.promptVersion != null && (
-                    <span>Prompt v{matchResult.promptVersion}</span>
+                    <span>{t('resumes.detail.promptVersion', { version: matchResult.promptVersion, defaultValue: 'Prompt v{{version}}' })}</span>
                   )}
                   {matchResult.locale && (
-                    <span>Language: {RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE[matchResult.locale as keyof typeof RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE] ?? matchResult.locale}</span>
+                    <span>{t('resumes.detail.language', { defaultValue: 'Language:' })} {RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE[matchResult.locale as keyof typeof RESUME_AI_PROMPT_LOCALE_TO_NATURAL_LANGUAGE] ?? matchResult.locale}</span>
                   )}
                 </div>
               )}
@@ -322,7 +324,7 @@ export function ResumeDetail({
               <div className={`mb-3 grid gap-4 ${matchResult.highlights?.length && matchResult.concerns?.length ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
                 {matchResult.highlights && matchResult.highlights.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-semibold text-green-600 mb-1">Highlights</h4>
+                    <h4 className="text-xs font-semibold text-green-600 mb-1">{t('resumes.detail.highlights', { defaultValue: 'Highlights' })}</h4>
                     <ul className="list-disc list-inside text-xs text-muted-foreground">
                       {matchResult.highlights.map((h, i) => <li key={i}>{h}</li>)}
                     </ul>
@@ -330,7 +332,7 @@ export function ResumeDetail({
                 )}
                 {matchResult.concerns && matchResult.concerns.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-semibold text-red-600 mb-1">Concerns</h4>
+                    <h4 className="text-xs font-semibold text-red-600 mb-1">{t('resumes.detail.concerns', { defaultValue: 'Concerns' })}</h4>
                     <ul className="list-disc list-inside text-xs text-muted-foreground">
                       {matchResult.concerns.map((c, i) => <li key={i}>{c}</li>)}
                     </ul>
@@ -340,7 +342,7 @@ export function ResumeDetail({
 
               {matchResult.breakdown && (
                 <div className="bg-background rounded p-2 border">
-                  <h4 className="text-xs font-semibold mb-2">Detailed Breakdown</h4>
+                  <h4 className="text-xs font-semibold mb-2">{t('resumes.detail.detailedBreakdown', { defaultValue: 'Detailed Breakdown' })}</h4>
                   <div
                     data-testid="resume-detail-breakdown-grid"
                     className="grid grid-cols-2 gap-2 text-center md:grid-cols-3 xl:grid-cols-5"
@@ -356,10 +358,10 @@ export function ResumeDetail({
               )}
               {onAiFeedback ? (
                 <div className="mt-3 flex flex-col gap-2 border-t border-slate-200 pt-3 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-end">
-                  <span className="text-xs text-muted-foreground sm:mr-3">Summary Feedback</span>
+                  <span className="text-xs text-muted-foreground sm:mr-3">{t('resumes.detail.summaryFeedback', { defaultValue: 'Summary Feedback' })}</span>
                   <AiFeedbackButtons
                     feedback={aiSummaryFeedback}
-                    label="AI summary"
+                    label={t('resumes.detail.aiSummaryLabel', { defaultValue: 'AI summary' })}
                     testId="detail-ai-summary-feedback"
                     onSelect={(sentiment) => onAiFeedback('ai_summary', sentiment)}
                   />

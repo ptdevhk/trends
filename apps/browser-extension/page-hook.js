@@ -45,6 +45,50 @@
     return query.includes("talentSearchRecommendedCandidatesV2");
   };
 
+  const headersToObject = (headers) => {
+    if (!headers) {
+      return {};
+    }
+
+    const result = {};
+    if (typeof Headers !== "undefined" && headers instanceof Headers) {
+      headers.forEach((value, key) => {
+        result[key.toLowerCase()] = value;
+      });
+      return result;
+    }
+
+    if (Array.isArray(headers)) {
+      for (const entry of headers) {
+        if (!Array.isArray(entry) || entry.length < 2) continue;
+        const [key, value] = entry;
+        if (typeof key !== "string") continue;
+        result[key.toLowerCase()] = Array.isArray(value) ? value.join(", ") : String(value);
+      }
+      return result;
+    }
+
+    if (typeof headers === "object") {
+      for (const [key, value] of Object.entries(headers)) {
+        result[key.toLowerCase()] = Array.isArray(value) ? value.join(", ") : String(value);
+      }
+    }
+
+    return result;
+  };
+
+  const mergeRequestHeaders = (...sources) => {
+    const merged = {};
+    for (const source of sources) {
+      const headers = headersToObject(source);
+      for (const [key, value] of Object.entries(headers)) {
+        if (typeof value !== "string") continue;
+        merged[key] = value;
+      }
+    }
+    return merged;
+  };
+
   const classify = (url, requestBody) => {
     if (!url) return null;
     if (url.includes("/api/search/resume/v2/attach/resume/info"))
@@ -58,6 +102,9 @@
     if (url.includes("ehire.51job.com") || url.includes("ehirej.51job.com")) {
       try {
         const pathname = new URL(url).pathname.toLowerCase();
+        if (pathname.includes("/resumedtl/getresume")) {
+          return { kind: "job51detail", sourceKey: "51job" };
+        }
         if (
           pathname.includes("/talent_hunt_resume_list") ||
           pathname.includes("/talent/search") ||
@@ -179,7 +226,7 @@
     };
   };
 
-  const capture = (classification, url, payload) => {
+  const capture = (classification, url, payload, requestHeaders, request) => {
     if (!classification || !payload) return;
     post({
       kind: classification.kind,
@@ -190,7 +237,12 @@
       request:
         classification.sourceKey === "seek"
           ? sanitizeSeekRequestBody(classification.operation)
-          : undefined,
+          : request && typeof request === "object"
+            ? request
+            : undefined,
+      requestHeaders: requestHeaders && typeof requestHeaders === "object"
+        ? requestHeaders
+        : undefined,
     });
   };
 
@@ -444,14 +496,20 @@
         requestUrl.includes("ehire.51job.com") ||
         requestUrl.includes("ehirej.51job.com");
       if (!isGraphqlRequest(requestUrl) && !is51jobFetch) {
-        return originalFetch.apply(this, args);
-      }
+      return originalFetch.apply(this, args);
+    }
 
-      return Promise.resolve(parseRequestBody(args[0], args[1])).then(
-        (requestBody) => {
-          const nextPageIndex = trWindow.__trJob51NextPage;
-          const shouldRewriteJob51Request =
-            is51jobFetch &&
+    return Promise.resolve(parseRequestBody(args[0], args[1])).then(
+      (requestBody) => {
+        const requestHeaders = mergeRequestHeaders(
+          typeof Request !== "undefined" && args[0] instanceof Request
+            ? args[0].headers
+            : undefined,
+          typeof args[1] === "object" && args[1] !== null ? args[1].headers : undefined,
+        );
+        const nextPageIndex = trWindow.__trJob51NextPage;
+        const shouldRewriteJob51Request =
+          is51jobFetch &&
             requestUrl.includes("talent_hunt_resume_list") &&
             typeof nextPageIndex === "number" &&
             nextPageIndex > 1 &&
@@ -481,7 +539,7 @@
                 res
                   .clone()
                   .json()
-                  .then((data) => capture(classification, requestUrl, data))
+                  .then((data) => capture(classification, requestUrl, data, requestHeaders, requestBody))
                   .catch(() => {});
               }
             } catch {
@@ -496,11 +554,29 @@
 
   const originalOpen = XMLHttpRequest.prototype.open;
   const originalSend = XMLHttpRequest.prototype.send;
+  const originalSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    /** @type {XMLHttpRequest & { __tr_url?: string, __tr_body?: unknown }} */ (
+    /** @type {XMLHttpRequest & { __tr_url?: string, __tr_body?: unknown, __tr_requestHeaders?: Record<string, string> }} */ (
       this
     ).__tr_url = url;
+    /** @type {XMLHttpRequest & { __tr_requestHeaders?: Record<string, string> }} */ (
+      this
+    ).__tr_requestHeaders = {};
     return originalOpen.call(this, method, url, ...rest);
+  };
+  XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
+    /** @type {XMLHttpRequest & { __tr_requestHeaders?: Record<string, string> }} */ (
+      this
+    ).__tr_requestHeaders ||= {};
+    if (typeof name === "string") {
+      const headers = /** @type {XMLHttpRequest & { __tr_requestHeaders?: Record<string, string> }} */ (
+        this
+      ).__tr_requestHeaders;
+      const key = name.toLowerCase();
+      const nextValue = String(value);
+      headers[key] = headers[key] ? `${headers[key]}, ${nextValue}` : nextValue;
+    }
+    return originalSetRequestHeader.call(this, name, value);
   };
   XMLHttpRequest.prototype.send = function (...args) {
     const body = args[0];
@@ -510,7 +586,7 @@
     this.addEventListener("load", function () {
       try {
         const request =
-          /** @type {XMLHttpRequest & { __tr_url?: string, __tr_body?: unknown }} */ (
+          /** @type {XMLHttpRequest & { __tr_url?: string, __tr_body?: unknown, __tr_requestHeaders?: Record<string, string> }} */ (
             this
           );
         const url = normalizeUrl(request.__tr_url);
@@ -526,7 +602,7 @@
           }
         }
         if (!data) return;
-        capture(classification, url, data);
+        capture(classification, url, data, request.__tr_requestHeaders, request.__tr_body);
       } catch {
         // ignore
       }

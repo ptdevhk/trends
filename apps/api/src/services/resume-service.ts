@@ -247,12 +247,14 @@ function countOccurrences(haystack: string, needle: string): number {
 function buildSearchText(item: ResumeItem): string {
   const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
   const latestWorkHistory = selectLatestWorkHistory(item.workHistory);
+  const latestProjectExperience = selectLatestWorkHistory(item.projectExperience ?? []);
   const parts = [
     item.name,
     item.education,
     locationText,
     item.expectedSalary,
     ...latestWorkHistory.map((entry) => buildWorkHistoryEntryText(entry)),
+    ...latestProjectExperience.map((entry) => buildWorkHistoryEntryText(entry)),
   ];
   return parts.join(" ").toLowerCase();
 }

@@ -42,6 +42,15 @@ export type ResumeRoleSignalLike = {
   verifyIn: string
 }
 
+export type ResumeScoringWorkHistoryItem = {
+  raw?: string
+  companyName?: string
+  jobTitle?: string
+  description?: string
+  startDate?: string
+  endDate?: string
+}
+
 const VALID_RECOMMENDATIONS: Recommendation[] = ['strong_match', 'match', 'potential', 'no_match']
 const ROLE_LABELS: Record<string, string> = {
   sales: '销售',
@@ -170,6 +179,22 @@ export function getResumeSourceLabel(resume: unknown): string | undefined {
   return normalizeOptionalString(resume.source)
 }
 
+export function getResumeContentLocale(resume: unknown): string | undefined {
+  const source = getResumeSourceLabel(resume)?.toLowerCase()
+  if (!source) {
+    return undefined
+  }
+
+  if (source.includes('51job')) {
+    return 'zh-Hans'
+  }
+  if (source.includes('job5156')) {
+    return 'zh-Hant'
+  }
+
+  return undefined
+}
+
 export function buildResumeKey(resume: ResumeItem, index: number): string {
   return resolveResumeId(resume, index)
 }
@@ -181,7 +206,8 @@ export function buildRuleScoringText(resume: {
   experience?: string
   location?: string
   selfIntro?: string
-  workHistory?: ResumeItem['workHistory']
+  workHistory?: ResumeScoringWorkHistoryItem[]
+  projectExperience?: ResumeScoringWorkHistoryItem[]
   tags?: string[]
 }): string {
   return [
@@ -192,6 +218,7 @@ export function buildRuleScoringText(resume: {
     resume.location,
     resume.selfIntro,
     ...buildLatestWorkHistoryEvidence(resume.workHistory).lines,
+    ...(resume.projectExperience ?? []).map((entry) => entry?.raw || [entry?.companyName, entry?.jobTitle, entry?.description].filter(Boolean).join(' ')),
     resume.tags?.join(' '),
   ]
     .filter((item): item is string => Boolean(item))

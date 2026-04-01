@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { cn } from '@/lib/utils'
-import { isSafeProfileUrl } from '@/lib/resume-scoring'
+import { getResumeContentLocale, isSafeProfileUrl } from '@/lib/resume-scoring'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
 type SnippetCardExpandedProps = {
@@ -21,6 +21,7 @@ function formatSnakeCaseLabel(value: string): string {
 export function SnippetCardExpanded({ item, showAiScore = false }: SnippetCardExpandedProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
+  const contentLocale = getResumeContentLocale(item.resume)
   const analysis = item.analysis ?? item.resume.analysis
   const hasAiAnalysis = item.scoreSource === 'ai' && Boolean(analysis)
   const pendingAiAnalysis = showAiScore && !hasAiAnalysis
@@ -111,7 +112,7 @@ export function SnippetCardExpanded({ item, showAiScore = false }: SnippetCardEx
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
 
   return (
-    <div className="border-t bg-slate-50/70 px-5 py-5">
+    <div className="border-t bg-slate-50/70 px-5 py-5" lang={contentLocale}>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr),minmax(0,0.9fr)]">
         <div className="min-w-0 space-y-4">
           <div className="space-y-2">

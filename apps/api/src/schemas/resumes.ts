@@ -119,6 +119,7 @@ export const ResumeImportRestoreStateSchema = z
 
 const ResumeStructuredDetailsShape = {
   profileEducation: z.array(ResumeImportProfileEducationSchema).optional(),
+  projectExperience: z.array(ResumeImportWorkHistorySchema).optional(),
   skills: z.array(z.union([z.string(), ResumeImportSkillDetailSchema])).optional(),
   languages: z.array(z.union([z.string(), ResumeImportLanguageDetailSchema])).optional(),
   licences: z.array(z.union([z.string(), ResumeImportLicenceDetailSchema])).optional(),
@@ -177,6 +178,7 @@ export const ResumeItemSchema = z
   .object({
     name: z.string().openapi({ example: "Alex Chen" }),
     profileUrl: z.string().openapi({ example: "https://hr.job5156.com/resume/view/123" }),
+    source: z.string().optional().openapi({ example: "hr.job5156.com" }),
     activityStatus: z.string().openapi({ example: "Active today" }),
     age: z.string().openapi({ example: "28" }),
     experience: z.string().openapi({ example: "5 years" }),
@@ -265,6 +267,7 @@ export const ResumeImportItemSchema = z
     profileId: z.union([z.string(), z.number()]).pipe(z.coerce.string()).optional(),
     profileType: z.string().optional(),
     externalId: z.string().optional(),
+    source: z.string().optional().openapi({ example: "hr.job5156.com" }),
     sourceHost: z.string().optional().openapi({ example: "hr.job5156.com" }),
     tags: z.array(z.string()).optional().openapi({ example: ["sales", "job5156"] }),
     name: z.string().openapi({ example: "Alex Chen" }),

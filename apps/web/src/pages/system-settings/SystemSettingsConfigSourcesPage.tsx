@@ -19,6 +19,10 @@ export function SystemSettingsConfigSourcesPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [configSourceGroups, setConfigSourceGroups] = useState<ConfigSourceGroupSummary[]>([])
+  const [resumeDisplayLimits, setResumeDisplayLimits] = useState<{
+    latestWorkHistoryLimit: number
+    source: string
+  } | null>(null)
   const [selectedConfigSourceKey, setSelectedConfigSourceKey] = useState<string | null>(null)
   const [selectedConfigSourceDetail, setSelectedConfigSourceDetail] = useState<ConfigSourceDetail | null>(null)
 
@@ -53,12 +57,31 @@ export function SystemSettingsConfigSourcesPage() {
     setLoadError(null)
 
     try {
+      const resumeDisplayLimitsPromise = requestJson('/api/config/resume-display-limits').catch((error) => {
+        console.error('Failed to load resume display limits', error)
+        return null
+      })
       const payload = await requestJson('/api/config/source-groups')
       const parsed = parseConfigSourceGroupsPayload(payload)
       if (!parsed) {
         throw new Error('Invalid config source groups response')
       }
       setConfigSourceGroups(parsed)
+
+      const resumeDisplayLimitsPayload = await resumeDisplayLimitsPromise
+      if (
+        resumeDisplayLimitsPayload
+        && typeof resumeDisplayLimitsPayload === 'object'
+        && (resumeDisplayLimitsPayload as { success?: unknown }).success === true
+        && typeof (resumeDisplayLimitsPayload as { latestWorkHistoryLimit?: unknown }).latestWorkHistoryLimit === 'number'
+      ) {
+        setResumeDisplayLimits({
+          latestWorkHistoryLimit: (resumeDisplayLimitsPayload as { latestWorkHistoryLimit: number }).latestWorkHistoryLimit,
+          source: typeof (resumeDisplayLimitsPayload as { source?: unknown }).source === 'string'
+            ? (resumeDisplayLimitsPayload as { source: string }).source
+            : 'packages/shared/src/work-history-evidence.ts',
+        })
+      }
     } catch (error) {
       console.error('Failed to load config source groups', error)
       setLoadError(t('resumes.error'))
@@ -139,6 +162,25 @@ export function SystemSettingsConfigSourcesPage() {
           {loadError}
         </div>
       )}
+
+      {resumeDisplayLimits ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('debugConfig.resumeDisplayLimits', { defaultValue: 'Resume display limits' })}</CardTitle>
+            <CardDescription>{t('debugConfig.resumeDisplayLimitsDescription', { defaultValue: 'Read-only limits used by resume presentation logic.' })}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-sm text-muted-foreground">{t('debugConfig.latestWorkHistoryEntries', { defaultValue: 'Latest work history entries' })}</p>
+              <p className="text-lg font-semibold">{resumeDisplayLimits.latestWorkHistoryLimit}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">{t('debugConfig.resumeDisplayLimitsSource', { defaultValue: 'Source file' })}</p>
+              <p className="font-mono text-xs text-muted-foreground">{resumeDisplayLimits.source}</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

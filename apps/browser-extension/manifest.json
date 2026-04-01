@@ -15,7 +15,8 @@
         "*://hr.job5156.com/*",
         "*://hk.employer.seek.com/*",
         "*://my.employer.seek.com/*",
-        "*://ehire.51job.com/*"
+        "*://ehire.51job.com/*",
+        "*://ehirej.51job.com/*"
     ],
     "background": {
         "service_worker": "background.js"
@@ -40,7 +41,8 @@
                 "*://my.employer.seek.com/candidates/recommended*",
                 "*://hk.employer.seek.com/talentsearch/profile*",
                 "*://my.employer.seek.com/talentsearch/profile*",
-                "*://ehire.51job.com/Revision/talent/search*"
+                "*://ehire.51job.com/Revision/talent/search*",
+                "*://ehire.51job.com/Revision/talent/resume/detail*"
             ],
             "js": [
                 "page-hook.js"
@@ -56,7 +58,8 @@
                 "*://my.employer.seek.com/candidates/recommended*",
                 "*://hk.employer.seek.com/talentsearch/profile*",
                 "*://my.employer.seek.com/talentsearch/profile*",
-                "*://ehire.51job.com/Revision/talent/search*"
+                "*://ehire.51job.com/Revision/talent/search*",
+                "*://ehire.51job.com/Revision/talent/resume/detail*"
             ],
             "js": [
                 "seek-auto-sync-window.js",

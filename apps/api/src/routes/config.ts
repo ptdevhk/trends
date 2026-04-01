@@ -11,6 +11,7 @@ import {
   INGEST_BRAND_CONTEXT_LABELS,
   INGEST_BRAND_ROLE_LABELS,
   INGEST_BRAND_SOURCE_LABELS,
+  LATEST_WORK_HISTORY_LIMIT,
   SETTINGS_NAV_ITEMS,
   SYSTEM_SETTINGS_NAV_ITEMS,
   SYSTEM_CAPABILITY_DESCRIPTORS,
@@ -189,6 +190,11 @@ const SystemMetadataSchema = z.object({
     keywordVariantBody: z.string(),
   }),
   capabilities: z.array(CapabilityDescriptorSchema),
+});
+const ResumeDisplayLimitsSchema = z.object({
+  success: z.literal(true),
+  latestWorkHistoryLimit: z.number().int().nonnegative(),
+  source: z.string(),
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -724,6 +730,24 @@ app.get("/system-metadata", async (c) => {
   } catch (error) {
     console.error("Failed to load system metadata", error);
     return c.json({ success: false as const, error: "Failed to load system metadata" }, 500);
+  }
+});
+
+app.get("/resume-display-limits", async (c) => {
+  try {
+    const payload = {
+      success: true as const,
+      latestWorkHistoryLimit: LATEST_WORK_HISTORY_LIMIT,
+      source: "packages/shared/src/work-history-evidence.ts",
+    };
+    const parsed = ResumeDisplayLimitsSchema.safeParse(payload);
+    if (!parsed.success) {
+      return c.json({ success: false as const, error: "Invalid resume display limits response" }, 500);
+    }
+    return c.json(parsed.data, 200);
+  } catch (error) {
+    console.error("Failed to load resume display limits", error);
+    return c.json({ success: false as const, error: "Failed to load resume display limits" }, 500);
   }
 });
 
