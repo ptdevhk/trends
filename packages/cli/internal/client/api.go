@@ -10,16 +10,42 @@ import (
 )
 
 type ResumeItem struct {
-	ResumeID       string `json:"resumeId"`
-	PerUserID      string `json:"perUserId"`
-	ProfileID      string `json:"profileId"`
-	ExternalID     string `json:"externalId"`
-	Name           string `json:"name"`
-	JobIntention   string `json:"jobIntention"`
-	Location       string `json:"location"`
-	Experience     string `json:"experience"`
-	Education      string `json:"education"`
-	ExpectedSalary string `json:"expectedSalary"`
+	ResumeID          string                       `json:"resumeId"`
+	PerUserID         string                       `json:"perUserId"`
+	ProfileID         string                       `json:"profileId"`
+	ExternalID        string                       `json:"externalId"`
+	Name              string                       `json:"name"`
+	JobIntention      string                       `json:"jobIntention"`
+	Location          string                       `json:"location"`
+	Experience        string                       `json:"experience"`
+	Education         string                       `json:"education"`
+	ExpectedSalary    string                       `json:"expectedSalary"`
+	ProfileURL        string                       `json:"profileUrl"`
+	Source            string                       `json:"source"`
+	ActivityStatus    string                       `json:"activityStatus"`
+	SelfIntro         string                       `json:"selfIntro"`
+	WorkHistory       []ResumeWorkHistoryItem      `json:"workHistory"`
+	ProjectExperience []ResumeWorkHistoryItem      `json:"projectExperience,omitempty"`
+	ProfileEducation  []ResumeProfileEducationItem `json:"profileEducation,omitempty"`
+	ExtractedAt       string                       `json:"extractedAt"`
+}
+
+type ResumeWorkHistoryItem struct {
+	Raw         string `json:"raw"`
+	CompanyName string `json:"companyName,omitempty"`
+	JobTitle    string `json:"jobTitle,omitempty"`
+	Description string `json:"description,omitempty"`
+	StartDate   string `json:"startDate,omitempty"`
+	EndDate     string `json:"endDate,omitempty"`
+}
+
+type ResumeProfileEducationItem struct {
+	Institution   string `json:"institution,omitempty"`
+	Qualification string `json:"qualification,omitempty"`
+	FieldOfStudy  string `json:"fieldOfStudy,omitempty"`
+	Description   string `json:"description,omitempty"`
+	StartDate     string `json:"startDate,omitempty"`
+	EndDate       string `json:"endDate,omitempty"`
 }
 
 type ResumeSample struct {
@@ -42,6 +68,13 @@ type ResumesResponse struct {
 	Data    []ResumeItem   `json:"data"`
 	Sample  *ResumeSample  `json:"sample,omitempty"`
 	Summary ResumesSummary `json:"summary"`
+}
+
+type ResumeDetailResponse struct {
+	Success bool          `json:"success"`
+	Source  string        `json:"source"`
+	Sample  *ResumeSample `json:"sample,omitempty"`
+	Data    ResumeItem    `json:"data"`
 }
 
 type JobDescriptionFile struct {
@@ -215,15 +248,15 @@ type ResumeMatchDebugProvenance struct {
 }
 
 type ResumeMatchDebugRoleSignal struct {
-	Type                         string   `json:"type"`
-	MatchedSignals               []string `json:"matchedSignals"`
-	SignalCount                  int      `json:"signalCount"`
-	Occurrences                  int      `json:"occurrences"`
-	Years                        float64  `json:"years"`
-	IndustryVerifiedYears        float64  `json:"industryVerifiedYears"`
-	RoleRelevantYears            *float64 `json:"roleRelevantYears,omitempty"`
+	Type                          string   `json:"type"`
+	MatchedSignals                []string `json:"matchedSignals"`
+	SignalCount                   int      `json:"signalCount"`
+	Occurrences                   int      `json:"occurrences"`
+	Years                         float64  `json:"years"`
+	IndustryVerifiedYears         float64  `json:"industryVerifiedYears"`
+	RoleRelevantYears             *float64 `json:"roleRelevantYears,omitempty"`
 	IndustryVerifiedRelevantYears *float64 `json:"industryVerifiedRelevantYears,omitempty"`
-	VerifyIn                     string   `json:"verifyIn"`
+	VerifyIn                      string   `json:"verifyIn"`
 }
 
 type ResumeMatchDebugBrandHit struct {
@@ -250,19 +283,19 @@ type MatchStats struct {
 }
 
 type ResumeMatchResult struct {
-	ResumeID         string             `json:"resumeId"`
-	JobDescriptionID string             `json:"jobDescriptionId"`
-	Score            int                `json:"score"`
-	Recommendation   string             `json:"recommendation"`
-	Highlights       []string           `json:"highlights"`
-	Concerns         []string           `json:"concerns"`
-	Summary          string             `json:"summary"`
-	Breakdown        map[string]int     `json:"breakdown,omitempty"`
-	ScoreSource      string             `json:"scoreSource,omitempty"`
-	MatchedAt        string             `json:"matchedAt"`
-	SessionID        string             `json:"sessionId,omitempty"`
-	UserID           string             `json:"userId,omitempty"`
-	Debug            *ResumeMatchDebug  `json:"debug,omitempty"`
+	ResumeID         string            `json:"resumeId"`
+	JobDescriptionID string            `json:"jobDescriptionId"`
+	Score            int               `json:"score"`
+	Recommendation   string            `json:"recommendation"`
+	Highlights       []string          `json:"highlights"`
+	Concerns         []string          `json:"concerns"`
+	Summary          string            `json:"summary"`
+	Breakdown        map[string]int    `json:"breakdown,omitempty"`
+	ScoreSource      string            `json:"scoreSource,omitempty"`
+	MatchedAt        string            `json:"matchedAt"`
+	SessionID        string            `json:"sessionId,omitempty"`
+	UserID           string            `json:"userId,omitempty"`
+	Debug            *ResumeMatchDebug `json:"debug,omitempty"`
 }
 
 type ResumeMatchRequest struct {
@@ -324,6 +357,28 @@ func (c *Client) ListResumes(ctx context.Context, limit int, query string, sourc
 
 func (c *Client) SearchResumes(ctx context.Context, query string, limit int, source string) (*ResumesResponse, error) {
 	return c.ListResumes(ctx, limit, query, source)
+}
+
+func (c *Client) GetResumeDetail(ctx context.Context, resumeID string, sample string, source string) (*ResumeDetailResponse, error) {
+	values := url.Values{}
+	if strings.TrimSpace(sample) != "" {
+		values.Set("sample", strings.TrimSpace(sample))
+	}
+	values.Set("source", normalizeResumeSource(source))
+
+	endpoint := fmt.Sprintf("%s/api/resumes/%s", c.APIURL, url.PathEscape(strings.TrimSpace(resumeID)))
+	if encoded := values.Encode(); encoded != "" {
+		endpoint = fmt.Sprintf("%s?%s", endpoint, encoded)
+	}
+
+	var response ResumeDetailResponse
+	if err := c.doJSON(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("resume detail request was not successful")
+	}
+	return &response, nil
 }
 
 func (c *Client) MatchResumes(ctx context.Context, request ResumeMatchRequest) (*ResumeMatchResponse, error) {

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app";
 import { MatchStorage, type StoredMatch } from "../services/match-storage";
+import { ResumeService } from "../services/resume-service";
 import { SessionManager } from "../services/session-manager";
 
 type ConvexCall = {
@@ -135,6 +136,138 @@ function buildStoredMatch(
 describe("resume routes", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("returns sample-backed resume detail with full work history", async () => {
+    vi.spyOn(ResumeService.prototype, "loadSample").mockReturnValue({
+      items: [
+        {
+          name: "Alice",
+          profileUrl: "https://example.com/alice",
+          source: "ehire.51job.com",
+          activityStatus: "Active today",
+          age: "32岁",
+          experience: "8年",
+          education: "本科",
+          location: "东莞",
+          selfIntro: "熟悉CNC设备销售与客户跟进。",
+          jobIntention: "销售经理",
+          expectedSalary: "20K",
+          workHistory: [
+            {
+              raw: "2021-03 ~ 至今 Example Co. Sales Manager",
+              companyName: "Example Co.",
+              jobTitle: "Sales Manager",
+              description: "Managed CNC accounts.",
+              startDate: "2021-03",
+              endDate: "至今",
+            },
+          ],
+          extractedAt: "2026-04-02T00:00:00.000Z",
+          resumeId: "sample-resume-1",
+          externalId: "sample-resume-1",
+        },
+      ],
+      sample: {
+        name: "sample-initial",
+        filename: "sample-initial.json",
+        updatedAt: "2026-04-02T00:00:00.000Z",
+        size: 123,
+      },
+      metadata: undefined,
+      indexes: new Map(),
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/sample-resume-1?source=sample");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toEqual(
+      expect.objectContaining({
+        success: true,
+        source: "sample",
+        sample: expect.objectContaining({ name: "sample-initial" }),
+        data: expect.objectContaining({
+          resumeId: "sample-resume-1",
+          name: "Alice",
+          workHistory: [
+            expect.objectContaining({
+              companyName: "Example Co.",
+              description: "Managed CNC accounts.",
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("returns convex-backed resume detail with full work history", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      if (call.pathName !== "resumes:getResumeDetail") {
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
+      }
+      expect(call.args).toEqual({ resumeId: "resume-live-1" });
+      return convexSuccess({
+        _id: "resume-live-1",
+        source: "seek",
+        content: {
+          name: "Alice",
+          profileUrl: "https://example.com/alice",
+          activityStatus: "Active today",
+          age: "32岁",
+          experience: "8年",
+          education: "本科",
+          location: "东莞",
+          selfIntro: "熟悉CNC设备销售与客户跟进。",
+          jobIntention: "销售经理",
+          expectedSalary: "20K",
+          workHistory: [
+            {
+              raw: "2021-03 ~ 至今 Example Co. Sales Manager",
+              companyName: "Example Co.",
+              jobTitle: "Sales Manager",
+              description: "Managed CNC accounts.",
+              startDate: "2021-03",
+              endDate: "至今",
+            },
+          ],
+          extractedAt: "2026-04-02T00:00:00.000Z",
+          resumeId: "resume-live-1",
+          externalId: "resume-live-1",
+        },
+        ingestData: {
+          companyHits: ["fanuc"],
+        },
+      });
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/resume-live-1?source=convex");
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toEqual(
+      expect.objectContaining({
+        success: true,
+        source: "convex",
+        data: expect.objectContaining({
+          resumeId: "resume-live-1",
+          name: "Alice",
+          source: "seek",
+          workHistory: [
+            expect.objectContaining({
+              companyName: "Example Co.",
+              description: "Managed CNC accounts.",
+            }),
+          ],
+          ingestData: expect.objectContaining({
+            companyHits: ["fanuc"],
+          }),
+        }),
+      }),
+    );
   });
 
   it("returns convex-backed live query results and expansion metadata", async () => {

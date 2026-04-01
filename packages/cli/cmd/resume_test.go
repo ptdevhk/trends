@@ -54,6 +54,64 @@ func TestResumeSearchCommandSupportsConvexSource(t *testing.T) {
 	}
 }
 
+func TestResumeShowCommandWritesDetailedWorkHistory(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/resume-1" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("source"); got != "convex" {
+			t.Fatalf("expected source=convex, got %q", got)
+		}
+		_ = json.NewEncoder(w).Encode(client.ResumeDetailResponse{
+			Success: true,
+			Source:  "convex",
+			Data: client.ResumeItem{
+				ResumeID:       "resume-1",
+				Name:           "Alice",
+				JobIntention:   "Sales",
+				Location:       "Dongguan",
+				Experience:     "8 years",
+				Education:      "Bachelor",
+				ActivityStatus: "Active today",
+				ExpectedSalary: "20K",
+				ProfileURL:     "https://example.com/alice",
+				SelfIntro:      "Strong CNC sales background.",
+				WorkHistory: []client.ResumeWorkHistoryItem{
+					{
+						Raw:         "2021-03 ~ 至今 Example Co. Sales Manager",
+						CompanyName: "Example Co.",
+						JobTitle:    "Sales Manager",
+						Description: "Managed CNC machine accounts.\nClosed key projects.",
+						StartDate:   "2021-03",
+						EndDate:     "至今",
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "hr")
+	setCLIOutput(t, "table")
+
+	cmd := newResumeShowCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"resume-1", "--source", "convex"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume show command failed: %v", err)
+	}
+
+	text := output.String()
+	if !strings.Contains(text, "Work History:") ||
+		!strings.Contains(text, "Example Co. | Sales Manager") ||
+		!strings.Contains(text, "Managed CNC machine accounts.") {
+		t.Fatalf("unexpected command output: %s", text)
+	}
+}
+
 func TestResumeMatchCommandWritesJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/resumes/match" {
