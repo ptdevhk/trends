@@ -85,6 +85,7 @@ const JOB5156_DETAIL_FETCH_CONCURRENCY = 5;
 const JOB51_DETAIL_FETCH_TIMEOUT_MS = 8000;
 const JOB51_DETAIL_FETCH_CONCURRENCY = 2;
 const JOB51_DETAIL_FETCH_DELAY_MS = 5000;
+const JOB51_DETAIL_FETCH_UNSAFE_DELAY_MS = 1000;
 const DEFAULT_SEEK_PAGE_SIZE = 20;
 const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
 const DEFAULT_COLLECTION_GUARDS = {
@@ -335,9 +336,13 @@ async function getCollectionLimits() {
   });
 }
 
-function resolveJob51CollectionLimits(limit, maxPages) {
+function hasJob51UnsafeLimitsOverride() {
   const params = new URLSearchParams(window.location.search || "");
-  if (params.get("tr_unsafe_limits") === "1") {
+  return params.get("tr_unsafe_limits") === "1";
+}
+
+function resolveJob51CollectionLimits(limit, maxPages) {
+  if (hasJob51UnsafeLimitsOverride()) {
     return {
       limit: limit > 0 ? limit : JOB51_SAFE_LIMIT,
       maxPages: maxPages > 0 ? maxPages : JOB51_SAFE_MAX_PAGES,
@@ -350,6 +355,12 @@ function resolveJob51CollectionLimits(limit, maxPages) {
         ? Math.min(maxPages, JOB51_SAFE_MAX_PAGES)
         : JOB51_SAFE_MAX_PAGES,
   };
+}
+
+function resolveJob51DetailFetchDelayMs() {
+  return hasJob51UnsafeLimitsOverride()
+    ? JOB51_DETAIL_FETCH_UNSAFE_DELAY_MS
+    : JOB51_DETAIL_FETCH_DELAY_MS;
 }
 
 function buildExportFilename() {
@@ -2369,6 +2380,11 @@ async function enrich51JobSearchResumesWithDetail(resumes, options = {}) {
   if (!Array.isArray(resumes) || resumes.length === 0) return [];
 
   const extractedAt = new Date().toISOString();
+  const interBatchDelayMs =
+    typeof options.interBatchDelayMs === "number" &&
+    Number.isFinite(options.interBatchDelayMs)
+      ? options.interBatchDelayMs
+      : resolveJob51DetailFetchDelayMs();
   const collectionGuards = await loadCollectionGuards();
   const guardFields = parseGuardFieldNames(
     collectionGuards?.[SOURCE_KEYS.JOB51],
@@ -2422,7 +2438,7 @@ async function enrich51JobSearchResumesWithDetail(resumes, options = {}) {
     }
 
     if (start + JOB51_DETAIL_FETCH_CONCURRENCY < resumes.length) {
-      await delay(JOB51_DETAIL_FETCH_DELAY_MS);
+      await delay(interBatchDelayMs);
     }
   }
 
@@ -6077,6 +6093,8 @@ function queueJob51DetailBackfill(resumes, context = {}) {
     runId !== null && runId !== job51DetailBackfillRunId;
 
   const task = async () => {
+    const detailFetchDelayMs = resolveJob51DetailFetchDelayMs();
+
     if (isCancelled()) {
       console.log("51job detail backfill skipped", {
         count: resumes.length,
@@ -6090,9 +6108,12 @@ function queueJob51DetailBackfill(resumes, context = {}) {
       count: resumes.length,
       currentPage: context.currentPage,
       totalPages: context.totalPages,
+      delayMs: detailFetchDelayMs,
+      concurrency: JOB51_DETAIL_FETCH_CONCURRENCY,
     });
 
     const enrichedResumes = await enrich51JobSearchResumesWithDetail(resumes, {
+      interBatchDelayMs: detailFetchDelayMs,
       shouldContinue: () => !isCancelled(),
     });
     if (!Array.isArray(enrichedResumes) || enrichedResumes.length === 0) {
