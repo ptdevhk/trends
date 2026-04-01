@@ -171,6 +171,43 @@ function normalizeCollectionLimit(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+function getCurrentLocationSearch() {
+  return window.location.search || "";
+}
+
+function getCurrentAgeRange() {
+  return getAgeRangeFromUrl(
+    getCurrentLocationSearch(),
+    AUTO_MIN_AGE_PARAM,
+    AUTO_MAX_AGE_PARAM,
+  );
+}
+
+function filterCurrentResumesByAgeRange(resumes) {
+  return filterResumesByAgeRange(
+    resumes,
+    getCurrentLocationSearch(),
+    AUTO_MIN_AGE_PARAM,
+    AUTO_MAX_AGE_PARAM,
+  );
+}
+
+function resolveCurrentJob51CollectionLimits(limit, maxPages) {
+  return resolveJob51CollectionLimits(
+    limit,
+    maxPages,
+    getCurrentLocationSearch(),
+  );
+}
+
+function resolveCurrentJob51DetailFetchDelayMs() {
+  return resolveJob51DetailFetchDelayMs(getCurrentLocationSearch());
+}
+
+function resolveCurrentJob51AutoSyncDetailWaitMode() {
+  return resolveJob51AutoSyncDetailWaitMode(getCurrentLocationSearch());
+}
+
 const PROVINCE_TOKENS = new Set([
   "北京",
   "天津",
@@ -264,13 +301,7 @@ async function getCollectionLimits() {
           ? paramMaxPages
           : normalizeCollectionLimit(items?.maxPages);
         if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-          resolve(
-            resolveJob51CollectionLimits(
-              resolvedLimit,
-              resolvedMaxPages,
-              window.location.search,
-            ),
-          );
+          resolve(resolveCurrentJob51CollectionLimits(resolvedLimit, resolvedMaxPages));
           return;
         }
         resolve({
@@ -285,10 +316,9 @@ async function getCollectionLimits() {
       );
       if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
         resolve(
-          resolveJob51CollectionLimits(
+          resolveCurrentJob51CollectionLimits(
             hasLimitParam ? paramLimit : 0,
             hasMaxPagesParam ? paramMaxPages : 0,
-            window.location.search,
           ),
         );
         return;
@@ -2290,7 +2320,7 @@ async function enrich51JobSearchResumesWithDetail(resumes, options = {}) {
     typeof options.interBatchDelayMs === "number" &&
     Number.isFinite(options.interBatchDelayMs)
       ? options.interBatchDelayMs
-      : resolveJob51DetailFetchDelayMs(window.location.search);
+      : resolveCurrentJob51DetailFetchDelayMs();
   const collectionGuards = await loadCollectionGuards();
   const guardFields = parseGuardFieldNames(
     collectionGuards?.[SOURCE_KEYS.JOB51],
@@ -3456,34 +3486,21 @@ function extract51JobResumes() {
 
 function extractJob51DetailResume() {
   if (!isJob51DetailPage() || !isJob51DetailReady()) return [];
-  return filterResumesByAgeRange(
+  return filterCurrentResumesByAgeRange(
     buildJob51DetailResumeFromPayload(apiSnapshot.job51DetailPayload, {
       resumeId:
         new URL(window.location.href).searchParams.get("resumeId") || undefined,
       profileUrl: window.location.href,
     }),
-    window.location.search,
-    AUTO_MIN_AGE_PARAM,
-    AUTO_MAX_AGE_PARAM,
   );
 }
 
 function extractResumes() {
   if (isJob51DetailPage()) {
-    return filterResumesByAgeRange(
-      extractJob51DetailResume(),
-      window.location.search,
-      AUTO_MIN_AGE_PARAM,
-      AUTO_MAX_AGE_PARAM,
-    );
+    return filterCurrentResumesByAgeRange(extractJob51DetailResume());
   }
   if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-    return filterResumesByAgeRange(
-      extract51JobResumes(),
-      window.location.search,
-      AUTO_MIN_AGE_PARAM,
-      AUTO_MAX_AGE_PARAM,
-    );
+    return filterCurrentResumesByAgeRange(extract51JobResumes());
   }
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     if (isSeekProfileMode()) {
@@ -3498,12 +3515,7 @@ function extractResumes() {
   }
 
   if (isJob5156DetailPage()) {
-    return filterResumesByAgeRange(
-      extractJob5156DetailResume(),
-      window.location.search,
-      AUTO_MIN_AGE_PARAM,
-      AUTO_MAX_AGE_PARAM,
-    );
+    return filterCurrentResumesByAgeRange(extractJob5156DetailResume());
   }
 
   const cards = document.querySelectorAll(SELECTORS.resumeCard);
@@ -3524,12 +3536,7 @@ function extractResumes() {
     }
   });
 
-  return filterResumesByAgeRange(
-    resumes,
-    window.location.search,
-    AUTO_MIN_AGE_PARAM,
-    AUTO_MAX_AGE_PARAM,
-  );
+  return filterCurrentResumesByAgeRange(resumes);
 }
 
 /**
@@ -5025,11 +5032,7 @@ function resolveAgeFilterActions(selectBox) {
 
 async function autoApplyAgeFilterFromUrl() {
   const sourceKey = getCurrentSourceKey();
-  const range = getAgeRangeFromUrl(
-    window.location.search,
-    AUTO_MIN_AGE_PARAM,
-    AUTO_MAX_AGE_PARAM,
-  );
+  const range = getCurrentAgeRange();
   if (!range.enabled) {
     setAutoAgeAttributes("skipped");
     return;
@@ -5525,9 +5528,7 @@ function queueJob51DetailBackfill(resumes, context = {}) {
     runId !== null && runId !== job51DetailBackfillRunId;
 
   const task = async () => {
-    const detailFetchDelayMs = resolveJob51DetailFetchDelayMs(
-      window.location.search,
-    );
+    const detailFetchDelayMs = resolveCurrentJob51DetailFetchDelayMs();
 
     if (isCancelled()) {
       console.log("51job detail backfill skipped", {
@@ -5798,11 +5799,7 @@ async function runAutoSyncIfEnabled() {
         resumes = await enrichSeekRecommendedResumesWithDetail(resumes);
       }
       if (resumes.length <= 0) {
-        const ageRange = getAgeRangeFromUrl(
-          window.location.search,
-          AUTO_MIN_AGE_PARAM,
-          AUTO_MAX_AGE_PARAM,
-        );
+        const ageRange = getCurrentAgeRange();
         const ageHint = ageRange.enabled
           ? ` · 年龄: ${typeof ageRange.minAge === "number" ? ageRange.minAge : "—"}-${typeof ageRange.maxAge === "number" ? ageRange.maxAge : "—"}`
           : "";
@@ -5911,9 +5908,7 @@ async function runAutoSyncIfEnabled() {
           currentPage,
           totalPages: Math.max(totalPages, currentPage),
         });
-        const waitMode = resolveJob51AutoSyncDetailWaitMode(
-          window.location.search,
-        );
+        const waitMode = resolveCurrentJob51AutoSyncDetailWaitMode();
         const shouldWaitForDetails =
           waitMode === "all" || (waitMode === "page1" && currentPage === 1);
         if (shouldWaitForDetails) {
@@ -6421,11 +6416,7 @@ async function collectSnapshotPayload(options = {}) {
 function getExternalAccessorStatus() {
   const version = getExtensionVersion();
   const pagination = getPaginationInfo();
-  const ageRange = getAgeRangeFromUrl(
-    window.location.search,
-    AUTO_MIN_AGE_PARAM,
-    AUTO_MAX_AGE_PARAM,
-  );
+  const ageRange = getCurrentAgeRange();
   const sourceKey = getCurrentSourceKey();
   const apiSnapshotCount = getApiSnapshotCount();
   const cardCount =

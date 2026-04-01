@@ -10,6 +10,20 @@ export const EHIRE_51JOB_HOST = "ehire.51job.com";
 export const EHIRE_51JOB_PROFILE_URL_PREFIX =
   "https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=";
 
+const JOB51_DETAIL_ROOT_CANDIDATE_KEYS = [
+  "data",
+  "result",
+  "resume",
+  "detail",
+  "resumeInfo",
+  "resumeDetail",
+  "resumeViewVo",
+  "resume_view_vo",
+  "resumeVo",
+  "cnVo",
+  "content",
+];
+
 const PROVINCE_TOKENS = new Set([
   "北京",
   "天津",
@@ -94,38 +108,15 @@ export function getJob51DetailRoot(payload) {
   }
   if (typeof payload !== "object") return null;
   const record = payload;
-  const candidateKeys = [
-    "data",
-    "result",
-    "resume",
-    "detail",
-    "resumeInfo",
-    "resumeDetail",
-    "resumeViewVo",
-    "resume_view_vo",
-    "resumeVo",
-    "cnVo",
-    "content",
-  ];
-  const candidates = [
-    record.data,
-    record.result,
-    record.resume,
-    record.detail,
-    record.resumeInfo,
-    record.resumeDetail,
-    record.resumeViewVo,
-    record.resume_view_vo,
-    record.resumeVo,
-    record.cnVo,
-    record.content,
-  ];
+  const candidates = JOB51_DETAIL_ROOT_CANDIDATE_KEYS.map((key) => record[key]);
   for (const candidate of candidates) {
     const root = getJob51DetailRoot(candidate);
     if (root) return root;
   }
   if (
-    candidateKeys.some((key) => Object.prototype.hasOwnProperty.call(record, key))
+    JOB51_DETAIL_ROOT_CANDIDATE_KEYS.some((key) =>
+      Object.prototype.hasOwnProperty.call(record, key),
+    )
   ) {
     return null;
   }
