@@ -1202,6 +1202,21 @@ function normalizeJob51MultilineText(value) {
   return normalizeResumeMultilineText(stripHtmlTags(value));
 }
 
+function isLikelyJob51LocationPlaceholderCompanyName(value) {
+  const text = normalizeJob51Text(value);
+  if (!text) return false;
+  if (
+    /(公司|集团|科技|机械|工业|实业|设备|自动化|贸易|精密|制造|电子|机电|工具|刀具|技术|股份|责任|有限|厂|大学|学院|学校|中心|医院|门诊|商贸|材料|模具|液压|传感)/u
+      .test(text)
+  ) {
+    return false;
+  }
+  if (!/^[\u4e00-\u9fa5]{2,4}$/u.test(text)) {
+    return false;
+  }
+  return true;
+}
+
 function normalizeResumeMultilineText(value) {
   if (typeof value !== "string") return "";
   return value
@@ -3648,7 +3663,7 @@ function buildJob51ExperienceEntry(item, kind) {
   if (!item || typeof item !== "object") return null;
 
   const isProject = kind === "project";
-  const companyName = readJob51Text(
+  const rawCompanyName = readJob51Text(
     item.company_name,
     item.companyName,
     item.compname,
@@ -3660,6 +3675,9 @@ function buildJob51ExperienceEntry(item, kind) {
     isProject ? item.projectName : undefined,
     isProject ? item.project : undefined,
   );
+  const companyName = isLikelyJob51LocationPlaceholderCompanyName(rawCompanyName)
+    ? ""
+    : rawCompanyName;
   const jobTitle = readJob51Text(
     item.work_func_value,
     item.workfunc,
