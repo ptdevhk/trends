@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
@@ -35,11 +35,15 @@ const {
   useResumeFieldUsagePolicyMock: vi.fn(),
 }))
 
-vi.mock('@trends/shared', () => ({
-  buildWorkHistoryEntryText: (...args: unknown[]) => buildWorkHistoryEntryTextMock(...args),
-  sanitizeResumeRecordForSurface: (...args: unknown[]) => sanitizeResumeRecordForSurfaceMock(...args),
-  selectLatestWorkHistory: (...args: unknown[]) => selectLatestWorkHistoryMock(...args),
-}))
+vi.mock('@trends/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@trends/shared')>()
+  return {
+    ...actual,
+    buildWorkHistoryEntryText: (...args: unknown[]) => buildWorkHistoryEntryTextMock(...args),
+    sanitizeResumeRecordForSurface: (...args: unknown[]) => sanitizeResumeRecordForSurfaceMock(...args),
+    selectLatestWorkHistory: (...args: unknown[]) => selectLatestWorkHistoryMock(...args),
+  }
+})
 
 vi.mock('@/contexts/ResumeFieldUsagePolicyContext', () => ({
   useResumeFieldUsagePolicy: () => useResumeFieldUsagePolicyMock(),
@@ -139,8 +143,10 @@ describe('SnippetCardExpanded', () => {
     expect(screen.getByText('related exp')).toBeInTheDocument()
     expect(screen.getByText('24')).toBeInTheDocument()
     expect(screen.getByText('Recent work')).toBeInTheDocument()
-    expect(screen.getByText('Sales Engineer @ FANUC')).toBeInTheDocument()
-    expect(screen.getByText('Account Manager @ DMG MORI')).toBeInTheDocument()
+    expect(screen.getByText('FANUC · Sales Engineer')).toBeInTheDocument()
+    expect(screen.getByText('DMG MORI · Account Manager')).toBeInTheDocument()
+    expect(screen.getByText('Built CNC pipeline')).toBeInTheDocument()
+    expect(screen.getByText('Expanded distributor network')).toBeInTheDocument()
     expect(screen.getByText('Malaysia')).toBeInTheDocument()
     expect(screen.getByText('Bachelor')).toBeInTheDocument()
     expect(screen.getByText('Status: interviewed reject')).toBeInTheDocument()
@@ -154,6 +160,20 @@ describe('SnippetCardExpanded', () => {
     const link = screen.getByRole('link', { name: /Open source profile/i })
     expect(link).toHaveAttribute('href', 'https://example.com/profile')
     expect(link).toHaveAttribute('target', '_blank')
+  })
+
+  it('renders a direct details button when requested and calls back on click', () => {
+    const onViewDetails = vi.fn()
+
+    render(
+      <SnippetCardExpanded
+        item={createResult(5)}
+        onViewDetails={onViewDetails}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /View details/i }))
+    expect(onViewDetails).toHaveBeenCalledTimes(1)
   })
 
   it('falls back when summary, work history, metadata, and profile URL are missing', () => {
