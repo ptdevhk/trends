@@ -23,8 +23,8 @@
   const KEYWORD_MODE_SPACED = "spaced";
   const DEFAULT_COLLECTION_GUARDS = {
     job5156: "experience,jobIntention,selfIntro",
-    "51job": "",
-    seek: "",
+    "51job": "experience,jobIntention,selfIntro",
+    seek: "experience,jobIntention,selfIntro",
   };
 
   function normalizeKeywordMode(value) {
@@ -139,8 +139,8 @@
           maxPages: normalizeCollectionLimit(maxPages),
           collectionGuards: {
             job5156: normalizeGuardCsv(collectionGuards?.job5156) || DEFAULT_COLLECTION_GUARDS.job5156,
-            "51job": normalizeGuardCsv(collectionGuards?.["51job"]),
-            seek: normalizeGuardCsv(collectionGuards?.seek),
+            "51job": normalizeGuardCsv(collectionGuards?.["51job"]) || DEFAULT_COLLECTION_GUARDS["51job"],
+            seek: normalizeGuardCsv(collectionGuards?.seek) || DEFAULT_COLLECTION_GUARDS.seek,
           },
         },
         () => resolve(true),
@@ -159,8 +159,8 @@
     if (collectLimitInput) collectLimitInput.value = String(normalizeCollectionLimit(items.collectLimit));
     if (maxPagesInput) maxPagesInput.value = String(normalizeCollectionLimit(items.maxPages));
     if (guardJob5156Input) guardJob5156Input.value = collectionGuards.job5156 || DEFAULT_COLLECTION_GUARDS.job5156;
-    if (guard51jobInput) guard51jobInput.value = collectionGuards["51job"] || "";
-    if (guardSeekInput) guardSeekInput.value = collectionGuards.seek || "";
+    if (guard51jobInput) guard51jobInput.value = collectionGuards["51job"] || DEFAULT_COLLECTION_GUARDS["51job"];
+    if (guardSeekInput) guardSeekInput.value = collectionGuards.seek || DEFAULT_COLLECTION_GUARDS.seek;
 
     setConnectionStatus(false, "未测试");
 
