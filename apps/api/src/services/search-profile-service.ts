@@ -59,6 +59,7 @@ export interface SearchProfile {
         enabled: boolean;
         priority?: number;
         jobUrl?: string;
+        unsafeLimits?: boolean;
     }>;
 
     // Landing page quick start

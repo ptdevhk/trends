@@ -31,6 +31,7 @@ export type CollectionSourceType =
 export type CollectionSource = {
   type: CollectionSourceType
   exactUrl?: string
+  unsafeLimits?: boolean
 }
 
 export type SearchProfileSource = {
@@ -38,6 +39,7 @@ export type SearchProfileSource = {
   enabled: boolean
   priority?: number
   jobUrl?: string
+  unsafeLimits?: boolean
 }
 
 type BuildSeekCollectUrlInput = {
@@ -120,8 +122,19 @@ export function normalizeCollectionSource(
     : undefined
 
   return exactUrl
-    ? { type: value.type, exactUrl }
-    : { type: value.type }
+    ? {
+        type: value.type,
+        exactUrl,
+        ...(value.type === SEARCH_PROFILE_SOURCE_TYPES.job51 && value.unsafeLimits === true
+          ? { unsafeLimits: true }
+          : {}),
+      }
+    : {
+        type: value.type,
+        ...(value.type === SEARCH_PROFILE_SOURCE_TYPES.job51 && value.unsafeLimits === true
+          ? { unsafeLimits: true }
+          : {}),
+      }
 }
 
 export function getLegacyCollectionSource(collectUrl: string | undefined): CollectionSource | undefined {
@@ -161,7 +174,12 @@ export function stripCollectionSourceExactUrl(
     return undefined
   }
 
-  return { type: normalized.type }
+  return {
+    type: normalized.type,
+    ...(normalized.type === SEARCH_PROFILE_SOURCE_TYPES.job51 && normalized.unsafeLimits === true
+      ? { unsafeLimits: true }
+      : {}),
+  }
 }
 
 export function normalizeSeekJobUrl(value: string | undefined): string | undefined {
@@ -383,7 +401,8 @@ export function buildJob51CollectUrl({
   maxPages,
   minAge,
   maxAge,
-}: BuildJob5156CollectUrlInput): string | null {
+  unsafeLimits,
+}: BuildJob5156CollectUrlInput & { unsafeLimits?: boolean }): string | null {
   const normalizedKeywords = normalizeKeywords(keywords)
   if (normalizedKeywords.length === 0) {
     return null
@@ -400,17 +419,26 @@ export function buildJob51CollectUrl({
   url.searchParams.set('tr_auto_sync', 'true')
 
   const normalizedCollectLimit = normalizeOptionalPositiveInt(collectLimit)
-  const job51CollectLimit =
-    typeof normalizedCollectLimit === 'number'
+  const job51CollectLimit = unsafeLimits === true
+    ? (typeof normalizedCollectLimit === 'number'
+      ? normalizedCollectLimit
+      : JOB51_SAFE_LAUNCH_LIMIT)
+    : (typeof normalizedCollectLimit === 'number'
       ? Math.min(normalizedCollectLimit, JOB51_SAFE_LAUNCH_LIMIT)
-      : JOB51_SAFE_LAUNCH_LIMIT
+      : JOB51_SAFE_LAUNCH_LIMIT)
   const normalizedMaxPages = normalizeOptionalPositiveInt(maxPages)
-  const job51MaxPages =
-    typeof normalizedMaxPages === 'number'
+  const job51MaxPages = unsafeLimits === true
+    ? (typeof normalizedMaxPages === 'number'
+      ? normalizedMaxPages
+      : JOB51_SAFE_LAUNCH_MAX_PAGES)
+    : (typeof normalizedMaxPages === 'number'
       ? Math.min(normalizedMaxPages, JOB51_SAFE_LAUNCH_MAX_PAGES)
-      : JOB51_SAFE_LAUNCH_MAX_PAGES
+      : JOB51_SAFE_LAUNCH_MAX_PAGES)
   url.searchParams.set('tr_limit', String(job51CollectLimit))
   url.searchParams.set('tr_max_pages', String(job51MaxPages))
+  if (unsafeLimits === true) {
+    url.searchParams.set('tr_unsafe_limits', '1')
+  }
 
   const normalizedMinAge = normalizeOptionalPositiveInt(minAge)
   if (typeof normalizedMinAge === 'number') {
@@ -454,6 +482,7 @@ export function buildCollectionLaunchUrl({
       maxPages,
       minAge,
       maxAge,
+      unsafeLimits: source.unsafeLimits,
     })
   }
 

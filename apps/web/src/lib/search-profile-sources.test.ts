@@ -148,6 +148,26 @@ describe('search-profile-sources', () => {
     expect(url.searchParams.get('tr_max_age')).toBe('40')
   })
 
+  it('allows larger 51job launch URLs when unsafe limits are explicitly enabled', () => {
+    const collectUrl = buildJob51CollectUrl({
+      location: '东莞',
+      keywords: ['CNC', '销售'],
+      collectLimit: 250,
+      maxPages: 8,
+      minAge: 25,
+      maxAge: 40,
+      unsafeLimits: true,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('tr_limit')).toBe('250')
+    expect(url.searchParams.get('tr_max_pages')).toBe('8')
+    expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
+    expect(url.searchParams.get('tr_min_age')).toBe('25')
+    expect(url.searchParams.get('tr_max_age')).toBe('40')
+  })
+
   it('preserves legacy seek exact URLs as a collection source fallback', () => {
     const legacySource = getLegacyCollectionSource('https://my.employer.seek.com/candidates/recommended?jobId=9&pageNumber=1')
 

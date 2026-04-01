@@ -351,6 +351,7 @@ export function SearchProfilesPage() {
         source: {
           type: activeSource.type as CollectionSourceType,
           exactUrl: activeSource.jobUrl,
+          unsafeLimits: activeSource.unsafeLimits,
         },
         location: detail.location,
         keywords: detail.keywords,

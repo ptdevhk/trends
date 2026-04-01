@@ -1,0 +1,40 @@
+{
+  "data": {
+    "base_info": {
+      "userid": "123456",
+      "accountid": "u-789",
+      "resume_name": "张三",
+      "age": "32",
+      "work_year_value": "9年",
+      "top_degree_value": "本科",
+      "area_value": "东莞"
+    },
+    "job_intention": {
+      "expect_work_function_value": "销售经理",
+      "expect_job_area_value": "东莞",
+      "expect_salary": "20000元/月"
+    },
+    "recent_work_info": {
+      "recent_position": "区域销售经理"
+    },
+    "workExperienceList": [
+      {
+        "startDate": "2021.03",
+        "endDate": "至今",
+        "companyName": "东莞市某机械有限公司",
+        "position": "高级销售工程师",
+        "responsibility_list": [
+          "开发华南客户",
+          "维护大客户关系"
+        ],
+        "workDetail": "负责机床销售和渠道拓展"
+      }
+    ],
+    "educationInfoVoList": [
+      {
+        "schoolName": "广东工业大学",
+        "degree": "本科"
+      }
+    ]
+  }
+}

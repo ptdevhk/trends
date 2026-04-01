@@ -3596,6 +3596,29 @@ function readJob51MultilineText(...values) {
     if (typeof value === "string") {
       const text = normalizeJob51MultilineText(value);
       if (text) return text;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      const text = value
+        .map((entry) =>
+          typeof entry === "string"
+            ? normalizeJob51MultilineText(entry)
+            : entry && typeof entry === "object"
+              ? readJob51MultilineText(
+                  entry.text,
+                  entry.value,
+                  entry.content,
+                  entry.description,
+                  entry.desc,
+                  entry.detail,
+                  entry.duty,
+                  entry.responsibility,
+                )
+              : "",
+        )
+        .filter(Boolean)
+        .join("\n");
+      if (text) return text;
     }
   }
   return "";
@@ -3628,6 +3651,8 @@ function buildJob51ExperienceEntry(item, kind) {
   const companyName = readJob51Text(
     item.company_name,
     item.companyName,
+    item.compname,
+    item.comp_name,
     item.com_name,
     item.comName,
     item.company,
@@ -3637,6 +3662,9 @@ function buildJob51ExperienceEntry(item, kind) {
   );
   const jobTitle = readJob51Text(
     item.work_func_value,
+    item.workfunc,
+    item.workfunc_str,
+    item.work_func_str,
     item.job_name,
     item.jobName,
     item.position,
@@ -3651,7 +3679,8 @@ function buildJob51ExperienceEntry(item, kind) {
       item.begin ??
       item.start_date ??
       item.fromDate ??
-      item.time_begin,
+      item.time_begin ??
+      item.timefrom,
   );
   const endDate = normalizeJob51DateLike(
     item.end_time ??
@@ -3659,31 +3688,60 @@ function buildJob51ExperienceEntry(item, kind) {
       item.end ??
       item.end_date ??
       item.toDate ??
-      item.time_end,
+      item.time_end ??
+      item.timeto,
   );
   const durationLabel = readJob51Text(
     item.working_years,
+    item.worktime,
     item.duration,
     item.timeDiff,
     item.time_diff,
     item.period,
     item.durationLabel,
   );
-  const description = readJob51MultilineText(
-    item.workdescribe,
-    item.work_describe,
-    item.workDescription,
-    item.description,
-    item.desc,
-    item.detail,
-    item.content,
-    isProject ? item.project_desc : undefined,
-    isProject ? item.projectDescribe : undefined,
-  );
+  const description = Array.from(
+    new Set(
+      [
+        item.workdescribe,
+        item.work_describe,
+        item.workDescription,
+        item.work_content,
+        item.workContent,
+        item.work_detail,
+        item.workDetail,
+        item.workDuty,
+        item.work_duty,
+        item.duty,
+        item.duties,
+        item.responsibility,
+        item.responsibilities,
+        item.responsibility_text,
+        item.responsibilityText,
+        item.responsibility_list,
+        item.responsibilityList,
+        item.duty_list,
+        item.dutyList,
+        item.description,
+        item.desc,
+        item.detail,
+        item.content,
+        item.achievement,
+        item.achievements,
+        isProject ? item.project_desc : undefined,
+        isProject ? item.projectDescribe : undefined,
+      ]
+        .map((value) => readJob51MultilineText(value))
+        .filter(Boolean),
+    ),
+  ).join("\n");
   const metaParts = [
     item.industry_tag,
+    item.workindustry,
     item.company_size_value,
+    item.companysize,
     item.work_type_value,
+    item.companytype,
     item.section,
     item.department,
     item.project_name,
@@ -3720,6 +3778,7 @@ function buildJob51EducationEntry(item) {
   const institution = readJob51Text(
     item.school_name,
     item.schoolName,
+    item.schoolname,
     item.school,
     item.institution,
     item.university,
@@ -3727,6 +3786,7 @@ function buildJob51EducationEntry(item) {
   );
   const qualification = readJob51Text(
     item.degree_value,
+    item.degreename,
     item.degree,
     item.degreeStr,
     item.qualification,
@@ -3734,6 +3794,7 @@ function buildJob51EducationEntry(item) {
   );
   const fieldOfStudy = readJob51Text(
     item.major,
+    item.degreemajor,
     item.major_name,
     item.speciality,
     item.field_of_study,
@@ -3746,10 +3807,10 @@ function buildJob51EducationEntry(item) {
     item.content,
   );
   const startDate = normalizeJob51DateLike(
-    item.start_date ?? item.begin ?? item.startTime ?? item.enrollYear,
+    item.start_date ?? item.begin ?? item.startTime ?? item.enrollYear ?? item.timefrom,
   );
   const endDate = normalizeJob51DateLike(
-    item.end_date ?? item.end ?? item.endTime ?? item.graduationYear,
+    item.end_date ?? item.end ?? item.endTime ?? item.graduationYear ?? item.timeto,
   );
 
   if (!institution && !qualification && !fieldOfStudy && !description) {
@@ -3886,6 +3947,15 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
   );
   const baseInfo =
     root.base_info && typeof root.base_info === "object" ? root.base_info : {};
+  const liveJobIntention =
+    Array.isArray(root.jobintention) && root.jobintention[0] &&
+    typeof root.jobintention[0] === "object"
+      ? root.jobintention[0]
+      : {};
+  const liveHighestDegree =
+    root.highestdegree && typeof root.highestdegree === "object"
+      ? root.highestdegree
+      : {};
   const jobIntentionInfo =
     root.job_intention && typeof root.job_intention === "object"
       ? root.job_intention
@@ -3898,9 +3968,15 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
     "work",
     "work_list",
     "workInfoVoList",
+    "workInfoList",
+    "work_info",
+    "work_info_list",
     "workHistory",
+    "work_history",
     "work_experience",
     "workExperience",
+    "workExperienceList",
+    "work_exp_list",
   ])
     .map((item) => buildJob51ExperienceEntry(item, "work"))
     .filter(Boolean);
@@ -3908,8 +3984,10 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
     "project",
     "project_list",
     "projectInfoVoList",
+    "projectInfoList",
     "projectExperience",
     "project_experience",
+    "projectExperienceList",
   ])
     .map((item) => buildJob51ExperienceEntry(item, "project"))
     .filter(Boolean);
@@ -3948,6 +4026,7 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
     root.name,
     root.userName,
     root.user_name,
+    root.username,
     root.resume_name,
     root.realName,
     root.candidateName,
@@ -3956,26 +4035,43 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
     baseInfo.name,
     baseInfo.userName,
   );
-  const age = readJob51Text(root.age, root.realAge, baseInfo.age);
+  const age = readJob51Text(root.age, root.realAge, root.displayage, baseInfo.age);
   const experience = readJob51Text(
     baseInfo.work_year_value,
+    baseInfo.workYear,
+    baseInfo.workYears,
+    root.work_year_value,
+    root.workyear,
     root.workYear,
     root.workYears,
     root.experienceYears,
     root.experience,
-    recentWorkInfo?.recent_position,
+    recentWorkInfo?.working_years,
   );
   const education = readJob51Text(
     baseInfo.top_degree_value,
     root.top_degree_value,
+    liveHighestDegree.degree,
     root.education,
     root.degree,
     root.degreeValue,
   );
   const location = readJob51Text(
     jobIntentionInfo.expect_job_area_value,
+    Array.isArray(liveJobIntention.expectarea)
+      ? liveJobIntention.expectarea
+          .map((item) =>
+            item && typeof item === "object"
+              ? readJob51Text(item.provincecity, item.county)
+              : "",
+          )
+          .filter(Boolean)
+          .join(",")
+      : undefined,
     root.jobIntention?.expect_job_area_value,
     baseInfo.area_value,
+    root.area,
+    root.areaprovincecity,
     root.location,
     root.workCity,
     root.city,
@@ -3984,11 +4080,15 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
   const jobIntention = readJob51Text(
     jobIntentionInfo.expect_work_function_value,
     jobIntentionInfo.expected_work_function_value,
+    liveJobIntention.expectfuncname,
+    liveJobIntention.expectposition,
     root.jobIntention?.expect_work_function_value,
     root.jobIntention?.expected_work_function_value,
     recentWorkInfo.recent_position,
+    root.recentwork?.workname,
     root.jobIntention,
     root.job_name,
+    root.jobname,
     root.desiredJob,
     root.expectedPosition,
     root.targetJob,
@@ -3997,6 +4097,8 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
   const expectedSalary = readJob51Text(
     jobIntentionInfo.new_expect_salary,
     jobIntentionInfo.expect_salary,
+    liveJobIntention.newdisplayexpectsalary,
+    liveJobIntention.displayexpectsalary,
     root.expectedSalary,
     root.desiredSalary,
     root.expectSalary,
@@ -4006,6 +4108,8 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
   const activityStatus = readJob51Text(
     root.active_type,
     root.activityStatus,
+    root.activetimelabel,
+    root.activetime,
     root.lastLoginTime,
     root.last_login_time,
     baseInfo.active_type,
@@ -5615,12 +5719,7 @@ function resolveAgeFilterActions(selectBox) {
 }
 
 async function autoApplyAgeFilterFromUrl() {
-  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-    const range = getAgeRangeFromUrl();
-    setAutoAgeAttributes("skipped", range.minAge, range.maxAge);
-    return;
-  }
-
+  const sourceKey = getCurrentSourceKey();
   const range = getAgeRangeFromUrl();
   if (!range.enabled) {
     setAutoAgeAttributes("skipped");
@@ -5644,6 +5743,13 @@ async function autoApplyAgeFilterFromUrl() {
 
   const ageBlock = findAgeFilterBlock();
   if (!ageBlock) {
+    if (sourceKey === SOURCE_KEYS.JOB51) {
+      setAutoAgeAttributes("filtered-only", minAge, maxAge);
+      console.warn(
+        "🎯 [Auto Age] 51job age filter control not found; relying on extracted resume filtering.",
+      );
+      return;
+    }
     setAutoAgeAttributes("failed", minAge, maxAge);
     console.warn(
       "🎯 [Auto Age] Age filter control not found; skipping native age filter apply.",
@@ -5655,6 +5761,13 @@ async function autoApplyAgeFilterFromUrl() {
     timeoutMs: 5000,
   });
   if (!selectBox) {
+    if (sourceKey === SOURCE_KEYS.JOB51) {
+      setAutoAgeAttributes("filtered-only", minAge, maxAge);
+      console.warn(
+        "🎯 [Auto Age] 51job age filter dropdown did not open; relying on extracted resume filtering.",
+      );
+      return;
+    }
     setAutoAgeAttributes("failed", minAge, maxAge);
     console.warn("🎯 [Auto Age] Failed to open age filter dropdown.");
     return;
@@ -5663,6 +5776,16 @@ async function autoApplyAgeFilterFromUrl() {
   const { minInput, maxInput, confirmButton, cancelButton } =
     resolveAgeFilterActions(selectBox);
   if (!minInput || !maxInput || !confirmButton) {
+    if (sourceKey === SOURCE_KEYS.JOB51) {
+      setAutoAgeAttributes("filtered-only", minAge, maxAge);
+      if (cancelButton) {
+        cancelButton.click();
+      }
+      console.warn(
+        "🎯 [Auto Age] 51job age filter inputs/buttons not found; relying on extracted resume filtering.",
+      );
+      return;
+    }
     setAutoAgeAttributes("failed", minAge, maxAge);
     if (cancelButton) {
       cancelButton.click();

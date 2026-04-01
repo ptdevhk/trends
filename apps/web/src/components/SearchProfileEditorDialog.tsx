@@ -100,6 +100,7 @@ type SourceFormState = {
     job5156Priority: string
     job51Enabled: boolean
     job51Priority: string
+    job51UnsafeLimits: boolean
     seekEnabled: boolean
     seekPriority: string
     seekJobUrl: string
@@ -125,6 +126,7 @@ const DEFAULT_SOURCES_FORM: SourceFormState = {
     job5156Priority: '1',
     job51Enabled: false,
     job51Priority: '3',
+    job51UnsafeLimits: false,
     seekEnabled: false,
     seekPriority: '2',
     seekJobUrl: '',
@@ -205,6 +207,7 @@ function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceF
         job5156Priority: normalizeSourcePriority(job5156Source?.priority) || DEFAULT_SOURCES_FORM.job5156Priority,
         job51Enabled: job51Source?.enabled ?? DEFAULT_SOURCES_FORM.job51Enabled,
         job51Priority: normalizeSourcePriority(job51Source?.priority) || DEFAULT_SOURCES_FORM.job51Priority,
+        job51UnsafeLimits: job51Source?.unsafeLimits === true,
         seekEnabled: seekSource?.enabled ?? DEFAULT_SOURCES_FORM.seekEnabled,
         seekPriority: normalizeSourcePriority(seekSource?.priority) || DEFAULT_SOURCES_FORM.seekPriority,
         seekJobUrl: seekSource?.jobUrl ?? DEFAULT_SOURCES_FORM.seekJobUrl,
@@ -245,6 +248,7 @@ function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: Sea
         type: SEARCH_PROFILE_SOURCE_TYPES.job51,
         enabled: sourceForm.job51Enabled,
         priority: parseOptionalNumber(sourceForm.job51Priority),
+        ...(sourceForm.job51UnsafeLimits ? { unsafeLimits: true } : {}),
     })
 
     sources.push({
@@ -715,6 +719,30 @@ export function SearchProfileEditorDialog({
                                     />
                                 </div>
                             </div>
+
+                            {sourceForm.job51Enabled ? (
+                                <div className="mt-3 grid gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <Checkbox
+                                            id="profile-source-job51-unsafe-limits"
+                                            checked={sourceForm.job51UnsafeLimits}
+                                            onCheckedChange={(checked) => setSourceForm((previous) => ({
+                                                ...previous,
+                                                job51UnsafeLimits: checked === true,
+                                            }))}
+                                        />
+                                        <Label htmlFor="profile-source-job51-unsafe-limits">
+                                            {t('searchProfiles.fields.job51UnsafeLimits', { defaultValue: 'Allow extended 51job collection limits' })}
+                                        </Label>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
+                                        {t(
+                                            'searchProfiles.fields.job51UnsafeLimitsHint',
+                                            { defaultValue: 'Opt in to larger 51job runs by appending tr_unsafe_limits=1 instead of the default 50 resumes / 1 page cap.' },
+                                        )}
+                                    </span>
+                                </div>
+                            ) : null}
                         </div>
 
                         <div className="rounded-md border p-3">
