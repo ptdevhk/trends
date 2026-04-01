@@ -7,6 +7,7 @@
 		build-static build-static-fresh build-extension-zip serve-static \
 		i18n-check i18n-sync i18n-convert i18n-translate i18n-build \
 		refresh-sample refresh-sample-manual prefetch-convex chrome-debug \
+		debug-51job-detail \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
 		seed-clear-demo-resumes \
 		backup-resumes restore-resumes restore-resumes-restart clear-resume-analyses clear-resume-analyses-restart \
@@ -887,6 +888,14 @@ refresh-sample-manual:
 	@echo ""
 	@echo "The exported file includes metadata for reproduction."
 
+# Inspect one synced 51job resume's parsed detail fields/workHistory via Trends CLI
+debug-51job-detail:
+	@if [ -z "$(RESUME_ID)" ]; then \
+		echo "Usage: make debug-51job-detail RESUME_ID=<resume-id> [RAW_PATH=/tmp/51job-<resume-id>-raw.json]"; \
+		exit 1; \
+	fi
+	./scripts/debug-51job-detail.sh "$(RESUME_ID)" "$(RAW_PATH)"
+
 # Start Chrome with remote debugging on port 9222 (for CDP/MCP)
 chrome-debug:
 	@chmod +x scripts/chrome-debug.sh
@@ -1159,6 +1168,7 @@ help:
 	@echo "  verify-dev-resume-latency Run strict local /dev/resumes regression gate against latest artifact"
 	@echo "  refresh-sample Auto-refresh resume sample data via CDP"
 	@echo "  refresh-sample-manual Show manual instructions for refreshing resume sample data"
+	@echo "  debug-51job-detail Inspect one synced 51job resume via Trends CLI backup"
 	@echo "  chrome-debug   Start Google Chrome with remote debugging (port 9222)"
 	@echo "  clean          Remove generated/cached files"
 	@echo "  check [TARGET=codex|agents|all] Run validation checks (Python + Node + governance skill validation)"
@@ -1205,6 +1215,8 @@ help:
 	@echo "  ALLOW_EMPTY    Allow empty resume samples (set to 1)"
 	@echo "  KEYWORD        Search keyword for refresh-sample / verify / benchmark"
 	@echo "  SAMPLE         Sample name for refresh-sample (default: sample-initial)"
+	@echo "  RESUME_ID      51job resumeId for make debug-51job-detail"
+	@echo "  RAW_PATH       Optional raw detail payload JSON path for make debug-51job-detail"
 	@echo "  LOCATION       Location filter for refresh-sample / verify / benchmark"
 	@echo "  RUNS           Benchmark measured runs per mode (default: 10, matrix: 3)"
 	@echo "  WARMUP         Benchmark warmup runs per mode (default: 1, matrix: 0)"
