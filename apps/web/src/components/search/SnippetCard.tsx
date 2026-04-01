@@ -13,6 +13,7 @@ type SnippetCardProps = {
   item: ResumeSearchResultItem
   showAiScore?: boolean
   onToggleExpanded: () => void
+  onViewDetails?: () => void
 }
 
 function getPrimaryHeadline(item: ResumeSearchResultItem, fallbackLabel: string): string {
@@ -24,7 +25,13 @@ function getPrimaryHeadline(item: ResumeSearchResultItem, fallbackLabel: string)
   return item.resume.jobIntention || fallbackLabel
 }
 
-export function SnippetCard({ expanded, item, showAiScore = false, onToggleExpanded }: SnippetCardProps) {
+export function SnippetCard({
+  expanded,
+  item,
+  showAiScore = false,
+  onToggleExpanded,
+  onViewDetails,
+}: SnippetCardProps) {
   const { t } = useTranslation()
   const contentLocale = getResumeContentLocale(item.resume)
   const analysis = item.analysis ?? item.resume.analysis
@@ -166,7 +173,13 @@ export function SnippetCard({ expanded, item, showAiScore = false, onToggleExpan
         </div>
       </div>
 
-      {expanded ? <SnippetCardExpanded item={item} showAiScore={showAiScore} /> : null}
+      {expanded ? (
+        <SnippetCardExpanded
+          item={item}
+          showAiScore={showAiScore}
+          onViewDetails={onViewDetails}
+        />
+      ) : null}
     </Card>
   )
 }

@@ -3,7 +3,7 @@ import { BriefcaseBusiness, ExternalLink, MapPin, School, Sparkles } from 'lucid
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
-import { buttonVariants } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { cn } from '@/lib/utils'
 import { getResumeContentLocale, isSafeProfileUrl } from '@/lib/resume-scoring'
@@ -12,13 +12,14 @@ import type { ResumeSearchResultItem } from '@/components/search/search-types'
 type SnippetCardExpandedProps = {
   item: ResumeSearchResultItem
   showAiScore?: boolean
+  onViewDetails?: () => void
 }
 
 function formatSnakeCaseLabel(value: string): string {
   return value.replace(/_/g, ' ')
 }
 
-export function SnippetCardExpanded({ item, showAiScore = false }: SnippetCardExpandedProps) {
+export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }: SnippetCardExpandedProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const contentLocale = getResumeContentLocale(item.resume)
@@ -84,6 +85,9 @@ export function SnippetCardExpanded({ item, showAiScore = false }: SnippetCardEx
   })
   const openSourceProfileLabel = t('resumes.searchPage.card.openSourceProfile', {
     defaultValue: 'Open source profile',
+  })
+  const viewDetailsLabel = t('resumes.actions.view', {
+    defaultValue: 'View details',
   })
   const aiSummaryUnavailableLabel = t('resumes.searchPage.card.aiSummaryUnavailable', {
     defaultValue: 'AI analysis is not available for this resume yet. The score will appear after analysis completes.',
@@ -250,16 +254,30 @@ export function SnippetCardExpanded({ item, showAiScore = false }: SnippetCardEx
             </div>
           </div>
 
-          {hasProfileUrl ? (
-            <a
-              href={profileUrl}
-              target="_blank"
-              rel="noreferrer"
-              className={cn(buttonVariants({ variant: 'outline' }), 'w-full justify-center rounded-full')}
-            >
-              {openSourceProfileLabel}
-              <ExternalLink className="ml-2 h-4 w-4" />
-            </a>
+          {onViewDetails || hasProfileUrl ? (
+            <div className="flex flex-col gap-2">
+              {onViewDetails ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-center rounded-full"
+                  onClick={onViewDetails}
+                >
+                  {viewDetailsLabel}
+                </Button>
+              ) : null}
+              {hasProfileUrl ? (
+                <a
+                  href={profileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={cn(buttonVariants({ variant: 'outline' }), 'w-full justify-center rounded-full')}
+                >
+                  {openSourceProfileLabel}
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                </a>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </div>

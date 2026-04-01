@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchResultsList } from '@/components/search/SearchResultsList'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
@@ -45,10 +45,43 @@ vi.mock('@/components/search/SnippetCard', () => ({
   SnippetCard: ({
     expanded,
     item,
+    onViewDetails,
   }: {
     expanded: boolean
     item: ResumeSearchResultItem
-  }) => <div>{`${item.key}:${expanded ? 'expanded' : 'collapsed'}`}</div>,
+    onViewDetails?: () => void
+  }) => (
+    <div>
+      <div>{`${item.key}:${expanded ? 'expanded' : 'collapsed'}`}</div>
+      <button type="button" onClick={onViewDetails}>view-details-{item.key}</button>
+    </div>
+  ),
+}))
+
+vi.mock('@/hooks/useConvexResumes', () => ({
+  useConvexResumeDetail: vi.fn(() => ({
+    resume: null,
+    loading: false,
+  })),
+}))
+
+vi.mock('@/components/ResumeDetail', () => ({
+  ResumeDetail: ({
+    open,
+    resume,
+    onOpenChange,
+  }: {
+    open: boolean
+    resume: { name?: string } | null
+    onOpenChange: (open: boolean) => void
+  }) => (
+    open ? (
+      <div>
+        <div>resume-detail:{resume?.name ?? 'unknown'}</div>
+        <button type="button" onClick={() => onOpenChange(false)}>close-detail</button>
+      </div>
+    ) : null
+  ),
 }))
 
 describe('SearchResultsList', () => {
@@ -205,7 +238,7 @@ describe('SearchResultsList', () => {
 
     const content = await screen.findByText('resume-0:collapsed')
     await waitFor(() => {
-      expect(content.parentElement).toHaveStyle({ transform: 'translateY(40px)' })
+      expect(content.parentElement?.parentElement).toHaveStyle({ transform: 'translateY(40px)' })
     })
   })
 
@@ -271,5 +304,27 @@ describe('SearchResultsList', () => {
     expect(screen.getByText('resume-0:collapsed')).toBeInTheDocument()
     expect(screen.getByText('resume-44:collapsed')).toBeInTheDocument()
     expect(screen.getByText('End of results')).toBeInTheDocument()
+  })
+
+  it('opens the internal resume detail modal from a search result card', async () => {
+    render(
+      <SearchResultsList
+        expandedIds={new Set(['resume-0'])}
+        hasMore={false}
+        items={[createItem(0)]}
+        onLoadMore={vi.fn()}
+        onToggleExpanded={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'view-details-resume-0' }))
+    await waitFor(() => {
+      expect(screen.getByText('resume-detail:Candidate 0')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'close-detail' }))
+    await waitFor(() => {
+      expect(screen.queryByText('resume-detail:Candidate 0')).not.toBeInTheDocument()
+    })
   })
 })
