@@ -363,6 +363,16 @@ function resolveJob51DetailFetchDelayMs() {
     : JOB51_DETAIL_FETCH_DELAY_MS;
 }
 
+function resolveJob51AutoSyncDetailWaitMode() {
+  const params = new URLSearchParams(window.location.search || "");
+  const mode = normalizeResumeText(params.get("tr_job51_detail_wait") || "")
+    .toLowerCase();
+  if (mode === "page1" || mode === "all") {
+    return mode;
+  }
+  return "background";
+}
+
 function buildExportFilename() {
   const params = new URLSearchParams(window.location.search || "");
   const rawSampleName = params.get(SAMPLE_NAME_PARAM) || "";
@@ -6610,10 +6620,21 @@ async function runAutoSyncIfEnabled() {
         !isJob51DetailPage() &&
         resumes.length > 0
       ) {
-        void queueJob51DetailBackfill(resumes, {
+        const detailBackfillPromise = queueJob51DetailBackfill(resumes, {
           currentPage,
           totalPages: Math.max(totalPages, currentPage),
         });
+        const waitMode = resolveJob51AutoSyncDetailWaitMode();
+        const shouldWaitForDetails =
+          waitMode === "all" || (waitMode === "page1" && currentPage === 1);
+        if (shouldWaitForDetails) {
+          SyncStatusWidget.show({
+            state: "progress",
+            message: `正在补充第 ${currentPage}/${Math.max(totalPages, currentPage)} 页详情...`,
+            hint: "等待 51job 详情补充后再完成本页同步",
+          });
+          await detailBackfillPromise;
+        }
       }
 
       if (autoSyncCancelled) {

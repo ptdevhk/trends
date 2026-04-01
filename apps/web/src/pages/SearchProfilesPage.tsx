@@ -367,8 +367,17 @@ export function SearchProfilesPage() {
         return
       }
 
+      const finalLaunchUrl = (() => {
+        if (activeSource.type !== SEARCH_PROFILE_SOURCE_TYPES.job51) {
+          return launchUrl
+        }
+        const url = new URL(launchUrl)
+        url.searchParams.set('tr_job51_detail_wait', 'page1')
+        return url.toString()
+      })()
+
       setRunningIds((previous) => new Set(previous).add(profileId))
-      window.open(launchUrl, `trends-collect-${activeSource.type}`, 'noopener,noreferrer')
+      window.open(finalLaunchUrl, `trends-collect-${activeSource.type}`, 'noopener,noreferrer')
       toast.success(t('searchProfiles.openTabSuccess', { defaultValue: 'Opened collection in a new tab' }))
       const existingTimer = headModeResetTimersRef.current[profileId]
       if (existingTimer) {

@@ -11,6 +11,7 @@ type Job51Helpers = {
     maxPages: number;
   };
   resolveJob51DetailFetchDelayMs: () => number;
+  resolveJob51AutoSyncDetailWaitMode: () => string;
 };
 
 function extractConstNumber(source: string, name: string): number {
@@ -73,6 +74,14 @@ async function loadJob51Helpers(search: string): Promise<Job51Helpers> {
     source,
     "resolveJob51DetailFetchDelayMs",
   );
+  const normalizeResumeTextSource = extractFunctionSource(
+    source,
+    "normalizeResumeText",
+  );
+  const resolveWaitModeSource = extractFunctionSource(
+    source,
+    "resolveJob51AutoSyncDetailWaitMode",
+  );
 
   const factory = new Function(
     "window",
@@ -81,11 +90,14 @@ async function loadJob51Helpers(search: string): Promise<Job51Helpers> {
     "JOB51_DETAIL_FETCH_DELAY_MS",
     "JOB51_DETAIL_FETCH_UNSAFE_DELAY_MS",
     `${hasUnsafeSource}
+${normalizeResumeTextSource}
 ${resolveLimitsSource}
 ${resolveDelaySource}
+${resolveWaitModeSource}
 return {
   resolveJob51CollectionLimits,
   resolveJob51DetailFetchDelayMs,
+  resolveJob51AutoSyncDetailWaitMode,
 };`,
   ) as (
     window: { location: { search: string } },
@@ -117,6 +129,7 @@ describe("job51 content config", () => {
       maxPages: 1,
     });
     expect(helpers.resolveJob51DetailFetchDelayMs()).toBe(5000);
+    expect(helpers.resolveJob51AutoSyncDetailWaitMode()).toBe("background");
   });
 
   it("unlocks 200+ unsafe runs and uses the faster unsafe delay", async () => {
@@ -131,5 +144,13 @@ describe("job51 content config", () => {
       maxPages: 1,
     });
     expect(helpers.resolveJob51DetailFetchDelayMs()).toBe(1000);
+  });
+
+  it("lets 51job auto sync wait for the first page when explicitly requested", async () => {
+    const helpers = await loadJob51Helpers(
+      "?keyword=CNC&tr_job51_detail_wait=page1",
+    );
+
+    expect(helpers.resolveJob51AutoSyncDetailWaitMode()).toBe("page1");
   });
 });
