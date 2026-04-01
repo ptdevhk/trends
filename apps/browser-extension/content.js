@@ -89,8 +89,8 @@ const DEFAULT_SEEK_PAGE_SIZE = 20;
 const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
 const DEFAULT_COLLECTION_GUARDS = {
   job5156: "experience,jobIntention,selfIntro",
-  "51job": "",
-  seek: "",
+  "51job": "experience,jobIntention,selfIntro",
+  seek: "experience,jobIntention,selfIntro",
 };
 
 const apiSnapshot = {
@@ -114,6 +114,8 @@ const apiSnapshot = {
 };
 
 const lastPersistedAutoSyncSummaryFingerprintBySource = {};
+let job51DetailBackfillChain = Promise.resolve();
+let job51DetailBackfillRunId = 0;
 
 function sanitizeSampleName(value) {
   if (!value) return "";
@@ -301,7 +303,9 @@ async function getCollectionLimits() {
           ? paramMaxPages
           : normalizeCollectionLimit(items?.maxPages);
         if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-          resolve(resolveJob51CollectionLimits(resolvedLimit, resolvedMaxPages));
+          resolve(
+            resolveJob51CollectionLimits(resolvedLimit, resolvedMaxPages),
+          );
           return;
         }
         resolve({
@@ -625,8 +629,7 @@ function isJob51RateLimitedPage() {
   if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) return false;
   const pageText = normalizeResumeText(document.body?.textContent || "");
   return (
-    pageText.includes("搜索访问太快") &&
-    pageText.includes("请60分钟后再试")
+    pageText.includes("搜索访问太快") && pageText.includes("请60分钟后再试")
   );
 }
 
@@ -655,7 +658,9 @@ function normalizeJob51FreshStart() {
   if (!getAutoSyncEnabled()) return;
   if (hasJob51SearchSnapshot()) return;
   const url = new URL(window.location.href);
-  const pageIndex = normalizeOptionalPositiveInt(url.searchParams.get("pageIndex"));
+  const pageIndex = normalizeOptionalPositiveInt(
+    url.searchParams.get("pageIndex"),
+  );
   if (!pageIndex || pageIndex <= 1) return;
   url.searchParams.delete("pageIndex");
   window.history.replaceState(window.history.state, "", url.toString());
@@ -773,7 +778,9 @@ function isJob5156DetailRootReady(root, pathname) {
 
 function isExtractionReady() {
   if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-    return isJob51DetailPage() ? isJob51DetailReady() : hasJob51SearchSnapshot();
+    return isJob51DetailPage()
+      ? isJob51DetailReady()
+      : hasJob51SearchSnapshot();
   }
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     return isSeekSnapshotReady();
@@ -2140,7 +2147,8 @@ async function collectJob51DetailFromBackground(resumeId) {
       rateLimited: isJob51RateLimitedErrorMessage(errorMessage),
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error || "");
+    const message =
+      error instanceof Error ? error.message : String(error || "");
     return {
       payload: null,
       rateLimited: isJob51RateLimitedErrorMessage(message),
@@ -2169,7 +2177,9 @@ async function fetch51JobResumeDetail(resumeId) {
     const headers = {
       Accept: "application/json, text/plain, */*",
       "Content-Type": "application/json",
-      ...(authContext.accesstoken ? { accesstoken: authContext.accesstoken } : {}),
+      ...(authContext.accesstoken
+        ? { accesstoken: authContext.accesstoken }
+        : {}),
       ...(authContext.guid ? { guid: authContext.guid } : {}),
       ...(authContext.property ? { property: authContext.property } : {}),
     };
@@ -2205,14 +2215,22 @@ async function fetch51JobResumeDetail(resumeId) {
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error || "");
+      const message =
+        error instanceof Error ? error.message : String(error || "");
       if (isJob51RateLimitedErrorMessage(message)) {
         return { payload: null, rateLimited: true };
       }
       if (error instanceof DOMException && error.name === "AbortError") {
-        console.warn("🎯 [Auto Sync] Direct Job51 detail fetch timed out:", normalizedResumeId);
+        console.warn(
+          "🎯 [Auto Sync] Direct Job51 detail fetch timed out:",
+          normalizedResumeId,
+        );
       } else {
-        console.warn("🎯 [Auto Sync] Direct Job51 detail fetch failed:", normalizedResumeId, error);
+        console.warn(
+          "🎯 [Auto Sync] Direct Job51 detail fetch failed:",
+          normalizedResumeId,
+          error,
+        );
       }
     } finally {
       window.clearTimeout(timeoutId);
@@ -2258,10 +2276,11 @@ async function enrich51JobSearchResumeWithDetail(resume, extractedAt) {
       };
     }
 
-    const detailResume = buildJob51DetailResumeFromPayload(detailResult.payload, {
-      resumeId,
-      profileUrl: fallbackResume.profileUrl || "",
-    })[0] || null;
+    const detailResume =
+      buildJob51DetailResumeFromPayload(detailResult.payload, {
+        resumeId,
+        profileUrl: fallbackResume.profileUrl || "",
+      })[0] || null;
 
     if (!detailResume) {
       return {
@@ -2275,14 +2294,59 @@ async function enrich51JobSearchResumeWithDetail(resume, extractedAt) {
       resume: {
         ...fallbackResume,
         ...detailResume,
+        name: detailResume.name || fallbackResume.name || "",
+        age: detailResume.age || fallbackResume.age || "",
+        experience: detailResume.experience || fallbackResume.experience || "",
+        education: detailResume.education || fallbackResume.education || "",
+        location: detailResume.location || fallbackResume.location || "",
+        jobIntention:
+          detailResume.jobIntention || fallbackResume.jobIntention || "",
+        expectedSalary:
+          detailResume.expectedSalary || fallbackResume.expectedSalary || "",
+        activityStatus:
+          detailResume.activityStatus || fallbackResume.activityStatus || "",
+        selfIntro: detailResume.selfIntro || fallbackResume.selfIntro || "",
+        resumeId: detailResume.resumeId || fallbackResume.resumeId,
+        perUserId: detailResume.perUserId || fallbackResume.perUserId,
+        externalId: detailResume.externalId || fallbackResume.externalId,
+        profileUrl: detailResume.profileUrl || fallbackResume.profileUrl,
         extractedAt: fallbackResume.extractedAt,
         pageIndex: fallbackResume.pageIndex,
         pageNumber: fallbackResume.pageNumber,
-        workHistory: detailResume.workHistory || [],
-        projectExperience: detailResume.projectExperience || [],
-        profileEducation: detailResume.profileEducation || [],
-        skills: detailResume.skills || [],
-        licences: detailResume.licences || [],
+        workHistory:
+          Array.isArray(detailResume.workHistory) &&
+          detailResume.workHistory.length > 0
+            ? detailResume.workHistory
+            : Array.isArray(fallbackResume.workHistory)
+              ? fallbackResume.workHistory
+              : [],
+        projectExperience:
+          Array.isArray(detailResume.projectExperience) &&
+          detailResume.projectExperience.length > 0
+            ? detailResume.projectExperience
+            : Array.isArray(fallbackResume.projectExperience)
+              ? fallbackResume.projectExperience
+              : [],
+        profileEducation:
+          Array.isArray(detailResume.profileEducation) &&
+          detailResume.profileEducation.length > 0
+            ? detailResume.profileEducation
+            : Array.isArray(fallbackResume.profileEducation)
+              ? fallbackResume.profileEducation
+              : [],
+        skills:
+          Array.isArray(detailResume.skills) && detailResume.skills.length > 0
+            ? detailResume.skills
+            : Array.isArray(fallbackResume.skills)
+              ? fallbackResume.skills
+              : [],
+        licences:
+          Array.isArray(detailResume.licences) &&
+          detailResume.licences.length > 0
+            ? detailResume.licences
+            : Array.isArray(fallbackResume.licences)
+              ? fallbackResume.licences
+              : [],
       },
       enriched: true,
       rateLimited: !!detailResult.rateLimited,
@@ -2301,16 +2365,30 @@ async function enrich51JobSearchResumeWithDetail(resume, extractedAt) {
   }
 }
 
-async function enrich51JobSearchResumesWithDetail(resumes) {
+async function enrich51JobSearchResumesWithDetail(resumes, options = {}) {
   if (!Array.isArray(resumes) || resumes.length === 0) return [];
 
   const extractedAt = new Date().toISOString();
   const collectionGuards = await loadCollectionGuards();
-  const guardFields = parseGuardFieldNames(collectionGuards?.[SOURCE_KEYS.JOB51]);
+  const guardFields = parseGuardFieldNames(
+    collectionGuards?.[SOURCE_KEYS.JOB51],
+  );
+  const shouldContinue =
+    typeof options.shouldContinue === "function"
+      ? options.shouldContinue
+      : () => true;
   const enriched = [];
   let enrichedCount = 0;
 
-  for (let index = 0; index < resumes.length; index += JOB51_DETAIL_FETCH_CONCURRENCY) {
+  for (
+    let index = 0;
+    index < resumes.length;
+    index += JOB51_DETAIL_FETCH_CONCURRENCY
+  ) {
+    if (!shouldContinue()) {
+      break;
+    }
+
     const result = await enrich51JobSearchResumeWithDetail(
       resumes[index],
       extractedAt,
@@ -2325,7 +2403,7 @@ async function enrich51JobSearchResumesWithDetail(resumes) {
       `51job detail enrichment: ${index + 1}/${resumes.length} (${enrichedCount} enriched)`,
     );
 
-    if (result?.rateLimited) {
+    if (result?.rateLimited || !shouldContinue()) {
       break;
     }
 
@@ -2705,7 +2783,15 @@ function extractProfileUrl(card, apiRow) {
 }
 
 function updateApiSnapshot(message) {
-  const { kind, payload, url, sourceKey, operationName, request, requestHeaders } = message;
+  const {
+    kind,
+    payload,
+    url,
+    sourceKey,
+    operationName,
+    request,
+    requestHeaders,
+  } = message;
   apiSnapshot.lastUpdatedAt = new Date().toISOString();
   if (url) apiSnapshot.lastUrl = url;
   apiSnapshot.lastSourceKey = sourceKey || null;
@@ -2753,8 +2839,7 @@ function updateApiSnapshot(message) {
       apiSnapshot.job51Total = total;
     }
     const rows = getJob51ResumeRows(payload);
-    const hasResultPayload =
-      Array.isArray(rows) || typeof total === "number";
+    const hasResultPayload = Array.isArray(rows) || typeof total === "number";
     if (hasResultPayload) {
       apiSnapshot.job51SearchRows = Array.isArray(rows) ? rows : [];
       apiSnapshot.lastSearchAt = apiSnapshot.lastUpdatedAt;
@@ -3256,7 +3341,9 @@ function extract51JobResumes() {
       ? row.education_list
       : [];
     const latestWork =
-      workList.find((item) => item && typeof item === "object" && item.is_show) ||
+      workList.find(
+        (item) => item && typeof item === "object" && item.is_show,
+      ) ||
       workList[0] ||
       {};
     const latestEducation =
@@ -3323,7 +3410,9 @@ function extract51JobResumes() {
         row?.candidateName ||
         row?.fullName,
     );
-    const ageValue = normalizeJob51Text(baseInfo.age || row?.age || row?.realAge);
+    const ageValue = normalizeJob51Text(
+      baseInfo.age || row?.age || row?.realAge,
+    );
     const age = ageValue
       ? ageValue.includes("岁")
         ? ageValue
@@ -3583,7 +3672,10 @@ function buildJob51ExperienceEntry(item, kind) {
   if (!raw && !description && !companyName && !jobTitle) return null;
 
   return {
-    raw: raw || description || buildWorkHistoryRawParts([companyName, jobTitle, startDate, endDate]),
+    raw:
+      raw ||
+      description ||
+      buildWorkHistoryRawParts([companyName, jobTitle, startDate, endDate]),
     companyName: companyName || undefined,
     jobTitle: jobTitle || undefined,
     description: description || undefined,
@@ -3651,12 +3743,19 @@ function buildJob51SkillEntry(item) {
   }
   if (!item || typeof item !== "object") return null;
 
-  const name = readJob51Text(item.skill_name, item.name, item.label, item.skill, item.tag);
+  const name = readJob51Text(
+    item.skill_name,
+    item.name,
+    item.label,
+    item.skill,
+    item.tag,
+  );
   if (!name) return null;
 
   const level = readJob51Text(item.level, item.skill_level, item.proficiency);
   const yearsOfExperience =
-    typeof item.yearsOfExperience === "number" && Number.isFinite(item.yearsOfExperience)
+    typeof item.yearsOfExperience === "number" &&
+    Number.isFinite(item.yearsOfExperience)
       ? item.yearsOfExperience
       : typeof item.years === "number" && Number.isFinite(item.years)
         ? item.years
@@ -3701,10 +3800,18 @@ function buildJob51LicenceEntry(item) {
     item.company,
   );
   const issuedAt = normalizeJob51DateLike(
-    item.issuedAt ?? item.issue_date ?? item.issued_date ?? item.start_date ?? item.startTime,
+    item.issuedAt ??
+      item.issue_date ??
+      item.issued_date ??
+      item.start_date ??
+      item.startTime,
   );
   const expiresAt = normalizeJob51DateLike(
-    item.expiresAt ?? item.expire_date ?? item.expired_date ?? item.end_date ?? item.endTime,
+    item.expiresAt ??
+      item.expire_date ??
+      item.expired_date ??
+      item.end_date ??
+      item.endTime,
   );
 
   return {
@@ -3796,7 +3903,12 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
     .map((item) => buildJob51SkillEntry(item))
     .filter(Boolean);
   const licences = [
-    ...readJob51Array(root, ["certification", "certifications", "certificate", "certificates"]),
+    ...readJob51Array(root, [
+      "certification",
+      "certifications",
+      "certificate",
+      "certificates",
+    ]),
     ...readJob51Array(root, ["train", "training", "train_list", "trainings"]),
   ]
     .map((item) => buildJob51LicenceEntry(item))
@@ -3886,7 +3998,13 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
   const pageIndex = 1;
   const source = EHIRE_51JOB_HOST;
 
-  if (!resumeId && !name && !jobIntention && !selfIntro && workHistory.length === 0) {
+  if (
+    !resumeId &&
+    !name &&
+    !jobIntention &&
+    !selfIntro &&
+    workHistory.length === 0
+  ) {
     return [];
   }
 
@@ -3922,10 +4040,13 @@ function buildJob51DetailResumeFromPayload(payload, options = {}) {
 
 function extractJob51DetailResume() {
   if (!isJob51DetailPage() || !isJob51DetailReady()) return [];
-  return filterResumesByAgeRange(buildJob51DetailResumeFromPayload(apiSnapshot.job51DetailPayload, {
-    resumeId: new URL(window.location.href).searchParams.get("resumeId") || undefined,
-    profileUrl: window.location.href,
-  }));
+  return filterResumesByAgeRange(
+    buildJob51DetailResumeFromPayload(apiSnapshot.job51DetailPayload, {
+      resumeId:
+        new URL(window.location.href).searchParams.get("resumeId") || undefined,
+      profileUrl: window.location.href,
+    }),
+  );
 }
 
 function extractResumes() {
@@ -3933,7 +4054,7 @@ function extractResumes() {
     return filterResumesByAgeRange(extractJob51DetailResume());
   }
   if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-    return extract51JobResumes();
+    return filterResumesByAgeRange(extract51JobResumes());
   }
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     if (isSeekProfileMode()) {
@@ -4055,7 +4176,11 @@ function extractResumesRaw(options = {}) {
           index: 1,
           resumeId: detailResume?.resumeId || "",
           perUserId: detailResume?.perUserId || "",
-          text: JSON.stringify(detailResume?.rawData || apiSnapshot.job51DetailPayload, null, 2),
+          text: JSON.stringify(
+            detailResume?.rawData || apiSnapshot.job51DetailPayload,
+            null,
+            2,
+          ),
         },
       ],
       api: {
@@ -4875,7 +5000,10 @@ function waitForApiRows({ timeoutMs = 5000, minCount = 1 } = {}) {
 
     const check = () => {
       if (done) return;
-      if (getCurrentSourceKey() === SOURCE_KEYS.JOB51 && isJob51RateLimitedPage()) {
+      if (
+        getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
+        isJob51RateLimitedPage()
+      ) {
         done = true;
         cleanup();
         reject(new Error(JOB51_RATE_LIMIT_ERROR_MESSAGE));
@@ -4912,7 +5040,10 @@ function waitForApiRows({ timeoutMs = 5000, minCount = 1 } = {}) {
 }
 
 async function waitForExtractionData({ timeoutMs = 30000, minCount = 1 } = {}) {
-  if (getCurrentSourceKey() === SOURCE_KEYS.SEEK || getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
+  if (
+    getCurrentSourceKey() === SOURCE_KEYS.SEEK ||
+    getCurrentSourceKey() === SOURCE_KEYS.JOB51
+  ) {
     return waitForApiRows({ timeoutMs, minCount });
   }
 
@@ -5111,8 +5242,14 @@ function waitForSearchElements({ timeoutMs = 8000 } = {}) {
     const check = () => {
       if (done) return;
       const sourceKey = getCurrentSourceKey();
-      const inputSel = sourceKey === SOURCE_KEYS.JOB51 ? SELECTORS.job51SearchInput : SELECTORS.searchInput;
-      const buttonSel = sourceKey === SOURCE_KEYS.JOB51 ? SELECTORS.job51SearchButton : SELECTORS.searchButton;
+      const inputSel =
+        sourceKey === SOURCE_KEYS.JOB51
+          ? SELECTORS.job51SearchInput
+          : SELECTORS.searchInput;
+      const buttonSel =
+        sourceKey === SOURCE_KEYS.JOB51
+          ? SELECTORS.job51SearchButton
+          : SELECTORS.searchButton;
       const input = document.querySelector(inputSel);
       const button = document.querySelector(buttonSel);
       if (input && button) {
@@ -5913,6 +6050,76 @@ async function syncCurrentPageToServer(resumesOverride) {
   });
 }
 
+function queueJob51DetailBackfill(resumes, context = {}) {
+  if (!Array.isArray(resumes) || resumes.length === 0) {
+    return Promise.resolve(null);
+  }
+
+  const runId =
+    typeof context.runId === "number" && Number.isFinite(context.runId)
+      ? context.runId
+      : null;
+  const isCancelled = () =>
+    runId !== null && runId !== job51DetailBackfillRunId;
+
+  const task = async () => {
+    if (isCancelled()) {
+      console.log("51job detail backfill skipped", {
+        count: resumes.length,
+        currentPage: context.currentPage,
+        totalPages: context.totalPages,
+      });
+      return null;
+    }
+
+    console.log("51job detail backfill queued", {
+      count: resumes.length,
+      currentPage: context.currentPage,
+      totalPages: context.totalPages,
+    });
+
+    const enrichedResumes = await enrich51JobSearchResumesWithDetail(resumes, {
+      shouldContinue: () => !isCancelled(),
+    });
+    if (!Array.isArray(enrichedResumes) || enrichedResumes.length === 0) {
+      return null;
+    }
+    if (isCancelled()) {
+      console.log("51job detail backfill cancelled", {
+        count: resumes.length,
+        currentPage: context.currentPage,
+        totalPages: context.totalPages,
+      });
+      return null;
+    }
+
+    const response = await syncCurrentPageToServer(enrichedResumes);
+    if (!response?.success) {
+      throw response?.error || response || "51job detail backfill failed";
+    }
+
+    console.log("51job detail backfill synced", {
+      submitted:
+        typeof response.submitted === "number"
+          ? response.submitted
+          : enrichedResumes.length,
+      inserted: typeof response.inserted === "number" ? response.inserted : 0,
+      updated: typeof response.updated === "number" ? response.updated : 0,
+      currentPage: context.currentPage,
+      totalPages: context.totalPages,
+    });
+
+    return response;
+  };
+
+  const scheduled = job51DetailBackfillChain.catch(() => null).then(task);
+  job51DetailBackfillChain = scheduled.catch((error) => {
+    console.warn("51job detail backfill failed:", error);
+    return null;
+  });
+  return scheduled;
+}
+
 function resolveAutoSyncErrorStatus(errorLike) {
   const rawError =
     typeof errorLike === "string"
@@ -6108,13 +6315,6 @@ async function runAutoSyncIfEnabled() {
       }
       lastSelectedCount = isSeekListPage ? resumes.length : null;
       if (
-        getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
-        !isJob51DetailPage() &&
-        resumes.length > 0
-      ) {
-        resumes = await enrich51JobSearchResumesWithDetail(resumes);
-      }
-      if (
         getCurrentSourceKey() === SOURCE_KEYS.JOB5156 &&
         !isJob5156DetailPage() &&
         resumes.length > 0
@@ -6229,6 +6429,17 @@ async function runAutoSyncIfEnabled() {
       totalUpdated += updated;
       setAutoSyncAttributes("running", totalSubmitted, pagesVisited);
 
+      if (
+        getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
+        !isJob51DetailPage() &&
+        resumes.length > 0
+      ) {
+        void queueJob51DetailBackfill(resumes, {
+          currentPage,
+          totalPages: Math.max(totalPages, currentPage),
+        });
+      }
+
       if (autoSyncCancelled) {
         stopReason = "cancelled";
         break;
@@ -6315,10 +6526,15 @@ async function runAutoSyncIfEnabled() {
     SyncStatusWidget.show({
       state: "success",
       message: `已同步 ${totalSubmitted} 份简历 (${totalInserted} 新增, ${totalUpdated} 更新), 共 ${pagesVisited} 页`,
-      hint: buildAutoSyncSelectedCountHint({
-        selectedCount: lastSelectedCount,
-        prefix: "",
-      }),
+      hint: [
+        buildAutoSyncSelectedCountHint({
+          selectedCount: lastSelectedCount,
+          prefix: "",
+        }),
+        isJob51Source ? "51job 详情补充正在后台继续" : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
       autoDismiss: true,
     });
     setAutoSyncAttributes("done", totalSubmitted, pagesVisited);
@@ -6526,8 +6742,19 @@ async function collectSnapshotPayload(options = {}) {
   const { limit, maxPages, allowEmpty } =
     normalizeSnapshotCollectOptions(options);
   const sourceKey = getCurrentSourceKey();
+  const job51BackfillRunId =
+    sourceKey === SOURCE_KEYS.JOB51 ? job51DetailBackfillRunId + 1 : null;
 
-  if (sourceKey !== SOURCE_KEYS.JOB5156 && sourceKey !== SOURCE_KEYS.SEEK) {
+  if (sourceKey === SOURCE_KEYS.JOB51) {
+    job51DetailBackfillRunId = job51BackfillRunId;
+    job51DetailBackfillChain = Promise.resolve();
+  }
+
+  if (
+    sourceKey !== SOURCE_KEYS.JOB5156 &&
+    sourceKey !== SOURCE_KEYS.JOB51 &&
+    sourceKey !== SOURCE_KEYS.SEEK
+  ) {
     throw new Error(`Unsupported source for snapshot collection: ${sourceKey}`);
   }
 
@@ -6603,7 +6830,11 @@ async function collectSnapshotPayload(options = {}) {
       !isJob51DetailPage() &&
       pageResumes.length > 0
     ) {
-      pageResumes = await enrich51JobSearchResumesWithDetail(pageResumes);
+      void queueJob51DetailBackfill(pageResumes, {
+        currentPage,
+        totalPages: Math.max(currentPage, paginationBefore.totalPages || 0),
+        runId: job51BackfillRunId,
+      });
     }
     if (
       sourceKey === SOURCE_KEYS.JOB5156 &&
