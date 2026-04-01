@@ -6,16 +6,18 @@ export default [
     ignores: [
       'node_modules/**',
       '.chrome-debug-profile/**',
+      'content.js',
     ],
   },
   js.configs.recommended,
   {
-    files: ['**/*.js'],
+    files: ['**/*.{js,mjs,ts}'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
       globals: {
         ...globals.browser,
+        ...globals.node,
         chrome: 'readonly',
       },
     },

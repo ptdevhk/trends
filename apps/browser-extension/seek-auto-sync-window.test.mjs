@@ -1,5 +1,3 @@
-/* global console, process */
-
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import path from 'node:path';
