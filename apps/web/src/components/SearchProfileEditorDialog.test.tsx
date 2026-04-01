@@ -307,6 +307,40 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     })
   })
 
+  it('persists explicit 51job extended-limit settings in the profile payload', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SearchProfileEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        profileId={null}
+      />
+    )
+
+    await user.type(screen.getByLabelText('Name'), '51job extended profile')
+    await user.type(screen.getByLabelText('关键词:'), '"Sales Engineer" OR "Sales Manager"')
+    await user.click(screen.getByLabelText('51job eHire'))
+    await user.click(screen.getByLabelText('Allow extended 51job collection limits'))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(postMock).toHaveBeenCalledWith('/api/search-profiles', {
+        body: expect.objectContaining({
+          keywords: ['Sales Engineer', 'Sales Manager'],
+          sources: expect.arrayContaining([
+            expect.objectContaining({
+              type: '51job',
+              enabled: true,
+              priority: 3,
+              unsafeLimits: true,
+            }),
+          ]),
+        }),
+      })
+    })
+  })
+
   it('sends explicit null clears for optional linkage fields on save', async () => {
     const user = userEvent.setup()
     const onSaved = vi.fn()

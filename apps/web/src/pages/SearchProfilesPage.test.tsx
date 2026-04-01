@@ -334,6 +334,94 @@ describe('SearchProfilesPage run behavior', () => {
     expect(toastSuccessMock).toHaveBeenCalledWith('Opened collection in a new tab')
   })
 
+  it('opens 51job profiles with explicit extended limits when the source enables them', async () => {
+    const user = userEvent.setup()
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/search-profiles') {
+        return {
+          data: {
+            success: true,
+            profiles: [
+              {
+                id: 'profile-unsafe-1',
+                name: '51job extended profile',
+                updatedAt: '2026-03-17T00:00:00.000Z',
+                status: 'active',
+                location: '东莞',
+                keywords: ['CNC', '销售'],
+              },
+            ],
+          },
+        }
+      }
+
+      if (path === '/api/search-profiles/profile-unsafe-1') {
+        return {
+          data: {
+            success: true,
+            profile: {
+              id: 'profile-unsafe-1',
+              name: '51job extended profile',
+              status: 'active',
+              location: '东莞',
+              keywords: ['CNC', '销售'],
+              filters: {
+                minAge: 25,
+                maxAge: 40,
+              },
+              schedule: {
+                enabled: true,
+                cron: '0 9 * * 1-5',
+                maxCandidates: 250,
+              },
+              sources: [
+                {
+                  type: '51job',
+                  enabled: true,
+                  priority: 1,
+                  unsafeLimits: true,
+                },
+              ],
+            },
+          },
+        }
+      }
+
+      if (path === '/api/search-profiles/profile-unsafe-1/status') {
+        return {
+          data: {
+            success: true,
+            status: null,
+          },
+        }
+      }
+
+      return {
+        data: {
+          success: true,
+        },
+      }
+    })
+
+    render(<SearchProfilesPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Run 51job extended profile' }))
+
+    await waitFor(() => {
+      expect(openSpy).toHaveBeenCalledTimes(1)
+    })
+
+    const openedUrl = new URL(String(openSpy.mock.calls[0]?.[0]))
+    expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://ehire.51job.com/Revision/talent/search')
+    expect(openedUrl.searchParams.get('tr_limit')).toBe('250')
+    expect(openedUrl.searchParams.get('tr_max_pages')).toBe('10')
+    expect(openedUrl.searchParams.get('tr_unsafe_limits')).toBe('1')
+    expect(openedUrl.searchParams.get('tr_min_age')).toBe('25')
+    expect(openedUrl.searchParams.get('tr_max_age')).toBe('40')
+  })
+
   it('opens Job5156 profiles in a new tab when head-mode collection is enabled', async () => {
     const user = userEvent.setup()
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
