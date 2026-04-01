@@ -12,16 +12,18 @@ import (
 )
 
 type resumeSnapshotRequest struct {
-	APIURL      string
-	Workspace   string
-	Count       int
-	MaxPages    int
-	OutDir      string
-	Sources     []string
-	Job5156URL  string
-	SeekURL     string
-	ManualFile  string
-	CDPEndpoint string
+	APIURL       string
+	Workspace    string
+	Count        int
+	MaxPages     int
+	OutDir       string
+	Sources      []string
+	Job5156URL   string
+	Job51URL     string
+	SeekURL      string
+	ManualFile   string
+	CDPEndpoint  string
+	UnsafeLimits bool
 }
 
 type resumeSnapshotManualImportSummary struct {
@@ -112,6 +114,9 @@ func buildResumeSnapshotScriptArgs(request resumeSnapshotRequest) []string {
 	if value := strings.TrimSpace(request.Job5156URL); value != "" {
 		args = append(args, "--job5156-url", value)
 	}
+	if value := strings.TrimSpace(request.Job51URL); value != "" {
+		args = append(args, "--51job-url", value)
+	}
 	if value := strings.TrimSpace(request.SeekURL); value != "" {
 		args = append(args, "--seek-url", value)
 	}
@@ -120,6 +125,9 @@ func buildResumeSnapshotScriptArgs(request resumeSnapshotRequest) []string {
 	}
 	if value := strings.TrimSpace(request.CDPEndpoint); value != "" {
 		args = append(args, "--cdp-endpoint", value)
+	}
+	if request.UnsafeLimits {
+		args = append(args, "--unsafe-limits")
 	}
 
 	return args
@@ -176,14 +184,16 @@ func buildResumeSnapshotOutput(result *resumeSnapshotResult) resumeSummaryOutput
 
 func newResumeSnapshotCmd() *cobra.Command {
 	var (
-		count       int
-		maxPages    int
-		outDir      string
-		sources     []string
-		job5156URL  string
-		seekURL     string
-		manualFile  string
-		cdpEndpoint string
+		count        int
+		maxPages     int
+		outDir       string
+		sources      []string
+		job5156URL   string
+		job51URL     string
+		seekURL      string
+		manualFile   string
+		cdpEndpoint  string
+		unsafeLimits bool
 	)
 
 	cmd := &cobra.Command{
@@ -200,16 +210,18 @@ func newResumeSnapshotCmd() *cobra.Command {
 
 			options := currentOptions()
 			response, err := runResumeSnapshot(context.Background(), resumeSnapshotRequest{
-				APIURL:      options.APIURL,
-				Workspace:   options.Workspace,
-				Count:       count,
-				MaxPages:    maxPages,
-				OutDir:      outDir,
-				Sources:     sources,
-				Job5156URL:  job5156URL,
-				SeekURL:     seekURL,
-				ManualFile:  manualFile,
-				CDPEndpoint: cdpEndpoint,
+				APIURL:       options.APIURL,
+				Workspace:    options.Workspace,
+				Count:        count,
+				MaxPages:     maxPages,
+				OutDir:       outDir,
+				Sources:      sources,
+				Job5156URL:   job5156URL,
+				Job51URL:     job51URL,
+				SeekURL:      seekURL,
+				ManualFile:   manualFile,
+				CDPEndpoint:  cdpEndpoint,
+				UnsafeLimits: unsafeLimits,
 			})
 			if err != nil {
 				return err
@@ -220,14 +232,16 @@ func newResumeSnapshotCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringArrayVar(&sources, "source", nil, "Snapshot source alias (repeatable): job5156|seek|51job-manual")
+	cmd.Flags().StringArrayVar(&sources, "source", nil, "Snapshot source alias (repeatable): job5156|seek|51job|51job-manual")
 	cmd.Flags().IntVar(&count, "count", 0, "Resumes per source (default: snapshot script default)")
 	cmd.Flags().IntVar(&maxPages, "max-pages", 0, "Browser pages per source collection (default: snapshot script default)")
 	cmd.Flags().StringVar(&outDir, "out-dir", "", "Output directory (default: snapshot script default)")
 	cmd.Flags().StringVar(&job5156URL, "job5156-url", "", "Override the Job5156 source URL")
+	cmd.Flags().StringVar(&job51URL, "51job-url", "", "Override the 51job source URL")
 	cmd.Flags().StringVar(&seekURL, "seek-url", "", "Override the SEEK source URL")
 	cmd.Flags().StringVar(&manualFile, "manual-file", "", "Override the manual 51job archive path")
 	cmd.Flags().StringVar(&cdpEndpoint, "cdp-endpoint", "", "Override the Chrome DevTools endpoint or port")
+	cmd.Flags().BoolVar(&unsafeLimits, "unsafe-limits", false, "Allow live 51job launches to bypass extension safe caps")
 
 	return cmd
 }

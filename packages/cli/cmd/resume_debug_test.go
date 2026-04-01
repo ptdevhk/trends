@@ -156,6 +156,9 @@ func TestResumeDebugWorkflowDatasetCommandWritesJSON(t *testing.T) {
 		if request.JobDescriptionID != "seek-malaysia-sales" {
 			t.Fatalf("unexpected job description: %q", request.JobDescriptionID)
 		}
+		if !request.FieldCoverage {
+			t.Fatal("expected field coverage to be enabled")
+		}
 		if request.Limit != 250 || request.Top != 5 {
 			t.Fatalf("unexpected scan config: limit=%d top=%d", request.Limit, request.Top)
 		}
@@ -173,6 +176,13 @@ func TestResumeDebugWorkflowDatasetCommandWritesJSON(t *testing.T) {
 			},
 			QueryMatchCount: 6,
 			VisibleCount:    1,
+			FieldCoverageBySource: []workflowDatasetFieldCoverageRow{
+				{
+					SourceKey:     "seek",
+					ResumeCount:   1,
+					ProfileURLPct: 100,
+				},
+			},
 			VisibleBySourceKey: []workflowDatasetSourceCountRow{
 				{Key: "seek", Count: 1},
 			},
@@ -200,6 +210,7 @@ func TestResumeDebugWorkflowDatasetCommandWritesJSON(t *testing.T) {
 		"--job-description", "seek-malaysia-sales",
 		"--limit", "250",
 		"--top", "5",
+		"--field-coverage",
 	})
 
 	if err := cmd.Execute(); err != nil {
@@ -238,6 +249,21 @@ func TestResumeDebugWorkflowDatasetCommandWritesTable(t *testing.T) {
 			VisibleBySourceKey: []workflowDatasetSourceCountRow{
 				{Key: "seek", Count: 1},
 			},
+			FieldCoverageBySource: []workflowDatasetFieldCoverageRow{
+				{
+					SourceKey:                 "job5156",
+					ResumeCount:               191,
+					ProfileURLPct:             75,
+					ResumeIDPct:               90,
+					WorkHistoryPct:            60,
+					WorkHistoryDescriptionPct: 40,
+					ProfileEducationPct:       20,
+					JobIntentionPct:           50,
+					ExpectedSalaryPct:         35,
+					SelfIntroPct:              10,
+					SkillsPct:                 5,
+				},
+			},
 			VisibleResumes: []workflowDatasetVisibleResumeRow{
 				{
 					ResumeID:         "resume-1",
@@ -255,7 +281,7 @@ func TestResumeDebugWorkflowDatasetCommandWritesTable(t *testing.T) {
 	var output bytes.Buffer
 	cmd.SetOut(&output)
 	cmd.SetErr(&output)
-	cmd.SetArgs([]string{"--query", "CNC Sales"})
+	cmd.SetArgs([]string{"--query", "CNC Sales", "--field-coverage"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("resume debug workflow-dataset command failed: %v", err)
@@ -264,6 +290,9 @@ func TestResumeDebugWorkflowDatasetCommandWritesTable(t *testing.T) {
 	text := output.String()
 	if !strings.Contains(text, "Query: CNC Sales | Workspace: dev | Query matches: 6 | Visible after filters: 1") {
 		t.Fatalf("unexpected summary output: %s", text)
+	}
+	if !strings.Contains(text, "Field coverage by source:") || !strings.Contains(text, "75.0%") {
+		t.Fatalf("unexpected coverage output: %s", text)
 	}
 	if !strings.Contains(text, "Yap Kae Wen") || !strings.Contains(text, "seek") || !strings.Contains(text, "86") {
 		t.Fatalf("unexpected table output: %s", text)

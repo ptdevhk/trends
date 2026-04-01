@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { readPortableBackupFile } from "./operator-utils.ts";
 import {
+  DEFAULT_51JOB_URL,
   DEFAULT_JOB5156_URL,
   DEFAULT_SEEK_URL,
   SOURCE_HOSTS,
@@ -49,18 +50,24 @@ function baseOptions(
     outDir: path.join(repoRoot, "output", "resume-backups"),
     sources: [source],
     job5156Url: DEFAULT_JOB5156_URL,
+    job51Url: DEFAULT_51JOB_URL,
     seekUrl: DEFAULT_SEEK_URL,
     manualFile: "~/Downloads/51job.rar",
     cdpEndpoint: "http://127.0.0.1:9222",
     waitTimeoutSec: 600,
+    unsafeLimits: false,
   };
 }
 
 function createCollectedPayload(
-  alias: "job5156" | "seek",
+  alias: "job5156" | "seek" | "51job",
   count: number,
 ): Record<string, unknown> {
-  const sourceUrl = alias === "seek" ? DEFAULT_SEEK_URL : DEFAULT_JOB5156_URL;
+  const sourceUrl = alias === "seek"
+    ? DEFAULT_SEEK_URL
+    : alias === "51job"
+      ? DEFAULT_51JOB_URL
+      : DEFAULT_JOB5156_URL;
   return {
     metadata: {
       sourceUrl,
@@ -94,6 +101,7 @@ describe("snapshot-source-backups", () => {
     expect(resolveRequestedSources([])).toEqual([
       "job5156",
       "seek",
+      "51job",
       "51job-manual",
     ]);
   });
@@ -199,6 +207,59 @@ describe("snapshot-source-backups", () => {
     expect(written.metadata.totalResumes).toBe(20);
     expect(written.resumes).toHaveLength(20);
     expect(written.resumes[0]?.sourceHost).toBe(SOURCE_HOSTS.seek);
+  });
+
+  it("adds the unsafe limit override to live 51job launches", async () => {
+    const repoRoot = await createTestRepoRoot();
+    repoRoots.push(repoRoot);
+    const exec = vi.fn(async (_command: string, args: string[]) => {
+      const launchUrl = String(args[args.indexOf("--url") + 1] || "");
+      if (args.includes("--check-only")) {
+        return {
+          stdout: JSON.stringify({
+            mode: "check",
+            source: "51job",
+            sourceHost: SOURCE_HOSTS["51job"],
+            url: launchUrl,
+            status: { sourceKey: "51job" },
+          }),
+          stderr: "",
+        };
+      }
+
+      return {
+        stdout: JSON.stringify({
+          mode: "collect",
+          source: "51job",
+          sourceHost: SOURCE_HOSTS["51job"],
+          url: launchUrl,
+          status: { sourceKey: "51job" },
+          payload: createCollectedPayload("51job", 20),
+        }),
+        stderr: "",
+      };
+    });
+
+    const result = await runSnapshotSourceBackups(
+      {
+        ...baseOptions(repoRoot, "51job"),
+        unsafeLimits: true,
+      },
+      {
+        now: fixedNow,
+        exec,
+        log: () => undefined,
+        resolveUserHomeDirectory: async () => "/Users/tester",
+      },
+    );
+
+    expect(result.sources[0]).toMatchObject({
+      alias: "51job",
+      sourceHost: SOURCE_HOSTS["51job"],
+      launchUrl: `${DEFAULT_51JOB_URL}?tr_unsafe_limits=1`,
+      count: 20,
+      observedCount: 20,
+    });
   });
 
   it("fails and leaves no output file when the collected snapshot is short", async () => {

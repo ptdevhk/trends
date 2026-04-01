@@ -63,6 +63,7 @@ type workflowDatasetVerificationRequest struct {
 	Limit            int
 	Top              int
 	JobDescriptionID string
+	FieldCoverage    bool
 }
 
 type workflowDatasetSourceCountRow struct {
@@ -81,6 +82,20 @@ type workflowDatasetVisibleResumeRow struct {
 	ProfileURL       string `json:"profileUrl,omitempty"`
 }
 
+type workflowDatasetFieldCoverageRow struct {
+	SourceKey                 string  `json:"sourceKey"`
+	ResumeCount               int     `json:"resumeCount"`
+	ProfileURLPct             float64 `json:"profileUrlPct"`
+	ResumeIDPct               float64 `json:"resumeIdPct"`
+	WorkHistoryPct            float64 `json:"workHistoryPct"`
+	WorkHistoryDescriptionPct float64 `json:"workHistoryDescriptionPct"`
+	ProfileEducationPct       float64 `json:"profileEducationPct"`
+	JobIntentionPct           float64 `json:"jobIntentionPct"`
+	ExpectedSalaryPct         float64 `json:"expectedSalaryPct"`
+	SelfIntroPct              float64 `json:"selfIntroPct"`
+	SkillsPct                 float64 `json:"skillsPct"`
+}
+
 type workflowDatasetVerificationReport struct {
 	Query                    string                            `json:"query"`
 	Location                 string                            `json:"location,omitempty"`
@@ -97,6 +112,7 @@ type workflowDatasetVerificationReport struct {
 	VisibleCount             int                               `json:"visibleCount"`
 	VisibleBySourceHost      []workflowDatasetSourceCountRow   `json:"visibleBySourceHost"`
 	VisibleBySourceKey       []workflowDatasetSourceCountRow   `json:"visibleBySourceKey"`
+	FieldCoverageBySource    []workflowDatasetFieldCoverageRow `json:"fieldCoverageBySource,omitempty"`
 	VisibleResumes           []workflowDatasetVisibleResumeRow `json:"visibleResumes"`
 }
 
@@ -214,6 +230,9 @@ var runWorkflowDatasetVerifier = func(ctx context.Context, request workflowDatas
 	}
 	if value := strings.TrimSpace(request.JobDescriptionID); value != "" {
 		args = append(args, "--job-description", value)
+	}
+	if request.FieldCoverage {
+		args = append(args, "--field-coverage")
 	}
 
 	stdout, stderr, err := runBunScript(ctx, projectRoot, scriptPath, args, nil)
@@ -581,6 +600,7 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 		jobDescriptionID string
 		limit            int
 		top              int
+		fieldCoverage    bool
 	)
 
 	cmd := &cobra.Command{
@@ -608,6 +628,7 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 				Limit:            limit,
 				Top:              top,
 				JobDescriptionID: strings.TrimSpace(jobDescriptionID),
+				FieldCoverage:    fieldCoverage,
 			})
 			if err != nil {
 				return err
@@ -652,6 +673,47 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 				)
 			}
 
+			if fieldCoverage && len(report.FieldCoverageBySource) > 0 {
+				coverageHeaders := []string{
+					"source_key",
+					"count",
+					"profile_url",
+					"resume_id",
+					"work_history",
+					"work_history_desc",
+					"profile_education",
+					"job_intention",
+					"expected_salary",
+					"self_intro",
+					"skills",
+				}
+				coverageRows := make([][]string, 0, len(report.FieldCoverageBySource))
+				for _, row := range report.FieldCoverageBySource {
+					coverageRows = append(coverageRows, []string{
+						row.SourceKey,
+						strconv.Itoa(row.ResumeCount),
+						formatWorkflowDatasetCoveragePercent(row.ProfileURLPct),
+						formatWorkflowDatasetCoveragePercent(row.ResumeIDPct),
+						formatWorkflowDatasetCoveragePercent(row.WorkHistoryPct),
+						formatWorkflowDatasetCoveragePercent(row.WorkHistoryDescriptionPct),
+						formatWorkflowDatasetCoveragePercent(row.ProfileEducationPct),
+						formatWorkflowDatasetCoveragePercent(row.JobIntentionPct),
+						formatWorkflowDatasetCoveragePercent(row.ExpectedSalaryPct),
+						formatWorkflowDatasetCoveragePercent(row.SelfIntroPct),
+						formatWorkflowDatasetCoveragePercent(row.SkillsPct),
+					})
+				}
+				if options.Output == "table" {
+					fmt.Fprintln(cmd.OutOrStdout(), "Field coverage by source:")
+				}
+				if err := writeOutput(cmd, coverageHeaders, coverageRows, report.FieldCoverageBySource); err != nil {
+					return err
+				}
+				if options.Output == "table" {
+					fmt.Fprintln(cmd.OutOrStdout())
+				}
+			}
+
 			if len(rows) == 0 && options.Output == "table" {
 				return writeMessage(cmd, "No visible resumes after workflow filters")
 			}
@@ -666,6 +728,7 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID for score display")
 	cmd.Flags().IntVar(&limit, "limit", 200, "Maximum resumes to scan")
 	cmd.Flags().IntVar(&top, "top", 10, "Maximum visible resumes to print")
+	cmd.Flags().BoolVar(&fieldCoverage, "field-coverage", false, "Include source-level field coverage percentages")
 	return cmd
 }
 
@@ -854,6 +917,10 @@ func formatWorkflowDatasetCounts(rows []workflowDatasetSourceCountRow) string {
 		parts = append(parts, fmt.Sprintf("%s:%d", row.Key, row.Count))
 	}
 	return strings.Join(parts, ", ")
+}
+
+func formatWorkflowDatasetCoveragePercent(value float64) string {
+	return fmt.Sprintf("%.1f%%", value)
 }
 
 func writeResumeMatchTable(cmd *cobra.Command, response *client.ResumeMatchResponse, displayMap map[string]resumeDisplayRow) error {
