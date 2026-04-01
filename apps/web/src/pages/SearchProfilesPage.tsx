@@ -126,6 +126,8 @@ export function SearchProfilesPage() {
   const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null)
 
   const pollTimersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({})
+  const runNowLocksRef = useRef<Set<string>>(new Set())
+  const headModeResetTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   const clearPolling = useCallback((profileId: string) => {
     const timer = pollTimersRef.current[profileId]
@@ -133,6 +135,23 @@ export function SearchProfilesPage() {
       clearInterval(timer)
       delete pollTimersRef.current[profileId]
     }
+  }, [])
+
+  const clearHeadModePendingRun = useCallback((profileId: string) => {
+    const timer = headModeResetTimersRef.current[profileId]
+    if (timer) {
+      clearTimeout(timer)
+      delete headModeResetTimersRef.current[profileId]
+    }
+    runNowLocksRef.current.delete(profileId)
+    setRunningIds((previous) => {
+      if (!previous.has(profileId)) {
+        return previous
+      }
+      const next = new Set(previous)
+      next.delete(profileId)
+      return next
+    })
   }, [])
 
   const fetchRunStatus = useCallback(async (profileId: string) => {
@@ -239,9 +258,16 @@ export function SearchProfilesPage() {
   }, [loadProfiles])
 
   useEffect(() => {
+    const pollTimers = pollTimersRef.current
+    const headModeResetTimers = headModeResetTimersRef.current
+    const runNowLocks = runNowLocksRef.current
+
     return () => {
-      Object.values(pollTimersRef.current).forEach((timer) => clearInterval(timer))
-      pollTimersRef.current = {}
+      Object.values(pollTimers).forEach((timer) => clearInterval(timer))
+      Object.keys(pollTimers).forEach((profileId) => delete pollTimers[profileId])
+      Object.values(headModeResetTimers).forEach((timer) => clearTimeout(timer))
+      Object.keys(headModeResetTimers).forEach((profileId) => delete headModeResetTimers[profileId])
+      runNowLocks.clear()
     }
   }, [])
 
@@ -297,8 +323,14 @@ export function SearchProfilesPage() {
   }, [clearPolling, deletingProfileId, loadProfiles, t])
 
   const handleRunNow = useCallback(async (profileId: string) => {
+    if (runNowLocksRef.current.has(profileId)) {
+      return
+    }
+    runNowLocksRef.current.add(profileId)
+
     const detail = profileDetails[profileId] ?? await fetchProfileDetail(profileId)
     if (!detail) {
+      runNowLocksRef.current.delete(profileId)
       toast.error(t('searchProfiles.loadDetailError', { defaultValue: 'Failed to load profile details' }))
       return
     }
@@ -309,6 +341,7 @@ export function SearchProfilesPage() {
     if (isHeadMode && activeSource) {
       if (activeSource.type === SEARCH_PROFILE_SOURCE_TYPES.seek) {
         if (!isSeekRecommendedCandidatesUrl(activeSource.jobUrl)) {
+          runNowLocksRef.current.delete(profileId)
           toast.error(t('searchProfiles.seekJobUrlMissing', { defaultValue: 'Seek Run Now requires an exact Seek recommended candidates URL.' }))
           return
         }
@@ -328,12 +361,21 @@ export function SearchProfilesPage() {
       })
 
       if (!launchUrl) {
+        runNowLocksRef.current.delete(profileId)
         toast.error(t('searchProfiles.buildUrlError', { defaultValue: 'Failed to build collection URL.' }))
         return
       }
 
+      setRunningIds((previous) => new Set(previous).add(profileId))
       window.open(launchUrl, '_blank', 'noopener,noreferrer')
       toast.success(t('searchProfiles.openTabSuccess', { defaultValue: 'Opened collection in a new tab' }))
+      const existingTimer = headModeResetTimersRef.current[profileId]
+      if (existingTimer) {
+        clearTimeout(existingTimer)
+      }
+      headModeResetTimersRef.current[profileId] = setTimeout(() => {
+        clearHeadModePendingRun(profileId)
+      }, 2000)
       return
     }
 
@@ -351,6 +393,7 @@ export function SearchProfilesPage() {
           ? t('searchProfiles.runNetworkError', { defaultValue: 'Cannot reach API server. Start make dev or make dev-api.' })
           : (rawMessage || t('searchProfiles.runError', { defaultValue: 'Failed to run profile' }))
         toast.error(message)
+        runNowLocksRef.current.delete(profileId)
         setRunningIds((previous) => {
           if (!previous.has(profileId)) {
             return previous
@@ -364,6 +407,7 @@ export function SearchProfilesPage() {
 
       toast.success(t('searchProfiles.runSuccess', { defaultValue: 'Profile run started' }))
       startPolling(profileId)
+      runNowLocksRef.current.delete(profileId)
     } catch (error) {
       console.error(`Failed to run profile ${profileId}`, error)
       const rawMessage = extractApiErrorMessage(error)
@@ -371,6 +415,7 @@ export function SearchProfilesPage() {
         ? t('searchProfiles.runNetworkError', { defaultValue: 'Cannot reach API server. Start make dev or make dev-api.' })
         : (rawMessage || t('searchProfiles.runError', { defaultValue: 'Failed to run profile' }))
       toast.error(message)
+      runNowLocksRef.current.delete(profileId)
       setRunningIds((previous) => {
         if (!previous.has(profileId)) {
           return previous
@@ -380,7 +425,7 @@ export function SearchProfilesPage() {
         return next
       })
     }
-  }, [fetchProfileDetail, profileDetails, startPolling, t])
+  }, [clearHeadModePendingRun, fetchProfileDetail, profileDetails, startPolling, t])
 
 
 
