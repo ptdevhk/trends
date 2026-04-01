@@ -5,6 +5,25 @@ import { SnippetCard } from '@/components/search/SnippetCard'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: string | Record<string, unknown>) => {
+      if (typeof options === 'string') {
+        return options
+      }
+
+      const defaultValue =
+        options && typeof options === 'object' && typeof options.defaultValue === 'string'
+          ? options.defaultValue
+          : key
+      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+        const value = options && typeof options === 'object' ? options[token] : undefined
+        return value === undefined || value === null ? '' : String(value)
+      })
+    },
+  }),
+}))
+
 vi.mock('@/components/search/SnippetCardExpanded', () => ({
   SnippetCardExpanded: ({ item }: { item: ResumeSearchResultItem }) => (
     <div>Expanded card for {item.resume.name ?? 'Unnamed resume'}</div>
@@ -116,6 +135,46 @@ describe('SnippetCard', () => {
     await user.click(screen.getByRole('button', { name: /Collapse/i }))
 
     expect(onToggleExpanded).toHaveBeenCalled()
+  })
+
+  it('hides rule scoring when AI score mode is enabled but analysis has not completed', () => {
+    render(
+      <SnippetCard
+        expanded={false}
+        showAiScore
+        item={createResult(2, {
+          scoreSource: 'rule',
+          score: 74,
+          analysis: undefined,
+        })}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('AI pending')).toBeInTheDocument()
+    expect(screen.queryByText('Rule')).not.toBeInTheDocument()
+    expect(screen.queryByText('74')).not.toBeInTheDocument()
+  })
+
+  it('shows an AI pending badge when AI score mode is enabled but no score is available yet', () => {
+    const item = createResult(2, {
+      scoreSource: 'rule',
+      analysis: undefined,
+    })
+    item.score = undefined
+
+    render(
+      <SnippetCard
+        expanded={false}
+        showAiScore
+        item={item}
+        onToggleExpanded={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('AI pending')).toBeInTheDocument()
+    expect(screen.queryByText('Rule')).not.toBeInTheDocument()
+    expect(screen.queryByText('74')).not.toBeInTheDocument()
   })
 
   it('falls back to generic labels and ingest tags when work history and provenance are missing', async () => {

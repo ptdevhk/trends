@@ -5,12 +5,19 @@ import { ModeToggle } from './ModeToggle'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => {
-      if (key === 'resumes.mode.ai') {
-        return 'AI Mode'
+    t: (key: string, options?: string | Record<string, unknown>) => {
+      if (typeof options === 'string') {
+        return options
       }
 
-      return key
+      const defaultValue =
+        options && typeof options === 'object' && typeof options.defaultValue === 'string'
+          ? options.defaultValue
+          : key
+      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+        const value = options && typeof options === 'object' ? options[token] : undefined
+        return value === undefined || value === null ? '' : String(value)
+      })
     },
   }),
 }))

@@ -441,6 +441,11 @@ describe('useResumeSearchState', () => {
       }),
     ])
 
+    act(() => {
+      result.current.setAiModeEnabled(false)
+    })
+    expect(result.current.aiModeEnabled).toBe(false)
+
     await act(async () => {
       await result.current.applyRecentSearch(result.current.recentSearches[0]!)
     })
@@ -465,6 +470,7 @@ describe('useResumeSearchState', () => {
       },
     })
     expect(result.current.queryInput).toBe(expectedQuery)
+    expect(result.current.aiModeEnabled).toBe(true)
   })
 
   it('loads recent searches from the active session only', () => {
@@ -843,7 +849,7 @@ describe('useResumeSearchState', () => {
     expect(result.current.disableAnalyzeResults).toBe(true)
   })
 
-  it('does not auto-analyze or defer a suppressed run when AI mode is disabled', async () => {
+  it('re-enables AI mode and auto-analyzes when a search is submitted from original mode', async () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
       keywords: ['machine tools'],
@@ -864,6 +870,8 @@ describe('useResumeSearchState', () => {
       result.current.setAiModeEnabled(false)
     })
 
+    expect(result.current.aiModeEnabled).toBe(false)
+
     await act(async () => {
       result.current.submitSearch('machine tools')
       useUrlSearchStateMock.mockReturnValue({
@@ -877,16 +885,15 @@ describe('useResumeSearchState', () => {
       await Promise.resolve()
     })
 
-    expect(dispatchAnalysisMutationMock).not.toHaveBeenCalled()
-    expect(result.current.disableAnalyzeResults).toBe(true)
-
-    await act(async () => {
-      result.current.setAiModeEnabled(true)
-      await Promise.resolve()
+    expect(result.current.aiModeEnabled).toBe(true)
+    expect(dispatchAnalysisMutationMock).toHaveBeenCalledTimes(1)
+    expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
+      keywords: ['machine', 'tools'],
+      location: 'China',
+      promptVersion: CURRENT_PROMPT_VERSION,
+      resumeIds: Array.from({ length: 12 }, (_, index) => `resume-${index + 1}`),
     })
-
     expect(result.current.disableAnalyzeResults).toBe(false)
-    expect(dispatchAnalysisMutationMock).not.toHaveBeenCalled()
   })
 
   it('clears only facet filters while preserving the active search context', () => {

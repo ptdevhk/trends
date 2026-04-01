@@ -211,10 +211,14 @@ export function ResumeCard({
     ? t('resumes.status.updatedAt', { date: new Date(candidateStatusMeta.updatedAt).toLocaleString() })
     : ''
 
-  // AI score is primary when available; rule score is deterministic fallback
-  const hasAiScore = typeof score === 'number' && score > 0
-  const effectiveScore = hasAiScore ? score : (typeof ruleScore === 'number' && ruleScore > 0 ? ruleScore : score)
-  const isRuleScore = !hasAiScore && typeof ruleScore === 'number' && ruleScore > 0
+  const hasAiScore = scoreSource === 'ai' && typeof score === 'number' && score > 0
+  const pendingAiScore = showAiScore && !hasAiScore
+  const effectiveScore = hasAiScore
+    ? score
+    : !showAiScore && typeof ruleScore === 'number' && ruleScore > 0
+      ? ruleScore
+      : undefined
+  const isRuleScore = !showAiScore && typeof ruleScore === 'number' && ruleScore > 0
 
   const scoreClassName =
     typeof effectiveScore === 'number'
@@ -233,6 +237,81 @@ export function ResumeCard({
       : scoreSource === 'rule'
         ? 'bg-amber-500 text-white border-amber-600'
         : ''
+  const aiScoreNode = hasAiScore ? (
+    <div className="flex items-center gap-2">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="cursor-help">
+              <Badge className={cn('border', scoreClassName)}>
+                {t('resumes.matching.scoreLabel', { score })}
+                {scoreLabel ? ` · ${scoreLabel}` : ''}
+              </Badge>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="p-3 text-xs w-64 bg-slate-900 text-white">
+            <p className="font-semibold mb-2 text-sm border-b pb-1 border-white/20">
+              {t('resumes.searchPage.card.analysisBreakdown', {
+                defaultValue: 'Analysis Breakdown',
+              })}
+            </p>
+            {matchResult?.breakdown ? (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {Object.entries(matchResult.breakdown).map(([key, value]) => (
+                  <div key={key} className="flex justify-between">
+                    <span className="capitalize opacity-80">{key.replace('_', ' ')}:</span>
+                    <span className="font-mono font-bold">{value}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="opacity-70 italic">
+                {t('resumes.searchPage.card.noDetailedBreakdown', {
+                  defaultValue: 'No detailed breakdown available',
+                })}
+              </p>
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      {scoreSource ? (
+        <Badge className={cn('border text-[10px] uppercase tracking-wide', scoreSourceClassName)}>
+          {t('resumes.searchPage.card.ai', { defaultValue: 'AI' })}
+        </Badge>
+      ) : null}
+      {onAiFeedback && scoreSource === 'ai' ? (
+        <AiFeedbackButtons
+          feedback={aiScoreFeedback}
+          label={t('resumes.searchPage.card.aiScoreLabel', {
+            defaultValue: 'AI score',
+          })}
+          testId="ai-score-feedback"
+          stopPropagation
+          onSelect={(sentiment) => onAiFeedback('ai_score', sentiment)}
+        />
+      ) : null}
+    </div>
+  ) : null
+  const ruleScoreNode = isRuleScore && effectiveScore && effectiveScore > 0 ? (
+    <div className="flex items-center gap-2">
+      <Badge className={cn('border', scoreClassName)}>
+        {t('resumes.matching.scoreLabel', { score: effectiveScore })}
+      </Badge>
+      <Badge variant="outline" className="text-[10px] uppercase tracking-wide border-amber-200 text-amber-600">
+        {t('resumes.searchPage.card.rule', { defaultValue: 'Rule' })}
+      </Badge>
+    </div>
+  ) : null
+  const pendingAiScoreNode = pendingAiScore ? (
+    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+      {t('resumes.searchPage.card.aiPending', {
+        defaultValue: 'AI pending',
+      })}
+    </Badge>
+  ) : null
+  const scoreNode = showAiScore
+    ? aiScoreNode ?? pendingAiScoreNode
+    : ruleScoreNode ?? aiScoreNode
   const visibleIndustryTags = (industryTags ?? [])
     .filter((tag) => tag.trim().length > 0)
     .slice(0, 4)
@@ -325,60 +404,7 @@ export function ResumeCard({
         {resume.expectedSalary ? (
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
         ) : null}
-        {isRuleScore && effectiveScore && effectiveScore > 0 ? (
-          <div className="flex items-center gap-2">
-            <Badge className={cn('border', scoreClassName)}>
-              {t('resumes.matching.scoreLabel', { score: effectiveScore })}
-            </Badge>
-            <Badge variant="outline" className="text-[10px] uppercase tracking-wide border-amber-200 text-amber-600">
-              Rule
-            </Badge>
-          </div>
-        ) : showAiScore && typeof score === 'number' ? (
-          <div className="flex items-center gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="cursor-help">
-                    <Badge className={cn('border', scoreClassName)}>
-                      {t('resumes.matching.scoreLabel', { score })}
-                      {scoreLabel ? ` · ${scoreLabel}` : ''}
-                    </Badge>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent className="p-3 text-xs w-64 bg-slate-900 text-white">
-                  <p className="font-semibold mb-2 text-sm border-b pb-1 border-white/20">Analysis Breakdown</p>
-                  {matchResult?.breakdown ? (
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                      {Object.entries(matchResult.breakdown).map(([key, value]) => (
-                        <div key={key} className="flex justify-between">
-                          <span className="capitalize opacity-80">{key.replace('_', ' ')}:</span>
-                          <span className="font-mono font-bold">{value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="opacity-70 italic">No detailed breakdown available</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            {scoreSource ? (
-              <Badge className={cn('border text-[10px] uppercase tracking-wide', scoreSourceClassName)}>
-                {scoreSource === 'ai' ? 'AI' : 'Rule'}
-              </Badge>
-            ) : null}
-            {onAiFeedback && scoreSource === 'ai' ? (
-              <AiFeedbackButtons
-                feedback={aiScoreFeedback}
-                label="AI score"
-                testId="ai-score-feedback"
-                stopPropagation
-                onSelect={(sentiment) => onAiFeedback('ai_score', sentiment)}
-              />
-            ) : null}
-          </div>
-        ) : null}
+        {scoreNode}
         {experienceBadge ? (
           <Badge
             variant="outline"

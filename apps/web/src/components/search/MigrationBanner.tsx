@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 
@@ -8,6 +9,7 @@ const STORAGE_KEY = 'trends.resume.search-first.migration-banner.dismissed'
 
 export function MigrationBanner() {
   const { slug } = useWorkspace()
+  const { t } = useTranslation()
   const [dismissed, setDismissed] = useState(true)
 
   useEffect(() => {
@@ -21,14 +23,22 @@ export function MigrationBanner() {
   return (
     <div className="flex flex-col gap-3 rounded-[1.5rem] border border-sky-200 bg-sky-50 px-4 py-4 text-sm text-sky-900 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="space-y-1">
-        <div className="font-medium">Search Profiles still exist, but the primary resume route is now search-first.</div>
+        <div className="font-medium">
+          {t('resumes.searchPage.banner.title', {
+            defaultValue: 'Search Profiles still exist, but the primary resume route is now search-first.',
+          })}
+        </div>
         <div className="text-sky-800/80">
-          Use this page for fast keyword review. Use Search Profiles when you need landing quick starts, scheduled collectors, and JD-driven setup in one place.
+          {t('resumes.searchPage.banner.description', {
+            defaultValue: 'Use this page for fast keyword review. Use Search Profiles when you need landing quick starts, scheduled collectors, and JD-driven setup in one place.',
+          })}
         </div>
       </div>
       <div className="flex items-center gap-2">
         <Link className="inline-flex h-9 items-center rounded-md border border-sky-200 bg-white px-3 text-sm font-medium" to={`/${slug}/system/profiles`}>
-          Open Search Profiles
+          {t('resumes.searchPage.banner.openProfiles', {
+            defaultValue: 'Open Search Profiles',
+          })}
         </Link>
         <Button
           type="button"
@@ -41,7 +51,11 @@ export function MigrationBanner() {
           }}
         >
           <X className="h-4 w-4" />
-          <span className="sr-only">Dismiss migration banner</span>
+          <span className="sr-only">
+            {t('resumes.searchPage.banner.dismiss', {
+              defaultValue: 'Dismiss migration banner',
+            })}
+          </span>
         </Button>
       </div>
     </div>

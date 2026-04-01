@@ -5,7 +5,20 @@ import { ResumeCard } from './ResumeCard'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    t: (key: string, options?: string | Record<string, unknown>) => {
+      if (typeof options === 'string') {
+        return options
+      }
+
+      const defaultValue =
+        options && typeof options === 'object' && typeof options.defaultValue === 'string'
+          ? options.defaultValue
+          : key
+      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+        const value = options && typeof options === 'object' ? options[token] : undefined
+        return value === undefined || value === null ? '' : String(value)
+      })
+    },
   }),
 }))
 
@@ -98,5 +111,42 @@ describe('ResumeCard brand-hit badges', () => {
 
     expect(screen.queryByText('Sales Engineer')).not.toBeInTheDocument()
     expect(screen.queryByText('Test intro')).not.toBeInTheDocument()
+  })
+
+  it('shows AI pending instead of rule scoring when AI mode is enabled but analysis is missing', () => {
+    render(
+      <ResumeCard
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Dongguan',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+        matchResult={{
+          resumeId: 'resume-1',
+          score: 74,
+          recommendation: 'match',
+          highlights: [],
+          concerns: [],
+          summary: '',
+          matchedAt: '2026-03-13T00:00:00.000Z',
+          scoreSource: 'rule',
+        }}
+        showAiScore
+        onViewDetails={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('AI pending')).toBeInTheDocument()
+    expect(screen.queryByText('Rule')).not.toBeInTheDocument()
+    expect(screen.queryByText('74')).not.toBeInTheDocument()
   })
 })

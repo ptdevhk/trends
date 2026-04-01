@@ -1,4 +1,5 @@
 import { Download } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
@@ -48,6 +49,42 @@ export function SearchHeader({
   onSubmitQuery,
   onSortChange,
 }: SearchHeaderProps) {
+  const { t } = useTranslation()
+  const resultsLabel = activeQuery
+    ? t('resumes.searchPage.header.resultsWithQuery', {
+      count: activeResultCount.toLocaleString(),
+      query: activeQuery,
+      defaultValue: '{{count}} results for "{{query}}"',
+    })
+    : t('resumes.searchPage.header.results', {
+      count: activeResultCount.toLocaleString(),
+      defaultValue: '{{count}} results',
+    })
+  const sortLabel = t('resumes.searchPage.header.sort', {
+    defaultValue: 'Sort',
+  })
+  const sortResultsLabel = t('resumes.searchPage.header.sortResults', {
+    defaultValue: 'Sort results',
+  })
+  const aiScoreLabel = t('resumes.searchPage.header.sortOptions.aiScore', {
+    defaultValue: 'AI score',
+  })
+  const newestLabel = t('resumes.searchPage.header.sortOptions.newest', {
+    defaultValue: 'Newest',
+  })
+  const experienceLabel = t('resumes.searchPage.header.sortOptions.experience', {
+    defaultValue: 'Experience',
+  })
+  const exportFormatLabel = t('resumes.searchPage.header.exportFormat', {
+    defaultValue: 'Export format',
+  })
+  const exportingLabel = t('resumes.searchPage.header.exporting', {
+    defaultValue: 'Exporting...',
+  })
+  const exportLabel = t('resumes.searchPage.header.export', {
+    count: activeResultCount.toLocaleString(),
+    defaultValue: 'Export {{count}}',
+  })
   return (
     <div className="space-y-4">
       <div className="mx-auto max-w-5xl">
@@ -66,9 +103,7 @@ export function SearchHeader({
 
       <div className="flex flex-col gap-3 rounded-[1.5rem] border bg-white/80 px-4 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 space-y-2">
-          <div className="text-sm font-medium text-slate-900">
-            {activeResultCount.toLocaleString()} results{activeQuery ? ` for "${activeQuery}"` : ''}
-          </div>
+          <div className="text-sm font-medium text-slate-900">{resultsLabel}</div>
           <div className="flex flex-wrap gap-2">
             {location ? <Badge variant="outline">{location}</Badge> : null}
             {jobDescriptionId ? <Badge variant="outline">JD {jobDescriptionId}</Badge> : null}
@@ -78,15 +113,15 @@ export function SearchHeader({
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-              Sort
+              {sortLabel}
             </span>
             <Select
-              aria-label="Sort results"
+              aria-label={sortResultsLabel}
               className="min-w-40"
               options={[
-                { value: 'score', label: 'AI score' },
-                { value: 'newest', label: 'Newest' },
-                { value: 'experience', label: 'Experience' },
+                { value: 'score', label: aiScoreLabel },
+                { value: 'newest', label: newestLabel },
+                { value: 'experience', label: experienceLabel },
               ]}
               value={sortValue}
               onChange={(event) =>
@@ -97,7 +132,7 @@ export function SearchHeader({
 
           <div className="flex items-center gap-2">
             <Select
-              aria-label="Export format"
+              aria-label={exportFormatLabel}
               className="h-10 min-w-24 rounded-full border-0 bg-slate-100/90 pr-8 focus-visible:ring-0 focus-visible:ring-offset-0"
               options={[
                 { value: 'csv', label: 'CSV' },
@@ -123,9 +158,7 @@ export function SearchHeader({
               <Download
                 className={cn('h-4 w-4', exportingResults && 'animate-spin')}
               />
-              {exportingResults
-                ? 'Exporting...'
-                : `Export ${activeResultCount.toLocaleString()}`}
+              {exportingResults ? exportingLabel : exportLabel}
             </Button>
           </div>
         </div>

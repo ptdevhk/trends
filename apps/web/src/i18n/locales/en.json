@@ -273,6 +273,94 @@
       "extractedAt": "Updated At",
       "profileLink": "View Original Profile",
       "close": "Close"
+    },
+    "searchPage": {
+      "banner": {
+        "title": "Search Profiles still exist, but the primary resume route is now search-first.",
+        "description": "Use this page for fast keyword review. Use Search Profiles when you need landing quick starts, scheduled collectors, and JD-driven setup in one place.",
+        "openProfiles": "Open Search Profiles",
+        "dismiss": "Dismiss migration banner"
+      },
+      "hero": {
+        "quickStart": "Quick Start",
+        "hotTags": "Hot Tags",
+        "recentSearches": "Recent searches",
+        "loadingRecentSearches": "Loading recent searches...",
+        "noSavedSearches": "No saved searches yet. Recent searches will appear here after you start exploring."
+      },
+      "searchBar": {
+        "placeholder": "Search resumes by keywords, brands, roles, or locations",
+        "search": "Search",
+        "searching": "Searching...",
+        "recentSearches": "Recent searches",
+        "pasteJobDescription": "Paste job description",
+        "clearSearch": "Clear search"
+      },
+      "header": {
+        "results": "{{count}} results",
+        "resultsWithQuery": "{{count}} results for \"{{query}}\"",
+        "sort": "Sort",
+        "sortResults": "Sort results",
+        "sortOptions": {
+          "aiScore": "AI score",
+          "newest": "Newest",
+          "experience": "Experience"
+        },
+        "exportFormat": "Export format",
+        "exporting": "Exporting...",
+        "export": "Export {{count}}"
+      },
+      "results": {
+        "emptyTitle": "No resumes matched this search",
+        "emptyDescription": "Try broader keywords or remove a few facet filters to widen the result set.",
+        "loadingMore": "Loading more resumes...",
+        "scrollForMore": "Scroll for more",
+        "endOfResults": "End of results"
+      },
+      "analysis": {
+        "title": "Resume AI analysis",
+        "description": "Generate per-resume AI summaries and breakdowns for the loaded search results.",
+        "analyzing": "Analyzing...",
+        "analyzeLoaded": "Analyze loaded {{count}}",
+        "analyzeLoadedResults": "Analyze loaded results"
+      },
+      "aiSummary": {
+        "title": "AI result summary",
+        "noSummary": "No summary is available for the current search yet.",
+        "generatedJustNow": "Generated just now",
+        "generatedOneMinuteAgo": "Generated 1 minute ago",
+        "generatedMinutesAgo": "Generated {{count}} minutes ago"
+      },
+      "card": {
+        "expand": "Expand",
+        "collapse": "Collapse",
+        "aiPending": "AI pending",
+        "aiAnalysis": "AI analysis",
+        "aiAnalysisPending": "AI analysis pending",
+        "analysisBreakdown": "Analysis Breakdown",
+        "noDetailedBreakdown": "No detailed breakdown available",
+        "noSummary": "No summary available for this resume yet.",
+        "noStructuredWorkHistory": "No structured work history available.",
+        "noLocation": "No location",
+        "noEducation": "No education listed",
+        "resumeMetadata": "Resume metadata",
+        "signals": "Signals",
+        "openSourceProfile": "Open source profile",
+        "summaryUnavailable": "AI summary is not available for this resume. The current visible score comes from rule scoring only.",
+        "aiSummaryUnavailable": "AI analysis is not available for this resume yet. The score will appear after analysis completes.",
+        "profileOverview": "Profile overview",
+        "unnamedResume": "Unnamed resume",
+        "aiSummaryPrefix": "AI summary",
+        "ai": "AI",
+        "rule": "Rule",
+        "status": "Status",
+        "highlights": "Highlights",
+        "concerns": "Concerns",
+        "scoreSource": "Score source",
+        "aiScoreShort": "AI {{score}}",
+        "ruleScoreShort": "Rule {{score}}",
+        "aiScoreLabel": "AI score"
+      }
     }
   },
   "aiTasks": {

@@ -801,6 +801,7 @@ export function useResumeSearchState() {
     return `${autoAnalyzeSearchNonce}:${analysisCandidateSignature}`
   }, [analysisCandidateSignature, autoAnalyzeSearchNonce])
   const autoAnalyzeDispatchSignatureRef = useRef('')
+  const pendingForceAnalyzeRef = useRef(false)
   const aiModeStats = useMemo(() => {
     const analyzedResults = results.filter(
       (item) => typeof item.analysis?.score === 'number',
@@ -912,20 +913,16 @@ export function useResumeSearchState() {
       return
     }
 
+    pendingForceAnalyzeRef.current = false
     setPendingAutoAnalyzeContextSignature('')
   }, [aiModeEnabled])
 
   const armAutoAnalyze = useCallback((nextState: UrlSearchState) => {
-    if (!aiModeEnabled) {
-      setPendingAutoAnalyzeContextSignature('')
-      return
-    }
-
     setPendingAutoAnalyzeContextSignature(
       buildSearchContextSignature(nextState),
     )
     setAutoAnalyzeSearchNonce((current) => current + 1)
-  }, [aiModeEnabled])
+  }, [])
 
   const submitSearch = useCallback(
     (
@@ -943,6 +940,8 @@ export function useResumeSearchState() {
         filters: clearSortFilters(parsedState.filters),
       })
 
+      setAiModeEnabled(true)
+      pendingForceAnalyzeRef.current = true
       syncToUrl(nextState)
       armAutoAnalyze(nextState)
     },
@@ -952,6 +951,7 @@ export function useResumeSearchState() {
   const clearSearch = useCallback(() => {
     setQueryInput('')
     setPendingAutoAnalyzeContextSignature('')
+    pendingForceAnalyzeRef.current = false
     syncToUrl(
       buildUrlState(parsedState, {
         query: undefined,
@@ -987,6 +987,8 @@ export function useResumeSearchState() {
         filters: clearSortFilters(item.filters ?? {}),
       }
 
+      setAiModeEnabled(true)
+      pendingForceAnalyzeRef.current = true
       syncToUrl(nextState)
       armAutoAnalyze(nextState)
     },
@@ -1301,6 +1303,7 @@ export function useResumeSearchState() {
     }
 
     autoAnalyzeDispatchSignatureRef.current = autoAnalyzeSignature
+    pendingForceAnalyzeRef.current = false
     void analyzeResults()
   }, [
     analyzeResults,
@@ -1314,6 +1317,34 @@ export function useResumeSearchState() {
     loading,
     currentSearchContextSignature,
     pendingAutoAnalyzeContextSignature,
+  ])
+
+  // Force-analyze fallback: guarantees quickstart / recent search triggers analysis
+  // even when the signature-based auto-analyze effect misses due to timing or
+  // round-trip normalization differences.
+  useEffect(() => {
+    if (
+      !pendingForceAnalyzeRef.current ||
+      isLanding ||
+      loading ||
+      analyzingResults ||
+      hasActiveAnalysisTask ||
+      analysisCandidateResumeIds.length === 0
+    ) {
+      return
+    }
+
+    pendingForceAnalyzeRef.current = false
+    autoAnalyzeDispatchSignatureRef.current = autoAnalyzeSignature
+    void analyzeResults()
+  }, [
+    analyzeResults,
+    analysisCandidateResumeIds.length,
+    autoAnalyzeSignature,
+    analyzingResults,
+    hasActiveAnalysisTask,
+    isLanding,
+    loading,
   ])
 
   return {
