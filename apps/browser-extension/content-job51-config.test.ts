@@ -27,7 +27,9 @@ describe('job51 content config', () => {
       limit: 250,
       maxPages: 8,
     })
-    expect(resolveJob51CollectionLimits(0, 0, '?keyword=CNC&tr_unsafe_limits=1')).toEqual({
+    expect(
+      resolveJob51CollectionLimits(0, 0, '?keyword=CNC&tr_unsafe_limits=1'),
+    ).toEqual({
       limit: 50,
       maxPages: 1,
     })
@@ -35,8 +37,8 @@ describe('job51 content config', () => {
   })
 
   it('lets 51job auto sync wait for the first page when explicitly requested', () => {
-    expect(resolveJob51AutoSyncDetailWaitMode('?keyword=CNC&tr_job51_detail_wait=page1')).toBe(
-      'page1',
-    )
+    expect(
+      resolveJob51AutoSyncDetailWaitMode('?keyword=CNC&tr_job51_detail_wait=page1'),
+    ).toBe('page1')
   })
 })
