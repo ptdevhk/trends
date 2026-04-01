@@ -195,7 +195,7 @@ export function CollectResumesButton({
       return
     }
 
-    window.open(launchUrl, '_blank', 'noopener,noreferrer')
+    window.open(launchUrl, `trends-collect-${selectedSourceType}`, 'noopener,noreferrer')
   }
 
   const handleMaxPagesChange = (event: ChangeEvent<HTMLInputElement>) => {

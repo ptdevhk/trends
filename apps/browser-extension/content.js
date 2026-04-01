@@ -68,7 +68,7 @@ const KEYWORD_MODE_CONCAT = "concat";
 const KEYWORD_MODE_SPACED = "spaced";
 const JOB51_SAFE_LIMIT = 50;
 const JOB51_SAFE_MAX_PAGES = 1;
-const JOB51_PAGE_COOLDOWN_MS = 20000;
+const JOB51_PAGE_COOLDOWN_MS = 8000;
 const JOB51_RATE_LIMIT_ERROR_MESSAGE =
   "51job 已触发访问频率限制，请60分钟后再试";
 let autoExportTriggered = false;
@@ -83,8 +83,8 @@ const PAGE_BRIDGE_RESPONSE_ATTR = "data-tr-resume-bridge-response";
 const JOB5156_DETAIL_FETCH_TIMEOUT_MS = 5000;
 const JOB5156_DETAIL_FETCH_CONCURRENCY = 5;
 const JOB51_DETAIL_FETCH_TIMEOUT_MS = 8000;
-const JOB51_DETAIL_FETCH_CONCURRENCY = 1;
-const JOB51_DETAIL_FETCH_DELAY_MS = 20000;
+const JOB51_DETAIL_FETCH_CONCURRENCY = 2;
+const JOB51_DETAIL_FETCH_DELAY_MS = 5000;
 const DEFAULT_SEEK_PAGE_SIZE = 20;
 const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
 const DEFAULT_COLLECTION_GUARDS = {
@@ -2380,34 +2380,48 @@ async function enrich51JobSearchResumesWithDetail(resumes, options = {}) {
   const enriched = [];
   let enrichedCount = 0;
 
+  let rateLimited = false;
+
   for (
-    let index = 0;
-    index < resumes.length;
-    index += JOB51_DETAIL_FETCH_CONCURRENCY
+    let start = 0;
+    start < resumes.length;
+    start += JOB51_DETAIL_FETCH_CONCURRENCY
   ) {
-    if (!shouldContinue()) {
+    if (!shouldContinue() || rateLimited) {
       break;
     }
 
-    const result = await enrich51JobSearchResumeWithDetail(
-      resumes[index],
-      extractedAt,
+    const batch = resumes.slice(
+      start,
+      start + JOB51_DETAIL_FETCH_CONCURRENCY,
     );
-    if (result?.resume) {
-      enriched.push(applyCollectionGuards(result.resume, guardFields));
+    const batchResults = await Promise.all(
+      batch.map((resume) =>
+        enrich51JobSearchResumeWithDetail(resume, extractedAt),
+      ),
+    );
+
+    for (const result of batchResults) {
+      if (result?.resume) {
+        enriched.push(applyCollectionGuards(result.resume, guardFields));
+      }
+      if (result?.enriched) {
+        enrichedCount += 1;
+      }
+      if (result?.rateLimited) {
+        rateLimited = true;
+      }
     }
-    if (result?.enriched) {
-      enrichedCount += 1;
-    }
+
     console.log(
-      `51job detail enrichment: ${index + 1}/${resumes.length} (${enrichedCount} enriched)`,
+      `51job detail enrichment: ${Math.min(start + batch.length, resumes.length)}/${resumes.length} (${enrichedCount} enriched)`,
     );
 
-    if (result?.rateLimited || !shouldContinue()) {
+    if (rateLimited || !shouldContinue()) {
       break;
     }
 
-    if (index < resumes.length - 1) {
+    if (start + JOB51_DETAIL_FETCH_CONCURRENCY < resumes.length) {
       await delay(JOB51_DETAIL_FETCH_DELAY_MS);
     }
   }

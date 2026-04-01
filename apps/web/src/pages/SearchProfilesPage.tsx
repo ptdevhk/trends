@@ -367,7 +367,7 @@ export function SearchProfilesPage() {
       }
 
       setRunningIds((previous) => new Set(previous).add(profileId))
-      window.open(launchUrl, '_blank', 'noopener,noreferrer')
+      window.open(launchUrl, `trends-collect-${activeSource.type}`, 'noopener,noreferrer')
       toast.success(t('searchProfiles.openTabSuccess', { defaultValue: 'Opened collection in a new tab' }))
       const existingTimer = headModeResetTimersRef.current[profileId]
       if (existingTimer) {
