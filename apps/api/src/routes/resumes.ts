@@ -7,6 +7,8 @@ import path from "node:path";
 import {
   ResumesQuerySchema,
   ResumesResponseSchema,
+  ResumeDetailPathParamSchema,
+  ResumeDetailResponseSchema,
   ResumeKeywordExpansionQuerySchema,
   ResumeKeywordExpansionResponseSchema,
   ResumeSamplesResponseSchema,
@@ -541,10 +543,52 @@ function toResumeItemFromRecord(record: Record<string, unknown>, source?: string
       .map((entry) => normalizeWorkHistoryEntry(entry))
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
     : [];
+  const projectExperience = Array.isArray(record.projectExperience)
+    ? record.projectExperience
+      .map((entry) => normalizeWorkHistoryEntry(entry))
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    : [];
+  const profileEducation = Array.isArray(record.profileEducation)
+    ? record.profileEducation
+      .map((entry) => {
+        if (!isRecord(entry)) {
+          return null;
+        }
+
+        const institution = toStringValue(entry.institution) || undefined;
+        const qualification = toStringValue(entry.qualification) || undefined;
+        const fieldOfStudy = toStringValue(entry.fieldOfStudy) || undefined;
+        const description = toStringValue(entry.description) || undefined;
+        const startDate = toStringValue(entry.startDate) || undefined;
+        const endDate = toStringValue(entry.endDate) || undefined;
+
+        if (
+          !institution
+          && !qualification
+          && !fieldOfStudy
+          && !description
+          && !startDate
+          && !endDate
+        ) {
+          return null;
+        }
+
+        return {
+          ...(institution ? { institution } : {}),
+          ...(qualification ? { qualification } : {}),
+          ...(fieldOfStudy ? { fieldOfStudy } : {}),
+          ...(description ? { description } : {}),
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    : [];
 
   return {
     name: toStringValue(record.name),
     profileUrl,
+    ...(toStringValue(record.source) || source ? { source: toStringValue(record.source) || source } : {}),
     activityStatus: toStringValue(record.activityStatus),
     age: toStringValue(record.age),
     experience: toStringValue(record.experience),
@@ -554,6 +598,8 @@ function toResumeItemFromRecord(record: Record<string, unknown>, source?: string
     jobIntention: toStringValue(record.jobIntention),
     expectedSalary: toStringValue(record.expectedSalary),
     workHistory,
+    ...(projectExperience.length > 0 ? { projectExperience } : {}),
+    ...(profileEducation.length > 0 ? { profileEducation } : {}),
     extractedAt: toStringValue(record.extractedAt),
     ingestData: buildResumeIngestData(record.ingestData),
     resumeId: toStringValue(record.resumeId) || undefined,
@@ -2595,6 +2641,124 @@ app.openapi(getResumesRoute, (c) => {
   }
 });
 
+function findSampleResumeByIdentifier(items: ResumeItem[], resumeId: string): ResumeItem | null {
+  const normalizedResumeId = resumeId.trim();
+  if (!normalizedResumeId) {
+    return null;
+  }
+
+  for (const [index, item] of items.entries()) {
+    if (resolveResumeId(item, index) === normalizedResumeId) {
+      return item;
+    }
+  }
+
+  return null;
+}
+
+async function getConvexResumeDetail(resumeId: string): Promise<ResumeItem | null> {
+  const value = await callConvexQuery("resumes:getResumeDetail", { resumeId });
+  if (value === null) {
+    return null;
+  }
+  if (!isRecord(value)) {
+    throw new Error("Invalid resume detail response from Convex");
+  }
+
+  const content = isRecord(value.content) ? value.content : {};
+  const source = toStringValue(value.source) || undefined;
+  const resume = toResumeItemFromRecord(content, source);
+  const ingestData = buildResumeIngestData(value.ingestData);
+
+  return ingestData
+    ? {
+        ...resume,
+        ingestData,
+      }
+    : resume;
+}
+
+const getResumeDetailRoute = createRoute({
+  method: "get",
+  path: "/api/resumes/{resumeId}",
+  tags: ["resumes"],
+  summary: "Get one resume with detailed work experience",
+  description: "Returns one resume including structured work history for UI or CLI inspection",
+  request: {
+    params: ResumeDetailPathParamSchema,
+    query: ResumesQuerySchema.pick({
+      sample: true,
+      source: true,
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ResumeDetailResponseSchema,
+        },
+      },
+      description: "Resume detail",
+    },
+    404: {
+      content: {
+        "application/json": {
+          schema: SimpleErrorSchema,
+        },
+      },
+      description: "Resume not found",
+    },
+  },
+});
+
+app.openapi(getResumeDetailRoute, async (c) => {
+  const resumeId = c.req.param("resumeId").trim();
+  const { sample, source } = c.req.valid("query");
+  const sampleName = sample?.trim() || undefined;
+
+  if (source === "convex") {
+    const resume = await getConvexResumeDetail(resumeId);
+    if (!resume) {
+      return c.json({
+        success: false as const,
+        error: `Resume not found: ${resumeId}`,
+      }, 404);
+    }
+
+    return c.json({
+      success: true as const,
+      source,
+      data: resume,
+    }, 200);
+  }
+
+  try {
+    const { items, sample: sampleInfo } = resumeService.loadSample(sampleName);
+    const resume = findSampleResumeByIdentifier(items, resumeId);
+    if (!resume) {
+      return c.json({
+        success: false as const,
+        error: `Resume not found: ${resumeId}`,
+      }, 404);
+    }
+
+    return c.json({
+      success: true as const,
+      source,
+      sample: sampleInfo,
+      data: resume,
+    }, 200);
+  } catch (error) {
+    if (error instanceof DataNotFoundError) {
+      return c.json({
+        success: false as const,
+        error: error.message,
+      }, 404);
+    }
+    throw error;
+  }
+});
+
 const matchResumesRoute = createRoute({
   method: "post",
   path: "/api/resumes/match",
@@ -2801,7 +2965,7 @@ app.openapi(matchResumesRoute, async (c) => {
       }
 
       return c.json(
-        {
+        MatchResponseSchema.parse({
           success: true as const,
           mode,
           streamPath: mode === "hybrid" ? "/api/resumes/match-stream" : undefined,
@@ -2814,7 +2978,7 @@ app.openapi(matchResumesRoute, async (c) => {
           }),
           results,
           stats,
-        },
+        }),
         200
       );
     }
@@ -2894,7 +3058,7 @@ app.openapi(matchResumesRoute, async (c) => {
     }
 
     return c.json(
-      {
+      MatchResponseSchema.parse({
         success: true as const,
         mode: "ai_only",
         query: buildMatchQueryMetadata({
@@ -2905,7 +3069,7 @@ app.openapi(matchResumesRoute, async (c) => {
         }),
         results: finalResults,
         stats,
-      },
+      }),
       200
     );
   } catch (error) {
@@ -4176,7 +4340,7 @@ app.openapi(rescoreResumeMatchesRoute, async (c) => {
   }
 
   return c.json(
-    {
+    MatchResponseSchema.parse({
       success: true as const,
       mode: "rules_only",
       query: buildMatchQueryMetadata({
@@ -4189,7 +4353,7 @@ app.openapi(rescoreResumeMatchesRoute, async (c) => {
       }),
       results,
       stats: computeStats(results, Date.now() - startTime, 0),
-    },
+    }),
     200
   );
 });

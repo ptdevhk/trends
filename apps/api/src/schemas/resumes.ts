@@ -570,6 +570,22 @@ export const ResumesResponseSchema = z
   })
   .openapi("ResumesResponse");
 
+export const ResumeDetailPathParamSchema = z.object({
+  resumeId: z.string().openapi({
+    param: { name: "resumeId", in: "path" },
+    example: "resume-live-1",
+  }),
+});
+
+export const ResumeDetailResponseSchema = z
+  .object({
+    success: z.literal(true),
+    source: z.enum(["sample", "convex"]),
+    sample: ResumeSampleSchema.optional(),
+    data: ResumeItemSchema,
+  })
+  .openapi("ResumeDetailResponse");
+
 export const ResumeKeywordExpansionQuerySchema = z.object({
   q: z
     .string()

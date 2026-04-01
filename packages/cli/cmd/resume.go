@@ -24,6 +24,7 @@ func newResumeCmd() *cobra.Command {
 
 	resumeCmd.AddCommand(
 		newResumeListCmd(),
+		newResumeShowCmd(),
 		newResumeSearchCmd(),
 		newResumeMatchCmd(),
 		newResumeSnapshotCmd(),
@@ -68,6 +69,39 @@ func newResumeListCmd() *cobra.Command {
 	}
 
 	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum resumes to fetch")
+	return cmd
+}
+
+func newResumeShowCmd() *cobra.Command {
+	var sample string
+	var source string
+
+	cmd := &cobra.Command{
+		Use:   "show <resume-id>",
+		Short: "Show one resume with detailed work experience",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().GetResumeDetail(
+				context.Background(),
+				args[0],
+				sample,
+				source,
+			)
+			if err != nil {
+				return err
+			}
+
+			if currentOptions().Output == "json" {
+				return writeOutput(cmd, nil, nil, response)
+			}
+
+			return writeResumeDetailOutput(cmd, response)
+		},
+	}
+
+	cmd.Flags().StringVar(&sample, "sample", "", "Optional sample name when source=sample")
+	cmd.Flags().StringVar(&source, "source", "sample", "Resume source: sample|convex")
+
 	return cmd
 }
 
@@ -348,6 +382,98 @@ func buildResumeManualImportOutput(response *client.ResumeManualImportResponse) 
 		Headers: headers,
 		Rows:    rows,
 	}
+}
+
+func writeResumeDetailOutput(cmd *cobra.Command, response *client.ResumeDetailResponse) error {
+	item := response.Data
+	out := cmd.OutOrStdout()
+
+	if _, err := fmt.Fprintf(
+		out,
+		"ID: %s\nName: %s\nSource: %s\nIntention: %s\nLocation: %s\nExperience: %s\nEducation: %s\nActivity: %s\nSalary: %s\nProfile: %s\n",
+		coalesceString(item.ResumeID, item.PerUserID, item.ProfileID, item.ExternalID),
+		fallbackDisplayValue(item.Name),
+		fallbackDisplayValue(response.Source),
+		fallbackDisplayValue(item.JobIntention),
+		fallbackDisplayValue(item.Location),
+		fallbackDisplayValue(item.Experience),
+		fallbackDisplayValue(item.Education),
+		fallbackDisplayValue(item.ActivityStatus),
+		fallbackDisplayValue(item.ExpectedSalary),
+		fallbackDisplayValue(item.ProfileURL),
+	); err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(item.SelfIntro) != "" {
+		if _, err := fmt.Fprintf(out, "\nSelf Intro:\n%s\n", item.SelfIntro); err != nil {
+			return err
+		}
+	}
+
+	if _, err := fmt.Fprintln(out, "\nWork History:"); err != nil {
+		return err
+	}
+	if len(item.WorkHistory) == 0 {
+		if _, err := fmt.Fprintln(out, "- --"); err != nil {
+			return err
+		}
+	} else {
+		for index, entry := range item.WorkHistory {
+			if _, err := fmt.Fprintf(out, "%d. %s\n", index+1, formatResumeWorkHistoryEntry(entry)); err != nil {
+				return err
+			}
+			if description := strings.TrimSpace(entry.Description); description != "" {
+				if _, err := fmt.Fprintf(out, "%s\n", indentMultiline(description, "   ")); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func fallbackDisplayValue(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "--"
+	}
+	return value
+}
+
+func formatResumeWorkHistoryEntry(entry client.ResumeWorkHistoryItem) string {
+	parts := make([]string, 0, 4)
+
+	dateRange := strings.TrimSpace(strings.Join([]string{
+		strings.TrimSpace(entry.StartDate),
+		strings.TrimSpace(entry.EndDate),
+	}, " ~ "))
+	dateRange = strings.TrimSpace(strings.Trim(dateRange, "~ "))
+	if dateRange != "" {
+		parts = append(parts, dateRange)
+	}
+
+	if company := strings.TrimSpace(entry.CompanyName); company != "" {
+		parts = append(parts, company)
+	}
+	if title := strings.TrimSpace(entry.JobTitle); title != "" {
+		parts = append(parts, title)
+	}
+	if len(parts) == 0 && strings.TrimSpace(entry.Raw) != "" {
+		return entry.Raw
+	}
+	if len(parts) == 0 {
+		return "--"
+	}
+	return strings.Join(parts, " | ")
+}
+
+func indentMultiline(text string, prefix string) string {
+	lines := strings.Split(text, "\n")
+	for index, line := range lines {
+		lines[index] = prefix + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 type resumeDisplayRow struct {
