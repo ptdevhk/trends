@@ -6930,6 +6930,20 @@ export interface components {
             /** @example 2018 */
             endDate?: string;
         };
+        ResumeImportWorkHistory: {
+            /** @example 2021-03 ~ 2023-08 Example Co. - Sales Manager */
+            raw?: string;
+            /** @example Example Co. */
+            companyName?: string;
+            /** @example Sales Manager */
+            jobTitle?: string;
+            /** @example Managed CNC machine tool accounts across the region. */
+            description?: string;
+            /** @example 2021-03 */
+            startDate?: string;
+            /** @example 2023-08 */
+            endDate?: string;
+        };
         ResumeImportSkillDetail: {
             /** @example CNC */
             name: string;
@@ -7056,6 +7070,8 @@ export interface components {
             name: string;
             /** @example https://hr.job5156.com/resume/view/123 */
             profileUrl: string;
+            /** @example hr.job5156.com */
+            source?: string;
             /** @example Active today */
             activityStatus: string;
             /** @example 28 */
@@ -7075,6 +7091,7 @@ export interface components {
             expectedSalary: string;
             workHistory: components["schemas"]["ResumeWorkHistory"][];
             profileEducation?: components["schemas"]["ResumeImportProfileEducation"][];
+            projectExperience?: components["schemas"]["ResumeImportWorkHistory"][];
             skills?: (string | components["schemas"]["ResumeImportSkillDetail"])[];
             languages?: (string | components["schemas"]["ResumeImportLanguageDetail"])[];
             licences?: (string | components["schemas"]["ResumeImportLicenceDetail"])[];
@@ -7425,20 +7442,6 @@ export interface components {
             /** @example Navigate to sourceUrl, then add ?tr_auto_export=json */
             reproduction?: string;
         };
-        ResumeImportWorkHistory: {
-            /** @example 2021-03 ~ 2023-08 Example Co. - Sales Manager */
-            raw?: string;
-            /** @example Example Co. */
-            companyName?: string;
-            /** @example Sales Manager */
-            jobTitle?: string;
-            /** @example Managed CNC machine tool accounts across the region. */
-            description?: string;
-            /** @example 2021-03 */
-            startDate?: string;
-            /** @example 2023-08 */
-            endDate?: string;
-        };
         ResumeImportRestoreState: {
             /** @example 1763917200000 */
             crawledAt?: number;
@@ -7456,6 +7459,8 @@ export interface components {
             profileId?: string | number;
             profileType?: string;
             externalId?: string;
+            /** @example hr.job5156.com */
+            source?: string;
             /** @example hr.job5156.com */
             sourceHost?: string;
             /**
@@ -7484,6 +7489,7 @@ export interface components {
             selfIntro?: string;
             workHistory?: components["schemas"]["ResumeImportWorkHistory"][];
             profileEducation?: components["schemas"]["ResumeImportProfileEducation"][];
+            projectExperience?: components["schemas"]["ResumeImportWorkHistory"][];
             skills?: (string | components["schemas"]["ResumeImportSkillDetail"])[];
             languages?: (string | components["schemas"]["ResumeImportLanguageDetail"])[];
             licences?: (string | components["schemas"]["ResumeImportLicenceDetail"])[];

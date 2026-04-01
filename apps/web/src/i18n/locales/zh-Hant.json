@@ -15,6 +15,17 @@
     "reviewPackets": "評審包",
     "jds": "職位"
   },
+  "common": {
+    "loading": "載入中...",
+    "loadingMore": "正在載入更多...",
+    "refresh": "刷新",
+    "retry": "重試",
+    "cancel": "取消",
+    "confirm": "確認",
+    "close": "關閉",
+    "collapse": "收起",
+    "expand": "展開"
+  },
   "jdManagement": {
     "title": "職位描述管理",
     "subtitle": "管理系統預設和自定義的職位描述，用於 AI 分析。",
@@ -267,11 +278,52 @@
     },
     "detail": {
       "title": "簡歷詳情",
+      "description": "檢視簡歷詳情和 AI 分析摘要。",
       "workHistory": "工作經歷",
       "selfIntro": "自我介紹",
       "extractedAt": "更新時間",
       "profileLink": "查看原始簡歷",
-      "close": "關閉"
+      "close": "關閉",
+      "id": "ID",
+      "aiAnalysis": "AI 分析",
+      "language": "語言：",
+      "highlights": "亮點",
+      "concerns": "關注點",
+      "detailedBreakdown": "詳細拆解",
+      "summaryFeedback": "摘要回饋",
+      "industryVerified": "產業驗證",
+      "aiScoreLabel": "AI 分數",
+      "aiSummaryLabel": "AI 摘要",
+      "promptVersion": "提示詞 v{{version}}"
+    },
+    "experienceLevel": {
+      "senior": "資深",
+      "mid": "中級",
+      "junior": "初級"
+    },
+    "roleLabels": {
+      "sales": "銷售",
+      "engineer": "工程",
+      "operator": "操作",
+      "technician": "技術",
+      "manager": "管理"
+    },
+    "card": {
+      "industryVerifiedSuffix": "（產業驗證）",
+      "relatedYears": "相關年限：{{years}}",
+      "industryVerified": "產業驗證：{{years}}",
+      "matchedSignals": "命中信號：{{signals}}",
+      "matchedExperience": "命中經歷：{{experience}}",
+      "unblock": "取消封鎖",
+      "block": "封鎖",
+      "blocked": "已封鎖",
+      "blockCandidate": "封鎖候選人",
+      "blockCandidateDescription": "為封鎖候選人新增可選備註。",
+      "notePlaceholder": "備註",
+      "notePlaceholderInput": "輸入備註...",
+      "notesTitle": "備註",
+      "notesDescription": "為 {{name}} 新增備註。",
+      "currentPosition": "目前職位"
     },
     "searchPage": {
       "banner": {
@@ -687,6 +739,10 @@
     "customKeywordCategory": "類別",
     "configSources": "配置來源",
     "configSourcesDescription": "以唯讀方式查看允許暴露的履歷配置檔與提示詞來源。",
+    "resumeDisplayLimits": "履歷展示限制",
+    "resumeDisplayLimitsDescription": "用於履歷展示邏輯的唯讀限制。",
+    "latestWorkHistoryEntries": "最新工作經歷條數",
+    "resumeDisplayLimitsSource": "來源檔案",
     "configSourcesLoadError": "載入配置來源失敗",
     "configSourceLabel": "來源",
     "configSourceType": "類型",

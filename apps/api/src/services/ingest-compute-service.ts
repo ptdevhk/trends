@@ -137,6 +137,7 @@ function toResumeItem(value: unknown): ResumeItem | null {
   return {
     name: toStringValue(value.name),
     profileUrl: toStringValue(value.profileUrl),
+    source: toStringValue(value.source) || undefined,
     activityStatus: toStringValue(value.activityStatus),
     age: toStringValue(value.age),
     experience: toStringValue(value.experience),
@@ -147,6 +148,7 @@ function toResumeItem(value: unknown): ResumeItem | null {
     jobIntention: toStringValue(value.jobIntention),
     expectedSalary: toStringValue(value.expectedSalary),
     workHistory: toWorkHistory(value.workHistory),
+    projectExperience: toWorkHistory(value.projectExperience),
     extractedAt: toStringValue(value.extractedAt),
     resumeId: toStringValue(value.resumeId) || undefined,
     perUserId: toOptionalId(value.perUserId),
@@ -162,11 +164,13 @@ function hasResumeSignal(item: ResumeItem): boolean {
     || item.jobIntention
     || item.selfIntro
     || item.profileUrl
+    || item.source
     || item.resumeId
     || item.perUserId
     || item.profileId
     || item.externalId
     || item.workHistory.length > 0
+    || item.projectExperience?.length
   );
 }
 
@@ -249,12 +253,14 @@ function getLatestWorkHistory(workHistory: ResumeWorkHistoryItem[] | undefined):
 function createSearchText(item: ResumeItem): string {
   const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
   const latestWorkHistory = getLatestWorkHistory(item.workHistory);
+  const latestProjectExperience = getLatestWorkHistory(item.projectExperience ?? []);
   const parts = [
     item.name,
     item.education,
     locationText,
     item.expectedSalary,
     ...latestWorkHistory.map((entry) => buildWorkHistoryEntryText(entry)),
+    ...latestProjectExperience.map((entry) => buildWorkHistoryEntryText(entry)),
   ];
 
   return normalizeText(parts.join(" "));

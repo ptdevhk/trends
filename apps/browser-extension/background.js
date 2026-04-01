@@ -174,6 +174,75 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function getRuntimeLastError() {
+    return Reflect.get(chrome.runtime, 'lastError');
+}
+
+function createTab(url, active = false) {
+    return new Promise((resolve, reject) => {
+        chrome.tabs.create({ url, active }, (tab) => {
+            const lastError = getRuntimeLastError();
+            if (lastError) {
+                reject(new Error(lastError.message || String(lastError)));
+                return;
+            }
+            resolve(tab);
+        });
+    });
+}
+
+function removeTab(tabId) {
+    return new Promise((resolve) => {
+        if (!Number.isFinite(tabId)) {
+            resolve();
+            return;
+        }
+        chrome.tabs.remove(tabId, () => {
+            resolve();
+        });
+    });
+}
+
+function sendMessageToTab(tabId, message) {
+    return new Promise((resolve, reject) => {
+        chrome.tabs.sendMessage(tabId, message, undefined, (response) => {
+            const lastError = getRuntimeLastError();
+            if (lastError) {
+                reject(new Error(lastError.message || String(lastError)));
+                return;
+            }
+            resolve(response);
+        });
+    });
+}
+
+async function waitForJob51ResumeDetail(tabId, timeoutMs = 20000) {
+    const deadline = Date.now() + timeoutMs;
+    let lastError = null;
+
+    while (Date.now() < deadline) {
+        try {
+            const response = await sendMessageToTab(tabId, {
+                action: 'extractCurrentPage',
+            });
+            if (response?.success && Array.isArray(response.data) && response.data.length > 0) {
+                return response.data;
+            }
+            lastError = null;
+        } catch (error) {
+            lastError = error;
+        }
+
+        await sleep(1000);
+    }
+
+    if (lastError) {
+        throw lastError;
+    }
+
+    throw new Error('Timed out waiting for Job51 resume detail');
+}
+
 function storageLocalGet(defaults) {
     return new Promise((resolve) => {
         chrome.storage.local.get(defaults, (items) => resolve(items || {}));
@@ -274,6 +343,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         })();
 
         return true; // Keep channel open for async response
+    }
+
+    if (request.action === 'collectJob51ResumeDetail') {
+        (async () => {
+            const resumeId = typeof request.resumeId === 'string' ? request.resumeId.trim() : '';
+            if (!resumeId) {
+                sendResponse({ success: false, error: 'Missing resume id' });
+                return;
+            }
+
+            const detailUrl = `https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=${encodeURIComponent(resumeId)}`;
+            let tab = null;
+            try {
+                tab = await createTab(detailUrl, false);
+                const data = await waitForJob51ResumeDetail(tab.id);
+                sendResponse({ success: true, data });
+            } catch (error) {
+                console.error('🎯 [BG] Failed to collect Job51 resume detail:', error);
+                sendResponse({ success: false, error: error.message });
+            } finally {
+                if (tab?.id !== undefined && tab?.id !== null) {
+                    await removeTab(tab.id);
+                }
+            }
+        })();
+
+        return true;
     }
 
     if (request.action === 'diagnoseDownloads') {

@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
 import { cn } from '@/lib/utils'
+import { getResumeContentLocale } from '@/lib/resume-scoring'
 
 type SnippetCardProps = {
   expanded: boolean
@@ -25,6 +26,7 @@ function getPrimaryHeadline(item: ResumeSearchResultItem, fallbackLabel: string)
 
 export function SnippetCard({ expanded, item, showAiScore = false, onToggleExpanded }: SnippetCardProps) {
   const { t } = useTranslation()
+  const contentLocale = getResumeContentLocale(item.resume)
   const analysis = item.analysis ?? item.resume.analysis
   const snippetText = item.resume.workHistory?.[0]?.raw || item.resume.selfIntro
   const visibleKeywords = (
@@ -74,7 +76,7 @@ export function SnippetCard({ expanded, item, showAiScore = false, onToggleExpan
   const primaryHeadline = getPrimaryHeadline(item, profileOverviewLabel)
 
   return (
-    <Card className="overflow-hidden rounded-[1.5rem] border-slate-200 bg-white shadow-[0_18px_50px_-40px_rgba(15,23,42,0.7)]">
+    <Card className="overflow-hidden rounded-[1.5rem] border-slate-200 bg-white shadow-[0_18px_50px_-40px_rgba(15,23,42,0.7)]" lang={contentLocale}>
       <div className="space-y-4 px-5 py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-3">

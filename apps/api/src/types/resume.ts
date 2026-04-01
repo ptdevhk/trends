@@ -63,6 +63,7 @@ export type ResumeIngestData = {
 export type ResumeItem = {
   name: string;
   profileUrl: string;
+  source?: string;
   activityStatus: string;
   age: string;
   experience: string;
@@ -73,6 +74,7 @@ export type ResumeItem = {
   jobIntention: string;
   expectedSalary: string;
   workHistory: ResumeWorkHistoryItem[];
+  projectExperience?: ResumeWorkHistoryItem[];
   profileEducation?: ResumeProfileEducationItem[];
   skills?: Array<string | ResumeSkillDetail>;
   languages?: Array<string | ResumeLanguageDetail>;

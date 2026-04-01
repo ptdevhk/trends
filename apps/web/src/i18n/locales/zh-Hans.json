@@ -15,6 +15,17 @@
     "reviewPackets": "评审包",
     "jds": "职位"
   },
+  "common": {
+    "loading": "加载中...",
+    "loadingMore": "正在加载更多...",
+    "refresh": "刷新",
+    "retry": "重试",
+    "cancel": "取消",
+    "confirm": "确认",
+    "close": "关闭",
+    "collapse": "收起",
+    "expand": "展开"
+  },
   "jdManagement": {
     "title": "职位描述管理",
     "subtitle": "管理系统预设和自定义的职位描述，用于 AI 分析。",
@@ -267,11 +278,52 @@
     },
     "detail": {
       "title": "简历详情",
+      "description": "查看简历详情和 AI 分析摘要。",
       "workHistory": "工作经历",
       "selfIntro": "自我介绍",
       "extractedAt": "更新时间",
       "profileLink": "查看原始简历",
-      "close": "关闭"
+      "close": "关闭",
+      "id": "ID",
+      "aiAnalysis": "AI 分析",
+      "language": "语言：",
+      "highlights": "亮点",
+      "concerns": "关注点",
+      "detailedBreakdown": "详细拆解",
+      "summaryFeedback": "摘要反馈",
+      "industryVerified": "行业验证",
+      "aiScoreLabel": "AI 分数",
+      "aiSummaryLabel": "AI 摘要",
+      "promptVersion": "提示词 v{{version}}"
+    },
+    "experienceLevel": {
+      "senior": "资深",
+      "mid": "中级",
+      "junior": "初级"
+    },
+    "roleLabels": {
+      "sales": "销售",
+      "engineer": "工程",
+      "operator": "操作",
+      "technician": "技术",
+      "manager": "管理"
+    },
+    "card": {
+      "industryVerifiedSuffix": "（行业验证）",
+      "relatedYears": "相关年限：{{years}}",
+      "industryVerified": "行业验证：{{years}}",
+      "matchedSignals": "命中信号：{{signals}}",
+      "matchedExperience": "命中经历：{{experience}}",
+      "unblock": "取消屏蔽",
+      "block": "屏蔽",
+      "blocked": "已屏蔽",
+      "blockCandidate": "屏蔽候选人",
+      "blockCandidateDescription": "为屏蔽候选人添加可选备注。",
+      "notePlaceholder": "备注",
+      "notePlaceholderInput": "输入备注...",
+      "notesTitle": "备注",
+      "notesDescription": "为 {{name}} 添加备注。",
+      "currentPosition": "当前职位"
     },
     "searchPage": {
       "banner": {
@@ -687,6 +739,10 @@
     "customKeywordCategory": "类别",
     "configSources": "配置来源",
     "configSourcesDescription": "以只读方式查看允许暴露的简历配置文件与提示词来源。",
+    "resumeDisplayLimits": "简历展示限制",
+    "resumeDisplayLimitsDescription": "用于简历展示逻辑的只读限制。",
+    "latestWorkHistoryEntries": "最新工作经历条数",
+    "resumeDisplayLimitsSource": "来源文件",
     "configSourcesLoadError": "加载配置来源失败",
     "configSourceLabel": "来源",
     "configSourceType": "类型",

@@ -80,6 +80,9 @@ const PAGE_BRIDGE_REQUEST_ATTR = "data-tr-resume-bridge-request";
 const PAGE_BRIDGE_RESPONSE_ATTR = "data-tr-resume-bridge-response";
 const JOB5156_DETAIL_FETCH_TIMEOUT_MS = 5000;
 const JOB5156_DETAIL_FETCH_CONCURRENCY = 5;
+const JOB51_DETAIL_FETCH_TIMEOUT_MS = 8000;
+const JOB51_DETAIL_FETCH_CONCURRENCY = 1;
+const JOB51_DETAIL_FETCH_DELAY_MS = 20000;
 const DEFAULT_SEEK_PAGE_SIZE = 20;
 const LATEST_AUTO_SYNC_SUMMARIES_STORAGE_KEY = "latestAutoSyncSummaries";
 
@@ -87,6 +90,8 @@ const apiSnapshot = {
   searchRows: null,
   job51SearchRows: null,
   job51Total: null,
+  job51AuthContext: null,
+  job51DetailPayload: null,
   attachInfo: null,
   chatInfo: null,
   insightInfo: null,
@@ -429,11 +434,60 @@ function isJob5156DetailPage() {
   );
 }
 
+function isJob51DetailPage() {
+  return (
+    getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
+    /\/Revision\/talent\/resume\/detail/i.test(window.location.pathname)
+  );
+}
+
+function isJob51DetailReady() {
+  return isJob51DetailPage() && !!apiSnapshot.job51DetailPayload;
+}
+
+function normalizeJob51AuthContext(requestHeaders, request) {
+  const headers =
+    requestHeaders && typeof requestHeaders === "object" ? requestHeaders : {};
+  const requestBody = request && typeof request === "object" ? request : {};
+  const pick = (...keys) => {
+    for (const key of keys) {
+      const headerValue = headers[key] ?? headers[key.toLowerCase()];
+      if (typeof headerValue === "string" && headerValue.trim()) {
+        return headerValue.trim();
+      }
+      const requestValue = requestBody[key];
+      if (typeof requestValue === "string" && requestValue.trim()) {
+        return requestValue.trim();
+      }
+    }
+    return "";
+  };
+
+  const accesstoken = pick("accesstoken", "access-token", "accessToken");
+  const guid = pick("guid");
+  const property = pick("property");
+  const sign = pick("sign");
+
+  if (!accesstoken && !guid && !property && !sign) {
+    return null;
+  }
+
+  return {
+    ...(accesstoken ? { accesstoken } : {}),
+    ...(guid ? { guid } : {}),
+    ...(property ? { property } : {}),
+    ...(sign ? { sign } : {}),
+  };
+}
+
 function getApiSnapshotCount() {
   if (Array.isArray(apiSnapshot.searchRows)) {
     return apiSnapshot.searchRows.length;
   }
   if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
+    if (isJob51DetailPage()) {
+      return isJob51DetailReady() ? 1 : 0;
+    }
     return Array.isArray(apiSnapshot.job51SearchRows)
       ? apiSnapshot.job51SearchRows.length
       : 0;
@@ -705,7 +759,7 @@ function isJob5156DetailRootReady(root, pathname) {
 
 function isExtractionReady() {
   if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
-    return hasJob51SearchSnapshot();
+    return isJob51DetailPage() ? isJob51DetailReady() : hasJob51SearchSnapshot();
   }
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     return isSeekSnapshotReady();
@@ -1980,6 +2034,245 @@ async function enrichJob5156SearchResumesWithDetail(resumes) {
   return enriched;
 }
 
+function isJob51RateLimitedErrorMessage(message) {
+  const normalized = normalizeResumeText(String(message || ""));
+  return (
+    normalized.includes("搜索访问太快") ||
+    normalized.includes("请60分钟后再试") ||
+    normalized.includes("访问频率限制") ||
+    normalized.includes("频率限制") ||
+    normalized.toLowerCase().includes("rate limit")
+  );
+}
+
+function isJob51RateLimitedPayload(payload) {
+  if (!payload) return false;
+  const candidates = [
+    payload.error,
+    payload.message,
+    payload.msg,
+    payload.detail,
+    payload.data?.error,
+    payload.data?.message,
+    payload.data?.msg,
+    payload.data?.detail,
+  ];
+  return candidates.some((value) => isJob51RateLimitedErrorMessage(value));
+}
+
+async function collectJob51DetailFromBackground(resumeId) {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "collectJob51ResumeDetail",
+      resumeId,
+    });
+    if (response?.success) {
+      return {
+        payload: response.data ?? response.payload ?? response.resume ?? null,
+        rateLimited: false,
+      };
+    }
+    const errorMessage = response?.error ? String(response.error) : "";
+    return {
+      payload: null,
+      rateLimited: isJob51RateLimitedErrorMessage(errorMessage),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "");
+    return {
+      payload: null,
+      rateLimited: isJob51RateLimitedErrorMessage(message),
+    };
+  }
+}
+
+async function fetch51JobResumeDetail(resumeId) {
+  const normalizedResumeId = normalizeJob51Text(resumeId);
+  if (!normalizedResumeId) {
+    return { payload: null, rateLimited: false };
+  }
+
+  const authContext = apiSnapshot.job51AuthContext;
+  const requestBody = {
+    resume_id: normalizedResumeId,
+    resumeId: normalizedResumeId,
+    userid: normalizedResumeId,
+    lan: "c",
+    timestamp: Date.now(),
+    ...(authContext?.property ? { property: authContext.property } : {}),
+    ...(authContext?.sign ? { sign: authContext.sign } : {}),
+  };
+
+  if (authContext?.accesstoken || authContext?.guid || authContext?.property) {
+    const headers = {
+      Accept: "application/json, text/plain, */*",
+      "Content-Type": "application/json",
+      ...(authContext.accesstoken ? { accesstoken: authContext.accesstoken } : {}),
+      ...(authContext.guid ? { guid: authContext.guid } : {}),
+      ...(authContext.property ? { property: authContext.property } : {}),
+    };
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      JOB51_DETAIL_FETCH_TIMEOUT_MS,
+    );
+
+    try {
+      const response = await fetch(
+        "https://ehirej.51job.com/resumedtl/getresume",
+        {
+          method: "POST",
+          credentials: "include",
+          headers,
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        },
+      );
+
+      if (response.status === 403) {
+        return { payload: null, rateLimited: true };
+      }
+
+      if (response.ok) {
+        const payload = await response.json().catch(() => null);
+        if (isJob51RateLimitedPayload(payload)) {
+          return { payload: null, rateLimited: true };
+        }
+        if (payload) {
+          return { payload, rateLimited: false };
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || "");
+      if (isJob51RateLimitedErrorMessage(message)) {
+        return { payload: null, rateLimited: true };
+      }
+      if (error instanceof DOMException && error.name === "AbortError") {
+        console.warn("🎯 [Auto Sync] Direct Job51 detail fetch timed out:", normalizedResumeId);
+      } else {
+        console.warn("🎯 [Auto Sync] Direct Job51 detail fetch failed:", normalizedResumeId, error);
+      }
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
+  return collectJob51DetailFromBackground(normalizedResumeId);
+}
+
+async function enrich51JobSearchResumeWithDetail(resume, extractedAt) {
+  if (!resume || typeof resume !== "object") {
+    return {
+      resume: null,
+      enriched: false,
+      rateLimited: false,
+    };
+  }
+
+  const fallbackResume = {
+    ...resume,
+    extractedAt: resume.extractedAt || extractedAt,
+  };
+  const resumeId =
+    normalizeJob51Text(resume.resumeId) ||
+    normalizeJob51Text(resume.perUserId) ||
+    "";
+
+  if (!resumeId) {
+    return {
+      resume: fallbackResume,
+      enriched: false,
+      rateLimited: false,
+    };
+  }
+
+  try {
+    const detailResult = await fetch51JobResumeDetail(resumeId);
+    if (!detailResult?.payload) {
+      return {
+        resume: fallbackResume,
+        enriched: false,
+        rateLimited: !!detailResult?.rateLimited,
+      };
+    }
+
+    const detailResume = buildJob51DetailResumeFromPayload(detailResult.payload, {
+      resumeId,
+      profileUrl: fallbackResume.profileUrl || "",
+    })[0] || null;
+
+    if (!detailResume) {
+      return {
+        resume: fallbackResume,
+        enriched: false,
+        rateLimited: !!detailResult.rateLimited,
+      };
+    }
+
+    return {
+      resume: {
+        ...fallbackResume,
+        ...detailResume,
+        extractedAt: fallbackResume.extractedAt,
+        pageIndex: fallbackResume.pageIndex,
+        pageNumber: fallbackResume.pageNumber,
+        workHistory: detailResume.workHistory || [],
+        projectExperience: detailResume.projectExperience || [],
+        profileEducation: detailResume.profileEducation || [],
+        skills: detailResume.skills || [],
+        licences: detailResume.licences || [],
+      },
+      enriched: true,
+      rateLimited: !!detailResult.rateLimited,
+    };
+  } catch (error) {
+    console.warn(
+      "🎯 [Auto Sync] Failed to enrich Job51 detail resume:",
+      resumeId,
+      error,
+    );
+    return {
+      resume: fallbackResume,
+      enriched: false,
+      rateLimited: false,
+    };
+  }
+}
+
+async function enrich51JobSearchResumesWithDetail(resumes) {
+  if (!Array.isArray(resumes) || resumes.length === 0) return [];
+
+  const extractedAt = new Date().toISOString();
+  const enriched = [];
+  let enrichedCount = 0;
+
+  for (let index = 0; index < resumes.length; index += JOB51_DETAIL_FETCH_CONCURRENCY) {
+    const result = await enrich51JobSearchResumeWithDetail(
+      resumes[index],
+      extractedAt,
+    );
+    if (result?.resume) {
+      enriched.push(result.resume);
+    }
+    if (result?.enriched) {
+      enrichedCount += 1;
+    }
+    console.log(
+      `51job detail enrichment: ${index + 1}/${resumes.length} (${enrichedCount} enriched)`,
+    );
+
+    if (result?.rateLimited) {
+      break;
+    }
+
+    if (index < resumes.length - 1) {
+      await delay(JOB51_DETAIL_FETCH_DELAY_MS);
+    }
+  }
+
+  return enriched;
+}
+
 function extractSeekProfileResume() {
   const profile = apiSnapshot.seekProfile;
   if (!profile || typeof profile !== "object") return [];
@@ -2348,7 +2641,7 @@ function extractProfileUrl(card, apiRow) {
 }
 
 function updateApiSnapshot(message) {
-  const { kind, payload, url, sourceKey, operationName, request } = message;
+  const { kind, payload, url, sourceKey, operationName, request, requestHeaders } = message;
   apiSnapshot.lastUpdatedAt = new Date().toISOString();
   if (url) apiSnapshot.lastUrl = url;
   apiSnapshot.lastSourceKey = sourceKey || null;
@@ -2384,6 +2677,13 @@ function updateApiSnapshot(message) {
     return;
   }
   if (kind === "job51search") {
+    const authContext = normalizeJob51AuthContext(requestHeaders, request);
+    if (authContext) {
+      apiSnapshot.job51AuthContext = {
+        ...(apiSnapshot.job51AuthContext || {}),
+        ...authContext,
+      };
+    }
     const total = getJob51TotalFromPayload(payload);
     if (typeof total === "number") {
       apiSnapshot.job51Total = total;
@@ -2402,6 +2702,25 @@ function updateApiSnapshot(message) {
       } catch {
         // ignore
       }
+    }
+    return;
+  }
+  if (kind === "job51detail") {
+    const authContext = normalizeJob51AuthContext(requestHeaders, request);
+    if (authContext) {
+      apiSnapshot.job51AuthContext = {
+        ...(apiSnapshot.job51AuthContext || {}),
+        ...authContext,
+      };
+    }
+    apiSnapshot.job51DetailPayload = payload || null;
+    try {
+      document.documentElement.setAttribute(
+        "data-tr-api-rows",
+        String(getApiSnapshotCount()),
+      );
+    } catch {
+      // ignore
     }
     return;
   }
@@ -3005,14 +3324,14 @@ function extract51JobResumes() {
         uniqueSkillTags.join("、"),
     );
     const resumeId = str(
-      baseInfo.accountid ||
+      row?.userid ||
         row?.resumeId ||
         row?.resumeNo ||
         row?.resumekey ||
         row?.id,
     );
     const perUserId = str(
-      row?.userid ||
+      baseInfo.accountid ||
         row?.real_userid ||
         row?.perUserId ||
         row?.userId ||
@@ -3035,6 +3354,7 @@ function extract51JobResumes() {
       perUserId: perUserId || undefined,
       externalId: externalId || undefined,
       profileUrl: profileUrl || undefined,
+      source: EHIRE_51JOB_HOST,
       workHistory,
       pageIndex: index + 1,
       rawData: row,
@@ -3043,7 +3363,509 @@ function extract51JobResumes() {
   });
 }
 
+function getJob51DetailRoot(payload) {
+  if (!payload) return null;
+  if (Array.isArray(payload)) {
+    for (const entry of payload) {
+      const root = getJob51DetailRoot(entry);
+      if (root) return root;
+    }
+    return null;
+  }
+  if (typeof payload !== "object") return null;
+  const record = payload;
+  const candidates = [
+    record.data,
+    record.result,
+    record.resume,
+    record.detail,
+    record.resumeInfo,
+    record.resumeDetail,
+    record.resumeViewVo,
+    record.resume_view_vo,
+    record.resumeVo,
+    record.cnVo,
+    record.content,
+  ];
+  for (const candidate of candidates) {
+    const root = getJob51DetailRoot(candidate);
+    if (root) return root;
+  }
+  return record;
+}
+
+function readJob51Text(...values) {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const text = normalizeJob51Text(value);
+      if (text) return text;
+    } else if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+  return "";
+}
+
+function readJob51MultilineText(...values) {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const text = normalizeJob51MultilineText(value);
+      if (text) return text;
+    }
+  }
+  return "";
+}
+
+function normalizeJob51DateLike(value) {
+  const text = readJob51Text(value);
+  if (!text) return "";
+  if (["至今", "目前", "今"].includes(text)) return "至今";
+  return text
+    .replace(/[./年]/g, "-")
+    .replace(/月/g, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function readJob51Array(record, keys) {
+  if (!record || typeof record !== "object") return [];
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+
+function buildJob51ExperienceEntry(item, kind) {
+  if (!item || typeof item !== "object") return null;
+
+  const isProject = kind === "project";
+  const companyName = readJob51Text(
+    item.company_name,
+    item.companyName,
+    item.com_name,
+    item.comName,
+    item.company,
+    isProject ? item.project_name : undefined,
+    isProject ? item.projectName : undefined,
+    isProject ? item.project : undefined,
+  );
+  const jobTitle = readJob51Text(
+    item.work_func_value,
+    item.job_name,
+    item.jobName,
+    item.position,
+    item.jobTitle,
+    isProject ? item.project_role : undefined,
+    isProject ? item.role : undefined,
+    isProject ? item.responsibility : undefined,
+  );
+  const startDate = normalizeJob51DateLike(
+    item.start_time ??
+      item.startDate ??
+      item.begin ??
+      item.start_date ??
+      item.fromDate ??
+      item.time_begin,
+  );
+  const endDate = normalizeJob51DateLike(
+    item.end_time ??
+      item.endDate ??
+      item.end ??
+      item.end_date ??
+      item.toDate ??
+      item.time_end,
+  );
+  const durationLabel = readJob51Text(
+    item.working_years,
+    item.duration,
+    item.timeDiff,
+    item.time_diff,
+    item.period,
+    item.durationLabel,
+  );
+  const description = readJob51MultilineText(
+    item.workdescribe,
+    item.work_describe,
+    item.workDescription,
+    item.description,
+    item.desc,
+    item.detail,
+    item.content,
+    isProject ? item.project_desc : undefined,
+    isProject ? item.projectDescribe : undefined,
+  );
+  const metaParts = [
+    item.industry_tag,
+    item.company_size_value,
+    item.work_type_value,
+    item.section,
+    item.department,
+    item.project_name,
+  ]
+    .map((value) => readJob51Text(value))
+    .filter(Boolean);
+  const raw = buildWorkHistoryRawParts([
+    [startDate, endDate].filter(Boolean).join("~"),
+    durationLabel ? `(${durationLabel})` : "",
+    companyName,
+    jobTitle,
+    ...metaParts,
+    description,
+  ]);
+
+  if (!raw && !description && !companyName && !jobTitle) return null;
+
+  return {
+    raw: raw || description || buildWorkHistoryRawParts([companyName, jobTitle, startDate, endDate]),
+    companyName: companyName || undefined,
+    jobTitle: jobTitle || undefined,
+    description: description || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  };
+}
+
+function buildJob51EducationEntry(item) {
+  if (!item || typeof item !== "object") return null;
+
+  const institution = readJob51Text(
+    item.school_name,
+    item.schoolName,
+    item.school,
+    item.institution,
+    item.university,
+    item.college,
+  );
+  const qualification = readJob51Text(
+    item.degree_value,
+    item.degree,
+    item.degreeStr,
+    item.qualification,
+    item.education,
+  );
+  const fieldOfStudy = readJob51Text(
+    item.major,
+    item.major_name,
+    item.speciality,
+    item.field_of_study,
+    item.subject,
+  );
+  const description = readJob51MultilineText(
+    item.describe,
+    item.description,
+    item.detail,
+    item.content,
+  );
+  const startDate = normalizeJob51DateLike(
+    item.start_date ?? item.begin ?? item.startTime ?? item.enrollYear,
+  );
+  const endDate = normalizeJob51DateLike(
+    item.end_date ?? item.end ?? item.endTime ?? item.graduationYear,
+  );
+
+  if (!institution && !qualification && !fieldOfStudy && !description) {
+    return null;
+  }
+
+  return {
+    institution: institution || undefined,
+    qualification: qualification || undefined,
+    fieldOfStudy: fieldOfStudy || undefined,
+    description: description || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  };
+}
+
+function buildJob51SkillEntry(item) {
+  if (typeof item === "string") {
+    const text = normalizeJob51Text(item);
+    return text || null;
+  }
+  if (!item || typeof item !== "object") return null;
+
+  const name = readJob51Text(item.skill_name, item.name, item.label, item.skill, item.tag);
+  if (!name) return null;
+
+  const level = readJob51Text(item.level, item.skill_level, item.proficiency);
+  const yearsOfExperience =
+    typeof item.yearsOfExperience === "number" && Number.isFinite(item.yearsOfExperience)
+      ? item.yearsOfExperience
+      : typeof item.years === "number" && Number.isFinite(item.years)
+        ? item.years
+        : typeof item.years === "string" && item.years.trim()
+          ? item.years.trim()
+          : undefined;
+
+  if (!level && yearsOfExperience === undefined) {
+    return name;
+  }
+
+  return {
+    name,
+    ...(level ? { level } : {}),
+    ...(yearsOfExperience === undefined ? {} : { yearsOfExperience }),
+  };
+}
+
+function buildJob51LicenceEntry(item) {
+  if (typeof item === "string") {
+    const text = normalizeJob51Text(item);
+    return text ? { name: text } : null;
+  }
+  if (!item || typeof item !== "object") return null;
+
+  const name = readJob51Text(
+    item.name,
+    item.cert_name,
+    item.certificate_name,
+    item.training_name,
+    item.course_name,
+    item.title,
+  );
+  if (!name) return null;
+
+  const authority = readJob51Text(
+    item.authority,
+    item.organization,
+    item.issuing_org,
+    item.issuingOrganisationName,
+    item.school,
+    item.company,
+  );
+  const issuedAt = normalizeJob51DateLike(
+    item.issuedAt ?? item.issue_date ?? item.issued_date ?? item.start_date ?? item.startTime,
+  );
+  const expiresAt = normalizeJob51DateLike(
+    item.expiresAt ?? item.expire_date ?? item.expired_date ?? item.end_date ?? item.endTime,
+  );
+
+  return {
+    name,
+    ...(authority ? { authority } : {}),
+    ...(issuedAt ? { issuedAt } : {}),
+    ...(expiresAt ? { expiresAt } : {}),
+  };
+}
+
+function buildJob51DetailResumeFromPayload(payload, options = {}) {
+  const root = getJob51DetailRoot(payload);
+  if (!root) return [];
+
+  const resumeId = readJob51Text(
+    options.resumeId,
+    root.resumeId,
+    root.resume_id,
+    root.userid,
+    root.userId,
+    root.user_id,
+    root.id,
+    root.base_info?.userid,
+    root.base_info?.resumeId,
+  );
+  const perUserId = readJob51Text(
+    root.accountid,
+    root.accountId,
+    root.account_id,
+    root.base_info?.accountid,
+    root.base_info?.accountId,
+    root.base_info?.account_id,
+    root.userid,
+    root.userId,
+    root.user_id,
+  );
+  const profileUrl = normalizeJob51Text(
+    options.profileUrl ||
+      (resumeId
+        ? `https://${EHIRE_51JOB_HOST}/Revision/talent/resume/detail?contentType=&resumeId=${encodeURIComponent(resumeId)}`
+        : ""),
+  );
+  const baseInfo =
+    root.base_info && typeof root.base_info === "object" ? root.base_info : {};
+  const jobIntentionInfo =
+    root.job_intention && typeof root.job_intention === "object"
+      ? root.job_intention
+      : {};
+  const recentWorkInfo =
+    root.recent_work_info && typeof root.recent_work_info === "object"
+      ? root.recent_work_info
+      : {};
+  const workHistory = readJob51Array(root, [
+    "work",
+    "work_list",
+    "workInfoVoList",
+    "workHistory",
+    "work_experience",
+    "workExperience",
+  ])
+    .map((item) => buildJob51ExperienceEntry(item, "work"))
+    .filter(Boolean);
+  const projectExperience = readJob51Array(root, [
+    "project",
+    "project_list",
+    "projectInfoVoList",
+    "projectExperience",
+    "project_experience",
+  ])
+    .map((item) => buildJob51ExperienceEntry(item, "project"))
+    .filter(Boolean);
+  const profileEducation = readJob51Array(root, [
+    "education",
+    "education_list",
+    "educationInfoVoList",
+    "profileEducation",
+    "educationHistory",
+  ])
+    .map((item) => buildJob51EducationEntry(item))
+    .filter(Boolean);
+  const skills = readJob51Array(root, [
+    "itskill",
+    "skill",
+    "skills",
+    "skill_list",
+    "label_sorted_skill_tag_list",
+    "label_list",
+  ])
+    .map((item) => buildJob51SkillEntry(item))
+    .filter(Boolean);
+  const licences = [
+    ...readJob51Array(root, ["certification", "certifications", "certificate", "certificates"]),
+    ...readJob51Array(root, ["train", "training", "train_list", "trainings"]),
+  ]
+    .map((item) => buildJob51LicenceEntry(item))
+    .filter(Boolean);
+
+  const name = readJob51Text(
+    root.name,
+    root.userName,
+    root.user_name,
+    root.resume_name,
+    root.realName,
+    root.candidateName,
+    root.fullName,
+    baseInfo.resume_name,
+    baseInfo.name,
+    baseInfo.userName,
+  );
+  const age = readJob51Text(root.age, root.realAge, baseInfo.age);
+  const experience = readJob51Text(
+    baseInfo.work_year_value,
+    root.workYear,
+    root.workYears,
+    root.experienceYears,
+    root.experience,
+    recentWorkInfo?.recent_position,
+  );
+  const education = readJob51Text(
+    baseInfo.top_degree_value,
+    root.top_degree_value,
+    root.education,
+    root.degree,
+    root.degreeValue,
+  );
+  const location = readJob51Text(
+    jobIntentionInfo.expect_job_area_value,
+    root.jobIntention?.expect_job_area_value,
+    baseInfo.area_value,
+    root.location,
+    root.workCity,
+    root.city,
+    root.workLocation,
+  );
+  const jobIntention = readJob51Text(
+    jobIntentionInfo.expect_work_function_value,
+    jobIntentionInfo.expected_work_function_value,
+    root.jobIntention?.expect_work_function_value,
+    root.jobIntention?.expected_work_function_value,
+    recentWorkInfo.recent_position,
+    root.jobIntention,
+    root.job_name,
+    root.desiredJob,
+    root.expectedPosition,
+    root.targetJob,
+    root.searchJob,
+  );
+  const expectedSalary = readJob51Text(
+    jobIntentionInfo.new_expect_salary,
+    jobIntentionInfo.expect_salary,
+    root.expectedSalary,
+    root.desiredSalary,
+    root.expectSalary,
+    root.salaryStr,
+    root.salary,
+  );
+  const activityStatus = readJob51Text(
+    root.active_type,
+    root.activityStatus,
+    root.lastLoginTime,
+    root.last_login_time,
+    baseInfo.active_type,
+    baseInfo.jobStateStr,
+  );
+  const selfIntro = readJob51MultilineText(
+    root.selfintro,
+    root.selfIntro,
+    root.resume_slicing,
+    root.advantage,
+    root.profile,
+    root.summary,
+    root.resumeSummary,
+    root.highlight,
+    root.professionSkill,
+    jobIntentionInfo.professionSkill,
+  );
+  const normalizedAge = age ? (age.includes("岁") ? age : `${age}岁`) : "";
+  const externalId = resumeId || perUserId;
+  const pageIndex = 1;
+  const source = EHIRE_51JOB_HOST;
+
+  if (!resumeId && !name && !jobIntention && !selfIntro && workHistory.length === 0) {
+    return [];
+  }
+
+  return [
+    {
+      name,
+      age: normalizedAge,
+      experience,
+      education,
+      location,
+      jobIntention,
+      expectedSalary,
+      activityStatus,
+      selfIntro,
+      resumeId: resumeId || undefined,
+      perUserId: perUserId || undefined,
+      externalId: externalId || undefined,
+      profileUrl: profileUrl || undefined,
+      source,
+      workHistory,
+      projectExperience:
+        projectExperience.length > 0 ? projectExperience : undefined,
+      profileEducation:
+        profileEducation.length > 0 ? profileEducation : undefined,
+      skills: skills.length > 0 ? skills : undefined,
+      licences: licences.length > 0 ? licences : undefined,
+      pageIndex,
+      rawData: root,
+      extractedAt: new Date().toISOString(),
+    },
+  ];
+}
+
+function extractJob51DetailResume() {
+  if (!isJob51DetailPage() || !isJob51DetailReady()) return [];
+  return filterResumesByAgeRange(buildJob51DetailResumeFromPayload(apiSnapshot.job51DetailPayload, {
+    resumeId: new URL(window.location.href).searchParams.get("resumeId") || undefined,
+    profileUrl: window.location.href,
+  }));
+}
+
 function extractResumes() {
+  if (isJob51DetailPage()) {
+    return filterResumesByAgeRange(extractJob51DetailResume());
+  }
   if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
     return extract51JobResumes();
   }
@@ -3153,6 +3975,39 @@ function extractResumesRaw(options = {}) {
 
       return payload;
     }
+  }
+
+  if (isJob51DetailPage() && isJob51DetailReady()) {
+    const detailResumes = extractJob51DetailResume();
+    const detailResume = detailResumes[0] || null;
+    const payload = {
+      url: window.location.href,
+      extractedAt: new Date().toISOString(),
+      count: detailResumes.length,
+      cards: [
+        {
+          index: 1,
+          resumeId: detailResume?.resumeId || "",
+          perUserId: detailResume?.perUserId || "",
+          text: JSON.stringify(detailResume?.rawData || apiSnapshot.job51DetailPayload, null, 2),
+        },
+      ],
+      api: {
+        lastSearchAt: apiSnapshot.lastSearchAt,
+        lastUpdatedAt: apiSnapshot.lastUpdatedAt,
+        searchRowCount: detailResumes.length,
+        sourceKey: SOURCE_KEYS.JOB51,
+        operationName: apiSnapshot.lastOperationName,
+        request: apiSnapshot.job51AuthContext,
+        payload: apiSnapshot.job51DetailPayload,
+      },
+    };
+
+    if (includePage) {
+      payload.pageHtml = document.documentElement.outerHTML;
+    }
+
+    return payload;
   }
 
   const detailResumes = isJob5156DetailPage()
@@ -3373,6 +4228,15 @@ function getPaginationInfo() {
   const sourceKey = getCurrentSourceKey();
   if (sourceKey === SOURCE_KEYS.SEEK) {
     return getSeekPaginationInfo();
+  }
+
+  if (isJob51DetailPage()) {
+    return {
+      currentPage: 1,
+      totalPages: 1,
+      totalItems: isJob51DetailReady() ? 1 : 0,
+      hasNextPage: false,
+    };
   }
 
   if (sourceKey === SOURCE_KEYS.JOB51) {
@@ -3998,6 +4862,7 @@ async function waitForExtractionData({ timeoutMs = 30000, minCount = 1 } = {}) {
 function clearCapturedResultsForNextPage() {
   apiSnapshot.searchRows = null;
   apiSnapshot.job51SearchRows = null;
+  apiSnapshot.job51DetailPayload = null;
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     apiSnapshot.seekRecommendedCandidates = null;
     apiSnapshot.seekRecommendedRequest = null;
@@ -4946,6 +5811,14 @@ async function syncCurrentPageToServer(resumesOverride) {
   const shouldEnrichFromCurrentPage = !Array.isArray(resumesOverride);
   if (
     shouldEnrichFromCurrentPage &&
+    getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
+    !isJob51DetailPage() &&
+    resumes.length > 0
+  ) {
+    resumes = await enrich51JobSearchResumesWithDetail(resumes);
+  }
+  if (
+    shouldEnrichFromCurrentPage &&
     getCurrentSourceKey() === SOURCE_KEYS.JOB5156 &&
     !isJob5156DetailPage() &&
     resumes.length > 0
@@ -5168,6 +6041,13 @@ async function runAutoSyncIfEnabled() {
         resumes = resumes.slice(0, pageSelection.remainingCapacity);
       }
       lastSelectedCount = isSeekListPage ? resumes.length : null;
+      if (
+        getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
+        !isJob51DetailPage() &&
+        resumes.length > 0
+      ) {
+        resumes = await enrich51JobSearchResumesWithDetail(resumes);
+      }
       if (
         getCurrentSourceKey() === SOURCE_KEYS.JOB5156 &&
         !isJob5156DetailPage() &&
@@ -5652,6 +6532,13 @@ async function collectSnapshotPayload(options = {}) {
       pageResumes = pageResumes.slice(0, pageSelection.remainingCapacity);
     }
 
+    if (
+      sourceKey === SOURCE_KEYS.JOB51 &&
+      !isJob51DetailPage() &&
+      pageResumes.length > 0
+    ) {
+      pageResumes = await enrich51JobSearchResumesWithDetail(pageResumes);
+    }
     if (
       sourceKey === SOURCE_KEYS.JOB5156 &&
       !isJob5156DetailPage() &&

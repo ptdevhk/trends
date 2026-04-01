@@ -95,12 +95,14 @@ function extractCompanies(workHistory: ResumeWorkHistoryItem[]): string[] {
 function createSearchText(item: ResumeItem): string {
   const locationText = formatLocationHierarchySearchText(item.locationHierarchy) || item.location || "";
   const latestWorkHistory = getLatestWorkHistory(item.workHistory);
+  const latestProjectExperience = getLatestWorkHistory(item.projectExperience ?? []);
   const parts = [
     item.name,
     item.education,
     locationText,
     item.expectedSalary,
     ...latestWorkHistory.map((entry) => buildWorkHistoryEntryText(entry)),
+    ...latestProjectExperience.map((entry) => buildWorkHistoryEntryText(entry)),
   ];
 
   return normalizeText(parts.join(" "));

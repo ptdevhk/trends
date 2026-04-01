@@ -12,6 +12,7 @@ import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { cn } from '@/lib/utils'
 import {
   formatRoleYears,
+  getResumeContentLocale,
   getResumeSourceLabel,
   getRoleLabel,
   getRoleRelevantYears,
@@ -199,6 +200,10 @@ export function ResumeCard({
   const profileUrl = resume.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
   const sourceLabel = getResumeSourceLabel(resume)
+  const contentLocale = getResumeContentLocale(resume)
+  const industryVerifiedSuffix = t('resumes.card.industryVerifiedSuffix', {
+    defaultValue: ' (Industry verified)',
+  })
 
   const score = matchResult?.score
   const recommendation = matchResult?.recommendation
@@ -338,8 +343,13 @@ export function ResumeCard({
   const verifiedRoleYears = primaryRoleSignal ? getRoleVerifiedYears(primaryRoleSignal) : 0
   const roleRelevantYears = primaryRoleSignal ? getRoleRelevantYears(primaryRoleSignal) : 0
   const displayRoleYears = verifiedRoleYears > 0 ? verifiedRoleYears : roleRelevantYears
+  const roleTypeLabel = primaryRoleSignal
+    ? t(`resumes.roleLabels.${primaryRoleSignal.type}`, {
+        defaultValue: getRoleLabel(primaryRoleSignal.type),
+      })
+    : ''
   const roleEvidenceLabel = primaryRoleSignal
-    ? `${getRoleLabel(primaryRoleSignal.type)}${formatRoleYears(displayRoleYears)}${verifiedRoleYears > 0 ? '(行业验证)' : ''}`
+    ? `${roleTypeLabel}${formatRoleYears(displayRoleYears)}${verifiedRoleYears > 0 ? industryVerifiedSuffix : ''}`
     : null
   const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase()
   const experienceLevelForClick: ExperienceLevelFilter | undefined =
@@ -356,21 +366,21 @@ export function ResumeCard({
   const experienceBadge =
     normalizedExperienceLevel === 'senior'
       ? {
-        label: '资深',
+        label: t('resumes.experienceLevel.senior', { defaultValue: 'Senior' }),
         className: isExperienceLevelActive
           ? 'border-orange-700 bg-orange-600 text-white'
           : 'border-orange-200 bg-orange-50 text-orange-700',
       }
       : normalizedExperienceLevel === 'mid'
         ? {
-          label: '中级',
+          label: t('resumes.experienceLevel.mid', { defaultValue: 'Mid' }),
           className: isExperienceLevelActive
             ? 'border-teal-700 bg-teal-600 text-white'
             : 'border-teal-200 bg-teal-50 text-teal-700',
         }
         : normalizedExperienceLevel === 'junior'
           ? {
-            label: '初级',
+            label: t('resumes.experienceLevel.junior', { defaultValue: 'Junior' }),
             className: isExperienceLevelActive
               ? 'border-zinc-700 bg-zinc-600 text-white'
               : 'border-zinc-200 bg-zinc-50 text-zinc-600',
@@ -380,20 +390,21 @@ export function ResumeCard({
   return (
     <div
       className="mb-3 overflow-hidden rounded-lg border bg-card"
+      lang={contentLocale}
       data-testid="resume-card"
       data-role-types={(roleTypes ?? []).join(',')}
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b bg-muted/50 px-4 py-2 text-sm">
-        <span className="text-muted-foreground">求职意向</span>
+        <span className="text-muted-foreground">{t('resumes.columns.intention')}</span>
         <span className="font-medium">{jobIntention}</span>
         {isReviewed && (
           <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px]">
-            {t('resumes.status.reviewed', '已查阅')}
+            {t('resumes.status.reviewed', { defaultValue: 'Reviewed' })}
           </Badge>
         )}
         {blocked ? (
           <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 text-[10px]">
-            已屏蔽
+            {t('resumes.card.blocked', { defaultValue: 'Blocked' })}
           </Badge>
         ) : null}
         {sourceLabel ? (
@@ -439,21 +450,22 @@ export function ResumeCard({
               </TooltipTrigger>
               <TooltipContent className="max-w-[320px] text-xs">
                 <div className="space-y-1">
-                  <p className="font-semibold">{getRoleLabel(primaryRoleSignal.type)}</p>
-                  <p>相关年限: {formatRoleYears(roleRelevantYears)}</p>
-                  {verifiedRoleYears > 0 ? <p>行业验证: {formatRoleYears(verifiedRoleYears)}</p> : null}
-                  <p>命中信号: {primaryRoleSignal.matchedSignals.slice(0, 6).join(' / ') || '--'}</p>
+                  <p className="font-semibold">{roleTypeLabel}</p>
+                  <p>{t('resumes.card.relatedYears', { years: formatRoleYears(roleRelevantYears), defaultValue: 'Related years: {{years}}' })}</p>
+                  {verifiedRoleYears > 0 ? (
+                    <p>{t('resumes.card.industryVerified', { years: formatRoleYears(verifiedRoleYears), defaultValue: 'Industry verified: {{years}}' })}</p>
+                  ) : null}
+                  <p>{t('resumes.card.matchedSignals', { signals: primaryRoleSignal.matchedSignals.slice(0, 6).join(' / ') || '--', defaultValue: 'Matched signals: {{signals}}' })}</p>
                   {primaryRoleSignal.matchedWorkEntries && primaryRoleSignal.matchedWorkEntries.length > 0 ? (
-                    <p>
-                      命中经历:
-                      {' '}
-                      {primaryRoleSignal.matchedWorkEntries
+                    <p>{t('resumes.card.matchedExperience', {
+                      experience: primaryRoleSignal.matchedWorkEntries
                         .slice(0, 2)
                         .map((entry) =>
                           [entry.companyName, entry.jobTitle, formatRoleYears(entry.years)].filter(Boolean).join(' · ')
                         )
-                        .join('；')}
-                    </p>
+                        .join('；'),
+                      defaultValue: 'Matched experience: {{experience}}',
+                    })}</p>
                   ) : null}
                 </div>
               </TooltipContent>
@@ -626,7 +638,7 @@ export function ResumeCard({
                 className="gap-2"
               >
                 <Ban className="h-3.5 w-3.5" />
-                {blocked ? '取消屏蔽' : '屏蔽'}
+                {blocked ? t('resumes.card.unblock', { defaultValue: 'Unblock' }) : t('resumes.card.block', { defaultValue: 'Block' })}
               </Button>
               <Button
                 variant="outline"
@@ -660,7 +672,7 @@ export function ResumeCard({
                 requirements: jobDescription.requirements || ''
               } : {
                 id: jobDescriptionId || 'default',
-                title: 'Current Position',
+                title: t('resumes.card.currentPosition', { defaultValue: 'Current Position' }),
                 requirements: ''
               }}
               analysis={matchResult}
@@ -735,15 +747,15 @@ export function ResumeCard({
       <Dialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>屏蔽候选人</DialogTitle>
+            <DialogTitle>{t('resumes.card.blockCandidate', { defaultValue: 'Block candidate' })}</DialogTitle>
             <DialogDescription>
-              为“屏蔽候选人”添加备注（选填）
+              {t('resumes.card.blockCandidateDescription', { defaultValue: 'Add an optional note before blocking this candidate.' })}
             </DialogDescription>
           </DialogHeader>
           <Input
             value={blockNoteInput}
             onChange={(e) => setBlockNoteInput(e.target.value)}
-            placeholder="备注"
+            placeholder={t('resumes.card.notePlaceholder', { defaultValue: 'Note' })}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
@@ -771,15 +783,18 @@ export function ResumeCard({
       <Dialog open={commentDialogOpen} onOpenChange={setCommentDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>备注 (Notes)</DialogTitle>
+            <DialogTitle>{t('resumes.card.notesTitle', { defaultValue: 'Notes' })}</DialogTitle>
             <DialogDescription>
-              为候选人“{resume.name || '--'}”添加备注。
+              {t('resumes.card.notesDescription', {
+                name: resume.name || '--',
+                defaultValue: 'Add a note for {{name}}.',
+              })}
             </DialogDescription>
           </DialogHeader>
           <Input
             value={commentNoteInput}
             onChange={(e) => setCommentNoteInput(e.target.value)}
-            placeholder="输入备注..."
+            placeholder={t('resumes.card.notePlaceholderInput', { defaultValue: 'Enter note...' })}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
@@ -791,7 +806,7 @@ export function ResumeCard({
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setCommentDialogOpen(false)}>
-              {t('common.cancel', '取消')}
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button
               onClick={() => {
@@ -800,7 +815,7 @@ export function ResumeCard({
                 setCommentDialogOpen(false)
               }}
             >
-              {t('common.confirm', '确认')}
+              {t('common.confirm', 'Confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>

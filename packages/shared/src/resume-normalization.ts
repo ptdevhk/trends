@@ -62,10 +62,12 @@ export type ResumeDigitalIdentity = {
 };
 
 export type NormalizedResumeFields = {
+  source?: string;
   profileUrl: string;
   location?: string;
   locationHierarchy?: LocationHierarchy;
   workHistory: ResumeWorkHistoryItem[];
+  projectExperience?: ResumeWorkHistoryItem[];
   profileEducation?: ResumeProfileEducationItem[];
   skills?: Array<string | ResumeSkillDetail>;
   languages?: Array<string | ResumeLanguageDetail>;
@@ -529,10 +531,12 @@ export function normalizeSharedResumeFields(record: Record<string, unknown>, sou
   const location = toTrimmedString(record.location) || formatLocationHierarchyLabel(locationHierarchy);
 
   return {
+    source: toTrimmedString(source) || toTrimmedString(record.source),
     profileUrl: normalizeProfileUrlForDisplay(record.profileUrl, source),
     ...(location ? { location } : {}),
     ...(locationHierarchy ? { locationHierarchy } : {}),
     workHistory: normalizeWorkHistory(record.workHistory),
+    projectExperience: normalizeWorkHistory(record.projectExperience ?? record.project ?? record.projects),
     profileEducation: normalizeProfileEducation(record.profileEducation),
     skills: normalizeStringOrObjectArray(record.skills, normalizeSkillDetail),
     languages: normalizeStringOrObjectArray(record.languages, normalizeLanguageDetail),
