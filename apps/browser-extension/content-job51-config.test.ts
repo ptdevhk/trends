@@ -105,10 +105,10 @@ return {
 }
 
 describe("job51 content config", () => {
-  it("keeps standard runs capped and uses the conservative delay", async () => {
+  it("keeps 200+ standard runs capped and uses the conservative delay", async () => {
     const helpers = await loadJob51Helpers("?keyword=CNC");
 
-    expect(helpers.resolveJob51CollectionLimits(200, 5)).toEqual({
+    expect(helpers.resolveJob51CollectionLimits(250, 8)).toEqual({
       limit: 50,
       maxPages: 1,
     });
@@ -119,12 +119,12 @@ describe("job51 content config", () => {
     expect(helpers.resolveJob51DetailFetchDelayMs()).toBe(5000);
   });
 
-  it("unlocks larger unsafe runs and uses the faster unsafe delay", async () => {
+  it("unlocks 200+ unsafe runs and uses the faster unsafe delay", async () => {
     const helpers = await loadJob51Helpers("?keyword=CNC&tr_unsafe_limits=1");
 
-    expect(helpers.resolveJob51CollectionLimits(200, 5)).toEqual({
-      limit: 200,
-      maxPages: 5,
+    expect(helpers.resolveJob51CollectionLimits(250, 8)).toEqual({
+      limit: 250,
+      maxPages: 8,
     });
     expect(helpers.resolveJob51CollectionLimits(0, 0)).toEqual({
       limit: 50,
