@@ -1,5 +1,6 @@
 import { Clock3, FileText, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { JdPastePopover } from '@/components/search/JdPastePopover'
 import { Input } from '@/components/ui/input'
@@ -33,12 +34,32 @@ export function GoogleSearchBar({
   onChange,
   onClear,
   onSubmit,
-  placeholder = 'Search resumes by keywords, brands, roles, or locations',
+  placeholder,
 }: GoogleSearchBarProps) {
+  const { t } = useTranslation()
   const [focused, setFocused] = useState(false)
   const [jdPopoverOpen, setJdPopoverOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const trimmedValue = value.trim()
+  const placeholderLabel = placeholder ?? t('resumes.searchPage.searchBar.placeholder', {
+    defaultValue: 'Search resumes by keywords, brands, roles, or locations',
+  })
+  const searchButtonLabel = loading
+    ? t('resumes.searchPage.searchBar.searching', {
+      defaultValue: 'Searching...',
+    })
+    : t('resumes.searchPage.searchBar.search', {
+      defaultValue: 'Search',
+    })
+  const pasteJobDescriptionLabel = t('resumes.searchPage.searchBar.pasteJobDescription', {
+    defaultValue: 'Paste job description',
+  })
+  const clearSearchLabel = t('resumes.searchPage.searchBar.clearSearch', {
+    defaultValue: 'Clear search',
+  })
+  const recentSearchesLabel = t('resumes.searchPage.searchBar.recentSearches', {
+    defaultValue: 'Recent searches',
+  })
   const filteredRecentSearches = useMemo(() => {
     if (!trimmedValue) {
       return recentSearches.slice(0, 6)
@@ -89,7 +110,7 @@ export function GoogleSearchBar({
             'border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0',
             compact ? 'h-14 text-base' : 'h-16 text-lg'
           )}
-          placeholder={placeholder}
+          placeholder={placeholderLabel}
           onBlur={() => {
             window.setTimeout(() => setFocused(false), 120)
           }}
@@ -119,7 +140,7 @@ export function GoogleSearchBar({
             }}
           >
             <FileText className="h-4 w-4" />
-            <span className="sr-only">Paste job description</span>
+            <span className="sr-only">{pasteJobDescriptionLabel}</span>
           </Button>
         ) : null}
         {trimmedValue ? (
@@ -131,12 +152,12 @@ export function GoogleSearchBar({
             onClick={onClear}
           >
             <X className="h-4 w-4" />
-            <span className="sr-only">Clear search</span>
+            <span className="sr-only">{clearSearchLabel}</span>
           </Button>
         ) : null}
         <div className="pr-2">
           <Button type="submit" className="rounded-full px-5" disabled={loading}>
-            {loading ? 'Searching...' : 'Search'}
+            {searchButtonLabel}
           </Button>
         </div>
       </form>
@@ -152,7 +173,7 @@ export function GoogleSearchBar({
       {focused && !jdPopoverOpen && filteredRecentSearches.length > 0 ? (
         <div className="absolute inset-x-0 top-[calc(100%+0.75rem)] z-30 overflow-hidden rounded-3xl border bg-background shadow-xl">
           <div className="border-b px-4 py-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            Recent searches
+            {recentSearchesLabel}
           </div>
           <div className="p-2">
             {filteredRecentSearches.map((item) => (

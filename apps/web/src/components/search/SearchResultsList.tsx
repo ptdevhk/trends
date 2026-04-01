@@ -1,5 +1,6 @@
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@/components/EmptyState'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -11,6 +12,7 @@ type SearchResultsListProps = {
   items: ResumeSearchResultItem[]
   loading?: boolean
   loadingMore?: boolean
+  showAiScore?: boolean
   onLoadMore: () => void
   onToggleExpanded: (key: string) => void
 }
@@ -38,9 +40,11 @@ export function SearchResultsList({
   items,
   loading = false,
   loadingMore = false,
+  showAiScore = false,
   onLoadMore,
   onToggleExpanded,
 }: SearchResultsListProps) {
+  const { t } = useTranslation()
   const listRef = useRef<HTMLDivElement | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
@@ -112,8 +116,12 @@ export function SearchResultsList({
   if (items.length === 0) {
     return (
       <EmptyState
-        title="No resumes matched this search"
-        description="Try broader keywords or remove a few facet filters to widen the result set."
+        title={t('resumes.searchPage.results.emptyTitle', {
+          defaultValue: 'No resumes matched this search',
+        })}
+        description={t('resumes.searchPage.results.emptyDescription', {
+          defaultValue: 'Try broader keywords or remove a few facet filters to widen the result set.',
+        })}
       />
     )
   }
@@ -138,6 +146,7 @@ export function SearchResultsList({
                 <SnippetCard
                   item={item}
                   expanded={false}
+                  showAiScore={showAiScore}
                   onToggleExpanded={() => onToggleExpanded(item.key)}
                 />
               </div>
@@ -150,13 +159,24 @@ export function SearchResultsList({
             key={item.key}
             item={item}
             expanded={expandedIds.has(item.key)}
+            showAiScore={showAiScore}
             onToggleExpanded={() => onToggleExpanded(item.key)}
           />
         ))
       )}
 
       <div ref={loadMoreRef} className="py-2 text-center text-sm text-muted-foreground">
-        {loadingMore ? 'Loading more resumes...' : hasMore ? 'Scroll for more' : 'End of results'}
+        {loadingMore
+          ? t('resumes.searchPage.results.loadingMore', {
+            defaultValue: 'Loading more resumes...',
+          })
+          : hasMore
+            ? t('resumes.searchPage.results.scrollForMore', {
+              defaultValue: 'Scroll for more',
+            })
+            : t('resumes.searchPage.results.endOfResults', {
+              defaultValue: 'End of results',
+            })}
       </div>
     </div>
   )

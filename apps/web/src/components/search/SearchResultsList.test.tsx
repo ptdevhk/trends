@@ -4,6 +4,25 @@ import { SearchResultsList } from '@/components/search/SearchResultsList'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: string | Record<string, unknown>) => {
+      if (typeof options === 'string') {
+        return options
+      }
+
+      const defaultValue =
+        options && typeof options === 'object' && typeof options.defaultValue === 'string'
+          ? options.defaultValue
+          : key
+      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+        const value = options && typeof options === 'object' ? options[token] : undefined
+        return value === undefined || value === null ? '' : String(value)
+      })
+    },
+  }),
+}))
+
 let virtualRows: Array<{ index: number; start: number }> = [{ index: 0, start: 0 }]
 const observeMock = vi.fn()
 const disconnectMock = vi.fn()

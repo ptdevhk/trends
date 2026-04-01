@@ -7,6 +7,25 @@ import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: string | Record<string, unknown>) => {
+      if (typeof options === 'string') {
+        return options
+      }
+
+      const defaultValue =
+        options && typeof options === 'object' && typeof options.defaultValue === 'string'
+          ? options.defaultValue
+          : key
+      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+        const value = options && typeof options === 'object' ? options[token] : undefined
+        return value === undefined || value === null ? '' : String(value)
+      })
+    },
+  }),
+}))
+
 const {
   useIndustryKeywordsMock,
   useAiSearchSummaryMock,
@@ -214,6 +233,7 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     items,
     loading,
     loadingMore,
+    showAiScore,
     onLoadMore,
     onToggleExpanded,
   }: {
@@ -222,14 +242,15 @@ vi.mock('@/components/search/SearchResultsList', () => ({
     items: ResumeSearchResultItem[]
     loading?: boolean
     loadingMore?: boolean
+    showAiScore?: boolean
     onLoadMore: () => void
     onToggleExpanded: (key: string) => void
   }) => (
     <div>
       <div>
         Results List {items.length} hasMore:{String(hasMore)} loading:
-        {String(loading)} loadingMore:{String(loadingMore)} expanded:
-        {Array.from(expandedIds).join('|') || 'none'}
+        {String(loading)} loadingMore:{String(loadingMore)} showAiScore:
+        {String(showAiScore)} expanded:{Array.from(expandedIds).join('|') || 'none'}
       </div>
       {items[0] ? (
         <button type="button" onClick={() => onToggleExpanded(items[0].key)}>
@@ -540,7 +561,7 @@ describe('ResumeSearchPage', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Results List 2 hasMore:false loading:false loadingMore:false expanded:none',
+        'Results List 2 hasMore:false loading:false loadingMore:false showAiScore:true expanded:none',
       ),
     ).toBeInTheDocument()
     expect(
@@ -623,7 +644,7 @@ describe('ResumeSearchPage', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Results List 2 hasMore:true loading:false loadingMore:true expanded:none',
+        'Results List 2 hasMore:true loading:false loadingMore:true showAiScore:true expanded:none',
       ),
     ).toBeInTheDocument()
     expect(useAiSearchSummaryMock).toHaveBeenCalledWith(
@@ -639,7 +660,7 @@ describe('ResumeSearchPage', () => {
     )
     expect(
       screen.getByText(
-        'Results List 2 hasMore:true loading:false loadingMore:true expanded:resume-1',
+        'Results List 2 hasMore:true loading:false loadingMore:true showAiScore:true expanded:resume-1',
       ),
     ).toBeInTheDocument()
 
@@ -648,14 +669,14 @@ describe('ResumeSearchPage', () => {
     )
     expect(
       screen.getByText(
-        'Results List 2 hasMore:true loading:false loadingMore:true expanded:resume-2',
+        'Results List 2 hasMore:true loading:false loadingMore:true showAiScore:true expanded:resume-2',
       ),
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Apply Header JD' }))
     expect(
       screen.getByText(
-        'Results List 2 hasMore:true loading:false loadingMore:true expanded:none',
+        'Results List 2 hasMore:true loading:false loadingMore:true showAiScore:true expanded:none',
       ),
     ).toBeInTheDocument()
 

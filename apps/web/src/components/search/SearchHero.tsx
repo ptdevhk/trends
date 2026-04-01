@@ -1,4 +1,5 @@
 import { Clock3, Zap } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { ModeToggle } from '@/components/ModeToggle'
 import { GoogleSearchBar } from '@/components/search/GoogleSearchBar'
 import { Card, CardContent } from '@/components/ui/card'
@@ -81,6 +82,7 @@ export function SearchHero({
   onClearQuery,
   onSubmitQuery,
 }: SearchHeroProps) {
+  const { t } = useTranslation()
   const uniqueHotKeywords = deduplicateHotKeywords(hotKeywords)
 
   return (
@@ -113,7 +115,9 @@ export function SearchHero({
           <div className="mx-auto w-full max-w-3xl text-left">
             <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
               <Zap className="h-3.5 w-3.5" />
-              Quick Start
+              {t('resumes.searchPage.hero.quickStart', {
+                defaultValue: 'Quick Start',
+              })}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {quickStarts.map((seed) => (
@@ -143,7 +147,9 @@ export function SearchHero({
         {uniqueHotKeywords.length > 0 ? (
           <div className="mx-auto w-full max-w-3xl text-left">
             <div className="mb-3 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              Hot Tags
+              {t('resumes.searchPage.hero.hotTags', {
+                defaultValue: 'Hot Tags',
+              })}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {uniqueHotKeywords.map((keyword) => (
@@ -163,19 +169,24 @@ export function SearchHero({
         <div className="mx-auto w-full max-w-3xl text-left">
           <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
             <Clock3 className="h-3.5 w-3.5" />
-            Recent searches
+            {t('resumes.searchPage.hero.recentSearches', {
+              defaultValue: 'Recent searches',
+            })}
           </div>
           {recentSearchesLoading ? (
             <Card className="rounded-[1.5rem] border-dashed">
               <CardContent className="p-6 text-sm text-muted-foreground">
-                Loading recent searches...
+                {t('resumes.searchPage.hero.loadingRecentSearches', {
+                  defaultValue: 'Loading recent searches...',
+                })}
               </CardContent>
             </Card>
           ) : recentSearches.length === 0 ? (
             <Card className="rounded-[1.5rem] border-dashed">
               <CardContent className="p-6 text-sm text-muted-foreground">
-                No saved searches yet. Recent searches will appear here after
-                you start exploring.
+                {t('resumes.searchPage.hero.noSavedSearches', {
+                  defaultValue: 'No saved searches yet. Recent searches will appear here after you start exploring.',
+                })}
               </CardContent>
             </Card>
           ) : (

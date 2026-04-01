@@ -43,7 +43,9 @@ export function ModeToggle({ mode, onModeChange, aiStats, disabled }: ModeToggle
             {isAiMode ? <Check className="h-3.5 w-3.5 text-sky-600" /> : null}
           </span>
         </span>
-        <span className="font-medium text-slate-900">{t('resumes.mode.ai')}</span>
+        <span className="font-medium text-slate-900">{t('resumes.mode.ai', {
+          defaultValue: 'AI Mode',
+        })}</span>
       </button>
 
       {isAiMode && aiStats ? (

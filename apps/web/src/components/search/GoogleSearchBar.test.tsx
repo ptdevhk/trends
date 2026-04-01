@@ -5,6 +5,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GoogleSearchBar } from '@/components/search/GoogleSearchBar'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: string | Record<string, unknown>) => {
+      if (typeof options === 'string') {
+        return options
+      }
+
+      const defaultValue =
+        options && typeof options === 'object' && typeof options.defaultValue === 'string'
+          ? options.defaultValue
+          : key
+      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+        const value = options && typeof options === 'object' ? options[token] : undefined
+        return value === undefined || value === null ? '' : String(value)
+      })
+    },
+  }),
+}))
+
 vi.mock('@/components/search/JdPastePopover', () => ({
   JdPastePopover: ({ onClose }: { onClose: () => void }) => (
     <div>

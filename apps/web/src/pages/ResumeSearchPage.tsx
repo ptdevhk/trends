@@ -1,6 +1,7 @@
 import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { RefreshCw } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
 import { ModeToggle } from '@/components/ModeToggle'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
@@ -17,6 +18,7 @@ import { useIndustryKeywords } from '@/hooks/useIndustryKeywords'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
 
 export function ResumeSearchPage() {
+  const { t } = useTranslation()
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
   const { hotKeywords, quickStartProfiles } = useIndustryKeywords()
@@ -194,6 +196,22 @@ export function ResumeSearchPage() {
       toggleTag,
     ],
   )
+  const analysisTitle = t('resumes.searchPage.analysis.title', {
+    defaultValue: 'Resume AI analysis',
+  })
+  const analysisDescription = t('resumes.searchPage.analysis.description', {
+    defaultValue: 'Generate per-resume AI summaries and breakdowns for the loaded search results.',
+  })
+  const analyzingLabel = t('resumes.searchPage.analysis.analyzing', {
+    defaultValue: 'Analyzing...',
+  })
+  const analyzeLoadedLabel = t('resumes.searchPage.analysis.analyzeLoaded', {
+    count: analysisCandidateCount,
+    defaultValue: 'Analyze loaded {{count}}',
+  })
+  const analyzeLoadedResultsLabel = t('resumes.searchPage.analysis.analyzeLoadedResults', {
+    defaultValue: 'Analyze loaded results',
+  })
 
   return (
     <div className="space-y-6">
@@ -259,12 +277,12 @@ export function ResumeSearchPage() {
 
             <div className="min-w-0 flex-1 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border bg-white/80 px-4 py-3 shadow-sm">
-                <div className="min-w-0">
+              <div className="min-w-0">
                   <div className="text-sm font-medium text-slate-900">
-                    Resume AI analysis
+                    {analysisTitle}
                   </div>
                   <p className="text-sm text-slate-600">
-                    Generate per-resume AI summaries and breakdowns for the loaded search results.
+                    {analysisDescription}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
@@ -285,14 +303,14 @@ export function ResumeSearchPage() {
                     {analyzingResults || hasActiveAnalysisTask ? (
                       <>
                         <RefreshCw className="h-4 w-4 animate-spin" />
-                        Analyzing...
+                        {analyzingLabel}
                       </>
                     ) : (
                       <>
                         <RefreshCw className="h-4 w-4" />
                         {analysisCandidateCount > 0
-                          ? `Analyze loaded ${analysisCandidateCount}`
-                          : 'Analyze loaded results'}
+                          ? analyzeLoadedLabel
+                          : analyzeLoadedResultsLabel}
                       </>
                     )}
                   </Button>
@@ -312,6 +330,7 @@ export function ResumeSearchPage() {
                 items={filteredResults}
                 loading={loading}
                 loadingMore={loadingMore}
+                showAiScore={aiModeEnabled}
                 onLoadMore={loadMore}
                 onToggleExpanded={handleToggleExpanded}
               />

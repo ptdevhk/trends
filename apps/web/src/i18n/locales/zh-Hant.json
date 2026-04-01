@@ -273,6 +273,94 @@
       "profileLink": "查看原始簡歷",
       "close": "關閉"
     },
+    "searchPage": {
+      "banner": {
+        "title": "Search Profiles 仍然存在，但主簡歷入口現在以搜尋優先。",
+        "description": "本頁用於快速關鍵詞審閱。需要落地頁快速開始、定時採集或一站式 JD 設定時，請使用 Search Profiles。",
+        "openProfiles": "開啟 Search Profiles",
+        "dismiss": "關閉遷移提示"
+      },
+      "hero": {
+        "quickStart": "快速開始",
+        "hotTags": "熱門標籤",
+        "recentSearches": "最近搜尋",
+        "loadingRecentSearches": "正在載入最近搜尋...",
+        "noSavedSearches": "目前尚無已保存搜尋。開始瀏覽後，最近搜尋會顯示在這裡。"
+      },
+      "searchBar": {
+        "placeholder": "按關鍵詞、品牌、職位或地區搜尋簡歷",
+        "search": "搜尋",
+        "searching": "搜尋中...",
+        "recentSearches": "最近搜尋",
+        "pasteJobDescription": "貼上職位描述",
+        "clearSearch": "清除搜尋"
+      },
+      "header": {
+        "results": "{{count}} 條結果",
+        "resultsWithQuery": "{{count}} 條結果，查詢「{{query}}」",
+        "sort": "排序",
+        "sortResults": "排序結果",
+        "sortOptions": {
+          "aiScore": "AI 分",
+          "newest": "最新",
+          "experience": "經驗"
+        },
+        "exportFormat": "匯出格式",
+        "exporting": "匯出中...",
+        "export": "匯出 {{count}} 條"
+      },
+      "results": {
+        "emptyTitle": "沒有符合的簡歷",
+        "emptyDescription": "可以嘗試更寬泛的關鍵詞，或移除部分篩選條件。",
+        "loadingMore": "正在載入更多簡歷...",
+        "scrollForMore": "向下捲動查看更多",
+        "endOfResults": "已到底部"
+      },
+      "analysis": {
+        "title": "簡歷 AI 分析",
+        "description": "為目前載入的搜尋結果生成逐份簡歷的 AI 摘要與拆解。",
+        "analyzing": "分析中...",
+        "analyzeLoaded": "分析已載入的 {{count}} 份",
+        "analyzeLoadedResults": "分析已載入結果"
+      },
+      "aiSummary": {
+        "title": "AI 結果摘要",
+        "noSummary": "目前搜尋暫時沒有可用摘要。",
+        "generatedJustNow": "剛剛生成",
+        "generatedOneMinuteAgo": "1 分鐘前生成",
+        "generatedMinutesAgo": "{{count}} 分鐘前生成"
+      },
+      "card": {
+        "expand": "展開",
+        "collapse": "收起",
+        "aiPending": "AI 待處理",
+        "aiAnalysis": "AI 分析",
+        "aiAnalysisPending": "AI 分析待處理",
+        "analysisBreakdown": "分析拆解",
+        "noDetailedBreakdown": "暫無詳細拆解",
+        "noSummary": "此簡歷暫無摘要。",
+        "noStructuredWorkHistory": "暫無結構化工作經歷。",
+        "noLocation": "暫無地區",
+        "noEducation": "暫無學歷",
+        "resumeMetadata": "簡歷中繼資料",
+        "signals": "信號",
+        "openSourceProfile": "開啟原始簡歷",
+        "summaryUnavailable": "此簡歷暫無 AI 摘要。目前顯示的分數來自規則評分。",
+        "aiSummaryUnavailable": "此簡歷尚未生成 AI 分析，分析完成後會顯示分數。",
+        "profileOverview": "概覽",
+        "unnamedResume": "未命名簡歷",
+        "aiSummaryPrefix": "AI 摘要",
+        "ai": "AI",
+        "rule": "規則",
+        "status": "狀態",
+        "highlights": "亮點",
+        "concerns": "關注點",
+        "scoreSource": "分數來源",
+        "aiScoreShort": "AI {{score}}",
+        "ruleScoreShort": "規則 {{score}}",
+        "aiScoreLabel": "AI 分數"
+      }
+    },
     "analyzeAll": "AI模式"
   },
   "aiTasks": {
