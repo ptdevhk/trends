@@ -410,6 +410,44 @@ clear-resume-analyses:
 		fi; \
 	cd packages/cli && eval "go run . resume debug clear-analyses --batch-size $$batch_size $$output_flag $${job_description:+--job-description $$job_description} $$resume_id_flags"
 
+# Search resumes through the Go CLI
+resume-search:
+	@query="$${QUERY:-$${Q:-}}"; \
+	if [ -z "$$query" ]; then \
+		echo "Usage: make resume-search QUERY='CNC 销售' [SOURCE=sample|convex] [LIMIT=50] [JSON=1] [API_URL=http://localhost:3000] [WORKSPACE=dev]"; \
+		exit 1; \
+	fi; \
+	source="$${SOURCE:-sample}"; \
+	limit="$${LIMIT:-50}"; \
+	api_url="$${API_URL:-$${TRENDS_API_URL:-http://localhost:3000}}"; \
+	workspace="$${WORKSPACE:-$${TRENDS_WORKSPACE:-dev}}"; \
+	output_flag=""; \
+	if [ "$${JSON:-}" = "1" ] || [ "$${JSON:-}" = "true" ] || [ "$${JSON:-}" = "yes" ]; then \
+		output_flag="-o json"; \
+	fi; \
+	cd packages/cli && eval "go run . --api-url $$api_url --workspace $$workspace $$output_flag resume search \"$$query\" --source $$source --limit $$limit"
+
+# Show one resume with detailed work history through the Go CLI
+resume-show:
+	@resume_id="$${ID:-$${RESUME_ID:-}}"; \
+	if [ -z "$$resume_id" ]; then \
+		echo "Usage: make resume-show ID=<resume-id> [SOURCE=sample|convex] [SAMPLE=sample-initial] [JSON=1] [API_URL=http://localhost:3000] [WORKSPACE=dev]"; \
+		exit 1; \
+	fi; \
+	source="$${SOURCE:-sample}"; \
+	sample_name="$${SAMPLE:-}"; \
+	api_url="$${API_URL:-$${TRENDS_API_URL:-http://localhost:3000}}"; \
+	workspace="$${WORKSPACE:-$${TRENDS_WORKSPACE:-dev}}"; \
+	output_flag=""; \
+	sample_flag=""; \
+	if [ "$${JSON:-}" = "1" ] || [ "$${JSON:-}" = "true" ] || [ "$${JSON:-}" = "yes" ]; then \
+		output_flag="-o json"; \
+	fi; \
+	if [ -n "$$sample_name" ]; then \
+		sample_flag="--sample $$sample_name"; \
+	fi; \
+	cd packages/cli && eval "go run . --api-url $$api_url --workspace $$workspace $$output_flag resume show $$resume_id --source $$source $$sample_flag"
+
 # Clear resume AI analyses, then restart local Convex to release scan-time RSS
 clear-resume-analyses-restart:
 	@$(MAKE) dev-convex-ensure
@@ -1153,6 +1191,12 @@ help:
 	@echo "                     Skill roots honor CODEX_HOME and AGENTS_HOME when set"
 	@echo ""
 	@echo "Utilities:"
+	@echo "  resume-search   Search resumes via the Go CLI"
+	@echo "                 Uses QUERY='CNC 销售' (or Q=...), optional SOURCE=sample|convex, LIMIT=50, JSON=1, API_URL, WORKSPACE"
+	@echo "                 Example: make resume-search QUERY='CNC 销售' SOURCE=convex"
+	@echo "  resume-show     Show one resume with detailed work history via the Go CLI"
+	@echo "                 Uses ID=<resume-id> (or RESUME_ID=...), optional SOURCE=sample|convex, SAMPLE=<sample-name>, JSON=1, API_URL, WORKSPACE"
+	@echo "                 Example: make resume-show ID=resume-live-1 SOURCE=convex"
 	@echo "  seed           Seed Convex with system job descriptions"
 	@echo "  seed-full      Seed Convex with system job descriptions + sample resumes"
 	@echo "  seed-force     Force seed Convex even if DB is not empty"
