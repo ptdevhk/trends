@@ -132,6 +132,12 @@ const DEFAULT_SOURCES_FORM: SourceFormState = {
     seekJobUrl: '',
 }
 
+const SEEDED_PROFILES_WITHOUT_JD = new Set([
+    'job5156-cn-cnc-sales',
+    '51job-cn-cnc-sales',
+    'seek-malaysia-sales',
+])
+
 function normalizeStringArray(values: string[] | undefined): string[] {
     if (!Array.isArray(values)) {
         return []
@@ -306,17 +312,22 @@ export function SearchProfileEditorDialog({
     const latestHydrationRequestIdRef = useRef(0)
 
     const convexJobDescriptions = useQuery(api.job_descriptions.list, { workspaceSlug: slug })
+    const activeProfileId = profileId ?? initialData?.id ?? null
+    const isSeededProfileWithoutJd = activeProfileId ? SEEDED_PROFILES_WITHOUT_JD.has(activeProfileId) : false
     const selectedConvexJobDescription = useMemo(() => {
+        if (isSeededProfileWithoutJd) {
+            return undefined
+        }
         const normalizedJobDescriptionId = form.jobDescription.trim()
         if (!normalizedJobDescriptionId || !convexJobDescriptions) {
             return undefined
         }
 
         return convexJobDescriptions.find((item) => String(item._id) === normalizedJobDescriptionId)
-    }, [convexJobDescriptions, form.jobDescription])
+    }, [convexJobDescriptions, form.jobDescription, isSeededProfileWithoutJd])
     const selectedConvexJobDescriptionDetail = useQuery(
         api.job_descriptions.get,
-        selectedConvexJobDescription ? { id: selectedConvexJobDescription._id } : 'skip'
+        !isSeededProfileWithoutJd && selectedConvexJobDescription ? { id: selectedConvexJobDescription._id } : 'skip'
     )
 
     const loadProfile = useCallback(async (id: string) => {
@@ -363,7 +374,19 @@ export function SearchProfileEditorDialog({
     }, [initialData, loadProfile, open, profileId])
 
     useEffect(() => {
-        if (!open || !pendingJobDescriptionHydration) {
+        if (!isSeededProfileWithoutJd) {
+            return
+        }
+
+        latestHydrationRequestIdRef.current += 1
+        setPendingJobDescriptionHydration(null)
+        setForm((previous) => (
+            previous.jobDescription ? { ...previous, jobDescription: '' } : previous
+        ))
+    }, [isSeededProfileWithoutJd])
+
+    useEffect(() => {
+        if (!open || !pendingJobDescriptionHydration || isSeededProfileWithoutJd) {
             return
         }
 
@@ -452,9 +475,13 @@ export function SearchProfileEditorDialog({
         return () => {
             cancelled = true
         }
-    }, [open, pendingJobDescriptionHydration, convexJobDescriptions, selectedConvexJobDescription, selectedConvexJobDescriptionDetail])
+    }, [open, pendingJobDescriptionHydration, convexJobDescriptions, selectedConvexJobDescription, selectedConvexJobDescriptionDetail, isSeededProfileWithoutJd])
 
     const handleJobDescriptionChange = useCallback((value: string) => {
+        if (isSeededProfileWithoutJd) {
+            return
+        }
+
         setForm((previous) => ({ ...previous, jobDescription: value }))
 
         const normalizedValue = value.trim()
@@ -468,7 +495,7 @@ export function SearchProfileEditorDialog({
             id: normalizedValue,
             requestId: latestHydrationRequestIdRef.current,
         })
-    }, [])
+    }, [isSeededProfileWithoutJd])
 
     const handleSave = useCallback(async () => {
         const keywords = parseKeywords(form.keywordsText)
@@ -499,7 +526,7 @@ export function SearchProfileEditorDialog({
             location: form.location.trim(),
             keywords,
             status: form.enabled ? 'active' : 'paused',
-            jobDescription: form.jobDescription.trim() || null,
+            jobDescription: isSeededProfileWithoutJd ? null : (form.jobDescription.trim() || null),
             filters: hasFilters ? {
                 minExperience: parsedMinExp,
                 maxExperience: parsedMaxExp,
@@ -543,7 +570,7 @@ export function SearchProfileEditorDialog({
         } finally {
             setSubmitting(false)
         }
-    }, [additionalSources, form, onOpenChange, onSaved, profileId, sourceForm, t])
+    }, [additionalSources, form, isSeededProfileWithoutJd, onOpenChange, onSaved, profileId, sourceForm, t])
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -585,13 +612,15 @@ export function SearchProfileEditorDialog({
                         />
                     </div>
 
-                    <div className="grid gap-2">
-                        <Label>{t('searchProfiles.fields.jobDescription', { defaultValue: 'Job Description' })}</Label>
-                        <JobDescriptionSelect
-                            value={form.jobDescription}
-                            onChange={handleJobDescriptionChange}
-                        />
-                    </div>
+                    {isSeededProfileWithoutJd ? null : (
+                        <div className="grid gap-2">
+                            <Label>{t('searchProfiles.fields.jobDescription', { defaultValue: 'Job Description' })}</Label>
+                            <JobDescriptionSelect
+                                value={form.jobDescription}
+                                onChange={handleJobDescriptionChange}
+                            />
+                        </div>
+                    )}
 
                     <div className="grid gap-2">
                         <div className="grid grid-cols-2 gap-3">

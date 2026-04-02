@@ -47,13 +47,20 @@ vi.mock('@/components/ProfileCard', () => ({
   ProfileCard: ({
     profile,
     onRunNow,
+    onDelete,
   }: {
     profile: { id: string; name: string }
     onRunNow: (profileId: string) => void
+    onDelete: (profileId: string) => void
   }) => (
-    <button type="button" onClick={() => onRunNow(profile.id)}>
-      Run {profile.name}
-    </button>
+    <>
+      <button type="button" onClick={() => onRunNow(profile.id)}>
+        Run {profile.name}
+      </button>
+      <button type="button" onClick={() => onDelete(profile.id)}>
+        Delete {profile.name}
+      </button>
+    </>
   ),
 }))
 
@@ -81,7 +88,8 @@ vi.mock('@/components/ui/card', () => ({
 }))
 
 vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Dialog: ({ children, open }: { children: ReactNode; open?: boolean }) => (open ? <div>{children}</div> : null),
+  DialogClose: ({ children }: { children: ReactNode }) => <>{children}</>,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -142,10 +150,47 @@ describe('SearchProfilesPage run behavior', () => {
         },
       }
     })
+    deleteMock.mockResolvedValue({
+      data: {
+        success: true,
+      },
+    })
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('closes the delete dialog immediately after confirming delete', async () => {
+    const user = userEvent.setup()
+
+    render(<SearchProfilesPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Delete Profile 1' }))
+    expect(screen.getByText('Confirm Deletion')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Confirm Deletion')).not.toBeInTheDocument()
+    })
+  })
+
+  it('removes a deleted profile from the current UI state immediately', async () => {
+    const user = userEvent.setup()
+
+    render(<SearchProfilesPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Delete Profile 1' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(deleteMock).toHaveBeenCalledWith('/api/search-profiles/profile-1')
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Run Profile 1' })).not.toBeInTheDocument()
+    })
+    expect(toastSuccessMock).toHaveBeenCalledWith('Profile deleted')
   })
 
   it('opens Seek profiles in a new tab instead of dispatching a worker run', async () => {

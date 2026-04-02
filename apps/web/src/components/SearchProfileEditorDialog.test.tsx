@@ -341,6 +341,45 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     })
   })
 
+  it('hides the JD select for seeded profiles and clears stale JD on save', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <SearchProfileEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        profileId="job5156-cn-cnc-sales"
+        initialData={{
+          id: 'job5156-cn-cnc-sales',
+          name: 'China Job5156 CNC Sales',
+          status: 'active',
+          location: 'China',
+          keywords: ['CNC', '销售'],
+          jobDescription: 'lathe-sales',
+          filters: {
+            minExperience: 2,
+          },
+          schedule: {
+            enabled: true,
+            cron: '0 9 * * 1-5',
+          },
+        }}
+      />
+    )
+
+    expect(screen.queryByTestId('job-description-select')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(putMock).toHaveBeenCalledWith('/api/search-profiles/job5156-cn-cnc-sales', {
+        body: expect.objectContaining({
+          jobDescription: null,
+        }),
+      })
+    })
+  })
+
   it('sends explicit null clears for optional linkage fields on save', async () => {
     const user = userEvent.setup()
     const onSaved = vi.fn()

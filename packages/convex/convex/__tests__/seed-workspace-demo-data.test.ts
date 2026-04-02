@@ -353,6 +353,29 @@ describe('seedWorkspaceDemoData', () => {
     expect(tables.resumes).toHaveLength(0)
   })
 
+  it('seeds search profiles without JD linkage for the three seed profiles', async () => {
+    const { ctx, tables } = createSeedCtx()
+
+    const firstRun = await seedWorkspaceDemoDataHandler(ctx as never, {})
+
+    expect(firstRun.searchProfiles).toEqual({ inserted: 3, updated: 0 })
+    expect(tables.search_profiles).toHaveLength(3)
+
+    const seededProfiles = new Map(
+      tables.search_profiles.map((record) => [String(record.profile?.id), record.profile ?? {}])
+    )
+
+    expect(seededProfiles.get('job5156-cn-cnc-sales')).toEqual(
+      expect.not.objectContaining({ jobDescription: expect.anything() })
+    )
+    expect(seededProfiles.get('51job-cn-cnc-sales')).toEqual(
+      expect.not.objectContaining({ jobDescription: expect.anything() })
+    )
+    expect(seededProfiles.get('seek-malaysia-sales')).toEqual(
+      expect.not.objectContaining({ jobDescription: expect.anything() })
+    )
+  })
+
   it('seeds one deterministic SEEK Malaysia resume only for explicit demo-resume runs and stays idempotent on rerun', async () => {
     const { ctx, tables } = createSeedCtx()
 
