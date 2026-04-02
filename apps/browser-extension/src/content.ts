@@ -2091,6 +2091,19 @@ function isJob51RateLimitedPayload(payload) {
   return candidates.some((value) => isJob51RateLimitedErrorMessage(value));
 }
 
+function isJob51DetailApiErrorPayload(payload) {
+  if (!payload || typeof payload !== "object") return false;
+  if (payload.result === "0" || payload.result === 0) return true;
+  return (
+    typeof payload.code === "string" &&
+    payload.code.length > 0 &&
+    payload.code !== "200" &&
+    payload.code !== "0" &&
+    typeof payload.msg === "string" &&
+    payload.msg.length > 0
+  );
+}
+
 async function collectJob51DetailFromBackground(resumeId) {
   try {
     const response = await chrome.runtime.sendMessage({
@@ -2130,7 +2143,7 @@ async function fetch51JobResumeDetail(resumeId) {
     resumeId: normalizedResumeId,
     userid: normalizedResumeId,
     lan: "c",
-    timestamp: Date.now(),
+    timestamp: Math.floor(Date.now() / 1000),
     ...(authContext?.property ? { property: authContext.property } : {}),
     ...(authContext?.sign ? { sign: authContext.sign } : {}),
   };
@@ -2172,7 +2185,14 @@ async function fetch51JobResumeDetail(resumeId) {
         if (isJob51RateLimitedPayload(payload)) {
           return { payload: null, rateLimited: true };
         }
-        if (payload) {
+        if (isJob51DetailApiErrorPayload(payload)) {
+          console.warn(
+            "🎯 [Auto Sync] Job51 detail API error, falling back to background:",
+            normalizedResumeId,
+            payload?.code,
+            payload?.msg,
+          );
+        } else if (payload) {
           return { payload, rateLimited: false };
         }
       }
