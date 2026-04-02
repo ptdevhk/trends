@@ -49,6 +49,40 @@ function matchesStructuredWorkEntry(
   return Boolean(companyMatches || titleMatches)
 }
 
+function shouldRenderResumeDetailWorkHistoryEntry(
+  entry: ReturnType<typeof normalizeWorkHistoryEntry>,
+): boolean {
+  if (!entry) {
+    return false
+  }
+
+  if (entry.companyName || entry.jobTitle || entry.description) {
+    return true
+  }
+
+  const raw = entry.raw?.trim() ?? ''
+  if (!raw) {
+    return false
+  }
+
+  const normalizedRaw = raw.replace(/[\s·]+/g, '')
+  if (/^[（(]?\d+(?:年(?:\d+个?月?)?|个月?|月)?[）)]?$/u.test(normalizedRaw)) {
+    return false
+  }
+
+  if (/(本科|大专|中专|硕士|博士|研究生|MBA|EMBA|学校|学院|大学|学历)/u.test(raw)
+    && !/(公司|经理|工程师|销售|主管|总监|主任|技术|客户|负责|部门|离职原因|CNC|数控|机械|设备|项目)/iu.test(raw)) {
+    return false
+  }
+
+  const dateRange = buildWorkHistoryDateRange(entry.startDate, entry.endDate)
+  if (dateRange) {
+    return true
+  }
+
+  return true
+}
+
 export function ResumeDetail({
   resume,
   matchResult,
@@ -71,6 +105,8 @@ export function ResumeDetail({
   const workHistory = useMemo(() => {
     if (!presentationResume?.workHistory?.length) return []
     return selectLatestWorkHistory(presentationResume.workHistory)
+      .map((entry) => normalizeWorkHistoryEntry(entry))
+      .filter((entry): entry is NonNullable<typeof entry> => shouldRenderResumeDetailWorkHistoryEntry(entry))
   }, [presentationResume])
   const workHistoryAnnotations = useMemo(() => {
     if (!resume || !hasIngestData(resume)) {
