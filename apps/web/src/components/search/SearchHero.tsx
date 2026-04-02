@@ -14,6 +14,7 @@ type SearchHeroQuickStart = {
   location: string
   keywords: string[]
   description?: string
+  profileId?: string
   source?: {
     type: CollectionSourceType
     jobUrl?: string
@@ -194,7 +195,7 @@ export function SearchHero({
                       </button>
                       <Link
                         className="inline-flex items-center justify-center rounded-full border border-transparent px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-200 hover:bg-white hover:text-slate-900"
-                        to={`/${slug}/system/profiles`}
+                        to={seed.profileId ? `/${slug}/system/profiles?edit=${encodeURIComponent(seed.profileId)}` : `/${slug}/system/profiles`}
                       >
                         {t('resumes.searchPage.hero.editProfile', {
                           defaultValue: 'Edit',

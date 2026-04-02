@@ -25,12 +25,12 @@ export function MigrationBanner() {
       <div className="space-y-1">
         <div className="font-medium">
           {t('resumes.searchPage.banner.title', {
-            defaultValue: 'Search Profiles still exist, but the primary resume route is now search-first.',
+            defaultValue: 'Search-first quick starts now open in Search Profiles.',
           })}
         </div>
         <div className="text-sky-800/80">
           {t('resumes.searchPage.banner.description', {
-            defaultValue: 'Use this page for fast keyword review. Use Search Profiles when you need landing quick starts, scheduled collectors, and JD-driven setup in one place.',
+            defaultValue: 'Use this page for fast keyword review, or open Search Profiles to edit and run saved quick starts.',
           })}
         </div>
       </div>

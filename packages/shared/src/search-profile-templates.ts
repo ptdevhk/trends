@@ -75,6 +75,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       filters: {
         minExperience: 2,
         maxExperience: null,
+        minAge: 25,
+        maxAge: 40,
         locations: ["China"],
       },
       schedule: {
@@ -170,6 +172,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       filters: {
         minExperience: 2,
         maxExperience: null,
+        minAge: 25,
+        maxAge: 40,
         locations: ["China"],
       },
       schedule: {

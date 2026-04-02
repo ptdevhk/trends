@@ -46,10 +46,10 @@ describe('MigrationBanner', () => {
     render(<MigrationBanner />)
 
     await waitFor(() => {
-      expect(screen.getByText('Search Profiles still exist, but the primary resume route is now search-first.')).toBeInTheDocument()
+      expect(screen.getByText('Search-first quick starts now open in Search Profiles.')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Use this page for fast keyword review. Use Search Profiles when you need landing quick starts, scheduled collectors, and JD-driven setup in one place.')).toBeInTheDocument()
+    expect(screen.getByText('Use this page for fast keyword review, or open Search Profiles to edit and run saved quick starts.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open Search Profiles' })).toHaveAttribute('href', '/dev/system/profiles')
   })
 
@@ -62,7 +62,7 @@ describe('MigrationBanner', () => {
     await user.click(dismissButton)
 
     expect(localStorage.getItem(STORAGE_KEY)).toBe('1')
-    expect(screen.queryByText('Search Profiles still exist, but the primary resume route is now search-first.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Search-first quick starts now open in Search Profiles.')).not.toBeInTheDocument()
   })
 
   it('stays hidden when already dismissed', () => {
@@ -70,6 +70,6 @@ describe('MigrationBanner', () => {
 
     render(<MigrationBanner />)
 
-    expect(screen.queryByText('Search Profiles still exist, but the primary resume route is now search-first.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Search-first quick starts now open in Search Profiles.')).not.toBeInTheDocument()
   })
 })

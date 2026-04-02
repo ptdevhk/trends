@@ -6553,6 +6553,27 @@ function getExternalAccessorStatus() {
   };
 }
 
+function installContentTestExports() {
+  if (typeof globalThis.__TR_BROWSER_EXTENSION_TEST__ !== "object") {
+    return null;
+  }
+  globalThis.__TR_BROWSER_EXTENSION_TEST__.content = {
+    SOURCE_KEYS,
+    autoApplyAgeFilterFromUrl,
+    extractResumes,
+    extractJob51DetailResume,
+    extractJob5156DetailResume,
+    filterCurrentResumesByAgeRange,
+    getCurrentAgeRange,
+    getExternalAccessorStatus,
+    installContentTestExports,
+    setAutoAgeAttributes,
+  };
+  return globalThis.__TR_BROWSER_EXTENSION_TEST__.content;
+}
+
+installContentTestExports();
+
 function installExternalAccessor() {
   try {
     const version = getExtensionVersion();

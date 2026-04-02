@@ -328,8 +328,8 @@
     },
     "searchPage": {
       "banner": {
-        "title": "Search Profiles still exist, but the primary resume route is now search-first.",
-        "description": "Use this page for fast keyword review. Use Search Profiles when you need landing quick starts, scheduled collectors, and JD-driven setup in one place.",
+        "title": "Search-first quick starts now open in Search Profiles.",
+        "description": "Use this page for fast keyword review, or open Search Profiles to edit and run saved quick starts.",
         "openProfiles": "Open Search Profiles",
         "dismiss": "Dismiss migration banner"
       },

@@ -271,25 +271,37 @@ export function SearchProfilesPage() {
     }
   }, [])
 
+  const updateSearchParams = useCallback((mutate: (params: URLSearchParams) => void) => {
+    const nextParams = new URLSearchParams(searchParams)
+    mutate(nextParams)
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
+
   useEffect(() => {
     if (searchParams.get('view') !== 'quick-starts') {
       return
     }
 
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.delete('view')
-    setSearchParams(nextParams, { replace: true })
-  }, [searchParams, setSearchParams])
+    updateSearchParams((nextParams) => {
+      nextParams.delete('view')
+    })
+  }, [searchParams, updateSearchParams])
 
   const handleCreate = useCallback(() => {
     setEditingProfileId(null)
+    updateSearchParams((nextParams) => {
+      nextParams.delete('edit')
+    })
     setEditorOpen(true)
-  }, [])
+  }, [updateSearchParams])
 
-  const handleEdit = useCallback(async (profileId: string) => {
+  const handleEdit = useCallback((profileId: string) => {
     setEditingProfileId(profileId)
+    updateSearchParams((nextParams) => {
+      nextParams.set('edit', profileId)
+    })
     setEditorOpen(true)
-  }, [])
+  }, [updateSearchParams])
 
   const handleDelete = useCallback((profileId: string) => {
     setDeletingProfileId(profileId)
@@ -467,11 +479,25 @@ export function SearchProfilesPage() {
       return
     }
 
-    void handleEdit(editId)
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.delete('edit')
-    setSearchParams(nextParams, { replace: true })
-  }, [handleEdit, profiles, searchParams, setSearchParams])
+    setEditingProfileId((previous) => (previous === editId ? previous : editId))
+    setEditorOpen(true)
+  }, [profiles, searchParams])
+
+  const handleEditorOpenChange = useCallback((open: boolean) => {
+    setEditorOpen(open)
+    if (open) {
+      return
+    }
+
+    const activeEditId = searchParams.get('edit')
+    setEditingProfileId(activeEditId ? null : editingProfileId)
+    if (activeEditId) {
+      updateSearchParams((nextParams) => {
+        nextParams.delete('edit')
+      })
+      setEditingProfileId(null)
+    }
+  }, [editingProfileId, searchParams, updateSearchParams])
 
   const cards = useMemo(() => {
     return profiles.map((profile) => {
@@ -539,7 +565,7 @@ export function SearchProfilesPage() {
 
       <SearchProfileEditorDialog
         open={editorOpen}
-        onOpenChange={setEditorOpen}
+        onOpenChange={handleEditorOpenChange}
         profileId={editingProfileId}
         onSaved={loadProfiles}
       />

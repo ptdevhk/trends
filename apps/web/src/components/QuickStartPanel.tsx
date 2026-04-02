@@ -1,13 +1,14 @@
 import { formatKeywordInput, normalizeKeywordPhrases, parseKeywordQuery } from '@trends/shared'
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { MessageSquareMore, Pencil, RotateCcw } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from 'convex/react'
 import { JobDescriptionSelect } from './JobDescriptionSelect'
 import { JobDescriptionEditor } from './JobDescriptionEditor'
 import { KeywordChips } from './KeywordChips'
-import { SearchProfileEditorDialog, type SearchProfileDetails, type SearchProfileFilters } from './SearchProfileEditorDialog'
 import { SearchAssistantDrawer } from './SearchAssistantDrawer'
+import { type SearchProfileDetails, type SearchProfileFilters } from './SearchProfileEditorDialog'
 import { rawApiClient } from '@/lib/api-helpers'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -325,6 +326,7 @@ export function QuickStartPanel({
   onResetAll,
 }: QuickStartPanelProps) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { slug } = useWorkspace()
   const yearsLabel = t('quickStart.years', 'yrs')
   const ageUnit = t('quickStart.ageUnit', '')
@@ -342,7 +344,6 @@ export function QuickStartPanel({
   const [autoMatchResult, setAutoMatchResult] = useState<AutoMatchedProfile | null>(null)
   const [matching, setMatching] = useState(false)
   const [showJdEditor, setShowJdEditor] = useState(false)
-  const [showProfileEditor, setShowProfileEditor] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [workflowSeeds, setWorkflowSeeds] = useState<QuickStartWorkflow[]>([])
   const normalizedJobDescriptionId = jobDescriptionId.trim()
@@ -862,6 +863,17 @@ export function QuickStartPanel({
     applyProfileToLiveSearch(autoMatchResult.profile)
   }, [applyProfileToLiveSearch, autoMatchResult])
 
+  const handleEditMatchedProfile = useCallback(() => {
+    const profileId = autoMatchResult?.profile.id
+    if (!profileId) {
+      return
+    }
+
+    const nextParams = new URLSearchParams()
+    nextParams.set('edit', profileId)
+    navigate(`/${slug}/system/profiles?${nextParams.toString()}`)
+  }, [autoMatchResult?.profile.id, navigate, slug])
+
   const handleJdEditorSaveSuccess = useCallback((newId: string, savedFields?: {
     location?: string
     title?: string
@@ -914,22 +926,6 @@ export function QuickStartPanel({
       maxAge: nextMaxAge,
     })
   }, [activeRoleType, onApplyQuickFilters, onJobChange, quickMaxAge, quickMinRoleYears, selectedConvexJobDescriptionProfile?.type])
-
-  const handleProfileEditorSaved = useCallback((profile?: SearchProfileDetails) => {
-    if (!profile) {
-      return
-    }
-
-    applyProfileToLiveSearch(profile)
-    setAutoMatchResult((previous) => (
-      previous && previous.profile.id === profile.id
-        ? {
-            ...previous,
-            profile,
-          }
-        : previous
-    ))
-  }, [applyProfileToLiveSearch])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1335,7 +1331,7 @@ export function QuickStartPanel({
               <Button
                 variant="link"
                 className="h-auto p-0 text-xs text-primary underline-offset-4 hover:underline"
-                onClick={() => setShowProfileEditor(true)}
+                onClick={handleEditMatchedProfile}
               >
                 {t('quickStart.modifyConfig', 'Modify')}
               </Button>
@@ -1350,16 +1346,6 @@ export function QuickStartPanel({
         initialData={editorInitialData}
         onSaveSuccess={handleJdEditorSaveSuccess}
       />
-
-      {autoMatchResult?.profile.id && (
-        <SearchProfileEditorDialog
-          open={showProfileEditor}
-          onOpenChange={setShowProfileEditor}
-          profileId={autoMatchResult.profile.id}
-          initialData={autoMatchResult.profile}
-          onSaved={handleProfileEditorSaved}
-        />
-      )}
 
       <SearchAssistantDrawer
         open={assistantOpen}

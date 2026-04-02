@@ -327,8 +327,8 @@
     },
     "searchPage": {
       "banner": {
-        "title": "Search Profiles 仍然存在，但主簡歷入口現在以搜尋優先。",
-        "description": "本頁用於快速關鍵詞審閱。需要落地頁快速開始、定時採集或一站式 JD 設定時，請使用 Search Profiles。",
+        "title": "搜尋優先的快速開始現已在 Search Profiles 中開啟。",
+        "description": "本頁用於快速關鍵詞審閱，也可開啟 Search Profiles 編輯並執行已保存的快速開始。",
         "openProfiles": "開啟 Search Profiles",
         "dismiss": "關閉遷移提示"
       },
