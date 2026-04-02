@@ -2145,7 +2145,6 @@ async function fetch51JobResumeDetail(resumeId) {
     lan: "c",
     timestamp: Math.floor(Date.now() / 1000),
     ...(authContext?.property ? { property: authContext.property } : {}),
-    ...(authContext?.sign ? { sign: authContext.sign } : {}),
   };
 
   if (authContext?.accesstoken || authContext?.guid || authContext?.property) {
