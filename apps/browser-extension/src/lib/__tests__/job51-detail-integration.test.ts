@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import mixedWithProjectsFixture from '../../../__fixtures__/job51-detail-mixed-with-projects.json'
-import workArrayFixture from '../../../__fixtures__/job51-detail-work-array.json'
-import workExperienceListFixture from '../../../__fixtures__/job51-detail-work-experience-list.json'
+import mixedWithProjectsFixture from './__fixtures__/job51-detail-mixed-with-projects.json'
+import workArrayFixture from './__fixtures__/job51-detail-work-array.json'
+import workExperienceListFixture from './__fixtures__/job51-detail-work-experience-list.json'
 import { filterResumesByAgeRange } from '../job51-age-filter'
 import { buildJob51DetailResumeFromPayload } from '../job51-detail-parser'
 

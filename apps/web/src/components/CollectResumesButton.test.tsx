@@ -66,7 +66,7 @@ describe('CollectResumesButton', () => {
 
     expect(openMock).toHaveBeenLastCalledWith(
       'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1&tr_auto_sync=true&tr_min_age=28&tr_max_age=40',
-      '_blank',
+      'trends-collect-seek',
       'noopener,noreferrer'
     )
 
@@ -98,7 +98,7 @@ describe('CollectResumesButton', () => {
 
     expect(openMock).toHaveBeenLastCalledWith(
       'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1&tr_auto_sync=true&tr_min_age=28&tr_max_age=40',
-      '_blank',
+      'trends-collect-seek',
       'noopener,noreferrer'
     )
   })
