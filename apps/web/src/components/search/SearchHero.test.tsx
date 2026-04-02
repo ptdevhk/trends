@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchHero } from '@/components/search/SearchHero'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
@@ -20,6 +21,12 @@ vi.mock('react-i18next', () => ({
         return value === undefined || value === null ? '' : String(value)
       })
     },
+  }),
+}))
+
+vi.mock('@/contexts/WorkspaceContext', () => ({
+  useWorkspace: () => ({
+    slug: 'dev',
   }),
 }))
 
@@ -94,6 +101,9 @@ function buildQuickStart(
     label: 'China · Job5156 · CNC 销售',
     location: 'China',
     keywords: ['CNC', '销售'],
+    source: {
+      type: 'job5156' as const,
+    },
     ...overrides,
   }
 }
@@ -130,7 +140,11 @@ function renderSearchHero(overrides: Partial<SearchHeroProps> = {}) {
   }
 
   return {
-    ...render(<SearchHero {...props} />),
+    ...render(
+      <MemoryRouter>
+        <SearchHero {...props} />
+      </MemoryRouter>,
+    ),
     props,
   }
 }
@@ -309,6 +323,35 @@ describe('SearchHero', () => {
       keywords: ['CNC', '销售'],
       location: 'China',
     })
+  })
+
+  it('opens collect shortcuts and renders edit links for quick starts', async () => {
+    const user = userEvent.setup()
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+    renderSearchHero({
+      quickStarts: [
+        buildQuickStart({
+          source: {
+            type: 'seek',
+            jobUrl:
+              'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
+          },
+        }),
+      ],
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Collect' }))
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining('tr_auto_sync=true'),
+      'trends-collect-seek',
+      'noopener,noreferrer',
+    )
+    expect(screen.getByRole('link', { name: 'Edit' })).toHaveAttribute(
+      'href',
+      '/dev/system/profiles',
+    )
   })
 
   it('clicking a hot keyword chip calls onToggleHotKeyword', async () => {

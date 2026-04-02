@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 import { SnippetCardExpanded } from '@/components/search/SnippetCardExpanded'
+import { getResumeContentLocale, getResumeSourceLabel } from '@/lib/resume-scoring'
 import { cn } from '@/lib/utils'
-import { getResumeContentLocale } from '@/lib/resume-scoring'
 
 type SnippetCardProps = {
   expanded: boolean
@@ -34,6 +34,7 @@ export function SnippetCard({
 }: SnippetCardProps) {
   const { t } = useTranslation()
   const contentLocale = getResumeContentLocale(item.resume)
+  const resumeSourceLabel = getResumeSourceLabel(item.resume)
   const analysis = item.analysis ?? item.resume.analysis
   const snippetText = item.resume.workHistory?.[0]?.raw || item.resume.selfIntro
   const visibleKeywords = (
@@ -100,6 +101,9 @@ export function SnippetCard({
                 </span>
               ) : null}
               {item.resume.experience ? <span>{item.resume.experience}</span> : null}
+              {resumeSourceLabel ? (
+                <Badge variant="outline">{resumeSourceLabel}</Badge>
+              ) : null}
               {item.resume.ingestData?.experienceLevel ? (
                 <Badge variant="outline" className="capitalize">{item.resume.ingestData.experienceLevel}</Badge>
               ) : null}

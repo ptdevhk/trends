@@ -82,6 +82,13 @@ describe('useIndustryKeywords', () => {
                 status: 'active',
                 location: 'China',
                 keywords: ['CNC', '销售'],
+                sources: [
+                  {
+                    type: 'job5156',
+                    enabled: true,
+                    priority: 1,
+                  },
+                ],
                 quickStart: {
                   enabled: true,
                   rank: 1,
@@ -119,6 +126,9 @@ describe('useIndustryKeywords', () => {
         id: 'job5156-cn-cnc-sales',
         label: 'China · Job5156 · CNC 销售',
         location: 'China',
+        source: {
+          type: 'job5156',
+        },
       }),
     ])
   })

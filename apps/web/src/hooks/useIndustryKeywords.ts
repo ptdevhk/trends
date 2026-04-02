@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { rawApiClient } from "@/lib/api-helpers";
+import {
+  getSearchProfileCollectionSource,
+  type CollectionSourceType,
+  type SearchProfileSource,
+} from "@/lib/search-profile-sources";
 
 export type KeywordMarket = "CN" | "MY";
 export type ConfigSourceOrigin = "system" | "workspace";
@@ -80,6 +85,10 @@ export type SearchProfileQuickStart = {
   location: string;
   keywords: string[];
   description?: string;
+  source?: {
+    type: CollectionSourceType;
+    jobUrl?: string;
+  };
   quickStart: {
     enabled: boolean;
     rank?: number;
@@ -107,6 +116,7 @@ type SearchProfilesResponse = {
     status: "active" | "paused" | "archived";
     location: string;
     keywords: string[];
+    sources?: SearchProfileSource[];
     quickStart?: {
       enabled: boolean;
       rank?: number;
@@ -322,19 +332,31 @@ export function useIndustryKeywords() {
             (left.quickStart?.rank ?? Number.MAX_SAFE_INTEGER)
             - (right.quickStart?.rank ?? Number.MAX_SAFE_INTEGER)
           ))
-          .map((profile) => ({
-            id: profile.id,
-            label: profile.quickStart?.label?.trim() || profile.name,
-            location: profile.location,
-            keywords: profile.keywords,
-            description: profile.quickStart?.description?.trim() || undefined,
-            quickStart: {
-              enabled: true,
-              rank: profile.quickStart?.rank,
-              label: profile.quickStart?.label?.trim() || undefined,
+          .map((profile) => {
+            const collectionSource = getSearchProfileCollectionSource(profile.sources)
+
+            return {
+              id: profile.id,
+              label: profile.quickStart?.label?.trim() || profile.name,
+              location: profile.location,
+              keywords: profile.keywords,
               description: profile.quickStart?.description?.trim() || undefined,
-            },
-          }))
+              source: collectionSource
+                ? {
+                    type: collectionSource.type,
+                    ...(collectionSource.type === 'seek' && collectionSource.exactUrl
+                      ? { jobUrl: collectionSource.exactUrl }
+                      : {}),
+                  }
+                : undefined,
+              quickStart: {
+                enabled: true,
+                rank: profile.quickStart?.rank,
+                label: profile.quickStart?.label?.trim() || undefined,
+                description: profile.quickStart?.description?.trim() || undefined,
+              },
+            }
+          })
         : [];
       setQuickStartProfiles(mappedQuickStarts);
     }

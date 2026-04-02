@@ -3788,6 +3788,13 @@ export interface paths {
                                 status: "active" | "paused" | "archived";
                                 location: string;
                                 keywords: string[];
+                                sources?: {
+                                    type: string;
+                                    enabled: boolean;
+                                    priority?: number;
+                                    jobUrl?: string;
+                                    unsafeLimits?: boolean;
+                                }[];
                                 quickStart?: {
                                     enabled: boolean;
                                     rank?: number;

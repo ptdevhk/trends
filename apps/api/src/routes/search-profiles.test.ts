@@ -79,55 +79,44 @@ function getCreateCalls(calls: ConvexCall[]): ConvexCall[] {
 }
 
 const runStatusFilePath = path.join(searchProfileService.projectRoot, 'output', 'search-profile-runs.json')
-const seededDongguanProfile = {
-  id: 'dongguan-lathe-sales',
-  name: '东莞车床销售招聘',
-  description: '东莞地区车床销售工程师岗位自动化招聘',
-  createdAt: '2026-02-06',
-  updatedAt: '2026-02-06',
+const seededJob51Profile = {
+  id: '51job-cn-cnc-sales',
+  name: 'China 51job CNC Sales',
+  description: 'China-wide 51job CNC sales search profile used for the landing quick start',
+  createdAt: '2026-04-02',
+  updatedAt: '2026-04-02',
   status: 'active' as const,
-  location: '东莞',
-  keywords: ['车床', '销售', 'CNC', '数控'],
+  location: 'China',
+  keywords: ['CNC', '销售'],
   jobDescription: 'lathe-sales',
-  filterPreset: 'sales-mid',
   filters: {
     minExperience: 2,
     maxExperience: null,
-    education: ['中专', '大专', '本科'],
-    salaryRange: {
-      min: 8000,
-      max: 20000,
-      currency: 'CNY',
-      period: 'month',
-    },
-    locations: ['东莞', '广州', '深圳'],
+    locations: ['China'],
   },
   schedule: {
     enabled: true,
     cron: '0 9 * * 1-5',
-    timezone: 'Asia/Hong_Kong',
+    timezone: 'Asia/Shanghai',
     maxCandidates: 200,
-    notifyOnlyOnNew: true,
   },
   sources: [
     {
-      type: 'job5156',
+      type: '51job',
       enabled: true,
       priority: 1,
     },
     {
-      type: 'manual_upload',
-      enabled: true,
+      type: 'job5156',
+      enabled: false,
       priority: 2,
     },
   ],
-  session: {
-    scope: 'per-position',
-    resetTriggers: ['/archive', '/close-position'],
-    retention: {
-      mode: 'until-closed',
-      archiveAfterDays: 90,
-    },
+  quickStart: {
+    enabled: true,
+    rank: 2,
+    label: 'China · 51job · CNC 销售',
+    description: 'CNC, 销售 · China',
   },
 }
 
@@ -198,6 +187,12 @@ describe('search-profiles list route', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: 'job5156-cn-cnc-sales',
+          sources: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'job5156',
+              enabled: true,
+            }),
+          ]),
           quickStart: expect.objectContaining({
             enabled: true,
             rank: 1,
@@ -205,10 +200,30 @@ describe('search-profiles list route', () => {
           }),
         }),
         expect.objectContaining({
-          id: 'seek-malaysia-sales',
+          id: '51job-cn-cnc-sales',
+          sources: expect.arrayContaining([
+            expect.objectContaining({
+              type: '51job',
+              enabled: true,
+            }),
+          ]),
           quickStart: expect.objectContaining({
             enabled: true,
             rank: 2,
+            label: 'China · 51job · CNC 销售',
+          }),
+        }),
+        expect.objectContaining({
+          id: 'seek-malaysia-sales',
+          sources: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'seek',
+              enabled: true,
+            }),
+          ]),
+          quickStart: expect.objectContaining({
+            enabled: true,
+            rank: 3,
             label: 'Malaysia · SEEK · CNC Sales',
           }),
         }),
@@ -270,18 +285,18 @@ describe('search-profiles list route', () => {
             },
             {
               _id: 'search_profiles-dev-3',
-              name: '东莞车床销售招聘',
-              profileId: 'dongguan-lathe-sales',
+              name: 'China 51job CNC Sales',
+              profileId: '51job-cn-cnc-sales',
               criteria: {
-                keywords: ['车床', '销售', 'CNC', '数控'],
-                locations: ['东莞', '广州', '深圳'],
+                keywords: ['CNC', '销售'],
+                locations: ['China'],
               },
               profile: {
-                id: 'dongguan-lathe-sales',
-                name: '东莞车床销售招聘',
+                id: '51job-cn-cnc-sales',
+                name: 'China 51job CNC Sales',
                 status: 'active',
-                location: '东莞',
-                keywords: ['车床', '销售', 'CNC', '数控'],
+                location: 'China',
+                keywords: ['CNC', '销售'],
                 schedule: {
                   enabled: true,
                   cron: '0 9 * * 1-5',
@@ -346,7 +361,7 @@ describe('search-profiles list route', () => {
         }),
         expect.objectContaining({
           workspaceSlug: 'dev',
-          profileId: 'dongguan-lathe-sales',
+          profileId: '51job-cn-cnc-sales',
           cron: '0 9 * * 1-5',
         }),
         expect.objectContaining({
@@ -453,12 +468,12 @@ describe('search-profiles run route', () => {
 
         return convexSuccess({
           _id: 'search_profiles-seeded-1',
-          profileId: 'dongguan-lathe-sales',
-          name: '东莞车床销售招聘',
-          profile: seededDongguanProfile,
+          profileId: '51job-cn-cnc-sales',
+          name: 'China 51job CNC Sales',
+          profile: seededJob51Profile,
           criteria: {
-            keywords: ['车床', '销售', 'CNC', '数控'],
-            locations: ['东莞', '广州', '深圳'],
+            keywords: ['CNC', '销售'],
+            locations: ['China'],
           },
           workspaceSlug: 'dev',
         })
@@ -467,12 +482,12 @@ describe('search-profiles run route', () => {
         materialized = true
         return convexSuccess({
           _id: 'search_profiles-seeded-1',
-          profileId: 'dongguan-lathe-sales',
-          name: '东莞车床销售招聘',
+          profileId: '51job-cn-cnc-sales',
+          name: 'China 51job CNC Sales',
           profile: call.args.profile,
           criteria: {
-            keywords: ['车床', '销售', 'CNC', '数控'],
-            locations: ['东莞', '广州', '深圳'],
+            keywords: ['CNC', '销售'],
+            locations: ['China'],
           },
           workspaceSlug: 'dev',
         })
@@ -485,7 +500,7 @@ describe('search-profiles run route', () => {
     })
 
     const app = createApp()
-    const response = await app.request('/api/search-profiles/dongguan-lathe-sales/run', {
+    const response = await app.request('/api/search-profiles/51job-cn-cnc-sales/run', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -499,15 +514,15 @@ describe('search-profiles run route', () => {
     const payload = await response.json()
     expect(payload).toMatchObject({
       success: true,
-      profileId: 'dongguan-lathe-sales',
+      profileId: '51job-cn-cnc-sales',
       taskId: 'task-concat-default',
       dispatch: {
-        keyword: '车床 销售 CNC 数控',
+        keyword: 'CNC 销售',
       },
     })
 
     const dispatchCall = getDispatchCall(calls)
-    expect(dispatchCall.args.keyword).toBe('车床 销售 CNC 数控')
+    expect(dispatchCall.args.keyword).toBe('CNC 销售')
   })
 
   it('uses explicit request keyword without rewriting it', async () => {
@@ -525,12 +540,12 @@ describe('search-profiles run route', () => {
 
         return convexSuccess({
           _id: 'search_profiles-seeded-1',
-          profileId: 'dongguan-lathe-sales',
-          name: '东莞车床销售招聘',
-          profile: seededDongguanProfile,
+          profileId: '51job-cn-cnc-sales',
+          name: 'China 51job CNC Sales',
+          profile: seededJob51Profile,
           criteria: {
-            keywords: ['车床', '销售', 'CNC', '数控'],
-            locations: ['东莞', '广州', '深圳'],
+            keywords: ['CNC', '销售'],
+            locations: ['China'],
           },
           workspaceSlug: 'dev',
         })
@@ -539,12 +554,12 @@ describe('search-profiles run route', () => {
         materialized = true
         return convexSuccess({
           _id: 'search_profiles-seeded-1',
-          profileId: 'dongguan-lathe-sales',
-          name: '东莞车床销售招聘',
+          profileId: '51job-cn-cnc-sales',
+          name: 'China 51job CNC Sales',
           profile: call.args.profile,
           criteria: {
-            keywords: ['车床', '销售', 'CNC', '数控'],
-            locations: ['东莞', '广州', '深圳'],
+            keywords: ['CNC', '销售'],
+            locations: ['China'],
           },
           workspaceSlug: 'dev',
         })
@@ -557,7 +572,7 @@ describe('search-profiles run route', () => {
     })
 
     const app = createApp()
-    const response = await app.request('/api/search-profiles/dongguan-lathe-sales/run', {
+    const response = await app.request('/api/search-profiles/51job-cn-cnc-sales/run', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -573,7 +588,7 @@ describe('search-profiles run route', () => {
     const payload = await response.json()
     expect(payload).toMatchObject({
       success: true,
-      profileId: 'dongguan-lathe-sales',
+      profileId: '51job-cn-cnc-sales',
       taskId: 'task-explicit-keyword',
       dispatch: {
         keyword: 'CNC 车床 销售 STAR',
@@ -599,12 +614,12 @@ describe('search-profiles run route', () => {
 
         return convexSuccess({
           _id: 'search_profiles-seeded-1',
-          profileId: 'dongguan-lathe-sales',
-          name: '东莞车床销售招聘',
-          profile: seededDongguanProfile,
+          profileId: '51job-cn-cnc-sales',
+          name: 'China 51job CNC Sales',
+          profile: seededJob51Profile,
           criteria: {
-            keywords: ['车床', '销售', 'CNC', '数控'],
-            locations: ['东莞', '广州', '深圳'],
+            keywords: ['CNC', '销售'],
+            locations: ['China'],
           },
           workspaceSlug: 'dev',
         })
@@ -613,12 +628,12 @@ describe('search-profiles run route', () => {
         materialized = true
         return convexSuccess({
           _id: 'search_profiles-seeded-1',
-          profileId: 'dongguan-lathe-sales',
-          name: '东莞车床销售招聘',
+          profileId: '51job-cn-cnc-sales',
+          name: 'China 51job CNC Sales',
           profile: call.args.profile,
           criteria: {
-            keywords: ['车床', '销售', 'CNC', '数控'],
-            locations: ['东莞', '广州', '深圳'],
+            keywords: ['CNC', '销售'],
+            locations: ['China'],
           },
           workspaceSlug: 'dev',
         })
@@ -631,7 +646,7 @@ describe('search-profiles run route', () => {
     })
 
     const app = createApp()
-    const response = await app.request('/api/search-profiles/dongguan-lathe-sales/run', {
+    const response = await app.request('/api/search-profiles/51job-cn-cnc-sales/run', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
