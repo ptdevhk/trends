@@ -1,9 +1,12 @@
 import { Clock3, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { ModeToggle } from '@/components/ModeToggle'
 import { GoogleSearchBar } from '@/components/search/GoogleSearchBar'
 import { Card, CardContent } from '@/components/ui/card'
 import type { ResumeSearchRecentItem } from '@/components/search/search-types'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { buildCollectionLaunchUrl, type CollectionSourceType } from '@/lib/search-profile-sources'
 
 type SearchHeroQuickStart = {
   id: string
@@ -11,6 +14,10 @@ type SearchHeroQuickStart = {
   location: string
   keywords: string[]
   description?: string
+  source?: {
+    type: CollectionSourceType
+    jobUrl?: string
+  }
 }
 
 type SearchHeroHotKeyword = {
@@ -83,6 +90,7 @@ export function SearchHero({
   onSubmitQuery,
 }: SearchHeroProps) {
   const { t } = useTranslation()
+  const { slug } = useWorkspace()
   const uniqueHotKeywords = deduplicateHotKeywords(hotKeywords)
 
   return (
@@ -120,26 +128,72 @@ export function SearchHero({
               })}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {quickStarts.map((seed) => (
-                <button
-                  key={seed.id}
-                  type="button"
-                  className={INTERACTIVE_CARD_CLASS_NAME}
-                  onClick={() =>
-                    void onApplyQuickStart?.({
-                      keywords: seed.keywords,
+              {quickStarts.map((seed) => {
+                const launchUrl = seed.source
+                  ? buildCollectionLaunchUrl({
+                      source: {
+                        type: seed.source.type,
+                        ...(seed.source.type === 'seek' && seed.source.jobUrl
+                          ? { exactUrl: seed.source.jobUrl }
+                          : {}),
+                      },
                       location: seed.location,
+                      keywords: seed.keywords,
                     })
-                  }
-                >
-                  <div className="truncate text-sm font-medium text-slate-900">
-                    {seed.label}
+                  : null
+
+                return (
+                  <div
+                    key={seed.id}
+                    className={`${INTERACTIVE_CARD_CLASS_NAME} flex flex-col gap-3`}
+                  >
+                    <button
+                      type="button"
+                      className="min-w-0 text-left"
+                      onClick={() =>
+                        void onApplyQuickStart?.({
+                          keywords: seed.keywords,
+                          location: seed.location,
+                        })
+                      }
+                    >
+                      <div className="truncate text-sm font-medium text-slate-900">
+                        {seed.label}
+                      </div>
+                      <div className="mt-1 truncate text-xs text-muted-foreground">
+                        {`${seed.keywords.join(', ')} · ${seed.location}`}
+                      </div>
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!launchUrl}
+                        onClick={() => {
+                          if (!launchUrl) {
+                            return
+                          }
+
+                          window.open(launchUrl, `trends-collect-${seed.source?.type ?? seed.id}`, 'noopener,noreferrer')
+                        }}
+                      >
+                        {t('resumes.searchPage.hero.collect', {
+                          defaultValue: 'Collect',
+                        })}
+                      </button>
+                      <Link
+                        className="inline-flex items-center justify-center rounded-full border border-transparent px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-200 hover:bg-white hover:text-slate-900"
+                        to={`/${slug}/system/profiles`}
+                      >
+                        {t('resumes.searchPage.hero.editProfile', {
+                          defaultValue: 'Edit',
+                        })}
+                      </Link>
+                    </div>
                   </div>
-                  <div className="mt-1 truncate text-xs text-muted-foreground">
-                    {`${seed.keywords.join(', ')} · ${seed.location}`}
-                  </div>
-                </button>
-              ))}
+                )
+              })}
             </div>
           </div>
         ) : null}

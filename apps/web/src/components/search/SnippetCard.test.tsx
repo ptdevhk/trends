@@ -122,6 +122,7 @@ describe('SnippetCard', () => {
     expect(screen.getByText('Led machine tools growth across Malaysia.')).toBeInTheDocument()
     expect(screen.getByText('Kuala Lumpur')).toBeInTheDocument()
     expect(screen.getByText('6 years')).toBeInTheDocument()
+    expect(screen.getByText('seek')).toBeInTheDocument()
     expect(screen.getByText('senior')).toBeInTheDocument()
     expect(screen.getByText('88')).toBeInTheDocument()
     expect(screen.getByText('AI')).toBeInTheDocument()

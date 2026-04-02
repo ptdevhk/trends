@@ -31,6 +31,13 @@ const ProfileSummarySchema = z.object({
     status: z.enum(["active", "paused", "archived"]),
     location: z.string(),
     keywords: z.array(z.string()),
+    sources: z.array(z.object({
+        type: z.string(),
+        enabled: z.boolean(),
+        priority: z.number().optional(),
+        jobUrl: z.string().optional(),
+        unsafeLimits: z.boolean().optional(),
+    })).optional(),
     quickStart: z.object({
         enabled: z.boolean(),
         rank: z.number().optional(),
@@ -899,6 +906,7 @@ app.openapi(listRoute, async (c) => {
         status: profile.status,
         location: profile.location,
         keywords: profile.keywords,
+        sources: profile.sources,
         quickStart: profile.quickStart,
     }));
 
