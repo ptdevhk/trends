@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import workArrayFixture from './__fixtures__/job51-detail-work-array.json'
-import workExperienceListFixture from './__fixtures__/job51-detail-work-experience-list.json'
+import workArrayFixture from './src/lib/__tests__/__fixtures__/job51-detail-work-array.json'
+import workExperienceListFixture from './src/lib/__tests__/__fixtures__/job51-detail-work-experience-list.json'
 import {
   filterResumesByAgeRange,
 } from './src/lib/job51-age-filter'
