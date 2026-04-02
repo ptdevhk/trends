@@ -71,6 +71,46 @@ describe('ResumeDetail latest work history', () => {
     expect(screen.queryByText('Oldest Co · Old Role')).not.toBeInTheDocument()
   })
 
+  it('filters placeholder-only and education-like rows from work history', () => {
+    render(
+      <ResumeDetail
+        open
+        onOpenChange={vi.fn()}
+        resume={{
+          name: 'Alice',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '30',
+          experience: '5 years',
+          education: 'Bachelor',
+          location: 'Dongguan',
+          selfIntro: 'Test intro',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '10k-20k',
+          workHistory: [
+            { raw: '(2年11月)' },
+            { raw: '(11月)' },
+            { raw: '2020~2023广东南方职业学院商务英语本科' },
+            {
+              raw: '2019-04 ~ 至今 (6年11月) 东莞宝力机械 销售经理 负责机床销售与客户维护',
+              companyName: '东莞宝力机械',
+              jobTitle: '销售经理',
+              startDate: '2019-04',
+              endDate: '至今',
+              description: '负责机床销售与客户维护',
+            },
+          ],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('东莞宝力机械 · 销售经理')).toBeInTheDocument()
+    expect(screen.queryByText('(2年11月)')).not.toBeInTheDocument()
+    expect(screen.queryByText('(11月)')).not.toBeInTheDocument()
+    expect(screen.queryByText('2020~2023广东南方职业学院商务英语本科')).not.toBeInTheDocument()
+  })
+
   it('keeps excluded presentation fields hidden when expanded', async () => {
     const user = userEvent.setup()
 

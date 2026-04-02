@@ -17,6 +17,10 @@ import {
   resolveJob51DetailFetchDelayMs,
 } from "./lib/job51-collection-config";
 import {
+  collectJob5156SectionItemsByHeading,
+  isMeaningfulJob5156WorkHistoryEntry,
+} from "./lib/job5156-detail-utils";
+import {
   buildWorkHistoryRawParts,
   normalizeResumeMultilineText,
   normalizeResumeText,
@@ -1484,30 +1488,18 @@ function buildJob5156DetailWorkHistoryItem(item) {
   };
 }
 
-function collectSectionItemsByHeading(root, headingPattern) {
-  if (!(root instanceof Element)) return [];
-
-  const sections = Array.from(
-    root.querySelectorAll(
-      'section, .section, .resume-section, .module, .card, .block, .resume-view-layout, [class*="section"], [class*="module"], [class*="block"]',
-    ),
+function collectSectionItemsByHeading(
+  root,
+  headingPattern,
+  primarySelectors = [],
+  fallbackSelectors = [],
+) {
+  return collectJob5156SectionItemsByHeading(
+    root,
+    headingPattern,
+    primarySelectors,
+    fallbackSelectors,
   );
-  for (const section of sections) {
-    const heading = normalizeResumeText(
-      section.querySelector(
-        'h1, h2, h3, h4, .title, .section-title, .module-title, .resume-view-layout__title, [class*="title"]',
-      )?.textContent,
-    );
-    if (heading && headingPattern.test(heading)) {
-      return Array.from(
-        section.querySelectorAll(
-          '.resume-work__info, .resume-education__info, .work-item, .school-item, li, .item, [class*="item"]',
-        ),
-      );
-    }
-  }
-
-  return [];
 }
 
 function buildJob5156DetailResumeFromRoot(root, options = {}) {
@@ -1546,15 +1538,38 @@ function buildJob5156DetailResumeFromRoot(root, options = {}) {
   const workItems = collectSectionItemsByHeading(
     root,
     /工作经历|工作经验|工作履历/u,
+    [
+      ".resume-work__info",
+      ".work-item",
+      ".work-block",
+      '[class*="work-item"]',
+      '[class*="work-block"]',
+    ],
+    [
+      ":scope > li",
+      ":scope > .item",
+      ':scope > [class*="item"]',
+    ],
   );
   const educationItems = collectSectionItemsByHeading(
     root,
     /教育经历|教育背景|学习经历/u,
+    [
+      ".resume-education__info",
+      ".school-item",
+      '[class*="education"]',
+      '[class*="school"]',
+    ],
+    [
+      ":scope > li",
+      ":scope > .item",
+      ':scope > [class*="item"]',
+    ],
   );
   const seenWorkHistory = new Set();
   const workHistory = workItems
     .map((item) => buildJob5156DetailWorkHistoryItem(item))
-    .filter((item) => item && (item.raw.length > 5 || item.description))
+    .filter((item) => item && isMeaningfulJob5156WorkHistoryEntry(item))
     .filter((item) => {
       const signature = [
         item.companyName || "",
