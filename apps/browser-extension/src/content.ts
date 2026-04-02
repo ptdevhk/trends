@@ -6566,7 +6566,6 @@ function installContentTestExports() {
     filterCurrentResumesByAgeRange,
     getCurrentAgeRange,
     getExternalAccessorStatus,
-    installContentTestExports,
     setAutoAgeAttributes,
   };
   return globalThis.__TR_BROWSER_EXTENSION_TEST__.content;

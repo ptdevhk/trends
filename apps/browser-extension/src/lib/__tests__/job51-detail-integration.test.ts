@@ -16,7 +16,6 @@ function sanitizeResumesForSnapshot(resumes) {
 }
 
 describe('job51-detail integration', () => {
-
   it('captures legacy workExperienceList payloads as stable snapshots', () => {
     const resumes = buildJob51DetailResumeFromPayload(workExperienceListFixture, {
       profileUrl: 'https://ehire.51job.com/Revision/talent/resume/detail?contentType=&resumeId=123456',
