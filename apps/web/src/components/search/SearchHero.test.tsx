@@ -392,7 +392,6 @@ describe('SearchHero', () => {
       '/dev/system/profiles?edit=profile%2051job',
     )
   })
-
   it('clicking a hot keyword chip calls onToggleHotKeyword', async () => {
     const user = userEvent.setup()
     const onToggleHotKeyword = vi.fn()
