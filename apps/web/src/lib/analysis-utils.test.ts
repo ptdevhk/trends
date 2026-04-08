@@ -5,6 +5,7 @@ import {
   buildResumeAnalysisStorageKey,
   deriveAnalysisLookupKey,
   isResumeAnalysisKeyForJobDescription,
+  resolveAnalysisTopN,
   resolveResumeAnalysisSourceKey,
 } from './analysis-utils'
 
@@ -55,6 +56,22 @@ describe('deriveAnalysisLookupKey', () => {
 
   it('returns empty key when no context is provided', () => {
     expect(deriveAnalysisLookupKey(undefined, [])).toBe('')
+  })
+})
+
+describe('resolveAnalysisTopN', () => {
+  it('uses the default when the env value is missing or invalid', () => {
+    expect(resolveAnalysisTopN(undefined)).toBe(10)
+    expect(resolveAnalysisTopN('')).toBe(10)
+    expect(resolveAnalysisTopN('abc')).toBe(10)
+    expect(resolveAnalysisTopN(0)).toBe(10)
+  })
+
+  it('accepts positive values and clamps oversized limits', () => {
+    expect(resolveAnalysisTopN('10')).toBe(10)
+    expect(resolveAnalysisTopN('200')).toBe(200)
+    expect(resolveAnalysisTopN(12.9)).toBe(12)
+    expect(resolveAnalysisTopN('999')).toBe(500)
   })
 })
 
