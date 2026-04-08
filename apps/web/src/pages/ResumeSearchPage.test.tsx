@@ -445,7 +445,6 @@ describe('ResumeSearchPage', () => {
 
     render(<ResumeSearchPage />)
 
-    expect(screen.getByText('Migration Banner')).toBeInTheDocument()
     expect(screen.getByText('Landing Hero machine tools')).toBeInTheDocument()
     expect(screen.getByText('Landing Hero Seeds 0 Hot 0')).toBeInTheDocument()
     expect(screen.getByText('AI Mode')).toBeInTheDocument()

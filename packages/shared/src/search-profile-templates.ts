@@ -72,10 +72,11 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       status: "active",
       location: "China",
       keywords: ["CNC", "销售"],
-      jobDescription: "lathe-sales",
       filters: {
         minExperience: 2,
         maxExperience: null,
+        minAge: 25,
+        maxAge: 40,
         locations: ["China"],
       },
       schedule: {
@@ -117,7 +118,6 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       location: "Kuala Lumpur MY",
       keywords: ["CNC", "Sales"],
       requiredKeywords: ["machine tools"],
-      jobDescription: "seek-malaysia-sales",
       filters: {
         minExperience: 2,
         maxExperience: null,
@@ -173,6 +173,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       filters: {
         minExperience: 2,
         maxExperience: null,
+        minAge: 25,
+        maxAge: 40,
         locations: ["China"],
       },
       schedule: {

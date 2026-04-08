@@ -354,6 +354,45 @@ describe('SearchHero', () => {
     )
   })
 
+  it('adds 51job detail wait semantics to quick-start collect launches', async () => {
+    const user = userEvent.setup()
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+    renderSearchHero({
+      quickStarts: [
+        buildQuickStart({
+          source: {
+            type: '51job',
+          },
+        }),
+      ],
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Collect' }))
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining('tr_auto_sync=true'),
+      'trends-collect-51job',
+      'noopener,noreferrer',
+    )
+    expect(openSpy.mock.calls[0]?.[0]).toContain('tr_job51_detail_wait=page1')
+  })
+
+  it('links quick-start edit actions to the matching profile when present', () => {
+    renderSearchHero({
+      quickStarts: [
+        buildQuickStart({
+          profileId: 'profile 51job',
+        }),
+      ],
+    })
+
+    expect(screen.getByRole('link', { name: 'Edit' })).toHaveAttribute(
+      'href',
+      '/dev/system/profiles?edit=profile%2051job',
+    )
+  })
+
   it('clicking a hot keyword chip calls onToggleHotKeyword', async () => {
     const user = userEvent.setup()
     const onToggleHotKeyword = vi.fn()

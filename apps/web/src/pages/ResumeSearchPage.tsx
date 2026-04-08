@@ -7,7 +7,6 @@ import { ModeToggle } from '@/components/ModeToggle'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
 import { FacetBadge } from '@/components/search/FacetBadge'
 import { FacetSidebar } from '@/components/search/FacetSidebar'
-import { MigrationBanner } from '@/components/search/MigrationBanner'
 import { MobileFilterSheet } from '@/components/search/MobileFilterSheet'
 import { SearchHeader } from '@/components/search/SearchHeader'
 import { SearchHero } from '@/components/search/SearchHero'
@@ -215,8 +214,6 @@ export function ResumeSearchPage() {
 
   return (
     <div className="space-y-6">
-      <MigrationBanner />
-
       {isLanding ? (
         <SearchHero
           aiModeEnabled={aiModeEnabled}
@@ -225,7 +222,10 @@ export function ResumeSearchPage() {
           queryInput={queryInput}
           recentSearches={recentSearches}
           recentSearchesLoading={searchHistoryLoading}
-          quickStarts={quickStartProfiles}
+          quickStarts={quickStartProfiles.map((profile) => ({
+            ...profile,
+            profileId: profile.id,
+          }))}
           hotKeywords={hotKeywords}
           onApplyRecentSearch={handleApplyRecentSearch}
           onApplyExtractedKeywords={applyExtractedKeywords}

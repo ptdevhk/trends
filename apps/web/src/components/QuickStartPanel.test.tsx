@@ -1,19 +1,17 @@
+import { useState } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { QuickStartPanel } from './QuickStartPanel'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 
-const { getMock, postMock } = vi.hoisted(() => ({
+const { getMock, postMock, navigateMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
   postMock: vi.fn(),
+  navigateMock: vi.fn(),
 }))
-const { useQueryMock, profileEditorMockState } = vi.hoisted(() => ({
+const { useQueryMock } = vi.hoisted(() => ({
   useQueryMock: vi.fn(),
-  profileEditorMockState: {
-    current: undefined as Record<string, unknown> | undefined,
-  },
 }))
 
 const SEEK_MALAYSIA_JOB_URL = 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1'
@@ -52,6 +50,10 @@ const SEEK_MALAYSIA_PROFILE = {
   ],
 }
 
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => navigateMock,
+}))
+
 vi.mock('./JobDescriptionSelect', () => ({
   JobDescriptionSelect: ({
     value,
@@ -81,24 +83,7 @@ vi.mock('./JobDescriptionEditor', () => ({
 }))
 
 vi.mock('./SearchProfileEditorDialog', () => ({
-  SearchProfileEditorDialog: ({
-    open,
-    onSaved,
-  }: {
-    open: boolean
-    onSaved?: (profile?: Record<string, unknown>) => void
-  }) => (
-    open
-      ? (
-        <button
-          data-testid="mock-profile-editor-save"
-          onClick={() => onSaved?.(profileEditorMockState.current)}
-        >
-          Save edited profile
-        </button>
-        )
-      : null
-  ),
+  SearchProfileEditorDialog: () => null,
 }))
 
 vi.mock('@/contexts/WorkspaceContext', () => ({
@@ -125,7 +110,7 @@ vi.mock('@/lib/api-helpers', () => ({
 describe('QuickStartPanel quick-filter display', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    profileEditorMockState.current = undefined
+    navigateMock.mockReset()
     useQueryMock.mockImplementation((_fn: unknown, args: unknown) => {
       if (args === 'skip') {
         return undefined
@@ -578,48 +563,23 @@ describe('QuickStartPanel quick-filter display', () => {
     })
   })
 
-  it('refreshes the matched profile card after saving edits from the fast editor', async () => {
+  it('navigates to the routable search profile editor from the matched profile card', async () => {
     const user = userEvent.setup()
 
-    const initialProfile = {
-      id: 'profile-1',
-      name: 'CNC销售-Demo',
-      status: 'active' as const,
-      location: '广东',
-      keywords: ['CNC', '销售'],
-      jobDescription: 'old-jd',
-      filters: {
-        minExperience: 1,
-      },
-    }
-
-    const updatedProfile = {
-      id: 'profile-1',
-      name: 'CNC销售-Demo',
-      status: 'active' as const,
-      location: '广东',
-      keywords: ['CNC', '销售', '车床'],
-      jobDescription: undefined,
-      filters: {
-        minExperience: 1,
-        maxAge: 45,
-      },
-    }
-
-    postMock.mockImplementation(async () => ({
+    postMock.mockResolvedValue({
       data: {
         success: true,
-        profileId: 'profile-1',
-        confidence: profileEditorMockState.current ? 0.67 : 0.91,
-        matchedKeywords: profileEditorMockState.current ? ['cnc', '销售', '车床'] : ['cnc', '销售'],
+        profileId: 'seek-malaysia-sales',
+        confidence: 0.95,
+        matchedKeywords: SEEK_MALAYSIA_PROFILE.keywords.map((keyword) => keyword.toLowerCase()),
       },
-    }))
+    })
     getMock.mockImplementation(async (path: string) => {
-      if (path.includes('/api/search-profiles/profile-1')) {
+      if (path.includes('/api/search-profiles/seek-malaysia-sales')) {
         return {
           data: {
             success: true,
-            profile: profileEditorMockState.current ? updatedProfile : initialProfile,
+            profile: SEEK_MALAYSIA_PROFILE,
           },
         }
       }
@@ -636,29 +596,19 @@ describe('QuickStartPanel quick-filter display', () => {
 
     render(
       <QuickStartPanel
-        defaultLocation="广东"
-        defaultKeywords={['CNC', '销售']}
+        defaultLocation="Kuala Lumpur MY"
+        defaultKeywords={['CNC', 'Sales']}
         jobDescriptionId=""
       />
     )
 
     await waitFor(() => {
-      expect(screen.getByText('JD: old-jd')).toBeInTheDocument()
-      expect(screen.getByText('Matched: cnc, 销售')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Modify' })).toBeInTheDocument()
     })
-
-    profileEditorMockState.current = updatedProfile
 
     await user.click(screen.getByRole('button', { name: 'Modify' }))
-    await user.click(screen.getByTestId('mock-profile-editor-save'))
 
-    expect(screen.getByDisplayValue('CNC 销售 车床')).toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(screen.getByText('JD: --')).toBeInTheDocument()
-      expect(screen.getByText('Filters: 1+ yrs | Age <=45')).toBeInTheDocument()
-      expect(screen.getByText('Matched: cnc, 销售, 车床')).toBeInTheDocument()
-    })
+    expect(navigateMock).toHaveBeenCalledWith('/dev/system/profiles?edit=seek-malaysia-sales')
   })
 
   it('shows auto-match with keywords only when location is blank', async () => {

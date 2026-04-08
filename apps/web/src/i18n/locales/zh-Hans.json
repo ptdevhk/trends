@@ -327,8 +327,8 @@
     },
     "searchPage": {
       "banner": {
-        "title": "Search Profiles 仍然存在，但主简历入口现在以搜索优先。",
-        "description": "本页用于快速关键词审阅。需要落地页快速开始、定时采集或一站式 JD 配置时，请使用 Search Profiles。",
+        "title": "搜索优先的快速开始现已在 Search Profiles 中打开。",
+        "description": "本页用于快速关键词审阅，也可打开 Search Profiles 编辑并运行已保存的快速开始。",
         "openProfiles": "打开 Search Profiles",
         "dismiss": "关闭迁移提示"
       },

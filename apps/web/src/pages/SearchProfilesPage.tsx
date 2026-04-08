@@ -7,7 +7,7 @@ import { rawApiClient } from '@/lib/api-helpers'
 import { ProfileCard, type SearchProfileRunStatus, type SearchProfileSummary } from '@/components/ProfileCard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
 import { SearchProfileEditorDialog, type SearchProfileDetails } from '@/components/SearchProfileEditorDialog'
 import {
@@ -271,25 +271,37 @@ export function SearchProfilesPage() {
     }
   }, [])
 
+  const updateSearchParams = useCallback((mutate: (params: URLSearchParams) => void) => {
+    const nextParams = new URLSearchParams(searchParams)
+    mutate(nextParams)
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
+
   useEffect(() => {
     if (searchParams.get('view') !== 'quick-starts') {
       return
     }
 
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.delete('view')
-    setSearchParams(nextParams, { replace: true })
-  }, [searchParams, setSearchParams])
+    updateSearchParams((nextParams) => {
+      nextParams.delete('view')
+    })
+  }, [searchParams, updateSearchParams])
 
   const handleCreate = useCallback(() => {
     setEditingProfileId(null)
+    updateSearchParams((nextParams) => {
+      nextParams.delete('edit')
+    })
     setEditorOpen(true)
-  }, [])
+  }, [updateSearchParams])
 
-  const handleEdit = useCallback(async (profileId: string) => {
+  const handleEdit = useCallback((profileId: string) => {
     setEditingProfileId(profileId)
+    updateSearchParams((nextParams) => {
+      nextParams.set('edit', profileId)
+    })
     setEditorOpen(true)
-  }, [])
+  }, [updateSearchParams])
 
   const handleDelete = useCallback((profileId: string) => {
     setDeletingProfileId(profileId)
@@ -300,27 +312,44 @@ export function SearchProfilesPage() {
       return
     }
 
-    const { data } = await rawApiClient.DELETE<{ success: boolean }>(`/api/search-profiles/${deletingProfileId}`)
+    const profileId = deletingProfileId
+    const { data } = await rawApiClient.DELETE<{ success: boolean }>(`/api/search-profiles/${profileId}`)
     if (!data?.success) {
       toast.error(t('searchProfiles.deleteError', { defaultValue: 'Failed to delete profile' }))
       setDeletingProfileId(null)
       return
     }
 
-    clearPolling(deletingProfileId)
+    clearPolling(profileId)
     setRunningIds((previous) => {
-      if (!previous.has(deletingProfileId)) {
+      if (!previous.has(profileId)) {
         return previous
       }
       const next = new Set(previous)
-      next.delete(deletingProfileId)
+      next.delete(profileId)
       return next
     })
+    setRunStatuses((previous) => {
+      if (!(profileId in previous)) {
+        return previous
+      }
+      const next = { ...previous }
+      delete next[profileId]
+      return next
+    })
+    setProfileDetails((previous) => {
+      if (!(profileId in previous)) {
+        return previous
+      }
+      const next = { ...previous }
+      delete next[profileId]
+      return next
+    })
+    setProfiles((previous) => previous.filter((profile) => profile.id !== profileId))
 
     toast.success(t('searchProfiles.deleteSuccess', { defaultValue: 'Profile deleted' }))
     setDeletingProfileId(null)
-    void loadProfiles()
-  }, [clearPolling, deletingProfileId, loadProfiles, t])
+  }, [clearPolling, deletingProfileId, t])
 
   const handleRunNow = useCallback(async (profileId: string) => {
     if (runNowLocksRef.current.has(profileId)) {
@@ -450,11 +479,25 @@ export function SearchProfilesPage() {
       return
     }
 
-    void handleEdit(editId)
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.delete('edit')
-    setSearchParams(nextParams, { replace: true })
-  }, [handleEdit, profiles, searchParams, setSearchParams])
+    setEditingProfileId((previous) => (previous === editId ? previous : editId))
+    setEditorOpen(true)
+  }, [profiles, searchParams])
+
+  const handleEditorOpenChange = useCallback((open: boolean) => {
+    setEditorOpen(open)
+    if (open) {
+      return
+    }
+
+    const activeEditId = searchParams.get('edit')
+    setEditingProfileId(activeEditId ? null : editingProfileId)
+    if (activeEditId) {
+      updateSearchParams((nextParams) => {
+        nextParams.delete('edit')
+      })
+      setEditingProfileId(null)
+    }
+  }, [editingProfileId, searchParams, updateSearchParams])
 
   const cards = useMemo(() => {
     return profiles.map((profile) => {
@@ -522,7 +565,7 @@ export function SearchProfilesPage() {
 
       <SearchProfileEditorDialog
         open={editorOpen}
-        onOpenChange={setEditorOpen}
+        onOpenChange={handleEditorOpenChange}
         profileId={editingProfileId}
         onSaved={loadProfiles}
       />
@@ -541,9 +584,11 @@ export function SearchProfilesPage() {
             <Button variant="outline" onClick={() => setDeletingProfileId(null)}>
               {t('searchProfiles.cancel', { defaultValue: 'Cancel' })}
             </Button>
-            <Button variant="destructive" onClick={() => void confirmDelete()}>
-              {t('searchProfiles.deleteBtn', { defaultValue: 'Delete' })}
-            </Button>
+            <DialogClose asChild>
+              <Button variant="destructive" onClick={() => void confirmDelete()}>
+                {t('searchProfiles.deleteBtn', { defaultValue: 'Delete' })}
+              </Button>
+            </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>

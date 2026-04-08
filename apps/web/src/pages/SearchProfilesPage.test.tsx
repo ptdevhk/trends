@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SearchProfilesPage } from './SearchProfilesPage'
 
-const { getMock, postMock, deleteMock, routerState, setSearchParamsMock, toastSuccessMock, toastErrorMock, tMock } = vi.hoisted(() => ({
+const { getMock, postMock, deleteMock, routerState, setSearchParamsMock, toastSuccessMock, toastErrorMock, tMock, editorDialogMock } = vi.hoisted(() => ({
   getMock: vi.fn(),
   postMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -16,6 +16,7 @@ const { getMock, postMock, deleteMock, routerState, setSearchParamsMock, toastSu
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
   tMock: vi.fn((_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key),
+  editorDialogMock: vi.fn(),
 }))
 
 vi.mock('react-router-dom', () => ({
@@ -47,13 +48,25 @@ vi.mock('@/components/ProfileCard', () => ({
   ProfileCard: ({
     profile,
     onRunNow,
+    onDelete,
+    onEdit,
   }: {
     profile: { id: string; name: string }
     onRunNow: (profileId: string) => void
+    onDelete: (profileId: string) => void
+    onEdit: (profileId: string) => void
   }) => (
-    <button type="button" onClick={() => onRunNow(profile.id)}>
-      Run {profile.name}
-    </button>
+    <>
+      <button type="button" onClick={() => onRunNow(profile.id)}>
+        Run {profile.name}
+      </button>
+      <button type="button" onClick={() => onEdit(profile.id)}>
+        Edit {profile.name}
+      </button>
+      <button type="button" onClick={() => onDelete(profile.id)}>
+        Delete {profile.name}
+      </button>
+    </>
   ),
 }))
 
@@ -81,7 +94,8 @@ vi.mock('@/components/ui/card', () => ({
 }))
 
 vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Dialog: ({ children, open }: { children: ReactNode; open?: boolean }) => (open ? <div>{children}</div> : null),
+  DialogClose: ({ children }: { children: ReactNode }) => <>{children}</>,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -99,7 +113,11 @@ vi.mock('@/components/PageHeader', () => ({
 }))
 
 vi.mock('@/components/SearchProfileEditorDialog', () => ({
-  SearchProfileEditorDialog: () => null,
+  SearchProfileEditorDialog: (props: unknown) => {
+    editorDialogMock(props)
+    const typedProps = props as { open?: boolean }
+    return typedProps.open ? <div data-testid="mock-editor-open" /> : null
+  },
 }))
 
 describe('SearchProfilesPage run behavior', () => {
@@ -142,10 +160,91 @@ describe('SearchProfilesPage run behavior', () => {
         },
       }
     })
+    deleteMock.mockResolvedValue({
+      data: {
+        success: true,
+      },
+    })
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('opens the editor from a durable edit query param without clearing it immediately', async () => {
+    routerState.search = 'edit=profile-1'
+
+    render(<SearchProfilesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-editor-open')).toBeInTheDocument()
+    })
+    expect(editorDialogMock).toHaveBeenCalledWith(expect.objectContaining({
+      open: true,
+      profileId: 'profile-1',
+    }))
+    expect(setSearchParamsMock).not.toHaveBeenCalled()
+  })
+
+  it('writes the edit query param when opening a profile editor from the list', async () => {
+    const user = userEvent.setup()
+
+    render(<SearchProfilesPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Edit Profile 1' }))
+
+    expect(setSearchParamsMock).toHaveBeenCalledWith(expect.any(URLSearchParams), { replace: true })
+    const nextParams = setSearchParamsMock.mock.calls[setSearchParamsMock.mock.calls.length - 1]?.[0] as URLSearchParams
+    expect(nextParams.get('edit')).toBe('profile-1')
+  })
+
+  it('clears the edit query param when the editor closes', async () => {
+    routerState.search = 'edit=profile-1'
+
+    render(<SearchProfilesPage />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-editor-open')).toBeInTheDocument()
+    })
+
+    const latestProps = editorDialogMock.mock.calls[editorDialogMock.mock.calls.length - 1]?.[0] as { onOpenChange?: (open: boolean) => void }
+    latestProps.onOpenChange?.(false)
+
+    expect(setSearchParamsMock).toHaveBeenCalledWith(expect.any(URLSearchParams), { replace: true })
+    const nextParams = setSearchParamsMock.mock.calls[setSearchParamsMock.mock.calls.length - 1]?.[0] as URLSearchParams
+    expect(nextParams.get('edit')).toBeNull()
+  })
+
+  it('closes the delete dialog immediately after confirming delete', async () => {
+    const user = userEvent.setup()
+
+    render(<SearchProfilesPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Delete Profile 1' }))
+    expect(screen.getByText('Confirm Deletion')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Confirm Deletion')).not.toBeInTheDocument()
+    })
+  })
+
+  it('removes a deleted profile from the current UI state immediately', async () => {
+    const user = userEvent.setup()
+
+    render(<SearchProfilesPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Delete Profile 1' }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(deleteMock).toHaveBeenCalledWith('/api/search-profiles/profile-1')
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Run Profile 1' })).not.toBeInTheDocument()
+    })
+    expect(toastSuccessMock).toHaveBeenCalledWith('Profile deleted')
   })
 
   it('opens Seek profiles in a new tab instead of dispatching a worker run', async () => {

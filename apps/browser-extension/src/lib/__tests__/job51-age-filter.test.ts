@@ -16,6 +16,7 @@ describe('job51-age-filter', () => {
 
   it('parses numeric age inputs', () => {
     expect(parseAgeNumber(37)).toBe(37)
+    expect(parseAgeNumber('37')).toBe(37)
   })
 
   it('parses age strings with chinese suffixes', () => {
@@ -26,6 +27,7 @@ describe('job51-age-filter', () => {
   it('rejects unsupported age strings', () => {
     expect(parseAgeNumber('unknown')).toBeNull()
     expect(parseAgeNumber('35-40岁')).toBeNull()
+    expect(parseAgeNumber('')).toBeNull()
   })
 
   it('reads age ranges from injected search strings', () => {
@@ -42,6 +44,68 @@ describe('job51-age-filter', () => {
       minAge: 30,
       maxAge: 40,
     })
+  })
+
+  it('treats invalid params as disabled', () => {
+    expect(getAgeRangeFromUrl('?tr_min_age=abc&tr_max_age=0')).toEqual({
+      enabled: false,
+      minAge: undefined,
+      maxAge: undefined,
+    })
+  })
+
+  it('returns the original resumes unchanged when no range is enabled', () => {
+    const resumes = [
+      { name: 'A', age: '29岁' },
+      { name: 'B', age: 'unknown' },
+    ]
+
+    expect(filterResumesByAgeRange(resumes, '?keyword=CNC')).toBe(resumes)
+  })
+
+  it('filters resumes by a min-only age range', () => {
+    expect(
+      filterResumesByAgeRange(
+        [
+          { name: 'A', age: '29岁' },
+          { name: 'B', age: '32岁' },
+          { name: 'C', age: '36' },
+        ],
+        '?tr_min_age=32',
+      ),
+    ).toEqual([
+      { name: 'B', age: '32岁' },
+      { name: 'C', age: '36' },
+    ])
+  })
+
+  it('filters resumes by a max-only age range', () => {
+    expect(
+      filterResumesByAgeRange(
+        [
+          { name: 'A', age: '29岁' },
+          { name: 'B', age: '32岁' },
+          { name: 'C', age: '36' },
+        ],
+        '?tr_max_age=32',
+      ),
+    ).toEqual([
+      { name: 'A', age: '29岁' },
+      { name: 'B', age: '32岁' },
+    ])
+  })
+
+  it('drops unknown ages only when a range is enabled', () => {
+    const resumes = [
+      { name: 'A', age: '' },
+      { name: 'B', age: 'unknown' },
+      { name: 'C', age: '32岁' },
+    ]
+
+    expect(filterResumesByAgeRange(resumes, '?keyword=CNC')).toEqual(resumes)
+    expect(filterResumesByAgeRange(resumes, '?tr_min_age=30&tr_max_age=35')).toEqual([
+      { name: 'C', age: '32岁' },
+    ])
   })
 
   it('filters resumes by the injected age range and drops unknown ages when enabled', () => {

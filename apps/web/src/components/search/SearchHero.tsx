@@ -14,6 +14,7 @@ type SearchHeroQuickStart = {
   location: string
   keywords: string[]
   description?: string
+  profileId?: string
   source?: {
     type: CollectionSourceType
     jobUrl?: string
@@ -142,6 +143,15 @@ export function SearchHero({
                     })
                   : null
 
+                const finalLaunchUrl = (() => {
+                  if (!launchUrl || seed.source?.type !== '51job') {
+                    return launchUrl
+                  }
+
+                  const url = new URL(launchUrl)
+                  url.searchParams.set('tr_job51_detail_wait', 'page1')
+                  return url.toString()
+                })()
                 return (
                   <div
                     key={seed.id}
@@ -169,13 +179,13 @@ export function SearchHero({
                       <button
                         type="button"
                         className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={!launchUrl}
+                        disabled={!finalLaunchUrl}
                         onClick={() => {
-                          if (!launchUrl) {
+                          if (!finalLaunchUrl) {
                             return
                           }
 
-                          window.open(launchUrl, `trends-collect-${seed.source?.type ?? seed.id}`, 'noopener,noreferrer')
+                          window.open(finalLaunchUrl, `trends-collect-${seed.source?.type ?? seed.id}`, 'noopener,noreferrer')
                         }}
                       >
                         {t('resumes.searchPage.hero.collect', {
@@ -184,7 +194,7 @@ export function SearchHero({
                       </button>
                       <Link
                         className="inline-flex items-center justify-center rounded-full border border-transparent px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-200 hover:bg-white hover:text-slate-900"
-                        to={`/${slug}/system/profiles`}
+                        to={seed.profileId ? `/${slug}/system/profiles?edit=${encodeURIComponent(seed.profileId)}` : `/${slug}/system/profiles`}
                       >
                         {t('resumes.searchPage.hero.editProfile', {
                           defaultValue: 'Edit',
