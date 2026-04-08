@@ -85,6 +85,8 @@ export type SearchProfileQuickStart = {
   location: string;
   keywords: string[];
   description?: string;
+  minAge?: number;
+  maxAge?: number;
   source?: {
     type: CollectionSourceType;
     jobUrl?: string;
@@ -122,6 +124,12 @@ type SearchProfilesResponse = {
       rank?: number;
       label?: string;
       description?: string;
+    };
+    filters?: {
+      minAge?: number;
+      maxAge?: number;
+      minExperience?: number;
+      maxExperience?: number;
     };
   }>;
 };
@@ -341,6 +349,8 @@ export function useIndustryKeywords() {
               location: profile.location,
               keywords: profile.keywords,
               description: profile.quickStart?.description?.trim() || undefined,
+              minAge: typeof profile.filters?.minAge === "number" ? profile.filters.minAge : undefined,
+              maxAge: typeof profile.filters?.maxAge === "number" ? profile.filters.maxAge : undefined,
               source: collectionSource
                 ? {
                     type: collectionSource.type,

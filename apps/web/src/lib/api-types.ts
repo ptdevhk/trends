@@ -3801,6 +3801,12 @@ export interface paths {
                                     label?: string;
                                     description?: string;
                                 };
+                                filters?: {
+                                    minAge?: number;
+                                    maxAge?: number;
+                                    minExperience?: number;
+                                    maxExperience?: number;
+                                };
                             }[];
                         };
                     };
