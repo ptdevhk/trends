@@ -604,6 +604,40 @@ export const backfillAge = mutation({
     },
 });
 
+export const backfillAgePaginated = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+        let updated = 0;
+
+        for (const resume of resumes.page) {
+            const parsedAge = parseAgeFromContent(resume.content);
+            if (parsedAge === null || resume.age === parsedAge) {
+                continue;
+            }
+
+            await ctx.db.patch(resume._id, { age: parsedAge });
+            updated += 1;
+        }
+
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes: updated,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});
+
 export const backfillWorkspaceSlugs = mutation({
     args: {},
     handler: async (ctx) => {
