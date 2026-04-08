@@ -215,6 +215,7 @@ describe('useResumeSearchState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
+    vi.unstubAllEnvs()
     localStorage.clear()
 
     workspaceMock.slug = 'dev'
@@ -287,6 +288,10 @@ describe('useResumeSearchState', () => {
     }))
     exportDownloadMock.mockResolvedValue(undefined)
     dispatchAnalysisMutationMock.mockResolvedValue('analysis-task-1')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   afterEach(() => {
@@ -717,6 +722,8 @@ describe('useResumeSearchState', () => {
   })
 
   it('auto-analyzes loaded results after an explicit search trigger', async () => {
+    vi.stubEnv('VITE_ANALYSIS_TOP_N', '10')
+
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
       keywords: ['machine tools'],
@@ -756,10 +763,54 @@ describe('useResumeSearchState', () => {
       keywords: ['machine', 'tools'],
       location: 'China',
       promptVersion: CURRENT_PROMPT_VERSION,
-      resumeIds: Array.from({ length: 12 }, (_, index) => `resume-${index + 1}`),
+      resumeIds: Array.from({ length: 10 }, (_, index) => `resume-${index + 1}`),
     })
     expect(toastSuccessMock).toHaveBeenCalledWith(
-      'Analyzing loaded 12 resumes...',
+      'Analyzing loaded 10 resumes...',
+    )
+  })
+
+  it('caps auto-analysis dispatch by VITE_ANALYSIS_TOP_N', async () => {
+    vi.stubEnv('VITE_ANALYSIS_TOP_N', '10')
+
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      location: 'China',
+    }))
+
+    resumesMock.push(
+      ...Array.from({ length: 12 }, (_, index) =>
+        createResume(index + 1, {
+          primaryRuleScore: 95 - index,
+        }),
+      ),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    await act(async () => {
+      result.current.submitSearch('machine tools')
+      useUrlSearchStateMock.mockReturnValue({
+        parsedState: createParsedState({
+          query: 'machine tools',
+          keywords: ['machine', 'tools'],
+          location: 'China',
+        }),
+        syncToUrl: syncToUrlMock,
+      })
+      await Promise.resolve()
+    })
+
+    expect(dispatchAnalysisMutationMock).toHaveBeenCalledTimes(1)
+    expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
+      keywords: ['machine', 'tools'],
+      location: 'China',
+      promptVersion: CURRENT_PROMPT_VERSION,
+      resumeIds: Array.from({ length: 10 }, (_, index) => `resume-${index + 1}`),
+    })
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      'Analyzing loaded 10 resumes...',
     )
   })
 
@@ -850,6 +901,8 @@ describe('useResumeSearchState', () => {
   })
 
   it('re-enables AI mode and auto-analyzes when a search is submitted from original mode', async () => {
+    vi.stubEnv('VITE_ANALYSIS_TOP_N', '10')
+
     Object.assign(parsedStateMock, createParsedState({
       query: 'machine tools',
       keywords: ['machine tools'],
@@ -891,7 +944,7 @@ describe('useResumeSearchState', () => {
       keywords: ['machine', 'tools'],
       location: 'China',
       promptVersion: CURRENT_PROMPT_VERSION,
-      resumeIds: Array.from({ length: 12 }, (_, index) => `resume-${index + 1}`),
+      resumeIds: Array.from({ length: 10 }, (_, index) => `resume-${index + 1}`),
     })
     expect(result.current.disableAnalyzeResults).toBe(false)
   })

@@ -36,7 +36,11 @@ import {
   type UrlSearchState,
 } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
-import { getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from '@/lib/analysis-utils'
+import {
+  getCurrentResumeAiPromptVersion,
+  resolveAnalysisTopN,
+  resolveResumeAnalysisSourceKey,
+} from '@/lib/analysis-utils'
 import { submitResumeExportDownload, type ResumeExportRequestBody } from '@/lib/resume-export'
 import { isResumeHomeResetState } from '@/lib/resume-home-navigation'
 import type { ResumeSearchShareState, SearchHistoryItem } from '@/hooks/useSession'
@@ -1425,7 +1429,7 @@ export function useResumeListState(loadSearchHistory = false) {
             sourceKey: resolveAnalysisSourceKeyForResume(resume, sessionCollectionSource),
           })
         )
-        .slice(0, Number(import.meta.env.VITE_ANALYSIS_TOP_N) || 10)
+        .slice(0, resolveAnalysisTopN(import.meta.env.VITE_ANALYSIS_TOP_N))
 
       if (candidatesToAnalyze.length === 0) {
         toast.info(t('aiTasks.noNewCandidates', 'No new candidates to analyze among top matches.'))

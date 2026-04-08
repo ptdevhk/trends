@@ -39,6 +39,7 @@ import {
 } from '@/lib/resume-scoring'
 import {
   getCurrentResumeAiPromptVersion,
+  resolveAnalysisTopN,
   resolveResumeAnalysisSourceKey,
 } from '@/lib/analysis-utils'
 import { resolveCollectionSource } from '@/lib/search-profile-sources'
@@ -783,7 +784,10 @@ export function useResumeSearchState() {
     [results],
   )
   const analysisCandidateResumeIds = useMemo(
-    () => analysisCandidates.map((item) => item.resume.resumeId),
+    () =>
+      analysisCandidates
+        .slice(0, resolveAnalysisTopN(import.meta.env.VITE_ANALYSIS_TOP_N))
+        .map((item) => item.resume.resumeId),
     [analysisCandidates],
   )
   const analysisCandidateSignature = useMemo(
