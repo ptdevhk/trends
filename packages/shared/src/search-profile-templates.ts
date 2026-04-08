@@ -169,6 +169,7 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       status: "active",
       location: "China",
       keywords: ["CNC", "销售"],
+      jobDescription: "lathe-sales",
       filters: {
         minExperience: 2,
         maxExperience: null,

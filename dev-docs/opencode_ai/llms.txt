@@ -78,18 +78,6 @@ npm install @opencode-ai/sdk
 
 --------------------------------
 
-### Install OpenCode using Bun
-
-Source: https://opencode.ai/docs
-
-Installs the opencode-ai package globally using Bun. This method requires Bun to be installed.
-
-```bash
-bun install -g opencode-ai
-```
-
---------------------------------
-
 ### Run OpenCode server in WSL for Desktop App Connection
 
 Source: https://opencode.ai/docs/windows-wsl
@@ -110,6 +98,18 @@ Installs the `wl-clipboard` utility required for copy/paste functionality in Ope
 
 ```bash
 apt install -y wl-clipboard
+```
+
+--------------------------------
+
+### Install OpenCode using Bun
+
+Source: https://opencode.ai/docs
+
+Installs the opencode-ai package globally using Bun. This method requires Bun to be installed.
+
+```bash
+bun install -g opencode-ai
 ```
 
 --------------------------------
@@ -313,6 +313,20 @@ paru -S opencode-bin              # Arch Linux (Latest from AUR)
 
 --------------------------------
 
+### Install Clipboard Utilities for Linux (X11)
+
+Source: https://opencode.ai/docs/troubleshooting
+
+Installs necessary clipboard utilities for OpenCode's copy/paste functionality on Linux systems using the X11 display server. Users can choose between `xclip` or `xsel`. These tools enable the application to interact with the system clipboard.
+
+```bash
+apt install -y xclip
+# or
+apt install -y xsel
+```
+
+--------------------------------
+
 ### Execute OpenCode Commands
 
 Source: https://opencode.ai/docs/providers
@@ -332,20 +346,6 @@ Standard CLI commands used within the OpenCode interface to manage connections a
 │
 │ Manually enter API Key
 └
-```
-
---------------------------------
-
-### Install Clipboard Utilities for Linux (X11)
-
-Source: https://opencode.ai/docs/troubleshooting
-
-Installs necessary clipboard utilities for OpenCode's copy/paste functionality on Linux systems using the X11 display server. Users can choose between `xclip` or `xsel`. These tools enable the application to interact with the system clipboard.
-
-```bash
-apt install -y xclip
-# or
-apt install -y xsel
 ```
 
 --------------------------------
