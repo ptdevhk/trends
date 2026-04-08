@@ -119,6 +119,7 @@ const apiSnapshot = {
   searchRows: null,
   job51SearchRows: null,
   job51Total: null,
+  job51LastSearchRequest: null,
   job51AuthContext: null,
   job51DetailPayload: null,
   attachInfo: null,
@@ -188,6 +189,13 @@ function getCurrentAgeRange() {
 }
 
 function filterCurrentResumesByAgeRange(resumes) {
+  if (
+    getCurrentSourceKey() === SOURCE_KEYS.JOB51 &&
+    !isJob51DetailPage() &&
+    document.documentElement.getAttribute("data-tr-auto-age") !== "done"
+  ) {
+    return Array.isArray(resumes) ? resumes : [];
+  }
   return filterResumesByAgeRange(
     resumes,
     getCurrentLocationSearch(),
@@ -2827,6 +2835,8 @@ function updateApiSnapshot(message) {
     return;
   }
   if (kind === "job51search") {
+    apiSnapshot.job51LastSearchRequest =
+      request && typeof request === "object" ? request : null;
     const authContext = normalizeJob51AuthContext(requestHeaders, request);
     if (authContext) {
       apiSnapshot.job51AuthContext = {
@@ -3411,7 +3421,13 @@ function extract51JobResumes() {
         row?.fullName,
     );
     const ageValue = normalizeJob51Text(
-      baseInfo.age || row?.age || row?.realAge,
+      baseInfo.age ||
+        baseInfo.displayage ||
+        baseInfo.age_value ||
+        row?.age ||
+        row?.realAge ||
+        row?.displayage ||
+        row?.age_value,
     );
     const age = ageValue
       ? ageValue.includes("岁")
@@ -4539,6 +4555,7 @@ async function waitForExtractionData({ timeoutMs = 30000, minCount = 1 } = {}) {
 function clearCapturedResultsForNextPage() {
   apiSnapshot.searchRows = null;
   apiSnapshot.job51SearchRows = null;
+  apiSnapshot.job51LastSearchRequest = null;
   apiSnapshot.job51DetailPayload = null;
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     apiSnapshot.seekRecommendedCandidates = null;
@@ -4992,30 +5009,73 @@ function setAutoAgeAttributes(status, minAge, maxAge) {
 }
 
 function setInputValue(input, value) {
-  const descriptor = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    "value",
-  );
+  const inputWindow = input?.ownerDocument?.defaultView || window;
+  const inputCtor =
+    inputWindow.HTMLInputElement ||
+    globalThis.HTMLInputElement;
+  const descriptor = inputCtor
+    ? Object.getOwnPropertyDescriptor(inputCtor.prototype, "value")
+    : null;
   if (descriptor?.set) {
     descriptor.set.call(input, value);
   } else {
     input.value = value;
   }
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  input.dispatchEvent(new Event("change", { bubbles: true }));
+  input.dispatchEvent(new inputWindow.Event("input", { bubbles: true }));
+  input.dispatchEvent(new inputWindow.Event("change", { bubbles: true }));
 }
 
 function fireMouseEvent(target, type) {
   try {
+    const targetWindow = target?.ownerDocument?.defaultView || window;
     target.dispatchEvent(
-      new MouseEvent(type, { bubbles: true, cancelable: true, view: window }),
+      new targetWindow.MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: targetWindow,
+      }),
     );
   } catch {
     // ignore
   }
 }
 
+function activateElement(target) {
+  if (!target) {
+    return;
+  }
+  ["mouseenter", "mouseover", "mousedown", "mouseup"].forEach((type) =>
+    fireMouseEvent(target, type),
+  );
+  target.click?.();
+}
+
+function findVueParentByName(node, componentName, { maxDepth = 8 } = {}) {
+  let vm = node?.__vue__ || null;
+  for (let depth = 0; vm && depth < maxDepth; depth += 1) {
+    if (vm?.$options?.name === componentName) {
+      return vm;
+    }
+    vm = vm?.$parent || null;
+  }
+  return null;
+}
+
 function findAgeFilterBlock() {
+  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
+    const labels = document.querySelectorAll(".base-select-label");
+    const label = Array.from(labels).find(
+      (node) => (node.textContent || "").replace(/\s+/g, "").trim() === "年龄",
+    );
+    if (label) {
+      return (
+        label.closest(".el-popover__reference") ||
+        label.closest(".base-select-button") ||
+        label.closest(".el-popover__reference-wrapper")
+      );
+    }
+  }
+
   const titles = document.querySelectorAll(".base-input-block__title__text");
   const label = Array.from(titles).find(
     (node) => (node.textContent || "").replace(/\s+/g, "").trim() === "年龄",
@@ -5024,28 +5084,110 @@ function findAgeFilterBlock() {
 }
 
 function openAgeFilterDropdown(ageBlock) {
+  if (getCurrentSourceKey() === SOURCE_KEYS.JOB51) {
+    const trigger =
+      ageBlock.querySelector(".base-select-button") ||
+      (ageBlock.matches?.(".base-select-button") ? ageBlock : null) ||
+      ageBlock;
+    ["mouseenter", "mouseover", "mousedown", "mouseup"].forEach((type) =>
+      fireMouseEvent(trigger, type),
+    );
+    trigger.click?.();
+    return;
+  }
+
   const title = ageBlock.querySelector(".base-input-block__title") || ageBlock;
   ["mouseenter", "mouseover", "mousedown", "mouseup", "click"].forEach((type) =>
     fireMouseEvent(title, type),
   );
 }
 
-async function waitForAgeFilterDropdown(ageBlock, { timeoutMs = 4000 } = {}) {
-  const selectBox = ageBlock.querySelector(".base-input-block__select_box");
-  if (!selectBox) {
-    return null;
+function resolveJob51AgeFilterDropdown(ageBlock) {
+  const describedNode =
+    (ageBlock.getAttribute?.("aria-describedby") ? ageBlock : null) ||
+    ageBlock.querySelector("[aria-describedby]");
+  const popoverId = describedNode?.getAttribute("aria-describedby")?.trim();
+  if (popoverId) {
+    const popover = document.getElementById(popoverId);
+    if (popover) {
+      return popover;
+    }
   }
 
+  const poppers = Array.from(document.querySelectorAll(".base-select-popper"));
+  return (
+    poppers.find((node) => {
+      const text = (node.textContent || "").replace(/\s+/g, "").trim();
+      return (
+        isElementVisible(node) &&
+        (text.includes("22岁及以下") ||
+          text.includes("45岁及以上") ||
+          Boolean(
+            node.querySelector(
+              'input[placeholder="最低"], input[placeholder="最高"]',
+            ),
+          ))
+      );
+    }) || null
+  );
+}
+
+async function waitForAgeFilterDropdown(ageBlock, { timeoutMs = 4000 } = {}) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (isElementVisible(selectBox)) {
+    const selectBox =
+      getCurrentSourceKey() === SOURCE_KEYS.JOB51
+        ? resolveJob51AgeFilterDropdown(ageBlock)
+        : ageBlock.querySelector(".base-input-block__select_box");
+    if (selectBox && isElementVisible(selectBox)) {
       return selectBox;
     }
     openAgeFilterDropdown(ageBlock);
     await new Promise((resolve) => setTimeout(resolve, 120));
   }
 
-  return isElementVisible(selectBox) ? selectBox : null;
+  const finalSelectBox =
+    getCurrentSourceKey() === SOURCE_KEYS.JOB51
+      ? resolveJob51AgeFilterDropdown(ageBlock)
+      : ageBlock.querySelector(".base-input-block__select_box");
+  return finalSelectBox && isElementVisible(finalSelectBox)
+    ? finalSelectBox
+    : null;
+}
+
+async function ensureJob51AgeCustomRangeInputs(selectBox, { timeoutMs = 2000 } = {}) {
+  if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) {
+    return selectBox;
+  }
+  if (
+    selectBox.querySelector('input[placeholder="最低"]') &&
+    selectBox.querySelector('input[placeholder="最高"]')
+  ) {
+    return selectBox;
+  }
+
+  const customButton = Array.from(selectBox.querySelectorAll("button")).find(
+    (button) =>
+      (button.textContent || "").replace(/\s+/g, "").trim() === "自定义",
+  );
+  if (!customButton) {
+    return selectBox;
+  }
+
+  activateElement(customButton);
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (
+      selectBox.querySelector('input[placeholder="最低"]') &&
+      selectBox.querySelector('input[placeholder="最高"]')
+    ) {
+      return selectBox;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+
+  return selectBox;
 }
 
 function resolveAgeFilterActions(selectBox) {
@@ -5062,6 +5204,87 @@ function resolveAgeFilterActions(selectBox) {
   });
 
   return { minInput, maxInput, confirmButton, cancelButton };
+}
+
+async function applyJob51AgeCustomRangeViaVue(
+  confirmButton,
+  { minAge, maxAge } = {},
+) {
+  if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51 || !confirmButton) {
+    return false;
+  }
+
+  const customRangeVm = findVueParentByName(
+    confirmButton,
+    "BaseSelectCustomRange",
+  );
+  if (!customRangeVm || typeof customRangeVm.onClickOk !== "function") {
+    return false;
+  }
+
+  try {
+    if (!customRangeVm.form || typeof customRangeVm.form !== "object") {
+      customRangeVm.form = {};
+    }
+    customRangeVm.form.leftValue =
+      typeof minAge === "number" ? minAge : null;
+    customRangeVm.form.rightValue =
+      typeof maxAge === "number" ? maxAge : null;
+    await Promise.resolve(customRangeVm.onClickOk());
+    return true;
+  } catch (error) {
+    console.warn(
+      "🎯 [Auto Age] Failed to apply 51job age filter via Vue custom-range handler:",
+      error,
+    );
+    return false;
+  }
+}
+
+function normalizeAgeRequestValue(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function hasMatchingJob51AgeSearchRequest(minAge, maxAge) {
+  const request = apiSnapshot.job51LastSearchRequest;
+  if (!request || typeof request !== "object") {
+    return false;
+  }
+
+  return (
+    normalizeAgeRequestValue(request.age_from) ===
+      normalizeAgeRequestValue(minAge) &&
+    normalizeAgeRequestValue(request.age_to) === normalizeAgeRequestValue(maxAge)
+  );
+}
+
+async function waitForJob51AgeFilterRefresh(
+  previousLastSearchAt,
+  { minAge, maxAge, timeoutMs = 5000 } = {},
+) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const hasFreshSearch =
+      typeof apiSnapshot.lastSearchAt === "string" &&
+      apiSnapshot.lastSearchAt.length > 0 &&
+      apiSnapshot.lastSearchAt !== previousLastSearchAt;
+    if (hasFreshSearch && hasMatchingJob51AgeSearchRequest(minAge, maxAge)) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+  return false;
 }
 
 async function autoApplyAgeFilterFromUrl() {
@@ -5087,12 +5310,24 @@ async function autoApplyAgeFilterFromUrl() {
     return;
   }
 
+  if (
+    sourceKey === SOURCE_KEYS.JOB51 &&
+    (typeof minAge !== "number" || typeof maxAge !== "number")
+  ) {
+    setAutoAgeAttributes("failed", minAge, maxAge);
+    console.warn(
+      "🎯 [Auto Age] 51job native age filter requires both min and max ages.",
+      { minAge, maxAge },
+    );
+    return;
+  }
+
   const ageBlock = findAgeFilterBlock();
   if (!ageBlock) {
     if (sourceKey === SOURCE_KEYS.JOB51) {
-      setAutoAgeAttributes("filtered-only", minAge, maxAge);
+      setAutoAgeAttributes("failed", minAge, maxAge);
       console.warn(
-        "🎯 [Auto Age] 51job age filter control not found; relying on extracted resume filtering.",
+        "🎯 [Auto Age] 51job age filter control not found.",
       );
       return;
     }
@@ -5108,9 +5343,9 @@ async function autoApplyAgeFilterFromUrl() {
   });
   if (!selectBox) {
     if (sourceKey === SOURCE_KEYS.JOB51) {
-      setAutoAgeAttributes("filtered-only", minAge, maxAge);
+      setAutoAgeAttributes("failed", minAge, maxAge);
       console.warn(
-        "🎯 [Auto Age] 51job age filter dropdown did not open; relying on extracted resume filtering.",
+        "🎯 [Auto Age] 51job age filter dropdown did not open.",
       );
       return;
     }
@@ -5119,22 +5354,28 @@ async function autoApplyAgeFilterFromUrl() {
     return;
   }
 
+  if (sourceKey === SOURCE_KEYS.JOB51) {
+    await ensureJob51AgeCustomRangeInputs(selectBox, {
+      timeoutMs: 2500,
+    });
+  }
+
   const { minInput, maxInput, confirmButton, cancelButton } =
     resolveAgeFilterActions(selectBox);
   if (!minInput || !maxInput || !confirmButton) {
     if (sourceKey === SOURCE_KEYS.JOB51) {
-      setAutoAgeAttributes("filtered-only", minAge, maxAge);
+      setAutoAgeAttributes("failed", minAge, maxAge);
       if (cancelButton) {
-        cancelButton.click();
+        activateElement(cancelButton);
       }
       console.warn(
-        "🎯 [Auto Age] 51job age filter inputs/buttons not found; relying on extracted resume filtering.",
+        "🎯 [Auto Age] 51job age filter inputs/buttons not found.",
       );
       return;
     }
     setAutoAgeAttributes("failed", minAge, maxAge);
     if (cancelButton) {
-      cancelButton.click();
+      activateElement(cancelButton);
     }
     console.warn(
       "🎯 [Auto Age] Age filter inputs/buttons not found; skipping native age filter apply.",
@@ -5144,17 +5385,44 @@ async function autoApplyAgeFilterFromUrl() {
 
   setInputValue(minInput, typeof minAge === "number" ? String(minAge) : "");
   setInputValue(maxInput, typeof maxAge === "number" ? String(maxAge) : "");
-  confirmButton.click();
-  setAutoAgeAttributes("done", minAge, maxAge);
+  const previousLastSearchAt = apiSnapshot.lastSearchAt;
+  const appliedViaVue =
+    sourceKey === SOURCE_KEYS.JOB51
+      ? await applyJob51AgeCustomRangeViaVue(confirmButton, {
+          minAge,
+          maxAge,
+        })
+      : false;
+  if (!appliedViaVue) {
+    activateElement(confirmButton);
+  }
 
   try {
-    await waitForExtractionData({ timeoutMs: 15000 });
+    if (sourceKey === SOURCE_KEYS.JOB51) {
+      const refreshed = await waitForJob51AgeFilterRefresh(previousLastSearchAt, {
+        minAge,
+        maxAge,
+        timeoutMs: 5000,
+      });
+      if (!refreshed) {
+        setAutoAgeAttributes("failed", minAge, maxAge);
+        console.warn(
+          "🎯 [Auto Age] Applied 51job age filter, but no filtered search refresh was observed.",
+          { minAge, maxAge },
+        );
+        return;
+      }
+    } else {
+      await waitForExtractionData({ timeoutMs: 15000 });
+    }
   } catch (error) {
     console.warn(
       "🎯 [Auto Age] Applied age filter, but waiting for results timed out:",
       error,
     );
   }
+
+  setAutoAgeAttributes("done", minAge, maxAge);
 }
 
 async function autoSelectLocation() {
