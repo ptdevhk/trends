@@ -582,12 +582,21 @@ export const reindexSearchText = mutation({
 });
 
 export const backfillAge = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
         let updated = 0;
 
-        for (const resume of resumes) {
+        for (const resume of resumes.page) {
             const parsedAge = parseAgeFromContent(resume.content);
             if (parsedAge === null || resume.age === parsedAge) {
                 continue;
@@ -598,8 +607,10 @@ export const backfillAge = mutation({
         }
 
         return {
-            scannedResumes: resumes.length,
-            updated,
+            scannedResumes: resumes.page.length,
+            updatedResumes: updated,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
         };
     },
 });
