@@ -44,6 +44,12 @@ const ProfileSummarySchema = z.object({
         label: z.string().optional(),
         description: z.string().optional(),
     }).optional(),
+    filters: z.object({
+        minAge: z.number().optional(),
+        maxAge: z.number().optional(),
+        minExperience: z.number().optional(),
+        maxExperience: z.number().optional(),
+    }).optional(),
 });
 
 const StatsSchema = z.object({
@@ -908,6 +914,14 @@ app.openapi(listRoute, async (c) => {
         keywords: profile.keywords,
         sources: profile.sources,
         quickStart: profile.quickStart,
+        filters: profile.filters
+            ? {
+                minAge: readNumber(profile.filters.minAge),
+                maxAge: readNumber(profile.filters.maxAge),
+                minExperience: readNumber(profile.filters.minExperience),
+                maxExperience: readNumber(profile.filters.maxExperience),
+            }
+            : undefined,
     }));
 
     const summariesById = new Map<string, z.infer<typeof ProfileSummarySchema>>();

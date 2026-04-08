@@ -14,6 +14,8 @@ type SearchHeroQuickStart = {
   location: string
   keywords: string[]
   description?: string
+  minAge?: number
+  maxAge?: number
   profileId?: string
   source?: {
     type: CollectionSourceType
@@ -140,6 +142,8 @@ export function SearchHero({
                       },
                       location: seed.location,
                       keywords: seed.keywords,
+                      minAge: seed.minAge,
+                      maxAge: seed.maxAge,
                     })
                   : null
 

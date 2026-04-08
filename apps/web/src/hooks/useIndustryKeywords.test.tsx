@@ -94,6 +94,11 @@ describe('useIndustryKeywords', () => {
                   rank: 1,
                   label: 'China · Job5156 · CNC 销售',
                 },
+                filters: {
+                  minAge: 25,
+                  maxAge: 40,
+                  minExperience: 2,
+                },
               },
             ],
           },
@@ -126,6 +131,8 @@ describe('useIndustryKeywords', () => {
         id: 'job5156-cn-cnc-sales',
         label: 'China · Job5156 · CNC 销售',
         location: 'China',
+        minAge: 25,
+        maxAge: 40,
         source: {
           type: 'job5156',
         },

@@ -187,6 +187,11 @@ describe('search-profiles list route', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: 'job5156-cn-cnc-sales',
+          filters: expect.objectContaining({
+            minAge: 25,
+            maxAge: 40,
+            minExperience: 2,
+          }),
           sources: expect.arrayContaining([
             expect.objectContaining({
               type: 'job5156',
@@ -201,6 +206,11 @@ describe('search-profiles list route', () => {
         }),
         expect.objectContaining({
           id: '51job-cn-cnc-sales',
+          filters: expect.objectContaining({
+            minAge: 25,
+            maxAge: 40,
+            minExperience: 2,
+          }),
           sources: expect.arrayContaining([
             expect.objectContaining({
               type: '51job',
@@ -215,6 +225,10 @@ describe('search-profiles list route', () => {
         }),
         expect.objectContaining({
           id: 'seek-malaysia-sales',
+          filters: expect.objectContaining({
+            maxAge: 45,
+            minExperience: 2,
+          }),
           sources: expect.arrayContaining([
             expect.objectContaining({
               type: 'seek',
