@@ -158,20 +158,33 @@ async def wait_for_ready_state(
         api_snapshot_count = int(status.get("apiSnapshotCount") or 0)
         pagination = status.get("pagination") or {}
         total_items = int(pagination.get("totalItems") or 0)
+        dom_ready = bool(status.get("domReady"))
 
         if max(card_count, api_snapshot_count) > 0:
             return status
-        if total_items <= 0:
+        if total_items > 0:
             return status
         if auto_search == "failed" or auto_location == "failed" or auto_age == "failed":
+            return status
+
+        # For sources that report domReady, wait until the page is
+        # fully interactive before giving up on counts.  Without this,
+        # a 51job page that has not finished loading its search results
+        # will appear to have zero items and the collector will proceed
+        # to collect() on an empty page.
+        if dom_ready:
             return status
 
         await asyncio.sleep(1.0)
 
     current_url = str(last_page.get("url") or "").strip()
     current_title = str(last_page.get("title") or "").strip()
+    detail = ""
+    if source == "51job":
+        detail = " The 51job search page may need time to load its results. Ensure the page is fully loaded with visible candidate rows before rerunning."
     raise CDPError(
         "Timed out waiting for the source page to finish loading results."
+        + detail
         + (f" Current page: {current_url}." if current_url else "")
         + (f" Title: {current_title}." if current_title else "")
     )
