@@ -2,6 +2,8 @@ import { DEFAULT_RESUME_AI_PROMPT_LOCALE, getResumeAiPromptDefinition } from "./
 
 const JOB5156_HOST_TOKEN = "job5156.com";
 const MANUAL_51JOB_SOURCE_TOKEN = "51job-manual";
+const JOB51_HOST_TOKEN = "ehire.51job.com";
+const JOB51_SOURCE_KEY = "51job";
 const SEEK_HOST_SUFFIX = ".employer.seek.com";
 
 function stableHash(seed: string): string {
@@ -69,7 +71,7 @@ function normalizeJobDescriptionId(value: string | undefined): string {
   return normalized ? normalized : "default";
 }
 
-export type ResumeAnalysisSourceKey = "job5156" | "seek";
+export type ResumeAnalysisSourceKey = "job5156" | "51job" | "seek";
 
 export function normalizeResumeAnalysisSourceKey(
   value: string | null | undefined
@@ -81,6 +83,16 @@ export function normalizeResumeAnalysisSourceKey(
 
   if (normalized === "seek" || normalized.endsWith(SEEK_HOST_SUFFIX)) {
     return "seek";
+  }
+
+  // Live 51job (ehire.51job.com, profileType "51job") gets its own lane.
+  // 51job-manual stays in the job5156 lane for backward compatibility.
+  if (
+    normalized === JOB51_SOURCE_KEY
+    || normalized === JOB51_HOST_TOKEN
+    || normalized.endsWith(JOB51_HOST_TOKEN)
+  ) {
+    return "51job";
   }
 
   if (

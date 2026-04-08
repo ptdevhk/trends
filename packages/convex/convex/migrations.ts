@@ -525,11 +525,20 @@ type ReIngestAllResumesResult = {
 };
 
 export const backfillSearchText = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
         let count = 0;
-        for (const resume of resumes) {
+        for (const resume of resumes.page) {
             if (resume.searchText) continue;
 
             const searchText = mergeSearchTextWithIngestData(buildSearchText(resume.content), {
@@ -542,7 +551,12 @@ export const backfillSearchText = mutation({
             await ctx.db.patch(resume._id, { searchText });
             count++;
         }
-        return `Backfilled ${count} resumes`;
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes: count,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
     },
 });
 
@@ -1166,10 +1180,19 @@ export const reIngestAllResumes = action({
 });
 
 export const auditDuplicateResumesByIdentity = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
-        const duplicateGroups = groupDuplicatesByIdentity(resumes);
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+        const duplicateGroups = groupDuplicatesByIdentity(resumes.page);
 
         const groups = duplicateGroups.map((group) => {
             const ordered = sortForCanonical(group.resumes);
@@ -1184,10 +1207,12 @@ export const auditDuplicateResumesByIdentity = mutation({
         });
 
         return {
-            scannedResumes: resumes.length,
+            scannedResumes: resumes.page.length,
             duplicateGroupCount: groups.length,
             duplicateResumeCount: groups.reduce((sum, group) => sum + group.duplicateIds.length, 0),
             groups,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
         };
     },
 });
@@ -1196,10 +1221,17 @@ export const mergeDuplicateResumesByIdentity = mutation({
     args: {
         dryRun: v.boolean(),
         batchSize: v.number(),
+        cursor: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const resumes = await ctx.db.query("resumes").collect();
-        const duplicateGroups = groupDuplicatesByIdentity(resumes);
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+        const duplicateGroups = groupDuplicatesByIdentity(resumes.page);
         const effectiveBatchSize = Math.max(1, Math.trunc(args.batchSize));
         const targetGroups = duplicateGroups.slice(0, effectiveBatchSize);
 
@@ -1261,12 +1293,14 @@ export const mergeDuplicateResumesByIdentity = mutation({
 
         return {
             dryRun: args.dryRun,
-            scannedResumes: resumes.length,
+            scannedResumes: resumes.page.length,
             duplicateGroupCount: duplicateGroups.length,
             processedGroupCount: targetGroups.length,
             patchedCanonicals,
             deleted,
             groups,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
         };
     },
 });
