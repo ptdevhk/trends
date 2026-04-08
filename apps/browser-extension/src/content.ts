@@ -5089,10 +5089,7 @@ function openAgeFilterDropdown(ageBlock) {
       ageBlock.querySelector(".base-select-button") ||
       (ageBlock.matches?.(".base-select-button") ? ageBlock : null) ||
       ageBlock;
-    ["mouseenter", "mouseover", "mousedown", "mouseup"].forEach((type) =>
-      fireMouseEvent(trigger, type),
-    );
-    trigger.click?.();
+    activateElement(trigger);
     return;
   }
 
@@ -5132,13 +5129,16 @@ function resolveJob51AgeFilterDropdown(ageBlock) {
   );
 }
 
+function resolveAgeSelectBox(ageBlock) {
+  return getCurrentSourceKey() === SOURCE_KEYS.JOB51
+    ? resolveJob51AgeFilterDropdown(ageBlock)
+    : ageBlock.querySelector(".base-input-block__select_box");
+}
+
 async function waitForAgeFilterDropdown(ageBlock, { timeoutMs = 4000 } = {}) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const selectBox =
-      getCurrentSourceKey() === SOURCE_KEYS.JOB51
-        ? resolveJob51AgeFilterDropdown(ageBlock)
-        : ageBlock.querySelector(".base-input-block__select_box");
+    const selectBox = resolveAgeSelectBox(ageBlock);
     if (selectBox && isElementVisible(selectBox)) {
       return selectBox;
     }
@@ -5146,13 +5146,8 @@ async function waitForAgeFilterDropdown(ageBlock, { timeoutMs = 4000 } = {}) {
     await new Promise((resolve) => setTimeout(resolve, 120));
   }
 
-  const finalSelectBox =
-    getCurrentSourceKey() === SOURCE_KEYS.JOB51
-      ? resolveJob51AgeFilterDropdown(ageBlock)
-      : ageBlock.querySelector(".base-input-block__select_box");
-  return finalSelectBox && isElementVisible(finalSelectBox)
-    ? finalSelectBox
-    : null;
+  const finalSelectBox = resolveAgeSelectBox(ageBlock);
+  return finalSelectBox && isElementVisible(finalSelectBox) ? finalSelectBox : null;
 }
 
 async function ensureJob51AgeCustomRangeInputs(selectBox, { timeoutMs = 2000 } = {}) {

@@ -5,18 +5,16 @@ import workArrayFixture from './src/lib/__tests__/__fixtures__/job51-detail-work
 
 const CONTENT_EXPORTS_KEY = '__TR_BROWSER_EXTENSION_TEST__'
 
-/**
- * @typedef {object} ButtonLike
- * @property {string | null} textContent
- * @property {(...args: unknown[]) => unknown} addEventListener
- * @property {(...args: unknown[]) => unknown} click
- */
+interface ButtonLike {
+  textContent: string | null
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject): void
+  click(): void
+}
 
-/**
- * @typedef {object} QueryRootLike
- * @property {(selector: string) => Iterable<unknown> | ArrayLike<unknown>} querySelectorAll
- * @property {(selector: string) => unknown} querySelector
- */
+interface QueryRootLike {
+  querySelectorAll(selector: string): NodeListOf<Element>
+  querySelector(selector: string): Element | null
+}
 
 function installChromeStub(window) {
   const storageGet = vi.fn((defaults, callback) => callback(defaults))
@@ -78,24 +76,17 @@ function bindWindow(window) {
  * @param {unknown} node
  * @returns {ButtonLike | null}
  */
-function toButtonLike(node) {
-  return (
-    Boolean(node) &&
+function toButtonLike(node: unknown): ButtonLike | null {
+  return Boolean(node) &&
     typeof node === 'object' &&
     'textContent' in node &&
     'addEventListener' in node &&
     'click' in node
-  )
-    ? /** @type {ButtonLike} */ (node)
+    ? (node as ButtonLike)
     : null
 }
 
-/**
- * @param {QueryRootLike} root
- * @param {string} text
- * @returns {ButtonLike | null}
- */
-function findButtonByText(root, text) {
+function findButtonByText(root: QueryRootLike, text: string): ButtonLike | null {
   for (const node of Array.from(root.querySelectorAll('button'))) {
     const button = toButtonLike(node)
     if (button && (button.textContent || '').replace(/\s+/g, '').trim() === text) {
@@ -105,13 +96,54 @@ function findButtonByText(root, text) {
   return null
 }
 
-/**
- * @param {QueryRootLike} root
- * @param {string} selector
- * @returns {ButtonLike | null}
- */
-function findButtonBySelector(root, selector) {
+function findButtonBySelector(root: QueryRootLike, selector: string): ButtonLike | null {
   return toButtonLike(root.querySelector(selector))
+}
+
+function buildJob51AgePopper(win: Window & typeof globalThis, popperId: string) {
+  const ageWrapper = win.document.createElement('span')
+  ageWrapper.className = 'el-popover__reference-wrapper'
+
+  const ageReference = win.document.createElement('span')
+  ageReference.className = 'el-popover__reference'
+  ageReference.setAttribute('aria-describedby', popperId)
+
+  const ageButton = win.document.createElement('button')
+  ageButton.className = 'base-select-button'
+
+  const ageLabel = win.document.createElement('span')
+  ageLabel.className = 'base-select-label'
+  ageLabel.textContent = '年龄'
+  ageButton.appendChild(ageLabel)
+  ageReference.appendChild(ageButton)
+  ageWrapper.appendChild(ageReference)
+  win.document.body.appendChild(ageWrapper)
+
+  const agePopper = win.document.createElement('div')
+  agePopper.id = popperId
+  agePopper.className = 'el-popover el-popper base-select-popper'
+  agePopper.setAttribute('aria-hidden', 'true')
+  agePopper.style.display = 'none'
+  agePopper.innerHTML = `
+    <div class="content-wrapper default">
+      <div class="option-list">
+        <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">25-30岁</span></div></div>
+        <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">30-35岁</span></div></div>
+        <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">35-45岁</span></div></div>
+      </div>
+      <div class="popover-custom-range">
+        <button type="button" class="custom-button">自定义</button>
+      </div>
+    </div>
+  `
+  win.document.body.appendChild(agePopper)
+
+  ageButton.addEventListener('click', () => {
+    agePopper.setAttribute('aria-hidden', 'false')
+    agePopper.style.display = 'block'
+  })
+
+  return { ageButton, ageLabel, agePopper }
 }
 
 async function createHarness(url) {
@@ -353,50 +385,9 @@ describe('content age-filter regressions', () => {
       },
     ]
 
-    const ageWrapper = searchCtx.window.document.createElement('span')
-    ageWrapper.className = 'el-popover__reference-wrapper'
-
-    const ageReference = searchCtx.window.document.createElement('span')
-    ageReference.className = 'el-popover__reference'
-    ageReference.setAttribute('aria-describedby', 'job51-age-popper')
-
-    const ageButton = searchCtx.window.document.createElement('button')
-    ageButton.className = 'base-select-button'
-
-    const ageLabel = searchCtx.window.document.createElement('span')
-    ageLabel.className = 'base-select-label'
-    ageLabel.textContent = '年龄'
-    ageButton.appendChild(ageLabel)
-    ageReference.appendChild(ageButton)
-    ageWrapper.appendChild(ageReference)
-    searchCtx.window.document.body.appendChild(ageWrapper)
-
-    const agePopper = searchCtx.window.document.createElement('div')
-    agePopper.id = 'job51-age-popper'
-    agePopper.className = 'el-popover el-popper base-select-popper'
-    agePopper.setAttribute('aria-hidden', 'true')
-    agePopper.style.display = 'none'
-    agePopper.innerHTML = `
-      <div class="content-wrapper default">
-        <div class="option-list">
-          <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">25-30岁</span></div></div>
-          <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">30-35岁</span></div></div>
-          <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">35-45岁</span></div></div>
-        </div>
-        <div class="popover-custom-range">
-          <button type="button" class="custom-button">自定义</button>
-        </div>
-      </div>
-    `
-    searchCtx.window.document.body.appendChild(agePopper)
-
+    const { agePopper } = buildJob51AgePopper(searchCtx.window, 'job51-age-popper')
     const confirmClick = vi.fn()
     const apiSnapshot = searchCtx.window.__TR_RESUME_DATA__.getApiSnapshot()
-
-    ageButton.addEventListener('click', () => {
-      agePopper.setAttribute('aria-hidden', 'false')
-      agePopper.style.display = 'block'
-    })
 
     agePopper.querySelector('.custom-button')?.addEventListener('click', () => {
       agePopper.innerHTML = `
@@ -425,8 +416,8 @@ describe('content age-filter regressions', () => {
         </div>
       `
 
-      const minInput = agePopper.querySelector('input[placeholder="最低"]')
-      const maxInput = agePopper.querySelector('input[placeholder="最高"]')
+      const minInput = agePopper.querySelector<HTMLInputElement>('input[placeholder="最低"]')
+      const maxInput = agePopper.querySelector<HTMLInputElement>('input[placeholder="最高"]')
       const confirmButton = agePopper.querySelector('button')
       const syncConfirmState = () => {
         const canConfirm = Boolean(minInput?.value && maxInput?.value)
@@ -448,8 +439,8 @@ describe('content age-filter regressions', () => {
 
     await searchCtx.exports.autoApplyAgeFilterFromUrl()
 
-    const minInput = agePopper.querySelector('input[placeholder="最低"]')
-    const maxInput = agePopper.querySelector('input[placeholder="最高"]')
+    const minInput = agePopper.querySelector<HTMLInputElement>('input[placeholder="最低"]')
+    const maxInput = agePopper.querySelector<HTMLInputElement>('input[placeholder="最高"]')
     expect(minInput?.value).toBe('25')
     expect(maxInput?.value).toBe('40')
     expect(confirmClick).toHaveBeenCalledTimes(1)
@@ -476,49 +467,8 @@ describe('content age-filter regressions', () => {
     ]
     apiSnapshot.lastSearchAt = '2026-04-08T02:43:04.000Z'
 
-    const ageWrapper = searchCtx.window.document.createElement('span')
-    ageWrapper.className = 'el-popover__reference-wrapper'
-
-    const ageReference = searchCtx.window.document.createElement('span')
-    ageReference.className = 'el-popover__reference'
-    ageReference.setAttribute('aria-describedby', 'job51-age-refresh-popper')
-
-    const ageButton = searchCtx.window.document.createElement('button')
-    ageButton.className = 'base-select-button'
-
-    const ageLabel = searchCtx.window.document.createElement('span')
-    ageLabel.className = 'base-select-label'
-    ageLabel.textContent = '年龄'
-    ageButton.appendChild(ageLabel)
-    ageReference.appendChild(ageButton)
-    ageWrapper.appendChild(ageReference)
-    searchCtx.window.document.body.appendChild(ageWrapper)
-
-    const agePopper = searchCtx.window.document.createElement('div')
-    agePopper.id = 'job51-age-refresh-popper'
-    agePopper.className = 'el-popover el-popper base-select-popper'
-    agePopper.setAttribute('aria-hidden', 'true')
-    agePopper.style.display = 'none'
-    agePopper.innerHTML = `
-      <div class="content-wrapper default">
-        <div class="option-list">
-          <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">25-30岁</span></div></div>
-          <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">30-35岁</span></div></div>
-          <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">35-45岁</span></div></div>
-        </div>
-        <div class="popover-custom-range">
-          <button type="button" class="custom-button">自定义</button>
-        </div>
-      </div>
-    `
-    searchCtx.window.document.body.appendChild(agePopper)
-
+    const { agePopper } = buildJob51AgePopper(searchCtx.window, 'job51-age-refresh-popper')
     let filteredRefreshCompleted = false
-
-    ageButton.addEventListener('click', () => {
-      agePopper.setAttribute('aria-hidden', 'false')
-      agePopper.style.display = 'block'
-    })
 
     agePopper.querySelector('.custom-button')?.addEventListener('click', () => {
       agePopper.innerHTML = `
@@ -591,42 +541,7 @@ describe('content age-filter regressions', () => {
     const apiSnapshot = searchCtx.window.__TR_RESUME_DATA__.getApiSnapshot()
     apiSnapshot.lastSearchAt = '2026-04-08T02:50:00.000Z'
 
-    const ageWrapper = searchCtx.window.document.createElement('span')
-    ageWrapper.className = 'el-popover__reference-wrapper'
-
-    const ageReference = searchCtx.window.document.createElement('span')
-    ageReference.className = 'el-popover__reference'
-    ageReference.setAttribute('aria-describedby', 'job51-age-vue-confirm-popper')
-
-    const ageButton = searchCtx.window.document.createElement('button')
-    ageButton.className = 'base-select-button'
-
-    const ageLabel = searchCtx.window.document.createElement('span')
-    ageLabel.className = 'base-select-label'
-    ageLabel.textContent = '年龄'
-    ageButton.appendChild(ageLabel)
-    ageReference.appendChild(ageButton)
-    ageWrapper.appendChild(ageReference)
-    searchCtx.window.document.body.appendChild(ageWrapper)
-
-    const agePopper = searchCtx.window.document.createElement('div')
-    agePopper.id = 'job51-age-vue-confirm-popper'
-    agePopper.className = 'el-popover el-popper base-select-popper'
-    agePopper.setAttribute('aria-hidden', 'true')
-    agePopper.style.display = 'none'
-    agePopper.innerHTML = `
-      <div class="content-wrapper default">
-        <div class="popover-custom-range">
-          <button type="button" class="custom-button">自定义</button>
-        </div>
-      </div>
-    `
-    searchCtx.window.document.body.appendChild(agePopper)
-
-    ageButton.addEventListener('click', () => {
-      agePopper.setAttribute('aria-hidden', 'false')
-      agePopper.style.display = 'block'
-    })
+    const { ageLabel, agePopper } = buildJob51AgePopper(searchCtx.window, 'job51-age-vue-confirm-popper')
 
     const onClickOk = vi.fn(() => {
       apiSnapshot.job51LastSearchRequest = {
