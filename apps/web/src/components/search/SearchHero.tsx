@@ -152,7 +152,6 @@ export function SearchHero({
                   url.searchParams.set('tr_job51_detail_wait', 'page1')
                   return url.toString()
                 })()
-
                 return (
                   <div
                     key={seed.id}

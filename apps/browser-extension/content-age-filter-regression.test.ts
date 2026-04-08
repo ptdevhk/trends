@@ -5,6 +5,17 @@ import workArrayFixture from './src/lib/__tests__/__fixtures__/job51-detail-work
 
 const CONTENT_EXPORTS_KEY = '__TR_BROWSER_EXTENSION_TEST__'
 
+interface ButtonLike {
+  textContent: string | null
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject): void
+  click(): void
+}
+
+interface QueryRootLike {
+  querySelectorAll(selector: string): NodeListOf<Element>
+  querySelector(selector: string): Element | null
+}
+
 function installChromeStub(window) {
   const storageGet = vi.fn((defaults, callback) => callback(defaults))
   const runtimeSendMessage = vi.fn(async () => ({ ok: true }))
@@ -61,6 +72,80 @@ function bindWindow(window) {
   })
 }
 
+/**
+ * @param {unknown} node
+ * @returns {ButtonLike | null}
+ */
+function toButtonLike(node: unknown): ButtonLike | null {
+  return Boolean(node) &&
+    typeof node === 'object' &&
+    'textContent' in node &&
+    'addEventListener' in node &&
+    'click' in node
+    ? (node as ButtonLike)
+    : null
+}
+
+function findButtonByText(root: QueryRootLike, text: string): ButtonLike | null {
+  for (const node of Array.from(root.querySelectorAll('button'))) {
+    const button = toButtonLike(node)
+    if (button && (button.textContent || '').replace(/\s+/g, '').trim() === text) {
+      return button
+    }
+  }
+  return null
+}
+
+function findButtonBySelector(root: QueryRootLike, selector: string): ButtonLike | null {
+  return toButtonLike(root.querySelector(selector))
+}
+
+function buildJob51AgePopper(win: Window & typeof globalThis, popperId: string) {
+  const ageWrapper = win.document.createElement('span')
+  ageWrapper.className = 'el-popover__reference-wrapper'
+
+  const ageReference = win.document.createElement('span')
+  ageReference.className = 'el-popover__reference'
+  ageReference.setAttribute('aria-describedby', popperId)
+
+  const ageButton = win.document.createElement('button')
+  ageButton.className = 'base-select-button'
+
+  const ageLabel = win.document.createElement('span')
+  ageLabel.className = 'base-select-label'
+  ageLabel.textContent = '年龄'
+  ageButton.appendChild(ageLabel)
+  ageReference.appendChild(ageButton)
+  ageWrapper.appendChild(ageReference)
+  win.document.body.appendChild(ageWrapper)
+
+  const agePopper = win.document.createElement('div')
+  agePopper.id = popperId
+  agePopper.className = 'el-popover el-popper base-select-popper'
+  agePopper.setAttribute('aria-hidden', 'true')
+  agePopper.style.display = 'none'
+  agePopper.innerHTML = `
+    <div class="content-wrapper default">
+      <div class="option-list">
+        <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">25-30岁</span></div></div>
+        <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">30-35岁</span></div></div>
+        <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">35-45岁</span></div></div>
+      </div>
+      <div class="popover-custom-range">
+        <button type="button" class="custom-button">自定义</button>
+      </div>
+    </div>
+  `
+  win.document.body.appendChild(agePopper)
+
+  ageButton.addEventListener('click', () => {
+    agePopper.setAttribute('aria-hidden', 'false')
+    agePopper.style.display = 'block'
+  })
+
+  return { ageButton, ageLabel, agePopper }
+}
+
 async function createHarness(url) {
   const dom = new JSDOM('<html><body><div id="app"></div></body></html>', {
     url,
@@ -97,13 +182,16 @@ describe('content age-filter regressions', () => {
 
   beforeEach(() => {
     bindWindow(searchCtx.window)
+    searchCtx.window.document.body.innerHTML = '<div id="app"></div>'
     searchCtx.window.document.documentElement.removeAttribute('data-tr-auto-age')
     searchCtx.window.document.documentElement.removeAttribute('data-tr-auto-age-min')
     searchCtx.window.document.documentElement.removeAttribute('data-tr-auto-age-max')
 
     const apiSnapshot = searchCtx.window.__TR_RESUME_DATA__.getApiSnapshot()
     apiSnapshot.job51SearchRows = null
+    apiSnapshot.job51LastSearchRequest = null
     apiSnapshot.job51DetailPayload = null
+    apiSnapshot.lastSearchAt = null
   })
 
   afterAll(() => {
@@ -112,7 +200,7 @@ describe('content age-filter regressions', () => {
     delete globalThis[CONTENT_EXPORTS_KEY]
   })
 
-  it('keeps 51job final-result age filtering active for url-supplied search results', () => {
+  it('applies 51job extracted age filtering only after native age automation succeeds', () => {
     searchCtx.window.__TR_RESUME_DATA__.getApiSnapshot().job51SearchRows = [
       {
         base_info: {
@@ -142,6 +230,8 @@ describe('content age-filter regressions', () => {
       },
     ]
 
+    searchCtx.exports.setAutoAgeAttributes('done', 25, 40)
+
     expect(searchCtx.exports.extractResumes()).toMatchObject([
       {
         name: '张三',
@@ -152,6 +242,55 @@ describe('content age-filter regressions', () => {
       sourceKey: '51job',
       ageRange: { minAge: 25, maxAge: 40 },
     })
+  })
+
+  it('leaves 51job extracted search results unfiltered when native age automation is not done', () => {
+    searchCtx.window.__TR_RESUME_DATA__.getApiSnapshot().job51SearchRows = [
+      {
+        base_info: {
+          resume_name: '张三',
+          age: '37',
+          userid: '51-in-range',
+        },
+      },
+      {
+        base_info: {
+          resume_name: '李四',
+          age: '24',
+          userid: '51-out-range',
+        },
+      },
+    ]
+
+    expect(searchCtx.exports.extractResumes()).toMatchObject([
+      {
+        name: '张三',
+        age: '37岁',
+      },
+      {
+        name: '李四',
+        age: '24岁',
+      },
+    ])
+  })
+
+  it('reads 51job search-result ages from displayage fallback fields', () => {
+    searchCtx.window.__TR_RESUME_DATA__.getApiSnapshot().job51SearchRows = [
+      {
+        base_info: {
+          resume_name: '张三',
+          displayage: '37',
+          userid: '51-displayage',
+        },
+      },
+    ]
+
+    expect(searchCtx.exports.extractResumes()).toMatchObject([
+      {
+        name: '张三',
+        age: '37岁',
+      },
+    ])
   })
 
   it('keeps 51job final-result age filtering active for detail payloads', () => {
@@ -192,7 +331,7 @@ describe('content age-filter regressions', () => {
     expect(searchCtx.exports.extractJob51DetailResume()).toEqual([])
   })
 
-  it('marks 51job native age automation degrade as filtered-only', async () => {
+  it('marks 51job native age automation degrade as failed', async () => {
     searchCtx.window.history.replaceState(
       {},
       '',
@@ -202,13 +341,288 @@ describe('content age-filter regressions', () => {
 
     await searchCtx.exports.autoApplyAgeFilterFromUrl()
 
-    expect(searchCtx.window.document.documentElement.getAttribute('data-tr-auto-age')).toBe('filtered-only')
+    expect(searchCtx.window.document.documentElement.getAttribute('data-tr-auto-age')).toBe('failed')
     expect(searchCtx.window.__TR_RESUME_DATA__.status()).toMatchObject({
       sourceKey: '51job',
       ageRange: { minAge: 25, maxAge: 40 },
-      autoAge: 'filtered-only',
+      autoAge: 'failed',
     })
   })
+
+  it('fails 51job native age automation for one-sided ranges', async () => {
+    searchCtx.window.history.replaceState(
+      {},
+      '',
+      'https://ehire.51job.com/Revision/talent/search?tr_min_age=25',
+    )
+    bindWindow(searchCtx.window)
+
+    await searchCtx.exports.autoApplyAgeFilterFromUrl()
+
+    expect(searchCtx.window.document.documentElement.getAttribute('data-tr-auto-age')).toBe('failed')
+    expect(searchCtx.window.__TR_RESUME_DATA__.status()).toMatchObject({
+      sourceKey: '51job',
+      ageRange: { minAge: 25, maxAge: null },
+      autoAge: 'failed',
+    })
+  })
+
+  it('applies 51job native age automation when the age popper is present', async () => {
+    searchCtx.window.history.replaceState(
+      {},
+      '',
+      'https://ehire.51job.com/Revision/talent/search?tr_min_age=25&tr_max_age=40',
+    )
+    bindWindow(searchCtx.window)
+
+    searchCtx.window.__TR_RESUME_DATA__.getApiSnapshot().job51SearchRows = [
+      {
+        base_info: {
+          resume_name: '张三',
+          age: '37',
+          userid: '51-native-age-success',
+        },
+      },
+    ]
+
+    const { agePopper } = buildJob51AgePopper(searchCtx.window, 'job51-age-popper')
+    const confirmClick = vi.fn()
+    const apiSnapshot = searchCtx.window.__TR_RESUME_DATA__.getApiSnapshot()
+
+    agePopper.querySelector('.custom-button')?.addEventListener('click', () => {
+      agePopper.innerHTML = `
+        <div class="content-wrapper default">
+          <div class="option-list">
+            <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">25-30岁</span></div></div>
+            <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">30-35岁</span></div></div>
+            <div class="option-item-wrapper"><div class="option-item"><span class="option-item-label">35-45岁</span></div></div>
+          </div>
+          <div class="popover-custom-range">
+            <div class="form-container">
+              <div class="form-title">自定义</div>
+              <form class="el-form form">
+                <div class="candidate-filter-range-input el-input el-input--small">
+                  <input type="number" placeholder="最低" class="el-input__inner">
+                </div>
+                <div class="candidate-filter-range-input el-input el-input--small">
+                  <input type="number" placeholder="最高" class="el-input__inner">
+                </div>
+                <button type="button" class="el-button form-action-button el-button--primary el-button--small is-disabled" disabled>
+                  <span>确定</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      `
+
+      const minInput = agePopper.querySelector<HTMLInputElement>('input[placeholder="最低"]')
+      const maxInput = agePopper.querySelector<HTMLInputElement>('input[placeholder="最高"]')
+      const confirmButton = agePopper.querySelector('button')
+      const syncConfirmState = () => {
+        const canConfirm = Boolean(minInput?.value && maxInput?.value)
+        confirmButton.disabled = !canConfirm
+        confirmButton.classList.toggle('is-disabled', !canConfirm)
+      }
+
+      minInput?.addEventListener('input', syncConfirmState)
+      maxInput?.addEventListener('input', syncConfirmState)
+      confirmButton.addEventListener('click', () => {
+        confirmClick()
+        apiSnapshot.job51LastSearchRequest = {
+          age_from: 25,
+          age_to: 40,
+        }
+        apiSnapshot.lastSearchAt = '2026-04-08T02:45:29.000Z'
+      })
+    })
+
+    await searchCtx.exports.autoApplyAgeFilterFromUrl()
+
+    const minInput = agePopper.querySelector<HTMLInputElement>('input[placeholder="最低"]')
+    const maxInput = agePopper.querySelector<HTMLInputElement>('input[placeholder="最高"]')
+    expect(minInput?.value).toBe('25')
+    expect(maxInput?.value).toBe('40')
+    expect(confirmClick).toHaveBeenCalledTimes(1)
+    expect(searchCtx.window.document.documentElement.getAttribute('data-tr-auto-age')).toBe('done')
+  }, 10000)
+
+  it('waits for a fresh 51job filtered search refresh before resolving native age automation', async () => {
+    searchCtx.window.history.replaceState(
+      {},
+      '',
+      'https://ehire.51job.com/Revision/talent/search?tr_min_age=25&tr_max_age=40',
+    )
+    bindWindow(searchCtx.window)
+
+    const apiSnapshot = searchCtx.window.__TR_RESUME_DATA__.getApiSnapshot()
+    apiSnapshot.job51SearchRows = [
+      {
+        base_info: {
+          resume_name: '旧结果',
+          age: '47',
+          userid: 'stale-over-age',
+        },
+      },
+    ]
+    apiSnapshot.lastSearchAt = '2026-04-08T02:43:04.000Z'
+
+    const { agePopper } = buildJob51AgePopper(searchCtx.window, 'job51-age-refresh-popper')
+    let filteredRefreshCompleted = false
+
+    agePopper.querySelector('.custom-button')?.addEventListener('click', () => {
+      agePopper.innerHTML = `
+        <div class="content-wrapper default">
+          <div class="popover-custom-range">
+            <div class="form-container">
+              <div class="form-title">自定义</div>
+              <form class="el-form form">
+                <div class="candidate-filter-range-input el-input el-input--small">
+                  <input type="number" placeholder="最低" class="el-input__inner">
+                </div>
+                <div class="candidate-filter-range-input el-input el-input--small">
+                  <input type="number" placeholder="最高" class="el-input__inner">
+                </div>
+                <button type="button" class="el-button form-action-button el-button--primary el-button--small">
+                  <span>确定</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      `
+
+      const confirmButton = findButtonByText(agePopper, '确定')
+      confirmButton?.addEventListener('click', () => {
+        searchCtx.window.setTimeout(() => {
+          apiSnapshot.job51LastSearchRequest = {
+            age_from: 25,
+            age_to: 40,
+          }
+          apiSnapshot.job51SearchRows = [
+            {
+              base_info: {
+                resume_name: '新结果',
+                age: '37',
+                userid: 'fresh-in-range',
+              },
+            },
+          ]
+          apiSnapshot.lastSearchAt = '2026-04-08T02:45:29.000Z'
+          filteredRefreshCompleted = true
+        }, 150)
+      })
+    })
+
+    await searchCtx.exports.autoApplyAgeFilterFromUrl()
+
+    expect(filteredRefreshCompleted).toBe(true)
+    expect(apiSnapshot.job51LastSearchRequest).toMatchObject({
+      age_from: 25,
+      age_to: 40,
+    })
+    expect(searchCtx.exports.extractResumes()).toMatchObject([
+      {
+        name: '新结果',
+        age: '37岁',
+      },
+    ])
+    expect(searchCtx.window.document.documentElement.getAttribute('data-tr-auto-age')).toBe('done')
+  }, 10000)
+
+  it('invokes the 51job custom-range Vue confirm handler when the DOM click path is inert', async () => {
+    searchCtx.window.history.replaceState(
+      {},
+      '',
+      'https://ehire.51job.com/Revision/talent/search?tr_min_age=25&tr_max_age=40',
+    )
+    bindWindow(searchCtx.window)
+
+    const apiSnapshot = searchCtx.window.__TR_RESUME_DATA__.getApiSnapshot()
+    apiSnapshot.lastSearchAt = '2026-04-08T02:50:00.000Z'
+
+    const { ageLabel, agePopper } = buildJob51AgePopper(searchCtx.window, 'job51-age-vue-confirm-popper')
+
+    const onClickOk = vi.fn(() => {
+      apiSnapshot.job51LastSearchRequest = {
+        age_from: 25,
+        age_to: 40,
+      }
+      apiSnapshot.job51SearchRows = [
+        {
+          base_info: {
+            resume_name: 'Vue确认后的候选人',
+            age: '36',
+            userid: 'vue-confirm-success',
+          },
+        },
+      ]
+      apiSnapshot.lastSearchAt = '2026-04-08T02:50:30.000Z'
+      ageLabel.textContent = '25-40岁'
+    })
+
+    findButtonBySelector(agePopper, '.custom-button')?.addEventListener('click', () => {
+      agePopper.innerHTML = `
+        <div class="content-wrapper default">
+          <div class="popover-custom-range">
+            <div class="form-container">
+              <form class="el-form form">
+                <div class="candidate-filter-range-input el-input el-input--small">
+                  <input type="number" placeholder="最低" class="el-input__inner">
+                </div>
+                <div class="candidate-filter-range-input el-input el-input--small">
+                  <input type="number" placeholder="最高" class="el-input__inner">
+                </div>
+                <button type="button" class="el-button form-action-button el-button--primary el-button--small">
+                  <span>确定</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      `
+
+      const confirmButton = findButtonByText(agePopper, '确定')
+      if (!confirmButton) {
+        throw new Error('Expected confirm button for Vue confirm regression test')
+      }
+
+      confirmButton.click = vi.fn()
+
+      const baseSelectCustomRangeVm = {
+        $options: { name: 'BaseSelectCustomRange' },
+        form: {
+          leftValue: null,
+          rightValue: null,
+        },
+        onClickOk,
+        $parent: null,
+      }
+      const elFormItemVm = {
+        $options: { name: 'ElFormItem' },
+        $parent: baseSelectCustomRangeVm,
+      }
+      const elButtonVm = {
+        $options: { name: 'ElButton' },
+        $parent: elFormItemVm,
+      }
+
+      Object.defineProperty(confirmButton, '__vue__', {
+        value: elButtonVm,
+        configurable: true,
+      })
+    })
+
+    await searchCtx.exports.autoApplyAgeFilterFromUrl()
+
+    expect(onClickOk).toHaveBeenCalledTimes(1)
+    expect(apiSnapshot.job51LastSearchRequest).toMatchObject({
+      age_from: 25,
+      age_to: 40,
+    })
+    expect(ageLabel.textContent).toBe('25-40岁')
+    expect(searchCtx.window.document.documentElement.getAttribute('data-tr-auto-age')).toBe('done')
+  }, 10000)
 
   it('keeps Job5156 native age automation failures as failed', async () => {
     const originalWindow = globalThis.window
