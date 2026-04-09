@@ -5,7 +5,7 @@ import { findProjectRoot } from "./db.js";
 
 export type KeywordMarket = "CN" | "MY";
 export type ConfigSourceOrigin = "system" | "workspace";
-export type WorkflowSeedCollectionSourceType = "job5156" | "seek";
+export type WorkflowSeedCollectionSourceType = "job5156" | "51job" | "seek";
 
 export interface CustomKeywordTag {
     id: string;
@@ -120,7 +120,7 @@ function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSee
     }
 
     const record = value as Record<string, unknown>;
-    const type = record.type === "job5156" || record.type === "seek" ? record.type : null;
+    const type = record.type === "job5156" || record.type === "51job" || record.type === "seek" ? record.type : null;
     if (!type) {
         return null;
     }

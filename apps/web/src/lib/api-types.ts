@@ -2900,7 +2900,7 @@ export interface paths {
                             selectedExperienceLevel?: "senior" | "mid" | "junior";
                             collectionSource?: {
                                 /** @enum {string} */
-                                type: "job5156" | "seek";
+                                type: "job5156" | "51job" | "seek";
                                 exactUrl?: string;
                             };
                             /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
@@ -2989,7 +2989,7 @@ export interface paths {
                                     selectedExperienceLevel?: "senior" | "mid" | "junior";
                                     collectionSource?: {
                                         /** @enum {string} */
-                                        type: "job5156" | "seek";
+                                        type: "job5156" | "51job" | "seek";
                                         exactUrl?: string;
                                     };
                                     /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
@@ -3116,7 +3116,7 @@ export interface paths {
                                     selectedExperienceLevel?: "senior" | "mid" | "junior";
                                     collectionSource?: {
                                         /** @enum {string} */
-                                        type: "job5156" | "seek";
+                                        type: "job5156" | "51job" | "seek";
                                         exactUrl?: string;
                                     };
                                     /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
@@ -3225,7 +3225,7 @@ export interface paths {
                             selectedExperienceLevel?: "senior" | "mid" | "junior";
                             collectionSource?: {
                                 /** @enum {string} */
-                                type: "job5156" | "seek";
+                                type: "job5156" | "51job" | "seek";
                                 exactUrl?: string;
                             };
                             /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
@@ -3317,7 +3317,7 @@ export interface paths {
                                     selectedExperienceLevel?: "senior" | "mid" | "junior";
                                     collectionSource?: {
                                         /** @enum {string} */
-                                        type: "job5156" | "seek";
+                                        type: "job5156" | "51job" | "seek";
                                         exactUrl?: string;
                                     };
                                     /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */

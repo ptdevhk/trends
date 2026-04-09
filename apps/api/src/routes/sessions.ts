@@ -28,7 +28,7 @@ const SessionFiltersSchema = ResumeFiltersSchema.extend({
   showBlocked: z.boolean().optional(),
 });
 const SearchSessionCollectionSourceSchema = z.object({
-  type: z.enum(["job5156", "seek"]),
+  type: z.enum(["job5156", "51job", "seek"]),
   exactUrl: z.string().optional(),
 });
 const SearchSessionStateSchema = z.object({

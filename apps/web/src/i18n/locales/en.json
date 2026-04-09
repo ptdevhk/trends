@@ -327,12 +327,6 @@
       "currentPosition": "Current Position"
     },
     "searchPage": {
-      "banner": {
-        "title": "Search-first quick starts now open in Search Profiles.",
-        "description": "Use this page for fast keyword review, or open Search Profiles to edit and run saved quick starts.",
-        "openProfiles": "Open Search Profiles",
-        "dismiss": "Dismiss migration banner"
-      },
       "hero": {
         "quickStart": "Quick Start",
         "hotTags": "Hot Tags",

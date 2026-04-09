@@ -83,7 +83,7 @@ function parseWorkflowCollectionSource(value: unknown): CustomKeywordWorkflowSee
     return null;
   }
 
-  const type = value.type === "job5156" || value.type === "seek" ? value.type : null;
+  const type = value.type === "job5156" || value.type === "51job" || value.type === "seek" ? value.type : null;
   if (!type) {
     return null;
   }

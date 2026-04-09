@@ -18,7 +18,7 @@ export type {
 
 export type KeywordMarket = 'CN' | 'MY'
 export type ConfigSourceOrigin = 'system' | 'workspace'
-export type WorkflowSeedCollectionSourceType = 'job5156' | 'seek'
+export type WorkflowSeedCollectionSourceType = 'job5156' | '51job' | 'seek'
 
 export interface AIStatus {
   enabled: boolean
@@ -472,7 +472,7 @@ function parseWorkflowSeedCollectionSource(value: unknown): CustomKeywordWorkflo
     return null
   }
 
-  if (value.type !== 'job5156' && value.type !== 'seek') {
+  if (value.type !== 'job5156' && value.type !== '51job' && value.type !== 'seek') {
     return null
   }
 
