@@ -137,33 +137,27 @@ export function normalizeCollectionSource(
       }
 }
 
-export function getLegacyCollectionSource(collectUrl: string | undefined): CollectionSource | undefined {
-  const exactUrl = normalizeSeekJobUrl(collectUrl)
-  if (!exactUrl || !isSeekRecommendedCandidatesUrl(exactUrl)) {
-    return undefined
-  }
-
-  return {
-    type: SEARCH_PROFILE_SOURCE_TYPES.seek,
-    exactUrl,
-  }
-}
-
 export function resolveCollectionSource(
   collectionSource: CollectionSource | null | undefined,
-  collectUrl?: string,
+  _collectUrl?: string,
 ): CollectionSource | undefined {
   const normalizedSource = normalizeCollectionSource(collectionSource)
-  const legacySource = getLegacyCollectionSource(collectUrl)
+  if (normalizedSource) {
+    return normalizedSource
+  }
 
-  if (normalizedSource?.type === SEARCH_PROFILE_SOURCE_TYPES.seek && !normalizedSource.exactUrl && legacySource?.exactUrl) {
-    return {
-      type: SEARCH_PROFILE_SOURCE_TYPES.seek,
-      exactUrl: legacySource.exactUrl,
+  // Legacy fallback: extract SEEK source from collectUrl only when no structured source exists.
+  if (_collectUrl) {
+    const exactUrl = normalizeSeekJobUrl(_collectUrl)
+    if (exactUrl && isSeekRecommendedCandidatesUrl(exactUrl)) {
+      return {
+        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
+        exactUrl,
+      }
     }
   }
 
-  return normalizedSource ?? legacySource
+  return undefined
 }
 
 export function stripCollectionSourceExactUrl(
