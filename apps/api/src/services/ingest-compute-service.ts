@@ -58,16 +58,6 @@ export interface IngestResult {
   skillsVersion: number;
 }
 
-export type TagEnvelopeSource = "rule" | "ai";
-
-export interface TagEnvelopeEntry {
-  tag: string;
-  source: TagEnvelopeSource;
-  confidence: number;
-  evidence: string[];
-  version: number;
-}
-
 export type TaggingProvenanceStage =
   | "industry_taxonomy"
   | "synonym_expansion"
@@ -78,7 +68,7 @@ export type TaggingProvenanceStage =
 
 export interface TaggingEnvelopeEntry {
   tag: string;
-  source: TagEnvelopeSource;
+  source: "rule" | "ai";
   confidence: number;
   version: number;
   provenance: {
@@ -488,7 +478,7 @@ export class IngestComputeService {
 
     // 6. Get skills version
     const skillsVersion = this.skillsKnowledgeService.getVersion();
-    const tagEnvelope = this.buildTagEnvelope(
+    const taggingEnvelope = this.buildTaggingEnvelope(
       industryTags,
       synonymHits,
       companyHits,
@@ -496,8 +486,8 @@ export class IngestComputeService {
       roleSignals,
       experienceLevel,
       skillsVersion,
+      computedAt,
     );
-    const taggingEnvelope = this.buildTaggingEnvelope(tagEnvelope, computedAt);
 
     return {
       resumeId,
@@ -764,12 +754,13 @@ export class IngestComputeService {
     return foundMatch;
   }
 
-  private upsertTagEnvelopeEntry(
-    entryMap: Map<string, TagEnvelopeEntry>,
+  private upsertTaggingEnvelopeEntry(
+    entryMap: Map<string, TaggingEnvelopeEntry>,
     tag: string,
     confidence: number,
     evidence: string[],
     version: number,
+    stage: TaggingProvenanceStage,
   ): void {
     const normalizedTag = tag.trim().toLowerCase();
     if (!normalizedTag) {
@@ -791,8 +782,12 @@ export class IngestComputeService {
         tag: normalizedTag,
         source: "rule",
         confidence: boundedConfidence,
-        evidence: normalizedEvidence,
         version,
+        provenance: {
+          stage,
+          generatedBy: "ingest-compute-service",
+          evidence: normalizedEvidence.length > 0 ? normalizedEvidence : [`tag:${normalizedTag}`],
+        },
       });
       return;
     }
@@ -804,13 +799,13 @@ export class IngestComputeService {
     existing.version = Math.max(existing.version, version);
     existing.source = "rule";
     for (const hint of normalizedEvidence) {
-      if (!existing.evidence.includes(hint)) {
-        existing.evidence.push(hint);
+      if (!existing.provenance.evidence.includes(hint)) {
+        existing.provenance.evidence.push(hint);
       }
     }
   }
 
-  private buildTagEnvelope(
+  private buildTaggingEnvelope(
     industryTags: string[],
     synonymHits: string[],
     companyHits: string[],
@@ -818,26 +813,29 @@ export class IngestComputeService {
     roleSignals: RoleSignalSummary[],
     experienceLevel: string,
     skillsVersion: number,
-  ): TagEnvelopeEntry[] {
-    const envelope = new Map<string, TagEnvelopeEntry>();
+    generatedAt: number,
+  ): TaggingEnvelope {
+    const envelope = new Map<string, TaggingEnvelopeEntry>();
 
     for (const tag of industryTags) {
-      this.upsertTagEnvelopeEntry(
+      this.upsertTaggingEnvelopeEntry(
         envelope,
         `industry:${tag}`,
         85,
         [`industryTag:${tag}`],
         skillsVersion,
+        "industry_taxonomy",
       );
     }
 
     for (const hit of synonymHits) {
-      this.upsertTagEnvelopeEntry(
+      this.upsertTaggingEnvelopeEntry(
         envelope,
         `synonym:${hit}`,
         70,
         [`synonymHit:${hit}`],
         skillsVersion,
+        "synonym_expansion",
       );
     }
 
@@ -847,12 +845,13 @@ export class IngestComputeService {
         .slice(0, 6)
         .flatMap((hit) => [`brandSource:${hit.source}`, `brandContext:${hit.context}`]);
 
-      this.upsertTagEnvelopeEntry(
+      this.upsertTaggingEnvelopeEntry(
         envelope,
         `company:${company}`,
         80,
         evidence.length > 0 ? evidence : [`companyHit:${company}`],
         skillsVersion,
+        "company_pattern_match",
       );
     }
 
@@ -878,12 +877,13 @@ export class IngestComputeService {
         ...Array.from(contexts).map((ctx) => `brandContext:${ctx}`),
       ];
 
-      this.upsertTagEnvelopeEntry(
+      this.upsertTaggingEnvelopeEntry(
         envelope,
         `brand:${brand}`,
         65,
         evidence,
         skillsVersion,
+        "company_pattern_match",
       );
     }
 
@@ -898,26 +898,28 @@ export class IngestComputeService {
         ...signal.matchedSignals.slice(0, 6).map((matched) => `signal:${matched}`),
       ];
 
-      this.upsertTagEnvelopeEntry(
+      this.upsertTaggingEnvelopeEntry(
         envelope,
         `role:${signal.type}`,
         confidence,
         evidence,
         skillsVersion,
+        "role_signal_aggregation",
       );
     }
 
     if (experienceLevel && experienceLevel !== "unknown") {
-      this.upsertTagEnvelopeEntry(
+      this.upsertTaggingEnvelopeEntry(
         envelope,
         `experience:${experienceLevel}`,
         75,
         [`experienceLevel:${experienceLevel}`],
         skillsVersion,
+        "experience_signal_detection",
       );
     }
 
-    return Array.from(envelope.values())
+    const entries = Array.from(envelope.values())
       .sort((left, right) => {
         if (right.confidence !== left.confidence) {
           return right.confidence - left.confidence;
@@ -925,26 +927,6 @@ export class IngestComputeService {
         return left.tag.localeCompare(right.tag);
       })
       .slice(0, 120);
-  }
-
-  private buildTaggingEnvelope(
-    tagEnvelope: TagEnvelopeEntry[],
-    generatedAt: number,
-  ): TaggingEnvelope {
-    const entries = tagEnvelope.map((entry) => {
-      const evidence = Array.from(new Set(entry.evidence.map((item) => item.trim()).filter((item) => item.length > 0)));
-      return {
-        tag: entry.tag,
-        source: entry.source,
-        confidence: entry.confidence,
-        version: entry.version,
-        provenance: {
-          stage: inferTaggingStage(entry.tag),
-          generatedBy: "ingest-compute-service" as const,
-          evidence: evidence.length > 0 ? evidence : [`tag:${entry.tag}`],
-        },
-      };
-    });
 
     return {
       schemaVersion: 1,

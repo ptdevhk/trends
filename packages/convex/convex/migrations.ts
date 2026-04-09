@@ -23,16 +23,26 @@ import { resolveResumeScanBatchSize } from "./resumes";
 
 const SEEK_HOST_SUFFIX = ".employer.seek.com";
 const SEEK_RECOMMENDED_PATH = "/candidates/recommended";
+const JOB51_EHIRE_HOST = "ehire.51job.com";
 
-function collectionSourceFromCollectUrl(collectUrl: string): { type: "seek"; exactUrl: string } | undefined {
+type CollectionSourceValue =
+    | { type: "seek"; exactUrl: string }
+    | { type: "51job"; exactUrl: string }
+    | { type: "job5156" };
+
+function collectionSourceFromCollectUrl(collectUrl: string): CollectionSourceValue | undefined {
     try {
         const url = new URL(collectUrl);
-        if (
-            url.protocol === "https:" &&
-            url.hostname.toLowerCase().endsWith(SEEK_HOST_SUFFIX) &&
-            url.pathname.replace(/\/+$/, "") === SEEK_RECOMMENDED_PATH
-        ) {
+        if (url.protocol !== "https:") return undefined;
+        const hostname = url.hostname.toLowerCase();
+        if (hostname.endsWith(SEEK_HOST_SUFFIX) && url.pathname.replace(/\/+$/, "") === SEEK_RECOMMENDED_PATH) {
             return { type: "seek", exactUrl: url.toString() };
+        }
+        if (hostname === JOB51_EHIRE_HOST) {
+            return { type: "51job", exactUrl: url.toString() };
+        }
+        if (hostname === JOB5156_HOST) {
+            return { type: "job5156" };
         }
     } catch {
         // Not a valid URL
