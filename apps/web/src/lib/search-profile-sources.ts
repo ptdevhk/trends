@@ -139,22 +139,10 @@ export function normalizeCollectionSource(
 
 export function resolveCollectionSource(
   collectionSource: CollectionSource | null | undefined,
-  _collectUrl?: string,
 ): CollectionSource | undefined {
   const normalizedSource = normalizeCollectionSource(collectionSource)
   if (normalizedSource) {
     return normalizedSource
-  }
-
-  // Legacy fallback: extract SEEK source from collectUrl only when no structured source exists.
-  if (_collectUrl) {
-    const exactUrl = normalizeSeekJobUrl(_collectUrl)
-    if (exactUrl && isSeekRecommendedCandidatesUrl(exactUrl)) {
-      return {
-        type: SEARCH_PROFILE_SOURCE_TYPES.seek,
-        exactUrl,
-      }
-    }
   }
 
   return undefined

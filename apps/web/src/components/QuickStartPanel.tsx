@@ -603,8 +603,8 @@ export function QuickStartPanel({
     [activeSessionId]
   )
   const currentCollectionSource = useMemo<CollectionSource>(
-    () => resolveCollectionSource(collectionSource, collectUrl) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 },
-    [collectionSource, collectUrl]
+    () => resolveCollectionSource(collectionSource) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 },
+    [collectionSource]
   )
   const currentMarket: KeywordMarket = currentCollectionSource.type === SEARCH_PROFILE_SOURCE_TYPES.seek ? 'MY' : 'CN'
   const generatedCollectUrl = useMemo(

@@ -167,11 +167,8 @@ describe('search-profile-sources', () => {
     expect(url.searchParams.get('tr_max_age')).toBe('40')
   })
 
-  it('resolves collection source from legacy seek collectUrl when no structured source exists', () => {
-    expect(resolveCollectionSource(undefined, 'https://my.employer.seek.com/candidates/recommended?jobId=9&pageNumber=1')).toEqual({
-      type: SEARCH_PROFILE_SOURCE_TYPES.seek,
-      exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=9&pageNumber=1',
-    })
+  it('returns undefined when no structured collection source exists', () => {
+    expect(resolveCollectionSource(undefined)).toBeUndefined()
   })
 
   it('builds launch URLs from an explicit collection source', () => {

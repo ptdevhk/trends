@@ -502,7 +502,6 @@ function toRecentSearchItems(
     jobDescriptionId: normalizeOptionalString(record.jobDescriptionId),
     collectionSource: resolveCollectionSource(
       record.collectionSource,
-      record.collectUrl,
     ),
     collectUrl: normalizeOptionalString(record.collectUrl),
     filters: record.filters ?? {},

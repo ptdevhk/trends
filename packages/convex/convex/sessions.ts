@@ -40,7 +40,6 @@ function normalizeStringList(values: string[] | undefined): string[] {
 
 function normalizeCollectionSource(
     input: CollectionSource | undefined,
-    legacyCollectUrl?: string,
 ): CollectionSource | undefined {
     const type = input?.type;
     if (type === "job5156" || type === "51job") {
@@ -48,13 +47,13 @@ function normalizeCollectionSource(
     }
 
     const exactUrl = normalizeOptionalString(
-        (type === "seek" ? input?.exactUrl : undefined) ?? legacyCollectUrl,
+        type === "seek" ? input?.exactUrl : undefined,
     );
     if (type === "seek") {
         return exactUrl ? { type, exactUrl } : { type };
     }
 
-    return exactUrl ? { type: "seek", exactUrl } : undefined;
+    return undefined;
 }
 
 function belongsToWorkspace(
@@ -212,7 +211,7 @@ export const saveSession = mutation({
                 location: args.location,
                 keywords: args.keywords,
                 jobDescriptionId: args.jobDescriptionId,
-                collectionSource: normalizeCollectionSource(args.collectionSource, args.collectUrl),
+                collectionSource: normalizeCollectionSource(args.collectionSource),
                 collectUrl: normalizeOptionalString(args.collectUrl),
                 filters: args.filters,
             },
@@ -379,7 +378,7 @@ export const saveSearchHistory = mutation({
         const keywords = normalizeStringList(args.keywords);
         const title = normalizeOptionalString(args.title) ?? buildHistoryTitle(location, keywords);
         const jobDescriptionId = normalizeOptionalString(args.jobDescriptionId);
-        const collectionSource = normalizeCollectionSource(args.collectionSource, args.collectUrl);
+        const collectionSource = normalizeCollectionSource(args.collectionSource);
         const collectUrl = normalizeOptionalString(args.collectUrl);
         const selectedTags = normalizeStringList(args.selectedTags);
         const selectedCompanies = normalizeStringList(args.selectedCompanies);

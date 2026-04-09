@@ -21,6 +21,84 @@ import { parseAgeFromContent } from "./lib/age";
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 import { resolveResumeScanBatchSize } from "./resumes";
 
+const SEEK_HOST_SUFFIX = ".employer.seek.com";
+const SEEK_RECOMMENDED_PATH = "/candidates/recommended";
+
+function collectionSourceFromCollectUrl(collectUrl: string): { type: "seek"; exactUrl: string } | undefined {
+    try {
+        const url = new URL(collectUrl);
+        if (
+            url.protocol === "https:" &&
+            url.hostname.toLowerCase().endsWith(SEEK_HOST_SUFFIX) &&
+            url.pathname.replace(/\/+$/, "") === SEEK_RECOMMENDED_PATH
+        ) {
+            return { type: "seek", exactUrl: url.toString() };
+        }
+    } catch {
+        // Not a valid URL
+    }
+    return undefined;
+}
+
+export const backfillCollectionSource = mutation({
+    args: {
+        table: v.union(v.literal("screening_sessions"), v.literal("search_history")),
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const batch = resolveResumeScanBatchSize(args.batchSize);
+        const records = await ctx.db
+            .query(args.table)
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: batch,
+            });
+
+        let count = 0;
+        for (const record of records.page) {
+            const config = args.table === "screening_sessions"
+                ? (record as Doc<"screening_sessions">).config
+                : null;
+
+            const existingSource = config
+                ? config.collectionSource
+                : (record as Doc<"search_history">).collectionSource;
+
+            if (existingSource) continue;
+
+            const collectUrl = config
+                ? config.collectUrl
+                : (record as Doc<"search_history">).collectUrl;
+
+            if (!collectUrl) continue;
+
+            const source = collectionSourceFromCollectUrl(collectUrl);
+            if (!source) continue;
+
+            if (config) {
+                await ctx.db.patch(record._id, {
+                    config: { ...config, collectionSource: source },
+                });
+            } else {
+                await ctx.db.patch(record._id, {
+                    collectionSource: source,
+                } as Partial<Doc<"search_history">>);
+            }
+            count++;
+        }
+
+        return {
+            table: args.table,
+            scanned: records.page.length,
+            updated: count,
+            hasMore: !records.isDone,
+            cursor: records.isDone ? null : records.continueCursor,
+        };
+    },
+});
+
 const JOB5156_HOST = "hr.job5156.com";
 const PROFILE_URL_CONTENT_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
 const MANUAL_51JOB_SOURCE = "51job-manual";

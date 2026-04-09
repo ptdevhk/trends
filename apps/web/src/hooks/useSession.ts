@@ -266,7 +266,7 @@ export function useSession(loadSearchHistory = false) {
       setLocation(activeSession.config.location)
       setKeywords(activeSession.config.keywords)
       setJobDescriptionId(activeSession.config.jobDescriptionId)
-      setCollectionSource(resolveCollectionSource(activeSession.config.collectionSource, activeSession.config.collectUrl))
+      setCollectionSource(resolveCollectionSource(activeSession.config.collectionSource))
       setCollectUrl(activeSession.config.collectUrl)
       setFilters(activeSession.config.filters || {})
       setHasHydratedInitialState(true)
@@ -399,7 +399,7 @@ export function useSession(loadSearchHistory = false) {
       location: record.location,
       keywords: record.keywords,
       jobDescriptionId: record.jobDescriptionId,
-      collectionSource: resolveCollectionSource(record.collectionSource, record.collectUrl),
+      collectionSource: resolveCollectionSource(record.collectionSource),
       collectUrl: normalizeOptionalString(record.collectUrl),
       filters: (record.filters ?? {}) as Partial<ResumeFilters>,
       selectedTags: normalizeStringList(record.selectedTags),
