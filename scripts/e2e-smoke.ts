@@ -121,7 +121,7 @@ async function runSeekMyRecommendedLiveSmoke(page: Page, recommendedUrl: string)
 async function runCollectUrlKeywordModeTest(page: Page) {
     console.log('Testing Quick Start Collect URL keyword concat mode...');
     await page.goto(
-        `${DEFAULT_OPTIONS.baseUrl}/dev/resumes?location=${encodeURIComponent('东莞')}&keyword=${encodeURIComponent('CNC 车床 销售 STAR')}`
+        `${DEFAULT_OPTIONS.baseUrl}/dev/resumes?location=${encodeURIComponent('东莞')}&q=${encodeURIComponent('CNC 车床 销售 STAR')}`
     );
 
     await page.evaluate(() => {

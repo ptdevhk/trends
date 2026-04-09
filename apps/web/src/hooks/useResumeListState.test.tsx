@@ -1379,8 +1379,8 @@ describe('useResumeListState role filter regression', () => {
   })
 
   it('prefers explicit URL params over sid hydration when both are present', async () => {
-    window.history.replaceState({}, '', '/dev/resumes?sid=shared-session-1&location=Dongguan&keyword=CNC')
-    mockState.locationSearch = '?sid=shared-session-1&location=Dongguan&keyword=CNC'
+    window.history.replaceState({}, '', '/dev/resumes?sid=shared-session-1&location=Dongguan&q=CNC')
+    mockState.locationSearch = '?sid=shared-session-1&location=Dongguan&q=CNC'
     mockState.urlHasParams = true
     mockState.urlHasKeywordParam = true
     mockState.urlParsedState = {
@@ -1725,7 +1725,7 @@ describe('useResumeListState role filter regression', () => {
   })
 
   it('clears query state when navigation requests a resume home reset', async () => {
-    mockState.locationSearch = '?location=Kuala+Lumpur+MY&keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22'
+    mockState.locationSearch = '?location=Kuala+Lumpur+MY&q=%22Sales+Engineer%22+OR+%22Sales+Manager%22'
     mockState.locationState = RESUME_HOME_RESET_STATE
 
     renderHook(() => useResumeListState())

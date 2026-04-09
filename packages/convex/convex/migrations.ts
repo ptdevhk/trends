@@ -23,7 +23,10 @@ import { resolveResumeScanBatchSize } from "./resumes";
 
 const SEEK_HOST_SUFFIX = ".employer.seek.com";
 const SEEK_RECOMMENDED_PATH = "/candidates/recommended";
+const JOB5156_HOST = "hr.job5156.com";
 const JOB51_EHIRE_HOST = "ehire.51job.com";
+const MANUAL_51JOB_SOURCE = "51job-manual";
+const PROFILE_URL_CONTENT_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
 
 type CollectionSourceValue =
     | { type: "seek"; exactUrl: string }
@@ -108,10 +111,6 @@ export const backfillCollectionSource = mutation({
         };
     },
 });
-
-const JOB5156_HOST = "hr.job5156.com";
-const PROFILE_URL_CONTENT_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
-const MANUAL_51JOB_SOURCE = "51job-manual";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
@@ -1324,7 +1323,7 @@ export const backfillTaggingEnvelope = mutation({
             if (!resume.ingestData) continue;
             if (resume.ingestData.taggingEnvelope) continue;
 
-            const tagEnvelope = resume.ingestData.tagEnvelope;
+            const tagEnvelope = (resume.ingestData as Record<string, unknown>).tagEnvelope;
             if (!Array.isArray(tagEnvelope) || tagEnvelope.length === 0) continue;
 
             const computedAt = resume.ingestData.computedAt ?? Date.now();

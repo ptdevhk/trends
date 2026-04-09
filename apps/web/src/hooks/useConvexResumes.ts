@@ -74,13 +74,6 @@ export type ConvexIngestData = {
     }>
     verifyIn: string
   }>
-  tagEnvelope?: Array<{
-    tag: string
-    source: string
-    confidence: number
-    evidence: string[]
-    version: number
-  }> // Read-only bridge: consumed by parseLegacyTaggingEnvelope for pre-taggingEnvelope data
   taggingEnvelope?: {
     schemaVersion: number
     generatedAt: number
@@ -455,58 +448,6 @@ function parseBrandHits(value: unknown): ConvexIngestData['brandHits'] {
     .filter((item): item is NonNullable<typeof item> => item !== null)
 }
 
-function parseTagEnvelope(value: unknown): ConvexIngestData['tagEnvelope'] {
-  if (!Array.isArray(value)) {
-    return undefined
-  }
-
-  const parsed = value
-    .map((item) => {
-      if (!isRecord(item)) {
-        return null
-      }
-
-      const tag = toStringValue(item.tag).trim().toLowerCase()
-      const source = toStringValue(item.source).trim().toLowerCase()
-      const confidence = toNumber(item.confidence)
-      const version = toNumber(item.version)
-
-      if (!tag || !source || confidence === null || version === null) {
-        return null
-      }
-
-      return {
-        tag,
-        source,
-        confidence,
-        evidence: toStringArray(item.evidence),
-        version,
-      }
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null)
-
-  return parsed.length > 0 ? parsed : undefined
-}
-
-function inferTaggingStage(tag: string): string {
-  if (tag.startsWith('industry:')) {
-    return 'industry_taxonomy'
-  }
-  if (tag.startsWith('synonym:')) {
-    return 'synonym_expansion'
-  }
-  if (tag.startsWith('company:')) {
-    return 'company_pattern_match'
-  }
-  if (tag.startsWith('role:')) {
-    return 'role_signal_aggregation'
-  }
-  if (tag.startsWith('experience:')) {
-    return 'experience_signal_detection'
-  }
-  return 'derived'
-}
-
 function parseTaggingEnvelope(value: unknown): ConvexIngestData['taggingEnvelope'] {
   if (!isRecord(value)) {
     return undefined
@@ -561,31 +502,6 @@ function parseTaggingEnvelope(value: unknown): ConvexIngestData['taggingEnvelope
   }
 }
 
-function parseLegacyTaggingEnvelope(
-  tagEnvelope: ConvexIngestData['tagEnvelope'],
-  generatedAt: number
-): ConvexIngestData['taggingEnvelope'] {
-  if (!tagEnvelope || tagEnvelope.length === 0) {
-    return undefined
-  }
-
-  return {
-    schemaVersion: 1,
-    generatedAt,
-    entries: tagEnvelope.map((entry) => ({
-      tag: entry.tag,
-      source: entry.source,
-      confidence: entry.confidence,
-      version: entry.version,
-      provenance: {
-        stage: inferTaggingStage(entry.tag),
-        generatedBy: 'legacy-tag-envelope-bridge',
-        evidence: entry.evidence,
-      },
-    })),
-  }
-}
-
 function parseAnalysesMap(value: unknown): Record<string, ConvexResumeAnalysis> | undefined {
   if (!isRecord(value)) {
     return undefined
@@ -613,9 +529,7 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
     return undefined
   }
 
-  const tagEnvelope = parseTagEnvelope(value.tagEnvelope)
   const taggingEnvelope = parseTaggingEnvelope(value.taggingEnvelope)
-    ?? parseLegacyTaggingEnvelope(tagEnvelope, computedAt)
 
   return {
     evidenceText: toStringValue(value.evidenceText) || undefined,
