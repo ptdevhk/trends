@@ -324,8 +324,7 @@ describe('System settings routes', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Landing quick starts')).toBeInTheDocument()
-      expect(screen.getByText('Legacy workflow-seed config remains for compatibility only. The search-first landing page now reads its quick starts from Search Profiles instead.')).toBeInTheDocument()
-      expect(screen.getByText('Search Profiles is now the single page for landing quick starts and other profiles. The China Job5156 and Malaysia SEEK starter profiles are materialized into workspace-managed storage there, so you can edit them directly.')).toBeInTheDocument()
+      expect(screen.getByText('Search-first landing quick starts now live in the same Search Profiles workspace registry as every other profile.')).toBeInTheDocument()
     })
 
     expect(screen.getByRole('link', { name: 'Open Search Profiles' })).toHaveAttribute('href', '/dev/system/profiles')

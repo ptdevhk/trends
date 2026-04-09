@@ -55,7 +55,7 @@ function shouldPersistShareLink(currentUrl: URL, state: ResumeSearchShareState):
     return true
   }
 
-  if (state.collectionSource || state.collectUrl) {
+  if (state.collectionSource) {
     return true
   }
 

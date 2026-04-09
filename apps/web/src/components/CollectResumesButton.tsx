@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -31,8 +31,6 @@ interface CollectResumesButtonProps {
   keywords: string[]
   collectionSource?: CollectionSource
   onCollectionSourceChange?: (source: CollectionSource) => void
-  /** Preserved seek exactUrl for restoring when switching back to seek source */
-  collectUrl?: string
   collectLimit?: number
   minAge?: number
   maxAge?: number
@@ -61,7 +59,6 @@ export function CollectResumesButton({
   keywords,
   collectionSource,
   onCollectionSourceChange,
-  collectUrl,
   collectLimit,
   minAge,
   maxAge,
@@ -92,16 +89,21 @@ export function CollectResumesButton({
   )
   const selectedSourceType = normalizedSelection.type
   const isJob51Selected = selectedSourceType === SEARCH_PROFILE_SOURCE_TYPES.job51
+  const seekExactUrlRef = useRef<string | undefined>(undefined)
   const seekSource = useMemo(() => {
+    const currentSeekExactUrl = normalizedCollectionSource?.type === SEARCH_PROFILE_SOURCE_TYPES.seek
+      ? normalizedCollectionSource.exactUrl
+      : undefined
+    if (currentSeekExactUrl) {
+      seekExactUrlRef.current = currentSeekExactUrl
+    }
     return resolveCollectionSource(
       {
         type: SEARCH_PROFILE_SOURCE_TYPES.seek,
-        exactUrl: normalizedCollectionSource?.type === SEARCH_PROFILE_SOURCE_TYPES.seek
-          ? normalizedCollectionSource.exactUrl
-          : collectUrl || undefined,
+        exactUrl: currentSeekExactUrl ?? seekExactUrlRef.current,
       },
     )
-  }, [collectUrl, normalizedCollectionSource])
+  }, [normalizedCollectionSource])
 
   const disabled = selectedSourceType === SEARCH_PROFILE_SOURCE_TYPES.seek
     ? !seekSource?.exactUrl && normalizedKeywords.length === 0

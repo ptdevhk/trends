@@ -52,7 +52,6 @@ export function ResumeList() {
     sessionLocation,
     sessionKeywords,
     sessionCollectionSource,
-    sessionCollectUrl,
     jobDescriptionId,
     filters,
     reviewedIdsSet,
@@ -269,7 +268,6 @@ export function ResumeList() {
         defaultLocation={sessionLocation}
         defaultKeywords={sessionKeywords}
         defaultCollectionSource={sessionCollectionSource}
-        defaultCollectUrl={sessionCollectUrl}
         quickFilters={{
           minRoleYears: filters.minRoleYears,
           roleFilterType: filters.roleFilterType,
@@ -338,7 +336,6 @@ export function ResumeList() {
                 keywords={sessionKeywords}
                 collectionSource={sessionCollectionSource}
                 onCollectionSourceChange={handleCollectionSourceChange}
-                collectUrl={sessionCollectUrl}
                 minAge={filters.minAge}
                 maxAge={filters.maxAge}
               />

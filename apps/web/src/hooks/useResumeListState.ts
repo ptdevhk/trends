@@ -516,8 +516,6 @@ export function useResumeListState(loadSearchHistory = false) {
     setJobDescriptionId,
     collectionSource: sessionCollectionSource,
     setCollectionSource: setSessionCollectionSource,
-    collectUrl: sessionCollectUrl,
-    setCollectUrl: setSessionCollectUrl,
     filters,
     setFilters,
     reviewedIdsSet,
@@ -915,7 +913,6 @@ export function useResumeListState(loadSearchHistory = false) {
       keywords: activeParsedUrlState.keywords,
       jobDescriptionId: jobDescriptionIdForExternalState,
       collectionSource: null,
-      collectUrl: '',
       filters: activeParsedUrlState.filters,
     })
     setSelectedTags(activeParsedUrlState.selectedTags)
@@ -996,7 +993,6 @@ export function useResumeListState(loadSearchHistory = false) {
       keywords: activeParsedUrlState.keywords,
       jobDescriptionId: jobDescriptionIdForExternalState,
       collectionSource: null,
-      collectUrl: '',
       filters: activeParsedUrlState.filters,
     })
     setSelectedTags((current) =>
@@ -1095,7 +1091,7 @@ export function useResumeListState(loadSearchHistory = false) {
           keywords: sharedSearchState.keywords,
           jobDescriptionId: sharedSearchState.jobDescriptionId ?? '',
           collectionSource: sharedSearchState.collectionSource ?? null,
-          collectUrl: sharedSearchState.collectUrl ?? '',
+
           filters: sharedSearchState.filters ?? {},
         })
         setAppliedSearchHistoryId(undefined)
@@ -1754,7 +1750,6 @@ export function useResumeListState(loadSearchHistory = false) {
       keywords: [],
       jobDescriptionId: '',
       collectionSource: null,
-      collectUrl: '',
       filters: {},
     })
     setSelectedTags([])
@@ -2060,7 +2055,6 @@ export function useResumeListState(loadSearchHistory = false) {
       requiredKeywords?: string[]
       jobDescriptionId?: string
       collectionSource?: CollectionSource | null
-      collectUrl?: string
       filters?: Partial<ResumeFilters>
     }, applyDuringUrlHydration?: boolean) => {
       if (shouldBlockQuickStartSync && !applyDuringUrlHydration) {
@@ -2094,10 +2088,6 @@ export function useResumeListState(loadSearchHistory = false) {
           ? current
           : (config.collectionSource ?? undefined)
       })
-      setSessionCollectUrl((current) => {
-        const nextCollectUrl = normalizeOptionalString(config.collectUrl)
-        return current === nextCollectUrl ? current : nextCollectUrl
-      })
       setFilters((current) => ({
         ...current,
         ...(config.filters ?? {}),
@@ -2109,7 +2099,7 @@ export function useResumeListState(loadSearchHistory = false) {
           : [],
       }))
     },
-    [setFilters, setJobDescriptionId, setRequiredKeywords, setSessionCollectionSource, setSessionCollectUrl, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
+    [setFilters, setJobDescriptionId, setRequiredKeywords, setSessionCollectionSource, setSessionKeywords, setSessionLocation, shouldBlockQuickStartSync]
   )
 
   const handleQuickConstraintApply = useCallback(
@@ -2135,11 +2125,7 @@ export function useResumeListState(loadSearchHistory = false) {
         ? current
         : nextSource
     ))
-    // Clear collectUrl when switching to non-Seek sources to prevent stale URL interference
-    if (nextSource.type !== 'seek') {
-      setSessionCollectUrl(undefined)
-    }
-  }, [setSessionCollectUrl, setSessionCollectionSource])
+  }, [setSessionCollectionSource])
 
   const handleSaveCurrentSearch = useCallback(async () => {
     const title = buildSearchHistoryTitle(sessionLocation, sessionKeywords, jobDescriptionId)
@@ -2149,7 +2135,6 @@ export function useResumeListState(loadSearchHistory = false) {
       keywords: sessionKeywords,
       jobDescriptionId,
       collectionSource: sessionCollectionSource,
-      collectUrl: sessionCollectUrl,
       filters,
       selectedTags,
       selectedCompanies,
@@ -2162,7 +2147,7 @@ export function useResumeListState(loadSearchHistory = false) {
     } else {
       toast.error(t('quickStart.history.saveError', 'Failed to save search history'))
     }
-  }, [filteredConvexResumes, filters, jobDescriptionId, saveSearchHistory, selectedCompanies, selectedExperienceLevel, selectedTags, sessionCollectUrl, sessionCollectionSource, sessionKeywords, sessionLocation, t])
+  }, [filteredConvexResumes, filters, jobDescriptionId, saveSearchHistory, selectedCompanies, selectedExperienceLevel, selectedTags, sessionCollectionSource, sessionKeywords, sessionLocation, t])
 
   const handleApplySearchHistory = useCallback(async (entry: SearchHistoryItem) => {
     skipNextUrlSyncRef.current = true
@@ -2172,7 +2157,6 @@ export function useResumeListState(loadSearchHistory = false) {
       keywords: entry.keywords,
       jobDescriptionId: entry.jobDescriptionId ?? '',
       collectionSource: entry.collectionSource ?? null,
-      collectUrl: entry.collectUrl ?? '',
       filters: entry.filters,
     })
     setAppliedSearchHistoryId(entry.id)
@@ -2196,7 +2180,6 @@ export function useResumeListState(loadSearchHistory = false) {
       requiredKeywords,
       jobDescriptionId: normalizeOptionalString(jobDescriptionId),
       collectionSource: sessionCollectionSource ?? null,
-      collectUrl: normalizeOptionalString(sessionCollectUrl),
       filters: normalizeUrlFilters(filters),
       selectedTags,
       selectedCompanies,
@@ -2211,7 +2194,6 @@ export function useResumeListState(loadSearchHistory = false) {
       selectedCompanies,
       selectedExperienceLevel,
       selectedTags,
-      sessionCollectUrl,
       sessionCollectionSource,
       sessionKeywords,
       sessionLocation,
@@ -2224,10 +2206,9 @@ export function useResumeListState(loadSearchHistory = false) {
       normalizeOptionalString(sessionLocation)
       || sessionKeywords.length > 0
       || normalizeOptionalString(jobDescriptionId)
-      || normalizeOptionalString(sessionCollectUrl)
       || sessionCollectionSource
     ),
-    [jobDescriptionId, sessionCollectUrl, sessionCollectionSource, sessionKeywords, sessionLocation]
+    [jobDescriptionId, sessionCollectionSource, sessionKeywords, sessionLocation]
   )
   useEffect(() => {
     if (!copiedShareSessionId || !copiedShareScopeSignature) {
@@ -2330,7 +2311,6 @@ export function useResumeListState(loadSearchHistory = false) {
       requiredKeywords,
       jobDescriptionId: normalizeOptionalString(jobDescriptionId),
       collectionSource: sessionCollectionSource,
-      collectUrl: normalizeOptionalString(sessionCollectUrl),
       filters: {
         ...filters,
         locations: locationFilters,
@@ -2348,7 +2328,6 @@ export function useResumeListState(loadSearchHistory = false) {
     selectedCompanies,
     selectedExperienceLevel,
     selectedTags,
-    sessionCollectUrl,
     sessionCollectionSource,
     sessionKeywords,
     sessionLocation,
@@ -2358,7 +2337,6 @@ export function useResumeListState(loadSearchHistory = false) {
     sessionLocation,
     sessionKeywords,
     sessionCollectionSource,
-    sessionCollectUrl,
     jobDescriptionId,
     appliedSearchHistoryId,
     filters,

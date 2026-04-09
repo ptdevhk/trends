@@ -415,7 +415,6 @@ describe('QuickStartPanel quick-filter display', () => {
         collectionSource: {
           type: 'job5156',
         },
-        collectUrl: undefined,
       })
     })
   })
@@ -555,9 +554,6 @@ describe('QuickStartPanel quick-filter display', () => {
           && Array.isArray(payload?.keywords)
           && payload.keywords.join(' ') === 'CNC 销售'
           && payload.collectionSource?.type === 'job5156'
-          && typeof payload.collectUrl === 'string'
-          && payload.collectUrl.includes('hr.job5156.com/search')
-          && !payload.collectUrl.includes('location=')
         )
       ).toBe(true)
     })
@@ -670,7 +666,7 @@ describe('QuickStartPanel quick-filter display', () => {
     })
   })
 
-  it('promotes the matched SEEK profile jobUrl into collectUrl before manual apply', async () => {
+  it('promotes the matched SEEK profile jobUrl into collectionSource before manual apply', async () => {
     const onApplyConfig = vi.fn()
 
     postMock.mockResolvedValue({
@@ -723,7 +719,6 @@ describe('QuickStartPanel quick-filter display', () => {
           type: 'seek',
           exactUrl: SEEK_MALAYSIA_JOB_URL,
         },
-        collectUrl: SEEK_MALAYSIA_JOB_URL,
       })
     })
   })
@@ -762,7 +757,6 @@ describe('QuickStartPanel quick-filter display', () => {
           type: 'seek',
           exactUrl: SEEK_MALAYSIA_COLLECT_URL,
         },
-        collectUrl: SEEK_MALAYSIA_COLLECT_URL,
       })
     })
   })

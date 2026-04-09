@@ -76,7 +76,6 @@ type SearchHistoryRecord = {
   keywords: string[]
   jobDescriptionId?: string
   collectionSource?: SearchHistoryItem['collectionSource']
-  collectUrl?: string
   filters?: Partial<ResumeFilters>
   selectedTags?: string[]
   selectedCompanies?: string[]
@@ -503,7 +502,6 @@ function toRecentSearchItems(
     collectionSource: resolveCollectionSource(
       record.collectionSource,
     ),
-    collectUrl: normalizeOptionalString(record.collectUrl),
     filters: record.filters ?? {},
     selectedTags: normalizeStringList(record.selectedTags),
     selectedCompanies: normalizeStringList(record.selectedCompanies),

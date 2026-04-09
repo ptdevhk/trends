@@ -28,7 +28,6 @@ function Harness({
       keywords={['Sales Engineer', 'Sales Manager']}
       collectionSource={collectionSource}
       onCollectionSourceChange={setCollectionSource}
-      collectUrl="https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1"
       minAge={28}
       maxAge={40}
     />

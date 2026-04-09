@@ -39,7 +39,6 @@ const SearchSessionStateSchema = z.object({
   selectedCompanies: z.array(z.string()).optional().openapi({ example: ["fanuc"] }),
   selectedExperienceLevel: z.enum(["senior", "mid", "junior"]).optional().openapi({ example: "mid" }),
   collectionSource: SearchSessionCollectionSourceSchema.optional(),
-  collectUrl: z.string().optional().openapi({ example: "https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1" }),
   filters: SessionFiltersSchema.optional(),
   referenceNote: z.string().optional().openapi({ example: "Priority shortlist for HR sync" }),
 });
