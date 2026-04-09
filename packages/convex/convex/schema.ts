@@ -32,7 +32,6 @@ export default defineSchema({
             deduped: v.number(),
             identityDeduped: v.optional(v.number()),
             identityMatched: v.optional(v.number()),
-            legacyExternalIdMatched: v.optional(v.number()),
             inserted: v.number(),
             updated: v.number(),
             unchanged: v.number(),

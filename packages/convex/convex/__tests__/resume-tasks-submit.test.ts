@@ -30,7 +30,6 @@ const submitResumesHandler = (submitResumes as unknown as ConvexHandler<
     deduped: number
     identityDeduped: number
     identityMatched: number
-    legacyExternalIdMatched: number
     inserted: number
     updated: number
     unchanged: number
@@ -147,7 +146,6 @@ describe("submitResumes", () => {
       deduped: 0,
       identityDeduped: 0,
       identityMatched: 0,
-      legacyExternalIdMatched: 0,
       inserted: 1,
       updated: 0,
       unchanged: 0,
