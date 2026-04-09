@@ -1295,6 +1295,63 @@ export const auditDuplicateResumesByIdentity = mutation({
     },
 });
 
+export const backfillTaggingEnvelope = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+        let updated = 0;
+
+        for (const resume of resumes.page) {
+            if (!resume.ingestData) continue;
+            if (resume.ingestData.taggingEnvelope) continue;
+
+            const tagEnvelope = resume.ingestData.tagEnvelope;
+            if (!Array.isArray(tagEnvelope) || tagEnvelope.length === 0) continue;
+
+            const computedAt = resume.ingestData.computedAt ?? Date.now();
+            const taggingEnvelope = {
+                schemaVersion: 1,
+                generatedAt: computedAt,
+                entries: tagEnvelope.map((entry) => ({
+                    tag: entry.tag,
+                    source: entry.source,
+                    confidence: entry.confidence,
+                    version: entry.version,
+                    provenance: {
+                        stage: entry.tag.startsWith("industry:") ? "industry_taxonomy" : entry.tag.startsWith("role:") ? "role_signal_aggregation" : "unknown",
+                        generatedBy: "migration_backfill",
+                        evidence: entry.evidence ?? [],
+                    },
+                })),
+            };
+
+            await ctx.db.patch(resume._id, {
+                ingestData: {
+                    ...resume.ingestData,
+                    taggingEnvelope,
+                },
+            });
+            updated += 1;
+        }
+
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes: updated,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});
+
 export const mergeDuplicateResumesByIdentity = mutation({
     args: {
         dryRun: v.boolean(),

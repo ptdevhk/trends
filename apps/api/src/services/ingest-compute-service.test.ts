@@ -493,36 +493,23 @@ describe("IngestComputeService", () => {
     expect(salesRole?.years).toBeGreaterThan(3);
   });
 
-  it("should build tag envelope with confidence and provenance", () => {
+  it("should build tagging envelope with confidence and provenance", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
-    const industryTag = result.tagEnvelope.find((item) => item.tag === "industry:cnc");
-    const roleTag = result.tagEnvelope.find((item) => item.tag === "role:sales");
-    const companyTag = result.tagEnvelope.find((item) => item.tag === "company:star");
     const taggingIndustryTag = result.taggingEnvelope.entries.find((item) => item.tag === "industry:cnc");
     const taggingRoleTag = result.taggingEnvelope.entries.find((item) => item.tag === "role:sales");
     const taggingCompanyTag = result.taggingEnvelope.entries.find((item) => item.tag === "company:star");
 
-    expect(Array.isArray(result.tagEnvelope)).toBe(true);
-    expect(result.tagEnvelope.length).toBeGreaterThan(0);
     expect(result.taggingEnvelope.schemaVersion).toBe(1);
     expect(result.taggingEnvelope.generatedAt).toBeGreaterThan(0);
-    expect(result.taggingEnvelope.entries.length).toBe(result.tagEnvelope.length);
-
-    expect(industryTag).toBeDefined();
-    expect(industryTag?.source).toBe("rule");
-    expect(industryTag?.confidence).toBeGreaterThan(0);
-    expect(industryTag?.version).toBe(42);
-
-    expect(roleTag).toBeDefined();
-    expect(roleTag?.source).toBe("rule");
-    expect(roleTag?.evidence).toEqual(expect.arrayContaining(["roleType:sales"]));
-
-    expect(companyTag).toBeUndefined();
+    expect(result.taggingEnvelope.entries.length).toBeGreaterThan(0);
 
     expect(taggingIndustryTag?.provenance.stage).toBe("industry_taxonomy");
     expect(taggingIndustryTag?.provenance.generatedBy).toBe("ingest-compute-service");
+    expect(taggingIndustryTag?.confidence).toBeGreaterThan(0);
+    expect(taggingIndustryTag?.version).toBe(42);
     expect(taggingRoleTag?.provenance.stage).toBe("role_signal_aggregation");
+    expect(taggingRoleTag?.provenance.generatedBy).toBe("ingest-compute-service");
     expect(taggingCompanyTag).toBeUndefined();
   });
 

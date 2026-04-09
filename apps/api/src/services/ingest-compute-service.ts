@@ -49,7 +49,6 @@ export interface IngestResult {
   industryDbV2Raw: number;
   industryDbV2RawComponents: IndustryDbV2RawComponents;
   roleSignals: RoleSignalSummary[];
-  tagEnvelope: TagEnvelopeEntry[];
   taggingEnvelope: TaggingEnvelope;
   companyPatternAliasTokens: string;
   ruleScores: Record<string, number>;  // jdId → score (0-100)
@@ -510,7 +509,6 @@ export class IngestComputeService {
       industryDbV2Raw,
       industryDbV2RawComponents,
       roleSignals,
-      tagEnvelope,
       taggingEnvelope,
       companyPatternAliasTokens,
       ruleScores,
