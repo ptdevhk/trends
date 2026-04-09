@@ -21,10 +21,7 @@ import {
   ResumeSubmitSummarySchema,
   ResumeExportBinaryResponseSchema,
   ResumeExportCanonicalRequestSchema,
-  ResumeExportLegacyRequestSchema,
-  ResumeExportLegacyResumeSchema,
   ResumeExportResolvedResumeSchema,
-  ResumeExportRequestSchema,
   ReviewPacketExportRequestSchema,
   ReviewPacketFeedbackImportFormSchema,
   ReviewPacketFeedbackImportRequestSchema,
@@ -186,10 +183,9 @@ const ResumeResetResponseSchema = z.object({
 });
 
 type ResumeExportCanonicalRequest = z.infer<typeof ResumeExportCanonicalRequestSchema>;
-type ResumeExportRequest = z.infer<typeof ResumeExportRequestSchema>;
+type ResumeExportRequest = ResumeExportCanonicalRequest;
 type ReviewPacketExportRequest = z.infer<typeof ReviewPacketExportRequestSchema>;
 type ResumeExportEntryContext = ResumeExportCanonicalRequest["entries"][number];
-type ResumeExportLegacyEntryContext = z.infer<typeof ResumeExportLegacyRequestSchema>["entries"][number];
 type ReviewPacketSummaryTemplateRequest = z.infer<typeof ReviewPacketSummaryPreviewRequestSchema>;
 type ExportResumePayload = ResumeExportEntry["resume"];
 type ResumeExportEntryFields = Omit<ResumeExportEntry, "key" | "resume">;
@@ -1552,7 +1548,7 @@ function normalizeExportResumePayload(
   };
 }
 
-function toExportEntryFields(entry: ResumeExportEntryContext | ResumeExportLegacyEntryContext): ResumeExportEntryFields {
+function toExportEntryFields(entry: ResumeExportEntryContext): ResumeExportEntryFields {
   return {
     match: entry.match,
     action: entry.action,
@@ -1771,14 +1767,8 @@ function buildExportEntriesFromResolvedResumes(
   return resolvedEntries;
 }
 
-function isCanonicalExportRequest(
-  value: ResumeExportRequest
-): value is ResumeExportCanonicalRequest {
-  return "source" in value;
-}
-
 async function resolveExportRequest(
-  request: ResumeExportRequest
+  request: ResumeExportCanonicalRequest
 ): Promise<{
   format: ExportFormat;
   entries: ResumeExportEntry[];
@@ -1786,18 +1776,10 @@ async function resolveExportRequest(
   industryDbV2Stats: IndustryDbV2BatchStats;
   debug: boolean;
 }> {
-  let entries: ResumeExportEntry[];
-
-  if (!isCanonicalExportRequest(request)) {
-    entries = request.entries.map((entry) => (
-      toExportEntry(entry.key, normalizeExportResumePayload(entry.resume), toExportEntryFields(entry))
-    ));
-  } else {
-    const resolvedResumes = request.source === "sample"
-      ? resolveSampleExportResumeMap(request.sample ?? "", request.entries)
-      : await resolveConvexExportResumeMap(request.entries);
-    entries = buildExportEntriesFromResolvedResumes(request.entries, resolvedResumes);
-  }
+  const resolvedResumes = request.source === "sample"
+    ? resolveSampleExportResumeMap(request.sample ?? "", request.entries)
+    : await resolveConvexExportResumeMap(request.entries);
+  const entries = buildExportEntriesFromResolvedResumes(request.entries, resolvedResumes);
 
   const industryDbV2Stats = request.industryDbV2Stats
     ?? computeBatchStats(entries.map((entry) => {
@@ -1812,7 +1794,7 @@ async function resolveExportRequest(
       referenceNote: request.referenceNote,
     },
     industryDbV2Stats,
-    debug: isCanonicalExportRequest(request) ? (request.debug ?? process.env.DEBUG === "true") : process.env.DEBUG === "true",
+    debug: request.debug ?? process.env.DEBUG === "true",
   };
 }
 
@@ -3539,13 +3521,13 @@ const exportResumesRoute = createRoute({
   path: "/api/resumes/export",
   tags: ["resumes"],
   summary: "Export resumes as CSV or XLSX",
-  description: "Exports selected resumes using a canonical resumeId-based request or the legacy embedded-resume payload.",
+  description: "Exports selected resumes using a canonical resumeId-based request.",
   request: {
     body: {
       required: true,
       content: {
         "application/json": {
-          schema: ResumeExportRequestSchema,
+          schema: ResumeExportCanonicalRequestSchema,
         },
       },
     },
@@ -4277,7 +4259,7 @@ app.openapi(rescoreResumeMatchesRoute, async (c) => {
   );
 });
 
-async function buildResumeExportResponse(request: z.infer<typeof ResumeExportRequestSchema>) {
+async function buildResumeExportResponse(request: ResumeExportCanonicalRequest) {
   const { format, entries, batchMeta, industryDbV2Stats, debug } = await resolveExportRequest(request);
   const file = await exportService.exportResumes(format, entries, batchMeta, industryDbV2Stats, debug);
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -4299,7 +4281,7 @@ async function parseResumeExportDownloadRequest(c: Context) {
   const parsedForm = ResumeExportFormSchema.parse({
     payload: formData.get("payload"),
   });
-  return ResumeExportRequestSchema.parse(JSON.parse(parsedForm.payload));
+  return ResumeExportCanonicalRequestSchema.parse(JSON.parse(parsedForm.payload));
 }
 
 function buildResumeExportErrorResponse(c: Context, error: unknown) {

@@ -575,7 +575,7 @@ export function useResumeListState(loadSearchHistory = false) {
     const params = new URLSearchParams(window.location.search)
     initialWindowSearchStateRef.current = {
       hasUrlParams: hasKnownUrlSearchParams(params),
-      hasKeywordParam: params.has('kw') || params.has('keyword'),
+      hasKeywordParam: params.has('kw'),
       hasJobDescriptionParam: params.has('jd'),
       parsedState: normalizeUrlSearchStateValue(parseUrlSearchState(params)),
     }

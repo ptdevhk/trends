@@ -835,7 +835,7 @@ export function SearchProfileEditorDialog({
                             onChange={(event) => setForm((previous) => ({ ...previous, collectionMode: event.target.value as 'head' | 'headless' }))}
                             options={[
                                 { value: 'head', label: t('searchProfiles.fields.collectionModeHead', { defaultValue: 'Open tabs (default)' }) },
-                                { value: 'headless', label: t('searchProfiles.fields.collectionModeHeadless', { defaultValue: 'Legacy headless crawler' }) },
+                                { value: 'headless', label: t('searchProfiles.fields.collectionModeHeadless', { defaultValue: 'Background crawler' }) },
                             ]}
                         />
                     </div>

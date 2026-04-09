@@ -1343,7 +1343,7 @@ export interface paths {
         put?: never;
         /**
          * Export resumes as CSV or XLSX
-         * @description Exports selected resumes using a canonical resumeId-based request or the legacy embedded-resume payload.
+         * @description Exports selected resumes using a canonical resumeId-based request.
          */
         post: {
             parameters: {
@@ -1354,7 +1354,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["ResumeExportRequest"];
+                    "application/json": components["schemas"]["ResumeExportCanonicalRequest"];
                 };
             };
             responses: {
@@ -7729,77 +7729,6 @@ export interface components {
             debug?: boolean;
             entries: components["schemas"]["ResumeExportEntryContext"][];
         };
-        ResumeExportLegacyRequest: {
-            /**
-             * @default csv
-             * @enum {string}
-             */
-            format: "csv" | "xlsx";
-            userComment?: string;
-            referenceNote?: string;
-            industryDbV2Stats?: components["schemas"]["IndustryDbV2Stats"];
-            entries: {
-                key: string;
-                ruleScore?: number;
-                action?: string;
-                match?: components["schemas"]["ResumeExportMatch"];
-                resume: {
-                    name?: string;
-                    jobIntention?: string;
-                    location?: string;
-                    locationHierarchy?: components["schemas"]["ResumeLocationHierarchy"];
-                    age?: string;
-                    experience?: string;
-                    education?: string;
-                    expectedSalary?: string;
-                    profileUrl?: string;
-                    source?: string;
-                    selfIntro?: string;
-                    workHistory?: {
-                        raw?: string;
-                        companyName?: string;
-                        jobTitle?: string;
-                        description?: string;
-                        startDate?: string;
-                        endDate?: string;
-                    }[];
-                    ingestData?: {
-                        industryTags?: string[];
-                        brandHits?: {
-                            brand: string;
-                            role: string;
-                            source: string;
-                            context: string;
-                            companyId?: number;
-                        }[];
-                        companyHits?: string[];
-                        industryDbV2Raw?: number;
-                        roleSignals?: {
-                            type: string;
-                            matchedSignals: string[];
-                            signalCount?: number;
-                            occurrences?: number;
-                            years: number;
-                            industryVerifiedYears?: number;
-                            roleRelevantYears?: number;
-                            industryVerifiedRelevantYears?: number;
-                            matchedWorkEntries?: {
-                                companyName?: string;
-                                jobTitle?: string;
-                                years: number;
-                                industryVerified: boolean;
-                                matchedSignals: string[];
-                            }[];
-                            verifyIn?: string;
-                        }[];
-                    };
-                };
-                userComment?: string;
-                referenceNote?: string;
-                status?: string;
-            }[];
-        };
-        ResumeExportRequest: components["schemas"]["ResumeExportCanonicalRequest"] | components["schemas"]["ResumeExportLegacyRequest"];
         /** @enum {string} */
         ReviewPacketRunStatus: "exported" | "feedback_imported" | "summary_sent" | "failed";
         ReviewPacketRun: {
