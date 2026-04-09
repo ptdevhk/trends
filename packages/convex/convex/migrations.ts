@@ -1314,7 +1314,7 @@ export const backfillTaggingEnvelope = mutation({
             if (!resume.ingestData) continue;
             if (resume.ingestData.taggingEnvelope) continue;
 
-            const tagEnvelope = resume.ingestData.tagEnvelope;
+            const tagEnvelope = (resume.ingestData as Record<string, unknown>).tagEnvelope;
             if (!Array.isArray(tagEnvelope) || tagEnvelope.length === 0) continue;
 
             const computedAt = resume.ingestData.computedAt ?? Date.now();

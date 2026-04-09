@@ -43,7 +43,7 @@ describe('ErrorBoundary', () => {
 
     it('builds a workspace resume home href without preserving query params', () => {
         const spy = vi.spyOn(console, 'error').mockImplementation(() => { })
-        window.history.replaceState({}, '', '/hr/system/settings?location=Kuala+Lumpur+MY&keyword=Sales+Engineer+Manager')
+        window.history.replaceState({}, '', '/hr/system/settings?location=Kuala+Lumpur+MY&q=Sales+Engineer+Manager')
 
         render(
             <ErrorBoundary>

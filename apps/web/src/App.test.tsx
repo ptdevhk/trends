@@ -92,52 +92,52 @@ describe('App redirects', () => {
   })
 
   it('preserves search params when redirecting a workspace index route to resumes', async () => {
-    window.history.replaceState({}, '', '/hr?keyword=CNC')
+    window.history.replaceState({}, '', '/hr?q=CNC')
 
     render(<App />)
 
     await waitFor(() => {
       expect(window.location.pathname).toBe('/hr/resumes')
-      expect(window.location.search).toBe('?keyword=CNC')
+      expect(window.location.search).toBe('?q=CNC')
     })
 
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()
   })
 
   it('preserves search params when AdminGate redirects a non-admin workspace away from system routes', async () => {
-    window.history.replaceState({}, '', '/hr/system?keyword=CNC&location=Kuala+Lumpur+MY')
+    window.history.replaceState({}, '', '/hr/system?q=CNC&location=Kuala+Lumpur+MY')
 
     render(<App />)
 
     await waitFor(() => {
       expect(window.location.pathname).toBe('/hr/resumes')
-      expect(window.location.search).toBe('?keyword=CNC&location=Kuala+Lumpur+MY')
+      expect(window.location.search).toBe('?q=CNC&location=Kuala+Lumpur+MY')
     })
 
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()
   })
 
   it('preserves search params when an invalid workspace slug falls back to /dev/resumes', async () => {
-    window.history.replaceState({}, '', '/unknown/resumes?keyword=STAR&location=Dongguan')
+    window.history.replaceState({}, '', '/unknown/resumes?q=STAR&location=Dongguan')
 
     render(<App />)
 
     await waitFor(() => {
       expect(window.location.pathname).toBe('/dev/resumes')
-      expect(window.location.search).toBe('?keyword=STAR&location=Dongguan')
+      expect(window.location.search).toBe('?q=STAR&location=Dongguan')
     })
 
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()
   })
 
   it('preserves search params when the wildcard route falls back to /dev/resumes', async () => {
-    window.history.replaceState({}, '', '/totally-unknown-route?keyword=STAR')
+    window.history.replaceState({}, '', '/totally-unknown-route?q=STAR')
 
     render(<App />)
 
     await waitFor(() => {
       expect(window.location.pathname).toBe('/dev/resumes')
-      expect(window.location.search).toBe('?keyword=STAR')
+      expect(window.location.search).toBe('?q=STAR')
     })
 
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()

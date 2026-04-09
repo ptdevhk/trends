@@ -44,7 +44,7 @@ describe('ShareLinkButton', () => {
   })
 
   it('copies the current URL directly for simple shareable search state', async () => {
-    window.history.replaceState({}, '', '/dev/resumes?location=Dongguan&keyword=CNC')
+    window.history.replaceState({}, '', '/dev/resumes?location=Dongguan&q=CNC')
     const ensureApiSession = vi.fn(async () => 'session-share-1')
 
     render(
@@ -66,7 +66,7 @@ describe('ShareLinkButton', () => {
 
     await waitFor(() => {
       expect(clipboardWriteTextMock).toHaveBeenCalledWith(
-        `${window.location.origin}/dev/resumes?location=Dongguan&keyword=CNC`
+        `${window.location.origin}/dev/resumes?location=Dongguan&q=CNC`
       )
     })
 
@@ -75,7 +75,7 @@ describe('ShareLinkButton', () => {
   })
 
   it('creates and copies a short sid link for bulky or session-backed state', async () => {
-    window.history.replaceState({}, '', '/dev/resumes?location=Kuala+Lumpur+MY&keyword=%22Sales+Engineer%22')
+    window.history.replaceState({}, '', '/dev/resumes?location=Kuala+Lumpur+MY&q=%22Sales+Engineer%22')
     const ensureApiSession = vi.fn(async () => 'session-share-1')
     const onCopyState = vi.fn()
 
@@ -129,7 +129,7 @@ describe('ShareLinkButton', () => {
   })
 
   it('creates a durable sid link when share state includes a reference note', async () => {
-    window.history.replaceState({}, '', '/dev/resumes?location=China&keyword=CNC')
+    window.history.replaceState({}, '', '/dev/resumes?location=China&q=CNC')
     const ensureApiSession = vi.fn(async () => 'session-share-note')
 
     render(
