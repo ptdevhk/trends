@@ -137,33 +137,15 @@ export function normalizeCollectionSource(
       }
 }
 
-export function getLegacyCollectionSource(collectUrl: string | undefined): CollectionSource | undefined {
-  const exactUrl = normalizeSeekJobUrl(collectUrl)
-  if (!exactUrl || !isSeekRecommendedCandidatesUrl(exactUrl)) {
-    return undefined
-  }
-
-  return {
-    type: SEARCH_PROFILE_SOURCE_TYPES.seek,
-    exactUrl,
-  }
-}
-
 export function resolveCollectionSource(
   collectionSource: CollectionSource | null | undefined,
-  collectUrl?: string,
 ): CollectionSource | undefined {
   const normalizedSource = normalizeCollectionSource(collectionSource)
-  const legacySource = getLegacyCollectionSource(collectUrl)
-
-  if (normalizedSource?.type === SEARCH_PROFILE_SOURCE_TYPES.seek && !normalizedSource.exactUrl && legacySource?.exactUrl) {
-    return {
-      type: SEARCH_PROFILE_SOURCE_TYPES.seek,
-      exactUrl: legacySource.exactUrl,
-    }
+  if (normalizedSource) {
+    return normalizedSource
   }
 
-  return normalizedSource ?? legacySource
+  return undefined
 }
 
 export function stripCollectionSourceExactUrl(

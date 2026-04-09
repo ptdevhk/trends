@@ -13,7 +13,6 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
-type ResumeSample = components['schemas']['ResumeSample']
 type ResumeItem = components['schemas']['ResumeItem']
 type ResumesResponse = components['schemas']['ResumesResponse']
 
@@ -139,7 +138,6 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
   const debouncedQuery = useDebouncedValue(query, 300)
   const convexQuery = debouncedQuery.trim() || undefined
 
-  // Use Convex hook instead of legacy API
   const [limit, setLimit] = useState(200)
   const { resumes: convexResumes, loading: convexLoading } = useConvexResumes(limit, convexQuery)
   const displayResumes = useMemo(
@@ -147,7 +145,6 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
     [convexResumes, fieldUsagePolicy],
   )
 
-  // Adapting Convex data to legacy structure
   const loading = convexLoading
   const rawResponse = useMemo<ResumesResponse>(() => {
     return {
@@ -167,12 +164,6 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
     }
   }, [convexQuery, displayResumes])
 
-  // Legacy state (kept to minimize refactor errors, but unused/dummy)
-  const [samples] = useState<ResumeSample[]>([{ name: 'convex-db', filename: 'db', updatedAt: new Date().toISOString(), size: 0 }])
-  const [selectedSample, setSelectedSample] = useState('convex-db')
-  const [error] = useState<string | null>(null)
-
-  // Legacy Industry & Job Description state
   const [industryStats, setIndustryStats] = useState<IndustryStatsResponse['stats'] | null>(null)
   const [industryValidation, setIndustryValidation] = useState<IndustryValidationResponse | null>(null)
   const [industryError, setIndustryError] = useState<string | null>(null)
@@ -223,14 +214,7 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
     URL.revokeObjectURL(url)
   }, [])
 
-  const sampleOptions = useMemo(
-    () =>
-      samples.map((sample) => ({
-        value: sample.name,
-        label: sample.name,
-      })),
-    [samples]
-  )
+  const selectedSample = 'convex-db'
 
   const industryDatasetOptions = useMemo(
     () => [
@@ -659,19 +643,13 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
           }
         />
 
-        <div className="grid gap-3 grid-cols-1 lg:grid-cols-[1.5fr_1fr_0.6fr]">
+        <div className="grid gap-3 grid-cols-1 lg:grid-cols-[2fr_0.6fr]">
           <SearchBar
             onSearch={handleSearch}
             onClear={handleClearSearch}
             loading={loading}
             placeholder={t('debug.searchPlaceholder')}
             buttonLabel={t('debug.searchButton')}
-          />
-          <Select
-            options={sampleOptions}
-            value={selectedSample}
-            onChange={(event) => setSelectedSample(event.target.value)}
-            disabled={sampleOptions.length === 0}
           />
           <Input
             type="number"
@@ -701,27 +679,16 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
           ))}
         </div>
 
-        {summary && !error ? (
+        {summary ? (
           <div className="text-sm text-muted-foreground">
             {t('debug.summary', {
               returned: summary.returned ?? resumes.length,
               total: summary.total ?? resumes.length,
-              sample: selectedSample || '--',
+              sample: selectedSample,
             })}
           </div>
         ) : null}
       </div>
-
-      {error ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t('debug.errorTitle')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-destructive">{error}</p>
-          </CardContent>
-        </Card>
-      ) : null}
 
       {(showInputs || showFindings) && (
         <div className="grid gap-6 grid-cols-1 xl:grid-cols-[1fr_1fr]">
@@ -748,14 +715,6 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
                   <div className="w-full max-w-full overflow-hidden">
                     <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs w-full">
                       {metadata ? JSON.stringify(metadata, null, 2) : t('debug.none')}
-                    </pre>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">{t('debug.inputsSamples')}</p>
-                  <div className="w-full max-w-full overflow-hidden">
-                    <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted p-3 text-xs w-full">
-                      {samples.length ? JSON.stringify(samples, null, 2) : t('debug.none')}
                     </pre>
                   </div>
                 </div>

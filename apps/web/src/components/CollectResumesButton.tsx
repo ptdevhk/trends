@@ -31,6 +31,7 @@ interface CollectResumesButtonProps {
   keywords: string[]
   collectionSource?: CollectionSource
   onCollectionSourceChange?: (source: CollectionSource) => void
+  /** Preserved seek exactUrl for restoring when switching back to seek source */
   collectUrl?: string
   collectLimit?: number
   minAge?: number
@@ -86,8 +87,8 @@ export function CollectResumesButton({
     [collectionSource]
   )
   const normalizedSelection = useMemo(
-    () => resolveCollectionSource(normalizedCollectionSource, collectUrl) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 },
-    [collectUrl, normalizedCollectionSource]
+    () => resolveCollectionSource(normalizedCollectionSource) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 },
+    [normalizedCollectionSource]
   )
   const selectedSourceType = normalizedSelection.type
   const isJob51Selected = selectedSourceType === SEARCH_PROFILE_SOURCE_TYPES.job51
@@ -97,9 +98,8 @@ export function CollectResumesButton({
         type: SEARCH_PROFILE_SOURCE_TYPES.seek,
         exactUrl: normalizedCollectionSource?.type === SEARCH_PROFILE_SOURCE_TYPES.seek
           ? normalizedCollectionSource.exactUrl
-          : undefined,
+          : collectUrl || undefined,
       },
-      collectUrl
     )
   }, [collectUrl, normalizedCollectionSource])
 

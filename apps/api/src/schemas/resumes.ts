@@ -788,46 +788,6 @@ export const ResumeExportCanonicalRequestSchema = z
   })
   .openapi("ResumeExportCanonicalRequest");
 
-const ResumeExportLegacyWorkHistorySchema = z.object({
-  raw: z.string().optional(),
-  companyName: z.string().optional(),
-  jobTitle: z.string().optional(),
-  description: z.string().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-});
-
-const ResumeExportLegacyRoleSignalSchema = z.object({
-  type: z.string(),
-  matchedSignals: z.array(z.string()),
-  signalCount: z.number().optional(),
-  occurrences: z.number().optional(),
-  years: z.number(),
-  industryVerifiedYears: z.number().optional(),
-  roleRelevantYears: z.number().optional(),
-  industryVerifiedRelevantYears: z.number().optional(),
-  matchedWorkEntries: z
-    .array(
-      z.object({
-        companyName: z.string().optional(),
-        jobTitle: z.string().optional(),
-        years: z.number(),
-        industryVerified: z.boolean(),
-        matchedSignals: z.array(z.string()),
-      })
-    )
-    .optional(),
-  verifyIn: z.string().optional(),
-});
-
-const ResumeExportLegacyBrandHitSchema = z.object({
-  brand: z.string(),
-  role: z.string(),
-  source: z.string(),
-  context: z.string(),
-  companyId: z.number().optional(),
-});
-
 export const ResumeExportResolvedResumeSchema = z.object({
   name: z.string().optional(),
   jobIntention: z.string().optional(),
@@ -840,47 +800,51 @@ export const ResumeExportResolvedResumeSchema = z.object({
   profileUrl: z.string().optional(),
   source: z.string().optional(),
   selfIntro: z.string().optional(),
-  workHistory: z.array(ResumeExportLegacyWorkHistorySchema).optional(),
+  workHistory: z.array(z.object({
+    raw: z.string().optional(),
+    companyName: z.string().optional(),
+    jobTitle: z.string().optional(),
+    description: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+  })).optional(),
   ingestData: z
     .object({
       industryTags: z.array(z.string()).optional(),
-      brandHits: z.array(ResumeExportLegacyBrandHitSchema).optional(),
+      brandHits: z.array(z.object({
+        brand: z.string(),
+        role: z.string(),
+        source: z.string(),
+        context: z.string(),
+        companyId: z.number().optional(),
+      })).optional(),
       companyHits: z.array(z.string()).optional(),
       industryDbV2Raw: z.number().optional(),
-      roleSignals: z.array(ResumeExportLegacyRoleSignalSchema).optional(),
+      roleSignals: z.array(z.object({
+        type: z.string(),
+        matchedSignals: z.array(z.string()),
+        signalCount: z.number().optional(),
+        occurrences: z.number().optional(),
+        years: z.number(),
+        industryVerifiedYears: z.number().optional(),
+        roleRelevantYears: z.number().optional(),
+        industryVerifiedRelevantYears: z.number().optional(),
+        matchedWorkEntries: z
+          .array(
+            z.object({
+              companyName: z.string().optional(),
+              jobTitle: z.string().optional(),
+              years: z.number(),
+              industryVerified: z.boolean(),
+              matchedSignals: z.array(z.string()),
+            })
+          )
+          .optional(),
+        verifyIn: z.string().optional(),
+      })).optional(),
     })
     .optional(),
 });
-
-export const ResumeExportLegacyResumeSchema = ResumeExportResolvedResumeSchema;
-
-export const ResumeExportLegacyRequestSchema = z
-  .object({
-    format: z.enum(["csv", "xlsx"]).default("csv"),
-    userComment: z.string().optional(),
-    referenceNote: z.string().optional(),
-    industryDbV2Stats: IndustryDbV2StatsSchema.optional(),
-    entries: z
-      .array(
-        z.object({
-          key: z.string().min(1),
-          ruleScore: z.number().optional(),
-          action: z.string().optional(),
-          match: ResumeExportMatchSchema.optional(),
-          resume: ResumeExportLegacyResumeSchema,
-          userComment: z.string().optional(),
-          referenceNote: z.string().optional(),
-          status: z.string().optional(),
-        })
-      )
-      .min(1)
-      .max(2000),
-  })
-  .openapi("ResumeExportLegacyRequest");
-
-export const ResumeExportRequestSchema = z
-  .union([ResumeExportCanonicalRequestSchema, ResumeExportLegacyRequestSchema])
-  .openapi("ResumeExportRequest");
 
 export const ResumeExportBinaryResponseSchema = z
   .string()

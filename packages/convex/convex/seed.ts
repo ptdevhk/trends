@@ -621,7 +621,7 @@ export const seedWorkspaceDemoData = mutation({
       keywords: string[];
       jobDescriptionId?: string;
       collectionSource?: {
-        type: "job5156" | "seek";
+        type: "job5156" | "51job" | "seek";
         exactUrl?: string;
       };
       collectUrl?: string;

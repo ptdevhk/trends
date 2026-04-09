@@ -48,10 +48,6 @@ vi.mock('@/hooks/useIndustryKeywords', () => ({
   useIndustryKeywords: () => useIndustryKeywordsMock(),
 }))
 
-vi.mock('@/components/search/MigrationBanner', () => ({
-  MigrationBanner: () => <div>Migration Banner</div>,
-}))
-
 vi.mock('@/components/search/SearchHero', () => ({
   SearchHero: ({
     aiModeEnabled,

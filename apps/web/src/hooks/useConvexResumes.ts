@@ -80,7 +80,7 @@ export type ConvexIngestData = {
     confidence: number
     evidence: string[]
     version: number
-  }>
+  }> // Read-only bridge: consumed by parseLegacyTaggingEnvelope for pre-taggingEnvelope data
   taggingEnvelope?: {
     schemaVersion: number
     generatedAt: number
@@ -680,7 +680,6 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
           })
           .filter((item): item is NonNullable<typeof item> => item !== null)
       : undefined,
-    tagEnvelope,
     taggingEnvelope,
     ruleScores: parseRuleScores(value.ruleScores),
     experienceLevel: toStringValue(value.experienceLevel) || 'unknown',

@@ -318,16 +318,6 @@ export function SystemSettingsKeywordsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              {t('debugConfig.workflowSeedsLegacyNotice', {
-                defaultValue: 'Legacy workflow-seed config remains for compatibility only. The search-first landing page now reads its quick starts from Search Profiles instead.',
-              })}
-            </div>
-            <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-              {t('debugConfig.workflowSeedsMigrationSummary', {
-                defaultValue: 'Search Profiles is now the single page for landing quick starts and other profiles. The China Job5156 and Malaysia SEEK starter profiles are materialized into workspace-managed storage there, so you can edit them directly.',
-              })}
-            </div>
           </CardContent>
         </Card>
         </div>

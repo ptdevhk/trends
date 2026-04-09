@@ -4,7 +4,6 @@ import path from "node:path";
 import {
   buildLatestWorkHistoryEvidence,
   buildWorkHistoryEntryText,
-  FALLBACK_INDUSTRY_KEYWORDS,
   formatLocationHierarchySearchText,
   findLocation,
   normalizeIndustryTags,
@@ -33,8 +32,6 @@ export interface ResumeIndex {
   salaryRange: { min?: number; max?: number } | null;
   searchText: string;
 }
-
-const INDUSTRY_KEYWORDS: Record<CanonicalIndustryTag, string[]> = FALLBACK_INDUSTRY_KEYWORDS;
 
 function normalizeText(value: string | undefined): string {
   return (value || "")
@@ -106,18 +103,6 @@ function createSearchText(item: ResumeItem): string {
   ];
 
   return normalizeText(parts.join(" "));
-}
-
-function scoreIndustryTagsLegacy(haystack: string): string[] {
-  const tags: string[] = [];
-
-  for (const [tag, keywords] of Object.entries(INDUSTRY_KEYWORDS)) {
-    if (keywords.some((keyword) => haystack.includes(keyword.toLowerCase()))) {
-      tags.push(tag);
-    }
-  }
-
-  return normalizeIndustryTags(tags);
 }
 
 export class ResumeIndexService {
@@ -302,7 +287,7 @@ export class ResumeIndexService {
   }
 
   private scoreIndustryTags(haystack: string): string[] {
-    // Try skills.md first (M3), fallback to hardcoded INDUSTRY_KEYWORDS
+    // Try skills.md taxonomy (M3)
     try {
       const taxonomy = this.skillsService.getIndustryTaxonomy();
       const tags: string[] = [];
@@ -317,11 +302,11 @@ export class ResumeIndexService {
       if (normalizedTags.length > 0) {
         return normalizedTags;
       }
-    } catch {
-      // Fall through to legacy
+    } catch (error) {
+      console.error("Failed to load industry taxonomy for scoring:", error);
     }
 
-    return scoreIndustryTagsLegacy(haystack);
+    return [];
   }
 
   getIndex(sampleKey: string): Map<string, ResumeIndex> | undefined {

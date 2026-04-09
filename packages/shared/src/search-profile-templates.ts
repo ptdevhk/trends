@@ -165,11 +165,10 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
       name: "China 51job CNC Sales",
       description: "China-wide 51job CNC sales search profile used for the landing quick start",
       createdAt: "2026-04-02",
-      updatedAt: "2026-04-02",
+      updatedAt: "2026-04-09",
       status: "active",
       location: "China",
       keywords: ["CNC", "销售"],
-      jobDescription: "lathe-sales",
       filters: {
         minExperience: 2,
         maxExperience: null,

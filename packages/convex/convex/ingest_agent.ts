@@ -103,7 +103,6 @@ export const processNewResumes = internalAction({
           industryDbV2Raw: item.industryDbV2Raw,
           industryDbV2RawComponents: item.industryDbV2RawComponents || undefined,
           roleSignals: item.roleSignals || [],
-          tagEnvelope: item.tagEnvelope || [],
           taggingEnvelope: item.taggingEnvelope || undefined,
           ruleScores: item.ruleScores,
           experienceLevel: item.experienceLevel,

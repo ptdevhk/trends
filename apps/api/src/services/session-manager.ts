@@ -12,7 +12,6 @@ export type ResumeFilters = {
   maxExperience?: number;
   minRoleYears?: number;
   roleFilterType?: string;
-  minSalesYears?: number;
   minAge?: number;
   maxAge?: number;
   education?: string[];
@@ -40,7 +39,7 @@ export type CandidateStatus =
   | "withdrawn";
 
 export type SearchSessionCollectionSource = {
-  type: "job5156" | "seek";
+  type: "job5156" | "51job" | "seek";
   exactUrl?: string;
 };
 

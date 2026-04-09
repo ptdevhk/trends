@@ -118,4 +118,9 @@ describe('source-aware analysis helpers', () => {
     expect(resolveResumeAnalysisSourceKey({ sourceKey: '51job-manual' })).toBe('job5156')
     expect(resolveResumeAnalysisSourceKey({ source: 'manual.51job.com' })).toBeUndefined()
   })
+
+  it('maps live 51job to its own analysis source key', () => {
+    expect(resolveResumeAnalysisSourceKey({ sourceKey: '51job' })).toBe('51job')
+    expect(resolveResumeAnalysisSourceKey({ source: 'ehire.51job.com' })).toBe('51job')
+  })
 })

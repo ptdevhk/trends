@@ -21,14 +21,13 @@ const CandidateStatusSchema = z.enum([
 const SessionFiltersSchema = ResumeFiltersSchema.extend({
   minRoleYears: z.number().min(0).optional(),
   roleFilterType: z.string().optional(),
-  minSalesYears: z.number().min(0).optional(),
   minAge: z.number().min(0).optional(),
   maxAge: z.number().min(0).optional(),
   status: z.array(CandidateStatusSchema).optional(),
   showBlocked: z.boolean().optional(),
 });
 const SearchSessionCollectionSourceSchema = z.object({
-  type: z.enum(["job5156", "seek"]),
+  type: z.enum(["job5156", "51job", "seek"]),
   exactUrl: z.string().optional(),
 });
 const SearchSessionStateSchema = z.object({

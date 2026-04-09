@@ -433,63 +433,6 @@ describe("resume export route", () => {
     });
   });
 
-  it("keeps legacy embedded-resume payloads working during migration", async () => {
-    const app = createApp();
-    const response = await app.request("/api/resumes/export", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        format: "csv",
-        entries: [
-          {
-            key: "legacy-1",
-            status: "new",
-            resume: {
-              name: "Legacy Alice",
-              age: "29",
-              experience: "4 years",
-              education: "Bachelor",
-              location: "Dongguan",
-              jobIntention: "Sales",
-              expectedSalary: "10k-15k",
-              selfIntro: "Legacy intro",
-              profileUrl: "https://example.com/legacy-1",
-              source: "seek",
-              workHistory: [{ raw: "Legacy history" }],
-              ingestData: {
-                industryTags: ["sales"],
-                brandHits: [
-                  {
-                    brand: "haas",
-                    role: "equipment",
-                    source: "selfIntro",
-                    context: "sales",
-                  },
-                  {
-                    brand: "哈斯",
-                    role: "equipment",
-                    source: "workHistory",
-                    context: "technical",
-                  },
-                ],
-                companyHits: ["haas"],
-              },
-            },
-          },
-        ],
-      }),
-    });
-
-    expect(response.status).toBe(200);
-    expectAttachmentHeaders(response, "csv");
-    const parsed = Papa.parse<Record<string, string>>(await response.text(), { header: true });
-    expect(parsed.data[0]?.resumeId).toBe("legacy-1");
-    expect(parsed.data[0]?.name).toBe("Legacy Alice");
-    expect(parsed.data[0]?.brandHits).toBe("哈斯");
-  });
-
   it("enables debug columns when DEBUG env var is true", async () => {
     const originalDebug = process.env.DEBUG;
     process.env.DEBUG = "true";

@@ -326,12 +326,6 @@
       "currentPosition": "目前職位"
     },
     "searchPage": {
-      "banner": {
-        "title": "搜尋優先的快速開始現已在 Search Profiles 中開啟。",
-        "description": "本頁用於快速關鍵詞審閱，也可開啟 Search Profiles 編輯並執行已保存的快速開始。",
-        "openProfiles": "開啟 Search Profiles",
-        "dismiss": "關閉遷移提示"
-      },
       "hero": {
         "quickStart": "快速開始",
         "hotTags": "熱門標籤",

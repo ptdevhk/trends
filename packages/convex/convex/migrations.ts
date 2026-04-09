@@ -21,6 +21,84 @@ import { parseAgeFromContent } from "./lib/age";
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 import { resolveResumeScanBatchSize } from "./resumes";
 
+const SEEK_HOST_SUFFIX = ".employer.seek.com";
+const SEEK_RECOMMENDED_PATH = "/candidates/recommended";
+
+function collectionSourceFromCollectUrl(collectUrl: string): { type: "seek"; exactUrl: string } | undefined {
+    try {
+        const url = new URL(collectUrl);
+        if (
+            url.protocol === "https:" &&
+            url.hostname.toLowerCase().endsWith(SEEK_HOST_SUFFIX) &&
+            url.pathname.replace(/\/+$/, "") === SEEK_RECOMMENDED_PATH
+        ) {
+            return { type: "seek", exactUrl: url.toString() };
+        }
+    } catch {
+        // Not a valid URL
+    }
+    return undefined;
+}
+
+export const backfillCollectionSource = mutation({
+    args: {
+        table: v.union(v.literal("screening_sessions"), v.literal("search_history")),
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const batch = resolveResumeScanBatchSize(args.batchSize);
+        const records = await ctx.db
+            .query(args.table)
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: batch,
+            });
+
+        let count = 0;
+        for (const record of records.page) {
+            const config = args.table === "screening_sessions"
+                ? (record as Doc<"screening_sessions">).config
+                : null;
+
+            const existingSource = config
+                ? config.collectionSource
+                : (record as Doc<"search_history">).collectionSource;
+
+            if (existingSource) continue;
+
+            const collectUrl = config
+                ? config.collectUrl
+                : (record as Doc<"search_history">).collectUrl;
+
+            if (!collectUrl) continue;
+
+            const source = collectionSourceFromCollectUrl(collectUrl);
+            if (!source) continue;
+
+            if (config) {
+                await ctx.db.patch(record._id, {
+                    config: { ...config, collectionSource: source },
+                });
+            } else {
+                await ctx.db.patch(record._id, {
+                    collectionSource: source,
+                } as Partial<Doc<"search_history">>);
+            }
+            count++;
+        }
+
+        return {
+            table: args.table,
+            scanned: records.page.length,
+            updated: count,
+            hasMore: !records.isDone,
+            cursor: records.isDone ? null : records.continueCursor,
+        };
+    },
+});
+
 const JOB5156_HOST = "hr.job5156.com";
 const PROFILE_URL_CONTENT_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
 const MANUAL_51JOB_SOURCE = "51job-manual";
@@ -525,11 +603,20 @@ type ReIngestAllResumesResult = {
 };
 
 export const backfillSearchText = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
         let count = 0;
-        for (const resume of resumes) {
+        for (const resume of resumes.page) {
             if (resume.searchText) continue;
 
             const searchText = mergeSearchTextWithIngestData(buildSearchText(resume.content), {
@@ -542,7 +629,12 @@ export const backfillSearchText = mutation({
             await ctx.db.patch(resume._id, { searchText });
             count++;
         }
-        return `Backfilled ${count} resumes`;
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes: count,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
     },
 });
 
@@ -582,40 +674,6 @@ export const reindexSearchText = mutation({
 });
 
 export const backfillAge = mutation({
-    args: {
-        cursor: v.optional(v.string()),
-        batchSize: v.optional(v.number()),
-    },
-    handler: async (ctx, args) => {
-        const resumes = await ctx.db
-            .query("resumes")
-            .order("desc")
-            .paginate({
-                cursor: args.cursor ?? null,
-                numItems: resolveResumeScanBatchSize(args.batchSize),
-            });
-        let updated = 0;
-
-        for (const resume of resumes.page) {
-            const parsedAge = parseAgeFromContent(resume.content);
-            if (parsedAge === null || resume.age === parsedAge) {
-                continue;
-            }
-
-            await ctx.db.patch(resume._id, { age: parsedAge });
-            updated += 1;
-        }
-
-        return {
-            scannedResumes: resumes.page.length,
-            updatedResumes: updated,
-            hasMore: !resumes.isDone,
-            cursor: resumes.isDone ? null : resumes.continueCursor,
-        };
-    },
-});
-
-export const backfillAgePaginated = mutation({
     args: {
         cursor: v.optional(v.string()),
         batchSize: v.optional(v.number()),
@@ -1200,10 +1258,19 @@ export const reIngestAllResumes = action({
 });
 
 export const auditDuplicateResumesByIdentity = mutation({
-    args: {},
-    handler: async (ctx) => {
-        const resumes = await ctx.db.query("resumes").collect();
-        const duplicateGroups = groupDuplicatesByIdentity(resumes);
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+        const duplicateGroups = groupDuplicatesByIdentity(resumes.page);
 
         const groups = duplicateGroups.map((group) => {
             const ordered = sortForCanonical(group.resumes);
@@ -1218,10 +1285,69 @@ export const auditDuplicateResumesByIdentity = mutation({
         });
 
         return {
-            scannedResumes: resumes.length,
+            scannedResumes: resumes.page.length,
             duplicateGroupCount: groups.length,
             duplicateResumeCount: groups.reduce((sum, group) => sum + group.duplicateIds.length, 0),
             groups,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});
+
+export const backfillTaggingEnvelope = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+        let updated = 0;
+
+        for (const resume of resumes.page) {
+            if (!resume.ingestData) continue;
+            if (resume.ingestData.taggingEnvelope) continue;
+
+            const tagEnvelope = resume.ingestData.tagEnvelope;
+            if (!Array.isArray(tagEnvelope) || tagEnvelope.length === 0) continue;
+
+            const computedAt = resume.ingestData.computedAt ?? Date.now();
+            const taggingEnvelope = {
+                schemaVersion: 1,
+                generatedAt: computedAt,
+                entries: tagEnvelope.map((entry) => ({
+                    tag: entry.tag,
+                    source: entry.source,
+                    confidence: entry.confidence,
+                    version: entry.version,
+                    provenance: {
+                        stage: entry.tag.startsWith("industry:") ? "industry_taxonomy" : entry.tag.startsWith("role:") ? "role_signal_aggregation" : "unknown",
+                        generatedBy: "migration_backfill",
+                        evidence: entry.evidence ?? [],
+                    },
+                })),
+            };
+
+            await ctx.db.patch(resume._id, {
+                ingestData: {
+                    ...resume.ingestData,
+                    taggingEnvelope,
+                },
+            });
+            updated += 1;
+        }
+
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes: updated,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
         };
     },
 });
@@ -1230,10 +1356,17 @@ export const mergeDuplicateResumesByIdentity = mutation({
     args: {
         dryRun: v.boolean(),
         batchSize: v.number(),
+        cursor: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const resumes = await ctx.db.query("resumes").collect();
-        const duplicateGroups = groupDuplicatesByIdentity(resumes);
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+        const duplicateGroups = groupDuplicatesByIdentity(resumes.page);
         const effectiveBatchSize = Math.max(1, Math.trunc(args.batchSize));
         const targetGroups = duplicateGroups.slice(0, effectiveBatchSize);
 
@@ -1295,12 +1428,14 @@ export const mergeDuplicateResumesByIdentity = mutation({
 
         return {
             dryRun: args.dryRun,
-            scannedResumes: resumes.length,
+            scannedResumes: resumes.page.length,
             duplicateGroupCount: duplicateGroups.length,
             processedGroupCount: targetGroups.length,
             patchedCanonicals,
             deleted,
             groups,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
         };
     },
 });

@@ -344,7 +344,6 @@ export const complete = mutation({
             deduped: v.number(),
             identityDeduped: v.optional(v.number()),
             identityMatched: v.optional(v.number()),
-            legacyExternalIdMatched: v.optional(v.number()),
             inserted: v.number(),
             updated: v.number(),
             unchanged: v.number(),
@@ -429,7 +428,6 @@ export const submitResumes = mutation({
         const resumes = Array.from(dedupedResumes.values());
         const deduped = totalInput - resumes.length;
         let identityMatched = 0;
-        let legacyExternalIdMatched = 0;
         let inserted = 0;
         let updated = 0;
         let unchanged = 0;
@@ -461,10 +459,7 @@ export const submitResumes = mutation({
                         .query("resumes")
                         .withIndex("by_externalId", (q) => q.eq("externalId", resume.externalId))
                         .unique();
-                    if (existing) {
-                        legacyExternalIdMatched += 1;
                     }
-                }
 
                 const parsedAge = parseAgeFromContent(resume.content);
 
@@ -614,7 +609,6 @@ export const submitResumes = mutation({
             deduped,
             identityDeduped,
             identityMatched,
-            legacyExternalIdMatched,
             inserted,
             updated,
             unchanged,

@@ -33,7 +33,7 @@ const mockState = vi.hoisted(() => ({
   sessionLocation: '广东',
   sessionKeywords: [] as string[],
   sessionJobDescriptionId: undefined as string | undefined,
-  sessionCollectionSource: undefined as { type: 'job5156' | 'seek'; exactUrl?: string } | undefined,
+  sessionCollectionSource: undefined as { type: 'job5156' | '51job' | 'seek'; exactUrl?: string } | undefined,
   sessionCollectUrl: '' as string,
   blocksByIdentity: {} as Record<string, { identityKey: string }>,
   statusByIdentity: {} as Record<string, CandidateStatusRecord>,
@@ -929,18 +929,6 @@ describe('useResumeListState role filter regression', () => {
     }
 
     expect(getDisplayedResumeNames()).toEqual(['Hierarchy Location'])
-  })
-
-  it('falls back to legacy minSalesYears when minRoleYears is absent', () => {
-    mockState.filters = {
-      minSalesYears: 5,
-    }
-
-    expect(getDisplayedResumeNames()).toEqual([
-      'Ideal CNC Sales',
-      'Zhang Machinery Sales',
-      'Li Automation Sales',
-    ])
   })
 
   it('hides blocked candidates by default', () => {

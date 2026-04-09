@@ -8,7 +8,6 @@ const KNOWN_PARAM_KEYS = [
   'loc',
   'location',
   'kw',
-  'keyword',
   'jd',
   'tags',
   'co',
@@ -189,7 +188,7 @@ export function hasKnownUrlSearchParams(searchParams: URLSearchParams): boolean 
 export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchState {
   const shareSessionIdRaw = searchParams.get('sid')
   const shareSessionId = shareSessionIdRaw?.trim() || undefined
-  const queryRaw = getFirstParam(searchParams, ['q', 'kw', 'keyword'])
+  const queryRaw = getFirstParam(searchParams, ['q', 'kw'])
   const query = queryRaw?.trim() || undefined
   const locationRaw = getFirstParam(searchParams, ['loc', 'location'])
   const normalizedLocation = locationRaw?.trim() || ''
@@ -282,7 +281,6 @@ export function useUrlSearchState() {
   const [searchParams, setSearchParams] = useSearchParams()
   const hasKeywordParam = searchParams.has('q')
     || searchParams.has('kw')
-    || searchParams.has('keyword')
   const hasJobDescriptionParam = searchParams.has('jd')
 
   const hasUrlParams = useMemo(

@@ -2151,13 +2151,6 @@ export const updateIngestData = internalMutation({
                 }))),
                 verifyIn: v.string(),
             }))),
-            tagEnvelope: v.optional(v.array(v.object({
-                tag: v.string(),
-                source: v.string(),
-                confidence: v.number(),
-                evidence: v.array(v.string()),
-                version: v.number(),
-            }))),
             taggingEnvelope: v.optional(v.object({
                 schemaVersion: v.number(),
                 generatedAt: v.number(),
@@ -2248,13 +2241,6 @@ export const updateIngestDataBatch = internalMutation({
                         matchedSignals: v.array(v.string()),
                     }))),
                     verifyIn: v.string(),
-                }))),
-                tagEnvelope: v.optional(v.array(v.object({
-                    tag: v.string(),
-                    source: v.string(),
-                    confidence: v.number(),
-                    evidence: v.array(v.string()),
-                    version: v.number(),
                 }))),
                 taggingEnvelope: v.optional(v.object({
                     schemaVersion: v.number(),

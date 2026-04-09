@@ -9,7 +9,6 @@ import {
   buildJob5156CollectUrl,
   buildSeekCollectUrl,
   getActiveSearchProfileSource,
-  getLegacyCollectionSource,
   getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
   resolveCollectionSource,
@@ -168,14 +167,8 @@ describe('search-profile-sources', () => {
     expect(url.searchParams.get('tr_max_age')).toBe('40')
   })
 
-  it('preserves legacy seek exact URLs as a collection source fallback', () => {
-    const legacySource = getLegacyCollectionSource('https://my.employer.seek.com/candidates/recommended?jobId=9&pageNumber=1')
-
-    expect(legacySource).toEqual({
-      type: SEARCH_PROFILE_SOURCE_TYPES.seek,
-      exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=9&pageNumber=1',
-    })
-    expect(resolveCollectionSource(undefined, legacySource?.exactUrl)).toEqual(legacySource)
+  it('returns undefined when no structured collection source exists', () => {
+    expect(resolveCollectionSource(undefined)).toBeUndefined()
   })
 
   it('builds launch URLs from an explicit collection source', () => {

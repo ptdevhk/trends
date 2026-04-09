@@ -68,6 +68,7 @@ function getSourceKeyFromTabUrl(url) {
     const value = typeof url === 'string' ? url : '';
     if (!value) return '';
     if (value.includes('hr.job5156.com')) return 'job5156';
+    if (value.includes('ehire.51job.com')) return '51job';
     if (value.includes('.employer.seek.com')) return 'seek';
     return '';
 }
@@ -125,8 +126,8 @@ async function sendToContent(action, data = {}) {
         throw new Error('No active tab');
     }
 
-    if (!tab.url?.includes('hr.job5156.com') && !tab.url?.includes('.employer.seek.com')) {
-        throw new Error('请在 Job5156 或 Seek 招聘页面使用');
+    if (!tab.url?.includes('hr.job5156.com') && !tab.url?.includes('ehire.51job.com') && !tab.url?.includes('.employer.seek.com')) {
+        throw new Error('请在 Job5156、51job 或 Seek 招聘页面使用');
     }
 
     try {
@@ -587,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 hideAutoSyncSummary();
             }
             updatePaginationInfo();
-            showStatus('请刷新 Job5156 或 Seek 页面', 'error');
+            showStatus('请刷新 Job5156、51job 或 Seek 页面', 'error');
         });
 });
 
