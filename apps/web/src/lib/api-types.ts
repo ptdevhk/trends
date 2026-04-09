@@ -2902,8 +2902,6 @@ export interface paths {
                                 type: "job5156" | "51job" | "seek";
                                 exactUrl?: string;
                             };
-                            /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
-                            collectUrl?: string;
                             filters?: components["schemas"]["ResumeFilters"] & {
                                 minRoleYears?: number;
                                 roleFilterType?: string;
@@ -2989,8 +2987,6 @@ export interface paths {
                                         type: "job5156" | "51job" | "seek";
                                         exactUrl?: string;
                                     };
-                                    /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
-                                    collectUrl?: string;
                                     filters?: components["schemas"]["ResumeFilters"] & {
                                         minRoleYears?: number;
                                         roleFilterType?: string;
@@ -3114,8 +3110,6 @@ export interface paths {
                                         type: "job5156" | "51job" | "seek";
                                         exactUrl?: string;
                                     };
-                                    /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
-                                    collectUrl?: string;
                                     filters?: components["schemas"]["ResumeFilters"] & {
                                         minRoleYears?: number;
                                         roleFilterType?: string;
@@ -3221,8 +3215,6 @@ export interface paths {
                                 type: "job5156" | "51job" | "seek";
                                 exactUrl?: string;
                             };
-                            /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
-                            collectUrl?: string;
                             filters?: components["schemas"]["ResumeFilters"] & {
                                 minRoleYears?: number;
                                 roleFilterType?: string;
@@ -3311,8 +3303,6 @@ export interface paths {
                                         type: "job5156" | "51job" | "seek";
                                         exactUrl?: string;
                                     };
-                                    /** @example https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1 */
-                                    collectUrl?: string;
                                     filters?: components["schemas"]["ResumeFilters"] & {
                                         minRoleYears?: number;
                                         roleFilterType?: string;

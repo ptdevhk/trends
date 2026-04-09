@@ -118,8 +118,6 @@ vi.mock('@/hooks/useSession', () => ({
     setJobDescriptionId: mockState.setJobDescriptionId,
     collectionSource: mockState.sessionCollectionSource,
     setCollectionSource: mockState.setCollectionSource,
-    collectUrl: mockState.sessionCollectUrl,
-    setCollectUrl: mockState.setCollectUrl,
     apiSessionId: mockState.apiSessionId,
     filters: mockState.filters,
     setFilters: mockState.setFilters,
@@ -997,7 +995,6 @@ describe('useResumeListState role filter regression', () => {
       keywords: [],
       jobDescriptionId: '',
       collectionSource: null,
-      collectUrl: '',
       filters: {},
     })
   })
@@ -1255,7 +1252,6 @@ describe('useResumeListState role filter regression', () => {
       keywords: ['CNC', '销售'],
       jobDescriptionId: 'lathe-sales',
       collectionSource: null,
-      collectUrl: '',
       filters: { minAge: 28 },
     })
     expect(mockState.markSearchHistoryOpened).toHaveBeenCalledWith('history-1')
@@ -1284,7 +1280,6 @@ describe('useResumeListState role filter regression', () => {
               type: 'seek',
               exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
             },
-            collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
             selectedTags: ['STAR'],
             selectedCompanies: ['Acme'],
             selectedExperienceLevel: 'mid',
@@ -1316,7 +1311,6 @@ describe('useResumeListState role filter regression', () => {
         type: 'seek',
         exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
       },
-      collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
       filters: {
         minAge: 28,
       },
@@ -1398,7 +1392,6 @@ describe('useResumeListState role filter regression', () => {
         keywords: ['CNC'],
         jobDescriptionId: undefined,
         collectionSource: null,
-        collectUrl: '',
         filters: {},
       })
     })
@@ -1709,7 +1702,6 @@ describe('useResumeListState role filter regression', () => {
         location: 'Kuala Lumpur MY',
         keywords: ['Sales Engineer', 'Sales Manager'],
         collectionSource: { type: 'seek' },
-        collectUrl: 'https://my.employer.seek.com/candidates/recommended?keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22&location=Kuala+Lumpur+MY',
       }, true)
     })
 
@@ -1736,7 +1728,6 @@ describe('useResumeListState role filter regression', () => {
         keywords: [],
         jobDescriptionId: '',
         collectionSource: null,
-        collectUrl: '',
         filters: {},
       })
     })

@@ -90,7 +90,6 @@ describe('ShareLinkButton', () => {
             type: 'seek',
             exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           },
-          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           filters: {
             minAge: 28,
           },
@@ -112,7 +111,10 @@ describe('ShareLinkButton', () => {
         searchState: expect.objectContaining({
           location: 'Kuala Lumpur MY',
           keywords: ['Sales Engineer'],
-          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+          collectionSource: {
+            type: 'seek',
+            exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+          },
         }),
       })
     })
@@ -220,7 +222,6 @@ describe('ShareLinkButton', () => {
             type: 'seek',
             exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           },
-          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           filters: {},
           selectedTags: [],
           selectedCompanies: [],

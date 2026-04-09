@@ -335,9 +335,10 @@ function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
     collectionSource,
   };
 
-  const collectUrl = readString(value.collectUrl) ?? undefined;
-  if (collectUrl) {
-    workflowSeed.collectUrl = collectUrl;
+  // Legacy: if value has collectUrl and collectionSource is seek without exactUrl, merge it
+  const legacyCollectUrl = readString((value as Record<string, unknown>).collectUrl) ?? undefined;
+  if (legacyCollectUrl && collectionSource.type === "seek" && !collectionSource.exactUrl) {
+    workflowSeed.collectionSource = { ...collectionSource, exactUrl: legacyCollectUrl };
   }
 
   const visible = parseVisible(value.visible);

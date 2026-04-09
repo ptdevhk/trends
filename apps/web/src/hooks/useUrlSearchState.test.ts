@@ -58,8 +58,8 @@ describe('useUrlSearchState location parsing', () => {
     expect(state.keywords).toEqual(['Sales Engineer', 'Sales Manager'])
   })
 
-  it('keeps legacy whitespace keyword queries backward compatible', () => {
-    const state = parseUrlSearchState(new URLSearchParams('keyword=CNC+%E9%94%80%E5%94%AE'))
+  it('keeps legacy kw whitespace queries backward compatible', () => {
+    const state = parseUrlSearchState(new URLSearchParams('kw=CNC+%E9%94%80%E5%94%AE'))
 
     expect(state.query).toBe('CNC 销售')
     expect(state.keywords).toEqual(['CNC', '销售'])
@@ -67,7 +67,7 @@ describe('useUrlSearchState location parsing', () => {
 
   it('parses required keywords from rkw param', () => {
     const state = parseUrlSearchState(
-      new URLSearchParams('keyword=%22Sales+Engineer%22+OR+%22Sales+Manager%22&rkw=CNC%2Cmachine+tools')
+      new URLSearchParams('q=%22Sales+Engineer%22+OR+%22Sales+Manager%22&rkw=CNC%2Cmachine+tools')
     )
 
     expect(state.keywords).toEqual(['Sales Engineer', 'Sales Manager'])
@@ -232,7 +232,7 @@ describe('useUrlSearchState location parsing', () => {
 
   it('clears legacy params and deduplicates canonical values when syncing to the url', () => {
     const currentParams = new URLSearchParams(
-      'sid=session-share-1&kw=legacy&keyword=legacy&loc=Oldtown&locs=Oldtown%2COldtown&minExp=3&maxExp=9&status=new'
+      'sid=session-share-1&kw=legacy&loc=Oldtown&locs=Oldtown%2COldtown&minExp=3&maxExp=9&status=new'
     )
     useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
 
@@ -262,7 +262,6 @@ describe('useUrlSearchState location parsing', () => {
 
     expect(updatedParams.get('sid')).toBeNull()
     expect(updatedParams.get('kw')).toBeNull()
-    expect(updatedParams.get('keyword')).toBeNull()
     expect(updatedParams.get('loc')).toBeNull()
     expect(updatedParams.get('locs')).toBeNull()
     expect(updatedParams.get('minExp')).toBeNull()

@@ -100,7 +100,6 @@ export interface CustomKeywordWorkflowSeed {
     type: WorkflowSeedCollectionSourceType
     exactUrl?: string
   }
-  collectUrl?: string
   visible?: boolean
   source?: ConfigSourceOrigin
 }
@@ -121,7 +120,7 @@ export interface WorkflowSeedFormState {
   location: string
   keywords: string
   collectionSourceType: WorkflowSeedCollectionSourceType
-  collectUrl: string
+  collectExactUrl: string
   visible: boolean
 }
 
@@ -502,7 +501,7 @@ function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
     return null
   }
 
-  const collectUrl = readString(value.collectUrl) ?? undefined
+  const collectExactUrl = readString(value.collectExactUrl) ?? undefined
   const visible = typeof value.visible === 'boolean' ? value.visible : undefined
   const source = value.source === 'system' || value.source === 'workspace' ? value.source : undefined
 
@@ -512,8 +511,10 @@ function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
     market,
     location,
     keywords: Array.from(new Set(keywords)),
-    collectionSource,
-    collectUrl,
+    collectionSource: {
+      ...collectionSource,
+      ...(collectExactUrl && collectionSource.type === 'seek' ? { exactUrl: collectExactUrl } : {}),
+    },
     visible,
     source,
   }
@@ -749,7 +750,7 @@ export function createEmptyWorkflowSeedForm(): WorkflowSeedFormState {
     location: '',
     keywords: '',
     collectionSourceType: 'job5156',
-    collectUrl: '',
+    collectExactUrl: '',
     visible: true,
   }
 }
@@ -762,7 +763,7 @@ export function workflowSeedToForm(seed: CustomKeywordWorkflowSeed): WorkflowSee
     location: seed.location,
     keywords: seed.keywords.join(', '),
     collectionSourceType: seed.collectionSource.type,
-    collectUrl: seed.collectUrl ?? seed.collectionSource.exactUrl ?? '',
+    collectExactUrl: seed.collectionSource.exactUrl ?? '',
     visible: seed.visible ?? true,
   }
 }

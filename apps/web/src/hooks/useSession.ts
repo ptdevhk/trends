@@ -4,7 +4,6 @@ import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Id } from '../../../../packages/convex/convex/_generated/dataModel'
 import {
   normalizeCollectionSource,
-  resolveCollectionSource,
   type CollectionSource,
 } from '@/lib/search-profile-sources'
 import { rawApiClient } from '@/lib/api-helpers'
@@ -17,7 +16,6 @@ export type ExternalSessionState = {
   keywords?: string[]
   jobDescriptionId?: string
   collectionSource?: CollectionSource | null
-  collectUrl?: string
   filters?: Partial<ResumeFilters>
 }
 
@@ -42,7 +40,6 @@ export type SearchHistoryItem = {
   keywords: string[]
   jobDescriptionId?: string
   collectionSource?: CollectionSource
-  collectUrl?: string
   filters: Partial<ResumeFilters>
   selectedTags: string[]
   selectedCompanies: string[]
@@ -62,7 +59,6 @@ type SaveSearchHistoryInput = {
   keywords?: string[]
   jobDescriptionId?: string
   collectionSource?: CollectionSource | null
-  collectUrl?: string
   filters?: Partial<ResumeFilters>
   selectedTags?: string[]
   selectedCompanies?: string[]
@@ -148,6 +144,7 @@ function normalizeShareState(
     return undefined
   }
 
+  const resolvedCollectionSource = normalizeCollectionSource(state.collectionSource)
   const normalized: ResumeSearchShareState = {
     location: normalizeOptionalString(state.location),
     keywords: normalizeStringList(state.keywords),
@@ -156,8 +153,7 @@ function normalizeShareState(
     selectedTags: normalizeStringList(state.selectedTags),
     selectedCompanies: normalizeStringList(state.selectedCompanies),
     selectedExperienceLevel: normalizeShareExperienceLevel(state.selectedExperienceLevel),
-    collectionSource: normalizeCollectionSource(state.collectionSource),
-    collectUrl: normalizeOptionalString(state.collectUrl),
+    collectionSource: resolvedCollectionSource,
     filters: normalizeShareFilters(state.filters),
     referenceNote: normalizeOptionalString(state.referenceNote),
   }
@@ -165,7 +161,6 @@ function normalizeShareState(
   if (
     !normalized.location
     && !normalized.jobDescriptionId
-    && !normalized.collectUrl
     && !normalized.collectionSource
     && (normalized.keywords?.length ?? 0) === 0
     && (normalized.requiredKeywords?.length ?? 0) === 0
@@ -236,7 +231,6 @@ export function useSession(loadSearchHistory = false) {
   const [keywords, setKeywords] = useState<string[]>([])
   const [jobDescriptionId, setJobDescriptionId] = useState<string | undefined>(undefined)
   const [collectionSource, setCollectionSource] = useState<CollectionSource | undefined>(undefined)
-  const [collectUrl, setCollectUrl] = useState<string | undefined>(undefined)
   const [filters, setFilters] = useState<ResumeFilters>({})
 
   useEffect(() => {
@@ -250,7 +244,6 @@ export function useSession(loadSearchHistory = false) {
     setKeywords([])
     setJobDescriptionId(undefined)
     setCollectionSource(undefined)
-    setCollectUrl(undefined)
     setFilters({})
   }, [slug, sessionKey])
 
@@ -266,8 +259,7 @@ export function useSession(loadSearchHistory = false) {
       setLocation(activeSession.config.location)
       setKeywords(activeSession.config.keywords)
       setJobDescriptionId(activeSession.config.jobDescriptionId)
-      setCollectionSource(resolveCollectionSource(activeSession.config.collectionSource))
-      setCollectUrl(activeSession.config.collectUrl)
+      setCollectionSource(normalizeCollectionSource(activeSession.config.collectionSource))
       setFilters(activeSession.config.filters || {})
       setHasHydratedInitialState(true)
     }
@@ -285,13 +277,12 @@ export function useSession(loadSearchHistory = false) {
         keywords,
         jobDescriptionId,
         collectionSource,
-        collectUrl,
         filters,
       })
     }, 1000)
 
     return () => clearTimeout(timer)
-  }, [sessionKey, slug, location, keywords, jobDescriptionId, collectionSource, collectUrl, filters, saveSession, hasHydratedInitialState])
+  }, [sessionKey, slug, location, keywords, jobDescriptionId, collectionSource, filters, saveSession, hasHydratedInitialState])
 
   const trackReviewedResume = useCallback(
     async (resumeId: string) => {
@@ -376,10 +367,6 @@ export function useSession(loadSearchHistory = false) {
       setCollectionSource(normalizeCollectionSource(state.collectionSource))
     }
 
-    if (state.collectUrl !== undefined) {
-      setCollectUrl(normalizeOptionalString(state.collectUrl))
-    }
-
     if (state.filters !== undefined) {
       setFilters(state.filters)
     }
@@ -399,8 +386,7 @@ export function useSession(loadSearchHistory = false) {
       location: record.location,
       keywords: record.keywords,
       jobDescriptionId: record.jobDescriptionId,
-      collectionSource: resolveCollectionSource(record.collectionSource),
-      collectUrl: normalizeOptionalString(record.collectUrl),
+      collectionSource: normalizeCollectionSource(record.collectionSource),
       filters: (record.filters ?? {}) as Partial<ResumeFilters>,
       selectedTags: normalizeStringList(record.selectedTags),
       selectedCompanies: normalizeStringList(record.selectedCompanies),
@@ -431,7 +417,6 @@ export function useSession(loadSearchHistory = false) {
         input.collectionSource !== undefined
           ? normalizeCollectionSource(input.collectionSource)
           : collectionSource,
-      collectUrl: input.collectUrl !== undefined ? normalizeOptionalString(input.collectUrl) : collectUrl,
       filters: input.filters ?? filters,
       selectedTags: normalizeStringList(input.selectedTags ?? []),
       selectedCompanies: normalizeStringList(input.selectedCompanies ?? []),
@@ -440,7 +425,7 @@ export function useSession(loadSearchHistory = false) {
       analysisTaskId: normalizeOptionalString(input.analysisTaskId),
       resumeIds: normalizeStringList(input.resumeIds),
     })
-  }, [collectionSource, collectUrl, filters, jobDescriptionId, keywords, location, saveSearchHistoryMutation, sessionKey, slug])
+  }, [collectionSource, filters, jobDescriptionId, keywords, location, saveSearchHistoryMutation, sessionKey, slug])
 
   const markSearchHistoryOpened = useCallback(async (id: Id<'search_history'>) => {
     await markSearchHistoryOpenedMutation({ id, workspaceSlug: slug })
@@ -456,8 +441,6 @@ export function useSession(loadSearchHistory = false) {
     setJobDescriptionId,
     collectionSource,
     setCollectionSource,
-    collectUrl,
-    setCollectUrl,
     filters,
     setFilters,
     reviewedIdsSet,

@@ -85,9 +85,9 @@ describe('useSession', () => {
           keywords: ['CNC', '销售'],
           jobDescriptionId: 'lathe-sales',
           collectionSource: {
-            type: 'job5156',
+            type: 'seek',
+            exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           },
-          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           filters: {
             minExperience: 1,
             minAge: 25,
@@ -141,9 +141,9 @@ describe('useSession', () => {
             keywords: ['CNC', '销售'],
             jobDescriptionId: 'lathe-sales',
             collectionSource: {
-              type: 'job5156',
+              type: 'seek',
+              exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
             },
-            collectUrl: ' https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1 ',
             filters: { minAge: 25 },
             selectedTags: ['STAR', 'STAR', ''],
             selectedCompanies: ['Acme', '  Acme  ', ''],
@@ -186,8 +186,7 @@ describe('useSession', () => {
         title: '  东莞 · CNC  ',
         location: '东莞',
         keywords: ['CNC', '销售'],
-        collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
-        collectionSource: { type: 'job5156' },
+        collectionSource: { type: 'seek', exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1' },
         selectedTags: ['STAR'],
         selectedCompanies: ['Acme'],
         selectedExperienceLevel: 'mid',
@@ -226,7 +225,6 @@ describe('useSession', () => {
       location: '东莞',
       keywords: ['招聘', '简历'],
       collectionSource: { type: 'job5156' },
-      collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
       resumeIds: ['resume-1', 'resume-2'],
     })
     await result.current.markSearchHistoryOpened('history-hr' as never)
@@ -246,7 +244,6 @@ describe('useSession', () => {
         location: '东莞',
         keywords: ['招聘', '简历'],
         collectionSource: { type: 'job5156' },
-        collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1',
         resumeIds: ['resume-1', 'resume-2'],
       })
     )
@@ -309,7 +306,6 @@ describe('useSession', () => {
             type: 'seek',
             exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           },
-          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           filters: {
             minAge: 28,
           },
@@ -335,7 +331,6 @@ describe('useSession', () => {
             type: 'seek',
             exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           },
-          collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
           filters: {
             minAge: 28,
           },
@@ -434,7 +429,7 @@ describe('useSession', () => {
     expect(result.current.keywords).toEqual(['CNC', '销售'])
   })
 
-  it('can clear and replace the persisted collection source and collect URL through external state', async () => {
+  it('can clear and replace the persisted collection source through external state', async () => {
     const { result } = renderHook(() => useSession())
 
     await waitFor(() => {
@@ -443,41 +438,37 @@ describe('useSession', () => {
 
     act(() => {
       result.current.setCollectionSource({ type: 'seek', exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1' })
-      result.current.setCollectUrl('https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1')
     })
 
     expect(result.current.collectionSource).toEqual({
       type: 'seek',
       exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
     })
-    expect(result.current.collectUrl).toBe('https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1')
 
     act(() => {
       result.current.applyExternalState({
         collectionSource: null,
-        collectUrl: '',
       })
     })
 
     expect(result.current.collectionSource).toBeUndefined()
-    expect(result.current.collectUrl).toBeUndefined()
 
     act(() => {
       result.current.applyExternalState({
         collectionSource: {
-          type: 'job5156',
+          type: 'seek',
+          exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=2&pageNumber=1',
         },
-        collectUrl: ' https://my.employer.seek.com/candidates/recommended?jobId=2&pageNumber=1 ',
       })
     })
 
     expect(result.current.collectionSource).toEqual({
-      type: 'job5156',
+      type: 'seek',
+      exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=2&pageNumber=1',
     })
-    expect(result.current.collectUrl).toBe('https://my.employer.seek.com/candidates/recommended?jobId=2&pageNumber=1')
   })
 
-  it('falls back to legacy seek collectUrl when history records are missing collectionSource', async () => {
+  it('resolves legacy seek collectUrl in history records to collectionSource', async () => {
     useQueryMock.mockImplementation((query) => {
       if (query === 'list-history-query') {
         return [
@@ -487,7 +478,10 @@ describe('useSession', () => {
             title: 'Seek history',
             location: 'Kuala Lumpur MY',
             keywords: ['Sales Engineer'],
-            collectUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+            collectionSource: {
+              type: 'seek',
+              exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+            },
             filters: {},
             selectedTags: [],
             selectedCompanies: [],

@@ -52,7 +52,6 @@ export type SearchSessionState = {
   selectedCompanies?: string[];
   selectedExperienceLevel?: "senior" | "mid" | "junior";
   collectionSource?: SearchSessionCollectionSource;
-  collectUrl?: string;
   filters?: ResumeFilters;
   referenceNote?: string;
 };

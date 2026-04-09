@@ -85,7 +85,6 @@ describe("session routes", () => {
             type: "seek",
             exactUrl: "https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1",
           },
-          collectUrl: "https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1",
           filters: {
             minExperience: 3,
             minAge: 28,

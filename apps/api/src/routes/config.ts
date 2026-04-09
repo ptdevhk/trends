@@ -50,7 +50,6 @@ const CustomKeywordWorkflowSeedSchema = z.object({
   location: z.string(),
   keywords: z.array(z.string()),
   collectionSource: WorkflowSeedCollectionSourceSchema,
-  collectUrl: z.string().optional(),
   visible: z.boolean().optional(),
   source: z.enum(["system", "workspace"]).optional(),
 });

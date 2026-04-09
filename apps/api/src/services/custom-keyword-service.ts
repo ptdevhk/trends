@@ -44,7 +44,6 @@ export interface CustomKeywordWorkflowSeed {
         type: WorkflowSeedCollectionSourceType;
         exactUrl?: string;
     };
-    collectUrl?: string;
     visible?: boolean;
     source?: ConfigSourceOrigin;
 }
@@ -198,11 +197,12 @@ function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
         collectionSource,
     };
 
-    const collectUrl = typeof record.collectUrl === "string" && record.collectUrl.trim()
-        ? record.collectUrl.trim()
+    // Legacy: if record has collectUrl and collectionSource is seek without exactUrl, merge it
+    const legacyCollectUrl = typeof (record as Record<string, unknown>).collectUrl === "string" && ((record as Record<string, unknown>).collectUrl as string).trim()
+        ? ((record as Record<string, unknown>).collectUrl as string).trim()
         : undefined;
-    if (collectUrl) {
-        workflowSeed.collectUrl = collectUrl;
+    if (legacyCollectUrl && collectionSource.type === "seek" && !collectionSource.exactUrl) {
+        workflowSeed.collectionSource = { ...collectionSource, exactUrl: legacyCollectUrl };
     }
 
     const visible = parseVisible(record.visible);

@@ -140,12 +140,7 @@ export function normalizeCollectionSource(
 export function resolveCollectionSource(
   collectionSource: CollectionSource | null | undefined,
 ): CollectionSource | undefined {
-  const normalizedSource = normalizeCollectionSource(collectionSource)
-  if (normalizedSource) {
-    return normalizedSource
-  }
-
-  return undefined
+  return normalizeCollectionSource(collectionSource) ?? undefined
 }
 
 export function stripCollectionSourceExactUrl(
