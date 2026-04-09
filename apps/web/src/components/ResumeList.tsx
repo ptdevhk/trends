@@ -271,9 +271,8 @@ export function ResumeList() {
         defaultCollectionSource={sessionCollectionSource}
         defaultCollectUrl={sessionCollectUrl}
         quickFilters={{
-          minRoleYears: filters.minRoleYears ?? filters.minSalesYears,
-          roleFilterType:
-            filters.roleFilterType ?? (typeof filters.minSalesYears === 'number' ? 'sales' : undefined),
+          minRoleYears: filters.minRoleYears,
+          roleFilterType: filters.roleFilterType,
           maxAge: filters.maxAge,
         }}
         onApplyQuickFilters={handleQuickConstraintApply}

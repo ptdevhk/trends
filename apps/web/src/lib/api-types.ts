@@ -2856,7 +2856,6 @@ export interface paths {
                         filters?: components["schemas"]["ResumeFilters"] & {
                             minRoleYears?: number;
                             roleFilterType?: string;
-                            minSalesYears?: number;
                             minAge?: number;
                             maxAge?: number;
                             status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
@@ -2908,7 +2907,6 @@ export interface paths {
                             filters?: components["schemas"]["ResumeFilters"] & {
                                 minRoleYears?: number;
                                 roleFilterType?: string;
-                                minSalesYears?: number;
                                 minAge?: number;
                                 maxAge?: number;
                                 status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
@@ -2944,7 +2942,6 @@ export interface paths {
                                 filters?: components["schemas"]["ResumeFilters"] & {
                                     minRoleYears?: number;
                                     roleFilterType?: string;
-                                    minSalesYears?: number;
                                     minAge?: number;
                                     maxAge?: number;
                                     status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
@@ -2997,7 +2994,6 @@ export interface paths {
                                     filters?: components["schemas"]["ResumeFilters"] & {
                                         minRoleYears?: number;
                                         roleFilterType?: string;
-                                        minSalesYears?: number;
                                         minAge?: number;
                                         maxAge?: number;
                                         status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
@@ -3071,7 +3067,6 @@ export interface paths {
                                 filters?: components["schemas"]["ResumeFilters"] & {
                                     minRoleYears?: number;
                                     roleFilterType?: string;
-                                    minSalesYears?: number;
                                     minAge?: number;
                                     maxAge?: number;
                                     status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
@@ -3124,7 +3119,6 @@ export interface paths {
                                     filters?: components["schemas"]["ResumeFilters"] & {
                                         minRoleYears?: number;
                                         roleFilterType?: string;
-                                        minSalesYears?: number;
                                         minAge?: number;
                                         maxAge?: number;
                                         status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
@@ -3181,7 +3175,6 @@ export interface paths {
                         filters?: components["schemas"]["ResumeFilters"] & {
                             minRoleYears?: number;
                             roleFilterType?: string;
-                            minSalesYears?: number;
                             minAge?: number;
                             maxAge?: number;
                             status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
@@ -3233,7 +3226,6 @@ export interface paths {
                             filters?: components["schemas"]["ResumeFilters"] & {
                                 minRoleYears?: number;
                                 roleFilterType?: string;
-                                minSalesYears?: number;
                                 minAge?: number;
                                 maxAge?: number;
                                 status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
@@ -3272,7 +3264,6 @@ export interface paths {
                                 filters?: components["schemas"]["ResumeFilters"] & {
                                     minRoleYears?: number;
                                     roleFilterType?: string;
-                                    minSalesYears?: number;
                                     minAge?: number;
                                     maxAge?: number;
                                     status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
@@ -3325,7 +3316,6 @@ export interface paths {
                                     filters?: components["schemas"]["ResumeFilters"] & {
                                         minRoleYears?: number;
                                         roleFilterType?: string;
-                                        minSalesYears?: number;
                                         minAge?: number;
                                         maxAge?: number;
                                         status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];

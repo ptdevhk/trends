@@ -21,7 +21,6 @@ const CandidateStatusSchema = z.enum([
 const SessionFiltersSchema = ResumeFiltersSchema.extend({
   minRoleYears: z.number().min(0).optional(),
   roleFilterType: z.string().optional(),
-  minSalesYears: z.number().min(0).optional(),
   minAge: z.number().min(0).optional(),
   maxAge: z.number().min(0).optional(),
   status: z.array(CandidateStatusSchema).optional(),

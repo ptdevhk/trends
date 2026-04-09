@@ -1247,11 +1247,6 @@ export function useResumeListState(loadSearchHistory = false) {
       result = result.filter((resume: ScoredConvexResume) =>
         getRoleYears(resume, filters.roleFilterType ?? '') >= minRoleYears
       )
-    } else {
-      const minSalesYears = filters.minSalesYears
-      if (typeof minSalesYears === 'number') {
-        result = result.filter((resume: ScoredConvexResume) => getRoleYears(resume, 'sales') >= minSalesYears)
-      }
     }
 
     const minAge = filters.minAge
@@ -2128,7 +2123,6 @@ export function useResumeListState(loadSearchHistory = false) {
         minExperience: constraints.minRoleYears,
         minRoleYears: constraints.minRoleYears,
         roleFilterType: normalizeOptionalString(constraints.roleFilterType),
-        minSalesYears: undefined,
         maxAge: constraints.maxAge,
       }))
     },
