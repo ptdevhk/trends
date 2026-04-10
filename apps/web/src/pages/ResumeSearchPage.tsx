@@ -102,11 +102,19 @@ export function ResumeSearchPage() {
   const applyQuickStart = (seed: {
     keywords: string[]
     location: string
+    minAge?: number
+    maxAge?: number
+    minExperience?: number
   }) => {
     collapseExpandedCards()
     const query = formatKeywordQuery(seed.keywords)
     setQueryInput(query)
-    submitSearch(query, { location: seed.location })
+    submitSearch(query, {
+      location: seed.location,
+      minAge: seed.minAge,
+      maxAge: seed.maxAge,
+      minExperience: seed.minExperience,
+    })
   }
 
   const handleApplyRecentSearch = useCallback(

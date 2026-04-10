@@ -351,6 +351,7 @@ export function useIndustryKeywords() {
               description: profile.quickStart?.description?.trim() || undefined,
               minAge: typeof profile.filters?.minAge === "number" ? profile.filters.minAge : undefined,
               maxAge: typeof profile.filters?.maxAge === "number" ? profile.filters.maxAge : undefined,
+              minExperience: typeof profile.filters?.minExperience === "number" ? profile.filters.minExperience : undefined,
               source: collectionSource
                 ? {
                     type: collectionSource.type,

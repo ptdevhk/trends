@@ -16,6 +16,7 @@ type SearchHeroQuickStart = {
   description?: string
   minAge?: number
   maxAge?: number
+  minExperience?: number
   profileId?: string
   source?: {
     type: CollectionSourceType
@@ -40,7 +41,7 @@ type SearchHeroProps = {
   hotKeywords?: SearchHeroHotKeyword[]
   onApplyRecentSearch: (item: ResumeSearchRecentItem) => void | Promise<void>
   onApplyExtractedKeywords: (keywords: string[]) => void
-  onApplyQuickStart?: (seed: { keywords: string[]; location: string }) => void
+  onApplyQuickStart?: (seed: { keywords: string[]; location: string; minAge?: number; maxAge?: number; minExperience?: number }) => void
   onToggleHotKeyword?: (keyword: string) => void
   onAiModeChange: (enabled: boolean) => void
   onChangeQuery: (value: string) => void
@@ -168,6 +169,9 @@ export function SearchHero({
                         void onApplyQuickStart?.({
                           keywords: seed.keywords,
                           location: seed.location,
+                          minAge: seed.minAge,
+                          maxAge: seed.maxAge,
+                          minExperience: seed.minExperience,
                         })
                       }
                     >

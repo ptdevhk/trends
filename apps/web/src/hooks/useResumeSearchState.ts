@@ -397,6 +397,31 @@ function buildSearchExportEntry(
   }
 }
 
+function parseSearchAgeNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value)
+  }
+  if (typeof value !== 'string') {
+    return null
+  }
+  const withSuffix = value.match(/(\d+)\s*岁/)
+  if (withSuffix?.[1]) {
+    return Number(withSuffix[1])
+  }
+  const plain = value.match(/^(\d{1,3})$/)
+  if (plain?.[1]) {
+    return Number(plain[1])
+  }
+  return null
+}
+
+function getSearchResumeAge(resume: ConvexResumeItem): number | null {
+  if (typeof resume.ageNumber === 'number' && Number.isFinite(resume.ageNumber) && resume.ageNumber > 0) {
+    return Math.trunc(resume.ageNumber)
+  }
+  return parseSearchAgeNumber(resume.age)
+}
+
 function matchesLocalFilters(
   item: ResumeSearchResultItem,
   state: UrlSearchState,
@@ -480,6 +505,20 @@ function matchesLocalFilters(
 
   if (typeof minScore === 'number' && (item.score ?? 0) < minScore) {
     return false
+  }
+
+  if (typeof state.filters.minAge === 'number') {
+    const age = getSearchResumeAge(item.resume)
+    if (age === null || age < state.filters.minAge) {
+      return false
+    }
+  }
+
+  if (typeof state.filters.maxAge === 'number') {
+    const age = getSearchResumeAge(item.resume)
+    if (age === null || age > state.filters.maxAge) {
+      return false
+    }
   }
 
   return true
@@ -920,15 +959,24 @@ export function useResumeSearchState() {
       nextQuery?: string,
       options?: {
         location?: string
+        minAge?: number
+        maxAge?: number
+        minExperience?: number
       },
     ) => {
       const resolvedQuery = normalizeOptionalString(nextQuery ?? queryInput)
       const nextKeywords = parseKeywordQuery(resolvedQuery ?? '').keywords
+      const clearedFilters = clearSortFilters(parsedState.filters)
       const nextState = buildUrlState(parsedState, {
         query: resolvedQuery,
         keywords: nextKeywords,
         location: options?.location ?? parsedState.location,
-        filters: clearSortFilters(parsedState.filters),
+        filters: {
+          ...clearedFilters,
+          ...(typeof options?.minAge === 'number' ? { minAge: options.minAge } : {}),
+          ...(typeof options?.maxAge === 'number' ? { maxAge: options.maxAge } : {}),
+          ...(typeof options?.minExperience === 'number' ? { minExperience: options.minExperience } : {}),
+        },
       })
 
       setAiModeEnabled(true)
