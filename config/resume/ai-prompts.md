@@ -1,6 +1,6 @@
 ---
-version: 2
-updated_at: '2026-03-18'
+version: 3
+updated_at: '2026-04-10'
 description: >
   Canonical zh-Hans resume AI prompts for summary and screening analysis.
   This markdown file is the authoring source for the generated shared prompt runtime.

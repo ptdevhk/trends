@@ -1,4 +1,4 @@
-import { formatKeywordQuery, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -612,11 +612,6 @@ export function useResumeSearchState() {
       ]),
     [activeQuery, parsedState.keywords],
   )
-  const salesRequiredContext = isSalesRequiredContext(
-    formatKeywordQuery(parsedState.keywords),
-    activeQuery,
-    parsedState.jobDescriptionId,
-  )
   const backendFilters = useMemo<ConvexResumeFilters>(
     () => ({
       minExperience: parsedState.filters.minExperience,
@@ -706,10 +701,6 @@ export function useResumeSearchState() {
             hasBrandHits,
             hasCompanyHits,
           ),
-          {
-            salesRequired: salesRequiredContext,
-            roleSignals: resume.ingestData?.roleSignals,
-          },
         )
         : undefined
       const score = resolveScore(
@@ -740,7 +731,6 @@ export function useResumeSearchState() {
     currentPromptVersion,
     parsedState.jobDescriptionId,
     parsedState.location,
-    salesRequiredContext,
     resumeQuery.resumes,
     statusByIdentity,
   ])

@@ -13,7 +13,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
-import { isSalesRequiredContext } from '@trends/shared'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import {
   CONVEX_RESUME_PAGE_SIZE,
@@ -718,10 +717,6 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [])
   const currentPromptVersion = getCurrentResumeAiPromptVersion()
   const keywordOnlyQueryScoring = sessionKeywords.length > 0 && !jobDescriptionId?.trim()
-  const salesRequiredContext = useMemo(
-    () => isSalesRequiredContext(formatKeywordQuery(sessionKeywords), jobDescriptionId),
-    [jobDescriptionId, sessionKeywords]
-  )
   const querySpecificKeywordsKey = useMemo(
     () => JSON.stringify(sessionKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0)),
     [sessionKeywords]
@@ -1597,10 +1592,6 @@ export function useResumeListState(loadSearchHistory = false) {
                 hasBrandHits,
                 hasCompanyHits,
               ),
-              {
-                salesRequired: salesRequiredContext,
-                roleSignals: ingestData?.roleSignals,
-              },
             )
           : undefined
 
@@ -1657,7 +1648,6 @@ export function useResumeListState(loadSearchHistory = false) {
     jobDescriptionId,
     mode,
     resumes,
-    salesRequiredContext,
     sessionCollectionSource,
     sessionKeywords,
     sessionLocation,

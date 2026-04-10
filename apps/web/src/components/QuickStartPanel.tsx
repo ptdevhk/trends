@@ -1,4 +1,4 @@
-import { formatKeywordInput, normalizeKeywordPhrases, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordInput, isSalesRequiredContext, normalizeKeywordPhrases, parseKeywordQuery } from '@trends/shared'
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import { MessageSquareMore, Pencil, RotateCcw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -258,10 +258,14 @@ function normalizeProfileKeywords(profile: SearchProfileDetails): string[] {
 
 function getProfileQuickConstraints(profile: SearchProfileDetails): {
   minRoleYears?: number
+  roleFilterType?: string
   maxAge?: number
 } {
+  const keywords = normalizeProfileKeywords(profile)
+  const roleFilterType = isSalesRequiredContext(...keywords) ? 'sales' : undefined
   return {
     minRoleYears: typeof profile.filters?.minExperience === 'number' ? profile.filters.minExperience : undefined,
+    roleFilterType,
     maxAge: typeof profile.filters?.maxAge === 'number' ? profile.filters.maxAge : undefined,
   }
 }
@@ -837,7 +841,7 @@ export function QuickStartPanel({
     }, true)
     onApplyQuickFilters?.({
       minRoleYears: quickConstraints.minRoleYears,
-      roleFilterType: undefined,
+      roleFilterType: quickConstraints.roleFilterType,
       maxAge: quickConstraints.maxAge,
     })
   }, [onApplyConfig, onApplyQuickFilters, onJobChange])

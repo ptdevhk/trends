@@ -5,8 +5,6 @@ import { v } from "convex/values";
 import {
     buildKeywordAnalysisId as buildSharedKeywordAnalysisId,
     getCurrentResumeAiPromptVersion,
-    isSalesRequiredContext,
-    normalizeKeywordSalesAnalysis,
 } from "@trends/shared";
 import {
     buildKeywordMatchingRules,
@@ -275,15 +273,6 @@ async function analyzeOneResume(
         ? buildKeywordMatchingRules(normalizedKeywords, locale)
         : (isEnglishLocale ? "Use the default scoring rules." : "使用默认评分标准");
     const normalizedResume = normalizeResume(resume, { locale });
-    const salesRequired = isSalesRequiredContext(
-        jobTitle,
-        requirements,
-        matchingRules,
-        config.jobDescriptionContent,
-        config.jobDescriptionTitle,
-        normalizedKeywords.join(" "),
-        config.location,
-    );
 
     const prompt = hydrateUserPrompt(
         getUserPromptTemplate(locale),
@@ -304,10 +293,7 @@ async function analyzeOneResume(
             const rawResult = await callLLM(messages, apiKey);
             const parsedResult = parseLlmResult(rawResult);
             return {
-                ...normalizeKeywordSalesAnalysis(parsedResult, {
-                    salesRequired,
-                    roleSignals: normalizedResume.roleSignals,
-                }),
+                ...parsedResult,
                 locale,
             };
         } catch (error) {

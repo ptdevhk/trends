@@ -307,40 +307,6 @@ describe('resume-scoring', () => {
     }))
   })
 
-  it('caps sales-required analyses when role history has no sales years', () => {
-    expect(overrideIndustryDbBreakdown({
-      score: 86,
-      summary: 'Strong match',
-      highlights: [],
-      recommendation: 'strong_match',
-      breakdown: {
-        related_exp: 86,
-        industry_db: 60,
-      },
-    }, 40, {
-      salesRequired: true,
-      roleSignals: [
-        {
-          type: 'engineer',
-          matchedSignals: ['工程师'],
-          signalCount: 1,
-          occurrences: 1,
-          years: 3.9,
-          industryVerifiedYears: 0,
-          roleRelevantYears: 3.9,
-          verifyIn: 'workHistory',
-        },
-      ],
-    })).toEqual(expect.objectContaining({
-      score: 60,
-      recommendation: 'potential',
-      breakdown: {
-        related_exp: 20,
-        industry_db: 40,
-      },
-    }))
-  })
-
   it('weights related_exp into its 50 point contribution slot', () => {
     expect(overrideIndustryDbBreakdown({
       score: 88,

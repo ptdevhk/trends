@@ -68,8 +68,8 @@ describe("AIMatchingService", () => {
         expect(promptContent).toContain("行业数据库验证公司**: FANUC, 三菱");
         expect(promptContent).toContain("岗位信号");
         expect(promptContent.match(/行业数据库验证公司\*\*: ([^\n]+)/)?.[1]).toBe("FANUC, 三菱");
-        expect(result.score).toBe(49);
-        expect(result.recommendation).toBe("potential");
+        expect(result.score).toBe(86);
+        expect(result.recommendation).toBe("strong_match");
         expect(result.summary).toBe("Strong CNC sales fit");
     });
 

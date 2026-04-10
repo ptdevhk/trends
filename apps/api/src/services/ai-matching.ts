@@ -12,9 +12,6 @@ import JSON5 from "json5";
 
 import {
     getResumeAiLocaleText,
-    getSalesRoleYears,
-    isSalesRequiredContext,
-    normalizeKeywordSalesAnalysis,
     sanitizeResumeRecordForSurface,
     type ResumeFieldUsagePolicy,
     type ResumeFieldUsagePolicyOverrides,
@@ -324,7 +321,7 @@ export class AIMatchingService {
         try {
             const response = await this.callLLM(messages);
             const parsed = this.parseResponse(response);
-            return this.applySalesGuard(parsed, request);
+            return parsed;
         } catch (error) {
             const errorMessage = toCompactErrorMessage(error);
             console.error("[AI Matching] Error:", errorMessage);
@@ -525,38 +522,6 @@ Return strictly valid JSON:
                 ? resume.companies.join(", ")
                 : localeText.emptyFieldLabel,
         });
-    }
-
-    private applySalesGuard(result: MatchingResult, request: MatchingRequest): MatchingResult {
-        const salesRequired = isSalesRequiredContext(
-            request.jobDescription.title,
-            request.jobDescription.requirements,
-            request.jobDescription.responsibilities,
-        );
-        if (!salesRequired) {
-            return result;
-        }
-
-        const salesRoleYears = getSalesRoleYears(request.resume.roleSignals);
-
-        if ((salesRoleYears ?? 0) > 0) {
-            return result;
-        }
-
-        const normalized = normalizeKeywordSalesAnalysis(
-            result as unknown as {
-                score: number;
-                recommendation: string;
-                breakdown?: Record<string, number>;
-            },
-            {
-                salesRequired: true,
-                roleSignals: request.resume.roleSignals,
-                rewriteBreakdown: false,
-            }
-        );
-
-        return normalized as MatchingResult;
     }
 
     private loadPromptForResume(
