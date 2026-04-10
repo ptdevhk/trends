@@ -214,6 +214,25 @@ describe('SnippetCardExpanded', () => {
     expect(screen.queryByRole('link', { name: /Open source profile/i })).not.toBeInTheDocument()
   })
 
+  it('uses the shared latest-work-history limit instead of overriding it locally', () => {
+    render(
+      <SnippetCardExpanded
+        item={createResult(6, {
+          resume: createResume(6, {
+            workHistory: [
+              { companyName: 'Current Co', jobTitle: 'Current Role', raw: 'Current raw' },
+              { companyName: 'Recent Co', jobTitle: 'Recent Role', raw: 'Recent raw' },
+              { companyName: 'Middle Co', jobTitle: 'Middle Role', raw: 'Middle raw' },
+              { companyName: 'Older Co', jobTitle: 'Older Role', raw: 'Older raw' },
+            ],
+          }),
+        })}
+      />
+    )
+
+    expect(selectLatestWorkHistoryMock).toHaveBeenCalledWith(expect.any(Array))
+  })
+
   it('shows AI pending text instead of rule scoring when AI mode is enabled and analysis is missing', () => {
     render(
       <SnippetCardExpanded
