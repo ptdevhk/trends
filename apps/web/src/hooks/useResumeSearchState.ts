@@ -42,6 +42,7 @@ import {
   resolveAnalysisTopN,
   resolveResumeAnalysisSourceKey,
 } from '@/lib/analysis-utils'
+import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
 import { resolveCollectionSource } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import type {
@@ -118,20 +119,6 @@ function normalizeStringList(values: string[] | undefined): string[] {
   })
 
   return normalized
-}
-
-function parseExperienceYears(value: string | undefined): number {
-  if (!value) {
-    return 0
-  }
-
-  const matched = value.match(/\d+(?:\.\d+)?/)
-  if (!matched) {
-    return 0
-  }
-
-  const parsed = Number(matched[0])
-  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function resolveScore(
@@ -397,31 +384,6 @@ function buildSearchExportEntry(
   }
 }
 
-function parseSearchAgeNumber(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    return Math.trunc(value)
-  }
-  if (typeof value !== 'string') {
-    return null
-  }
-  const withSuffix = value.match(/(\d+)\s*岁/)
-  if (withSuffix?.[1]) {
-    return Number(withSuffix[1])
-  }
-  const plain = value.match(/^(\d{1,3})$/)
-  if (plain?.[1]) {
-    return Number(plain[1])
-  }
-  return null
-}
-
-function getSearchResumeAge(resume: ConvexResumeItem): number | null {
-  if (typeof resume.ageNumber === 'number' && Number.isFinite(resume.ageNumber) && resume.ageNumber > 0) {
-    return Math.trunc(resume.ageNumber)
-  }
-  return parseSearchAgeNumber(resume.age)
-}
-
 function matchesLocalFilters(
   item: ResumeSearchResultItem,
   state: UrlSearchState,
@@ -458,6 +420,10 @@ function matchesLocalFilters(
     ?.trim()
     .toLowerCase()
   const minScore = state.filters.minMatchScore
+  const resumeAge =
+    typeof state.filters.minAge === 'number' || typeof state.filters.maxAge === 'number'
+      ? getResumeAge(item.resume)
+      : null
 
   if (
     normalizedSelectedTags.length > 0 &&
@@ -508,15 +474,13 @@ function matchesLocalFilters(
   }
 
   if (typeof state.filters.minAge === 'number') {
-    const age = getSearchResumeAge(item.resume)
-    if (age !== null && age < state.filters.minAge) {
+    if (resumeAge !== null && resumeAge < state.filters.minAge) {
       return false
     }
   }
 
   if (typeof state.filters.maxAge === 'number') {
-    const age = getSearchResumeAge(item.resume)
-    if (age !== null && age > state.filters.maxAge) {
+    if (resumeAge !== null && resumeAge > state.filters.maxAge) {
       return false
     }
   }

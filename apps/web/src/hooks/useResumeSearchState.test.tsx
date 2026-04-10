@@ -407,6 +407,47 @@ describe('useResumeSearchState', () => {
     expect(result.current.filteredResults[1]?.resume.experience).toBe('3 years')
   })
 
+  it('applies age filters while keeping resumes with unknown ages', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'machine tools',
+      keywords: ['machine tools'],
+      filters: {
+        minAge: 28,
+        maxAge: 35,
+      },
+    }))
+
+    resumesMock.push(
+      createResume(1, {
+        age: '',
+        ageNumber: 30,
+        primaryRuleScore: 95,
+      }),
+      createResume(2, {
+        age: '',
+        ageNumber: 24,
+        primaryRuleScore: 90,
+      }),
+      createResume(3, {
+        age: '42岁',
+        ageNumber: undefined,
+        primaryRuleScore: 85,
+      }),
+      createResume(4, {
+        age: '',
+        ageNumber: undefined,
+        primaryRuleScore: 80,
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual([
+      'resume-1',
+      'resume-4',
+    ])
+  })
+
   it('normalizes a recent search and syncs it back to canonical url state when applied', async () => {
     const historyKeywords = ['Machine Tools', 'Sales']
     const expectedQuery = formatKeywordQuery(historyKeywords)
