@@ -509,14 +509,14 @@ function matchesLocalFilters(
 
   if (typeof state.filters.minAge === 'number') {
     const age = getSearchResumeAge(item.resume)
-    if (age === null || age < state.filters.minAge) {
+    if (age !== null && age < state.filters.minAge) {
       return false
     }
   }
 
   if (typeof state.filters.maxAge === 'number') {
     const age = getSearchResumeAge(item.resume)
-    if (age === null || age > state.filters.maxAge) {
+    if (age !== null && age > state.filters.maxAge) {
       return false
     }
   }

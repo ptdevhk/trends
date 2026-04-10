@@ -1244,7 +1244,7 @@ export function useResumeListState(loadSearchHistory = false) {
     if (typeof minAge === 'number') {
       result = result.filter((resume: ScoredConvexResume) => {
         const age = getResumeAge(resume)
-        return age !== null && age >= minAge
+        return age === null || age >= minAge
       })
     }
 
@@ -1252,7 +1252,7 @@ export function useResumeListState(loadSearchHistory = false) {
     if (typeof maxAge === 'number') {
       result = result.filter((resume: ScoredConvexResume) => {
         const age = getResumeAge(resume)
-        return age !== null && age <= maxAge
+        return age === null || age <= maxAge
       })
     }
 
