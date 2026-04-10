@@ -192,7 +192,6 @@ export const saveSession = mutation({
             type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
             exactUrl: v.optional(v.string()),
         })),
-        collectUrl: v.optional(v.string()),
         filters: v.optional(v.any()),
     },
     handler: async (ctx, args) => {
@@ -212,7 +211,6 @@ export const saveSession = mutation({
                 keywords: args.keywords,
                 jobDescriptionId: args.jobDescriptionId,
                 collectionSource: normalizeCollectionSource(args.collectionSource),
-                collectUrl: normalizeOptionalString(args.collectUrl),
                 filters: args.filters,
             },
             workspaceSlug,
@@ -362,7 +360,6 @@ export const saveSearchHistory = mutation({
             type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
             exactUrl: v.optional(v.string()),
         })),
-        collectUrl: v.optional(v.string()),
         filters: v.optional(v.any()),
         selectedTags: v.optional(v.array(v.string())),
         selectedCompanies: v.optional(v.array(v.string())),
@@ -379,7 +376,6 @@ export const saveSearchHistory = mutation({
         const title = normalizeOptionalString(args.title) ?? buildHistoryTitle(location, keywords);
         const jobDescriptionId = normalizeOptionalString(args.jobDescriptionId);
         const collectionSource = normalizeCollectionSource(args.collectionSource);
-        const collectUrl = normalizeOptionalString(args.collectUrl);
         const selectedTags = normalizeStringList(args.selectedTags);
         const selectedCompanies = normalizeStringList(args.selectedCompanies);
         const selectedExperienceLevel = normalizeOptionalString(args.selectedExperienceLevel);
@@ -395,7 +391,6 @@ export const saveSearchHistory = mutation({
             keywords,
             jobDescriptionId,
             collectionSource,
-            collectUrl,
             filters: args.filters,
             selectedTags,
             selectedCompanies,

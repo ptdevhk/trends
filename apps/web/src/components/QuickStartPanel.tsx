@@ -20,6 +20,7 @@ import {
   buildCollectionLaunchUrl,
   getSearchProfileCollectionSource,
   getSearchProfileCollectUrl,
+  getCollectionSourceMarket,
   resolveCollectionSource,
   stripCollectionSourceExactUrl,
   SEARCH_PROFILE_SOURCE_TYPES,
@@ -598,7 +599,7 @@ export function QuickStartPanel({
     () => resolveCollectionSource(collectionSource) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 },
     [collectionSource]
   )
-  const currentMarket: KeywordMarket = currentCollectionSource.type === SEARCH_PROFILE_SOURCE_TYPES.seek ? 'MY' : 'CN'
+  const currentMarket: KeywordMarket = getCollectionSourceMarket(currentCollectionSource.type)
   const generatedCollectUrl = useMemo(
     () => buildCollectionLaunchUrl({
       source: currentCollectionSource,

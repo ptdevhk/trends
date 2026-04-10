@@ -21,96 +21,9 @@ import { parseAgeFromContent } from "./lib/age";
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
 import { resolveResumeScanBatchSize } from "./resumes";
 
-const SEEK_HOST_SUFFIX = ".employer.seek.com";
-const SEEK_RECOMMENDED_PATH = "/candidates/recommended";
 const JOB5156_HOST = "hr.job5156.com";
-const JOB51_EHIRE_HOST = "ehire.51job.com";
 const MANUAL_51JOB_SOURCE = "51job-manual";
 const PROFILE_URL_CONTENT_KEYS = ["profileUrl", "profile_url", "profileURL", "url"];
-
-type CollectionSourceValue =
-    | { type: "seek"; exactUrl: string }
-    | { type: "51job"; exactUrl: string }
-    | { type: "job5156" };
-
-function collectionSourceFromCollectUrl(collectUrl: string): CollectionSourceValue | undefined {
-    try {
-        const url = new URL(collectUrl);
-        if (url.protocol !== "https:") return undefined;
-        const hostname = url.hostname.toLowerCase();
-        if (hostname.endsWith(SEEK_HOST_SUFFIX) && url.pathname.replace(/\/+$/, "") === SEEK_RECOMMENDED_PATH) {
-            return { type: "seek", exactUrl: url.toString() };
-        }
-        if (hostname === JOB51_EHIRE_HOST) {
-            return { type: "51job", exactUrl: url.toString() };
-        }
-        if (hostname === JOB5156_HOST) {
-            return { type: "job5156" };
-        }
-    } catch {
-        // Not a valid URL
-    }
-    return undefined;
-}
-
-export const backfillCollectionSource = mutation({
-    args: {
-        table: v.union(v.literal("screening_sessions"), v.literal("search_history")),
-        cursor: v.optional(v.string()),
-        batchSize: v.optional(v.number()),
-    },
-    handler: async (ctx, args) => {
-        const batch = resolveResumeScanBatchSize(args.batchSize);
-        const records = await ctx.db
-            .query(args.table)
-            .order("desc")
-            .paginate({
-                cursor: args.cursor ?? null,
-                numItems: batch,
-            });
-
-        let count = 0;
-        for (const record of records.page) {
-            const config = args.table === "screening_sessions"
-                ? (record as Doc<"screening_sessions">).config
-                : null;
-
-            const existingSource = config
-                ? config.collectionSource
-                : (record as Doc<"search_history">).collectionSource;
-
-            if (existingSource) continue;
-
-            const collectUrl = config
-                ? config.collectUrl
-                : (record as Doc<"search_history">).collectUrl;
-
-            if (!collectUrl) continue;
-
-            const source = collectionSourceFromCollectUrl(collectUrl);
-            if (!source) continue;
-
-            if (config) {
-                await ctx.db.patch(record._id, {
-                    config: { ...config, collectionSource: source },
-                });
-            } else {
-                await ctx.db.patch(record._id, {
-                    collectionSource: source,
-                } as Partial<Doc<"search_history">>);
-            }
-            count++;
-        }
-
-        return {
-            table: args.table,
-            scanned: records.page.length,
-            updated: count,
-            hasMore: !records.isDone,
-            cursor: records.isDone ? null : records.continueCursor,
-        };
-    },
-});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;

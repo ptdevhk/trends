@@ -587,6 +587,35 @@ describe('useResumeListState role filter regression', () => {
     expect(getDisplayedResumeNames()).toEqual(['Manual Candidate'])
   })
 
+  it('gives live 51job resumes their own review lane separate from job5156', () => {
+    mockState.sessionCollectionSource = { type: '51job' }
+    mockState.convexResumes = [
+      buildResume({
+        id: 'job51-1',
+        name: '51job Live Candidate',
+        source: 'ehire.51job.com',
+        profileType: '51job',
+        roleSignals: [],
+      }),
+      buildResume({
+        id: 'job5156-1',
+        name: 'Job5156 Candidate',
+        source: 'hr.job5156.com',
+        profileType: 'job5156',
+        roleSignals: [],
+      }),
+      buildResume({
+        id: 'seek-1',
+        name: 'Seek Candidate',
+        source: 'my.employer.seek.com',
+        profileType: 'seek',
+        roleSignals: [],
+      }),
+    ]
+
+    expect(getDisplayedResumeNames()).toEqual(['51job Live Candidate'])
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     capturedExportPayload = null

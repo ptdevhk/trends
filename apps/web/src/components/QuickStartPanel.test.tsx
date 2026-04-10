@@ -29,6 +29,18 @@ const SEEK_MALAYSIA_WORKFLOW_SEED = {
   visible: true,
 }
 
+const JOB51_WORKFLOW_SEED = {
+  id: 'job51-cn-cnc-sales',
+  label: 'China · 51job · CNC 销售',
+  market: 'CN',
+  location: '东莞',
+  keywords: ['CNC', '销售'],
+  collectionSource: {
+    type: '51job',
+  },
+  visible: true,
+}
+
 const SEEK_MALAYSIA_PROFILE = {
   id: 'seek-malaysia-sales',
   name: 'SEEK Malaysia CNC Sales',
@@ -145,6 +157,7 @@ describe('QuickStartPanel quick-filter display', () => {
                 visible: true,
               },
               SEEK_MALAYSIA_WORKFLOW_SEED,
+              JOB51_WORKFLOW_SEED,
             ],
           },
         }
@@ -756,6 +769,43 @@ describe('QuickStartPanel quick-filter display', () => {
         collectionSource: {
           type: 'seek',
           exactUrl: SEEK_MALAYSIA_COLLECT_URL,
+        },
+      })
+    })
+  })
+
+  it('applies the 51job workflow preset with collectionSource type 51job', async () => {
+    const user = userEvent.setup()
+    const onApplyConfig = vi.fn()
+
+    render(
+      <QuickStartPanel
+        defaultLocation=""
+        defaultKeywords={[]}
+        jobDescriptionId=""
+        onApplyConfig={onApplyConfig}
+        onJobChange={vi.fn()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: JOB51_WORKFLOW_SEED.label })
+      ).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: JOB51_WORKFLOW_SEED.label }))
+
+    expect(screen.getByRole('textbox', { name: '位置' })).toHaveValue('东莞')
+    expect(screen.getByDisplayValue(JOB51_WORKFLOW_SEED.keywords.join(' '))).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(onApplyConfig).toHaveBeenLastCalledWith({
+        location: '东莞',
+        keywords: JOB51_WORKFLOW_SEED.keywords,
+        jobDescriptionId: undefined,
+        collectionSource: {
+          type: '51job',
         },
       })
     })

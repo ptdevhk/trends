@@ -34,6 +34,16 @@ export type CollectionSource = {
   unsafeLimits?: boolean
 }
 
+const SOURCE_MARKET_MAP: Record<CollectionSourceType, 'CN' | 'MY'> = {
+  [SEARCH_PROFILE_SOURCE_TYPES.job5156]: 'CN',
+  [SEARCH_PROFILE_SOURCE_TYPES.job51]: 'CN',
+  [SEARCH_PROFILE_SOURCE_TYPES.seek]: 'MY',
+}
+
+export function getCollectionSourceMarket(sourceType: CollectionSourceType): 'CN' | 'MY' {
+  return SOURCE_MARKET_MAP[sourceType]
+}
+
 export type SearchProfileSource = {
   type: string
   enabled: boolean

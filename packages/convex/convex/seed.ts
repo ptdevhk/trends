@@ -624,7 +624,6 @@ export const seedWorkspaceDemoData = mutation({
         type: "job5156" | "51job" | "seek";
         exactUrl?: string;
       };
-      collectUrl?: string;
       filters?: Record<string, unknown>;
       selectedTags?: string[];
       selectedCompanies?: string[];
@@ -987,7 +986,6 @@ export const seedWorkspaceDemoData = mutation({
           existing.jobDescriptionId !== item.jobDescriptionId ||
           stableSerialize(existing.collectionSource ?? null) !==
             stableSerialize(item.collectionSource ?? null) ||
-          existing.collectUrl !== item.collectUrl ||
           stableSerialize(existing.filters ?? {}) !==
             stableSerialize(item.filters ?? {}) ||
           stableSerialize(existing.selectedTags ?? []) !==
@@ -1004,7 +1002,6 @@ export const seedWorkspaceDemoData = mutation({
             keywords: item.keywords,
             jobDescriptionId: item.jobDescriptionId,
             collectionSource: item.collectionSource,
-            collectUrl: item.collectUrl,
             filters: item.filters,
             selectedTags: item.selectedTags,
             selectedCompanies: item.selectedCompanies,
@@ -1025,7 +1022,6 @@ export const seedWorkspaceDemoData = mutation({
         keywords: item.keywords,
         jobDescriptionId: item.jobDescriptionId,
         collectionSource: item.collectionSource,
-        collectUrl: item.collectUrl,
         filters: item.filters,
         selectedTags: item.selectedTags,
         selectedCompanies: item.selectedCompanies,
