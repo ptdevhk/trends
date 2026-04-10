@@ -104,7 +104,7 @@ import { formatIsoOffsetInTimezone } from "../services/timezone.js";
 import { workspaceConfigService } from "../services/workspace-config-service.js";
 import { BrandDisplayResolver } from "../services/brand-display-resolver.js";
 
-import { buildKeywordAnalysisId, getCurrentResumeAiPromptVersion } from "@trends/shared";
+import { buildKeywordAnalysisId, getCurrentResumeAiPromptVersion, resolveResumeAnalysisSourceKey } from "@trends/shared";
 import type { ResumeItem } from "../types/resume.js";
 import type { ResumeIndex } from "../services/resume-index.js";
 
@@ -2146,7 +2146,7 @@ function buildAiResumePayload(item: {
     companyHits: item.companyHits,
     roleSignals: item.roleSignals,
     workHistory: buildLatestWorkHistoryEvidence(latestWorkHistory).lines.join("\n") || undefined,
-    sourceKey: item.resume.profileType === "seek" ? "seek" : item.resume.profileType,
+    sourceKey: resolveResumeAnalysisSourceKey({ sourceKey: item.resume.profileType }),
   };
 }
 

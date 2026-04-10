@@ -119,4 +119,29 @@ describe('CollectResumesButton', () => {
 
     expect(onCollectionSourceChange).toHaveBeenCalledWith({ type: '51job' })
   })
+
+  it('launches 51job collection URL when 51job is the initial source', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <Harness
+        initialCollectionSource={{ type: '51job' }}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Source' })).toHaveValue('51job')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Collect' }))
+
+    const launchedUrl = new URL(openMock.mock.calls[0]?.[0] as string)
+    expect(`${launchedUrl.origin}${launchedUrl.pathname}`).toBe('https://ehire.51job.com/Revision/talent/search')
+    expect(launchedUrl.searchParams.get('keyword')).toBe('"Sales Engineer" OR "Sales Manager"')
+    expect(launchedUrl.searchParams.get('location')).toBe('Kuala Lumpur MY')
+    expect(launchedUrl.searchParams.get('tr_auto_sync')).toBe('true')
+    expect(launchedUrl.searchParams.get('tr_max_pages')).toBe('1')
+    expect(launchedUrl.searchParams.get('tr_min_age')).toBe('28')
+    expect(launchedUrl.searchParams.get('tr_max_age')).toBe('40')
+  })
 })
