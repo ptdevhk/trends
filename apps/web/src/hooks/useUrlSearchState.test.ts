@@ -28,8 +28,8 @@ describe('useUrlSearchState location parsing', () => {
     expect(result.current.parsedState.shareSessionId).toBe('session-share-1')
   })
 
-  it('detects legacy keyword params and jd params as explicit url search state', () => {
-    useSearchParamsMock.mockReturnValue([new URLSearchParams('kw=CNC+Sales&jd=jd-123'), setSearchParamsMock])
+  it('detects keyword params and jd params as explicit url search state', () => {
+    useSearchParamsMock.mockReturnValue([new URLSearchParams('q=CNC+Sales&jd=jd-123'), setSearchParamsMock])
 
     const { result } = renderHook(() => useUrlSearchState())
 
@@ -58,8 +58,8 @@ describe('useUrlSearchState location parsing', () => {
     expect(state.keywords).toEqual(['Sales Engineer', 'Sales Manager'])
   })
 
-  it('keeps legacy kw whitespace queries backward compatible', () => {
-    const state = parseUrlSearchState(new URLSearchParams('kw=CNC+%E9%94%80%E5%94%AE'))
+  it('parses spaced queries from q param', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=CNC+%E9%94%80%E5%94%AE'))
 
     expect(state.query).toBe('CNC 销售')
     expect(state.keywords).toEqual(['CNC', '销售'])
@@ -230,9 +230,9 @@ describe('useUrlSearchState location parsing', () => {
     expect(state.query).toBe('machine tools')
   })
 
-  it('clears legacy params and deduplicates canonical values when syncing to the url', () => {
+  it('deduplicates canonical values when syncing to the url', () => {
     const currentParams = new URLSearchParams(
-      'sid=session-share-1&kw=legacy&loc=Oldtown&locs=Oldtown%2COldtown&minExp=3&maxExp=9&status=new'
+      'sid=session-share-1&q=legacy&location=Oldtown&minRoleYears=3&maxRoleYears=9&status=new'
     )
     useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
 
@@ -261,11 +261,6 @@ describe('useUrlSearchState location parsing', () => {
     const updatedParams = updater(currentParams) as URLSearchParams
 
     expect(updatedParams.get('sid')).toBeNull()
-    expect(updatedParams.get('kw')).toBeNull()
-    expect(updatedParams.get('loc')).toBeNull()
-    expect(updatedParams.get('locs')).toBeNull()
-    expect(updatedParams.get('minExp')).toBeNull()
-    expect(updatedParams.get('maxExp')).toBeNull()
 
     expect(updatedParams.get('location')).toBe('Dongguan,Shenzhen')
     expect(updatedParams.get('q')).toBe('CNC Sales')
