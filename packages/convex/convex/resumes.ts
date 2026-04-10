@@ -553,7 +553,7 @@ function projectResumeListContent(resume: Doc<"resumes">): Record<string, unknow
 
 function projectResumeDetailContent(resume: Doc<"resumes">): Record<string, unknown> {
     const content = isRecord(resume.content) ? resume.content : {};
-    const workHistory = Array.isArray(content.workHistory) ? content.workHistory : [];
+    const workHistory = selectLatestWorkHistory(content.workHistory);
     return projectResumeBaseContent(resume, workHistory);
 }
 

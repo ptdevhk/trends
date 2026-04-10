@@ -131,7 +131,7 @@ export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }
     [fieldUsagePolicy, item.resume]
   )
   const workHistory = useMemo(
-    () => selectLatestWorkHistory(presentationResume.workHistory, { limit: 4 })
+    () => selectLatestWorkHistory(presentationResume.workHistory)
       .map((entry) => normalizeWorkHistoryEntry(entry))
       .filter((entry): entry is NonNullable<ReturnType<typeof normalizeWorkHistoryEntry>> => entry !== null),
     [presentationResume.workHistory]

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { listWithIngestDataPaginated } from "../resumes";
+import { getResumeDetail, listWithIngestDataPaginated } from "../resumes";
 
 type ConvexHandler<TArgs, TResult> = {
   _handler: (ctx: unknown, args: TArgs) => Promise<TResult>;
@@ -28,6 +28,9 @@ type PaginatedResult = {
 
 const handler = (
   listWithIngestDataPaginated as unknown as ConvexHandler<PaginatedArgs, PaginatedResult>
+)._handler;
+const getResumeDetailHandler = (
+  getResumeDetail as unknown as ConvexHandler<{ resumeId: string }, unknown>
 )._handler;
 
 function buildResumeDoc(id: string, primaryRuleScore: number, ruleScores?: Record<string, number>) {
@@ -237,5 +240,46 @@ describe("listWithIngestDataPaginated", () => {
     expect(result.page).toHaveLength(1);
     expect((result.page[0] as { content: { name: string } }).content.name).toBe("Alice");
     expect(result.continueCursor).toBe("cursor-next");
+  });
+});
+
+describe("getResumeDetail", () => {
+  it("projects only the shared latest three work history entries", async () => {
+    const resume = {
+      _id: "resume-1",
+      externalId: "test:resume-1",
+      source: "test",
+      tags: [],
+      crawledAt: Date.now(),
+      content: {
+        name: "Alice",
+        workHistory: [
+          { companyName: "Oldest Co", jobTitle: "Oldest Role", startDate: "2018-01", endDate: "2019-01", raw: "Oldest raw" },
+          { companyName: "Recent Co", jobTitle: "Recent Role", startDate: "2023-01", endDate: "2024-01", raw: "Recent raw" },
+          { companyName: "Current Co", jobTitle: "Current Role", startDate: "2024-02", endDate: "至今", raw: "Current raw" },
+          { companyName: "Middle Co", jobTitle: "Middle Role", startDate: "2021-01", endDate: "2022-01", raw: "Middle raw" },
+        ],
+      },
+    };
+
+    const result = await getResumeDetailHandler({
+      db: {
+        get: async () => resume,
+      },
+    }, {
+      resumeId: "resume-1",
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      content: expect.objectContaining({
+        workHistory: [
+          expect.objectContaining({ companyName: "Current Co", jobTitle: "Current Role" }),
+          expect.objectContaining({ companyName: "Recent Co", jobTitle: "Recent Role" }),
+          expect.objectContaining({ companyName: "Middle Co", jobTitle: "Middle Role" }),
+        ],
+      }),
+    }));
+    expect((result as { content: { workHistory: Array<{ companyName?: string }> } }).content.workHistory).toHaveLength(3);
+    expect((result as { content: { workHistory: Array<{ companyName?: string }> } }).content.workHistory.some((entry) => entry.companyName === "Oldest Co")).toBe(false);
   });
 });
