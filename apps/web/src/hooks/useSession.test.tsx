@@ -468,7 +468,7 @@ describe('useSession', () => {
     })
   })
 
-  it('resolves legacy seek collectUrl in history records to collectionSource', async () => {
+  it('preserves seek collectionSource exactUrl from history records', async () => {
     useQueryMock.mockImplementation((query) => {
       if (query === 'list-history-query') {
         return [
@@ -509,6 +509,48 @@ describe('useSession', () => {
     expect(result.current.searchHistory[0]?.collectionSource).toEqual({
       type: 'seek',
       exactUrl: 'https://my.employer.seek.com/candidates/recommended?jobId=1&pageNumber=1',
+    })
+  })
+
+  it('preserves 51job collectionSource from history records without exactUrl', async () => {
+    useQueryMock.mockImplementation((query) => {
+      if (query === 'list-history-query') {
+        return [
+          {
+            _id: 'history-51job',
+            sessionKey: 'session-51job',
+            title: '东莞 · CNC 销售',
+            location: '东莞',
+            keywords: ['CNC', '销售'],
+            collectionSource: {
+              type: '51job',
+            },
+            filters: { minAge: 25, maxAge: 35 },
+            selectedTags: [],
+            selectedCompanies: [],
+            createdAt: 1,
+          },
+        ]
+      }
+
+      return {
+        config: {
+          location: '',
+          keywords: [],
+          filters: {},
+        },
+        reviewedResumeIds: [],
+      }
+    })
+
+    const { result } = renderHook(() => useSession(true))
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    expect(result.current.searchHistory[0]?.collectionSource).toEqual({
+      type: '51job',
     })
   })
 })
