@@ -8,6 +8,7 @@ import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import { useResumeListState } from './useResumeListState'
 import type { ConvexResumeFilters, ConvexResumeSortBy } from '@/hooks/useConvexResumes'
 import { buildRuleScoringText } from '@/lib/resume-scoring'
+import type { CollectionSource } from '@/lib/search-profile-sources'
 
 let capturedExportPayload: unknown = null
 const createObjectUrlMock = vi.fn(() => 'blob:mock')
@@ -33,7 +34,7 @@ const mockState = vi.hoisted(() => ({
   sessionLocation: '广东',
   sessionKeywords: [] as string[],
   sessionJobDescriptionId: undefined as string | undefined,
-  sessionCollectionSource: undefined as { type: 'job5156' | '51job' | 'seek'; exactUrl?: string } | undefined,
+  sessionCollectionSource: undefined as CollectionSource | undefined,
   sessionCollectUrl: '' as string,
   blocksByIdentity: {} as Record<string, { identityKey: string }>,
   statusByIdentity: {} as Record<string, CandidateStatusRecord>,
