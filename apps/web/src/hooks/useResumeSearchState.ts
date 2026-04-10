@@ -1,4 +1,4 @@
-import { formatKeywordQuery, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -42,6 +42,7 @@ import {
   resolveAnalysisTopN,
   resolveResumeAnalysisSourceKey,
 } from '@/lib/analysis-utils'
+import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
 import { resolveCollectionSource } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import type {
@@ -118,20 +119,6 @@ function normalizeStringList(values: string[] | undefined): string[] {
   })
 
   return normalized
-}
-
-function parseExperienceYears(value: string | undefined): number {
-  if (!value) {
-    return 0
-  }
-
-  const matched = value.match(/\d+(?:\.\d+)?/)
-  if (!matched) {
-    return 0
-  }
-
-  const parsed = Number(matched[0])
-  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function resolveScore(
@@ -433,6 +420,10 @@ function matchesLocalFilters(
     ?.trim()
     .toLowerCase()
   const minScore = state.filters.minMatchScore
+  const resumeAge =
+    typeof state.filters.minAge === 'number' || typeof state.filters.maxAge === 'number'
+      ? getResumeAge(item.resume)
+      : null
 
   if (
     normalizedSelectedTags.length > 0 &&
@@ -480,6 +471,18 @@ function matchesLocalFilters(
 
   if (typeof minScore === 'number' && (item.score ?? 0) < minScore) {
     return false
+  }
+
+  if (typeof state.filters.minAge === 'number') {
+    if (resumeAge !== null && resumeAge < state.filters.minAge) {
+      return false
+    }
+  }
+
+  if (typeof state.filters.maxAge === 'number') {
+    if (resumeAge !== null && resumeAge > state.filters.maxAge) {
+      return false
+    }
   }
 
   return true
@@ -612,11 +615,6 @@ export function useResumeSearchState() {
       ]),
     [activeQuery, parsedState.keywords],
   )
-  const salesRequiredContext = isSalesRequiredContext(
-    formatKeywordQuery(parsedState.keywords),
-    activeQuery,
-    parsedState.jobDescriptionId,
-  )
   const backendFilters = useMemo<ConvexResumeFilters>(
     () => ({
       minExperience: parsedState.filters.minExperience,
@@ -706,10 +704,6 @@ export function useResumeSearchState() {
             hasBrandHits,
             hasCompanyHits,
           ),
-          {
-            salesRequired: salesRequiredContext,
-            roleSignals: resume.ingestData?.roleSignals,
-          },
         )
         : undefined
       const score = resolveScore(
@@ -740,7 +734,6 @@ export function useResumeSearchState() {
     currentPromptVersion,
     parsedState.jobDescriptionId,
     parsedState.location,
-    salesRequiredContext,
     resumeQuery.resumes,
     statusByIdentity,
   ])
@@ -930,15 +923,24 @@ export function useResumeSearchState() {
       nextQuery?: string,
       options?: {
         location?: string
+        minAge?: number
+        maxAge?: number
+        minExperience?: number
       },
     ) => {
       const resolvedQuery = normalizeOptionalString(nextQuery ?? queryInput)
       const nextKeywords = parseKeywordQuery(resolvedQuery ?? '').keywords
+      const clearedFilters = clearSortFilters(parsedState.filters)
       const nextState = buildUrlState(parsedState, {
         query: resolvedQuery,
         keywords: nextKeywords,
         location: options?.location ?? parsedState.location,
-        filters: clearSortFilters(parsedState.filters),
+        filters: {
+          ...clearedFilters,
+          ...(typeof options?.minAge === 'number' ? { minAge: options.minAge } : {}),
+          ...(typeof options?.maxAge === 'number' ? { maxAge: options.maxAge } : {}),
+          ...(typeof options?.minExperience === 'number' ? { minExperience: options.minExperience } : {}),
+        },
       })
 
       setAiModeEnabled(true)

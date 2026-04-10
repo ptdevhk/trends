@@ -61,8 +61,8 @@ export const RESUME_AI_PROMPT_SOURCES = {
   "zh-Hans": {
     "sourceFileRelativePath": "config/resume/ai-prompts.md",
     "metadata": {
-      "version": 2,
-      "updatedAt": "2026-03-18",
+      "version": 3,
+      "updatedAt": "2026-04-10",
       "description": "Canonical zh-Hans resume AI prompts for summary and screening analysis. This markdown file is the authoring source for the generated shared prompt runtime."
     },
     "sections": {
@@ -76,8 +76,8 @@ export const RESUME_AI_PROMPT_SOURCES = {
   "en": {
     "sourceFileRelativePath": "config/resume/ai-prompts.en.md",
     "metadata": {
-      "version": 2,
-      "updatedAt": "2026-03-18",
+      "version": 3,
+      "updatedAt": "2026-04-10",
       "description": "English locale variant for the resume AI prompts. Falls back to the zh-Hans master prompt when this file is absent."
     },
     "sections": {

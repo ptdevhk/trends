@@ -48,16 +48,6 @@ export type AnalysisKeywordKeyOptions = {
   sourceKey?: string;
 };
 
-export type AnalysisResultLike = {
-  score: number;
-  recommendation: string;
-  breakdown?: {
-    related_exp?: number;
-    industry_db?: number;
-    [key: string]: number | undefined;
-  };
-};
-
 function getPromptVersionFallback(): number {
   return getResumeAiPromptDefinition(DEFAULT_RESUME_AI_PROMPT_LOCALE).metadata.version;
 }
@@ -226,10 +216,6 @@ export function getRoleSignalYears(
   return Number.isFinite(years) ? years : 0;
 }
 
-export function getSalesRoleYears(roleSignals: AnalysisRoleSignalLike[] | undefined): number {
-  return getRoleSignalYears(roleSignals, "sales", "workHistory");
-}
-
 export function isSalesRequiredContext(...texts: Array<string | undefined>): boolean {
   const haystack = texts
     .map((text) => normalizeText(text))
@@ -241,55 +227,4 @@ export function isSalesRequiredContext(...texts: Array<string | undefined>): boo
   }
 
   return /(?:^|\b)(?:sales|sale|business development|bd)(?:\b|$)|销售|销售工程师|销售经理|业务拓展|客户开发/.test(haystack);
-}
-
-export function normalizeKeywordSalesAnalysis<T extends AnalysisResultLike>(
-  analysis: T,
-  options: {
-    salesRequired: boolean;
-    roleSignals?: AnalysisRoleSignalLike[];
-    maxRelatedExp?: number;
-    maxScore?: number;
-    rewriteBreakdown?: boolean;
-  }
-): T {
-  if (!options.salesRequired) {
-    return analysis;
-  }
-
-  const salesRoleYears = getSalesRoleYears(options.roleSignals);
-  if (salesRoleYears > 0) {
-    return analysis;
-  }
-
-  const maxRelatedExp = options.maxRelatedExp ?? 20;
-  const maxScore = options.maxScore ?? 49;
-  const rewriteBreakdown = options.rewriteBreakdown !== false;
-  const originalBreakdown = analysis.breakdown ?? {};
-  const relatedExp = typeof originalBreakdown.related_exp === "number"
-    ? Math.min(originalBreakdown.related_exp, maxRelatedExp)
-    : 0;
-  const score = Math.min(Number.isFinite(analysis.score) ? analysis.score : 0, maxScore);
-  const recommendation = score <= 0 ? "no_match" : "potential";
-
-  if (!rewriteBreakdown) {
-    return {
-      ...analysis,
-      score,
-      recommendation,
-    };
-  }
-
-  return {
-    ...analysis,
-    score,
-    recommendation,
-    breakdown: {
-      ...originalBreakdown,
-      related_exp: relatedExp,
-      industry_db: typeof originalBreakdown.industry_db === "number"
-        ? originalBreakdown.industry_db
-        : 0,
-    },
-  };
 }

@@ -13,7 +13,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
-import { isSalesRequiredContext } from '@trends/shared'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import {
   CONVEX_RESUME_PAGE_SIZE,
@@ -42,6 +41,7 @@ import {
   resolveResumeAnalysisSourceKey,
 } from '@/lib/analysis-utils'
 import { submitResumeExportDownload, type ResumeExportRequestBody } from '@/lib/resume-export'
+import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
 import { isResumeHomeResetState } from '@/lib/resume-home-navigation'
 import type { ResumeSearchShareState, SearchHistoryItem } from '@/hooks/useSession'
 import {
@@ -302,49 +302,6 @@ function toExperienceLevel(value: string | undefined): ExperienceLevelFilter | u
   if (normalized === 'mid') return 'mid'
   if (normalized === 'junior') return 'junior'
   return undefined
-}
-
-function parseExperienceYears(value: string | undefined): number {
-  if (!value) {
-    return 0
-  }
-
-  const matched = value.match(/\d+(?:\.\d+)?/)
-  if (!matched) {
-    return 0
-  }
-
-  const parsed = Number(matched[0])
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-function parseAgeNumber(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    return Math.trunc(value)
-  }
-  if (typeof value !== 'string') {
-    return null
-  }
-
-  const withSuffix = value.match(/(\d+)\s*岁/)
-  if (withSuffix && withSuffix[1]) {
-    return Number(withSuffix[1])
-  }
-
-  const plain = value.match(/^(\d{1,3})$/)
-  if (plain && plain[1]) {
-    return Number(plain[1])
-  }
-
-  return null
-}
-
-function getResumeAge(resume: ConvexResumeItem): number | null {
-  if (typeof resume.ageNumber === 'number' && Number.isFinite(resume.ageNumber) && resume.ageNumber > 0) {
-    return Math.trunc(resume.ageNumber)
-  }
-
-  return parseAgeNumber(resume.age)
 }
 
 function getResumeIdentityKey(resume: ConvexResumeItem, fallback: string): string {
@@ -718,10 +675,6 @@ export function useResumeListState(loadSearchHistory = false) {
   }, [])
   const currentPromptVersion = getCurrentResumeAiPromptVersion()
   const keywordOnlyQueryScoring = sessionKeywords.length > 0 && !jobDescriptionId?.trim()
-  const salesRequiredContext = useMemo(
-    () => isSalesRequiredContext(formatKeywordQuery(sessionKeywords), jobDescriptionId),
-    [jobDescriptionId, sessionKeywords]
-  )
   const querySpecificKeywordsKey = useMemo(
     () => JSON.stringify(sessionKeywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0)),
     [sessionKeywords]
@@ -1246,18 +1199,23 @@ export function useResumeListState(loadSearchHistory = false) {
     }
 
     const minAge = filters.minAge
-    if (typeof minAge === 'number') {
-      result = result.filter((resume: ScoredConvexResume) => {
-        const age = getResumeAge(resume)
-        return age !== null && age >= minAge
-      })
-    }
-
     const maxAge = filters.maxAge
-    if (typeof maxAge === 'number') {
+    if (typeof minAge === 'number' || typeof maxAge === 'number') {
       result = result.filter((resume: ScoredConvexResume) => {
         const age = getResumeAge(resume)
-        return age !== null && age <= maxAge
+        if (age === null) {
+          return true
+        }
+
+        if (typeof minAge === 'number' && age < minAge) {
+          return false
+        }
+
+        if (typeof maxAge === 'number' && age > maxAge) {
+          return false
+        }
+
+        return true
       })
     }
 
@@ -1597,10 +1555,6 @@ export function useResumeListState(loadSearchHistory = false) {
                 hasBrandHits,
                 hasCompanyHits,
               ),
-              {
-                salesRequired: salesRequiredContext,
-                roleSignals: ingestData?.roleSignals,
-              },
             )
           : undefined
 
@@ -1657,7 +1611,6 @@ export function useResumeListState(loadSearchHistory = false) {
     jobDescriptionId,
     mode,
     resumes,
-    salesRequiredContext,
     sessionCollectionSource,
     sessionKeywords,
     sessionLocation,

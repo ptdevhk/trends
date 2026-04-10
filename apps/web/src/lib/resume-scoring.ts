@@ -1,7 +1,6 @@
 import {
   buildLatestWorkHistoryEvidence,
   getCurrentResumeAiPromptVersion,
-  normalizeKeywordSalesAnalysis,
   normalizeOptionalString,
   resolveResumeId,
 } from '@trends/shared'
@@ -435,10 +434,6 @@ export function computeNormalizedIndustryDbScore(raw: number | undefined, stats:
 export function overrideIndustryDbBreakdown(
   analysis: ConvexResumeAnalysis,
   industryDb: number,
-  options?: {
-    salesRequired?: boolean
-    roleSignals?: ResumeRoleSignalLike[]
-  },
 ): ConvexResumeAnalysis {
   const normalizedRelatedExp =
     typeof analysis.breakdown?.related_exp === 'number'
@@ -450,30 +445,10 @@ export function overrideIndustryDbBreakdown(
     industry_db: industryDb,
   }
 
-  const guarded = normalizeKeywordSalesAnalysis(
-    {
-      ...analysis,
-      score: Math.min(100, normalizedRelatedExp + industryDb),
-      breakdown: nextBreakdown,
-    },
-    {
-      salesRequired: options?.salesRequired ?? false,
-      roleSignals: options?.roleSignals,
-    }
-  )
-
-  // Recompute score from the guarded breakdown to maintain the invariant: score = sum(breakdown).
-  // normalizeKeywordSalesAnalysis caps breakdown.related_exp and score independently, which can
-  // produce score != related_exp + industry_db. Use the breakdown values as the source of truth.
-  const guardedRelatedExp = typeof guarded.breakdown?.related_exp === 'number'
-    ? guarded.breakdown.related_exp
-    : normalizedRelatedExp
-  const guardedIndustryDb = typeof guarded.breakdown?.industry_db === 'number'
-    ? guarded.breakdown.industry_db
-    : industryDb
   return {
-    ...guarded,
-    score: Math.min(100, guardedRelatedExp + guardedIndustryDb),
+    ...analysis,
+    score: Math.min(100, normalizedRelatedExp + industryDb),
+    breakdown: nextBreakdown,
   }
 }
 

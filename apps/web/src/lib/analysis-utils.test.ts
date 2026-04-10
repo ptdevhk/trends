@@ -12,10 +12,10 @@ import {
 describe('buildKeywordAnalysisId', () => {
   it('matches backend output fixtures', () => {
     expect(buildKeywordAnalysisId([])).toBe('keyword-search')
-    expect(buildKeywordAnalysisId(['CNC', '车床'])).toBe('keyword-search:2:282bc607')
-    expect(buildKeywordAnalysisId(['  cnc ', 'CNC', '车床', ''])).toBe('keyword-search:2:282bc607')
-    expect(buildKeywordAnalysisId(['车床', 'cnc', '销售'])).toBe('keyword-search:3:e4226b67')
-    expect(buildKeywordAnalysisId(['销售', '车床', 'cnc', '销售'])).toBe('keyword-search:3:e4226b67')
+    expect(buildKeywordAnalysisId(['CNC', '车床'])).toBe('keyword-search:2:272bc474')
+    expect(buildKeywordAnalysisId(['  cnc ', 'CNC', '车床', ''])).toBe('keyword-search:2:272bc474')
+    expect(buildKeywordAnalysisId(['车床', 'cnc', '销售'])).toBe('keyword-search:3:e32269d4')
+    expect(buildKeywordAnalysisId(['销售', '车床', 'cnc', '销售'])).toBe('keyword-search:3:e32269d4')
   })
 
   it('changes when location or prompt version changes', () => {

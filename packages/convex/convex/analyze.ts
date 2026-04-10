@@ -5,8 +5,6 @@ import {
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
     getResumeAiUserPromptTemplate,
-    isSalesRequiredContext,
-    normalizeKeywordSalesAnalysis,
     resolveResumeAnalysisSourceKey,
     sanitizeResumeRecordForSurface,
     resolveResumeAiPromptLocale,
@@ -436,23 +434,15 @@ export const analyzeResume = action({
             throw new Error("Failed to analyze resume with AI.");
         }
 
-        const normalizedResult = normalizeKeywordSalesAnalysis(
-            result,
-            {
-                salesRequired: isSalesRequiredContext(jd.title, jd.requirements, matchingRules),
-                roleSignals: norm.roleSignals,
-            }
-        );
-
         // 4. Update Resume with result
         await ctx.runMutation(internal.resumes.updateAnalysis, {
             resumeId: args.resumeId,
             analysis: {
-                score: normalizedResult.score,
-                breakdown: normalizedResult.breakdown,
-                summary: normalizedResult.summary,
-                highlights: normalizedResult.highlights || [],
-                recommendation: normalizedResult.recommendation || "no_match",
+                score: result.score,
+                breakdown: result.breakdown,
+                summary: result.summary,
+                highlights: result.highlights || [],
+                recommendation: result.recommendation || "no_match",
                 jobDescriptionId: args.jobDescriptionId || "default",
                 promptVersion,
                 locale,
@@ -460,7 +450,7 @@ export const analyzeResume = action({
             },
         });
 
-        return normalizedResult;
+        return result;
     },
 });
 

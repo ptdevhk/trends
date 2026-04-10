@@ -1,6 +1,6 @@
 ---
-version: 2
-updated_at: '2026-03-18'
+version: 3
+updated_at: '2026-04-10'
 description: >
   English locale variant for the resume AI prompts.
   Falls back to the zh-Hans master prompt when this file is absent.
