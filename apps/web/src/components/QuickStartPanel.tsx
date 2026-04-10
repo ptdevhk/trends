@@ -708,10 +708,10 @@ export function QuickStartPanel({
       return
     }
 
-    const nextCollectionSource: CollectionSource = {
-      type: 'seek',
-      exactUrl: matchedProfileCollectUrl,
-    }
+    const matchedSource = getSearchProfileCollectionSource(autoMatchResult?.profile.sources)
+    const nextCollectionSource: CollectionSource = matchedSource?.type === 'seek'
+      ? { type: 'seek', exactUrl: matchedProfileCollectUrl }
+      : (matchedSource ?? { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 })
 
     setCollectionSource(nextCollectionSource)
     onApplyConfig?.({
@@ -720,7 +720,7 @@ export function QuickStartPanel({
       jobDescriptionId: jobDescriptionId || undefined,
       collectionSource: nextCollectionSource,
     }, true)
-  }, [currentCollectionSource, generatedCollectUrl, jobDescriptionId, location, matchedProfileCollectUrl, normalizedKeywords, onApplyConfig])
+  }, [autoMatchResult?.profile.sources, currentCollectionSource, generatedCollectUrl, jobDescriptionId, location, matchedProfileCollectUrl, normalizedKeywords, onApplyConfig])
 
   useEffect(() => {
     if (normalizedKeywords.length === 0) {

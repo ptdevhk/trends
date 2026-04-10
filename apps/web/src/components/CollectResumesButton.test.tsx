@@ -101,4 +101,22 @@ describe('CollectResumesButton', () => {
       'noopener,noreferrer'
     )
   })
+
+  it('calls onCollectionSourceChange with 51job type when 51job is selected', async () => {
+    const user = userEvent.setup()
+    const onCollectionSourceChange = vi.fn()
+
+    render(
+      <CollectResumesButton
+        location="东莞"
+        keywords={['CNC']}
+        collectionSource={{ type: 'job5156' }}
+        onCollectionSourceChange={onCollectionSourceChange}
+      />
+    )
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Source' }), '51job')
+
+    expect(onCollectionSourceChange).toHaveBeenCalledWith({ type: '51job' })
+  })
 })

@@ -5,16 +5,12 @@ import type { CandidateStatus, ResumeFilters } from '@/types/resume'
 
 const KNOWN_PARAM_KEYS = [
   'q',
-  'loc',
   'location',
-  'kw',
   'jd',
   'tags',
   'co',
   'rkw',
   'exp',
-  'minExp',
-  'maxExp',
   'minRoleYears',
   'maxRoleYears',
   'roleType',
@@ -22,7 +18,6 @@ const KNOWN_PARAM_KEYS = [
   'maxAge',
   'edu',
   'minScore',
-  'locs',
   'status',
   'sort',
   'order',
@@ -41,16 +36,6 @@ export type UrlSearchState = {
   selectedCompanies: string[]
   selectedExperienceLevel?: ExperienceLevelFilter
   filters: Partial<ResumeFilters>
-}
-
-function getFirstParam(searchParams: URLSearchParams, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = searchParams.get(key)
-    if (value !== null) {
-      return value
-    }
-  }
-  return null
 }
 
 function parseKeywordParam(value: string | null): string[] {
@@ -188,15 +173,11 @@ export function hasKnownUrlSearchParams(searchParams: URLSearchParams): boolean 
 export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchState {
   const shareSessionIdRaw = searchParams.get('sid')
   const shareSessionId = shareSessionIdRaw?.trim() || undefined
-  const queryRaw = getFirstParam(searchParams, ['q', 'kw'])
+  const queryRaw = searchParams.get('q')
   const query = queryRaw?.trim() || undefined
-  const locationRaw = getFirstParam(searchParams, ['loc', 'location'])
+  const locationRaw = searchParams.get('location')
   const normalizedLocation = locationRaw?.trim() || ''
-  const locationFromLocationParam = normalizeUniqueValues(parseLocationParam(normalizedLocation))
-  const locationFromLocsParam = normalizeUniqueValues(parseCsvParam(searchParams.get('locs')))
-  const effectiveLocations = locationFromLocsParam.length > 0
-    ? locationFromLocsParam
-    : locationFromLocationParam
+  const effectiveLocations = normalizeUniqueValues(parseLocationParam(normalizedLocation))
   const location = normalizedLocation || (effectiveLocations.length > 0 ? effectiveLocations.join(',') : undefined)
   const keywords = normalizeUniqueValues(parseKeywordParam(query ?? null))
   const requiredKeywords = normalizeUniqueValues(parseCsvParam(searchParams.get('rkw')))
@@ -208,7 +189,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
 
   const filters: Partial<ResumeFilters> = {}
 
-  const maxExperience = parseNumberParam(getFirstParam(searchParams, ['maxRoleYears', 'maxExp']))
+  const maxExperience = parseNumberParam(searchParams.get('maxRoleYears'))
   if (typeof maxExperience === 'number') {
     filters.maxExperience = maxExperience
   }
@@ -218,7 +199,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     filters.education = education
   }
 
-  const minRoleYears = parseNumberParam(getFirstParam(searchParams, ['minRoleYears', 'minExp']))
+  const minRoleYears = parseNumberParam(searchParams.get('minRoleYears'))
   if (typeof minRoleYears === 'number') {
     filters.minRoleYears = minRoleYears
     filters.minExperience = minRoleYears
@@ -280,7 +261,6 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
 export function useUrlSearchState() {
   const [searchParams, setSearchParams] = useSearchParams()
   const hasKeywordParam = searchParams.has('q')
-    || searchParams.has('kw')
   const hasJobDescriptionParam = searchParams.has('jd')
 
   const hasUrlParams = useMemo(

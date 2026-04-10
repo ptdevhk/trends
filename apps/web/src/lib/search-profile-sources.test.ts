@@ -64,6 +64,17 @@ describe('search-profile-sources', () => {
     })
   })
 
+  it('returns the active launchable collection source for 51job profiles', () => {
+    const collectionSource = getSearchProfileCollectionSource([
+      { type: 'manual_upload', enabled: true, priority: 1 },
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job51, enabled: true, priority: 2 },
+    ])
+
+    expect(collectionSource).toEqual({
+      type: SEARCH_PROFILE_SOURCE_TYPES.job51,
+    })
+  })
+
   it('uses enabled priority order when selecting the active source', () => {
     const activeSource = getActiveSearchProfileSource([
       { type: SEARCH_PROFILE_SOURCE_TYPES.seek, enabled: true, priority: 2 },
@@ -189,10 +200,20 @@ describe('search-profile-sources', () => {
       keywords: ['CNC'],
       maxPages: 2,
     })
+    const job51Url = buildCollectionLaunchUrl({
+      source: {
+        type: SEARCH_PROFILE_SOURCE_TYPES.job51,
+      },
+      location: '东莞',
+      keywords: ['CNC'],
+      maxPages: 2,
+    })
 
     expect(seekUrl).toContain('jobId=90842915')
     expect(seekUrl).toContain('tr_max_pages=2')
     expect(job5156Url).toContain('hr.job5156.com/search')
     expect(job5156Url).toContain('tr_max_pages=2')
+    expect(job51Url).toContain('ehire.51job.com/Revision/talent/search')
+    expect(job51Url).toContain('tr_max_pages=1')
   })
 })
