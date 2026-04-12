@@ -181,30 +181,6 @@ npm install -g opencode-ai
 
 --------------------------------
 
-### Prompt Example for Local MCP Server
-
-Source: https://opencode.ai/docs/mcp-servers
-
-Demonstrates how to invoke a configured local MCP server, `mcp_everything`, within a prompt. This shows the practical application of adding and enabling MCP tools for LLM interaction.
-
-```txt
-use the mcp_everything tool to add the number 3 and 4
-```
-
---------------------------------
-
-### List Available Models in OpenCode
-
-Source: https://opencode.ai/docs/providers
-
-Command to list available AI models within the OpenCode environment. This command is used after connecting to a provider.
-
-```txt
-/models
-```
-
---------------------------------
-
 ### Install and Configure Helicone Session Tracking
 
 Source: https://opencode.ai/docs/providers
@@ -219,6 +195,18 @@ npm install -g opencode-helicone-session
 {
   "plugin": ["opencode-helicone-session"]
 }
+```
+
+--------------------------------
+
+### List Available Models in OpenCode
+
+Source: https://opencode.ai/docs/providers
+
+Command to list available AI models within the OpenCode environment. This command is used after connecting to a provider.
+
+```txt
+/models
 ```
 
 --------------------------------
@@ -250,18 +238,6 @@ metadata:
 
 Use this when you are preparing a tagged release. Ask clarifying questions if the target versioning scheme is unclear.
 
-```
-
---------------------------------
-
-### Secure OpenCode server with a password in WSL
-
-Source: https://opencode.ai/docs/windows-wsl
-
-Starts the OpenCode server with network access enabled and sets an environment variable for password protection. This is crucial for securing the server when accessible from outside the WSL environment.
-
-```bash
-OPENCODE_SERVER_PASSWORD=your-password opencode serve --hostname 0.0.0.0
 ```
 
 --------------------------------
@@ -362,20 +338,6 @@ pnpm install -g opencode-ai
 
 --------------------------------
 
-### Create Opencode Client Instance
-
-Source: https://opencode.ai/docs/sdk
-
-Create a new instance of the OpenCode client, which also starts a server. This method can be configured with various options like hostname, port, and timeout. It returns an object containing the client and server instances.
-
-```javascript
-import { createOpencode } from "@opencode-ai/sdk"
-
-const { client } = await createOpencode()
-```
-
---------------------------------
-
 ### OpenCode Configuration Example (JSON)
 
 Source: https://opencode.ai/docs/enterprise
@@ -387,66 +349,6 @@ An example JSON configuration file for OpenCode, specifying schema and sharing s
   "$schema": "https://opencode.ai/config.json",
   "share": "disabled"
 }
-```
-
---------------------------------
-
-### Install OpenCode using Chocolatey
-
-Source: https://opencode.ai/docs
-
-Installs OpenCode on Windows using the Chocolatey package manager. This requires Chocolatey to be installed.
-
-```powershell
-choco install opencode
-```
-
---------------------------------
-
-### Configure Cloudflare AI Gateway Models in Opencode
-
-Source: https://opencode.ai/docs/providers
-
-Example of how to configure specific models for the Cloudflare AI Gateway provider within the Opencode configuration file.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "cloudflare-ai-gateway": {
-      "models": {
-        "openai/gpt-4o": {},
-        "anthropic/claude-sonnet-4": {}
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### Connect to GitHub Copilot in OpenCode
-
-Source: https://opencode.ai/docs/providers
-
-Initiate the connection process to use GitHub Copilot with OpenCode. This involves running the '/connect' command, authorizing through the GitHub device login flow, and then selecting the desired model using the '/models' command.
-
-```txt
-/connect
-```
-
-```txt
-┌ Login with GitHub Copilot
-│
-│ https://github.com/login/device
-│
-│ Enter code: 8F43-6FCF
-│
-└ Waiting for authorization...
-```
-
-```txt
-/models
 ```
 
 --------------------------------
@@ -510,18 +412,6 @@ Demonstrates how to manually add or customize OpenRouter models within the openc
 
 --------------------------------
 
-### Connect to an AI Provider in OpenCode
-
-Source: https://opencode.ai/docs/providers
-
-Command to initiate the connection process with an AI provider in OpenCode. This is typically followed by selecting the provider and entering credentials.
-
-```txt
-/connect
-```
-
---------------------------------
-
 ### Install OpenCode using Homebrew
 
 Source: https://opencode.ai/docs
@@ -530,30 +420,6 @@ Installs OpenCode using the Homebrew package manager on macOS and Linux. It's re
 
 ```bash
 brew install anomalyco/tap/opencode
-```
-
---------------------------------
-
-### Configure Opencode Client with Options
-
-Source: https://opencode.ai/docs/sdk
-
-Instantiate the OpenCode client with custom configuration options. This allows overriding default settings such as hostname, port, and specifying a particular model. The example demonstrates setting a model and logging the server URL before closing the server.
-
-```javascript
-import { createOpencode } from "@opencode-ai/sdk"
-
-const opencode = await createOpencode({
-  hostname: "127.0.0.1",
-  port: 4096,
-  config: {
-    model: "anthropic/claude-3-5-sonnet-20241022",
-  },
-})
-
-console.log(`Server running at ${opencode.server.url}`)
-
-opencode.server.close()
 ```
 
 --------------------------------
@@ -601,118 +467,6 @@ How is authentication handled in @packages/functions/src/api/index.ts
 
 --------------------------------
 
-### Setting Environment Variables for LSP Servers (Rust Example)
-
-Source: https://opencode.ai/docs/lsp
-
-This JSON configuration demonstrates how to set environment variables for a specific LSP server, in this case, 'rust'. The `env` property within the server's configuration allows you to pass key-value pairs that will be available as environment variables when the LSP server starts. This is useful for configuring logging levels or other server-specific settings.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "lsp": {
-    "rust": {
-      "env": {
-        "RUST_LOG": "debug"
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### OpenCode TUI Command Interface
-
-Source: https://opencode.ai/docs/providers
-
-Lists the standard TUI commands used for connecting to providers and listing available models. These commands are used across all supported providers to initialize authentication and verify model availability.
-
-```text
-/connect
-```
-
-```text
-/models
-```
-
---------------------------------
-
-### Configure SAP AI Core via Environment Variables
-
-Source: https://opencode.ai/docs/providers
-
-Methods for setting the SAP AI Core service key using environment variables or shell configuration files to enable seamless integration.
-
-```bash
-AICORE_SERVICE_KEY='{"clientid":"...","clientsecret":"...","url":"...","serviceurls":{"AI_API_URL":"..."}}' opencode
-```
-
-```bash
-export AICORE_SERVICE_KEY='{"clientid":"...","clientsecret":"...","url":"...","serviceurls":{"AI_API_URL":"..."}}'
-```
-
---------------------------------
-
-### Configure OAuth for Self-Hosted GitLab Instances
-
-Source: https://opencode.ai/docs/providers
-
-Set up OAuth authentication for self-hosted GitLab instances by creating a new application in GitLab's settings. This involves defining the callback URL and required scopes, then exposing the application ID as an environment variable.
-
-```bash
-export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
-```
-
---------------------------------
-
-### Remote Configuration Example for MCP Jira
-
-Source: https://opencode.ai/docs/config
-
-An example of a remote configuration file, typically served from a `.well-known/opencode` endpoint. This JSON snippet defines settings for an MCP Jira integration, including its type, URL, and an initial disabled state.
-
-```json
-{
-  "mcp": {
-    "jira": {
-      "type": "remote",
-      "url": "https://jira.example.com/mcp",
-      "enabled": false
-    }
-  }
-}
-```
-
---------------------------------
-
-### Configure MCP Server Globally (JSON)
-
-Source: https://opencode.ai/docs/mcp-servers
-
-This JSON configuration shows a basic setup for enabling or disabling MCP servers globally. It includes an example of a local MCP server and how to toggle its tool availability.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "my-mcp-foo": {
-      "type": "local",
-      "command": ["bun", "x", "my-mcp-command-foo"]
-    },
-    "my-mcp-bar": {
-      "type": "local",
-      "command": ["bun", "x", "my-mcp-command-bar"]
-    }
-  },
-  "tools": {
-    "my-mcp-foo": false
-  }
-}
-```
-
---------------------------------
-
 ### Launch OpenCode CLI
 
 Source: https://opencode.ai/docs/cli
@@ -727,437 +481,40 @@ opencode [project]
 
 --------------------------------
 
-### Manage GitHub Integration
+### Secure OpenCode server with a password in WSL
 
-Source: https://opencode.ai/docs/cli
+Source: https://opencode.ai/docs/windows-wsl
 
-Commands to install and execute the GitHub agent for repository automation tasks.
-
-```bash
-opencode github install
-opencode github run
-```
-
---------------------------------
-
-### Config API
-
-Source: https://opencode.ai/docs/sdk
-
-Manages configuration settings, including getting general config and listing providers.
-
-```APIDOC
-## GET /config
-
-### Description
-Retrieves the general configuration information.
-
-### Method
-GET
-
-### Endpoint
-/config
-
-### Parameters
-#### Query Parameters
-None
-
-#### Request Body
-None
-
-### Response
-#### Success Response (200)
-- **config** (Config) - The configuration object.
-
-#### Response Example
-```json
-{
-  "setting1": "value1",
-  "setting2": 123
-}
-```
-
-## GET /config/providers
-
-### Description
-Lists available providers and their default models.
-
-### Method
-GET
-
-### Endpoint
-/config/providers
-
-### Parameters
-#### Query Parameters
-None
-
-#### Request Body
-None
-
-### Response
-#### Success Response (200)
-- **providers** (Provider[]) - An array of available providers.
-- **default** (object) - An object mapping provider keys to their default model names.
-
-#### Response Example
-```json
-{
-  "providers": [
-    {
-      "name": "OpenAI",
-      "models": ["gpt-3.5-turbo", "gpt-4"]
-    }
-  ],
-  "default": {
-    "openai": "gpt-3.5-turbo"
-  }
-}
-```
-```
-
---------------------------------
-
-### GET /session
-
-Source: https://opencode.ai/docs/server
-
-Retrieves a list of all sessions.  This endpoint provides a way to fetch all available sessions.
-
-```APIDOC
-## GET /session
-
-### Description
-Lists all sessions.
-
-### Method
-GET
-
-### Endpoint
-/session
-
-### Parameters
-No parameters.
-
-### Request Example
-No request body.
-
-### Response
-#### Success Response (200)
-- **Session[]** - An array of Session objects.
-
-#### Response Example
-[
-  {
-    "id": "session1",
-    "title": "Session Title",
-    // ... other session properties
-  }
-]
-
-```
-
---------------------------------
-
-### CLI Provider Connection Commands
-
-Source: https://opencode.ai/docs/providers
-
-Commands used in the OpenCode CLI to initialize a new provider connection, define a unique provider ID, and securely store the associated API key.
+Starts the OpenCode server with network access enabled and sets an environment variable for password protection. This is crucial for securing the server when accessible from outside the WSL environment.
 
 ```bash
-$ /connect
-
-┌  Add credential
-│
-◆  Select provider
-│  ...
-│  ● Other
-└
-```
-
-```bash
-$ /connect
-
-┌  Add credential
-│
-◇  Enter provider id
-│  myprovider
-└
-```
-
-```bash
-$ /connect
-
-┌  Add credential
-│
-▲  This only stores a credential for myprovider - you will need to configure it in opencode.json, check the docs for examples.
-│
-◇  Enter your API key
-│  sk-...
-└
+OPENCODE_SERVER_PASSWORD=your-password opencode serve --hostname 0.0.0.0
 ```
 
 --------------------------------
 
-### Define a Custom Theme Configuration
-
-Source: https://opencode.ai/docs/themes
-
-A comprehensive JSON configuration example demonstrating the use of reusable color definitions ('defs') and mapping them to various UI elements, syntax highlighting, and markdown styles.
-
-```json
-{
-  "$schema": "https://opencode.ai/theme.json",
-  "defs": {
-    "nord0": "#2E3440",
-    "nord1": "#3B4252",
-    "nord2": "#434C5E",
-    "nord3": "#4C566A",
-    "nord4": "#D8DEE9",
-    "nord5": "#E5E9F0",
-    "nord6": "#ECEFF4",
-    "nord7": "#8FBCBB",
-    "nord8": "#88C0D0",
-    "nord9": "#81A1C1",
-    "nord10": "#5E81AC",
-    "nord11": "#BF616A",
-    "nord12": "#D08770",
-    "nord13": "#EBCB8B",
-    "nord14": "#A3BE8C",
-    "nord15": "#B48EAD"
-  },
-  "theme": {
-    "primary": {
-      "dark": "nord8",
-      "light": "nord10"
-    },
-    "background": {
-      "dark": "nord0",
-      "light": "nord6"
-    }
-  }
-}
-```
-
---------------------------------
-
-### Connect to Vercel AI Gateway (CLI)
-
-Source: https://opencode.ai/docs/providers
-
-This command-line interface (CLI) snippet illustrates the process of connecting to the Vercel AI Gateway. It involves running the `/connect` command and then entering the provided API key.
-
-```shell
-/connect
-```
-
-```shell
-┌ API key
-│
-│
-└ enter
-```
-
-```shell
-/models
-```
-
---------------------------------
-
-### Connect to Cloudflare AI Gateway
-
-Source: https://opencode.ai/docs/providers
-
-Instructions for integrating Opencode AI with Cloudflare AI Gateway. Requires setting Account ID, Gateway ID, and API Token as environment variables or through the `/connect` command.
-
-```bash
-export CLOUDFLARE_ACCOUNT_ID=your-32-character-account-id
-export CLOUDFLARE_GATEWAY_ID=your-gateway-id
-```
-
-```txt
-/connect
-```
-
-```txt
-┌ API key
-│
-│
-└ enter
-```
-
-```bash
-export CLOUDFLARE_API_TOKEN=your-api-token
-```
-
---------------------------------
-
-### Use Grep by Vercel MCP Server in Prompt (Text)
+### Prompt Example for Local MCP Server
 
 Source: https://opencode.ai/docs/mcp-servers
 
-This example prompt shows how to use the Grep by Vercel MCP server, identified as 'gh_grep', to find information on setting custom domains in an SST Astro component. It clearly states the query and the tool to use.
+Demonstrates how to invoke a configured local MCP server, `mcp_everything`, within a prompt. This shows the practical application of adding and enabling MCP tools for LLM interaction.
 
-```text
-What's the right way to set a custom domain in an SST Astro component? use the gh_grep tool
+```txt
+use the mcp_everything tool to add the number 3 and 4
 ```
 
 --------------------------------
 
-### Configure Google Vertex AI Environment Variables
+### Create Opencode Client Instance
 
-Source: https://opencode.ai/docs/providers
+Source: https://opencode.ai/docs/sdk
 
-Sets up the necessary environment variables for authenticating and specifying the region for Google Vertex AI. Requires a Google Cloud project with the Vertex AI API enabled.
+Create a new instance of the OpenCode client, which also starts a server. This method can be configured with various options like hostname, port, and timeout. It returns an object containing the client and server instances.
 
-```bash
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json GOOGLE_CLOUD_PROJECT=your-project-id opencode
-```
+```javascript
+import { createOpencode } from "@opencode-ai/sdk"
 
-```bash
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-export GOOGLE_CLOUD_PROJECT=your-project-id
-export VERTEX_LOCATION=global
-```
-
---------------------------------
-
-### OpenCode CLI - General Usage
-
-Source: https://opencode.ai/docs/cli
-
-The OpenCode CLI can be run without arguments to start the TUI or with commands for programmatic interaction.
-
-```APIDOC
-## OpenCode CLI - General Usage
-
-### Description
-The OpenCode CLI can be run without arguments to start the Terminal User Interface (TUI) or with commands for programmatic interaction.
-
-### Method
-CLI Command
-
-### Endpoint
-`opencode`
-
-### Request Example
-```bash
-opencode
-```
-
-### Commands
-- `run "<prompt>"`: Executes a command with a given prompt.
-
-### Request Example
-```bash
-opencode run "Explain how closures work in JavaScript"
-```
-```
-
---------------------------------
-
-### Start Headless OpenCode Server for API Access
-
-Source: https://opencode.ai/docs/cli
-
-Initiates a headless OpenCode server for API interactions, bypassing the TUI. Supports basic HTTP authentication via the OPENCODE_SERVER_PASSWORD environment variable.
-
-```bash
-opencode serve
-```
-
---------------------------------
-
-### Configure SAP AI Core Deployment and Resource Group
-
-Source: https://opencode.ai/docs/providers
-
-Optional configuration for specifying deployment IDs and resource groups for SAP AI Core instances.
-
-```bash
-AICORE_DEPLOYMENT_ID=your-deployment-id AICORE_RESOURCE_GROUP=your-resource-group opencode
-```
-
---------------------------------
-
-### Connect to Azure OpenAI
-
-Source: https://opencode.ai/docs/providers
-
-Steps to connect Opencode AI with Azure OpenAI. Requires creating an Azure OpenAI resource, deploying a model, and setting environment variables for the resource name and API key.
-
-```bash
-AZURE_RESOURCE_NAME=XXX opencode
-```
-
-```bash
-export AZURE_RESOURCE_NAME=XXX
-```
-
---------------------------------
-
-### Confirm Feature Implementation
-
-Source: https://opencode.ai/docs
-
-An example of instructing OpenCode to proceed with making the changes after reviewing and approving the plan. This command triggers the code generation and modification process.
-
-```text
-Sounds good! Go ahead and make the changes.
-```
-
---------------------------------
-
-### Configuring Initialization Options for TypeScript LSP
-
-Source: https://opencode.ai/docs/lsp
-
-This JSON example shows how to provide custom initialization options for the TypeScript LSP server. The `initialization` object allows you to send server-specific settings during the LSP `initialize` request. In this case, it configures the TypeScript server to prefer relative import paths.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "lsp": {
-    "typescript": {
-      "initialization": {
-        "preferences": {
-          "importModuleSpecifierPreference": "relative"
-        }
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### Configure Permissions (JSON)
-
-Source: https://opencode.ai/docs/config
-
-Sets permission levels for tools using the 'permission' option in opencode.json. This example requires user approval ('ask') for 'edit' and 'bash' tools.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "edit": "ask",
-    "bash": "ask"
-  }
-}
-```
-
---------------------------------
-
-### Run OpenCode using Docker
-
-Source: https://opencode.ai/docs
-
-Runs OpenCode in a Docker container. This command downloads the image if not present and starts an interactive terminal session.
-
-```bash
-docker run -it --rm ghcr.io/anomalyco/opencode
+const { client } = await createOpencode()
 ```
 
 --------------------------------
@@ -1172,19 +529,6 @@ Illustrates how to fetch general configuration details using `config.get()` and 
 const config = await client.config.get()
 
 const { providers, default: defaults } = await client.config.providers()
-```
-
---------------------------------
-
-### Provide Design Reference in Plan Mode
-
-Source: https://opencode.ai/docs
-
-Example of providing additional context or design references to OpenCode in 'Plan mode'. This can include referencing existing designs or uploading images.
-
-```text
-We'd like to design this new screen using a design I've used before.
-[Image #1] Take a look at this image and use it as a reference.
 ```
 
 --------------------------------
@@ -1234,167 +578,50 @@ true
 
 --------------------------------
 
-### Describe Feature in Plan Mode
-
-Source: https://opencode.ai/docs
-
-An example of describing a new feature request to OpenCode while in 'Plan mode'. This provides detailed instructions for the AI to generate a plan.
-
-```text
-When a user deletes a note, we'd like to flag it as deleted in the database.
-Then create a screen that shows all the recently deleted notes.
-From this screen, the user can undelete a note or permanently delete it.
-```
-
---------------------------------
-
-### Reset OpenCode Desktop App Data (Windows)
-
-Source: https://opencode.ai/docs/troubleshooting
-
-This instruction guides users to manually delete the OpenCode application data directory on Windows. This action is recommended as a last resort for troubleshooting startup or settings issues when in-app options are unavailable. It clears stored configurations and UI states.
-
-```batch
-Press WIN+R and delete: %USERPROFILE%\.local\share\opencode
-```
-
---------------------------------
-
-### Get Current Path Information with JavaScript
-
-Source: https://opencode.ai/docs/sdk
-
-Demonstrates the usage of the `path.get()` method to retrieve information about the current path. The response is expected to be of type `Path`.
-
-```javascript
-// Get current path information
-const pathInfo = await client.path.get()
-```
-
---------------------------------
-
-### Pull Ollama Cloud Model
+### Connect to GitHub Copilot in OpenCode
 
 Source: https://opencode.ai/docs/providers
 
-Uses the Ollama CLI to pull a specific cloud-hosted model locally before it can be used within OpenCode.
+Initiate the connection process to use GitHub Copilot with OpenCode. This involves running the '/connect' command, authorizing through the GitHub device login flow, and then selecting the desired model using the '/models' command.
 
-```bash
-ollama pull gpt-oss:20b-cloud
+```txt
+/connect
+```
+
+```txt
+┌ Login with GitHub Copilot
+│
+│ https://github.com/login/device
+│
+│ Enter code: 8F43-6FCF
+│
+└ Waiting for authorization...
+```
+
+```txt
+/models
 ```
 
 --------------------------------
 
-### Add Test Local MCP Server in OpenCode
-
-Source: https://opencode.ai/docs/mcp-servers
-
-Provides an example of adding the `@modelcontextprotocol/server-everything` MCP server locally. This configuration uses `npx` to run the server command, making it available for use in prompts by referencing its name (e.g., `mcp_everything`).
-
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "mcp_everything": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-everything"]
-    }
-  }
-}
-```
-
---------------------------------
-
-### Configure Local AI Providers
+### Configure Cloudflare AI Gateway Models in Opencode
 
 Source: https://opencode.ai/docs/providers
 
-Defines custom provider configurations for local LLM servers using the OpenAI-compatible SDK. Requires specifying the baseURL and model mapping in the opencode.json file.
+Example of how to configure specific models for the Cloudflare AI Gateway provider within the Opencode configuration file.
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "llama.cpp": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "llama-server (local)",
-      "options": {
-        "baseURL": "http://127.0.0.1:8080/v1"
-      },
+    "cloudflare-ai-gateway": {
       "models": {
-        "qwen3-coder:a3b": {
-          "name": "Qwen3-Coder: a3b-30b (local)",
-          "limit": {
-            "context": 128000,
-            "output": 65536
-          }
-        }
+        "openai/gpt-4o": {},
+        "anthropic/claude-sonnet-4": {}
       }
     }
   }
 }
-```
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "lmstudio": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "LM Studio (local)",
-      "options": {
-        "baseURL": "http://127.0.0.1:1234/v1"
-      },
-      "models": {
-        "google/gemma-3n-e4b": {
-          "name": "Gemma 3n-e4b (local)"
-        }
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### GitHub Agent Management
-
-Source: https://opencode.ai/docs/cli
-
-Manage the GitHub agent for repository automation, including installation and running.
-
-```APIDOC
-## GitHub Agent Management
-
-### Description
-Manage the GitHub agent for repository automation.
-
-### Method
-CLI Command
-
-### Endpoint
-`opencode github [command]`
-
-### Commands
-#### install
-Install the GitHub agent in your repository. This sets up the necessary GitHub Actions workflow and guides you through the configuration process. [Learn more](/docs/github).
-
-```bash
-opencode github install
-```
-
-#### run
-Run the GitHub agent. This is typically used in GitHub Actions.
-
-```bash
-opencode github run
-```
-
-##### Flags
-| Flag      | Description                            |
-| --------- | -------------------------------------- |
-| `--event` | GitHub mock event to run the agent for |
-| `--token` | GitHub personal access token           |
 ```
 
 --------------------------------
@@ -1411,17 +638,53 @@ Initializes OpenCode for the current project. This command analyzes the project 
 
 --------------------------------
 
-### Enable GitLab API Tools in OpenCode
+### Configure MCP Server Globally (JSON)
 
-Source: https://opencode.ai/docs/providers
+Source: https://opencode.ai/docs/mcp-servers
 
-Configure OpenCode to utilize GitLab API tools by adding the 'opencode-gitlab-plugin' to the configuration. This enables comprehensive management of GitLab repositories, including merge requests, issues, and pipelines.
+This JSON configuration shows a basic setup for enabling or disabling MCP servers globally. It includes an example of a local MCP server and how to toggle its tool availability.
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-gitlab-plugin"]
+  "mcp": {
+    "my-mcp-foo": {
+      "type": "local",
+      "command": ["bun", "x", "my-mcp-command-foo"]
+    },
+    "my-mcp-bar": {
+      "type": "local",
+      "command": ["bun", "x", "my-mcp-command-bar"]
+    }
+  },
+  "tools": {
+    "my-mcp-foo": false
+  }
 }
+```
+
+--------------------------------
+
+### Configure Opencode Client with Options
+
+Source: https://opencode.ai/docs/sdk
+
+Instantiate the OpenCode client with custom configuration options. This allows overriding default settings such as hostname, port, and specifying a particular model. The example demonstrates setting a model and logging the server URL before closing the server.
+
+```javascript
+import { createOpencode } from "@opencode-ai/sdk"
+
+const opencode = await createOpencode({
+  hostname: "127.0.0.1",
+  port: 4096,
+  config: {
+    model: "anthropic/claude-3-5-sonnet-20241022",
+  },
+})
+
+console.log(`Server running at ${opencode.server.url}`)
+
+opencode.server.close()
 ```
 
 --------------------------------
@@ -1434,6 +697,18 @@ Provides the command to remove the OpenCode cache directory on Linux systems. Cl
 
 ```bash
 rm -rf ~/.cache/opencode
+```
+
+--------------------------------
+
+### Reset OpenCode Desktop App Data (Linux/macOS)
+
+Source: https://opencode.ai/docs/troubleshooting
+
+This command removes the OpenCode application data directory on Linux and macOS systems. This is a last resort for resolving issues when the application won't start or settings cannot be cleared through the UI. It deletes configuration files and UI state.
+
+```bash
+rm -rf ~/.local/share/opencode
 ```
 
 --------------------------------
@@ -1454,401 +729,91 @@ opencode serve --cors http://localhost:5173 --cors https://app.example.com
 
 --------------------------------
 
-### Reset OpenCode Desktop App Data (Linux/macOS)
+### OpenCode TUI Command Interface
 
-Source: https://opencode.ai/docs/troubleshooting
+Source: https://opencode.ai/docs/providers
 
-This command removes the OpenCode application data directory on Linux and macOS systems. This is a last resort for resolving issues when the application won't start or settings cannot be cleared through the UI. It deletes configuration files and UI state.
-
-```bash
-rm -rf ~/.local/share/opencode
-```
-
---------------------------------
-
-### GET /session/:id/todo
-
-Source: https://opencode.ai/docs/server
-
-Retrieves the todo list associated with a specific session.  This endpoint provides access to the todo items for a given session.
-
-```APIDOC
-## GET /session/:id/todo
-
-### Description
-Gets the todo list for a session.
-
-### Method
-GET
-
-### Endpoint
-/session/:id/todo
-
-### Parameters
-#### Path Parameters
-- **id** (string) - Required - The ID of the session.
-
-### Request Example
-No request body.
-
-### Response
-#### Success Response (200)
-- **Todo[]** - An array of Todo objects.
-
-#### Response Example
-[
-  {
-    "id": "todo1",
-    "text": "Todo Item Text",
-    // ... other todo properties
-  }
-]
-
-```
-
---------------------------------
-
-### Use Sentry MCP Server in Prompt (Text)
-
-Source: https://opencode.ai/docs/mcp-servers
-
-This is an example of a natural language prompt that utilizes the Sentry MCP server to query Sentry issues. The prompt specifies the action and the tool to be used.
+Lists the standard TUI commands used for connecting to providers and listing available models. These commands are used across all supported providers to initialize authentication and verify model availability.
 
 ```text
-Show me the latest unresolved issues in my project. use sentry
+/connect
+```
+
+```text
+/models
 ```
 
 --------------------------------
 
-### Handle SDK Errors
-
-Source: https://opencode.ai/docs/sdk
-
-Implement error handling for SDK operations using a try-catch block. This example shows how to catch potential errors when fetching a session and log the error message.
-
-```typescript
-try {
-  await client.session.get({ path: { id: "invalid-id" } })
-} catch (error) {
-  console.error("Failed to get session:", (error as Error).message)
-}
-```
-
---------------------------------
-
-### Project Configuration to Enable MCP Jira
-
-Source: https://opencode.ai/docs/config
-
-An example of a project-specific opencode.json file that overrides a remote configuration. This JSON snippet shows how to enable the MCP Jira integration by setting `enabled` to `true`.
-
-```json
-{
-  "mcp": {
-    "jira": {
-      "type": "remote",
-      "url": "https://jira.example.com/mcp",
-      "enabled": true
-    }
-  }
-}
-```
-
---------------------------------
-
-### GET /session/:id
-
-Source: https://opencode.ai/docs/server
-
-Retrieves details for a specific session, identified by its ID.  This endpoint provides a way to fetch the details of a specific session.
-
-```APIDOC
-## GET /session/:id
-
-### Description
-Gets session details.
-
-### Method
-GET
-
-### Endpoint
-/session/:id
-
-### Parameters
-#### Path Parameters
-- **id** (string) - Required - The ID of the session.
-
-### Request Example
-No request body.
-
-### Response
-#### Success Response (200)
-- **Session** - The session object.
-
-#### Response Example
-{
-  "id": "session1",
-  "title": "Session Title",
-  // ... other session properties
-}
-
-```
-
---------------------------------
-
-### Check Server Health with JavaScript
-
-Source: https://opencode.ai/docs/sdk
-
-Example of how to use the `global.health()` method from the SDK to check the server's health status and retrieve its version. This is a fundamental API call for verifying service availability.
-
-```javascript
-const health = await client.global.health()
-console.log(health.data.version)
-```
-
---------------------------------
-
-### Connect to Azure Cognitive Services
+### Configure OAuth for Self-Hosted GitLab Instances
 
 Source: https://opencode.ai/docs/providers
 
-Instructions for connecting Opencode AI to Azure Cognitive Services. Involves setting up an Azure OpenAI resource, deploying a model, and configuring environment variables for the resource name and API key.
+Set up OAuth authentication for self-hosted GitLab instances by creating a new application in GitLab's settings. This involves defining the callback URL and required scopes, then exposing the application ID as an environment variable.
 
 ```bash
-AZURE_COGNITIVE_SERVICES_RESOURCE_NAME=XXX opencode
+export GITLAB_OAUTH_CLIENT_ID=your_application_id_here
+```
+
+--------------------------------
+
+### Install OpenCode using Chocolatey
+
+Source: https://opencode.ai/docs
+
+Installs OpenCode on Windows using the Chocolatey package manager. This requires Chocolatey to be installed.
+
+```powershell
+choco install opencode
+```
+
+--------------------------------
+
+### Configure SAP AI Core via Environment Variables
+
+Source: https://opencode.ai/docs/providers
+
+Methods for setting the SAP AI Core service key using environment variables or shell configuration files to enable seamless integration.
+
+```bash
+AICORE_SERVICE_KEY='{"clientid":"...","clientsecret":"...","url":"...","serviceurls":{"AI_API_URL":"..."}}' opencode
 ```
 
 ```bash
-export AZURE_COGNITIVE_SERVICES_RESOURCE_NAME=XXX
+export AICORE_SERVICE_KEY='{"clientid":"...","clientsecret":"...","url":"...","serviceurls":{"AI_API_URL":"..."}}'
 ```
 
 --------------------------------
 
-### Configure Amazon Bedrock via opencode.json
+### Setting Environment Variables for LSP Servers (Rust Example)
+
+Source: https://opencode.ai/docs/lsp
+
+This JSON configuration demonstrates how to set environment variables for a specific LSP server, in this case, 'rust'. The `env` property within the server's configuration allows you to pass key-value pairs that will be available as environment variables when the LSP server starts. This is useful for configuring logging levels or other server-specific settings.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "rust": {
+      "env": {
+        "RUST_LOG": "debug"
+      }
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Connect to an AI Provider in OpenCode
 
 Source: https://opencode.ai/docs/providers
 
-Use a persistent configuration file to define AWS regions, profiles, and custom VPC endpoints. This method is recommended for project-specific settings and takes precedence over environment variables.
+Command to initiate the connection process with an AI provider in OpenCode. This is typically followed by selecting the provider and entering credentials.
 
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "amazon-bedrock": {
-      "options": {
-        "region": "us-east-1",
-        "profile": "my-aws-profile"
-      }
-    }
-  }
-}
-```
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "amazon-bedrock": {
-      "options": {
-        "region": "us-east-1",
-        "profile": "production",
-        "endpoint": "https://bedrock-runtime.us-east-1.vpce-xxxxx.amazonaws.com"
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### Add Custom ZenMux Models (JSON)
-
-Source: https://opencode.ai/docs/providers
-
-This JSON configuration snippet shows how to add custom models for ZenMux within the Opencode configuration. It allows users to specify new or specialized models not included by default.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "zenmux": {
-      "models": {
-        "somecoolnewmodel": {}
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### Configure Ollama Local Provider in opencode.json
-
-Source: https://opencode.ai/docs/providers
-
-Defines the local Ollama provider configuration in the opencode.json file, specifying the base URL and available models.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "ollama": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Ollama (local)",
-      "options": {
-        "baseURL": "http://localhost:11434/v1"
-      },
-      "models": {
-        "llama2": {
-          "name": "Llama 2"
-        }
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### External Directory Permissions (JSON)
-
-Source: https://opencode.ai/docs/permissions
-
-Manage access to paths outside the working directory using `external_directory`. Home directory expansion (`~` or `$HOME`) can be used in patterns. This example allows all actions under `~/projects/personal/`.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "external_directory": {
-      "~/projects/personal/**": "allow"
-    }
-  }
-}
-```
-
---------------------------------
-
-### Configure Custom Inference Profiles for Amazon Bedrock
-
-Source: https://opencode.ai/docs/providers
-
-Map specific model identifiers to AWS ARNs within the configuration file to support custom inference profiles and ensure correct caching.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "amazon-bedrock": {
-      "models": {
-        "anthropic-claude-sonnet-4.5": {
-          "id": "arn:aws:bedrock:us-east-1:xxx:application-inference-profile/yyy"
-        }
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### Configure Custom Provider in opencode.json
-
-Source: https://opencode.ai/docs/providers
-
-Defines the structure for adding a custom AI provider, including the base URL, model definitions, and required npm package. This configuration enables the provider to be recognized by the OpenCode CLI.
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "myprovider": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "My AI ProviderDisplay Name",
-      "options": {
-        "baseURL": "https://api.myprovider.com/v1"
-      },
-      "models": {
-        "my-model-name": {
-          "name": "My Model Display Name"
-        }
-      }
-    }
-  }
-}
-```
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "myprovider": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "My AI ProviderDisplay Name",
-      "options": {
-        "baseURL": "https://api.myprovider.com/v1",
-        "apiKey": "{env:ANTHROPIC_API_KEY}",
-        "headers": {
-          "Authorization": "Bearer custom-token"
-        }
-      },
-      "models": {
-        "my-model-name": {
-          "name": "My Model Display Name",
-          "limit": {
-            "context": 200000,
-            "output": 65536
-          }
-        }
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### Configure Helicone Provider in OpenCode
-
-Source: https://opencode.ai/docs/providers
-
-Defines custom model configurations for Helicone within OpenCode's configuration file. This allows specifying custom model names and other options.
-
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "helicone": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Helicone",
-      "options": {
-        "baseURL": "https://ai-gateway.helicone.ai"
-      },
-      "models": {
-        "gpt-4o": {
-          "name": "GPT-4o"
-        },
-        "claude-sonnet-4-20250514": {
-          "name": "Claude Sonnet 4"
-        }
-      }
-    }
-  }
-}
-```
-
---------------------------------
-
-### Get Mailto Link from Configuration
-
-Source: https://opencode.ai/docs/enterprise
-
-This snippet demonstrates how to retrieve an email address from a configuration file to construct a 'mailto' link. It imports configuration settings and exports a constant containing the email link.
-
-```javascript
-import config from "../../../config.mjs"
-export const email = `mailto:${config.email}`
+```txt
+/connect
 ```
 
 --------------------------------
@@ -1895,29 +860,6 @@ No request body.
 
 --------------------------------
 
-### Define Tool Arguments with Plain Zod Object
-
-Source: https://opencode.ai/docs/custom-tools
-
-This example shows an alternative way to define tool arguments by directly importing and using Zod. It defines a 'param' argument as a string with a description and includes the tool's description and execution logic.
-
-```typescript
-import { z } from "zod"
-
-export default {
-  description: "Tool description",
-  args: {
-    param: z.string().describe("Parameter description"),
-  },
-  async execute(args, context) {
-    // Tool implementation
-    return "result"
-  },
-}
-```
-
---------------------------------
-
 ### Create Opencode Client Only
 
 Source: https://opencode.ai/docs/sdk
@@ -1934,21 +876,154 @@ const client = createOpencodeClient({
 
 --------------------------------
 
-### Configure Provider Base URL in OpenCode
+### Remote Configuration Example for MCP Jira
 
-Source: https://opencode.ai/docs/providers
+Source: https://opencode.ai/docs/config
 
-Demonstrates how to override the default API endpoint for a provider by modifying the opencode.json configuration file. This is essential for using proxy services or custom model endpoints.
+An example of a remote configuration file, typically served from a `.well-known/opencode` endpoint. This JSON snippet defines settings for an MCP Jira integration, including its type, URL, and an initial disabled state.
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "anthropic": {
-      "options": {
-        "baseURL": "https://api.anthropic.com/v1"
-      }
+  "mcp": {
+    "jira": {
+      "type": "remote",
+      "url": "https://jira.example.com/mcp",
+      "enabled": false
     }
   }
 }
+```
+
+--------------------------------
+
+### Reset OpenCode Desktop App Data (Windows)
+
+Source: https://opencode.ai/docs/troubleshooting
+
+This instruction guides users to manually delete the OpenCode application data directory on Windows. This action is recommended as a last resort for troubleshooting startup or settings issues when in-app options are unavailable. It clears stored configurations and UI states.
+
+```batch
+Press WIN+R and delete: %USERPROFILE%\.local\share\opencode
+```
+
+--------------------------------
+
+### Commands API
+
+Source: https://opencode.ai/docs/server
+
+Endpoint for listing all available commands.
+
+```APIDOC
+## GET /command
+
+### Description
+List all commands.
+
+### Method
+GET
+
+### Endpoint
+/command
+
+### Response
+#### Success Response (200)
+- **Command[]** - An array of command objects.
+
+#### Response Example
+[
+  {
+    "name": "list_files",
+    "description": "List files in the current directory."
+  },
+  {
+    "name": "run_script",
+    "description": "Run a script."
+  }
+]
+```
+
+--------------------------------
+
+### Clear OpenCode Provider Package Cache (Windows)
+
+Source: https://opencode.ai/docs/troubleshooting
+
+This instruction guides users to manually delete the OpenCode provider package cache on Windows. This action helps resolve AI_APICallError issues caused by outdated or corrupted provider packages. Restarting OpenCode after clearing the cache will prompt it to download the latest packages.
+
+```batch
+Press WIN+R and delete: %USERPROFILE%\.cache\opencode
+```
+
+--------------------------------
+
+### GitHub Agent Management
+
+Source: https://opencode.ai/docs/cli
+
+Manage the GitHub agent for repository automation, including installation and running.
+
+```APIDOC
+## GitHub Agent Management
+
+### Description
+Manage the GitHub agent for repository automation.
+
+### Method
+CLI Command
+
+### Endpoint
+`opencode github [command]`
+
+### Commands
+#### install
+Install the GitHub agent in your repository. This sets up the necessary GitHub Actions workflow and guides you through the configuration process. [Learn more](/docs/github).
+
+```bash
+opencode github install
+```
+
+#### run
+Run the GitHub agent. This is typically used in GitHub Actions.
+
+```bash
+opencode github run
+```
+
+##### Flags
+| Flag      | Description                            |
+| --------- | -------------------------------------- |
+| `--event` | GitHub mock event to run the agent for |
+| `--token` | GitHub personal access token           |
+```
+
+--------------------------------
+
+### Specify Agent Prompt File in JSON
+
+Source: https://opencode.ai/docs/agents
+
+Defines a custom system prompt file for an agent using the 'prompt' option in 'opencode.json'. The path to the prompt file is relative to the configuration file's location, supporting both global and project-specific configurations.
+
+```json
+{
+  "agent": {
+    "review": {
+      "prompt": "{file:./prompts/code-review.txt}"
+    }
+  }
+}
+```
+
+--------------------------------
+
+### Manage GitHub Integration
+
+Source: https://opencode.ai/docs/cli
+
+Commands to install and execute the GitHub agent for repository automation tasks.
+
+```bash
+opencode github install
+opencode github run
 ```
