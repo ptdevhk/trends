@@ -2,6 +2,13 @@ import { buildWorkHistoryDateRange, buildWorkHistoryEntryText, normalizeWorkHist
 
 import type { ResumeWorkHistoryItem } from "../types/resume.js";
 
+const PRESENT_END_PATTERN = /(\d{4})[-./年](\d{1,2})?[^0-9]*(?:至今|目前|今|present|current|now|ongoing)/iu;
+
+function computeMonthsDiff(startYear: number, startMonth: number, endYear: number, endMonth: number): number {
+  const diff = (endYear - startYear) * 12 + (endMonth - startMonth);
+  return diff > 0 ? diff / 12 : 0;
+}
+
 export function parseRoleYears(raw: string): number {
   const text = raw.trim();
   if (!text) {
@@ -25,16 +32,16 @@ export function parseRoleYears(raw: string): number {
     const endMonth = Number(range[4] || 1);
 
     if ([startYear, startMonth, endYear, endMonth].every((value) => Number.isFinite(value))) {
-      const monthDiff = (endYear - startYear) * 12 + (endMonth - startMonth);
-      if (monthDiff > 0) {
-        return monthDiff / 12;
+      const years = computeMonthsDiff(startYear, startMonth, endYear, endMonth);
+      if (years > 0) {
+        return years;
       }
     }
   }
 
   // Handle 至今/present as end date: compute duration from start date to now.
   // Covers 51job-live format "YYYY-MM~至今 · ..." where endDate has no year digits.
-  const presentEndMatch = text.match(/(\d{4})[-./年](\d{1,2})?[^0-9]*(?:至今|目前|今|present|current|now|ongoing)/iu);
+  const presentEndMatch = text.match(PRESENT_END_PATTERN);
   if (presentEndMatch) {
     const startYear = Number(presentEndMatch[1]);
     const startMonth = Number(presentEndMatch[2] || 1);
@@ -42,9 +49,9 @@ export function parseRoleYears(raw: string): number {
     const endYear = now.getFullYear();
     const endMonth = now.getMonth() + 1;
     if (Number.isFinite(startYear) && Number.isFinite(startMonth)) {
-      const monthDiff = (endYear - startYear) * 12 + (endMonth - startMonth);
-      if (monthDiff > 0) {
-        return monthDiff / 12;
+      const years = computeMonthsDiff(startYear, startMonth, endYear, endMonth);
+      if (years > 0) {
+        return years;
       }
     }
   }
