@@ -571,12 +571,13 @@ export class ResumeService {
 
   filterResumes<T extends ResumeItem>(items: T[], filters?: ResumeFilters): T[] {
     if (!filters) return items;
+    const effectiveMinExperience = (filters.minExperience ?? 0) > 0 ? filters.minExperience : undefined;
 
     return items.filter((item) => {
-      if (filters.minExperience !== undefined || filters.maxExperience !== undefined) {
+      if (effectiveMinExperience !== undefined || filters.maxExperience !== undefined) {
         const experience = parseExperienceYears(item.experience);
         if (experience === null) return false;
-        if (filters.minExperience !== undefined && experience < filters.minExperience) return false;
+        if (effectiveMinExperience !== undefined && experience < effectiveMinExperience) return false;
         if (filters.maxExperience !== undefined && experience > filters.maxExperience) return false;
       }
 

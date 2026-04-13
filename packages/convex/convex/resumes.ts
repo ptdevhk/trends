@@ -647,7 +647,7 @@ function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): 
     const locations = filters.locations?.map((value) => value.trim()).filter((value) => value.length > 0);
 
     const normalized: ResumeListFilterArgs = {
-        ...(filters.minExperience === undefined ? {} : { minExperience: filters.minExperience }),
+        ...((filters.minExperience ?? 0) > 0 ? { minExperience: filters.minExperience } : {}),
         ...(filters.maxExperience === undefined ? {} : { maxExperience: filters.maxExperience }),
         ...(education && education.length > 0 ? { education } : {}),
         ...(skills && skills.length > 0 ? { skills } : {}),
@@ -751,13 +751,12 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
 
     const content = isRecord(resume.content) ? resume.content : {};
 
-    const effectiveMinExperience = (filters.minExperience ?? 0) > 0 ? filters.minExperience : undefined;
-    if (effectiveMinExperience !== undefined || filters.maxExperience !== undefined) {
+    if (filters.minExperience !== undefined || filters.maxExperience !== undefined) {
         const experience = parseExperienceYears(toStringValue(content.experience));
         if (experience === null) {
             return false;
         }
-        if (effectiveMinExperience !== undefined && experience < effectiveMinExperience) {
+        if (filters.minExperience !== undefined && experience < filters.minExperience) {
             return false;
         }
         if (filters.maxExperience !== undefined && experience > filters.maxExperience) {
