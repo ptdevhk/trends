@@ -19,6 +19,9 @@ import {
   getRoleVerifiedYears,
   isSafeProfileUrl,
   type ResumeRoleSignalLike,
+  type BrandHitLike,
+  summarizeBrandHits,
+  getExperienceBadge,
 } from '@/lib/resume-scoring'
 import {
   Tooltip,
@@ -32,12 +35,6 @@ import { OutreachModal } from './OutreachModal'
 import { Select } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-
-export interface BrandHitLike {
-  brand: string
-  context: string
-  source?: string
-}
 
 interface ResumeCardProps {
   resume: ResumeItem
@@ -324,21 +321,7 @@ export function ResumeCard({
     .filter((company) => company.trim().length > 0)
     .slice(0, 3)
   const resolveBrand = brandDisplayResolve ?? ((brandId: string) => brandId.toUpperCase())
-  // Non-employer brand hits grouped by brand name for user-facing badges.
-  const brandSummary = useMemo(() => {
-    if (!brandHits || brandHits.length === 0) return []
-    const groups = new Map<string, number>()
-    for (const hit of brandHits) {
-      if (hit.context === 'employer') continue
-      const key = hit.brand.trim().toLowerCase()
-      if (!key) continue
-      groups.set(key, (groups.get(key) ?? 0) + 1)
-    }
-    return Array.from(groups.entries())
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 4)
-      .map(([brand]) => brand)
-  }, [brandHits])
+  const brandSummary = useMemo(() => summarizeBrandHits(brandHits), [brandHits])
   const primaryRoleSignal = selectPrimaryRoleSignal(roleSignals)
   const verifiedRoleYears = primaryRoleSignal ? getRoleVerifiedYears(primaryRoleSignal) : 0
   const roleRelevantYears = primaryRoleSignal ? getRoleRelevantYears(primaryRoleSignal) : 0
@@ -363,27 +346,28 @@ export function ResumeCard({
   const isExperienceLevelActive =
     Boolean(activeExperienceLevelFilter)
     && normalizedExperienceLevel === activeExperienceLevelFilter
+  const inactiveBadge = getExperienceBadge(experienceLevel, t)
   const experienceBadge =
     normalizedExperienceLevel === 'senior'
       ? {
-        label: t('resumes.experienceLevel.senior', { defaultValue: 'Senior' }),
+        label: inactiveBadge?.label ?? 'Senior',
         className: isExperienceLevelActive
           ? 'border-orange-700 bg-orange-600 text-white'
-          : 'border-orange-200 bg-orange-50 text-orange-700',
+          : (inactiveBadge?.className ?? ''),
       }
       : normalizedExperienceLevel === 'mid'
         ? {
-          label: t('resumes.experienceLevel.mid', { defaultValue: 'Mid' }),
+          label: inactiveBadge?.label ?? 'Mid',
           className: isExperienceLevelActive
             ? 'border-teal-700 bg-teal-600 text-white'
-            : 'border-teal-200 bg-teal-50 text-teal-700',
+            : (inactiveBadge?.className ?? ''),
         }
         : normalizedExperienceLevel === 'junior'
           ? {
-            label: t('resumes.experienceLevel.junior', { defaultValue: 'Junior' }),
+            label: inactiveBadge?.label ?? 'Junior',
             className: isExperienceLevelActive
               ? 'border-zinc-700 bg-zinc-600 text-white'
-              : 'border-zinc-200 bg-zinc-50 text-zinc-600',
+              : (inactiveBadge?.className ?? ''),
           }
           : null
 

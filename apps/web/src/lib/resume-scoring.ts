@@ -9,6 +9,51 @@ import type { ConvexResumeAnalysis } from '@/hooks/useConvexResumes'
 import type { MatchBreakdown, Recommendation } from '@/types/resume'
 import { buildResumeAnalysisLookupKeys } from '@/lib/analysis-utils'
 
+export interface BrandHitLike {
+  brand: string
+  role: string
+  source: string
+  context: string
+}
+
+export function summarizeBrandHits(brandHits: BrandHitLike[] | undefined, maxCount = 4): string[] {
+  if (!brandHits || brandHits.length === 0) return []
+  const groups = new Map<string, number>()
+  for (const hit of brandHits) {
+    if (hit.context === 'employer') continue
+    const key = hit.brand.trim().toLowerCase()
+    if (!key) continue
+    groups.set(key, (groups.get(key) ?? 0) + 1)
+  }
+  return Array.from(groups.entries())
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, maxCount)
+    .map(([brand]) => brand)
+}
+
+export function getExperienceBadge(level: string | undefined, t: (key: string, opts?: { defaultValue?: string }) => string): { label: string; className: string } | null {
+  const normalized = level?.trim().toLowerCase()
+  if (normalized === 'senior') {
+    return {
+      label: t('resumes.experienceLevel.senior', { defaultValue: 'Senior' }),
+      className: 'border-orange-200 bg-orange-50 text-orange-700',
+    }
+  }
+  if (normalized === 'mid') {
+    return {
+      label: t('resumes.experienceLevel.mid', { defaultValue: 'Mid' }),
+      className: 'border-teal-200 bg-teal-50 text-teal-700',
+    }
+  }
+  if (normalized === 'junior') {
+    return {
+      label: t('resumes.experienceLevel.junior', { defaultValue: 'Junior' }),
+      className: 'border-zinc-200 bg-zinc-50 text-zinc-600',
+    }
+  }
+  return null
+}
+
 export type IndustryDbV2Stats = {
   size: number
   min?: number
@@ -248,12 +293,7 @@ export type ResumeWithIngestData = ResumeItem & {
   ingestData: {
     evidenceText?: string
     industryTags: string[]
-    brandHits?: Array<{
-      brand: string
-      role: string
-      source: string
-      context: string
-    }>
+    brandHits?: BrandHitLike[]
     companyHits: string[]
     roleSignals?: ResumeRoleSignalLike[]
     ruleScores: Record<string, number>

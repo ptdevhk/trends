@@ -43,9 +43,9 @@ describe('ResumeCard brand-hit badges', () => {
         onViewDetails={vi.fn()}
         brandDisplayResolve={(brandId) => (brandId === 'fanuc' ? '发那科' : brandId.toUpperCase())}
         brandHits={[
-          { brand: 'fanuc', context: 'equipment', source: 'workHistory' },
-          { brand: 'fanuc', context: 'sales', source: 'selfIntro' },
-          { brand: 'fanuc', context: 'employer', source: 'workHistory' },
+          { brand: 'fanuc', context: 'equipment', source: 'workHistory', role: 'vendor' },
+          { brand: 'fanuc', context: 'sales', source: 'selfIntro', role: 'vendor' },
+          { brand: 'fanuc', context: 'employer', source: 'workHistory', role: 'employer' },
         ]}
       />
     )
