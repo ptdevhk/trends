@@ -126,11 +126,15 @@ describe('SnippetCard', () => {
     expect(screen.getByText('senior')).toBeInTheDocument()
     expect(screen.getByText('88')).toBeInTheDocument()
     expect(screen.getByText('AI')).toBeInTheDocument()
-    expect(screen.getByText('CNC')).toBeInTheDocument()
+    // industryTags take priority over _provenance; visibleKeywords = industryTags.slice(0, 3)
     expect(screen.getByText('Machine Tools')).toBeInTheDocument()
-    expect(screen.getByText('Malaysia')).toBeInTheDocument()
-    expect(screen.getByText(/AI summary: Strong CNC sales coverage across Malaysia\./i)).toBeInTheDocument()
+    expect(screen.getByText('Automation')).toBeInTheDocument()
+    expect(screen.getByText('Robotics')).toBeInTheDocument()
+    // CNC/Malaysia are provenance terms, not shown since industryTags exist
+    expect(screen.queryByText('CNC')).not.toBeInTheDocument()
+    expect(screen.queryByText('Malaysia')).not.toBeInTheDocument()
     expect(screen.queryByText('Ignored')).not.toBeInTheDocument()
+    expect(screen.getByText(/AI summary: Strong CNC sales coverage across Malaysia\./i)).toBeInTheDocument()
     expect(screen.getByText('Expanded card for Candidate 1')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Collapse/i }))

@@ -38,8 +38,8 @@ export function SnippetCard({
   const analysis = item.analysis ?? item.resume.analysis
   const snippetText = item.resume.workHistory?.[0]?.raw || item.resume.selfIntro
   const visibleKeywords = (
-    item.resume._provenance?.map((entry) => entry.term)
-    ?? item.resume.ingestData?.industryTags
+    item.resume.ingestData?.industryTags
+    ?? item.resume._provenance?.map((entry) => entry.term)
     ?? []
   ).slice(0, 3)
   const score = item.score
