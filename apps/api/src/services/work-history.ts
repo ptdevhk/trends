@@ -32,6 +32,23 @@ export function parseRoleYears(raw: string): number {
     }
   }
 
+  // Handle 至今/present as end date: compute duration from start date to now.
+  // Covers 51job-live format "YYYY-MM~至今 · ..." where endDate has no year digits.
+  const presentEndMatch = text.match(/(\d{4})[-./年](\d{1,2})?[^0-9]*(?:至今|目前|今|present|current|now|ongoing)/iu);
+  if (presentEndMatch) {
+    const startYear = Number(presentEndMatch[1]);
+    const startMonth = Number(presentEndMatch[2] || 1);
+    const now = new Date();
+    const endYear = now.getFullYear();
+    const endMonth = now.getMonth() + 1;
+    if (Number.isFinite(startYear) && Number.isFinite(startMonth)) {
+      const monthDiff = (endYear - startYear) * 12 + (endMonth - startMonth);
+      if (monthDiff > 0) {
+        return monthDiff / 12;
+      }
+    }
+  }
+
   return 0;
 }
 
