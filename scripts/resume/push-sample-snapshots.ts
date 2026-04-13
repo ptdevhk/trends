@@ -2,15 +2,17 @@ import { execFile as execFileCallback } from "node:child_process";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFileCallback);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DEFAULT_SAMPLE_REPO = "ptdevhk/trends-resume-samples";
 const DEFAULT_BACKUPS_DIR = "output/resume-backups";
 
 function resolveRepoRoot(): string {
-  return path.resolve(import.meta.dirname, "../..");
+  return path.resolve(__dirname, "../..");
 }
 
 function resolveSampleRepo(): string {
@@ -165,15 +167,14 @@ async function main(): Promise<void> {
 
     await execGit(["add", "-A"], tempDir);
 
-    const diffResult = await execGit(["diff", "--cached", "--quiet"], tempDir).then(
-      () => "no-changes",
-      (err: unknown) => {
-        if (err instanceof Error && err.message.includes("non-zero")) return "has-changes";
-        throw err;
-      },
-    );
+    let hasChanges = false;
+    try {
+      await execGit(["diff", "--cached", "--quiet"], tempDir);
+    } catch {
+      hasChanges = true;
+    }
 
-    if (diffResult === "no-changes") {
+    if (!hasChanges) {
       console.log("No changes to push — snapshots are up to date.");
       return;
     }
@@ -197,7 +198,7 @@ async function mkdtemp(prefix: string): Promise<string> {
 }
 
 const isMainModule = process.argv[1]
-  ? path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)
+  ? path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))
   : false;
 
 if (isMainModule) {

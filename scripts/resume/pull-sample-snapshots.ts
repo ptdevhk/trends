@@ -2,15 +2,17 @@ import { execFile as execFileCallback } from "node:child_process";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFileCallback);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DEFAULT_SAMPLE_REPO = "ptdevhk/trends-resume-samples";
 const DEFAULT_OUT_DIR = "output/resume-samples";
 
 function resolveRepoRoot(): string {
-  return path.resolve(import.meta.dirname, "../..");
+  return path.resolve(__dirname, "../..");
 }
 
 function resolveSampleRepo(): string {
@@ -68,7 +70,7 @@ async function mkdtemp(prefix: string): Promise<string> {
 }
 
 const isMainModule = process.argv[1]
-  ? path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)
+  ? path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))
   : false;
 
 if (isMainModule) {

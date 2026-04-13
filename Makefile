@@ -387,7 +387,7 @@ restore-resumes-restart:
 	@$(MAKE) restore-resumes API_URL="$(API_URL)" WORKSPACE="$(WORKSPACE)" FILE="$(FILE)" MODE="$(MODE)" YES="$(YES)"
 	@$(MAKE) dev-convex-refresh
 
-# Push latest resume snapshot to the sample repo (karlcc/trends-resume-samples)
+# Push latest resume snapshot to the sample repo (ptdevhk/trends-resume-samples)
 push-sample-snapshots:
 	@SAMPLE_REPO="$${SAMPLE_REPO:-ptdevhk/trends-resume-samples}" \
 	SNAPSHOT_DIR="$${SNAPSHOT_DIR:-}"; \
