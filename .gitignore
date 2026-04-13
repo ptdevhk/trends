@@ -89,3 +89,4 @@ apps/worker/status.json
 
 .omc/
 .omx/
+tmp/

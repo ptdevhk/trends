@@ -797,7 +797,7 @@ export function useResumeSearchState() {
   const autoAnalyzeDispatchSignatureRef = useRef('')
   const pendingForceAnalyzeRef = useRef(false)
   const aiModeStats = useMemo(() => {
-    const analyzedResults = results.filter(
+    const analyzedResults = filteredResults.filter(
       (item) => typeof item.analysis?.score === 'number',
     )
 
@@ -817,9 +817,9 @@ export function useResumeSearchState() {
     return {
       avgScore,
       matched: analyzedResults.length,
-      processed: results.length,
+      processed: filteredResults.length,
     }
-  }, [results])
+  }, [filteredResults])
   const hasActiveAnalysisTask = useMemo(
     () =>
       (analysisTasks ?? []).some(
