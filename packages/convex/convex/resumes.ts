@@ -751,12 +751,13 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
 
     const content = isRecord(resume.content) ? resume.content : {};
 
-    if (filters.minExperience !== undefined || filters.maxExperience !== undefined) {
+    const effectiveMinExperience = (filters.minExperience ?? 0) > 0 ? filters.minExperience : undefined;
+    if (effectiveMinExperience !== undefined || filters.maxExperience !== undefined) {
         const experience = parseExperienceYears(toStringValue(content.experience));
         if (experience === null) {
             return false;
         }
-        if (filters.minExperience !== undefined && experience < filters.minExperience) {
+        if (effectiveMinExperience !== undefined && experience < effectiveMinExperience) {
             return false;
         }
         if (filters.maxExperience !== undefined && experience > filters.maxExperience) {
