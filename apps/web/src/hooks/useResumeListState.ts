@@ -618,7 +618,7 @@ export function useResumeListState(loadSearchHistory = false) {
   )
   const convexSourceFilters = useMemo<ConvexResumeFilters | undefined>(() => {
     const normalized: ConvexResumeFilters = {
-      ...(typeof filters.minExperience === 'number' ? { minExperience: filters.minExperience } : {}),
+      ...(typeof filters.minExperience === 'number' && filters.minExperience > 0 ? { minExperience: filters.minExperience } : {}),
       ...(typeof filters.maxExperience === 'number' ? { maxExperience: filters.maxExperience } : {}),
       ...(Array.isArray(filters.education) && filters.education.length > 0 ? { education: filters.education } : {}),
       ...(Array.isArray(filters.skills) && filters.skills.length > 0 ? { skills: filters.skills } : {}),
@@ -1182,7 +1182,7 @@ export function useResumeListState(loadSearchHistory = false) {
     }
 
     const minExperience = filters.minExperience
-    if (typeof minExperience === 'number') {
+    if (typeof minExperience === 'number' && minExperience > 0) {
       result = result.filter((resume: ScoredConvexResume) => parseExperienceYears(resume.experience) >= minExperience)
     }
 
@@ -2063,7 +2063,7 @@ export function useResumeListState(loadSearchHistory = false) {
     }) => {
       setFilters((current) => ({
         ...current,
-        minExperience: constraints.minRoleYears,
+        minExperience: (constraints.minRoleYears ?? 0) > 0 ? constraints.minRoleYears : undefined,
         minRoleYears: constraints.minRoleYears,
         roleFilterType: normalizeOptionalString(constraints.roleFilterType),
         maxAge: constraints.maxAge,

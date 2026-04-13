@@ -647,7 +647,7 @@ function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): 
     const locations = filters.locations?.map((value) => value.trim()).filter((value) => value.length > 0);
 
     const normalized: ResumeListFilterArgs = {
-        ...(filters.minExperience === undefined ? {} : { minExperience: filters.minExperience }),
+        ...((filters.minExperience ?? 0) > 0 ? { minExperience: filters.minExperience } : {}),
         ...(filters.maxExperience === undefined ? {} : { maxExperience: filters.maxExperience }),
         ...(education && education.length > 0 ? { education } : {}),
         ...(skills && skills.length > 0 ? { skills } : {}),
