@@ -279,7 +279,7 @@ async def open_cdp_session(endpoint: int | str | None = None, search_url: str | 
     if not target:
         for page in pages:
             page_url = str(page.get("url") or "")
-            if "hr.job5156.com" in page_url or ".employer.seek.com" in page_url:
+            if "hr.job5156.com" in page_url or ".employer.seek.com" in page_url or "ehire.51job.com" in page_url:
                 target = page
                 break
 

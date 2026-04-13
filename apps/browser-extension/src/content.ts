@@ -6608,11 +6608,7 @@ async function collectSnapshotPayload(options = {}) {
       !isJob51DetailPage() &&
       pageResumes.length > 0
     ) {
-      void queueJob51DetailBackfill(pageResumes, {
-        currentPage,
-        totalPages: Math.max(currentPage, paginationBefore.totalPages || 0),
-        runId: job51BackfillRunId,
-      });
+      pageResumes = await enrich51JobSearchResumesWithDetail(pageResumes);
     }
     if (
       sourceKey === SOURCE_KEYS.JOB5156 &&

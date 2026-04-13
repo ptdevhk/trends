@@ -29,7 +29,7 @@ DEFAULT_MAX_PAGES = 10
 
 SOURCE_URLS = {
     "job5156": "https://hr.job5156.com/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40",
-    "51job": "https://ehire.51job.com/Revision/talent/search",
+    "51job": "https://ehire.51job.com/Revision/talent/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40",
     "seek": "https://hk.employer.seek.com/candidates/recommended?jobId=90842915",
 }
 
