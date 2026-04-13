@@ -14,7 +14,9 @@ import { Badge } from '@/components/ui/badge'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import { formatRoleYears, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl } from '@/lib/resume-scoring'
+import { formatRoleYears, getExperienceBadge, getResumeContentLocale, getResumeSourceLabel, getRoleLabel, hasIngestData, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
+import { cn } from '@/lib/utils'
+import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 
 import type { AiFeedbackSentiment, AiFeedbackTarget, MatchingResult } from '@/types/resume'
@@ -149,6 +151,19 @@ export function ResumeDetail({
       }))
     })
   }, [resume, workHistory])
+  const { resolve: resolveBrand } = useBrandDisplayMap()
+  const ingestData = resume && hasIngestData(resume) ? resume.ingestData : undefined
+  const visibleIndustryTags = (ingestData?.industryTags ?? [])
+    .filter((tag: string) => tag.trim().length > 0)
+    .slice(0, 4)
+  const visibleCompanyHits = (ingestData?.companyHits ?? [])
+    .filter((company: string) => company.trim().length > 0)
+    .slice(0, 3)
+  const brandSummary = useMemo(
+    () => summarizeBrandHits(ingestData?.brandHits),
+    [ingestData?.brandHits],
+  )
+  const experienceBadge = getExperienceBadge(ingestData?.experienceLevel, t)
   const profileUrl = resume?.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
   const sourceLabel = getResumeSourceLabel(resume)
@@ -189,6 +204,26 @@ export function ResumeDetail({
               {sourceLabel ? (
                 <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700 text-[10px]">
                   {sourceLabel}
+                </Badge>
+              ) : null}
+              {visibleIndustryTags.map((tag, index) => (
+                <Badge key={`it-${index}`} variant="outline" className="text-[10px] border-violet-200 bg-violet-50 text-violet-700">
+                  {tag}
+                </Badge>
+              ))}
+              {visibleCompanyHits.map((company, index) => (
+                <Badge key={`ch-${index}`} variant="outline" className="text-[10px] border-blue-200 bg-blue-50 text-blue-700">
+                  {resolveBrand(company)}
+                </Badge>
+              ))}
+              {brandSummary.map((brand) => (
+                <Badge key={`brand-${brand}`} variant="outline" className="text-[10px] border-amber-200 bg-amber-50 text-amber-700">
+                  {resolveBrand(brand)}
+                </Badge>
+              ))}
+              {experienceBadge ? (
+                <Badge variant="outline" className={cn('text-[10px]', experienceBadge.className)}>
+                  {experienceBadge.label}
                 </Badge>
               ) : null}
             </div>
