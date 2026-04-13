@@ -52,15 +52,21 @@ type resumeSnapshotSourceResult struct {
 	ManualImportSummary *resumeSnapshotManualImportSummary `json:"manualImportSummary,omitempty"`
 }
 
+type resumeSnapshotSkippedSource struct {
+	Alias  string `json:"alias"`
+	Reason string `json:"reason"`
+}
+
 type resumeSnapshotResult struct {
-	Success        bool                         `json:"success"`
-	APIURL         string                       `json:"apiUrl"`
-	Workspace      string                       `json:"workspace"`
-	RepoRoot       string                       `json:"repoRoot"`
-	RunStamp       string                       `json:"runStamp"`
-	OutputDir      string                       `json:"outputDir"`
-	CountPerSource int                          `json:"countPerSource"`
-	Sources        []resumeSnapshotSourceResult `json:"sources"`
+	Success        bool                           `json:"success"`
+	APIURL         string                         `json:"apiUrl"`
+	Workspace      string                         `json:"workspace"`
+	RepoRoot       string                         `json:"repoRoot"`
+	RunStamp       string                         `json:"runStamp"`
+	OutputDir      string                         `json:"outputDir"`
+	CountPerSource int                            `json:"countPerSource"`
+	Sources        []resumeSnapshotSourceResult   `json:"sources"`
+	Skipped        []resumeSnapshotSkippedSource  `json:"skipped,omitempty"`
 }
 
 var runResumeSnapshot = func(ctx context.Context, request resumeSnapshotRequest) (*resumeSnapshotResult, error) {
@@ -147,7 +153,7 @@ func buildResumeSnapshotOutput(result *resumeSnapshotResult) resumeSummaryOutput
 		"manual_skipped",
 		"manual_failed",
 	}
-	rows := make([][]string, 0, len(result.Sources))
+	rows := make([][]string, 0, len(result.Sources)+len(result.Skipped))
 
 	for _, source := range result.Sources {
 		manualParsed := ""
@@ -173,6 +179,22 @@ func buildResumeSnapshotOutput(result *resumeSnapshotResult) resumeSummaryOutput
 			manualImported,
 			manualSkipped,
 			manualFailed,
+		})
+	}
+
+	for _, skipped := range result.Skipped {
+		rows = append(rows, []string{
+			skipped.Alias,
+			"(skipped)",
+			"0",
+			"0",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			skipped.Reason,
 		})
 	}
 

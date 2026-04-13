@@ -120,7 +120,7 @@ describe("snapshot-source-backups", () => {
     expect(resolved).toBe(path.join("/Users/tester", "Downloads", "51job.rar"));
   });
 
-  it("fails before writing a snapshot file when browser preflight fails", async () => {
+  it("fails when the only source fails (all sources failed)", async () => {
     const repoRoot = await createTestRepoRoot();
     repoRoots.push(repoRoot);
     const exec = vi.fn(async () => {
@@ -139,9 +139,7 @@ describe("snapshot-source-backups", () => {
         log: () => undefined,
         resolveUserHomeDirectory: async () => "/Users/tester",
       }),
-    ).rejects.toThrow(
-      "[seek] browser collector failed: Chrome is not reachable on the CDP endpoint.",
-    );
+    ).rejects.toThrow("all sources failed");
 
     expect(exec).toHaveBeenCalledTimes(1);
     await expect(access(buildExpectedFilePath(repoRoot, "seek"))).rejects.toThrow();
@@ -246,7 +244,7 @@ describe("snapshot-source-backups", () => {
         ...baseOptions(repoRoot, "51job"),
         count: 250,
         maxPages: 8,
-        job51Url: `${DEFAULT_51JOB_URL}?keyword=CNC`,
+        job51Url: "https://ehire.51job.com/Revision/talent/search?keyword=CNC",
         unsafeLimits: true,
       },
       {
@@ -260,7 +258,7 @@ describe("snapshot-source-backups", () => {
     expect(result.sources[0]).toMatchObject({
       alias: "51job",
       sourceHost: SOURCE_HOSTS["51job"],
-      launchUrl: `${DEFAULT_51JOB_URL}?keyword=CNC&tr_unsafe_limits=1`,
+      launchUrl: "https://ehire.51job.com/Revision/talent/search?keyword=CNC&tr_unsafe_limits=1",
       count: 250,
       observedCount: 250,
     });
@@ -308,11 +306,76 @@ describe("snapshot-source-backups", () => {
         log: () => undefined,
         resolveUserHomeDirectory: async () => "/Users/tester",
       }),
-    ).rejects.toThrow("expected 20 resumes in job5156 snapshot, received 19");
+    ).rejects.toThrow("all sources failed");
 
     await expect(
       access(buildExpectedFilePath(repoRoot, "job5156")),
     ).rejects.toThrow();
+  });
+
+  it("skips a failed source and succeeds when other sources complete", async () => {
+    const repoRoot = await createTestRepoRoot();
+    repoRoots.push(repoRoot);
+
+    const exec = vi.fn(async (_command: string, args: string[]) => {
+      const sourceIndex = args.indexOf("--source");
+      const source = sourceIndex >= 0 ? args[sourceIndex + 1] : "";
+
+      if (source === "seek") {
+        const error = new Error("Command failed");
+        Object.assign(error, {
+          stderr: "seek redirected to an unsupported page",
+          stdout: "",
+        });
+        throw error;
+      }
+
+      if (args.includes("--check-only")) {
+        return {
+          stdout: JSON.stringify({
+            mode: "check",
+            source: "job5156",
+            sourceHost: SOURCE_HOSTS.job5156,
+            url: DEFAULT_JOB5156_URL,
+            status: { sourceKey: "job5156" },
+          }),
+          stderr: "",
+        };
+      }
+
+      return {
+        stdout: JSON.stringify({
+          mode: "collect",
+          source: "job5156",
+          sourceHost: SOURCE_HOSTS.job5156,
+          url: DEFAULT_JOB5156_URL,
+          status: { sourceKey: "job5156" },
+          payload: createCollectedPayload("job5156", 20),
+        }),
+        stderr: "",
+      };
+    });
+
+    const logs: string[] = [];
+    const result = await runSnapshotSourceBackups(
+      { ...baseOptions(repoRoot, "job5156"), sources: ["job5156", "seek"] },
+      {
+        now: fixedNow,
+        exec,
+        log: (msg) => logs.push(msg),
+        resolveUserHomeDirectory: async () => "/Users/tester",
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0]?.alias).toBe("job5156");
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]?.alias).toBe("seek");
+    expect(result.skipped[0]?.reason).toContain("seek redirected");
+    expect(logs.some((l) => l.includes("[seek] skipped:"))).toBe(true);
+    await access(buildExpectedFilePath(repoRoot, "job5156"));
+    await expect(access(buildExpectedFilePath(repoRoot, "seek"))).rejects.toThrow();
   });
 
   it("writes the manual snapshot file directly from the local archive builder", async () => {

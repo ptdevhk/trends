@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { buildManualResumeImportPayload } from "../../apps/api/src/services/manual-resume-import-service.ts";
+import { selectLatestWorkHistory } from "../../packages/shared/src/work-history-evidence.ts";
 import {
   resolveApiUrl,
   resolveWorkspace,
@@ -24,7 +25,8 @@ const DEFAULT_OUT_DIR = "output/resume-backups";
 const DEFAULT_MANUAL_FILE = "~/Downloads/51job.rar";
 const DEFAULT_JOB5156_URL =
   "https://hr.job5156.com/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40";
-const DEFAULT_51JOB_URL = "https://ehire.51job.com/Revision/talent/search";
+const DEFAULT_51JOB_URL =
+  "https://ehire.51job.com/Revision/talent/search?keyword=CNC+%E9%94%80%E5%94%AE&tr_min_age=25&tr_max_age=40";
 const DEFAULT_SEEK_URL =
   "https://hk.employer.seek.com/candidates/recommended?jobId=90842915";
 
@@ -114,6 +116,11 @@ export type SnapshotSourceResult = {
   manualImportSummary?: ManualImportSummary;
 };
 
+export type SnapshotSkippedSource = {
+  alias: SourceAlias;
+  reason: string;
+};
+
 export type SnapshotRunSummary = {
   success: true;
   apiUrl: string;
@@ -123,6 +130,7 @@ export type SnapshotRunSummary = {
   outputDir: string;
   countPerSource: number;
   sources: SnapshotSourceResult[];
+  skipped: SnapshotSkippedSource[];
 };
 
 type BrowserSourceAlias = Extract<SourceAlias, "job5156" | "51job" | "seek">;
@@ -442,6 +450,9 @@ function normalizeCollectedImportPayload(
   const resumes = readResumeRecords(payload).map((resume) => ({
     ...resume,
     sourceHost,
+    ...(Array.isArray(resume.workHistory) && resume.workHistory.length > 0
+      ? { workHistory: selectLatestWorkHistory(resume.workHistory) }
+      : {}),
   }));
   if (resumes.length === 0) {
     throw new Error(`[${alias}] collector returned zero resumes`);
@@ -638,6 +649,7 @@ export async function runSnapshotSourceBackups(
   }
 
   const results: SnapshotSourceResult[] = [];
+  const skipped: SnapshotSkippedSource[] = [];
 
   for (const alias of options.sources) {
     const sourceHost = SOURCE_HOSTS[alias];
@@ -645,6 +657,7 @@ export async function runSnapshotSourceBackups(
     let manualImportSummary: ManualImportSummary | undefined;
     let snapshotPayload: ResumeBackupEnvelope;
 
+    try {
     if (alias !== "51job-manual") {
       launchUrl = buildSourceLaunchUrl(alias, options);
       if (!launchUrl) {
@@ -712,6 +725,17 @@ export async function runSnapshotSourceBackups(
       observedCount: snapshotCount,
       ...(manualImportSummary ? { manualImportSummary } : {}),
     });
+    } catch (sourceError) {
+      const reason =
+        sourceError instanceof Error ? sourceError.message : String(sourceError);
+      runtime.log(`[${alias}] skipped: ${reason}`);
+      skipped.push({ alias, reason });
+    }
+  }
+
+  if (results.length === 0) {
+    const reasons = skipped.map((s) => `[${s.alias}] ${s.reason}`).join("; ");
+    throw new Error(`all sources failed: ${reasons}`);
   }
 
   return {
@@ -723,6 +747,7 @@ export async function runSnapshotSourceBackups(
     outputDir: runDir,
     countPerSource: options.count,
     sources: results,
+    skipped,
   };
 }
 
