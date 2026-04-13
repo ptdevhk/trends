@@ -202,9 +202,6 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
   const minRoleYears = parseNumberParam(searchParams.get('minRoleYears'))
   if (typeof minRoleYears === 'number') {
     filters.minRoleYears = minRoleYears
-    if (minRoleYears > 0) {
-      filters.minExperience = minRoleYears
-    }
   }
 
   const roleFilterType = searchParams.get('roleType')?.trim()
@@ -314,14 +311,8 @@ export function useUrlSearchState() {
           setParam(nextParams, 'maxRoleYears', String(state.filters.maxExperience))
         }
 
-        const canonicalMinRoleYears =
-          typeof state.filters.minRoleYears === 'number' && Number.isFinite(state.filters.minRoleYears)
-            ? state.filters.minRoleYears
-            : (typeof state.filters.minExperience === 'number' && Number.isFinite(state.filters.minExperience) && state.filters.minExperience > 0
-                ? state.filters.minExperience
-                : undefined)
-        if (typeof canonicalMinRoleYears === 'number') {
-          setParam(nextParams, 'minRoleYears', String(canonicalMinRoleYears))
+        if (typeof state.filters.minRoleYears === 'number' && Number.isFinite(state.filters.minRoleYears)) {
+          setParam(nextParams, 'minRoleYears', String(state.filters.minRoleYears))
         }
 
         if (state.filters.roleFilterType && state.filters.roleFilterType.trim().length > 0) {

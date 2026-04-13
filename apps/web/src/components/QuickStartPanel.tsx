@@ -264,7 +264,7 @@ function getProfileQuickConstraints(profile: SearchProfileDetails): {
   const keywords = normalizeProfileKeywords(profile)
   const roleFilterType = isSalesRequiredContext(...keywords) ? 'sales' : undefined
   return {
-    minRoleYears: typeof profile.filters?.minExperience === 'number' ? profile.filters.minExperience : undefined,
+    minRoleYears: undefined,
     roleFilterType,
     maxAge: typeof profile.filters?.maxAge === 'number' ? profile.filters.maxAge : undefined,
   }

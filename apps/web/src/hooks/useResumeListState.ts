@@ -2063,7 +2063,6 @@ export function useResumeListState(loadSearchHistory = false) {
     }) => {
       setFilters((current) => ({
         ...current,
-        minExperience: (constraints.minRoleYears ?? 0) > 0 ? constraints.minRoleYears : undefined,
         minRoleYears: constraints.minRoleYears,
         roleFilterType: normalizeOptionalString(constraints.roleFilterType),
         maxAge: constraints.maxAge,

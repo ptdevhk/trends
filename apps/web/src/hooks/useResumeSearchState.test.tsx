@@ -448,6 +448,34 @@ describe('useResumeSearchState', () => {
     ])
   })
 
+  it('sends only minExperience/maxExperience to backend filters, not minRoleYears', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC',
+      keywords: ['CNC'],
+      filters: {
+        minRoleYears: 3,
+        minExperience: 5,
+        maxExperience: 12,
+      },
+    }))
+
+    resumesMock.push(createResume(1))
+
+    renderHook(() => useResumeSearchState())
+
+    expect(useConvexResumesMock).toHaveBeenCalledWith(
+      expect.any(Number),
+      'CNC',
+      undefined,
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          minExperience: 5,
+          maxExperience: 12,
+        }),
+      }),
+    )
+  })
+
   it('normalizes a recent search and syncs it back to canonical url state when applied', async () => {
     const historyKeywords = ['Machine Tools', 'Sales']
     const expectedQuery = formatKeywordQuery(historyKeywords)

@@ -190,7 +190,11 @@ describe('useUrlSearchState location parsing', () => {
     expect(updatedParams.get('sort')).toBe('experience')
     expect(updatedParams.get('order')).toBe('desc')
 
-    expect(parseUrlSearchState(updatedParams)).toEqual(nextState)
+    // minRoleYears and minExperience are now decoupled: syncing emits minRoleYears only,
+    // so parsing the output restores minRoleYears but not minExperience
+    const reparsedState = parseUrlSearchState(updatedParams)
+    expect(reparsedState.filters.minRoleYears).toBe(5)
+    expect(reparsedState.filters.minExperience).toBeUndefined()
   })
 
   it('removes sid when syncing explicit state back into the URL', () => {
@@ -269,17 +273,133 @@ describe('useUrlSearchState location parsing', () => {
     expect(updatedParams.get('tags')).toBe('cluster:manufacturing-systems,Machine Tools')
     expect(updatedParams.get('co')).toBe('FANUC,DMG MORI')
     expect(updatedParams.get('exp')).toBe('mid')
-    expect(updatedParams.get('minRoleYears')).toBe('5')
+    expect(updatedParams.get('minRoleYears')).toBeNull()
     expect(updatedParams.get('maxRoleYears')).toBe('12')
     expect(updatedParams.get('edu')).toBe('Bachelor,Master')
     expect(updatedParams.get('status')).toBe('contacted,offer')
   })
 
-  it('clears explicit sort params when syncing back to default relevance ordering', () => {
-    const currentParams = new URLSearchParams('q=machine+tools&location=Malaysia&sort=experience&order=desc')
+describe('minRoleYears and minExperience are decoupled', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('parses minRoleYears without setting minExperience', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=CNC&minRoleYears=1'))
+
+    expect(state.filters.minRoleYears).toBe(1)
+    expect(state.filters.minExperience).toBeUndefined()
+  })
+
+  it('parses minRoleYears=0 without setting minExperience', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=CNC&minRoleYears=0'))
+
+    expect(state.filters.minRoleYears).toBe(0)
+    expect(state.filters.minExperience).toBeUndefined()
+  })
+
+  it('parses maxRoleYears as maxExperience without coupling to minRoleYears', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=CNC&minRoleYears=3&maxRoleYears=8'))
+
+    expect(state.filters.minRoleYears).toBe(3)
+    expect(state.filters.maxExperience).toBe(8)
+    expect(state.filters.minExperience).toBeUndefined()
+  })
+
+  it('syncs only minRoleYears without emitting minExperience', () => {
+    const currentParams = new URLSearchParams()
     useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
 
     const { result } = renderHook(() => useUrlSearchState())
+
+    result.current.syncToUrl({
+      query: 'CNC',
+      location: undefined,
+      keywords: ['CNC'],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+      filters: {
+        minRoleYears: 3,
+      },
+    })
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(new URLSearchParams()) as URLSearchParams
+    expect(updatedParams.get('minRoleYears')).toBe('3')
+    expect(updatedParams.get('minRoleYears')).not.toBeNull()
+    // minExperience is not emitted when only minRoleYears is set
+  })
+
+  it('syncs only minExperience without emitting minRoleYears', () => {
+    const currentParams = new URLSearchParams()
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    result.current.syncToUrl({
+      query: 'CNC',
+      location: undefined,
+      keywords: ['CNC'],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+      filters: {
+        minExperience: 5,
+        maxExperience: 10,
+      },
+    })
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(new URLSearchParams()) as URLSearchParams
+    expect(updatedParams.get('minRoleYears')).toBeNull()
+    expect(updatedParams.get('maxRoleYears')).toBe('10')
+  })
+
+  it('syncs independent minRoleYears and minExperience both to their own params', () => {
+    const currentParams = new URLSearchParams()
+    useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+    const { result } = renderHook(() => useUrlSearchState())
+
+    result.current.syncToUrl({
+      query: 'CNC',
+      location: undefined,
+      keywords: ['CNC'],
+      requiredKeywords: [],
+      jobDescriptionId: undefined,
+      selectedTags: [],
+      selectedCompanies: [],
+      selectedExperienceLevel: undefined,
+      filters: {
+        minRoleYears: 3,
+        minExperience: 2,
+        maxExperience: 10,
+      },
+    })
+
+    const [updater] = setSearchParamsMock.mock.calls[0] ?? []
+    const updatedParams = updater(new URLSearchParams()) as URLSearchParams
+    expect(updatedParams.get('minRoleYears')).toBe('3')
+    expect(updatedParams.get('maxRoleYears')).toBe('10')
+    // minExperience does not have its own URL param, so parsing it back won't restore it
+    // — this is the existing behavior (minExperience is backend-only)
+    const reparsed = parseUrlSearchState(updatedParams)
+    expect(reparsed.filters.minRoleYears).toBe(3)
+    expect(reparsed.filters.maxExperience).toBe(10)
+    expect(reparsed.filters.minExperience).toBeUndefined()
+  })
+})
+
+it('clears explicit sort params when syncing back to default relevance ordering', () => {
+  const currentParams = new URLSearchParams('q=machine+tools&location=Malaysia&sort=experience&order=desc')
+  useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
+
+  const { result } = renderHook(() => useUrlSearchState())
 
     const nextState: UrlSearchState = {
       query: 'machine tools',

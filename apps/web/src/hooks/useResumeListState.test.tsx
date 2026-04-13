@@ -485,6 +485,30 @@ describe('useResumeListState role filter regression', () => {
     expect(getDisplayedResumeNames()).toEqual(['High Salary Match'])
   })
 
+  it('handleQuickConstraintApply sets minRoleYears without touching minExperience', () => {
+    // Set an initial state that has minExperience so we can verify it isn't cleared
+    mockState.filters = { minExperience: 5, maxExperience: 10 }
+
+    const { result } = renderHook(() => useResumeListState())
+
+    act(() => {
+      result.current.handleQuickConstraintApply({ minRoleYears: 3, roleFilterType: 'sales', maxAge: 45 })
+    })
+
+    // Verify the setFilters callback produces the right state
+    const setFiltersCall = mockState.setFilters.mock.calls[0]!
+    const currentState = { minExperience: 5, maxExperience: 10 }
+    const nextState = setFiltersCall[0](currentState)
+
+    expect(nextState).toEqual({
+      minExperience: 5, // must NOT be cleared by handleQuickConstraintApply
+      maxExperience: 10,
+      minRoleYears: 3,
+      roleFilterType: 'sales',
+      maxAge: 45,
+    })
+  })
+
   it('keeps name sorting local to preserve the existing UI comparator', () => {
     mockState.filters = {
       sortBy: 'name',

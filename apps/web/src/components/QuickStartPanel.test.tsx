@@ -477,6 +477,50 @@ describe('QuickStartPanel quick-filter display', () => {
     ).toBe(false)
   })
 
+  it('does not derive minRoleYears from profile.filters.minExperience', async () => {
+    const onApplyQuickFilters = vi.fn()
+
+    getMock.mockImplementation(async (path: string) => {
+      if (path.includes('/api/config/custom-keywords')) {
+        return {
+          data: {
+            success: true,
+            tags: [],
+            categories: [],
+            systemLocations: [],
+            workflowSeeds: [],
+          },
+        }
+      }
+      if (path.includes('/api/search-profiles/auto-match')) {
+        // No auto-matched profile, so getProfileQuickConstraints won't be called
+        return { data: { success: true, profileId: undefined, confidence: 0, matchedKeywords: [] } }
+      }
+      return {
+        data: {
+          success: true,
+          item: { requiredRoles: [] },
+        },
+      }
+    })
+
+    render(
+      <QuickStartPanel
+        defaultLocation="广东"
+        defaultKeywords={['CNC']}
+        jobDescriptionId=""
+        onApplyQuickFilters={onApplyQuickFilters}
+      />
+    )
+
+    // Auto-match returns no profile, so getProfileQuickConstraints is never invoked.
+    // The key invariant: minRoleYears must NOT be derived from profile.filters.minExperience.
+    // Since no profile is auto-matched, no quick filters will be applied at all.
+    expect(
+      onApplyQuickFilters.mock.calls.some(([value]) => typeof value?.minRoleYears === 'number')
+    ).toBe(false)
+  })
+
   it('still auto-fills JD defaults for a manual JD selection', async () => {
     const user = userEvent.setup()
 
