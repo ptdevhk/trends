@@ -50,6 +50,8 @@ output/*
 !output/benchmarks/
 output/benchmarks/*
 !output/benchmarks/.gitkeep
+output/resume-samples/
+!output/resume-samples/.gitkeep
 # Logs
 *.log
 logs/
