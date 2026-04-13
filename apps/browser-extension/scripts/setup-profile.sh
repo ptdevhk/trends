@@ -11,6 +11,13 @@ USER_DATA_DIR="${CHROME_USER_DATA_DIR:-/root/.config/chrome}"
 CHROME_PROFILE="${CHROME_PROFILE_DIR:-$USER_DATA_DIR/Default}"
 EXTENSION_PATH="/root/workspace/apps/browser-extension"
 
+# Ensure the content script is built before seeding the profile.
+# content.js is gitignored and must be compiled from src/content.ts via esbuild.
+if [ ! -f "${EXT_DIR}/content.js" ] && [ -f "${EXT_DIR}/esbuild.config.mjs" ]; then
+  echo "Building browser extension content script (content.js missing)..."
+  cd "$EXT_DIR" && npm run build
+fi
+
 if pgrep -x "chrome" >/dev/null 2>&1 || pgrep -x "chromium" >/dev/null 2>&1 || pgrep -x "chromium-browser" >/dev/null 2>&1; then
   cat <<EOF_MSG
 Chrome/Chromium appears to be running.

@@ -343,6 +343,18 @@ ensure_go
 echo "Building Trends CLI..."
 make cli-build
 
+# Build workspace packages that require compilation before use
+echo "Building browser extension content script..."
+if [ -d "apps/browser-extension" ] && [ -f "apps/browser-extension/esbuild.config.mjs" ]; then
+    if is_ci_env; then
+        npm --workspace @trends/browser-extension run build
+    elif command -v bun &> /dev/null; then
+        bun run --cwd apps/browser-extension build
+    else
+        npm --workspace @trends/browser-extension run build
+    fi
+fi
+
 if [ -d "packages/convex" ]; then
     if [ -z "${EFFECTIVE_CONVEX_MIRROR_MODE}" ]; then
         EFFECTIVE_CONVEX_MIRROR_MODE="$(resolve_convex_mirror_mode)"
