@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFileCallback);
 
-const DEFAULT_SAMPLE_REPO = "karlcc/trends-resume-samples";
+const DEFAULT_SAMPLE_REPO = "ptdevhk/trends-resume-samples";
 const DEFAULT_BACKUPS_DIR = "output/resume-backups";
 
 function resolveRepoRoot(): string {

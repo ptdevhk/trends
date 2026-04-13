@@ -389,7 +389,7 @@ restore-resumes-restart:
 
 # Push latest resume snapshot to the sample repo (karlcc/trends-resume-samples)
 push-sample-snapshots:
-	@SAMPLE_REPO="$${SAMPLE_REPO:-karlcc/trends-resume-samples}" \
+	@SAMPLE_REPO="$${SAMPLE_REPO:-ptdevhk/trends-resume-samples}" \
 	SNAPSHOT_DIR="$${SNAPSHOT_DIR:-}"; \
 	if command -v bun >/dev/null 2>&1; then \
 		bun run scripts/resume/push-sample-snapshots.ts; \
@@ -399,7 +399,7 @@ push-sample-snapshots:
 
 # Pull resume snapshots from the sample repo into output/resume-samples
 pull-sample-snapshots:
-	@SAMPLE_REPO="$${SAMPLE_REPO:-karlcc/trends-resume-samples}" \
+	@SAMPLE_REPO="$${SAMPLE_REPO:-ptdevhk/trends-resume-samples}" \
 	OUT_DIR="$${OUT_DIR:-}"; \
 	if command -v bun >/dev/null 2>&1; then \
 		bun run scripts/resume/pull-sample-snapshots.ts; \
