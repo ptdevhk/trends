@@ -387,6 +387,30 @@ restore-resumes-restart:
 	@$(MAKE) restore-resumes API_URL="$(API_URL)" WORKSPACE="$(WORKSPACE)" FILE="$(FILE)" MODE="$(MODE)" YES="$(YES)"
 	@$(MAKE) dev-convex-refresh
 
+# Push latest resume snapshot to the sample repo (ptdevhk/trends-resume-samples)
+push-sample-snapshots:
+	@SAMPLE_REPO="$${SAMPLE_REPO:-ptdevhk/trends-resume-samples}" \
+	SNAPSHOT_DIR="$${SNAPSHOT_DIR:-}"; \
+	if command -v bun >/dev/null 2>&1; then \
+		bun run scripts/resume/push-sample-snapshots.ts; \
+	else \
+		npx tsx scripts/resume/push-sample-snapshots.ts; \
+	fi
+
+# Pull resume snapshots from the sample repo into output/resume-samples
+pull-sample-snapshots:
+	@SAMPLE_REPO="$${SAMPLE_REPO:-ptdevhk/trends-resume-samples}" \
+	OUT_DIR="$${OUT_DIR:-}"; \
+	if command -v bun >/dev/null 2>&1; then \
+		bun run scripts/resume/pull-sample-snapshots.ts; \
+	else \
+		npx tsx scripts/resume/pull-sample-snapshots.ts; \
+	fi
+
+# Pull snapshots and restore in one step
+restore-sample-snapshots: pull-sample-snapshots
+	@$(MAKE) restore-resumes FILE=output/resume-samples
+
 # Clear resume AI analyses directly in Convex, batching large datasets safely
 clear-resume-analyses:
 	@batch_size="$${BATCH_SIZE:-50}"; \
