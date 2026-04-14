@@ -47,6 +47,10 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends resume debug reset-database --dry-run`
 - `./bin/trends resume debug reset-database --yes`
 - `./bin/trends resume debug trigger-reingest --limit 200`
+- `./bin/trends resume analyze --query "CNC 销售" --limit 50`
+- `./bin/trends resume analyze --job-description lathe-sales --dry-run`
+- `./bin/trends resume analyze --query "CNC Sales" --min-experience 3 --locations "Dongguan,Shenzhen"`
+- `./bin/trends resume debug analysis-tasks`
 - `./bin/trends resume debug rescore --source sample --query "CNC 销售"`
 - `./bin/trends resume export --format xlsx --limit 200`
 - `./bin/trends jd list`
@@ -80,3 +84,8 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `reset-database` deletes ALL resume, JD, search profile, and screening data; use with extreme caution.
 - `clear-analyses` now routes through the BFF API instead of calling Convex directly; `--dry-run` counts affected records without mutating.
 - `--dry-run` on any destructive command shows what would happen without performing the operation.
+- `resume analyze` dispatches the production Convex AI analysis pipeline; results are stored per-resume in the `analyses` map.
+- Use `--dry-run` on `resume analyze` to preview candidate count without dispatching analysis.
+- Check analysis task status with `resume debug analysis-tasks`.
+- `resume analyze` is fire-and-forget; the Convex backend processes analysis asynchronously.
+- Either `--query` or `--job-description` is required for `resume analyze`; both can be combined.

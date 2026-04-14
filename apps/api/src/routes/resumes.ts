@@ -39,6 +39,9 @@ import {
   ResumeMatchesQuerySchema,
   MatchRunsResponseSchema,
   MatchRunsQuerySchema,
+  AnalyzeRequestSchema,
+  AnalyzeResponseSchema,
+  AnalysisTasksResponseSchema,
 } from "../schemas/index.js";
 import { config } from "../services/config.js";
 import { ResumeService, parseExperienceYears, type ResumeFilters } from "../services/resume-service.js";
@@ -5119,6 +5122,193 @@ app.post("/api/resumes/ingest-compute", async (c) => {
     const results = ingestComputeService.computeBatch(resumes);
     return c.json({ success: true, results }, 200);
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
+app.post("/api/resumes/analyze", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = AnalyzeRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "Invalid request payload" }, 400);
+  }
+
+  const {
+    query,
+    jobDescriptionId,
+    location,
+    minExperience,
+    maxExperience,
+    education,
+    skills,
+    requiredKeywords,
+    locations: locationFilters,
+    minSalary,
+    maxSalary,
+    limit,
+    dryRun,
+  } = parsed.data;
+
+  const normalizedQuery = query?.trim() || "";
+  const normalizedJobDescriptionId = jobDescriptionId?.trim() || "";
+
+  if (!normalizedQuery && !normalizedJobDescriptionId) {
+    return c.json(
+      { success: false, error: "Either query or jobDescriptionId is required" },
+      400,
+    );
+  }
+
+  try {
+    // Search phase: find matching resume IDs via Convex
+    const searchArgs: Record<string, unknown> = {
+      query: normalizedQuery,
+      keywordGroups: [],
+      mode: "OR",
+      ...(normalizedJobDescriptionId ? { jobDescriptionId: normalizedJobDescriptionId } : {}),
+      ...(minExperience !== undefined ? { minExperience } : {}),
+      ...(maxExperience !== undefined ? { maxExperience } : {}),
+      ...(education && education.length > 0 ? { education } : {}),
+      ...(skills && skills.length > 0 ? { skills } : {}),
+      ...(requiredKeywords && requiredKeywords.length > 0 ? { requiredKeywords } : {}),
+      ...(locationFilters && locationFilters.length > 0 ? { locations: locationFilters } : {}),
+      ...(minSalary !== undefined ? { minSalary } : {}),
+      ...(maxSalary !== undefined ? { maxSalary } : {}),
+      paginationOpts: { numItems: limit, cursor: null },
+    };
+
+    const searchResult = (await callConvexQuery(
+      "resumes:searchWithTagExpansionPaginated",
+      searchArgs,
+    )) as {
+      page: Array<{ resume: { _id: string }; provenance?: unknown }>;
+      continuationCursor: string | null;
+    };
+
+    const resumeIds = (searchResult.page ?? []).map((item) => item.resume._id);
+
+    if (dryRun) {
+      return c.json(
+        AnalyzeResponseSchema.parse({
+          success: true,
+          dryRun: true,
+          resumeCount: resumeIds.length,
+          config: {
+            ...(normalizedJobDescriptionId
+              ? { jobDescriptionId: normalizedJobDescriptionId }
+              : {}),
+            ...(normalizedQuery ? { keywords: normalizedQuery.split(/[\s,，、]+/).filter(Boolean) } : {}),
+            ...(location ? { location } : {}),
+          },
+        }),
+        200,
+      );
+    }
+
+    if (resumeIds.length === 0) {
+      return c.json(
+        AnalyzeResponseSchema.parse({
+          success: true,
+          resumeCount: 0,
+          config: {
+            ...(normalizedJobDescriptionId
+              ? { jobDescriptionId: normalizedJobDescriptionId }
+              : {}),
+            ...(normalizedQuery ? { keywords: normalizedQuery.split(/[\s,，、]+/).filter(Boolean) } : {}),
+            ...(location ? { location } : {}),
+          },
+        }),
+        200,
+      );
+    }
+
+    // Resolve JD content for the LLM prompt
+    let jobDescriptionTitle: string | undefined;
+    let jobDescriptionContent: string | undefined;
+
+    if (normalizedJobDescriptionId) {
+      try {
+        const jdData = jobService.loadFile(normalizedJobDescriptionId);
+        jobDescriptionTitle = jdData.title;
+        jobDescriptionContent = jdData.content;
+      } catch {
+        // JD file not found locally — the Convex dispatch will use keywords only
+      }
+    }
+
+    const keywords = normalizedQuery
+      ? normalizedQuery.split(/[\s,，、]+/).filter(Boolean)
+      : undefined;
+
+    // Dispatch phase: call Convex mutation to create analysis task
+    const dispatchResult = (await callConvexMutation("analysis_tasks:dispatch", {
+      ...(normalizedJobDescriptionId
+        ? { jobDescriptionId: normalizedJobDescriptionId }
+        : {}),
+      ...(jobDescriptionTitle ? { jobDescriptionTitle } : {}),
+      ...(jobDescriptionContent ? { jobDescriptionContent } : {}),
+      ...(keywords && keywords.length > 0 ? { keywords } : {}),
+      ...(location ? { location } : {}),
+      resumeIds,
+    })) as string;
+
+    return c.json(
+      AnalyzeResponseSchema.parse({
+        success: true,
+        taskId: dispatchResult,
+        resumeCount: resumeIds.length,
+        config: {
+          ...(normalizedJobDescriptionId
+            ? { jobDescriptionId: normalizedJobDescriptionId }
+            : {}),
+          ...(keywords && keywords.length > 0 ? { keywords } : {}),
+          ...(location ? { location } : {}),
+        },
+      }),
+      200,
+    );
+  } catch (error) {
+    console.error("Failed to dispatch analysis", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
+app.get("/api/resumes/analysis-tasks", async (c) => {
+  try {
+    const tasks = (await callConvexQuery("analysis_tasks:list", {})) as Array<{
+      _id: string;
+      status: string;
+      _creationTime: number;
+      config?: {
+        jobDescriptionId?: string;
+        jobDescriptionTitle?: string;
+        keywords?: string[];
+        location?: string;
+        promptVersion?: number;
+        resumeCount?: number;
+      };
+      progress?: { current?: number; total?: number; skipped?: number };
+      results?: {
+        analyzed?: number;
+        failed?: number;
+        avgScore?: number;
+        highScoreCount?: number;
+      };
+      lastStatus?: string;
+      error?: string;
+    }>;
+
+    return c.json(
+      AnalysisTasksResponseSchema.parse({
+        success: true,
+        tasks,
+      }),
+      200,
+    );
+  } catch (error) {
+    console.error("Failed to list analysis tasks", error);
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }

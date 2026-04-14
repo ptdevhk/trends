@@ -266,6 +266,7 @@ func newResumeDebugCmd() *cobra.Command {
 		newResumeDebugClearDemoResumesCmd(),
 		newResumeDebugHardResetReingestCmd(),
 		newResumeDebugResetDatabaseCmd(),
+		newResumeDebugAnalysisTasksCmd(),
 	)
 
 	return debugCmd
@@ -1077,6 +1078,71 @@ func validateResumeMatchRequest(request client.ResumeMatchRequest) error {
 	}
 	if normalizeResumeSourceFlag(request.Source) == "convex" && persist {
 		return fmt.Errorf("source=convex only supports --persist=false")
+	}
+
+	return nil
+}
+
+func newResumeDebugAnalysisTasksCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "analysis-tasks",
+		Short: "List recent AI analysis tasks and their status",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().ListAnalysisTasks(context.Background())
+			if err != nil {
+				return err
+			}
+
+			if currentOptions().Output == "json" {
+				return writeOutput(cmd, nil, nil, response)
+			}
+
+			return writeAnalysisTasksTable(cmd, response)
+		},
+	}
+
+	return cmd
+}
+
+func writeAnalysisTasksTable(cmd *cobra.Command, response *client.AnalysisTasksResponse) error {
+	if len(response.Tasks) == 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "No analysis tasks found.\n")
+		return nil
+	}
+
+	for _, task := range response.Tasks {
+		label := task.Config.JobDescriptionTitle
+		if label == "" && len(task.Config.Keywords) > 0 {
+			label = strings.Join(task.Config.Keywords, ", ")
+		}
+		if label == "" {
+			label = task.Config.JobDescriptionID
+		}
+
+		status := task.Status
+		if task.Progress != nil && task.Progress.Total > 0 {
+			status = fmt.Sprintf("%s (%d/%d", task.Status, task.Progress.Current, task.Progress.Total)
+			if task.Progress.Skipped > 0 {
+				status += fmt.Sprintf(", skipped: %d", task.Progress.Skipped)
+			}
+			status += ")"
+		}
+
+		line := fmt.Sprintf("%s  %s", task.ID, status)
+		if label != "" {
+			line += fmt.Sprintf("  %s", label)
+		}
+		if task.Config.Location != "" {
+			line += fmt.Sprintf("  [%s]", task.Config.Location)
+		}
+		if task.Results != nil && task.Status == "completed" {
+			line += fmt.Sprintf("  analyzed=%d avg=%.0f", task.Results.Analyzed, task.Results.AvgScore)
+		}
+		if task.Error != "" {
+			line += fmt.Sprintf("  error=%s", task.Error)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", line)
 	}
 
 	return nil

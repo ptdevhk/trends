@@ -296,6 +296,33 @@ func mcpTools() []map[string]any {
 				},
 			},
 		},
+		{
+			"name":        "resume_analyze",
+			"description": "Dispatch AI analysis for resumes matching search criteria",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query":             map[string]any{"type": "string"},
+					"jobDescriptionId":  map[string]any{"type": "string"},
+					"location":          map[string]any{"type": "string"},
+					"locations":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"minExperience":     map[string]any{"type": "integer", "minimum": 0},
+					"maxExperience":     map[string]any{"type": "integer", "minimum": 0},
+					"education":         map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"skills":            map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"requiredKeywords":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"minSalary":         map[string]any{"type": "integer", "minimum": 0},
+					"maxSalary":         map[string]any{"type": "integer", "minimum": 0},
+					"limit":             map[string]any{"type": "integer", "minimum": 1, "maximum": 500},
+					"dryRun":            map[string]any{"type": "boolean"},
+				},
+			},
+		},
+		{
+			"name":        "analysis_tasks",
+			"description": "List recent analysis tasks with status and progress",
+			"inputSchema": map[string]any{"type": "object"},
+		},
 	}
 }
 
@@ -410,6 +437,32 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 			return "", err
 		}
 		return prettyJSON(result)
+	case "resume_analyze":
+		analyzeResult, err := apiClient.AnalyzeResumes(ctx, client.AnalyzeRequest{
+			Query:            stringArg(args, "query", ""),
+			JobDescriptionID: stringArg(args, "jobDescriptionId", ""),
+			Location:         stringArg(args, "location", ""),
+			MinExperience:    intArg(args, "minExperience", 0),
+			MaxExperience:    intArg(args, "maxExperience", 0),
+			Education:        stringSliceArg(args, "education"),
+			Skills:           stringSliceArg(args, "skills"),
+			RequiredKeywords: stringSliceArg(args, "requiredKeywords"),
+			Locations:        stringSliceArg(args, "locations"),
+			MinSalary:        intArg(args, "minSalary", 0),
+			MaxSalary:        intArg(args, "maxSalary", 0),
+			Limit:            intArg(args, "limit", 50),
+			DryRun:           boolArg(args, "dryRun", false),
+		})
+		if err != nil {
+			return "", err
+		}
+		return prettyJSON(analyzeResult)
+	case "analysis_tasks":
+		tasksResult, err := apiClient.ListAnalysisTasks(ctx)
+		if err != nil {
+			return "", err
+		}
+		return prettyJSON(tasksResult)
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
