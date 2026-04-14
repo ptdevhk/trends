@@ -472,3 +472,85 @@ func (c *Client) GetSourceDetail(ctx context.Context, key string) (*SourceDetail
 	}
 	return &response, nil
 }
+
+type HardResetReingestRequest struct {
+	DryRun bool `json:"dryRun,omitempty"`
+}
+
+type HardResetReingestResponse struct {
+	Success    bool   `json:"success"`
+	DryRun     bool   `json:"dryRun,omitempty"`
+	Cleared    int    `json:"cleared,omitempty"`
+	WouldClear int    `json:"wouldClear,omitempty"`
+	Scheduled  int    `json:"scheduled,omitempty"`
+	Batches    int    `json:"batches,omitempty"`
+	Phase      string `json:"phase,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
+func (c *Client) HardResetReingest(ctx context.Context, request HardResetReingestRequest) (*HardResetReingestResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/hard-reset-reingest", c.APIURL)
+	var response HardResetReingestResponse
+	if err := c.doJSON(ctx, http.MethodPost, endpoint, request, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("hard reset reingest request was not successful")
+	}
+	return &response, nil
+}
+
+type ClearAnalysesAPIRequest struct {
+	JobDescriptionID string   `json:"jobDescriptionId,omitempty"`
+	ResumeIDs        []string `json:"resumeIds,omitempty"`
+	BatchSize        int      `json:"batchSize,omitempty"`
+	DryRun           bool     `json:"dryRun,omitempty"`
+}
+
+type ClearAnalysesAPIResponse struct {
+	Success         bool     `json:"success"`
+	DryRun          bool     `json:"dryRun,omitempty"`
+	Cleared         int      `json:"cleared"`
+	WouldClear      int      `json:"wouldClear,omitempty"`
+	Batches         int      `json:"batches,omitempty"`
+	Targeted        bool     `json:"targeted"`
+	JobDescriptionID string  `json:"jobDescriptionId,omitempty"`
+	ResumeIDs       []string `json:"resumeIds,omitempty"`
+}
+
+func (c *Client) ClearAnalysesViaAPI(ctx context.Context, request ClearAnalysesAPIRequest) (*ClearAnalysesAPIResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/clear-analyses", c.APIURL)
+	var response ClearAnalysesAPIResponse
+	if err := c.doJSON(ctx, http.MethodPost, endpoint, request, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("clear analyses request was not successful")
+	}
+	return &response, nil
+}
+
+type ResetDatabaseRequest struct {
+	DryRun bool `json:"dryRun,omitempty"`
+}
+
+type ResetDatabaseResponse struct {
+	Success    bool              `json:"success"`
+	DryRun     bool              `json:"dryRun,omitempty"`
+	Count      int               `json:"count,omitempty"`
+	WouldDelete map[string]int   `json:"wouldDelete,omitempty"`
+	Partial    bool              `json:"partial,omitempty"`
+	Deleted    map[string]int    `json:"deleted,omitempty"`
+}
+
+func (c *Client) ResetDatabase(ctx context.Context, request ResetDatabaseRequest) (*ResetDatabaseResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/reset-database", c.APIURL)
+	var response ResetDatabaseResponse
+	if err := c.doJSON(ctx, http.MethodPost, endpoint, request, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("reset database request was not successful")
+	}
+	return &response, nil
+}

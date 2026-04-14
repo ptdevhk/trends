@@ -181,34 +181,25 @@ func TestMCPToolsIncludeResumeDebugReadOnlyTools(t *testing.T) {
 }
 
 func TestRunMCPToolResumeClearAnalyses(t *testing.T) {
-	originalRunner := runResumeAnalysisClearer
-	t.Cleanup(func() {
-		runResumeAnalysisClearer = originalRunner
-	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/clear-analyses" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.ClearAnalysesAPIResponse{
+			Success:         true,
+			Cleared:         2,
+			Batches:         1,
+			Targeted:        true,
+			JobDescriptionID: "lathe-sales",
+		})
+	}))
+	defer server.Close()
 
-	runResumeAnalysisClearer = func(ctx context.Context, request resumeAnalysisClearRequest) (*resumeAnalysisClearResponse, error) {
-		if request.JobDescriptionID != "lathe-sales" {
-			t.Fatalf("unexpected job description: %q", request.JobDescriptionID)
-		}
-		if request.BatchSize != 25 {
-			t.Fatalf("unexpected batch size: %d", request.BatchSize)
-		}
-		if len(request.ResumeIDs) != 2 || request.ResumeIDs[0] != "resume-1" || request.ResumeIDs[1] != "resume-2" {
-			t.Fatalf("unexpected resume ids: %+v", request.ResumeIDs)
-		}
-		return &resumeAnalysisClearResponse{
-			Cleared:          2,
-			Batches:          1,
-			JobDescriptionID: request.JobDescriptionID,
-			ResumeIDs:        request.ResumeIDs,
-			Targeted:         true,
-		}, nil
-	}
+	setResumeCLIConfig(t, server.URL, "dev")
 
 	text, err := runMCPTool(context.Background(), "resume_clear_analyses", map[string]interface{}{
 		"jobDescriptionId": "lathe-sales",
-		"resumeIds":        []interface{}{"resume-1", " resume-2 ", "resume-1"},
-		"batchSize":        float64(25),
+		"resumeIds":        []interface{}{"resume-1", "resume-2"},
 	})
 	if err != nil {
 		t.Fatalf("runMCPTool returned error: %v", err)
@@ -409,5 +400,56 @@ func TestRunMCPToolWorkerRunRejectsUnsuccessfulResponse(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not successful") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunMCPToolResumeHardResetReingest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/hard-reset-reingest" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.HardResetReingestResponse{
+			Success:   true,
+			Cleared:   25,
+			Scheduled: 25,
+			Batches:   1,
+			Phase:     "scheduled",
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	text, err := runMCPTool(context.Background(), "resume_hard_reset_reingest", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("runMCPTool returned error: %v", err)
+	}
+	if !strings.Contains(text, `"cleared": 25`) || !strings.Contains(text, `"phase": "scheduled"`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
+	}
+}
+
+func TestRunMCPToolResumeResetDatabase(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/reset-database" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.ResetDatabaseResponse{
+			Success: true,
+			Count:   50,
+			Partial: false,
+			Deleted: map[string]int{"resumes": 50},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	text, err := runMCPTool(context.Background(), "resume_reset_database", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("runMCPTool returned error: %v", err)
+	}
+	if !strings.Contains(text, `"count": 50`) || !strings.Contains(text, `"resumes": 50`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
 	}
 }

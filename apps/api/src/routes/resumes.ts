@@ -182,6 +182,51 @@ const ResumeResetResponseSchema = z.object({
   deleted: z.record(z.number().int()),
 });
 
+const HardResetReingestRequestSchema = z.object({
+  dryRun: z.boolean().optional(),
+});
+
+const HardResetReingestResponseSchema = z.object({
+  success: z.literal(true),
+  dryRun: z.boolean().optional(),
+  cleared: z.number().int().optional(),
+  wouldClear: z.number().int().optional(),
+  scheduled: z.number().int().optional(),
+  batches: z.number().int().optional(),
+  phase: z.enum(["dry_run", "cleared", "scheduled", "failed_scheduling"]).optional(),
+  error: z.string().optional(),
+});
+
+const ClearAnalysesRequestSchema = z.object({
+  jobDescriptionId: z.string().trim().optional(),
+  resumeIds: z.array(z.string().trim().min(1)).optional(),
+  batchSize: z.number().int().min(1).max(200).optional(),
+  dryRun: z.boolean().optional(),
+});
+
+const ClearAnalysesResponseSchema = z.object({
+  success: z.literal(true),
+  dryRun: z.boolean().optional(),
+  cleared: z.number().int(),
+  wouldClear: z.number().int().optional(),
+  batches: z.number().int().optional(),
+  targeted: z.boolean(),
+  jobDescriptionId: z.string().optional(),
+});
+
+const ResetDatabaseRequestSchema = z.object({
+  dryRun: z.boolean().optional(),
+});
+
+const ResetDatabaseV2ResponseSchema = z.object({
+  success: z.literal(true),
+  dryRun: z.boolean().optional(),
+  count: z.number().int().optional(),
+  wouldDelete: z.record(z.number().int()).optional(),
+  partial: z.boolean().optional(),
+  deleted: z.record(z.number().int()).optional(),
+});
+
 type ResumeExportCanonicalRequest = z.infer<typeof ResumeExportCanonicalRequestSchema>;
 type ResumeExportRequest = ResumeExportCanonicalRequest;
 type ReviewPacketExportRequest = z.infer<typeof ReviewPacketExportRequestSchema>;
@@ -774,6 +819,38 @@ async function callConvexMutation(pathName: string, args: Record<string, unknown
 
   if (payload.status !== "success") {
     throw new Error(payload.errorMessage || `Convex mutation failed for ${pathName}`);
+  }
+
+  return payload.value;
+}
+
+async function callConvexAction(pathName: string, args: Record<string, unknown>): Promise<unknown> {
+  const convexUrl = resolveConvexUrl().replace(/\/$/, "");
+  const response = await fetch(`${convexUrl}/api/action`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      path: pathName,
+      args,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Convex action failed (${response.status}): ${text}`);
+  }
+
+  const payload = await response.json() as {
+    status?: string;
+    value?: unknown;
+    errorMessage?: string;
+  };
+
+  if (payload.status !== "success") {
+    throw new Error(payload.errorMessage || `Convex action failed for ${pathName}`);
   }
 
   return payload.value;
@@ -4778,6 +4855,238 @@ app.openapi(getResumeDetailRoute, async (c) => {
       }, 404);
     }
     throw error;
+  }
+});
+
+app.post("/api/resumes/hard-reset-reingest", async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false, error: "Admin access required" }, 403);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = HardResetReingestRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "Invalid request payload" }, 400);
+  }
+
+  const { dryRun } = parsed.data;
+
+  try {
+    if (dryRun) {
+      // Dry run: count resumes with computed fields without mutating
+      const firstPage = await callConvexMutation("resumes:hardResetIngestData", {
+        cursor: null,
+        batchSize: 50,
+      }) as { cleared: number; hasMore: boolean; cursor?: string };
+
+      let wouldClear = firstPage.cleared;
+      let cursor: string | undefined | null = firstPage.cursor;
+      let hasMore = firstPage.hasMore;
+
+      for (let i = 0; i < 10000 && hasMore; i++) {
+        const page = await callConvexMutation("resumes:hardResetIngestData", {
+          cursor,
+          batchSize: 50,
+        }) as { cleared: number; hasMore: boolean; cursor?: string };
+        wouldClear += page.cleared;
+        hasMore = page.hasMore;
+        cursor = page.cursor;
+      }
+
+      return c.json(HardResetReingestResponseSchema.parse({
+        success: true as const,
+        dryRun: true,
+        wouldClear,
+        phase: "dry_run",
+      }), 200);
+    }
+
+    // Phase 1: Clear all computed fields via paginated mutation
+    let totalCleared = 0;
+    let cursor: string | null | undefined = null;
+    let hasMore = true;
+
+    for (let i = 0; i < 10000 && hasMore; i++) {
+      const page = await callConvexMutation("resumes:hardResetIngestData", {
+        cursor,
+        batchSize: 50,
+      }) as { cleared: number; hasMore: boolean; cursor?: string };
+      totalCleared += page.cleared;
+      hasMore = page.hasMore;
+      cursor = page.cursor ?? null;
+    }
+
+    // Phase 2: Schedule full re-ingest
+    try {
+      const reingestResult = await callConvexAction("migrations:reIngestAllResumes", {}) as {
+        scheduled: number;
+        batches: number;
+      };
+      return c.json(HardResetReingestResponseSchema.parse({
+        success: true as const,
+        cleared: totalCleared,
+        scheduled: reingestResult.scheduled,
+        batches: reingestResult.batches,
+        phase: "scheduled",
+      }), 200);
+    } catch (schedulingError) {
+      // Partial failure: clearing succeeded but scheduling failed
+      const message = schedulingError instanceof Error ? schedulingError.message : String(schedulingError);
+      console.error("Failed to schedule re-ingest after hard reset", schedulingError);
+      return c.json(HardResetReingestResponseSchema.parse({
+        success: true as const,
+        cleared: totalCleared,
+        phase: "failed_scheduling",
+        error: message,
+      }), 200);
+    }
+  } catch (error) {
+    console.error("Failed to hard reset ingest data", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
+app.post("/api/resumes/clear-analyses", async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false, error: "Admin access required" }, 403);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = ClearAnalysesRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "Invalid request payload" }, 400);
+  }
+
+  const { jobDescriptionId, resumeIds, batchSize, dryRun } = parsed.data;
+  const isTargeted = (jobDescriptionId?.trim()?.length ?? 0) > 0 || (resumeIds?.length ?? 0) > 0;
+
+  try {
+    if (dryRun) {
+      // Dry run: count resumes with analysis fields without mutating
+      const args: Record<string, unknown> = {
+        batchSize: batchSize ?? 50,
+        cursor: null,
+      };
+      if (jobDescriptionId?.trim()) {
+        args.jobDescriptionId = jobDescriptionId.trim();
+      }
+      if (resumeIds && resumeIds.length > 0) {
+        args.resumeIds = resumeIds;
+      }
+
+      const firstPage = await callConvexMutation("resumes:clearAnalyses", args) as {
+        cleared: number;
+        hasMore: boolean;
+        cursor?: string;
+      };
+
+      let wouldClear = firstPage.cleared;
+      let cursor: string | undefined | null = firstPage.cursor;
+      let hasMore = firstPage.hasMore;
+
+      for (let i = 0; i < 10000 && hasMore && !isTargeted; i++) {
+        const page = await callConvexMutation("resumes:clearAnalyses", {
+          ...args,
+          cursor,
+        }) as { cleared: number; hasMore: boolean; cursor?: string };
+        wouldClear += page.cleared;
+        hasMore = page.hasMore;
+        cursor = page.cursor;
+      }
+
+      return c.json(ClearAnalysesResponseSchema.parse({
+        success: true as const,
+        dryRun: true,
+        cleared: 0,
+        wouldClear,
+        targeted: isTargeted,
+        jobDescriptionId: jobDescriptionId?.trim() || undefined,
+      }), 200);
+    }
+
+    // Full execution: paginated clearing
+    let totalCleared = 0;
+    let batches = 0;
+    let cursor: string | null | undefined = null;
+    let hasMore = true;
+
+    for (let i = 0; i < 10000 && hasMore; i++) {
+      const args: Record<string, unknown> = {
+        batchSize: batchSize ?? 50,
+        cursor,
+      };
+      if (jobDescriptionId?.trim()) {
+        args.jobDescriptionId = jobDescriptionId.trim();
+      }
+      if (resumeIds && resumeIds.length > 0) {
+        args.resumeIds = resumeIds;
+      }
+
+      const page = await callConvexMutation("resumes:clearAnalyses", args) as {
+        cleared: number;
+        hasMore: boolean;
+        cursor?: string;
+      };
+      totalCleared += page.cleared;
+      batches += 1;
+      hasMore = page.hasMore;
+      cursor = page.cursor ?? null;
+
+      // Targeted clears are single-batch
+      if (isTargeted) break;
+    }
+
+    return c.json(ClearAnalysesResponseSchema.parse({
+      success: true as const,
+      cleared: totalCleared,
+      batches,
+      targeted: isTargeted,
+      jobDescriptionId: jobDescriptionId?.trim() || undefined,
+    }), 200);
+  } catch (error) {
+    console.error("Failed to clear analyses", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
+app.post("/api/resumes/reset-database", async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false, error: "Admin access required" }, 403);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = ResetDatabaseRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "Invalid request payload" }, 400);
+  }
+
+  const { dryRun } = parsed.data;
+
+  try {
+    if (dryRun) {
+      // Dry run: count documents per table without deleting
+      const result = await callConvexMutation("resume_tasks:resetDatabase", {}) as {
+        success: boolean;
+        count: number;
+        partial: boolean;
+        deleted: Record<string, number>;
+      };
+      return c.json(ResetDatabaseV2ResponseSchema.parse({
+        success: true as const,
+        dryRun: true,
+        wouldDelete: result.deleted,
+        count: result.count,
+      }), 200);
+    }
+
+    const value = await callConvexMutation("resume_tasks:resetDatabase", {});
+    return c.json(ResetDatabaseV2ResponseSchema.parse(value), 200);
+  } catch (error) {
+    console.error("Failed to reset database", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
   }
 });
 

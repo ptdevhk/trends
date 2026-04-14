@@ -261,6 +261,41 @@ func mcpTools() []map[string]any {
 			"description": "Run " + migrationBackfillPrimaryScore,
 			"inputSchema": map[string]any{"type": "object"},
 		},
+		{
+			"name":        "resume_hard_reset_reingest",
+			"description": "Clear all computed ingest and AI analysis data, then schedule a full background re-ingest",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"dryRun": map[string]any{"type": "boolean"},
+				},
+			},
+		},
+		{
+			"name":        "resume_clear_analyses",
+			"description": "Clear resume AI analyses",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"jobDescriptionId": map[string]any{"type": "string"},
+					"resumeIds": map[string]any{
+						"type":  "array",
+						"items": map[string]any{"type": "string"},
+					},
+					"dryRun": map[string]any{"type": "boolean"},
+				},
+			},
+		},
+		{
+			"name":        "resume_reset_database",
+			"description": "Delete ALL resume, JD, search profile, and screening data from the database",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"dryRun": map[string]any{"type": "boolean"},
+				},
+			},
+		},
 	}
 }
 
@@ -313,10 +348,10 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 		}
 		return prettyJSON(result)
 	case "resume_clear_analyses":
-		result, err := runResumeAnalysisClearer(ctx, resumeAnalysisClearRequest{
+		result, err := apiClient.ClearAnalysesViaAPI(ctx, client.ClearAnalysesAPIRequest{
 			JobDescriptionID: stringArg(args, "jobDescriptionId", ""),
 			ResumeIDs:        stringSliceArg(args, "resumeIds"),
-			BatchSize:        intArg(args, "batchSize", 50),
+			DryRun:           boolArg(args, "dryRun", false),
 		})
 		if err != nil {
 			return "", err
@@ -359,6 +394,22 @@ func runMCPTool(ctx context.Context, name string, args map[string]interface{}) (
 			return "", err
 		}
 		return result, nil
+	case "resume_hard_reset_reingest":
+		result, err := apiClient.HardResetReingest(ctx, client.HardResetReingestRequest{
+			DryRun: boolArg(args, "dryRun", false),
+		})
+		if err != nil {
+			return "", err
+		}
+		return prettyJSON(result)
+	case "resume_reset_database":
+		result, err := apiClient.ResetDatabase(ctx, client.ResetDatabaseRequest{
+			DryRun: boolArg(args, "dryRun", false),
+		})
+		if err != nil {
+			return "", err
+		}
+		return prettyJSON(result)
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
