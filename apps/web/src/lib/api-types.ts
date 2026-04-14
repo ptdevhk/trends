@@ -7557,10 +7557,15 @@ export interface components {
             extractedAt?: string;
             restoreState?: components["schemas"]["ResumeImportRestoreState"];
         };
+        ResumeImportOptions: {
+            /** @example true */
+            recomputeDerivedFields?: boolean;
+        };
         ResumeImportRequest: {
             metadata: components["schemas"]["ResumeImportMetadata"];
             resumes?: components["schemas"]["ResumeImportItem"][];
             data?: components["schemas"]["ResumeImportItem"][];
+            options?: components["schemas"]["ResumeImportOptions"];
         };
         ResumeManualImportSource: {
             /** @example 51job-manual */

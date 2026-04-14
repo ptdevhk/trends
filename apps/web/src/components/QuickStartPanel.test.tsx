@@ -478,23 +478,35 @@ describe('QuickStartPanel quick-filter display', () => {
   })
 
   it('does not derive minRoleYears from profile.filters.minExperience', async () => {
+    const user = userEvent.setup()
     const onApplyQuickFilters = vi.fn()
 
+    postMock.mockResolvedValue({
+      data: {
+        success: true,
+        profileId: 'profile-1',
+        confidence: 1,
+        matchedKeywords: ['cnc'],
+      },
+    })
     getMock.mockImplementation(async (path: string) => {
-      if (path.includes('/api/config/custom-keywords')) {
+      if (path.includes('/api/search-profiles/profile-1')) {
         return {
           data: {
             success: true,
-            tags: [],
-            categories: [],
-            systemLocations: [],
-            workflowSeeds: [],
+            profile: {
+              id: 'profile-1',
+              name: 'CNC Profile',
+              status: 'active' as const,
+              location: '广东',
+              keywords: ['CNC'],
+              filters: {
+                minExperience: 3,
+                maxAge: 35,
+              },
+            },
           },
         }
-      }
-      if (path.includes('/api/search-profiles/auto-match')) {
-        // No auto-matched profile, so getProfileQuickConstraints won't be called
-        return { data: { success: true, profileId: undefined, confidence: 0, matchedKeywords: [] } }
       }
       return {
         data: {
@@ -513,12 +525,17 @@ describe('QuickStartPanel quick-filter display', () => {
       />
     )
 
-    // Auto-match returns no profile, so getProfileQuickConstraints is never invoked.
-    // The key invariant: minRoleYears must NOT be derived from profile.filters.minExperience.
-    // Since no profile is auto-matched, no quick filters will be applied at all.
-    expect(
-      onApplyQuickFilters.mock.calls.some(([value]) => typeof value?.minRoleYears === 'number')
-    ).toBe(false)
+    await waitFor(() => {
+      expect(screen.getByText('CNC Profile')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Use this config' }))
+
+    expect(onApplyQuickFilters).toHaveBeenCalledWith({
+      minRoleYears: undefined,
+      roleFilterType: undefined,
+      maxAge: 35,
+    })
   })
 
   it('still auto-fills JD defaults for a manual JD selection', async () => {

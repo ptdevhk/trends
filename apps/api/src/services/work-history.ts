@@ -9,7 +9,11 @@ function computeMonthsDiff(startYear: number, startMonth: number, endYear: numbe
   return diff > 0 ? diff / 12 : 0;
 }
 
-export function parseRoleYears(raw: string): number {
+function resolveAnchorDate(anchorDate: Date | undefined): Date {
+  return anchorDate ?? new Date();
+}
+
+export function parseRoleYears(raw: string, anchorDate?: Date): number {
   const text = raw.trim();
   if (!text) {
     return 0;
@@ -45,9 +49,9 @@ export function parseRoleYears(raw: string): number {
   if (presentEndMatch) {
     const startYear = Number(presentEndMatch[1]);
     const startMonth = Number(presentEndMatch[2] || 1);
-    const now = new Date();
-    const endYear = now.getFullYear();
-    const endMonth = now.getMonth() + 1;
+    const resolvedAnchorDate = resolveAnchorDate(anchorDate);
+    const endYear = resolvedAnchorDate.getFullYear();
+    const endMonth = resolvedAnchorDate.getMonth() + 1;
     if (Number.isFinite(startYear) && Number.isFinite(startMonth)) {
       const years = computeMonthsDiff(startYear, startMonth, endYear, endMonth);
       if (years > 0) {
@@ -59,18 +63,18 @@ export function parseRoleYears(raw: string): number {
   return 0;
 }
 
-export function computeEntryRoleYears(entry: ResumeWorkHistoryItem): number {
+export function computeEntryRoleYears(entry: ResumeWorkHistoryItem, anchorDate?: Date): number {
   const normalized = normalizeWorkHistoryEntry(entry);
   if (!normalized) {
     return 0;
   }
 
-  const dateRangeYears = parseRoleYears(buildWorkHistoryDateRange(normalized.startDate, normalized.endDate));
+  const dateRangeYears = parseRoleYears(buildWorkHistoryDateRange(normalized.startDate, normalized.endDate), anchorDate);
   if (dateRangeYears > 0) {
     return dateRangeYears;
   }
 
-  return parseRoleYears(normalized.raw || "");
+  return parseRoleYears(normalized.raw || "", anchorDate);
 }
 
 const COMPANY_PATTERN = /([\u4e00-\u9fa5A-Za-z0-9()（）·.&\-]{2,40}(?:公司|集团|科技|机械|设备|自动化|股份|有限|厂|行))/;
@@ -98,11 +102,11 @@ export function extractCompanyFromWorkHistory(entry: ResumeWorkHistoryItem): str
   return firstToken || "";
 }
 
-export function computeWorkHistoryYears(workHistory: ResumeWorkHistoryItem[]): number | null {
+export function computeWorkHistoryYears(workHistory: ResumeWorkHistoryItem[], anchorDate?: Date): number | null {
   if (!workHistory.length) return null;
   let total = 0;
   for (const entry of workHistory) {
-    total += computeEntryRoleYears(entry);
+    total += computeEntryRoleYears(entry, anchorDate);
   }
   return total > 0 ? Number(total.toFixed(1)) : null;
 }

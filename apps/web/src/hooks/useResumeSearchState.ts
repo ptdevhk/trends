@@ -121,6 +121,35 @@ function normalizeStringList(values: string[] | undefined): string[] {
   return normalized
 }
 
+function queryImpliesSalesRole(
+  query: string | undefined,
+  keywords: string[],
+): boolean {
+  const normalizedTokens = normalizeStringList([
+    ...keywords,
+    ...parseKeywordQuery(query ?? '').keywords,
+  ]).map((value) => value.toLowerCase())
+
+  return normalizedTokens.some((token) => (
+    token === 'sales'
+    || token.includes('sales')
+    || token.includes('销售')
+  ))
+}
+
+function resolveEffectiveRoleFilterType(state: UrlSearchState): string | undefined {
+  const explicitRoleFilterType = normalizeOptionalString(state.filters.roleFilterType)
+  if (explicitRoleFilterType) {
+    return explicitRoleFilterType
+  }
+
+  if (typeof state.filters.minRoleYears !== 'number') {
+    return undefined
+  }
+
+  return queryImpliesSalesRole(state.query, state.keywords) ? 'sales' : undefined
+}
+
 function resolveScore(
   resume: ConvexResumeItem,
   jobDescriptionId: string | undefined,
@@ -218,7 +247,9 @@ function hasExplicitSearchContext(state: UrlSearchState): boolean {
     typeof state.filters.minMatchScore === 'number' ||
     typeof state.filters.minExperience === 'number' ||
     typeof state.filters.maxExperience === 'number' ||
-    (state.filters.locations?.length ?? 0) > 0,
+    typeof state.filters.minRoleYears === 'number' ||
+    Boolean(normalizeOptionalString(state.filters.roleFilterType)) ||
+    (state.filters.locations?.length ?? 0) > 0
   )
 }
 
@@ -384,6 +415,43 @@ function buildSearchExportEntry(
   }
 }
 
+function getRoleYears(
+  resume: ConvexResumeItem,
+  roleType: string | undefined,
+): number {
+  const roleSignals = resume.ingestData?.roleSignals
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return 0
+  }
+
+  const normalizedRoleType = normalizeOptionalString(roleType)?.toLowerCase() ?? ''
+  if (!normalizedRoleType) {
+    return roleSignals.reduce((maxYears, signal) => {
+      const relevantYears =
+        typeof signal.roleRelevantYears === 'number' && Number.isFinite(signal.roleRelevantYears)
+          ? signal.roleRelevantYears
+          : signal.years
+      if (typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
+        return maxYears
+      }
+      return Math.max(maxYears, relevantYears)
+    }, 0)
+  }
+
+  const roleSignal = roleSignals.find(
+    (signal) => signal.type.trim().toLowerCase() === normalizedRoleType,
+  )
+  const relevantYears =
+    typeof roleSignal?.roleRelevantYears === 'number' && Number.isFinite(roleSignal.roleRelevantYears)
+      ? roleSignal.roleRelevantYears
+      : roleSignal?.years
+  if (!roleSignal || typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
+    return 0
+  }
+
+  return relevantYears
+}
+
 function matchesLocalFilters(
   item: ResumeSearchResultItem,
   state: UrlSearchState,
@@ -471,6 +539,13 @@ function matchesLocalFilters(
 
   if (typeof minScore === 'number' && (item.score ?? 0) < minScore) {
     return false
+  }
+
+  if (typeof state.filters.minRoleYears === 'number') {
+    const roleYears = getRoleYears(item.resume, state.filters.roleFilterType)
+    if (roleYears < state.filters.minRoleYears) {
+      return false
+    }
   }
 
   if (typeof state.filters.minAge === 'number') {
@@ -590,6 +665,8 @@ export function useResumeSearchState() {
     parsedState.filters.maxExperience,
     parsedState.filters.minExperience,
     parsedState.filters.minMatchScore,
+    parsedState.filters.minRoleYears,
+    parsedState.filters.roleFilterType,
     parsedState.filters.status,
     parsedState.jobDescriptionId,
     parsedState.location,
@@ -606,6 +683,10 @@ export function useResumeSearchState() {
     () => buildSearchContextSignature(parsedState),
     [parsedState],
   )
+  const effectiveRoleFilterType = useMemo(
+    () => resolveEffectiveRoleFilterType(parsedState),
+    [parsedState],
+  )
   const currentPromptVersion = useMemo(() => getCurrentResumeAiPromptVersion(), [])
   const analysisKeywords = useMemo(
     () =>
@@ -619,13 +700,17 @@ export function useResumeSearchState() {
     () => ({
       minExperience: parsedState.filters.minExperience,
       maxExperience: parsedState.filters.maxExperience,
+      minRoleYears: parsedState.filters.minRoleYears,
+      roleFilterType: effectiveRoleFilterType,
       requiredKeywords: parsedState.requiredKeywords,
       locations: parsedState.filters.locations,
     }),
     [
+      effectiveRoleFilterType,
       parsedState.filters.locations,
       parsedState.filters.maxExperience,
       parsedState.filters.minExperience,
+      parsedState.filters.minRoleYears,
       parsedState.requiredKeywords,
     ],
   )
@@ -744,7 +829,13 @@ export function useResumeSearchState() {
         results.filter((item) =>
           matchesLocalFilters(
             item,
-            parsedState,
+            {
+              ...parsedState,
+              filters: {
+                ...parsedState.filters,
+                roleFilterType: effectiveRoleFilterType,
+              },
+            },
             selectedRawTags,
             selectedClusterTags,
             taxonomyResolver,
@@ -754,6 +845,7 @@ export function useResumeSearchState() {
       ),
     [
       activeSort,
+      effectiveRoleFilterType,
       parsedState,
       results,
       selectedClusterTags,

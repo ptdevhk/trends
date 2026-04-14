@@ -493,6 +493,33 @@ describe("IngestComputeService", () => {
     expect(salesRole?.years).toBeGreaterThan(3);
   });
 
+  it("should use extractedAt as a stable anchor for ongoing role years", () => {
+    const ongoingResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_CNC_SALES.data[0],
+          extractedAt: "2026-02-21T10:00:00.000Z",
+          workHistory: [
+            {
+              raw: "2021-03~至今 东莞精密机械有限公司销售主管",
+              companyName: "东莞精密机械有限公司",
+              jobTitle: "销售主管",
+              startDate: "2021-03",
+              endDate: "至今",
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = service.computeOne("resume-ongoing", ongoingResume);
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+    const index = buildResumeIndex(ongoingResume.data[0], 0);
+
+    expect(index.experienceYears).toBeCloseTo(4.9, 1);
+    expect(salesRole?.years).toBeCloseTo(4.92, 1);
+  });
+
   it("should build tagging envelope with confidence and provenance", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 
