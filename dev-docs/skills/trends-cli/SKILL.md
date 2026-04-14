@@ -40,6 +40,12 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `./bin/trends resume debug match-runs --job-description lathe-sales --limit 20`
 - `./bin/trends resume debug clear-matches --job-description lathe-sales`
 - `./bin/trends resume debug skills-version`
+- `./bin/trends resume debug clear-analyses --job-description lathe-sales --resume-id resume-1`
+- `./bin/trends resume debug clear-analyses --dry-run`
+- `./bin/trends resume debug hard-reset-reingest --dry-run`
+- `./bin/trends resume debug hard-reset-reingest --yes`
+- `./bin/trends resume debug reset-database --dry-run`
+- `./bin/trends resume debug reset-database --yes`
 - `./bin/trends resume debug trigger-reingest --limit 200`
 - `./bin/trends resume debug rescore --source sample --query "CNC 销售"`
 - `./bin/trends resume export --format xlsx --limit 200`
@@ -69,3 +75,8 @@ Use this skill when the user asks to operate backend services from terminal comm
 - `trends resume debug rescore` currently mirrors the backend restriction and is sample-only.
 - `trends resume debug trigger-reingest` is the stale-skills-version reingest path, not a generic arbitrary reingest.
 - For migration commands, report the exact `convex run` output back to the user.
+- All destructive commands (`hard-reset-reingest`, `reset-database`, `clear-analyses`) require `--yes` to execute; use `--dry-run` to preview without mutating.
+- `hard-reset-reingest` is a two-phase operation (clear data then schedule re-ingest); if scheduling fails after clearing, output shows `phase: "failed_scheduling"` with partial results.
+- `reset-database` deletes ALL resume, JD, search profile, and screening data; use with extreme caution.
+- `clear-analyses` now routes through the BFF API instead of calling Convex directly; `--dry-run` counts affected records without mutating.
+- `--dry-run` on any destructive command shows what would happen without performing the operation.

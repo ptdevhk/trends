@@ -430,31 +430,25 @@ func TestRunResumeAnalysisClearPaginatesFullDataset(t *testing.T) {
 }
 
 func TestResumeDebugClearAnalysesCommandWritesJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/clear-analyses" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		_ = json.NewEncoder(w).Encode(client.ClearAnalysesAPIResponse{
+			Success:         true,
+			Cleared:         2,
+			Batches:         1,
+			Targeted:        true,
+			JobDescriptionID: "lathe-sales",
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
 	setCLIOutput(t, "json")
-
-	originalRunner := runResumeAnalysisClearer
-	t.Cleanup(func() {
-		runResumeAnalysisClearer = originalRunner
-	})
-
-	runResumeAnalysisClearer = func(ctx context.Context, request resumeAnalysisClearRequest) (*resumeAnalysisClearResponse, error) {
-		if request.JobDescriptionID != "lathe-sales" {
-			t.Fatalf("unexpected job description: %q", request.JobDescriptionID)
-		}
-		if request.BatchSize != 30 {
-			t.Fatalf("unexpected batch size: %d", request.BatchSize)
-		}
-		if len(request.ResumeIDs) != 2 || request.ResumeIDs[0] != "resume-1" || request.ResumeIDs[1] != "resume-2" {
-			t.Fatalf("unexpected resume ids: %+v", request.ResumeIDs)
-		}
-		return &resumeAnalysisClearResponse{
-			Cleared:          2,
-			Batches:          1,
-			JobDescriptionID: request.JobDescriptionID,
-			ResumeIDs:        request.ResumeIDs,
-			Targeted:         true,
-		}, nil
-	}
 
 	cmd := newResumeDebugClearAnalysesCmd()
 	var output bytes.Buffer
@@ -465,7 +459,6 @@ func TestResumeDebugClearAnalysesCommandWritesJSON(t *testing.T) {
 		"--resume-id", "resume-1",
 		"--resume-id", " resume-2 ",
 		"--resume-id", "resume-1",
-		"--batch-size", "30",
 	})
 
 	if err := cmd.Execute(); err != nil {
@@ -475,6 +468,47 @@ func TestResumeDebugClearAnalysesCommandWritesJSON(t *testing.T) {
 	payload := decodeCommandJSON(t, output)
 	if payload["cleared"] != float64(2) || payload["targeted"] != true {
 		t.Fatalf("unexpected clear-analyses output: %+v", payload)
+	}
+}
+
+func TestResumeDebugClearAnalysesDryRunCommandWritesJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/clear-analyses" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if body["dryRun"] != true {
+			t.Fatalf("expected dryRun=true, got %v", body["dryRun"])
+		}
+		_ = json.NewEncoder(w).Encode(client.ClearAnalysesAPIResponse{
+			Success:    true,
+			DryRun:     true,
+			Cleared:    0,
+			WouldClear: 15,
+			Targeted:   false,
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+
+	cmd := newResumeDebugClearAnalysesCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--dry-run"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug clear-analyses --dry-run command failed: %v", err)
+	}
+
+	payload := decodeCommandJSON(t, output)
+	if payload["wouldClear"] != float64(15) || payload["dryRun"] != true {
+		t.Fatalf("unexpected clear-analyses dry-run output: %+v", payload)
 	}
 }
 
@@ -488,5 +522,135 @@ func TestResumeDebugRescoreRejectsConvex(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "only supports --source sample") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResumeDebugHardResetReingestRequiresConfirmation(t *testing.T) {
+	cmd := newResumeDebugHardResetReingestCmd()
+	cmd.SetArgs([]string{})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirmation-required error")
+	}
+	if !strings.Contains(err.Error(), "destructive") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResumeDebugHardResetReingestDryRunWritesTable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/hard-reset-reingest" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if body["dryRun"] != true {
+			t.Fatalf("expected dryRun=true, got %v", body["dryRun"])
+		}
+		_ = json.NewEncoder(w).Encode(client.HardResetReingestResponse{
+			Success:    true,
+			DryRun:     true,
+			WouldClear: 42,
+			Phase:      "dry_run",
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	cmd := newResumeDebugHardResetReingestCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--dry-run"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug hard-reset-reingest --dry-run command failed: %v", err)
+	}
+	text := output.String()
+	if !strings.Contains(text, "42") || !strings.Contains(text, "dry_run") {
+		t.Fatalf("unexpected hard-reset-reingest dry-run output: %s", text)
+	}
+}
+
+func TestResumeDebugHardResetReingestWithYesWritesTable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/hard-reset-reingest" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.HardResetReingestResponse{
+			Success:   true,
+			Cleared:   30,
+			Scheduled: 30,
+			Batches:   1,
+			Phase:     "scheduled",
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	cmd := newResumeDebugHardResetReingestCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--yes"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug hard-reset-reingest --yes command failed: %v", err)
+	}
+	text := output.String()
+	if !strings.Contains(text, "30") || !strings.Contains(text, "scheduled") {
+		t.Fatalf("unexpected hard-reset-reingest --yes output: %s", text)
+	}
+}
+
+func TestResumeDebugResetDatabaseRequiresConfirmation(t *testing.T) {
+	cmd := newResumeDebugResetDatabaseCmd()
+	cmd.SetArgs([]string{})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected confirmation-required error")
+	}
+	if !strings.Contains(err.Error(), "destructive") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResumeDebugResetDatabaseDryRunWritesTable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/reset-database" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.ResetDatabaseResponse{
+			Success: true,
+			DryRun:  true,
+			Count:   100,
+			WouldDelete: map[string]int{
+				"resumes": 80,
+				"ai_tagging_results": 20,
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	cmd := newResumeDebugResetDatabaseCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--dry-run"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug reset-database --dry-run command failed: %v", err)
+	}
+	text := output.String()
+	if !strings.Contains(text, "100") {
+		t.Fatalf("unexpected reset-database dry-run output: %s", text)
 	}
 }

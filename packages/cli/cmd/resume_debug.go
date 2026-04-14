@@ -264,6 +264,8 @@ func newResumeDebugCmd() *cobra.Command {
 		newResumeDebugAIScoreCmd(),
 		newResumeDebugWorkflowDatasetCmd(),
 		newResumeDebugClearDemoResumesCmd(),
+		newResumeDebugHardResetReingestCmd(),
+		newResumeDebugResetDatabaseCmd(),
 	)
 
 	return debugCmd
@@ -384,24 +386,30 @@ func newResumeDebugClearAnalysesCmd() *cobra.Command {
 	var (
 		jobDescriptionID string
 		resumeIDs        []string
-		batchSize        int
+		dryRun           bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "clear-analyses",
-		Short: "Clear resume AI analyses directly in Convex, batching large datasets safely",
+		Short: "Clear resume AI analyses",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if batchSize <= 0 {
-				return fmt.Errorf("batch-size must be greater than 0")
-			}
-
-			response, err := runResumeAnalysisClearer(context.Background(), resumeAnalysisClearRequest{
+			response, err := newAPIClient().ClearAnalysesViaAPI(context.Background(), client.ClearAnalysesAPIRequest{
 				JobDescriptionID: strings.TrimSpace(jobDescriptionID),
 				ResumeIDs:        normalizeResumeIDList(resumeIDs),
-				BatchSize:        batchSize,
+				DryRun:           dryRun,
 			})
 			if err != nil {
 				return err
+			}
+
+			if dryRun {
+				headers := []string{"would_clear", "targeted", "job_description"}
+				rows := [][]string{{
+					strconv.Itoa(response.WouldClear),
+					fmt.Sprintf("%t", response.Targeted),
+					response.JobDescriptionID,
+				}}
+				return writeOutput(cmd, headers, rows, response)
 			}
 
 			headers := []string{"cleared", "batches", "targeted", "job_description"}
@@ -417,7 +425,7 @@ func newResumeDebugClearAnalysesCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Optional job description ID to clear only one analysis scope")
 	cmd.Flags().StringSliceVar(&resumeIDs, "resume-id", nil, "Optional specific Convex resume IDs to clear")
-	cmd.Flags().IntVar(&batchSize, "batch-size", 50, "Batch size for full-dataset clearing")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview the number of analyses that would be cleared without mutating")
 	return cmd
 }
 
@@ -757,6 +765,105 @@ func newResumeDebugClearDemoResumesCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&convexURL, "convex-url", "", "Optional Convex URL override for workspace-demo resume cleanup")
+	return cmd
+}
+
+func newResumeDebugHardResetReingestCmd() *cobra.Command {
+	var (
+		yes    bool
+		dryRun bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "hard-reset-reingest",
+		Short: "Clear all computed ingest and AI analysis data, then schedule a full background re-ingest",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !yes && !dryRun {
+				return fmt.Errorf("this operation is destructive and irreversible; use --yes to confirm or --dry-run to preview")
+			}
+
+			response, err := newAPIClient().HardResetReingest(context.Background(), client.HardResetReingestRequest{
+				DryRun: dryRun,
+			})
+			if err != nil {
+				return err
+			}
+
+			if dryRun {
+				headers := []string{"would_clear", "phase"}
+				rows := [][]string{{
+					strconv.Itoa(response.WouldClear),
+					response.Phase,
+				}}
+				return writeOutput(cmd, headers, rows, response)
+			}
+
+			headers := []string{"cleared", "scheduled", "batches", "phase"}
+			rows := [][]string{{
+				strconv.Itoa(response.Cleared),
+				strconv.Itoa(response.Scheduled),
+				strconv.Itoa(response.Batches),
+				response.Phase,
+			}}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm the destructive operation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview the number of resumes that would be affected without mutating")
+	return cmd
+}
+
+func newResumeDebugResetDatabaseCmd() *cobra.Command {
+	var (
+		yes    bool
+		dryRun bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "reset-database",
+		Short: "Delete ALL resume, JD, search profile, and screening data from the database",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !yes && !dryRun {
+				return fmt.Errorf("this operation is destructive and irreversible; use --yes to confirm or --dry-run to preview")
+			}
+
+			response, err := newAPIClient().ResetDatabase(context.Background(), client.ResetDatabaseRequest{
+				DryRun: dryRun,
+			})
+			if err != nil {
+				return err
+			}
+
+			if dryRun {
+				var tableParts []string
+				for table, count := range response.WouldDelete {
+					tableParts = append(tableParts, fmt.Sprintf("%s:%d", table, count))
+				}
+				headers := []string{"would_delete_total", "tables"}
+				rows := [][]string{{
+					strconv.Itoa(response.Count),
+					strings.Join(tableParts, ", "),
+				}}
+				return writeOutput(cmd, headers, rows, response)
+			}
+
+			var tableParts []string
+			for table, count := range response.Deleted {
+				tableParts = append(tableParts, fmt.Sprintf("%s:%d", table, count))
+			}
+			headers := []string{"deleted_total", "partial", "tables"}
+			rows := [][]string{{
+				strconv.Itoa(response.Count),
+				fmt.Sprintf("%t", response.Partial),
+				strings.Join(tableParts, ", "),
+			}}
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm the destructive operation")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview the table counts that would be deleted without mutating")
 	return cmd
 }
 
