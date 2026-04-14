@@ -1,7 +1,7 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-ensure dev-convex-status dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
-		worker worker-once install install-seed deploy deploy-check deploy-seed install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
+.PHONY: dev dev-samples dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-ensure dev-convex-status dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
+		worker worker-once prod-install prod-deploy prod-deploy-check install deploy deploy-check install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
 		build-static build-static-fresh build-extension-zip serve-static \
@@ -51,6 +51,11 @@ dev:
 		fi; \
 	fi
 	./scripts/dev.sh $(ARGS)
+
+# Start dev stack with sample resume snapshots pulled from the sample repo
+dev-samples:
+	@$(MAKE) restore-sample-snapshots
+	@$(MAKE) dev
 
 # Start only critical-path services (Convex + scraper + API + web)
 dev-critical:
@@ -307,25 +312,26 @@ worker-once:
 # Deployment
 # =============================================================================
 
-# Install as systemd services (production) — seeds JDs + runs migrations, no demo resumes
-install:
-	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=0 ./scripts/install.sh install
+# Install as systemd services (production) — seeds JDs only + runs migrations
+prod-install:
+	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh install
 
-# Install with full demo data (JDs + sample resumes + migrations)
-install-seed:
-	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=1 ./scripts/install.sh install
+# Backwards-compatible alias for prod-install
+install: prod-install
 
-# Preflight the workspace branch, snapshot Convex, then pull, rebuild, and restart production services (no demo resume seeding)
-deploy:
-	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=0 ./scripts/install.sh upgrade
+# Preflight workspace branch, snapshot Convex, then pull/rebuild/restart production services (JDs only)
+prod-deploy:
+	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade
+
+# Backwards-compatible alias for prod-deploy
+deploy: prod-deploy
 
 # Show whether deploy would skip, refresh env only, or run a full upgrade
-deploy-check:
-	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=0 ./scripts/install.sh upgrade-check
+prod-deploy-check:
+	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade-check
 
-# Deploy with full demo data (re-seeds JDs + sample resumes + migrations)
-deploy-seed:
-	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE=1 ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" SEED_RESUMES=1 ./scripts/install.sh upgrade
+# Backwards-compatible alias for prod-deploy-check
+deploy-check: prod-deploy-check
 
 # Remove systemd services
 uninstall:
@@ -1112,6 +1118,7 @@ help:
 	@echo ""
 	@echo "Development (Full Experience):"
 	@echo "  dev            Start all services (MCP + crawler + apps/*)"
+	@echo "  dev-samples    Start dev stack with sample resume snapshots from the sample repo"
 	@echo "  dev-fast       Start fast UI loop (Convex + API + web)"
 	@echo "  dev-critical   Start critical-path loop (Convex + scraper + API + web)"
 	@echo "  dev-backend    Start backend loop (Convex + MCP + worker + scraper + API)"
@@ -1141,11 +1148,10 @@ help:
 	@echo "  worker-once    Run worker once and exit"
 	@echo ""
 	@echo "Deployment:"
-	@echo "  install        Install as systemd services (requires sudo)"
-	@echo "  install-seed   Install as systemd services with seeded demo resumes (requires sudo)"
-	@echo "  deploy         Preflight workspace git, snapshot Convex, and best-effort write resumes-<workspace>.tar.gz before skip/env-refresh/full upgrade; does not seed demo resumes (requires sudo)"
-	@echo "  deploy-check   Dry run deploy precheck with workspace git status but without rebuilding"
-	@echo "  deploy-seed    Force a full upgrade with seeded demo resumes (requires sudo)"
+	@echo "  prod-install   Install as systemd services (requires sudo)"
+	@echo "  prod-deploy    Preflight workspace git, snapshot Convex, and best-effort write resumes-<workspace>.tar.gz before skip/env-refresh/full upgrade; seeds JDs only (requires sudo)"
+	@echo "  prod-deploy-check Dry run deploy precheck with workspace git status but without rebuilding"
+	@echo "  install / deploy / deploy-check Aliases for prod-install / prod-deploy / prod-deploy-check"
 	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
 	@echo "  backup-resumes Export live resume records to a portable JSON or .tar.gz backup"
 	@echo "  restore-resumes Restore resume records from a portable backup file or snapshot directory"
@@ -1264,7 +1270,6 @@ help:
 	@echo "  WORKSPACE_DIR  Workspace root used to resolve relative ENV_FILE paths (auto-set by make)"
 	@echo "  INSTALL_BRANCH Git branch to deploy into /opt/trends (default: repo default branch)"
 	@echo "  FORCE          Set 1/true to bypass deploy precheck and force a full upgrade"
-	@echo "  SEED_RESUMES   Set 1/true/yes to seed demo resumes during install/upgrade; false/0 leaves real data untouched"
 	@echo "  ALLOW_NODE_DOWNGRADE Set 1/true to allow installer to downgrade Node to v22 when a newer Node is already installed"
 	@echo "  CONVEX_MIRROR_MODE Shared Convex prefetch source order for dev/install/deploy: off|fallback|mirror-first"
 	@echo "                     When CI=true/1, shared Convex prefetch mode defaults to off"

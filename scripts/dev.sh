@@ -1313,9 +1313,9 @@ seed_convex() {
     resume_count="$(printf '%s\n' "$check_output" | sed -n 's/^Database status: .*resumes=\([0-9][0-9]*\).*/\1/p' | tail -n 1)"
 
     if [ "$is_empty" = "true" ]; then
-        log "CONVEX" "$CYAN" "Convex database is empty. Seeding default job descriptions and sample resumes..."
+        log "CONVEX" "$CYAN" "Convex database is empty. Seeding default job descriptions..."
         local seed_output
-        if ! seed_output="$(run_seed_script --with-resumes 2>&1)"; then
+        if ! seed_output="$(run_seed_script --force 2>&1)"; then
             log "CONVEX" "$YELLOW" "Convex seeding failed. Continuing startup."
             while IFS= read -r line; do
                 [ -n "$line" ] && log "CONVEX" "$YELLOW" "$line"
@@ -1331,19 +1331,7 @@ seed_convex() {
 
     if [ "$is_empty" = "false" ]; then
         if [ -n "$resume_count" ] && [ "$resume_count" = "0" ]; then
-            log "CONVEX" "$CYAN" "Convex resumes are empty. Backfilling sample resumes for dev mode..."
-            local seed_output
-            if ! seed_output="$(run_seed_script --with-resumes --force 2>&1)"; then
-                log "CONVEX" "$YELLOW" "Convex resume backfill failed. Continuing startup."
-                while IFS= read -r line; do
-                    [ -n "$line" ] && log "CONVEX" "$YELLOW" "$line"
-                done <<< "$seed_output"
-                return 0
-            fi
-
-            while IFS= read -r line; do
-                [ -n "$line" ] && log "CONVEX" "$CYAN" "$line"
-            done <<< "$seed_output"
+            log "CONVEX" "$YELLOW" "No resumes loaded. Run 'make dev-samples' to load sample snapshots."
             return 0
         fi
 

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
 const installScript = readFileSync(new URL("./install.sh", import.meta.url), "utf8");
+const removedSeedEnvVar = "SEED_" + "RESUMES";
 
 function getTargetRecipe(target: string): string {
   const escapedTarget = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -16,21 +17,23 @@ function getTargetRecipe(target: string): string {
 }
 
 describe("install/deploy demo resume safety", () => {
-  it("forces non-seeding wrappers to disable demo resumes explicitly", () => {
-    expect(getTargetRecipe("install")).toContain("SEED_RESUMES=0");
-    expect(getTargetRecipe("deploy")).toContain("SEED_RESUMES=0");
-    expect(getTargetRecipe("deploy-check")).toContain("SEED_RESUMES=0");
+  it("uses prod wrappers that never pass the removed resume-seed env var", () => {
+    expect(getTargetRecipe("prod-install")).toContain("./scripts/install.sh install");
+    expect(getTargetRecipe("prod-deploy")).toContain("./scripts/install.sh upgrade");
+    expect(getTargetRecipe("prod-deploy-check")).toContain("./scripts/install.sh upgrade-check");
+    expect(getTargetRecipe("prod-install")).not.toContain(removedSeedEnvVar);
+    expect(getTargetRecipe("prod-deploy")).not.toContain(removedSeedEnvVar);
+    expect(getTargetRecipe("prod-deploy-check")).not.toContain(removedSeedEnvVar);
   });
 
-  it("keeps seed wrappers opt-in and explicit", () => {
-    expect(getTargetRecipe("install-seed")).toContain("SEED_RESUMES=1");
-    expect(getTargetRecipe("deploy-seed")).toContain("SEED_RESUMES=1");
+  it("keeps compatibility aliases mapped to prod wrappers", () => {
+    expect(makefile).toMatch(/^install:\s+prod-install$/m);
+    expect(makefile).toMatch(/^deploy:\s+prod-deploy$/m);
+    expect(makefile).toMatch(/^deploy-check:\s+prod-deploy-check$/m);
   });
 
-  it("uses strict truthiness checks in the installer instead of non-empty env checks", () => {
-    const truthyChecks = installScript.match(/if is_truthy "\$\{SEED_RESUMES:-\}"; then/g) ?? [];
-
-    expect(truthyChecks).toHaveLength(3);
-    expect(installScript).not.toContain('[[ -n "${SEED_RESUMES:-}" ]]');
+  it("removes dead install script logic for that env var", () => {
+    expect(installScript).not.toContain(removedSeedEnvVar);
+    expect(installScript).not.toContain('[[ -n "${SEED_' + 'RESUMES:-}" ]]');
   });
 });
