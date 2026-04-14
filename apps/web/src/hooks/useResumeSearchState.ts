@@ -860,10 +860,10 @@ export function useResumeSearchState() {
   const loadingMore = resumeQuery.loadingMore
   const analysisCandidates = useMemo(
     () =>
-      results
+      filteredResults
         .filter((item) => !item.analysis)
         .sort((left, right) => (right.score ?? -1) - (left.score ?? -1)),
-    [results],
+    [filteredResults],
   )
   const analysisCandidateResumeIds = useMemo(
     () =>

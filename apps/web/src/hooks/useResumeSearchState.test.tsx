@@ -717,6 +717,93 @@ describe('useResumeSearchState', () => {
     expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1'])
   })
 
+  it('counts and analyzes only filtered loaded results', async () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+      filters: {
+        minRoleYears: 5,
+      },
+    }))
+
+    resumesMock.push(
+      createResume(1, {
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+          roleSignals: [
+            {
+              type: 'sales',
+              matchedSignals: ['销售', '销售工程师'],
+              signalCount: 2,
+              occurrences: 1,
+              years: 3.17,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 3.17,
+              verifyIn: 'workHistory',
+            },
+            {
+              type: 'engineer',
+              matchedSignals: ['工程师', '编程'],
+              signalCount: 2,
+              occurrences: 2,
+              years: 8.67,
+              industryVerifiedYears: 5.5,
+              roleRelevantYears: 8.67,
+              verifyIn: 'workHistory',
+            },
+          ],
+        },
+      }),
+      createResume(2, {
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+          roleSignals: [
+            {
+              type: 'sales',
+              matchedSignals: ['销售', '销售工程师'],
+              signalCount: 2,
+              occurrences: 2,
+              years: 6.2,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 6.2,
+              verifyIn: 'workHistory',
+            },
+          ],
+        },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
+    expect(result.current.analysisCandidateCount).toBe(1)
+
+    await act(async () => {
+      await result.current.analyzeResults()
+    })
+
+    expect(dispatchAnalysisMutationMock).toHaveBeenCalledWith({
+      keywords: ['CNC', '销售'],
+      promptVersion: CURRENT_PROMPT_VERSION,
+      resumeIds: ['resume-2'],
+    })
+    expect(toastSuccessMock).toHaveBeenCalledWith('Analyzing loaded 1 resumes...')
+  })
+
   it('normalizes a recent search and syncs it back to canonical url state when applied', async () => {
     const historyKeywords = ['Machine Tools', 'Sales']
     const expectedQuery = formatKeywordQuery(historyKeywords)
