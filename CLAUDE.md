@@ -113,11 +113,10 @@ make dev-crawl
 
 ### Deployment
 ```bash
-make install                                # Install the production stack from the current checkout
-make install-seed                           # Install the production stack with seeded demo resumes
-ENV_FILE=.env.production make deploy-check  # Dry run the deploy precheck against the target env
-CONVEX_MIRROR_MODE=mirror-first make deploy # Optional: mirror-first Convex prefetch during upgrade
-make deploy-seed                            # Force a full upgrade with seeded demo resumes
+make prod-install                                # Install the production stack from the current checkout (JDs only)
+ENV_FILE=.env.production make prod-deploy-check  # Dry run the deploy precheck against the target env
+CONVEX_MIRROR_MODE=mirror-first make prod-deploy # Optional: mirror-first Convex prefetch during upgrade
+make restore-sample-snapshots                    # Optional: pull + restore fresh sample resume snapshots for dev
 ./scripts/install.sh --help                 # Full install/upgrade modes plus CI=true/1 for production prefetch and related env knobs
 ```
 

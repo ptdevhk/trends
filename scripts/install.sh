@@ -809,9 +809,7 @@ plan_upgrade_action() {
     fi
 
     UPGRADE_ACTION="full"
-    if is_truthy "${SEED_RESUMES:-}"; then
-        UPGRADE_ACTION="full"
-    elif is_truthy "${FORCE:-}"; then
+    if is_truthy "${FORCE:-}"; then
         UPGRADE_ACTION="full"
     elif [[ -n "$deployed_sha" && -n "$target_sha" && "$deployed_sha" == "$target_sha" && "$tracked_drift" -eq 0 ]]; then
         if frontend_dist_requires_rebuild; then
@@ -858,9 +856,6 @@ print_upgrade_plan() {
         echo "  frontend env changed: $([[ "$UPGRADE_FRONTEND_ENV_CHANGED" -eq 1 ]] && echo yes || echo no)"
     else
         echo "  env file: unchanged (ENV_FILE empty)"
-    fi
-    if is_truthy "${SEED_RESUMES:-}"; then
-        echo "  seed resumes: yes"
     fi
     if is_truthy "${FORCE:-}"; then
         echo "  force: yes"
@@ -1347,13 +1342,7 @@ seed_and_migrate_convex() {
         return 0
     fi
 
-    # Always seed JDs (idempotent). Optionally include sample resumes.
-    if is_truthy "${SEED_RESUMES:-}"; then
-        seed_args="$seed_args --with-resumes"
-        log_info "Seeding Convex: job descriptions + sample resumes..."
-    else
-        log_info "Seeding Convex: job descriptions only..."
-    fi
+    log_info "Seeding Convex: job descriptions only..."
 
     run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$INSTALL_DIR' && npx tsx '$seed_script' $seed_args" \
         || log_warn "Convex seed failed. Continuing with migrations."
@@ -1996,7 +1985,6 @@ print_usage() {
     echo "                         When INSTALL_BRANCH is unset, deploy uses the workspace's current branch"
     echo "  INSTALL_BRANCH         Branch to install or upgrade to (overrides workspace branch)"
     echo "  FORCE                  Force upgrade flow even when no changes are detected"
-    echo "  SEED_RESUMES           Seed demo resumes during install/upgrade when truthy"
     echo "  ALLOW_NODE_DOWNGRADE   Permit downgrading a newer Node.js to the required v22"
     echo "  DEPLOY_BACKUP_DIR      Directory for pre-deploy Convex snapshots (default: /var/backups/trends/deploy)"
     echo "  KEEP_DEPLOY_BACKUPS    Number of deploy backups to retain after successful upgrades (default: 10)"
