@@ -5160,8 +5160,17 @@ app.post("/api/resumes/analyze", async (c) => {
     );
   }
 
+  const keywords = normalizedQuery
+    ? normalizeKeywords(parseKeywordQuery(normalizedQuery).keywords)
+    : undefined;
+
+  const responseConfig = {
+    ...(normalizedJobDescriptionId ? { jobDescriptionId: normalizedJobDescriptionId } : {}),
+    ...(keywords && keywords.length > 0 ? { keywords } : {}),
+    ...(location ? { location } : {}),
+  };
+
   try {
-    // Search phase: find matching resume IDs via Convex
     const searchArgs: Record<string, unknown> = {
       query: normalizedQuery,
       keywordGroups: [],
@@ -5172,6 +5181,7 @@ app.post("/api/resumes/analyze", async (c) => {
       ...(education && education.length > 0 ? { education } : {}),
       ...(skills && skills.length > 0 ? { skills } : {}),
       ...(requiredKeywords && requiredKeywords.length > 0 ? { requiredKeywords } : {}),
+      ...(location ? { location } : {}),
       ...(locationFilters && locationFilters.length > 0 ? { locations: locationFilters } : {}),
       ...(minSalary !== undefined ? { minSalary } : {}),
       ...(maxSalary !== undefined ? { maxSalary } : {}),
@@ -5182,7 +5192,7 @@ app.post("/api/resumes/analyze", async (c) => {
       "resumes:searchWithTagExpansionPaginated",
       searchArgs,
     )) as {
-      page: Array<{ resume: { _id: string }; provenance?: unknown }>;
+      page: Array<{ resume: { _id: string } }>;
       continuationCursor: string | null;
     };
 
@@ -5194,13 +5204,7 @@ app.post("/api/resumes/analyze", async (c) => {
           success: true,
           dryRun: true,
           resumeCount: resumeIds.length,
-          config: {
-            ...(normalizedJobDescriptionId
-              ? { jobDescriptionId: normalizedJobDescriptionId }
-              : {}),
-            ...(normalizedQuery ? { keywords: normalizedQuery.split(/[\s,，、]+/).filter(Boolean) } : {}),
-            ...(location ? { location } : {}),
-          },
+          config: responseConfig,
         }),
         200,
       );
@@ -5211,19 +5215,12 @@ app.post("/api/resumes/analyze", async (c) => {
         AnalyzeResponseSchema.parse({
           success: true,
           resumeCount: 0,
-          config: {
-            ...(normalizedJobDescriptionId
-              ? { jobDescriptionId: normalizedJobDescriptionId }
-              : {}),
-            ...(normalizedQuery ? { keywords: normalizedQuery.split(/[\s,，、]+/).filter(Boolean) } : {}),
-            ...(location ? { location } : {}),
-          },
+          config: responseConfig,
         }),
         200,
       );
     }
 
-    // Resolve JD content for the LLM prompt
     let jobDescriptionTitle: string | undefined;
     let jobDescriptionContent: string | undefined;
 
@@ -5237,11 +5234,6 @@ app.post("/api/resumes/analyze", async (c) => {
       }
     }
 
-    const keywords = normalizedQuery
-      ? normalizedQuery.split(/[\s,，、]+/).filter(Boolean)
-      : undefined;
-
-    // Dispatch phase: call Convex mutation to create analysis task
     const dispatchResult = (await callConvexMutation("analysis_tasks:dispatch", {
       ...(normalizedJobDescriptionId
         ? { jobDescriptionId: normalizedJobDescriptionId }
@@ -5258,13 +5250,7 @@ app.post("/api/resumes/analyze", async (c) => {
         success: true,
         taskId: dispatchResult,
         resumeCount: resumeIds.length,
-        config: {
-          ...(normalizedJobDescriptionId
-            ? { jobDescriptionId: normalizedJobDescriptionId }
-            : {}),
-          ...(keywords && keywords.length > 0 ? { keywords } : {}),
-          ...(location ? { location } : {}),
-        },
+        config: responseConfig,
       }),
       200,
     );

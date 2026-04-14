@@ -1112,12 +1112,17 @@ func writeAnalysisTasksTable(cmd *cobra.Command, response *client.AnalysisTasksR
 	}
 
 	for _, task := range response.Tasks {
-		label := task.Config.JobDescriptionTitle
-		if label == "" && len(task.Config.Keywords) > 0 {
-			label = strings.Join(task.Config.Keywords, ", ")
-		}
-		if label == "" {
-			label = task.Config.JobDescriptionID
+		var label string
+		if task.Config != nil {
+			label = task.Config.JobDescriptionTitle
+			if label == "" && len(task.Config.Keywords) > 0 {
+				label = strings.Join(task.Config.Keywords, ", ")
+			}
+			if label == "" {
+				label = task.Config.JobDescriptionID
+			}
+		} else {
+			label = task.ID
 		}
 
 		status := task.Status
@@ -1133,7 +1138,7 @@ func writeAnalysisTasksTable(cmd *cobra.Command, response *client.AnalysisTasksR
 		if label != "" {
 			line += fmt.Sprintf("  %s", label)
 		}
-		if task.Config.Location != "" {
+		if task.Config != nil && task.Config.Location != "" {
 			line += fmt.Sprintf("  [%s]", task.Config.Location)
 		}
 		if task.Results != nil && task.Status == "completed" {
