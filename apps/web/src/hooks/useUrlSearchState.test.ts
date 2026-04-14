@@ -80,6 +80,14 @@ describe('useUrlSearchState location parsing', () => {
     expect(state.shareSessionId).toBe('session-share-1')
   })
 
+  it('round-trips role-year filter type in url state', () => {
+    const state = parseUrlSearchState(new URLSearchParams('q=CNC&minRoleYears=3&roleType=sales'))
+
+    expect(state.query).toBe('CNC')
+    expect(state.filters.minRoleYears).toBe(3)
+    expect(state.filters.roleFilterType).toBe('sales')
+  })
+
   it('serializes canonical OR phrase queries when syncing to the URL', () => {
     const currentParams = new URLSearchParams()
     useSearchParamsMock.mockReturnValue([currentParams, setSearchParamsMock])
@@ -190,8 +198,7 @@ describe('useUrlSearchState location parsing', () => {
     expect(updatedParams.get('sort')).toBe('experience')
     expect(updatedParams.get('order')).toBe('desc')
 
-    // minRoleYears and minExperience are now decoupled: syncing emits minRoleYears only,
-    // so parsing the output restores minRoleYears but not minExperience
+    // minRoleYears no longer implies a minExperience value in parsed state
     const reparsedState = parseUrlSearchState(updatedParams)
     expect(reparsedState.filters.minRoleYears).toBe(5)
     expect(reparsedState.filters.minExperience).toBeUndefined()
@@ -329,7 +336,6 @@ describe('minRoleYears and minExperience are decoupled', () => {
     const [updater] = setSearchParamsMock.mock.calls[0] ?? []
     const updatedParams = updater(new URLSearchParams()) as URLSearchParams
     expect(updatedParams.get('minRoleYears')).toBe('3')
-    expect(updatedParams.get('minRoleYears')).not.toBeNull()
     // minExperience is not emitted when only minRoleYears is set
   })
 

@@ -15,6 +15,8 @@ export type ConvexResumeSortBy = 'experience' | 'extractedAt'
 export type ConvexResumeFilters = {
   minExperience?: number
   maxExperience?: number
+  minRoleYears?: number
+  roleFilterType?: string
   education?: string[]
   skills?: string[]
   requiredKeywords?: string[]

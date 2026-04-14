@@ -13,6 +13,8 @@ type PaginatedArgs = {
   sortOrder?: "asc" | "desc";
   minExperience?: number;
   maxExperience?: number;
+  minRoleYears?: number;
+  roleFilterType?: string;
   education?: string[];
   skills?: string[];
   locations?: string[];
@@ -240,6 +242,88 @@ describe("listWithIngestDataPaginated", () => {
     expect(result.page).toHaveLength(1);
     expect((result.page[0] as { content: { name: string } }).content.name).toBe("Alice");
     expect(result.continueCursor).toBe("cursor-next");
+  });
+
+  it("filters by minRoleYears for the requested role type", async () => {
+    const resumeA = {
+      ...buildResumeDoc("resume-a", 90),
+      content: { name: "Alice" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 6.2,
+            roleRelevantYears: 6.2,
+            verifyIn: "workHistory",
+          },
+        ],
+      },
+    };
+    const resumeB = {
+      ...buildResumeDoc("resume-b", 80),
+      content: { name: "Bob" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 3.1,
+            roleRelevantYears: 3.1,
+            verifyIn: "workHistory",
+          },
+          {
+            type: "engineer",
+            matchedSignals: ["工程师"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 8.5,
+            roleRelevantYears: 8.5,
+            verifyIn: "workHistory",
+          },
+        ],
+      },
+    };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            order: () => ({
+              paginate: async () => ({
+                page: [resumeA, resumeB],
+                continueCursor: "cursor-next",
+                isDone: false,
+              }),
+              take: async () => [],
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await handler(ctx, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      minRoleYears: 5,
+      roleFilterType: "sales",
+    });
+
+    expect(result.page).toHaveLength(1);
+    expect((result.page[0] as { content: { name: string } }).content.name).toBe("Alice");
   });
 });
 

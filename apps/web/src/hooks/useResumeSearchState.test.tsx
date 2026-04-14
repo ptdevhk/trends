@@ -448,7 +448,7 @@ describe('useResumeSearchState', () => {
     ])
   })
 
-  it('sends only minExperience/maxExperience to backend filters, not minRoleYears', () => {
+  it('sends role-year filters to backend filters', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'CNC',
       keywords: ['CNC'],
@@ -471,9 +471,250 @@ describe('useResumeSearchState', () => {
         filters: expect.objectContaining({
           minExperience: 5,
           maxExperience: 12,
+          minRoleYears: 3,
         }),
       }),
     )
+  })
+
+  it('forwards role-year filters to backend and applies role-year local filtering', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC',
+      keywords: ['CNC'],
+      filters: {
+        minRoleYears: 3,
+        roleFilterType: 'sales',
+        minExperience: 5,
+        maxExperience: 12,
+      },
+    }))
+
+    resumesMock.push(
+      createResume(1, {
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+          roleSignals: [
+            {
+              type: 'sales',
+              matchedSignals: ['销售'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 4,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 4,
+              verifyIn: 'workHistory',
+            },
+          ],
+        },
+      }),
+      createResume(2, {
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+          roleSignals: [
+            {
+              type: 'sales',
+              matchedSignals: ['销售'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 2,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 2,
+              verifyIn: 'workHistory',
+            },
+          ],
+        },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(useConvexResumesMock).toHaveBeenCalledWith(
+      expect.any(Number),
+      'CNC',
+      undefined,
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          minExperience: 5,
+          maxExperience: 12,
+          minRoleYears: 3,
+          roleFilterType: 'sales',
+        }),
+      }),
+    )
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1'])
+  })
+
+  it('infers sales role filtering from sales keyword searches when minRoleYears is set', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+      filters: {
+        minRoleYears: 5,
+      },
+    }))
+
+    resumesMock.push(
+      createResume(1, {
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+          roleSignals: [
+            {
+              type: 'sales',
+              matchedSignals: ['销售', '销售工程师'],
+              signalCount: 2,
+              occurrences: 1,
+              years: 3.17,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 3.17,
+              verifyIn: 'workHistory',
+            },
+            {
+              type: 'engineer',
+              matchedSignals: ['工程师', '编程'],
+              signalCount: 2,
+              occurrences: 2,
+              years: 8.67,
+              industryVerifiedYears: 5.5,
+              roleRelevantYears: 8.67,
+              verifyIn: 'workHistory',
+            },
+          ],
+        },
+      }),
+      createResume(2, {
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+          roleSignals: [
+            {
+              type: 'sales',
+              matchedSignals: ['销售', '销售工程师'],
+              signalCount: 2,
+              occurrences: 2,
+              years: 6.2,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 6.2,
+              verifyIn: 'workHistory',
+            },
+            {
+              type: 'engineer',
+              matchedSignals: ['工程师'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 2,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 2,
+              verifyIn: 'workHistory',
+            },
+          ],
+        },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(useConvexResumesMock).toHaveBeenCalledWith(
+      expect.any(Number),
+      'CNC 销售',
+      undefined,
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          minRoleYears: 5,
+          roleFilterType: 'sales',
+        }),
+      }),
+    )
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
+  })
+
+  it('keeps an explicit role type over inferred sales intent', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC 销售',
+      keywords: ['CNC', '销售'],
+      filters: {
+        minRoleYears: 5,
+        roleFilterType: 'engineer',
+      },
+    }))
+
+    resumesMock.push(
+      createResume(1, {
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+          roleSignals: [
+            {
+              type: 'sales',
+              matchedSignals: ['销售'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 3.17,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 3.17,
+              verifyIn: 'workHistory',
+            },
+            {
+              type: 'engineer',
+              matchedSignals: ['工程师'],
+              signalCount: 1,
+              occurrences: 2,
+              years: 8.67,
+              industryVerifiedYears: 5.5,
+              roleRelevantYears: 8.67,
+              verifyIn: 'workHistory',
+            },
+          ],
+        },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(useConvexResumesMock).toHaveBeenCalledWith(
+      expect.any(Number),
+      'CNC 销售',
+      undefined,
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          minRoleYears: 5,
+          roleFilterType: 'engineer',
+        }),
+      }),
+    )
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-1'])
   })
 
   it('normalizes a recent search and syncs it back to canonical url state when applied', async () => {

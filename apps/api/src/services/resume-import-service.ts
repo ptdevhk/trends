@@ -36,6 +36,10 @@ type ConvexResumeRestoreState = {
   analyses?: unknown;
 };
 
+export type ResumeImportOptions = {
+  recomputeDerivedFields?: boolean;
+};
+
 type ConvexResumeSubmitItem = {
   externalId: string;
   content: unknown;
@@ -50,6 +54,7 @@ export type NormalizedResumeImportPayload = {
   resumes: ResumeImportItem[];
   source: string;
   tags: string[];
+  options: ResumeImportOptions;
   convexResumes: ConvexResumeSubmitItem[];
 };
 
@@ -192,7 +197,10 @@ function normalizeCandidateId(value: string | undefined): string | null {
   return normalizeOptionalString(value);
 }
 
-function normalizeRestoreState(value: ResumeImportRestoreState | undefined): ConvexResumeRestoreState | undefined {
+function normalizeRestoreState(
+  value: ResumeImportRestoreState | undefined,
+  options: ResumeImportOptions = {},
+): ConvexResumeRestoreState | undefined {
   if (!value) {
     return undefined;
   }
@@ -202,25 +210,27 @@ function normalizeRestoreState(value: ResumeImportRestoreState | undefined): Con
     normalized.crawledAt = value.crawledAt;
   }
 
-  const searchText = normalizeOptionalString(value.searchText);
-  if (searchText) {
-    normalized.searchText = searchText;
-  }
+  if (!options.recomputeDerivedFields) {
+    const searchText = normalizeOptionalString(value.searchText);
+    if (searchText) {
+      normalized.searchText = searchText;
+    }
 
-  if (typeof value.primaryRuleScore === "number" && Number.isFinite(value.primaryRuleScore)) {
-    normalized.primaryRuleScore = value.primaryRuleScore;
-  }
+    if (typeof value.primaryRuleScore === "number" && Number.isFinite(value.primaryRuleScore)) {
+      normalized.primaryRuleScore = value.primaryRuleScore;
+    }
 
-  if (value.ingestData !== undefined) {
-    normalized.ingestData = value.ingestData;
-  }
+    if (value.ingestData !== undefined) {
+      normalized.ingestData = value.ingestData;
+    }
 
-  if (value.analysis !== undefined) {
-    normalized.analysis = value.analysis;
-  }
+    if (value.analysis !== undefined) {
+      normalized.analysis = value.analysis;
+    }
 
-  if (value.analyses !== undefined) {
-    normalized.analyses = value.analyses;
+    if (value.analyses !== undefined) {
+      normalized.analyses = value.analyses;
+    }
   }
 
   return Object.keys(normalized).length > 0 ? normalized : undefined;
@@ -330,6 +340,9 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
   const parsedInput = ResumeImportRequestSchema.parse(input);
   const metadata = normalizeImportMetadata(parsedInput.metadata);
   const resumes = parsedInput.resumes ?? parsedInput.data ?? [];
+  const options: ResumeImportOptions = {
+    recomputeDerivedFields: parsedInput.options?.recomputeDerivedFields === true,
+  };
   const tag = normalizeOptionalString(metadata.searchProfileId) ?? normalizeOptionalString(metadata.keyword);
   const defaultTags = tag ? [tag] : [];
   const source = resolveResumeSource(metadata);
@@ -347,7 +360,7 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
       hash,
       source: itemSource,
       tags: itemTags,
-      restoreState: normalizeRestoreState(resume.restoreState),
+      restoreState: normalizeRestoreState(resume.restoreState, options),
     };
   });
 
@@ -356,6 +369,7 @@ export function normalizeResumeImportPayload(input: ResumeImportRequest): Normal
     resumes,
     source,
     tags: defaultTags,
+    options,
     convexResumes,
   };
 }

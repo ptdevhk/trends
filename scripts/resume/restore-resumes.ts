@@ -34,13 +34,14 @@ type RestoreResetSummary = {
   deleted: Record<string, number>;
 };
 
-export type RestoreRunSummary = {
+type RestoreRunSummary = {
   success: true;
   apiUrl: string;
   workspace: string;
   inputPath: string;
   mode: RestoreMode;
   reset: boolean;
+  recomputeDerivedFields: boolean;
   resetResult?: Record<string, unknown>;
   files: RestoreFileSummary[];
 };
@@ -75,11 +76,13 @@ function usage(): string {
     "  make restore-resumes FILE=/abs/path/resume-backup.json [WORKSPACE=dev] [API_URL=http://localhost:3000]",
     "  make restore-resumes FILE=/abs/path/resume-backups/20260321-015304 [WORKSPACE=dev] [API_URL=http://localhost:3000]",
     "  make restore-resumes FILE=/abs/path/resume-backup.json MODE=replace YES=1 [WORKSPACE=dev] [API_URL=http://localhost:3000]",
+    "  make restore-resumes FILE=/abs/path/resume-backup.json RECOMPUTE_DERIVED_FIELDS=1 [WORKSPACE=dev] [API_URL=http://localhost:3000]",
     "",
     "Environment:",
     "  FILE        Required backup file path or directory containing backup files",
     "  MODE        Optional restore mode: upsert | replace (default: upsert)",
     "  YES         Required when MODE=replace; set YES=1 to confirm destructive reset",
+    "  RECOMPUTE_DERIVED_FIELDS  Optional; set to 1 to drop preserved computed fields and force current ingest recomputation",
     "  WORKSPACE   Optional workspace slug (default: dev)",
     "  API_URL     Optional API URL (default: http://localhost:3000)",
   ].join("\n");
@@ -248,6 +251,7 @@ export async function runRestoreResumes(
     filePath: string;
     mode: RestoreMode;
     confirm: boolean;
+    recomputeDerivedFields: boolean;
   },
   runtime: RestoreRuntime = { fetch: globalThis.fetch },
 ): Promise<RestoreRunSummary> {
@@ -273,7 +277,10 @@ export async function runRestoreResumes(
       params.apiUrl,
       params.workspace,
       "/api/resumes/import",
-      payload,
+      {
+        ...payload,
+        ...(params.recomputeDerivedFields ? { options: { recomputeDerivedFields: true } } : {}),
+      },
       runtime,
     );
     const importResult = await parseJsonRecord(
@@ -294,6 +301,7 @@ export async function runRestoreResumes(
     inputPath: params.filePath,
     mode: params.mode,
     reset: params.mode === "replace",
+    recomputeDerivedFields: params.recomputeDerivedFields,
     resetResult,
     files,
   };
@@ -306,6 +314,7 @@ async function main(): Promise<void> {
     filePath: process.env.FILE?.trim() || "",
     mode: resolveMode(process.env.MODE),
     confirm: parseTruthy(process.env.YES),
+    recomputeDerivedFields: parseTruthy(process.env.RECOMPUTE_DERIVED_FIELDS),
   });
 
   console.log(JSON.stringify(summary, null, 2));

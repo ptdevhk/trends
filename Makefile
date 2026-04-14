@@ -409,7 +409,7 @@ pull-sample-snapshots:
 
 # Pull snapshots and restore in one step
 restore-sample-snapshots: pull-sample-snapshots
-	@$(MAKE) restore-resumes FILE=output/resume-samples
+	@$(MAKE) restore-resumes FILE=output/resume-samples RECOMPUTE_DERIVED_FIELDS=1
 
 # Clear resume AI analyses directly in Convex, batching large datasets safely
 clear-resume-analyses:

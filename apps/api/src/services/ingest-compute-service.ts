@@ -395,6 +395,14 @@ interface RoleSignalMatch {
   source: RoleSignalMatchSource;
 }
 
+function resolveRoleYearsAnchor(item: ResumeItem): Date {
+  const extractedAt = item.extractedAt ? Date.parse(item.extractedAt) : Number.NaN;
+  if (Number.isFinite(extractedAt)) {
+    return new Date(extractedAt);
+  }
+  return new Date();
+}
+
 /**
  * Build a single ResumeIndex from a ResumeItem
  * (extracted helper from ResumeIndexService.buildIndex)
@@ -405,12 +413,13 @@ export function buildResumeIndex(item: ResumeItem, index: number): ResumeIndex {
   const searchText = createSearchText(item);
   const companies = extractCompanies(latestWorkHistory);
   const evidenceText = buildLatestWorkHistoryEvidence(latestWorkHistory).text;
+  const roleYearsAnchor = resolveRoleYearsAnchor(item);
 
   // For ingest compute, we don't need full skill extraction
   // We just need the basic fields for rule scoring
   return {
     resumeId,
-    experienceYears: computeWorkHistoryYears(latestWorkHistory),
+    experienceYears: computeWorkHistoryYears(latestWorkHistory, roleYearsAnchor),
     educationLevel: normalizeEducationLevel(item.education),
     locationCity: item.locationHierarchy?.city
       || item.locationHierarchy?.province
@@ -465,7 +474,8 @@ export class IngestComputeService {
       companyHits,
       brandHits
     );
-    const roleSignals = this.computeRoleSignals(latestWorkHistory);
+    const roleYearsAnchor = resolveRoleYearsAnchor(item);
+    const roleSignals = this.computeRoleSignals(latestWorkHistory, roleYearsAnchor);
     const companyPatternAliasTokens = this.buildCompanyAliasTokens(companyHits, brandHits);
 
     // 4. Compute ruleScores for all active JDs
@@ -583,7 +593,7 @@ export class IngestComputeService {
   }
 
 
-  private computeRoleSignals(workHistory: ResumeWorkHistoryItem[]): RoleSignalSummary[] {
+  private computeRoleSignals(workHistory: ResumeWorkHistoryItem[], anchorDate: Date): RoleSignalSummary[] {
     if (!Array.isArray(workHistory) || workHistory.length === 0) {
       return [];
     }
@@ -605,7 +615,7 @@ export class IngestComputeService {
       }
 
       const normalizedEntry = normalizeWorkHistoryEntry(entry);
-      const years = Number(computeEntryRoleYears(entry).toFixed(2));
+      const years = Number(computeEntryRoleYears(entry, anchorDate).toFixed(2));
 
       const companyName = normalizedEntry?.companyName || extractCompanyFromWorkHistory(entry) || undefined;
       const jobTitle = normalizedEntry?.jobTitle || undefined;

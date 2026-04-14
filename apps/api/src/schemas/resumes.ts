@@ -117,6 +117,12 @@ export const ResumeImportRestoreStateSchema = z
   })
   .openapi("ResumeImportRestoreState");
 
+export const ResumeImportOptionsSchema = z
+  .object({
+    recomputeDerivedFields: z.boolean().optional().openapi({ example: true }),
+  })
+  .openapi("ResumeImportOptions");
+
 const ResumeStructuredDetailsShape = {
   profileEducation: z.array(ResumeImportProfileEducationSchema).optional(),
   projectExperience: z.array(ResumeImportWorkHistorySchema).optional(),
@@ -294,6 +300,7 @@ export const ResumeImportRequestSchema = z
     metadata: ResumeImportMetadataSchema,
     resumes: z.array(ResumeImportItemSchema).optional(),
     data: z.array(ResumeImportItemSchema).optional(),
+    options: ResumeImportOptionsSchema.optional(),
   })
   .superRefine((value, ctx) => {
     if (!value.resumes && !value.data) {
