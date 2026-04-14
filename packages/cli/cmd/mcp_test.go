@@ -453,3 +453,99 @@ func TestRunMCPToolResumeResetDatabase(t *testing.T) {
 		t.Fatalf("unexpected MCP tool output: %s", text)
 	}
 }
+
+func TestMCPToolsIncludeResumeAnalyzeAndAnalysisTasks(t *testing.T) {
+	tools := mcpTools()
+	names := make(map[string]bool, len(tools))
+	for _, tool := range tools {
+		name, _ := tool["name"].(string)
+		names[name] = true
+	}
+
+	for _, required := range []string{"resume_analyze", "analysis_tasks"} {
+		if !names[required] {
+			t.Fatalf("missing MCP tool %q", required)
+		}
+	}
+}
+
+func TestRunMCPToolResumeAnalyze(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/analyze" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if body["query"] != "CNC 销售" {
+			t.Fatalf("expected query=CNC 销售, got %v", body["query"])
+		}
+		if body["dryRun"] != true {
+			t.Fatalf("expected dryRun=true, got %v", body["dryRun"])
+		}
+		_ = json.NewEncoder(w).Encode(client.AnalyzeResponse{
+			Success:      true,
+			DryRun:        true,
+			ResumeCount:   42,
+			SkippedCount:  5,
+			Config: &client.AnalyzeConfig{
+				Keywords: []string{"CNC", "销售"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	text, err := runMCPTool(context.Background(), "resume_analyze", map[string]interface{}{
+		"query":  "CNC 销售",
+		"dryRun": true,
+	})
+	if err != nil {
+		t.Fatalf("runMCPTool returned error: %v", err)
+	}
+	if !strings.Contains(text, `"resumeCount": 42`) || !strings.Contains(text, `"dryRun": true`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
+	}
+}
+
+func TestRunMCPToolAnalysisTasks(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/analysis-tasks" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.AnalysisTasksResponse{
+			Success: true,
+			Tasks: []client.AnalysisTask{
+				{
+					ID:     "task-1",
+					Status: "completed",
+					Config: &client.AnalysisTaskConfig{
+						Keywords:    []string{"CNC"},
+						ResumeCount: 10,
+					},
+					Results: &client.AnalysisTaskResults{
+						Analyzed:      10,
+						AvgScore:      85.5,
+						HighScoreCount: 3,
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	text, err := runMCPTool(context.Background(), "analysis_tasks", nil)
+	if err != nil {
+		t.Fatalf("runMCPTool returned error: %v", err)
+	}
+	if !strings.Contains(text, `"_id": "task-1"`) || !strings.Contains(text, `"status": "completed"`) {
+		t.Fatalf("unexpected MCP tool output: %s", text)
+	}
+}

@@ -27,6 +27,7 @@ func newResumeCmd() *cobra.Command {
 		newResumeShowCmd(),
 		newResumeSearchCmd(),
 		newResumeMatchCmd(),
+		newResumeAnalyzeCmd(),
 		newResumeSnapshotCmd(),
 		newResumeManualImportCmd(),
 		newResumeBackupCmd(),
@@ -218,6 +219,128 @@ func newResumeMatchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&mode, "mode", "rules_only", "Match mode: rules_only|hybrid|ai_only")
 
 	return cmd
+}
+
+func newResumeAnalyzeCmd() *cobra.Command {
+	var (
+		query            string
+		jobDescriptionID string
+		location         string
+		locationFilters  string
+		minExperience    int
+		maxExperience    int
+		education        string
+		skills           string
+		requiredKeywords string
+		minSalary        int
+		maxSalary        int
+		limit            int
+		dryRun           bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "analyze",
+		Short: "Dispatch AI analysis for resumes matching search criteria",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(query) == "" && strings.TrimSpace(jobDescriptionID) == "" {
+				return fmt.Errorf("query or job-description is required")
+			}
+
+			var educationSlice []string
+			if strings.TrimSpace(education) != "" {
+				educationSlice = splitCSV(education)
+			}
+			var skillsSlice []string
+			if strings.TrimSpace(skills) != "" {
+				skillsSlice = splitCSV(skills)
+			}
+			var requiredKeywordsSlice []string
+			if strings.TrimSpace(requiredKeywords) != "" {
+				requiredKeywordsSlice = splitCSV(requiredKeywords)
+			}
+			var locationsSlice []string
+			if strings.TrimSpace(locationFilters) != "" {
+				locationsSlice = splitCSV(locationFilters)
+			}
+
+			request := client.AnalyzeRequest{
+				Query:            strings.TrimSpace(query),
+				JobDescriptionID: strings.TrimSpace(jobDescriptionID),
+				Location:         strings.TrimSpace(location),
+				MinExperience:    minExperience,
+				MaxExperience:    maxExperience,
+				Education:        educationSlice,
+				Skills:           skillsSlice,
+				RequiredKeywords: requiredKeywordsSlice,
+				Locations:       locationsSlice,
+				MinSalary:        minSalary,
+				MaxSalary:        maxSalary,
+				Limit:            limit,
+				DryRun:           dryRun,
+			}
+
+			response, err := newAPIClient().AnalyzeResumes(context.Background(), request)
+			if err != nil {
+				return err
+			}
+
+			if currentOptions().Output == "json" {
+				return writeOutput(cmd, nil, nil, response)
+			}
+
+			return writeAnalyzeTable(cmd, response)
+		},
+	}
+
+	cmd.Flags().StringVarP(&query, "query", "q", "", "Keyword search query")
+	cmd.Flags().StringVar(&jobDescriptionID, "job-description", "", "Job description ID")
+	cmd.Flags().StringVar(&location, "location", "", "Location filter")
+	cmd.Flags().StringVar(&locationFilters, "locations", "", "Location filter (CSV for multiple)")
+	cmd.Flags().IntVar(&minExperience, "min-experience", 0, "Min years experience")
+	cmd.Flags().IntVar(&maxExperience, "max-experience", 0, "Max years experience")
+	cmd.Flags().StringVar(&education, "education", "", "Education filter (CSV: bachelor,master)")
+	cmd.Flags().StringVar(&skills, "skills", "", "Skills filter (CSV)")
+	cmd.Flags().StringVar(&requiredKeywords, "required-keywords", "", "Required keywords AND filter (CSV)")
+	cmd.Flags().IntVar(&minSalary, "min-salary", 0, "Min salary")
+	cmd.Flags().IntVar(&maxSalary, "max-salary", 0, "Max salary")
+	cmd.Flags().IntVar(&limit, "limit", 50, "Max candidates to analyze (1-500)")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview candidate count without dispatching")
+
+	return cmd
+}
+
+func splitCSV(input string) []string {
+	parts := strings.Split(input, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func writeAnalyzeTable(cmd *cobra.Command, response *client.AnalyzeResponse) error {
+	fmt.Fprintf(cmd.OutOrStdout(), "Candidates: %d\n", response.ResumeCount)
+	if response.DryRun {
+		fmt.Fprintf(cmd.OutOrStdout(), "Mode: dry-run (no analysis dispatched)\n")
+	} else if response.TaskID != "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "Task ID: %s\n", response.TaskID)
+	}
+	if response.Config != nil {
+		if response.Config.JobDescriptionID != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "Job Description: %s\n", response.Config.JobDescriptionID)
+		}
+		if len(response.Config.Keywords) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "Keywords: %s\n", strings.Join(response.Config.Keywords, ", "))
+		}
+		if response.Config.Location != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "Location: %s\n", response.Config.Location)
+		}
+	}
+	return nil
 }
 
 func newResumeExportCmd() *cobra.Command {

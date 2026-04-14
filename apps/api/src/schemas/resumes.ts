@@ -1202,3 +1202,76 @@ export const MatchRunsResponseSchema = z
     runs: z.array(MatchRunSchema),
   })
   .openapi("MatchRunsResponse");
+
+export const AnalyzeRequestSchema = z.object({
+  query: z.string().optional().openapi({ example: "CNC 销售" }),
+  jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),
+  location: z.string().optional().openapi({ example: "东莞" }),
+  minExperience: z.number().min(0).optional().openapi({ example: 3 }),
+  maxExperience: z.number().min(0).optional().openapi({ example: 10 }),
+  education: z.array(z.string()).optional().openapi({ example: ["bachelor", "master"] }),
+  skills: z.array(z.string()).optional().openapi({ example: ["CNC", "FANUC"] }),
+  requiredKeywords: z.array(z.string()).optional().openapi({ example: ["machine tools"] }),
+  locations: z.array(z.string()).optional().openapi({ example: ["东莞", "深圳"] }),
+  minSalary: z.number().min(0).optional().openapi({ example: 5000 }),
+  maxSalary: z.number().min(0).optional().openapi({ example: 15000 }),
+  limit: z.number().min(1).max(500).default(50).openapi({ example: 50 }),
+  dryRun: z.boolean().default(false).openapi({ example: false }),
+});
+
+export const AnalyzeResponseSchema = z
+  .object({
+    success: z.literal(true),
+    dryRun: z.boolean().optional(),
+    taskId: z.string().optional(),
+    resumeCount: z.number(),
+    skippedCount: z.number().optional(),
+    config: z
+      .object({
+        jobDescriptionId: z.string().optional(),
+        keywords: z.array(z.string()).optional(),
+        location: z.string().optional(),
+      })
+      .optional(),
+  })
+  .openapi("AnalyzeResponse");
+
+export const AnalysisTaskConfigSchema = z.object({
+  jobDescriptionId: z.string().optional(),
+  jobDescriptionTitle: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+  location: z.string().optional(),
+  promptVersion: z.number().optional(),
+  resumeCount: z.number().optional(),
+});
+
+export const AnalysisTaskProgressSchema = z.object({
+  current: z.number().optional(),
+  total: z.number().optional(),
+  skipped: z.number().optional(),
+});
+
+export const AnalysisTaskResultsSchema = z.object({
+  analyzed: z.number().optional(),
+  failed: z.number().optional(),
+  avgScore: z.number().optional(),
+  highScoreCount: z.number().optional(),
+});
+
+export const AnalysisTaskSchema = z.object({
+  _id: z.string(),
+  status: z.enum(["pending", "processing", "completed", "failed", "cancelled"]),
+  _creationTime: z.number(),
+  config: AnalysisTaskConfigSchema.optional(),
+  progress: AnalysisTaskProgressSchema.optional(),
+  results: AnalysisTaskResultsSchema.optional(),
+  lastStatus: z.string().optional(),
+  error: z.string().optional(),
+});
+
+export const AnalysisTasksResponseSchema = z
+  .object({
+    success: z.literal(true),
+    tasks: z.array(AnalysisTaskSchema),
+  })
+  .openapi("AnalysisTasksResponse");

@@ -229,6 +229,102 @@ func TestResumeManualImportCommandWritesTableSummary(t *testing.T) {
 	}
 }
 
+func TestResumeAnalyzeCommandRequiresQueryOrJD(t *testing.T) {
+	cmd := newResumeAnalyzeCmd()
+	cmd.SetArgs([]string{})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected query or job-description required error")
+	}
+	if !strings.Contains(err.Error(), "query or job-description is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResumeAnalyzeCommandDryRunWritesJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/analyze" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		_ = json.NewEncoder(w).Encode(client.AnalyzeResponse{
+			Success:      true,
+			DryRun:        true,
+			ResumeCount:   42,
+			SkippedCount:  5,
+			Config: &client.AnalyzeConfig{
+				Keywords: []string{"CNC", "销售"},
+				Location: "Dongguan",
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+
+	cmd := newResumeAnalyzeCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--query", "CNC 销售", "--location", "Dongguan", "--dry-run"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume analyze command failed: %v", err)
+	}
+
+	payload := decodeCommandJSON(t, output)
+	if payload["resumeCount"] != float64(42) || payload["dryRun"] != true {
+		t.Fatalf("unexpected analyze output: %+v", payload)
+	}
+}
+
+func TestResumeAnalyzeCommandWithJDWritesTable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/analyze" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+		if body["jobDescriptionId"] != "cnc-sales" {
+			t.Fatalf("expected jobDescriptionId=cnc-sales, got %v", body["jobDescriptionId"])
+		}
+		_ = json.NewEncoder(w).Encode(client.AnalyzeResponse{
+			Success:      true,
+			TaskID:       "task-abc",
+			ResumeCount:  30,
+			SkippedCount: 2,
+			Config: &client.AnalyzeConfig{
+				JobDescriptionID: "cnc-sales",
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "table")
+
+	cmd := newResumeAnalyzeCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--job-description", "cnc-sales"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume analyze command failed: %v", err)
+	}
+
+	text := output.String()
+	if !strings.Contains(text, "30") || !strings.Contains(text, "task-abc") || !strings.Contains(text, "cnc-sales") {
+		t.Fatalf("unexpected analyze table output: %s", text)
+	}
+}
+
 func TestResumeManualImportCommandRejectsZeroLimitWhenExplicitlySet(t *testing.T) {
 	cmd := newResumeManualImportCmd()
 	cmd.SetArgs([]string{"sample.rar", "--limit", "0"})

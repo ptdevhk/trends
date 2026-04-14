@@ -554,3 +554,96 @@ func (c *Client) ResetDatabase(ctx context.Context, request ResetDatabaseRequest
 	}
 	return &response, nil
 }
+
+type AnalyzeRequest struct {
+	Query            string   `json:"query,omitempty"`
+	JobDescriptionID string   `json:"jobDescriptionId,omitempty"`
+	Location         string   `json:"location,omitempty"`
+	MinExperience    int      `json:"minExperience,omitempty"`
+	MaxExperience    int      `json:"maxExperience,omitempty"`
+	Education        []string `json:"education,omitempty"`
+	Skills           []string `json:"skills,omitempty"`
+	RequiredKeywords []string `json:"requiredKeywords,omitempty"`
+	Locations       []string `json:"locations,omitempty"`
+	MinSalary        int      `json:"minSalary,omitempty"`
+	MaxSalary        int      `json:"maxSalary,omitempty"`
+	Limit            int      `json:"limit,omitempty"`
+	DryRun           bool     `json:"dryRun,omitempty"`
+}
+
+type AnalyzeConfig struct {
+	JobDescriptionID string   `json:"jobDescriptionId,omitempty"`
+	Keywords         []string `json:"keywords,omitempty"`
+	Location         string   `json:"location,omitempty"`
+}
+
+type AnalyzeResponse struct {
+	Success      bool          `json:"success"`
+	DryRun       bool          `json:"dryRun,omitempty"`
+	TaskID       string        `json:"taskId,omitempty"`
+	ResumeCount  int           `json:"resumeCount"`
+	SkippedCount int           `json:"skippedCount,omitempty"`
+	Config       *AnalyzeConfig `json:"config,omitempty"`
+}
+
+func (c *Client) AnalyzeResumes(ctx context.Context, request AnalyzeRequest) (*AnalyzeResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/analyze", c.APIURL)
+	var response AnalyzeResponse
+	if err := c.doJSON(ctx, http.MethodPost, endpoint, request, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("analyze request was not successful")
+	}
+	return &response, nil
+}
+
+type AnalysisTaskProgress struct {
+	Current int `json:"current,omitempty"`
+	Total   int `json:"total,omitempty"`
+	Skipped int `json:"skipped,omitempty"`
+}
+
+type AnalysisTaskResults struct {
+	Analyzed      int     `json:"analyzed,omitempty"`
+	Failed       int     `json:"failed,omitempty"`
+	AvgScore      float64 `json:"avgScore,omitempty"`
+	HighScoreCount int    `json:"highScoreCount,omitempty"`
+}
+
+type AnalysisTaskConfig struct {
+	JobDescriptionID    string   `json:"jobDescriptionId,omitempty"`
+	JobDescriptionTitle string   `json:"jobDescriptionTitle,omitempty"`
+	Keywords            []string `json:"keywords,omitempty"`
+	Location            string   `json:"location,omitempty"`
+	PromptVersion       int      `json:"promptVersion,omitempty"`
+	ResumeCount         int      `json:"resumeCount,omitempty"`
+}
+
+type AnalysisTask struct {
+	ID           string               `json:"_id"`
+	Status       string               `json:"status"`
+	CreatedAt    int64                `json:"_creationTime"`
+	Config       *AnalysisTaskConfig  `json:"config,omitempty"`
+	Progress     *AnalysisTaskProgress `json:"progress,omitempty"`
+	Results      *AnalysisTaskResults  `json:"results,omitempty"`
+	LastStatus   string               `json:"lastStatus,omitempty"`
+	Error        string               `json:"error,omitempty"`
+}
+
+type AnalysisTasksResponse struct {
+	Success bool           `json:"success"`
+	Tasks   []AnalysisTask `json:"tasks"`
+}
+
+func (c *Client) ListAnalysisTasks(ctx context.Context) (*AnalysisTasksResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/analysis-tasks", c.APIURL)
+	var response AnalysisTasksResponse
+	if err := c.doJSON(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("list analysis tasks request was not successful")
+	}
+	return &response, nil
+}

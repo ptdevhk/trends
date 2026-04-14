@@ -621,6 +621,125 @@ func TestResumeDebugResetDatabaseRequiresConfirmation(t *testing.T) {
 	}
 }
 
+func TestResumeDebugAnalysisTasksCommandWritesJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/analysis-tasks" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.AnalysisTasksResponse{
+			Success: true,
+			Tasks: []client.AnalysisTask{
+				{
+					ID:        "task-1",
+					Status:    "completed",
+					CreatedAt: 1710000000000,
+					Config: &client.AnalysisTaskConfig{
+						JobDescriptionTitle: "CNC Sales",
+						Keywords:            []string{"CNC"},
+						Location:            "Dongguan",
+						ResumeCount:         25,
+					},
+					Results: &client.AnalysisTaskResults{
+						Analyzed:       25,
+						AvgScore:       82.5,
+						HighScoreCount: 5,
+					},
+				},
+				{
+					ID:     "task-2",
+					Status: "running",
+					Config: &client.AnalysisTaskConfig{
+						Keywords:    []string{"Sales"},
+						ResumeCount: 10,
+					},
+					Progress: &client.AnalysisTaskProgress{
+						Current: 5,
+						Total:   10,
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+
+	cmd := newResumeDebugAnalysisTasksCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug analysis-tasks command failed: %v", err)
+	}
+
+	payload := decodeCommandJSON(t, output)
+	tasks, ok := payload["tasks"].([]any)
+	if !ok || len(tasks) != 2 {
+		t.Fatalf("unexpected tasks in output: %+v", payload)
+	}
+}
+
+func TestResumeDebugAnalysisTasksCommandWritesTable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/analysis-tasks" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(client.AnalysisTasksResponse{
+			Success: true,
+			Tasks: []client.AnalysisTask{
+				{
+					ID:     "task-1",
+					Status: "completed",
+					Config: &client.AnalysisTaskConfig{
+						JobDescriptionTitle: "CNC Sales",
+						Location:            "Dongguan",
+						ResumeCount:         25,
+					},
+					Results: &client.AnalysisTaskResults{
+						Analyzed:  25,
+						AvgScore:  82.5,
+						HighScoreCount: 5,
+					},
+				},
+				{
+					ID:     "task-2",
+					Status: "running",
+					Config: &client.AnalysisTaskConfig{
+						Keywords:    []string{"Sales"},
+						ResumeCount: 10,
+					},
+					Progress: &client.AnalysisTaskProgress{
+						Current: 5,
+						Total:   10,
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+
+	cmd := newResumeDebugAnalysisTasksCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug analysis-tasks command failed: %v", err)
+	}
+
+	text := output.String()
+	if !strings.Contains(text, "task-1") || !strings.Contains(text, "CNC Sales") {
+		t.Fatalf("unexpected analysis-tasks table output: %s", text)
+	}
+	if !strings.Contains(text, "task-2") || !strings.Contains(text, "running") || !strings.Contains(text, "5/10") {
+		t.Fatalf("unexpected analysis-tasks table output (task-2): %s", text)
+	}
+}
+
 func TestResumeDebugResetDatabaseDryRunWritesTable(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/resumes/reset-database" {
