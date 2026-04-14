@@ -657,6 +657,11 @@ func TestResumeDebugAnalysisTasksCommandWritesJSON(t *testing.T) {
 						Total:   10,
 					},
 				},
+				{
+					ID:     "task-3",
+					Status: "pending",
+					Config: nil,
+				},
 			},
 		})
 	}))
@@ -676,7 +681,7 @@ func TestResumeDebugAnalysisTasksCommandWritesJSON(t *testing.T) {
 
 	payload := decodeCommandJSON(t, output)
 	tasks, ok := payload["tasks"].([]any)
-	if !ok || len(tasks) != 2 {
+	if !ok || len(tasks) != 3 {
 		t.Fatalf("unexpected tasks in output: %+v", payload)
 	}
 }
@@ -714,6 +719,11 @@ func TestResumeDebugAnalysisTasksCommandWritesTable(t *testing.T) {
 						Current: 5,
 						Total:   10,
 					},
+				},
+				{
+					ID:     "task-3",
+					Status: "pending",
+					Config: nil,
 				},
 			},
 		})
