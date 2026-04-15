@@ -254,7 +254,7 @@ func newResumeSnapshotCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringArrayVar(&sources, "source", nil, "Snapshot source alias (repeatable): job5156|seek|51job|51job-manual")
+	cmd.Flags().StringArrayVar(&sources, "source", nil, "Snapshot source alias (repeatable): job5156|seek|51job (51job-manual opt-in)")
 	cmd.Flags().IntVar(&count, "count", 0, "Resumes per source (default: snapshot script default)")
 	cmd.Flags().IntVar(&maxPages, "max-pages", 0, "Browser pages per source collection (default: snapshot script default)")
 	cmd.Flags().StringVar(&outDir, "out-dir", "", "Output directory (default: snapshot script default)")

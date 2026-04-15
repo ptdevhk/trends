@@ -30,14 +30,24 @@ const DEFAULT_51JOB_URL =
 const DEFAULT_SEEK_URL =
   "https://hk.employer.seek.com/candidates/recommended?jobId=90842915";
 
-export const SOURCE_ALIASES = ["job5156", "seek", "51job", "51job-manual"] as const;
+// Default sources — these run when no --source flags are given.
+// 51job-manual is excluded; it must be requested explicitly.
+export const SOURCE_ALIASES = ["job5156", "seek", "51job"] as const;
+export const OPTIONAL_SOURCE_ALIASES = [
+  ...SOURCE_ALIASES,
+  "51job-manual",
+] as const;
 export type SourceAlias = (typeof SOURCE_ALIASES)[number];
+export type OptionalSourceAlias = (typeof OPTIONAL_SOURCE_ALIASES)[number];
 
-const SOURCE_HOSTS: Record<SourceAlias, string> = {
+/** The manual source must be opted into explicitly via --source 51job-manual. */
+export const MANUAL_SOURCE = "51job-manual";
+
+const SOURCE_HOSTS: Record<OptionalSourceAlias, string> = {
   job5156: "hr.job5156.com",
   seek: "hk.employer.seek.com",
   "51job": "ehire.51job.com",
-  "51job-manual": "51job-manual",
+  [MANUAL_SOURCE]: MANUAL_SOURCE,
 };
 
 type SnapshotCliArgs = {
@@ -46,7 +56,7 @@ type SnapshotCliArgs = {
   count: number;
   maxPages: number;
   outDir: string;
-  sources: SourceAlias[];
+  sources: OptionalSourceAlias[];
   job5156Url: string;
   job51Url: string;
   seekUrl: string;
@@ -104,7 +114,7 @@ type ExecResult = {
 };
 
 export type SnapshotSourceResult = {
-  alias: SourceAlias;
+  alias: OptionalSourceAlias;
   sourceHost: string;
   file: string;
   count: number;
@@ -117,7 +127,7 @@ export type SnapshotSourceResult = {
 };
 
 export type SnapshotSkippedSource = {
-  alias: SourceAlias;
+  alias: OptionalSourceAlias;
   reason: string;
 };
 
@@ -133,7 +143,8 @@ export type SnapshotRunSummary = {
   skipped: SnapshotSkippedSource[];
 };
 
-type BrowserSourceAlias = Extract<SourceAlias, "job5156" | "51job" | "seek">;
+// Aliases that require browser collection (excludes the manual source).
+type BrowserSourceAlias = SourceAlias;
 
 type ManualSnapshotPayloadResult = {
   payload: ResumeBackupEnvelope;
@@ -160,7 +171,7 @@ function usage(): string {
     "Usage: bun run scripts/resume/snapshot-source-backups.ts [options]",
     "",
     "Options:",
-    "  --source <alias>           Repeatable source alias: job5156 | seek | 51job | 51job-manual",
+    "  --source <alias>           Repeatable source alias: job5156 | seek | 51job (51job-manual opt-in only)",
     `  --count <number>           Resumes per source (default: ${DEFAULT_COUNT})`,
     `  --max-pages <number>       Browser pages per source collection (default: ${DEFAULT_MAX_PAGES})`,
     `  --api-url <url>            Retained for CLI compatibility (default: ${resolveApiUrl()})`,
@@ -224,8 +235,8 @@ function parsePositiveInteger(
   return parsed;
 }
 
-function isSourceAlias(value: string): value is SourceAlias {
-  return SOURCE_ALIASES.includes(value as SourceAlias);
+function isOptionalSourceAlias(value: string): value is OptionalSourceAlias {
+  return OPTIONAL_SOURCE_ALIASES.includes(value as OptionalSourceAlias);
 }
 
 export function resolveRequestedSources(values: string[]): SourceAlias[] {
@@ -233,15 +244,15 @@ export function resolveRequestedSources(values: string[]): SourceAlias[] {
     return [...SOURCE_ALIASES];
   }
 
-  const normalized: SourceAlias[] = [];
+  const normalized: OptionalSourceAlias[] = [];
   for (const rawValue of values) {
     const value = rawValue.trim();
     if (!value) {
       continue;
     }
-    if (!isSourceAlias(value)) {
+    if (!isOptionalSourceAlias(value)) {
       throw new Error(
-        `invalid source ${JSON.stringify(rawValue)} (expected ${SOURCE_ALIASES.join("|")})`,
+        `invalid source ${JSON.stringify(rawValue)} (expected ${OPTIONAL_SOURCE_ALIASES.join("|")})`,
       );
     }
     if (!normalized.includes(value)) {
@@ -253,7 +264,9 @@ export function resolveRequestedSources(values: string[]): SourceAlias[] {
     throw new Error("at least one valid --source value is required");
   }
 
-  return normalized;
+  // Cast is safe: normalized only contains aliases from OPTIONAL_SOURCE_ALIASES,
+  // all of which are valid SourceAlias members (MANUAL_SOURCE was validated above).
+  return normalized as unknown as SourceAlias[];
 }
 
 export function parseCliArgs(argv: string[]): SnapshotCliArgs {
@@ -640,7 +653,7 @@ export async function runSnapshotSourceBackups(
   const runDir = path.join(options.outDir, runStamp);
   await mkdir(runDir, { recursive: true });
 
-  const manualArchivePath = options.sources.includes("51job-manual")
+  const manualArchivePath = options.sources.includes(MANUAL_SOURCE)
     ? await resolveUserFacingPath(options.manualFile, options.repoRoot, runtime)
     : undefined;
 
@@ -658,7 +671,7 @@ export async function runSnapshotSourceBackups(
     let snapshotPayload: ResumeBackupEnvelope;
 
     try {
-    if (alias !== "51job-manual") {
+    if (alias !== MANUAL_SOURCE) {
       launchUrl = buildSourceLaunchUrl(alias, options);
       if (!launchUrl) {
         throw new Error(`missing launch URL for ${alias}`);
@@ -717,7 +730,7 @@ export async function runSnapshotSourceBackups(
       file: outFile,
       count: snapshotCount,
       ...(launchUrl ? { launchUrl } : {}),
-      ...(manualArchivePath && alias === "51job-manual"
+      ...(manualArchivePath && alias === MANUAL_SOURCE
         ? { manualFile: manualArchivePath }
         : {}),
       resetCount: 0,
