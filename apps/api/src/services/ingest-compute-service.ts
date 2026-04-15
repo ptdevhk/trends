@@ -385,6 +385,28 @@ const ROLE_SIGNAL_MATCH_WEIGHTS = {
 } as const;
 const AUXILIARY_CONTEXT_PREFIXES = ["配合", "协助", "辅助", "支持", "协同"];
 const AUXILIARY_CONTEXT_WINDOW = 10;
+const COMPANY_BOILERPLATE_PATTERNS = [
+  /公司(致力于|主要|主营|专注于|是一家|集[^。；，]*于一体)/,
+  /(研发|设计|开发).{0,12}(生产|制造).{0,12}销售/,
+  /(生产|制造).{0,12}销售.{0,12}(服务|研发|设计|开发)/,
+];
+const DIRECT_SALES_DUTY_CUES = [
+  "客户",
+  "渠道",
+  "订单",
+  "回款",
+  "报价",
+  "开拓",
+  "拓展",
+  "拜访",
+  "维护",
+  "成交",
+  "合同",
+  "经销",
+  "代理商",
+  "经销商",
+  "大客户",
+];
 
 type RoleSignalMatchSource = "jobTitle" | "description" | "raw";
 
@@ -636,6 +658,13 @@ export class IngestComputeService {
           continue;
         }
 
+        if (
+          roleType === "sales"
+          && this.isGenericCompanyBoilerplateMatch(entry, workHistoryText, matchedSignals)
+        ) {
+          continue;
+        }
+
         const existing = roleSignalAccumulators.get(roleType) ?? {
           signals: new Map<string, { label: string; weight: number }>(),
           occurrences: 0,
@@ -762,6 +791,44 @@ export class IngestComputeService {
     }
 
     return foundMatch;
+  }
+
+  private isGenericCompanyBoilerplateMatch(
+    entry: ResumeWorkHistoryItem,
+    workHistoryText: string,
+    matchedSignals: RoleSignalMatch[],
+  ): boolean {
+    if (matchedSignals.some((signal) => signal.source === "jobTitle")) {
+      return false;
+    }
+
+    if (matchedSignals.length !== 1) {
+      return false;
+    }
+
+    const normalizedEntry = normalizeWorkHistoryEntry(entry);
+    const sourceTexts = Array.from(new Set(
+      matchedSignals.map((signal) => {
+        if (signal.source === "description") {
+          return normalizeText(normalizedEntry?.description);
+        }
+
+        return normalizeText(normalizedEntry?.raw || workHistoryText);
+      }).filter((value) => value.length > 0)
+    ));
+
+    if (sourceTexts.length === 0) {
+      return false;
+    }
+
+    return sourceTexts.some((sourceText) => {
+      const hasDirectSalesDutyCue = DIRECT_SALES_DUTY_CUES.some((cue) => sourceText.includes(cue));
+      if (hasDirectSalesDutyCue) {
+        return false;
+      }
+
+      return COMPANY_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(sourceText));
+    });
   }
 
   private upsertTaggingEnvelopeEntry(

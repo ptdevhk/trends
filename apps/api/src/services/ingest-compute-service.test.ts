@@ -460,6 +460,36 @@ describe("IngestComputeService", () => {
     ]));
   });
 
+  it("should ignore generic company boilerplate sales mentions on engineer resumes", () => {
+    const result = service.computeOne("resume-engineer-company-boilerplate", {
+      data: [
+        {
+          ...SAMPLE_RESUME_ENGINEER.data[0],
+          jobIntention: "自动化设计工程师",
+          selfIntro: "长期从事自动化设备开发、编程与调试。",
+          workHistory: [
+            {
+              raw: "2019-01~2024-12 深圳通信科技有限公司 自动化设计工程师",
+              companyName: "深圳通信科技有限公司",
+              jobTitle: "自动化设计工程师",
+              description: "公司致力于各类通信产品的研发、制造和销售，负责自动化设备开发导入、PLC编程与现场调试。",
+              startDate: "2019-01",
+              endDate: "2024-12",
+            },
+          ],
+        },
+      ],
+    });
+
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+    const engineerRole = result.roleSignals.find((item) => item.type === "engineer");
+
+    expect(salesRole).toBeUndefined();
+    expect(engineerRole).toBeDefined();
+    expect(engineerRole?.matchedSignals).toEqual(expect.arrayContaining(["工程师", "开发", "编程", "调试"]));
+    expect(engineerRole?.years).toBeGreaterThan(5);
+  });
+
   it("should recognize English business-development sales titles in work history", () => {
     const result = service.computeOne("resume-bd-manager", {
       data: [

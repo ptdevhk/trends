@@ -62,8 +62,8 @@ import {
   hasIngestData,
   isAutoFilteredAnalysis,
   overrideIndustryDbBreakdown,
+  recommendationFromScore,
   toMatchBreakdown,
-  toRecommendation,
 } from '@/lib/resume-scoring'
 import type { CollectionSource } from '@/lib/search-profile-sources'
 
@@ -1564,7 +1564,7 @@ export function useResumeListState(loadSearchHistory = false) {
             score: normalizedAnalysis.score,
             summary: normalizedAnalysis.summary,
             highlights: normalizedAnalysis.highlights,
-            recommendation: toRecommendation(normalizedAnalysis.recommendation),
+            recommendation: recommendationFromScore(normalizedAnalysis.score),
             concerns: normalizedAnalysis.concerns ?? [],
             breakdown: toMatchBreakdown(normalizedAnalysis.breakdown),
             scoreSource: 'ai',

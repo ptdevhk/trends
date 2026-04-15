@@ -14,14 +14,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseConvexCall(input: RequestInfo | URL, init?: RequestInit): ConvexCall {
+function parseConvexCall(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  expectedEndpoint: "/api/query" | "/api/mutation" = "/api/query",
+): ConvexCall {
   const requestURL = typeof input === "string"
     ? input
     : input instanceof URL
       ? input.toString()
       : input.url;
 
-  if (!requestURL.includes("/api/query")) {
+  if (!requestURL.includes(expectedEndpoint)) {
     throw new Error(`Unexpected request URL: ${requestURL}`);
   }
 
@@ -1386,6 +1390,160 @@ describe("resume routes", () => {
       pathName: "resumes:getByIdsForExport",
       args: expect.objectContaining({ resumeIds: ["resume-live-5", "resume-live-6"] }),
     }));
+  });
+
+  it("sends analyze location filters to the paginated convex query as locations", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:searchWithTagExpansionPaginated") {
+        expect(call.args).toEqual(expect.objectContaining({
+          query: "cnc 销售",
+          locations: ["China"],
+        }));
+        expect(call.args).not.toHaveProperty("location");
+        return convexSuccess({
+          page: [
+            {
+              resume: buildConvexResumeRecord("resume-live-1", {
+                name: "Alice",
+                location: "China",
+              }),
+              provenance: [{ term: "销售", source: "searchText" }],
+            },
+          ],
+          continuationCursor: null,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: "CNC 销售",
+        location: "China",
+        dryRun: true,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toEqual(expect.objectContaining({
+      success: true,
+      dryRun: true,
+      resumeCount: 1,
+      config: expect.objectContaining({
+        location: "China",
+      }),
+    }));
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:searchWithTagExpansionPaginated",
+    }));
+  });
+
+  it("omits a null cursor on the first dry-run clear-analyses mutation call", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init, "/api/mutation");
+      calls.push(call);
+
+      if (call.pathName !== "resumes:clearAnalyses") {
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
+      }
+
+      if (calls.length === 1) {
+        expect(call.args).toEqual(expect.objectContaining({
+          batchSize: 50,
+        }));
+        expect(call.args).not.toHaveProperty("cursor");
+        return convexSuccess({ cleared: 2, hasMore: true, cursor: "cursor-2" });
+      }
+
+      expect(call.args).toEqual(expect.objectContaining({
+        batchSize: 50,
+        cursor: "cursor-2",
+      }));
+      return convexSuccess({ cleared: 1, hasMore: false, cursor: null });
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/clear-analyses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        dryRun: true,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toEqual(expect.objectContaining({
+      success: true,
+      dryRun: true,
+      cleared: 0,
+      wouldClear: 3,
+      targeted: false,
+    }));
+    expect(calls).toHaveLength(2);
+  });
+
+  it("omits a null cursor on the first clear-analyses mutation call", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init, "/api/mutation");
+      calls.push(call);
+
+      if (call.pathName !== "resumes:clearAnalyses") {
+        throw new Error(`Unexpected convex path: ${call.pathName}`);
+      }
+
+      if (calls.length === 1) {
+        expect(call.args).toEqual(expect.objectContaining({
+          batchSize: 50,
+        }));
+        expect(call.args).not.toHaveProperty("cursor");
+        return convexSuccess({ cleared: 2, hasMore: true, cursor: "cursor-2" });
+      }
+
+      expect(call.args).toEqual(expect.objectContaining({
+        batchSize: 50,
+        cursor: "cursor-2",
+      }));
+      return convexSuccess({ cleared: 1, hasMore: false, cursor: null });
+    });
+
+    const app = createApp();
+    const response = await app.request("/api/resumes/clear-analyses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toEqual(expect.objectContaining({
+      success: true,
+      cleared: 3,
+      batches: 2,
+      targeted: false,
+    }));
+    expect(calls).toHaveLength(2);
   });
 
   it("rejects convex or read-only match-stream requests", async () => {

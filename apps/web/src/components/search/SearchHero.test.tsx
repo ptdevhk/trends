@@ -325,6 +325,38 @@ describe('SearchHero', () => {
     })
   })
 
+  it('forwards quick-start role-year constraints when present', async () => {
+    const user = userEvent.setup()
+    const onApplyQuickStart = vi.fn()
+
+    renderSearchHero({
+      quickStarts: [
+        buildQuickStart({
+          minRoleYears: 3,
+          roleFilterType: 'sales',
+          minExperience: 5,
+          minAge: 25,
+          maxAge: 40,
+        }),
+      ],
+      onApplyQuickStart,
+    })
+
+    await user.click(
+      screen.getByRole('button', { name: /China · Job5156 · CNC 销售/i }),
+    )
+
+    expect(onApplyQuickStart).toHaveBeenCalledWith({
+      keywords: ['CNC', '销售'],
+      location: 'China',
+      minRoleYears: 3,
+      roleFilterType: 'sales',
+      minExperience: 5,
+      minAge: 25,
+      maxAge: 40,
+    })
+  })
+
   it('opens collect shortcuts and renders edit links for quick starts', async () => {
     const user = userEvent.setup()
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)

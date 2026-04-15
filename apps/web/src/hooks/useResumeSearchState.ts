@@ -34,8 +34,8 @@ import {
   getAnalysisForJob,
   computeDirectIndustryDb,
   overrideIndustryDbBreakdown,
+  recommendationFromScore,
   toIndustryDbV2Stats,
-  toRecommendation,
 } from '@/lib/resume-scoring'
 import {
   getCurrentResumeAiPromptVersion,
@@ -354,24 +354,6 @@ function sortResults(
   })
 }
 
-function resolveExportRecommendation(
-  score: number,
-): ResumeExportEntryMatch['recommendation'] {
-  if (score >= 85) {
-    return 'strong_match'
-  }
-
-  if (score >= 70) {
-    return 'match'
-  }
-
-  if (score >= 50) {
-    return 'potential'
-  }
-
-  return 'no_match'
-}
-
 function buildSearchExportMatch(
   item: ResumeSearchResultItem,
 ): ResumeExportEntryMatch | undefined {
@@ -384,10 +366,7 @@ function buildSearchExportMatch(
 
   return {
     score: item.score,
-    recommendation:
-      usesAiScore && analysis
-        ? toRecommendation(analysis.recommendation)
-        : resolveExportRecommendation(item.score),
+    recommendation: recommendationFromScore(item.score),
     scoreSource: usesAiScore ? 'ai' : 'rule',
     ...(usesAiScore && analysis?.summary
       ? { summary: analysis.summary }
@@ -1015,6 +994,8 @@ export function useResumeSearchState() {
       nextQuery?: string,
       options?: {
         location?: string
+        minRoleYears?: number
+        roleFilterType?: string
         minAge?: number
         maxAge?: number
         minExperience?: number
@@ -1029,6 +1010,10 @@ export function useResumeSearchState() {
         location: options?.location ?? parsedState.location,
         filters: {
           ...clearedFilters,
+          ...(typeof options?.minRoleYears === 'number' ? { minRoleYears: options.minRoleYears } : {}),
+          ...(typeof options?.roleFilterType === 'string' && options.roleFilterType.trim().length > 0
+            ? { roleFilterType: options.roleFilterType.trim() }
+            : {}),
           ...(typeof options?.minAge === 'number' ? { minAge: options.minAge } : {}),
           ...(typeof options?.maxAge === 'number' ? { maxAge: options.maxAge } : {}),
           ...(typeof options?.minExperience === 'number' ? { minExperience: options.minExperience } : {}),

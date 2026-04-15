@@ -1712,6 +1712,112 @@ describe('useResumeListState role filter regression', () => {
     expect(result.current.displayedResumes[0]?.match?.score).toBe(20)
   })
 
+  it('recomputes recommendation from the normalized AI score when weighting lowers the score band', async () => {
+    mockState.convexResumes = [
+      buildResume({
+        id: 'resume-rec-low-1',
+        name: 'Recommendation Drift Low',
+        industryDbV2Raw: 0,
+        analysis: {
+          score: 70,
+          summary: 'Raw AI score before frontend normalization',
+          highlights: ['summary'],
+          recommendation: 'match',
+          breakdown: {
+            related_exp: 45,
+            industry_db: 25,
+          },
+          jobDescriptionId: 'lathe-sales',
+        },
+        roleSignals: [],
+      }),
+    ]
+    mockState.searchHistory = [
+      {
+        id: 'history-rec-low',
+        sessionKey: 'session-1',
+        title: 'Recommendation low drift test',
+        location: '苏州',
+        keywords: ['CNC'],
+        jobDescriptionId: 'lathe-sales',
+        filters: {},
+        selectedTags: [],
+        selectedCompanies: [],
+        selectedExperienceLevel: undefined,
+        industryDbV2Stats: {
+          size: 50,
+          p80: 20,
+          histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
+        },
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
+    })
+
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(23)
+    expect(result.current.displayedResumes[0]?.match?.recommendation).toBe('no_match')
+  })
+
+  it('recomputes recommendation from the normalized AI score when industry_db bumps the score band', async () => {
+    mockState.convexResumes = [
+      buildResume({
+        id: 'resume-rec-high-1',
+        name: 'Recommendation Drift High',
+        industryDbV2Raw: 10,
+        brandHits: [{ brand: 'star', role: 'distributor', source: 'job5156', context: 'sales' }],
+        companyHits: ['Star CNC'],
+        analysis: {
+          score: 40,
+          summary: 'Raw AI score before frontend normalization',
+          highlights: ['summary'],
+          recommendation: 'potential',
+          breakdown: {
+            related_exp: 40,
+            industry_db: 0,
+          },
+          jobDescriptionId: 'lathe-sales',
+        },
+        roleSignals: [],
+      }),
+    ]
+    mockState.searchHistory = [
+      {
+        id: 'history-rec-high',
+        sessionKey: 'session-1',
+        title: 'Recommendation high drift test',
+        location: '苏州',
+        keywords: ['CNC'],
+        jobDescriptionId: 'lathe-sales',
+        filters: {},
+        selectedTags: [],
+        selectedCompanies: [],
+        selectedExperienceLevel: undefined,
+        industryDbV2Stats: {
+          size: 50,
+          p80: 20,
+          histogram50: Array.from({ length: 51 }, (_, index) => (index === 20 ? 50 : 0)),
+        },
+        createdAt: 1,
+        lastOpenedAt: 2,
+      },
+    ]
+
+    const { result } = renderHook(() => useResumeListState())
+
+    await act(async () => {
+      await result.current.handleApplySearchHistory(mockState.searchHistory[0] as never)
+    })
+
+    expect(result.current.displayedResumes[0]?.match?.score).toBe(70)
+    expect(result.current.displayedResumes[0]?.match?.recommendation).toBe('match')
+  })
+
   it('allows manual profile apply to bypass the URL hydration guard', () => {
     mockState.sessionLocation = ''
     mockState.urlParsedState = {

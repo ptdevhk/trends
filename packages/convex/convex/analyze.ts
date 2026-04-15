@@ -87,6 +87,250 @@ function toNumber(value: unknown): number | undefined {
     return undefined;
 }
 
+const INDUSTRY_DB_SCORE_CAP = 50;
+const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
+
+type AnalysisRecommendation = "strong_match" | "match" | "potential" | "no_match";
+
+function clamp(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+}
+
+function parseNumericBreakdown(value: unknown): Record<string, number> | undefined {
+    if (!isRecord(value)) {
+        return undefined;
+    }
+
+    const parsed: Record<string, number> = {};
+    for (const [key, rawValue] of Object.entries(value)) {
+        const numeric = toNumber(rawValue);
+        if (numeric !== undefined) {
+            parsed[key] = numeric;
+        }
+    }
+
+    return Object.keys(parsed).length > 0 ? parsed : undefined;
+}
+
+function hasNonEmployerBrandHits(value: unknown): boolean {
+    if (!Array.isArray(value)) {
+        return false;
+    }
+
+    return value.some((item) => {
+        if (!isRecord(item)) {
+            return false;
+        }
+
+        const context = typeof item.context === "string" ? item.context.trim().toLowerCase() : "";
+        return context !== "employer";
+    });
+}
+
+function hasCompanyHits(value: unknown): boolean {
+    if (!Array.isArray(value)) {
+        return false;
+    }
+
+    return value.some((item) => typeof item === "string" && item.trim().length > 0);
+}
+
+function getResumeIngestData(resume: unknown): Record<string, unknown> {
+    const root = isRecord(resume) ? resume : {};
+    const content = isRecord(root.content) ? root.content : {};
+    if (isRecord(root.ingestData)) {
+        return root.ingestData;
+    }
+    if (isRecord(content.ingestData)) {
+        return content.ingestData;
+    }
+    return {};
+}
+
+function computeDirectIndustryDbScoreFromResume(resume: unknown): number {
+    const ingestData = getResumeIngestData(resume);
+    const brandHits = hasNonEmployerBrandHits(ingestData.brandHits);
+    const companyHits = hasCompanyHits(ingestData.companyHits);
+    if (brandHits || companyHits) {
+        return INDUSTRY_DB_SCORE_CAP;
+    }
+
+    const raw = toNumber(ingestData.industryDbV2Raw) ?? 0;
+    return clamp(raw, 0, INDUSTRY_DB_SCORE_CAP);
+}
+
+function recommendationFromScore(score: number): AnalysisRecommendation {
+    if (score >= 85) return "strong_match";
+    if (score >= 70) return "match";
+    if (score >= 40) return "potential";
+    return "no_match";
+}
+
+function hasHanText(value: string): boolean {
+    return /[\u4e00-\u9fff]/.test(value);
+}
+
+function normalizeSummaryConsistency(
+    summary: string,
+    normalized: {
+        score: number;
+        recommendation: AnalysisRecommendation;
+    },
+): string {
+    if (summary.trim().length === 0) {
+        return summary;
+    }
+
+    let next = summary.trim();
+
+    const mentionedScores = Array.from(
+        next.matchAll(/\bscore\s*[:：]?\s*(\d{1,3}(?:\.\d+)?)/gi),
+        (match) => Number(match[1]),
+    ).filter((value) => Number.isFinite(value));
+    const hasScoreMention = mentionedScores.length > 0;
+    const hasScoreMismatch = hasScoreMention
+        && !mentionedScores.some((value) => Math.round(value) === normalized.score);
+
+    if (hasScoreMismatch) {
+        next = next.replace(
+            /(\bscore\s*[:：]?\s*)\d{1,3}(?:\.\d+)?/gi,
+            (_raw, prefix: string) => `${prefix}${normalized.score}`,
+        );
+    }
+
+    const recommendationMentions = Array.from(
+        next.matchAll(/\b(strong_match|match|potential|no_match)\b/gi),
+        (match) => match[1].toLowerCase(),
+    );
+    const hasRecommendationMention = recommendationMentions.length > 0;
+    const hasRecommendationMismatch = hasRecommendationMention
+        && !recommendationMentions.includes(normalized.recommendation);
+
+    if (hasRecommendationMismatch) {
+        next = next.replace(
+            /\b(strong_match|match|potential|no_match)\b/gi,
+            normalized.recommendation,
+        );
+    }
+
+    // If model prose is still semantically stale (common in zh summaries), append
+    // a canonical normalized statement to remove ambiguity.
+    if (hasScoreMismatch || hasRecommendationMismatch) {
+        const normalizedLine = hasHanText(next)
+            ? `系统归一化结果：score ${normalized.score}，recommendation ${normalized.recommendation}。`
+            : `Normalized result: score ${normalized.score}, recommendation ${normalized.recommendation}.`;
+        if (!next.includes(normalizedLine)) {
+            next = `${next} ${normalizedLine}`.trim();
+        }
+    }
+
+    return next;
+}
+
+function inferSalesRelatedExpFloor(resume: unknown): number | undefined {
+    const ingestData = getResumeIngestData(resume);
+    if (!Array.isArray(ingestData.roleSignals)) {
+        return undefined;
+    }
+
+    for (const rawSignal of ingestData.roleSignals) {
+        if (!isRecord(rawSignal)) {
+            continue;
+        }
+
+        const type = typeof rawSignal.type === "string" ? rawSignal.type.trim().toLowerCase() : "";
+        if (type !== "sales") {
+            continue;
+        }
+
+        const relevantYears = toNumber(rawSignal.roleRelevantYears) ?? toNumber(rawSignal.years) ?? 0;
+        if (relevantYears < 3) {
+            continue;
+        }
+
+        const hasSignalEvidence = Array.isArray(rawSignal.matchedSignals)
+            && rawSignal.matchedSignals.some(
+                (signal) => typeof signal === "string" && /sales|销售/i.test(signal)
+            );
+        const hasWorkEntryEvidence = Array.isArray(rawSignal.matchedWorkEntries)
+            && rawSignal.matchedWorkEntries.some((rawEntry) => {
+                if (!isRecord(rawEntry)) {
+                    return false;
+                }
+                const hasSalesTitle = typeof rawEntry.jobTitle === "string" && /sales|销售/i.test(rawEntry.jobTitle);
+                const hasSalesSignal = Array.isArray(rawEntry.matchedSignals)
+                    && rawEntry.matchedSignals.some(
+                        (signal) => typeof signal === "string" && /sales|销售/i.test(signal)
+                    );
+                return hasSalesTitle || hasSalesSignal;
+            });
+
+        if (hasSignalEvidence || hasWorkEntryEvidence) {
+            return 80;
+        }
+    }
+
+    return undefined;
+}
+
+export function normalizeAnalysisResult(
+    result: {
+        score?: unknown;
+        recommendation?: unknown;
+        summary?: unknown;
+        highlights?: unknown;
+        concerns?: unknown;
+        breakdown?: unknown;
+    },
+    resume: unknown,
+    options?: {
+        targetRoleType?: "sales";
+    },
+): {
+    score: number;
+    recommendation: AnalysisRecommendation;
+    summary: string;
+    highlights: string[];
+    concerns: string[];
+    breakdown: Record<string, number>;
+} {
+    const breakdown = parseNumericBreakdown(result.breakdown);
+    let relatedExpRaw = clamp(toNumber(breakdown?.related_exp) ?? 0, 0, 100);
+    if (options?.targetRoleType === "sales") {
+        const floor = inferSalesRelatedExpFloor(resume);
+        if (floor !== undefined) {
+            relatedExpRaw = Math.max(relatedExpRaw, floor);
+        }
+    }
+    const relatedExpWeightedContribution = Math.round(relatedExpRaw * RELATED_EXP_WEIGHT);
+    const industryDb = computeDirectIndustryDbScoreFromResume(resume);
+    const score = clamp(relatedExpWeightedContribution + industryDb, 0, 100);
+    const recommendation = recommendationFromScore(score);
+    const rawSummary = typeof result.summary === "string" && result.summary.trim().length > 0
+        ? result.summary
+        : "No summary provided.";
+
+    return {
+        score,
+        recommendation,
+        summary: normalizeSummaryConsistency(rawSummary, {
+            score,
+            recommendation,
+        }),
+        highlights: Array.isArray(result.highlights)
+            ? result.highlights.filter((item): item is string => typeof item === "string")
+            : [],
+        concerns: Array.isArray(result.concerns)
+            ? result.concerns.filter((item): item is string => typeof item === "string")
+            : [],
+        breakdown: {
+            ...(breakdown ?? {}),
+            related_exp: relatedExpRaw,
+            industry_db: industryDb,
+        },
+    };
+}
+
 function formatWorkEntry(
     entry: NormalizedMatchedWorkEntry,
     localeText: ReturnType<typeof getResumeAiLocaleText>,
@@ -426,13 +670,17 @@ export const analyzeResume = action({
         ];
 
         // 3. Call LLM
-        let result;
+        let rawResult;
         try {
-            result = await callLLM(messages, apiKey);
+            rawResult = await callLLM(messages, apiKey);
         } catch (e) {
             console.error("LLM Call failed:", e);
             throw new Error("Failed to analyze resume with AI.");
         }
+        const result = normalizeAnalysisResult(
+            isRecord(rawResult) ? rawResult : {},
+            resume,
+        );
 
         // 4. Update Resume with result
         await ctx.runMutation(internal.resumes.updateAnalysis, {

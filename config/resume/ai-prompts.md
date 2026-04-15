@@ -1,6 +1,6 @@
 ---
-version: 3
-updated_at: '2026-04-10'
+version: 4
+updated_at: '2026-04-15'
 description: >
   Canonical zh-Hans resume AI prompts for summary and screening analysis.
   This markdown file is the authoring source for the generated shared prompt runtime.
@@ -54,11 +54,19 @@ description: >
 - 如果岗位是应用工程师、技术支持、调试、编程、培训、研发、售前支持，或者只是“配合销售”“协助销售”“促成订单”，都不要算作直接销售经验。
 - 如果 `岗位信号` 里没有直接销售角色，而职位要求又是销售类岗位，请显著降低 `related_exp`，避免把技术支持型候选人误判为高匹配销售候选人。
 
+## related_exp 评分锚点（重要）
+- 85-100: 最近岗位与目标岗位高度一致，且有可验证的直接职责与成果（例如明确销售职责、区域/客户负责范围、达标或成交结果）。
+- 70-84: 岗位匹配度高且有直接相关职责，但证据完整性或年限略弱于顶档。
+- 40-69: 具备部分相关经历或角色邻近，存在可迁移性，但不是直接高匹配角色。
+- 0-39: 缺少直接相关岗位证据，或主要为支持/协作类经历，不应判为高匹配。
+- 若 `岗位信号` 显示直接销售角色（如销售工程师/销售经理）且相关年限 >= 3 年，并存在区域负责、销售目标达成或成交类证据，`related_exp` 不应低于 80。
+
 ## 总结与判断要求
 - summary/highlights/concerns 必须优先围绕候选人的岗位角色、行业背景、与职位直接相关的工作经历展开。
 - 优先指出候选人最近/最相关的岗位名称、所在行业或公司背景、以及可验证的相关年限。
 - 不要只重复总工作年限、学历，除非这些信息直接影响岗位匹配判断。
 - 只要工作经历证据里已经有岗位或公司信息，就不要写“未提供具体工作经历”或类似表述。
+- summary 不要直接输出 `strong_match` / `match` / `potential` / `no_match` 这些标签词，推荐结论只放在 recommendation 字段。
 ```
 
 ## Output Contract

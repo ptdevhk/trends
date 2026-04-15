@@ -1,6 +1,6 @@
 ---
-version: 3
-updated_at: '2026-04-10'
+version: 4
+updated_at: '2026-04-15'
 description: >
   English locale variant for the resume AI prompts.
   Falls back to the zh-Hans master prompt when this file is absent.
@@ -54,11 +54,19 @@ Please analyze how well the following candidate matches the job:
 - If the role is application engineer, technical support, debugging, programming, training, R&D, presales support, or merely "supporting sales" / "helping close orders", do not count it as direct sales experience.
 - If `Role Signals` contain no direct sales role and the job is a sales role, significantly lower `related_exp` to avoid misclassifying technical-support candidates as strong sales matches.
 
+## related_exp Scoring Anchors (Important)
+- 85-100: The candidate's recent role is highly aligned with the target role and includes verifiable direct duties/outcomes (for example, explicit sales ownership, territory/account scope, target attainment, or closed deals).
+- 70-84: Strong direct-role alignment with relevant duties, but evidence depth or years are slightly weaker than top-tier.
+- 40-69: Partial or adjacent experience with transferability, but not a direct high-match role.
+- 0-39: Little direct role evidence, or mostly support/collaboration duties that should not be treated as high match.
+- If `Role Signals` show a direct sales role (for example sales engineer/sales manager) with >= 3 relevant years plus evidence of territory ownership, target attainment, or closed-deal outcomes, `related_exp` should not be below 80.
+
 ## Summary and Judgment Requirements
 - summary/highlights/concerns must prioritize the candidate's role focus, industry background, and directly relevant work history.
 - Prefer calling out the candidate's most recent or most relevant role title, industry or company background, and verifiable relevant years.
 - Do not simply restate total years of work or education unless those details directly affect the match decision.
 - If work-history evidence already contains role or company information, do not say that specific work experience was missing.
+- Do not output literal labels like `strong_match`, `match`, `potential`, or `no_match` inside summary text; keep the verdict in the recommendation field only.
 ```
 
 ## Output Contract

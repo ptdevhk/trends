@@ -16,6 +16,7 @@ import {
     getUserPromptTemplate,
     hydrateUserPrompt,
     inferSourceKey,
+    normalizeAnalysisResult,
     normalizeResume,
     resolveAIOutputLocale,
 } from "./analyze";
@@ -154,6 +155,26 @@ function normalizeKeywords(keywords: string[]): string[] {
     );
 }
 
+function inferTargetRoleType(config: {
+    keywords?: string[];
+    jobDescriptionTitle?: string;
+    jobDescriptionContent?: string;
+}): "sales" | undefined {
+    const text = [
+        ...(config.keywords ?? []),
+        config.jobDescriptionTitle ?? "",
+        config.jobDescriptionContent ?? "",
+    ]
+        .join(" ")
+        .toLowerCase();
+
+    if (text.includes("sales") || text.includes("销售")) {
+        return "sales";
+    }
+
+    return undefined;
+}
+
 function stableHash(seed: string): string {
     let hash = 2166136261;
     for (const char of seed) {
@@ -273,6 +294,11 @@ async function analyzeOneResume(
         ? buildKeywordMatchingRules(normalizedKeywords, locale)
         : (isEnglishLocale ? "Use the default scoring rules." : "使用默认评分标准");
     const normalizedResume = normalizeResume(resume, { locale });
+    const targetRoleType = inferTargetRoleType({
+        keywords: normalizedKeywords,
+        jobDescriptionTitle: config.jobDescriptionTitle,
+        jobDescriptionContent: config.jobDescriptionContent,
+    });
 
     const prompt = hydrateUserPrompt(
         getUserPromptTemplate(locale),
@@ -292,8 +318,11 @@ async function analyzeOneResume(
         try {
             const rawResult = await callLLM(messages, apiKey);
             const parsedResult = parseLlmResult(rawResult);
+            const normalizedResult = normalizeAnalysisResult(parsedResult, resume, {
+                targetRoleType,
+            });
             return {
-                ...parsedResult,
+                ...normalizedResult,
                 locale,
             };
         } catch (error) {

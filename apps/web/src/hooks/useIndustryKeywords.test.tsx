@@ -139,4 +139,21 @@ describe('useIndustryKeywords', () => {
       }),
     ])
   })
+
+  it('derives sales role-year quick-start constraints from profile filters', async () => {
+    const { result } = renderHook(() => useIndustryKeywords())
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+
+    expect(result.current.quickStartProfiles).toEqual([
+      expect.objectContaining({
+        id: 'job5156-cn-cnc-sales',
+        keywords: ['CNC', '销售'],
+        minRoleYears: 2,
+        roleFilterType: 'sales',
+      }),
+    ])
+  })
 })

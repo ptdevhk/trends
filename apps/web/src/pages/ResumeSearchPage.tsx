@@ -102,6 +102,8 @@ export function ResumeSearchPage() {
   const applyQuickStart = (seed: {
     keywords: string[]
     location: string
+    minRoleYears?: number
+    roleFilterType?: string
     minAge?: number
     maxAge?: number
     minExperience?: number
@@ -109,11 +111,14 @@ export function ResumeSearchPage() {
     collapseExpandedCards()
     const query = formatKeywordQuery(seed.keywords)
     setQueryInput(query)
+    const hasRoleYears = typeof seed.minRoleYears === 'number'
     submitSearch(query, {
       location: seed.location,
+      minRoleYears: seed.minRoleYears,
+      roleFilterType: seed.roleFilterType,
       minAge: seed.minAge,
       maxAge: seed.maxAge,
-      minExperience: seed.minExperience,
+      minExperience: hasRoleYears ? undefined : seed.minExperience,
     })
   }
 

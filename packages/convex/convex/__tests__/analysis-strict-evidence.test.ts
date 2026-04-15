@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildKeywordMatchingRules, buildKeywordRequirements, normalizeResume } from "../analyze";
+import {
+  buildKeywordMatchingRules,
+  buildKeywordRequirements,
+  normalizeAnalysisResult,
+  normalizeResume,
+  USER_PROMPT_TEMPLATE,
+} from "../analyze";
 
 describe("normalizeResume strict evidence", () => {
   it("does not derive evidence text from selfIntro/jobIntention", () => {
@@ -171,5 +177,152 @@ describe("normalizeResume strict evidence", () => {
     expect(buildKeywordMatchingRules(["cnc", "servo"], "en")).toContain(
       "Score the candidate by how well their evidence matches the following keywords."
     );
+  });
+
+  it("normalizes AI analysis into weighted related_exp and direct industry_db score", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 85,
+        recommendation: "strong_match",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 70,
+          industry_db: 15,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+        },
+      } as unknown
+    );
+
+    expect(normalized.breakdown?.related_exp).toBe(70);
+    expect(normalized.breakdown?.industry_db).toBe(0);
+    expect(normalized.score).toBe(35);
+    expect(normalized.recommendation).toBe("no_match");
+  });
+
+  it("promotes industry_db to 50 when verified company/brand evidence exists", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 40,
+        recommendation: "potential",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 90,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 5,
+          companyHits: ["大连机床集团"],
+          brandHits: [],
+        },
+      } as unknown
+    );
+
+    expect(normalized.breakdown?.related_exp).toBe(90);
+    expect(normalized.breakdown?.industry_db).toBe(50);
+    expect(normalized.score).toBe(95);
+    expect(normalized.recommendation).toBe("strong_match");
+  });
+
+  it("applies a sales related_exp floor when direct sales signals show 3+ years", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 20,
+        recommendation: "potential",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 40,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 4,
+              roleRelevantYears: 4,
+              matchedSignals: ["销售工程师"],
+              matchedWorkEntries: [
+                {
+                  jobTitle: "销售工程师",
+                  matchedSignals: ["销售"],
+                },
+              ],
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+      }
+    );
+
+    expect(normalized.breakdown?.related_exp).toBe(80);
+    expect(normalized.score).toBe(40);
+    expect(normalized.recommendation).toBe("potential");
+  });
+
+  it("rewrites stale summary score mentions to the normalized score", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 58,
+        recommendation: "potential",
+        summary: "行业数据库验证方面信息有限，综合 score 58，属于具备潜在匹配的候选人。",
+        highlights: [],
+        breakdown: {
+          related_exp: 80,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 10,
+          companyHits: ["深圳市创世纪机械有限公司"],
+          brandHits: [
+            {
+              context: "employer",
+            },
+          ],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 3.8,
+              roleRelevantYears: 3.8,
+              matchedSignals: ["销售工程师"],
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+      }
+    );
+
+    expect(normalized.score).toBe(90);
+    expect(normalized.recommendation).toBe("strong_match");
+    expect(normalized.summary).toContain("score 90");
+    expect(normalized.summary).not.toContain("score 58");
+    expect(normalized.summary).toContain("recommendation strong_match");
+  });
+
+  it("includes explicit related_exp scoring bands in prompt guidance", () => {
+    expect(USER_PROMPT_TEMPLATE).toContain("85-100");
+    expect(USER_PROMPT_TEMPLATE).toContain("70-84");
+    expect(USER_PROMPT_TEMPLATE).toContain("40-69");
+    expect(USER_PROMPT_TEMPLATE).toContain("0-39");
   });
 });

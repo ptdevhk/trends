@@ -686,6 +686,46 @@ func TestResumeDebugAnalysisTasksCommandWritesJSON(t *testing.T) {
 	}
 }
 
+func TestResumeDebugAnalysisTasksCommandAcceptsFractionalCreationTime(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/analysis-tasks" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"tasks": []any{
+				map[string]any{
+					"_id":            "task-1",
+					"status":         "completed",
+					"_creationTime":  1776146211690.003,
+					"config":         map[string]any{"jobDescriptionTitle": "CNC Sales"},
+					"results":        map[string]any{"analyzed": 3, "avgScore": 81.5, "highScoreCount": 1},
+					"lastStatus":     "completed",
+					"error":          "",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "json")
+
+	cmd := newResumeDebugAnalysisTasksCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug analysis-tasks command failed: %v", err)
+	}
+
+	text := output.String()
+	if !strings.Contains(text, `"task-1"`) || !strings.Contains(text, `"completed"`) {
+		t.Fatalf("unexpected analysis-tasks json output: %s", text)
+	}
+}
+
 func TestResumeDebugAnalysisTasksCommandWritesTable(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/resumes/analysis-tasks" {
