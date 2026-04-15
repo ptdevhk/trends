@@ -358,6 +358,10 @@ function normalizeKeywords(keywords: string[] | undefined): string[] {
   return normalizeKeywordPhrases(keywords).map((item) => item.toLowerCase());
 }
 
+function sourceMappingEntries(mapping: Record<string, string> | undefined): Array<{ term: string; expandedFrom: string }> {
+  return Object.entries(mapping ?? {}).map(([term, expandedFrom]) => ({ term, expandedFrom }));
+}
+
 function normalizeMatchRecommendations(
   values: string[] | undefined
 ): MatchingResult["recommendation"][] | undefined {
@@ -1029,10 +1033,7 @@ async function prepareConvexCandidates(params: {
       query: canonicalKeywordQuery,
       keywordGroups: keywordExpansion?.groups ?? [],
       mode: keywordExpansion?.mode ?? "AND",
-      sourceMappings: Object.entries(keywordExpansion?.sourceMapping ?? {}).map(([term, expandedFrom]) => ({
-        term,
-        expandedFrom,
-      })),
+      sourceMappings: sourceMappingEntries(keywordExpansion?.sourceMapping),
       limit: params.limit,
       ...(params.paged ? { offset: params.offset } : {}),
       ...(params.paged && params.sortBy ? { sortBy: params.sortBy, sortOrder: params.sortOrder } : {}),
@@ -1362,10 +1363,7 @@ async function prepareKeywordMatchPageByCursor(params: {
       query: canonicalKeywordQuery,
       keywordGroups: keywordExpansion?.groups ?? [],
       mode: keywordExpansion?.mode ?? "AND",
-      sourceMappings: Object.entries(keywordExpansion?.sourceMapping ?? {}).map(([term, expandedFrom]) => ({
-        term,
-        expandedFrom,
-      })),
+      sourceMappings: sourceMappingEntries(keywordExpansion?.sourceMapping),
       ...(params.resumeFilters ?? {}),
     });
 
@@ -4775,7 +4773,6 @@ app.post("/api/resumes/learning-feedback", async (c) => {
   }
 });
 
-app.get("/api/resumes/skills-version", (c) => {
 app.get("/api/resumes/analysis-tasks", async (c) => {
   try {
     const tasks = (await callConvexQuery("analysis_tasks:list", {})) as Array<{
@@ -4814,6 +4811,8 @@ app.get("/api/resumes/analysis-tasks", async (c) => {
     return c.json({ success: false, error: message }, 500);
   }
 });
+
+app.get("/api/resumes/skills-version", (c) => {
   const version = skillsKnowledgeService.getVersion();
   return c.json({ success: true, version }, 200);
 });
@@ -5209,8 +5208,8 @@ app.post("/api/resumes/analyze", async (c) => {
   };
 
   try {
-    const canonicalKeywordQuery = normalizedQuery
-      ? formatKeywordQuery(normalizeKeywords(parseKeywordQuery(normalizedQuery).keywords))
+    const canonicalKeywordQuery = keywords
+      ? formatKeywordQuery(keywords)
       : "";
     const keywordExpansion = resumeService.expandSearchQuery(canonicalKeywordQuery);
 
@@ -5218,10 +5217,7 @@ app.post("/api/resumes/analyze", async (c) => {
       query: canonicalKeywordQuery || normalizedQuery,
       keywordGroups: keywordExpansion?.groups ?? [],
       mode: keywordExpansion?.mode ?? "OR",
-      sourceMappings: Object.entries(keywordExpansion?.sourceMapping ?? {}).map(([term, expandedFrom]) => ({
-        term,
-        expandedFrom,
-      })),
+      sourceMappings: sourceMappingEntries(keywordExpansion?.sourceMapping),
       ...(normalizedJobDescriptionId ? { jobDescriptionId: normalizedJobDescriptionId } : {}),
       ...(minExperience !== undefined ? { minExperience } : {}),
       ...(maxExperience !== undefined ? { maxExperience } : {}),
