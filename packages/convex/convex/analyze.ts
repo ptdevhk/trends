@@ -747,6 +747,7 @@ export const analyzeResume = action({
         })),
         matchingRules: v.optional(v.any()), // New unified config
         jobDescriptionId: v.optional(v.string()), // Added ID
+        keywords: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const apiKey = getAiApiKey();
@@ -792,9 +793,14 @@ export const analyzeResume = action({
             console.error("LLM Call failed:", e);
             throw new Error("Failed to analyze resume with AI.");
         }
+        const normalizedKeywords = (args.keywords ?? [])
+            .map((k) => k.trim().toLowerCase())
+            .filter((k) => k.length > 0);
+        const targetRoleType = isSalesRequiredContext(...normalizedKeywords) ? "sales" as const : undefined;
         const result = normalizeAnalysisResult(
             isRecord(rawResult) ? rawResult : {},
             resume,
+            normalizedKeywords.length > 0 ? { targetRoleType, keywords: normalizedKeywords } : undefined,
         );
 
         // 4. Update Resume with result
@@ -826,9 +832,10 @@ export const analyzeBatch = action({
         })),
         matchingRules: v.optional(v.any()),
         jobDescriptionId: v.optional(v.string()),
+        keywords: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
-        const { resumeIds, jobDescription, matchingRules, jobDescriptionId } = args;
+        const { resumeIds, jobDescription, matchingRules, jobDescriptionId, keywords } = args;
 
         // Dispatch actions for each resume
         // This runs them securely in background without blocking
@@ -837,7 +844,8 @@ export const analyzeBatch = action({
                 resumeId: id,
                 jobDescription,
                 matchingRules,
-                jobDescriptionId
+                jobDescriptionId,
+                ...(keywords ? { keywords } : {}),
             });
         }));
 
