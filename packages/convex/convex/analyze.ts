@@ -529,12 +529,8 @@ function formatRoleSignals(
     }
 
     return roleSignals.slice(0, 8).map((signal) => {
-        const relevantYears = signal.industryVerifiedRelevantYears
-            ?? signal.roleRelevantYears
-            ?? signal.industryVerifiedYears
-            ?? signal.years;
-        const displayRelevantYears = typeof relevantYears === "number" && Number.isFinite(relevantYears)
-            ? relevantYears
+        const verifiedYears = typeof signal.industryVerifiedYears === "number" && Number.isFinite(signal.industryVerifiedYears)
+            ? signal.industryVerifiedYears
             : 0;
         const workEntries = signal.matchedWorkEntries && signal.matchedWorkEntries.length > 0
             ? signal.matchedWorkEntries.map((entry) => formatWorkEntry(entry, localeText)).join("; ")
@@ -542,7 +538,7 @@ function formatRoleSignals(
         const parts = [
             `${signal.type}(${signal.verifyIn})`,
             `years:${signal.years}`,
-            `relevant:${displayRelevantYears}`,
+            `verified:${verifiedYears}`,
             signal.matchedSignals.length > 0 ? `signals:${signal.matchedSignals.join("/")}` : undefined,
             workEntries ? `work:${workEntries}` : undefined,
         ].filter((item): item is string => Boolean(item));

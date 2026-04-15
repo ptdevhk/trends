@@ -22,6 +22,7 @@ You must return results strictly as plain numeric JSON.
 7. If work-history evidence is already provided, do not say that specific work experience was missing.
 8. `Role Signals` are structured role evidence. Use them to decide whether the candidate is actually in sales, engineering, debugging, or technical support. Do not let phrases like "support sales", "close orders", or "train customers" inflate direct sales experience.
 9. Work entries marked `[indirect-role]` indicate the role-type signal came from a company description or supporting context, not from the candidate's actual job title. Do not count these entries as direct sales, engineering, or other primary-role experience.
+10. Each signal in `Role Signals` includes a `verified:X` field — the number of years confirmed by the industry database. `verified:0` means no industry-verified experience for that role; significantly discount it. `verified:X` (X>0) means verifiable industry experience — weight it much higher. For sales roles: if `verified:0`, even a large `years` value must not be treated as direct industry sales experience.
 ```
 
 ## User Prompt Template
