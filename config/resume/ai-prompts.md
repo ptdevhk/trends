@@ -1,6 +1,6 @@
 ---
-version: 5
-updated_at: '2026-04-15'
+version: 6
+updated_at: '2026-04-16'
 description: >
   Canonical zh-Hans resume AI prompts for summary and screening analysis.
   This markdown file is the authoring source for the generated shared prompt runtime.
@@ -20,7 +20,8 @@ description: >
 5. 如果无法确切评分，请基于现有信息估算一个数字。
 6. summary/highlights/concerns 必须优先围绕候选人的岗位角色、行业背景、与职位直接相关的工作经历展开，不要只重复总工龄或学历。
 7. 只要已经提供了工作经历证据，就不要写“未提供具体工作经历”或类似表述。
-8. `岗位信号` 是结构化岗位证据，优先使用它判断候选人到底是销售、工程、调试还是技术支持，不要被“配合销售”“促成订单”“培训客户”等描述误导成直接销售经历。
+8. `岗位信号` 是结构化岗位证据，优先使用它判断候选人到底是销售、工程、调试还是技术支持，不要被”配合销售””促成订单””培训客户”等描述误导成直接销售经历。
+9. 工作条目中标有 `[非主职角色]` 的记录，表示该角色类型信号来自公司描述或配合性工作内容，而非候选人的实际岗位标题。不得将此类条目计为直接销售/工程等主职经历。
 ```
 
 ## User Prompt Template

@@ -8,6 +8,7 @@ export interface ResumeAiLocaleText {
   verifiedLabel: string;
   unverifiedLabel: string;
   signalsLabel: string;
+  indirectRoleLabel: string;
 }
 
 const ZH_HANS_TEXT: ResumeAiLocaleText = {
@@ -18,6 +19,7 @@ const ZH_HANS_TEXT: ResumeAiLocaleText = {
   verifiedLabel: "已验证",
   unverifiedLabel: "未验证",
   signalsLabel: "信号",
+  indirectRoleLabel: "[非主职角色]",
 };
 
 const EN_TEXT: ResumeAiLocaleText = {
@@ -28,6 +30,7 @@ const EN_TEXT: ResumeAiLocaleText = {
   verifiedLabel: "verified",
   unverifiedLabel: "unverified",
   signalsLabel: "signals",
+  indirectRoleLabel: "[indirect-role]",
 };
 
 export function getResumeAiLocaleText(requestedLocale?: string): ResumeAiLocaleText {

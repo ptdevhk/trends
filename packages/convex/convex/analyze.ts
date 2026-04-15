@@ -354,6 +354,60 @@ function inferDomainIrrelevantSalesCeiling(
 }
 
 /**
+ * When targetRoleType is "sales" and no sales work entry has directRoleMatch=true,
+ * the candidate has no actual sales job title — only description-level signals.
+ * Cap related_exp to 0 to prevent CNC technicians/engineers with company
+ * descriptions mentioning "销售" from scoring high on CNC-sales searches.
+ *
+ * This is the inverse of inferSalesRelatedExpFloor: the cap applies exactly
+ * when the floor does NOT apply.
+ *
+ * Returns 0 (the cap) when the cap should apply, undefined otherwise.
+ */
+function inferNoDirectSalesRoleCap(resume: unknown): number | undefined {
+    const ingestData = getResumeIngestData(resume);
+    if (!Array.isArray(ingestData.roleSignals)) {
+        return undefined;
+    }
+
+    const salesSignals = (ingestData.roleSignals as unknown[]).filter((raw): raw is Record<string, unknown> => {
+        if (!isRecord(raw)) return false;
+        const type = typeof raw.type === "string" ? raw.type.trim().toLowerCase() : "";
+        return type === "sales";
+    });
+
+    if (salesSignals.length === 0) {
+        return 0;
+    }
+
+    for (const signal of salesSignals) {
+        const workEntries = Array.isArray(signal.matchedWorkEntries)
+            ? signal.matchedWorkEntries.filter((e): e is Record<string, unknown> => isRecord(e))
+            : [];
+        const hasDirectRoleFlags = workEntries.some((e) => typeof e.directRoleMatch === "boolean");
+        const hasDirectRoleEvidence = workEntries.some((e) => e.directRoleMatch === true);
+        const hasSignalEvidence = Array.isArray(signal.matchedSignals)
+            && (signal.matchedSignals as unknown[]).some(
+                (s) => typeof s === "string" && isSalesRequiredContext(s),
+            );
+        const hasLegacyWorkEntryEvidence = workEntries.some((e) => {
+            const jobTitle = typeof e.jobTitle === "string" ? e.jobTitle : undefined;
+            const matched = Array.isArray(e.matchedSignals)
+                ? (e.matchedSignals as unknown[]).filter((s): s is string => typeof s === "string")
+                : [];
+            return isSalesRequiredContext(jobTitle, ...matched);
+        });
+
+        // Mirror the exact condition under which inferSalesRelatedExpFloor returns a floor value
+        if (hasDirectRoleEvidence || (!hasDirectRoleFlags && (hasSignalEvidence || hasLegacyWorkEntryEvidence))) {
+            return undefined;
+        }
+    }
+
+    return 0;
+}
+
+/**
  * Checks whether a search keyword maps to any of the resume's industry tags
  * through the FALLBACK_INDUSTRY_KEYWORDS taxonomy.
  * e.g. "cnc" maps to "machinery"; if the resume has "machinery" tag → match.
@@ -405,6 +459,14 @@ export function normalizeAnalysisResult(
         if (floor !== undefined) {
             relatedExpRaw = Math.max(relatedExpRaw, floor);
         }
+        // No-direct-sales-role cap: if no work entry has a direct sales job title
+        // (only description-level matches), cap related_exp to 0 regardless of
+        // brand hits or domain tags. Prevents CNC technicians with company
+        // descriptions mentioning "销售" from scoring high on sales searches.
+        const noDirectSalesCap = inferNoDirectSalesRoleCap(resume);
+        if (noDirectSalesCap !== undefined) {
+            relatedExpRaw = Math.min(relatedExpRaw, noDirectSalesCap);
+        }
         // Domain-irrelevant ceiling: when sales + domain keywords are combined
         // and candidate's sales experience has no industry overlap, cap related_exp
         if (Array.isArray(options.keywords) && options.keywords.length > 0) {
@@ -452,6 +514,7 @@ function formatWorkEntry(
         entry.jobTitle,
         `${entry.years}${localeText.yearsUnitSuffix}`,
         entry.industryVerified ? localeText.verifiedLabel : localeText.unverifiedLabel,
+        entry.directRoleMatch === false ? localeText.indirectRoleLabel : undefined,
         entry.matchedSignals.length > 0 ? `${localeText.signalsLabel}:${entry.matchedSignals.join("/")}` : undefined,
     ].filter((item): item is string => Boolean(item));
     return parts.join(" ");

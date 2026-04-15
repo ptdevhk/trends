@@ -1,6 +1,6 @@
 ---
-version: 5
-updated_at: '2026-04-15'
+version: 6
+updated_at: '2026-04-16'
 description: >
   English locale variant for the resume AI prompts.
   Falls back to the zh-Hans master prompt when this file is absent.
@@ -21,6 +21,7 @@ You must return results strictly as plain numeric JSON.
 6. summary/highlights/concerns must prioritize the candidate's role focus, industry background, and directly relevant work history instead of repeating only total years or education.
 7. If work-history evidence is already provided, do not say that specific work experience was missing.
 8. `Role Signals` are structured role evidence. Use them to decide whether the candidate is actually in sales, engineering, debugging, or technical support. Do not let phrases like "support sales", "close orders", or "train customers" inflate direct sales experience.
+9. Work entries marked `[indirect-role]` indicate the role-type signal came from a company description or supporting context, not from the candidate's actual job title. Do not count these entries as direct sales, engineering, or other primary-role experience.
 ```
 
 ## User Prompt Template

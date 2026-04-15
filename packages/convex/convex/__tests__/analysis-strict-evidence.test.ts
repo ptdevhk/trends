@@ -276,7 +276,7 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.recommendation).toBe("potential");
   });
 
-  it("does not apply the sales related_exp floor for description-only sales support", () => {
+  it("caps related_exp to 0 for description-only sales support (no direct sales job title)", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 20,
@@ -318,8 +318,10 @@ describe("normalizeResume strict evidence", () => {
       }
     );
 
-    expect(normalized.breakdown?.related_exp).toBe(35);
-    expect(normalized.score).toBe(18);
+    // directRoleMatch=false means "项目工程师" got sales signal from description,
+    // not from actual sales job title — cap fires, related_exp → 0
+    expect(normalized.breakdown?.related_exp).toBe(0);
+    expect(normalized.score).toBe(0);
     expect(normalized.recommendation).toBe("no_match");
   });
 
