@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -14,13 +15,15 @@ type FacetGroupProps = {
 }
 
 export function FacetGroup({
-  emptyLabel = 'No values available',
+  emptyLabel,
   items,
   maxVisible = 8,
   selectedValues,
   title,
   onToggle,
 }: FacetGroupProps) {
+  const { t } = useTranslation()
+  const defaultEmptyLabel = emptyLabel || t('resumes.searchPage.facets.emptyLabel')
   const [expanded, setExpanded] = useState(false)
   const normalizedSelectedValues = useMemo(
     () => new Set(selectedValues.map((value) => value.toLowerCase())),
@@ -41,7 +44,7 @@ export function FacetGroup({
 
       {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed px-3 py-3 text-sm text-muted-foreground">
-          {emptyLabel}
+          {defaultEmptyLabel}
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -71,7 +74,9 @@ export function FacetGroup({
 
       {items.length > maxVisible ? (
         <Button type="button" variant="ghost" className="h-auto px-0 text-sm" onClick={() => setExpanded((value) => !value)}>
-          {expanded ? 'Show less' : `Show ${items.length - maxVisible} more`}
+          {expanded
+            ? t('resumes.searchPage.facets.showLess', { defaultValue: '收起' })
+            : t('resumes.searchPage.facets.showMore', { count: items.length - maxVisible, defaultValue: '展开剩余 {{count}} 项' })}
         </Button>
       ) : null}
     </div>

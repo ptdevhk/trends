@@ -419,4 +419,255 @@ describe("normalizeResume strict evidence", () => {
     expect(USER_PROMPT_TEMPLATE).toContain("40-69");
     expect(USER_PROMPT_TEMPLATE).toContain("0-39");
   });
+
+  it("caps related_exp to 15 for domain-irrelevant sales when keywords combine domain + sales", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 40,
+        recommendation: "potential",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 40,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 12.8,
+              roleRelevantYears: 12.8,
+              matchedSignals: ["销售经理", "销售", "业务"],
+              matchedWorkEntries: [
+                {
+                  companyName: "中国平安人寿保险股份有限公司",
+                  jobTitle: "销售经理",
+                  years: 12.8,
+                  industryVerified: false,
+                  matchedSignals: ["销售经理", "销售", "业务"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // Insurance sales is domain-irrelevant to CNC sales — cap at 15
+    expect(normalized.breakdown?.related_exp).toBe(15);
+    expect(normalized.score).toBe(8);
+    expect(normalized.recommendation).toBe("no_match");
+  });
+
+  it("does not cap related_exp when sales has industry-verified overlap", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 80,
+        recommendation: "strong_match",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 85,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 5,
+              roleRelevantYears: 5,
+              industryVerifiedYears: 5,
+              matchedSignals: ["销售工程师"],
+              matchedWorkEntries: [
+                {
+                  companyName: "大连机床集团",
+                  jobTitle: "销售工程师",
+                  years: 5,
+                  industryVerified: true,
+                  matchedSignals: ["销售工程师"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // Industry-verified CNC sales — no ceiling
+    expect(normalized.breakdown?.related_exp).toBe(85);
+  });
+
+  it("does not cap related_exp when brand hits prove domain overlap", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 80,
+        recommendation: "strong_match",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 85,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [
+            {
+              brand: "FANUC",
+              context: "product",
+            },
+          ],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 5,
+              roleRelevantYears: 5,
+              industryVerifiedYears: 0,
+              matchedSignals: ["销售工程师"],
+              matchedWorkEntries: [
+                {
+                  companyName: "苏州美科生贸易有限公司",
+                  jobTitle: "销售工程师",
+                  years: 5,
+                  industryVerified: false,
+                  matchedSignals: ["销售工程师"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // FANUC brand hit proves CNC domain — no ceiling
+    expect(normalized.breakdown?.related_exp).toBe(85);
+  });
+
+  it("does not cap related_exp when industry tags overlap with domain keywords", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 80,
+        recommendation: "strong_match",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 85,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          industryTags: ["machinery"],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 5,
+              roleRelevantYears: 5,
+              industryVerifiedYears: 0,
+              matchedSignals: ["销售工程师"],
+              matchedWorkEntries: [
+                {
+                  companyName: "某机械贸易公司",
+                  jobTitle: "销售工程师",
+                  years: 5,
+                  industryVerified: false,
+                  matchedSignals: ["销售工程师"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // "cnc" maps to "machinery" tag in FALLBACK_INDUSTRY_KEYWORDS — no ceiling
+    expect(normalized.breakdown?.related_exp).toBe(85);
+  });
+
+  it("does not apply domain ceiling when keywords are sales-only", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 60,
+        recommendation: "potential",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 70,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 8,
+              roleRelevantYears: 8,
+              matchedSignals: ["销售经理"],
+              matchedWorkEntries: [
+                {
+                  companyName: "某保险公司",
+                  jobTitle: "销售经理",
+                  years: 8,
+                  industryVerified: false,
+                  matchedSignals: ["销售经理"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["销售"],
+      }
+    );
+
+    // Sales-only keyword — no domain ceiling applies
+    expect(normalized.breakdown?.related_exp).toBe(80); // floor raises to 80
+  });
 });

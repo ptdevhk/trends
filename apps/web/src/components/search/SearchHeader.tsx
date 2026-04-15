@@ -1,18 +1,12 @@
-import { Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { GoogleSearchBar } from '@/components/search/GoogleSearchBar'
 import type { ResumeSearchRecentItem, SearchSortValue } from '@/components/search/search-types'
-import type { ResumeExportFormat } from '@/types/resume'
-import { cn } from '@/lib/utils'
 
 type SearchHeaderProps = {
   activeQuery?: string
   activeResultCount: number
-  exportFormat: ResumeExportFormat
-  exportingResults?: boolean
   jobDescriptionId?: string
   loading?: boolean
   location?: string
@@ -23,8 +17,6 @@ type SearchHeaderProps = {
   onApplyExtractedKeywords: (keywords: string[]) => void
   onChangeQuery: (value: string) => void
   onClearQuery: () => void
-  onExportFormatChange: (format: ResumeExportFormat) => void
-  onExportResults: () => void | Promise<void>
   onSubmitQuery: (value?: string) => void
   onSortChange: (value: SearchSortValue) => void
 }
@@ -32,8 +24,6 @@ type SearchHeaderProps = {
 export function SearchHeader({
   activeQuery,
   activeResultCount,
-  exportFormat,
-  exportingResults = false,
   jobDescriptionId,
   loading = false,
   location,
@@ -44,8 +34,6 @@ export function SearchHeader({
   onApplyExtractedKeywords,
   onChangeQuery,
   onClearQuery,
-  onExportFormatChange,
-  onExportResults,
   onSubmitQuery,
   onSortChange,
 }: SearchHeaderProps) {
@@ -54,36 +42,26 @@ export function SearchHeader({
     ? t('resumes.searchPage.header.resultsWithQuery', {
       count: activeResultCount.toLocaleString(),
       query: activeQuery,
-      defaultValue: '{{count}} results for "{{query}}"',
+      defaultValue: '为"{{query}}"找到 {{count}} 条结果',
     })
     : t('resumes.searchPage.header.results', {
       count: activeResultCount.toLocaleString(),
-      defaultValue: '{{count}} results',
+      defaultValue: '找到 {{count}} 条结果',
     })
   const sortLabel = t('resumes.searchPage.header.sort', {
-    defaultValue: 'Sort',
+    defaultValue: '排序',
   })
   const sortResultsLabel = t('resumes.searchPage.header.sortResults', {
-    defaultValue: 'Sort results',
+    defaultValue: '结果排序',
   })
   const aiScoreLabel = t('resumes.searchPage.header.sortOptions.aiScore', {
-    defaultValue: 'AI score',
+    defaultValue: 'AI 评分',
   })
   const newestLabel = t('resumes.searchPage.header.sortOptions.newest', {
-    defaultValue: 'Newest',
+    defaultValue: '最新活跃',
   })
   const experienceLabel = t('resumes.searchPage.header.sortOptions.experience', {
-    defaultValue: 'Experience',
-  })
-  const exportFormatLabel = t('resumes.searchPage.header.exportFormat', {
-    defaultValue: 'Export format',
-  })
-  const exportingLabel = t('resumes.searchPage.header.exporting', {
-    defaultValue: 'Exporting...',
-  })
-  const exportLabel = t('resumes.searchPage.header.export', {
-    count: activeResultCount.toLocaleString(),
-    defaultValue: 'Export {{count}}',
+    defaultValue: '工作经验',
   })
   return (
     <div className="space-y-4">
@@ -128,38 +106,6 @@ export function SearchHeader({
                 onSortChange(event.target.value as SearchSortValue)
               }
             />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Select
-              aria-label={exportFormatLabel}
-              className="h-10 min-w-24 rounded-full border-0 bg-slate-100/90 pr-8 focus-visible:ring-0 focus-visible:ring-offset-0"
-              options={[
-                { value: 'csv', label: 'CSV' },
-                { value: 'xlsx', label: 'XLSX' },
-              ]}
-              value={exportFormat}
-              onChange={(event) =>
-                onExportFormatChange(
-                  event.target.value === 'xlsx' ? 'xlsx' : 'csv',
-                )
-              }
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-10 gap-2 rounded-full px-4"
-              disabled={loading || exportingResults || activeResultCount === 0}
-              onClick={() => {
-                void onExportResults()
-              }}
-            >
-              <Download
-                className={cn('h-4 w-4', exportingResults && 'animate-spin')}
-              />
-              {exportingResults ? exportingLabel : exportLabel}
-            </Button>
           </div>
         </div>
       </div>

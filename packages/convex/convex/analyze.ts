@@ -1,6 +1,7 @@
 /// <reference path="./convex-env.d.ts" />
 import {
     DEFAULT_RESUME_AI_PROMPT_LOCALE,
+    FALLBACK_INDUSTRY_KEYWORDS,
     buildResumeAiSystemPrompt,
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
@@ -275,6 +276,106 @@ function inferSalesRelatedExpFloor(resume: unknown): number | undefined {
     return undefined;
 }
 
+/**
+ * When keywords combine a domain-specific term (e.g. "CNC") with a sales role term
+ * (e.g. "销售"), and the candidate's sales experience has no evidence of being in
+ * the target domain, cap related_exp to prevent cross-domain sales from scoring high.
+ *
+ * A candidate's sales is domain-relevant if ANY of:
+ *   1. Their sales work entries are at industry-verified companies
+ *   2. Their sales signal has industry-verified years
+ *   3. The resume has brand hits (proves domain-company overlap)
+ *   4. The resume has industry tags overlapping with non-sales keywords
+ *
+ * Returns the ceiling value, or undefined if no cap applies.
+ */
+function inferDomainIrrelevantSalesCeiling(
+    resume: unknown,
+    keywords: string[],
+): number | undefined {
+    const ingestData = getResumeIngestData(resume);
+    if (!Array.isArray(ingestData.roleSignals)) {
+        return undefined;
+    }
+
+    // Only applies when there are both sales and non-sales keywords
+    const salesKeywords = keywords.filter((kw) => isSalesRequiredContext(kw));
+    const domainKeywords = keywords.filter((kw) => !isSalesRequiredContext(kw));
+    if (salesKeywords.length === 0 || domainKeywords.length === 0) {
+        return undefined;
+    }
+
+    // Check if candidate has any industry-verified sales signal or
+    // sales work entries at industry-verified companies
+    const salesSignal = ingestData.roleSignals.find((rawSignal) => {
+        if (!isRecord(rawSignal)) return false;
+        return typeof rawSignal.type === "string"
+            && rawSignal.type.trim().toLowerCase() === "sales";
+    });
+
+    if (!salesSignal || !isRecord(salesSignal)) {
+        // No sales signal at all — ceiling doesn't apply (floor won't either)
+        return undefined;
+    }
+
+    // Signal-level: industry-verified sales years
+    const hasIndustryVerifiedSalesYears = (toNumber(salesSignal.industryVerifiedRelevantYears) ?? 0) > 0
+        || (toNumber(salesSignal.industryVerifiedYears) ?? 0) > 0;
+
+    // Entry-level: sales work entries at industry-verified companies
+    const workEntries = Array.isArray(salesSignal.matchedWorkEntries)
+        ? salesSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
+        : [];
+    const hasIndustryVerifiedSalesEntry = workEntries.some(
+        (entry) => entry.industryVerified === true
+    );
+
+    // Resume-level: brand hits prove domain overlap (e.g. FANUC代理 → machinery domain)
+    const hasBrandHits = hasNonEmployerBrandHits(ingestData.brandHits);
+
+    // Resume-level: industry tags from searchText overlapping with domain keywords
+    const industryTags = Array.isArray(ingestData.industryTags)
+        ? ingestData.industryTags.filter((tag): tag is string => typeof tag === "string")
+        : [];
+    // Check if any domain keyword maps to the same industry tag as the resume's tags.
+    // e.g. "cnc" → machinery tag; resume has "machinery" industryTag → match
+    const hasDomainIndustryTag = industryTags.length > 0 && domainKeywords.some(
+        (kw) => keywordMapsToIndustryTag(kw, industryTags),
+    );
+
+    // If any domain-evidence path confirms relevance, no ceiling
+    if (hasIndustryVerifiedSalesYears || hasIndustryVerifiedSalesEntry || hasBrandHits || hasDomainIndustryTag) {
+        return undefined;
+    }
+
+    // Candidate has sales signal but no domain evidence —
+    // the sales experience is likely domain-irrelevant
+    return 15;
+}
+
+/**
+ * Checks whether a search keyword maps to any of the resume's industry tags
+ * through the FALLBACK_INDUSTRY_KEYWORDS taxonomy.
+ * e.g. "cnc" maps to "machinery"; if the resume has "machinery" tag → match.
+ */
+function keywordMapsToIndustryTag(keyword: string, resumeIndustryTags: string[]): boolean {
+    const kwLower = keyword.trim().toLowerCase();
+    if (!kwLower) return false;
+
+    const resumeTagSet = new Set(resumeIndustryTags.map((t) => t.toLowerCase()));
+
+    // Direct tag match (e.g. keyword="machinery" matches tag="machinery")
+    if (resumeTagSet.has(kwLower)) return true;
+
+    // Check if the keyword is one of the taxonomy keywords that maps to a resume tag
+    for (const [tag, keywords] of Object.entries(FALLBACK_INDUSTRY_KEYWORDS)) {
+        if (!resumeTagSet.has(tag.toLowerCase())) continue;
+        if (keywords.some((kw) => kw.toLowerCase() === kwLower)) return true;
+    }
+
+    return false;
+}
+
 export function normalizeAnalysisResult(
     result: {
         score?: unknown;
@@ -287,6 +388,7 @@ export function normalizeAnalysisResult(
     resume: unknown,
     options?: {
         targetRoleType?: "sales";
+        keywords?: string[];
     },
 ): {
     score: number;
@@ -295,13 +397,21 @@ export function normalizeAnalysisResult(
     highlights: string[];
     concerns: string[];
     breakdown: Record<string, number>;
-} {
+    } {
     const breakdown = parseNumericBreakdown(result.breakdown);
     let relatedExpRaw = clamp(toNumber(breakdown?.related_exp) ?? 0, 0, 100);
     if (options?.targetRoleType === "sales") {
         const floor = inferSalesRelatedExpFloor(resume);
         if (floor !== undefined) {
             relatedExpRaw = Math.max(relatedExpRaw, floor);
+        }
+        // Domain-irrelevant ceiling: when sales + domain keywords are combined
+        // and candidate's sales experience has no industry overlap, cap related_exp
+        if (Array.isArray(options.keywords) && options.keywords.length > 0) {
+            const ceiling = inferDomainIrrelevantSalesCeiling(resume, options.keywords);
+            if (ceiling !== undefined) {
+                relatedExpRaw = Math.min(relatedExpRaw, ceiling);
+            }
         }
     }
     const relatedExpWeightedContribution = Math.round(relatedExpRaw * RELATED_EXP_WEIGHT);

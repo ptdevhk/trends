@@ -6,6 +6,7 @@ import { useConvexResumeDetail } from '@/hooks/useConvexResumes'
 import { SnippetCard } from '@/components/search/SnippetCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
+import type { CandidateActionType, CandidateStatus, AiFeedbackSentiment, AiFeedbackTarget } from '@/types/resume'
 
 const loadResumeDetail = () => import('@/components/ResumeDetail')
 
@@ -23,6 +24,15 @@ type SearchResultsListProps = {
   showAiScore?: boolean
   onLoadMore: () => void
   onToggleExpanded: (key: string) => void
+  // Candidate management props
+  selectedIds?: Set<string>
+  actionsByResume?: Record<string, CandidateActionType>
+  onToggleSelect?: (key: string) => void
+  onAction?: (resumeId: string, actionType: CandidateActionType) => void
+  onCandidateStatusChange?: (identityKey: string, status: CandidateStatus, notes?: string) => void
+  onToggleBlock?: (identityKey: string, blocked: boolean, reason?: string) => void
+  onAiFeedback?: (target: AiFeedbackTarget, sentiment: AiFeedbackSentiment) => void
+  getAiFeedback?: (resumeId: string, target: AiFeedbackTarget) => AiFeedbackSentiment | undefined
 }
 
 function SearchResultsSkeleton() {
@@ -51,6 +61,12 @@ export function SearchResultsList({
   showAiScore = false,
   onLoadMore,
   onToggleExpanded,
+  selectedIds,
+  actionsByResume,
+  onToggleSelect,
+  onAction,
+  onCandidateStatusChange,
+  onToggleBlock,
 }: SearchResultsListProps) {
   const { t } = useTranslation()
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -133,14 +149,23 @@ export function SearchResultsList({
     return (
       <EmptyState
         title={t('resumes.searchPage.results.emptyTitle', {
-          defaultValue: 'No resumes matched this search',
+          defaultValue: '没有符合该搜索条件的简历',
         })}
         description={t('resumes.searchPage.results.emptyDescription', {
-          defaultValue: 'Try broader keywords or remove a few facet filters to widen the result set.',
+          defaultValue: '请尝试放宽搜索词或移除一些筛选项以扩大结果范围。',
         })}
       />
     )
   }
+
+  const cardProps = (item: ResumeSearchResultItem) => ({
+    selected: selectedIds?.has(item.key),
+    onSelect: onToggleSelect ? () => onToggleSelect(item.key) : undefined,
+    actionType: actionsByResume?.[item.resume.resumeId],
+    onAction,
+    onCandidateStatusChange,
+    onToggleBlock,
+  })
 
   return (
     <div ref={listRef} className="space-y-4">
@@ -165,6 +190,7 @@ export function SearchResultsList({
                   showAiScore={showAiScore}
                   onToggleExpanded={() => onToggleExpanded(item.key)}
                   onViewDetails={() => setDetailItem(item)}
+                  {...cardProps(item)}
                 />
               </div>
             )
@@ -175,9 +201,9 @@ export function SearchResultsList({
           const presentationItem =
             item.key === expandedKey && expandedResumeFromConvex
               ? {
-                  ...item,
-                  resume: expandedResumeFromConvex,
-                }
+                ...item,
+                resume: expandedResumeFromConvex,
+              }
               : item
 
           return (
@@ -188,6 +214,7 @@ export function SearchResultsList({
               showAiScore={showAiScore}
               onToggleExpanded={() => onToggleExpanded(item.key)}
               onViewDetails={() => setDetailItem(presentationItem)}
+              {...cardProps(presentationItem)}
             />
           )
         })
@@ -196,14 +223,14 @@ export function SearchResultsList({
       <div ref={loadMoreRef} className="py-2 text-center text-sm text-muted-foreground">
         {loadingMore
           ? t('resumes.searchPage.results.loadingMore', {
-            defaultValue: 'Loading more resumes...',
+            defaultValue: '正在加载更多简历...',
           })
           : hasMore
             ? t('resumes.searchPage.results.scrollForMore', {
-              defaultValue: 'Scroll for more',
+              defaultValue: '向下滑动查看更多',
             })
             : t('resumes.searchPage.results.endOfResults', {
-              defaultValue: 'End of results',
+              defaultValue: '已到底部',
             })}
       </div>
 

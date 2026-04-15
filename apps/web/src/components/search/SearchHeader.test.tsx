@@ -90,7 +90,6 @@ describe('SearchHeader', () => {
       <SearchHeader
         activeQuery="machine tools"
         activeResultCount={1250}
-        exportFormat="csv"
         jobDescriptionId="lathe-sales"
         location="Malaysia"
         queryInput="machine tools"
@@ -100,8 +99,6 @@ describe('SearchHeader', () => {
         onApplyExtractedKeywords={vi.fn()}
         onChangeQuery={vi.fn()}
         onClearQuery={vi.fn()}
-        onExportFormatChange={vi.fn()}
-        onExportResults={vi.fn()}
         onSubmitQuery={vi.fn()}
         onSortChange={onSortChange}
       />
@@ -109,9 +106,6 @@ describe('SearchHeader', () => {
 
     expect(screen.getByText('Search Header Bar compact machine tools idle 1')).toBeInTheDocument()
     expect(screen.getByText('1,250 results for "machine tools"')).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Export 1,250' }),
-    ).toBeInTheDocument()
     expect(screen.getByText('Malaysia')).toBeInTheDocument()
     expect(screen.getByText('JD lathe-sales')).toBeInTheDocument()
 
@@ -127,7 +121,6 @@ describe('SearchHeader', () => {
     render(
       <SearchHeader
         activeResultCount={3}
-        exportFormat="csv"
         queryInput=""
         recentSearches={[]}
         sortValue="score"
@@ -135,8 +128,6 @@ describe('SearchHeader', () => {
         onApplyExtractedKeywords={vi.fn()}
         onChangeQuery={vi.fn()}
         onClearQuery={vi.fn()}
-        onExportFormatChange={vi.fn()}
-        onExportResults={vi.fn()}
         onSubmitQuery={vi.fn()}
         onSortChange={vi.fn()}
       />
@@ -150,15 +141,11 @@ describe('SearchHeader', () => {
     const onApplyExtractedKeywords = vi.fn()
     const onChangeQuery = vi.fn()
     const onClearQuery = vi.fn()
-    const onExportFormatChange = vi.fn()
-    const onExportResults = vi.fn()
     const onSubmitQuery = vi.fn()
 
     render(
       <SearchHeader
         activeResultCount={42}
-        exportFormat="csv"
-        exportingResults
         loading
         queryInput="servo automation"
         recentSearches={[buildRecentSearch()]}
@@ -167,8 +154,6 @@ describe('SearchHeader', () => {
         onApplyExtractedKeywords={onApplyExtractedKeywords}
         onChangeQuery={onChangeQuery}
         onClearQuery={onClearQuery}
-        onExportFormatChange={onExportFormatChange}
-        onExportResults={onExportResults}
         onSubmitQuery={onSubmitQuery}
         onSortChange={vi.fn()}
       />
@@ -185,40 +170,6 @@ describe('SearchHeader', () => {
     expect(onClearQuery).toHaveBeenCalledTimes(1)
     expect(onApplyExtractedKeywords).toHaveBeenCalledWith(['servo', 'automation'])
     expect(onSubmitQuery).toHaveBeenCalledWith('submitted from header')
-    expect(screen.getByRole('button', { name: 'Exporting...' })).toBeDisabled()
-  })
-
-  it('forwards export format changes and export clicks', async () => {
-    const user = userEvent.setup()
-    const onExportFormatChange = vi.fn()
-    const onExportResults = vi.fn()
-
-    render(
-      <SearchHeader
-        activeResultCount={18}
-        exportFormat="csv"
-        queryInput="machine tools"
-        recentSearches={[]}
-        sortValue="score"
-        onApplyRecentSearch={vi.fn()}
-        onApplyExtractedKeywords={vi.fn()}
-        onChangeQuery={vi.fn()}
-        onClearQuery={vi.fn()}
-        onExportFormatChange={onExportFormatChange}
-        onExportResults={onExportResults}
-        onSubmitQuery={vi.fn()}
-        onSortChange={vi.fn()}
-      />
-    )
-
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Export format' }),
-      'xlsx',
-    )
-    await user.click(screen.getByRole('button', { name: 'Export 18' }))
-
-    expect(onExportFormatChange).toHaveBeenCalledWith('xlsx')
-    expect(onExportResults).toHaveBeenCalledTimes(1)
   })
 
   it('omits the location and job description badges when that metadata is absent', () => {
@@ -226,7 +177,6 @@ describe('SearchHeader', () => {
       <SearchHeader
         activeQuery="machine tools"
         activeResultCount={7}
-        exportFormat="csv"
         queryInput="machine tools"
         recentSearches={[]}
         sortValue="score"
@@ -234,8 +184,6 @@ describe('SearchHeader', () => {
         onApplyExtractedKeywords={vi.fn()}
         onChangeQuery={vi.fn()}
         onClearQuery={vi.fn()}
-        onExportFormatChange={vi.fn()}
-        onExportResults={vi.fn()}
         onSubmitQuery={vi.fn()}
         onSortChange={vi.fn()}
       />

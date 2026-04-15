@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AnalysisTaskMonitor } from '@/components/AnalysisTaskMonitor'
+import { BulkActionBar } from '@/components/BulkActionBar'
 import { ModeToggle } from '@/components/ModeToggle'
 import { AiSummaryPanel } from '@/components/search/AiSummaryPanel'
 import { FacetBadge } from '@/components/search/FacetBadge'
@@ -34,8 +35,6 @@ export function ResumeSearchPage() {
     clearSearch,
     disableAnalyzeResults,
     exportFormat,
-    exportingResults,
-    exportResults,
     facetCounts,
     filterCount,
     filteredResults,
@@ -64,6 +63,18 @@ export function ResumeSearchPage() {
     toggleEducation,
     toggleStatus,
     toggleTag,
+    // Candidate management
+    actionsByResume,
+    handleBulkAction,
+    handleCandidateAction,
+    handleCandidateStatusChange,
+    handleToggleBlock,
+    highScoreCount,
+    selectedIds,
+    selectAll,
+    selectHighScore,
+    clearSelection,
+    toggleSelectItem,
   } = useResumeSearchState()
   const collapseExpandedCards = useCallback(() => {
     setExpandedIds(new Set())
@@ -209,20 +220,20 @@ export function ResumeSearchPage() {
     ],
   )
   const analysisTitle = t('resumes.searchPage.analysis.title', {
-    defaultValue: 'Resume AI analysis',
+    defaultValue: '简历 AI 测算',
   })
   const analysisDescription = t('resumes.searchPage.analysis.description', {
-    defaultValue: 'Generate per-resume AI summaries and breakdowns for the loaded search results.',
+    defaultValue: '为加载的搜索结果生成 AI 摘要和详细分数拆解。',
   })
   const analyzingLabel = t('resumes.searchPage.analysis.analyzing', {
-    defaultValue: 'Analyzing...',
+    defaultValue: '分析中...',
   })
   const analyzeLoadedLabel = t('resumes.searchPage.analysis.analyzeLoaded', {
     count: analysisCandidateCount,
-    defaultValue: 'Analyze loaded {{count}}',
+    defaultValue: '测算 {{count}} 份简历',
   })
   const analyzeLoadedResultsLabel = t('resumes.searchPage.analysis.analyzeLoadedResults', {
-    defaultValue: 'Analyze loaded results',
+    defaultValue: '测算当前结果',
   })
 
   return (
@@ -254,8 +265,6 @@ export function ResumeSearchPage() {
           <SearchHeader
             activeQuery={activeQuery}
             activeResultCount={filteredResults.length}
-            exportFormat={exportFormat}
-            exportingResults={exportingResults}
             jobDescriptionId={parsedState.jobDescriptionId}
             loading={loading}
             location={parsedState.location}
@@ -266,15 +275,13 @@ export function ResumeSearchPage() {
             onApplyExtractedKeywords={applyExtractedKeywords}
             onChangeQuery={setQueryInput}
             onClearQuery={handleClearQuery}
-            onExportFormatChange={setExportFormat}
-            onExportResults={exportResults}
             onSubmitQuery={handleSubmitQuery}
             onSortChange={setSort}
           />
 
           <div className="flex gap-6">
             <div className="hidden w-72 shrink-0 min-[1440px]:block">
-              <div className="sticky top-24">
+              <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pb-4">
                 <FacetSidebar {...mobileFilterProps} />
               </div>
             </div>
@@ -290,7 +297,7 @@ export function ResumeSearchPage() {
 
             <div className="min-w-0 flex-1 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border bg-white/80 px-4 py-3 shadow-sm">
-              <div className="min-w-0">
+                <div className="min-w-0">
                   <div className="text-sm font-medium text-slate-900">
                     {analysisTitle}
                   </div>
@@ -337,6 +344,18 @@ export function ResumeSearchPage() {
                 summary={aiSummary.summary}
               />
 
+              <BulkActionBar
+                totalCount={filteredResults.length}
+                selectedCount={selectedIds.size}
+                highScoreCount={highScoreCount}
+                exportFormat={exportFormat}
+                onExportFormatChange={setExportFormat}
+                onSelectAll={selectAll}
+                onSelectHighScore={() => selectHighScore()}
+                onClearSelection={clearSelection}
+                onBulkAction={handleBulkAction}
+              />
+
               <SearchResultsList
                 expandedIds={expandedIds}
                 hasMore={hasMore}
@@ -346,6 +365,12 @@ export function ResumeSearchPage() {
                 showAiScore={aiModeEnabled}
                 onLoadMore={loadMore}
                 onToggleExpanded={handleToggleExpanded}
+                selectedIds={selectedIds}
+                actionsByResume={actionsByResume}
+                onToggleSelect={toggleSelectItem}
+                onAction={handleCandidateAction}
+                onCandidateStatusChange={handleCandidateStatusChange}
+                onToggleBlock={handleToggleBlock}
               />
             </div>
           </div>

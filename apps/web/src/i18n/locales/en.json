@@ -24,7 +24,8 @@
     "confirm": "Confirm",
     "close": "Close",
     "collapse": "Collapse",
-    "expand": "Expand"
+    "expand": "Expand",
+    "reset": "Reset"
   },
   "jdManagement": {
     "title": "Job Description Management",
@@ -327,6 +328,26 @@
       "currentPosition": "Current Position"
     },
     "searchPage": {
+      "facets": {
+        "filtersTitle": "Filters",
+        "filtersDescription": "Refine your search results.",
+        "filtersDescriptionMobile": "Refine your search results.",
+        "emptyLabel": "No options available",
+        "showLess": "Show less",
+        "showMore": "Show {{count}} more",
+        "experienceLevel": "Experience",
+        "experience": {
+          "senior": "Senior",
+          "mid": "Mid",
+          "junior": "Junior"
+        },
+        "skillClusters": "Skill Clusters",
+        "tags": "Tags",
+        "companies": "Companies",
+        "education": "Education",
+        "status": "Candidate Status",
+        "matchScore": "Match Score"
+      },
       "hero": {
         "quickStart": "Quick Start",
         "hotTags": "Hot Tags",

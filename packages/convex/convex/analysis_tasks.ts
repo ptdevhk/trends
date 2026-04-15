@@ -317,6 +317,7 @@ async function analyzeOneResume(
             const parsedResult = parseLlmResult(rawResult);
             const normalizedResult = normalizeAnalysisResult(parsedResult, resume, {
                 targetRoleType,
+                keywords: normalizedKeywords,
             });
             return {
                 ...normalizedResult,
