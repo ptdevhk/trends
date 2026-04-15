@@ -61,6 +61,17 @@ export interface LearningLogEntry {
   observation: string;
 }
 
+export interface SalesRoleSignalPolicy {
+  directTitleSignals: string[];
+  contextSignals: string[];
+  auxiliaryPrefixes: string[];
+  directDutyCues: string[];
+}
+
+export interface RoleSignalPolicy {
+  sales?: SalesRoleSignalPolicy;
+}
+
 type ActionableLearningPatternBase = {
   count: number;
   date: string;
@@ -108,6 +119,7 @@ export interface SkillsKnowledge {
   experienceLevels: ExperienceLevelSignals[];
   companyPatterns: CompanyPattern[];
   industryContext: IndustryContextSection[];
+  roleSignalPolicy: RoleSignalPolicy;
   exclusionTokens: string[];
   learningLog: LearningLogEntry[];
 }
@@ -118,6 +130,7 @@ const SECTION_HEADING_ALIASES = {
   synonymTable: ["Synonym Table", "同义词表"],
   experienceSignals: ["Experience Signals", "经验等级信号"],
   companyPatterns: ["Company Patterns", "公司数据库"],
+  roleSignalPolicy: ["Role Signal Policy", "角色信号策略"],
   industryContext: ["Industry Context", "行业背景"],
   exclusionPatterns: ["Exclusion Patterns", "排除模式"],
   learningLog: ["Learning Log", "学习日志"],
@@ -260,6 +273,7 @@ export class SkillsKnowledgeService {
       experienceLevels: [],
       companyPatterns: [],
       industryContext: [],
+      roleSignalPolicy: {},
       exclusionTokens: [],
       learningLog: [],
     };
@@ -277,6 +291,8 @@ export class SkillsKnowledgeService {
         knowledge.experienceLevels = this.parseExperienceSignals(trimmed);
       } else if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.companyPatterns)) {
         knowledge.companyPatterns = this.parseCompanyPatterns(trimmed);
+      } else if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.roleSignalPolicy)) {
+        knowledge.roleSignalPolicy = this.parseRoleSignalPolicy(trimmed);
       } else if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.industryContext)) {
         knowledge.industryContext = this.parseIndustryContext(trimmed);
       } else if (matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.exclusionPatterns)) {
@@ -448,6 +464,70 @@ export class SkillsKnowledgeService {
     }
 
     return contexts;
+  }
+
+  private parseRoleSignalPolicy(section: string): RoleSignalPolicy {
+    const policy: RoleSignalPolicy = {};
+    const subsections = section.split(/\n### /);
+
+    for (const sub of subsections) {
+      const trimmed = sub.trim();
+      if (!trimmed || matchesSectionHeading(trimmed, SECTION_HEADING_ALIASES.roleSignalPolicy)) continue;
+
+      const lines = trimmed.split("\n");
+      const roleType = lines[0].trim().toLowerCase();
+      if (roleType !== "sales") {
+        continue;
+      }
+
+      const parsed: SalesRoleSignalPolicy = {
+        directTitleSignals: [],
+        contextSignals: [],
+        auxiliaryPrefixes: [],
+        directDutyCues: [],
+      };
+
+      for (const line of lines.slice(1)) {
+        const directTitleMatch = line.match(/^-\s*directTitleSignals:\s*(.+)$/i);
+        if (directTitleMatch) {
+          parsed.directTitleSignals = directTitleMatch[1]
+            .split(",")
+            .map((value) => value.trim().toLowerCase())
+            .filter((value) => value.length > 0);
+          continue;
+        }
+
+        const contextMatch = line.match(/^-\s*contextSignals:\s*(.+)$/i);
+        if (contextMatch) {
+          parsed.contextSignals = contextMatch[1]
+            .split(",")
+            .map((value) => value.trim().toLowerCase())
+            .filter((value) => value.length > 0);
+          continue;
+        }
+
+        const auxiliaryMatch = line.match(/^-\s*auxiliaryPrefixes:\s*(.+)$/i);
+        if (auxiliaryMatch) {
+          parsed.auxiliaryPrefixes = auxiliaryMatch[1]
+            .split(",")
+            .map((value) => value.trim().toLowerCase())
+            .filter((value) => value.length > 0);
+          continue;
+        }
+
+        const directDutyMatch = line.match(/^-\s*directDutyCues:\s*(.+)$/i);
+        if (directDutyMatch) {
+          parsed.directDutyCues = directDutyMatch[1]
+            .split(",")
+            .map((value) => value.trim().toLowerCase())
+            .filter((value) => value.length > 0);
+        }
+      }
+
+      policy.sales = parsed;
+    }
+
+    return policy;
   }
 
   /**
@@ -681,6 +761,10 @@ export class SkillsKnowledgeService {
   getIndustryContext(): string {
     const sections = this.parseSkillsFile().industryContext;
     return sections.map((s) => `### ${s.heading}\n${s.content}`).join("\n\n");
+  }
+
+  getRoleSignalPolicy(): RoleSignalPolicy {
+    return this.parseSkillsFile().roleSignalPolicy;
   }
 
   /**

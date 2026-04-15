@@ -1,6 +1,6 @@
 ---
-version: 3
-updated_at: '2026-04-10'
+version: 5
+updated_at: '2026-04-15'
 description: >
   English locale variant for the resume AI prompts.
   Falls back to the zh-Hans master prompt when this file is absent.
@@ -49,16 +49,31 @@ Please analyze how well the following candidate matches the job:
 - If "Industry Database Verified Companies" is "none", then `industry_db` must be 0.
 - Do not guess whether a company belongs to the industry database based on its name alone; use only the verification result provided above.
 
+## Keyword Joint-Satisfaction Rule (Important)
+- When job requirements contain multiple keywords (e.g. "CNC sales"), the candidate must satisfy ALL keywords' domain AND role simultaneously, not just one of them in isolation.
+- "CNC sales" means sales experience in the CNC domain, NOT "any sales experience + any CNC-related history".
+- If the candidate's sales experience comes from an unrelated industry (e.g. insurance sales for a CNC sales role), `related_exp` should be reduced to 0-15 because industry mismatch is a fundamental, non-transferable gap.
+- If the candidate has target-industry experience but not in a sales role, or has a sales role but not in the target industry, `related_exp` should not exceed 30.
+
 ## Sales Experience Rule (Important)
 - Count direct sales experience only when the work-history role itself is explicitly sales, sales engineer, sales manager, business development, or a similar sales role.
 - If the role is application engineer, technical support, debugging, programming, training, R&D, presales support, or merely "supporting sales" / "helping close orders", do not count it as direct sales experience.
 - If `Role Signals` contain no direct sales role and the job is a sales role, significantly lower `related_exp` to avoid misclassifying technical-support candidates as strong sales matches.
+- Sales experience must be in the same industry/domain as the target role to count as high-match. Cross-industry generic sales experience (e.g. insurance sales, real estate sales) does not equal a sales match in the target industry.
+
+## related_exp Scoring Anchors (Important)
+- 85-100: The candidate's recent role is highly aligned with the target role AND industry domain, with verifiable direct duties/outcomes (for example, explicit sales ownership, territory/account scope, target attainment, or closed deals).
+- 70-84: Strong direct-role alignment with matching industry domain and relevant duties, but evidence depth or years are slightly weaker than top-tier.
+- 40-69: Partial or adjacent experience with transferability, but ONLY when the industry domain matches. If the industry does not match, do not score in this range.
+- 0-39: Little direct role evidence, or industry domain mismatch, or mostly support/collaboration duties that should not be treated as high match.
+- If `Role Signals` show a direct sales role (for example sales engineer/sales manager) with >= 3 relevant years plus evidence of territory ownership, target attainment, or closed-deal outcomes, **AND the industry domain matches**, `related_exp` should not be below 80. This floor does not apply when the industry domain does not match.
 
 ## Summary and Judgment Requirements
 - summary/highlights/concerns must prioritize the candidate's role focus, industry background, and directly relevant work history.
 - Prefer calling out the candidate's most recent or most relevant role title, industry or company background, and verifiable relevant years.
 - Do not simply restate total years of work or education unless those details directly affect the match decision.
 - If work-history evidence already contains role or company information, do not say that specific work experience was missing.
+- Do not output literal labels like `strong_match`, `match`, `potential`, or `no_match` inside summary text; keep the verdict in the recommendation field only.
 ```
 
 ## Output Contract

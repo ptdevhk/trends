@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { FacetGroup } from '@/components/search/FacetGroup'
 import { Card, CardContent } from '@/components/ui/card'
 import type { FacetCounts } from '@/components/search/search-types'
@@ -28,16 +29,17 @@ function ExperienceLevelGroup({
   selectedExperienceLevel,
   onSetExperienceLevel,
 }: Pick<FacetSidebarProps, 'selectedExperienceLevel' | 'onSetExperienceLevel'>) {
+  const { t } = useTranslation()
   const items = [
-    { value: 'senior', label: 'Senior' },
-    { value: 'mid', label: 'Mid' },
-    { value: 'junior', label: 'Junior' },
+    { value: 'senior', label: t('resumes.searchPage.facets.experience.senior') },
+    { value: 'mid', label: t('resumes.searchPage.facets.experience.mid') },
+    { value: 'junior', label: t('resumes.searchPage.facets.experience.junior') },
   ] as const
 
   return (
     <div className="space-y-3">
       <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        Experience level
+        {t('resumes.searchPage.facets.experienceLevel')}
       </div>
       <div className="flex flex-wrap gap-2">
         {items.map((item) => {
@@ -79,31 +81,32 @@ export function FacetSidebar({
   onToggleStatus,
   onToggleTag,
 }: FacetSidebarProps) {
+  const { t } = useTranslation()
   const content = (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-semibold text-slate-900">Filters</div>
-          <div className="text-xs text-muted-foreground">Refine the current result set without leaving the search flow.</div>
+          <div className="text-sm font-semibold text-slate-900">{t('resumes.searchPage.facets.filtersTitle')}</div>
+          <div className="text-xs text-muted-foreground">{t('resumes.searchPage.facets.filtersDescription')}</div>
         </div>
         <button type="button" className="text-sm text-muted-foreground hover:text-foreground" onClick={onClearAll}>
-          Reset
+          {t('common.reset')}
         </button>
       </div>
 
       <FacetGroup
-        title="Skill Clusters"
+        title={t('resumes.searchPage.facets.skillClusters')}
         items={facetCounts.clusters}
         selectedValues={selectedClusters}
         onToggle={onToggleCluster}
       />
-      <FacetGroup title="Tags" items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
-      <FacetGroup title="Companies" items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
+      <FacetGroup title={t('resumes.searchPage.facets.tags')} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
+      <FacetGroup title={t('resumes.searchPage.facets.companies')} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
       <ExperienceLevelGroup selectedExperienceLevel={selectedExperienceLevel} onSetExperienceLevel={onSetExperienceLevel} />
-      <FacetGroup title="Education" items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
-      <FacetGroup title="Status" items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />
+      <FacetGroup title={t('resumes.searchPage.facets.education')} items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
+      <FacetGroup title={t('resumes.searchPage.facets.status')} items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />
       <FacetGroup
-        title="Match score"
+        title={t('resumes.searchPage.facets.matchScore')}
         items={facetCounts.minScoreOptions.map((item) => ({ ...item, value: `${item.value}+` }))}
         selectedValues={typeof minScore === 'number' ? [`${minScore}+`] : []}
         onToggle={(value) => {

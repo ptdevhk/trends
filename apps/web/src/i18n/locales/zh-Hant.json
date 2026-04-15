@@ -24,7 +24,8 @@
     "confirm": "確認",
     "close": "關閉",
     "collapse": "收起",
-    "expand": "展開"
+    "expand": "展開",
+    "reset": "重置"
   },
   "jdManagement": {
     "title": "職位描述管理",
@@ -326,6 +327,26 @@
       "currentPosition": "目前職位"
     },
     "searchPage": {
+      "facets": {
+        "filtersTitle": "篩選條件",
+        "filtersDescription": "在當前搜索結果中進一步精確篩選。",
+        "filtersDescriptionMobile": "在當前搜索結果中進一步精確篩選。",
+        "emptyLabel": "暫無可用選項",
+        "showLess": "收起",
+        "showMore": "展開剩餘 {{count}} 項",
+        "experienceLevel": "工作經驗",
+        "experience": {
+          "senior": "資深",
+          "mid": "中級",
+          "junior": "初級"
+        },
+        "skillClusters": "技能圖譜",
+        "tags": "標籤聚類",
+        "companies": "公司經歷",
+        "education": "學歷",
+        "status": "候選人狀態",
+        "matchScore": "匹配分"
+      },
       "hero": {
         "quickStart": "快速開始",
         "hotTags": "熱門標籤",

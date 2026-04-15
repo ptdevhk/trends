@@ -143,6 +143,7 @@ const ResumeIngestMatchedWorkEntrySchema = z
     years: z.number().openapi({ example: 3 }),
     industryVerified: z.boolean().openapi({ example: true }),
     matchedSignals: z.array(z.string()).openapi({ example: ["sales", "cnc"] }),
+    directRoleMatch: z.boolean().optional().openapi({ example: true }),
   })
   .openapi("ResumeIngestMatchedWorkEntry");
 

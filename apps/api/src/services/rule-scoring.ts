@@ -216,6 +216,7 @@ export interface MatchedWorkEntry {
   years: number;
   industryVerified: boolean;
   matchedSignals: string[];
+  directRoleMatch?: boolean;
 }
 
 export interface RoleSignalSummary {

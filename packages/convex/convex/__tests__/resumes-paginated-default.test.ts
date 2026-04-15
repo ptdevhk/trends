@@ -325,6 +325,97 @@ describe("listWithIngestDataPaginated", () => {
     expect(result.page).toHaveLength(1);
     expect((result.page[0] as { content: { name: string } }).content.name).toBe("Alice");
   });
+
+  it("filters by strict direct-sales years when matched work-entry metadata is present", async () => {
+    const resumeDirect = {
+      ...buildResumeDoc("resume-direct", 90),
+      content: { name: "Direct Sales" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售工程师"],
+            signalCount: 2,
+            occurrences: 1,
+            years: 11,
+            roleRelevantYears: 11,
+            verifyIn: "workHistory",
+            matchedWorkEntries: [
+              {
+                jobTitle: "销售工程师",
+                years: 11,
+                industryVerified: true,
+                matchedSignals: ["销售工程师"],
+                directRoleMatch: true,
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const resumeSupportOnly = {
+      ...buildResumeDoc("resume-support", 80),
+      content: { name: "Support Engineer" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售"],
+            signalCount: 1,
+            occurrences: 2,
+            years: 12,
+            roleRelevantYears: 12,
+            verifyIn: "workHistory",
+            matchedWorkEntries: [
+              {
+                jobTitle: "项目工程师",
+                years: 12,
+                industryVerified: false,
+                matchedSignals: ["销售"],
+                directRoleMatch: false,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            order: () => ({
+              paginate: async () => ({
+                page: [resumeDirect, resumeSupportOnly],
+                continueCursor: "cursor-next",
+                isDone: false,
+              }),
+              take: async () => [],
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await handler(ctx, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      minRoleYears: 10,
+      roleFilterType: "sales",
+    });
+
+    expect(result.page).toHaveLength(1);
+    expect((result.page[0] as { content: { name: string } }).content.name).toBe("Direct Sales");
+  });
 });
 
 describe("getResumeDetail", () => {

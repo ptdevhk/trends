@@ -1,10 +1,12 @@
 /// <reference path="./convex-env.d.ts" />
 import {
     DEFAULT_RESUME_AI_PROMPT_LOCALE,
+    FALLBACK_INDUSTRY_KEYWORDS,
     buildResumeAiSystemPrompt,
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
     getResumeAiUserPromptTemplate,
+    isSalesRequiredContext,
     resolveResumeAnalysisSourceKey,
     sanitizeResumeRecordForSurface,
     resolveResumeAiPromptLocale,
@@ -30,6 +32,7 @@ type NormalizedMatchedWorkEntry = {
     years: number;
     industryVerified: boolean;
     matchedSignals: string[];
+    directRoleMatch?: boolean;
 };
 
 type NormalizedRoleSignal = {
@@ -85,6 +88,359 @@ function toNumber(value: unknown): number | undefined {
         return Number.isFinite(parsed) ? parsed : undefined;
     }
     return undefined;
+}
+
+const INDUSTRY_DB_SCORE_CAP = 50;
+const RELATED_EXP_WEIGHT = INDUSTRY_DB_SCORE_CAP / 100;
+
+type AnalysisRecommendation = "strong_match" | "match" | "potential" | "no_match";
+
+function clamp(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+}
+
+function parseNumericBreakdown(value: unknown): Record<string, number> | undefined {
+    if (!isRecord(value)) {
+        return undefined;
+    }
+
+    const parsed: Record<string, number> = {};
+    for (const [key, rawValue] of Object.entries(value)) {
+        const numeric = toNumber(rawValue);
+        if (numeric !== undefined) {
+            parsed[key] = numeric;
+        }
+    }
+
+    return Object.keys(parsed).length > 0 ? parsed : undefined;
+}
+
+function hasNonEmployerBrandHits(value: unknown): boolean {
+    if (!Array.isArray(value)) {
+        return false;
+    }
+
+    return value.some((item) => {
+        if (!isRecord(item)) {
+            return false;
+        }
+
+        const context = typeof item.context === "string" ? item.context.trim().toLowerCase() : "";
+        return context !== "employer";
+    });
+}
+
+function hasCompanyHits(value: unknown): boolean {
+    if (!Array.isArray(value)) {
+        return false;
+    }
+
+    return value.some((item) => typeof item === "string" && item.trim().length > 0);
+}
+
+function getResumeIngestData(resume: unknown): Record<string, unknown> {
+    const root = isRecord(resume) ? resume : {};
+    const content = isRecord(root.content) ? root.content : {};
+    if (isRecord(root.ingestData)) {
+        return root.ingestData;
+    }
+    if (isRecord(content.ingestData)) {
+        return content.ingestData;
+    }
+    return {};
+}
+
+function computeDirectIndustryDbScoreFromResume(resume: unknown): number {
+    const ingestData = getResumeIngestData(resume);
+    const brandHits = hasNonEmployerBrandHits(ingestData.brandHits);
+    const companyHits = hasCompanyHits(ingestData.companyHits);
+    if (brandHits || companyHits) {
+        return INDUSTRY_DB_SCORE_CAP;
+    }
+
+    const raw = toNumber(ingestData.industryDbV2Raw) ?? 0;
+    return clamp(raw, 0, INDUSTRY_DB_SCORE_CAP);
+}
+
+function recommendationFromScore(score: number): AnalysisRecommendation {
+    if (score >= 85) return "strong_match";
+    if (score >= 70) return "match";
+    if (score >= 40) return "potential";
+    return "no_match";
+}
+
+function hasHanText(value: string): boolean {
+    return /[\u4e00-\u9fff]/.test(value);
+}
+
+function normalizeSummaryConsistency(
+    summary: string,
+    normalized: {
+        score: number;
+        recommendation: AnalysisRecommendation;
+    },
+): string {
+    if (summary.trim().length === 0) {
+        return summary;
+    }
+
+    let next = summary.trim();
+
+    const mentionedScores = Array.from(
+        next.matchAll(/\bscore\s*[:：]?\s*(\d{1,3}(?:\.\d+)?)/gi),
+        (match) => Number(match[1]),
+    ).filter((value) => Number.isFinite(value));
+    const hasScoreMention = mentionedScores.length > 0;
+    const hasScoreMismatch = hasScoreMention
+        && !mentionedScores.some((value) => Math.round(value) === normalized.score);
+
+    if (hasScoreMismatch) {
+        next = next.replace(
+            /(\bscore\s*[:：]?\s*)\d{1,3}(?:\.\d+)?/gi,
+            (_raw, prefix: string) => `${prefix}${normalized.score}`,
+        );
+    }
+
+    const recommendationMentions = Array.from(
+        next.matchAll(/\b(strong_match|match|potential|no_match)\b/gi),
+        (match) => match[1].toLowerCase(),
+    );
+    const hasRecommendationMention = recommendationMentions.length > 0;
+    const hasRecommendationMismatch = hasRecommendationMention
+        && !recommendationMentions.includes(normalized.recommendation);
+
+    if (hasRecommendationMismatch) {
+        next = next.replace(
+            /\b(strong_match|match|potential|no_match)\b/gi,
+            normalized.recommendation,
+        );
+    }
+
+    // If model prose is still semantically stale (common in zh summaries), append
+    // a canonical normalized statement to remove ambiguity.
+    if (hasScoreMismatch || hasRecommendationMismatch) {
+        const normalizedLine = hasHanText(next)
+            ? `系统归一化结果：score ${normalized.score}，recommendation ${normalized.recommendation}。`
+            : `Normalized result: score ${normalized.score}, recommendation ${normalized.recommendation}.`;
+        if (!next.includes(normalizedLine)) {
+            next = `${next} ${normalizedLine}`.trim();
+        }
+    }
+
+    return next;
+}
+
+function inferSalesRelatedExpFloor(resume: unknown): number | undefined {
+    const ingestData = getResumeIngestData(resume);
+    if (!Array.isArray(ingestData.roleSignals)) {
+        return undefined;
+    }
+
+    for (const rawSignal of ingestData.roleSignals) {
+        if (!isRecord(rawSignal)) {
+            continue;
+        }
+
+        const type = typeof rawSignal.type === "string" ? rawSignal.type.trim().toLowerCase() : "";
+        if (type !== "sales") {
+            continue;
+        }
+
+        const relevantYears = toNumber(rawSignal.roleRelevantYears) ?? toNumber(rawSignal.years) ?? 0;
+        if (relevantYears < 3) {
+            continue;
+        }
+
+        const hasSignalEvidence = Array.isArray(rawSignal.matchedSignals)
+            && rawSignal.matchedSignals.some(
+                (signal) => typeof signal === "string" && isSalesRequiredContext(signal)
+            );
+        const workEntries = Array.isArray(rawSignal.matchedWorkEntries)
+            ? rawSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
+            : [];
+        const hasDirectRoleFlags = workEntries.some((rawEntry) => typeof rawEntry.directRoleMatch === "boolean");
+        const hasDirectRoleEvidence = workEntries.some((rawEntry) => rawEntry.directRoleMatch === true);
+        const hasLegacyWorkEntryEvidence = workEntries.some((rawEntry) => {
+            const jobTitle = typeof rawEntry.jobTitle === "string" ? rawEntry.jobTitle : undefined;
+            const matchedSignals = Array.isArray(rawEntry.matchedSignals)
+                ? rawEntry.matchedSignals.filter((signal): signal is string => typeof signal === "string")
+                : [];
+            return isSalesRequiredContext(jobTitle, ...matchedSignals);
+        });
+
+        if (hasDirectRoleEvidence || (!hasDirectRoleFlags && (hasSignalEvidence || hasLegacyWorkEntryEvidence))) {
+            return 80;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * When keywords combine a domain-specific term (e.g. "CNC") with a sales role term
+ * (e.g. "销售"), and the candidate's sales experience has no evidence of being in
+ * the target domain, cap related_exp to prevent cross-domain sales from scoring high.
+ *
+ * A candidate's sales is domain-relevant if ANY of:
+ *   1. Their sales work entries are at industry-verified companies
+ *   2. Their sales signal has industry-verified years
+ *   3. The resume has brand hits (proves domain-company overlap)
+ *   4. The resume has industry tags overlapping with non-sales keywords
+ *
+ * Returns the ceiling value, or undefined if no cap applies.
+ */
+function inferDomainIrrelevantSalesCeiling(
+    resume: unknown,
+    keywords: string[],
+): number | undefined {
+    const ingestData = getResumeIngestData(resume);
+    if (!Array.isArray(ingestData.roleSignals)) {
+        return undefined;
+    }
+
+    // Only applies when there are both sales and non-sales keywords
+    const salesKeywords = keywords.filter((kw) => isSalesRequiredContext(kw));
+    const domainKeywords = keywords.filter((kw) => !isSalesRequiredContext(kw));
+    if (salesKeywords.length === 0 || domainKeywords.length === 0) {
+        return undefined;
+    }
+
+    // Check if candidate has any industry-verified sales signal or
+    // sales work entries at industry-verified companies
+    const salesSignal = ingestData.roleSignals.find((rawSignal) => {
+        if (!isRecord(rawSignal)) return false;
+        return typeof rawSignal.type === "string"
+            && rawSignal.type.trim().toLowerCase() === "sales";
+    });
+
+    if (!salesSignal || !isRecord(salesSignal)) {
+        // No sales signal at all — ceiling doesn't apply (floor won't either)
+        return undefined;
+    }
+
+    // Signal-level: industry-verified sales years
+    const hasIndustryVerifiedSalesYears = (toNumber(salesSignal.industryVerifiedRelevantYears) ?? 0) > 0
+        || (toNumber(salesSignal.industryVerifiedYears) ?? 0) > 0;
+
+    // Entry-level: sales work entries at industry-verified companies
+    const workEntries = Array.isArray(salesSignal.matchedWorkEntries)
+        ? salesSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
+        : [];
+    const hasIndustryVerifiedSalesEntry = workEntries.some(
+        (entry) => entry.industryVerified === true
+    );
+
+    // Resume-level: brand hits prove domain overlap (e.g. FANUC代理 → machinery domain)
+    const hasBrandHits = hasNonEmployerBrandHits(ingestData.brandHits);
+
+    // Resume-level: industry tags from searchText overlapping with domain keywords
+    const industryTags = Array.isArray(ingestData.industryTags)
+        ? ingestData.industryTags.filter((tag): tag is string => typeof tag === "string")
+        : [];
+    // Check if any domain keyword maps to the same industry tag as the resume's tags.
+    // e.g. "cnc" → machinery tag; resume has "machinery" industryTag → match
+    const hasDomainIndustryTag = industryTags.length > 0 && domainKeywords.some(
+        (kw) => keywordMapsToIndustryTag(kw, industryTags),
+    );
+
+    // If any domain-evidence path confirms relevance, no ceiling
+    if (hasIndustryVerifiedSalesYears || hasIndustryVerifiedSalesEntry || hasBrandHits || hasDomainIndustryTag) {
+        return undefined;
+    }
+
+    // Candidate has sales signal but no domain evidence —
+    // the sales experience is likely domain-irrelevant
+    return 15;
+}
+
+/**
+ * Checks whether a search keyword maps to any of the resume's industry tags
+ * through the FALLBACK_INDUSTRY_KEYWORDS taxonomy.
+ * e.g. "cnc" maps to "machinery"; if the resume has "machinery" tag → match.
+ */
+function keywordMapsToIndustryTag(keyword: string, resumeIndustryTags: string[]): boolean {
+    const kwLower = keyword.trim().toLowerCase();
+    if (!kwLower) return false;
+
+    const resumeTagSet = new Set(resumeIndustryTags.map((t) => t.toLowerCase()));
+
+    // Direct tag match (e.g. keyword="machinery" matches tag="machinery")
+    if (resumeTagSet.has(kwLower)) return true;
+
+    // Check if the keyword is one of the taxonomy keywords that maps to a resume tag
+    for (const [tag, keywords] of Object.entries(FALLBACK_INDUSTRY_KEYWORDS)) {
+        if (!resumeTagSet.has(tag.toLowerCase())) continue;
+        if (keywords.some((kw) => kw.toLowerCase() === kwLower)) return true;
+    }
+
+    return false;
+}
+
+export function normalizeAnalysisResult(
+    result: {
+        score?: unknown;
+        recommendation?: unknown;
+        summary?: unknown;
+        highlights?: unknown;
+        concerns?: unknown;
+        breakdown?: unknown;
+    },
+    resume: unknown,
+    options?: {
+        targetRoleType?: "sales";
+        keywords?: string[];
+    },
+): {
+    score: number;
+    recommendation: AnalysisRecommendation;
+    summary: string;
+    highlights: string[];
+    concerns: string[];
+    breakdown: Record<string, number>;
+    } {
+    const breakdown = parseNumericBreakdown(result.breakdown);
+    let relatedExpRaw = clamp(toNumber(breakdown?.related_exp) ?? 0, 0, 100);
+    if (options?.targetRoleType === "sales") {
+        const floor = inferSalesRelatedExpFloor(resume);
+        if (floor !== undefined) {
+            relatedExpRaw = Math.max(relatedExpRaw, floor);
+        }
+        // Domain-irrelevant ceiling: when sales + domain keywords are combined
+        // and candidate's sales experience has no industry overlap, cap related_exp
+        if (Array.isArray(options.keywords) && options.keywords.length > 0) {
+            const ceiling = inferDomainIrrelevantSalesCeiling(resume, options.keywords);
+            if (ceiling !== undefined) {
+                relatedExpRaw = Math.min(relatedExpRaw, ceiling);
+            }
+        }
+    }
+    const relatedExpWeightedContribution = Math.round(relatedExpRaw * RELATED_EXP_WEIGHT);
+    const industryDb = computeDirectIndustryDbScoreFromResume(resume);
+    const score = clamp(relatedExpWeightedContribution + industryDb, 0, 100);
+    const recommendation = recommendationFromScore(score);
+    const rawSummary = typeof result.summary === "string" && result.summary.trim().length > 0
+        ? result.summary
+        : "No summary provided.";
+
+    return {
+        score,
+        recommendation,
+        summary: normalizeSummaryConsistency(rawSummary, {
+            score,
+            recommendation,
+        }),
+        highlights: Array.isArray(result.highlights)
+            ? result.highlights.filter((item): item is string => typeof item === "string")
+            : [],
+        concerns: Array.isArray(result.concerns)
+            ? result.concerns.filter((item): item is string => typeof item === "string")
+            : [],
+        breakdown: {
+            ...(breakdown ?? {}),
+            related_exp: relatedExpRaw,
+            industry_db: industryDb,
+        },
+    };
 }
 
 function formatWorkEntry(
@@ -183,6 +539,9 @@ function parseRoleSignals(value: unknown): NormalizedRoleSignal[] {
                       years: entryYears,
                       industryVerified: entry.industryVerified === true,
                       matchedSignals: matchedEntrySignals,
+                      ...(typeof entry.directRoleMatch === "boolean"
+                          ? { directRoleMatch: entry.directRoleMatch }
+                          : {}),
                   }];
               })
             : undefined;
@@ -426,13 +785,17 @@ export const analyzeResume = action({
         ];
 
         // 3. Call LLM
-        let result;
+        let rawResult;
         try {
-            result = await callLLM(messages, apiKey);
+            rawResult = await callLLM(messages, apiKey);
         } catch (e) {
             console.error("LLM Call failed:", e);
             throw new Error("Failed to analyze resume with AI.");
         }
+        const result = normalizeAnalysisResult(
+            isRecord(rawResult) ? rawResult : {},
+            resume,
+        );
 
         // 4. Update Resume with result
         await ctx.runMutation(internal.resumes.updateAnalysis, {

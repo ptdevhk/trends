@@ -40,6 +40,12 @@ export type AnalysisRoleSignalLike = {
   roleRelevantYears?: number;
   industryVerifiedYears?: number;
   industryVerifiedRelevantYears?: number;
+  matchedWorkEntries?: AnalysisMatchedWorkEntryLike[];
+};
+
+export type AnalysisMatchedWorkEntryLike = {
+  years?: number;
+  directRoleMatch?: boolean;
 };
 
 export type AnalysisKeywordKeyOptions = {
@@ -192,6 +198,44 @@ export function getRoleSignalYears(
   const normalizedType = roleType.trim().toLowerCase();
   const normalizedVerifyIn = verifyIn?.trim().toLowerCase();
 
+  const resolveSignalYears = (signal: AnalysisRoleSignalLike, signalType: string): number => {
+    if (signalType === "sales" && Array.isArray(signal.matchedWorkEntries) && signal.matchedWorkEntries.length > 0) {
+      const flaggedEntries = signal.matchedWorkEntries.filter(
+        (entry) => typeof entry.directRoleMatch === "boolean"
+      );
+      if (flaggedEntries.length > 0) {
+        const directYears = flaggedEntries.reduce((total, entry) => {
+          if (entry.directRoleMatch !== true) {
+            return total;
+          }
+          const years = entry.years;
+          if (typeof years !== "number" || !Number.isFinite(years)) {
+            return total;
+          }
+          return total + years;
+        }, 0);
+        return Number.isFinite(directYears) ? directYears : 0;
+      }
+    }
+
+    const years =
+      signal.industryVerifiedRelevantYears
+      ?? signal.roleRelevantYears
+      ?? signal.industryVerifiedYears
+      ?? signal.years
+      ?? 0;
+
+    return Number.isFinite(years) ? years : 0;
+  };
+
+  if (!normalizedType) {
+    return roleSignals.reduce((maxYears, signal) => {
+      const signalType = signal.type.trim().toLowerCase();
+      const years = resolveSignalYears(signal, signalType);
+      return Math.max(maxYears, years);
+    }, 0);
+  }
+
   const matched = roleSignals.find((signal) => {
     if (signal.type.trim().toLowerCase() !== normalizedType) {
       return false;
@@ -206,14 +250,7 @@ export function getRoleSignalYears(
     return 0;
   }
 
-  const years =
-    matched.industryVerifiedRelevantYears
-    ?? matched.roleRelevantYears
-    ?? matched.industryVerifiedYears
-    ?? matched.years
-    ?? 0;
-
-  return Number.isFinite(years) ? years : 0;
+  return resolveSignalYears(matched, normalizedType);
 }
 
 export function isSalesRequiredContext(...texts: Array<string | undefined>): boolean {
@@ -226,5 +263,5 @@ export function isSalesRequiredContext(...texts: Array<string | undefined>): boo
     return false;
   }
 
-  return /(?:^|\b)(?:sales|sale|business development|bd)(?:\b|$)|销售|销售工程师|销售经理|业务拓展|客户开发/.test(haystack);
+  return /(?:^|\b)(?:sales?|business development|bd|account manager|key account manager|channel sales|channel manager|territory sales manager|regional sales manager)(?:\b|$)|销售工程师|销售经理|业务拓展|业务开发|客户开发|大客户|渠道销售|渠道经理|销售|渠道/.test(haystack);
 }

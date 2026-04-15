@@ -7070,6 +7070,8 @@ export interface components {
              *     ]
              */
             matchedSignals: string[];
+            /** @example true */
+            directRoleMatch?: boolean;
         };
         ResumeIngestRoleSignal: {
             /** @example sales */

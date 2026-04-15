@@ -100,7 +100,6 @@ export function ResumeList() {
     handleClearSelection,
     handleToggleSelect,
     handleBulkAction,
-    handleOpenReviewPacket,
     handleCardAction,
     handleToggleBlock,
     handleCandidateStatusChange,
@@ -430,7 +429,6 @@ export function ResumeList() {
             onSelectHighScore={handleSelectHighScore}
             onClearSelection={handleClearSelection}
             onBulkAction={handleBulkAction}
-            onOpenReviewPacket={handleOpenReviewPacket}
             blockedCount={blockedCount}
             blocksSettingsPath={`/${workspaceSlug}/settings/blocks`}
           />

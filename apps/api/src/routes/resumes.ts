@@ -5000,20 +5000,28 @@ app.post("/api/resumes/clear-analyses", async (c) => {
 
   const { jobDescriptionId, resumeIds, batchSize, dryRun } = parsed.data;
   const isTargeted = (jobDescriptionId?.trim()?.length ?? 0) > 0 || (resumeIds?.length ?? 0) > 0;
+  const buildClearAnalysesArgs = (cursor?: string | null): Record<string, unknown> => {
+    const args: Record<string, unknown> = {
+      batchSize: batchSize ?? 50,
+    };
+
+    if (typeof cursor === "string" && cursor.trim().length > 0) {
+      args.cursor = cursor;
+    }
+    if (jobDescriptionId?.trim()) {
+      args.jobDescriptionId = jobDescriptionId.trim();
+    }
+    if (resumeIds && resumeIds.length > 0) {
+      args.resumeIds = resumeIds;
+    }
+
+    return args;
+  };
 
   try {
     if (dryRun) {
       // Dry run: count resumes with analysis fields without mutating
-      const args: Record<string, unknown> = {
-        batchSize: batchSize ?? 50,
-        cursor: null,
-      };
-      if (jobDescriptionId?.trim()) {
-        args.jobDescriptionId = jobDescriptionId.trim();
-      }
-      if (resumeIds && resumeIds.length > 0) {
-        args.resumeIds = resumeIds;
-      }
+      const args = buildClearAnalysesArgs();
 
       const firstPage = await callConvexMutation("resumes:clearAnalyses", args) as {
         cleared: number;
@@ -5026,10 +5034,12 @@ app.post("/api/resumes/clear-analyses", async (c) => {
       let hasMore = firstPage.hasMore;
 
       for (let i = 0; i < 10000 && hasMore && !isTargeted; i++) {
-        const page = await callConvexMutation("resumes:clearAnalyses", {
-          ...args,
-          cursor,
-        }) as { cleared: number; hasMore: boolean; cursor?: string };
+        const pageArgs = buildClearAnalysesArgs(cursor);
+        const page = await callConvexMutation("resumes:clearAnalyses", pageArgs) as {
+          cleared: number;
+          hasMore: boolean;
+          cursor?: string;
+        };
         wouldClear += page.cleared;
         hasMore = page.hasMore;
         cursor = page.cursor;
@@ -5052,16 +5062,7 @@ app.post("/api/resumes/clear-analyses", async (c) => {
     let hasMore = true;
 
     for (let i = 0; i < 10000 && hasMore; i++) {
-      const args: Record<string, unknown> = {
-        batchSize: batchSize ?? 50,
-        cursor,
-      };
-      if (jobDescriptionId?.trim()) {
-        args.jobDescriptionId = jobDescriptionId.trim();
-      }
-      if (resumeIds && resumeIds.length > 0) {
-        args.resumeIds = resumeIds;
-      }
+      const args = buildClearAnalysesArgs(cursor);
 
       const page = await callConvexMutation("resumes:clearAnalyses", args) as {
         cleared: number;
@@ -5206,6 +5207,10 @@ app.post("/api/resumes/analyze", async (c) => {
     ...(keywords && keywords.length > 0 ? { keywords } : {}),
     ...(location ? { location } : {}),
   };
+  const searchLocations = [
+    ...(location ? [location.trim()] : []),
+    ...(locationFilters ?? []).map((value) => value.trim()).filter((value) => value.length > 0),
+  ];
 
   try {
     const canonicalKeywordQuery = keywords
@@ -5224,8 +5229,7 @@ app.post("/api/resumes/analyze", async (c) => {
       ...(education && education.length > 0 ? { education } : {}),
       ...(skills && skills.length > 0 ? { skills } : {}),
       ...(requiredKeywords && requiredKeywords.length > 0 ? { requiredKeywords } : {}),
-      ...(location ? { location } : {}),
-      ...(locationFilters && locationFilters.length > 0 ? { locations: locationFilters } : {}),
+      ...(searchLocations.length > 0 ? { locations: searchLocations } : {}),
       ...(minSalary !== undefined ? { minSalary } : {}),
       ...(maxSalary !== undefined ? { maxSalary } : {}),
       paginationOpts: { numItems: limit, cursor: null },

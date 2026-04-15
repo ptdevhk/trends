@@ -1,9 +1,10 @@
-import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, getRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus } from '@/hooks/useCandidateStatus'
 import {
@@ -34,8 +35,8 @@ import {
   getAnalysisForJob,
   computeDirectIndustryDb,
   overrideIndustryDbBreakdown,
+  recommendationFromScore,
   toIndustryDbV2Stats,
-  toRecommendation,
 } from '@/lib/resume-scoring'
 import {
   getCurrentResumeAiPromptVersion,
@@ -46,6 +47,7 @@ import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
 import { resolveCollectionSource } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import type {
+  CandidateActionType,
   CandidateStatus,
   ResumeExportFormat,
   ResumeFilters,
@@ -128,13 +130,9 @@ function queryImpliesSalesRole(
   const normalizedTokens = normalizeStringList([
     ...keywords,
     ...parseKeywordQuery(query ?? '').keywords,
-  ]).map((value) => value.toLowerCase())
+  ])
 
-  return normalizedTokens.some((token) => (
-    token === 'sales'
-    || token.includes('sales')
-    || token.includes('销售')
-  ))
+  return isSalesRequiredContext(query, ...normalizedTokens)
 }
 
 function resolveEffectiveRoleFilterType(state: UrlSearchState): string | undefined {
@@ -354,24 +352,6 @@ function sortResults(
   })
 }
 
-function resolveExportRecommendation(
-  score: number,
-): ResumeExportEntryMatch['recommendation'] {
-  if (score >= 85) {
-    return 'strong_match'
-  }
-
-  if (score >= 70) {
-    return 'match'
-  }
-
-  if (score >= 50) {
-    return 'potential'
-  }
-
-  return 'no_match'
-}
-
 function buildSearchExportMatch(
   item: ResumeSearchResultItem,
 ): ResumeExportEntryMatch | undefined {
@@ -384,10 +364,7 @@ function buildSearchExportMatch(
 
   return {
     score: item.score,
-    recommendation:
-      usesAiScore && analysis
-        ? toRecommendation(analysis.recommendation)
-        : resolveExportRecommendation(item.score),
+    recommendation: recommendationFromScore(item.score),
     scoreSource: usesAiScore ? 'ai' : 'rule',
     ...(usesAiScore && analysis?.summary
       ? { summary: analysis.summary }
@@ -424,32 +401,10 @@ function getRoleYears(
     return 0
   }
 
-  const normalizedRoleType = normalizeOptionalString(roleType)?.toLowerCase() ?? ''
-  if (!normalizedRoleType) {
-    return roleSignals.reduce((maxYears, signal) => {
-      const relevantYears =
-        typeof signal.roleRelevantYears === 'number' && Number.isFinite(signal.roleRelevantYears)
-          ? signal.roleRelevantYears
-          : signal.years
-      if (typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
-        return maxYears
-      }
-      return Math.max(maxYears, relevantYears)
-    }, 0)
-  }
-
-  const roleSignal = roleSignals.find(
-    (signal) => signal.type.trim().toLowerCase() === normalizedRoleType,
+  return getRoleSignalYears(
+    roleSignals,
+    normalizeOptionalString(roleType)?.toLowerCase() ?? '',
   )
-  const relevantYears =
-    typeof roleSignal?.roleRelevantYears === 'number' && Number.isFinite(roleSignal.roleRelevantYears)
-      ? roleSignal.roleRelevantYears
-      : roleSignal?.years
-  if (!roleSignal || typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
-    return 0
-  }
-
-  return relevantYears
 }
 
 function matchesLocalFilters(
@@ -642,8 +597,10 @@ export function useResumeSearchState() {
     workspaceSlug: slug,
     status: 'active',
   })
-  const { statusByIdentity } = useCandidateStatus(true)
-  const { blocksByIdentity } = useCandidateBlocks(true)
+  const { statusByIdentity, updateStatus: updateCandidateStatus } = useCandidateStatus(true)
+  const { blocksByIdentity, blockCandidates, unblockCandidate } = useCandidateBlocks(true)
+  const { actions: actionsByResume, saveAction, getAiFeedback } = useCandidateActions(sessionKey, parsedState.jobDescriptionId)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const apiBaseUrl = useMemo(() => {
     const rawBaseUrl = import.meta.env.VITE_API_URL || '/api'
     return rawBaseUrl.replace(/\/api\/?$/, '')
@@ -973,7 +930,7 @@ export function useResumeSearchState() {
           [
             normalizeOptionalString(parsedState.location),
             normalizeOptionalString(parsedState.query) ??
-              formatKeywordQuery(normalizedKeywords),
+            formatKeywordQuery(normalizedKeywords),
           ]
             .filter(Boolean)
             .join(' · '),
@@ -1015,6 +972,8 @@ export function useResumeSearchState() {
       nextQuery?: string,
       options?: {
         location?: string
+        minRoleYears?: number
+        roleFilterType?: string
         minAge?: number
         maxAge?: number
         minExperience?: number
@@ -1029,6 +988,10 @@ export function useResumeSearchState() {
         location: options?.location ?? parsedState.location,
         filters: {
           ...clearedFilters,
+          ...(typeof options?.minRoleYears === 'number' ? { minRoleYears: options.minRoleYears } : {}),
+          ...(typeof options?.roleFilterType === 'string' && options.roleFilterType.trim().length > 0
+            ? { roleFilterType: options.roleFilterType.trim() }
+            : {}),
           ...(typeof options?.minAge === 'number' ? { minAge: options.minAge } : {}),
           ...(typeof options?.maxAge === 'number' ? { maxAge: options.maxAge } : {}),
           ...(typeof options?.minExperience === 'number' ? { minExperience: options.minExperience } : {}),
@@ -1108,8 +1071,8 @@ export function useResumeSearchState() {
         (value) => value.toLowerCase() === normalized.toLowerCase(),
       )
         ? parsedState.selectedTags.filter(
-            (value) => value.toLowerCase() !== normalized.toLowerCase(),
-          )
+          (value) => value.toLowerCase() !== normalized.toLowerCase(),
+        )
         : [...parsedState.selectedTags, normalized]
 
       setSelectedTags(nextTags)
@@ -1129,8 +1092,8 @@ export function useResumeSearchState() {
         (value) => value.trim().toLowerCase() === token,
       )
         ? parsedState.selectedTags.filter(
-            (value) => value.trim().toLowerCase() !== token,
-          )
+          (value) => value.trim().toLowerCase() !== token,
+        )
         : [...parsedState.selectedTags, token]
 
       setSelectedTags(nextTags)
@@ -1156,8 +1119,8 @@ export function useResumeSearchState() {
         (value) => value.toLowerCase() === normalized.toLowerCase(),
       )
         ? parsedState.selectedCompanies.filter(
-            (value) => value.toLowerCase() !== normalized.toLowerCase(),
-          )
+          (value) => value.toLowerCase() !== normalized.toLowerCase(),
+        )
         : [...parsedState.selectedCompanies, normalized]
 
       setSelectedCompanies(nextCompanies)
@@ -1198,8 +1161,8 @@ export function useResumeSearchState() {
         (value) => value.toLowerCase() === normalized.toLowerCase(),
       )
         ? current.filter(
-            (value) => value.toLowerCase() !== normalized.toLowerCase(),
-          )
+          (value) => value.toLowerCase() !== normalized.toLowerCase(),
+        )
         : [...current, normalized]
 
       setEducationFilters(nextEducation)
@@ -1442,6 +1405,95 @@ export function useResumeSearchState() {
     loading,
   ])
 
+  const toggleSelectItem = useCallback((key: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }, [])
+
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set(filteredResults.map((item) => item.key)))
+  }, [filteredResults])
+
+  const selectHighScore = useCallback((minScore = 80) => {
+    setSelectedIds(
+      new Set(
+        filteredResults
+          .filter((item) => typeof item.score === 'number' && item.score >= minScore)
+          .map((item) => item.key),
+      ),
+    )
+  }, [filteredResults])
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set())
+  }, [])
+
+  const highScoreCount = useMemo(
+    () => filteredResults.filter((item) => typeof item.score === 'number' && item.score >= 80).length,
+    [filteredResults],
+  )
+
+  const handleCandidateAction = useCallback(
+    async (resumeId: string, actionType: CandidateActionType) => {
+      await saveAction({ resumeId, actionType })
+    },
+    [saveAction],
+  )
+
+  const handleCandidateStatusChange = useCallback(
+    async (identityKey: string, status: CandidateStatus, notes?: string) => {
+      await updateCandidateStatus(identityKey, status, notes)
+    },
+    [updateCandidateStatus],
+  )
+
+  const handleToggleBlock = useCallback(
+    async (identityKey: string, blocked: boolean, reason?: string) => {
+      if (blocked) {
+        await unblockCandidate(identityKey)
+      } else {
+        await blockCandidates([identityKey], reason)
+      }
+    },
+    [blockCandidates, unblockCandidate],
+  )
+
+  const handleBulkAction = useCallback(
+    async (action: 'shortlist' | 'reject' | 'star' | 'block' | 'export') => {
+      if (action === 'export') {
+        await exportResults()
+        return
+      }
+
+      const selectedItems = filteredResults.filter((item) => selectedIds.has(item.key))
+      if (selectedItems.length === 0) {
+        return
+      }
+
+      if (action === 'block') {
+        const identityKeys = selectedItems.map((item) => item.identityKey)
+        await blockCandidates(identityKeys)
+      } else {
+        const actionType: CandidateActionType = action
+        await Promise.all(
+          selectedItems.map((item) =>
+            saveAction({ resumeId: item.resume.resumeId, actionType }),
+          ),
+        )
+      }
+
+      clearSelection()
+    },
+    [blockCandidates, clearSelection, exportResults, filteredResults, saveAction, selectedIds],
+  )
+
   return {
     activeQuery,
     activeSort,
@@ -1488,5 +1540,18 @@ export function useResumeSearchState() {
     toggleStatus,
     toggleTag,
     loadMore,
+    // Candidate management
+    actionsByResume,
+    getAiFeedback,
+    handleBulkAction,
+    handleCandidateAction,
+    handleCandidateStatusChange,
+    handleToggleBlock,
+    highScoreCount,
+    selectedIds,
+    selectAll,
+    selectHighScore,
+    clearSelection,
+    toggleSelectItem,
   }
 }

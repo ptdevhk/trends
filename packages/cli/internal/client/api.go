@@ -623,7 +623,7 @@ type AnalysisTaskConfig struct {
 type AnalysisTask struct {
 	ID           string               `json:"_id"`
 	Status       string               `json:"status"`
-	CreatedAt    int64                `json:"_creationTime"`
+	CreatedAt    float64              `json:"_creationTime"`
 	Config       *AnalysisTaskConfig  `json:"config,omitempty"`
 	Progress     *AnalysisTaskProgress `json:"progress,omitempty"`
 	Results      *AnalysisTaskResults  `json:"results,omitempty"`

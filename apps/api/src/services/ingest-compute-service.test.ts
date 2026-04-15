@@ -460,6 +460,71 @@ describe("IngestComputeService", () => {
     ]));
   });
 
+  it("should count only direct sales-title years as sales roleRelevantYears", () => {
+    const result = service.computeOne("resume-sales-support-vs-direct", {
+      data: [
+        {
+          ...SAMPLE_RESUME_ENGINEER.data[0],
+          extractedAt: "2026-04-15T00:00:00.000Z",
+          workHistory: [
+            {
+              raw: "2021-01~2025-01 某设备公司 项目工程师",
+              companyName: "某设备公司",
+              jobTitle: "项目工程师",
+              description: "参与销售商务谈判，协助代理商推进订单与验收",
+              startDate: "2021-01",
+              endDate: "2025-01",
+            },
+            {
+              raw: "2020-01~2021-01 某机床公司 销售工程师",
+              companyName: "某机床公司",
+              jobTitle: "销售工程师",
+              description: "负责客户开发与报价跟进",
+              startDate: "2020-01",
+              endDate: "2021-01",
+            },
+          ],
+        },
+      ],
+    });
+
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+
+    expect(salesRole).toBeDefined();
+    expect(salesRole?.years ?? 0).toBeGreaterThan(4);
+    expect(salesRole?.roleRelevantYears).toBeCloseTo(1, 1);
+  });
+
+  it("should ignore generic company boilerplate sales mentions on engineer resumes", () => {
+    const result = service.computeOne("resume-engineer-company-boilerplate", {
+      data: [
+        {
+          ...SAMPLE_RESUME_ENGINEER.data[0],
+          jobIntention: "自动化设计工程师",
+          selfIntro: "长期从事自动化设备开发、编程与调试。",
+          workHistory: [
+            {
+              raw: "2019-01~2024-12 深圳通信科技有限公司 自动化设计工程师",
+              companyName: "深圳通信科技有限公司",
+              jobTitle: "自动化设计工程师",
+              description: "公司致力于各类通信产品的研发、制造和销售，负责自动化设备开发导入、PLC编程与现场调试。",
+              startDate: "2019-01",
+              endDate: "2024-12",
+            },
+          ],
+        },
+      ],
+    });
+
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+    const engineerRole = result.roleSignals.find((item) => item.type === "engineer");
+
+    expect(salesRole).toBeUndefined();
+    expect(engineerRole).toBeDefined();
+    expect(engineerRole?.matchedSignals).toEqual(expect.arrayContaining(["工程师", "开发", "编程", "调试"]));
+    expect(engineerRole?.years).toBeGreaterThan(5);
+  });
+
   it("should recognize English business-development sales titles in work history", () => {
     const result = service.computeOne("resume-bd-manager", {
       data: [

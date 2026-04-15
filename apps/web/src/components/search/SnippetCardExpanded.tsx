@@ -9,10 +9,20 @@ import { cn } from '@/lib/utils'
 import { getResumeContentLocale, isSafeProfileUrl } from '@/lib/resume-scoring'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
+import type { CandidateActionType, CandidateStatus } from '@/types/resume'
+
 type SnippetCardExpandedProps = {
   item: ResumeSearchResultItem
   showAiScore?: boolean
   onViewDetails?: () => void
+  // actions
+  actionType?: CandidateActionType
+  onAction?: (resumeId: string, actionType: CandidateActionType) => void
+  candidateStatus?: CandidateStatus
+  onCandidateStatusChange?: (identityKey: string, status: CandidateStatus, notes?: string) => void
+  statusOptions?: Array<{ value: CandidateStatus; labelKey: string }>
+  onBlockTrigger?: () => void
+  onNoteTrigger?: () => void
 }
 
 function formatSnakeCaseLabel(value: string): string {
@@ -44,7 +54,18 @@ function buildWorkHistorySupplement(entry: {
   return remainder.replace(/\s+/g, ' ').replace(/^[·•|/~-]+|[·•|/~-]+$/g, '').trim()
 }
 
-export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }: SnippetCardExpandedProps) {
+export function SnippetCardExpanded({
+  item,
+  showAiScore = false,
+  onViewDetails,
+  actionType,
+  onAction,
+  candidateStatus,
+  onCandidateStatusChange,
+  statusOptions,
+  onBlockTrigger,
+  onNoteTrigger,
+}: SnippetCardExpandedProps) {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const contentLocale = getResumeContentLocale(item.resume)
@@ -52,76 +73,76 @@ export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }
   const hasAiAnalysis = item.scoreSource === 'ai' && Boolean(analysis)
   const pendingAiAnalysis = showAiScore && !hasAiAnalysis
   const scoreSourceLabel = hasAiAnalysis
-    ? t('resumes.searchPage.card.aiAnalysis', { defaultValue: 'AI analysis' })
+    ? t('resumes.searchPage.card.aiAnalysis', { defaultValue: 'AI 分析' })
     : pendingAiAnalysis
-      ? t('resumes.searchPage.card.aiAnalysisPending', { defaultValue: 'AI analysis pending' })
-      : t('resumes.searchPage.card.scoreSource', { defaultValue: 'Score source' })
+      ? t('resumes.searchPage.card.aiAnalysisPending', { defaultValue: 'AI 分析中' })
+      : t('resumes.searchPage.card.scoreSource', { defaultValue: '评分来源' })
   let scoreBadgeLabel: string | null = null
   if (hasAiAnalysis && typeof item.score === 'number') {
     scoreBadgeLabel = t('resumes.searchPage.card.aiScoreShort', {
       score: Math.round(item.score),
-      defaultValue: 'AI {{score}}',
+      defaultValue: 'AI {{score}}分',
     })
   } else if (showAiScore) {
-    scoreBadgeLabel = t('resumes.searchPage.card.aiPending', { defaultValue: 'AI pending' })
+    scoreBadgeLabel = t('resumes.searchPage.card.aiPending', { defaultValue: 'AI 测算中' })
   } else if (typeof item.score === 'number') {
     scoreBadgeLabel = item.scoreSource === 'ai'
       ? t('resumes.searchPage.card.aiScoreShort', {
         score: Math.round(item.score),
-        defaultValue: 'AI {{score}}',
+        defaultValue: 'AI {{score}}分',
       })
       : t('resumes.searchPage.card.ruleScoreShort', {
         score: Math.round(item.score),
-        defaultValue: 'Rule {{score}}',
+        defaultValue: '规则 {{score}}分',
       })
   }
   const scoreBadgeClassName = pendingAiAnalysis
     ? 'whitespace-nowrap uppercase border-slate-200 bg-slate-50 text-slate-600'
     : 'whitespace-nowrap uppercase'
   const snapshotLabel = t('resumes.searchPage.card.snapshot', {
-    defaultValue: 'Snapshot',
+    defaultValue: '简历快照',
   })
   const recentWorkLabel = t('resumes.searchPage.card.recentWork', {
-    defaultValue: 'Recent work',
+    defaultValue: '最近工作',
   })
   const analysisBreakdownLabel = t('resumes.searchPage.card.analysisBreakdown', {
-    defaultValue: 'Analysis Breakdown',
+    defaultValue: '分析细节',
   })
   const noDetailedBreakdownLabel = t('resumes.searchPage.card.noDetailedBreakdown', {
-    defaultValue: 'No detailed breakdown available',
+    defaultValue: '暂无详细分数拆解',
   })
   const noSummaryLabel = t('resumes.searchPage.card.noSummary', {
-    defaultValue: 'No summary available for this resume yet.',
+    defaultValue: '该简历暂无AI摘要。',
   })
   const noStructuredWorkHistoryLabel = t('resumes.searchPage.card.noStructuredWorkHistory', {
-    defaultValue: 'No structured work history available.',
+    defaultValue: '暂无结构化工作经历。',
   })
   const noLocationLabel = t('resumes.searchPage.card.noLocation', {
-    defaultValue: 'No location',
+    defaultValue: '无地点',
   })
   const noEducationLabel = t('resumes.searchPage.card.noEducation', {
-    defaultValue: 'No education listed',
+    defaultValue: '无学历信息',
   })
   const resumeMetadataLabel = t('resumes.searchPage.card.resumeMetadata', {
-    defaultValue: 'Resume metadata',
+    defaultValue: '简历元数据',
   })
   const signalsLabel = t('resumes.searchPage.card.signals', {
-    defaultValue: 'Signals',
+    defaultValue: '核心信号',
   })
   const openSourceProfileLabel = t('resumes.searchPage.card.openSourceProfile', {
-    defaultValue: 'Open source profile',
+    defaultValue: '开源档案',
   })
   const viewDetailsLabel = t('resumes.actions.view', {
-    defaultValue: 'View details',
+    defaultValue: '查看详情',
   })
   const aiSummaryUnavailableLabel = t('resumes.searchPage.card.aiSummaryUnavailable', {
-    defaultValue: 'AI analysis is not available for this resume yet. The score will appear after analysis completes.',
+    defaultValue: '该简历暂未进行 AI 分析。分析完成后将显示评分。',
   })
   const summaryUnavailableLabel = t('resumes.searchPage.card.summaryUnavailable', {
-    defaultValue: 'AI summary is not available for this resume. The current visible score comes from rule scoring only.',
+    defaultValue: '该简历暂无 AI 摘要。当前显示分数为规则评分。',
   })
   const statusLabel = t('resumes.searchPage.card.status', {
-    defaultValue: 'Status',
+    defaultValue: '候选人状态',
   })
   const statusValueLabel = t(`resumes.status.options.${item.status}`, {
     defaultValue: formatSnakeCaseLabel(item.status),
@@ -210,7 +231,7 @@ export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }
                 {analysis.highlights.length > 0 ? (
                   <div className="space-y-2">
                     <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                      {t('resumes.searchPage.card.highlights', { defaultValue: 'Highlights' })}
+                      {t('resumes.searchPage.card.highlights', { defaultValue: '亮点' })}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {analysis.highlights.slice(0, 6).map((highlight) => (
@@ -223,7 +244,7 @@ export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }
                 {analysis.concerns && analysis.concerns.length > 0 ? (
                   <div className="space-y-2">
                     <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                      {t('resumes.searchPage.card.concerns', { defaultValue: 'Concerns' })}
+                      {t('resumes.searchPage.card.concerns', { defaultValue: '风险' })}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {analysis.concerns.slice(0, 6).map((concern) => (
@@ -298,13 +319,93 @@ export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }
             </div>
           </div>
 
-          {onViewDetails || hasProfileUrl ? (
+          {/* Candidate Pipeline section */}
+          <div className="rounded-3xl border bg-white p-4">
+            <div className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              {t('resumes.card.pipelineActions', { defaultValue: '流程操作' })}
+            </div>
+            <div className="flex flex-col gap-2">
+              {/* Status Select */}
+              {onCandidateStatusChange && statusOptions ? (
+                <div className="flex items-center justify-between gap-3 text-sm text-slate-700">
+                  <span className="font-medium text-xs">{statusLabel}</span>
+                  <select
+                    className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    value={candidateStatus}
+                    onChange={(event) => {
+                      const nextStatus = event.target.value as CandidateStatus
+                      if (nextStatus) {
+                        onCandidateStatusChange(item.identityKey, nextStatus)
+                      }
+                    }}
+                  >
+                    {statusOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
+              {/* Action Buttons Grid */}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {onAction ? (
+                  <>
+                    <Button
+                      variant={actionType === 'shortlist' ? 'default' : 'outline'}
+                      size="sm"
+                      className="w-full justify-start gap-2"
+                      onClick={() => onAction(item.resume.resumeId, 'shortlist')}
+                    >
+                      <BriefcaseBusiness className="h-3.5 w-3.5" />
+                      {t('resumes.actions.shortlist', { defaultValue: '入选' })}
+                    </Button>
+                    <Button
+                      variant={actionType === 'reject' ? 'destructive' : 'outline'}
+                      size="sm"
+                      className="w-full justify-start gap-2"
+                      onClick={() => onAction(item.resume.resumeId, 'reject')}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      {t('resumes.actions.reject', { defaultValue: '淘汰' })}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start gap-2"
+                      onClick={() => onAction(item.resume.resumeId, 'contact')}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      {t('resumes.actions.contact', { defaultValue: '联系' })}
+                    </Button>
+                  </>
+                ) : null}
+
+                {onNoteTrigger ? (
+                  <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={onNoteTrigger}>
+                    <School className="h-3.5 w-3.5" />
+                    {t('resumes.status.notes', { defaultValue: '备注' })}
+                  </Button>
+                ) : null}
+
+                {onBlockTrigger ? (
+                  <Button variant={item.blocked ? 'destructive' : 'outline'} size="sm" className="w-full justify-start gap-2 col-span-2" onClick={onBlockTrigger}>
+                    <MapPin className="h-3.5 w-3.5" />
+                    {item.blocked
+                      ? t('resumes.card.unblock', { defaultValue: '解除屏蔽' })
+                      : t('resumes.card.block', { defaultValue: '屏蔽' })}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {(onViewDetails || hasProfileUrl) ? (
             <div className="flex flex-col gap-2">
               {onViewDetails ? (
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full justify-center rounded-full"
+                  className="w-full justify-center rounded-xl"
                   onClick={onViewDetails}
                 >
                   {viewDetailsLabel}
@@ -315,7 +416,7 @@ export function SnippetCardExpanded({ item, showAiScore = false, onViewDetails }
                   href={profileUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className={cn(buttonVariants({ variant: 'outline' }), 'w-full justify-center rounded-full')}
+                  className={cn(buttonVariants({ variant: 'outline' }), 'w-full justify-center rounded-xl')}
                 >
                   {openSourceProfileLabel}
                   <ExternalLink className="ml-2 h-4 w-4" />

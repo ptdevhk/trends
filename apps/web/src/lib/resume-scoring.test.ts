@@ -11,6 +11,7 @@ import {
   hasIngestData,
   isAutoFilteredAnalysis,
   overrideIndustryDbBreakdown,
+  recommendationFromScore,
   toIndustryDbV2Stats,
   toMatchBreakdown,
   toRecommendation,
@@ -75,6 +76,15 @@ describe('resume-scoring', () => {
   it('falls back recommendation to potential', () => {
     expect(toRecommendation('match')).toBe('match')
     expect(toRecommendation('unknown')).toBe('potential')
+  })
+
+  it.each([
+    { score: 85, expected: 'strong_match' },
+    { score: 70, expected: 'match' },
+    { score: 40, expected: 'potential' },
+    { score: 39, expected: 'no_match' },
+  ])('derives recommendation from normalized score $score', ({ score, expected }) => {
+    expect(recommendationFromScore(score)).toBe(expected)
   })
 
   it('passes through valid breakdown with AI prompt keys', () => {

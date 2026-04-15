@@ -1,6 +1,6 @@
 ---
-version: 8
-updated_at: '2026-03-27'
+version: 9
+updated_at: '2026-04-15'
 description: >
   简历筛选技能知识库（zh-Hans 主文件）。
   用于背景计算代理的确定性匹配、同义词扩展与预评分。
@@ -70,6 +70,14 @@ description: >
 ### junior
 - displayName: 初级
 - keywords: 应届, 实习, 助理, assistant, trainee, intern, 学习, 协助, 初级
+
+## 角色信号策略
+
+### sales
+- directTitleSignals: 销售工程师, 销售经理, 销售主管, 业务拓展, 业务开发, account manager, key account manager, business development manager, channel manager, channel sales, sales engineer, sales manager, sales supervisor
+- contextSignals: 销售, 业务, 大客户, 渠道, 客户开发, sales, account, key account, business development, bd
+- auxiliaryPrefixes: 配合, 协助, 辅助, 支持, 协同
+- directDutyCues: 客户, 渠道, 订单, 回款, 报价, 开拓, 拓展, 拜访, 维护, 成交, 合同, 经销, 代理商, 经销商, 大客户
 
 ## 公司数据库
 

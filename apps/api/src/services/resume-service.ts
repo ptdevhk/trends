@@ -141,6 +141,7 @@ function normalizeMatchedWorkEntries(value: unknown): ResumeIngestMatchedWorkEnt
 
       const companyName = toStringValue(item.companyName) || undefined;
       const jobTitle = toStringValue(item.jobTitle) || undefined;
+      const directRoleMatch = typeof item.directRoleMatch === "boolean" ? item.directRoleMatch : undefined;
 
       return {
         ...(companyName ? { companyName } : {}),
@@ -148,6 +149,7 @@ function normalizeMatchedWorkEntries(value: unknown): ResumeIngestMatchedWorkEnt
         years,
         industryVerified: item.industryVerified === true,
         matchedSignals: toStringArray(item.matchedSignals),
+        ...(directRoleMatch === undefined ? {} : { directRoleMatch }),
       } satisfies ResumeIngestMatchedWorkEntry;
     })
     .filter((item): item is ResumeIngestMatchedWorkEntry => item !== null);

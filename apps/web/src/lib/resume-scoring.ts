@@ -112,6 +112,26 @@ export function toRecommendation(value: string): Recommendation {
   return isRecommendation(value) ? value : 'potential'
 }
 
+export function recommendationFromScore(score: number): Recommendation {
+  if (!Number.isFinite(score)) {
+    return 'no_match'
+  }
+
+  if (score >= 85) {
+    return 'strong_match'
+  }
+
+  if (score >= 70) {
+    return 'match'
+  }
+
+  if (score >= 40) {
+    return 'potential'
+  }
+
+  return 'no_match'
+}
+
 export function getRoleLabel(type: string): string {
   const normalized = type.trim().toLowerCase()
   return ROLE_LABELS[normalized] ?? type

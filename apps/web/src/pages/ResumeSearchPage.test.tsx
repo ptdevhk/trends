@@ -66,6 +66,11 @@ vi.mock('@/components/search/SearchHero', () => ({
     onApplyQuickStart?: (seed: {
       keywords: string[]
       location: string
+      minRoleYears?: number
+      roleFilterType?: string
+      minExperience?: number
+      minAge?: number
+      maxAge?: number
     }) => void
     onAiModeChange: (enabled: boolean) => void
     onToggleHotKeyword?: (keyword: string) => void
@@ -97,6 +102,22 @@ vi.mock('@/components/search/SearchHero', () => ({
         }
       >
         Apply Hero Quick Start
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onApplyQuickStart?.({
+            keywords: ['CNC', 'Sales'],
+            location: 'Kuala Lumpur MY',
+            minRoleYears: 3,
+            roleFilterType: 'sales',
+            minExperience: 5,
+            minAge: 25,
+            maxAge: 40,
+          })
+        }
+      >
+        Apply Hero Quick Start Role Years
       </button>
       <button type="button" onClick={() => onToggleHotKeyword?.('CNC')}>
         Toggle Hero Hot Keyword
@@ -503,6 +524,47 @@ describe('ResumeSearchPage', () => {
     )
     expect(state.setQueryInput).toHaveBeenCalledWith(
       formatKeywordQuery(['machine', 'tools', 'CNC']),
+    )
+  })
+
+  it('forwards quick-start role-year constraints into submitSearch', async () => {
+    const user = userEvent.setup()
+    const state = createResumeSearchState({
+      queryInput: 'machine tools',
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+    useIndustryKeywordsMock.mockReturnValue({
+      hotKeywords: [],
+      quickStartProfiles: [
+        {
+          id: 'profile-1',
+          label: 'Malaysia · SEEK · CNC Sales',
+          market: 'MY',
+          location: 'Kuala Lumpur MY',
+          keywords: ['CNC', 'Sales'],
+          quickStart: {
+            enabled: true,
+          },
+        },
+      ],
+    })
+
+    render(<ResumeSearchPage />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Apply Hero Quick Start Role Years' }),
+    )
+
+    expect(state.submitSearch).toHaveBeenCalledWith(
+      formatKeywordQuery(['CNC', 'Sales']),
+      {
+        location: 'Kuala Lumpur MY',
+        minRoleYears: 3,
+        roleFilterType: 'sales',
+        minAge: 25,
+        maxAge: 40,
+        minExperience: undefined,
+      },
     )
   })
 

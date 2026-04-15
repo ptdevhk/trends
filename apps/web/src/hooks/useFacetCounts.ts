@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { FacetCounts, FacetValueCount, ResumeSearchResultItem } from '@/components/search/search-types'
 import {
   createTaxonomyClusterResolver,
@@ -56,6 +57,7 @@ export function useFacetCounts(
   results: ResumeSearchResultItem[],
   taxonomyClusters?: TaxonomyClusterInput[],
 ): FacetCounts {
+  const { t } = useTranslation()
   return useMemo(() => {
     const limitedResults = results.slice(0, 2000)
     const taxonomyResolver = createTaxonomyClusterResolver(taxonomyClusters)
@@ -85,14 +87,25 @@ export function useFacetCounts(
       count: limitedResults.filter((item) => (item.score ?? 0) >= threshold).length,
     }))
 
+    const statusLabels = new Map<string, string>([
+      ['new', t('resumes.status.options.new')],
+      ['contacted', t('resumes.status.options.contacted')],
+      ['interviewing', t('resumes.status.options.interviewing')],
+      ['interviewed_pass', t('resumes.status.options.interviewed_pass')],
+      ['interviewed_reject', t('resumes.status.options.interviewed_reject')],
+      ['offer', t('resumes.status.options.offer')],
+      ['hired', t('resumes.status.options.hired')],
+      ['withdrawn', t('resumes.status.options.withdrawn')],
+    ])
+
     return {
       clusters: toSortedCounts(clusterCounts, clusterLabels),
       tags: toSortedCounts(tagCounts),
       companies: toSortedCounts(companyCounts),
       experienceLevels: toSortedCounts(experienceCounts),
       education: toSortedCounts(educationCounts),
-      statuses: toSortedCounts(statusCounts),
+      statuses: toSortedCounts(statusCounts, statusLabels),
       minScoreOptions,
     }
-  }, [results, taxonomyClusters])
+  }, [results, taxonomyClusters, t])
 }
