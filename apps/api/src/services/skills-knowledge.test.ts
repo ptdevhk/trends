@@ -54,6 +54,14 @@ description: Test skills knowledge file
 - displayName: Junior Level
 - keywords: 应届, 实习, assistant, intern
 
+## Role Signal Policy
+
+### sales
+- directTitleSignals: 销售工程师, 销售经理, 业务拓展, account manager, key account manager, business development manager, channel manager
+- contextSignals: 销售, 业务, 大客户, 渠道, sales, account, business development, bd
+- auxiliaryPrefixes: 配合, 协助, 辅助, 支持, 协同
+- directDutyCues: 客户, 渠道, 订单, 回款, 报价, 开拓, 拓展, 拜访, 维护, 成交, 合同
+
 ## Company Patterns
 
 - FANUC [role: both] (aliases: 发那科, Fanuc)
@@ -239,6 +247,33 @@ describe("SkillsKnowledgeService", () => {
       expect(junior?.displayName).toBe("Junior Level");
       expect(junior?.keywords).toContain("应届");
       expect(junior?.keywords).toContain("intern");
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("parses role signal policy for sales", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new SkillsKnowledgeService(root);
+      const policy = service.getRoleSignalPolicy();
+
+      expect(policy.sales).toBeDefined();
+      expect(policy.sales?.directTitleSignals).toEqual(expect.arrayContaining([
+        "销售工程师",
+        "销售经理",
+        "account manager",
+        "business development manager",
+      ]));
+      expect(policy.sales?.contextSignals).toEqual(expect.arrayContaining([
+        "销售",
+        "渠道",
+        "sales",
+        "business development",
+      ]));
+      expect(policy.sales?.auxiliaryPrefixes).toEqual(expect.arrayContaining(["配合", "协助", "支持"]));
+      expect(policy.sales?.directDutyCues).toEqual(expect.arrayContaining(["客户", "订单", "合同"]));
     } finally {
       cleanupFixtureRoot(root);
     }

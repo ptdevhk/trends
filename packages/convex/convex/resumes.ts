@@ -9,6 +9,7 @@ import {
     buildWorkHistoryEntryText,
     formatLocationHierarchySearchText,
     formatLocationHierarchyLabel,
+    getRoleSignalYears,
     isResumeAnalysisKeyForJobDescription,
     isLocationMatch,
     normalizeKeywordPhrases,
@@ -278,6 +279,7 @@ type ResumeListProjectedDoc = {
                 years: number;
                 industryVerified: boolean;
                 matchedSignals: string[];
+                directRoleMatch?: boolean;
             }>;
             verifyIn: string;
         }>;
@@ -591,6 +593,20 @@ function projectResumeListIngestData(
                     ...(signal.industryVerifiedYears === undefined ? {} : { industryVerifiedYears: signal.industryVerifiedYears }),
                     ...(signal.roleRelevantYears === undefined ? {} : { roleRelevantYears: signal.roleRelevantYears }),
                     ...(signal.industryVerifiedRelevantYears === undefined ? {} : { industryVerifiedRelevantYears: signal.industryVerifiedRelevantYears }),
+                    ...(signal.matchedWorkEntries
+                        ? {
+                            matchedWorkEntries: signal.matchedWorkEntries.map((entry) => ({
+                                ...(entry.companyName ? { companyName: entry.companyName } : {}),
+                                ...(entry.jobTitle ? { jobTitle: entry.jobTitle } : {}),
+                                years: entry.years,
+                                industryVerified: entry.industryVerified,
+                                matchedSignals: entry.matchedSignals,
+                                ...(typeof entry.directRoleMatch === "boolean"
+                                    ? { directRoleMatch: entry.directRoleMatch }
+                                    : {}),
+                            })),
+                        }
+                        : {}),
                     verifyIn: signal.verifyIn,
                 })),
             }
@@ -755,28 +771,7 @@ function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined
         return 0;
     }
 
-    const normalizedRoleType = toOptionalStringValue(roleType)?.toLowerCase() ?? "";
-    if (!normalizedRoleType) {
-        return roleSignals.reduce((maxYears, signal) => {
-            const relevantYears = typeof signal.roleRelevantYears === "number" && Number.isFinite(signal.roleRelevantYears)
-                ? signal.roleRelevantYears
-                : signal.years;
-            if (typeof relevantYears !== "number" || !Number.isFinite(relevantYears)) {
-                return maxYears;
-            }
-            return Math.max(maxYears, relevantYears);
-        }, 0);
-    }
-
-    const roleSignal = roleSignals.find((signal) => signal.type.trim().toLowerCase() === normalizedRoleType);
-    const relevantYears = typeof roleSignal?.roleRelevantYears === "number" && Number.isFinite(roleSignal.roleRelevantYears)
-        ? roleSignal.roleRelevantYears
-        : roleSignal?.years;
-    if (!roleSignal || typeof relevantYears !== "number" || !Number.isFinite(relevantYears)) {
-        return 0;
-    }
-
-    return relevantYears;
+    return getRoleSignalYears(roleSignals, toOptionalStringValue(roleType)?.toLowerCase() ?? "");
 }
 
 function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFilterArgs | undefined): boolean {
@@ -2201,6 +2196,7 @@ export const updateIngestData = internalMutation({
                     years: v.number(),
                     industryVerified: v.boolean(),
                     matchedSignals: v.array(v.string()),
+                    directRoleMatch: v.optional(v.boolean()),
                 }))),
                 verifyIn: v.string(),
             }))),
@@ -2292,6 +2288,7 @@ export const updateIngestDataBatch = internalMutation({
                         years: v.number(),
                         industryVerified: v.boolean(),
                         matchedSignals: v.array(v.string()),
+                        directRoleMatch: v.optional(v.boolean()),
                     }))),
                     verifyIn: v.string(),
                 }))),

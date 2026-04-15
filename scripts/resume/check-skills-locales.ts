@@ -33,6 +33,13 @@ type CompanyPattern = {
   aliases: string[];
 };
 
+type SalesRolePolicy = {
+  directTitleSignals: string[];
+  contextSignals: string[];
+  auxiliaryPrefixes: string[];
+  directDutyCues: string[];
+};
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..", "..");
 const zhPath = path.join(repoRoot, "config", "resume", "skills.md");
@@ -43,6 +50,7 @@ const SECTION_ALIASES = {
   synonymTable: ["Synonym Table", "同义词表"],
   experienceSignals: ["Experience Signals", "经验等级信号"],
   companyPatterns: ["Company Patterns", "公司数据库"],
+  roleSignalPolicy: ["Role Signal Policy", "角色信号策略"],
   exclusionPatterns: ["Exclusion Patterns", "排除模式"],
   learningLog: ["Learning Log", "学习日志"],
 } as const;
@@ -223,6 +231,56 @@ function parseCompanyPatterns(section: string): CompanyPattern[] {
     });
 }
 
+function parseRoleSignalPolicy(section: string): { sales?: SalesRolePolicy } {
+  const lines = section.split("\n");
+  let inSalesBlock = false;
+  const parsed: SalesRolePolicy = {
+    directTitleSignals: [],
+    contextSignals: [],
+    auxiliaryPrefixes: [],
+    directDutyCues: [],
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("### ")) {
+      inSalesBlock = trimmed.slice(4).trim().toLowerCase() === "sales";
+      continue;
+    }
+
+    if (!inSalesBlock) {
+      continue;
+    }
+
+    if (trimmed.startsWith("- directTitleSignals:")) {
+      parsed.directTitleSignals = parseCsv(trimmed.slice("- directTitleSignals:".length).trim());
+      continue;
+    }
+    if (trimmed.startsWith("- contextSignals:")) {
+      parsed.contextSignals = parseCsv(trimmed.slice("- contextSignals:".length).trim());
+      continue;
+    }
+    if (trimmed.startsWith("- auxiliaryPrefixes:")) {
+      parsed.auxiliaryPrefixes = parseCsv(trimmed.slice("- auxiliaryPrefixes:".length).trim());
+      continue;
+    }
+    if (trimmed.startsWith("- directDutyCues:")) {
+      parsed.directDutyCues = parseCsv(trimmed.slice("- directDutyCues:".length).trim());
+    }
+  }
+
+  if (
+    parsed.directTitleSignals.length === 0
+    && parsed.contextSignals.length === 0
+    && parsed.auxiliaryPrefixes.length === 0
+    && parsed.directDutyCues.length === 0
+  ) {
+    return {};
+  }
+
+  return { sales: parsed };
+}
+
 function parseExclusionTokens(section: string): string[] {
   const line = section
     .split("\n")
@@ -286,6 +344,11 @@ async function run(): Promise<void> {
     "company patterns",
     parseCompanyPatterns(getSection(zhSections, SECTION_ALIASES.companyPatterns, zhPath)),
     parseCompanyPatterns(getSection(enSections, SECTION_ALIASES.companyPatterns, enPath)),
+  );
+  compareValue(
+    "role signal policy",
+    parseRoleSignalPolicy(getSection(zhSections, SECTION_ALIASES.roleSignalPolicy, zhPath)),
+    parseRoleSignalPolicy(getSection(enSections, SECTION_ALIASES.roleSignalPolicy, enPath)),
   );
   compareValue(
     "exclusion patterns",

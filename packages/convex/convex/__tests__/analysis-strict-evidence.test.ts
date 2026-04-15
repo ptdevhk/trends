@@ -276,6 +276,100 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.recommendation).toBe("potential");
   });
 
+  it("does not apply the sales related_exp floor for description-only sales support", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 20,
+        recommendation: "potential",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 35,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 6,
+              roleRelevantYears: 6,
+              matchedSignals: ["销售"],
+              matchedWorkEntries: [
+                {
+                  jobTitle: "项目工程师",
+                  years: 6,
+                  industryVerified: false,
+                  matchedSignals: ["销售"],
+                  directRoleMatch: false,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+      }
+    );
+
+    expect(normalized.breakdown?.related_exp).toBe(35);
+    expect(normalized.score).toBe(18);
+    expect(normalized.recommendation).toBe("no_match");
+  });
+
+  it("applies the sales related_exp floor for direct business development titles", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 20,
+        recommendation: "potential",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 35,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 4,
+              roleRelevantYears: 4,
+              matchedSignals: ["business development manager"],
+              matchedWorkEntries: [
+                {
+                  jobTitle: "Business Development Manager",
+                  years: 4,
+                  industryVerified: true,
+                  matchedSignals: ["business development manager"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+      }
+    );
+
+    expect(normalized.breakdown?.related_exp).toBe(80);
+    expect(normalized.score).toBe(40);
+    expect(normalized.recommendation).toBe("potential");
+  });
+
   it("rewrites stale summary score mentions to the normalized score", () => {
     const normalized = normalizeAnalysisResult(
       {

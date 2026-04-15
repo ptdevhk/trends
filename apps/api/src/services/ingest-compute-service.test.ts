@@ -460,6 +460,41 @@ describe("IngestComputeService", () => {
     ]));
   });
 
+  it("should count only direct sales-title years as sales roleRelevantYears", () => {
+    const result = service.computeOne("resume-sales-support-vs-direct", {
+      data: [
+        {
+          ...SAMPLE_RESUME_ENGINEER.data[0],
+          extractedAt: "2026-04-15T00:00:00.000Z",
+          workHistory: [
+            {
+              raw: "2021-01~2025-01 某设备公司 项目工程师",
+              companyName: "某设备公司",
+              jobTitle: "项目工程师",
+              description: "参与销售商务谈判，协助代理商推进订单与验收",
+              startDate: "2021-01",
+              endDate: "2025-01",
+            },
+            {
+              raw: "2020-01~2021-01 某机床公司 销售工程师",
+              companyName: "某机床公司",
+              jobTitle: "销售工程师",
+              description: "负责客户开发与报价跟进",
+              startDate: "2020-01",
+              endDate: "2021-01",
+            },
+          ],
+        },
+      ],
+    });
+
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+
+    expect(salesRole).toBeDefined();
+    expect(salesRole?.years ?? 0).toBeGreaterThan(4);
+    expect(salesRole?.roleRelevantYears).toBeCloseTo(1, 1);
+  });
+
   it("should ignore generic company boilerplate sales mentions on engineer resumes", () => {
     const result = service.computeOne("resume-engineer-company-boilerplate", {
       data: [

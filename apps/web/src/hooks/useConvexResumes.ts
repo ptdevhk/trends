@@ -73,6 +73,7 @@ export type ConvexIngestData = {
       years: number
       industryVerified: boolean
       matchedSignals: string[]
+      directRoleMatch?: boolean
     }>
     verifyIn: string
   }>
@@ -153,6 +154,7 @@ type ResumeListDocLike = {
         years: number
         industryVerified: boolean
         matchedSignals: string[]
+        directRoleMatch?: boolean
       }>
       verifyIn: string
     }>

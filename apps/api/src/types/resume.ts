@@ -37,6 +37,7 @@ export type ResumeIngestMatchedWorkEntry = {
   years: number;
   industryVerified: boolean;
   matchedSignals: string[];
+  directRoleMatch?: boolean;
 };
 
 export type ResumeIngestRoleSignal = {

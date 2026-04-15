@@ -654,6 +654,102 @@ describe('useResumeSearchState', () => {
     expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
   })
 
+  it('infers sales role filtering from business-development query terms when minRoleYears is set', () => {
+    Object.assign(parsedStateMock, createParsedState({
+      query: 'CNC business development manager',
+      keywords: ['CNC', 'business development manager'],
+      filters: {
+        minRoleYears: 5,
+      },
+    }))
+
+    resumesMock.push(
+      createResume(1, {
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+          roleSignals: [
+            {
+              type: 'sales',
+              matchedSignals: ['business development manager'],
+              signalCount: 2,
+              occurrences: 1,
+              years: 3,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 3,
+              verifyIn: 'workHistory',
+            },
+            {
+              type: 'engineer',
+              matchedSignals: ['工程师'],
+              signalCount: 1,
+              occurrences: 2,
+              years: 8,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 8,
+              verifyIn: 'workHistory',
+            },
+          ],
+        },
+      }),
+      createResume(2, {
+        ingestData: {
+          industryTags: ['Machine Tools'],
+          synonymHits: [],
+          brandHits: [],
+          companyHits: ['FANUC'],
+          ruleScores: {},
+          experienceLevel: 'senior',
+          computedAt: Date.now(),
+          skillsVersion: 1,
+          roleSignals: [
+            {
+              type: 'sales',
+              matchedSignals: ['business development manager'],
+              signalCount: 2,
+              occurrences: 2,
+              years: 6,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 6,
+              verifyIn: 'workHistory',
+            },
+            {
+              type: 'engineer',
+              matchedSignals: ['工程师'],
+              signalCount: 1,
+              occurrences: 1,
+              years: 2,
+              industryVerifiedYears: 0,
+              roleRelevantYears: 2,
+              verifyIn: 'workHistory',
+            },
+          ],
+        },
+      }),
+    )
+
+    const { result } = renderHook(() => useResumeSearchState())
+
+    expect(useConvexResumesMock).toHaveBeenCalledWith(
+      expect.any(Number),
+      'CNC business development manager',
+      undefined,
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          minRoleYears: 5,
+          roleFilterType: 'sales',
+        }),
+      }),
+    )
+    expect(result.current.filteredResults.map((item) => item.key)).toEqual(['resume-2'])
+  })
+
   it('keeps an explicit role type over inferred sales intent', () => {
     Object.assign(parsedStateMock, createParsedState({
       query: 'CNC 销售',

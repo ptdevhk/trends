@@ -46,6 +46,7 @@ export interface MatchingRequest {
                 years: number;
                 industryVerified: boolean;
                 matchedSignals: string[];
+                directRoleMatch?: boolean;
             }>;
             verifyIn: string;
         }>;

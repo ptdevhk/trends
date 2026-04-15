@@ -1,4 +1,4 @@
-import { formatKeywordQuery, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, getRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -128,13 +128,9 @@ function queryImpliesSalesRole(
   const normalizedTokens = normalizeStringList([
     ...keywords,
     ...parseKeywordQuery(query ?? '').keywords,
-  ]).map((value) => value.toLowerCase())
+  ])
 
-  return normalizedTokens.some((token) => (
-    token === 'sales'
-    || token.includes('sales')
-    || token.includes('销售')
-  ))
+  return isSalesRequiredContext(query, ...normalizedTokens)
 }
 
 function resolveEffectiveRoleFilterType(state: UrlSearchState): string | undefined {
@@ -403,32 +399,10 @@ function getRoleYears(
     return 0
   }
 
-  const normalizedRoleType = normalizeOptionalString(roleType)?.toLowerCase() ?? ''
-  if (!normalizedRoleType) {
-    return roleSignals.reduce((maxYears, signal) => {
-      const relevantYears =
-        typeof signal.roleRelevantYears === 'number' && Number.isFinite(signal.roleRelevantYears)
-          ? signal.roleRelevantYears
-          : signal.years
-      if (typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
-        return maxYears
-      }
-      return Math.max(maxYears, relevantYears)
-    }, 0)
-  }
-
-  const roleSignal = roleSignals.find(
-    (signal) => signal.type.trim().toLowerCase() === normalizedRoleType,
+  return getRoleSignalYears(
+    roleSignals,
+    normalizeOptionalString(roleType)?.toLowerCase() ?? '',
   )
-  const relevantYears =
-    typeof roleSignal?.roleRelevantYears === 'number' && Number.isFinite(roleSignal.roleRelevantYears)
-      ? roleSignal.roleRelevantYears
-      : roleSignal?.years
-  if (!roleSignal || typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
-    return 0
-  }
-
-  return relevantYears
 }
 
 function matchesLocalFilters(

@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import {
     buildKeywordAnalysisId as buildSharedKeywordAnalysisId,
     getCurrentResumeAiPromptVersion,
+    isSalesRequiredContext,
 } from "@trends/shared";
 import {
     buildKeywordMatchingRules,
@@ -160,15 +161,11 @@ function inferTargetRoleType(config: {
     jobDescriptionTitle?: string;
     jobDescriptionContent?: string;
 }): "sales" | undefined {
-    const text = [
+    if (isSalesRequiredContext(
         ...(config.keywords ?? []),
-        config.jobDescriptionTitle ?? "",
-        config.jobDescriptionContent ?? "",
-    ]
-        .join(" ")
-        .toLowerCase();
-
-    if (text.includes("sales") || text.includes("销售")) {
+        config.jobDescriptionTitle,
+        config.jobDescriptionContent
+    )) {
         return "sales";
     }
 

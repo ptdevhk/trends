@@ -357,25 +357,32 @@ const INDUSTRY_DB_V2_CONTEXT_WEIGHTS: Record<Exclude<BrandContext, "employer">, 
   technical: 0.6,
   general: 0.3,
 };
+const DEFAULT_SALES_DIRECT_TITLE_SIGNALS = [
+  "销售工程师",
+  "销售经理",
+  "销售主管",
+  "业务拓展",
+  "业务开发",
+  "sales engineer",
+  "sales manager",
+  "account manager",
+  "key account manager",
+  "business development manager",
+  "channel manager",
+  "channel sales",
+];
+const DEFAULT_SALES_CONTEXT_SIGNALS = [
+  "销售",
+  "业务开发",
+  "大客户",
+  "渠道",
+  "sales",
+  "account",
+  "business development",
+  "bd",
+];
 const DEFAULT_ROLE_SIGNAL_LIBRARY: Record<string, string[]> = {
-  sales: [
-    "销售",
-    "业务开发",
-    "大客户",
-    "渠道",
-    "销售经理",
-    "销售工程师",
-    "sales",
-    "account",
-    "sales engineer",
-    "sales manager",
-    "account manager",
-    "key account manager",
-    "business development",
-    "business development manager",
-    "channel sales",
-    "channel manager",
-  ],
+  sales: Array.from(new Set([...DEFAULT_SALES_DIRECT_TITLE_SIGNALS, ...DEFAULT_SALES_CONTEXT_SIGNALS])),
   engineer: ["工程师", "设计", "研发", "开发", "编程", "调试", "维修", "技术", "engineer", "developer", "design"],
 };
 const ROLE_SIGNAL_MATCH_WEIGHTS = {
@@ -615,10 +622,83 @@ export class IngestComputeService {
   }
 
 
+  private getRoleSignalLibrary(): Record<string, string[]> {
+    const salesDirectTitleSignals = this.getSalesDirectTitleSignals();
+    const salesPolicy = this.skillsKnowledgeService.getRoleSignalPolicy().sales;
+    const salesSignals = Array.from(new Set([
+      ...salesDirectTitleSignals,
+      ...(salesPolicy?.contextSignals ?? DEFAULT_SALES_CONTEXT_SIGNALS),
+    ]))
+      .map((signal) => signal.trim().toLowerCase())
+      .filter((signal) => signal.length > 0);
+
+    return {
+      ...DEFAULT_ROLE_SIGNAL_LIBRARY,
+      sales: salesSignals.length > 0 ? salesSignals : DEFAULT_ROLE_SIGNAL_LIBRARY.sales,
+    };
+  }
+
+  private getSalesDirectTitleSignals(): string[] {
+    const salesPolicy = this.skillsKnowledgeService.getRoleSignalPolicy().sales;
+    const configured = (salesPolicy?.directTitleSignals ?? DEFAULT_SALES_DIRECT_TITLE_SIGNALS)
+      .map((value) => value.trim().toLowerCase())
+      .filter((value) => value.length > 0);
+    return configured.length > 0 ? configured : DEFAULT_SALES_DIRECT_TITLE_SIGNALS;
+  }
+
+  private getSalesAuxiliaryPrefixes(): string[] {
+    const salesPolicy = this.skillsKnowledgeService.getRoleSignalPolicy().sales;
+    const configured = (salesPolicy?.auxiliaryPrefixes ?? AUXILIARY_CONTEXT_PREFIXES)
+      .map((value) => value.trim().toLowerCase())
+      .filter((value) => value.length > 0);
+    return configured.length > 0 ? configured : AUXILIARY_CONTEXT_PREFIXES;
+  }
+
+  private getSalesDirectDutyCues(): string[] {
+    const salesPolicy = this.skillsKnowledgeService.getRoleSignalPolicy().sales;
+    const configured = (salesPolicy?.directDutyCues ?? DIRECT_SALES_DUTY_CUES)
+      .map((value) => value.trim().toLowerCase())
+      .filter((value) => value.length > 0);
+    return configured.length > 0 ? configured : DIRECT_SALES_DUTY_CUES;
+  }
+
+  private hasDirectRoleEvidence(
+    roleType: string,
+    matchedSignals: RoleSignalMatch[],
+    entry: ResumeWorkHistoryItem,
+    workHistoryText: string,
+    salesDirectTitleSignals: string[],
+  ): boolean {
+    if (roleType !== "sales") {
+      return true;
+    }
+
+    if (matchedSignals.some((signal) => signal.source === "jobTitle")) {
+      return true;
+    }
+
+    const normalizedEntry = normalizeWorkHistoryEntry(entry);
+    const normalizedJobTitle = normalizeText(normalizedEntry?.jobTitle);
+    if (normalizedJobTitle) {
+      return false;
+    }
+
+    const rawText = normalizeText(normalizedEntry?.raw || workHistoryText);
+    if (!rawText) {
+      return false;
+    }
+
+    return salesDirectTitleSignals.some((signal) => rawText.includes(signal));
+  }
+
   private computeRoleSignals(workHistory: ResumeWorkHistoryItem[], anchorDate: Date): RoleSignalSummary[] {
     if (!Array.isArray(workHistory) || workHistory.length === 0) {
       return [];
     }
+    const roleSignalLibrary = this.getRoleSignalLibrary();
+    const salesDirectTitleSignals = this.getSalesDirectTitleSignals();
+    const salesAuxiliaryPrefixes = this.getSalesAuxiliaryPrefixes();
+    const salesDirectDutyCues = this.getSalesDirectDutyCues();
 
     const roleSignalAccumulators = new Map<string, {
       signals: Map<string, { label: string; weight: number }>;
@@ -643,7 +723,7 @@ export class IngestComputeService {
       const jobTitle = normalizedEntry?.jobTitle || undefined;
       const industryVerification = this.industryDataService.verifyCompanyIndustry(companyName || "");
 
-      for (const [roleType, signals] of Object.entries(DEFAULT_ROLE_SIGNAL_LIBRARY)) {
+      for (const [roleType, signals] of Object.entries(roleSignalLibrary)) {
         const matchedSignals = this.resolveRoleSignalMatches(entry, workHistoryText, signals);
         if (matchedSignals.length === 0) {
           continue;
@@ -653,17 +733,34 @@ export class IngestComputeService {
         if (
           !hasJobTitleMatch
           && matchedSignals.length === 1
-          && this.isAuxiliaryContextMatch(entry, workHistoryText, matchedSignals[0])
+          && this.isAuxiliaryContextMatch(
+            entry,
+            workHistoryText,
+            matchedSignals[0],
+            roleType === "sales" ? salesAuxiliaryPrefixes : AUXILIARY_CONTEXT_PREFIXES,
+          )
         ) {
           continue;
         }
 
         if (
           roleType === "sales"
-          && this.isGenericCompanyBoilerplateMatch(entry, workHistoryText, matchedSignals)
+          && this.isGenericCompanyBoilerplateMatch(
+            entry,
+            workHistoryText,
+            matchedSignals,
+            salesDirectDutyCues,
+          )
         ) {
           continue;
         }
+        const directRoleMatch = this.hasDirectRoleEvidence(
+          roleType,
+          matchedSignals,
+          entry,
+          workHistoryText,
+          salesDirectTitleSignals,
+        );
 
         const existing = roleSignalAccumulators.get(roleType) ?? {
           signals: new Map<string, { label: string; weight: number }>(),
@@ -683,11 +780,15 @@ export class IngestComputeService {
         });
         existing.occurrences += 1;
         existing.years += years;
-        existing.roleRelevantYears += years;
+        if (directRoleMatch) {
+          existing.roleRelevantYears += years;
+        }
 
         if (industryVerification.verified) {
           existing.industryVerifiedYears += years;
-          existing.industryVerifiedRelevantYears += years;
+          if (directRoleMatch) {
+            existing.industryVerifiedRelevantYears += years;
+          }
         }
 
         existing.matchedWorkEntries.push({
@@ -696,6 +797,7 @@ export class IngestComputeService {
           years,
           industryVerified: industryVerification.verified,
           matchedSignals: matchedSignals.map((signal) => signal.label),
+          directRoleMatch,
         });
 
         roleSignalAccumulators.set(roleType, existing);
@@ -762,6 +864,7 @@ export class IngestComputeService {
     entry: ResumeWorkHistoryItem,
     workHistoryText: string,
     signal: RoleSignalMatch,
+    auxiliaryPrefixes: string[],
   ): boolean {
     if (signal.source === "jobTitle") {
       return false;
@@ -782,7 +885,7 @@ export class IngestComputeService {
     while (matchIndex !== -1) {
       foundMatch = true;
       const contextWindow = sourceText.slice(Math.max(0, matchIndex - AUXILIARY_CONTEXT_WINDOW), matchIndex);
-      const hasAuxiliaryPrefix = AUXILIARY_CONTEXT_PREFIXES.some((prefix) => contextWindow.includes(prefix));
+      const hasAuxiliaryPrefix = auxiliaryPrefixes.some((prefix) => contextWindow.includes(prefix));
       if (!hasAuxiliaryPrefix) {
         return false;
       }
@@ -797,6 +900,7 @@ export class IngestComputeService {
     entry: ResumeWorkHistoryItem,
     workHistoryText: string,
     matchedSignals: RoleSignalMatch[],
+    directSalesDutyCues: string[],
   ): boolean {
     if (matchedSignals.some((signal) => signal.source === "jobTitle")) {
       return false;
@@ -822,7 +926,7 @@ export class IngestComputeService {
     }
 
     return sourceTexts.some((sourceText) => {
-      const hasDirectSalesDutyCue = DIRECT_SALES_DUTY_CUES.some((cue) => sourceText.includes(cue));
+      const hasDirectSalesDutyCue = directSalesDutyCues.some((cue) => sourceText.includes(cue));
       if (hasDirectSalesDutyCue) {
         return false;
       }

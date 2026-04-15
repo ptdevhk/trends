@@ -5,6 +5,7 @@ import {
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
     getResumeAiUserPromptTemplate,
+    isSalesRequiredContext,
     resolveResumeAnalysisSourceKey,
     sanitizeResumeRecordForSurface,
     resolveResumeAiPromptLocale,
@@ -30,6 +31,7 @@ type NormalizedMatchedWorkEntry = {
     years: number;
     industryVerified: boolean;
     matchedSignals: string[];
+    directRoleMatch?: boolean;
 };
 
 type NormalizedRoleSignal = {
@@ -250,22 +252,22 @@ function inferSalesRelatedExpFloor(resume: unknown): number | undefined {
 
         const hasSignalEvidence = Array.isArray(rawSignal.matchedSignals)
             && rawSignal.matchedSignals.some(
-                (signal) => typeof signal === "string" && /sales|销售/i.test(signal)
+                (signal) => typeof signal === "string" && isSalesRequiredContext(signal)
             );
-        const hasWorkEntryEvidence = Array.isArray(rawSignal.matchedWorkEntries)
-            && rawSignal.matchedWorkEntries.some((rawEntry) => {
-                if (!isRecord(rawEntry)) {
-                    return false;
-                }
-                const hasSalesTitle = typeof rawEntry.jobTitle === "string" && /sales|销售/i.test(rawEntry.jobTitle);
-                const hasSalesSignal = Array.isArray(rawEntry.matchedSignals)
-                    && rawEntry.matchedSignals.some(
-                        (signal) => typeof signal === "string" && /sales|销售/i.test(signal)
-                    );
-                return hasSalesTitle || hasSalesSignal;
-            });
+        const workEntries = Array.isArray(rawSignal.matchedWorkEntries)
+            ? rawSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
+            : [];
+        const hasDirectRoleFlags = workEntries.some((rawEntry) => typeof rawEntry.directRoleMatch === "boolean");
+        const hasDirectRoleEvidence = workEntries.some((rawEntry) => rawEntry.directRoleMatch === true);
+        const hasLegacyWorkEntryEvidence = workEntries.some((rawEntry) => {
+            const jobTitle = typeof rawEntry.jobTitle === "string" ? rawEntry.jobTitle : undefined;
+            const matchedSignals = Array.isArray(rawEntry.matchedSignals)
+                ? rawEntry.matchedSignals.filter((signal): signal is string => typeof signal === "string")
+                : [];
+            return isSalesRequiredContext(jobTitle, ...matchedSignals);
+        });
 
-        if (hasSignalEvidence || hasWorkEntryEvidence) {
+        if (hasDirectRoleEvidence || (!hasDirectRoleFlags && (hasSignalEvidence || hasLegacyWorkEntryEvidence))) {
             return 80;
         }
     }
@@ -427,6 +429,9 @@ function parseRoleSignals(value: unknown): NormalizedRoleSignal[] {
                       years: entryYears,
                       industryVerified: entry.industryVerified === true,
                       matchedSignals: matchedEntrySignals,
+                      ...(typeof entry.directRoleMatch === "boolean"
+                          ? { directRoleMatch: entry.directRoleMatch }
+                          : {}),
                   }];
               })
             : undefined;
