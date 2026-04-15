@@ -137,7 +137,9 @@ async function runCollectUrlKeywordModeTest(page: Page) {
         }) as typeof window.open;
     });
 
-    await page.getByLabel(/采集页数上限|採集頁數上限|Collect page limit/i).fill('3');
+    const collectPageLimitInput = page.getByLabel(/采集页数上限|採集頁數上限|Collect page limit/i);
+    await collectPageLimitInput.waitFor({ state: 'visible' });
+    await collectPageLimitInput.fill('3');
     await page.getByRole('button', { name: /采集|Collect/i }).click();
 
     const openedUrls = await page.evaluate(() => {

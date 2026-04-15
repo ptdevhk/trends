@@ -373,7 +373,6 @@ async def process_task(task, client: httpx.AsyncClient):
                 "deduped": 0,
                 "identityDeduped": 0,
                 "identityMatched": 0,
-                "legacyExternalIdMatched": 0,
                 "inserted": 0,
                 "updated": 0,
                 "unchanged": 0,
@@ -402,7 +401,6 @@ async def process_task(task, client: httpx.AsyncClient):
                     submit_stats["deduped"] = int(submit_result.get("deduped", 0))
                     submit_stats["identityDeduped"] = int(submit_result.get("identityDeduped", 0))
                     submit_stats["identityMatched"] = int(submit_result.get("identityMatched", 0))
-                    submit_stats["legacyExternalIdMatched"] = int(submit_result.get("legacyExternalIdMatched", 0))
                     submit_stats["inserted"] = int(submit_result.get("inserted", 0))
                     submit_stats["updated"] = int(submit_result.get("updated", 0))
                     submit_stats["unchanged"] = int(submit_result.get("unchanged", 0))
@@ -455,7 +453,6 @@ async def process_task(task, client: httpx.AsyncClient):
                     "deduped": submit_stats["deduped"],
                     "identityDeduped": submit_stats.get("identityDeduped", 0),
                     "identityMatched": submit_stats.get("identityMatched", 0),
-                    "legacyExternalIdMatched": submit_stats.get("legacyExternalIdMatched", 0),
                     "inserted": submit_stats["inserted"],
                     "updated": submit_stats["updated"],
                     "unchanged": submit_stats["unchanged"],

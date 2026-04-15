@@ -4776,6 +4776,44 @@ app.post("/api/resumes/learning-feedback", async (c) => {
 });
 
 app.get("/api/resumes/skills-version", (c) => {
+app.get("/api/resumes/analysis-tasks", async (c) => {
+  try {
+    const tasks = (await callConvexQuery("analysis_tasks:list", {})) as Array<{
+      _id: string;
+      status: string;
+      _creationTime: number;
+      config?: {
+        jobDescriptionId?: string;
+        jobDescriptionTitle?: string;
+        keywords?: string[];
+        location?: string;
+        promptVersion?: number;
+        resumeCount?: number;
+      };
+      progress?: { current?: number; total?: number; skipped?: number };
+      results?: {
+        analyzed?: number;
+        failed?: number;
+        avgScore?: number;
+        highScoreCount?: number;
+      };
+      lastStatus?: string;
+      error?: string;
+    }>;
+
+    return c.json(
+      AnalysisTasksResponseSchema.parse({
+        success: true,
+        tasks,
+      }),
+      200,
+    );
+  } catch (error) {
+    console.error("Failed to list analysis tasks", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
   const version = skillsKnowledgeService.getVersion();
   return c.json({ success: true, version }, 200);
 });
@@ -5171,10 +5209,19 @@ app.post("/api/resumes/analyze", async (c) => {
   };
 
   try {
+    const canonicalKeywordQuery = normalizedQuery
+      ? formatKeywordQuery(normalizeKeywords(parseKeywordQuery(normalizedQuery).keywords))
+      : "";
+    const keywordExpansion = resumeService.expandSearchQuery(canonicalKeywordQuery);
+
     const searchArgs: Record<string, unknown> = {
-      query: normalizedQuery,
-      keywordGroups: [],
-      mode: "OR",
+      query: canonicalKeywordQuery || normalizedQuery,
+      keywordGroups: keywordExpansion?.groups ?? [],
+      mode: keywordExpansion?.mode ?? "OR",
+      sourceMappings: Object.entries(keywordExpansion?.sourceMapping ?? {}).map(([term, expandedFrom]) => ({
+        term,
+        expandedFrom,
+      })),
       ...(normalizedJobDescriptionId ? { jobDescriptionId: normalizedJobDescriptionId } : {}),
       ...(minExperience !== undefined ? { minExperience } : {}),
       ...(maxExperience !== undefined ? { maxExperience } : {}),
@@ -5261,43 +5308,5 @@ app.post("/api/resumes/analyze", async (c) => {
   }
 });
 
-app.get("/api/resumes/analysis-tasks", async (c) => {
-  try {
-    const tasks = (await callConvexQuery("analysis_tasks:list", {})) as Array<{
-      _id: string;
-      status: string;
-      _creationTime: number;
-      config?: {
-        jobDescriptionId?: string;
-        jobDescriptionTitle?: string;
-        keywords?: string[];
-        location?: string;
-        promptVersion?: number;
-        resumeCount?: number;
-      };
-      progress?: { current?: number; total?: number; skipped?: number };
-      results?: {
-        analyzed?: number;
-        failed?: number;
-        avgScore?: number;
-        highScoreCount?: number;
-      };
-      lastStatus?: string;
-      error?: string;
-    }>;
-
-    return c.json(
-      AnalysisTasksResponseSchema.parse({
-        success: true,
-        tasks,
-      }),
-      200,
-    );
-  } catch (error) {
-    console.error("Failed to list analysis tasks", error);
-    const message = error instanceof Error ? error.message : String(error);
-    return c.json({ success: false, error: message }, 500);
-  }
-});
 
 export default app;
