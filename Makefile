@@ -973,6 +973,13 @@ chrome-debug:
 	@chmod +x scripts/chrome-debug.sh
 	./scripts/chrome-debug.sh
 
+# Re-sync the debug-safe clone from the real Chrome profile before launch.
+# Chrome should be fully closed before running this target.
+chrome-debug-refresh:
+	@chmod +x scripts/chrome-debug.sh
+	./scripts/chrome-debug.sh --refresh-from-default
+
+
 # Remove generated/cached files
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
