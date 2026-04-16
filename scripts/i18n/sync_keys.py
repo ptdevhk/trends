@@ -99,6 +99,14 @@ def save_locale(locale: str, data: dict[str, Any]) -> None:
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
 
+def save_web_locale(locale: str, data: dict[str, Any]) -> None:
+    """Save a web locale JSON file."""
+    filepath = WEB_LOCALES_DIR / f"{locale}.json"
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+
+
 def check_locale_sync(
     source_data: dict[str, Any],
     target_data: dict[str, Any],
@@ -191,6 +199,24 @@ def fix_missing_keys(
     return target_data
 
 
+def remove_extra_keys(
+    target_data: dict[str, Any],
+    extra_keys: set[str],
+) -> dict[str, Any]:
+    """Remove extra keys from target that don't exist in source."""
+    for key in extra_keys:
+        keys = key.split(".")
+        current = target_data
+        for k in keys[:-1]:
+            if not isinstance(current, dict) or k not in current:
+                break
+            current = current[k]
+        else:
+            if isinstance(current, dict) and keys[-1] in current:
+                del current[keys[-1]]
+    return target_data
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Check i18n locale files for missing or extra keys"
@@ -271,6 +297,12 @@ def main() -> int:
                 print(format_key_list(extra_keys))
             else:
                 print(f"    Run with --verbose to see all keys")
+
+            if args.fix:
+                print(f"  Fixing: Removing {len(extra_keys)} extra keys...")
+                target_data = remove_extra_keys(target_data, extra_keys)
+                save_locale(locale, target_data)
+                print(f"  Fixed: {locale}.yaml updated")
         else:
             print(f"  No extra keys")
 
@@ -311,6 +343,12 @@ def main() -> int:
                 print(format_key_list(missing_keys))
             else:
                 print("    Run with --verbose to see all keys")
+
+            if args.fix:
+                print(f"  Fixing: Adding {len(missing_keys)} missing keys...")
+                target_data = fix_missing_keys(web_source_data, target_data, missing_keys, locale)
+                save_web_locale(locale, target_data)
+                print(f"  Fixed: {locale}.json updated")
         else:
             print("  No missing keys")
 
@@ -321,6 +359,12 @@ def main() -> int:
                 print(format_key_list(extra_keys))
             else:
                 print("    Run with --verbose to see all keys")
+
+            if args.fix:
+                print(f"  Fixing: Removing {len(extra_keys)} extra keys...")
+                target_data = remove_extra_keys(target_data, extra_keys)
+                save_web_locale(locale, target_data)
+                print(f"  Fixed: {locale}.json updated")
         else:
             print("  No extra keys")
 
