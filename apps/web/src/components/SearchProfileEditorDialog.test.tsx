@@ -321,7 +321,10 @@ describe('SearchProfileEditorDialog JD hydration', () => {
     await user.type(screen.getByLabelText('Name'), '51job extended profile')
     await user.type(screen.getByLabelText('关键词:'), '"Sales Engineer" OR "Sales Manager"')
     await user.click(screen.getByLabelText('51job eHire'))
-    await user.click(screen.getByLabelText('Allow extended 51job collection limits'))
+    await user.clear(screen.getByLabelText('Limit'))
+    await user.type(screen.getByLabelText('Limit'), '100')
+    await user.clear(screen.getByLabelText('Pages'))
+    await user.type(screen.getByLabelText('Pages'), '3')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
@@ -334,6 +337,8 @@ describe('SearchProfileEditorDialog JD hydration', () => {
               enabled: true,
               priority: 3,
               unsafeLimits: true,
+              job51CollectLimit: 100,
+              job51MaxPages: 3,
             }),
           ]),
         }),

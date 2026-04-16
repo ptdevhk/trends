@@ -381,6 +381,8 @@ export function SearchProfilesPage() {
           type: activeSource.type as CollectionSourceType,
           exactUrl: activeSource.jobUrl,
           unsafeLimits: activeSource.unsafeLimits,
+          job51CollectLimit: activeSource.job51CollectLimit,
+          job51MaxPages: activeSource.job51MaxPages,
         },
         location: detail.location,
         keywords: detail.keywords,

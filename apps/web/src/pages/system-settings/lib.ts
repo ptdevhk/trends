@@ -99,6 +99,8 @@ export interface CustomKeywordWorkflowSeed {
   collectionSource: {
     type: WorkflowSeedCollectionSourceType
     exactUrl?: string
+    job51CollectLimit?: number
+    job51MaxPages?: number
   }
   visible?: boolean
   source?: ConfigSourceOrigin
@@ -121,6 +123,8 @@ export interface WorkflowSeedFormState {
   keywords: string
   collectionSourceType: WorkflowSeedCollectionSourceType
   collectExactUrl: string
+  job51CollectLimit: string
+  job51MaxPages: string
   visible: boolean
 }
 
@@ -476,7 +480,14 @@ function parseWorkflowSeedCollectionSource(value: unknown): CustomKeywordWorkflo
   }
 
   const exactUrl = readString(value.exactUrl) ?? undefined
-  return exactUrl ? { type: value.type, exactUrl } : { type: value.type }
+  const job51CollectLimit = readNumber(value.job51CollectLimit)
+  const job51MaxPages = readNumber(value.job51MaxPages)
+  return {
+    type: value.type,
+    ...(exactUrl ? { exactUrl } : {}),
+    ...(typeof job51CollectLimit === 'number' ? { job51CollectLimit } : {}),
+    ...(typeof job51MaxPages === 'number' ? { job51MaxPages } : {}),
+  }
 }
 
 function parseWorkflowSeed(value: unknown): CustomKeywordWorkflowSeed | null {
@@ -751,6 +762,8 @@ export function createEmptyWorkflowSeedForm(): WorkflowSeedFormState {
     keywords: '',
     collectionSourceType: 'job5156',
     collectExactUrl: '',
+    job51CollectLimit: '',
+    job51MaxPages: '',
     visible: true,
   }
 }
@@ -764,6 +777,12 @@ export function workflowSeedToForm(seed: CustomKeywordWorkflowSeed): WorkflowSee
     keywords: seed.keywords.join(', '),
     collectionSourceType: seed.collectionSource.type,
     collectExactUrl: seed.collectionSource.exactUrl ?? '',
+    job51CollectLimit: typeof seed.collectionSource.job51CollectLimit === 'number'
+      ? String(seed.collectionSource.job51CollectLimit)
+      : '',
+    job51MaxPages: typeof seed.collectionSource.job51MaxPages === 'number'
+      ? String(seed.collectionSource.job51MaxPages)
+      : '',
     visible: seed.visible ?? true,
   }
 }

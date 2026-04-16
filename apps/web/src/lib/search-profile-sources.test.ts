@@ -75,6 +75,18 @@ describe('search-profile-sources', () => {
     })
   })
 
+  it('passes job51CollectLimit and job51MaxPages through getSearchProfileCollectionSource', () => {
+    const collectionSource = getSearchProfileCollectionSource([
+      { type: SEARCH_PROFILE_SOURCE_TYPES.job51, enabled: true, priority: 1, job51CollectLimit: 100, job51MaxPages: 3 },
+    ])
+
+    expect(collectionSource).toEqual({
+      type: SEARCH_PROFILE_SOURCE_TYPES.job51,
+      job51CollectLimit: 100,
+      job51MaxPages: 3,
+    })
+  })
+
   it('uses enabled priority order when selecting the active source', () => {
     const activeSource = getActiveSearchProfileSource([
       { type: SEARCH_PROFILE_SOURCE_TYPES.seek, enabled: true, priority: 2 },
@@ -176,6 +188,83 @@ describe('search-profile-sources', () => {
     expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
     expect(url.searchParams.get('tr_min_age')).toBe('25')
     expect(url.searchParams.get('tr_max_age')).toBe('40')
+  })
+
+  it('uses source-level job51CollectLimit overriding generic collectLimit', () => {
+    const collectUrl = buildJob51CollectUrl({
+      location: '东莞',
+      keywords: ['CNC'],
+      collectLimit: 50,
+      job51CollectLimit: 100,
+      job51MaxPages: 3,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('tr_limit')).toBe('100')
+    expect(url.searchParams.get('tr_max_pages')).toBe('3')
+    expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
+  })
+
+  it('auto-derives unsafeLimits when source-level limit exceeds safe threshold', () => {
+    const collectUrl = buildJob51CollectUrl({
+      location: '东莞',
+      keywords: ['CNC'],
+      job51CollectLimit: 200,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('tr_limit')).toBe('200')
+    expect(url.searchParams.get('tr_max_pages')).toBe('1')
+    expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
+  })
+
+  it('auto-derives unsafeLimits when source-level maxPages exceeds safe threshold', () => {
+    const collectUrl = buildJob51CollectUrl({
+      location: '东莞',
+      keywords: ['CNC'],
+      job51MaxPages: 5,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('tr_limit')).toBe('50')
+    expect(url.searchParams.get('tr_max_pages')).toBe('5')
+    expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
+  })
+
+  it('keeps safe defaults when source-level values are at or below threshold', () => {
+    const collectUrl = buildJob51CollectUrl({
+      location: '东莞',
+      keywords: ['CNC'],
+      job51CollectLimit: 50,
+      job51MaxPages: 1,
+    })
+
+    expect(collectUrl).not.toBeNull()
+    const url = new URL(collectUrl as string)
+    expect(url.searchParams.get('tr_limit')).toBe('50')
+    expect(url.searchParams.get('tr_max_pages')).toBe('1')
+    expect(url.searchParams.get('tr_unsafe_limits')).toBeNull()
+  })
+
+  it('passes source-level limits through buildCollectionLaunchUrl', () => {
+    const job51Url = buildCollectionLaunchUrl({
+      source: {
+        type: SEARCH_PROFILE_SOURCE_TYPES.job51,
+        job51CollectLimit: 150,
+        job51MaxPages: 4,
+      },
+      location: '东莞',
+      keywords: ['CNC'],
+    })
+
+    expect(job51Url).not.toBeNull()
+    const url = new URL(job51Url as string)
+    expect(url.searchParams.get('tr_limit')).toBe('150')
+    expect(url.searchParams.get('tr_max_pages')).toBe('4')
+    expect(url.searchParams.get('tr_unsafe_limits')).toBe('1')
   })
 
   it('returns undefined when no structured collection source exists', () => {

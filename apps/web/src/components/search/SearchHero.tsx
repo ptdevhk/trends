@@ -23,6 +23,8 @@ type SearchHeroQuickStart = {
   source?: {
     type: CollectionSourceType
     jobUrl?: string
+    job51CollectLimit?: number
+    job51MaxPages?: number
   }
 }
 
@@ -149,6 +151,16 @@ export function SearchHero({
                         type: seed.source.type,
                         ...(seed.source.type === 'seek' && seed.source.jobUrl
                           ? { exactUrl: seed.source.jobUrl }
+                          : {}),
+                        ...(seed.source.type === '51job'
+                          ? {
+                              ...(typeof seed.source.job51CollectLimit === 'number'
+                                ? { job51CollectLimit: seed.source.job51CollectLimit }
+                                : {}),
+                              ...(typeof seed.source.job51MaxPages === 'number'
+                                ? { job51MaxPages: seed.source.job51MaxPages }
+                                : {}),
+                            }
                           : {}),
                       },
                       location: seed.location,

@@ -93,6 +93,8 @@ export type SearchProfileQuickStart = {
   source?: {
     type: CollectionSourceType;
     jobUrl?: string;
+    job51CollectLimit?: number;
+    job51MaxPages?: number;
   };
   quickStart: {
     enabled: boolean;
@@ -387,6 +389,12 @@ export function useIndustryKeywords() {
                     type: collectionSource.type,
                     ...(collectionSource.type === 'seek' && collectionSource.exactUrl
                       ? { jobUrl: collectionSource.exactUrl }
+                      : {}),
+                    ...(collectionSource.type === '51job' && typeof collectionSource.job51CollectLimit === 'number'
+                      ? { job51CollectLimit: collectionSource.job51CollectLimit }
+                      : {}),
+                    ...(collectionSource.type === '51job' && typeof collectionSource.job51MaxPages === 'number'
+                      ? { job51MaxPages: collectionSource.job51MaxPages }
                       : {}),
                   }
                 : undefined,

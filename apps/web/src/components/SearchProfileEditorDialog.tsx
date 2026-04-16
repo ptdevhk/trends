@@ -101,6 +101,8 @@ type SourceFormState = {
     job51Enabled: boolean
     job51Priority: string
     job51UnsafeLimits: boolean
+    job51CollectLimit: string
+    job51MaxPages: string
     seekEnabled: boolean
     seekPriority: string
     seekJobUrl: string
@@ -127,6 +129,8 @@ const DEFAULT_SOURCES_FORM: SourceFormState = {
     job51Enabled: false,
     job51Priority: '3',
     job51UnsafeLimits: false,
+    job51CollectLimit: '',
+    job51MaxPages: '',
     seekEnabled: false,
     seekPriority: '2',
     seekJobUrl: '',
@@ -214,6 +218,8 @@ function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceF
         job51Enabled: job51Source?.enabled ?? DEFAULT_SOURCES_FORM.job51Enabled,
         job51Priority: normalizeSourcePriority(job51Source?.priority) || DEFAULT_SOURCES_FORM.job51Priority,
         job51UnsafeLimits: job51Source?.unsafeLimits === true,
+        job51CollectLimit: typeof job51Source?.job51CollectLimit === 'number' ? String(job51Source.job51CollectLimit) : '',
+        job51MaxPages: typeof job51Source?.job51MaxPages === 'number' ? String(job51Source.job51MaxPages) : '',
         seekEnabled: seekSource?.enabled ?? DEFAULT_SOURCES_FORM.seekEnabled,
         seekPriority: normalizeSourcePriority(seekSource?.priority) || DEFAULT_SOURCES_FORM.seekPriority,
         seekJobUrl: seekSource?.jobUrl ?? DEFAULT_SOURCES_FORM.seekJobUrl,
@@ -250,11 +256,19 @@ function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: Sea
         priority: parseOptionalNumber(sourceForm.job5156Priority),
     })
 
+    const job51CollectLimit = parseOptionalNumber(sourceForm.job51CollectLimit)
+    const job51MaxPages = parseOptionalNumber(sourceForm.job51MaxPages)
+    const derivedUnsafeLimits = sourceForm.job51UnsafeLimits
+      || (typeof job51CollectLimit === 'number' && job51CollectLimit > 50)
+      || (typeof job51MaxPages === 'number' && job51MaxPages > 1)
+
     sources.push({
         type: SEARCH_PROFILE_SOURCE_TYPES.job51,
         enabled: sourceForm.job51Enabled,
         priority: parseOptionalNumber(sourceForm.job51Priority),
-        ...(sourceForm.job51UnsafeLimits ? { unsafeLimits: true } : {}),
+        ...(derivedUnsafeLimits ? { unsafeLimits: true } : {}),
+        ...(typeof job51CollectLimit === 'number' ? { job51CollectLimit } : {}),
+        ...(typeof job51MaxPages === 'number' ? { job51MaxPages } : {}),
     })
 
     sources.push({
@@ -751,24 +765,78 @@ export function SearchProfileEditorDialog({
 
                             {sourceForm.job51Enabled ? (
                                 <div className="mt-3 grid gap-2">
-                                    <div className="flex items-center gap-2">
-                                        <Checkbox
-                                            id="profile-source-job51-unsafe-limits"
-                                            checked={sourceForm.job51UnsafeLimits}
-                                            onCheckedChange={(checked) => setSourceForm((previous) => ({
-                                                ...previous,
-                                                job51UnsafeLimits: checked === true,
-                                            }))}
-                                        />
-                                        <Label htmlFor="profile-source-job51-unsafe-limits">
-                                            {t('searchProfiles.fields.job51UnsafeLimits', { defaultValue: 'Allow extended 51job collection limits' })}
-                                        </Label>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor="profile-source-job51-limit" className="text-xs whitespace-nowrap">
+                                                {t('searchProfiles.fields.job51CollectLimit', { defaultValue: 'Limit' })}
+                                            </Label>
+                                            <Input
+                                                id="profile-source-job51-limit"
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                inputMode="numeric"
+                                                value={sourceForm.job51CollectLimit}
+                                                onChange={(event) => setSourceForm((previous) => ({
+                                                    ...previous,
+                                                    job51CollectLimit: event.target.value,
+                                                }))}
+                                                placeholder="50"
+                                                className="h-7 w-20"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor="profile-source-job51-max-pages" className="text-xs whitespace-nowrap">
+                                                {t('searchProfiles.fields.job51MaxPages', { defaultValue: 'Pages' })}
+                                            </Label>
+                                            <Input
+                                                id="profile-source-job51-max-pages"
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                inputMode="numeric"
+                                                value={sourceForm.job51MaxPages}
+                                                onChange={(event) => setSourceForm((previous) => ({
+                                                    ...previous,
+                                                    job51MaxPages: event.target.value,
+                                                }))}
+                                                placeholder="1"
+                                                className="h-7 w-20"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        {[
+                                            { key: 'conservative', limit: '50', pages: '1', label: t('searchProfiles.presets.conservative', { defaultValue: 'Conservative' }) },
+                                            { key: 'moderate', limit: '100', pages: '3', label: t('searchProfiles.presets.moderate', { defaultValue: 'Moderate' }) },
+                                            { key: 'large', limit: '250', pages: '8', label: t('searchProfiles.presets.large', { defaultValue: 'Large' }) },
+                                        ].map((preset) => (
+                                            <Button
+                                                key={preset.key}
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-6 px-2 text-xs"
+                                                onClick={() => setSourceForm((previous) => ({
+                                                    ...previous,
+                                                    job51CollectLimit: preset.limit,
+                                                    job51MaxPages: preset.pages,
+                                                }))}
+                                            >
+                                                {preset.label}
+                                            </Button>
+                                        ))}
                                     </div>
                                     <span className="text-xs text-muted-foreground">
-                                        {t(
-                                            'searchProfiles.fields.job51UnsafeLimitsHint',
-                                            { defaultValue: 'Opt in to larger 51job runs by appending tr_unsafe_limits=1 instead of the default 50 resumes / 1 page cap.' },
-                                        )}
+                                        {sourceForm.job51CollectLimit || sourceForm.job51MaxPages
+                                            ? t(
+                                                'searchProfiles.fields.job51LimitsHintCustom',
+                                                { defaultValue: `Collecting up to ${sourceForm.job51CollectLimit || '50'} resumes across ${sourceForm.job51MaxPages || '1'} page(s). Values above 50/1 enable extended mode.` },
+                                            )
+                                            : t(
+                                                'searchProfiles.fields.job51LimitsHintDefault',
+                                                { defaultValue: 'Default: 50 resumes / 1 page. Set higher values to enable extended collection.' },
+                                            )}
                                     </span>
                                 </div>
                             ) : null}
