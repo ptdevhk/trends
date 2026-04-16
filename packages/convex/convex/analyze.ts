@@ -2,6 +2,7 @@
 import {
     DEFAULT_RESUME_AI_PROMPT_LOCALE,
     FALLBACK_INDUSTRY_KEYWORDS,
+    INDUSTRY_DISPLAY_NAME_TO_TAG,
     buildResumeAiSystemPrompt,
     getResumeAiLocaleText,
     getResumeAiPromptDefinition,
@@ -418,6 +419,22 @@ function inferNoDirectSalesRoleCap(resume: unknown): number | undefined {
         return undefined;
     }
 
+    // Even if the floor doesn't apply (< 3 years), a candidate with
+    // industry-verified direct sales role evidence should NOT be capped to 0.
+    // directRoleMatch=true + industryVerified=true means the candidate actually
+    // held a sales role in the relevant industry — zeroing them out is wrong.
+    const hasVerifiedDirectSales = salesSignals.some((rawSignal) => {
+        const workEntries = Array.isArray(rawSignal.matchedWorkEntries)
+            ? rawSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
+            : [];
+        return workEntries.some((rawEntry) =>
+            rawEntry.directRoleMatch === true && rawEntry.industryVerified === true
+        );
+    });
+    if (hasVerifiedDirectSales) {
+        return undefined;
+    }
+
     // No verified direct sales role — cap at 0
     return 0;
 }
@@ -426,19 +443,32 @@ function inferNoDirectSalesRoleCap(resume: unknown): number | undefined {
  * Checks whether a search keyword maps to any of the resume's industry tags
  * through the FALLBACK_INDUSTRY_KEYWORDS taxonomy.
  * e.g. "cnc" maps to "machinery"; if the resume has "machinery" tag → match.
+ *
+ * Handles both English tag IDs (e.g. "machinery") and Chinese displayNames
+ * (e.g. "机械") stored in ingestData.industryTags.
  */
 function keywordMapsToIndustryTag(keyword: string, resumeIndustryTags: string[]): boolean {
     const kwLower = keyword.trim().toLowerCase();
     if (!kwLower) return false;
 
-    const resumeTagSet = new Set(resumeIndustryTags.map((t) => t.toLowerCase()));
+    // Normalize resume tags: map Chinese displayNames to English tag IDs
+    const normalizedTags = new Set<string>();
+    for (const tag of resumeIndustryTags) {
+        const tagLower = tag.toLowerCase();
+        normalizedTags.add(tagLower);
+        // Map Chinese displayName to canonical English tag ID
+        const mappedTag = INDUSTRY_DISPLAY_NAME_TO_TAG[tag];
+        if (mappedTag) {
+            normalizedTags.add(mappedTag.toLowerCase());
+        }
+    }
 
     // Direct tag match (e.g. keyword="machinery" matches tag="machinery")
-    if (resumeTagSet.has(kwLower)) return true;
+    if (normalizedTags.has(kwLower)) return true;
 
     // Check if the keyword is one of the taxonomy keywords that maps to a resume tag
     for (const [tag, keywords] of Object.entries(FALLBACK_INDUSTRY_KEYWORDS)) {
-        if (!resumeTagSet.has(tag.toLowerCase())) continue;
+        if (!normalizedTags.has(tag.toLowerCase())) continue;
         if (keywords.some((kw) => kw.toLowerCase() === kwLower)) return true;
     }
 
