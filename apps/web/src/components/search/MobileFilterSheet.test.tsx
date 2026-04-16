@@ -4,6 +4,26 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MobileFilterSheet } from '@/components/search/MobileFilterSheet'
 import type { FacetSidebarProps } from '@/components/search/FacetSidebar'
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: any) => {
+      if (typeof options === 'string') {
+        return options
+      }
+
+      const defaultValue =
+        options && typeof options === 'object' && typeof options.defaultValue === 'string'
+          ? options.defaultValue
+          : key
+
+      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
+        const value = options && typeof options === 'object' ? options[token] : undefined
+        return value === undefined || value === null ? '' : String(value)
+      })
+    },
+  }),
+}))
 import type { FacetCounts } from '@/components/search/search-types'
 
 const { facetSidebarMock } = vi.hoisted(() => ({
@@ -101,8 +121,8 @@ describe('MobileFilterSheet', () => {
       />
     )
 
-    expect(screen.getByText('Filters')).toBeInTheDocument()
-    expect(screen.getByText('Narrow the current search without leaving the result list.')).toBeInTheDocument()
+    expect(screen.getByText('筛选条件')).toBeInTheDocument()
+    expect(screen.getByText('在当前搜索结果中进一步精确筛选。')).toBeInTheDocument()
     expect(screen.getByText('FacetSidebar embedded:true tags:Machine Tools')).toBeInTheDocument()
     expect(facetSidebarMock).toHaveBeenCalledWith(expect.objectContaining({
       embedded: true,

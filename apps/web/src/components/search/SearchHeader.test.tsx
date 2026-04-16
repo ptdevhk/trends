@@ -105,12 +105,12 @@ describe('SearchHeader', () => {
     )
 
     expect(screen.getByText('Search Header Bar compact machine tools idle 1')).toBeInTheDocument()
-    expect(screen.getByText('1,250 results for "machine tools"')).toBeInTheDocument()
+    expect(screen.getByText('为"machine tools"找到 1,250 条结果')).toBeInTheDocument()
     expect(screen.getByText('Malaysia')).toBeInTheDocument()
     expect(screen.getByText('JD lathe-sales')).toBeInTheDocument()
 
     await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Sort results' }),
+      screen.getByRole('combobox', { name: '结果排序' }),
       'experience',
     )
 
@@ -133,7 +133,7 @@ describe('SearchHeader', () => {
       />
     )
 
-    expect(screen.getByText('3 results')).toBeInTheDocument()
+    expect(screen.getByText('找到 3 条结果')).toBeInTheDocument()
   })
 
   it('forwards header search-bar callbacks to the parent handlers', async () => {
@@ -189,7 +189,7 @@ describe('SearchHeader', () => {
       />
     )
 
-    expect(screen.getByText('7 results for "machine tools"')).toBeInTheDocument()
+    expect(screen.getByText('为"machine tools"找到 7 条结果')).toBeInTheDocument()
     expect(screen.queryByText('Malaysia')).not.toBeInTheDocument()
     expect(screen.queryByText(/JD /)).not.toBeInTheDocument()
   })

@@ -3,6 +3,26 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FacetGroup } from '@/components/search/FacetGroup'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: any) => {
+      if (typeof options === 'string') {
+        return options
+      }
+
+      const defaultValue =
+        options && typeof options === 'object' && typeof options.defaultValue === 'string'
+          ? options.defaultValue
+          : key
+
+      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
+        const value = options && typeof options === 'object' ? options[token] : undefined
+        return value === undefined || value === null ? '' : String(value)
+      })
+    },
+  }),
+}))
+
 describe('FacetGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -18,8 +38,8 @@ describe('FacetGroup', () => {
       />
     )
 
-    expect(screen.getByText('No values available')).toBeInTheDocument()
-    expect(screen.queryByText('Show less')).not.toBeInTheDocument()
+    expect(screen.getByText('resumes.searchPage.facets.emptyLabel')).toBeInTheDocument()
+    expect(screen.queryByText(/收起/i)).not.toBeInTheDocument()
   })
 
   it('uses case-insensitive selection and expands hidden facet values', async () => {
@@ -43,12 +63,12 @@ describe('FacetGroup', () => {
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Machine Tools/i })).toHaveClass('bg-slate-900')
     expect(screen.queryByRole('button', { name: /Robotics/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show 1 more' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /展开剩余 1 项/i })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Show 1 more' }))
+    await user.click(screen.getByRole('button', { name: /展开剩余 1 项/i }))
 
     expect(screen.getByRole('button', { name: /Robotics/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show less' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /收起/i })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Automation/i }))
 
@@ -72,13 +92,13 @@ describe('FacetGroup', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: 'Show 1 more' }))
+    await user.click(screen.getByRole('button', { name: /展开剩余 1 项/i }))
     expect(screen.getByRole('button', { name: /Robotics/i })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Show less' }))
+    await user.click(screen.getByRole('button', { name: /收起/i }))
 
     expect(screen.queryByRole('button', { name: /Robotics/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show 1 more' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /展开剩余 1 项/i })).toBeInTheDocument()
   })
 
   it('omits the show-more control when the visible limit already covers every value', () => {

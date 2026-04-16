@@ -14,9 +14,9 @@ export function MobileFilterSheet({ open, onOpenChange, ...props }: MobileFilter
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bottom-0 top-auto translate-y-0 rounded-t-[2rem] p-0 sm:max-w-lg">
         <DialogHeader className="px-6 pt-6">
-          <DialogTitle>{t('resumes.searchPage.facets.filtersTitle')}</DialogTitle>
+          <DialogTitle>{t('resumes.searchPage.facets.filtersTitle', { defaultValue: '筛选条件' })}</DialogTitle>
           <DialogDescription>
-            {t('resumes.searchPage.facets.filtersDescriptionMobile')}
+            {t('resumes.searchPage.facets.filtersDescriptionMobile', { defaultValue: '在当前搜索结果中进一步精确筛选。' })}
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[75vh] overflow-y-auto px-6 pb-6">

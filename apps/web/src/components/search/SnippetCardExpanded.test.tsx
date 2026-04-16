@@ -6,7 +6,7 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, unknown>) => {
+    t: (key: string, options?: any) => {
       if (typeof options === 'string') {
         return options
       }
@@ -15,7 +15,16 @@ vi.mock('react-i18next', () => ({
         options && typeof options === 'object' && typeof options.defaultValue === 'string'
           ? options.defaultValue
           : key
-      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+
+      // Simple mock for score labels if no defaultValue present
+      let result = defaultValue
+      if (result === 'resumes.searchPage.card.aiScoreShort' && options?.score !== undefined) {
+        result = `AI ${Math.round(options.score)}分`
+      } else if (result === 'resumes.searchPage.card.ruleScoreShort' && options?.score !== undefined) {
+        result = `规则 ${Math.round(options.score)}分`
+      }
+
+      return result.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
         const value = options && typeof options === 'object' ? options[token] : undefined
         return value === undefined || value === null ? '' : String(value)
       })
@@ -131,9 +140,9 @@ describe('SnippetCardExpanded', () => {
       />
     )
 
-    expect(screen.getByText('Snapshot')).toBeInTheDocument()
+    expect(screen.getByText('简历快照')).toBeInTheDocument()
     expect(screen.getByText('Strong machine-tools operator with channel sales depth.')).toBeInTheDocument()
-    expect(screen.getByText('AI analysis')).toBeInTheDocument()
+    expect(screen.getByText('AI 分析')).toBeInTheDocument()
     expect(screen.getByText('Strong CNC sales fit with current machine-tool coverage.')).toBeInTheDocument()
     expect(screen.getByText('CNC sales')).toBeInTheDocument()
     expect(screen.getByText('Channel development')).toBeInTheDocument()
@@ -142,14 +151,14 @@ describe('SnippetCardExpanded', () => {
     expect(screen.getByText('48')).toBeInTheDocument()
     expect(screen.getByText('related exp')).toBeInTheDocument()
     expect(screen.getByText('24')).toBeInTheDocument()
-    expect(screen.getByText('Recent work')).toBeInTheDocument()
+    expect(screen.getByText('最近工作')).toBeInTheDocument()
     expect(screen.getByText('FANUC · Sales Engineer')).toBeInTheDocument()
     expect(screen.getByText('DMG MORI · Account Manager')).toBeInTheDocument()
     expect(screen.getByText('Built CNC pipeline')).toBeInTheDocument()
     expect(screen.getByText('Expanded distributor network')).toBeInTheDocument()
     expect(screen.getByText('Malaysia')).toBeInTheDocument()
     expect(screen.getByText('Bachelor')).toBeInTheDocument()
-    expect(screen.getByText('Status: interviewed reject')).toBeInTheDocument()
+    expect(screen.getByText(/候选人状态: interviewed reject/i)).toBeInTheDocument()
     expect(screen.getByText('Machine Tools')).toBeInTheDocument()
     expect(screen.getByText('Automation')).toBeInTheDocument()
     expect(screen.getByText('Robotics')).toBeInTheDocument()
@@ -157,7 +166,7 @@ describe('SnippetCardExpanded', () => {
     expect(screen.getByText('DMG MORI')).toBeInTheDocument()
     expect(screen.getByText('senior')).toBeInTheDocument()
 
-    const link = screen.getByRole('link', { name: /Open source profile/i })
+    const link = screen.getByRole('link', { name: /开源档案/i })
     expect(link).toHaveAttribute('href', 'https://example.com/profile')
     expect(link).toHaveAttribute('target', '_blank')
   })
@@ -172,7 +181,7 @@ describe('SnippetCardExpanded', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /View details/i }))
+    fireEvent.click(screen.getByRole('button', { name: /查看详情/i }))
     expect(onViewDetails).toHaveBeenCalledTimes(1)
   })
 
@@ -204,14 +213,14 @@ describe('SnippetCardExpanded', () => {
       />
     )
 
-    expect(screen.getByText('Score source')).toBeInTheDocument()
-    expect(screen.getByText('AI summary is not available for this resume. The current visible score comes from rule scoring only.')).toBeInTheDocument()
-    expect(screen.getByText('No summary available for this resume yet.')).toBeInTheDocument()
-    expect(screen.getByText('No structured work history available.')).toBeInTheDocument()
-    expect(screen.getByText('No location')).toBeInTheDocument()
-    expect(screen.getByText('No education listed')).toBeInTheDocument()
-    expect(screen.getByText('Status: new')).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Open source profile/i })).not.toBeInTheDocument()
+    expect(screen.getByText('评分来源')).toBeInTheDocument()
+    expect(screen.getByText('该简历暂无 AI 摘要。当前显示分数为规则评分。')).toBeInTheDocument()
+    expect(screen.getByText('该简历暂无AI摘要。')).toBeInTheDocument()
+    expect(screen.getByText('暂无结构化工作经历。')).toBeInTheDocument()
+    expect(screen.getByText('无地点')).toBeInTheDocument()
+    expect(screen.getByText('无学历信息')).toBeInTheDocument()
+    expect(screen.getByText(/候选人状态: new/i)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /开源档案/i })).not.toBeInTheDocument()
   })
 
   it('uses the shared latest-work-history limit instead of overriding it locally', () => {
@@ -249,14 +258,14 @@ describe('SnippetCardExpanded', () => {
       />
     )
 
-    expect(screen.getByText('AI analysis pending')).toBeInTheDocument()
-    expect(screen.getByText('AI pending')).toBeInTheDocument()
+    expect(screen.getByText('AI 分析中')).toBeInTheDocument()
+    expect(screen.getByText('AI 测算中')).toBeInTheDocument()
     expect(
       screen.getByText(
-        'AI analysis is not available for this resume yet. The score will appear after analysis completes.',
+        '该简历暂未进行 AI 分析。分析完成后将显示评分。',
       ),
     ).toBeInTheDocument()
-    expect(screen.queryByText('Rule 74')).not.toBeInTheDocument()
+    expect(screen.queryByText(/规则 74分/)).not.toBeInTheDocument()
   })
 
   it('shows AI pending text when AI mode is enabled and no score has been computed yet', () => {
@@ -277,8 +286,8 @@ describe('SnippetCardExpanded', () => {
       />
     )
 
-    expect(screen.getByText('AI analysis pending')).toBeInTheDocument()
-    expect(screen.getByText('AI pending')).toBeInTheDocument()
-    expect(screen.queryByText('Rule')).not.toBeInTheDocument()
+    expect(screen.getByText('AI 分析中')).toBeInTheDocument()
+    expect(screen.getByText('AI 测算中')).toBeInTheDocument()
+    expect(screen.queryByText('评分来源')).not.toBeInTheDocument()
   })
 })

@@ -4,6 +4,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FacetSidebar } from '@/components/search/FacetSidebar'
 import type { FacetCounts } from '@/components/search/search-types'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: any) => {
+      if (typeof options === 'string') {
+        return options
+      }
+
+      const defaultValue =
+        options && typeof options === 'object' && typeof options.defaultValue === 'string'
+          ? options.defaultValue
+          : key
+
+      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
+        const value = options && typeof options === 'object' ? options[token] : undefined
+        return value === undefined || value === null ? '' : String(value)
+      })
+    },
+  }),
+}))
+
 function buildFacetCounts(): FacetCounts {
   return {
     clusters: [
@@ -70,9 +90,9 @@ describe('FacetSidebar', () => {
 
     expect(container.firstElementChild).toHaveClass('space-y-6')
     expect(container.firstElementChild).not.toHaveClass('rounded-[1.75rem]')
-    expect(screen.getByText('Refine the current result set without leaving the search flow.')).toBeInTheDocument()
+    expect(screen.getByText('在当前搜索结果中进一步精确筛选。')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Reset' }))
+    await user.click(screen.getByRole('button', { name: '重置' }))
 
     expect(onClearAll).toHaveBeenCalledTimes(1)
   })
@@ -106,9 +126,9 @@ describe('FacetSidebar', () => {
     )
 
     expect(screen.getByRole('button', { name: /Machine Tools/i })).toHaveClass('bg-slate-900')
-    expect(screen.getByRole('button', { name: /Show 1 more/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /展开剩余 1 项/i })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Reset' }))
+    await user.click(screen.getByRole('button', { name: '重置' }))
     await user.click(screen.getByRole('button', { name: /Manufacturing Systems/i }))
     await user.click(screen.getByRole('button', { name: /Machine Tools/i }))
     await user.click(screen.getByRole('button', { name: /FANUC/i }))
@@ -149,8 +169,8 @@ describe('FacetSidebar', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: 'Senior' }))
-    await user.click(screen.getByRole('button', { name: 'Mid' }))
+    await user.click(screen.getByRole('button', { name: '资深' }))
+    await user.click(screen.getByRole('button', { name: '中级' }))
     await user.click(screen.getByRole('button', { name: /80\+/i }))
     await user.click(screen.getByRole('button', { name: /70\+/i }))
 
