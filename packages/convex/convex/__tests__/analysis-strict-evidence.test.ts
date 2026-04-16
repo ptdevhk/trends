@@ -640,7 +640,6 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.score).toBe(50);
     expect(normalized.recommendation).toBe("potential");
   });
-
   it("does not cap related_exp when industry tags overlap with domain keywords", () => {
     const normalized = normalizeAnalysisResult(
       {

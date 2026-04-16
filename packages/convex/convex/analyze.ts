@@ -258,7 +258,6 @@ function inferSalesRelatedExpFloor(resume: unknown): number | undefined {
         const relevantYears = hasDirectRoleEvidence
             ? (toNumber(rawSignal.roleRelevantYears) ?? toNumber(rawSignal.years) ?? 0)
             : verifiedYears;
-
         if (relevantYears < 3) {
             continue;
         }
@@ -467,7 +466,7 @@ export function normalizeAnalysisResult(
     highlights: string[];
     concerns: string[];
     breakdown: Record<string, number>;
-    } {
+} {
     const breakdown = parseNumericBreakdown(result.breakdown);
     let relatedExpRaw = clamp(toNumber(breakdown?.related_exp) ?? 0, 0, 100);
     if (options?.targetRoleType === "sales") {
@@ -589,36 +588,36 @@ function parseRoleSignals(value: unknown): NormalizedRoleSignal[] {
         const industryVerifiedRelevantYears = toNumber(item.industryVerifiedRelevantYears);
         const matchedWorkEntries = Array.isArray(item.matchedWorkEntries)
             ? item.matchedWorkEntries.flatMap((entry) => {
-                  if (!isRecord(entry)) {
-                      return [];
-                  }
+                if (!isRecord(entry)) {
+                    return [];
+                }
 
-                  const entryYears = toNumber(entry.years);
-                  if (entryYears === undefined) {
-                      return [];
-                  }
+                const entryYears = toNumber(entry.years);
+                if (entryYears === undefined) {
+                    return [];
+                }
 
-                  const matchedEntrySignals = Array.isArray(entry.matchedSignals)
-                      ? entry.matchedSignals.filter(
-                            (signal): signal is string => typeof signal === "string" && signal.length > 0
-                        )
-                      : [];
+                const matchedEntrySignals = Array.isArray(entry.matchedSignals)
+                    ? entry.matchedSignals.filter(
+                        (signal): signal is string => typeof signal === "string" && signal.length > 0
+                    )
+                    : [];
 
-                  return [{
-                      companyName: typeof entry.companyName === "string" && entry.companyName.trim().length > 0
-                          ? entry.companyName.trim()
-                          : undefined,
-                      jobTitle: typeof entry.jobTitle === "string" && entry.jobTitle.trim().length > 0
-                          ? entry.jobTitle.trim()
-                          : undefined,
-                      years: entryYears,
-                      industryVerified: entry.industryVerified === true,
-                      matchedSignals: matchedEntrySignals,
-                      ...(typeof entry.directRoleMatch === "boolean"
-                          ? { directRoleMatch: entry.directRoleMatch }
-                          : {}),
-                  }];
-              })
+                return [{
+                    companyName: typeof entry.companyName === "string" && entry.companyName.trim().length > 0
+                        ? entry.companyName.trim()
+                        : undefined,
+                    jobTitle: typeof entry.jobTitle === "string" && entry.jobTitle.trim().length > 0
+                        ? entry.jobTitle.trim()
+                        : undefined,
+                    years: entryYears,
+                    industryVerified: entry.industryVerified === true,
+                    matchedSignals: matchedEntrySignals,
+                    ...(typeof entry.directRoleMatch === "boolean"
+                        ? { directRoleMatch: entry.directRoleMatch }
+                        : {}),
+                }];
+            })
             : undefined;
 
         return [{
@@ -738,8 +737,8 @@ export function normalizeResume(
 
     const companyHits = Array.isArray(ingestData?.companyHits)
         ? ingestData.companyHits.filter(
-              (item: unknown): item is string => typeof item === "string" && item.length > 0
-          )
+            (item: unknown): item is string => typeof item === "string" && item.length > 0
+        )
         : [];
     const roleSignals = parseRoleSignals(ingestData?.roleSignals);
 

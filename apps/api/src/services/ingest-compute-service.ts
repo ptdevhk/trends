@@ -669,7 +669,6 @@ export class IngestComputeService {
     }
     return COMPANY_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(normalized));
   }
-
   private hasDirectRoleEvidence(
     roleType: string,
     matchedSignals: RoleSignalMatch[],
