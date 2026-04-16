@@ -233,7 +233,7 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.recommendation).toBe("strong_match");
   });
 
-  it("applies a sales related_exp floor when direct sales signals show 3+ years", () => {
+  it("applies a sales related_exp floor when direct sales signals show 3+ verified years", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 20,
@@ -255,10 +255,13 @@ describe("normalizeResume strict evidence", () => {
               type: "sales",
               years: 4,
               roleRelevantYears: 4,
+              industryVerifiedYears: 4,
               matchedSignals: ["销售工程师"],
               matchedWorkEntries: [
                 {
                   jobTitle: "销售工程师",
+                  years: 4,
+                  industryVerified: true,
                   matchedSignals: ["销售"],
                 },
               ],
@@ -347,6 +350,7 @@ describe("normalizeResume strict evidence", () => {
               type: "sales",
               years: 4,
               roleRelevantYears: 4,
+              industryVerifiedYears: 4,
               matchedSignals: ["business development manager"],
               matchedWorkEntries: [
                 {
@@ -398,6 +402,7 @@ describe("normalizeResume strict evidence", () => {
               type: "sales",
               years: 3.8,
               roleRelevantYears: 3.8,
+              industryVerifiedYears: 3.8,
               matchedSignals: ["销售工程师"],
             },
           ],
@@ -571,8 +576,69 @@ describe("normalizeResume strict evidence", () => {
       }
     );
 
-    // FANUC brand hit proves CNC domain — no ceiling
+    // FANUC brand hit with product context proves CNC domain — no ceiling
     expect(normalized.breakdown?.related_exp).toBe(85);
+  });
+
+  it("caps related_exp when brand hits are only technical (not sales-relevant)", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 80,
+        recommendation: "strong_match",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 85,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [
+            {
+              brand: "FANUC",
+              context: "technical",
+            },
+            {
+              brand: "brother",
+              context: "technical",
+            },
+          ],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 6,
+              roleRelevantYears: 6,
+              matchedSignals: ["销售", "业务"],
+              matchedWorkEntries: [
+                {
+                  companyName: "维沃移动通信有限公司",
+                  jobTitle: "公司致力于各类通信产品的研发、制造和销售",
+                  years: 6,
+                  industryVerified: false,
+                  matchedSignals: ["销售", "业务"],
+                  directRoleMatch: false,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // Technical-only brand hits from CNC operator work do not prove sales domain overlap
+    // directRoleMatch=false triggers noDirectSalesRoleCap (→ 0) which fires before ceiling
+    // score = 0*0.5 + 50(brand hits) = 50 → potential
+    expect(normalized.breakdown?.related_exp).toBe(0);
+    expect(normalized.score).toBe(50);
+    expect(normalized.recommendation).toBe("potential");
   });
 
   it("does not cap related_exp when industry tags overlap with domain keywords", () => {

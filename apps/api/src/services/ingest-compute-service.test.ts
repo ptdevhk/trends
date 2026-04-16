@@ -525,6 +525,44 @@ describe("IngestComputeService", () => {
     expect(engineerRole?.years).toBeGreaterThan(5);
   });
 
+  it("should mark directRoleMatch=false when jobTitle is a company boilerplate description", () => {
+    const result = service.computeOne("resume-vivo-boilerplate-jobtitle", {
+      data: [
+        {
+          ...SAMPLE_RESUME_ENGINEER.data[0],
+          extractedAt: "2026-04-15T00:00:00.000Z",
+          workHistory: [
+            {
+              raw: "2018-04~2024-06 维沃移动通信有限公司 公司致力于各类通信产品的研发、制造和销售 自动化 内容: 公司介绍: 业务已覆盖中国、东南亚等广大市场。工作内容: 主要负责新机型量产导入工作",
+              companyName: "维沃移动通信有限公司",
+              jobTitle: "公司致力于各类通信产品的研发、制造和销售",
+              description: "自动化 内容: 公司介绍: 业务已覆盖中国、东南亚等广大市场。工作内容: 主要负责新机型量产导入工作",
+              startDate: "2018-04",
+              endDate: "2024-06",
+            },
+          ],
+        },
+      ],
+    });
+
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+    const engineerRole = result.roleSignals.find((item) => item.type === "engineer");
+
+    // The sales signal should exist (matched "销售" from the boilerplate jobTitle)
+    // but directRoleMatch should be false because the jobTitle is a company description
+    expect(salesRole).toBeDefined();
+    expect(salesRole?.matchedSignals).toEqual(expect.arrayContaining(["销售"]));
+    if (salesRole?.matchedWorkEntries && salesRole.matchedWorkEntries.length > 0) {
+      const salesEntry = salesRole.matchedWorkEntries.find(
+        (e: { companyName?: string }) => e.companyName === "维沃移动通信有限公司",
+      );
+      expect(salesEntry?.directRoleMatch).toBe(false);
+    }
+
+    // Engineer should have directRoleMatch=true (engineer title is genuine)
+    expect(engineerRole).toBeDefined();
+  });
+
   it("should recognize English business-development sales titles in work history", () => {
     const result = service.computeOne("resume-bd-manager", {
       data: [

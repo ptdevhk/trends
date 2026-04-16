@@ -68,7 +68,7 @@ Please analyze how well the following candidate matches the job:
 - 70-84: Strong direct-role alignment with matching industry domain and relevant duties, but evidence depth or years are slightly weaker than top-tier.
 - 40-69: Partial or adjacent experience with transferability, but ONLY when the industry domain matches. If the industry does not match, do not score in this range.
 - 0-39: Little direct role evidence, or industry domain mismatch, or mostly support/collaboration duties that should not be treated as high match.
-- If `Role Signals` show a direct sales role (for example sales engineer/sales manager) with >= 3 relevant years plus evidence of territory ownership, target attainment, or closed-deal outcomes, **AND the industry domain matches**, `related_exp` should not be below 80. This floor does not apply when the industry domain does not match.
+- If `Role Signals` show a direct sales role (for example sales engineer/sales manager) with `verified` >= 3 years plus evidence of territory ownership, target attainment, or closed-deal outcomes, **AND the industry domain matches**, `related_exp` should not be below 80. This floor does not apply when the industry domain does not match, or when `verified:0` even if `years` is large.
 
 ## Summary and Judgment Requirements
 - summary/highlights/concerns must prioritize the candidate's role focus, industry background, and directly relevant work history.
