@@ -31,15 +31,15 @@ function ExperienceLevelGroup({
 }: Pick<FacetSidebarProps, 'selectedExperienceLevel' | 'onSetExperienceLevel'>) {
   const { t } = useTranslation()
   const items = [
-    { value: 'senior', label: t('resumes.searchPage.facets.experience.senior') },
-    { value: 'mid', label: t('resumes.searchPage.facets.experience.mid') },
-    { value: 'junior', label: t('resumes.searchPage.facets.experience.junior') },
+    { value: 'senior', label: t('resumes.searchPage.facets.experience.senior', { defaultValue: '资深' }) },
+    { value: 'mid', label: t('resumes.searchPage.facets.experience.mid', { defaultValue: '中级' }) },
+    { value: 'junior', label: t('resumes.searchPage.facets.experience.junior', { defaultValue: '初级' }) },
   ] as const
 
   return (
     <div className="space-y-3">
       <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {t('resumes.searchPage.facets.experienceLevel')}
+        {t('resumes.searchPage.facets.experienceLevel', { defaultValue: '工作经验' })}
       </div>
       <div className="flex flex-wrap gap-2">
         {items.map((item) => {
@@ -86,27 +86,27 @@ export function FacetSidebar({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-semibold text-slate-900">{t('resumes.searchPage.facets.filtersTitle')}</div>
-          <div className="text-xs text-muted-foreground">{t('resumes.searchPage.facets.filtersDescription')}</div>
+          <div className="text-sm font-semibold text-slate-900">{t('resumes.searchPage.facets.filtersTitle', { defaultValue: '筛选条件' })}</div>
+          <div className="text-xs text-muted-foreground">{t('resumes.searchPage.facets.filtersDescription', { defaultValue: '在当前搜索结果中进一步精确筛选。' })}</div>
         </div>
         <button type="button" className="text-sm text-muted-foreground hover:text-foreground" onClick={onClearAll}>
-          {t('common.reset')}
+          {t('common.reset', { defaultValue: '重置' })}
         </button>
       </div>
 
       <FacetGroup
-        title={t('resumes.searchPage.facets.skillClusters')}
+        title={t('resumes.searchPage.facets.skillClusters', { defaultValue: '技能图谱' })}
         items={facetCounts.clusters}
         selectedValues={selectedClusters}
         onToggle={onToggleCluster}
       />
-      <FacetGroup title={t('resumes.searchPage.facets.tags')} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
-      <FacetGroup title={t('resumes.searchPage.facets.companies')} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
+      <FacetGroup title={t('resumes.searchPage.facets.tags', { defaultValue: '标签聚类' })} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
+      <FacetGroup title={t('resumes.searchPage.facets.companies', { defaultValue: '公司经历' })} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
       <ExperienceLevelGroup selectedExperienceLevel={selectedExperienceLevel} onSetExperienceLevel={onSetExperienceLevel} />
-      <FacetGroup title={t('resumes.searchPage.facets.education')} items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
-      <FacetGroup title={t('resumes.searchPage.facets.status')} items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />
+      <FacetGroup title={t('resumes.searchPage.facets.education', { defaultValue: '学历' })} items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
+      <FacetGroup title={t('resumes.searchPage.facets.status', { defaultValue: '候选人状态' })} items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />
       <FacetGroup
-        title={t('resumes.searchPage.facets.matchScore')}
+        title={t('resumes.searchPage.facets.matchScore', { defaultValue: '匹配分' })}
         items={facetCounts.minScoreOptions.map((item) => ({ ...item, value: `${item.value}+` }))}
         selectedValues={typeof minScore === 'number' ? [`${minScore}+`] : []}
         onToggle={(value) => {

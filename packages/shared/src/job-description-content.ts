@@ -16,6 +16,18 @@ export const FALLBACK_INDUSTRY_KEYWORDS: Record<CanonicalIndustryTag, string[]> 
   software: ["c++", "c#", "mfc", "qt", "软件", "开发", "algorithm", "python"],
 };
 
+/**
+ * Maps Chinese displayNames (stored in ingestData.industryTags) back to
+ * English canonical tag IDs used in FALLBACK_INDUSTRY_KEYWORDS.
+ * e.g. "机械" → "machinery", "销售" → "sales"
+ */
+export const INDUSTRY_DISPLAY_NAME_TO_TAG: Record<string, CanonicalIndustryTag> = {
+  机械: "machinery",
+  销售: "sales",
+  测量: "metrology",
+  软件: "software",
+};
+
 const LEGACY_INDUSTRY_TAG_MAP: Record<string, string | null> = {
   cnc: "machinery",
   automation: null,

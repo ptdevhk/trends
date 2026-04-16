@@ -89,10 +89,10 @@ describe('SearchResultsList', () => {
     virtualRows = [{ index: 0, start: 0 }]
     vi.clearAllMocks()
 
-    observeMock.mockImplementation(() => {})
-    disconnectMock.mockImplementation(() => {})
+    observeMock.mockImplementation(() => { })
+    disconnectMock.mockImplementation(() => { })
     vi.stubGlobal('IntersectionObserver', class {
-      constructor(private readonly callback: (entries: Array<{ isIntersecting: boolean }>) => void) {}
+      constructor(private readonly callback: (entries: Array<{ isIntersecting: boolean }>) => void) { }
 
       observe(target: Element) {
         observeMock(target)
@@ -104,9 +104,9 @@ describe('SearchResultsList', () => {
       }
     })
     vi.stubGlobal('ResizeObserver', class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
+      observe() { }
+      unobserve() { }
+      disconnect() { }
     })
   })
 
@@ -152,7 +152,7 @@ describe('SearchResultsList', () => {
       />
     )
 
-    expect(screen.getByText('No resumes matched this search')).toBeInTheDocument()
+    expect(screen.getByText('没有符合该搜索条件的简历')).toBeInTheDocument()
   })
 
   it('recomputes virtual rows on rerender instead of keeping stale memoized rows', () => {
@@ -257,7 +257,7 @@ describe('SearchResultsList', () => {
 
     expect(observeMock).toHaveBeenCalledTimes(1)
     expect(onLoadMore).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('Scroll for more')).toBeInTheDocument()
+    expect(screen.getByText('向下滑动查看更多')).toBeInTheDocument()
   })
 
   it('renders the full non-virtualized list when any result is expanded', () => {
@@ -276,7 +276,7 @@ describe('SearchResultsList', () => {
     expect(screen.getByText('resume-0:collapsed')).toBeInTheDocument()
     expect(screen.getByText('resume-1:expanded')).toBeInTheDocument()
     expect(screen.getByText('resume-44:collapsed')).toBeInTheDocument()
-    expect(screen.getByText('End of results')).toBeInTheDocument()
+    expect(screen.getByText('已到底部')).toBeInTheDocument()
   })
 
   it('renders the full non-virtualized list when AI summaries are present', () => {
@@ -303,7 +303,7 @@ describe('SearchResultsList', () => {
 
     expect(screen.getByText('resume-0:collapsed')).toBeInTheDocument()
     expect(screen.getByText('resume-44:collapsed')).toBeInTheDocument()
-    expect(screen.getByText('End of results')).toBeInTheDocument()
+    expect(screen.getByText('已到底部')).toBeInTheDocument()
   })
 
   it('opens the internal resume detail modal from a search result card', async () => {

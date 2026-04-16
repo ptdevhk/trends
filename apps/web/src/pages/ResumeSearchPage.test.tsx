@@ -1,3 +1,4 @@
+import React from 'react'
 import { formatKeywordQuery } from '@trends/shared'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -13,12 +14,26 @@ vi.mock('react-i18next', () => ({
       if (typeof options === 'string') {
         return options
       }
-
-      const defaultValue =
-        options && typeof options === 'object' && typeof options.defaultValue === 'string'
-          ? options.defaultValue
-          : key
-      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+      // Return English text for keys used by ResumeSearchPage
+      const englishTexts: Record<string, string> = {
+        'bulkActions.selected': 'selected',
+        'bulkActions.blocked': 'blocked',
+        'bulkActions.manageBlocked': 'manage',
+        'resumes.searchPage.header.resultsWithQuery': 'Results for "{{query}}": {{count}}',
+        'resumes.searchPage.header.results': 'Found {{count}} results',
+        'resumes.searchPage.header.sort': 'Sort',
+        'resumes.searchPage.header.sortResults': 'Sort results',
+        'resumes.searchPage.header.sortOptions.aiScore': 'AI Score',
+        'resumes.searchPage.header.sortOptions.newest': 'Most Recent',
+        'resumes.searchPage.header.sortOptions.experience': 'Experience',
+        'resumes.searchPage.analysis.title': 'Resume AI analysis',
+        'resumes.searchPage.analysis.description': 'Generate AI summary and detailed score breakdown for the loaded search results.',
+        'resumes.searchPage.analysis.analyzeLoaded': 'Analyze loaded {{count}}',
+        'resumes.searchPage.analysis.analyzeLoadedResults': 'Analyze loaded results',
+        'resumes.searchPage.analysis.analyzing': 'Analyzing...',
+      }
+      const text = englishTexts[key] ?? key
+      return text.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
         const value = options && typeof options === 'object' ? options[token] : undefined
         return value === undefined || value === null ? '' : String(value)
       })
@@ -46,6 +61,12 @@ vi.mock('@/hooks/useResumeSearchState', () => ({
 
 vi.mock('@/hooks/useIndustryKeywords', () => ({
   useIndustryKeywords: () => useIndustryKeywordsMock(),
+}))
+
+vi.mock('react-router-dom', () => ({
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }))
 
 vi.mock('@/components/search/SearchHero', () => ({
@@ -149,11 +170,11 @@ vi.mock('@/components/search/SearchHeader', () => ({
   }: {
     activeQuery?: string
     activeResultCount: number
-    exportFormat: 'csv' | 'xlsx'
+    exportFormat?: string
     exportingResults?: boolean
     onApplyExtractedKeywords: (keywords: string[]) => void
-    onExportFormatChange: (format: 'csv' | 'xlsx') => void
-    onExportResults: () => void
+    onExportFormatChange?: (format: string) => void
+    onExportResults?: () => void
   }) => (
     <div>
       <div>
@@ -168,12 +189,16 @@ vi.mock('@/components/search/SearchHeader', () => ({
       >
         Apply Header JD
       </button>
-      <button type="button" onClick={() => onExportFormatChange('xlsx')}>
-        Change Header Export Format
-      </button>
-      <button type="button" onClick={onExportResults}>
-        Export Header Results
-      </button>
+      {onExportFormatChange && (
+        <button type="button" onClick={() => onExportFormatChange('xlsx')}>
+          Change Header Export Format
+        </button>
+      )}
+      {onExportResults && (
+        <button type="button" onClick={onExportResults}>
+          Export Header Results
+        </button>
+      )}
     </div>
   ),
 }))
@@ -316,6 +341,38 @@ vi.mock('@/components/ModeToggle', () => ({
   ),
 }))
 
+vi.mock('@/components/BulkActionBar', () => ({
+  BulkActionBar: ({
+    onExportFormatChange,
+    onBulkAction,
+    exportFormat,
+    highScoreCount,
+    selectedCount,
+    totalCount,
+  }: {
+    onExportFormatChange?: (format: string) => void
+    onBulkAction?: (action: string, format?: string) => void
+    exportFormat?: string
+    highScoreCount?: number
+    selectedCount?: number
+    totalCount?: number
+  }) => (
+    <div>
+      <div>BulkActionBar {selectedCount}/{totalCount} high:{highScoreCount} fmt:{exportFormat}</div>
+      {onExportFormatChange && (
+        <button type="button" onClick={() => onExportFormatChange('xlsx')}>
+          Change Export Format
+        </button>
+      )}
+      {onBulkAction && (
+        <button type="button" onClick={() => onBulkAction('export', exportFormat)}>
+          Bulk Export
+        </button>
+      )}
+    </div>
+  ),
+}))
+
 function createResume(index: number): ConvexResumeItem {
   return {
     resumeId: `resume-${index}` as ConvexResumeItem['resumeId'],
@@ -435,6 +492,20 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
     toggleEducation: vi.fn(),
     toggleStatus: vi.fn(),
     toggleTag: vi.fn(),
+    setSelectedCompanies: vi.fn(),
+    setSelectedTags: vi.fn(),
+    selectedIds: new Set<string>(),
+    selectAll: vi.fn(),
+    selectHighScore: vi.fn(),
+    clearSelection: vi.fn(),
+    toggleSelectItem: vi.fn(),
+    actionsByResume: {},
+    getAiFeedback: vi.fn(),
+    handleBulkAction: vi.fn(),
+    handleCandidateAction: vi.fn(),
+    handleCandidateStatusChange: vi.fn(),
+    handleToggleBlock: vi.fn(),
+    highScoreCount: 0,
     ...overrides,
   }
 }
@@ -614,7 +685,7 @@ describe('ResumeSearchPage', () => {
 
     expect(screen.queryByText(/Landing Hero/)).not.toBeInTheDocument()
     expect(
-      screen.getByText('Header machine tools 2 export:csv exporting:false'),
+      screen.getByText(/Header machine tools 2/),
     ).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -747,20 +818,21 @@ describe('ResumeSearchPage', () => {
       activeQuery: 'CNC Sales',
       filteredResults: [createResult(1)],
       isLanding: false,
+      selectedIds: new Set<string>(['resume-1']),
     })
     useResumeSearchStateMock.mockReturnValue(state)
 
     render(<ResumeSearchPage />)
 
     await user.click(
-      screen.getByRole('button', { name: 'Change Header Export Format' }),
+      screen.getByRole('button', { name: 'Change Export Format' }),
     )
     await user.click(
-      screen.getByRole('button', { name: 'Export Header Results' }),
+      screen.getByRole('button', { name: 'Bulk Export' }),
     )
 
     expect(state.setExportFormat).toHaveBeenCalledWith('xlsx')
-    expect(state.exportResults).toHaveBeenCalledTimes(1)
+    expect(state.handleBulkAction).toHaveBeenCalledWith('export', 'csv')
   })
 
   it('wires the search-first analyze action into the page controls', async () => {

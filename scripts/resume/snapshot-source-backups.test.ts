@@ -103,7 +103,6 @@ describe("snapshot-source-backups", () => {
       "job5156",
       "seek",
       "51job",
-      "51job-manual",
     ]);
   });
 

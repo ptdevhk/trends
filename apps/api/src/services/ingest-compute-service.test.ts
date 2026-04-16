@@ -252,27 +252,27 @@ describe("IngestComputeService", () => {
   let tmpDir: string;
   let service: IngestComputeService;
 
-	beforeEach(() => {
-		// Create temp project structure
-		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-test-"));
+  beforeEach(() => {
+    // Create temp project structure
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-test-"));
 
-		const configResumeDir = path.join(tmpDir, "config", "resume");
-		const configJdDir = path.join(tmpDir, "config", "job-descriptions");
-		const configIndustryDataDir = path.join(tmpDir, "config", "industry-data");
+    const configResumeDir = path.join(tmpDir, "config", "resume");
+    const configJdDir = path.join(tmpDir, "config", "job-descriptions");
+    const configIndustryDataDir = path.join(tmpDir, "config", "industry-data");
 
-		fs.mkdirSync(configResumeDir, { recursive: true });
-		fs.mkdirSync(configJdDir, { recursive: true });
-		fs.mkdirSync(configIndustryDataDir, { recursive: true });
+    fs.mkdirSync(configResumeDir, { recursive: true });
+    fs.mkdirSync(configJdDir, { recursive: true });
+    fs.mkdirSync(configIndustryDataDir, { recursive: true });
 
-		// Write test files
-		fs.writeFileSync(path.join(configResumeDir, "skills.md"), TEST_SKILLS_MD);
-		fs.writeFileSync(path.join(configJdDir, "jd-lathe-sales.md"), TEST_JD_LATHE_SALES);
-		fs.writeFileSync(path.join(configJdDir, "jd-cnc-engineer.md"), TEST_JD_CNC_ENGINEER);
-		fs.writeFileSync(path.join(configIndustryDataDir, "keywords-structured.md"), TEST_KEYWORDS_STRUCTURED_MD);
-		fs.writeFileSync(path.join(configIndustryDataDir, "brands.json"), TEST_BRANDS_JSON);
+    // Write test files
+    fs.writeFileSync(path.join(configResumeDir, "skills.md"), TEST_SKILLS_MD);
+    fs.writeFileSync(path.join(configJdDir, "jd-lathe-sales.md"), TEST_JD_LATHE_SALES);
+    fs.writeFileSync(path.join(configJdDir, "jd-cnc-engineer.md"), TEST_JD_CNC_ENGINEER);
+    fs.writeFileSync(path.join(configIndustryDataDir, "keywords-structured.md"), TEST_KEYWORDS_STRUCTURED_MD);
+    fs.writeFileSync(path.join(configIndustryDataDir, "brands.json"), TEST_BRANDS_JSON);
 
-		service = new IngestComputeService(tmpDir);
-	});
+    service = new IngestComputeService(tmpDir);
+  });
 
   afterEach(() => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -525,6 +525,43 @@ describe("IngestComputeService", () => {
     expect(engineerRole?.years).toBeGreaterThan(5);
   });
 
+  it("should mark directRoleMatch=false when jobTitle is a company boilerplate description", () => {
+    const result = service.computeOne("resume-vivo-boilerplate-jobtitle", {
+      data: [
+        {
+          ...SAMPLE_RESUME_ENGINEER.data[0],
+          extractedAt: "2026-04-15T00:00:00.000Z",
+          workHistory: [
+            {
+              raw: "2018-04~2024-06 维沃移动通信有限公司 公司致力于各类通信产品的研发、制造和销售 自动化 内容: 公司介绍: 业务已覆盖中国、东南亚等广大市场。工作内容: 主要负责新机型量产导入工作",
+              companyName: "维沃移动通信有限公司",
+              jobTitle: "公司致力于各类通信产品的研发、制造和销售",
+              description: "自动化 内容: 公司介绍: 业务已覆盖中国、东南亚等广大市场。工作内容: 主要负责新机型量产导入工作",
+              startDate: "2018-04",
+              endDate: "2024-06",
+            },
+          ],
+        },
+      ],
+    });
+
+    const salesRole = result.roleSignals.find((item) => item.type === "sales");
+    const engineerRole = result.roleSignals.find((item) => item.type === "engineer");
+
+    // The sales signal should exist (matched "销售" from the boilerplate jobTitle)
+    // but directRoleMatch should be false because the jobTitle is a company description
+    expect(salesRole).toBeDefined();
+    expect(salesRole?.matchedSignals).toEqual(expect.arrayContaining(["销售"]));
+    if (salesRole?.matchedWorkEntries && salesRole.matchedWorkEntries.length > 0) {
+      const salesEntry = salesRole.matchedWorkEntries.find(
+        (e: { companyName?: string }) => e.companyName === "维沃移动通信有限公司",
+      );
+      expect(salesEntry?.directRoleMatch).toBe(false);
+    }
+
+    // Engineer should have directRoleMatch=true (engineer title is genuine)
+    expect(engineerRole).toBeDefined();
+  });
   it("should recognize English business-development sales titles in work history", () => {
     const result = service.computeOne("resume-bd-manager", {
       data: [
@@ -621,120 +658,120 @@ describe("IngestComputeService", () => {
     expect(result.brandHits).toEqual([]);
   });
 
-	it("should classify workHistory brand mentions as employer context", () => {
-		const employerResume = {
-			data: [
-				{
-					...SAMPLE_RESUME_JUNIOR.data[0],
-					selfIntro: "负责机器人自动化项目交付。",
-					workHistory: [
-						{ raw: "2020-01~2023-12(3年11月)上海发那科机器人有限公司销售工程师" },
-					],
-				},
-			],
-		};
-		const result = service.computeOne("resume-employer", employerResume);
+  it("should classify workHistory brand mentions as employer context", () => {
+    const employerResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          selfIntro: "负责机器人自动化项目交付。",
+          workHistory: [
+            { raw: "2020-01~2023-12(3年11月)上海发那科机器人有限公司销售工程师" },
+          ],
+        },
+      ],
+    };
+    const result = service.computeOne("resume-employer", employerResume);
 
-		expect(result.brandHits).toContainEqual({
-			brand: "fanuc",
-			role: "employer",
-			source: "workHistory",
-			context: "employer",
-			companyId: 3,
-		});
-	});
+    expect(result.brandHits).toContainEqual({
+      brand: "fanuc",
+      role: "employer",
+      source: "workHistory",
+      context: "employer",
+      companyId: 3,
+    });
+  });
 
-	it("should keep non-brand ITES employers in companyHits without creating employer brandHits", () => {
-		const result = service.computeOne("resume-baoli", {
-			data: [
-				{
-					...SAMPLE_RESUME_JUNIOR.data[0],
-					selfIntro: "",
-					workHistory: [
-						{ raw: "2020-01~2024-01 东莞宝力机械科技有限公司 销售经理" },
-					],
-				},
-			],
-		});
+  it("should keep non-brand ITES employers in companyHits without creating employer brandHits", () => {
+    const result = service.computeOne("resume-baoli", {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          selfIntro: "",
+          workHistory: [
+            { raw: "2020-01~2024-01 东莞宝力机械科技有限公司 销售经理" },
+          ],
+        },
+      ],
+    });
 
-		expect(result.companyHits).toContain("宝力机械有限公司");
-		expect(result.brandHits.filter((hit) => hit.context === "employer")).toEqual([]);
-	});
+    expect(result.companyHits).toContain("宝力机械有限公司");
+    expect(result.brandHits.filter((hit) => hit.context === "employer")).toEqual([]);
+  });
 
-	it("should not match loose skills aliases as employer brands; should match Tier-1 industry DB companies", () => {
-		const falsePositiveResume = {
-			data: [
-				{
-					...SAMPLE_RESUME_JUNIOR.data[0],
-					workHistory: [
-						{ raw: "2016-06~2021-11(5年5月)东莞精雕机械科技有限公司" },
-					],
-				},
-			],
-		};
-		const truePositiveResume = {
-			data: [
-				{
-					...SAMPLE_RESUME_JUNIOR.data[0],
-					workHistory: [
-						{ raw: "2016-06~2021-11(5年5月)北京精雕科技集团有限公司" },
-					],
-				},
-			],
-		};
+  it("should not match loose skills aliases as employer brands; should match Tier-1 industry DB companies", () => {
+    const falsePositiveResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2016-06~2021-11(5年5月)东莞精雕机械科技有限公司" },
+          ],
+        },
+      ],
+    };
+    const truePositiveResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2016-06~2021-11(5年5月)北京精雕科技集团有限公司" },
+          ],
+        },
+      ],
+    };
 
-		const falsePositiveResult = service.computeOne("resume-dg-jingdiao", falsePositiveResume);
-		expect(falsePositiveResult.companyHits).not.toContain("jingdiao");
+    const falsePositiveResult = service.computeOne("resume-dg-jingdiao", falsePositiveResume);
+    expect(falsePositiveResult.companyHits).not.toContain("jingdiao");
 
-		const truePositiveResult = service.computeOne("resume-bj-jingdiao", truePositiveResume);
-		expect(truePositiveResult.companyHits).toContain("jingdiao");
-		expect(truePositiveResult.brandHits).toContainEqual({
-			brand: "jingdiao",
-			role: "employer",
-			source: "workHistory",
-			context: "employer",
-			companyId: 1,
-		});
-	});
+    const truePositiveResult = service.computeOne("resume-bj-jingdiao", truePositiveResume);
+    expect(truePositiveResult.companyHits).toContain("jingdiao");
+    expect(truePositiveResult.brandHits).toContainEqual({
+      brand: "jingdiao",
+      role: "employer",
+      source: "workHistory",
+      context: "employer",
+      companyId: 1,
+    });
+  });
 
-	it("should reject ambiguous short employer substrings while preserving qualified near-exact company hits", () => {
-		const falsePositiveResume = {
-			data: [
-				{
-					...SAMPLE_RESUME_JUNIOR.data[0],
-					workHistory: [
-						{ raw: "2020-01~2022-12(2年11月)东莞市秦川电力设备有限公司销售工程师" },
-						{ raw: "2018-01~2019-12(1年11月)珠海润星泰电器有限公司业务员" },
-						{ raw: "2016-01~2017-12(1年11月)岑巩县思瑞高级中学教师" },
-					],
-				},
-			],
-		};
-		const truePositiveResume = {
-			data: [
-				{
-					...SAMPLE_RESUME_JUNIOR.data[0],
-					workHistory: [
-						{ raw: "2020-01~2024-12(4年11月)秦川机床集团销售工程师" },
-					],
-				},
-			],
-		};
+  it("should reject ambiguous short employer substrings while preserving qualified near-exact company hits", () => {
+    const falsePositiveResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2020-01~2022-12(2年11月)东莞市秦川电力设备有限公司销售工程师" },
+            { raw: "2018-01~2019-12(1年11月)珠海润星泰电器有限公司业务员" },
+            { raw: "2016-01~2017-12(1年11月)岑巩县思瑞高级中学教师" },
+          ],
+        },
+      ],
+    };
+    const truePositiveResume = {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2020-01~2024-12(4年11月)秦川机床集团销售工程师" },
+          ],
+        },
+      ],
+    };
 
-		const falsePositiveResult = service.computeOne("resume-partial-false-positive", falsePositiveResume);
-		expect(falsePositiveResult.brandHits).toEqual([]);
-		expect(falsePositiveResult.companyHits).toEqual([]);
+    const falsePositiveResult = service.computeOne("resume-partial-false-positive", falsePositiveResume);
+    expect(falsePositiveResult.brandHits).toEqual([]);
+    expect(falsePositiveResult.companyHits).toEqual([]);
 
-		const truePositiveResult = service.computeOne("resume-qinchuan", truePositiveResume);
-		expect(truePositiveResult.companyHits).toContain("qinchuan");
-		expect(truePositiveResult.brandHits).toContainEqual({
-			brand: "qinchuan",
-			role: "employer",
-			source: "workHistory",
-			context: "employer",
-			companyId: 4,
-		});
-	});
+    const truePositiveResult = service.computeOne("resume-qinchuan", truePositiveResume);
+    expect(truePositiveResult.companyHits).toContain("qinchuan");
+    expect(truePositiveResult.brandHits).toContainEqual({
+      brand: "qinchuan",
+      role: "employer",
+      source: "workHistory",
+      context: "employer",
+      companyId: 4,
+    });
+  });
 
   it("should ignore selfIntro sales brand mentions in processing", () => {
     const salesResume = {

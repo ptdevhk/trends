@@ -12,6 +12,7 @@ describe("getResumeAiLocaleText", () => {
       verifiedLabel: "verified",
       unverifiedLabel: "unverified",
       signalsLabel: "signals",
+      indirectRoleLabel: "[indirect-role]",
     });
   });
 
@@ -24,6 +25,7 @@ describe("getResumeAiLocaleText", () => {
       verifiedLabel: "已验证",
       unverifiedLabel: "未验证",
       signalsLabel: "信号",
+      indirectRoleLabel: "[非主职角色]",
     });
   });
 });

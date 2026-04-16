@@ -7,7 +7,7 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: string | Record<string, unknown>) => {
+    t: (key: string, options?: any) => {
       if (typeof options === 'string') {
         return options
       }
@@ -16,7 +16,14 @@ vi.mock('react-i18next', () => ({
         options && typeof options === 'object' && typeof options.defaultValue === 'string'
           ? options.defaultValue
           : key
-      return defaultValue.replace(/\{\{(\w+)\}\}/g, (_, token: string) => {
+
+      // Simple mock for score labels if no defaultValue present
+      let result = defaultValue
+      if (result === 'resumes.matching.scoreLabel' && options?.score !== undefined) {
+        result = String(Math.round(options.score))
+      }
+
+      return result.replace(/\{\{(\w+)\}\}/g, (_: string, token: string) => {
         const value = options && typeof options === 'object' ? options[token] : undefined
         return value === undefined || value === null ? '' : String(value)
       })
@@ -119,9 +126,9 @@ describe('SnippetCard', () => {
 
     expect(screen.getByText('Candidate 1')).toBeInTheDocument()
     expect(screen.getByText('Regional Sales Manager')).toBeInTheDocument()
-    expect(screen.getByText('Led machine tools growth across Malaysia.')).toBeInTheDocument()
-    expect(screen.getByText('Kuala Lumpur')).toBeInTheDocument()
-    expect(screen.getByText('6 years')).toBeInTheDocument()
+    expect(screen.getByTitle('Led machine tools growth across Malaysia.')).toBeInTheDocument()
+    expect(screen.getByText(/Kuala Lumpur/)).toBeInTheDocument()
+    expect(screen.getByText(/6 years/)).toBeInTheDocument()
     expect(screen.getByText('seek')).toBeInTheDocument()
     expect(screen.getByText('senior')).toBeInTheDocument()
     expect(screen.getByText('88')).toBeInTheDocument()
@@ -134,10 +141,10 @@ describe('SnippetCard', () => {
     expect(screen.queryByText('CNC')).not.toBeInTheDocument()
     expect(screen.queryByText('Malaysia')).not.toBeInTheDocument()
     expect(screen.queryByText('Ignored')).not.toBeInTheDocument()
-    expect(screen.getByText(/AI summary: Strong CNC sales coverage across Malaysia\./i)).toBeInTheDocument()
+    expect(screen.getByText(/AI 摘要: Strong CNC sales coverage across Malaysia\./i)).toBeInTheDocument()
     expect(screen.getByText('Expanded card for Candidate 1')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Collapse/i }))
+    await user.click(screen.getByRole('button', { name: /收起/i }))
 
     expect(onToggleExpanded).toHaveBeenCalled()
   })
@@ -156,8 +163,8 @@ describe('SnippetCard', () => {
       />
     )
 
-    expect(screen.getByText('AI pending')).toBeInTheDocument()
-    expect(screen.queryByText('Rule')).not.toBeInTheDocument()
+    expect(screen.getByText('AI 测算中')).toBeInTheDocument()
+    expect(screen.queryByText('规则')).not.toBeInTheDocument()
     expect(screen.queryByText('74')).not.toBeInTheDocument()
   })
 
@@ -177,8 +184,8 @@ describe('SnippetCard', () => {
       />
     )
 
-    expect(screen.getByText('AI pending')).toBeInTheDocument()
-    expect(screen.queryByText('Rule')).not.toBeInTheDocument()
+    expect(screen.getByText('AI 测算中')).toBeInTheDocument()
+    expect(screen.queryByText('规则')).not.toBeInTheDocument()
     expect(screen.queryByText('74')).not.toBeInTheDocument()
   })
 
@@ -216,19 +223,19 @@ describe('SnippetCard', () => {
       />
     )
 
-    expect(screen.getByText('Unnamed resume')).toBeInTheDocument()
-    expect(screen.getByText('Profile overview')).toBeInTheDocument()
+    expect(screen.getByText('未命名简历')).toBeInTheDocument()
+    expect(screen.getByText('摘要总览')).toBeInTheDocument()
     expect(
       screen.queryByText('Open the card to inspect recent work history and extracted signals.'),
     ).not.toBeInTheDocument()
     expect(screen.getByText('Automation')).toBeInTheDocument()
     expect(screen.getByText('PLC')).toBeInTheDocument()
     expect(screen.getByText('CNC')).toBeInTheDocument()
-    expect(screen.queryByText('Expanded card for Unnamed resume')).not.toBeInTheDocument()
+    expect(screen.queryByText('Expanded card for 未命名简历')).not.toBeInTheDocument()
     expect(screen.queryByText('mid')).toBeInTheDocument()
     expect(screen.queryByText('88')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Expand/i }))
+    await user.click(screen.getByRole('button', { name: /展开/i }))
 
     expect(onToggleExpanded).toHaveBeenCalled()
   })

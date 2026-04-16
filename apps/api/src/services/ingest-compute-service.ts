@@ -662,6 +662,13 @@ export class IngestComputeService {
     return configured.length > 0 ? configured : DIRECT_SALES_DUTY_CUES;
   }
 
+  private isJobTitleBoilerplate(jobTitle: string): boolean {
+    const normalized = jobTitle.trim().toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    return COMPANY_BOILERPLATE_PATTERNS.some((pattern) => pattern.test(normalized));
+  }
   private hasDirectRoleEvidence(
     roleType: string,
     matchedSignals: RoleSignalMatch[],
@@ -673,13 +680,24 @@ export class IngestComputeService {
       return true;
     }
 
-    if (matchedSignals.some((signal) => signal.source === "jobTitle")) {
+    const normalizedEntry = normalizeWorkHistoryEntry(entry);
+    const normalizedJobTitle = normalizeText(normalizedEntry?.jobTitle);
+
+    // When the jobTitle field is actually a company boilerplate description
+    // (e.g. "公司致力于各类通信产品的研发、制造和销售"), signal matches
+    // found in it should NOT be treated as direct job-title matches.
+    const jobTitleIsBoilerplate = normalizedJobTitle
+      ? this.isJobTitleBoilerplate(normalizedJobTitle)
+      : false;
+
+    if (
+      matchedSignals.some((signal) => signal.source === "jobTitle")
+      && !jobTitleIsBoilerplate
+    ) {
       return true;
     }
 
-    const normalizedEntry = normalizeWorkHistoryEntry(entry);
-    const normalizedJobTitle = normalizeText(normalizedEntry?.jobTitle);
-    if (normalizedJobTitle) {
+    if (normalizedJobTitle && !jobTitleIsBoilerplate) {
       return false;
     }
 
@@ -730,8 +748,18 @@ export class IngestComputeService {
         }
 
         const hasJobTitleMatch = matchedSignals.some((signal) => signal.source === "jobTitle");
+        const normalizedEntry = normalizeWorkHistoryEntry(entry);
+        const normalizedJobTitle = normalizeText(normalizedEntry?.jobTitle);
+        const jobTitleIsBoilerplate = normalizedJobTitle
+          ? this.isJobTitleBoilerplate(normalizedJobTitle)
+          : false;
+        // When the jobTitle is a company boilerplate description (e.g.
+        // "公司致力于各类通信产品的研发、制造和销售"), signal matches from
+        // it should NOT be treated as genuine job-title matches for the
+        // auxiliary-context and boilerplate-skip gates.
+        const hasGenuineJobTitleMatch = hasJobTitleMatch && !jobTitleIsBoilerplate;
         if (
-          !hasJobTitleMatch
+          !hasGenuineJobTitleMatch
           && matchedSignals.length === 1
           && this.isAuxiliaryContextMatch(
             entry,
@@ -745,6 +773,7 @@ export class IngestComputeService {
 
         if (
           roleType === "sales"
+          && !jobTitleIsBoilerplate
           && this.isGenericCompanyBoilerplateMatch(
             entry,
             workHistoryText,
@@ -902,7 +931,15 @@ export class IngestComputeService {
     matchedSignals: RoleSignalMatch[],
     directSalesDutyCues: string[],
   ): boolean {
-    if (matchedSignals.some((signal) => signal.source === "jobTitle")) {
+    // When the jobTitle is a boilerplate description, treat signal matches
+    // from it as if they came from raw text (not genuine job-title matches).
+    const normalizedEntry = normalizeWorkHistoryEntry(entry);
+    const normalizedJobTitle = normalizeText(normalizedEntry?.jobTitle);
+    const jobTitleIsBoilerplate = normalizedJobTitle
+      ? this.isJobTitleBoilerplate(normalizedJobTitle)
+      : false;
+
+    if (matchedSignals.some((signal) => signal.source === "jobTitle" && !jobTitleIsBoilerplate)) {
       return false;
     }
 
@@ -910,7 +947,6 @@ export class IngestComputeService {
       return false;
     }
 
-    const normalizedEntry = normalizeWorkHistoryEntry(entry);
     const sourceTexts = Array.from(new Set(
       matchedSignals.map((signal) => {
         if (signal.source === "description") {

@@ -113,8 +113,8 @@ describe('useFacetCounts', () => {
       { value: 'Master', label: undefined, count: 1 },
     ])
     expect(result.current.statuses).toEqual([
-      { value: 'contacted', label: undefined, count: 1 },
-      { value: 'new', label: undefined, count: 1 },
+      { value: 'contacted', label: 'resumes.status.options.contacted', count: 1 },
+      { value: 'new', label: 'resumes.status.options.new', count: 1 },
     ])
     expect(result.current.minScoreOptions).toEqual([
       { value: '60', count: 2 },
@@ -237,7 +237,7 @@ describe('useFacetCounts', () => {
       { value: 'Bachelor', label: undefined, count: 2000 },
     ])
     expect(result.current.statuses).toEqual([
-      { value: 'new', label: undefined, count: 2000 },
+      { value: 'new', label: 'resumes.status.options.new', count: 2000 },
     ])
     expect(result.current.minScoreOptions).toEqual([
       { value: '60', count: 2000 },

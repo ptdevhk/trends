@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
 import { getCurrentResumeAiPromptVersion } from '@/lib/analysis-utils'
 import type { CandidateStatusRecord } from '@/hooks/useCandidateStatus'
+import type { ApiClientLike } from '@/lib/api-helpers'
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import type { UrlSearchState } from '@/hooks/useUrlSearchState'
 
@@ -135,6 +136,17 @@ vi.mock('@/hooks/useConvexResumes', () => ({
 vi.mock('@/hooks/useFacetCounts', () => ({
   useFacetCounts: (...args: unknown[]) => useFacetCountsMock(...args),
 }))
+
+vi.mock('@/lib/api-helpers', () => {
+  const rawApiClientMock: ApiClientLike = {
+    GET: vi.fn().mockResolvedValue({ data: undefined, error: undefined }),
+    POST: vi.fn(),
+    PUT: vi.fn(),
+    DELETE: vi.fn(),
+    PATCH: vi.fn(),
+  }
+  return { rawApiClient: rawApiClientMock }
+})
 
 function createParsedState(overrides: Partial<UrlSearchState> = {}): UrlSearchState {
   return {

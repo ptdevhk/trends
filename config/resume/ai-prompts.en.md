@@ -1,6 +1,6 @@
 ---
-version: 5
-updated_at: '2026-04-15'
+version: 6
+updated_at: '2026-04-16'
 description: >
   English locale variant for the resume AI prompts.
   Falls back to the zh-Hans master prompt when this file is absent.
@@ -21,6 +21,8 @@ You must return results strictly as plain numeric JSON.
 6. summary/highlights/concerns must prioritize the candidate's role focus, industry background, and directly relevant work history instead of repeating only total years or education.
 7. If work-history evidence is already provided, do not say that specific work experience was missing.
 8. `Role Signals` are structured role evidence. Use them to decide whether the candidate is actually in sales, engineering, debugging, or technical support. Do not let phrases like "support sales", "close orders", or "train customers" inflate direct sales experience.
+9. Work entries marked `[indirect-role]` indicate the role-type signal came from a company description or supporting context, not from the candidate's actual job title. Do not count these entries as direct sales, engineering, or other primary-role experience.
+10. Each signal in `Role Signals` includes a `verified:X` field — the number of years confirmed by the industry database. `verified:0` means no industry-verified experience for that role; significantly discount it. `verified:X` (X>0) means verifiable industry experience — weight it much higher. For sales roles: if `verified:0`, even a large `years` value must not be treated as direct industry sales experience.
 ```
 
 ## User Prompt Template
@@ -66,7 +68,7 @@ Please analyze how well the following candidate matches the job:
 - 70-84: Strong direct-role alignment with matching industry domain and relevant duties, but evidence depth or years are slightly weaker than top-tier.
 - 40-69: Partial or adjacent experience with transferability, but ONLY when the industry domain matches. If the industry does not match, do not score in this range.
 - 0-39: Little direct role evidence, or industry domain mismatch, or mostly support/collaboration duties that should not be treated as high match.
-- If `Role Signals` show a direct sales role (for example sales engineer/sales manager) with >= 3 relevant years plus evidence of territory ownership, target attainment, or closed-deal outcomes, **AND the industry domain matches**, `related_exp` should not be below 80. This floor does not apply when the industry domain does not match.
+- If `Role Signals` show a direct sales role (for example sales engineer/sales manager) with `verified` >= 3 years plus evidence of territory ownership, target attainment, or closed-deal outcomes, **AND the industry domain matches**, `related_exp` should not be below 80. This floor does not apply when the industry domain does not match, or when `verified:0` even if `years` is large.
 
 ## Summary and Judgment Requirements
 - summary/highlights/concerns must prioritize the candidate's role focus, industry background, and directly relevant work history.
