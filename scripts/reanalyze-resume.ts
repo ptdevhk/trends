@@ -92,7 +92,6 @@ async function main() {
     console.log(`\nScore change : ${beforeScore} → ${r.score}  (${scoreDiff >= 0 ? "+" : ""}${scoreDiff})`);
     console.log(`\n✅ Score updated in DB. Refresh the UI to see the new value.`);
 
-    client.close();
 }
 
 main().catch((err) => {
