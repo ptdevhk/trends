@@ -54,30 +54,41 @@ English-first guidance; Chinese notes are short clarifications.
 4. Apply optional polish only after correctness.
 - 先正确再优化; avoid speculative refactors.
 
-## Dev Cycle Rules (Major)
-- No direct commit to `main` or `master`.
-- No direct push to `main` or `master`.
-- Default PR completion behavior is to enable auto-merge with `gh pr merge <number> --squash --auto` after opening the PR.
-- If the user explicitly requests not to merge, do not enable auto-merge and wait for further approval.
-- Never force-push protected branches.
-- Never use `gh pr merge --delete-branch`; the web app relies on preserved branches for merged-task git diffs.
-- Preferred merge command: `gh pr merge <number> --squash --auto`.
-- Do not use `--admin` unless explicitly requested.
-- **NO manual PR creation from cmux task sandboxes** — if `CMUX_TASK_RUN_JWT` is set, do not run `gh pr create`; cmux creates or updates the task PR automatically.
+# Git Policy (IMPORTANT)
 
-Required flow:
-1. Create branch: `git checkout -b <type>/<scope>`
-2. Implement focused change set.
-3. If you make code changes, run `make check` after completing the task and fix failures before handoff.
-4. After `make check`, if code changes remain or Codex review is in progress, run a simplify workflow explicitly:
-   - Use `/simplify` if the current agent/runtime supports it.
-   - Otherwise use the portable `$simplify` skill or the agent's equivalent simplify workflow.
-5. Run any additional scoped validation needed for touched areas.
-6. Commit with clear message.
-7. Push branch.
-8. If `CMUX_TASK_RUN_JWT` is unset, create PR manually: `gh pr create --base main`.
-9. If `CMUX_TASK_RUN_JWT` is set, stop after pushing and let cmux create or update the PR.
-10. Unless the user explicitly requests not to merge, enable auto-merge with `gh pr merge <number> --squash --auto` (skip if cmux manages the PR).
+**All agents (Claude, Codex, Gemini, etc.) MUST follow these rules:**
+
+1. **NO direct commits to main/master** - Always create a feature branch first
+2. **NO direct push to main/master** - Push to feature branches only
+3. **Default merge behavior is auto-merge** - Unless the user explicitly requests not to merge, enable auto-merge with `gh pr merge <number> --squash --auto`
+4. **NO force push to main/master** - This destroys history
+5. **NO manual PR creation from cmux task sandboxes** - If `CMUX_TASK_RUN_JWT` is set AND `CMUX_IS_ORCHESTRATION_HEAD` is NOT set, do not run `gh pr create`; cmux creates or updates the task PR automatically. Cloud workspaces (head agents with `CMUX_IS_ORCHESTRATION_HEAD=1`) CAN create PRs manually.
+
+**Workflow:**
+1. Create feature branch: `git checkout -b <type>/<description>`
+2. Make changes and commit to feature branch
+3. Push feature branch: `git push -u origin <branch>`
+4. If `CMUX_TASK_RUN_JWT` is unset OR `CMUX_IS_ORCHESTRATION_HEAD=1`, create PR manually: `gh pr create --base main`
+5. If `CMUX_TASK_RUN_JWT` is set AND `CMUX_IS_ORCHESTRATION_HEAD` is NOT set, stop after pushing and let cmux create or update the PR
+6. Unless the user explicitly requests not to merge, enable auto-merge: `gh pr merge <number> --squash --auto`
+
+# Dev Cycle (IMPORTANT)
+
+**All agents MUST follow this workflow after code changes:**
+
+1. If you make code changes, run `make check` after completing the task and fix failures before handoff
+2. After `make check`, if code changes remain or review is in progress, run a simplify workflow explicitly
+3. Use `/simplify` if the runtime supports it
+4. Otherwise use the portable `$simplify` skill or the agent's equivalent simplify workflow
+
+**Available tools (for manual use when needed):**
+
+| Command | Purpose |
+|---------|---------|
+| `make check` | Run required repo validation checks |
+| `/simplify` | Full 3-pass code review (reuse, quality, efficiency) |
+| `/simplify --quick` | Fast single-pass review |
+| `/simplify --staged-only` | Review only staged files |
 
 ## Runbook Commands (Authoritative)
 
