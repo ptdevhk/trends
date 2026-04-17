@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw, FileText, AlertTriangle, History, Upload } from 'lucide-react'
@@ -46,6 +47,19 @@ function isConvexResumeEntry(resume: ResumeItem | ConvexResumeItem): resume is C
 
 export function ResumeList() {
   const { t } = useTranslation()
+  const [urlSearchParams] = useSearchParams()
+  const initialCollectLimit = useMemo(() => {
+    const raw = urlSearchParams.get('tr_limit')
+    if (!raw) return undefined
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+  }, [urlSearchParams])
+  const initialMaxPages = useMemo(() => {
+    const raw = urlSearchParams.get('tr_max_pages')
+    if (!raw) return undefined
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+  }, [urlSearchParams])
   const [historyRequested, setHistoryRequested] = useState(false)
   const [hasCompletedInitialListLoad, setHasCompletedInitialListLoad] = useState(false)
   const {
@@ -337,6 +351,8 @@ export function ResumeList() {
                 onCollectionSourceChange={handleCollectionSourceChange}
                 minAge={filters.minAge}
                 maxAge={filters.maxAge}
+                initialCollectLimit={initialCollectLimit}
+                initialMaxPages={initialMaxPages}
               />
 
               <Button

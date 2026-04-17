@@ -32,6 +32,8 @@ export type CollectionSource = {
   type: CollectionSourceType
   exactUrl?: string
   unsafeLimits?: boolean
+  job51CollectLimit?: number
+  job51MaxPages?: number
 }
 
 const SOURCE_MARKET_MAP: Record<CollectionSourceType, 'CN' | 'MY'> = {
@@ -50,6 +52,8 @@ export type SearchProfileSource = {
   priority?: number
   jobUrl?: string
   unsafeLimits?: boolean
+  job51CollectLimit?: number
+  job51MaxPages?: number
 }
 
 type BuildSeekCollectUrlInput = {
@@ -131,20 +135,21 @@ export function normalizeCollectionSource(
     ? normalizeSeekJobUrl(value.exactUrl)
     : undefined
 
-  return exactUrl
+  const job51Extras = value.type === SEARCH_PROFILE_SOURCE_TYPES.job51
     ? {
-        type: value.type,
-        exactUrl,
-        ...(value.type === SEARCH_PROFILE_SOURCE_TYPES.job51 && value.unsafeLimits === true
-          ? { unsafeLimits: true }
+        ...(value.unsafeLimits === true ? { unsafeLimits: true } : {}),
+        ...(typeof value.job51CollectLimit === 'number' && value.job51CollectLimit > 0
+          ? { job51CollectLimit: value.job51CollectLimit }
+          : {}),
+        ...(typeof value.job51MaxPages === 'number' && value.job51MaxPages > 0
+          ? { job51MaxPages: value.job51MaxPages }
           : {}),
       }
-    : {
-        type: value.type,
-        ...(value.type === SEARCH_PROFILE_SOURCE_TYPES.job51 && value.unsafeLimits === true
-          ? { unsafeLimits: true }
-          : {}),
-      }
+    : {}
+
+  return exactUrl
+    ? { type: value.type, exactUrl, ...job51Extras }
+    : { type: value.type, ...job51Extras }
 }
 
 export function resolveCollectionSource(
@@ -161,12 +166,16 @@ export function stripCollectionSourceExactUrl(
     return undefined
   }
 
-  return {
-    type: normalized.type,
-    ...(normalized.type === SEARCH_PROFILE_SOURCE_TYPES.job51 && normalized.unsafeLimits === true
-      ? { unsafeLimits: true }
-      : {}),
+  if (normalized.type === SEARCH_PROFILE_SOURCE_TYPES.job51) {
+    return {
+      type: normalized.type,
+      ...(normalized.unsafeLimits === true ? { unsafeLimits: true } : {}),
+      ...(typeof normalized.job51CollectLimit === 'number' ? { job51CollectLimit: normalized.job51CollectLimit } : {}),
+      ...(typeof normalized.job51MaxPages === 'number' ? { job51MaxPages: normalized.job51MaxPages } : {}),
+    }
   }
+
+  return { type: normalized.type }
 }
 
 export function normalizeSeekJobUrl(value: string | undefined): string | undefined {
@@ -254,7 +263,12 @@ export function getSearchProfileCollectionSource(
   }
 
   if (source.type === SEARCH_PROFILE_SOURCE_TYPES.job51) {
-    return { type: SEARCH_PROFILE_SOURCE_TYPES.job51 }
+    return normalizeCollectionSource({
+      type: SEARCH_PROFILE_SOURCE_TYPES.job51,
+      unsafeLimits: source.unsafeLimits,
+      job51CollectLimit: source.job51CollectLimit,
+      job51MaxPages: source.job51MaxPages,
+    })
   }
 
   return { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 }
@@ -381,6 +395,12 @@ export function buildJob5156CollectUrl({
   return url.toString()
 }
 
+type BuildJob51CollectUrlInput = BuildJob5156CollectUrlInput & {
+  unsafeLimits?: boolean
+  job51CollectLimit?: number
+  job51MaxPages?: number
+}
+
 export function buildJob51CollectUrl({
   location,
   keywords,
@@ -389,7 +409,9 @@ export function buildJob51CollectUrl({
   minAge,
   maxAge,
   unsafeLimits,
-}: BuildJob5156CollectUrlInput & { unsafeLimits?: boolean }): string | null {
+  job51CollectLimit: sourceLevelLimit,
+  job51MaxPages: sourceLevelMaxPages,
+}: BuildJob51CollectUrlInput): string | null {
   const normalizedKeywords = normalizeKeywords(keywords)
   if (normalizedKeywords.length === 0) {
     return null
@@ -405,25 +427,30 @@ export function buildJob51CollectUrl({
 
   url.searchParams.set('tr_auto_sync', 'true')
 
-  const normalizedCollectLimit = normalizeOptionalPositiveInt(collectLimit)
-  const job51CollectLimit = unsafeLimits === true
-    ? (typeof normalizedCollectLimit === 'number'
-      ? normalizedCollectLimit
-      : JOB51_SAFE_LAUNCH_LIMIT)
-    : (typeof normalizedCollectLimit === 'number'
-      ? Math.min(normalizedCollectLimit, JOB51_SAFE_LAUNCH_LIMIT)
-      : JOB51_SAFE_LAUNCH_LIMIT)
-  const normalizedMaxPages = normalizeOptionalPositiveInt(maxPages)
-  const job51MaxPages = unsafeLimits === true
-    ? (typeof normalizedMaxPages === 'number'
-      ? normalizedMaxPages
-      : JOB51_SAFE_LAUNCH_MAX_PAGES)
-    : (typeof normalizedMaxPages === 'number'
-      ? Math.min(normalizedMaxPages, JOB51_SAFE_LAUNCH_MAX_PAGES)
-      : JOB51_SAFE_LAUNCH_MAX_PAGES)
-  url.searchParams.set('tr_limit', String(job51CollectLimit))
-  url.searchParams.set('tr_max_pages', String(job51MaxPages))
-  if (unsafeLimits === true) {
+  // Source-level limit takes priority over generic collectLimit
+  const effectiveLimit = typeof sourceLevelLimit === 'number' && sourceLevelLimit > 0
+    ? sourceLevelLimit
+    : normalizeOptionalPositiveInt(collectLimit)
+  // Source-level maxPages takes priority over generic maxPages
+  const effectiveMaxPages = typeof sourceLevelMaxPages === 'number' && sourceLevelMaxPages > 0
+    ? sourceLevelMaxPages
+    : normalizeOptionalPositiveInt(maxPages)
+
+  // Derive unsafeLimits: true if either source-level or effective exceeds safe threshold
+  const derivedUnsafeLimits = unsafeLimits === true
+    || (typeof sourceLevelLimit === 'number' && sourceLevelLimit > JOB51_SAFE_LAUNCH_LIMIT)
+    || (typeof sourceLevelMaxPages === 'number' && sourceLevelMaxPages > JOB51_SAFE_LAUNCH_MAX_PAGES)
+
+  const finalLimit = typeof effectiveLimit === 'number'
+    ? (derivedUnsafeLimits ? effectiveLimit : Math.min(effectiveLimit, JOB51_SAFE_LAUNCH_LIMIT))
+    : JOB51_SAFE_LAUNCH_LIMIT
+  const finalMaxPages = typeof effectiveMaxPages === 'number'
+    ? (derivedUnsafeLimits ? effectiveMaxPages : Math.min(effectiveMaxPages, JOB51_SAFE_LAUNCH_MAX_PAGES))
+    : JOB51_SAFE_LAUNCH_MAX_PAGES
+
+  url.searchParams.set('tr_limit', String(finalLimit))
+  url.searchParams.set('tr_max_pages', String(finalMaxPages))
+  if (derivedUnsafeLimits) {
     url.searchParams.set('tr_unsafe_limits', '1')
   }
 
@@ -470,6 +497,8 @@ export function buildCollectionLaunchUrl({
       minAge,
       maxAge,
       unsafeLimits: source.unsafeLimits,
+      job51CollectLimit: source.job51CollectLimit,
+      job51MaxPages: source.job51MaxPages,
     })
   }
 

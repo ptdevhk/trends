@@ -70,8 +70,8 @@ describe('CollectResumesButton', () => {
     )
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Source' }), '51job')
-    expect(screen.getByRole('spinbutton', { name: 'Collect page limit' })).toBeDisabled()
-    expect(screen.getByText('51job uses conservative mode: up to 50 resumes and 1 page per run.')).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: 'Collect page limit' })).not.toBeDisabled()
+    expect(screen.getByText(/Collecting up to 50 resumes across 1 page/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Collect' }))
 
     const job51Url = new URL(openMock.mock.calls[1]?.[0] as string)
@@ -143,5 +143,59 @@ describe('CollectResumesButton', () => {
     expect(launchedUrl.searchParams.get('tr_max_pages')).toBe('1')
     expect(launchedUrl.searchParams.get('tr_min_age')).toBe('28')
     expect(launchedUrl.searchParams.get('tr_max_age')).toBe('40')
+  })
+
+  it('launches 51job collection with custom limits and auto-derives unsafe mode', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <Harness
+        initialCollectionSource={{ type: '51job' }}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Source' })).toHaveValue('51job')
+    })
+
+    await user.clear(screen.getByRole('spinbutton', { name: 'Limit' }))
+    await user.type(screen.getByRole('spinbutton', { name: 'Limit' }), '200')
+    await user.clear(screen.getByRole('spinbutton', { name: 'Collect page limit' }))
+    await user.type(screen.getByRole('spinbutton', { name: 'Collect page limit' }), '5')
+    await user.click(screen.getByRole('button', { name: 'Collect' }))
+
+    const launchedUrl = new URL(openMock.mock.calls[0]?.[0] as string)
+    expect(launchedUrl.searchParams.get('tr_limit')).toBe('200')
+    expect(launchedUrl.searchParams.get('tr_max_pages')).toBe('5')
+    expect(launchedUrl.searchParams.get('tr_unsafe_limits')).toBe('1')
+  })
+
+  it('pre-fills limit and maxPages from initialCollectLimit and initialMaxPages props', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <CollectResumesButton
+        location="东莞"
+        keywords={['CNC']}
+        collectionSource={{ type: '51job' }}
+        onCollectionSourceChange={vi.fn()}
+        initialCollectLimit={150}
+        initialMaxPages={4}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Source' })).toHaveValue('51job')
+    })
+
+    expect(screen.getByRole('spinbutton', { name: 'Limit' })).toHaveValue(150)
+    expect(screen.getByRole('spinbutton', { name: 'Collect page limit' })).toHaveValue(4)
+
+    await user.click(screen.getByRole('button', { name: 'Collect' }))
+
+    const launchedUrl = new URL(openMock.mock.calls[0]?.[0] as string)
+    expect(launchedUrl.searchParams.get('tr_limit')).toBe('150')
+    expect(launchedUrl.searchParams.get('tr_max_pages')).toBe('4')
+    expect(launchedUrl.searchParams.get('tr_unsafe_limits')).toBe('1')
   })
 })

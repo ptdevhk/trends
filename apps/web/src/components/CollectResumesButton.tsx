@@ -34,6 +34,8 @@ interface CollectResumesButtonProps {
   collectLimit?: number
   minAge?: number
   maxAge?: number
+  initialCollectLimit?: number
+  initialMaxPages?: number
 }
 
 function isExtensionMeta(value: unknown): value is ExtensionMeta {
@@ -62,21 +64,34 @@ export function CollectResumesButton({
   collectLimit,
   minAge,
   maxAge,
+  initialCollectLimit,
+  initialMaxPages,
 }: CollectResumesButtonProps) {
   const { t } = useTranslation()
   const [extensionVersion, setExtensionVersion] = useState<string | null>(null)
-  const [maxPagesInput, setMaxPagesInput] = useState('')
+  const [collectLimitInput, setCollectLimitInput] = useState(() =>
+    typeof initialCollectLimit === 'number' && initialCollectLimit > 0 ? String(initialCollectLimit) : '',
+  )
+  const [maxPagesInput, setMaxPagesInput] = useState(() =>
+    typeof initialMaxPages === 'number' && initialMaxPages > 0 ? String(initialMaxPages) : '',
+  )
 
   const normalizedLocation = useMemo(() => location.trim(), [location])
   const normalizedKeywords = useMemo(
     () => keywords.map((keyword) => keyword.trim()).filter((keyword) => keyword.length > 0),
     [keywords]
   )
-  const normalizedCollectLimit = useMemo(() => normalizeCollectLimit(collectLimit), [collectLimit])
-  const normalizedCollectMaxPages = useMemo(
+  const propCollectLimit = useMemo(() => normalizeCollectLimit(collectLimit), [collectLimit])
+  const inputCollectLimit = useMemo(
+    () => normalizeCollectLimit(collectLimitInput.trim().length > 0 ? Number(collectLimitInput) : undefined),
+    [collectLimitInput]
+  )
+  const normalizedCollectLimit = inputCollectLimit > 0 ? inputCollectLimit : propCollectLimit
+  const inputCollectMaxPages = useMemo(
     () => normalizeCollectLimit(maxPagesInput.trim().length > 0 ? Number(maxPagesInput) : undefined),
     [maxPagesInput]
   )
+  const normalizedCollectMaxPages = inputCollectMaxPages
   const normalizedMinAge = useMemo(() => normalizeAgeBound(minAge), [minAge])
   const normalizedMaxAge = useMemo(() => normalizeAgeBound(maxAge), [maxAge])
   const normalizedCollectionSource = useMemo(
@@ -109,6 +124,9 @@ export function CollectResumesButton({
     ? !seekSource?.exactUrl && normalizedKeywords.length === 0
     : normalizedKeywords.length === 0
 
+  const job51SourceLevelLimit = isJob51Selected && inputCollectLimit > 0 ? inputCollectLimit : undefined
+  const job51SourceLevelMaxPages = isJob51Selected && inputCollectMaxPages > 0 ? inputCollectMaxPages : undefined
+
   const launchUrl = useMemo(() => {
     if (disabled) {
       return null
@@ -122,6 +140,10 @@ export function CollectResumesButton({
           }
         : {
             type: selectedSourceType,
+            ...(isJob51Selected ? {
+              job51CollectLimit: job51SourceLevelLimit,
+              job51MaxPages: job51SourceLevelMaxPages,
+            } : {}),
           },
       location: normalizedLocation,
       keywords: normalizedKeywords,
@@ -132,6 +154,9 @@ export function CollectResumesButton({
     })
   }, [
     disabled,
+    isJob51Selected,
+    job51SourceLevelLimit,
+    job51SourceLevelMaxPages,
     normalizedCollectLimit,
     normalizedCollectMaxPages,
     normalizedKeywords,
@@ -187,9 +212,12 @@ export function CollectResumesButton({
   ]), [t])
   const maxPagesLabel = t('quickStart.collectMaxPagesLabel', 'Collect page limit')
   const maxPagesPlaceholder = t('quickStart.collectMaxPagesPlaceholder', 'Pages')
-  const job51SafetyHint = t(
-    'quickStart.collectJob51SafetyHint',
-    `51job uses conservative mode: up to ${JOB51_SAFE_LAUNCH_LIMIT} resumes and ${JOB51_SAFE_LAUNCH_MAX_PAGES} page per run.`,
+  const collectLimitPlaceholder = t('quickStart.collectLimitPlaceholder', 'Limit')
+  const effectiveLimit = isJob51Selected && inputCollectLimit > 0 ? inputCollectLimit : JOB51_SAFE_LAUNCH_LIMIT
+  const effectiveMaxPages = isJob51Selected && inputCollectMaxPages > 0 ? inputCollectMaxPages : JOB51_SAFE_LAUNCH_MAX_PAGES
+  const job51Hint = t(
+    'quickStart.collectJob51Hint',
+    `Collecting up to ${effectiveLimit} resumes across ${effectiveMaxPages} page(s).`,
   )
 
   const handleClick = () => {
@@ -202,6 +230,10 @@ export function CollectResumesButton({
 
   const handleMaxPagesChange = (event: ChangeEvent<HTMLInputElement>) => {
     setMaxPagesInput(event.target.value)
+  }
+
+  const handleCollectLimitChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setCollectLimitInput(event.target.value)
   }
 
   const handleSourceChange = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -261,6 +293,22 @@ export function CollectResumesButton({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        <label htmlFor="collect-limit" className="sr-only">
+          {collectLimitPlaceholder}
+        </label>
+        <Input
+          id="collect-limit"
+          name="collect-limit"
+          type="number"
+          min={1}
+          step={1}
+          inputMode="numeric"
+          value={collectLimitInput}
+          onChange={handleCollectLimitChange}
+          placeholder={collectLimitPlaceholder}
+          aria-label={collectLimitPlaceholder}
+          className="h-9 w-24"
+        />
         <label htmlFor="collect-max-pages" className="sr-only">
           {maxPagesLabel}
         </label>
@@ -271,17 +319,16 @@ export function CollectResumesButton({
           min={1}
           step={1}
           inputMode="numeric"
-          value={isJob51Selected ? String(JOB51_SAFE_LAUNCH_MAX_PAGES) : maxPagesInput}
+          value={maxPagesInput}
           onChange={handleMaxPagesChange}
           placeholder={maxPagesPlaceholder}
           aria-label={maxPagesLabel}
           className="h-9 w-24"
-          disabled={isJob51Selected}
         />
       </div>
       {isJob51Selected ? (
         <p className="text-xs text-muted-foreground">
-          {job51SafetyHint}
+          {job51Hint}
         </p>
       ) : null}
       {extensionVersion ? (

@@ -60,6 +60,8 @@ export interface SearchProfile {
         priority?: number;
         jobUrl?: string;
         unsafeLimits?: boolean;
+        job51CollectLimit?: number;
+        job51MaxPages?: number;
     }>;
 
     // Landing page quick start
@@ -355,6 +357,9 @@ function parseSources(value: unknown): SearchProfile["sources"] | undefined {
             const enabled = readBoolean(item.enabled);
             const priority = readNumber(item.priority);
             const jobUrl = readString(item.jobUrl);
+            const unsafeLimits = readBoolean(item.unsafeLimits);
+            const job51CollectLimit = readNumber(item.job51CollectLimit);
+            const job51MaxPages = readNumber(item.job51MaxPages);
             if (!type || enabled === undefined) return null;
 
             return {
@@ -362,6 +367,9 @@ function parseSources(value: unknown): SearchProfile["sources"] | undefined {
                 enabled,
                 priority,
                 jobUrl,
+                ...(unsafeLimits === true ? { unsafeLimits: true } : {}),
+                ...(typeof job51CollectLimit === "number" ? { job51CollectLimit } : {}),
+                ...(typeof job51MaxPages === "number" ? { job51MaxPages } : {}),
             };
         })
         .filter((item): item is NonNullable<typeof item> => item !== null);
