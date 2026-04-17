@@ -10,6 +10,7 @@ import SystemLayout from '@/layouts/SystemLayout'
 import SystemSettingsLayout from '@/layouts/SystemSettingsLayout'
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext'
 import { ResumeFieldUsagePolicyProvider } from '@/contexts/ResumeFieldUsagePolicyContext'
+import { isReviewPacketsEnabled } from '@/lib/feature-flags'
 
 const LazyDebugPage = lazy(async () => {
   const module = await import('@/pages/DebugPage')
@@ -133,7 +134,11 @@ function App() {
 
             <Route element={<MainShell />}>
               <Route path="resumes" element={<ResumesPage />} />
-              <Route path="review-packets" element={<ReviewPacketsPage />} />
+              {isReviewPacketsEnabled() ? (
+                <Route path="review-packets" element={<ReviewPacketsPage />} />
+              ) : (
+                <Route path="review-packets" element={<PreserveSearchNavigate pathname="resumes" />} />
+              )}
             </Route>
 
             <Route path="settings" element={<SettingsLayout />}>

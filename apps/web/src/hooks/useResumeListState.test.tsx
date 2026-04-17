@@ -228,6 +228,10 @@ vi.mock('sonner', () => ({
   },
 }))
 
+vi.mock('@/lib/feature-flags', () => ({
+  isReviewPacketsEnabled: () => true,
+}))
+
 beforeAll(() => {
   Object.defineProperty(window.URL, 'createObjectURL', {
     writable: true,
