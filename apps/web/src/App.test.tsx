@@ -18,6 +18,14 @@ vi.mock('@/pages/ReviewPacketsPage', () => ({
   ReviewPacketsPage: () => <div>Review Packets Page</div>,
 }))
 
+const featureFlagsMock = vi.hoisted(() => ({
+  reviewPacketsEnabled: true,
+}))
+
+vi.mock('@/lib/feature-flags', () => ({
+  isReviewPacketsEnabled: () => featureFlagsMock.reviewPacketsEnabled,
+}))
+
 vi.mock('@/pages/DebugPage', () => ({
   DebugPage: ({ basePath }: { basePath: string }) => <div>Debug Page {basePath}</div>,
 }))
@@ -89,6 +97,7 @@ vi.mock('@/layouts/SystemSettingsLayout', () => ({
 describe('App redirects', () => {
   beforeEach(() => {
     window.history.replaceState({}, '', '/')
+    featureFlagsMock.reviewPacketsEnabled = true
   })
 
   it('preserves search params when redirecting a workspace index route to resumes', async () => {
@@ -112,6 +121,20 @@ describe('App redirects', () => {
     await waitFor(() => {
       expect(window.location.pathname).toBe('/hr/resumes')
       expect(window.location.search).toBe('?q=CNC&location=Kuala+Lumpur+MY')
+    })
+
+    expect(screen.getByText('Resumes Page')).toBeInTheDocument()
+  })
+
+  it('redirects review-packets to resumes when feature flag is off', async () => {
+    featureFlagsMock.reviewPacketsEnabled = false
+
+    window.history.replaceState({}, '', '/dev/review-packets')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/dev/resumes')
     })
 
     expect(screen.getByText('Resumes Page')).toBeInTheDocument()

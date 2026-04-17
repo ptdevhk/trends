@@ -82,11 +82,20 @@ vi.mock('./WorkspaceSwitcher', () => ({
   WorkspaceSwitcher: () => <div>Workspace Switcher</div>,
 }))
 
+const featureFlagsMock = vi.hoisted(() => ({
+  reviewPacketsEnabled: true,
+}))
+
+vi.mock('@/lib/feature-flags', () => ({
+  isReviewPacketsEnabled: () => featureFlagsMock.reviewPacketsEnabled,
+}))
+
 describe('Header', () => {
   beforeEach(() => {
     mockState.slug = 'dev'
     mockState.name = 'Development'
     mockState.isAdmin = true
+    featureFlagsMock.reviewPacketsEnabled = true
   })
 
   it('sends resume home reset state on logo and resumes navigation links', () => {
@@ -127,5 +136,21 @@ describe('Header', () => {
       expect(link).toHaveAttribute('href', '/dev/system')
       expect(link).toHaveAttribute('data-reset', 'false')
     })
+  })
+
+  it('hides review packets nav links when feature flag is off', () => {
+    featureFlagsMock.reviewPacketsEnabled = false
+
+    render(<Header />)
+
+    const reviewPacketLinks = screen.queryAllByRole('link', { name: 'Review packets' })
+    expect(reviewPacketLinks).toHaveLength(0)
+
+    // Other nav links are still visible
+    const resumeLinks = screen.getAllByRole('link', { name: 'Resumes' })
+    expect(resumeLinks).toHaveLength(2)
+
+    const settingsLinks = screen.getAllByRole('link', { name: 'Settings' })
+    expect(settingsLinks).toHaveLength(2)
   })
 })

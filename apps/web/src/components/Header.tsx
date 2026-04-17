@@ -5,6 +5,7 @@ import { LanguageSwitcher } from './LanguageSwitcher'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { RESUME_HOME_RESET_STATE } from '@/lib/resume-home-navigation'
+import { isReviewPacketsEnabled } from '@/lib/feature-flags'
 import { cn } from '@/lib/utils'
 
 interface HeaderProps {
@@ -16,6 +17,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
   const { slug, name, isAdmin } = useWorkspace()
   const resumesPath = `/${slug}/resumes`
   const reviewPacketsPath = `/${slug}/review-packets`
+  const showReviewPackets = isReviewPacketsEnabled()
   const settingsPath = `/${slug}/settings`
   const systemPath = `/${slug}/system`
 
@@ -44,17 +46,19 @@ export function Header({ leftAction }: HeaderProps = {}) {
             >
               {t('nav.resumes')}
             </NavLink>
-            <NavLink
-              to={reviewPacketsPath}
-              className={({ isActive }) =>
-                cn(
-                  'transition-colors hover:text-foreground',
-                  isActive ? 'text-foreground' : 'text-muted-foreground'
-                )
-              }
-            >
-              {t('nav.reviewPackets', { defaultValue: 'Review packets' })}
-            </NavLink>
+            {showReviewPackets ? (
+              <NavLink
+                to={reviewPacketsPath}
+                className={({ isActive }) =>
+                  cn(
+                    'transition-colors hover:text-foreground',
+                    isActive ? 'text-foreground' : 'text-muted-foreground'
+                  )
+                }
+              >
+                {t('nav.reviewPackets', { defaultValue: 'Review packets' })}
+              </NavLink>
+            ) : null}
             <NavLink
               to={settingsPath}
               className={({ isActive }) =>
@@ -99,17 +103,19 @@ export function Header({ leftAction }: HeaderProps = {}) {
             >
               {t('nav.resumes')}
             </NavLink>
-            <NavLink
-              to={reviewPacketsPath}
-              className={({ isActive }) =>
-                cn(
-                  'transition-colors hover:text-foreground',
-                  isActive ? 'text-foreground' : 'text-muted-foreground'
-                )
-              }
-            >
-              {t('nav.reviewPackets', { defaultValue: 'Review packets' })}
-            </NavLink>
+            {showReviewPackets ? (
+              <NavLink
+                to={reviewPacketsPath}
+                className={({ isActive }) =>
+                  cn(
+                    'transition-colors hover:text-foreground',
+                    isActive ? 'text-foreground' : 'text-muted-foreground'
+                  )
+                }
+              >
+                {t('nav.reviewPackets', { defaultValue: 'Review packets' })}
+              </NavLink>
+            ) : null}
             <NavLink
               to={settingsPath}
               className={({ isActive }) =>

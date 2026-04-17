@@ -66,6 +66,7 @@ import {
   toMatchBreakdown,
 } from '@/lib/resume-scoring'
 import type { CollectionSource } from '@/lib/search-profile-sources'
+import { isReviewPacketsEnabled } from '@/lib/feature-flags'
 
 type JobDescriptionApiResponse = {
   success: boolean
@@ -1834,7 +1835,7 @@ export function useResumeListState(loadSearchHistory = false) {
   )
 
   const handleOpenReviewPacket = useCallback(async () => {
-    if (selectedIds.size === 0) {
+    if (!isReviewPacketsEnabled() || selectedIds.size === 0) {
       return
     }
 
