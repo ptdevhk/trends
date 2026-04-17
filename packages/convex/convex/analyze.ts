@@ -247,36 +247,27 @@ function inferSalesRelatedExpFloor(resume: unknown): number | undefined {
             continue;
         }
 
-        // Require industry-verified years OR a direct sales role match
         const verifiedYears = toNumber(rawSignal.industryVerifiedYears) ?? 0;
+        const verifiedRelevantYears = toNumber(rawSignal.industryVerifiedRelevantYears) ?? 0;
         const workEntries = Array.isArray(rawSignal.matchedWorkEntries)
             ? rawSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
             : [];
         const hasDirectRoleEvidence = workEntries.some((rawEntry) => rawEntry.directRoleMatch === true);
 
-        // For verified sales: use verifiedYears threshold
-        // For unverified but direct-role: use roleRelevantYears threshold
-        const relevantYears = hasDirectRoleEvidence
-            ? (toNumber(rawSignal.roleRelevantYears) ?? toNumber(rawSignal.years) ?? 0)
-            : verifiedYears;
-        if (relevantYears < 3) {
+        // The 80 floor only applies to industry-verified sales; unverified direct-role
+        // sales are handled by the AI (prompt rules 12/13) and inferUnverifiedDomainRelevantSalesFloor.
+        const hasIndustryVerifiedSales = verifiedYears > 0 || verifiedRelevantYears > 0
+            || workEntries.some((rawEntry) => rawEntry.industryVerified === true);
+
+        if (hasDirectRoleEvidence && !hasIndustryVerifiedSales) {
+            // Unverified direct-role: 80 floor doesn't apply; 60 floor or 15 ceiling
+            // may apply via other inference functions.
             continue;
         }
 
-        const hasSignalEvidence = Array.isArray(rawSignal.matchedSignals)
-            && rawSignal.matchedSignals.some(
-                (signal) => typeof signal === "string" && isSalesRequiredContext(signal)
-            );
-        const hasDirectRoleFlags = workEntries.some((rawEntry) => typeof rawEntry.directRoleMatch === "boolean");
-        const hasLegacyWorkEntryEvidence = workEntries.some((rawEntry) => {
-            const jobTitle = typeof rawEntry.jobTitle === "string" ? rawEntry.jobTitle : undefined;
-            const matchedSignals = Array.isArray(rawEntry.matchedSignals)
-                ? rawEntry.matchedSignals.filter((signal): signal is string => typeof signal === "string")
-                : [];
-            return isSalesRequiredContext(jobTitle, ...matchedSignals);
-        });
-
-        if (hasDirectRoleEvidence || (!hasDirectRoleFlags && (hasSignalEvidence || hasLegacyWorkEntryEvidence))) {
+        // Industry-verified sales with 3+ years → floor of 80
+        const relevantYears = Math.max(verifiedYears, toNumber(rawSignal.roleRelevantYears) ?? toNumber(rawSignal.years) ?? 0);
+        if (hasIndustryVerifiedSales && relevantYears >= 3) {
             return 80;
         }
     }
@@ -285,17 +276,10 @@ function inferSalesRelatedExpFloor(resume: unknown): number | undefined {
 }
 
 /**
- * When keywords combine a domain-specific term (e.g. "CNC") with a sales role term
- * (e.g. "销售"), and the candidate's sales experience has no evidence of being in
- * the target domain, cap related_exp to prevent cross-domain sales from scoring high.
- *
- * A candidate's sales is domain-relevant if ANY of:
- *   1. Their sales work entries are at industry-verified companies
- *   2. Their sales signal has industry-verified years
- *   3. The resume has brand hits (proves domain-company overlap)
- *   4. The resume has industry tags overlapping with non-sales keywords
- *
- * Returns the ceiling value, or undefined if no cap applies.
+ * Caps related_exp at 15 when domain+sales keywords are combined but the candidate's
+ * sales has no domain evidence. Bypassed by: industry-verified sales, verified entries,
+ * sales-relevant brand hits, or industry tags + direct sales at a non-irrelevant company.
+ * Returns 15 or undefined if no cap applies.
  */
 function inferDomainIrrelevantSalesCeiling(
     resume: unknown,
@@ -338,46 +322,42 @@ function inferDomainIrrelevantSalesCeiling(
         (entry) => entry.industryVerified === true
     );
 
-    // Resume-level: brand hits prove domain overlap (e.g. FANUC代理 → machinery domain)
-    // However, brand hits from non-sales roles (e.g. FANUC(technical) from CNC operator work)
-    // should NOT count as domain evidence for sales relevance. Only brand hits that are
-    // associated with the sales signal's work entries or have a sales-relevant context
-    // (e.g. "product", "dealer", "agent") should bypass the ceiling.
+    // Only brand hits with sales-relevant context bypass the ceiling;
+    // technical-only brand hits from non-sales roles don't prove sales domain overlap.
     const hasSalesRelevantBrandHits = (() => {
         if (!Array.isArray(ingestData.brandHits) || ingestData.brandHits.length === 0) {
             return false;
         }
-        // Check if any sales work entry is at an industry-verified company
-        // (brand + company overlap proves the brand is relevant to the sales role)
-        if (hasIndustryVerifiedSalesEntry) {
-            return true;
-        }
-        // Check if brand hits have a sales-relevant context
+        if (hasIndustryVerifiedSalesEntry) return true;
         const salesRelevantContexts = new Set(["product", "dealer", "agent", "distributor"]);
         return ingestData.brandHits.some((item) => {
             if (!isRecord(item)) return false;
             const context = typeof item.context === "string" ? item.context.trim().toLowerCase() : "";
-            // Exclude employer context and purely technical contexts
-            // (technical context from CNC operator work doesn't prove sales domain overlap)
             if (context === "employer" || context === "technical") return false;
-            // Accept product/dealer/agent contexts, or any context that isn't
-            // explicitly non-sales
             return salesRelevantContexts.has(context) || context === "both" || context === "";
         });
     })();
 
-    // Resume-level: industry tags from searchText overlapping with domain keywords
+    // Industry tags + direct sales at a non-irrelevant company → tags likely
+    // reflect the sales role's domain (tags alone can come from non-sales roles).
     const industryTags = Array.isArray(ingestData.industryTags)
         ? ingestData.industryTags.filter((tag): tag is string => typeof tag === "string")
         : [];
-    // Check if any domain keyword maps to the same industry tag as the resume's tags.
-    // e.g. "cnc" → machinery tag; resume has "machinery" industryTag → match
     const hasDomainIndustryTag = industryTags.length > 0 && domainKeywords.some(
         (kw) => keywordMapsToIndustryTag(kw, industryTags),
     );
+    const hasDomainIrrelevantSalesEntry = workEntries.some((entry) =>
+        isDomainIrrelevantSalesEntry(entry),
+    );
 
-    // If any domain-evidence path confirms relevance, no ceiling
-    if (hasIndustryVerifiedSalesYears || hasIndustryVerifiedSalesEntry || hasSalesRelevantBrandHits || hasDomainIndustryTag) {
+    // If any domain-evidence path confirms relevance, no ceiling.
+    if (hasIndustryVerifiedSalesYears || hasIndustryVerifiedSalesEntry || hasSalesRelevantBrandHits) {
+        return undefined;
+    }
+    // Industry tags + direct sales role + no domain-irrelevant company →
+    // tags likely reflect the sales role's domain (e.g. sales engineer at a
+    // machinery trading company). Let the AI decide with prompt guidance.
+    if (hasDomainIndustryTag && !hasDomainIrrelevantSalesEntry) {
         return undefined;
     }
 
@@ -387,62 +367,41 @@ function inferDomainIrrelevantSalesCeiling(
 }
 
 /**
- * When targetRoleType is "sales" and no sales work entry has directRoleMatch=true
- * AND industryVerifiedYears=0, the candidate has no verified direct sales role.
- * Cap related_exp to 0 to prevent CNC technicians/engineers with company
- * descriptions mentioning "销售" from scoring high on CNC-sales searches.
- *
- * This is the inverse of inferSalesRelatedExpFloor: the cap applies exactly
- * when the floor does NOT apply.
- *
- * Returns 0 (the cap) when the cap should apply, undefined otherwise.
+ * Keywords that clearly indicate a company or role is in a sector unrelated
+ * to the machinery/CNC domain. Used to prevent industry tags from non-sales
+ * roles from bypassing the domain-irrelevant ceiling.
  */
-function inferNoDirectSalesRoleCap(resume: unknown): number | undefined {
-    const ingestData = getResumeIngestData(resume);
-    if (!Array.isArray(ingestData.roleSignals)) {
-        return undefined;
-    }
+const DOMAIN_IRRELEVANT_SALES_KEYWORDS = [
+    // Insurance / finance
+    "保险", "人寿", "金融", "投资", "证券", "银行", "理财",
+    // Real estate
+    "房地产", "地产", "置业", "房产",
+    // Education / training
+    "教育", "培训", "学校",
+    // Medical / healthcare
+    "医疗", "医院", "医药",
+    // Consumer / food / clothing
+    "食品", "餐饮", "服装", "化妆品",
+    // Job-title-level negative signals (e.g. "保险代理人")
+    "保险代理", "保险销售", "置业顾问",
+];
 
-    const salesSignals = (ingestData.roleSignals as unknown[]).filter((raw): raw is Record<string, unknown> => {
-        if (!isRecord(raw)) return false;
-        const type = typeof raw.type === "string" ? raw.type.trim().toLowerCase() : "";
-        return type === "sales";
-    });
-
-    if (salesSignals.length === 0) {
-        return 0;
-    }
-
-    // If the floor condition is met, the cap does not apply
-    const floor = inferSalesRelatedExpFloor(resume);
-    if (floor !== undefined) {
-        return undefined;
-    }
-
-    // Even if the floor doesn't apply (< 3 years), a candidate with
-    // industry-verified direct sales role evidence should NOT be capped to 0.
-    // directRoleMatch=true + industryVerified=true means the candidate actually
-    // held a sales role in the relevant industry — zeroing them out is wrong.
-    const hasVerifiedDirectSales = salesSignals.some((rawSignal) => {
-        const workEntries = Array.isArray(rawSignal.matchedWorkEntries)
-            ? rawSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
-            : [];
-        return workEntries.some((rawEntry) =>
-            rawEntry.directRoleMatch === true && rawEntry.industryVerified === true
-        );
-    });
-    if (hasVerifiedDirectSales) {
-        return undefined;
-    }
-
-    // No verified direct sales role — cap at 0
-    return 0;
+/**
+ * Checks whether a sales work entry is at a company or in a role that is
+ * clearly unrelated to the machinery/CNC domain, based on negative keyword
+ * matching against company name and job title.
+ */
+function isDomainIrrelevantSalesEntry(entry: Record<string, unknown>): boolean {
+    const companyName = typeof entry.companyName === "string" ? entry.companyName : "";
+    const jobTitle = typeof entry.jobTitle === "string" ? entry.jobTitle : "";
+    const text = `${companyName} ${jobTitle}`.toLowerCase();
+    return DOMAIN_IRRELEVANT_SALES_KEYWORDS.some((kw) => text.includes(kw.toLowerCase()));
 }
 
 /**
  * Checks whether a search keyword maps to any of the resume's industry tags
  * through the FALLBACK_INDUSTRY_KEYWORDS taxonomy.
- * e.g. "cnc" maps to "machinery"; if the resume has "machinery" tag → match.
+ * e.g. "cnc" maps to "machinery"; if the resume has "machinery" industryTag → match.
  *
  * Handles both English tag IDs (e.g. "machinery") and Chinese displayNames
  * (e.g. "机械") stored in ingestData.industryTags.
@@ -475,6 +434,121 @@ function keywordMapsToIndustryTag(keyword: string, resumeIndustryTags: string[])
     return false;
 }
 
+/**
+ * Floor of 60 for unverified sales when domain evidence suggests relevance
+ * (industry tags overlap + direct sales title + no domain-irrelevant company).
+ * Mirrors the ceiling bypass: if ceiling doesn't apply, this floor prevents
+ * the AI from under-scoring (typically ~20-30 instead of 60-80).
+ * Returns 60 or undefined if no floor applies.
+ */
+function inferUnverifiedDomainRelevantSalesFloor(
+    resume: unknown,
+    keywords: string[],
+): number | undefined {
+    const ingestData = getResumeIngestData(resume);
+    if (!Array.isArray(ingestData.roleSignals)) {
+        return undefined;
+    }
+
+    // Only applies when there are both sales and domain keywords
+    const salesKeywords = keywords.filter((kw) => isSalesRequiredContext(kw));
+    const domainKeywords = keywords.filter((kw) => !isSalesRequiredContext(kw));
+    if (salesKeywords.length === 0 || domainKeywords.length === 0) {
+        return undefined;
+    }
+
+    const salesSignal = ingestData.roleSignals.find((rawSignal) => {
+        if (!isRecord(rawSignal)) return false;
+        return typeof rawSignal.type === "string"
+            && rawSignal.type.trim().toLowerCase() === "sales";
+    });
+
+    if (!salesSignal || !isRecord(salesSignal)) {
+        return undefined;
+    }
+
+    // Must have a direct sales role title
+    const workEntries = Array.isArray(salesSignal.matchedWorkEntries)
+        ? salesSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
+        : [];
+    const hasDirectSalesTitle = workEntries.some((entry) => entry.directRoleMatch === true);
+    if (!hasDirectSalesTitle) {
+        return undefined;
+    }
+
+    // Must NOT have industry-verified sales (those get the 80 floor already)
+    const hasIndustryVerifiedSales = (toNumber(salesSignal.industryVerifiedRelevantYears) ?? 0) > 0
+        || (toNumber(salesSignal.industryVerifiedYears) ?? 0) > 0
+        || workEntries.some((entry) => entry.industryVerified === true);
+    if (hasIndustryVerifiedSales) {
+        return undefined;
+    }
+
+    // Must have industry tags overlapping with domain keywords
+    const industryTags = Array.isArray(ingestData.industryTags)
+        ? ingestData.industryTags.filter((tag): tag is string => typeof tag === "string")
+        : [];
+    const hasDomainIndustryTag = industryTags.length > 0 && domainKeywords.some(
+        (kw) => keywordMapsToIndustryTag(kw, industryTags),
+    );
+    if (!hasDomainIndustryTag) {
+        return undefined;
+    }
+
+    // Sales entries must NOT be at domain-irrelevant companies
+    const hasDomainIrrelevantSalesEntry = workEntries.some((entry) =>
+        isDomainIrrelevantSalesEntry(entry),
+    );
+    if (hasDomainIrrelevantSalesEntry) {
+        return undefined;
+    }
+
+    return 60;
+}
+
+/**
+ * Caps related_exp to 0 when all sales entries have directRoleMatch=false
+ * (sales signal from descriptions only). Bypassed when the floor was already
+ * applied or any entry has directRoleMatch=true.
+ * Returns 0 or undefined.
+ */
+function inferNoDirectSalesRoleCap(resume: unknown, precomputedFloor?: number): number | undefined {
+    const ingestData = getResumeIngestData(resume);
+    if (!Array.isArray(ingestData.roleSignals)) {
+        return undefined;
+    }
+
+    const salesSignals = (ingestData.roleSignals as unknown[]).filter((raw): raw is Record<string, unknown> => {
+        if (!isRecord(raw)) return false;
+        const type = typeof raw.type === "string" ? raw.type.trim().toLowerCase() : "";
+        return type === "sales";
+    });
+
+    if (salesSignals.length === 0) {
+        return 0;
+    }
+
+    // If the floor condition is met, the cap does not apply
+    if (precomputedFloor !== undefined) {
+        return undefined;
+    }
+
+    // Any direct sales title → don't zero out (wrong industry handled by ceiling)
+    const hasDirectSalesTitle = salesSignals.some((rawSignal) => {
+        const workEntries = Array.isArray(rawSignal.matchedWorkEntries)
+            ? rawSignal.matchedWorkEntries.filter((rawEntry): rawEntry is Record<string, unknown> => isRecord(rawEntry))
+            : [];
+        return workEntries.some((rawEntry) => rawEntry.directRoleMatch === true);
+    });
+    if (hasDirectSalesTitle) {
+        return undefined;
+    }
+
+    // No direct sales job title — sales signal came from descriptions only — cap at 0
+    return 0;
+}
+
+
 export function normalizeAnalysisResult(
     result: {
         score?: unknown;
@@ -504,21 +578,23 @@ export function normalizeAnalysisResult(
         if (floor !== undefined) {
             relatedExpRaw = Math.max(relatedExpRaw, floor);
         }
-        // No-direct-sales-role cap: if no work entry has a direct sales job title
-        // (only description-level matches), cap related_exp to 0 regardless of
-        // brand hits or domain tags. Prevents CNC technicians with company
-        // descriptions mentioning "销售" from scoring high on sales searches.
-        const noDirectSalesCap = inferNoDirectSalesRoleCap(resume);
-        if (noDirectSalesCap !== undefined) {
-            relatedExpRaw = Math.min(relatedExpRaw, noDirectSalesCap);
-        }
-        // Domain-irrelevant ceiling: when sales + domain keywords are combined
-        // and candidate's sales experience has no industry overlap, cap related_exp
+        // Keyword-dependent floor/ceiling (order-safe with noDirectSalesCap below:
+        // min is commutative, so the order of floor/ceiling/cap application
+        // doesn't affect the final result)
         if (Array.isArray(options.keywords) && options.keywords.length > 0) {
+            const unverifiedFloor = inferUnverifiedDomainRelevantSalesFloor(resume, options.keywords);
+            if (unverifiedFloor !== undefined) {
+                relatedExpRaw = Math.max(relatedExpRaw, unverifiedFloor);
+            }
             const ceiling = inferDomainIrrelevantSalesCeiling(resume, options.keywords);
             if (ceiling !== undefined) {
                 relatedExpRaw = Math.min(relatedExpRaw, ceiling);
             }
+        }
+        // No-direct-sales-role cap: zeros out description-only sales signals
+        const noDirectSalesCap = inferNoDirectSalesRoleCap(resume, floor);
+        if (noDirectSalesCap !== undefined) {
+            relatedExpRaw = Math.min(relatedExpRaw, noDirectSalesCap);
         }
     }
     const relatedExpWeightedContribution = Math.round(relatedExpRaw * RELATED_EXP_WEIGHT);

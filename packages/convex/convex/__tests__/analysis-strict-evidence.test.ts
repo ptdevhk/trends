@@ -423,7 +423,8 @@ describe("normalizeResume strict evidence", () => {
   it("includes explicit related_exp scoring bands in prompt guidance", () => {
     expect(USER_PROMPT_TEMPLATE).toContain("85-100");
     expect(USER_PROMPT_TEMPLATE).toContain("70-84");
-    expect(USER_PROMPT_TEMPLATE).toContain("40-69");
+    expect(USER_PROMPT_TEMPLATE).toContain("60-80"); // verified:0 + domain-relevant special case
+    expect(USER_PROMPT_TEMPLATE).toContain("40-59");
     expect(USER_PROMPT_TEMPLATE).toContain("0-39");
   });
 
@@ -640,7 +641,60 @@ describe("normalizeResume strict evidence", () => {
     expect(normalized.score).toBe(50);
     expect(normalized.recommendation).toBe("potential");
   });
-  it("does not cap related_exp when industry tags overlap with domain keywords", () => {
+  it("caps related_exp when industry tags come from non-sales roles + domain-irrelevant company", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 80,
+        recommendation: "strong_match",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 85,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          industryTags: ["machinery"],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 5,
+              roleRelevantYears: 5,
+              industryVerifiedYears: 0,
+              matchedSignals: ["销售经理"],
+              matchedWorkEntries: [
+                {
+                  companyName: "中国平安人寿保险股份有限公司",
+                  jobTitle: "销售经理",
+                  years: 5,
+                  industryVerified: false,
+                  matchedSignals: ["销售经理", "销售", "业务"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // Industry tags from CNC technician work + domain-irrelevant company (insurance)
+    // → the tags don't reflect the sales role's domain. Ceiling of 15 applies.
+    expect(normalized.breakdown?.related_exp).toBe(15);
+    expect(normalized.score).toBe(8);
+    expect(normalized.recommendation).toBe("no_match");
+  });
+
+  it("bypasses ceiling when industry tags overlap + sales company is domain-relevant", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 80,
@@ -667,7 +721,7 @@ describe("normalizeResume strict evidence", () => {
               matchedSignals: ["销售工程师"],
               matchedWorkEntries: [
                 {
-                  companyName: "某机械贸易公司",
+                  companyName: "苏州美科生贸易有限公司",
                   jobTitle: "销售工程师",
                   years: 5,
                   industryVerified: false,
@@ -686,11 +740,271 @@ describe("normalizeResume strict evidence", () => {
       }
     );
 
-    // "cnc" maps to "machinery" tag in FALLBACK_INDUSTRY_KEYWORDS — no ceiling
+    // Industry tags + direct sales role at a domain-relevant company (machinery trading)
+    // → tags likely reflect the sales role's domain. Ceiling does NOT apply.
+    // The AI score (85) passes through above the floor of 60.
+    expect(normalized.breakdown?.related_exp).toBe(85); // AI score passes through
+    expect(normalized.score).toBe(43); // 85 * 0.5 + 0 = 42.5 → rounded 43
+    expect(normalized.recommendation).toBe("potential");
+  });
+
+  it("applies floor of 60 for unverified domain-relevant sales (AI under-scores)", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 20,
+        recommendation: "potential",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 22, // AI under-scores despite domain-relevant company
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          industryTags: ["machinery"],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 11.75,
+              roleRelevantYears: 11.75,
+              industryVerifiedYears: 0,
+              matchedSignals: ["销售工程师"],
+              matchedWorkEntries: [
+                {
+                  companyName: "苏州美科生贸易有限公司",
+                  jobTitle: "销售工程师",
+                  years: 11.75,
+                  industryVerified: false,
+                  matchedSignals: ["销售工程师"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // AI gave 22 but floor of 60 applies: unverified + domain tags + no irrelevant company
+    expect(normalized.breakdown?.related_exp).toBe(60);
+    expect(normalized.score).toBe(30); // 60 * 0.5 + 0 = 30
+    expect(normalized.recommendation).toBe("no_match"); // 30 < 40
+  });
+
+  it("does not apply unverified floor when sales is at domain-irrelevant company", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 80,
+        recommendation: "strong_match",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 40, // AI scores moderately, but ceiling should cap to 15
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          industryTags: ["machinery"], // From CNC technician work
+          roleSignals: [
+            {
+              type: "sales",
+              years: 5,
+              roleRelevantYears: 5,
+              industryVerifiedYears: 0,
+              matchedSignals: ["销售经理"],
+              matchedWorkEntries: [
+                {
+                  companyName: "中国平安人寿保险股份有限公司",
+                  jobTitle: "销售经理",
+                  years: 5,
+                  industryVerified: false,
+                  matchedSignals: ["销售经理", "销售", "业务"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // Insurance company → domain-irrelevant → no floor, ceiling caps at 15
+    expect(normalized.breakdown?.related_exp).toBe(15); // Ceiling caps 40→15, floor doesn't lift
+    expect(normalized.score).toBe(8);
+    expect(normalized.recommendation).toBe("no_match");
+  });
+
+  it("does not apply unverified floor when no direct sales job title (description-only)", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 30,
+        recommendation: "potential",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 35, // AI scores moderately
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          industryTags: ["machinery"],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 5,
+              roleRelevantYears: 5,
+              industryVerifiedYears: 0,
+              matchedSignals: ["销售"],
+              matchedWorkEntries: [
+                {
+                  companyName: "某机械公司",
+                  jobTitle: "项目工程师",
+                  years: 5,
+                  industryVerified: false,
+                  matchedSignals: ["销售"],
+                  directRoleMatch: false, // No direct sales title!
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // No direct sales title → floor doesn't apply; also noDirectSalesRoleCap zeros it out
+    expect(normalized.breakdown?.related_exp).toBe(0);
+    expect(normalized.recommendation).toBe("no_match");
+  });
+
+  it("unverified floor does not apply for industry-verified sales (80 floor takes precedence)", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 30,
+        recommendation: "potential",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 40, // AI under-scores
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          industryTags: ["machinery"],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 5,
+              roleRelevantYears: 5,
+              industryVerifiedYears: 4, // Industry-verified!
+              matchedSignals: ["销售工程师"],
+              matchedWorkEntries: [
+                {
+                  companyName: "大连机床集团",
+                  jobTitle: "销售工程师",
+                  years: 5,
+                  industryVerified: true,
+                  matchedSignals: ["销售工程师"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // Industry-verified sales gets the 80 floor (higher than 60)
+    expect(normalized.breakdown?.related_exp).toBe(80);
+    expect(normalized.score).toBe(40);
+  });
+
+  it("does not cap related_exp when industry tags overlap AND sales is industry-verified", () => {
+    const normalized = normalizeAnalysisResult(
+      {
+        score: 80,
+        recommendation: "strong_match",
+        summary: "summary",
+        highlights: [],
+        breakdown: {
+          related_exp: 85,
+          industry_db: 0,
+        },
+      },
+      {
+        ingestData: {
+          industryDbV2Raw: 0,
+          companyHits: [],
+          brandHits: [],
+          industryTags: ["machinery"],
+          roleSignals: [
+            {
+              type: "sales",
+              years: 5,
+              roleRelevantYears: 5,
+              industryVerifiedYears: 3,
+              matchedSignals: ["销售工程师"],
+              matchedWorkEntries: [
+                {
+                  companyName: "大连机床集团",
+                  jobTitle: "销售工程师",
+                  years: 5,
+                  industryVerified: true,
+                  matchedSignals: ["销售工程师"],
+                  directRoleMatch: true,
+                },
+              ],
+              verifyIn: "workHistory",
+            },
+          ],
+        },
+      } as unknown,
+      {
+        targetRoleType: "sales",
+        keywords: ["cnc", "销售"],
+      }
+    );
+
+    // Industry-verified sales at a machinery company — no ceiling applies
     expect(normalized.breakdown?.related_exp).toBe(85);
   });
 
-  it("does not apply domain ceiling when keywords are sales-only", () => {
+  it("lets AI score pass through for unverified sales with sales-only keywords", () => {
     const normalized = normalizeAnalysisResult(
       {
         score: 60,
@@ -734,7 +1048,9 @@ describe("normalizeResume strict evidence", () => {
       }
     );
 
-    // Sales-only keyword — no domain ceiling applies
-    expect(normalized.breakdown?.related_exp).toBe(80); // floor raises to 80
+    // Sales-only keyword — no domain ceiling applies.
+    // Floor does NOT apply: directRoleMatch=true but industryVerified=false,
+    // so unverified sales lets the AI score pass through.
+    expect(normalized.breakdown?.related_exp).toBe(70); // AI score passes through
   });
 });
