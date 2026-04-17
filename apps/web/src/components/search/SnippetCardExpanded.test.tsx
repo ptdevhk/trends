@@ -6,7 +6,7 @@ import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: any) => {
+    t: (key: string, options?: string | Record<string, string | number | undefined>) => {
       if (typeof options === 'string') {
         return options
       }
@@ -18,9 +18,9 @@ vi.mock('react-i18next', () => ({
 
       // Simple mock for score labels if no defaultValue present
       let result = defaultValue
-      if (result === 'resumes.searchPage.card.aiScoreShort' && options?.score !== undefined) {
+      if (result === 'resumes.searchPage.card.aiScoreShort' && typeof options?.score === 'number') {
         result = `AI ${Math.round(options.score)}分`
-      } else if (result === 'resumes.searchPage.card.ruleScoreShort' && options?.score !== undefined) {
+      } else if (result === 'resumes.searchPage.card.ruleScoreShort' && typeof options?.score === 'number') {
         result = `规则 ${Math.round(options.score)}分`
       }
 

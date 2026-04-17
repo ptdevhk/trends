@@ -103,6 +103,8 @@ const PAGE_BRIDGE_REQUEST_EVENT = "trResumeBridgeRequest";
 const PAGE_BRIDGE_RESPONSE_EVENT = "trResumeBridgeResponse";
 const PAGE_BRIDGE_REQUEST_ATTR = "data-tr-resume-bridge-request";
 const PAGE_BRIDGE_RESPONSE_ATTR = "data-tr-resume-bridge-response";
+const JOB51_NEXT_PAGE_EVENT = "trJob51NextPageRequest";
+const CONTENT_SCRIPT_SOURCE = "tr-resume-content-script";
 const JOB5156_DETAIL_FETCH_TIMEOUT_MS = 5000;
 const JOB5156_DETAIL_FETCH_CONCURRENCY = 5;
 const JOB51_DETAIL_FETCH_TIMEOUT_MS = 8000;
@@ -642,19 +644,6 @@ async function waitForJob51Cooldown() {
     hint: `固定等待 ${Math.round(JOB51_PAGE_COOLDOWN_MS / 1000)} 秒，避免触发访问限制`,
   });
   await delay(JOB51_PAGE_COOLDOWN_MS);
-}
-
-function normalizeJob51FreshStart() {
-  if (getCurrentSourceKey() !== SOURCE_KEYS.JOB51) return;
-  if (!getAutoSyncEnabled()) return;
-  if (hasJob51SearchSnapshot()) return;
-  const url = new URL(window.location.href);
-  const pageIndex = normalizeOptionalPositiveInt(
-    url.searchParams.get("pageIndex"),
-  );
-  if (!pageIndex || pageIndex <= 1) return;
-  url.searchParams.delete("pageIndex");
-  window.history.replaceState(window.history.state, "", url.toString());
 }
 
 function isSeekProfilePage() {
@@ -3927,28 +3916,35 @@ function getPaginationInfo() {
   }
 
   if (sourceKey === SOURCE_KEYS.JOB51) {
-    const pageParam =
+    // 51job eHire uses infinite scroll, not Element UI pagination.
+    // Derive current page from the captured API request's page_index.
+    const req = apiSnapshot.job51LastSearchRequest;
+    const currentPage =
       normalizeOptionalPositiveInt(
-        new URL(window.location.href).searchParams.get("pageIndex"),
+        req?.page_index ?? req?.pageIndex ?? req?.pageno,
       ) || 1;
-    const hasData =
-      Array.isArray(apiSnapshot.job51SearchRows) &&
-      apiSnapshot.job51SearchRows.length > 0;
+    const pageSize =
+      normalizeOptionalPositiveInt(
+        req?.page_size ?? req?.pageSize ?? req?.pagesize,
+      ) || 50;
     const total =
       typeof apiSnapshot.job51Total === "number" && apiSnapshot.job51Total > 0
         ? apiSnapshot.job51Total
         : 0;
-    let totalPages = pageParam;
+    const hasData =
+      Array.isArray(apiSnapshot.job51SearchRows) &&
+      apiSnapshot.job51SearchRows.length > 0;
+    let totalPages = currentPage;
     if (total > 0) {
-      totalPages = Math.ceil(total / 50);
+      totalPages = Math.ceil(total / pageSize);
     } else if (hasData) {
-      totalPages = pageParam + 1;
+      totalPages = currentPage + 1;
     }
     return {
-      currentPage: pageParam,
+      currentPage,
       totalPages,
       totalItems: total,
-      hasNextPage: hasData && pageParam < totalPages,
+      hasNextPage: total > 0 ? currentPage < totalPages : (hasData && currentPage < totalPages),
     };
   }
 
@@ -4029,18 +4025,15 @@ function goToNextPageInternal() {
     nextBtn.click();
     return true;
   }
+  // 51job eHire uses infinite scroll — dispatch a custom event that
+  // page-hook.js (MAIN world) intercepts to call Vue listToBottom().
   if (sourceKey === SOURCE_KEYS.JOB51) {
-    const url = new URL(window.location.href);
-    const currentPage =
-      normalizeOptionalPositiveInt(url.searchParams.get("pageIndex")) || 1;
-    const nextPage = currentPage + 1;
-    url.searchParams.set("pageIndex", String(nextPage));
-    const trWindow = /** @type {Window & { __trJob51NextPage?: number }} */ (
-      window
-    );
-    trWindow.__trJob51NextPage = nextPage;
-    window.history.pushState(null, "", url.toString());
-    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    const pagination = getPaginationInfo();
+    if (!pagination.hasNextPage) return false;
+    window.postMessage(
+        { source: CONTENT_SCRIPT_SOURCE, action: JOB51_NEXT_PAGE_EVENT },
+        "*",
+      );
     return true;
   }
   const nextBtn = asHTMLElement(document.querySelector(SELECTORS.nextPageBtn));
@@ -4555,7 +4548,10 @@ async function waitForExtractionData({ timeoutMs = 30000, minCount = 1 } = {}) {
 function clearCapturedResultsForNextPage() {
   apiSnapshot.searchRows = null;
   apiSnapshot.job51SearchRows = null;
-  apiSnapshot.job51LastSearchRequest = null;
+  // Preserve job51LastSearchRequest across page transitions so that
+  // getPaginationInfo() can track the current page index from the last
+  // captured request. It will be overwritten by the next API response.
+  // apiSnapshot.job51LastSearchRequest = null;
   apiSnapshot.job51DetailPayload = null;
   if (getCurrentSourceKey() === SOURCE_KEYS.SEEK) {
     apiSnapshot.seekRecommendedCandidates = null;
@@ -5637,7 +5633,6 @@ async function autoSearchFromUrl() {
   const keywordMode = normalizeKeywordMode(
     urlKeywordMode || (await getKeywordMode()),
   );
-  normalizeJob51FreshStart();
   let keyword = normalizeKeyword(params.get(AUTO_SEARCH_PARAM) || "");
   if (keyword && keywordMode !== KEYWORD_MODE_SPACED) {
     keyword = keyword.replace(/\s+/g, "");

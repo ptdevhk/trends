@@ -6,7 +6,7 @@ import type { FacetCounts } from '@/components/search/search-types'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: any) => {
+    t: (key: string, options?: string | Record<string, string | number | undefined>) => {
       if (typeof options === 'string') {
         return options
       }

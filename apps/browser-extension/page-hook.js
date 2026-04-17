@@ -1,5 +1,5 @@
 (() => {
-  /** @type {Window & { __trResumeHookInstalled?: boolean, __trJob51NextPage?: number }} */
+  /** @type {Window & { __trResumeHookInstalled?: boolean }} */
   const trWindow = window;
   if (trWindow.__trResumeHookInstalled) return;
   trWindow.__trResumeHookInstalled = true;
@@ -507,32 +507,7 @@
             : undefined,
           typeof args[1] === "object" && args[1] !== null ? args[1].headers : undefined,
         );
-        const nextPageIndex = trWindow.__trJob51NextPage;
-        const shouldRewriteJob51Request =
-          is51jobFetch &&
-            requestUrl.includes("talent_hunt_resume_list") &&
-            typeof nextPageIndex === "number" &&
-            nextPageIndex > 1 &&
-            requestBody &&
-            typeof requestBody === "object";
-          const fetchArgs = shouldRewriteJob51Request
-            ? [
-                new Request(args[0], {
-                  ...(typeof args[1] === "object" && args[1] !== null
-                    ? args[1]
-                    : {}),
-                  body: JSON.stringify({
-                    ...requestBody,
-                    page_index: nextPageIndex,
-                  }),
-                }),
-              ]
-            : args;
-          if (shouldRewriteJob51Request) {
-            delete trWindow.__trJob51NextPage;
-          }
-
-          return originalFetch.apply(this, fetchArgs).then((res) => {
+          return originalFetch.apply(this, args).then((res) => {
             try {
               const classification = classify(requestUrl, requestBody);
               if (classification) {
@@ -578,6 +553,36 @@
     }
     return originalSetRequestHeader.call(this, name, value);
   };
+  // 51job infinite-scroll next-page trigger.
+  // Content script sends a postMessage with action "trJob51NextPageRequest";
+  // page-hook (MAIN world) receives it via the shared "message" event and calls
+  // the Vue component's listToBottom() which increments page_index and fetches
+  // the next page.
+  // Must match JOB51_NEXT_PAGE_EVENT / CONTENT_SCRIPT_SOURCE in content.ts.
+  // Content script postMessage sets event.source to null (Chrome cross-world
+  // behavior), so we cannot guard on event.source !== window here.
+  // Guard against iframe-originated messages: allow null (content script) and
+  // window (same-origin), reject other sources. The data.source field is our
+  // protocol-level identity check instead.
+  window.addEventListener('message', (event) => {
+    if (event.source !== null && event.source !== window) return;
+    const data = event.data;
+    if (!data || data.source !== 'tr-resume-content-script') return;
+    if (data.action !== 'trJob51NextPageRequest') return;
+    try {
+      const container = /** @type {HTMLElement & {__vue__?: {listToBottom: Function}} } */ (
+        document.querySelector('.talent-search-container')
+      );
+      if (!container) return;
+      const vm = container.__vue__;
+      if (vm && typeof vm.listToBottom === 'function') {
+        vm.listToBottom();
+      }
+    } catch (e) {
+      console.warn('[tr] 51job next-page trigger failed', e);
+    }
+  });
+
   XMLHttpRequest.prototype.send = function (...args) {
     const body = args[0];
     /** @type {XMLHttpRequest & { __tr_body?: unknown }} */ (this).__tr_body =
