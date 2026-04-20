@@ -180,6 +180,20 @@ describe("matchesDiagnosticsSourceKeys", () => {
             content: { profileType: "job5156" },
         }, new Set(["job5156"]))).toBe(true);
     });
+
+    it("uses stored sourceKey when available instead of deriving from content", () => {
+        expect(matchesDiagnosticsSourceKeys({
+            source: "hr.job5156.com",
+            content: {},
+            sourceKey: "job5156",
+        }, new Set(["job5156"]))).toBe(true);
+
+        expect(matchesDiagnosticsSourceKeys({
+            source: "some-host.com",
+            content: {},
+            sourceKey: "seek",
+        }, new Set(["seek"]))).toBe(true);
+    });
 });
 
 describe("buildDiagnosticsSourceFacetRows", () => {

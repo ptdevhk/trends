@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { sanitizeResumeRecordForSurface } from '@trends/shared'
-import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
+import { useMutation, usePaginatedQuery } from 'convex/react'
+import { useSourceFacets } from '@/hooks/useSourceFacets'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useTranslation } from 'react-i18next'
 import { Archive, ArchiveRestore } from 'lucide-react'
@@ -12,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PageHeader } from '@/components/PageHeader'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
-import { SourceFacetSelect, type SourceFacet } from '@/components/SourceFacetSelect'
+import { SourceFacetSelect } from '@/components/SourceFacetSelect'
 
 type ArchivedResume = {
   resumeId: string
@@ -46,7 +47,7 @@ export default function ArchivedResumes() {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const [selectedSourceKeys, setSelectedSourceKeys] = useState<string[]>([])
-  const sourceFacets = useQuery(api.resumes.listDiagnosticsSourceFacets, { archived: true }) as SourceFacet[] | undefined
+  const { facets: sourceFacets } = useSourceFacets(true)
 
   const {
     results: paginatedResumes,

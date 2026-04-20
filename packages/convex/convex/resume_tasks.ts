@@ -6,6 +6,7 @@ import { buildSearchText } from "./search_text";
 import { resolveSubmitResumeParallelism } from "./lib/parallelism";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 import { parseAgeFromContent } from "./lib/age";
+import { resolveDiagnosticsSourceKeyForResume } from "./resumes";
 
 const DEFAULT_WORKER_HEALTH_FRESHNESS_MS = 15_000;
 const DEFAULT_STALE_PENDING_MS = 180_000;
@@ -476,6 +477,7 @@ export const submitResumes = mutation({
                             source: string;
                             tags: string[];
                             searchText: string;
+                            sourceKey?: string;
                             primaryRuleScore?: number;
                             ingestData?: Doc<"resumes">["ingestData"];
                             analysis?: Doc<"resumes">["analysis"];
@@ -490,6 +492,7 @@ export const submitResumes = mutation({
                             source: resume.source,
                             tags: nextTags,
                             searchText: resolveStoredSearchText(resume.content, restoreState),
+                            sourceKey: resolveDiagnosticsSourceKeyForResume({ source: resume.source, content: resume.content }),
                         };
                         applyRestoreStateFields(patch, restoreState);
                         applyParsedAgePatch(patch, parsedAge, existing.age);
@@ -544,6 +547,7 @@ export const submitResumes = mutation({
                         tags: string[];
                         source: string;
                         crawledAt: number;
+                        sourceKey?: string;
                         primaryRuleScore?: number;
                         ingestData?: Doc<"resumes">["ingestData"];
                         analysis?: Doc<"resumes">["analysis"];
@@ -558,6 +562,7 @@ export const submitResumes = mutation({
                         tags: resume.tags,
                         source: resume.source,
                         crawledAt: restoreState?.crawledAt ?? Date.now(),
+                        sourceKey: resolveDiagnosticsSourceKeyForResume({ source: resume.source, content: resume.content }),
                     };
                     applyRestoreStateFields(insertPayload, restoreState);
                     applyParsedAgePatch(insertPayload, parsedAge);

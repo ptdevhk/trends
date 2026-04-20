@@ -73,6 +73,13 @@ export type ResumeDiagnosticsSourceKey =
   | "51job-manual"
   | "unknown";
 
+export const KNOWN_DIAGNOSTICS_SOURCE_KEYS: readonly Exclude<ResumeDiagnosticsSourceKey, "unknown">[] = [
+  "job5156",
+  "51job",
+  "51job-manual",
+  "seek",
+];
+
 export function normalizeResumeAnalysisSourceKey(
   value: string | null | undefined
 ): ResumeAnalysisSourceKey | undefined {

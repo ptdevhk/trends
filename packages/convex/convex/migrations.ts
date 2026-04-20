@@ -19,7 +19,7 @@ import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
 import { deriveResumeIdentityKey } from "./lib/resume_identity";
 import { parseAgeFromContent } from "./lib/age";
 import { DEFAULT_WORKSPACE_SLUG } from "./sessions";
-import { resolveResumeScanBatchSize } from "./resumes";
+import { resolveResumeScanBatchSize, resolveDiagnosticsSourceKeyForResume } from "./resumes";
 
 const JOB5156_HOST = "hr.job5156.com";
 const MANUAL_51JOB_SOURCE = "51job-manual";
@@ -1356,6 +1356,40 @@ export const mergeDuplicateResumesByIdentity = mutation({
             patchedCanonicals,
             deleted,
             groups,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});
+
+export const backfillSourceKey = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+        let updated = 0;
+
+        for (const resume of resumes.page) {
+            if (resume.sourceKey !== undefined) {
+                continue;
+            }
+
+            const sourceKey = resolveDiagnosticsSourceKeyForResume(resume);
+            await ctx.db.patch(resume._id, { sourceKey });
+            updated += 1;
+        }
+
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes: updated,
             hasMore: !resumes.isDone,
             cursor: resumes.isDone ? null : resumes.continueCursor,
         };

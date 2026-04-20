@@ -100,6 +100,8 @@ export default defineSchema({
         isArchived: v.optional(v.boolean()),
         archivedAt: v.optional(v.number()),
 
+        sourceKey: v.optional(v.string()),
+
         // Pre-computed Ingest Data (M3)
         ingestData: v.optional(v.object({
             evidenceText: v.optional(v.string()),
@@ -166,6 +168,7 @@ export default defineSchema({
         .index("by_hash", ["hash"])
         .index("by_crawledAt", ["crawledAt"])
         .index("by_primaryRuleScore", ["primaryRuleScore"])
+        .index("by_sourceKey", ["sourceKey"])
         .searchIndex("search_body", {
             searchField: "searchText",
         }),

@@ -1,5 +1,5 @@
 import { action, internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
@@ -12,6 +12,7 @@ import {
     getRoleSignalYears,
     isResumeAnalysisKeyForJobDescription,
     isLocationMatch,
+    KNOWN_DIAGNOSTICS_SOURCE_KEYS,
     normalizeKeywordPhrases,
     resolveResumeDiagnosticsSourceKey,
     normalizeResumeLocationHierarchy,
@@ -376,7 +377,6 @@ const MAX_SAFE_JD_PAGINATE_SCAN = 250;
 const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
 const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
 const DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER = 3;
-const MAX_DIAGNOSTICS_SOURCE_FACET_SCAN_ROWS = 5_000;
 const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
 const MAX_RESUME_SCAN_BATCH_SIZE = 50;
 const DEFAULT_RESUME_BACKUP_PAGE_SIZE = 25;
@@ -473,6 +473,7 @@ export function matchesDiagnosticsSourceKeys(
     resume: {
         source: string;
         content: unknown;
+        sourceKey?: string;
     },
     sourceKeys: Set<string> | undefined
 ): boolean {
@@ -480,7 +481,8 @@ export function matchesDiagnosticsSourceKeys(
         return true;
     }
 
-    return sourceKeys.has(resolveDiagnosticsSourceKeyForResume(resume));
+    const key = resume.sourceKey ?? resolveDiagnosticsSourceKeyForResume(resume);
+    return sourceKeys.has(key);
 }
 
 export function buildDiagnosticsSourceFacetRows(
@@ -526,6 +528,7 @@ export function projectIngestDiagnosticsRow(
         externalId: string;
         source: string;
         content: unknown;
+        sourceKey?: string;
         ingestData?: Doc<"resumes">["ingestData"];
         isArchived?: boolean;
         archivedAt?: number;
@@ -539,7 +542,7 @@ export function projectIngestDiagnosticsRow(
         resumeId: resume._id,
         externalId: resume.externalId,
         source: resume.source,
-        sourceKey: resolveDiagnosticsSourceKeyForResume({
+        sourceKey: resume.sourceKey ?? resolveDiagnosticsSourceKeyForResume({
             source: resume.source,
             content: resume.content,
         }),
@@ -1882,27 +1885,63 @@ export const listArchivedDiagnostics = query({
     },
 });
 
-export const listDiagnosticsSourceFacets = query({
+export const listDiagnosticsSourceFacets = action({
     args: {
         archived: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const archived = args.archived === true;
-        // Convex allows only one .paginate() per invocation.
-        // Scan one large page; the 5_000-row cap bounds cost.
+
+        async function countForKey(sourceKey: string): Promise<[string, number]> {
+            let cursor: string | null = null;
+            let count = 0;
+            let isDone = false;
+            while (!isDone) {
+                const result: { count: number; cursor: string | null; isDone: boolean } = await ctx.runQuery(
+                    internal.resumes.countSourceKeyPage,
+                    { sourceKey, archived, cursor: cursor ?? undefined },
+                );
+                count += result.count;
+                cursor = result.cursor;
+                isDone = result.isDone;
+            }
+            return [sourceKey, count];
+        }
+
+        const entries = await Promise.all(KNOWN_DIAGNOSTICS_SOURCE_KEYS.map(countForKey));
         const counts = new Map<string, number>();
-
-        const page = await buildDiagnosticsBaseQuery(ctx, archived).paginate({
-            cursor: null,
-            numItems: MAX_DIAGNOSTICS_SOURCE_FACET_SCAN_ROWS,
-        });
-
-        for (const resume of page.page) {
-            const sourceKey = resolveDiagnosticsSourceKeyForResume(resume);
-            counts.set(sourceKey, (counts.get(sourceKey) ?? 0) + 1);
+        for (const [key, count] of entries) {
+            if (count > 0) {
+                counts.set(key, count);
+            }
         }
 
         return buildDiagnosticsSourceFacetRows(counts);
+    },
+});
+
+export const countSourceKeyPage = internalQuery({
+    args: {
+        sourceKey: v.string(),
+        archived: v.boolean(),
+        cursor: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const page = await ctx.db
+            .query("resumes")
+            .withIndex("by_sourceKey", (q) => q.eq("sourceKey", args.sourceKey))
+            .paginate({ cursor: args.cursor ?? null, numItems: 50 });
+        let count = 0;
+        for (const r of page.page) {
+            if (args.archived ? r.isArchived === true : r.isArchived !== true) {
+                count += 1;
+            }
+        }
+        return {
+            count,
+            cursor: page.continueCursor,
+            isDone: page.isDone,
+        };
     },
 });
 

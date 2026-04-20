@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   getLabelDescriptor,
   INGEST_BRAND_CONTEXT_LABELS,
@@ -6,7 +6,8 @@ import {
   INGEST_BRAND_SOURCE_LABELS,
   sanitizeResumeRecordForSurface,
 } from '@trends/shared'
-import { useAction, useMutation, usePaginatedQuery, useQuery } from 'convex/react'
+import { useAction, useMutation, usePaginatedQuery } from 'convex/react'
+import { useSourceFacets } from '@/hooks/useSourceFacets'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw, Database, ChevronDown, ChevronRight, Trash2, Archive } from 'lucide-react'
@@ -20,7 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
-import { SourceFacetSelect, type SourceFacet } from '@/components/SourceFacetSelect'
+import { SourceFacetSelect } from '@/components/SourceFacetSelect'
 
 type IngestDiagnosticsResume = {
   resumeId: string
@@ -149,7 +150,7 @@ export default function DebugIngest() {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
   const [selectedSourceKeys, setSelectedSourceKeys] = useState<string[]>([])
-  const sourceFacets = useQuery(api.resumes.listDiagnosticsSourceFacets, { archived: false }) as SourceFacet[] | undefined
+  const { facets: sourceFacets } = useSourceFacets(false)
   const {
     results: paginatedResumes,
     status,
@@ -248,6 +249,28 @@ export default function DebugIngest() {
       setBulkDeleteDialogOpen(false)
     }
   }, [bulkDeleteDialogOpen, deletingResumes, selectedResumeIds])
+
+  // When a source-key filter is active, the Convex query does an overfetch-and-filter
+  // in a single .paginate() call. Auto-advance loadMore until we have a full page of
+  // matches, the server reports Exhausted, or a safety round cap is reached. This lets
+  // users see results without manually clicking "Load More" through empty batches.
+  const autoLoadRoundsRef = useRef(0)
+  useEffect(() => {
+    autoLoadRoundsRef.current = 0
+  }, [selectedSourceKeys])
+  useEffect(() => {
+    const LAZY_LOAD_TARGET = INGEST_DIAGNOSTICS_PAGE_SIZE
+    const MAX_AUTO_ROUNDS = 20
+    if (
+      selectedSourceKeys.length > 0 &&
+      paginatedResumes.length < LAZY_LOAD_TARGET &&
+      status === 'CanLoadMore' &&
+      autoLoadRoundsRef.current < MAX_AUTO_ROUNDS
+    ) {
+      autoLoadRoundsRef.current += 1
+      loadMore(INGEST_DIAGNOSTICS_PAGE_SIZE)
+    }
+  }, [selectedSourceKeys, paginatedResumes.length, status, loadMore])
 
   const filteredResumes = useMemo(() => {
     const query = search.trim().toLowerCase()
