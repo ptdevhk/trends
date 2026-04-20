@@ -28,6 +28,9 @@ const deleteResumesMutation = vi.fn(async () => ({
   deletedAiTaggingResults: 0,
   patchedScreeningSessions: 0,
 }))
+const archiveResumesMutation = vi.fn(async () => ({
+  archived: 0,
+}))
 const backfillIngestDataAction = vi.fn(async () => ({ scheduled: 0 }))
 const reIngestStaleSkillsVersionAction = vi.fn(async () => ({ scheduled: 0 }))
 const reIngestAllResumesAction = vi.fn(async () => ({ scheduled: 0 }))
@@ -57,7 +60,7 @@ vi.mock('convex/react', () => ({
     return action
   },
   useMutation: () => {
-    const mutation = [clearAnalysesMutation, hardResetMutation, resetDatabaseMutation, deleteResumesMutation][mutationHookCallCount % 4]
+    const mutation = [clearAnalysesMutation, hardResetMutation, resetDatabaseMutation, deleteResumesMutation, archiveResumesMutation][mutationHookCallCount % 5]
     mutationHookCallCount += 1
     return mutation
   },
@@ -263,7 +266,7 @@ describe('DebugIngest reset database dialog', () => {
     )
   })
 
-  it('selects visible rows and bulk deletes selected resumes', async () => {
+  it('selects visible rows and bulk archives selected resumes', async () => {
     const user = userEvent.setup()
     usePaginatedQueryMock.mockReturnValue({
       results: [
@@ -306,12 +309,8 @@ describe('DebugIngest reset database dialog', () => {
       isLoading: false,
       loadMore,
     })
-    deleteResumesMutation.mockResolvedValueOnce({
-      requested: 2,
-      deleted: 2,
-      missingResumeIds: [],
-      deletedAiTaggingResults: 4,
-      patchedScreeningSessions: 1,
+    archiveResumesMutation.mockResolvedValueOnce({
+      archived: 2,
     })
 
     render(<DebugIngest />)
@@ -323,32 +322,17 @@ describe('DebugIngest reset database dialog', () => {
     }
     await user.click(selectAllCheckbox)
 
-    const bulkDeleteButton = screen.getByRole('button', { name: 'Delete Selected (2)' })
-    expect(bulkDeleteButton).toBeEnabled()
-    await user.click(bulkDeleteButton)
-
-    expect(
-      screen.getByText(
-        'Delete 2 selected resume(s) and their related AI tagging results, then remove stale reviewed-session references? Candidate workflow state will be preserved. This cannot be undone.'
-      )
-    ).toBeInTheDocument()
-
-    const confirmButtons = screen.getAllByRole('button', { name: 'Delete Selected (2)' })
-    const dialogConfirmButton = confirmButtons[confirmButtons.length - 1]
-    if (!dialogConfirmButton) {
-      throw new Error('Expected bulk delete confirmation button')
-    }
-    await user.click(dialogConfirmButton)
+    const bulkArchiveButton = screen.getByRole('button', { name: 'Archive Selected (2)' })
+    expect(bulkArchiveButton).toBeEnabled()
+    await user.click(bulkArchiveButton)
 
     await waitFor(() => {
-      expect(deleteResumesMutation).toHaveBeenCalledWith({ resumeIds: ['resume-1', 'resume-2'] })
+      expect(archiveResumesMutation).toHaveBeenCalledWith({ resumeIds: ['resume-1', 'resume-2'] })
     })
-    expect(toast.success).toHaveBeenCalledWith(
-      'Deleted 2 resume(s), removed 4 AI tagging result(s), and patched 1 screening session(s).'
-    )
+    expect(toast.success).toHaveBeenCalledWith('Archived 2 resume(s)')
   })
 
-  it('deletes a single resume from the row action', async () => {
+  it('archives a single resume from the row action', async () => {
     const user = userEvent.setup()
     usePaginatedQueryMock.mockReturnValue({
       results: [
@@ -374,37 +358,17 @@ describe('DebugIngest reset database dialog', () => {
       isLoading: false,
       loadMore,
     })
-    deleteResumesMutation.mockResolvedValueOnce({
-      requested: 1,
-      deleted: 1,
-      missingResumeIds: [],
-      deletedAiTaggingResults: 1,
-      patchedScreeningSessions: 0,
+    archiveResumesMutation.mockResolvedValueOnce({
+      archived: 1,
     })
 
     render(<DebugIngest />)
 
-    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0])
-
-    expect(
-      screen.getByText(
-        'Delete 赵先生 and its related AI tagging results, then remove stale reviewed-session references? Candidate workflow state will be preserved. This cannot be undone.'
-      )
-    ).toBeInTheDocument()
-
-    const dialogButtons = screen.getAllByRole('button', { name: 'Delete' })
-    const dialogConfirmButton = dialogButtons[dialogButtons.length - 1]
-    if (!dialogConfirmButton) {
-      throw new Error('Expected single delete confirmation button')
-    }
-
-    await user.click(dialogConfirmButton)
+    await user.click(screen.getAllByRole('button', { name: 'Archive' })[0])
 
     await waitFor(() => {
-      expect(deleteResumesMutation).toHaveBeenCalledWith({ resumeIds: ['resume-1'] })
+      expect(archiveResumesMutation).toHaveBeenCalledWith({ resumeIds: ['resume-1'] })
     })
-    expect(toast.success).toHaveBeenCalledWith(
-      'Deleted 1 resume(s), removed 1 AI tagging result(s), and patched 0 screening session(s).'
-    )
+    expect(toast.success).toHaveBeenCalledWith('Archived 1 resume(s)')
   })
 })
