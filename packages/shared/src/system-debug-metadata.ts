@@ -282,6 +282,13 @@ export const SYSTEM_NAV_ITEMS: SurfaceNavDefinition[] = [
     hrefSuffix: "/system/data",
     matchesSuffixes: ["/system/data"],
   },
+  {
+    id: "archived",
+    titleKey: "nav.archived",
+    defaultTitle: "Archived",
+    hrefSuffix: "/system/archived",
+    matchesSuffixes: ["/system/archived"],
+  },
 ];
 
 export const SETTINGS_NAV_ITEMS: SurfaceNavDefinition[] = [

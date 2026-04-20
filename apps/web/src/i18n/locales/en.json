@@ -13,7 +13,8 @@
     "search": "Search",
     "settings": "Settings",
     "reviewPackets": "Review packets",
-    "jds": "JDs"
+    "jds": "JDs",
+    "archived": "Archived"
   },
   "common": {
     "loading": "Loading",
