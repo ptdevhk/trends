@@ -263,6 +263,7 @@ func newResumeDebugCmd() *cobra.Command {
 		newResumeDebugTriggerReingestCmd(),
 		newResumeDebugAIScoreCmd(),
 		newResumeDebugWorkflowDatasetCmd(),
+		newResumeDebugDiagnosticsCmd(),
 		newResumeDebugClearDemoResumesCmd(),
 		newResumeDebugHardResetReingestCmd(),
 		newResumeDebugResetDatabaseCmd(),
@@ -738,6 +739,61 @@ func newResumeDebugWorkflowDatasetCmd() *cobra.Command {
 	cmd.Flags().IntVar(&limit, "limit", 200, "Maximum resumes to scan")
 	cmd.Flags().IntVar(&top, "top", 10, "Maximum visible resumes to print")
 	cmd.Flags().BoolVar(&fieldCoverage, "field-coverage", false, "Include source-level field coverage percentages")
+	return cmd
+}
+
+func newResumeDebugDiagnosticsCmd() *cobra.Command {
+	var (
+		archived   bool
+		sourceKeys []string
+		limit      int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "diagnostics",
+		Short: "List ingest/archive diagnostics rows with optional source-key filters",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().ListResumeDiagnostics(context.Background(), client.ResumeDiagnosticsQuery{
+				Archived:   archived,
+				SourceKeys: sourceKeys,
+				Limit:      limit,
+			})
+			if err != nil {
+				return err
+			}
+
+			headers := []string{"resume_id", "source_key", "source_host", "name", "intention", "location", "archived"}
+			rows := make([][]string, 0, len(response.Data))
+			for _, item := range response.Data {
+				rows = append(rows, []string{
+					item.ResumeID,
+					item.SourceKey,
+					item.Source,
+					item.Name,
+					item.JobIntention,
+					item.Location,
+					strconv.FormatBool(item.IsArchived),
+				})
+			}
+
+			if currentOptions().Output == "table" {
+				fmt.Fprintf(
+					cmd.OutOrStdout(),
+					"Diagnostics summary: archived=%t sourceKeys=%s returned=%d limit=%d\n\n",
+					response.Summary.Archived,
+					strings.Join(response.Summary.SourceKeys, ","),
+					response.Summary.Returned,
+					response.Summary.Limit,
+				)
+			}
+
+			return writeOutput(cmd, headers, rows, response)
+		},
+	}
+
+	cmd.Flags().BoolVar(&archived, "archived", false, "List archived resumes instead of active ingest rows")
+	cmd.Flags().StringArrayVar(&sourceKeys, "source-key", nil, "Source key filter (repeatable): job5156|51job|seek|51job-manual|unknown")
+	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum diagnostics rows to return")
 	return cmd
 }
 

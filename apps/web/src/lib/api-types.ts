@@ -1856,6 +1856,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List resume diagnostics rows with optional archived/source filters */
+        get: {
+            parameters: {
+                query?: {
+                    archived?: "true" | "false";
+                    sourceKey?: string | string[];
+                    limit?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Diagnostics rows */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResumeDiagnosticsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/{resumeId}": {
         parameters: {
             query?: never;
@@ -7902,6 +7942,28 @@ export interface components {
              * @example https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=***
              */
             webhookUrl?: string;
+        };
+        ResumeDiagnosticsItem: {
+            resumeId: string;
+            externalId: string;
+            source: string;
+            sourceKey: string;
+            name: string;
+            jobIntention: string;
+            location: string;
+            isArchived?: boolean;
+            archivedAt?: number;
+        };
+        ResumeDiagnosticsResponse: {
+            /** @enum {boolean} */
+            success: true;
+            summary: {
+                archived: boolean;
+                sourceKeys?: string[];
+                returned: number;
+                limit: number;
+            };
+            data: components["schemas"]["ResumeDiagnosticsItem"][];
         };
         ResumeDetailResponse: {
             /** @enum {boolean} */

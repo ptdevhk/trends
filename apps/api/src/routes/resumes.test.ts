@@ -360,6 +360,64 @@ describe("resume routes", () => {
     );
   });
 
+  it("lists diagnostics rows with archived and source-key filters", async () => {
+    const calls: ConvexCall[] = [];
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const call = parseConvexCall(input, init);
+      calls.push(call);
+
+      if (call.pathName === "resumes:listArchivedDiagnostics") {
+        expect(call.args).toEqual(expect.objectContaining({
+          sourceKeys: ["51job-manual", "seek"],
+        }));
+        return convexSuccess({
+          page: [
+            {
+              resumeId: "resume-archived-1",
+              externalId: "external-1",
+              source: "51job-manual",
+              sourceKey: "51job-manual",
+              name: "张三",
+              jobIntention: "销售工程师",
+              location: "东莞",
+              archivedAt: 1_700_000_000_000,
+              isArchived: true,
+            },
+          ],
+          continueCursor: "",
+          isDone: true,
+        });
+      }
+
+      throw new Error(`Unexpected convex path: ${call.pathName}`);
+    });
+
+    const app = createApp();
+    const response = await app.request(
+      "/api/resumes/diagnostics?archived=true&sourceKey=51job-manual&sourceKey=seek&limit=25"
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toEqual(expect.objectContaining({
+      success: true,
+      summary: expect.objectContaining({
+        archived: true,
+        limit: 25,
+      }),
+      data: [
+        expect.objectContaining({
+          resumeId: "resume-archived-1",
+          sourceKey: "51job-manual",
+        }),
+      ],
+    }));
+    expect(calls[0]).toEqual(expect.objectContaining({
+      pathName: "resumes:listArchivedDiagnostics",
+    }));
+  });
+
   it("returns read-only convex query scores with debug metadata", async () => {
     const createSessionSpy = vi.spyOn(SessionManager.prototype, "createSession");
     const saveMatchesSpy = vi.spyOn(MatchStorage.prototype, "saveMatches");

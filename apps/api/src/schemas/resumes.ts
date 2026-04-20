@@ -594,6 +594,70 @@ export const ResumeDetailResponseSchema = z
   })
   .openapi("ResumeDetailResponse");
 
+export const ResumeDiagnosticsQuerySchema = z.object({
+  archived: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true")
+    .openapi({
+      param: { name: "archived", in: "query" },
+      example: "true",
+    }),
+  sourceKey: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((value) => {
+      if (!value) {
+        return undefined;
+      }
+      if (Array.isArray(value)) {
+        return value.map((item) => item.trim()).filter((item) => item.length > 0);
+      }
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? [trimmed] : undefined;
+    })
+    .openapi({
+      param: { name: "sourceKey", in: "query" },
+      example: "51job-manual",
+    }),
+  limit: z
+    .string()
+    .optional()
+    .transform((value) => (value ? parseInt(value, 10) : undefined))
+    .pipe(z.number().min(1).max(500).optional())
+    .openapi({
+      param: { name: "limit", in: "query" },
+      example: "100",
+    }),
+});
+
+export const ResumeDiagnosticsItemSchema = z
+  .object({
+    resumeId: z.string(),
+    externalId: z.string(),
+    source: z.string(),
+    sourceKey: z.string(),
+    name: z.string(),
+    jobIntention: z.string(),
+    location: z.string(),
+    isArchived: z.boolean().optional(),
+    archivedAt: z.number().optional(),
+  })
+  .openapi("ResumeDiagnosticsItem");
+
+export const ResumeDiagnosticsResponseSchema = z
+  .object({
+    success: z.literal(true),
+    summary: z.object({
+      archived: z.boolean(),
+      sourceKeys: z.array(z.string()).optional(),
+      returned: z.number().int(),
+      limit: z.number().int(),
+    }),
+    data: z.array(ResumeDiagnosticsItemSchema),
+  })
+  .openapi("ResumeDiagnosticsResponse");
+
 export const ResumeKeywordExpansionQuerySchema = z.object({
   q: z
     .string()

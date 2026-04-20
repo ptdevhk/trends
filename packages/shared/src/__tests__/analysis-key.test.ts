@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { isSalesRequiredContext } from "../analysis-key";
+import {
+  isSalesRequiredContext,
+  resolveResumeDiagnosticsSourceKey,
+} from "../analysis-key";
 
 describe("isSalesRequiredContext", () => {
   it("detects common English sales-title phrases", () => {
@@ -19,5 +22,24 @@ describe("isSalesRequiredContext", () => {
   it("does not classify non-sales technical titles as sales", () => {
     expect(isSalesRequiredContext("应用工程师")).toBe(false);
     expect(isSalesRequiredContext("机械工程师")).toBe(false);
+  });
+});
+
+describe("resolveResumeDiagnosticsSourceKey", () => {
+  it("keeps manual 51job imports as their own diagnostics key", () => {
+    expect(resolveResumeDiagnosticsSourceKey({ source: "51job-manual" })).toBe("51job-manual");
+    expect(resolveResumeDiagnosticsSourceKey({ sourceKey: "51job-manual" })).toBe("51job-manual");
+  });
+
+  it("maps live source hosts to grouped diagnostics keys", () => {
+    expect(resolveResumeDiagnosticsSourceKey({ source: "hr.job5156.com" })).toBe("job5156");
+    expect(resolveResumeDiagnosticsSourceKey({ source: "ehire.51job.com" })).toBe("51job");
+    expect(resolveResumeDiagnosticsSourceKey({ source: "my.employer.seek.com" })).toBe("seek");
+  });
+
+  it("returns unknown for unmatched source values", () => {
+    expect(resolveResumeDiagnosticsSourceKey({ source: "manual.51job.com" })).toBe("unknown");
+    expect(resolveResumeDiagnosticsSourceKey({ source: "unknown-host.example.com" })).toBe("unknown");
+    expect(resolveResumeDiagnosticsSourceKey({ source: "" })).toBe("unknown");
   });
 });

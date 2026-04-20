@@ -77,6 +77,38 @@ func TestResumeDebugClientEndpoints(t *testing.T) {
 				CurrentVersion: 9,
 				HasMore:        true,
 			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/resumes/diagnostics":
+			if got := r.URL.Query().Get("archived"); got != "true" {
+				t.Fatalf("expected archived=true, got %q", got)
+			}
+			if got := r.URL.Query().Get("limit"); got != "10" {
+				t.Fatalf("expected limit=10, got %q", got)
+			}
+			sourceKeys := r.URL.Query()["sourceKey"]
+			if len(sourceKeys) != 2 || sourceKeys[0] != "51job-manual" || sourceKeys[1] != "seek" {
+				t.Fatalf("unexpected source keys: %+v", sourceKeys)
+			}
+			_ = json.NewEncoder(w).Encode(ResumeDiagnosticsResponse{
+				Success: true,
+				Data: []ResumeDiagnosticsItem{
+					{
+						ResumeID:    "resume-1",
+						ExternalID:  "external-1",
+						Name:        "张三",
+						JobIntention:"销售工程师",
+						Location:    "东莞",
+						Source:      "51job-manual",
+						SourceKey:   "51job-manual",
+						IsArchived:  true,
+						ArchivedAt:  1700000000000,
+					},
+				},
+				Summary: ResumeDiagnosticsSummary{
+					Archived: true,
+					Returned: 1,
+					Limit:    10,
+				},
+			})
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -140,5 +172,17 @@ func TestResumeDebugClientEndpoints(t *testing.T) {
 	}
 	if reingest.Scheduled != 150 || !reingest.HasMore {
 		t.Fatalf("unexpected reingest response: %+v", reingest)
+	}
+
+	diagnostics, err := c.ListResumeDiagnostics(context.Background(), ResumeDiagnosticsQuery{
+		Archived:   true,
+		SourceKeys: []string{"51job-manual", "seek"},
+		Limit:      10,
+	})
+	if err != nil {
+		t.Fatalf("ListResumeDiagnostics returned error: %v", err)
+	}
+	if diagnostics.Summary.Returned != 1 || len(diagnostics.Data) != 1 {
+		t.Fatalf("unexpected diagnostics response: %+v", diagnostics)
 	}
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    buildDiagnosticsSourceFacetRows,
+    matchesDiagnosticsSourceKeys,
     projectIngestDiagnosticsRow,
     resolveListWithIngestWindow,
     resolveResumeScanBatchSize,
@@ -57,6 +59,7 @@ describe("projectIngestDiagnosticsRow", () => {
         const row = projectIngestDiagnosticsRow({
             _id: "resume-1",
             externalId: "ext-1",
+            source: "51job-manual",
             content: {
                 name: "赵先生",
                 jobIntention: "销售工程师",
@@ -106,6 +109,8 @@ describe("projectIngestDiagnosticsRow", () => {
         expect(row).toEqual({
             resumeId: "resume-1",
             externalId: "ext-1",
+            source: "51job-manual",
+            sourceKey: "51job-manual",
             name: "赵先生",
             jobIntention: "销售工程师",
             location: "东莞",
@@ -143,6 +148,7 @@ describe("projectIngestDiagnosticsRow", () => {
         const row = projectIngestDiagnosticsRow({
             _id: "resume-2",
             externalId: "ext-2",
+            source: "hr.job5156.com",
             content: {
                 name: "赵先生",
                 jobIntention: "销售工程师",
@@ -154,5 +160,43 @@ describe("projectIngestDiagnosticsRow", () => {
         });
 
         expect(row.location).toBe("广东东莞");
+    });
+});
+
+describe("matchesDiagnosticsSourceKeys", () => {
+    it("matches grouped keys and keeps 51job-manual separate", () => {
+        expect(matchesDiagnosticsSourceKeys({
+            source: "51job-manual",
+            content: { profileType: "51job-manual" },
+        }, new Set(["51job-manual"]))).toBe(true);
+
+        expect(matchesDiagnosticsSourceKeys({
+            source: "51job-manual",
+            content: { profileType: "51job-manual" },
+        }, new Set(["job5156"]))).toBe(false);
+
+        expect(matchesDiagnosticsSourceKeys({
+            source: "hr.job5156.com",
+            content: { profileType: "job5156" },
+        }, new Set(["job5156"]))).toBe(true);
+    });
+});
+
+describe("buildDiagnosticsSourceFacetRows", () => {
+    it("groups rows by diagnostics source key and sorts by count desc then key", () => {
+        const rows = buildDiagnosticsSourceFacetRows([
+            { source: "51job-manual", content: { profileType: "51job-manual" } },
+            { source: "hr.job5156.com", content: { profileType: "job5156" } },
+            { source: "hr.job5156.com", content: { profileType: "job5156" } },
+            { source: "my.employer.seek.com", content: { profileType: "seek" } },
+            { source: "unknown-host.local", content: {} },
+        ]);
+
+        expect(rows).toEqual([
+            { key: "job5156", label: "Job5156", count: 2 },
+            { key: "51job-manual", label: "51job manual", count: 1 },
+            { key: "seek", label: "SEEK", count: 1 },
+            { key: "unknown", label: "Unknown", count: 1 },
+        ]);
     });
 });

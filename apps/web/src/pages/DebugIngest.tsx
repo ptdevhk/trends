@@ -6,7 +6,7 @@ import {
   INGEST_BRAND_SOURCE_LABELS,
   sanitizeResumeRecordForSurface,
 } from '@trends/shared'
-import { useAction, useMutation, usePaginatedQuery } from 'convex/react'
+import { useAction, useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw, Database, ChevronDown, ChevronRight, Trash2, Archive } from 'lucide-react'
@@ -20,10 +20,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/PageHeader'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
+import { SourceFacetSelect, type SourceFacet } from '@/components/SourceFacetSelect'
 
 type IngestDiagnosticsResume = {
   resumeId: string
   externalId: string
+  source: string
+  sourceKey: string
   name: string
   jobIntention: string
   location: string
@@ -67,6 +70,8 @@ const INGEST_DIAGNOSTICS_PAGE_SIZE = 100
 function getSearchTarget(resume: IngestDiagnosticsResume): string {
   return [
     resume.externalId,
+    resume.source,
+    resume.sourceKey,
     resume.name,
     resume.jobIntention,
     resume.location,
@@ -143,11 +148,17 @@ function formatTaggingEntry(entry: {
 export default function DebugIngest() {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
+  const [selectedSourceKeys, setSelectedSourceKeys] = useState<string[]>([])
+  const sourceFacets = useQuery(api.resumes.listDiagnosticsSourceFacets, { archived: false }) as SourceFacet[] | undefined
   const {
     results: paginatedResumes,
     status,
     loadMore,
-  } = usePaginatedQuery(api.resumes.listIngestDiagnostics, {}, { initialNumItems: INGEST_DIAGNOSTICS_PAGE_SIZE })
+  } = usePaginatedQuery(
+    api.resumes.listIngestDiagnostics,
+    selectedSourceKeys.length > 0 ? { sourceKeys: selectedSourceKeys } : {},
+    { initialNumItems: INGEST_DIAGNOSTICS_PAGE_SIZE }
+  )
   const backfillIngestData = useAction(api.migrations.backfillIngestData)
   const reIngestStaleSkillsVersion = useAction(api.migrations.reIngestStaleSkillsVersion)
   const reIngestAllResumes = useAction(api.migrations.reIngestAllResumes)
@@ -581,6 +592,12 @@ export default function DebugIngest() {
           placeholder={t('debugIngest.searchPlaceholder', { defaultValue: 'Search by name / intention / location...' })}
           className="max-w-xl"
         />
+        <SourceFacetSelect
+          id="debug-ingest-source-filter"
+          facets={sourceFacets}
+          value={selectedSourceKeys}
+          onChange={setSelectedSourceKeys}
+        />
         <Button variant="outline" onClick={() => void loadSkillsVersion()} disabled={versionLoading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${versionLoading ? 'animate-spin' : ''}`} />
           {t('common.refresh', { defaultValue: 'Refresh' })}
@@ -829,6 +846,7 @@ export default function DebugIngest() {
               <TableHead>{t('resumes.columns.name', { defaultValue: 'Name' })}</TableHead>
               <TableHead>{t('resumes.columns.intention', { defaultValue: 'Intention' })}</TableHead>
               <TableHead>{t('resumes.columns.location', { defaultValue: 'Location' })}</TableHead>
+              <TableHead>{t('resumes.columns.source', { defaultValue: 'Source' })}</TableHead>
               <TableHead>{t('debugIngest.skillsVersion', { defaultValue: 'Skills Version' })}</TableHead>
               <TableHead>{t('debugIngest.computedAt', { defaultValue: 'Computed At' })}</TableHead>
               <TableHead>{t('debugIngest.status', { defaultValue: 'Status' })}</TableHead>
@@ -838,13 +856,13 @@ export default function DebugIngest() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground">
+                <TableCell colSpan={10} className="text-center text-muted-foreground">
                   {t('resumes.loading', { defaultValue: 'Loading...' })}
                 </TableCell>
               </TableRow>
             ) : filteredResumes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-muted-foreground">
+                <TableCell colSpan={10} className="text-center text-muted-foreground">
                   {t('debugIngest.noResults', { defaultValue: 'No resumes found' })}
                 </TableCell>
               </TableRow>
@@ -881,6 +899,7 @@ export default function DebugIngest() {
                       <TableCell>{resume.name || '--'}</TableCell>
                       <TableCell>{resume.jobIntention || '--'}</TableCell>
                       <TableCell>{resume.location || '--'}</TableCell>
+                      <TableCell>{resume.sourceKey || resume.source || '--'}</TableCell>
                       <TableCell>{ingestData?.skillsVersion ?? '--'}</TableCell>
                       <TableCell>{formatTimestamp(ingestData?.computedAt)}</TableCell>
                       <TableCell>
@@ -914,7 +933,7 @@ export default function DebugIngest() {
                     </TableRow>
                     {isExpanded ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="bg-muted/20">
+                        <TableCell colSpan={10} className="bg-muted/20">
                           {ingestData ? (
                             <div className="grid gap-2 text-sm md:grid-cols-2">
                               <div>

@@ -299,6 +299,73 @@ func TestResumeDebugWorkflowDatasetCommandWritesTable(t *testing.T) {
 	}
 }
 
+func TestResumeDebugDiagnosticsCommandWritesTable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/resumes/diagnostics" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.URL.Query().Get("archived"); got != "true" {
+			t.Fatalf("expected archived=true, got %q", got)
+		}
+		if got := r.URL.Query().Get("limit"); got != "5" {
+			t.Fatalf("expected limit=5, got %q", got)
+		}
+		sourceKeys := r.URL.Query()["sourceKey"]
+		if len(sourceKeys) != 2 || sourceKeys[0] != "51job-manual" || sourceKeys[1] != "seek" {
+			t.Fatalf("unexpected source keys: %+v", sourceKeys)
+		}
+
+		_ = json.NewEncoder(w).Encode(client.ResumeDiagnosticsResponse{
+			Success: true,
+			Data: []client.ResumeDiagnosticsItem{
+				{
+					ResumeID:    "resume-1",
+					ExternalID:  "external-1",
+					Name:        "张三",
+					JobIntention:"销售工程师",
+					Location:    "东莞",
+					Source:      "51job-manual",
+					SourceKey:   "51job-manual",
+					IsArchived:  true,
+					ArchivedAt:  1700000000000,
+				},
+			},
+			Summary: client.ResumeDiagnosticsSummary{
+				Archived: true,
+				Returned: 1,
+				Limit:    5,
+			},
+		})
+	}))
+	defer server.Close()
+
+	setResumeCLIConfig(t, server.URL, "dev")
+	setCLIOutput(t, "table")
+
+	cmd := newResumeDebugDiagnosticsCmd()
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{
+		"--archived",
+		"--source-key", "51job-manual",
+		"--source-key", "seek",
+		"--limit", "5",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume debug diagnostics command failed: %v", err)
+	}
+
+	text := output.String()
+	if !strings.Contains(text, "resume-1") || !strings.Contains(text, "51job-manual") || !strings.Contains(text, "archived=true") {
+		t.Fatalf("unexpected diagnostics output: %s", text)
+	}
+}
+
 func TestResumeDebugClearDemoResumesCommandWritesJSON(t *testing.T) {
 	setCLIOutput(t, "json")
 
