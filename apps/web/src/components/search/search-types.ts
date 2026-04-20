@@ -20,6 +20,7 @@ export type FacetCounts = {
   education: FacetValueCount[]
   statuses: FacetValueCount[]
   minScoreOptions: FacetValueCount[]
+  sources: FacetValueCount[]
 }
 
 export type ResumeSearchResultItem = {

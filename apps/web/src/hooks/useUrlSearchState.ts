@@ -9,6 +9,7 @@ const KNOWN_PARAM_KEYS = [
   'jd',
   'tags',
   'co',
+  'src',
   'rkw',
   'exp',
   'minRoleYears',
@@ -34,6 +35,7 @@ export type UrlSearchState = {
   jobDescriptionId?: string
   selectedTags: string[]
   selectedCompanies: string[]
+  selectedSources: string[]
   selectedExperienceLevel?: ExperienceLevelFilter
   filters: Partial<ResumeFilters>
 }
@@ -185,6 +187,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
   const jobDescriptionId = jobDescriptionRaw?.trim() || undefined
   const selectedTags = normalizeUniqueValues(parseCsvParam(searchParams.get('tags')))
   const selectedCompanies = normalizeUniqueValues(parseCsvParam(searchParams.get('co')))
+  const selectedSources = normalizeUniqueValues(parseCsvParam(searchParams.get('src')))
   const selectedExperienceLevel = parseExperienceLevel(searchParams.get('exp'))
 
   const filters: Partial<ResumeFilters> = {}
@@ -252,6 +255,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     jobDescriptionId,
     selectedTags,
     selectedCompanies,
+    selectedSources,
     selectedExperienceLevel,
     filters,
   }
@@ -284,6 +288,7 @@ export function useUrlSearchState() {
         const normalizedKeywords = normalizeUniqueValues(state.keywords)
         const normalizedTags = normalizeUniqueValues(state.selectedTags)
         const normalizedCompanies = normalizeUniqueValues(state.selectedCompanies)
+        const normalizedSources = normalizeUniqueValues(state.selectedSources)
         const normalizedQuery = state.query?.trim()
         const hasKeywords = normalizedKeywords.length > 0
 
@@ -305,6 +310,7 @@ export function useUrlSearchState() {
         setParam(nextParams, 'jd', state.jobDescriptionId?.trim())
         setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
         setParam(nextParams, 'co', normalizedCompanies.length > 0 ? normalizedCompanies.join(',') : undefined)
+        setParam(nextParams, 'src', normalizedSources.length > 0 ? normalizedSources.join(',') : undefined)
         setParam(nextParams, 'exp', state.selectedExperienceLevel)
 
         if (typeof state.filters.maxExperience === 'number' && Number.isFinite(state.filters.maxExperience)) {

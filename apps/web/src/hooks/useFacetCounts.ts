@@ -5,6 +5,7 @@ import {
   createTaxonomyClusterResolver,
   type TaxonomyClusterInput,
 } from '@/lib/taxonomy'
+import { getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 
 const MIN_SCORE_OPTIONS = [60, 70, 80, 90] as const
 
@@ -70,6 +71,7 @@ export function useFacetCounts(
     const experienceCounts = new Map<string, number>()
     const educationCounts = new Map<string, number>()
     const statusCounts = new Map<string, number>()
+    const sourceCounts = new Map<string, number>()
 
     limitedResults.forEach((item) => {
       taxonomyResolver.resolveTagClusters(item.resume.ingestData?.industryTags).forEach((cluster) => {
@@ -80,6 +82,10 @@ export function useFacetCounts(
       incrementCount(experienceCounts, item.resume.ingestData?.experienceLevel)
       incrementCount(educationCounts, item.resume.education)
       incrementCount(statusCounts, item.status)
+      const sourceLabel = getSourceLabelFromHostname(item.resume.source)
+      if (sourceLabel) {
+        incrementCount(sourceCounts, sourceLabel)
+      }
     })
 
     const minScoreOptions = MIN_SCORE_OPTIONS.map((threshold) => ({
@@ -106,6 +112,7 @@ export function useFacetCounts(
       education: toSortedCounts(educationCounts),
       statuses: toSortedCounts(statusCounts, statusLabels),
       minScoreOptions,
+      sources: toSortedCounts(sourceCounts),
     }
   }, [results, taxonomyClusters, t])
 }

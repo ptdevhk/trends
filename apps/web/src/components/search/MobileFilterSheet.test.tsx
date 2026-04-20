@@ -78,6 +78,7 @@ function buildFacetCounts(): FacetCounts {
     education: [],
     statuses: [],
     minScoreOptions: [],
+    sources: [],
   }
 }
 
@@ -99,6 +100,8 @@ function buildProps(overrides: Partial<ComponentProps<typeof MobileFilterSheet>>
     onToggleEducation: vi.fn(),
     onToggleStatus: vi.fn(),
     onToggleTag: vi.fn(),
+    selectedSources: [],
+    onToggleSource: vi.fn(),
     ...overrides,
   }
 }

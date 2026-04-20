@@ -13,6 +13,7 @@ export type FacetSidebarProps = {
   selectedCompanies: string[]
   selectedEducation: string[]
   selectedExperienceLevel?: ExperienceLevelFilter
+  selectedSources: string[]
   selectedStatuses: CandidateStatus[]
   selectedTags: string[]
   onClearAll: () => void
@@ -21,6 +22,7 @@ export type FacetSidebarProps = {
   onToggleCompany: (value: string) => void
   onToggleCluster: (value: string) => void
   onToggleEducation: (value: string) => void
+  onToggleSource: (value: string) => void
   onToggleStatus: (value: CandidateStatus) => void
   onToggleTag: (value: string) => void
 }
@@ -70,6 +72,7 @@ export function FacetSidebar({
   selectedCompanies,
   selectedEducation,
   selectedExperienceLevel,
+  selectedSources,
   selectedStatuses,
   selectedTags,
   onClearAll,
@@ -78,6 +81,7 @@ export function FacetSidebar({
   onToggleCompany,
   onToggleCluster,
   onToggleEducation,
+  onToggleSource,
   onToggleStatus,
   onToggleTag,
 }: FacetSidebarProps) {
@@ -102,6 +106,7 @@ export function FacetSidebar({
       />
       <FacetGroup title={t('resumes.searchPage.facets.tags', { defaultValue: '标签聚类' })} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
       <FacetGroup title={t('resumes.searchPage.facets.companies', { defaultValue: '公司经历' })} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
+      <FacetGroup title={t('resumes.searchPage.facets.sources', { defaultValue: '来源渠道' })} items={facetCounts.sources} selectedValues={selectedSources} onToggle={onToggleSource} />
       <ExperienceLevelGroup selectedExperienceLevel={selectedExperienceLevel} onSetExperienceLevel={onSetExperienceLevel} />
       <FacetGroup title={t('resumes.searchPage.facets.education', { defaultValue: '学历' })} items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
       <FacetGroup title={t('resumes.searchPage.facets.status', { defaultValue: '候选人状态' })} items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />

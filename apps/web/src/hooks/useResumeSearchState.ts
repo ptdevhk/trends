@@ -44,7 +44,7 @@ import {
   resolveResumeAnalysisSourceKey,
 } from '@/lib/analysis-utils'
 import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
-import { resolveCollectionSource } from '@/lib/search-profile-sources'
+import { resolveCollectionSource, getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 import type { SearchHistoryItem } from '@/hooks/useSession'
 import type {
   CandidateActionType,
@@ -239,6 +239,7 @@ function hasExplicitSearchContext(state: UrlSearchState): boolean {
     state.requiredKeywords.length > 0 ||
     state.selectedTags.length > 0 ||
     state.selectedCompanies.length > 0 ||
+    state.selectedSources.length > 0 ||
     state.selectedExperienceLevel ||
     (state.filters.education?.length ?? 0) > 0 ||
     (state.filters.status?.length ?? 0) > 0 ||
@@ -282,6 +283,7 @@ function buildUrlState(
         : state.jobDescriptionId,
     selectedTags: overrides.selectedTags ?? state.selectedTags,
     selectedCompanies: overrides.selectedCompanies ?? state.selectedCompanies,
+    selectedSources: overrides.selectedSources ?? state.selectedSources,
     selectedExperienceLevel:
       'selectedExperienceLevel' in overrides
         ? overrides.selectedExperienceLevel
@@ -308,6 +310,7 @@ function buildSearchContextSignature(state: UrlSearchState): string {
     jobDescriptionId: normalizeOptionalString(state.jobDescriptionId),
     selectedTags: normalizeStringList(state.selectedTags),
     selectedCompanies: normalizeStringList(state.selectedCompanies),
+    selectedSources: normalizeStringList(state.selectedSources),
     selectedExperienceLevel: state.selectedExperienceLevel,
     filters: {
       education: normalizeStringList(state.filters.education ?? []),
@@ -423,6 +426,9 @@ function matchesLocalFilters(
   const normalizedSelectedCompanies = state.selectedCompanies.map((value) =>
     value.toLowerCase(),
   )
+  const normalizedSelectedSources = state.selectedSources.map((value) =>
+    value.toLowerCase(),
+  )
   const normalizedEducation = (state.filters.education ?? []).map((value) =>
     value.toLowerCase(),
   )
@@ -469,6 +475,15 @@ function matchesLocalFilters(
     )
   ) {
     return false
+  }
+
+  if (
+    normalizedSelectedSources.length > 0
+  ) {
+    const itemSourceLabel = getSourceLabelFromHostname(item.resume.source)?.toLowerCase()
+    if (!itemSourceLabel || !normalizedSelectedSources.includes(itemSourceLabel)) {
+      return false
+    }
   }
 
   if (
@@ -630,6 +645,7 @@ export function useResumeSearchState() {
     parsedState.query,
     parsedState.requiredKeywords,
     parsedState.selectedCompanies,
+    parsedState.selectedSources,
     parsedState.selectedExperienceLevel,
     parsedState.selectedTags,
   ])
@@ -888,6 +904,7 @@ export function useResumeSearchState() {
   const filterCount =
     parsedState.selectedTags.length +
     parsedState.selectedCompanies.length +
+    parsedState.selectedSources.length +
     (parsedState.selectedExperienceLevel ? 1 : 0) +
     (parsedState.filters.education?.length ?? 0) +
     (parsedState.filters.status?.length ?? 0) +
@@ -1018,6 +1035,7 @@ export function useResumeSearchState() {
         jobDescriptionId: undefined,
         selectedTags: [],
         selectedCompanies: [],
+        selectedSources: [],
         selectedExperienceLevel: undefined,
         filters: {},
       }),
@@ -1039,6 +1057,7 @@ export function useResumeSearchState() {
         jobDescriptionId: item.jobDescriptionId,
         selectedTags: item.selectedTags,
         selectedCompanies: item.selectedCompanies,
+        selectedSources: [],
         selectedExperienceLevel:
           (item.selectedExperienceLevel as ExperienceLevelFilter | undefined) ??
           undefined,
@@ -1126,6 +1145,33 @@ export function useResumeSearchState() {
       setSelectedCompanies(nextCompanies)
     },
     [parsedState.selectedCompanies, setSelectedCompanies],
+  )
+
+  const setSelectedSources = useCallback(
+    (selectedSources: string[]) => {
+      syncToUrl(buildUrlState(parsedState, { selectedSources }))
+    },
+    [parsedState, syncToUrl],
+  )
+
+  const toggleSource = useCallback(
+    (source: string) => {
+      const normalized = source.trim()
+      if (!normalized) {
+        return
+      }
+
+      const nextSources = parsedState.selectedSources.some(
+        (value) => value.toLowerCase() === normalized.toLowerCase(),
+      )
+        ? parsedState.selectedSources.filter(
+          (value) => value.toLowerCase() !== normalized.toLowerCase(),
+        )
+        : [...parsedState.selectedSources, normalized]
+
+      setSelectedSources(nextSources)
+    },
+    [parsedState.selectedSources, setSelectedSources],
   )
 
   const setSelectedExperienceLevel = useCallback(
@@ -1233,6 +1279,7 @@ export function useResumeSearchState() {
       buildUrlState(parsedState, {
         selectedTags: [],
         selectedCompanies: [],
+        selectedSources: [],
         selectedExperienceLevel: undefined,
         filters: {
           ...parsedState.filters,
@@ -1537,6 +1584,7 @@ export function useResumeSearchState() {
     toggleCompany,
     toggleCluster,
     toggleEducation,
+    toggleSource,
     toggleStatus,
     toggleTag,
     loadMore,

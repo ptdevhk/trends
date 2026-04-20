@@ -214,6 +214,7 @@ function normalizeUrlSearchStateValue(state: Partial<UrlSearchState> | undefined
     jobDescriptionId: normalizeOptionalString(state?.jobDescriptionId),
     selectedTags: Array.isArray(state?.selectedTags) ? state.selectedTags : [],
     selectedCompanies: Array.isArray(state?.selectedCompanies) ? state.selectedCompanies : [],
+    selectedSources: Array.isArray(state?.selectedSources) ? state.selectedSources : [],
     selectedExperienceLevel: state?.selectedExperienceLevel,
     filters: state?.filters ?? {},
   }
@@ -1108,6 +1109,7 @@ export function useResumeListState(loadSearchHistory = false) {
         jobDescriptionId,
         selectedTags,
         selectedCompanies,
+        selectedSources: [],
         selectedExperienceLevel,
         filters: filtersForUrl,
       })
