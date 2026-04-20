@@ -1347,14 +1347,19 @@ seed_and_migrate_convex() {
     run_as_service_user "set -a && [ -f '$CONFIG_DIR/env' ] && source '$CONFIG_DIR/env' && set +a && cd '$INSTALL_DIR' && npx tsx '$seed_script' $seed_args" \
         || log_warn "Convex seed failed. Continuing with migrations."
 
-    run_convex_migration "$convex_dir" "reindexSearchText"
-    run_convex_migration "$convex_dir" "backfillPrimaryRuleScore"
-    run_convex_migration "$convex_dir" "backfillEvidenceText"
+    run_convex_migration "$convex_dir" "backfillSourceKey"
+    run_convex_migration "$convex_dir" "backfillTaggingEnvelope"
     run_convex_migration "$convex_dir" "backfillWorkspaceSlugs"
-    run_convex_migration "$convex_dir" "backfillManual51jobStructuredContent" '{"batchSize":100}'
-    run_convex_migration "$convex_dir" "backfillIngestData" '{"limit":100}'
     run_convex_migration "$convex_dir" "backfillJob5156ProfileUrls"
     run_convex_migration "$convex_dir" "backfillJob5156WorkHistoryEducation"
+    run_convex_migration "$convex_dir" "backfillJob5156LocationHierarchy"
+    run_convex_migration "$convex_dir" "backfillManual51jobStructuredContent" '{"batchSize":100}'
+    run_convex_migration "$convex_dir" "backfillIngestData" '{"limit":100}'
+    run_convex_migration "$convex_dir" "backfillAge"
+    run_convex_migration "$convex_dir" "backfillSearchText"
+    run_convex_migration "$convex_dir" "backfillEvidenceText"
+    run_convex_migration "$convex_dir" "backfillPrimaryRuleScore"
+    run_convex_migration "$convex_dir" "reindexSearchText"
 }
 
 resolve_env_file() {
