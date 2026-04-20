@@ -3,7 +3,22 @@ import { formatKeywordQuery, normalizeKeywordPhrases } from '@trends/shared'
 const JOB5156_SEARCH_URL = 'https://hr.job5156.com/search'
 const EHIRE_51JOB_SEARCH_URL = 'https://ehire.51job.com/Revision/talent/search'
 const SEEK_TALENT_SEARCH_URL = 'https://my.employer.seek.com/candidates/recommended'
-const SEEK_HOST_SUFFIX = '.employer.seek.com'
+const SOURCE_HOST_MAP: Record<string, string> = {
+  'hr.job5156.com': 'job5156',
+  'ehire.51job.com': '51job',
+}
+
+export function getSourceLabelFromHostname(hostname: string | undefined): string | undefined {
+  const normalized = hostname?.trim().toLowerCase()
+  if (!normalized) {
+    return undefined
+  }
+
+  return SOURCE_HOST_MAP[normalized] ?? normalized
+}
+
+export { SOURCE_HOST_MAP }
+export const SEEK_HOST_SUFFIX = '.employer.seek.com'
 const SEEK_RECOMMENDED_PATH = '/candidates/recommended'
 export const JOB51_SAFE_LAUNCH_LIMIT = 50
 export const JOB51_SAFE_LAUNCH_MAX_PAGES = 1

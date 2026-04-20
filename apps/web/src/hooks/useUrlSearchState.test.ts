@@ -102,6 +102,7 @@ describe('useUrlSearchState location parsing', () => {
       jobDescriptionId: undefined,
       selectedTags: [],
       selectedCompanies: [],
+      selectedSources: [],
       selectedExperienceLevel: undefined,
       filters: {
         locations: ['Kuala Lumpur MY'],
@@ -135,6 +136,7 @@ describe('useUrlSearchState location parsing', () => {
       jobDescriptionId: undefined,
       selectedTags: [],
       selectedCompanies: [],
+      selectedSources: [],
       selectedExperienceLevel: undefined,
       filters: {},
     }
@@ -160,6 +162,7 @@ describe('useUrlSearchState location parsing', () => {
       jobDescriptionId: 'jd-123',
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
       selectedCompanies: ['FANUC', 'DMG MORI'],
+      selectedSources: [],
       selectedExperienceLevel: 'senior',
       filters: {
         minRoleYears: 5,
@@ -219,6 +222,7 @@ describe('useUrlSearchState location parsing', () => {
       jobDescriptionId: undefined,
       selectedTags: [],
       selectedCompanies: [],
+      selectedSources: [],
       selectedExperienceLevel: undefined,
       filters: {},
     }
@@ -257,6 +261,7 @@ describe('useUrlSearchState location parsing', () => {
       jobDescriptionId: 'jd-456',
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools', 'machine tools'],
       selectedCompanies: ['FANUC', ' fanuc ', 'DMG MORI'],
+      selectedSources: [],
       selectedExperienceLevel: 'mid',
       filters: {
         minExperience: 5,
@@ -327,6 +332,7 @@ describe('minRoleYears and minExperience are decoupled', () => {
       jobDescriptionId: undefined,
       selectedTags: [],
       selectedCompanies: [],
+      selectedSources: [],
       selectedExperienceLevel: undefined,
       filters: {
         minRoleYears: 3,
@@ -353,6 +359,7 @@ describe('minRoleYears and minExperience are decoupled', () => {
       jobDescriptionId: undefined,
       selectedTags: [],
       selectedCompanies: [],
+      selectedSources: [],
       selectedExperienceLevel: undefined,
       filters: {
         minExperience: 5,
@@ -380,6 +387,7 @@ describe('minRoleYears and minExperience are decoupled', () => {
       jobDescriptionId: undefined,
       selectedTags: [],
       selectedCompanies: [],
+      selectedSources: [],
       selectedExperienceLevel: undefined,
       filters: {
         minRoleYears: 3,
@@ -415,6 +423,7 @@ it('clears explicit sort params when syncing back to default relevance ordering'
       jobDescriptionId: undefined,
       selectedTags: [],
       selectedCompanies: [],
+      selectedSources: [],
       selectedExperienceLevel: undefined,
       filters: {},
     }

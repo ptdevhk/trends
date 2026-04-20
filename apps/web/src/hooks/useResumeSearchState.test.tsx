@@ -158,6 +158,7 @@ function createParsedState(overrides: Partial<UrlSearchState> = {}): UrlSearchSt
     jobDescriptionId: undefined,
     selectedTags: [],
     selectedCompanies: [],
+    selectedSources: [],
     selectedExperienceLevel: undefined,
     filters: {},
     ...overrides,
@@ -239,6 +240,7 @@ describe('useResumeSearchState', () => {
     parsedStateMock.jobDescriptionId = undefined
     parsedStateMock.selectedTags = []
     parsedStateMock.selectedCompanies = []
+    parsedStateMock.selectedSources = []
     parsedStateMock.selectedExperienceLevel = undefined
     parsedStateMock.filters = {}
 
@@ -260,6 +262,7 @@ describe('useResumeSearchState', () => {
       education: [],
       statuses: [],
       minScoreOptions: [],
+      sources: [],
     })
     useUrlSearchStateMock.mockReturnValue({
       parsedState: parsedStateMock,
@@ -973,6 +976,7 @@ describe('useResumeSearchState', () => {
       jobDescriptionId: 'lathe-sales',
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
       selectedCompanies: ['FANUC'],
+      selectedSources: [],
       selectedExperienceLevel: 'senior',
       filters: {
         education: ['Bachelor'],
@@ -1082,6 +1086,7 @@ describe('useResumeSearchState', () => {
       jobDescriptionId: 'jd-123',
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
       selectedCompanies: ['FANUC'],
+      selectedSources: [],
       selectedExperienceLevel: 'senior',
       filters: {
         education: ['Bachelor'],
@@ -1103,6 +1108,7 @@ describe('useResumeSearchState', () => {
       jobDescriptionId: 'jd-123',
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
       selectedCompanies: ['FANUC'],
+      selectedSources: [],
       selectedExperienceLevel: 'senior',
       filters: {
         education: ['Bachelor'],
@@ -1126,6 +1132,7 @@ describe('useResumeSearchState', () => {
       jobDescriptionId: 'jd-123',
       selectedTags: ['cluster:manufacturing-systems', 'Machine Tools'],
       selectedCompanies: ['FANUC'],
+      selectedSources: [],
       selectedExperienceLevel: 'senior',
       filters: {
         education: ['Bachelor'],
@@ -1148,6 +1155,7 @@ describe('useResumeSearchState', () => {
       jobDescriptionId: undefined,
       selectedTags: [],
       selectedCompanies: [],
+      selectedSources: [],
       selectedExperienceLevel: undefined,
       filters: {},
     })
@@ -1490,6 +1498,7 @@ describe('useResumeSearchState', () => {
       jobDescriptionId: 'jd-123',
       selectedTags: [],
       selectedCompanies: [],
+      selectedSources: [],
       selectedExperienceLevel: undefined,
       filters: {
         minExperience: 5,
@@ -1528,6 +1537,7 @@ describe('useResumeSearchState', () => {
       keywords: ['machine tools'],
       requiredKeywords: ['CNC'],
       jobDescriptionId: 'jd-123',
+      selectedSources: [],
       selectedExperienceLevel: 'senior',
       filters: {
         minExperience: 5,
@@ -1603,6 +1613,7 @@ describe('useResumeSearchState', () => {
       jobDescriptionId: 'jd-123',
       selectedTags: ['cluster:manufacturing-systems'],
       selectedCompanies: ['FANUC'],
+      selectedSources: [],
       filters: {
         minExperience: 5,
         maxExperience: 12,
@@ -1664,6 +1675,7 @@ describe('useResumeSearchState', () => {
       jobDescriptionId: 'jd-123',
       selectedTags: ['cluster:manufacturing-systems'],
       selectedCompanies: ['FANUC'],
+      selectedSources: [],
       selectedExperienceLevel: 'senior',
       filters: {
         minExperience: 5,

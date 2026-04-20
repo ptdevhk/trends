@@ -57,6 +57,7 @@ function buildFacetCounts(): FacetCounts {
       { value: '70', count: 5 },
       { value: '80', count: 2 },
     ],
+    sources: [],
   }
 }
 
@@ -85,6 +86,8 @@ describe('FacetSidebar', () => {
         onToggleEducation={vi.fn()}
         onToggleStatus={vi.fn()}
         onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
       />
     )
 
@@ -122,6 +125,8 @@ describe('FacetSidebar', () => {
         onToggleEducation={onToggleEducation}
         onToggleStatus={onToggleStatus}
         onToggleTag={onToggleTag}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
       />
     )
 
@@ -166,6 +171,8 @@ describe('FacetSidebar', () => {
         onToggleEducation={vi.fn()}
         onToggleStatus={vi.fn()}
         onToggleTag={vi.fn()}
+        selectedSources={[]}
+        onToggleSource={vi.fn()}
       />
     )
 
