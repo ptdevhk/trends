@@ -375,9 +375,7 @@ const FILTERED_PAGINATE_OVERFETCH_MULTIPLIER = 3;
 const MAX_SAFE_JD_PAGINATE_SCAN = 250;
 const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
 const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
-const DIAGNOSTICS_SOURCE_FILTER_SCAN_ROUNDS = 8;
 const DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER = 3;
-const DIAGNOSTICS_SOURCE_FACET_SCAN_PAGE_SIZE = 200;
 const MAX_DIAGNOSTICS_SOURCE_FACET_SCAN_ROWS = 5_000;
 const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
 const MAX_RESUME_SCAN_BATCH_SIZE = 50;
@@ -1830,50 +1828,29 @@ async function runDiagnosticsPageQuery(
         };
     }
 
+    // Convex allows only a single .paginate() per query invocation.
+    // Do one oversized page, filter in-memory, and let the API caller
+    // continue with the returned cursor for more results.
     const sourceKeySet = new Set(normalizedSourceKeys);
     const scanBatchSize = Math.min(
-        Math.max(requestedPageSize * DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER, requestedPageSize),
+        requestedPageSize * DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER,
         MAX_INGEST_DIAGNOSTICS_PAGE_SIZE * DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER,
     );
 
-    const matched: Doc<"resumes">[] = [];
-    let cursor = args.paginationOpts.cursor;
-    let isDone = false;
-    let rounds = 0;
+    const page = await buildDiagnosticsBaseQuery(ctx, args.archived).paginate({
+        cursor: args.paginationOpts.cursor,
+        numItems: scanBatchSize,
+    });
 
-    while (matched.length < requestedPageSize && rounds < DIAGNOSTICS_SOURCE_FILTER_SCAN_ROUNDS) {
-        const page = await buildDiagnosticsBaseQuery(ctx, args.archived).paginate({
-            cursor,
-            numItems: scanBatchSize,
-        });
-        rounds += 1;
-
-        for (const resume of page.page) {
-            if (!matchesDiagnosticsSourceKeys(resume, sourceKeySet)) {
-                continue;
-            }
-
-            matched.push(resume);
-            if (matched.length >= requestedPageSize) {
-                break;
-            }
-        }
-
-        isDone = page.isDone;
-        cursor = page.continueCursor || null;
-        if (isDone || !cursor) {
-            break;
-        }
-    }
-
-    const reachedScanLimit = rounds >= DIAGNOSTICS_SOURCE_FILTER_SCAN_ROUNDS
-        && matched.length < requestedPageSize
-        && !isDone;
+    const matched = page.page
+        .filter((resume) => matchesDiagnosticsSourceKeys(resume, sourceKeySet))
+        .slice(0, requestedPageSize)
+        .map(projectIngestDiagnosticsRow);
 
     return {
-        page: matched.map(projectIngestDiagnosticsRow),
-        continueCursor: cursor ?? "",
-        isDone: reachedScanLimit ? false : isDone || !cursor,
+        page: matched,
+        continueCursor: page.continueCursor,
+        isDone: page.isDone,
     };
 }
 
@@ -1911,29 +1888,18 @@ export const listDiagnosticsSourceFacets = query({
     },
     handler: async (ctx, args) => {
         const archived = args.archived === true;
+        // Convex allows only one .paginate() per invocation.
+        // Scan one large page; the 5_000-row cap bounds cost.
         const counts = new Map<string, number>();
-        let scannedCount = 0;
-        let cursor: string | null = null;
-        let isDone = false;
 
-        while (!isDone && scannedCount < MAX_DIAGNOSTICS_SOURCE_FACET_SCAN_ROWS) {
-            const page = await buildDiagnosticsBaseQuery(ctx, archived).paginate({
-                cursor,
-                numItems: DIAGNOSTICS_SOURCE_FACET_SCAN_PAGE_SIZE,
-            });
+        const page = await buildDiagnosticsBaseQuery(ctx, archived).paginate({
+            cursor: null,
+            numItems: MAX_DIAGNOSTICS_SOURCE_FACET_SCAN_ROWS,
+        });
 
-            for (const resume of page.page) {
-                const sourceKey = resolveDiagnosticsSourceKeyForResume(resume);
-                counts.set(sourceKey, (counts.get(sourceKey) ?? 0) + 1);
-            }
-
-            scannedCount += page.page.length;
-            isDone = page.isDone;
-            cursor = page.continueCursor || null;
-
-            if (!cursor) {
-                break;
-            }
+        for (const resume of page.page) {
+            const sourceKey = resolveDiagnosticsSourceKeyForResume(resume);
+            counts.set(sourceKey, (counts.get(sourceKey) ?? 0) + 1);
         }
 
         return buildDiagnosticsSourceFacetRows(counts);
