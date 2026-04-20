@@ -13,6 +13,7 @@ import {
   Brain,
   Database,
   BarChart3,
+  Archive,
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   ingest: Database,
   'search-analytics': BarChart3,
   'data-inspector': LayoutDashboard,
+  archived: Archive,
 }
 
 interface SystemSidebarProps {

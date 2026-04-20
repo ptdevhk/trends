@@ -13,7 +13,8 @@
     "search": "搜尋",
     "settings": "設定",
     "reviewPackets": "評審包",
-    "jds": "職位"
+    "jds": "職位",
+    "archived": "已歸檔"
   },
   "common": {
     "loading": "載入中...",

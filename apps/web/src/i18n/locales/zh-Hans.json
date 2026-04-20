@@ -13,7 +13,8 @@
     "search": "搜索",
     "settings": "设置",
     "reviewPackets": "评审包",
-    "jds": "职位"
+    "jds": "职位",
+    "archived": "已归档"
   },
   "common": {
     "loading": "加载中...",
