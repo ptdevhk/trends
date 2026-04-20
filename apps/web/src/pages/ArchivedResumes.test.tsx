@@ -38,6 +38,15 @@ vi.mock('convex/react', () => ({
   useMutation: () => unarchiveResumesMutation,
 }))
 
+let sourceFacetsMockReturn: { facets: SourceFacetRow[] | undefined; isLoading: boolean; error: unknown } = {
+  facets: [],
+  isLoading: false,
+  error: undefined,
+}
+vi.mock('@/hooks/useSourceFacets', () => ({
+  useSourceFacets: () => sourceFacetsMockReturn,
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (_key: string, options?: string | { defaultValue?: string; [key: string]: unknown }) => {
@@ -61,10 +70,15 @@ describe('ArchivedResumes source filter', () => {
       isLoading: false,
       loadMore,
     })
-    useQueryMock.mockReturnValue([
-      { key: 'seek', label: 'SEEK', count: 2 },
-      { key: '51job-manual', label: '51job manual', count: 1 },
-    ])
+    useQueryMock.mockReturnValue([])
+    sourceFacetsMockReturn = {
+      facets: [
+        { key: 'seek', label: 'SEEK', count: 2 },
+        { key: '51job-manual', label: '51job manual', count: 1 },
+      ],
+      isLoading: false,
+      error: undefined,
+    }
   })
 
   it('forwards selected source keys to the archived diagnostics query', async () => {

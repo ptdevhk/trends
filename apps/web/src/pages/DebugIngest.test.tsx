@@ -94,6 +94,15 @@ vi.mock('sonner', () => ({
   },
 }))
 
+let sourceFacetsMockReturn: { facets: SourceFacetRow[] | undefined; isLoading: boolean; error: unknown } = {
+  facets: [],
+  isLoading: false,
+  error: undefined,
+}
+vi.mock('@/hooks/useSourceFacets', () => ({
+  useSourceFacets: () => sourceFacetsMockReturn,
+}))
+
 describe('DebugIngest reset database dialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -105,10 +114,15 @@ describe('DebugIngest reset database dialog', () => {
       isLoading: false,
       loadMore,
     })
-    useQueryMock.mockReturnValue([
-      { key: 'job5156', label: 'Job5156', count: 3 },
-      { key: '51job-manual', label: '51job manual', count: 1 },
-    ])
+    useQueryMock.mockReturnValue([])
+    sourceFacetsMockReturn = {
+      facets: [
+        { key: 'job5156', label: 'Job5156', count: 3 },
+        { key: '51job-manual', label: '51job manual', count: 1 },
+      ],
+      isLoading: false,
+      error: undefined,
+    }
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
