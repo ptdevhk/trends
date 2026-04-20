@@ -7,7 +7,10 @@
  * never expose the experimental feature.
  */
 
-/** Returns true when the review-packets feature is enabled via env. */
 export function isReviewPacketsEnabled(): boolean {
   return import.meta.env.VITE_ENABLE_REVIEW_PACKETS === 'true'
+}
+
+export function isResumeAiSummaryEnabled(): boolean {
+  return import.meta.env.VITE_ENABLE_RESUME_AI_SUMMARY === 'true'
 }

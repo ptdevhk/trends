@@ -95,6 +95,23 @@ describe('useAiSearchSummary', () => {
     vi.useRealTimers()
   })
 
+  it('does not request a summary when enabled is false', async () => {
+    const { result } = renderHook(() => useAiSearchSummary({
+      enabled: false,
+      query: 'machine tools',
+      results: [createResult(1)],
+      selectedCompanies: ['FANUC'],
+      selectedTags: ['Machine Tools'],
+    }))
+
+    await advanceDebounceWindow(2500)
+
+    expect(postMock).not.toHaveBeenCalled()
+    expect(result.current.loading).toBe(false)
+    expect(result.current.summary).toBeUndefined()
+    expect(result.current.generatedAt).toBeUndefined()
+  })
+
   it('does not request a summary when the query is blank or there are no results', async () => {
     const { rerender, result } = renderHook(
       (props: Parameters<typeof useAiSearchSummary>[0]) => useAiSearchSummary(props),

@@ -16,9 +16,11 @@ import { Button } from '@/components/ui/button'
 import { useAiSearchSummary } from '@/hooks/useAiSearchSummary'
 import { useIndustryKeywords } from '@/hooks/useIndustryKeywords'
 import { useResumeSearchState } from '@/hooks/useResumeSearchState'
+import { isResumeAiSummaryEnabled } from '@/lib/feature-flags'
 
 export function ResumeSearchPage() {
   const { t } = useTranslation()
+  const resumeAiSummaryEnabled = isResumeAiSummaryEnabled()
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filtersOpen, setFiltersOpen] = useState(false)
   const { hotKeywords, quickStartProfiles } = useIndustryKeywords()
@@ -95,6 +97,7 @@ export function ResumeSearchPage() {
     ]
   }, [selectedClusterTags, selectedRawTags, taxonomyClusters])
   const aiSummary = useAiSearchSummary({
+    enabled: resumeAiSummaryEnabled,
     query: activeQuery,
     location: parsedState.location,
     jobDescriptionId: parsedState.jobDescriptionId,
@@ -338,11 +341,13 @@ export function ResumeSearchPage() {
                 </div>
               </div>
 
-              <AiSummaryPanel
-                generatedAt={aiSummary.generatedAt}
-                loading={aiSummary.loading}
-                summary={aiSummary.summary}
-              />
+              {resumeAiSummaryEnabled && (
+                <AiSummaryPanel
+                  generatedAt={aiSummary.generatedAt}
+                  loading={aiSummary.loading}
+                  summary={aiSummary.summary}
+                />
+              )}
 
               <BulkActionBar
                 totalCount={filteredResults.length}
