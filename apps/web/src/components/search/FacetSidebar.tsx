@@ -99,6 +99,15 @@ export function FacetSidebar({
       </div>
 
       <FacetGroup
+        title={t('resumes.searchPage.facets.matchScore', { defaultValue: '匹配分' })}
+        items={facetCounts.minScoreOptions.map((item) => ({ ...item, value: `${item.value}+` }))}
+        selectedValues={typeof minScore === 'number' ? [`${minScore}+`] : []}
+        onToggle={(value) => {
+          const numericValue = Number(value.replace('+', ''))
+          onSetMinScore(minScore === numericValue ? undefined : numericValue)
+        }}
+      />
+      <FacetGroup
         title={t('resumes.searchPage.facets.skillClusters', { defaultValue: '技能图谱' })}
         items={facetCounts.clusters}
         selectedValues={selectedClusters}
@@ -110,15 +119,6 @@ export function FacetSidebar({
       <ExperienceLevelGroup selectedExperienceLevel={selectedExperienceLevel} onSetExperienceLevel={onSetExperienceLevel} />
       <FacetGroup title={t('resumes.searchPage.facets.education', { defaultValue: '学历' })} items={facetCounts.education} selectedValues={selectedEducation} onToggle={onToggleEducation} />
       <FacetGroup title={t('resumes.searchPage.facets.status', { defaultValue: '候选人状态' })} items={facetCounts.statuses} selectedValues={selectedStatuses} onToggle={(value) => onToggleStatus(value as CandidateStatus)} />
-      <FacetGroup
-        title={t('resumes.searchPage.facets.matchScore', { defaultValue: '匹配分' })}
-        items={facetCounts.minScoreOptions.map((item) => ({ ...item, value: `${item.value}+` }))}
-        selectedValues={typeof minScore === 'number' ? [`${minScore}+`] : []}
-        onToggle={(value) => {
-          const numericValue = Number(value.replace('+', ''))
-          onSetMinScore(minScore === numericValue ? undefined : numericValue)
-        }}
-      />
     </div>
   )
 

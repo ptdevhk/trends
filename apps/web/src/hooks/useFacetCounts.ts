@@ -7,7 +7,7 @@ import {
 } from '@/lib/taxonomy'
 import { getSourceLabelFromHostname } from '@/lib/search-profile-sources'
 
-const MIN_SCORE_OPTIONS = [60, 70, 80, 90] as const
+const MIN_SCORE_OPTIONS = [90, 80, 70, 60] as const
 
 function incrementCount(map: Map<string, number>, value: string | undefined) {
   const normalized = value?.trim()

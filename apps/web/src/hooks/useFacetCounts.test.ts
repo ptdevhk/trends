@@ -117,10 +117,10 @@ describe('useFacetCounts', () => {
       { value: 'new', label: 'resumes.status.options.new', count: 1 },
     ])
     expect(result.current.minScoreOptions).toEqual([
-      { value: '60', count: 2 },
-      { value: '70', count: 1 },
-      { value: '80', count: 1 },
       { value: '90', count: 0 },
+      { value: '80', count: 1 },
+      { value: '70', count: 1 },
+      { value: '60', count: 2 },
     ])
   })
 
@@ -240,10 +240,10 @@ describe('useFacetCounts', () => {
       { value: 'new', label: 'resumes.status.options.new', count: 2000 },
     ])
     expect(result.current.minScoreOptions).toEqual([
-      { value: '60', count: 2000 },
-      { value: '70', count: 2000 },
-      { value: '80', count: 2000 },
       { value: '90', count: 2000 },
+      { value: '80', count: 2000 },
+      { value: '70', count: 2000 },
+      { value: '60', count: 2000 },
     ])
   })
 })
