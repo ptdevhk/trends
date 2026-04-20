@@ -10,6 +10,7 @@ export type ResumeFilters = {
   locations?: string[]
   status?: CandidateStatus[]
   showBlocked?: boolean
+  showArchived?: boolean
   minSalary?: number
   maxSalary?: number
   minMatchScore?: number

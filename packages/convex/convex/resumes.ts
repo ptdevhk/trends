@@ -171,6 +171,8 @@ export type IngestDiagnosticsRow = {
     name: string;
     jobIntention: string;
     location: string;
+    isArchived?: boolean;
+    archivedAt?: number;
     ingestData?: {
         industryTags: string[];
         companyHits: string[];
@@ -229,6 +231,8 @@ type ResumeBackupRow = {
     ingestData?: Doc<"resumes">["ingestData"];
     analysis?: Doc<"resumes">["analysis"];
     analyses?: Doc<"resumes">["analyses"];
+    isArchived?: boolean;
+    archivedAt?: number;
 };
 
 type ResumeBackupFilterArgs = {
@@ -254,6 +258,8 @@ type ResumeListProjectedDoc = {
     analysis?: Doc<"resumes">["analysis"];
     analyses?: Doc<"resumes">["analyses"];
     primaryRuleScore?: number;
+    isArchived?: boolean;
+    archivedAt?: number;
     ingestData?: {
         industryTags: string[];
         brandHits?: Array<{
@@ -301,6 +307,7 @@ type ResumeListFilterArgs = {
     locations?: string[];
     minSalary?: number;
     maxSalary?: number;
+    showArchived?: boolean;
 };
 
 type ResumeListSortBy = "name" | "experience" | "extractedAt";
@@ -431,6 +438,8 @@ export function projectIngestDiagnosticsRow(
         externalId: string;
         content: unknown;
         ingestData?: Doc<"resumes">["ingestData"];
+        isArchived?: boolean;
+        archivedAt?: number;
     }
 ): IngestDiagnosticsRow {
     const content = isRecord(resume.content) ? resume.content : {};
@@ -443,6 +452,7 @@ export function projectIngestDiagnosticsRow(
         name: toStringValue(content.name),
         jobIntention: toStringValue(content.jobIntention),
         location: toStringValue(content.location) || formatLocationHierarchyLabel(locationHierarchy),
+        ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
         ingestData: ingestData ? {
             industryTags: ingestData.industryTags,
             companyHits: ingestData.companyHits ?? [],
@@ -631,6 +641,7 @@ function projectResumeListDoc(resume: Doc<"resumes">): ResumeListProjectedDoc {
         ...(resume.analysis ? { analysis: resume.analysis } : {}),
         ...(resume.analyses ? { analyses: resume.analyses } : {}),
         ...(resume.primaryRuleScore === undefined ? {} : { primaryRuleScore: resume.primaryRuleScore }),
+        ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
         ...(resume.ingestData ? { ingestData: projectResumeListIngestData(resume.ingestData) } : {}),
     };
 }
@@ -648,6 +659,7 @@ function projectResumeDetailDoc(resume: Doc<"resumes">): ResumeListProjectedDoc 
         ...(resume.analysis ? { analysis: resume.analysis } : {}),
         ...(resume.analyses ? { analyses: resume.analyses } : {}),
         ...(resume.primaryRuleScore === undefined ? {} : { primaryRuleScore: resume.primaryRuleScore }),
+        ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
         ...(resume.ingestData ? { ingestData: projectResumeListIngestData(resume.ingestData) } : {}),
     };
 }
@@ -676,6 +688,7 @@ function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): 
         ...(locations && locations.length > 0 ? { locations } : {}),
         ...(filters.minSalary === undefined ? {} : { minSalary: filters.minSalary }),
         ...(filters.maxSalary === undefined ? {} : { maxSalary: filters.maxSalary }),
+        ...(filters.showArchived ? { showArchived: true } : {}),
     };
 
     return Object.keys(normalized).length > 0 ? normalized : undefined;
@@ -775,6 +788,9 @@ function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined
 }
 
 function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFilterArgs | undefined): boolean {
+    if (!filters?.showArchived && resume.isArchived === true) {
+        return false;
+    }
     if (!filters) {
         return true;
     }
@@ -993,6 +1009,7 @@ function projectResumeBackupRow(resume: Doc<"resumes">): ResumeBackupRow {
         ingestData: resume.ingestData,
         analysis: resume.analysis,
         analyses: resume.analyses,
+        ...(resume.isArchived === true ? { isArchived: true, archivedAt: resume.archivedAt } : {}),
     };
 }
 
@@ -1269,6 +1286,7 @@ async function runListWithIngestDataPageQuery(
         .query("resumes")
         .withIndex("by_primaryRuleScore")
         .order("desc")
+        .filter((q) => q.neq(q.field("isArchived"), true))
         .take(overfetchLimit);
     const sorted = sortResumeDocs(candidates, {
         jobDescriptionId,
@@ -1333,6 +1351,7 @@ async function runSearchWithTagExpansionPageQuery(
         ? await ctx.db
             .query("resumes")
             .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
+            .filter((q) => q.neq(q.field("isArchived"), true))
             .take(takeLimit)
         : [];
 
@@ -1492,7 +1511,7 @@ export const list = query({
     args: { limit: v.optional(v.number()) },
     handler: async (ctx, args) => {
         const limit = args.limit || DEFAULT_RESUME_LIMIT;
-        return await ctx.db.query("resumes").order("desc").take(limit);
+        return await ctx.db.query("resumes").order("desc").filter((q) => q.neq(q.field("isArchived"), true)).take(limit);
     },
 });
 
@@ -1539,6 +1558,7 @@ export const listWithIngestData = query({
             .query("resumes")
             .withIndex("by_primaryRuleScore")
             .order("desc")
+            .filter((q) => q.neq(q.field("isArchived"), true))
             .take(overfetchLimit);
         return sortByIngestRuleScore(candidates, jobDescriptionId)
             .slice(0, limit)
@@ -1557,6 +1577,7 @@ export const getSummaryWindow = query({
             .withIndex("by_crawledAt", (q) =>
                 q.gte("crawledAt", args.fromTimestamp).lt("crawledAt", args.toTimestamp)
             )
+            .filter((q) => q.neq(q.field("isArchived"), true))
             .collect();
 
         const bySource = new Map<string, number>();
@@ -1643,6 +1664,7 @@ export const listWithIngestDataPaginated = query({
                 .query("resumes")
                 .withIndex("by_primaryRuleScore")
                 .order("desc")
+                .filter((q) => q.neq(q.field("isArchived"), true))
                 .paginate({
                     ...args.paginationOpts,
                     numItems,
@@ -1683,6 +1705,29 @@ export const listIngestDiagnostics = query({
             .query("resumes")
             .withIndex("by_primaryRuleScore")
             .order("desc")
+            .filter((q) => q.neq(q.field("isArchived"), true))
+            .paginate({
+                ...args.paginationOpts,
+                numItems: Math.min(args.paginationOpts.numItems, MAX_INGEST_DIAGNOSTICS_PAGE_SIZE),
+            });
+
+        return {
+            ...page,
+            page: page.page.map(projectIngestDiagnosticsRow),
+        };
+    },
+});
+
+export const listArchivedDiagnostics = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+    },
+    handler: async (ctx, args) => {
+        const page = await ctx.db
+            .query("resumes")
+            .withIndex("by_primaryRuleScore")
+            .order("desc")
+            .filter((q) => q.eq(q.field("isArchived"), true))
             .paginate({
                 ...args.paginationOpts,
                 numItems: Math.min(args.paginationOpts.numItems, MAX_INGEST_DIAGNOSTICS_PAGE_SIZE),
@@ -1704,6 +1749,7 @@ export const listWorkflowDatasetPage = query({
         const page = await ctx.db
             .query("resumes")
             .order("desc")
+            .filter((q) => q.neq(q.field("isArchived"), true))
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems: resolveResumeScanBatchSize(args.limit),
@@ -1733,6 +1779,7 @@ export const listFieldCoverageDatasetPage = query({
         const page = await ctx.db
             .query("resumes")
             .order("desc")
+            .filter((q) => q.neq(q.field("isArchived"), true))
             .paginate({
                 cursor: args.cursor ?? null,
                 numItems: resolveResumeScanBatchSize(args.limit),
@@ -1776,6 +1823,7 @@ export const search = query({
         const matches = await ctx.db
             .query("resumes")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.query))
+            .filter((q) => q.neq(q.field("isArchived"), true))
             .take(fetchLimit);
 
         // Convex full-text search uses OR. Post-filter to enforce AND.
@@ -1803,6 +1851,7 @@ export const searchWithIngestData = query({
         const matches = await ctx.db
             .query("resumes")
             .withSearchIndex("search_body", (q) => q.search("searchText", args.query))
+            .filter((q) => q.neq(q.field("isArchived"), true))
             .take(fetchLimit);
 
         // Convex full-text search uses OR. Post-filter to enforce AND.
@@ -1863,6 +1912,7 @@ export const searchWithTagExpansion = query({
             ? await ctx.db
                 .query("resumes")
                 .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
+                .filter((q) => q.neq(q.field("isArchived"), true))
                 .take(fetchLimit)
             : [];
 
@@ -2557,6 +2607,121 @@ export const deleteResumes = mutation({
             missingResumeIds: [...missingResumeIds, ...missingExistingResumeIds],
             deletedAiTaggingResults,
             patchedScreeningSessions,
+        };
+    },
+});
+
+export const archiveResumes = mutation({
+    args: {
+        resumeIds: v.array(v.string()),
+    },
+    returns: v.object({
+        requested: v.number(),
+        archived: v.number(),
+        alreadyArchived: v.number(),
+        missingResumeIds: v.array(v.string()),
+    }),
+    handler: async (ctx, args) => {
+        const requestedResumeIds = normalizeRequestedResumeIds(args.resumeIds);
+        if (requestedResumeIds.length === 0) {
+            return { requested: 0, archived: 0, alreadyArchived: 0, missingResumeIds: [] };
+        }
+
+        const resolvedEntries = requestedResumeIds.map((resumeId) => ({
+            requestedResumeId: resumeId,
+            normalizedResumeId: ctx.db.normalizeId("resumes", resumeId),
+        }));
+        const missingResumeIds = resolvedEntries
+            .filter((entry) => entry.normalizedResumeId === null)
+            .map((entry) => entry.requestedResumeId);
+        const normalizedResumeIds = resolvedEntries
+            .flatMap((entry) => (entry.normalizedResumeId ? [entry.normalizedResumeId] : []));
+
+        if (normalizedResumeIds.length === 0) {
+            return { requested: requestedResumeIds.length, archived: 0, alreadyArchived: 0, missingResumeIds };
+        }
+
+        const resumes = await Promise.all(normalizedResumeIds.map((resumeId) => ctx.db.get(resumeId)));
+        const existingResumes = resumes.filter((resume): resume is NonNullable<typeof resume> => resume !== null);
+        const existingResumeIdStrings = new Set(existingResumes.map((resume) => String(resume._id)));
+        const missingExistingResumeIds = resolvedEntries
+            .filter((entry) => entry.normalizedResumeId !== null && !existingResumeIdStrings.has(String(entry.normalizedResumeId)))
+            .map((entry) => entry.requestedResumeId);
+
+        let archived = 0;
+        let alreadyArchived = 0;
+        const now = Date.now();
+        await Promise.all(existingResumes.map(async (resume) => {
+            if (resume.isArchived === true) {
+                alreadyArchived += 1;
+                return;
+            }
+            await ctx.db.patch(resume._id, { isArchived: true, archivedAt: now });
+            archived += 1;
+        }));
+
+        return {
+            requested: requestedResumeIds.length,
+            archived,
+            alreadyArchived,
+            missingResumeIds: [...missingResumeIds, ...missingExistingResumeIds],
+        };
+    },
+});
+
+export const unarchiveResumes = mutation({
+    args: {
+        resumeIds: v.array(v.string()),
+    },
+    returns: v.object({
+        requested: v.number(),
+        unarchived: v.number(),
+        notArchived: v.number(),
+        missingResumeIds: v.array(v.string()),
+    }),
+    handler: async (ctx, args) => {
+        const requestedResumeIds = normalizeRequestedResumeIds(args.resumeIds);
+        if (requestedResumeIds.length === 0) {
+            return { requested: 0, unarchived: 0, notArchived: 0, missingResumeIds: [] };
+        }
+
+        const resolvedEntries = requestedResumeIds.map((resumeId) => ({
+            requestedResumeId: resumeId,
+            normalizedResumeId: ctx.db.normalizeId("resumes", resumeId),
+        }));
+        const missingResumeIds = resolvedEntries
+            .filter((entry) => entry.normalizedResumeId === null)
+            .map((entry) => entry.requestedResumeId);
+        const normalizedResumeIds = resolvedEntries
+            .flatMap((entry) => (entry.normalizedResumeId ? [entry.normalizedResumeId] : []));
+
+        if (normalizedResumeIds.length === 0) {
+            return { requested: requestedResumeIds.length, unarchived: 0, notArchived: 0, missingResumeIds };
+        }
+
+        const resumes = await Promise.all(normalizedResumeIds.map((resumeId) => ctx.db.get(resumeId)));
+        const existingResumes = resumes.filter((resume): resume is NonNullable<typeof resume> => resume !== null);
+        const existingResumeIdStrings = new Set(existingResumes.map((resume) => String(resume._id)));
+        const missingExistingResumeIds = resolvedEntries
+            .filter((entry) => entry.normalizedResumeId !== null && !existingResumeIdStrings.has(String(entry.normalizedResumeId)))
+            .map((entry) => entry.requestedResumeId);
+
+        let unarchived = 0;
+        let notArchived = 0;
+        await Promise.all(existingResumes.map(async (resume) => {
+            if (resume.isArchived !== true) {
+                notArchived += 1;
+                return;
+            }
+            await ctx.db.patch(resume._id, { isArchived: undefined, archivedAt: undefined });
+            unarchived += 1;
+        }));
+
+        return {
+            requested: requestedResumeIds.length,
+            unarchived,
+            notArchived,
+            missingResumeIds: [...missingResumeIds, ...missingExistingResumeIds],
         };
     },
 });
