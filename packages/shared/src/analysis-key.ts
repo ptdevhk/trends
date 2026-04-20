@@ -68,6 +68,10 @@ function normalizeJobDescriptionId(value: string | undefined): string {
 }
 
 export type ResumeAnalysisSourceKey = "job5156" | "51job" | "seek";
+export type ResumeDiagnosticsSourceKey =
+  | ResumeAnalysisSourceKey
+  | "51job-manual"
+  | "unknown";
 
 export function normalizeResumeAnalysisSourceKey(
   value: string | null | undefined
@@ -100,6 +104,49 @@ export function normalizeResumeAnalysisSourceKey(
   }
 
   return undefined;
+}
+
+function normalizeResumeDiagnosticsSourceKey(
+  value: string | null | undefined
+): ResumeDiagnosticsSourceKey | undefined {
+  const normalized = normalizeText(value ?? undefined);
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized === MANUAL_51JOB_SOURCE_TOKEN) {
+    return MANUAL_51JOB_SOURCE_TOKEN;
+  }
+
+  if (normalized === "seek" || normalized.endsWith(SEEK_HOST_SUFFIX)) {
+    return "seek";
+  }
+
+  if (
+    normalized === JOB51_SOURCE_KEY
+    || normalized === JOB51_HOST_TOKEN
+    || normalized.endsWith(JOB51_HOST_TOKEN)
+  ) {
+    return "51job";
+  }
+
+  if (
+    normalized === "job5156"
+    || normalized.includes(JOB5156_HOST_TOKEN)
+  ) {
+    return "job5156";
+  }
+
+  return undefined;
+}
+
+export function resolveResumeDiagnosticsSourceKey(scope?: {
+  sourceKey?: string | null;
+  source?: string | null;
+}): ResumeDiagnosticsSourceKey {
+  return normalizeResumeDiagnosticsSourceKey(scope?.sourceKey)
+    ?? normalizeResumeDiagnosticsSourceKey(scope?.source)
+    ?? "unknown";
 }
 
 export function resolveResumeAnalysisSourceKey(scope?: {

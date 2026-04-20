@@ -41,19 +41,26 @@ type PaginatedQueryMockResult = {
   isLoading: boolean
   loadMore: typeof loadMore
 }
+type SourceFacetRow = {
+  key: string
+  label: string
+  count: number
+}
 
-const usePaginatedQueryMock = vi.fn<() => PaginatedQueryMockResult>(() => ({
+const usePaginatedQueryMock = vi.fn<(query: unknown, args: unknown, options: unknown) => PaginatedQueryMockResult>(() => ({
   results: [],
   status: 'Exhausted',
   isLoading: false,
   loadMore,
 }))
+const useQueryMock = vi.fn<(query: unknown, args: unknown) => SourceFacetRow[] | undefined>(() => [])
 
 let actionHookCallCount = 0
 let mutationHookCallCount = 0
 
 vi.mock('convex/react', () => ({
-  usePaginatedQuery: () => usePaginatedQueryMock(),
+  usePaginatedQuery: (query: unknown, args: unknown, options: unknown) => usePaginatedQueryMock(query, args, options),
+  useQuery: (query: unknown, args: unknown) => useQueryMock(query, args),
   useAction: () => {
     const action = [backfillIngestDataAction, reIngestStaleSkillsVersionAction, reIngestAllResumesAction][actionHookCallCount % 3]
     actionHookCallCount += 1
@@ -98,6 +105,10 @@ describe('DebugIngest reset database dialog', () => {
       isLoading: false,
       loadMore,
     })
+    useQueryMock.mockReturnValue([
+      { key: 'job5156', label: 'Job5156', count: 3 },
+      { key: '51job-manual', label: '51job manual', count: 1 },
+    ])
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
@@ -140,7 +151,7 @@ describe('DebugIngest reset database dialog', () => {
 
     expect(screen.getByText('Loaded Resumes')).toBeInTheDocument()
     expect(screen.queryByText('销售工程师')).not.toBeInTheDocument()
-    expect(screen.getByText('--')).toBeInTheDocument()
+    expect(screen.getAllByText('--').length).toBeGreaterThan(0)
 
     const loadMoreButton = screen.getByRole('button', { name: 'Load More' })
     expect(loadMoreButton).toBeEnabled()
@@ -370,5 +381,23 @@ describe('DebugIngest reset database dialog', () => {
       expect(archiveResumesMutation).toHaveBeenCalledWith({ resumeIds: ['resume-1'] })
     })
     expect(toast.success).toHaveBeenCalledWith('Archived 1 resume(s)')
+  })
+
+  it('forwards selected source keys to the diagnostics query', async () => {
+    const user = userEvent.setup()
+    render(<DebugIngest />)
+
+    const sourceFilter = screen.getByLabelText('Source Filter')
+    await user.selectOptions(sourceFilter, ['job5156', '51job-manual'])
+
+    await waitFor(() => {
+      expect(usePaginatedQueryMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          sourceKeys: ['job5156', '51job-manual'],
+        }),
+        expect.anything(),
+      )
+    })
   })
 })

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { sanitizeResumeRecordForSurface } from '@trends/shared'
-import { useMutation, usePaginatedQuery } from 'convex/react'
+import { useMutation, usePaginatedQuery, useQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useTranslation } from 'react-i18next'
 import { Archive, ArchiveRestore } from 'lucide-react'
@@ -12,10 +12,13 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PageHeader } from '@/components/PageHeader'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
+import { SourceFacetSelect, type SourceFacet } from '@/components/SourceFacetSelect'
 
 type ArchivedResume = {
   resumeId: string
   externalId: string
+  source: string
+  sourceKey: string
   name: string
   jobIntention: string
   location: string
@@ -24,7 +27,7 @@ type ArchivedResume = {
 }
 
 function getSearchTarget(resume: ArchivedResume): string {
-  return [resume.externalId, resume.name, resume.jobIntention, resume.location]
+  return [resume.externalId, resume.source, resume.sourceKey, resume.name, resume.jobIntention, resume.location]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
     .toLowerCase()
@@ -42,12 +45,18 @@ const PAGE_SIZE = 100
 export default function ArchivedResumes() {
   const { t } = useTranslation()
   const fieldUsagePolicy = useResumeFieldUsagePolicy()
+  const [selectedSourceKeys, setSelectedSourceKeys] = useState<string[]>([])
+  const sourceFacets = useQuery(api.resumes.listDiagnosticsSourceFacets, { archived: true }) as SourceFacet[] | undefined
 
   const {
     results: paginatedResumes,
     status,
     loadMore,
-  } = usePaginatedQuery(api.resumes.listArchivedDiagnostics, {}, { initialNumItems: PAGE_SIZE })
+  } = usePaginatedQuery(
+    api.resumes.listArchivedDiagnostics,
+    selectedSourceKeys.length > 0 ? { sourceKeys: selectedSourceKeys } : {},
+    { initialNumItems: PAGE_SIZE }
+  )
 
   const unarchiveResumesMutation = useMutation(api.resumes.unarchiveResumes)
 
@@ -141,6 +150,12 @@ export default function ArchivedResumes() {
           placeholder={t('archivedResumes.searchPlaceholder', { defaultValue: 'Search by name / intention / location...' })}
           className="max-w-xl"
         />
+        <SourceFacetSelect
+          id="archived-resume-source-filter"
+          facets={sourceFacets}
+          value={selectedSourceKeys}
+          onChange={setSelectedSourceKeys}
+        />
         <Button
           variant="outline"
           onClick={() => void unarchiveResumes([...selectedResumeIds])}
@@ -169,6 +184,7 @@ export default function ArchivedResumes() {
               <TableHead>{t('resumes.columns.name', { defaultValue: 'Name' })}</TableHead>
               <TableHead>{t('resumes.columns.intention', { defaultValue: 'Intention' })}</TableHead>
               <TableHead>{t('resumes.columns.location', { defaultValue: 'Location' })}</TableHead>
+              <TableHead>{t('resumes.columns.source', { defaultValue: 'Source' })}</TableHead>
               <TableHead>{t('archivedResumes.archivedAt', { defaultValue: 'Archived At' })}</TableHead>
               <TableHead>{t('debugIngest.status', { defaultValue: 'Status' })}</TableHead>
               <TableHead className="text-right">{t('resumes.columns.actions', { defaultValue: 'Actions' })}</TableHead>
@@ -177,13 +193,13 @@ export default function ArchivedResumes() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
                   {t('resumes.loading', { defaultValue: 'Loading...' })}
                 </TableCell>
               </TableRow>
             ) : filteredResumes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
                   {t('archivedResumes.noResults', { defaultValue: 'No archived resumes found' })}
                 </TableCell>
               </TableRow>
@@ -205,6 +221,7 @@ export default function ArchivedResumes() {
                     <TableCell>{resume.name || '--'}</TableCell>
                     <TableCell>{resume.jobIntention || '--'}</TableCell>
                     <TableCell>{resume.location || '--'}</TableCell>
+                    <TableCell>{resume.sourceKey || resume.source || '--'}</TableCell>
                     <TableCell>{formatTimestamp(resume.archivedAt)}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="border-zinc-200 bg-zinc-50 text-zinc-600">

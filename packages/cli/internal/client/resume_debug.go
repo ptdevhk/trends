@@ -73,6 +73,54 @@ type ResumeTriggerReingestResponse struct {
 	HasMore        bool `json:"hasMore"`
 }
 
+type ResumeDiagnosticsQuery struct {
+	Archived   bool
+	SourceKeys []string
+	Limit      int
+}
+
+type ResumeDiagnosticsSummary struct {
+	Archived   bool     `json:"archived"`
+	SourceKeys []string `json:"sourceKeys,omitempty"`
+	Returned   int      `json:"returned"`
+	Limit      int      `json:"limit"`
+}
+
+type ResumeDiagnosticsItem struct {
+	ResumeID    string `json:"resumeId"`
+	ExternalID  string `json:"externalId"`
+	Source      string `json:"source"`
+	SourceKey   string `json:"sourceKey"`
+	Name        string `json:"name"`
+	JobIntention string `json:"jobIntention"`
+	Location    string `json:"location"`
+	IsArchived  bool   `json:"isArchived,omitempty"`
+	ArchivedAt  int64  `json:"archivedAt,omitempty"`
+}
+
+type ResumeDiagnosticsResponse struct {
+	Success bool                     `json:"success"`
+	Summary ResumeDiagnosticsSummary `json:"summary"`
+	Data    []ResumeDiagnosticsItem  `json:"data"`
+}
+
+func normalizeSourceKeys(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		trimmed := strings.ToLower(strings.TrimSpace(value))
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized
+}
+
 func (c *Client) ListResumeMatches(ctx context.Context, sessionID, jobDescriptionID string) (*ResumeMatchesResponse, error) {
 	values := url.Values{}
 	if strings.TrimSpace(sessionID) != "" {
@@ -186,6 +234,31 @@ func (c *Client) TriggerResumeReingest(ctx context.Context, limit int) (*ResumeT
 	}
 	if !response.Success {
 		return nil, fmt.Errorf("resume trigger reingest request was not successful")
+	}
+	return &response, nil
+}
+
+func (c *Client) ListResumeDiagnostics(ctx context.Context, query ResumeDiagnosticsQuery) (*ResumeDiagnosticsResponse, error) {
+	values := url.Values{}
+	values.Set("archived", strconv.FormatBool(query.Archived))
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	for _, sourceKey := range normalizeSourceKeys(query.SourceKeys) {
+		values.Add("sourceKey", sourceKey)
+	}
+
+	endpoint := fmt.Sprintf("%s/api/resumes/diagnostics", c.APIURL)
+	if encoded := values.Encode(); encoded != "" {
+		endpoint = fmt.Sprintf("%s?%s", endpoint, encoded)
+	}
+
+	var response ResumeDiagnosticsResponse
+	if err := c.doJSON(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("resume diagnostics request was not successful")
 	}
 	return &response, nil
 }

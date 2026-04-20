@@ -13,6 +13,7 @@ import {
     isResumeAnalysisKeyForJobDescription,
     isLocationMatch,
     normalizeKeywordPhrases,
+    resolveResumeDiagnosticsSourceKey,
     normalizeResumeLocationHierarchy,
     resolveResumeAnalysisSourceKey,
     selectLatestWorkHistory,
@@ -168,6 +169,8 @@ type IngestDiagnosticsTaggingEntry = {
 export type IngestDiagnosticsRow = {
     resumeId: string;
     externalId: string;
+    source: string;
+    sourceKey: string;
     name: string;
     jobIntention: string;
     location: string;
@@ -191,6 +194,12 @@ export type ResumeScanRow = {
     ingestData: Doc<"resumes">["ingestData"];
     primaryRuleScore: Doc<"resumes">["primaryRuleScore"];
     searchText: Doc<"resumes">["searchText"];
+};
+
+export type DiagnosticsSourceFacetRow = {
+    key: string;
+    label: string;
+    count: number;
 };
 
 export type ResumeUsageScanRow = {
@@ -366,6 +375,10 @@ const FILTERED_PAGINATE_OVERFETCH_MULTIPLIER = 3;
 const MAX_SAFE_JD_PAGINATE_SCAN = 250;
 const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
 const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
+const DIAGNOSTICS_SOURCE_FILTER_SCAN_ROUNDS = 8;
+const DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER = 3;
+const DIAGNOSTICS_SOURCE_FACET_SCAN_PAGE_SIZE = 200;
+const MAX_DIAGNOSTICS_SOURCE_FACET_SCAN_ROWS = 5_000;
 const DEFAULT_RESUME_SCAN_BATCH_SIZE = 25;
 const MAX_RESUME_SCAN_BATCH_SIZE = 50;
 const DEFAULT_RESUME_BACKUP_PAGE_SIZE = 25;
@@ -416,6 +429,83 @@ function projectIngestDiagnosticsTaggingEntries(
     })) ?? [];
 }
 
+function normalizeDiagnosticsSourceFilterValues(values: string[] | undefined): string[] | undefined {
+    if (!Array.isArray(values)) {
+        return undefined;
+    }
+
+    const normalized = Array.from(new Set(values
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+        .map((value) => resolveResumeDiagnosticsSourceKey({ sourceKey: value, source: value }))
+    ));
+
+    return normalized.length > 0 ? normalized : undefined;
+}
+
+export function resolveDiagnosticsSourceKeyForResume(
+    resume: {
+        source: string;
+        content: unknown;
+    }
+): string {
+    const content = isRecord(resume.content) ? resume.content : {};
+    return resolveResumeDiagnosticsSourceKey({
+        sourceKey: toOptionalStringValue(content.profileType),
+        source: resume.source,
+    });
+}
+
+function resolveDiagnosticsSourceLabel(sourceKey: string): string {
+    switch (sourceKey) {
+        case "job5156":
+            return "Job5156";
+        case "51job":
+            return "51job";
+        case "51job-manual":
+            return "51job manual";
+        case "seek":
+            return "SEEK";
+        default:
+            return "Unknown";
+    }
+}
+
+export function matchesDiagnosticsSourceKeys(
+    resume: {
+        source: string;
+        content: unknown;
+    },
+    sourceKeys: Set<string> | undefined
+): boolean {
+    if (!sourceKeys || sourceKeys.size === 0) {
+        return true;
+    }
+
+    return sourceKeys.has(resolveDiagnosticsSourceKeyForResume(resume));
+}
+
+export function buildDiagnosticsSourceFacetRows(
+    input: Array<{ source: string; content: unknown }> | Map<string, number>
+): DiagnosticsSourceFacetRow[] {
+    const counts = input instanceof Map ? input : new Map<string, number>();
+
+    if (Array.isArray(input)) {
+        for (const resume of input) {
+            const sourceKey = resolveDiagnosticsSourceKeyForResume(resume);
+            counts.set(sourceKey, (counts.get(sourceKey) ?? 0) + 1);
+        }
+    }
+
+    return Array.from(counts.entries())
+        .map(([key, count]) => ({
+            key,
+            label: resolveDiagnosticsSourceLabel(key),
+            count,
+        }))
+        .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
+}
+
 function normalizeRequestedResumeIds(resumeIds: string[]): string[] {
     const normalizedIds: string[] = [];
     const seen = new Set<string>();
@@ -436,6 +526,7 @@ export function projectIngestDiagnosticsRow(
     resume: {
         _id: string;
         externalId: string;
+        source: string;
         content: unknown;
         ingestData?: Doc<"resumes">["ingestData"];
         isArchived?: boolean;
@@ -449,6 +540,11 @@ export function projectIngestDiagnosticsRow(
     return {
         resumeId: resume._id,
         externalId: resume.externalId,
+        source: resume.source,
+        sourceKey: resolveDiagnosticsSourceKeyForResume({
+            source: resume.source,
+            content: resume.content,
+        }),
         name: toStringValue(content.name),
         jobIntention: toStringValue(content.jobIntention),
         location: toStringValue(content.location) || formatLocationHierarchyLabel(locationHierarchy),
@@ -1696,47 +1792,151 @@ export const listWithIngestDataPaginated = query({
     },
 });
 
+function buildDiagnosticsBaseQuery(ctx: QueryCtx, archived: boolean) {
+    return ctx.db
+        .query("resumes")
+        .withIndex("by_primaryRuleScore")
+        .order("desc")
+        .filter((q) => archived ? q.eq(q.field("isArchived"), true) : q.neq(q.field("isArchived"), true));
+}
+
+async function runDiagnosticsPageQuery(
+    ctx: QueryCtx,
+    args: {
+        archived: boolean;
+        paginationOpts: {
+            cursor: string | null;
+            numItems: number;
+        };
+        sourceKeys?: string[];
+    }
+): Promise<{
+    page: IngestDiagnosticsRow[];
+    continueCursor: string;
+    isDone: boolean;
+}> {
+    const requestedPageSize = Math.min(args.paginationOpts.numItems, MAX_INGEST_DIAGNOSTICS_PAGE_SIZE);
+    const normalizedSourceKeys = normalizeDiagnosticsSourceFilterValues(args.sourceKeys);
+    if (!normalizedSourceKeys || normalizedSourceKeys.length === 0) {
+        const page = await buildDiagnosticsBaseQuery(ctx, args.archived).paginate({
+            ...args.paginationOpts,
+            numItems: requestedPageSize,
+        });
+
+        return {
+            page: page.page.map(projectIngestDiagnosticsRow),
+            continueCursor: page.continueCursor,
+            isDone: page.isDone,
+        };
+    }
+
+    const sourceKeySet = new Set(normalizedSourceKeys);
+    const scanBatchSize = Math.min(
+        Math.max(requestedPageSize * DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER, requestedPageSize),
+        MAX_INGEST_DIAGNOSTICS_PAGE_SIZE * DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER,
+    );
+
+    const matched: Doc<"resumes">[] = [];
+    let cursor = args.paginationOpts.cursor;
+    let isDone = false;
+    let rounds = 0;
+
+    while (matched.length < requestedPageSize && rounds < DIAGNOSTICS_SOURCE_FILTER_SCAN_ROUNDS) {
+        const page = await buildDiagnosticsBaseQuery(ctx, args.archived).paginate({
+            cursor,
+            numItems: scanBatchSize,
+        });
+        rounds += 1;
+
+        for (const resume of page.page) {
+            if (!matchesDiagnosticsSourceKeys(resume, sourceKeySet)) {
+                continue;
+            }
+
+            matched.push(resume);
+            if (matched.length >= requestedPageSize) {
+                break;
+            }
+        }
+
+        isDone = page.isDone;
+        cursor = page.continueCursor || null;
+        if (isDone || !cursor) {
+            break;
+        }
+    }
+
+    const reachedScanLimit = rounds >= DIAGNOSTICS_SOURCE_FILTER_SCAN_ROUNDS
+        && matched.length < requestedPageSize
+        && !isDone;
+
+    return {
+        page: matched.map(projectIngestDiagnosticsRow),
+        continueCursor: cursor ?? "",
+        isDone: reachedScanLimit ? false : isDone || !cursor,
+    };
+}
+
 export const listIngestDiagnostics = query({
     args: {
         paginationOpts: paginationOptsValidator,
+        sourceKeys: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
-        const page = await ctx.db
-            .query("resumes")
-            .withIndex("by_primaryRuleScore")
-            .order("desc")
-            .filter((q) => q.neq(q.field("isArchived"), true))
-            .paginate({
-                ...args.paginationOpts,
-                numItems: Math.min(args.paginationOpts.numItems, MAX_INGEST_DIAGNOSTICS_PAGE_SIZE),
-            });
-
-        return {
-            ...page,
-            page: page.page.map(projectIngestDiagnosticsRow),
-        };
+        return runDiagnosticsPageQuery(ctx, {
+            archived: false,
+            paginationOpts: args.paginationOpts,
+            sourceKeys: args.sourceKeys,
+        });
     },
 });
 
 export const listArchivedDiagnostics = query({
     args: {
         paginationOpts: paginationOptsValidator,
+        sourceKeys: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
-        const page = await ctx.db
-            .query("resumes")
-            .withIndex("by_primaryRuleScore")
-            .order("desc")
-            .filter((q) => q.eq(q.field("isArchived"), true))
-            .paginate({
-                ...args.paginationOpts,
-                numItems: Math.min(args.paginationOpts.numItems, MAX_INGEST_DIAGNOSTICS_PAGE_SIZE),
+        return runDiagnosticsPageQuery(ctx, {
+            archived: true,
+            paginationOpts: args.paginationOpts,
+            sourceKeys: args.sourceKeys,
+        });
+    },
+});
+
+export const listDiagnosticsSourceFacets = query({
+    args: {
+        archived: v.optional(v.boolean()),
+    },
+    handler: async (ctx, args) => {
+        const archived = args.archived === true;
+        const counts = new Map<string, number>();
+        let scannedCount = 0;
+        let cursor: string | null = null;
+        let isDone = false;
+
+        while (!isDone && scannedCount < MAX_DIAGNOSTICS_SOURCE_FACET_SCAN_ROWS) {
+            const page = await buildDiagnosticsBaseQuery(ctx, archived).paginate({
+                cursor,
+                numItems: DIAGNOSTICS_SOURCE_FACET_SCAN_PAGE_SIZE,
             });
 
-        return {
-            ...page,
-            page: page.page.map(projectIngestDiagnosticsRow),
-        };
+            for (const resume of page.page) {
+                const sourceKey = resolveDiagnosticsSourceKeyForResume(resume);
+                counts.set(sourceKey, (counts.get(sourceKey) ?? 0) + 1);
+            }
+
+            scannedCount += page.page.length;
+            isDone = page.isDone;
+            cursor = page.continueCursor || null;
+
+            if (!cursor) {
+                break;
+            }
+        }
+
+        return buildDiagnosticsSourceFacetRows(counts);
     },
 });
 
