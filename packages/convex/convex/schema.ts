@@ -97,6 +97,9 @@ export default defineSchema({
 
         primaryRuleScore: v.optional(v.number()),
 
+        isArchived: v.optional(v.boolean()),
+        archivedAt: v.optional(v.number()),
+
         // Pre-computed Ingest Data (M3)
         ingestData: v.optional(v.object({
             evidenceText: v.optional(v.string()),

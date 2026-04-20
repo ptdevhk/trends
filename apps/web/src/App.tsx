@@ -21,6 +21,7 @@ const LazyDebugJDs = lazy(() => import('@/pages/DebugJDs'))
 const LazyDebugAI = lazy(() => import('@/pages/DebugAI'))
 const LazyDebugConfig = lazy(() => import('@/pages/DebugConfig'))
 const LazyDebugIngest = lazy(() => import('@/pages/DebugIngest'))
+const LazyArchivedResumes = lazy(() => import('@/pages/ArchivedResumes'))
 const LazyDebugAiTaggingResults = lazy(() => import('@/pages/DebugAiTaggingResults'))
 
 const LazyBlacklistPage = lazy(async () => {
@@ -265,6 +266,14 @@ function App() {
                 element={(
                   <RouteSuspense>
                     <LazyDebugIngest />
+                  </RouteSuspense>
+                )}
+              />
+              <Route
+                path="archived"
+                element={(
+                  <RouteSuspense>
+                    <LazyArchivedResumes />
                   </RouteSuspense>
                 )}
               />

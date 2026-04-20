@@ -35,6 +35,8 @@ func newResumeCmd() *cobra.Command {
 		newResumeDeployBackupCmd(),
 		newResumeExportCmd(),
 		newResumeDebugCmd(),
+		newResumeArchiveCmd(),
+		newResumeUnarchiveCmd(),
 	)
 
 	return resumeCmd
@@ -706,6 +708,56 @@ func resumeIdentifier(item client.ResumeItem, index int) string {
 		return item.ExternalID
 	}
 	return fmt.Sprintf("resume-%d", index+1)
+}
+
+func newResumeArchiveCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "archive <id> [<id>...]",
+		Short: "Archive one or more resumes (soft-delete)",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().ArchiveResumes(context.Background(), args)
+			if err != nil {
+				return fmt.Errorf("archive resumes: %w", err)
+			}
+			return writeOutput(cmd,
+				[]string{"requested", "archived", "already_archived", "missing"},
+				[][]string{{
+					strconv.Itoa(response.Requested),
+					strconv.Itoa(response.Archived),
+					strconv.Itoa(response.AlreadyArchived),
+					strings.Join(response.MissingIDs, ", "),
+				}},
+				response,
+			)
+		},
+	}
+	return cmd
+}
+
+func newResumeUnarchiveCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "unarchive <id> [<id>...]",
+		Short: "Restore one or more archived resumes",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			response, err := newAPIClient().UnarchiveResumes(context.Background(), args)
+			if err != nil {
+				return fmt.Errorf("unarchive resumes: %w", err)
+			}
+			return writeOutput(cmd,
+				[]string{"requested", "unarchived", "not_archived", "missing"},
+				[][]string{{
+					strconv.Itoa(response.Requested),
+					strconv.Itoa(response.Unarchived),
+					strconv.Itoa(response.NotArchived),
+					strings.Join(response.MissingIDs, ", "),
+				}},
+				response,
+			)
+		},
+	}
+	return cmd
 }
 
 func extractFilename(contentDisposition string) string {

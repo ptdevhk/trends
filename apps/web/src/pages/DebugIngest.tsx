@@ -9,7 +9,7 @@ import {
 import { useAction, useMutation, usePaginatedQuery } from 'convex/react'
 import { api } from '../../../../packages/convex/convex/_generated/api'
 import { useTranslation } from 'react-i18next'
-import { RefreshCw, Database, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+import { RefreshCw, Database, ChevronDown, ChevronRight, Trash2, Archive } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +27,8 @@ type IngestDiagnosticsResume = {
   name: string
   jobIntention: string
   location: string
+  isArchived?: boolean
+  archivedAt?: number
   ingestData?: {
     industryTags: string[]
     companyHits: string[]
@@ -153,6 +155,7 @@ export default function DebugIngest() {
   const hardResetIngestDataMutation = useMutation(api.resumes.hardResetIngestData)
   const resetDatabaseMutation = useMutation(api.resume_tasks.resetDatabase)
   const deleteResumesMutation = useMutation(api.resumes.deleteResumes)
+  const archiveResumesMutation = useMutation(api.resumes.archiveResumes)
 
   const [search, setSearch] = useState('')
   const [skillsVersion, setSkillsVersion] = useState<number | null>(null)
@@ -161,6 +164,7 @@ export default function DebugIngest() {
   const [selectedResumeIds, setSelectedResumeIds] = useState<Set<string>>(new Set())
   const [resumePendingDelete, setResumePendingDelete] = useState<IngestDiagnosticsResume | null>(null)
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
+  const [archivingResumes, setArchivingResumes] = useState(false)
   const [reingesting, setReingesting] = useState(false)
   const [clearingAnalyses, setClearingAnalyses] = useState(false)
   const [hardResetting, setHardResetting] = useState(false)
@@ -469,6 +473,38 @@ export default function DebugIngest() {
     }
   }, [createDeleteSummaryMessage, deleteResumesMutation, deletingResumes, t])
 
+  const archiveResumes = useCallback(async (resumeIds: string[]) => {
+    if (resumeIds.length === 0 || archivingResumes) {
+      return
+    }
+
+    setArchivingResumes(true)
+    try {
+      const result = await archiveResumesMutation({ resumeIds })
+      const archivedIdSet = new Set(resumeIds)
+
+      setSelectedResumeIds((previous) => {
+        const next = new Set([...previous].filter((resumeId) => !archivedIdSet.has(resumeId)))
+        return next.size === previous.size ? previous : next
+      })
+      setExpandedIds((previous) => {
+        const nextIds = [...previous].filter((resumeId) => !archivedIdSet.has(resumeId))
+        return nextIds.length === previous.size ? previous : new Set(nextIds)
+      })
+
+      if (result.archived > 0) {
+        toast.success(t('debugIngest.archiveSuccess', { count: result.archived, defaultValue: `Archived ${result.archived} resume(s)` }))
+      } else {
+        toast.info(t('debugIngest.archiveAlreadyDone', { defaultValue: 'Resumes already archived' }))
+      }
+    } catch (error) {
+      console.error('Failed to archive resumes', error)
+      toast.error(t('debugIngest.archiveFailed', { defaultValue: 'Failed to archive resumes' }))
+    } finally {
+      setArchivingResumes(false)
+    }
+  }, [archiveResumesMutation, archivingResumes, t])
+
   const confirmSingleDelete = useCallback(() => {
     if (!resumePendingDelete) {
       return
@@ -482,6 +518,13 @@ export default function DebugIngest() {
     }
     void deleteResumes([...selectedResumeIds])
   }, [deleteResumes, selectedResumeIds])
+
+  const archiveSelected = useCallback(() => {
+    if (selectedResumeIds.size === 0 || archivingResumes) {
+      return
+    }
+    void archiveResumes([...selectedResumeIds])
+  }, [archiveResumes, archivingResumes, selectedResumeIds])
 
   return (
     <div className="space-y-6">
@@ -547,14 +590,14 @@ export default function DebugIngest() {
           {t('debugIngest.reingest', { defaultValue: 'Trigger Re-ingest' })}
         </Button>
         <Button
-          variant="destructive"
-          onClick={() => setBulkDeleteDialogOpen(true)}
-          disabled={selectedResumeIds.size === 0 || deletingResumes}
+          variant="outline"
+          onClick={archiveSelected}
+          disabled={selectedResumeIds.size === 0 || archivingResumes}
         >
-          <Trash2 className={`mr-2 h-4 w-4 ${deletingResumes ? 'animate-spin' : ''}`} />
-          {t('debugIngest.deleteSelected', {
+          <Archive className={`mr-2 h-4 w-4 ${archivingResumes ? 'animate-spin' : ''}`} />
+          {t('debugIngest.archiveSelected', {
             count: selectedResumeIds.size,
-            defaultValue: `Delete Selected (${selectedResumeIds.size})`,
+            defaultValue: `Archive Selected (${selectedResumeIds.size})`,
           })}
         </Button>
         <Button variant="destructive" onClick={() => void clearAnalyses()} disabled={clearingAnalyses}>
@@ -860,12 +903,12 @@ export default function DebugIngest() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setResumePendingDelete(resume)}
-                          disabled={deletingResumes}
+                          className="hover:text-primary hover:bg-primary/10"
+                          onClick={() => archiveResumes([resumeId])}
+                          disabled={archivingResumes}
                         >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {t('common.delete', { defaultValue: 'Delete' })}
+                          <Archive className="mr-2 h-4 w-4" />
+                          {t('common.archive', { defaultValue: 'Archive' })}
                         </Button>
                       </TableCell>
                     </TableRow>

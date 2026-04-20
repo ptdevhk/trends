@@ -555,6 +555,39 @@ func (c *Client) ResetDatabase(ctx context.Context, request ResetDatabaseRequest
 	return &response, nil
 }
 
+type ArchiveResumesRequest struct {
+	ResumeIDs []string `json:"resumeIds"`
+	Action    string   `json:"action"`
+}
+
+type ArchiveResumesResponse struct {
+	Success        bool     `json:"success"`
+	Requested      int      `json:"requested"`
+	Archived       int      `json:"archived,omitempty"`
+	AlreadyArchived int     `json:"alreadyArchived,omitempty"`
+	Unarchived     int      `json:"unarchived,omitempty"`
+	NotArchived    int      `json:"notArchived,omitempty"`
+	MissingIDs     []string `json:"missingResumeIds,omitempty"`
+}
+
+func (c *Client) ArchiveResumes(ctx context.Context, resumeIDs []string) (*ArchiveResumesResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/archive", c.APIURL)
+	var response ArchiveResumesResponse
+	if err := c.doJSON(ctx, http.MethodPost, endpoint, ArchiveResumesRequest{ResumeIDs: resumeIDs, Action: "archive"}, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+func (c *Client) UnarchiveResumes(ctx context.Context, resumeIDs []string) (*ArchiveResumesResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/archive", c.APIURL)
+	var response ArchiveResumesResponse
+	if err := c.doJSON(ctx, http.MethodPost, endpoint, ArchiveResumesRequest{ResumeIDs: resumeIDs, Action: "unarchive"}, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
 type AnalyzeRequest struct {
 	Query            string   `json:"query,omitempty"`
 	JobDescriptionID string   `json:"jobDescriptionId,omitempty"`

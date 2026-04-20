@@ -221,6 +221,11 @@ const ResetDatabaseRequestSchema = z.object({
   dryRun: z.boolean().optional(),
 });
 
+const ArchiveResumesRequestSchema = z.object({
+  resumeIds: z.array(z.string()).min(1),
+  action: z.union([z.literal("archive"), z.literal("unarchive")]),
+});
+
 const ResetDatabaseV2ResponseSchema = z.object({
   success: z.literal(true),
   dryRun: z.boolean().optional(),
@@ -5126,6 +5131,44 @@ app.post("/api/resumes/reset-database", async (c) => {
     return c.json(ResetDatabaseV2ResponseSchema.parse(value), 200);
   } catch (error) {
     console.error("Failed to reset database", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false, error: message }, 500);
+  }
+});
+
+app.post("/api/resumes/archive", async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false, error: "Admin access required" }, 403);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = ArchiveResumesRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "Invalid request payload" }, 400);
+  }
+
+  const { resumeIds, action } = parsed.data;
+
+  try {
+    if (action === "archive") {
+      const result = await callConvexMutation("resumes:archiveResumes", { resumeIds }) as {
+        requested: number;
+        archived: number;
+        alreadyArchived: number;
+        missingResumeIds: string[];
+      };
+      return c.json({ success: true, ...result }, 200);
+    } else {
+      const result = await callConvexMutation("resumes:unarchiveResumes", { resumeIds }) as {
+        requested: number;
+        unarchived: number;
+        notArchived: number;
+        missingResumeIds: string[];
+      };
+      return c.json({ success: true, ...result }, 200);
+    }
+  } catch (error) {
+    console.error("Failed to archive/unarchive resumes", error);
     const message = error instanceof Error ? error.message : String(error);
     return c.json({ success: false, error: message }, 500);
   }
