@@ -3,6 +3,7 @@ import { rawApiClient } from '@/lib/api-helpers'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
 type UseAiSearchSummaryArgs = {
+  enabled?: boolean
   jobDescriptionId?: string
   location?: string
   query?: string
@@ -47,6 +48,7 @@ function buildSnippet(item: ResumeSearchResultItem): string {
 }
 
 export function useAiSearchSummary({
+  enabled = true,
   jobDescriptionId,
   location,
   query,
@@ -60,6 +62,10 @@ export function useAiSearchSummary({
   const [loading, setLoading] = useState(false)
 
   const payload = useMemo(() => {
+    if (!enabled) {
+      return null
+    }
+
     const normalizedQuery = query?.trim()
     if (!normalizedQuery || results.length === 0) {
       return null
@@ -98,7 +104,7 @@ export function useAiSearchSummary({
     }
 
     return payloadValue
-  }, [jobDescriptionId, location, query, results, selectedCompanies, selectedExperienceLevel, selectedTags])
+  }, [enabled, jobDescriptionId, location, query, results, selectedCompanies, selectedExperienceLevel, selectedTags])
 
   useEffect(() => {
     let active = true

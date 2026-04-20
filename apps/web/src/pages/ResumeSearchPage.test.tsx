@@ -51,6 +51,14 @@ const {
   useResumeSearchStateMock: vi.fn(),
 }))
 
+const featureFlagsMock = vi.hoisted(() => ({
+  resumeAiSummaryEnabled: false,
+}))
+
+vi.mock('@/lib/feature-flags', () => ({
+  isResumeAiSummaryEnabled: () => featureFlagsMock.resumeAiSummaryEnabled,
+}))
+
 vi.mock('@/hooks/useAiSearchSummary', () => ({
   useAiSearchSummary: (...args: unknown[]) => useAiSearchSummaryMock(...args),
 }))
@@ -513,6 +521,7 @@ function createResumeSearchState(overrides: Record<string, unknown> = {}) {
 describe('ResumeSearchPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    featureFlagsMock.resumeAiSummaryEnabled = false
     useIndustryKeywordsMock.mockReturnValue({
       hotKeywords: [],
       quickStartProfiles: [],
@@ -641,6 +650,7 @@ describe('ResumeSearchPage', () => {
 
   it('renders the active results shell, maps cluster names for AI summary, and opens the mobile filter sheet from the badge', async () => {
     const user = userEvent.setup()
+    featureFlagsMock.resumeAiSummaryEnabled = true
     const state = createResumeSearchState({
       activeQuery: 'machine tools',
       aiModeStats: {
@@ -743,6 +753,7 @@ describe('ResumeSearchPage', () => {
 
   it('falls back to cluster slugs for AI summary tags and preserves local result-shell state interactions', async () => {
     const user = userEvent.setup()
+    featureFlagsMock.resumeAiSummaryEnabled = true
     const state = createResumeSearchState({
       activeQuery: 'servo automation',
       filteredResults: [createResult(1), createResult(2)],
@@ -810,6 +821,26 @@ describe('ResumeSearchPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Load more results' }))
     expect(state.loadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the AI summary panel when the dedicated summary feature flag is off', () => {
+    const state = createResumeSearchState({
+      activeQuery: 'CNC Sales',
+      filteredResults: [createResult(1)],
+      isLanding: false,
+    })
+    useResumeSearchStateMock.mockReturnValue(state)
+    useAiSearchSummaryMock.mockReturnValue({
+      generatedAt: 123,
+      loading: false,
+      summary: 'Summary text',
+    })
+
+    render(<ResumeSearchPage />)
+
+    expect(
+      screen.queryByText('AI Summary Summary text generated:123 loading:false'),
+    ).not.toBeInTheDocument()
   })
 
   it('wires header export controls into the search-state actions', async () => {
