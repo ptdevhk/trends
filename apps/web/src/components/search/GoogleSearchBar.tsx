@@ -105,6 +105,7 @@ export function GoogleSearchBar({
           <Search className={cn(compact ? 'h-4 w-4' : 'h-5 w-5')} />
         </div>
         <Input
+          data-testid="resume-search-input"
           value={value}
           className={cn(
             'border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0',
@@ -156,7 +157,7 @@ export function GoogleSearchBar({
           </Button>
         ) : null}
         <div className="pr-2">
-          <Button type="submit" className="rounded-full px-5" disabled={loading}>
+          <Button type="submit" className="rounded-full px-5" disabled={loading} data-testid="resume-search-submit">
             {searchButtonLabel}
           </Button>
         </div>

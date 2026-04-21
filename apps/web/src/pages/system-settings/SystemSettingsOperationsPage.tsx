@@ -72,6 +72,7 @@ export function SystemSettingsOperationsPage() {
               <label htmlFor="col-keyword" className="text-sm font-medium">{t('debugConfig.keyword')}</label>
               <Input
                 id="col-keyword"
+                data-testid="ops-collection-keyword"
                 placeholder={t('debugConfig.keywordPlaceholder')}
                 value={collectionKeyword}
                 onChange={(event) => setCollectionKeyword(event.target.value)}
@@ -81,6 +82,7 @@ export function SystemSettingsOperationsPage() {
               <label htmlFor="col-location" className="text-sm font-medium">{t('debugConfig.location')}</label>
               <Input
                 id="col-location"
+                data-testid="ops-collection-location"
                 placeholder={t('debugConfig.locationPlaceholder')}
                 value={collectionLocation}
                 onChange={(event) => setCollectionLocation(event.target.value)}
@@ -90,6 +92,7 @@ export function SystemSettingsOperationsPage() {
               <label htmlFor="col-limit" className="text-sm font-medium">{t('debugConfig.limitResumes')}</label>
               <Input
                 id="col-limit"
+                data-testid="ops-collection-limit"
                 type="number"
                 placeholder="200"
                 value={collectionLimit}
@@ -101,6 +104,7 @@ export function SystemSettingsOperationsPage() {
               <label htmlFor="col-max-pages" className="text-sm font-medium">{t('debugConfig.maxPages')}</label>
               <Input
                 id="col-max-pages"
+                data-testid="ops-collection-max-pages"
                 type="number"
                 placeholder="10"
                 value={collectionMaxPages}
@@ -110,6 +114,7 @@ export function SystemSettingsOperationsPage() {
             </div>
           </div>
           <Button
+            data-testid="ops-start-collection"
             onClick={() => {
               handleStartCollection().catch((error) => {
                 console.error('Unexpected handleStartCollection failure', error)

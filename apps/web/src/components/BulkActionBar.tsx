@@ -100,6 +100,7 @@ export function BulkActionBar({
                 <Button
                     variant="ghost"
                     size="sm"
+                    data-testid="bulk-select-all"
                     onClick={onSelectAll}
                     disabled={disabled}
                 >
@@ -118,6 +119,7 @@ export function BulkActionBar({
                     <Button
                         variant="ghost"
                         size="sm"
+                        data-testid="bulk-clear-selection"
                         onClick={onClearSelection}
                     >
                         {t('bulkActions.clearSelection', '取消选择')}
@@ -133,6 +135,7 @@ export function BulkActionBar({
                 <Button
                     variant="outline"
                     size="sm"
+                    data-testid="bulk-shortlist"
                     onClick={() => handleAction('shortlist')}
                     disabled={disabled || selectedCount === 0 || loading !== null}
                     className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
@@ -187,6 +190,7 @@ export function BulkActionBar({
                     <Button
                         variant="outline"
                         size="sm"
+                        data-testid="bulk-export"
                         onClick={() => handleAction('export')}
                         disabled={disabled || selectedCount === 0 || loading !== null}
                         className="rounded-l-none border-l-0 px-2.5"

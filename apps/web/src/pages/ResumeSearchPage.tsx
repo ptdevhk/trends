@@ -322,6 +322,7 @@ export function ResumeSearchPage() {
                   <Button
                     type="button"
                     size="sm"
+                    data-testid="resume-analyze-button"
                     className="h-10 gap-2 rounded-full px-4"
                     disabled={disableAnalyzeResults || !aiModeEnabled}
                     onClick={() => {
