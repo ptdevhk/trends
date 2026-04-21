@@ -23,6 +23,7 @@ rm -f "$VERSIONED_ZIP_PATH" "$LATEST_ZIP_PATH"
   cd "$EXTENSION_DIR"
   zip -r "$VERSIONED_ZIP_PATH" \
     manifest.json background.js content.js content-styles.css page-hook.js \
+    seek-auto-sync-window.js \
     popup.html popup.js popup.css options.html options.js \
     offscreen.html offscreen.js icons/
 )
