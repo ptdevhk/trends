@@ -54,6 +54,10 @@ function buildResumeDoc(id: string, primaryRuleScore: number, ruleScores?: Recor
   };
 }
 
+function withFilterPassthrough(terminal: Record<string, unknown>) {
+  return { ...terminal, filter: () => terminal };
+}
+
 describe("listWithIngestDataPaginated", () => {
   it("uses native paginate() for the default unfiltered path", async () => {
     let paginateCalled = false;
@@ -66,7 +70,7 @@ describe("listWithIngestDataPaginated", () => {
       db: {
         query: () => ({
           withIndex: () => ({
-            order: () => ({
+            order: () => withFilterPassthrough({
               paginate: async (opts: { cursor: string | null; numItems: number }) => {
                 paginateCalled = true;
                 expect(opts.numItems).toBe(10);
@@ -112,7 +116,7 @@ describe("listWithIngestDataPaginated", () => {
       db: {
         query: () => ({
           withIndex: () => ({
-            order: () => ({
+            order: () => withFilterPassthrough({
               paginate: async () => {
                 paginateCalled = true;
                 return { page: [], continueCursor: "", isDone: true };
@@ -145,7 +149,7 @@ describe("listWithIngestDataPaginated", () => {
       db: {
         query: () => ({
           withIndex: () => ({
-            order: () => ({
+            order: () => withFilterPassthrough({
               paginate: async () => ({
                 page: [higherPrimaryLowerJd, lowerPrimaryHigherJd],
                 continueCursor: "",
@@ -175,7 +179,7 @@ describe("listWithIngestDataPaginated", () => {
       db: {
         query: () => ({
           withIndex: () => ({
-            order: () => ({
+            order: () => withFilterPassthrough({
               paginate: async () => {
                 paginateCalled = true;
                 return { page: [], continueCursor: "", isDone: true };
@@ -211,7 +215,7 @@ describe("listWithIngestDataPaginated", () => {
       db: {
         query: () => ({
           withIndex: () => ({
-            order: () => ({
+            order: () => withFilterPassthrough({
               paginate: async (opts: { numItems: number }) => {
                 paginateCalled = true;
                 paginateNumItems = opts.numItems;
@@ -303,7 +307,7 @@ describe("listWithIngestDataPaginated", () => {
       db: {
         query: () => ({
           withIndex: () => ({
-            order: () => ({
+            order: () => withFilterPassthrough({
               paginate: async () => ({
                 page: [resumeA, resumeB],
                 continueCursor: "cursor-next",
@@ -394,7 +398,7 @@ describe("listWithIngestDataPaginated", () => {
       db: {
         query: () => ({
           withIndex: () => ({
-            order: () => ({
+            order: () => withFilterPassthrough({
               paginate: async () => ({
                 page: [resumeDirect, resumeSupportOnly],
                 continueCursor: "cursor-next",
