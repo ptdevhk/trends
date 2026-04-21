@@ -109,10 +109,24 @@ function applyRestoreStateFields(
 export const list = query({
     args: {},
     handler: async (ctx) => {
-        return await ctx.db
+        // Always include all active tasks (pending/processing) regardless of age
+        const pendingTasks = await ctx.db
+            .query("collection_tasks")
+            .withIndex("by_status", (q) => q.eq("status", "pending"))
+            .collect();
+        const processingTasks = await ctx.db
+            .query("collection_tasks")
+            .withIndex("by_status", (q) => q.eq("status", "processing"))
+            .collect();
+        // Plus the 20 most recent finished tasks
+        const activeIds = new Set([...pendingTasks, ...processingTasks].map(t => t._id));
+        const recent = await ctx.db
             .query("collection_tasks")
             .order("desc")
             .take(20);
+        const finishedRecent = recent.filter(t => !activeIds.has(t._id));
+        return [...pendingTasks, ...processingTasks, ...finishedRecent]
+            .sort((a, b) => b._creationTime - a._creationTime);
     },
 });
 
