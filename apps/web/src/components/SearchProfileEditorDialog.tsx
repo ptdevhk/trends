@@ -1,4 +1,5 @@
 import { formatKeywordInput, inferKeywordQueryMode, normalizeKeywordPhrases, parseKeywordQuery } from '@trends/shared'
+import { isHeadlessCollectorEnabled } from '@/lib/feature-flags'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from 'convex/react'
 import { useTranslation } from 'react-i18next'
@@ -903,9 +904,12 @@ export function SearchProfileEditorDialog({
                             onChange={(event) => setForm((previous) => ({ ...previous, collectionMode: event.target.value as 'head' | 'headless' }))}
                             options={[
                                 { value: 'head', label: t('searchProfiles.fields.collectionModeHead', { defaultValue: 'Open tabs (default)' }) },
-                                { value: 'headless', label: t('searchProfiles.fields.collectionModeHeadless', { defaultValue: 'Background crawler' }) },
+                                ...(isHeadlessCollectorEnabled() ? [{ value: 'headless', label: t('searchProfiles.fields.collectionModeHeadless', { defaultValue: 'Background crawler (experimental)' }) }] : []),
                             ]}
                         />
+                        {!isHeadlessCollectorEnabled() && form.collectionMode === 'headless' && (
+                            <p className="text-xs text-amber-600">{t('searchProfiles.fields.headlessDisabled', { defaultValue: 'Background crawler is disabled. Set VITE_ENABLE_HEADLESS_COLLECTOR=true to enable.' })}</p>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-2">

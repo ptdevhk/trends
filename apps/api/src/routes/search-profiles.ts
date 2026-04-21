@@ -1159,6 +1159,13 @@ const runProfileRoute = createRoute({
 });
 
 app.openapi(runProfileRoute, async (c) => {
+    if (process.env.ENABLE_HEADLESS_COLLECTOR !== "true") {
+        return c.json({
+            success: false as const,
+            error: "Headless collector is not available in this environment.",
+        }, 403);
+    }
+
     const { id } = c.req.valid("param");
     const workspaceSlug = c.var.workspaceSlug;
 

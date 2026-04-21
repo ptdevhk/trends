@@ -14,3 +14,7 @@ export function isReviewPacketsEnabled(): boolean {
 export function isResumeAiSummaryEnabled(): boolean {
   return import.meta.env.VITE_ENABLE_RESUME_AI_SUMMARY === 'true'
 }
+
+export function isHeadlessCollectorEnabled(): boolean {
+  return import.meta.env.VITE_ENABLE_HEADLESS_COLLECTOR === 'true'
+}

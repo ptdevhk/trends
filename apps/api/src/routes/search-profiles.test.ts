@@ -392,11 +392,13 @@ describe('search-profiles list route', () => {
 describe('search-profiles run route', () => {
   beforeEach(() => {
     removeRunStatusFile()
+    process.env.ENABLE_HEADLESS_COLLECTOR = 'true'
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
     removeRunStatusFile()
+    delete process.env.ENABLE_HEADLESS_COLLECTOR
   })
 
   it('uses workspace-scoped custom profiles for hr runs', async () => {

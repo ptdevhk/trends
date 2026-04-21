@@ -4,6 +4,7 @@ import { Plus, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { rawApiClient } from '@/lib/api-helpers'
+import { isHeadlessCollectorEnabled } from '@/lib/feature-flags'
 import { ProfileCard, type SearchProfileRunStatus, type SearchProfileSummary } from '@/components/ProfileCard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -417,6 +418,13 @@ export function SearchProfilesPage() {
       headModeResetTimersRef.current[profileId] = setTimeout(() => {
         clearHeadModePendingRun(profileId)
       }, 2000)
+      return
+    }
+
+    // Headless (background crawler) path — guard with feature flag
+    if (!isHeadlessCollectorEnabled()) {
+      runNowLocksRef.current.delete(profileId)
+      toast.error(t('searchProfiles.headlessDisabled', { defaultValue: 'Background crawler is not enabled. Set VITE_ENABLE_HEADLESS_COLLECTOR=true to use headless collection.' }))
       return
     }
 
