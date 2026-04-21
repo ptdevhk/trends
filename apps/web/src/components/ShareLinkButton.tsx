@@ -205,7 +205,7 @@ export function ShareLinkButton({ shareTitle, state, ensureApiSession, onCopySta
         分享
       </Button>
 
-      <Dialog open={fallbackPayload !== null} onOpenChange={(open) => {
+      <Dialog open={fallbackPayload !== null} onOpenChange={(open: boolean) => {
         if (!open) {
           setFallbackPayload(null)
         }

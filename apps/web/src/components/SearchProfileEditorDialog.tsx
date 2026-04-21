@@ -706,7 +706,7 @@ export function SearchProfileEditorDialog({
                                     <Checkbox
                                         id="profile-source-job5156"
                                         checked={sourceForm.job5156Enabled}
-                                        onCheckedChange={(checked) => setSourceForm((previous) => ({
+                                        onCheckedChange={(checked: boolean | 'indeterminate') => setSourceForm((previous) => ({
                                             ...previous,
                                             job5156Enabled: checked === true,
                                         }))}
@@ -738,7 +738,7 @@ export function SearchProfileEditorDialog({
                                     <Checkbox
                                         id="profile-source-job51"
                                         checked={sourceForm.job51Enabled}
-                                        onCheckedChange={(checked) => setSourceForm((previous) => ({
+                                        onCheckedChange={(checked: boolean | 'indeterminate') => setSourceForm((previous) => ({
                                             ...previous,
                                             job51Enabled: checked === true,
                                         }))}
@@ -848,7 +848,7 @@ export function SearchProfileEditorDialog({
                                     <Checkbox
                                         id="profile-source-seek"
                                         checked={sourceForm.seekEnabled}
-                                        onCheckedChange={(checked) => setSourceForm((previous) => ({
+                                        onCheckedChange={(checked: boolean | 'indeterminate') => setSourceForm((previous) => ({
                                             ...previous,
                                             seekEnabled: checked === true,
                                         }))}
@@ -911,7 +911,7 @@ export function SearchProfileEditorDialog({
                     <div className="flex items-center gap-2">
                         <Checkbox
                             checked={form.quickStartEnabled}
-                            onCheckedChange={(checked) => setForm((previous) => ({ ...previous, quickStartEnabled: checked === true }))}
+                            onCheckedChange={(checked: boolean | 'indeterminate') => setForm((previous) => ({ ...previous, quickStartEnabled: checked === true }))}
                             id="profile-quickstart"
                         />
                         <Label htmlFor="profile-quickstart">{t('searchProfiles.fields.quickStart', { defaultValue: 'Show in QuickStart' })}</Label>
@@ -920,7 +920,7 @@ export function SearchProfileEditorDialog({
                     <div className="flex items-center gap-2">
                         <Checkbox
                             checked={form.enabled}
-                            onCheckedChange={(checked) => setForm((previous) => ({ ...previous, enabled: checked === true }))}
+                            onCheckedChange={(checked: boolean | 'indeterminate') => setForm((previous) => ({ ...previous, enabled: checked === true }))}
                             id="profile-enabled"
                         />
                         <Label htmlFor="profile-enabled">{t('searchProfiles.fields.enabled', { defaultValue: 'Enabled' })}</Label>

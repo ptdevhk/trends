@@ -31,7 +31,7 @@ export default function SystemSettingsLayout() {
               key={item.id}
               to={item.href}
               end={item.id === 'overview'}
-              className={({ isActive }) =>
+              className={({ isActive }: { isActive: boolean }) =>
                 cn(
                   'rounded-full border px-3 py-1 text-sm transition-colors',
                   isActive ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'

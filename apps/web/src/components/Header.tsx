@@ -37,7 +37,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
             <NavLink
               to={resumesPath}
               state={RESUME_HOME_RESET_STATE}
-              className={({ isActive }) =>
+              className={({ isActive }: { isActive: boolean }) =>
                 cn(
                   'transition-colors hover:text-foreground',
                   isActive ? 'text-foreground' : 'text-muted-foreground'
@@ -49,7 +49,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
             {showReviewPackets ? (
               <NavLink
                 to={reviewPacketsPath}
-                className={({ isActive }) =>
+                className={({ isActive }: { isActive: boolean }) =>
                   cn(
                     'transition-colors hover:text-foreground',
                     isActive ? 'text-foreground' : 'text-muted-foreground'
@@ -61,7 +61,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
             ) : null}
             <NavLink
               to={settingsPath}
-              className={({ isActive }) =>
+              className={({ isActive }: { isActive: boolean }) =>
                 cn(
                   'transition-colors hover:text-foreground',
                   isActive ? 'text-foreground' : 'text-muted-foreground'
@@ -73,7 +73,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
             {isAdmin ? (
               <NavLink
                 to={systemPath}
-                className={({ isActive }) =>
+                className={({ isActive }: { isActive: boolean }) =>
                   cn(
                     'transition-colors hover:text-foreground',
                     isActive ? 'text-foreground' : 'text-muted-foreground'
@@ -94,7 +94,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
             <NavLink
               to={resumesPath}
               state={RESUME_HOME_RESET_STATE}
-              className={({ isActive }) =>
+              className={({ isActive }: { isActive: boolean }) =>
                 cn(
                   'transition-colors hover:text-foreground',
                   isActive ? 'text-foreground' : 'text-muted-foreground'
@@ -106,7 +106,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
             {showReviewPackets ? (
               <NavLink
                 to={reviewPacketsPath}
-                className={({ isActive }) =>
+                className={({ isActive }: { isActive: boolean }) =>
                   cn(
                     'transition-colors hover:text-foreground',
                     isActive ? 'text-foreground' : 'text-muted-foreground'
@@ -118,7 +118,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
             ) : null}
             <NavLink
               to={settingsPath}
-              className={({ isActive }) =>
+              className={({ isActive }: { isActive: boolean }) =>
                 cn(
                   'transition-colors hover:text-foreground',
                   isActive ? 'text-foreground' : 'text-muted-foreground'
@@ -130,7 +130,7 @@ export function Header({ leftAction }: HeaderProps = {}) {
             {isAdmin ? (
               <NavLink
                 to={systemPath}
-                className={({ isActive }) =>
+                className={({ isActive }: { isActive: boolean }) =>
                   cn(
                     'transition-colors hover:text-foreground',
                     isActive ? 'text-foreground' : 'text-muted-foreground'
