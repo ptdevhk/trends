@@ -187,6 +187,21 @@ func TestResumeRestoreCommandReplaceModeResetsUntilCompleteBeforeImport(t *testi
 		callOrder = append(callOrder, r.URL.Path)
 
 		switch r.URL.Path {
+		case "/api/resumes/backup":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"metadata": map[string]any{
+					"sourceUrl":    "http://example.com/api/resumes/backup",
+					"generatedBy":  "test",
+					"generatedAt":  "2026-04-21T00:00:00Z",
+					"totalResumes": 0,
+				},
+				"resumes": []any{},
+			})
+		case "/api/resumes/candidate-actions/reset":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"deleted": 0,
+			})
 		case "/api/resumes/reset":
 			resetCalls += 1
 			if resetCalls == 1 {
@@ -213,12 +228,15 @@ func TestResumeRestoreCommandReplaceModeResetsUntilCompleteBeforeImport(t *testi
 				t.Fatalf("expected metadata object: %+v", payload)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"success":   true,
-				"submitted": 1,
-				"inserted":  1,
-				"updated":   0,
-				"unchanged": 0,
-				"deduped":   0,
+				"success":         true,
+				"submitted":       1,
+				"inserted":        1,
+				"updated":         0,
+				"unchanged":       0,
+				"deduped":         0,
+				"statusReplayed":  0,
+				"actionsReplayed": 0,
+				"actionsDeduped":  0,
 			})
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
@@ -243,7 +261,7 @@ func TestResumeRestoreCommandReplaceModeResetsUntilCompleteBeforeImport(t *testi
 		t.Fatalf("resume restore command failed: %v", err)
 	}
 
-	if len(callOrder) != 3 || callOrder[0] != "/api/resumes/reset" || callOrder[1] != "/api/resumes/reset" || callOrder[2] != "/api/resumes/import" {
+	if len(callOrder) != 5 || callOrder[0] != "/api/resumes/backup" || callOrder[1] != "/api/resumes/reset" || callOrder[2] != "/api/resumes/reset" || callOrder[3] != "/api/resumes/candidate-actions/reset" || callOrder[4] != "/api/resumes/import" {
 		t.Fatalf("unexpected call order: %+v", callOrder)
 	}
 	if !strings.Contains(output.String(), `"mode": "replace"`) {
@@ -288,6 +306,21 @@ func TestResumeRestoreCommandAcceptsSnapshotDirectoryInDeterministicOrder(t *tes
 		callOrder = append(callOrder, r.URL.Path)
 
 		switch r.URL.Path {
+		case "/api/resumes/backup":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"metadata": map[string]any{
+					"sourceUrl":    "http://example.com/api/resumes/backup",
+					"generatedBy":  "test",
+					"generatedAt":  "2026-04-21T00:00:00Z",
+					"totalResumes": 0,
+				},
+				"resumes": []any{},
+			})
+		case "/api/resumes/candidate-actions/reset":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"deleted": 0,
+			})
 		case "/api/resumes/reset":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"success": true,
@@ -342,7 +375,7 @@ func TestResumeRestoreCommandAcceptsSnapshotDirectoryInDeterministicOrder(t *tes
 		t.Fatalf("resume restore command failed: %v", err)
 	}
 
-	if len(callOrder) != 4 || callOrder[0] != "/api/resumes/reset" {
+	if len(callOrder) != 6 || callOrder[0] != "/api/resumes/backup" || callOrder[1] != "/api/resumes/reset" {
 		t.Fatalf("unexpected call order: %+v", callOrder)
 	}
 	if want := []string{"job-1", "seek-1", "manual-1"}; strings.Join(importedResumeIDs, ",") != strings.Join(want, ",") {
@@ -403,6 +436,21 @@ func TestResumeDeployBackupRestorePrefersCompressedArtifactInLatestRunDir(t *tes
 		callOrder = append(callOrder, r.URL.Path)
 
 		switch r.URL.Path {
+		case "/api/resumes/backup":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"metadata": map[string]any{
+					"sourceUrl":    "http://example.com/api/resumes/backup",
+					"generatedBy":  "test",
+					"generatedAt":  "2026-04-21T00:00:00Z",
+					"totalResumes": 0,
+				},
+				"resumes": []any{},
+			})
+		case "/api/resumes/candidate-actions/reset":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"deleted": 0,
+			})
 		case "/api/resumes/reset":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"success": true,
@@ -424,12 +472,15 @@ func TestResumeDeployBackupRestorePrefersCompressedArtifactInLatestRunDir(t *tes
 				t.Fatalf("unexpected imported resume payload: %+v", payload)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"success":   true,
-				"submitted": 1,
-				"inserted":  1,
-				"updated":   0,
-				"unchanged": 0,
-				"deduped":   0,
+				"success":         true,
+				"submitted":       1,
+				"inserted":        1,
+				"updated":         0,
+				"unchanged":       0,
+				"deduped":         0,
+				"statusReplayed":  0,
+				"actionsReplayed": 0,
+				"actionsDeduped":  0,
 			})
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
@@ -454,7 +505,7 @@ func TestResumeDeployBackupRestorePrefersCompressedArtifactInLatestRunDir(t *tes
 		t.Fatalf("resume deploy-backup restore command failed: %v", err)
 	}
 
-	if len(callOrder) != 2 || callOrder[0] != "/api/resumes/reset" || callOrder[1] != "/api/resumes/import" {
+	if len(callOrder) != 4 || callOrder[0] != "/api/resumes/backup" || callOrder[1] != "/api/resumes/reset" || callOrder[2] != "/api/resumes/candidate-actions/reset" || callOrder[3] != "/api/resumes/import" {
 		t.Fatalf("unexpected call order: %+v", callOrder)
 	}
 
@@ -510,6 +561,21 @@ func TestResumeDeployBackupRestoreFallsBackToLegacyJSON(t *testing.T) {
 		callOrder = append(callOrder, r.URL.Path)
 
 		switch r.URL.Path {
+		case "/api/resumes/backup":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"metadata": map[string]any{
+					"sourceUrl":    "http://example.com/api/resumes/backup",
+					"generatedBy":  "test",
+					"generatedAt":  "2026-04-21T00:00:00Z",
+					"totalResumes": 0,
+				},
+				"resumes": []any{},
+			})
+		case "/api/resumes/candidate-actions/reset":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"deleted": 0,
+			})
 		case "/api/resumes/reset":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"success": true,
@@ -531,12 +597,15 @@ func TestResumeDeployBackupRestoreFallsBackToLegacyJSON(t *testing.T) {
 				t.Fatalf("unexpected imported resume payload: %+v", payload)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"success":   true,
-				"submitted": 1,
-				"inserted":  1,
-				"updated":   0,
-				"unchanged": 0,
-				"deduped":   0,
+				"success":         true,
+				"submitted":       1,
+				"inserted":        1,
+				"updated":         0,
+				"unchanged":       0,
+				"deduped":         0,
+				"statusReplayed":  0,
+				"actionsReplayed": 0,
+				"actionsDeduped":  0,
 			})
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
@@ -561,7 +630,7 @@ func TestResumeDeployBackupRestoreFallsBackToLegacyJSON(t *testing.T) {
 		t.Fatalf("resume deploy-backup restore command failed: %v", err)
 	}
 
-	if len(callOrder) != 2 || callOrder[0] != "/api/resumes/reset" || callOrder[1] != "/api/resumes/import" {
+	if len(callOrder) != 4 || callOrder[0] != "/api/resumes/backup" || callOrder[1] != "/api/resumes/reset" || callOrder[2] != "/api/resumes/candidate-actions/reset" || callOrder[3] != "/api/resumes/import" {
 		t.Fatalf("unexpected call order: %+v", callOrder)
 	}
 

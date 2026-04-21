@@ -32,6 +32,7 @@ func newResumeCmd() *cobra.Command {
 		newResumeManualImportCmd(),
 		newResumeBackupCmd(),
 		newResumeRestoreCmd(),
+		newResumeFullRestoreCmd(),
 		newResumeDeployBackupCmd(),
 		newResumeExportCmd(),
 		newResumeDebugCmd(),

@@ -13,6 +13,27 @@ function normalizeIdentityKey(value: string): string {
     return value.trim();
 }
 
+export const listForBackup = query({
+    args: {
+        workspaceSlug: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const workspaceSlug = normalizeWorkspaceSlug(args.workspaceSlug);
+        const rows = await ctx.db
+            .query("candidate_status")
+            .withIndex("by_workspace_status", (q) => q.eq("workspaceSlug", workspaceSlug))
+            .collect();
+        return rows.map((row) => ({
+            identityKey: row.identityKey,
+            status: row.status,
+            notes: row.notes,
+            updatedBy: row.updatedBy,
+            updatedAt: row.updatedAt,
+            history: row.history,
+        }));
+    },
+});
+
 export const list = query({
     args: {
         workspaceSlug: v.optional(v.string()),

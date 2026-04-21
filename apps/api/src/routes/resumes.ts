@@ -187,6 +187,67 @@ const ResumeResetResponseSchema = z.object({
   deleted: z.record(z.number().int()),
 });
 
+const ResetCandidateActionsRequestSchema = z.object({
+  workspaceSlug: z.string().optional(),
+});
+
+const ResetCandidateActionsResponseSchema = z.object({
+  success: z.literal(true),
+  deleted: z.number().int(),
+});
+
+const resetCandidateActionsRoute = createRoute({
+  method: "post",
+  path: "/api/resumes/candidate-actions/reset",
+  tags: ["resumes"],
+  summary: "Reset candidate actions for a workspace",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: ResetCandidateActionsRequestSchema,
+        },
+      },
+      required: true,
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: ResetCandidateActionsResponseSchema,
+        },
+      },
+      description: "Reset result",
+    },
+    403: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Admin access required",
+    },
+    500: {
+      content: { "application/json": { schema: ResumeImportErrorSchema } },
+      description: "Reset failed",
+    },
+  },
+});
+
+app.openapi(resetCandidateActionsRoute, async (c) => {
+  if (c.var.accessLevel !== "admin") {
+    return c.json({ success: false as const, error: "Admin access required" }, 403);
+  }
+
+  try {
+    const request = c.req.valid("json");
+    const workspaceSlug = request.workspaceSlug || c.var.workspaceSlug;
+    const deleted = actionStorage.clearActionsForWorkspace(workspaceSlug, true);
+    return c.json(ResetCandidateActionsResponseSchema.parse({ success: true, deleted }), 200);
+  } catch (error) {
+    console.error("Failed to reset candidate actions", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return c.json({ success: false as const, error: message }, 500);
+  }
+});
+
 const HardResetReingestRequestSchema = z.object({
   dryRun: z.boolean().optional(),
 });
@@ -4073,7 +4134,7 @@ app.openapi(importResumesRoute, async (c) => {
 
   try {
     const payload = c.req.valid("json");
-    const result = await submitResumeImport(payload);
+    const result = await submitResumeImport(payload, c.var.workspaceSlug);
     return c.json(result, 200);
   } catch (error) {
     console.error("Failed to import resumes", error);
@@ -4221,6 +4282,32 @@ app.openapi(backupResumesRoute, async (c) => {
 
     const limited = typeof request.limit === "number" ? selectedEntries.slice(0, request.limit) : selectedEntries;
     const generatedAt = new Date().toISOString();
+
+    const resumeIds = limited.map((entry) => entry.resumeId);
+    const candidateActions = actionStorage.listActionsForBackup({
+      workspaceSlug: c.var.workspaceSlug,
+      resumeIds,
+    });
+
+    let candidateStatus: Array<{
+      identityKey: string;
+      status: string;
+      notes?: string;
+      updatedBy?: string;
+      updatedAt: number;
+      history?: Array<{ status: string; updatedAt: number; notes?: string }>;
+    }> = [];
+    try {
+      const statusResponse = await callConvexQuery("candidate_status:listForBackup", {
+        workspaceSlug: c.var.workspaceSlug,
+      });
+      if (Array.isArray(statusResponse)) {
+        candidateStatus = statusResponse;
+      }
+    } catch (error) {
+      console.error("Failed to query candidate_status for backup", error);
+    }
+
     c.header("Content-Disposition", `attachment; filename="resume-backup-${generatedAt.replace(/[:.]/g, "-")}.json"`);
     c.header("Cache-Control", "no-store");
     return c.json(ResumeImportRequestSchema.parse({
@@ -4229,8 +4316,11 @@ app.openapi(backupResumesRoute, async (c) => {
         generatedBy: "trends-api backup",
         generatedAt,
         totalResumes: limited.length,
+        version: "2",
       },
       resumes: limited.map((entry) => entry.payload),
+      candidateActions,
+      candidateStatus,
     }), 200);
   } catch (error) {
     console.error("Failed to backup resumes", error);

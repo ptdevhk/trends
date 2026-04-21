@@ -21,12 +21,15 @@ type ResumeBackupRequest struct {
 }
 
 type ResumeSubmitSummary struct {
-	Success   bool `json:"success"`
-	Submitted int  `json:"submitted"`
-	Inserted  int  `json:"inserted"`
-	Updated   int  `json:"updated"`
-	Unchanged int  `json:"unchanged"`
-	Deduped   int  `json:"deduped"`
+	Success         bool `json:"success"`
+	Submitted       int  `json:"submitted"`
+	Inserted        int  `json:"inserted"`
+	Updated         int  `json:"updated"`
+	Unchanged       int  `json:"unchanged"`
+	Deduped         int  `json:"deduped"`
+	StatusReplayed  int  `json:"statusReplayed"`
+	ActionsReplayed int  `json:"actionsReplayed"`
+	ActionsDeduped  int  `json:"actionsDeduped"`
 }
 
 type ResumeResetResponse struct {
@@ -112,6 +115,26 @@ func (c *Client) ResetResumes(ctx context.Context) (*ResumeResetResponse, error)
 	}
 	if !response.Success {
 		return nil, fmt.Errorf("resume reset request was not successful")
+	}
+	return &response, nil
+}
+
+type ResetCandidateActionsResponse struct {
+	Success bool `json:"success"`
+	Deleted int  `json:"deleted"`
+}
+
+func (c *Client) ResetCandidateActions(ctx context.Context, workspaceSlug string) (*ResetCandidateActionsResponse, error) {
+	endpoint := fmt.Sprintf("%s/api/resumes/candidate-actions/reset", c.APIURL)
+
+	request := map[string]string{"workspaceSlug": workspaceSlug}
+
+	var response ResetCandidateActionsResponse
+	if err := c.doJSON(ctx, http.MethodPost, endpoint, request, &response); err != nil {
+		return nil, err
+	}
+	if !response.Success {
+		return nil, fmt.Errorf("candidate actions reset request was not successful")
 	}
 	return &response, nil
 }
