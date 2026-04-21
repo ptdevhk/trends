@@ -115,6 +115,9 @@ make check TARGET=all       # dual-root governance
 make check-node / check-python
 npm test
 npm --workspace @trends/web run gen:api   # after API schema edits
+make e2e                                  # E2E smoke (requires make chrome-debug + make dev)
+make benchmark-critical-path              # Latency benchmark
+make benchmark-dev-resume-latency         # Dev-resume latency check
 ```
 
 ### Remote backup (laptop -> prod via SSH)
@@ -170,6 +173,20 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 - `make clear-resumes` may raise `OptimisticConcurrencyControlFailure` when scheduled Convex jobs overlap; just re-run until `partial:false`.
 - Local Convex dev backend rate-limits at ~4 MiB writes/sec; large restores (2k+ resumes) can hit `TooManyWrites 429` — wait ~30-60s between retry attempts.
 
+## Browser Testing & Debugging
+
+Prerequisite: `make chrome-debug` starts a headed Chrome with CDP on port 9222 and your real profile.
+
+| Tool | Purpose |
+|------|---------|
+| `playwright-cli attach` | Attach to chrome-debug (reads `.playwright/cli.config.json`, no flags needed) |
+| `playwright-cli open` | Standalone headed browser (fallback) |
+| `make e2e` | E2E smoke test via `scripts/e2e-smoke.ts` (requires chrome-debug + local dev stack) |
+| `make benchmark-critical-path` | Benchmark critical path latency (requires seeded data) |
+
+For detailed playwright-cli commands, see `.agents/skills/playwright-cli/SKILL.md`.
+For browser extension CDP patterns, see `apps/browser-extension/CLAUDE.md`.
+
 ## Current Engineering Direction (Stable Snapshot)
 - Resume screening is the primary product path.
 - Convex-first ingest/query flow powers pre-computed matching.
@@ -187,6 +204,7 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 
 ## Scoped Instructions
 - For browser extension work, follow `apps/browser-extension/CLAUDE.md`.
+- For browser automation/testing/debugging, use `playwright-cli` skill (see Browser Testing & Debugging section).
 - Use closest-scope instruction files when they exist; root rules still apply unless overridden.
 - Avoid duplicating subsystem-specific long procedures in this root file.
 

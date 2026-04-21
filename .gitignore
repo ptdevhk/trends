@@ -93,3 +93,6 @@ tmp/
 
 # Resume backup files written to CWD by old defaults
 resume-backup-*.json
+
+# Playwright CLI runtime output
+.playwright-cli/
