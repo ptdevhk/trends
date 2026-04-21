@@ -140,19 +140,19 @@ export default function DebugConfig() {
 
       <Dialog
         open={resetDatabaseDialogOpen}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!resettingDatabase) {
             setResetDatabaseDialogOpen(open)
           }
         }}
       >
         <DialogContent
-          onEscapeKeyDown={(event) => {
+          onEscapeKeyDown={(event: { preventDefault: () => void }) => {
             if (resettingDatabase) {
               event.preventDefault()
             }
           }}
-          onPointerDownOutside={(event) => {
+          onPointerDownOutside={(event: { preventDefault: () => void }) => {
             if (resettingDatabase) {
               event.preventDefault()
             }

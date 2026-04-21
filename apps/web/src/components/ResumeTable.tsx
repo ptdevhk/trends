@@ -69,7 +69,7 @@ export function ResumeTable({ items, onViewDetails }: ResumeTableProps) {
           <TableHead className="w-10">
             <Checkbox
               checked={isIndeterminate ? 'indeterminate' : allSelected}
-              onCheckedChange={(value) => toggleAll(Boolean(value))}
+              onCheckedChange={(value: boolean | 'indeterminate') => toggleAll(Boolean(value))}
               aria-label={t('resumes.columns.select')}
             />
           </TableHead>
@@ -92,7 +92,7 @@ export function ResumeTable({ items, onViewDetails }: ResumeTableProps) {
               <TableCell>
                 <Checkbox
                   checked={Boolean(selected[rowId])}
-                  onCheckedChange={(value) => toggleRow(rowId, Boolean(value))}
+                  onCheckedChange={(value: boolean | 'indeterminate') => toggleRow(rowId, Boolean(value))}
                   aria-label={t('resumes.columns.select')}
                 />
               </TableCell>

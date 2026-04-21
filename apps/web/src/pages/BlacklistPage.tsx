@@ -223,7 +223,7 @@ export function BlacklistPage() {
                   <TableHead className="w-[42px]">
                     <Checkbox
                       checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
-                      onCheckedChange={(checked) => toggleAllVisible(checked === true)}
+                      onCheckedChange={(checked: boolean | 'indeterminate') => toggleAllVisible(checked === true)}
                       aria-label={t('bulkActions.selectAll', { defaultValue: 'Select all' })}
                       data-testid="blacklist-select-all"
                     />
@@ -246,7 +246,7 @@ export function BlacklistPage() {
                       <TableCell>
                         <Checkbox
                           checked={selectedIdentityKeys.includes(item.identityKey)}
-                          onCheckedChange={(checked) => toggleOne(item.identityKey, checked === true)}
+                          onCheckedChange={(checked: boolean | 'indeterminate') => toggleOne(item.identityKey, checked === true)}
                           aria-label={item.identityKey}
                           data-testid="blacklist-row-checkbox"
                         />

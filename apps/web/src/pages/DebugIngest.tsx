@@ -656,19 +656,19 @@ export default function DebugIngest() {
 
       <Dialog
         open={hardResetDialogOpen}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!hardResetting) {
             setHardResetDialogOpen(open)
           }
         }}
       >
         <DialogContent
-          onEscapeKeyDown={(event) => {
+          onEscapeKeyDown={(event: { preventDefault: () => void }) => {
             if (hardResetting) {
               event.preventDefault()
             }
           }}
-          onPointerDownOutside={(event) => {
+          onPointerDownOutside={(event: { preventDefault: () => void }) => {
             if (hardResetting) {
               event.preventDefault()
             }
@@ -704,19 +704,19 @@ export default function DebugIngest() {
 
       <Dialog
         open={resetDialogOpen}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!resettingDatabase) {
             setResetDialogOpen(open)
           }
         }}
       >
         <DialogContent
-          onEscapeKeyDown={(event) => {
+          onEscapeKeyDown={(event: { preventDefault: () => void }) => {
             if (resettingDatabase) {
               event.preventDefault()
             }
           }}
-          onPointerDownOutside={(event) => {
+          onPointerDownOutside={(event: { preventDefault: () => void }) => {
             if (resettingDatabase) {
               event.preventDefault()
             }
@@ -752,19 +752,19 @@ export default function DebugIngest() {
 
       <Dialog
         open={resumePendingDelete !== null}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!deletingResumes && !open) {
             setResumePendingDelete(null)
           }
         }}
       >
         <DialogContent
-          onEscapeKeyDown={(event) => {
+          onEscapeKeyDown={(event: { preventDefault: () => void }) => {
             if (deletingResumes) {
               event.preventDefault()
             }
           }}
-          onPointerDownOutside={(event) => {
+          onPointerDownOutside={(event: { preventDefault: () => void }) => {
             if (deletingResumes) {
               event.preventDefault()
             }
@@ -803,19 +803,19 @@ export default function DebugIngest() {
 
       <Dialog
         open={bulkDeleteDialogOpen}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!deletingResumes) {
             setBulkDeleteDialogOpen(open)
           }
         }}
       >
         <DialogContent
-          onEscapeKeyDown={(event) => {
+          onEscapeKeyDown={(event: { preventDefault: () => void }) => {
             if (deletingResumes) {
               event.preventDefault()
             }
           }}
-          onPointerDownOutside={(event) => {
+          onPointerDownOutside={(event: { preventDefault: () => void }) => {
             if (deletingResumes) {
               event.preventDefault()
             }
