@@ -90,3 +90,6 @@ apps/worker/status.json
 .omc/
 .omx/
 tmp/
+
+# Resume backup files written to CWD by old defaults
+resume-backup-*.json

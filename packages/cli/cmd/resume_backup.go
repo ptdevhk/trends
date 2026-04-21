@@ -21,9 +21,11 @@ import (
 const defaultResumeDeployBackupDir = "/var/backups/trends/deploy"
 
 type resumeBackupEnvelope struct {
-	Metadata json.RawMessage   `json:"metadata"`
-	Resumes  []json.RawMessage `json:"resumes"`
-	Data     []json.RawMessage `json:"data"`
+	Metadata         json.RawMessage   `json:"metadata"`
+	Resumes          []json.RawMessage `json:"resumes"`
+	Data             []json.RawMessage `json:"data"`
+	CandidateActions json.RawMessage   `json:"candidateActions,omitempty"`
+	CandidateStatus  json.RawMessage   `json:"candidateStatus,omitempty"`
 }
 
 type resumeBackupResult struct {
@@ -33,30 +35,37 @@ type resumeBackupResult struct {
 }
 
 type resumeRestoreResult struct {
-	Workspace    string                    `json:"workspace,omitempty"`
-	RunDir       string                    `json:"runDir,omitempty"`
-	InputPath    string                    `json:"inputPath"`
-	FilePath     string                    `json:"file,omitempty"`
-	Mode         string                    `json:"mode"`
-	Reset        bool                      `json:"reset"`
-	ResetCount   int                       `json:"resetCount"`
-	ResetPartial bool                      `json:"resetPartial"`
-	Submitted    int                       `json:"submitted"`
-	Inserted     int                       `json:"inserted"`
-	Updated      int                       `json:"updated"`
-	Unchanged    int                       `json:"unchanged"`
-	Deduped      int                       `json:"deduped"`
-	Files        []resumeRestoreFileResult `json:"files"`
+	Workspace       string                    `json:"workspace,omitempty"`
+	RunDir          string                    `json:"runDir,omitempty"`
+	InputPath       string                    `json:"inputPath"`
+	FilePath        string                    `json:"file,omitempty"`
+	Mode            string                    `json:"mode"`
+	Reset           bool                      `json:"reset"`
+	ResetCount      int                       `json:"resetCount"`
+	ResetPartial    bool                      `json:"resetPartial"`
+	AutoBackupPath  string                    `json:"autoBackupPath,omitempty"`
+	Submitted       int                       `json:"submitted"`
+	Inserted        int                       `json:"inserted"`
+	Updated         int                       `json:"updated"`
+	Unchanged       int                       `json:"unchanged"`
+	Deduped         int                       `json:"deduped"`
+	StatusReplayed  int                       `json:"statusReplayed"`
+	ActionsReplayed int                       `json:"actionsReplayed"`
+	ActionsDeduped  int                       `json:"actionsDeduped"`
+	Files           []resumeRestoreFileResult `json:"files"`
 }
 
 type resumeRestoreFileResult struct {
-	FilePath  string `json:"file"`
-	Count     int    `json:"count"`
-	Submitted int    `json:"submitted"`
-	Inserted  int    `json:"inserted"`
-	Updated   int    `json:"updated"`
-	Unchanged int    `json:"unchanged"`
-	Deduped   int    `json:"deduped"`
+	FilePath        string `json:"file"`
+	Count           int    `json:"count"`
+	Submitted       int    `json:"submitted"`
+	Inserted        int    `json:"inserted"`
+	Updated         int    `json:"updated"`
+	Unchanged       int    `json:"unchanged"`
+	Deduped         int    `json:"deduped"`
+	StatusReplayed  int    `json:"statusReplayed"`
+	ActionsReplayed int    `json:"actionsReplayed"`
+	ActionsDeduped  int    `json:"actionsDeduped"`
 }
 
 type resumeSummaryOutput struct {
@@ -105,16 +114,19 @@ func normalizeResumeBackupOutputPath(outPath string, disposition string) string 
 		return resolvedPath
 	}
 
-	return fmt.Sprintf("resume-backup-%s.json", time.Now().Format("20060102-150405"))
+	return filepath.Join("output", "resume-backups", fmt.Sprintf("resume-backup-%s.json", time.Now().Format("20060102-150405")))
 }
 
 func normalizeResumeRestoreMode(mode string) (string, error) {
 	normalizedMode := strings.ToLower(strings.TrimSpace(mode))
 	if normalizedMode == "" {
-		normalizedMode = "upsert"
+		normalizedMode = "replace"
 	}
-	if normalizedMode != "upsert" && normalizedMode != "replace" {
-		return "", fmt.Errorf("invalid mode %q (expected upsert|replace)", mode)
+	if normalizedMode == "upsert" {
+		normalizedMode = "merge"
+	}
+	if normalizedMode != "merge" && normalizedMode != "replace" {
+		return "", fmt.Errorf("invalid mode %q (expected replace|merge; upsert is an alias for merge)", mode)
 	}
 	return normalizedMode, nil
 }
@@ -512,7 +524,7 @@ func resetResumesFully(ctx context.Context, apiClient *client.Client) (int, erro
 	}
 }
 
-func restoreResumeBackupPath(ctx context.Context, apiClient *client.Client, inputPath string, mode string, yes bool) (*resumeRestoreResult, error) {
+func restoreResumeBackupPath(ctx context.Context, apiClient *client.Client, inputPath string, mode string, yes bool, noAutoBackup bool) (*resumeRestoreResult, error) {
 	normalizedMode, err := normalizeResumeRestoreMode(mode)
 	if err != nil {
 		return nil, err
@@ -526,22 +538,36 @@ func restoreResumeBackupPath(ctx context.Context, apiClient *client.Client, inpu
 		return nil, err
 	}
 
+	var autoBackupPath string
 	resetCount := 0
 	resetPartial := false
 	if normalizedMode == "replace" {
+		if !noAutoBackup {
+			autoBackupPath, err = autoBackupBeforeReplace(ctx, apiClient)
+			if err != nil {
+				return nil, fmt.Errorf("auto-backup before replace failed: %w (use --no-auto-backup to skip)", err)
+			}
+		}
+
 		resetCount, err = resetResumesFully(ctx, apiClient)
 		if err != nil {
 			return nil, err
 		}
+
+		_, err = apiClient.ResetCandidateActions(ctx, currentOptions().Workspace)
+		if err != nil {
+			return nil, fmt.Errorf("reset candidate actions failed: %w", err)
+		}
 	}
 
 	result := &resumeRestoreResult{
-		InputPath:    inputPath,
-		Mode:         normalizedMode,
-		Reset:        normalizedMode == "replace",
-		ResetCount:   resetCount,
-		ResetPartial: resetPartial,
-		Files:        make([]resumeRestoreFileResult, 0, len(restorePaths)),
+		InputPath:      inputPath,
+		Mode:           normalizedMode,
+		Reset:          normalizedMode == "replace",
+		ResetCount:     resetCount,
+		ResetPartial:   resetPartial,
+		AutoBackupPath: autoBackupPath,
+		Files:          make([]resumeRestoreFileResult, 0, len(restorePaths)),
 	}
 	if len(restorePaths) == 1 {
 		result.FilePath = restorePaths[0]
@@ -559,13 +585,16 @@ func restoreResumeBackupPath(ctx context.Context, apiClient *client.Client, inpu
 		}
 
 		fileResult := resumeRestoreFileResult{
-			FilePath:  restorePath,
-			Count:     resumeBackupCount(envelope),
-			Submitted: response.Submitted,
-			Inserted:  response.Inserted,
-			Updated:   response.Updated,
-			Unchanged: response.Unchanged,
-			Deduped:   response.Deduped,
+			FilePath:        restorePath,
+			Count:           resumeBackupCount(envelope),
+			Submitted:       response.Submitted,
+			Inserted:        response.Inserted,
+			Updated:         response.Updated,
+			Unchanged:       response.Unchanged,
+			Deduped:         response.Deduped,
+			StatusReplayed:  response.StatusReplayed,
+			ActionsReplayed: response.ActionsReplayed,
+			ActionsDeduped:  response.ActionsDeduped,
 		}
 		result.Files = append(result.Files, fileResult)
 		result.Submitted += fileResult.Submitted
@@ -573,9 +602,20 @@ func restoreResumeBackupPath(ctx context.Context, apiClient *client.Client, inpu
 		result.Updated += fileResult.Updated
 		result.Unchanged += fileResult.Unchanged
 		result.Deduped += fileResult.Deduped
+		result.StatusReplayed += fileResult.StatusReplayed
+		result.ActionsReplayed += fileResult.ActionsReplayed
+		result.ActionsDeduped += fileResult.ActionsDeduped
 	}
 
 	return result, nil
+}
+
+func autoBackupBeforeReplace(ctx context.Context, apiClient *client.Client) (string, error) {
+	backupResult, err := backupResumesToFile(ctx, apiClient, client.ResumeBackupRequest{}, "")
+	if err != nil {
+		return "", err
+	}
+	return backupResult.FilePath, nil
 }
 
 func newResumeBackupCmd() *cobra.Command {
@@ -588,7 +628,7 @@ func newResumeBackupCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "backup",
-		Short: "Backup live resume records to a portable JSON or .tar.gz file",
+		Short: "Backup resumes from $API_URL (defaults to local) to a portable file",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := client.ResumeBackupRequest{
 				ResumeIDs:   normalizeStringSlice(resumeIDs),
@@ -618,13 +658,14 @@ func newResumeBackupCmd() *cobra.Command {
 
 func newResumeRestoreCmd() *cobra.Command {
 	var (
-		mode string
-		yes  bool
+		mode         string
+		yes          bool
+		noAutoBackup bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "restore <path>",
-		Short: "Restore resume records from a portable backup file or snapshot directory",
+		Short: "Restore a backup file into $API_URL (defaults to local)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			inputPath := strings.TrimSpace(args[0])
@@ -632,7 +673,7 @@ func newResumeRestoreCmd() *cobra.Command {
 				return fmt.Errorf("backup file path is required")
 			}
 
-			result, err := restoreResumeBackupPath(context.Background(), newAPIClient(), inputPath, mode, yes)
+			result, err := restoreResumeBackupPath(context.Background(), newAPIClient(), inputPath, mode, yes, noAutoBackup)
 			if err != nil {
 				return err
 			}
@@ -642,8 +683,33 @@ func newResumeRestoreCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&mode, "mode", "upsert", "Restore mode: upsert|replace")
+	cmd.Flags().StringVar(&mode, "mode", "replace", "Restore mode: replace|merge (upsert is an alias for merge)")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm destructive replace mode")
+	cmd.Flags().BoolVar(&noAutoBackup, "no-auto-backup", false, "Skip auto-backup before replace reset")
+
+	return cmd
+}
+
+func newResumeFullRestoreCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "full-restore <path>",
+		Short: "Replace all local data from backup file (--mode replace --yes with auto-backup)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			inputPath := strings.TrimSpace(args[0])
+			if inputPath == "" {
+				return fmt.Errorf("backup file path is required")
+			}
+
+			result, err := restoreResumeBackupPath(context.Background(), newAPIClient(), inputPath, "replace", true, false)
+			if err != nil {
+				return err
+			}
+
+			output := buildResumeRestoreOutput(result, resumeOutputExtras{})
+			return writeOutput(cmd, output.Headers, output.Rows, result)
+		},
+	}
 
 	return cmd
 }
@@ -719,7 +785,7 @@ func newResumeDeployBackupRestoreCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "restore [run-dir]",
-		Short: "Restore resume records from a deploy backup run directory (.tar.gz preferred)",
+		Short: "Restore from deploy backup run directory (.tar.gz preferred) into $API_URL",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			runDir, err := resolveDeployBackupRunDir(baseDir, args)
@@ -731,7 +797,7 @@ func newResumeDeployBackupRestoreCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := restoreResumeBackupPath(context.Background(), newAPIClient(), filePath, mode, yes)
+			result, err := restoreResumeBackupPath(context.Background(), newAPIClient(), filePath, mode, yes, false)
 			if err != nil {
 				return err
 			}
@@ -747,7 +813,7 @@ func newResumeDeployBackupRestoreCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&baseDir, "base-dir", defaultResumeDeployBackupDir, "Base deploy backup directory")
-	cmd.Flags().StringVar(&mode, "mode", "upsert", "Restore mode: upsert|replace")
+	cmd.Flags().StringVar(&mode, "mode", "replace", "Restore mode: replace|merge (upsert is an alias for merge)")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Confirm destructive replace mode")
 
 	return cmd
