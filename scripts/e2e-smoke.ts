@@ -265,7 +265,6 @@ async function runCollectionTest(page: Page) {
     );
     await startCollectionBtn.click();
 
-
     await waitForToast(page, /Collection task dispatched/i);
     console.log('✅ Collection test passed.');
 }
