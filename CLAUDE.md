@@ -45,6 +45,7 @@ English-first guidance; Chinese notes are short clarifications.
 - BFF/API: Hono + OpenAPI (`apps/api`).
 - Worker: FastAPI scheduler/REST (`apps/worker`).
 - Data/compute path: Convex (`packages/convex`).
+- Candidate state is split: `candidate_actions` (star/archive/shortlist/reject/note/contact) in SQLite `output/resume_screening.db`; `candidate_status` (pipeline enum) in Convex.
 - Runtime sources include crawler output (`output/*.db`) and resume samples.
 
 ## Execution Priority
@@ -97,57 +98,45 @@ English-first guidance; Chinese notes are short clarifications.
 - CI: use `npm` / `npx` only.
 - Python dependency/runtime tooling: `uv`.
 
-### Start Development
+### Local dev stack
 ```bash
-make install-deps                           # Sync repo project skills into .agents/.claude and install configured global skills via the skills CLI
-CONVEX_MIRROR_MODE=mirror-first make install-deps  # Optional: mirror-first Convex prefetch during bootstrap
-make sync-project-skills                    # Refresh committed project skill artifacts after editing dev-docs/skills/*
-make install-global-skills                  # Reinstall configured external global skills from config/skills/install.yaml (direct npx skills add -g tree URLs)
-make prefetch-convex                        # Prefetch local Convex backend + dashboard cache
-CONVEX_MIRROR_MODE=mirror-first make prefetch-convex  # Optional: try configured mirrors before GitHub
-make dev                # Full local stack
-make dev-fast           # UI-focused fast profile
-make dev-critical       # Critical path profile
-make dev-backend        # Backend-focused profile
-./scripts/dev.sh --help # Full dev service-profile plus CI=true/1 for Convex startup/prefetch and related env contract
+make install-deps                                    # Bootstrap (skills + deps + bin/trends + Convex prefetch)
+make dev                # Full local stack (alias preserved)
+make dev-fast           # UI-focused
+make dev-critical / dev-backend
+make dev-web / dev-api / dev-worker / dev-api-worker / dev-mcp / dev-crawl
+./scripts/dev.sh --help
 ```
 
-### Start Single Services
+### Local checks & tooling
 ```bash
-make dev-web
-make dev-api
-make dev-worker
-make dev-api-worker
-make dev-mcp
-make dev-crawl
-```
-
-### Deployment
-```bash
-make prod-install                                # Install the production stack from the current checkout (JDs only)
-ENV_FILE=.env.production make prod-deploy-check  # Dry run the deploy precheck against the target env
-CONVEX_MIRROR_MODE=mirror-first make prod-deploy # Optional: mirror-first Convex prefetch during upgrade
-make restore-sample-snapshots                    # Optional: pull + restore fresh sample resume snapshots for dev
-./scripts/install.sh --help                 # Full install/upgrade modes plus CI=true/1 for production prefetch and related env knobs
-```
-
-### Verification
-```bash
-make check                  # Default: validate committed project skill sync plus ~/.codex/skills governance install
-make check TARGET=all       # Optional: validate governance installs in both skill roots
-make check-build TARGET=all # Optional: include build validation after dual-root governance checks
-make check-node
-make check-python
+make check                  # validate + governance + project skill sync
+make check TARGET=all       # dual-root governance
+make check-node / check-python
 npm test
-npm run verify:critical-path
-npm run test:api:search-profiles
-npm run test:worker:resume-tasks
+npm --workspace @trends/web run gen:api   # after API schema edits
 ```
 
-### API Contract / Client Sync
-Use when API route/schema changed:
+### Remote backup (laptop -> prod via SSH)
 ```bash
-npm --workspace @trends/web run gen:api
+make remote-backup-prod                          # SSH tunnel -> backup -> close (alias: backup-prod)
+make remote-backup-prod SSH_HOST=myhost WORKSPACE=hr
+```
+
+### Restore to local dev (laptop-only)
+```bash
+make local-restore-from-prod FILE=output/resume-backups/resumes-prod-<...>.tar.gz
+# MODE=replace YES=1 preset; auto-writes safety pre-backup; skip with SKIP_AUTO_BACKUP=1
+# For merge mode: make restore-resumes FILE=... MODE=merge
+# Go CLI: trends resume full-restore <path>
+```
+
+### On prod host (after `ssh ptcloud && cd /opt/trends`)
+```bash
+make on-prod-deploy-check        # dry run (alias: prod-deploy-check / deploy-check)
+make on-prod-deploy              # full upgrade (alias: prod-deploy / deploy)
+make on-prod-install             # first-time systemd install (alias: prod-install / install)
+make on-prod-refresh-env         # refresh env + rebuild web bundle (alias: refresh-env)
 ```
 
 ### Governance Sync (only when policy block changes)
@@ -175,6 +164,11 @@ TARGET=all make sync-agent-governance  # Optional: run policy sync + governance 
 - Do not modify `README.md` unless explicitly requested.
 - Do not add docs/comments unless explicitly requested.
 - Keep changes minimal, testable, and scoped to user request.
+
+### Known Gotchas
+- After editing `apps/api/src/schemas/*.ts`, stage `apps/web/src/lib/api-types.ts` too — `make check` regenerates it and fails `git diff --exit-code` otherwise.
+- `make clear-resumes` may raise `OptimisticConcurrencyControlFailure` when scheduled Convex jobs overlap; just re-run until `partial:false`.
+- Local Convex dev backend rate-limits at ~4 MiB writes/sec; large restores (2k+ resumes) can hit `TooManyWrites 429` — wait ~30-60s between retry attempts.
 
 ## Current Engineering Direction (Stable Snapshot)
 - Resume screening is the primary product path.

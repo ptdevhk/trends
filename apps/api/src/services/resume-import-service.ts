@@ -16,6 +16,7 @@ import {
   ResumeSubmitSummarySchema,
 } from "../schemas/resumes.js";
 import { config } from "./config.js";
+import { ActionStorage, type CandidateActionBackupRow } from "./action-storage.js";
 
 const JOB5156_HOST = "hr.job5156.com";
 const EHIRE_51JOB_HOST = "ehire.51job.com";
@@ -389,6 +390,110 @@ export async function submitNormalizedResumeImport(
   });
 }
 
-export async function submitResumeImport(input: ResumeImportRequest): Promise<ResumeSubmitSummary> {
-  return submitNormalizedResumeImport(normalizeResumeImportPayload(input));
+export type CandidateStateReplayResult = {
+  statusReplayed: number;
+  actionsReplayed: number;
+  actionsDeduped: number;
+};
+
+export async function replayCandidateState(params: {
+  candidateStatus?: Array<{
+    identityKey: string;
+    status: string;
+    notes?: string;
+    updatedBy?: string;
+    updatedAt: number;
+    history?: Array<{ status: string; updatedAt: number; notes?: string }>;
+  }>;
+  candidateActions?: CandidateActionBackupRow[];
+  workspaceSlug: string;
+  mode: "replace" | "merge";
+}): Promise<CandidateStateReplayResult> {
+  const { candidateStatus, candidateActions, workspaceSlug, mode } = params;
+  const result: CandidateStateReplayResult = {
+    statusReplayed: 0,
+    actionsReplayed: 0,
+    actionsDeduped: 0,
+  };
+
+  if (candidateStatus && candidateStatus.length > 0) {
+    const convexUrl = resolveConvexUrl().replace(/\/$/, "");
+    for (const entry of candidateStatus) {
+      try {
+        const response = await fetch(`${convexUrl}/api/mutation`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            path: "candidate_status:upsert",
+            args: {
+              workspaceSlug,
+              identityKey: entry.identityKey,
+              status: entry.status,
+              notes: entry.notes,
+              updatedBy: entry.updatedBy,
+            },
+          }),
+        });
+
+        if (response.ok) {
+          result.statusReplayed++;
+        } else {
+          console.error("candidate_status:upsert failed", {
+            identityKey: entry.identityKey,
+            status: response.status,
+          });
+        }
+      } catch (error) {
+        console.error("candidate_status:upsert error", {
+          identityKey: entry.identityKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  if (candidateActions && candidateActions.length > 0) {
+    const actionStorage = new ActionStorage(config.projectRoot);
+    const replayResult = actionStorage.replayActions({
+      actions: candidateActions,
+      mode,
+    });
+    result.actionsReplayed = replayResult.replayed;
+    result.actionsDeduped = replayResult.deduped;
+  }
+
+  return result;
+}
+
+export async function submitResumeImport(input: ResumeImportRequest, workspaceSlug?: string): Promise<{
+  success: true;
+  submitted: number;
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  deduped: number;
+  statusReplayed: number;
+  actionsReplayed: number;
+  actionsDeduped: number;
+}> {
+  const normalized = normalizeResumeImportPayload(input);
+  const resumeResult = await submitNormalizedResumeImport(normalized);
+
+  const resolvedWorkspace = workspaceSlug ?? "dev";
+  const stateResult = await replayCandidateState({
+    candidateStatus: input.candidateStatus,
+    candidateActions: input.candidateActions,
+    workspaceSlug: resolvedWorkspace,
+    mode: "merge",
+  });
+
+  return {
+    ...resumeResult,
+    statusReplayed: stateResult.statusReplayed,
+    actionsReplayed: stateResult.actionsReplayed,
+    actionsDeduped: stateResult.actionsDeduped,
+  };
 }

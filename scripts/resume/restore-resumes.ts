@@ -13,9 +13,11 @@ type RestorePayload = {
   metadata?: Record<string, unknown>;
   resumes?: unknown[];
   data?: unknown[];
+  candidateActions?: unknown[];
+  candidateStatus?: unknown[];
 };
 
-type RestoreMode = "upsert" | "replace";
+type RestoreMode = "replace" | "merge";
 
 type RestoreRuntime = {
   fetch: typeof fetch;
@@ -42,6 +44,7 @@ type RestoreRunSummary = {
   mode: RestoreMode;
   reset: boolean;
   recomputeDerivedFields: boolean;
+  autoBackupPath?: string;
   resetResult?: Record<string, unknown>;
   files: RestoreFileSummary[];
 };
@@ -63,9 +66,12 @@ function readResumeArray(payload: RestorePayload): unknown[] {
 }
 
 function resolveMode(value: string | undefined): RestoreMode {
-  const normalized = value?.trim().toLowerCase() || "upsert";
-  if (normalized !== "upsert" && normalized !== "replace") {
-    throw usageError(`invalid restore mode ${JSON.stringify(value)} (expected upsert|replace)`);
+  const normalized = value?.trim().toLowerCase() || "replace";
+  if (normalized === "upsert") {
+    return "merge";
+  }
+  if (normalized !== "replace" && normalized !== "merge") {
+    throw usageError(`invalid restore mode ${JSON.stringify(value)} (expected replace|merge; upsert is an alias for merge)`);
   }
   return normalized;
 }
@@ -76,12 +82,14 @@ function usage(): string {
     "  make restore-resumes FILE=/abs/path/resume-backup.json [WORKSPACE=dev] [API_URL=http://localhost:3000]",
     "  make restore-resumes FILE=/abs/path/resume-backups/20260321-015304 [WORKSPACE=dev] [API_URL=http://localhost:3000]",
     "  make restore-resumes FILE=/abs/path/resume-backup.json MODE=replace YES=1 [WORKSPACE=dev] [API_URL=http://localhost:3000]",
+    "  make restore-resumes FILE=/abs/path/resume-backup.json MODE=merge [WORKSPACE=dev] [API_URL=http://localhost:3000]",
     "  make restore-resumes FILE=/abs/path/resume-backup.json RECOMPUTE_DERIVED_FIELDS=1 [WORKSPACE=dev] [API_URL=http://localhost:3000]",
     "",
     "Environment:",
     "  FILE        Required backup file path or directory containing backup files",
-    "  MODE        Optional restore mode: upsert | replace (default: upsert)",
+    "  MODE        Optional restore mode: replace | merge (default: replace; upsert is an alias for merge)",
     "  YES         Required when MODE=replace; set YES=1 to confirm destructive reset",
+    "  SKIP_AUTO_BACKUP  Optional; set to 1 to skip auto-backup before replace reset",
     "  RECOMPUTE_DERIVED_FIELDS  Optional; set to 1 to drop preserved computed fields and force current ingest recomputation",
     "  WORKSPACE   Optional workspace slug (default: dev)",
     "  API_URL     Optional API URL (default: http://localhost:3000)",
@@ -150,8 +158,11 @@ function parseRestorePayload(raw: string): RestorePayload {
 }
 
 function validateRestorePayload(parsed: RestorePayload): void {
-  if (!isRecord(parsed.metadata) || readResumeArray(parsed).length === 0) {
-    throw new Error("invalid backup file: missing metadata or resume array");
+  const hasResumes = readResumeArray(parsed).length > 0;
+  const hasActions = Array.isArray(parsed.candidateActions) && parsed.candidateActions.length > 0;
+  const hasStatus = Array.isArray(parsed.candidateStatus) && parsed.candidateStatus.length > 0;
+  if (!isRecord(parsed.metadata) || (!hasResumes && !hasActions && !hasStatus)) {
+    throw new Error("invalid backup file: missing metadata or any data array");
   }
 }
 
@@ -244,6 +255,50 @@ async function resetResumesFully(
   }
 }
 
+async function autoBackupBeforeReplace(
+  apiUrl: string,
+  workspace: string,
+  runtime: RestoreRuntime,
+): Promise<string> {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const autoBackupPath = `output/resume-backups/auto-pre-restore-${workspace}-${timestamp}.json`;
+
+  const backupResponse = await postJson(
+    apiUrl,
+    workspace,
+    "/api/resumes/backup",
+    {},
+    runtime,
+  );
+
+  if (!backupResponse.ok) {
+    const text = await backupResponse.text();
+    throw new Error(`auto-backup failed (${backupResponse.status}): ${text.trim() || "no response body"} — aborting replace. Set SKIP_AUTO_BACKUP=1 to override.`);
+  }
+
+  const backupData = await backupResponse.text();
+  const fs = await import("node:fs/promises");
+  await fs.writeFile(autoBackupPath, backupData, "utf8");
+
+  return autoBackupPath;
+}
+
+async function resetCandidateActions(
+  apiUrl: string,
+  workspace: string,
+  runtime: RestoreRuntime,
+): Promise<number> {
+  const response = await postJson(
+    apiUrl,
+    workspace,
+    "/api/resumes/candidate-actions/reset",
+    { workspaceSlug: workspace },
+    runtime,
+  );
+  const result = await parseJsonRecord(response, "candidate-actions reset failed");
+  return typeof result.deleted === "number" ? result.deleted : 0;
+}
+
 export async function runRestoreResumes(
   params: {
     apiUrl: string;
@@ -252,6 +307,7 @@ export async function runRestoreResumes(
     mode: RestoreMode;
     confirm: boolean;
     recomputeDerivedFields: boolean;
+    skipAutoBackup?: boolean;
   },
   runtime: RestoreRuntime = { fetch: globalThis.fetch },
 ): Promise<RestoreRunSummary> {
@@ -261,9 +317,24 @@ export async function runRestoreResumes(
 
   const restorePaths = await resolveRestorePaths(params.filePath);
 
+  let autoBackupPath: string | undefined;
   let resetResult: Record<string, unknown> | undefined;
   if (params.mode === "replace") {
+    if (!params.skipAutoBackup) {
+      autoBackupPath = await autoBackupBeforeReplace(
+        params.apiUrl,
+        params.workspace,
+        runtime,
+      );
+    }
+
     resetResult = await resetResumesFully(
+      params.apiUrl,
+      params.workspace,
+      runtime,
+    );
+
+    await resetCandidateActions(
       params.apiUrl,
       params.workspace,
       runtime,
@@ -302,6 +373,7 @@ export async function runRestoreResumes(
     mode: params.mode,
     reset: params.mode === "replace",
     recomputeDerivedFields: params.recomputeDerivedFields,
+    autoBackupPath,
     resetResult,
     files,
   };
@@ -315,6 +387,7 @@ async function main(): Promise<void> {
     mode: resolveMode(process.env.MODE),
     confirm: parseTruthy(process.env.YES),
     recomputeDerivedFields: parseTruthy(process.env.RECOMPUTE_DERIVED_FIELDS),
+    skipAutoBackup: parseTruthy(process.env.SKIP_AUTO_BACKUP),
   });
 
   console.log(JSON.stringify(summary, null, 2));

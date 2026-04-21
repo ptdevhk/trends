@@ -623,6 +623,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resumes/candidate-actions/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset candidate actions for a workspace */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        workspaceSlug?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reset result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                            deleted: number;
+                        };
+                    };
+                };
+                /** @description Admin access required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Reset failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: false;
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/resumes/samples": {
         parameters: {
             query?: never;
@@ -7513,6 +7585,8 @@ export interface components {
             sourceUrl: string;
             /** @example browser-extension@1.0.0 */
             generatedBy: string;
+            /** @example 2 */
+            version?: string;
             /** @example seek */
             sourceKey?: string;
             /** @example hk.employer.seek.com */
@@ -7603,11 +7677,54 @@ export interface components {
             /** @example true */
             recomputeDerivedFields?: boolean;
         };
+        CandidateActionBackup: {
+            /** @example R123456 */
+            resumeId: string;
+            /**
+             * @example archive
+             * @enum {string}
+             */
+            actionType: "star" | "shortlist" | "reject" | "archive" | "note" | "contact" | "ai_score_like" | "ai_score_unlike" | "ai_summary_like" | "ai_summary_unlike";
+            /**
+             * @example {
+             *       "scopeId": "session-123"
+             *     }
+             */
+            actionData?: {
+                [key: string]: unknown;
+            };
+            /** @example session-123 */
+            scopeId?: string;
+            /** @example 2026-03-15T10:30:00+08:00 */
+            createdAt: string;
+        };
+        CandidateStatusBackup: {
+            /** @example profileUrl:https://hr.job5156.com/resume/view/123 */
+            identityKey: string;
+            /**
+             * @example interviewing
+             * @enum {string}
+             */
+            status: "new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn";
+            /** @example Strong candidate */
+            notes?: string;
+            /** @example hr.lead */
+            updatedBy?: string;
+            /** @example 1710489600000 */
+            updatedAt: number;
+            history?: {
+                status: string;
+                updatedAt: number;
+                notes?: string;
+            }[];
+        };
         ResumeImportRequest: {
             metadata: components["schemas"]["ResumeImportMetadata"];
             resumes?: components["schemas"]["ResumeImportItem"][];
             data?: components["schemas"]["ResumeImportItem"][];
             options?: components["schemas"]["ResumeImportOptions"];
+            candidateActions?: components["schemas"]["CandidateActionBackup"][];
+            candidateStatus?: components["schemas"]["CandidateStatusBackup"][];
         };
         ResumeManualImportSource: {
             /** @example 51job-manual */

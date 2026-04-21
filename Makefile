@@ -1,7 +1,9 @@
 # TrendRadar Development Makefile
 
-.PHONY: dev dev-samples dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-ensure dev-convex-status dev-web dev-api dev-worker dev-api-worker run crawl mcp mcp-http \
-		worker worker-once prod-install prod-deploy prod-deploy-check install deploy deploy-check install-deps uninstall fetch-docs clean check help docker docker-build docker-down \
+.PHONY: dev dev-samples dev-fast dev-critical dev-backend dev-clean dev-mcp dev-crawl dev-convex dev-convex-stop dev-convex-restart dev-convex-refresh dev-convex-ensure dev-convex-status dev-web dev-api dev-worker dev-api-worker \
+		local-run-crawler local-run-mcp local-run-mcp-http local-run-worker local-run-worker-once run crawl mcp mcp-http worker worker-once \
+		on-prod-install on-prod-deploy on-prod-deploy-check on-prod-uninstall on-prod-refresh-env prod-install prod-deploy prod-deploy-check install deploy deploy-check uninstall refresh-env \
+		install-deps fetch-docs clean check help docker docker-build docker-down \
 		check-python check-node check-build \
 		test test-python test-node test-resume test-extension-keyword-mode test-api-search-profiles test-worker-resume-tasks test-collect-url-smoke \
 		build-static build-static-fresh build-extension-zip serve-static \
@@ -10,7 +12,7 @@
 		debug-51job-detail \
 		seed seed-full seed-force seed-clear seed-clear-workspace seed-clear-dev \
 		seed-clear-demo-resumes \
-		backup-resumes restore-resumes restore-resumes-restart clear-resume-analyses clear-resume-analyses-restart \
+		backup-resumes restore-resumes remote-backup-prod backup-prod local-restore-from-prod restore-from-prod restore-resumes-restart clear-resume-analyses clear-resume-analyses-restart \
 		clear-resumes \
 		cli-build cli-install cli-test \
 		sync-agent-policy check-agent-policy sync-project-skills check-project-skills install-global-skills install-agent-skill check-agent-skill sync-agent-governance \
@@ -284,61 +286,66 @@ dev-worker:
 # Production
 # =============================================================================
 
-# Production run (writes root index.html for GitHub Pages)
-run:
+# Local run: production-mode on laptop (NOT on prod host)
+local-run-crawler:
 	uv run python -m trendradar
 
-# Run crawler (alias for run)
-crawl:
-	uv run python -m trendradar
+run: local-run-crawler
+crawl: local-run-crawler
 
-# MCP server (STDIO mode - for MCP clients over stdio)
-mcp:
+local-run-mcp:
 	uv run python -m mcp_server.server
 
-# MCP server (HTTP mode - for web-based clients)
-mcp-http:
+mcp: local-run-mcp
+
+local-run-mcp-http:
 	uv run python -m mcp_server.server --transport http --port 3333
 
-# Worker scheduler (production mode)
-worker:
+mcp-http: local-run-mcp-http
+
+local-run-worker:
 	uv run python -m apps.worker
 
-# Worker scheduler (run once and exit)
-worker-once:
+worker: local-run-worker
+
+local-run-worker-once:
 	uv run python -m apps.worker --once
 
+worker-once: local-run-worker-once
+
 # =============================================================================
-# Deployment
+# On-prod host (ssh in first: ssh <host> && cd /opt/trends && make <target>)
 # =============================================================================
 
-# Install as systemd services (production) — seeds JDs only + runs migrations
-prod-install:
+# Runs on prod host ONLY. Install as systemd services — seeds JDs only + runs migrations
+on-prod-install:
 	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh install
 
-# Backwards-compatible alias for prod-install
-install: prod-install
+prod-install: on-prod-install
+install: on-prod-install
 
-# Preflight workspace branch, snapshot Convex, then pull/rebuild/restart production services (JDs only)
-prod-deploy:
+# Runs on prod host ONLY. Preflight workspace branch, snapshot Convex, then pull/rebuild/restart production services (JDs only)
+on-prod-deploy:
 	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade
 
-# Backwards-compatible alias for prod-deploy
-deploy: prod-deploy
+prod-deploy: on-prod-deploy
+deploy: on-prod-deploy
 
-# Show whether deploy would skip, refresh env only, or run a full upgrade
-prod-deploy-check:
+# Runs on prod host ONLY. Show whether deploy would skip, refresh env only, or run a full upgrade
+on-prod-deploy-check:
 	sudo REPO_URL="$${REPO_URL:-}" ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" INSTALL_BRANCH="$${INSTALL_BRANCH:-}" FORCE="$${FORCE:-}" ALLOW_NODE_DOWNGRADE="$${ALLOW_NODE_DOWNGRADE:-}" ./scripts/install.sh upgrade-check
 
-# Backwards-compatible alias for prod-deploy-check
-deploy-check: prod-deploy-check
+prod-deploy-check: on-prod-deploy-check
+deploy-check: on-prod-deploy-check
 
-# Remove systemd services
-uninstall:
+# Runs on prod host ONLY. Remove systemd services
+on-prod-uninstall:
 	sudo ENV_FILE="$${ENV_FILE:-.env.production}" WORKSPACE_DIR="$$(pwd)" ./scripts/install.sh uninstall
 
-# Refresh runtime env and rebuild the production frontend bundle
-refresh-env:
+uninstall: on-prod-uninstall
+
+# Runs on prod host ONLY. Refresh runtime env and rebuild the production frontend bundle
+on-prod-refresh-env:
 	@if [ ! -f .env.production ]; then echo "Error: .env.production not found"; exit 1; fi
 	sudo cp .env.production /etc/trends/env; \
 	sudo cp .env.production /opt/trends/.env.production; \
@@ -360,6 +367,9 @@ refresh-env:
 	sudo systemctl is-active --quiet trends-worker-api && echo "  trends-worker-api: active" || echo "  trends-worker-api: FAILED"; \
 	sudo systemctl is-active --quiet trends-mcp && echo "  trends-mcp: active" || echo "  trends-mcp: FAILED"
 
+refresh-env: on-prod-refresh-env
+
+# Dual-target: follows $API_URL. Defaults to http://localhost:3000 (local).
 # Backup live resume records to a portable JSON or .tar.gz file
 backup-resumes:
 	@API_URL="$${API_URL:-$${TRENDS_API_URL:-http://localhost:3000}}" \
@@ -387,6 +397,40 @@ restore-resumes:
 		npx tsx scripts/resume/restore-resumes.ts; \
 	fi
 
+# One-liner: SSH tunnel → backup prod workspace → close tunnel
+# Defaults: SSH_HOST=ptcloud, TUNNEL_PORT=13000, WORKSPACE=dev
+# OUT defaults to output/resume-backups/resumes-prod-<workspace>-<timestamp>.tar.gz
+# Runs on LAPTOP; opens SSH tunnel to remote prod API.
+# One-liner: SSH tunnel → backup prod workspace → close tunnel
+# Defaults: SSH_HOST=ptcloud, TUNNEL_PORT=13000, WORKSPACE=dev
+# OUT defaults to output/resume-backups/resumes-prod-<workspace>-<timestamp>.tar.gz
+remote-backup-prod:
+	@SSH_HOST="$${SSH_HOST:-ptcloud}"; \
+	TUNNEL_PORT="$${TUNNEL_PORT:-13000}"; \
+	WORKSPACE="$${WORKSPACE:-dev}"; \
+	OUT="$${OUT:-output/resume-backups/resumes-prod-$${WORKSPACE}-$$(date +%Y%m%d-%H%M%S).tar.gz}"; \
+	mkdir -p "$$(dirname "$$OUT")"; \
+	echo "→ opening tunnel $$TUNNEL_PORT → $$SSH_HOST:3000"; \
+	ssh -f -N -L "$$TUNNEL_PORT:127.0.0.1:3000" "$$SSH_HOST" || { echo "ssh tunnel failed"; exit 1; }; \
+	trap "kill $$(lsof -ti:$$TUNNEL_PORT) 2>/dev/null || true" EXIT; \
+	API_URL="http://127.0.0.1:$$TUNNEL_PORT" WORKSPACE="$$WORKSPACE" OUT="$$OUT" \
+		$(MAKE) --no-print-directory backup-resumes
+
+backup-prod: remote-backup-prod
+
+# One-liner: clear dev, replace-restore from FILE (auto-backup enabled, MODE=replace YES=1 preset)
+# Required: FILE=<path to .tar.gz or .json>
+# Defaults: WORKSPACE=dev, API_URL=http://localhost:3000
+local-restore-from-prod:
+	@if [ -z "$(FILE)" ]; then echo "FILE=<path> is required"; exit 1; fi
+	@echo "→ clearing dev resumes (loop until partial:false)"
+	@while $(MAKE) --no-print-directory clear-resumes 2>&1 | tee /tmp/clear-resumes.out | grep -q '"partial": true'; do :; done
+	@$(MAKE) --no-print-directory restore-resumes FILE="$(FILE)" MODE=replace YES=1 \
+		API_URL="$${API_URL:-http://localhost:3000}" WORKSPACE="$${WORKSPACE:-dev}"
+
+restore-from-prod: local-restore-from-prod
+
+# Dual-target: follows $API_URL. Defaults to http://localhost:3000 (local).
 # Restore resume records, then restart local Convex to release retained restore RSS
 restore-resumes-restart:
 	@$(MAKE) dev-convex-ensure
@@ -1122,7 +1166,7 @@ help:
 	@echo ""
 	@echo "Usage: make <target>"
 	@echo ""
-	@echo "Development (Full Experience):"
+	@echo "Local dev stack (runs on your laptop):"
 	@echo "  dev            Start all services (MCP + crawler + apps/*)"
 	@echo "  dev-samples    Start dev stack with sample resume snapshots from the sample repo"
 	@echo "  dev-fast       Start fast UI loop (Convex + API + web)"
@@ -1133,106 +1177,62 @@ help:
 	@echo "  dev-crawl      Run crawler only (no long-running services)"
 	@echo "  dev-convex     Start only local Convex dev backend"
 	@echo "  dev-convex-stop Stop local Convex listeners on ports 3210/3211 and the default Convex tmux session"
-	@echo "                 Use this when large restored datasets keep local Convex RSS high and you do not need it running"
 	@echo "  dev-convex-restart Restart only local Convex dev backend (foreground)"
 	@echo "  dev-convex-refresh Refresh local Convex in detached tmux mode when tmux is available"
-	@echo "                 Best for recovering from an unreachable local backend; large restored datasets may still settle at high RSS"
 	@echo "  dev-convex-ensure Start local Convex only when http://127.0.0.1:3210 is currently unreachable"
 	@echo "  dev-convex-status Show local Convex listeners, process RSS, state size, resume count, and backlog"
 	@echo "  dev-web        Start React frontend (Vite on port 5173)"
 	@echo "  dev-api        Start Hono BFF API server (port 3000)"
 	@echo "  dev-api-worker Start FastAPI worker REST API (port 8000)"
 	@echo "  dev-worker     Start worker scheduler (run now + verbose)"
-	@echo "                 See ./scripts/dev.sh --help for service profiles, CI=true/1, and Convex startup/env knobs"
 	@echo ""
-	@echo "Production:"
-	@echo "  run            Run crawler (production mode, full output)"
-	@echo "  crawl          Run crawler (alias for run)"
-	@echo "  mcp            Start MCP server (STDIO mode)"
-	@echo "  mcp-http       Start MCP server (HTTP on port 3333)"
-	@echo "  worker         Start worker scheduler (default: every 30 min)"
-	@echo "  worker-once    Run worker once and exit"
+	@echo "Local run (production-mode on your laptop, NOT on prod host):"
+	@echo "  local-run-crawler  Run crawler (alias: run/crawl)"
+	@echo "  local-run-mcp      Start MCP server, STDIO mode (alias: mcp)"
+	@echo "  local-run-mcp-http Start MCP server, HTTP on port 3333 (alias: mcp-http)"
+	@echo "  local-run-worker   Start worker scheduler (alias: worker)"
+	@echo "  local-run-worker-once Run worker once and exit (alias: worker-once)"
 	@echo ""
-	@echo "Deployment:"
-	@echo "  prod-install   Install as systemd services (requires sudo)"
-	@echo "  prod-deploy    Preflight workspace git, snapshot Convex, and best-effort write resumes-<workspace>.tar.gz before skip/env-refresh/full upgrade; seeds JDs only (requires sudo)"
-	@echo "  prod-deploy-check Dry run deploy precheck with workspace git status but without rebuilding"
-	@echo "  install / deploy / deploy-check Aliases for prod-install / prod-deploy / prod-deploy-check"
-	@echo "  refresh-env    Refresh env, sync frontend build vars, and rebuild the production web bundle"
-	@echo "  backup-resumes Export live resume records to a portable JSON or .tar.gz backup"
-	@echo "  restore-resumes Restore resume records from a portable backup file or snapshot directory"
-	@echo "                 Uses API_URL/TRENDS_API_URL, WORKSPACE=dev, and OUT/FILE/LIMIT/SOURCE_HOSTS/RESUME_IDS/MODE/YES"
-	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json"
-	@echo "                 Example: make restore-resumes FILE=/abs/path/output/resume-backups/20260321-015304"
-	@echo "                 Example: make restore-resumes FILE=/abs/path/resume-backup.json MODE=replace YES=1"
-	@echo "  restore-resumes-restart Restore resumes, then restart local Convex to drop retained restore RSS"
-	@echo "                 Uses the same arguments as restore-resumes; ensures local Convex is up first, then refreshes it afterward"
-	@echo "                 Example: make restore-resumes-restart FILE=/abs/path/resume-backup.json"
-	@echo "  clear-resume-analyses Clear AI analyses in Convex in safe batches for large restored datasets"
-	@echo "                 Uses BATCH_SIZE=50 by default, optional JOB_DESCRIPTION=<id>, optional RESUME_IDS=a,b,c, and JSON=1"
-	@echo "                 Example: make clear-resume-analyses JSON=1"
-	@echo "                 Example: make clear-resume-analyses JOB_DESCRIPTION=lathe-sales BATCH_SIZE=25 JSON=1"
-	@echo "  clear-resume-analyses-restart Clear AI analyses, then restart local Convex to drop retained RSS"
-	@echo "                 Uses the same arguments as clear-resume-analyses; ensures local Convex is up first, then refreshes it afterward"
-	@echo "                 Example: make clear-resume-analyses-restart JSON=1"
-	@echo "  uninstall      Remove systemd services (requires sudo)"
-	@echo "                 See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1, and env knobs"
-	@echo "  docker         Start Docker containers"
-	@echo "  docker-build   Build and start Docker containers"
-	@echo "  docker-down    Stop Docker containers"
+	@echo "Remote (laptop -> remote host via SSH tunnel):"
+	@echo "  remote-backup-prod One-shot: SSH tunnel -> backup prod -> close tunnel"
+	@echo "                    Defaults: SSH_HOST=ptcloud, WORKSPACE=dev, OUT=timestamped (alias: backup-prod)"
+	@echo "                    Example: make remote-backup-prod SSH_HOST=myhost WORKSPACE=hr"
 	@echo ""
-	@echo "Static Site:"
-	@echo "  build-static       Build static site from existing output"
-	@echo "  build-static-fresh Run crawler first, then build static site"
-	@echo "  build-extension-zip Build browser extension zip + metadata for web download"
-	@echo "  serve-static       Serve static site locally (port 8000)"
+	@echo "Dual-target (follows $API_URL; defaults to localhost):"
+	@echo "  backup-resumes     Export resumes to portable backup"
+	@echo "  restore-resumes    Restore resumes from backup file (MODE=replace|merge, YES=1 for replace)"
+	@echo "  restore-resumes-restart Restore + restart local Convex"
 	@echo ""
-	@echo "i18n (Internationalization):"
-	@echo "  i18n-check     Check locale files for missing/extra keys"
-	@echo "  i18n-sync      Auto-fix missing keys with placeholders"
-	@echo "  i18n-convert   Convert zh-Hant to zh-Hans (OpenCC)"
-	@echo "  i18n-translate Translate zh-Hant to English (AI)"
-	@echo "  i18n-build     Build static sites for all locales"
+	@echo "Restore to local dev (laptop-only):"
+	@echo "  local-restore-from-prod One-shot: clear dev + replace-restore from FILE (alias: restore-from-prod)"
+	@echo "                         MODE=replace YES=1 preset; auto-writes safety pre-backup"
+	@echo "                         Example: make local-restore-from-prod FILE=output/resume-backups/resumes-prod-dev-...tar.gz"
 	@echo ""
-	@echo "Dependencies:"
-	@echo "  install-deps [CONVEX_MIRROR_MODE=off|fallback|mirror-first]"
-	@echo "               Install deps, ensure the Go toolchain, build bin/trends, prefetch Convex assets, sync repo project skills, and install configured global skills via the skills CLI"
-	@echo "               Global skill URLs come from config/skills/install.yaml and use direct skill tree paths"
-	@echo "               See ./scripts/install-deps.sh --help for CI=true/1 and additional prefetch env knobs"
-	@echo "  prefetch-convex [CONVEX_MIRROR_MODE=off|fallback|mirror-first] Prefetch Convex local backend + dashboard assets"
-	@echo "                 See ./scripts/prefetch-convex-backend.sh --help for CI=true/1, mirror bases, timeout, and curl env knobs"
+	@echo "On prod host (ssh in first: ssh <host> && cd /opt/trends):"
+	@echo "  on-prod-install        Install as systemd services, requires sudo (alias: prod-install/install)"
+	@echo "  on-prod-deploy         Preflight + snapshot + upgrade, requires sudo (alias: prod-deploy/deploy)"
+	@echo "  on-prod-deploy-check   Dry run deploy precheck (alias: prod-deploy-check/deploy-check)"
+	@echo "  on-prod-refresh-env    Refresh env + rebuild web bundle (alias: refresh-env)"
+	@echo "  on-prod-uninstall      Remove systemd services, requires sudo (alias: uninstall)"
+	@echo "                         See ./scripts/install.sh --help for branch preflight, rollback backups, CI=true/1"
 	@echo ""
-	@echo "CLI:"
-	@echo "  cli-build      Build Go CLI to bin/trends"
-	@echo "  cli-install    Install Go CLI to GOPATH/bin"
-	@echo "  cli-test       Run Go CLI tests"
-	@echo ""
-	@echo "Documentation:"
-	@echo "  fetch-docs     Fetch latest upstream documentation"
-	@echo "  sync-agent-policy Sync generated dev-docs/AGENTS.md from canonical AGENTS policy"
-	@echo "  check-agent-policy Validate generated dev-docs/AGENTS.md is up to date"
-	@echo "  sync-project-skills Sync committed project skills from dev-docs/skills into .agents/skills + .claude/skills"
-	@echo "  check-project-skills Validate project skill structure and committed sync drift"
-	@echo "  install-global-skills Install configured external global skills from config/skills/install.yaml"
-	@echo "  install-agent-skill [TARGET=codex|agents|all] Install governance skill into the selected skills dir"
-	@echo "  check-agent-skill [TARGET=codex|agents|all] Validate governance skill, command, rules file, and installed copy drift"
-	@echo "  install-skill SKILL=<name> [TARGET=codex|agents|all] Install any repo skill into the selected skills dir"
-	@echo "  validate-skill SKILL=<name> Validate skill structure from SKILL.md frontmatter"
-	@echo "  check-skill-install SKILL=<name> [TARGET=codex|agents|all] Validate installed skill sync with repo source"
-	@echo "  install-test-plan-skill [TARGET=codex|agents|all] Install resume-qa-hybrid-mcp into the selected skills dir"
-	@echo "  check-test-plan-skill [TARGET=codex|agents|all] Validate resume-qa-hybrid-mcp skill + installed drift"
-	@echo "  install-browser-ext-skill [TARGET=codex|agents|all] Install browser-extension-dev into the selected skills dir"
-	@echo "  check-browser-ext-skill [TARGET=codex|agents|all] Validate browser-extension-dev skill + installed drift"
-	@echo "  sync-agent-governance [TARGET=codex|agents|all] Run policy sync + governance skill install"
-	@echo "                     Skill roots honor CODEX_HOME and AGENTS_HOME when set"
+	@echo "Local tooling:"
+	@echo "  check / test              Validate / test the repo"
+	@echo "  check-node / check-python / check-build"
+	@echo "  install-deps              Install deps + build bin/trends + prefetch Convex"
+	@echo "  prefetch-convex           Prefetch Convex local backend + dashboard"
+	@echo "  cli-build / cli-install / cli-test"
+	@echo "  docker / docker-build / docker-down"
+	@echo "  build-static / build-static-fresh / build-extension-zip / serve-static"
+	@echo "  fetch-docs"
+	@echo "  i18n-check / i18n-sync / i18n-convert / i18n-translate / i18n-build"
+	@echo "  sync-agent-* / install-*-skill / check-*-skill / validate-skill"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  resume-search   Search resumes via the Go CLI"
-	@echo "                 Uses QUERY='CNC 销售' (or Q=...), optional SOURCE=sample|convex, LIMIT=50, JSON=1, API_URL, WORKSPACE"
-	@echo "                 Example: make resume-search QUERY='CNC 销售' SOURCE=convex"
+	@echo "                 Uses QUERY=, optional SOURCE=sample|convex, LIMIT=50, JSON=1, API_URL, WORKSPACE"
 	@echo "  resume-show     Show one resume with detailed work history via the Go CLI"
-	@echo "                 Uses ID=<resume-id> (or RESUME_ID=...), optional SOURCE=sample|convex, SAMPLE=<sample-name>, JSON=1, API_URL, WORKSPACE"
-	@echo "                 Example: make resume-show ID=resume-live-1 SOURCE=convex"
+	@echo "                 Uses ID=<resume-id>, optional SOURCE=sample|convex, JSON=1, API_URL, WORKSPACE"
 	@echo "  seed           Seed Convex with system job descriptions"
 	@echo "  seed-full      Seed Convex with system job descriptions + sample resumes"
 	@echo "  seed-force     Force seed Convex even if DB is not empty"

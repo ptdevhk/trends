@@ -253,6 +253,7 @@ export const ResumeImportMetadataSchema = z
   .object({
     sourceUrl: z.string().url().openapi({ example: "https://hr.job5156.com/search?keyword=销售" }),
     generatedBy: z.string().openapi({ example: "browser-extension@1.0.0" }),
+    version: z.string().optional().openapi({ example: "2" }),
     sourceKey: z.string().optional().openapi({ example: "seek" }),
     sourceHost: z.string().optional().openapi({ example: "hk.employer.seek.com" }),
     keyword: z.string().optional().openapi({ example: "销售" }),
@@ -296,18 +297,65 @@ export const ResumeImportItemSchema = z
   })
   .openapi("ResumeImportItem");
 
+export const CandidateActionBackupSchema = z
+  .object({
+    resumeId: z.string().openapi({ example: "R123456" }),
+    actionType: z.enum([
+      "star",
+      "shortlist",
+      "reject",
+      "archive",
+      "note",
+      "contact",
+      "ai_score_like",
+      "ai_score_unlike",
+      "ai_summary_like",
+      "ai_summary_unlike",
+    ]).openapi({ example: "archive" }),
+    actionData: z.record(z.unknown()).optional().openapi({ example: { scopeId: "session-123" } }),
+    scopeId: z.string().optional().openapi({ example: "session-123" }),
+    createdAt: z.string().openapi({ example: "2026-03-15T10:30:00+08:00" }),
+  })
+  .openapi("CandidateActionBackup");
+
+export const CandidateStatusBackupSchema = z
+  .object({
+    identityKey: z.string().openapi({ example: "profileUrl:https://hr.job5156.com/resume/view/123" }),
+    status: z.enum([
+      "new",
+      "contacted",
+      "interviewing",
+      "interviewed_pass",
+      "interviewed_reject",
+      "offer",
+      "hired",
+      "withdrawn",
+    ]).openapi({ example: "interviewing" }),
+    notes: z.string().optional().openapi({ example: "Strong candidate" }),
+    updatedBy: z.string().optional().openapi({ example: "hr.lead" }),
+    updatedAt: z.number().openapi({ example: 1710489600000 }),
+    history: z.array(z.object({
+      status: z.string(),
+      updatedAt: z.number(),
+      notes: z.string().optional(),
+    })).optional(),
+  })
+  .openapi("CandidateStatusBackup");
+
 export const ResumeImportRequestSchema = z
   .object({
     metadata: ResumeImportMetadataSchema,
     resumes: z.array(ResumeImportItemSchema).optional(),
     data: z.array(ResumeImportItemSchema).optional(),
     options: ResumeImportOptionsSchema.optional(),
+    candidateActions: z.array(CandidateActionBackupSchema).optional(),
+    candidateStatus: z.array(CandidateStatusBackupSchema).optional(),
   })
   .superRefine((value, ctx) => {
-    if (!value.resumes && !value.data) {
+    if (!value.resumes && !value.data && !value.candidateActions && !value.candidateStatus) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Expected resumes or data array",
+        message: "Expected resumes, data, candidateActions, or candidateStatus array",
         path: ["resumes"],
       });
     }
