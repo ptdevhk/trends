@@ -72,6 +72,7 @@ describe("restore-resumes", () => {
         filePath: dir,
         mode: "upsert",
         confirm: false,
+        recomputeDerivedFields: false,
       },
       {
         fetch: vi.fn(async (input, init) => {
@@ -131,6 +132,8 @@ describe("restore-resumes", () => {
         filePath: dir,
         mode: "replace",
         confirm: true,
+        recomputeDerivedFields: false,
+        skipAutoBackup: true,
       },
       {
         fetch: vi.fn(async (input) => {
@@ -160,9 +163,9 @@ describe("restore-resumes", () => {
                         analysis_tasks: 5,
                       },
                     }
-                : {
-                    submitted: 20,
-                  }),
+                : pathName === "/api/resumes/candidate-actions/reset"
+                  ? { deleted: 3 }
+                  : { submitted: 20 }),
             }),
             {
               status: 200,
@@ -176,6 +179,7 @@ describe("restore-resumes", () => {
     expect(requests).toEqual([
       "/api/resumes/reset",
       "/api/resumes/reset",
+      "/api/resumes/candidate-actions/reset",
       "/api/resumes/import",
       "/api/resumes/import",
     ]);
@@ -203,6 +207,7 @@ describe("restore-resumes", () => {
         filePath: dir,
         mode: "upsert",
         confirm: false,
+        recomputeDerivedFields: false,
       }),
     ).rejects.toThrow("no restore backup files found in directory");
   });

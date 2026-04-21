@@ -18,18 +18,21 @@ function getTargetRecipe(target: string): string {
 
 describe("install/deploy demo resume safety", () => {
   it("uses prod wrappers that never pass the removed resume-seed env var", () => {
-    expect(getTargetRecipe("prod-install")).toContain("./scripts/install.sh install");
-    expect(getTargetRecipe("prod-deploy")).toContain("./scripts/install.sh upgrade");
-    expect(getTargetRecipe("prod-deploy-check")).toContain("./scripts/install.sh upgrade-check");
-    expect(getTargetRecipe("prod-install")).not.toContain(removedSeedEnvVar);
-    expect(getTargetRecipe("prod-deploy")).not.toContain(removedSeedEnvVar);
-    expect(getTargetRecipe("prod-deploy-check")).not.toContain(removedSeedEnvVar);
+    expect(getTargetRecipe("on-prod-install")).toContain("./scripts/install.sh install");
+    expect(getTargetRecipe("on-prod-deploy")).toContain("./scripts/install.sh upgrade");
+    expect(getTargetRecipe("on-prod-deploy-check")).toContain("./scripts/install.sh upgrade-check");
+    expect(getTargetRecipe("on-prod-install")).not.toContain(removedSeedEnvVar);
+    expect(getTargetRecipe("on-prod-deploy")).not.toContain(removedSeedEnvVar);
+    expect(getTargetRecipe("on-prod-deploy-check")).not.toContain(removedSeedEnvVar);
   });
 
   it("keeps compatibility aliases mapped to prod wrappers", () => {
-    expect(makefile).toMatch(/^install:\s+prod-install$/m);
-    expect(makefile).toMatch(/^deploy:\s+prod-deploy$/m);
-    expect(makefile).toMatch(/^deploy-check:\s+prod-deploy-check$/m);
+    expect(makefile).toMatch(/^prod-install:\s+on-prod-install$/m);
+    expect(makefile).toMatch(/^install:\s+on-prod-install$/m);
+    expect(makefile).toMatch(/^prod-deploy:\s+on-prod-deploy$/m);
+    expect(makefile).toMatch(/^deploy:\s+on-prod-deploy$/m);
+    expect(makefile).toMatch(/^prod-deploy-check:\s+on-prod-deploy-check$/m);
+    expect(makefile).toMatch(/^deploy-check:\s+on-prod-deploy-check$/m);
   });
 
   it("removes dead install script logic for that env var", () => {

@@ -1,8 +1,11 @@
+import { existsSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { normalizeResumeImportPayload } from "../../apps/api/src/services/resume-import-service";
 
 const PROD_BACKUP_PATH = "output/resume-backups/resumes-dev.tar.gz";
+const hasProdBackup = existsSync(PROD_BACKUP_PATH);
 
 type BackupResume = Record<string, unknown>;
 
@@ -31,7 +34,7 @@ function groupBySource(resumes: BackupResume[]): Map<string, BackupResume[]> {
   return groups;
 }
 
-describe("v0.1.0 prod backup compatibility", () => {
+describe.skipIf(!hasProdBackup)("v0.1.0 prod backup compatibility", () => {
   it("reads the tar.gz backup without error", async () => {
     const backup = await loadProdBackup();
     expect(backup.metadata).toBeDefined();
@@ -537,7 +540,7 @@ describe("post-v0.1.0 schema field backward compatibility", () => {
   });
 });
 
-describe("mixed-source backup round-trip (prod upgrade scenario)", () => {
+describe.skipIf(!hasProdBackup)("mixed-source backup round-trip (prod upgrade scenario)", () => {
   it("restores a mixed-source backup with per-item source metadata", async () => {
     const backup = await loadProdBackup();
     const groups = groupBySource(backup.resumes);
