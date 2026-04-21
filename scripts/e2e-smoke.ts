@@ -4,6 +4,9 @@ import { ConvexHttpClient } from 'convex/browser';
 import { makeFunctionReference } from 'convex/server';
 
 const DETERMINISTIC_SEARCH_QUERY = 'Sales Engineer';
+const SMOKE_VIEWPORT = { width: 1600, height: 1200 };
+const SEARCH_WITH_QUERY_URL = (baseUrl: string) =>
+    `${baseUrl}/dev/resumes?q=${encodeURIComponent(DETERMINISTIC_SEARCH_QUERY)}`;
 
 type WorkspaceSeedResult = {
     resumes: {
@@ -183,6 +186,12 @@ async function runCollectUrlKeywordModeTest(page: Page) {
         return Array.isArray(scope.__openedUrls) ? scope.__openedUrls : [];
     });
 
+    async function getFirstOpenedUrl(): Promise<URL> {
+        const urls = await getOpenedUrls();
+        expect(urls.length).toBeGreaterThan(0);
+        return new URL(urls[0]);
+    }
+
     // Legacy flow: collect limit input is present on the search page.
     await page.goto(
         `${DEFAULT_OPTIONS.baseUrl}/dev/resumes?location=${encodeURIComponent('东莞')}&q=${encodeURIComponent('CNC 车床 销售 STAR')}`
@@ -195,9 +204,7 @@ async function runCollectUrlKeywordModeTest(page: Page) {
         await collectPageLimitInput.fill('3');
         await page.getByRole('button', { name: /采集|Collect/i }).click();
 
-        const openedUrls = await getOpenedUrls();
-        expect(openedUrls.length).toBeGreaterThan(0);
-        const openedUrl = new URL(openedUrls[0]);
+        const openedUrl = await getFirstOpenedUrl();
         expect(`${openedUrl.origin}${openedUrl.pathname}`).toBe('https://my.employer.seek.com/candidates/recommended');
         expect(openedUrl.searchParams.get('keyword')).toBe('CNC 车床 销售 STAR');
         expect(openedUrl.searchParams.get('location')).toBe('东莞');
@@ -218,9 +225,7 @@ async function runCollectUrlKeywordModeTest(page: Page) {
     await collectButton.waitFor({ state: 'visible' });
     await collectButton.click();
 
-    const openedUrls = await getOpenedUrls();
-    expect(openedUrls.length).toBeGreaterThan(0);
-    const openedUrl = new URL(openedUrls[0]);
+    const openedUrl = await getFirstOpenedUrl();
     const launchPath = `${openedUrl.origin}${openedUrl.pathname}`;
     expect([
         'https://my.employer.seek.com/candidates/recommended',
@@ -236,7 +241,6 @@ async function runCollectionTest(page: Page) {
     console.log('Testing Critical Path 1: Resume Collection...');
     await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/system/settings/operations`);
 
-    // Fill collection form
     const keywordInput = await preferVisibleLocator(
         page.getByTestId('ops-collection-keyword'),
         page.getByLabel(/关键词|關鍵字|Keyword/i),
@@ -255,14 +259,13 @@ async function runCollectionTest(page: Page) {
     );
     await limitInput.fill('10');
 
-    // Start collection
     const startCollectionBtn = await preferVisibleLocator(
         page.getByTestId('ops-start-collection'),
         page.getByRole('button', { name: /启动代理采集|啟動代理採集|Start Agent Collection/i }),
     );
     await startCollectionBtn.click();
 
-    // Verify toast
+
     await waitForToast(page, /Collection task dispatched/i);
     console.log('✅ Collection test passed.');
 }
@@ -270,9 +273,8 @@ async function runCollectionTest(page: Page) {
 async function runSearchTest(page: Page) {
     console.log('Testing Critical Path 2: Search & Filter...');
     await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes`);
-    await page.setViewportSize({ width: 1600, height: 1200 });
+    await page.setViewportSize(SMOKE_VIEWPORT);
 
-    // Search by keyword with the current Google-style search bar.
     const keywordInput = await preferVisibleLocator(
         page.getByTestId('resume-search-input'),
         page.getByPlaceholder(/Search resumes by keywords|按关键词、品牌、岗位或地区搜索简历|按關鍵詞、品牌、職位或地區搜尋簡歷/i),
@@ -311,8 +313,8 @@ async function runSearchTest(page: Page) {
 
 async function runAnalysisTest(page: Page) {
     console.log('Testing Critical Path 3: AI Analysis...');
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes?q=${encodeURIComponent(DETERMINISTIC_SEARCH_QUERY)}`);
-    await page.setViewportSize({ width: 1600, height: 1200 });
+    await page.goto(SEARCH_WITH_QUERY_URL(DEFAULT_OPTIONS.baseUrl));
+    await page.setViewportSize(SMOKE_VIEWPORT);
 
     const aiModeSwitch = await preferVisibleLocator(
         page.getByTestId('resume-ai-mode-switch').first(),
@@ -341,13 +343,12 @@ async function runAnalysisTest(page: Page) {
 
 async function runBulkActionsTest(page: Page) {
     console.log('Testing Critical Path 4: Bulk Actions...');
-    await page.goto(`${DEFAULT_OPTIONS.baseUrl}/dev/resumes?q=${encodeURIComponent(DETERMINISTIC_SEARCH_QUERY)}`);
-    await page.setViewportSize({ width: 1600, height: 1200 });
+    await page.goto(SEARCH_WITH_QUERY_URL(DEFAULT_OPTIONS.baseUrl));
+    await page.setViewportSize(SMOKE_VIEWPORT);
 
     const firstCheckbox = page.getByRole('checkbox', { name: /选择|Select/i }).first();
     await firstCheckbox.waitFor({ state: 'visible', timeout: 15000 });
 
-    // Select some resumes via "Select All" for reliability
     const selectAllBtn = await preferVisibleLocator(
         page.getByTestId('bulk-select-all').first(),
         page.getByRole('button', { name: /全选|Select All/i }),
@@ -361,13 +362,11 @@ async function runBulkActionsTest(page: Page) {
     );
     await expect(clearSelectionBtn).toBeVisible();
 
-    // Click shortlist
-    const shortlistBtnByTestId = page.getByTestId('bulk-shortlist').first();
-    if (await shortlistBtnByTestId.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await shortlistBtnByTestId.click();
-    } else {
-        await page.getByRole('button', { name: /批量入围|Shortlist/i }).first().click();
-    }
+    const shortlistBtn = await preferVisibleLocator(
+        page.getByTestId('bulk-shortlist').first(),
+        page.getByRole('button', { name: /批量入围|Shortlist/i }).first(),
+    );
+    await shortlistBtn.click();
     await expect(clearSelectionBtn).toBeHidden({ timeout: 15000 });
 
     console.log('✅ Bulk Actions test passed.');
