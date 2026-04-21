@@ -157,6 +157,8 @@ export default defineSchema({
                     }),
                 })),
             })),
+            // Legacy field: migrated to taggingEnvelope; retained for documents not yet migrated.
+            tagEnvelope: v.optional(v.any()),
             ruleScores: v.any(),          // Record<string, number> — JD ID → score
             experienceLevel: v.string(),  // "senior" | "mid" | "junior" | "unknown"
             computedAt: v.number(),
