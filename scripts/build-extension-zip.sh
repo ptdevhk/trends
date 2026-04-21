@@ -21,6 +21,8 @@ rm -f "$VERSIONED_ZIP_PATH" "$LATEST_ZIP_PATH"
 
 (
   cd "$EXTENSION_DIR"
+  npm run build
+  test -f content.js || { echo "error: content.js missing after build" >&2; exit 1; }
   zip -r "$VERSIONED_ZIP_PATH" \
     manifest.json background.js content.js content-styles.css page-hook.js \
     seek-auto-sync-window.js \
@@ -28,7 +30,7 @@ rm -f "$VERSIONED_ZIP_PATH" "$LATEST_ZIP_PATH"
     offscreen.html offscreen.js icons/
 )
 
-cp "$VERSIONED_ZIP_PATH" "$LATEST_ZIP_PATH"
+ln -sf "$VERSIONED_FILENAME" "$LATEST_ZIP_PATH"
 
 cat > "$METADATA_PATH" <<EOF
 {

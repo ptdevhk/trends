@@ -510,10 +510,9 @@ build-static-fresh:
 
 # Build browser extension zip for web UI download
 build-extension:
-	cd apps/browser-extension && node esbuild.config.mjs
+	cd apps/browser-extension && npm run build
 
 build-extension-zip:
-	$(MAKE) build-extension
 	./scripts/build-extension-zip.sh
 
 # Serve static site locally (port 8000)
