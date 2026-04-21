@@ -273,6 +273,10 @@ class WorkerScheduler:
 
     def load_profile_jobs(self) -> None:
         """Load and schedule jobs from search profiles."""
+        if os.environ.get("ENABLE_HEADLESS_COLLECTOR") != "true":
+            logger.info("Headless collector disabled; skipping profile job registration")
+            return
+
         try:
             loader = ProfileLoader()
             profiles = loader.load_profiles()

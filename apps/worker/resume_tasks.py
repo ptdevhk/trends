@@ -124,6 +124,13 @@ def run_resume_crawl_task(profile: Dict[str, Any]) -> bool:
     the web/API critical path (collection_tasks -> scraper worker -> resumes).
     """
 
+    if os.environ.get("ENABLE_HEADLESS_COLLECTOR") != "true":
+        logger.info(
+            "[Task] Headless collector disabled; skipping scheduled dispatch for profile %s",
+            profile.get("id"),
+        )
+        return False
+
     profile_id = str(profile.get("id") or "")
     location = str(profile.get("location") or "").strip()
 
