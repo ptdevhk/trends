@@ -11,6 +11,8 @@ type BackupResponse = {
   metadata?: Record<string, unknown>;
   resumes?: unknown[];
   data?: unknown[];
+  candidateActions?: unknown[];
+  candidateStatus?: unknown[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -28,7 +30,7 @@ function resolveOutputPath(disposition: string | null, explicitPath: string | un
     return fromHeader;
   }
 
-  return `resume-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+  return `output/resume-backups/resume-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
 }
 
 async function main(): Promise<void> {
@@ -69,6 +71,8 @@ async function main(): Promise<void> {
   }
 
   const resumes = Array.isArray(parsed.resumes) ? parsed.resumes : Array.isArray(parsed.data) ? parsed.data : [];
+  const actions = Array.isArray(parsed.candidateActions) ? parsed.candidateActions : [];
+  const status = Array.isArray(parsed.candidateStatus) ? parsed.candidateStatus : [];
   const filePath = resolveOutputPath(response.headers.get("content-disposition"), outPath);
   const bytes = await writePortableBackupFile(filePath, parsed);
 
@@ -78,6 +82,8 @@ async function main(): Promise<void> {
     workspace,
     file: filePath,
     count: resumes.length,
+    actions: actions.length,
+    status: status.length,
     bytes,
   }, null, 2));
 }
