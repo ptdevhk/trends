@@ -18,6 +18,7 @@ export function ModeToggle({ mode, onModeChange, aiStats, disabled }: ModeToggle
       <button
         type="button"
         role="switch"
+        data-testid="resume-ai-mode-switch"
         aria-checked={isAiMode}
         onClick={() => onModeChange(isAiMode ? 'original' : 'ai')}
         disabled={disabled}

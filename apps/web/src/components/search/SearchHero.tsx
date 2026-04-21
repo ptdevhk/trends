@@ -211,6 +211,7 @@ export function SearchHero({
                       <button
                         type="button"
                         className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        data-testid="search-hero-collect"
                         disabled={!finalLaunchUrl}
                         onClick={() => {
                           if (!finalLaunchUrl) {
