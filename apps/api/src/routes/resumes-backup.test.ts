@@ -70,6 +70,10 @@ describe("resume backup and reset routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
+      if (call.endpoint === "query" && call.pathName === "candidate_status:listForBackup") {
+        return convexSuccess([]);
+      }
+
       if (call.endpoint === "query" && call.pathName === "resumes:listForBackup") {
         expect(call.args).toEqual({
           paginationOpts: {
@@ -173,7 +177,7 @@ describe("resume backup and reset routes", () => {
         },
       },
     }));
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
     expect(calls[0]?.pathName).toBe("resumes:listForBackup");
   });
 
@@ -183,6 +187,10 @@ describe("resume backup and reset routes", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const call = parseConvexCall(input, init);
       calls.push(call);
+
+      if (call.endpoint === "query" && call.pathName === "candidate_status:listForBackup") {
+        return convexSuccess([]);
+      }
 
       if (call.endpoint === "query" && call.pathName === "resumes:listForBackup") {
         if (calls.length === 1) {
@@ -278,7 +286,7 @@ describe("resume backup and reset routes", () => {
     const payload = await response.json();
     expect(payload.metadata.totalResumes).toBe(2);
     expect(payload.resumes.map((item: { name: string }) => item.name)).toEqual(["Alice", "Bob"]);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
   });
 
   it("blocks resume backup for non-admin workspaces", async () => {

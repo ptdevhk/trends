@@ -161,6 +161,9 @@ describe("resume import route", () => {
       updated: 0,
       unchanged: 0,
       deduped: 0,
+      statusReplayed: 0,
+      actionsReplayed: 0,
+      actionsDeduped: 0,
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.args).toMatchObject({
@@ -244,6 +247,9 @@ describe("resume import route", () => {
       updated: 0,
       unchanged: 0,
       deduped: 0,
+      statusReplayed: 0,
+      actionsReplayed: 0,
+      actionsDeduped: 0,
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.args).toMatchObject({
@@ -359,6 +365,9 @@ describe("resume import route", () => {
       updated: 0,
       unchanged: 0,
       deduped: 0,
+      statusReplayed: 0,
+      actionsReplayed: 0,
+      actionsDeduped: 0,
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.args).toMatchObject({

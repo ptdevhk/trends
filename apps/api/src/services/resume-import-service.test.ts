@@ -490,6 +490,9 @@ describe("resume-import-service", () => {
       updated: 0,
       unchanged: 0,
       deduped: 0,
+      statusReplayed: 0,
+      actionsReplayed: 0,
+      actionsDeduped: 0,
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.pathName).toBe("resume_tasks:submitResumes");
@@ -576,6 +579,9 @@ describe("resume-import-service", () => {
       updated: 0,
       unchanged: 0,
       deduped: 0,
+      statusReplayed: 0,
+      actionsReplayed: 0,
+      actionsDeduped: 0,
     });
   });
 });
