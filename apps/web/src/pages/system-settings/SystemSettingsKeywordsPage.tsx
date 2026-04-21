@@ -434,7 +434,7 @@ export function SystemSettingsKeywordsPage() {
                     <label key={option.value} className="flex items-center gap-2 text-sm">
                       <Checkbox
                         checked={checked}
-                        onCheckedChange={(nextChecked) => {
+                        onCheckedChange={(nextChecked: boolean | 'indeterminate') => {
                           setCustomKeywordForm((current) => {
                             const nextMarkets = new Set(current.markets)
                             if (nextChecked === true) {
@@ -455,7 +455,7 @@ export function SystemSettingsKeywordsPage() {
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
                 checked={customKeywordForm.visible}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(checked: boolean | 'indeterminate') => {
                   setCustomKeywordForm((current) => ({
                     ...current,
                     visible: checked === true,
@@ -492,19 +492,19 @@ export function SystemSettingsKeywordsPage() {
 
       <Dialog
         open={deleteCustomKeywordTargetId !== null}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!open && !deletingCustomKeyword) {
             setDeleteCustomKeywordTargetId(null)
           }
         }}
       >
         <DialogContent
-          onEscapeKeyDown={(event) => {
+          onEscapeKeyDown={(event: { preventDefault: () => void }) => {
             if (deletingCustomKeyword) {
               event.preventDefault()
             }
           }}
-          onPointerDownOutside={(event) => {
+          onPointerDownOutside={(event: { preventDefault: () => void }) => {
             if (deletingCustomKeyword) {
               event.preventDefault()
             }

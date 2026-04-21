@@ -1037,7 +1037,7 @@ export function SummaryRunsPage() {
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={profileForm.enabled}
-                    onCheckedChange={(checked) => updateProfileForm('enabled', checked === true)}
+                    onCheckedChange={(checked: boolean | 'indeterminate') => updateProfileForm('enabled', checked === true)}
                     disabled={profileSubmitting}
                   />
                   <span>{t('summaries.profileFormEnabled', { defaultValue: 'Enabled after restart' })}</span>
@@ -1045,7 +1045,7 @@ export function SummaryRunsPage() {
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={profileForm.dryRun}
-                    onCheckedChange={(checked) => updateProfileForm('dryRun', checked === true)}
+                    onCheckedChange={(checked: boolean | 'indeterminate') => updateProfileForm('dryRun', checked === true)}
                     disabled={profileSubmitting}
                   />
                   <span>{t('summaries.profileFormDryRun', { defaultValue: 'Dry run only' })}</span>
