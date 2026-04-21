@@ -572,7 +572,7 @@ export function SearchProfilesPage() {
         onSaved={loadProfiles}
       />
 
-      <Dialog open={!!deletingProfileId} onOpenChange={(open) => !open && setDeletingProfileId(null)}>
+      <Dialog open={!!deletingProfileId} onOpenChange={(open: boolean) => !open && setDeletingProfileId(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>

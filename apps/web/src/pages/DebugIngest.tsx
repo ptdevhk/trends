@@ -860,7 +860,7 @@ export default function DebugIngest() {
               <TableHead className="w-[48px]">
                 <Checkbox
                   checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
-                  onCheckedChange={(checked) => toggleSelectAllVisible(checked === true)}
+                  onCheckedChange={(checked: boolean | 'indeterminate') => toggleSelectAllVisible(checked === true)}
                   aria-label={t('bulkActions.selectAll', { defaultValue: 'Select all' })}
                   disabled={visibleResumeIds.length === 0 || deletingResumes}
                 />
@@ -904,7 +904,7 @@ export default function DebugIngest() {
                       <TableCell>
                         <Checkbox
                           checked={isSelected}
-                          onCheckedChange={(checked) => toggleSelectResume(resumeId, checked === true)}
+                          onCheckedChange={(checked: boolean | 'indeterminate') => toggleSelectResume(resumeId, checked === true)}
                           aria-label={resumeId}
                           disabled={deletingResumes}
                         />

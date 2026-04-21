@@ -667,7 +667,7 @@ export function DebugPage({ basePath = '/debug' }: { basePath?: string }) {
               key={link.key}
               to={link.href}
               end={link.key === 'all'}
-              className={({ isActive }) =>
+              className={({ isActive }: { isActive: boolean }) =>
                 cn(
                   'rounded-full border px-3 py-1 transition-colors',
                   isActive ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'

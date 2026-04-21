@@ -532,7 +532,7 @@ export default function DebugJDs() {
             />
 
             {/* Preview Dialog */}
-            <Dialog open={!!previewJd} onOpenChange={(open) => !open && setPreviewJd(null)}>
+            <Dialog open={!!previewJd} onOpenChange={(open: boolean) => !open && setPreviewJd(null)}>
                 <DialogContent className="max-w-3xl">
                     <DialogHeader className="flex flex-row items-center justify-between">
                         <DialogTitle>{previewJd?.title || t('jdManagement.preview', { defaultValue: 'Preview' })}</DialogTitle>
@@ -558,7 +558,7 @@ export default function DebugJDs() {
             </Dialog>
 
             {/* Delete Confirmation Dialog */}
-            <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+            <Dialog open={!!deleteId} onOpenChange={(open: boolean) => !open && setDeleteId(null)}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>{t('jdManagement.deleteConfirmTitle')}</DialogTitle>
