@@ -13,7 +13,7 @@ Environment=NODE_ENV=production
 Environment=CONVEX_AGENT_MODE=anonymous
 UnsetEnvironment=TZ
 ExecStartPre=/usr/bin/bash /opt/trends/scripts/prefetch-convex-backend.sh
-ExecStart=/usr/bin/npx convex dev --local
+ExecStart=/usr/bin/npx convex dev --local --local-force-upgrade
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
