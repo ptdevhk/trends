@@ -913,7 +913,7 @@ sync_dependencies() {
     run_as_service_user "cd '$INSTALL_DIR' && uv sync"
 
     log_info "Installing Node dependencies..."
-    run_as_service_user "cd '$INSTALL_DIR' && npm install"
+    run_as_service_user "cd '$INSTALL_DIR' && npm ci"
 }
 
 build_shared_artifact() {
