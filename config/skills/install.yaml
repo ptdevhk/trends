@@ -6,6 +6,7 @@ project:
   claude_dir: .claude/skills
   skills:
     - browser-extension-dev
+    - playwright-cli
     - resume-qa-hybrid-mcp
     - trends-agent-governance
     - trends-cli
