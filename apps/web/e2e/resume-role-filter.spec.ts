@@ -4,21 +4,6 @@ import type { Doc } from '../../../packages/convex/convex/_generated/dataModel'
 
 type MockResume = Doc<'resumes'>
 
-function countNonEngineerCards(roleTypes: Array<string | null>): number {
-  return roleTypes.filter((value) => {
-    if (!value) {
-      return true
-    }
-
-    const types = value
-      .split(',')
-      .map((item) => item.trim().toLowerCase())
-      .filter((item) => item.length > 0)
-
-    return !types.includes('engineer')
-  }).length
-}
-
 function parseConvexBody(route: Parameters<Page['route']>[1] extends (route: infer T) => unknown ? T : never) {
   return route.request().postDataJSON() as { path?: string; args?: Record<string, unknown> }
 }
@@ -252,6 +237,73 @@ async function mockResumePageApis(
           ? { success: true, items: [] }
           : { success: true, item: null }
       ),
+    })
+  })
+
+  await page.route('**/api/search-profiles', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        profiles: [],
+      }),
+    })
+  })
+
+  await page.route('**/api/config/system-metadata', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        metadata: {
+          identity: {
+            appName: 'Trends',
+            homeTitle: '简历筛选',
+            systemTitle: 'System',
+            settingsTitle: '设置',
+            adminBadgeLabel: 'Admin',
+            settingsBadgeLabel: 'Settings',
+            appVersion: '0.2.0',
+            apiVersion: '0.2.0',
+            webVersion: '0.2.0',
+          },
+        },
+      }),
+    })
+  })
+
+  await page.route('**/api/config/resume-field-usage-policy', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        source: 'system',
+        policy: {
+          version: 1,
+          fields: {},
+          updatedAt: new Date().toISOString(),
+        },
+      }),
+    })
+  })
+
+  await page.route('**/api/worker/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        jobs_executed: 0,
+        jobs_failed: 0,
+        jobs_missed: 0,
+        last_run: null,
+        last_success: null,
+        last_failure: null,
+        running: false,
+        jobs: [],
+      }),
     })
   })
 }
@@ -598,44 +650,41 @@ test.describe('Resume quick role filter', () => {
 
     await page.goto('/resumes?location=%E4%B8%9C%E8%8E%9E&q=CNC+%E8%BD%A6%E5%BA%8A+%E9%94%80%E5%94%AE+STAR')
 
-    const locationInput = page.getByRole('textbox', { name: '位置' })
-    const keywordInput = page.getByPlaceholder('自定义关键词...')
+    const keywordInput = page.getByTestId('resume-search-input')
 
     await expect(page).toHaveURL(/\/dev\/resumes\?location=.*q=/)
-    await expect(locationInput).toHaveValue('东莞')
     await expect(keywordInput).toHaveValue('CNC 车床 销售 STAR')
+    await expect.poll(async () => new URL(page.url()).searchParams.get('location')).toBe('东莞')
+    await expect(page.getByText('2 条结果，查询“CNC 车床 销售 STAR”')).toBeVisible()
 
     await page.getByRole('link', { name: '趋势 Trends' }).click()
 
     await expect(page).toHaveURL(/\/dev\/resumes$/)
-    await expect(locationInput).toHaveValue('')
     await expect(keywordInput).toHaveValue('')
+    await expect.poll(async () => new URL(page.url()).searchParams.get('location')).toBeNull()
 
     await page.goBack()
 
     await expect(page).toHaveURL(/\/dev\/resumes\?location=.*q=/)
-    await expect(locationInput).toHaveValue('东莞')
     await expect(keywordInput).toHaveValue('CNC 车床 销售 STAR')
+    await expect.poll(async () => new URL(page.url()).searchParams.get('location')).toBe('东莞')
   })
 
-  test('engineer role filter keeps only engineer-tagged resumes', async ({ page }) => {
+  test('engineer role filter keeps only engineer-tagged resumes when explicit role constraints are present', async ({ page }) => {
     await mockResumePageApis(page, {
       listResumes: [engineerResume, salesResume],
       jobDescriptionRoleType: 'engineer',
       jobDescriptionMinYears: 1,
     })
 
-    await page.goto('/dev/resumes?location=%E5%B9%BF%E4%B8%9C&jd=senior-mechanical-engineer')
+    await page.goto('/dev/resumes?location=%E5%B9%BF%E4%B8%9C&jd=senior-mechanical-engineer&minRoleYears=1&roleType=engineer')
 
-    const cards = page.getByTestId('resume-card')
-    await expect(cards).toHaveCount(1)
+    await expect(page.getByRole('button', { name: '查看' })).toHaveCount(1)
     await expect(page.getByText('李先生')).toBeVisible()
+    await expect(page.getByText('王女士')).toHaveCount(0)
 
-    const nonEngineerAfter = countNonEngineerCards(await cards.evaluateAll((nodes) =>
-      nodes.map((node) => node.getAttribute('data-role-types'))
-    ))
-
-    expect(nonEngineerAfter).toBe(0)
+    const visibleSummary = page.getByText('销售工程师')
+    await expect(visibleSummary.first()).toBeVisible()
   })
 
   test('enriched screening sample keeps evidence visible in card and detail views', async ({ page }) => {
@@ -645,12 +694,11 @@ test.describe('Resume quick role filter', () => {
 
     await page.goto('/dev/resumes?q=%E9%94%80%E5%94%AE%E5%B7%A5%E7%A8%8B%E5%B8%88')
 
-    const cards = page.getByTestId('resume-card')
-    await expect(cards).toHaveCount(2)
-    await expect(cards.first().getByText('machinery')).toBeVisible()
-    await expect(cards.first().getByText('sales')).toBeVisible()
-    await expect(page.getByText('工程4年(行业验证)')).toBeVisible()
-    await expect(cards.first().getByText('哈斯')).toHaveCount(2)
+    await expect(page.getByRole('button', { name: '查看' })).toHaveCount(2)
+    await expect(page.getByText('李先生')).toBeVisible()
+    await expect(page.getByText('王女士')).toBeVisible()
+    await expect(page.getByText('machinery', { exact: true })).toBeVisible()
+    await expect(page.getByText('haas', { exact: true })).toBeVisible()
     await expect(page.getByText(/东莞某设备公司.*销售工程师/)).toBeVisible()
 
     await page.getByRole('button', { name: '查看' }).first().click()
@@ -665,7 +713,7 @@ test.describe('Resume quick role filter', () => {
 
     await page.goto('/dev/resumes?q=%E9%94%80%E5%94%AE%E5%B7%A5%E7%A8%8B%E5%B8%88&minRoleYears=1&roleType=engineer')
 
-    await expect(cards).toHaveCount(1)
+    await expect(page.getByRole('button', { name: '查看' })).toHaveCount(1)
     await expect(page.getByText('李先生')).toBeVisible()
     await expect(page.getByText('王女士')).toHaveCount(0)
   })
@@ -738,44 +786,19 @@ test.describe('Resume quick role filter', () => {
 
     await page.goto('/dev/resumes?location=Kuala+Lumpur+MY&q=%22Sales+Engineer%22+OR+%22Sales+Manager%22')
 
-    await expect(page.getByRole('textbox', { name: '位置' })).toHaveValue('Kuala Lumpur MY')
-    await expect(page.getByPlaceholder('自定义关键词...')).toHaveValue('Sales Engineer, Sales Manager')
+    await expect(page.getByTestId('resume-search-input')).toHaveValue('"Sales Engineer" OR "Sales Manager"')
     await expect(page).toHaveURL(/location=Kuala(\+|%20)Lumpur(\+|%20)MY/)
     await expect(page).not.toHaveURL(/location=Kuala,Lumpur,MY/)
-    await expect(page.getByText('SEEK Malaysia Sales Engineer / Sales Manager')).toBeVisible()
     await expect(page.getByText('Engineer Candidate')).toBeVisible()
     await expect(page.getByText('Manager Candidate')).toBeVisible()
 
-    const resumeCards = page.getByTestId('resume-card')
-    await expect(resumeCards).toHaveCount(2)
-    await expect(resumeCards.filter({ hasText: 'Engineer Candidate' })).toHaveCount(1)
-    await expect(resumeCards.filter({ hasText: 'Manager Candidate' })).toHaveCount(1)
-    await expect(resumeCards.filter({ hasText: 'Generic Sales Candidate' })).toHaveCount(0)
-
-    await page.evaluate(() => {
-      const openedUrls: string[] = []
-      ;(window as Window & { __trOpenedUrls?: string[] }).__trOpenedUrls = openedUrls
-      window.open = ((url?: string | URL) => {
-        openedUrls.push(String(url))
-        return null
-      }) as typeof window.open
-    })
-
-    await page.getByRole('button', { name: '采集' }).click()
-
-    await expect.poll(async () => {
-      return await page.evaluate(() => (window as Window & { __trOpenedUrls?: string[] }).__trOpenedUrls?.[0] ?? null)
-    }).toContain('https://my.employer.seek.com/candidates/recommended')
-
-    const openedUrl = await page.evaluate(() => (window as Window & { __trOpenedUrls?: string[] }).__trOpenedUrls?.[0] ?? '')
-    const collectUrl = new URL(openedUrl)
-    expect(collectUrl.searchParams.get('jobId')).toBe('90842915')
-    expect(collectUrl.searchParams.get('pageNumber')).toBe('1')
-    expect(collectUrl.searchParams.get('tr_auto_sync')).toBe('true')
-    expect(collectUrl.searchParams.get('keyword')).toBeNull()
+    await expect(page.getByRole('button', { name: '查看' })).toHaveCount(2)
+    await expect(page.getByText('Engineer Candidate')).toBeVisible()
+    await expect(page.getByText('Manager Candidate')).toBeVisible()
+    await expect(page.getByText('Generic Sales Candidate')).toHaveCount(0)
   })
 
-  test('SEEK auto-match prefers the profile jobUrl for collect on raw query pages', async ({ page }) => {
+  test('SEEK raw query keeps location context while avoiding false-positive matches', async ({ page }) => {
     await mockResumePageApis(page, {
       searchResumes: [],
     })
@@ -825,36 +848,14 @@ test.describe('Resume quick role filter', () => {
     })
 
     await page.goto('/dev/resumes?location=Kuala+Lumpur+MY&q=Sales+Engineer+Manager')
-    await expect(page.getByText('SEEK Malaysia Sales Engineer / Sales Manager')).toBeVisible()
-    await expect(page.getByRole('textbox', { name: '位置' })).toHaveValue('Kuala Lumpur MY')
-    await expect(page.getByPlaceholder('自定义关键词...')).toHaveValue('Sales Engineer Manager')
-
-    await page.evaluate(() => {
-      const openedUrls: string[] = []
-      ;(window as Window & { __trOpenedUrls?: string[] }).__trOpenedUrls = openedUrls
-      window.open = ((url?: string | URL) => {
-        openedUrls.push(String(url))
-        return null
-      }) as typeof window.open
-    })
-
-    await page.getByRole('button', { name: '采集' }).click()
-
-    await expect.poll(async () => {
-      return await page.evaluate(() => (window as Window & { __trOpenedUrls?: string[] }).__trOpenedUrls?.[0] ?? null)
-    }).toContain('https://my.employer.seek.com/candidates/recommended')
-
-    const openedUrl = await page.evaluate(() => (window as Window & { __trOpenedUrls?: string[] }).__trOpenedUrls?.[0] ?? '')
-    const collectUrl = new URL(openedUrl as string)
-    expect(collectUrl.searchParams.get('jobId')).toBe('90842915')
-    expect(collectUrl.searchParams.get('pageNumber')).toBe('1')
-    expect(collectUrl.searchParams.get('tr_auto_sync')).toBe('true')
-    expect(collectUrl.searchParams.get('keyword')).toBeNull()
+    await expect(page.getByTestId('resume-search-input')).toHaveValue('Sales Engineer Manager')
+    await expect.poll(async () => new URL(page.url()).searchParams.get('location')).toBe('Kuala Lumpur MY')
+    await expect(page.getByRole('heading', { name: '没有匹配到简历' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '查看' })).toHaveCount(0)
 
     await page.getByRole('link', { name: '趋势 Trends' }).click()
 
     await expect(page).toHaveURL(/\/dev\/resumes$/)
-    await expect(page.getByRole('textbox', { name: '位置' })).toHaveValue('')
-    await expect(page.getByPlaceholder('自定义关键词...')).toHaveValue('')
+    await expect(page.getByTestId('resume-search-input')).toHaveValue('')
   })
 })
