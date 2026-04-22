@@ -30,6 +30,8 @@ sources:
   - type: job5156
     enabled: true
     priority: 1
+    collectLimit: 200
+    maxPages: 10
   - type: seek
     enabled: false
     priority: 2
