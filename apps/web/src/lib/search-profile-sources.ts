@@ -49,6 +49,8 @@ export type CollectionSource = {
   unsafeLimits?: boolean
   job51CollectLimit?: number
   job51MaxPages?: number
+  collectLimit?: number
+  maxPages?: number
 }
 
 const SOURCE_MARKET_MAP: Record<CollectionSourceType, 'CN' | 'MY'> = {
@@ -69,6 +71,8 @@ export type SearchProfileSource = {
   unsafeLimits?: boolean
   job51CollectLimit?: number
   job51MaxPages?: number
+  collectLimit?: number
+  maxPages?: number
 }
 
 type BuildSeekCollectUrlInput = {
@@ -79,6 +83,8 @@ type BuildSeekCollectUrlInput = {
   maxPages?: number
   minAge?: number
   maxAge?: number
+  sourceCollectLimit?: number
+  sourceMaxPages?: number
 }
 
 type BuildJob5156CollectUrlInput = Omit<BuildSeekCollectUrlInput, 'baseUrl'>
@@ -162,9 +168,20 @@ export function normalizeCollectionSource(
       }
     : {}
 
+  const sourceLevelLimits = (value.type === SEARCH_PROFILE_SOURCE_TYPES.job5156 || value.type === SEARCH_PROFILE_SOURCE_TYPES.seek)
+    ? {
+        ...(typeof value.collectLimit === 'number' && value.collectLimit > 0
+          ? { collectLimit: value.collectLimit }
+          : {}),
+        ...(typeof value.maxPages === 'number' && value.maxPages > 0
+          ? { maxPages: value.maxPages }
+          : {}),
+      }
+    : {}
+
   return exactUrl
-    ? { type: value.type, exactUrl, ...job51Extras }
-    : { type: value.type, ...job51Extras }
+    ? { type: value.type, exactUrl, ...job51Extras, ...sourceLevelLimits }
+    : { type: value.type, ...job51Extras, ...sourceLevelLimits }
 }
 
 export function resolveCollectionSource(
@@ -274,7 +291,9 @@ export function getSearchProfileCollectionSource(
     return normalizeCollectionSource({
       type: SEARCH_PROFILE_SOURCE_TYPES.seek,
       exactUrl: source.jobUrl,
-    }) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.seek }
+      collectLimit: source.collectLimit,
+      maxPages: source.maxPages,
+    }) ?? { type: SEARCH_PROFILE_SOURCE_TYPES.seek, collectLimit: source.collectLimit, maxPages: source.maxPages }
   }
 
   if (source.type === SEARCH_PROFILE_SOURCE_TYPES.job51) {
@@ -286,7 +305,7 @@ export function getSearchProfileCollectionSource(
     })
   }
 
-  return { type: SEARCH_PROFILE_SOURCE_TYPES.job5156 }
+  return { type: SEARCH_PROFILE_SOURCE_TYPES.job5156, collectLimit: source.collectLimit, maxPages: source.maxPages }
 }
 
 export function getSearchProfileCollectUrl(
@@ -308,6 +327,8 @@ export function buildSeekCollectUrl({
   maxPages,
   minAge,
   maxAge,
+  sourceCollectLimit,
+  sourceMaxPages,
 }: BuildSeekCollectUrlInput): string | null {
   const normalizedBaseUrl = normalizeSeekJobUrl(baseUrl)
   const normalizedKeywords = normalizeKeywords(keywords)
@@ -333,16 +354,22 @@ export function buildSeekCollectUrl({
   removeTrendsParams(url)
   url.searchParams.set('tr_auto_sync', 'true')
 
-  const normalizedCollectLimit = normalizeOptionalPositiveInt(collectLimit)
-  if (typeof normalizedCollectLimit === 'number') {
-    url.searchParams.set('tr_limit', String(normalizedCollectLimit))
+  // Source-level overrides take priority over generic args
+  const effectiveCollectLimit = typeof sourceCollectLimit === 'number' && sourceCollectLimit > 0
+    ? sourceCollectLimit
+    : normalizeOptionalPositiveInt(collectLimit)
+  const effectiveMaxPages = typeof sourceMaxPages === 'number' && sourceMaxPages > 0
+    ? sourceMaxPages
+    : normalizeOptionalPositiveInt(maxPages)
+
+  if (typeof effectiveCollectLimit === 'number') {
+    url.searchParams.set('tr_limit', String(effectiveCollectLimit))
   } else {
     url.searchParams.delete('tr_limit')
   }
 
-  const normalizedMaxPages = normalizeOptionalPositiveInt(maxPages)
-  if (typeof normalizedMaxPages === 'number') {
-    url.searchParams.set('tr_max_pages', String(normalizedMaxPages))
+  if (typeof effectiveMaxPages === 'number') {
+    url.searchParams.set('tr_max_pages', String(effectiveMaxPages))
   } else {
     url.searchParams.delete('tr_max_pages')
   }
@@ -371,6 +398,8 @@ export function buildJob5156CollectUrl({
   maxPages,
   minAge,
   maxAge,
+  sourceCollectLimit,
+  sourceMaxPages,
 }: BuildJob5156CollectUrlInput): string | null {
   const normalizedKeywords = normalizeKeywords(keywords)
   if (normalizedKeywords.length === 0) {
@@ -387,14 +416,20 @@ export function buildJob5156CollectUrl({
 
   url.searchParams.set('tr_auto_sync', 'true')
 
-  const normalizedCollectLimit = normalizeOptionalPositiveInt(collectLimit)
-  if (typeof normalizedCollectLimit === 'number') {
-    url.searchParams.set('tr_limit', String(normalizedCollectLimit))
+  // Source-level overrides take priority over generic args
+  const effectiveCollectLimit = typeof sourceCollectLimit === 'number' && sourceCollectLimit > 0
+    ? sourceCollectLimit
+    : normalizeOptionalPositiveInt(collectLimit)
+  const effectiveMaxPages = typeof sourceMaxPages === 'number' && sourceMaxPages > 0
+    ? sourceMaxPages
+    : normalizeOptionalPositiveInt(maxPages)
+
+  if (typeof effectiveCollectLimit === 'number') {
+    url.searchParams.set('tr_limit', String(effectiveCollectLimit))
   }
 
-  const normalizedMaxPages = normalizeOptionalPositiveInt(maxPages)
-  if (typeof normalizedMaxPages === 'number') {
-    url.searchParams.set('tr_max_pages', String(normalizedMaxPages))
+  if (typeof effectiveMaxPages === 'number') {
+    url.searchParams.set('tr_max_pages', String(effectiveMaxPages))
   }
 
   const normalizedMinAge = normalizeOptionalPositiveInt(minAge)
@@ -500,6 +535,8 @@ export function buildCollectionLaunchUrl({
       maxPages,
       minAge,
       maxAge,
+      sourceCollectLimit: source.collectLimit,
+      sourceMaxPages: source.maxPages,
     })
   }
 
@@ -524,5 +561,7 @@ export function buildCollectionLaunchUrl({
     maxPages,
     minAge,
     maxAge,
+    sourceCollectLimit: source.collectLimit,
+    sourceMaxPages: source.maxPages,
   })
 }

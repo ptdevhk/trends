@@ -384,6 +384,8 @@ export function SearchProfilesPage() {
           unsafeLimits: activeSource.unsafeLimits,
           job51CollectLimit: activeSource.job51CollectLimit,
           job51MaxPages: activeSource.job51MaxPages,
+          collectLimit: activeSource.collectLimit,
+          maxPages: activeSource.maxPages,
         },
         location: detail.location,
         keywords: detail.keywords,

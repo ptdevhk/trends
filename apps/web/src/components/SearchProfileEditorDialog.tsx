@@ -90,6 +90,7 @@ type ProfileFormState = {
     maxExperience: string
     minAge: string
     maxAge: string
+    maxCandidates: string
     cron: string
     enabled: boolean
     quickStartEnabled: boolean
@@ -99,6 +100,8 @@ type ProfileFormState = {
 type SourceFormState = {
     job5156Enabled: boolean
     job5156Priority: string
+    job5156CollectLimit: string
+    job5156MaxPages: string
     job51Enabled: boolean
     job51Priority: string
     job51UnsafeLimits: boolean
@@ -107,6 +110,8 @@ type SourceFormState = {
     seekEnabled: boolean
     seekPriority: string
     seekJobUrl: string
+    seekCollectLimit: string
+    seekMaxPages: string
 }
 
 const DEFAULT_FORM: ProfileFormState = {
@@ -118,6 +123,7 @@ const DEFAULT_FORM: ProfileFormState = {
     maxExperience: '',
     minAge: '',
     maxAge: '',
+    maxCandidates: '',
     cron: '0 9 * * 1-5',
     enabled: true,
     quickStartEnabled: false,
@@ -127,6 +133,8 @@ const DEFAULT_FORM: ProfileFormState = {
 const DEFAULT_SOURCES_FORM: SourceFormState = {
     job5156Enabled: true,
     job5156Priority: '1',
+    job5156CollectLimit: '',
+    job5156MaxPages: '',
     job51Enabled: false,
     job51Priority: '3',
     job51UnsafeLimits: false,
@@ -135,6 +143,8 @@ const DEFAULT_SOURCES_FORM: SourceFormState = {
     seekEnabled: false,
     seekPriority: '2',
     seekJobUrl: '',
+    seekCollectLimit: '',
+    seekMaxPages: '',
 }
 
 const SEEDED_PROFILES_WITHOUT_JD = new Set([
@@ -216,6 +226,8 @@ function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceF
     return {
         job5156Enabled: job5156Source?.enabled ?? DEFAULT_SOURCES_FORM.job5156Enabled,
         job5156Priority: normalizeSourcePriority(job5156Source?.priority) || DEFAULT_SOURCES_FORM.job5156Priority,
+        job5156CollectLimit: typeof job5156Source?.collectLimit === 'number' ? String(job5156Source.collectLimit) : '',
+        job5156MaxPages: typeof job5156Source?.maxPages === 'number' ? String(job5156Source.maxPages) : '',
         job51Enabled: job51Source?.enabled ?? DEFAULT_SOURCES_FORM.job51Enabled,
         job51Priority: normalizeSourcePriority(job51Source?.priority) || DEFAULT_SOURCES_FORM.job51Priority,
         job51UnsafeLimits: job51Source?.unsafeLimits === true,
@@ -224,6 +236,8 @@ function toSourcesFormState(sources: SearchProfileSource[] | undefined): SourceF
         seekEnabled: seekSource?.enabled ?? DEFAULT_SOURCES_FORM.seekEnabled,
         seekPriority: normalizeSourcePriority(seekSource?.priority) || DEFAULT_SOURCES_FORM.seekPriority,
         seekJobUrl: seekSource?.jobUrl ?? DEFAULT_SOURCES_FORM.seekJobUrl,
+        seekCollectLimit: typeof seekSource?.collectLimit === 'number' ? String(seekSource.collectLimit) : '',
+        seekMaxPages: typeof seekSource?.maxPages === 'number' ? String(seekSource.maxPages) : '',
     }
 }
 
@@ -251,10 +265,15 @@ function splitKnownSources(sources: SearchProfileSource[] | undefined): {
 function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: SearchProfileSource[]): SearchProfileSource[] {
     const sources: SearchProfileSource[] = [...additionalSources]
 
+    const job5156CollectLimit = parseOptionalNumber(sourceForm.job5156CollectLimit)
+    const job5156MaxPages = parseOptionalNumber(sourceForm.job5156MaxPages)
+
     sources.push({
         type: SEARCH_PROFILE_SOURCE_TYPES.job5156,
         enabled: sourceForm.job5156Enabled,
         priority: parseOptionalNumber(sourceForm.job5156Priority),
+        ...(typeof job5156CollectLimit === 'number' ? { collectLimit: job5156CollectLimit } : {}),
+        ...(typeof job5156MaxPages === 'number' ? { maxPages: job5156MaxPages } : {}),
     })
 
     const job51CollectLimit = parseOptionalNumber(sourceForm.job51CollectLimit)
@@ -272,11 +291,16 @@ function buildSourcesPayload(sourceForm: SourceFormState, additionalSources: Sea
         ...(typeof job51MaxPages === 'number' ? { job51MaxPages } : {}),
     })
 
+    const seekCollectLimit = parseOptionalNumber(sourceForm.seekCollectLimit)
+    const seekMaxPages = parseOptionalNumber(sourceForm.seekMaxPages)
+
     sources.push({
         type: SEARCH_PROFILE_SOURCE_TYPES.seek,
         enabled: sourceForm.seekEnabled,
         priority: parseOptionalNumber(sourceForm.seekPriority),
         jobUrl: normalizeSeekJobUrl(sourceForm.seekJobUrl),
+        ...(typeof seekCollectLimit === 'number' ? { collectLimit: seekCollectLimit } : {}),
+        ...(typeof seekMaxPages === 'number' ? { maxPages: seekMaxPages } : {}),
     })
 
     return sources
@@ -292,6 +316,7 @@ function toFormState(profile: SearchProfileDetails): ProfileFormState {
         maxExperience: typeof profile.filters?.maxExperience === 'number' ? String(profile.filters.maxExperience) : '',
         minAge: typeof profile.filters?.minAge === 'number' ? String(profile.filters.minAge) : '',
         maxAge: typeof profile.filters?.maxAge === 'number' ? String(profile.filters.maxAge) : '',
+        maxCandidates: typeof profile.schedule?.maxCandidates === 'number' ? String(profile.schedule.maxCandidates) : '',
         cron: profile.schedule?.cron || '',
         enabled: profile.status === 'active',
         quickStartEnabled: profile.quickStart?.enabled ?? false,
@@ -551,6 +576,7 @@ export function SearchProfileEditorDialog({
             schedule: {
                 enabled: form.enabled,
                 cron: form.cron.trim() || undefined,
+                maxCandidates: parseOptionalNumber(form.maxCandidates),
             },
             sources,
             quickStart: { enabled: form.quickStartEnabled },
@@ -698,6 +724,20 @@ export function SearchProfileEditorDialog({
                         />
                     </div>
 
+                    <div className="grid gap-2">
+                        <Label htmlFor="profile-maxCandidates">{t('searchProfiles.fields.maxCandidates', { defaultValue: 'Max Candidates' })}</Label>
+                        <Input
+                            id="profile-maxCandidates"
+                            type="number"
+                            min={1}
+                            step={1}
+                            inputMode="numeric"
+                            value={form.maxCandidates}
+                            onChange={(event) => setForm((previous) => ({ ...previous, maxCandidates: event.target.value }))}
+                            placeholder="120"
+                        />
+                    </div>
+
                     <div className="grid gap-3">
                         <Label>{t('searchProfiles.fields.sources', { defaultValue: 'Sources' })}</Label>
 
@@ -731,6 +771,73 @@ export function SearchProfileEditorDialog({
                                     />
                                 </div>
                             </div>
+
+                            {sourceForm.job5156Enabled ? (
+                                <div className="mt-3 grid gap-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor="profile-source-job5156-limit" className="text-xs whitespace-nowrap">
+                                                {t('searchProfiles.fields.job5156CollectLimit', { defaultValue: 'Job5156 Limit' })}
+                                            </Label>
+                                            <Input
+                                                id="profile-source-job5156-limit"
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                inputMode="numeric"
+                                                value={sourceForm.job5156CollectLimit}
+                                                onChange={(event) => setSourceForm((previous) => ({
+                                                    ...previous,
+                                                    job5156CollectLimit: event.target.value,
+                                                }))}
+                                                placeholder="120"
+                                                className="h-7 w-20"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor="profile-source-job5156-max-pages" className="text-xs whitespace-nowrap">
+                                                {t('searchProfiles.fields.job5156MaxPages', { defaultValue: 'Job5156 Pages' })}
+                                            </Label>
+                                            <Input
+                                                id="profile-source-job5156-max-pages"
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                inputMode="numeric"
+                                                value={sourceForm.job5156MaxPages}
+                                                onChange={(event) => setSourceForm((previous) => ({
+                                                    ...previous,
+                                                    job5156MaxPages: event.target.value,
+                                                }))}
+                                                placeholder="10"
+                                                className="h-7 w-20"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        {[
+                                            { key: 'standard', limit: '120', pages: '10', label: t('searchProfiles.presets.standard', { defaultValue: 'Standard' }) },
+                                            { key: 'large', limit: '200', pages: '10', label: t('searchProfiles.presets.large', { defaultValue: 'Large' }) },
+                                            { key: 'max', limit: '500', pages: '20', label: t('searchProfiles.presets.max', { defaultValue: 'Max' }) },
+                                        ].map((preset) => (
+                                            <Button
+                                                key={preset.key}
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-6 px-2 text-xs"
+                                                onClick={() => setSourceForm((previous) => ({
+                                                    ...previous,
+                                                    job5156CollectLimit: preset.limit,
+                                                    job5156MaxPages: preset.pages,
+                                                }))}
+                                            >
+                                                {preset.label}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
                         </div>
 
                         <div className="rounded-md border p-3">
@@ -891,6 +998,46 @@ export function SearchProfileEditorDialog({
                                     <span className="text-xs text-muted-foreground">
                                         {t('searchProfiles.fields.seekJobUrlHint', { defaultValue: 'Use the exact Seek recommended candidates URL for this job lane.' })}
                                     </span>
+                                    <div className="mt-1 flex items-center gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor="profile-source-seek-limit" className="text-xs whitespace-nowrap">
+                                                {t('searchProfiles.fields.seekCollectLimit', { defaultValue: 'Seek Limit' })}
+                                            </Label>
+                                            <Input
+                                                id="profile-source-seek-limit"
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                inputMode="numeric"
+                                                value={sourceForm.seekCollectLimit}
+                                                onChange={(event) => setSourceForm((previous) => ({
+                                                    ...previous,
+                                                    seekCollectLimit: event.target.value,
+                                                }))}
+                                                placeholder="100"
+                                                className="h-7 w-20"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor="profile-source-seek-max-pages" className="text-xs whitespace-nowrap">
+                                                {t('searchProfiles.fields.seekMaxPages', { defaultValue: 'Seek Pages' })}
+                                            </Label>
+                                            <Input
+                                                id="profile-source-seek-max-pages"
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                inputMode="numeric"
+                                                value={sourceForm.seekMaxPages}
+                                                onChange={(event) => setSourceForm((previous) => ({
+                                                    ...previous,
+                                                    seekMaxPages: event.target.value,
+                                                }))}
+                                                placeholder="5"
+                                                className="h-7 w-20"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             ) : null}
                         </div>
