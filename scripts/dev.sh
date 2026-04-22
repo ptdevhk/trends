@@ -492,6 +492,130 @@ is_dev_script_pid() {
     esac
 }
 
+# Pure string match for dev-service command patterns (no syscall).
+# A single process can listen on multiple ports — dedup happens in the caller.
+_is_known_dev_cmd() {
+    local cmd="$1"
+    case "$cmd" in
+        *"$PROJECT_ROOT/scripts/dev.sh"*)                        return 0 ;;
+        *"bash ./scripts/dev.sh"*)                               return 0 ;;
+        *"$PROJECT_ROOT/.venv/bin/python3 -m mcp_server.server"*) return 0 ;;
+        *"$PROJECT_ROOT/node_modules/.bin/tsx watch"*)           return 0 ;;
+        *"$PROJECT_ROOT/node_modules/.bin/convex dev"*)          return 0 ;;
+        *"convex-local-backend"*)                                return 0 ;;
+        *"uv run python scripts/worker.py"*)                    return 0 ;;
+        *"tsx/dist/preflight"*|*"tsx/dist/loader"*)             return 0 ;;
+        *"$PROJECT_ROOT/node_modules/.bin/vite"*|*"vite --port"*) return 0 ;;
+        *"uvicorn api:app"*)                                     return 0 ;;
+        *)                                                       return 1 ;;
+    esac
+}
+
+# Collect PIDs holding dev ports that belong to known dev-service processes.
+# Uses a single `ps` call for all candidate PIDs (avoids N fork/exec).
+collect_orphaned_port_pids() {
+    local -a raw_pids=()
+    local port pid
+
+    for port in "${CONVEX_PORT:-3210}" "${MCP_PORT:-3333}" "${TRENDS_WORKER_PORT:-8000}" "${API_PORT:-3000}" "${WEB_PORT:-5173}"; do
+        while read -r pid; do
+            if [[ "$pid" =~ ^[0-9]+$ ]] && [ "$pid" -gt 1 ] && [ "$pid" -ne "$$" ]; then
+                raw_pids+=("$pid")
+            fi
+        done < <(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)
+    done
+
+    if [ ${#raw_pids[@]} -eq 0 ]; then
+        return 1
+    fi
+
+    # Deduplicate before the ps call
+    local -a uniq_pids
+    uniq_pids=($(printf '%s\n' "${raw_pids[@]}" | sort -u))
+
+    # Single ps call for all candidate PIDs
+    local -A pid_cmd_map=()
+    while IFS=$'\t' read -r pid cmd; do
+        pid_cmd_map["$pid"]="$cmd"
+    done < <(ps -o pid=,command= -p "$(IFS=,; echo "${uniq_pids[*]}")" 2>/dev/null || true)
+
+    local -a orphans=()
+    for pid in "${!pid_cmd_map[@]}"; do
+        if _is_known_dev_cmd "${pid_cmd_map[$pid]}"; then
+            orphans+=("$pid")
+        fi
+    done
+
+    if [ ${#orphans[@]} -eq 0 ]; then
+        return 1
+    fi
+
+    printf '%s\n' "${orphans[@]}" | sort -u
+    return 0
+}
+
+# Kill orphaned dev-service processes holding required ports.
+# Runs after lock acquisition, before check_all_ports.
+# Sets PORTS_PRE_VERIFIED=1 when ports are confirmed free, letting main() skip
+# the redundant check_all_ports scan.
+cleanup_orphaned_services() {
+    local orphan_pids
+    orphan_pids="$(collect_orphaned_port_pids)" || return 0
+
+    log "DEV" "$YELLOW" "Detected orphaned dev processes from a previous session. Cleaning up..."
+
+    # SIGTERM with polling (up to 3s, check every 0.5s)
+    local pid
+    while read -r pid; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill_process_tree "$pid" "-TERM"
+        fi
+    done <<< "$orphan_pids"
+
+    local waited=0
+    while [ "$waited" -lt 6 ]; do
+        local any_alive=false
+        while read -r pid; do
+            if kill -0 "$pid" 2>/dev/null; then
+                any_alive=true
+                break
+            fi
+        done <<< "$orphan_pids"
+        [ "$any_alive" = "false" ] && break
+        sleep 0.5
+        waited=$((waited + 1))
+    done
+
+    # SIGKILL anything still alive
+    while read -r pid; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill_process_tree "$pid" "-KILL"
+        fi
+    done <<< "$orphan_pids"
+
+    # Brief wait for OS socket release (prevents EADDRINUSE on restart)
+    sleep 0.5
+
+    # Verify killed PIDs are gone (cheaper than re-scanning ports with lsof)
+    local verify_attempt=1
+    while [ "$verify_attempt" -le 3 ]; do
+        local any_alive=false
+        while read -r pid; do
+            if kill -0 "$pid" 2>/dev/null; then
+                any_alive=true
+                break
+            fi
+        done <<< "$orphan_pids"
+        [ "$any_alive" = "false" ] && break
+        log "DEV" "$YELLOW" "Processes still exiting (attempt $verify_attempt/3)..."
+        sleep 1
+        verify_attempt=$((verify_attempt + 1))
+    done
+
+    PORTS_PRE_VERIFIED=1
+    log "DEV" "$GREEN" "Orphaned processes cleaned up."
+}
+
 acquire_lock() {
     if [ "$LOCK_METHOD" = "flock" ]; then
         if [ -z "$LOCKFILE" ]; then
@@ -650,11 +774,11 @@ ensure_node_native_modules() {
     log "DEV" "$GREEN" "better-sqlite3 rebuilt successfully for Node $node_ver"
 }
 
-# Check if a port is available
+# Check if a port is available (only checks for LISTEN state — client connections don't block binding)
 check_port() {
     local port="$1"
     if command -v lsof &>/dev/null; then
-        ! lsof -i ":$port" &>/dev/null
+        ! lsof -iTCP:"$port" -sTCP:LISTEN &>/dev/null
     elif command -v ss &>/dev/null; then
         ! ss -tuln | grep -q ":$port "
     else
@@ -760,11 +884,11 @@ convex_command_to_string() {
     echo "${rendered% }"
 }
 
-# Get PIDs of what's using a port (space-separated)
+# Get PIDs of what's LISTENING on a port (space-separated)
 get_port_pids() {
     local port="$1"
     if command -v lsof &>/dev/null; then
-        lsof -i ":$port" -t 2>/dev/null | tr '\n' ' ' | xargs
+        lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | tr '\n' ' ' | xargs
     fi
 }
 
@@ -1623,11 +1747,19 @@ main() {
 
     log "DEV" "$GREEN" "Service profile: $service_profile"
 
-    # Check for port conflicts upfront
-    if ! check_all_ports "${services[@]}"; then
-        log "DEV" "$YELLOW" "Resolve conflicts first: ./scripts/clean-dev.sh (or rerun with --force)."
-        trap - EXIT
-        exit 1
+    # Auto-cleanup orphaned dev processes from previous sessions before port checks.
+    # This prevents the common failure where stale processes hold ports and
+    # force the user to manually run clean-dev.sh.
+    PORTS_PRE_VERIFIED=0
+    cleanup_orphaned_services
+
+    # Skip redundant port scan when cleanup already verified ports are free.
+    if [ "$PORTS_PRE_VERIFIED" -eq 0 ]; then
+        if ! check_all_ports "${services[@]}"; then
+            log "DEV" "$YELLOW" "Resolve conflicts first: ./scripts/clean-dev.sh (or rerun with --force)."
+            trap - EXIT
+            exit 1
+        fi
     fi
 
     # Native modules can break when Node version changes between installs/runs.
