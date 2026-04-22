@@ -1183,8 +1183,11 @@ app.openapi(runProfileRoute, async (c) => {
 
     const keyword = buildProfileRunKeyword(parsed.data.keyword, profile.keywords);
     const location = readString(parsed.data.location) ?? profile.location;
-    const limit = parsed.data.limit ?? profile.schedule?.maxCandidates ?? 120;
-    const maxPages = parsed.data.maxPages ?? 10;
+    const activeSource = Array.isArray(profile.sources)
+        ? profile.sources.find((s) => s.enabled) ?? profile.sources[0]
+        : undefined;
+    const limit = parsed.data.limit ?? activeSource?.collectLimit ?? profile.schedule?.maxCandidates ?? 120;
+    const maxPages = parsed.data.maxPages ?? activeSource?.maxPages ?? 10;
     const autoAnalyze = parsed.data.autoAnalyze ?? Boolean(profile.ai);
     const analysisTopN = parsed.data.analysisTopN ?? 10;
     const minAge = normalizePositiveInt(parsed.data.minAge ?? profile.filters?.minAge);

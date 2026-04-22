@@ -40,6 +40,8 @@ export type SharedSearchProfileTemplate = {
       enabled: boolean;
       priority?: number;
       jobUrl?: string;
+      collectLimit?: number;
+      maxPages?: number;
     }>;
     quickStart?: {
       enabled: boolean;
@@ -90,6 +92,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           type: "job5156",
           enabled: true,
           priority: 1,
+          collectLimit: 200,
+          maxPages: 10,
         },
         {
           type: "seek",
@@ -135,6 +139,8 @@ export const SEARCH_PROFILE_TEMPLATES: SharedSearchProfileTemplate[] = [
           enabled: true,
           priority: 1,
           jobUrl: "https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1",
+          collectLimit: 100,
+          maxPages: 5,
         },
         {
           type: "job5156",

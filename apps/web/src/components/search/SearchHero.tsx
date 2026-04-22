@@ -25,6 +25,8 @@ type SearchHeroQuickStart = {
     jobUrl?: string
     job51CollectLimit?: number
     job51MaxPages?: number
+    collectLimit?: number
+    maxPages?: number
   }
 }
 
@@ -161,6 +163,12 @@ export function SearchHero({
                                 ? { job51MaxPages: seed.source.job51MaxPages }
                                 : {}),
                             }
+                          : {}),
+                        ...(typeof seed.source.collectLimit === 'number'
+                          ? { collectLimit: seed.source.collectLimit }
+                          : {}),
+                        ...(typeof seed.source.maxPages === 'number'
+                          ? { maxPages: seed.source.maxPages }
                           : {}),
                       },
                       location: seed.location,
