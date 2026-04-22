@@ -109,6 +109,8 @@ const ResumeImportDigitalIdentitySchema = z
 export const ResumeImportRestoreStateSchema = z
   .object({
     crawledAt: z.number().int().optional().openapi({ example: 1763917200000 }),
+    isArchived: z.boolean().optional().openapi({ example: true }),
+    archivedAt: z.number().int().optional().openapi({ example: 1763917200000 }),
     searchText: z.string().optional().openapi({ example: "alice cnc sales dongguan" }),
     primaryRuleScore: z.number().optional().openapi({ example: 85 }),
     ingestData: z.any().optional(),

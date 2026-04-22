@@ -749,6 +749,21 @@ function buildResumeBackupRestoreState(record: Record<string, unknown>): Record<
     restoreState.crawledAt = crawledAt;
   }
 
+  if (typeof record.isArchived === "boolean") {
+    restoreState.isArchived = record.isArchived;
+    if (record.isArchived) {
+      const archivedAt = record.archivedAt;
+      if (typeof archivedAt === "number" && Number.isFinite(archivedAt)) {
+        restoreState.archivedAt = archivedAt;
+      }
+    }
+  } else {
+    const archivedAt = record.archivedAt;
+    if (typeof archivedAt === "number" && Number.isFinite(archivedAt)) {
+      restoreState.archivedAt = archivedAt;
+    }
+  }
+
   const searchText = toStringValue(record.searchText);
   if (searchText) {
     restoreState.searchText = searchText;

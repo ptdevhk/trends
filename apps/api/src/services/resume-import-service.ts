@@ -30,6 +30,8 @@ export type ResumeSubmitSummary = z.infer<typeof ResumeSubmitSummarySchema>;
 
 type ConvexResumeRestoreState = {
   crawledAt?: number;
+  isArchived?: boolean;
+  archivedAt?: number;
   searchText?: string;
   primaryRuleScore?: number;
   ingestData?: unknown;
@@ -209,6 +211,15 @@ function normalizeRestoreState(
   const normalized: ConvexResumeRestoreState = {};
   if (typeof value.crawledAt === "number" && Number.isFinite(value.crawledAt)) {
     normalized.crawledAt = value.crawledAt;
+  }
+
+  if (typeof value.isArchived === "boolean") {
+    normalized.isArchived = value.isArchived;
+    if (value.isArchived && typeof value.archivedAt === "number" && Number.isFinite(value.archivedAt)) {
+      normalized.archivedAt = value.archivedAt;
+    }
+  } else if (typeof value.archivedAt === "number" && Number.isFinite(value.archivedAt)) {
+    normalized.archivedAt = value.archivedAt;
   }
 
   if (!options.recomputeDerivedFields) {

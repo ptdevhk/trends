@@ -93,6 +93,8 @@ describe("resume backup and reset routes", () => {
               crawledAt: 200,
               primaryRuleScore: 93,
               searchText: "alice sales dongguan",
+              isArchived: true,
+              archivedAt: 1763942400000,
               ingestData: {
                 industryTags: ["machine tools"],
               },
@@ -159,6 +161,8 @@ describe("resume backup and reset routes", () => {
       profileUrl: "https://hr.job5156.com/resume/view/1001",
       restoreState: {
         crawledAt: 200,
+        isArchived: true,
+        archivedAt: 1763942400000,
         primaryRuleScore: 93,
         searchText: "alice sales dongguan",
         ingestData: {

@@ -7611,6 +7611,10 @@ export interface components {
         ResumeImportRestoreState: {
             /** @example 1763917200000 */
             crawledAt?: number;
+            /** @example true */
+            isArchived?: boolean;
+            /** @example 1763917200000 */
+            archivedAt?: number;
             /** @example alice cnc sales dongguan */
             searchText?: string;
             /** @example 85 */

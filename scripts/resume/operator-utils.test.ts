@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
-import { readPortableBackupFile, writePortableBackupFile } from "./operator-utils.ts";
+import { readPortableBackupFile, resolveWorkspace, writePortableBackupFile } from "./operator-utils.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -90,6 +90,20 @@ describe("resume operator utils", () => {
     } finally {
       await unlink(jsonPath).catch(() => undefined);
       await unlink(archivePath).catch(() => undefined);
+    }
+  });
+
+  it("maps preview workspace alias to dev", () => {
+    const previousWorkspace = process.env.WORKSPACE;
+    try {
+      process.env.WORKSPACE = "preview";
+      expect(resolveWorkspace()).toBe("dev");
+    } finally {
+      if (previousWorkspace === undefined) {
+        delete process.env.WORKSPACE;
+      } else {
+        process.env.WORKSPACE = previousWorkspace;
+      }
     }
   });
 });

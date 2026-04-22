@@ -11,7 +11,12 @@ export function resolveApiUrl(): string {
 }
 
 export function resolveWorkspace(): string {
-  return process.env.WORKSPACE?.trim() || "dev";
+  const rawWorkspace = process.env.WORKSPACE?.trim() || "dev";
+  const normalizedWorkspace = rawWorkspace.toLowerCase();
+  if (normalizedWorkspace === "preview") {
+    return "dev";
+  }
+  return rawWorkspace;
 }
 
 export function splitCsv(value: string | undefined): string[] {

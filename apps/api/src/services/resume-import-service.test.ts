@@ -181,6 +181,8 @@ describe("resume-import-service", () => {
           tags: ["job5156", "sales"],
           restoreState: {
             crawledAt: 1763942400000,
+            isArchived: true,
+            archivedAt: 1763942400000,
             searchText: "alice sales dongguan",
             primaryRuleScore: 91,
             ingestData: {
@@ -224,6 +226,8 @@ describe("resume-import-service", () => {
       externalId: "hr.job5156.com:resume:1001",
       restoreState: {
         crawledAt: 1763942400000,
+        isArchived: true,
+        archivedAt: 1763942400000,
         searchText: "alice sales dongguan",
         primaryRuleScore: 91,
         ingestData: {

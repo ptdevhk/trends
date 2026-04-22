@@ -16,6 +16,8 @@ const submitResumesHandler = (submitResumes as unknown as ConvexHandler<
       tags: string[]
       restoreState?: {
         crawledAt?: number
+        isArchived?: boolean
+        archivedAt?: number
         searchText?: string
         primaryRuleScore?: number
         ingestData?: unknown
@@ -99,6 +101,8 @@ describe("submitResumes", () => {
         tags: ["sales"],
         restoreState: {
           crawledAt: 1763942400000,
+          isArchived: true,
+          archivedAt: 1763942400000,
           searchText: "alice sales dongguan",
           primaryRuleScore: 91,
           ingestData: {
@@ -128,6 +132,8 @@ describe("submitResumes", () => {
       tags: ["sales"],
       source: "hr.job5156.com",
       crawledAt: 1763942400000,
+      isArchived: true,
+      archivedAt: 1763942400000,
       primaryRuleScore: 91,
       ingestData: {
         industryTags: ["machine tools"],

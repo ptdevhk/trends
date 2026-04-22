@@ -54,6 +54,8 @@ function normalizeOptionalPositiveInt(value: number | undefined): number | undef
 
 type RestoreState = {
     crawledAt?: number;
+    isArchived?: boolean;
+    archivedAt?: number;
     searchText?: string;
     primaryRuleScore?: number;
     ingestData?: Doc<"resumes">["ingestData"];
@@ -80,6 +82,8 @@ function shouldScheduleIngest(restoreState: RestoreState | undefined): boolean {
 
 function applyRestoreStateFields(
     target: {
+        isArchived?: boolean;
+        archivedAt?: number;
         primaryRuleScore?: number;
         ingestData?: Doc<"resumes">["ingestData"];
         analysis?: Doc<"resumes">["analysis"];
@@ -89,6 +93,19 @@ function applyRestoreStateFields(
 ): void {
     if (!restoreState) {
         return;
+    }
+
+    if (typeof restoreState.isArchived === "boolean") {
+        target.isArchived = restoreState.isArchived;
+        if (restoreState.isArchived) {
+            if (typeof restoreState.archivedAt === "number" && Number.isFinite(restoreState.archivedAt)) {
+                target.archivedAt = restoreState.archivedAt;
+            }
+        } else {
+            target.archivedAt = undefined;
+        }
+    } else if (typeof restoreState.archivedAt === "number" && Number.isFinite(restoreState.archivedAt)) {
+        target.archivedAt = restoreState.archivedAt;
     }
 
     if (typeof restoreState.primaryRuleScore === "number") {
@@ -409,6 +426,8 @@ export const submitResumes = mutation({
                 tags: v.array(v.string()),
                 restoreState: v.optional(v.object({
                     crawledAt: v.optional(v.number()),
+                    isArchived: v.optional(v.boolean()),
+                    archivedAt: v.optional(v.number()),
                     searchText: v.optional(v.string()),
                     primaryRuleScore: v.optional(v.number()),
                     ingestData: v.optional(v.any()),
