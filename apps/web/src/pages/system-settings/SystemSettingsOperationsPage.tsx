@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import { Download } from 'lucide-react'
 import { api } from '../../../../../packages/convex/convex/_generated/api'
 import { SchedulerStatus } from '@/components/SchedulerStatus'
 import { TaskMonitor } from '@/components/TaskMonitor'
@@ -11,10 +12,45 @@ import { Input } from '@/components/ui/input'
 import { useSettingsRequestJson } from '@/pages/system-settings/lib'
 import { SystemSummary } from '@/pages/system-settings/SystemSummary'
 
+const EXTENSION_META_URL = '/extension/extension-meta.json'
+const EXTENSION_ZIP_URL = '/extension/trends-resume-collector-latest.zip'
+
+type ExtensionMeta = { version: string }
+
+function isExtensionMeta(value: unknown): value is ExtensionMeta {
+  if (typeof value !== 'object' || value === null || !('version' in value)) return false
+  return typeof (value as ExtensionMeta).version === 'string' && (value as ExtensionMeta).version.trim().length > 0
+}
+
+function useExtensionVersion() {
+  const [version, setVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const response = await fetch(EXTENSION_META_URL)
+        if (!response.ok) return
+        const payload: unknown = await response.json()
+        if (!cancelled && isExtensionMeta(payload)) {
+          setVersion(payload.version)
+        }
+      } catch (error) {
+        console.error('Failed to load extension metadata', error)
+      }
+    }
+    void load()
+    return () => { cancelled = true }
+  }, [])
+
+  return version
+}
+
 export function SystemSettingsOperationsPage() {
   const { t } = useTranslation()
   const { apiBaseUrl } = useSettingsRequestJson()
   const dispatchCollection = useMutation(api.resume_tasks.dispatch)
+  const extensionVersion = useExtensionVersion()
 
   const [collectionKeyword, setCollectionKeyword] = useState('')
   const [collectionLocation, setCollectionLocation] = useState('广东')
@@ -60,6 +96,20 @@ export function SystemSettingsOperationsPage() {
         <SystemSummary />
         <SchedulerStatus apiBaseUrl={apiBaseUrl} />
       </div>
+
+      {extensionVersion && (
+        <Card className="border-dashed">
+          <CardContent className="flex items-center gap-3 py-4">
+            <Download className="h-4 w-4 text-muted-foreground" />
+            <a
+              href={EXTENSION_ZIP_URL}
+              className="inline-flex items-center gap-1 text-sm font-medium hover:underline"
+            >
+              {t('quickStart.downloadExtension', { version: extensionVersion })}
+            </a>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
