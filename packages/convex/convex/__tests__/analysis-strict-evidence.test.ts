@@ -1672,4 +1672,272 @@ describe("normalizeResume strict evidence", () => {
       expect(computeDirectIndustryDbScoreFromResume({})).toBe(0);
     });
   });
+
+  describe("parseNumericBreakdown", () => {
+    // Mirrors analyze.ts:103-117
+    function isRecord(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+    function toNumber(value: unknown): number | undefined {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return undefined;
+    }
+    function parseNumericBreakdown(value: unknown): Record<string, number> | undefined {
+      if (!isRecord(value)) return undefined;
+      const parsed: Record<string, number> = {};
+      for (const [key, rawValue] of Object.entries(value)) {
+        const numeric = toNumber(rawValue);
+        if (numeric !== undefined) {
+          parsed[key] = numeric;
+        }
+      }
+      return Object.keys(parsed).length > 0 ? parsed : undefined;
+    }
+
+    it("returns undefined for non-object input", () => {
+      expect(parseNumericBreakdown(null)).toBeUndefined();
+      expect(parseNumericBreakdown("string")).toBeUndefined();
+      expect(parseNumericBreakdown(42)).toBeUndefined();
+    });
+
+    it("returns undefined for empty object", () => {
+      expect(parseNumericBreakdown({})).toBeUndefined();
+    });
+
+    it("returns undefined when all values are non-numeric", () => {
+      expect(parseNumericBreakdown({ a: "bad", b: null, c: NaN })).toBeUndefined();
+    });
+
+    it("parses numeric values from object", () => {
+      expect(parseNumericBreakdown({ related_exp: 80, industry_db: 35 })).toEqual({
+        related_exp: 80,
+        industry_db: 35,
+      });
+    });
+
+    it("parses string numbers", () => {
+      expect(parseNumericBreakdown({ related_exp: "75" })).toEqual({ related_exp: 75 });
+    });
+
+    it("filters non-numeric values keeping numeric ones", () => {
+      expect(parseNumericBreakdown({ related_exp: 60, industry_db: "abc", extra: NaN })).toEqual({
+        related_exp: 60,
+      });
+    });
+
+    it("treats array input as record with numeric index keys", () => {
+      // isRecord([1,2,3]) is true, so array enters the loop
+      // numeric index keys "0","1","2" get parsed as string numbers
+      const result = parseNumericBreakdown([1, 2, 3]);
+      // Array indices become keys: { "0": 1, "1": 2, "2": 3 }
+      expect(result).toEqual({ "0": 1, "1": 2, "2": 3 });
+    });
+  });
+
+  describe("parseRoleSignals", () => {
+    // Mirrors analyze.ts:670-742
+    function isRecord(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+    function toNumber(value: unknown): number | undefined {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return undefined;
+    }
+
+    type NormalizedRoleSignal = {
+      type: string;
+      matchedSignals: string[];
+      signalCount: number;
+      occurrences: number;
+      years: number;
+      industryVerifiedYears: number;
+      roleRelevantYears?: number;
+      industryVerifiedRelevantYears?: number;
+      matchedWorkEntries?: Array<{
+        companyName?: string;
+        jobTitle?: string;
+        years: number;
+        industryVerified: boolean;
+        matchedSignals: string[];
+        directRoleMatch?: boolean;
+      }>;
+      verifyIn: "workHistory" | "searchText";
+    };
+
+    function parseRoleSignals(value: unknown): NormalizedRoleSignal[] {
+      if (!Array.isArray(value)) return [];
+      return value.flatMap((item) => {
+        if (!isRecord(item)) return [];
+        const type = typeof item.type === "string" ? item.type.trim() : "";
+        const years = toNumber(item.years);
+        if (!type || years === undefined) return [];
+        const verifyIn = item.verifyIn === "searchText" ? "searchText" : "workHistory";
+        const matchedSignals = Array.isArray(item.matchedSignals)
+          ? item.matchedSignals.filter((signal): signal is string => typeof signal === "string" && signal.length > 0)
+          : [];
+        const signalCount = toNumber(item.signalCount) ?? matchedSignals.length;
+        const occurrences = toNumber(item.occurrences) ?? matchedSignals.length;
+        const industryVerifiedYears = toNumber(item.industryVerifiedYears) ?? 0;
+        const roleRelevantYears = toNumber(item.roleRelevantYears);
+        const industryVerifiedRelevantYears = toNumber(item.industryVerifiedRelevantYears);
+        const matchedWorkEntries = Array.isArray(item.matchedWorkEntries)
+          ? item.matchedWorkEntries.flatMap((entry) => {
+              if (!isRecord(entry)) return [];
+              const entryYears = toNumber(entry.years);
+              if (entryYears === undefined) return [];
+              const matchedEntrySignals = Array.isArray(entry.matchedSignals)
+                ? entry.matchedSignals.filter(
+                    (signal): signal is string => typeof signal === "string" && signal.length > 0
+                  )
+                : [];
+              return [{
+                companyName: typeof entry.companyName === "string" && entry.companyName.trim().length > 0
+                  ? entry.companyName.trim() : undefined,
+                jobTitle: typeof entry.jobTitle === "string" && entry.jobTitle.trim().length > 0
+                  ? entry.jobTitle.trim() : undefined,
+                years: entryYears,
+                industryVerified: entry.industryVerified === true,
+                matchedSignals: matchedEntrySignals,
+                ...(typeof entry.directRoleMatch === "boolean"
+                  ? { directRoleMatch: entry.directRoleMatch } : {}),
+              }];
+            })
+          : undefined;
+        return [{
+          type, matchedSignals, signalCount, occurrences, years,
+          industryVerifiedYears,
+          ...(roleRelevantYears === undefined ? {} : { roleRelevantYears }),
+          ...(industryVerifiedRelevantYears === undefined ? {} : { industryVerifiedRelevantYears }),
+          ...(matchedWorkEntries && matchedWorkEntries.length > 0 ? { matchedWorkEntries } : {}),
+          verifyIn,
+        }];
+      });
+    }
+
+    it("returns empty array for non-array input", () => {
+      expect(parseRoleSignals(null)).toEqual([]);
+      expect(parseRoleSignals({})).toEqual([]);
+    });
+
+    it("skips items with empty type", () => {
+      expect(parseRoleSignals([{ type: "", years: 5 }])).toEqual([]);
+    });
+
+    it("skips items with missing years", () => {
+      expect(parseRoleSignals([{ type: "sales" }])).toEqual([]);
+    });
+
+    it("skips non-record items", () => {
+      expect(parseRoleSignals(["string", 42])).toEqual([]);
+    });
+
+    it("parses minimal valid signal", () => {
+      const result = parseRoleSignals([{ type: "sales", years: 6.5 }]);
+      expect(result).toHaveLength(1);
+      expect(result[0].type).toBe("sales");
+      expect(result[0].years).toBe(6.5);
+      expect(result[0].verifyIn).toBe("workHistory");
+      expect(result[0].industryVerifiedYears).toBe(0);
+    });
+
+    it("defaults verifyIn to workHistory when not searchText", () => {
+      const result = parseRoleSignals([{ type: "sales", years: 3, verifyIn: "other" }]);
+      expect(result[0].verifyIn).toBe("workHistory");
+    });
+
+    it("respects verifyIn searchText", () => {
+      const result = parseRoleSignals([{ type: "sales", years: 3, verifyIn: "searchText" }]);
+      expect(result[0].verifyIn).toBe("searchText");
+    });
+
+    it("defaults signalCount and occurrences to matchedSignals length when absent", () => {
+      const result = parseRoleSignals([{
+        type: "sales", years: 5,
+        matchedSignals: ["销售", "销售工程师"],
+      }]);
+      expect(result[0].signalCount).toBe(2);
+      expect(result[0].occurrences).toBe(2);
+    });
+
+    it("parses matchedWorkEntries with directRoleMatch", () => {
+      const result = parseRoleSignals([{
+        type: "sales", years: 6.5,
+        matchedSignals: ["销售工程师"],
+        matchedWorkEntries: [{
+          companyName: "某机床公司",
+          jobTitle: "销售工程师",
+          years: 3.5,
+          industryVerified: true,
+          matchedSignals: ["销售工程师"],
+          directRoleMatch: true,
+        }],
+      }]);
+      expect(result[0].matchedWorkEntries).toHaveLength(1);
+      expect(result[0].matchedWorkEntries![0].directRoleMatch).toBe(true);
+      expect(result[0].matchedWorkEntries![0].industryVerified).toBe(true);
+    });
+
+    it("omits directRoleMatch when not a boolean", () => {
+      const result = parseRoleSignals([{
+        type: "sales", years: 3,
+        matchedWorkEntries: [{
+          companyName: "某公司",
+          jobTitle: "销售",
+          years: 2,
+          industryVerified: false,
+          matchedSignals: ["销售"],
+        }],
+      }]);
+      expect(result[0].matchedWorkEntries![0]).not.toHaveProperty("directRoleMatch");
+    });
+
+    it("omits matchedWorkEntries when empty array", () => {
+      const result = parseRoleSignals([{
+        type: "sales", years: 3,
+        matchedWorkEntries: [],
+      }]);
+      expect(result[0]).not.toHaveProperty("matchedWorkEntries");
+    });
+
+    it("drops matchedWorkEntry items with missing years", () => {
+      const result = parseRoleSignals([{
+        type: "sales", years: 3,
+        matchedWorkEntries: [
+          { companyName: "A", jobTitle: "Sales", years: 2, matchedSignals: ["销售"] },
+          { companyName: "B", jobTitle: "Ops" },  // no years → dropped
+        ],
+      }]);
+      expect(result[0].matchedWorkEntries).toHaveLength(1);
+    });
+
+    it("omits roleRelevantYears when undefined", () => {
+      const result = parseRoleSignals([{ type: "sales", years: 3 }]);
+      expect(result[0]).not.toHaveProperty("roleRelevantYears");
+    });
+
+    it("includes roleRelevantYears when present", () => {
+      const result = parseRoleSignals([{
+        type: "sales", years: 6, roleRelevantYears: 4,
+      }]);
+      expect(result[0].roleRelevantYears).toBe(4);
+    });
+
+    it("handles multiple signals in one array", () => {
+      const result = parseRoleSignals([
+        { type: "sales", years: 5 },
+        { type: "engineer", years: 3 },
+      ]);
+      expect(result).toHaveLength(2);
+      expect(result[0].type).toBe("sales");
+      expect(result[1].type).toBe("engineer");
+    });
+  });
 });
