@@ -19,6 +19,7 @@ import {
     resolveResumeAnalysisSourceKey,
     selectLatestWorkHistory,
 } from "@trends/shared";
+import { parseAgeFromContent } from "./lib/age";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 import { mergeSearchTextWithIngestData } from "./search_text";
 
@@ -311,6 +312,8 @@ type ResumeListFilterArgs = {
     maxExperience?: number;
     minRoleYears?: number;
     roleFilterType?: string;
+    minAge?: number;
+    maxAge?: number;
     education?: string[];
     skills?: string[];
     requiredKeywords?: string[];
@@ -773,12 +776,20 @@ function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): 
         .filter((value) => value.length > 0);
     const locations = filters.locations?.map((value) => value.trim()).filter((value) => value.length > 0);
     const roleFilterType = toOptionalStringValue(filters.roleFilterType)?.toLowerCase();
+    const minAge = typeof filters.minAge === "number" && Number.isFinite(filters.minAge) && filters.minAge > 0
+        ? Math.trunc(filters.minAge)
+        : undefined;
+    const maxAge = typeof filters.maxAge === "number" && Number.isFinite(filters.maxAge) && filters.maxAge > 0
+        ? Math.trunc(filters.maxAge)
+        : undefined;
 
     const normalized: ResumeListFilterArgs = {
         ...((filters.minExperience ?? 0) > 0 ? { minExperience: filters.minExperience } : {}),
         ...(filters.maxExperience === undefined ? {} : { maxExperience: filters.maxExperience }),
         ...((filters.minRoleYears ?? 0) > 0 ? { minRoleYears: filters.minRoleYears } : {}),
         ...(roleFilterType ? { roleFilterType } : {}),
+        ...(minAge === undefined ? {} : { minAge }),
+        ...(maxAge === undefined ? {} : { maxAge }),
         ...(education && education.length > 0 ? { education } : {}),
         ...(skills && skills.length > 0 ? { skills } : {}),
         ...(requiredKeywords.length > 0 ? { requiredKeywords } : {}),
@@ -884,6 +895,14 @@ function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined
     return getRoleSignalYears(roleSignals, toOptionalStringValue(roleType)?.toLowerCase() ?? "");
 }
 
+function resolveResumeAge(resume: Doc<"resumes">, content: Record<string, unknown>): number | null {
+    if (typeof resume.age === "number" && Number.isFinite(resume.age) && resume.age > 0) {
+        return Math.trunc(resume.age);
+    }
+
+    return parseAgeFromContent(content);
+}
+
 function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFilterArgs | undefined): boolean {
     if (!filters?.showArchived && resume.isArchived === true) {
         return false;
@@ -911,6 +930,19 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     if ((filters.minRoleYears ?? 0) > 0) {
         const roleYears = getResumeRoleYears(resume, filters.roleFilterType);
         if (roleYears < filters.minRoleYears!) {
+            return false;
+        }
+    }
+
+    if (filters.minAge !== undefined || filters.maxAge !== undefined) {
+        const age = resolveResumeAge(resume, content);
+        if (age === null) {
+            return false;
+        }
+        if (filters.minAge !== undefined && age < filters.minAge) {
+            return false;
+        }
+        if (filters.maxAge !== undefined && age > filters.maxAge) {
             return false;
         }
     }
@@ -1453,18 +1485,15 @@ async function runSearchWithTagExpansionPageQuery(
         : [];
 
     const filteredDocs = matches.filter((doc) => {
-        const normalizedSearchText = (doc.searchText || "").toLowerCase();
-        const matched = matchesTagExpansionSearchText(normalizedSearchText, keywordGroups, mode);
-
-        if (!matched) {
+        const provenance = resolveSearchWithTagExpansionMatch(
+            doc,
+            keywordGroups,
+            mode,
+            sourceMapping,
+        );
+        if (!provenance) {
             return false;
         }
-
-        const provenance = collectSearchTextProvenance(normalizedSearchText, keywordGroups, sourceMapping);
-        if (provenance.length === 0) {
-            return false;
-        }
-
         provenanceByResumeId.set(String(doc._id), provenance);
         return true;
     });
@@ -1492,6 +1521,23 @@ async function runSearchWithTagExpansionPageQuery(
         total: sorted.length,
         results: sorted.slice(offset, offset + pageLimit),
     };
+}
+
+function resolveSearchWithTagExpansionMatch(
+    doc: Doc<"resumes">,
+    keywordGroups: TagExpansionKeywordGroup[],
+    mode: "AND" | "OR",
+    sourceMapping: Record<string, string>,
+): SearchProvenance[] | null {
+    const normalizedSearchText = (doc.searchText || "").toLowerCase();
+    const matched = matchesTagExpansionSearchText(normalizedSearchText, keywordGroups, mode);
+
+    if (!matched) {
+        return null;
+    }
+
+    const provenance = collectSearchTextProvenance(normalizedSearchText, keywordGroups, sourceMapping);
+    return provenance.length > 0 ? provenance : null;
 }
 
 async function runSearchWithTagExpansionScanPageQuery(
@@ -1540,6 +1586,7 @@ async function runSearchWithTagExpansionScanPageQuery(
         ? await ctx.db
             .query("resumes")
             .withSearchIndex("search_body", (q) => q.search("searchText", searchQuery))
+            .filter((q) => q.neq(q.field("isArchived"), true))
             .paginate({
                 ...args.paginationOpts,
                 numItems: pageSize,
@@ -1558,14 +1605,13 @@ async function runSearchWithTagExpansionScanPageQuery(
             mode,
         },
         page: searchPage.page.flatMap((doc) => {
-            const normalizedSearchText = (doc.searchText || "").toLowerCase();
-            const matched = matchesTagExpansionSearchText(normalizedSearchText, keywordGroups, mode);
-            if (!matched || !matchesResumeListFilters(doc, filters)) {
-                return [];
-            }
-
-            const provenance = collectSearchTextProvenance(normalizedSearchText, keywordGroups, sourceMapping);
-            if (provenance.length === 0) {
+            const provenance = resolveSearchWithTagExpansionMatch(
+                doc,
+                keywordGroups,
+                mode,
+                sourceMapping,
+            );
+            if (!provenance || !matchesResumeListFilters(doc, filters)) {
                 return [];
             }
 
@@ -1708,6 +1754,8 @@ export const listWithIngestDataPage = query({
         maxExperience: v.optional(v.number()),
         minRoleYears: v.optional(v.number()),
         roleFilterType: v.optional(v.string()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
         skills: v.optional(v.array(v.string())),
         requiredKeywords: v.optional(v.array(v.string())),
@@ -1734,6 +1782,8 @@ export const listWithIngestDataPaginated = query({
         maxExperience: v.optional(v.number()),
         minRoleYears: v.optional(v.number()),
         roleFilterType: v.optional(v.string()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
         skills: v.optional(v.array(v.string())),
         requiredKeywords: v.optional(v.array(v.string())),
@@ -2175,6 +2225,8 @@ export const searchWithTagExpansionPage = query({
         maxExperience: v.optional(v.number()),
         minRoleYears: v.optional(v.number()),
         roleFilterType: v.optional(v.string()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
         skills: v.optional(v.array(v.string())),
         requiredKeywords: v.optional(v.array(v.string())),
@@ -2215,6 +2267,8 @@ export const searchWithTagExpansionPaginated = query({
         maxExperience: v.optional(v.number()),
         minRoleYears: v.optional(v.number()),
         roleFilterType: v.optional(v.string()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
         skills: v.optional(v.array(v.string())),
         requiredKeywords: v.optional(v.array(v.string())),
@@ -2223,6 +2277,26 @@ export const searchWithTagExpansionPaginated = query({
         maxSalary: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        if (!args.jobDescriptionId?.trim() && !args.sortBy) {
+            const requestedPageSize = resolvePaginatedResumePageLimit(args.paginationOpts.numItems);
+            const filters = normalizeResumeListFilters(args);
+            const page = await runSearchWithTagExpansionScanPageQuery(ctx, {
+                ...args,
+                paginationOpts: {
+                    ...args.paginationOpts,
+                    numItems: filters
+                        ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_JD_PAGINATE_SCAN)
+                        : requestedPageSize,
+                },
+            });
+
+            return {
+                page: page.page,
+                continueCursor: page.continueCursor,
+                isDone: page.isDone,
+            };
+        }
+
         const offset = resolvePaginatedResumeOffsetCursor(args.paginationOpts.cursor);
         const limit = resolvePaginatedResumePageLimit(args.paginationOpts.numItems);
         const page = await runSearchWithTagExpansionPageQuery(ctx, {
@@ -2255,6 +2329,8 @@ export const searchWithTagExpansionScanPage = query({
         maxExperience: v.optional(v.number()),
         minRoleYears: v.optional(v.number()),
         roleFilterType: v.optional(v.string()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
         education: v.optional(v.array(v.string())),
         skills: v.optional(v.array(v.string())),
         requiredKeywords: v.optional(v.array(v.string())),

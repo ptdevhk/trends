@@ -172,6 +172,65 @@ describe('useConvexResumes', () => {
     expect(result.current.hasMore).toBe(true)
   })
 
+  it('preserves matchedWorkEntries.directRoleMatch from ingest role signals', async () => {
+    usePaginatedQueryMock.mockImplementation((_query, args) => ({
+      results: args === 'skip'
+        ? []
+        : [{
+            resume: {
+              ...buildResumeDoc('resume-1', 'Alice'),
+              ingestData: {
+                industryTags: [],
+                synonymHits: [],
+                brandHits: [],
+                companyHits: [],
+                ruleScores: {},
+                experienceLevel: 'mid',
+                computedAt: 1_700_000_000_000,
+                skillsVersion: 1,
+                roleSignals: [
+                  {
+                    type: 'sales',
+                    matchedSignals: ['销售工程师'],
+                    signalCount: 1,
+                    occurrences: 1,
+                    years: 4,
+                    industryVerifiedYears: 0,
+                    roleRelevantYears: 4,
+                    industryVerifiedRelevantYears: 0,
+                    matchedWorkEntries: [
+                      {
+                        companyName: 'Example Co',
+                        jobTitle: '销售工程师',
+                        years: 4,
+                        industryVerified: false,
+                        matchedSignals: ['销售工程师'],
+                        directRoleMatch: true,
+                      },
+                    ],
+                    verifyIn: 'workHistory',
+                  },
+                ],
+              },
+            },
+            provenance: [{ term: 'cnc', source: 'searchText' }],
+          }],
+      status: 'Exhausted',
+      isLoading: false,
+      loadMore: loadMoreMock,
+    }))
+
+    const { result } = renderHook(() => useConvexResumes(200, 'CNC'))
+
+    await waitFor(() => {
+      expect(result.current.resumes).toHaveLength(1)
+    })
+
+    const directRoleMatch = result.current.resumes[0]?.ingestData?.roleSignals?.[0]?.matchedWorkEntries?.[0]?.directRoleMatch
+
+    expect(directRoleMatch).toBe(true)
+  })
+
   it('forwards safe sort options to the paginated list query', () => {
     renderHook(() => useConvexResumes(200, undefined, 'jd-1', { sortBy: 'experience', sortOrder: 'asc' }))
 

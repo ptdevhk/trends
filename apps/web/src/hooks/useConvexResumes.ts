@@ -17,6 +17,8 @@ export type ConvexResumeFilters = {
   maxExperience?: number
   minRoleYears?: number
   roleFilterType?: string
+  minAge?: number
+  maxAge?: number
   education?: string[]
   skills?: string[]
   requiredKeywords?: string[]
@@ -589,6 +591,9 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
                         years: workEntryYears,
                         industryVerified: Boolean(workEntry.industryVerified),
                         matchedSignals: toStringArray(workEntry.matchedSignals),
+                        directRoleMatch: typeof workEntry.directRoleMatch === 'boolean'
+                          ? workEntry.directRoleMatch
+                          : undefined,
                       }
                     })
                     .filter((workEntry): workEntry is NonNullable<typeof workEntry> => workEntry !== null)

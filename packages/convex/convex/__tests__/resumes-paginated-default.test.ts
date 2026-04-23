@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getResumeDetail, listWithIngestDataPaginated } from "../resumes";
+import { getResumeDetail, listWithIngestDataPaginated, searchWithTagExpansionPaginated } from "../resumes";
 
 type ConvexHandler<TArgs, TResult> = {
   _handler: (ctx: unknown, args: TArgs) => Promise<TResult>;
@@ -15,6 +15,8 @@ type PaginatedArgs = {
   maxExperience?: number;
   minRoleYears?: number;
   roleFilterType?: string;
+  minAge?: number;
+  maxAge?: number;
   education?: string[];
   skills?: string[];
   locations?: string[];
@@ -28,8 +30,40 @@ type PaginatedResult = {
   isDone: boolean;
 };
 
+type SearchPaginatedArgs = {
+  paginationOpts: { cursor: string | null; numItems: number };
+  query: string;
+  keywordGroups: Array<{ original: string; variants: string[] }>;
+  mode?: "AND" | "OR";
+  sourceMappings?: Array<{ term: string; expandedFrom: string }>;
+  jobDescriptionId?: string;
+  sortBy?: "name" | "experience" | "extractedAt";
+  sortOrder?: "asc" | "desc";
+  minExperience?: number;
+  maxExperience?: number;
+  minRoleYears?: number;
+  roleFilterType?: string;
+  minAge?: number;
+  maxAge?: number;
+  education?: string[];
+  skills?: string[];
+  requiredKeywords?: string[];
+  locations?: string[];
+  minSalary?: number;
+  maxSalary?: number;
+};
+
+type SearchPaginatedResult = {
+  page: unknown[];
+  continueCursor: string;
+  isDone: boolean;
+};
+
 const handler = (
   listWithIngestDataPaginated as unknown as ConvexHandler<PaginatedArgs, PaginatedResult>
+)._handler;
+const searchPaginatedHandler = (
+  searchWithTagExpansionPaginated as unknown as ConvexHandler<SearchPaginatedArgs, SearchPaginatedResult>
 )._handler;
 const getResumeDetailHandler = (
   getResumeDetail as unknown as ConvexHandler<{ resumeId: string }, unknown>
@@ -420,6 +454,54 @@ describe("listWithIngestDataPaginated", () => {
     expect(result.page).toHaveLength(1);
     expect((result.page[0] as { content: { name: string } }).content.name).toBe("Direct Sales");
   });
+
+  it("filters by minAge/maxAge on stored numeric age and content age", async () => {
+    const withinStoredAge = {
+      ...buildResumeDoc("resume-stored-age", 90),
+      age: 32,
+      content: { name: "Stored Age" },
+    };
+    const withinContentAge = {
+      ...buildResumeDoc("resume-content-age", 80),
+      content: { name: "Content Age", age: "35岁" },
+    };
+    const outsideAge = {
+      ...buildResumeDoc("resume-outside-age", 70),
+      age: 46,
+      content: { name: "Outside Age" },
+    };
+    const missingAge = {
+      ...buildResumeDoc("resume-missing-age", 60),
+      content: { name: "Missing Age" },
+    };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            order: () => withFilterPassthrough({
+              paginate: async () => ({
+                page: [withinStoredAge, withinContentAge, outsideAge, missingAge],
+                continueCursor: "cursor-next",
+                isDone: false,
+              }),
+              take: async () => [],
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await handler(ctx, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      minAge: 25,
+      maxAge: 40,
+    });
+
+    expect(result.page).toHaveLength(2);
+    expect((result.page[0] as { content: { name: string } }).content.name).toBe("Stored Age");
+    expect((result.page[1] as { content: { name: string } }).content.name).toBe("Content Age");
+  });
 });
 
 describe("getResumeDetail", () => {
@@ -460,5 +542,192 @@ describe("getResumeDetail", () => {
     }));
     expect((result as { content: { workHistory: Array<{ companyName?: string }> } }).content.workHistory).toHaveLength(3);
     expect((result as { content: { workHistory: Array<{ companyName?: string }> } }).content.workHistory.some((entry) => entry.companyName === "Oldest Co")).toBe(false);
+  });
+});
+
+describe("searchWithTagExpansionPaginated", () => {
+  it("keeps the native search cursor open when the first filtered page is sparse", async () => {
+    const matchingResumeA = {
+      ...buildResumeDoc("resume-a", 90),
+      age: 30,
+      searchText: "cnc 销售 china",
+      content: { name: "Resume A", location: "China" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 4,
+            roleRelevantYears: 4,
+            verifyIn: "workHistory",
+            matchedWorkEntries: [
+              {
+                jobTitle: "销售经理",
+                years: 4,
+                industryVerified: true,
+                matchedSignals: ["销售"],
+                directRoleMatch: true,
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const nonMatchingResume = {
+      ...buildResumeDoc("resume-b", 80),
+      age: 45,
+      searchText: "cnc 销售 china",
+      content: { name: "Resume B", location: "China" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 10,
+            roleRelevantYears: 10,
+            verifyIn: "workHistory",
+            matchedWorkEntries: [
+              {
+                jobTitle: "销售总监",
+                years: 10,
+                industryVerified: true,
+                matchedSignals: ["销售"],
+                directRoleMatch: true,
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const matchingResumeC = {
+      ...buildResumeDoc("resume-c", 70),
+      age: 34,
+      searchText: "cnc 销售 china",
+      content: { name: "Resume C", location: "China" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 6,
+            roleRelevantYears: 6,
+            verifyIn: "workHistory",
+            matchedWorkEntries: [
+              {
+                jobTitle: "销售工程师",
+                years: 6,
+                industryVerified: true,
+                matchedSignals: ["销售"],
+                directRoleMatch: true,
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const matchingResumeD = {
+      ...buildResumeDoc("resume-d", 60),
+      age: 38,
+      searchText: "cnc 销售 china",
+      content: { name: "Resume D", location: "China" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 7,
+            roleRelevantYears: 7,
+            verifyIn: "workHistory",
+            matchedWorkEntries: [
+              {
+                jobTitle: "区域销售",
+                years: 7,
+                industryVerified: true,
+                matchedSignals: ["销售"],
+                directRoleMatch: true,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withSearchIndex: () => ({
+            filter: () => ({
+              take: async () => [matchingResumeA, nonMatchingResume],
+              paginate: async (opts: { cursor: string | null; numItems: number }) => {
+                if (opts.cursor) {
+                  return {
+                    page: [matchingResumeC, matchingResumeD],
+                    continueCursor: "",
+                    isDone: true,
+                  };
+                }
+                return {
+                  page: [matchingResumeA, nonMatchingResume],
+                  continueCursor: "cursor-next",
+                  isDone: false,
+                };
+              },
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await searchPaginatedHandler(ctx, {
+      paginationOpts: { cursor: null, numItems: 2 },
+      query: "CNC 销售",
+      keywordGroups: [
+        { original: "cnc", variants: ["cnc"] },
+        { original: "销售", variants: ["销售"] },
+      ],
+      mode: "AND",
+      sourceMappings: [
+        { term: "cnc", expandedFrom: "cnc" },
+        { term: "销售", expandedFrom: "销售" },
+      ],
+      minRoleYears: 0,
+      roleFilterType: "sales",
+      minAge: 25,
+      maxAge: 40,
+      locations: ["China"],
+    });
+
+    expect(result.page).toHaveLength(1);
+    expect((result.page[0] as { resume: { _id: string } }).resume._id).toBe("resume-a");
+    expect(result.continueCursor).toBe("cursor-next");
+    expect(result.isDone).toBe(false);
   });
 });
