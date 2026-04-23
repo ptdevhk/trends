@@ -300,6 +300,8 @@ describe("listWithIngestDataPaginated", () => {
             occurrences: 1,
             years: 6.2,
             roleRelevantYears: 6.2,
+            industryVerifiedYears: 6.2,
+            industryVerifiedRelevantYears: 6.2,
             verifyIn: "workHistory",
           },
         ],
@@ -322,6 +324,8 @@ describe("listWithIngestDataPaginated", () => {
             occurrences: 1,
             years: 3.1,
             roleRelevantYears: 3.1,
+            industryVerifiedYears: 3.1,
+            industryVerifiedRelevantYears: 3.1,
             verifyIn: "workHistory",
           },
           {
@@ -331,6 +335,8 @@ describe("listWithIngestDataPaginated", () => {
             occurrences: 1,
             years: 8.5,
             roleRelevantYears: 8.5,
+            industryVerifiedYears: 8.5,
+            industryVerifiedRelevantYears: 8.5,
             verifyIn: "workHistory",
           },
         ],
@@ -362,6 +368,88 @@ describe("listWithIngestDataPaginated", () => {
 
     expect(result.page).toHaveLength(1);
     expect((result.page[0] as { content: { name: string } }).content.name).toBe("Alice");
+  });
+
+  it("excludes resumes with only unverified role years from the minRoleYears filter", async () => {
+    // Regression: q=CNC+销售&minRoleYears=2&roleType=sales was returning
+    // resumes whose sales signals were not industry-verified (e.g.
+    // "sales:2.6y · signals 销售" with no "verified Xy" marker in UI).
+    // The filter must require industry-verified role years.
+    const resumeUnverified = {
+      ...buildResumeDoc("resume-unverified", 90),
+      content: { name: "Unverified Sales" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            // Legacy shape (pre-e0c7f192): industry-verified fields undefined,
+            // no matchedWorkEntries. Fallback chain must not leak to
+            // unverified `roleRelevantYears`.
+            type: "sales",
+            matchedSignals: ["销售"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 2.6,
+            roleRelevantYears: 2.6,
+            verifyIn: "workHistory",
+          },
+        ],
+      },
+    };
+    const resumeVerified = {
+      ...buildResumeDoc("resume-verified", 80),
+      content: { name: "Verified Sales" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: ["销售工程师"],
+            signalCount: 1,
+            occurrences: 1,
+            years: 3,
+            roleRelevantYears: 3,
+            industryVerifiedYears: 3,
+            industryVerifiedRelevantYears: 3,
+            verifyIn: "workHistory",
+          },
+        ],
+      },
+    };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            order: () => withFilterPassthrough({
+              paginate: async () => ({
+                page: [resumeUnverified, resumeVerified],
+                continueCursor: "cursor-next",
+                isDone: false,
+              }),
+              take: async () => [],
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await handler(ctx, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      minRoleYears: 2,
+      roleFilterType: "sales",
+    });
+
+    expect(result.page).toHaveLength(1);
+    expect((result.page[0] as { content: { name: string } }).content.name).toBe("Verified Sales");
   });
 
   it("filters by strict direct-sales years when matched work-entry metadata is present", async () => {

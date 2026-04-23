@@ -1,4 +1,4 @@
-import { formatKeywordQuery, getRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, getVerifiedRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -404,7 +404,7 @@ function getRoleYears(
     return 0
   }
 
-  return getRoleSignalYears(
+  return getVerifiedRoleSignalYears(
     roleSignals,
     normalizeOptionalString(roleType)?.toLowerCase() ?? '',
   )
