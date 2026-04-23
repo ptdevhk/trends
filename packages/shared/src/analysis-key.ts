@@ -53,6 +53,7 @@ export type AnalysisKeywordKeyOptions = {
   location?: string;
   promptVersion?: number;
   sourceKey?: string;
+  locale?: string;
 };
 
 function getPromptVersionFallback(): number {
@@ -169,15 +170,25 @@ export function buildResumeAnalysisStorageKey(
   jobDescriptionId: string | undefined,
   options?: {
     sourceKey?: string;
+    locale?: string;
   }
 ): string {
   const normalizedJobDescriptionId = normalizeJobDescriptionId(jobDescriptionId);
   const sourceKey = resolveResumeAnalysisSourceKey({ sourceKey: options?.sourceKey });
-  if (!sourceKey) {
+  const normalizedLocale = normalizeText(options?.locale);
+  if (!sourceKey && !normalizedLocale) {
     return normalizedJobDescriptionId;
   }
 
-  return `source:${sourceKey}|analysis:${normalizedJobDescriptionId}`;
+  const parts: string[] = [];
+  if (sourceKey) {
+    parts.push(`source:${sourceKey}`);
+  }
+  if (normalizedLocale) {
+    parts.push(`locale:${normalizedLocale}`);
+  }
+  parts.push(`analysis:${normalizedJobDescriptionId}`);
+  return parts.join("|");
 }
 
 export function buildResumeAnalysisLookupKeys(
@@ -187,13 +198,13 @@ export function buildResumeAnalysisLookupKeys(
 ): string[] {
   if (jobDescriptionId) {
     const legacyKey = normalizeJobDescriptionId(jobDescriptionId);
-    const sourceAwareKey = buildResumeAnalysisStorageKey(jobDescriptionId, { sourceKey: options?.sourceKey });
+    const sourceAwareKey = buildResumeAnalysisStorageKey(jobDescriptionId, { sourceKey: options?.sourceKey, locale: options?.locale });
     return sourceAwareKey === legacyKey ? [legacyKey] : [sourceAwareKey, legacyKey];
   }
 
   if (keywords.length > 0) {
     const legacyKey = buildKeywordAnalysisId(keywords, options);
-    const sourceAwareKey = buildResumeAnalysisStorageKey(legacyKey, { sourceKey: options?.sourceKey });
+    const sourceAwareKey = buildResumeAnalysisStorageKey(legacyKey, { sourceKey: options?.sourceKey, locale: options?.locale });
     return sourceAwareKey === legacyKey ? [legacyKey] : [sourceAwareKey, legacyKey];
   }
 

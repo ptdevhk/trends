@@ -184,6 +184,7 @@ export function getAnalysisForJob(
     location?: string
     promptVersion?: number
     sourceKey?: string
+    locale?: string
   }
 ): ConvexResumeAnalysis | undefined {
   const lookupKeys = buildResumeAnalysisLookupKeys(jobDescriptionId, keywords, options)

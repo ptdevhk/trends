@@ -2438,6 +2438,7 @@ export const updateAnalysis = internalMutation({
         const analyses = resume.analyses || {};
         const analysisKey = buildResumeAnalysisStorageKey(args.analysis.jobDescriptionId, {
             sourceKey: resolveResumeAnalysisSourceKey({ source: resume.source }),
+            locale: args.analysis.locale,
         });
 
         analyses[analysisKey] = args.analysis;
@@ -2475,6 +2476,7 @@ export const updateAnalysisBatch = internalMutation({
             const analyses = resume.analyses || {};
             const analysisKey = buildResumeAnalysisStorageKey(update.analysis.jobDescriptionId, {
                 sourceKey: resolveResumeAnalysisSourceKey({ source: resume.source }),
+                locale: update.analysis.locale,
             });
             analyses[analysisKey] = update.analysis;
 
