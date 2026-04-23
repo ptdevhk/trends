@@ -2097,4 +2097,84 @@ describe("normalizeResume strict evidence", () => {
       expect(result).toContain("score：85");
     });
   });
+
+  describe("hasHanText", () => {
+    // Mirrors analyze.ts:173
+    function hasHanText(value: string): boolean {
+      return /[\u4e00-\u9fff]/.test(value);
+    }
+
+    it("returns true for Chinese text", () => {
+      expect(hasHanText("评分较低")).toBe(true);
+    });
+
+    it("returns true for mixed Chinese and English", () => {
+      expect(hasHanText("score 85 推荐")).toBe(true);
+    });
+
+    it("returns false for English-only text", () => {
+      expect(hasHanText("score 85 recommendation")).toBe(false);
+    });
+
+    it("returns false for empty string", () => {
+      expect(hasHanText("")).toBe(false);
+    });
+
+    it("returns false for Japanese hiragana (not CJK unified ideographs)", () => {
+      expect(hasHanText("ひらがな")).toBe(false);
+    });
+
+    it("returns true for CJK unified ideograph within range", () => {
+      expect(hasHanText("销售")).toBe(true);
+    });
+  });
+
+  describe("getResumeIngestData", () => {
+    // Mirrors analyze.ts:142-152
+    function isRecord(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+    function getResumeIngestData(resume: unknown): Record<string, unknown> {
+      const root = isRecord(resume) ? resume : {};
+      const content = isRecord(root.content) ? root.content : {};
+      if (isRecord(root.ingestData)) return root.ingestData;
+      if (isRecord(content.ingestData)) return content.ingestData;
+      return {};
+    }
+
+    it("returns root.ingestData when present", () => {
+      const data = { brandHits: ["A"] };
+      expect(getResumeIngestData({ ingestData: data })).toEqual(data);
+    });
+
+    it("falls back to content.ingestData when root.ingestData absent", () => {
+      const data = { brandHits: ["B"] };
+      expect(getResumeIngestData({ content: { ingestData: data } })).toEqual(data);
+    });
+
+    it("prefers root.ingestData over content.ingestData", () => {
+      expect(getResumeIngestData({
+        ingestData: { source: "root" },
+        content: { ingestData: { source: "content" } },
+      })).toEqual({ source: "root" });
+    });
+
+    it("returns empty object when neither path has ingestData", () => {
+      expect(getResumeIngestData({})).toEqual({});
+    });
+
+    it("returns empty object for non-object input", () => {
+      expect(getResumeIngestData(null)).toEqual({});
+      expect(getResumeIngestData("string")).toEqual({});
+    });
+
+    it("returns empty object when ingestData is not a record", () => {
+      expect(getResumeIngestData({ ingestData: "not an object" })).toEqual({});
+      expect(getResumeIngestData({ ingestData: 42 })).toEqual({});
+    });
+
+    it("returns empty object when content is not a record", () => {
+      expect(getResumeIngestData({ content: "bad" })).toEqual({});
+    });
+  });
 });
