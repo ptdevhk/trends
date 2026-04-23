@@ -1311,4 +1311,183 @@ describe("normalizeResume strict evidence", () => {
       expect(normalized.breakdown?.related_exp).toBeLessThanOrEqual(15);
     });
   });
+
+  describe("keywordMapsToIndustryTag taxonomy mapping", () => {
+    // keywordMapsToIndustryTag is internal but exercised via inferUnverifiedDomainRelevantSalesFloor
+    // which uses it to check if domain keywords overlap with resume industry tags.
+
+    it("matches CNC keyword to machinery tag via FALLBACK_INDUSTRY_KEYWORDS", () => {
+      // "cnc" is in FALLBACK_INDUSTRY_KEYWORDS.machinery; "machinery" is an industry tag
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 20,
+          recommendation: "no_match",
+          summary: "ok",
+          highlights: [],
+          breakdown: { related_exp: 22, industry_db: 0 },
+        },
+        {
+          ingestData: {
+            industryDbV2Raw: 0,
+            companyHits: [],
+            brandHits: [],
+            industryTags: ["machinery"],
+            roleSignals: [{
+              type: "sales",
+              years: 6,
+              roleRelevantYears: 6,
+              industryVerifiedYears: 0,
+              industryVerifiedRelevantYears: 0,
+              matchedSignals: ["销售工程师"],
+              matchedWorkEntries: [
+                { companyName: "苏州美科生贸易有限公司", jobTitle: "CNC销售工程师", years: 6, matchedSignals: ["销售工程师", "CNC"], directRoleMatch: true, industryVerified: false },
+              ],
+            }],
+          },
+        } as unknown,
+        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
+      );
+      // "cnc" keyword maps to "machinery" tag → unverified floor should apply → related_exp ≥ 60
+      expect(normalized.breakdown?.related_exp).toBeGreaterThanOrEqual(60);
+    });
+
+    it("matches Chinese 机械 tag to machinery via INDUSTRY_DISPLAY_NAME_TO_TAG", () => {
+      // "机械" is in INDUSTRY_DISPLAY_NAME_TO_TAG → "machinery"; "cnc" keyword maps to "machinery"
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 20,
+          recommendation: "no_match",
+          summary: "ok",
+          highlights: [],
+          breakdown: { related_exp: 22, industry_db: 0 },
+        },
+        {
+          ingestData: {
+            industryDbV2Raw: 0,
+            companyHits: [],
+            brandHits: [],
+            industryTags: ["机械"],
+            roleSignals: [{
+              type: "sales",
+              years: 6,
+              roleRelevantYears: 6,
+              industryVerifiedYears: 0,
+              industryVerifiedRelevantYears: 0,
+              matchedSignals: ["销售工程师"],
+              matchedWorkEntries: [
+                { companyName: "某数控设备有限公司", jobTitle: "销售工程师", years: 6, matchedSignals: ["销售工程师"], directRoleMatch: true, industryVerified: false },
+              ],
+            }],
+          },
+        } as unknown,
+        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
+      );
+      // "机械" tag → "machinery", "cnc" keyword → "machinery" → match → floor applies
+      expect(normalized.breakdown?.related_exp).toBeGreaterThanOrEqual(60);
+    });
+
+    it("does not match when keyword has no taxonomy mapping to any resume tag", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 20,
+          recommendation: "no_match",
+          summary: "ok",
+          highlights: [],
+          breakdown: { related_exp: 22, industry_db: 0 },
+        },
+        {
+          ingestData: {
+            industryDbV2Raw: 0,
+            companyHits: [],
+            brandHits: [],
+            industryTags: ["software"],
+            roleSignals: [{
+              type: "sales",
+              years: 6,
+              roleRelevantYears: 6,
+              industryVerifiedYears: 0,
+              industryVerifiedRelevantYears: 0,
+              matchedSignals: ["销售"],
+              matchedWorkEntries: [
+                { companyName: "某贸易公司", jobTitle: "销售", years: 6, matchedSignals: ["销售"], directRoleMatch: true, industryVerified: false },
+              ],
+            }],
+          },
+        } as unknown,
+        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
+      );
+      // "cnc" maps to "machinery" but resume has "software" tag — no overlap → no floor
+      expect(normalized.breakdown?.related_exp).toBeLessThanOrEqual(22);
+    });
+  });
+
+  describe("inferNoDirectSalesRoleCap", () => {
+    it("caps related_exp to 0 when sales signal comes from descriptions only", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 40,
+          recommendation: "potential",
+          summary: "ok",
+          highlights: [],
+          breakdown: { related_exp: 40, industry_db: 0 },
+        },
+        {
+          ingestData: {
+            industryDbV2Raw: 0,
+            companyHits: [],
+            brandHits: [],
+            industryTags: [],
+            roleSignals: [{
+              type: "sales",
+              years: 3,
+              roleRelevantYears: 3,
+              industryVerifiedYears: 0,
+              industryVerifiedRelevantYears: 0,
+              matchedSignals: ["配合销售"],
+              matchedWorkEntries: [
+                { companyName: "某科技公司", jobTitle: "应用工程师", years: 3, matchedSignals: ["配合销售"], directRoleMatch: false, industryVerified: false },
+              ],
+            }],
+          },
+        } as unknown,
+        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
+      );
+      // No direct sales title (directRoleMatch=false) → cap at 0
+      expect(normalized.breakdown?.related_exp).toBe(0);
+    });
+
+    it("does not cap when a direct sales title exists", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 40,
+          recommendation: "potential",
+          summary: "ok",
+          highlights: [],
+          breakdown: { related_exp: 40, industry_db: 0 },
+        },
+        {
+          ingestData: {
+            industryDbV2Raw: 0,
+            companyHits: [],
+            brandHits: [],
+            industryTags: [],
+            roleSignals: [{
+              type: "sales",
+              years: 3,
+              roleRelevantYears: 3,
+              industryVerifiedYears: 3,
+              industryVerifiedRelevantYears: 3,
+              matchedSignals: ["销售工程师"],
+              matchedWorkEntries: [
+                { companyName: "某机床公司", jobTitle: "销售工程师", years: 3, matchedSignals: ["销售工程师"], directRoleMatch: true, industryVerified: true },
+              ],
+            }],
+          },
+        } as unknown,
+        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
+      );
+      // Has direct sales title + verified 3y → 80 floor applies, cap does not
+      expect(normalized.breakdown?.related_exp).toBeGreaterThanOrEqual(80);
+    });
+  });
 });
