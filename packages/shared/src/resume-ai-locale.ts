@@ -9,6 +9,12 @@ export interface ResumeAiLocaleText {
   unverifiedLabel: string;
   signalsLabel: string;
   indirectRoleLabel: string;
+  serviceUnavailableSummary: string;
+  analysisErrorSummary: string;
+  analysisErrorConcernPrefix: string;
+  noAnalysisResult: string;
+  parseErrorConcern: string;
+  parseErrorSummary: string;
 }
 
 const ZH_HANS_TEXT: ResumeAiLocaleText = {
@@ -20,6 +26,12 @@ const ZH_HANS_TEXT: ResumeAiLocaleText = {
   unverifiedLabel: "未验证",
   signalsLabel: "信号",
   indirectRoleLabel: "[非主职角色]",
+  serviceUnavailableSummary: "AI匹配服务不可用",
+  analysisErrorSummary: "AI分析过程中发生错误",
+  analysisErrorConcernPrefix: "AI分析失败",
+  noAnalysisResult: "无分析结果",
+  parseErrorConcern: "AI响应解析失败",
+  parseErrorSummary: "无法解析AI返回结果",
 };
 
 const EN_TEXT: ResumeAiLocaleText = {
@@ -31,6 +43,12 @@ const EN_TEXT: ResumeAiLocaleText = {
   unverifiedLabel: "unverified",
   signalsLabel: "signals",
   indirectRoleLabel: "[indirect-role]",
+  serviceUnavailableSummary: "AI matching service unavailable",
+  analysisErrorSummary: "An error occurred during AI analysis",
+  analysisErrorConcernPrefix: "AI analysis failed",
+  noAnalysisResult: "No analysis result",
+  parseErrorConcern: "AI response parse failed",
+  parseErrorSummary: "Unable to parse AI response",
 };
 
 export function getResumeAiLocaleText(requestedLocale?: string): ResumeAiLocaleText {

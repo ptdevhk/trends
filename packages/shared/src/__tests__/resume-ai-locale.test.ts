@@ -13,6 +13,12 @@ describe("getResumeAiLocaleText", () => {
       unverifiedLabel: "unverified",
       signalsLabel: "signals",
       indirectRoleLabel: "[indirect-role]",
+      serviceUnavailableSummary: "AI matching service unavailable",
+      analysisErrorSummary: "An error occurred during AI analysis",
+      analysisErrorConcernPrefix: "AI analysis failed",
+      noAnalysisResult: "No analysis result",
+      parseErrorConcern: "AI response parse failed",
+      parseErrorSummary: "Unable to parse AI response",
     });
   });
 
@@ -26,6 +32,12 @@ describe("getResumeAiLocaleText", () => {
       unverifiedLabel: "未验证",
       signalsLabel: "信号",
       indirectRoleLabel: "[非主职角色]",
+      serviceUnavailableSummary: "AI匹配服务不可用",
+      analysisErrorSummary: "AI分析过程中发生错误",
+      analysisErrorConcernPrefix: "AI分析失败",
+      noAnalysisResult: "无分析结果",
+      parseErrorConcern: "AI响应解析失败",
+      parseErrorSummary: "无法解析AI返回结果",
     });
   });
 });

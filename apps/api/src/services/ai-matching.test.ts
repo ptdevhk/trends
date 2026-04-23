@@ -2,6 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AIMatchingService } from "./ai-matching.js";
 
+class FailingAIMatchingService extends AIMatchingService {
+    override async callLLM(): Promise<string> {
+        throw new Error("test error");
+    }
+}
+
 class CapturingAIMatchingService extends AIMatchingService {
     public lastMessages: Array<{ role: string; content: string }> = [];
 
@@ -117,6 +123,47 @@ describe("AIMatchingService", () => {
         expect(promptContent).not.toContain("已验证");
         expect(promptContent).not.toContain("信号:");
         expect(promptContent).not.toContain("2年");
+    });
+
+    it("returns locale-aware error summaries for seek resumes when matching fails", async () => {
+        const service = new FailingAIMatchingService();
+        const result = await service.matchResume({
+            resume: {
+                id: "resume-seek-err",
+                name: "Alice",
+                sourceKey: "seek",
+            },
+            jobDescription: {
+                title: "Sales Engineer",
+                requirements: "Sell CNC equipment",
+            },
+        });
+
+        expect(result.score).toBe(0);
+        expect(result.recommendation).toBe("no_match");
+        expect(result.summary).toBe("An error occurred during AI analysis");
+        expect(result.concerns[0]).toContain("AI analysis failed");
+        expect(result.concerns[0]).not.toContain("AI分析失败");
+    });
+
+    it("returns Chinese error summaries for default locale resumes when matching fails", async () => {
+        const service = new FailingAIMatchingService();
+        const result = await service.matchResume({
+            resume: {
+                id: "resume-job5156-err",
+                name: "张先生",
+                sourceKey: "job5156",
+            },
+            jobDescription: {
+                title: "销售 CNC",
+                requirements: "销售 CNC 设备",
+            },
+        });
+
+        expect(result.score).toBe(0);
+        expect(result.recommendation).toBe("no_match");
+        expect(result.summary).toBe("AI分析过程中发生错误");
+        expect(result.concerns[0]).toContain("AI分析失败");
     });
 
     it("applies analysis field usage policy overrides when hydrating prompts", async () => {
