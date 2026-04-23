@@ -719,7 +719,7 @@ const RESET_TABLES = [
 
 type ResetTableName = (typeof RESET_TABLES)[number];
 
-const RESET_BATCH_SIZE = 200;
+const RESET_BATCH_SIZE = 50;
 
 export const resetDatabaseBatch = internalMutation({
     args: {

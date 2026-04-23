@@ -29,6 +29,10 @@ type RestoreFileSummary = {
   importResult: Record<string, unknown>;
 };
 
+const IMPORT_CHUNK_SIZE = 50;
+const IMPORT_RETRY_DELAY_MS = 5_000;
+const IMPORT_MAX_RETRIES = 3;
+
 type RestoreResetSummary = {
   success: true;
   count: number;
@@ -224,6 +228,9 @@ function mergeDeletedCounts(target: Record<string, number>, deleted: unknown): v
   }
 }
 
+const RESET_RETRY_DELAY_MS = 5_000;
+const RESET_MAX_RETRIES = 5;
+
 async function resetResumesFully(
   apiUrl: string,
   workspace: string,
@@ -240,6 +247,41 @@ async function resetResumesFully(
       {},
       runtime,
     );
+    if (!resetResponse.ok) {
+      const text = await resetResponse.text();
+      const isTransient = resetResponse.status === 503
+        || resetResponse.status === 500
+        || text.includes("OptimisticConcurrencyControlFailure")
+        || text.includes("TooManyWrites");
+      if (isTransient) {
+        for (let attempt = 1; attempt <= RESET_MAX_RETRIES; attempt++) {
+          console.log(`  reset transient error (attempt ${attempt}/${RESET_MAX_RETRIES}), retrying in ${RESET_RETRY_DELAY_MS / 1000}s…`);
+          await new Promise((resolve) => setTimeout(resolve, RESET_RETRY_DELAY_MS));
+          const retryResponse = await postJson(
+            apiUrl,
+            workspace,
+            "/api/resumes/reset",
+            {},
+            runtime,
+          );
+          if (retryResponse.ok) {
+            const retryResult = await parseJsonRecord(retryResponse, "reset request failed");
+            totalCount += readResetCount(retryResult);
+            mergeDeletedCounts(deleted, retryResult.deleted);
+            if (retryResult.partial !== true) {
+              return { success: true, count: totalCount, partial: false, deleted };
+            }
+            break;
+          }
+          if (attempt === RESET_MAX_RETRIES) {
+            throw new Error(`reset request failed after ${RESET_MAX_RETRIES} retries: ${text.trim()}`);
+          }
+        }
+        continue;
+      }
+      throw new Error(`reset request failed (${resetResponse.status}): ${text.trim()}`);
+    }
+
     const resetResult = await parseJsonRecord(resetResponse, "reset request failed");
     totalCount += readResetCount(resetResult);
     mergeDeletedCounts(deleted, resetResult.deleted);
@@ -344,24 +386,94 @@ export async function runRestoreResumes(
   const files: RestoreFileSummary[] = [];
   for (const restorePath of restorePaths) {
     const payload = await readRestorePayload(restorePath);
-    const importResponse = await postJson(
-      params.apiUrl,
-      params.workspace,
-      "/api/resumes/import",
-      {
-        ...payload,
+    const resumes = readResumeArray(payload);
+    const totalResumes = resumes.length;
+
+    if (totalResumes <= IMPORT_CHUNK_SIZE) {
+      const importResponse = await postJson(
+        params.apiUrl,
+        params.workspace,
+        "/api/resumes/import",
+        {
+          ...payload,
+          ...(params.recomputeDerivedFields ? { options: { recomputeDerivedFields: true } } : {}),
+        },
+        runtime,
+      );
+      const importResult = await parseJsonRecord(
+        importResponse,
+        `import request failed for ${path.basename(restorePath)}`,
+      );
+      files.push({ file: restorePath, count: totalResumes, importResult });
+      continue;
+    }
+
+    // Chunked import for large payloads to avoid Convex write limits and timeouts
+    let inserted = 0;
+    let updated = 0;
+    let unchanged = 0;
+    let deduped = 0;
+    let chunkFailed = false;
+
+    for (let offset = 0; offset < totalResumes; offset += IMPORT_CHUNK_SIZE) {
+      const chunk = resumes.slice(offset, offset + IMPORT_CHUNK_SIZE);
+      const chunkPayload = {
+        metadata: payload.metadata,
+        resumes: chunk,
+        ...(payload.candidateActions && offset === 0 ? { candidateActions: payload.candidateActions } : {}),
+        ...(payload.candidateStatus && offset === 0 ? { candidateStatus: payload.candidateStatus } : {}),
         ...(params.recomputeDerivedFields ? { options: { recomputeDerivedFields: true } } : {}),
-      },
-      runtime,
-    );
-    const importResult = await parseJsonRecord(
-      importResponse,
-      `import request failed for ${path.basename(restorePath)}`,
-    );
+      };
+
+      let lastError: string | undefined;
+      let succeeded = false;
+
+      for (let attempt = 1; attempt <= IMPORT_MAX_RETRIES; attempt++) {
+        try {
+          const importResponse = await postJson(
+            params.apiUrl,
+            params.workspace,
+            "/api/resumes/import",
+            chunkPayload,
+            runtime,
+          );
+          const importResult = await parseJsonRecord(
+            importResponse,
+            `import chunk ${offset} failed for ${path.basename(restorePath)}`,
+          );
+          inserted += typeof importResult.inserted === "number" ? importResult.inserted : 0;
+          updated += typeof importResult.updated === "number" ? importResult.updated : 0;
+          unchanged += typeof importResult.unchanged === "number" ? importResult.unchanged : 0;
+          deduped += typeof importResult.deduped === "number" ? importResult.deduped : 0;
+          succeeded = true;
+          break;
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : String(error);
+          if (attempt < IMPORT_MAX_RETRIES) {
+            console.log(`  import chunk ${offset} attempt ${attempt} failed, retrying in ${IMPORT_RETRY_DELAY_MS / 1000}s…`);
+            await new Promise((resolve) => setTimeout(resolve, IMPORT_RETRY_DELAY_MS));
+          }
+        }
+      }
+
+      if (!succeeded) {
+        console.error(`  import chunk ${offset} failed after ${IMPORT_MAX_RETRIES} retries: ${lastError}`);
+        chunkFailed = true;
+        break;
+      }
+
+      const progress = Math.min(offset + chunk.length, totalResumes);
+      if (progress % 500 < IMPORT_CHUNK_SIZE || progress === totalResumes) {
+        console.log(`  ${path.basename(restorePath)}: ${progress}/${totalResumes} (inserted:${inserted} updated:${updated})`);
+      }
+    }
+
     files.push({
       file: restorePath,
-      count: readResumeArray(payload).length,
-      importResult,
+      count: totalResumes,
+      importResult: chunkFailed
+        ? { success: false, inserted, updated, unchanged, deduped, error: "one or more chunks failed" }
+        : { success: true, inserted, updated, unchanged, deduped },
     });
   }
 
