@@ -37,7 +37,7 @@ WEB_LOCALES_DIR = PROJECT_ROOT / "apps" / "web" / "src" / "i18n" / "locales"
 WEB_SOURCE_LOCALE = "zh-Hant"
 WEB_TARGET_LOCALES = ["zh-Hans", "en"]
 WEB_SOURCE_DIR = PROJECT_ROOT / "apps" / "web" / "src"
-TRANSLATION_CALL_PATTERN = re.compile(r"\b(?:i18n\.)?t\s*\(\s*(['\"])([^'\"\n]+)\1\s*\)")
+TRANSLATION_CALL_PATTERN = re.compile(r"\b(?:i18n\.)?t\s*\(\s*(['\"])([^'\"\n]+)\1\s*(?:,|\))")
 
 
 def flatten_keys(data: dict[str, Any], prefix: str = "") -> set[str]:
@@ -108,7 +108,7 @@ def save_web_locale(locale: str, data: dict[str, Any]) -> None:
 
 
 def check_locale_sync(
-    source_data: dict[str, Any],
+    source_keys: set[str],
     target_data: dict[str, Any],
     locale: str,
 ) -> tuple[set[str], set[str]]:
@@ -118,7 +118,6 @@ def check_locale_sync(
     Returns:
         (missing_keys, extra_keys) - Keys missing in target, keys in target but not in source
     """
-    source_keys = flatten_keys(source_data)
     target_keys = flatten_keys(target_data)
 
     # Exclude meta.locale and meta.name from comparison (they should differ)
@@ -149,9 +148,10 @@ def iter_web_source_files() -> list[Path]:
 
 def find_static_translation_key_usages() -> tuple[set[str], dict[str, str]]:
     """
-    Find translation keys used via one-arg static calls:
+    Find translation keys used via static t() calls:
       - t('some.key')
       - i18n.t("some.key")
+      - t('some.key', { count: 5, defaultValue: '...' })
     """
     used_keys: set[str] = set()
     key_locations: dict[str, str] = {}
@@ -272,7 +272,7 @@ def main() -> int:
             all_synced = False
             continue
 
-        missing_keys, extra_keys = check_locale_sync(source_data, target_data, locale)
+        missing_keys, extra_keys = check_locale_sync(source_keys, target_data, locale)
 
         if missing_keys:
             all_synced = False
@@ -335,7 +335,7 @@ def main() -> int:
             all_synced = False
             continue
 
-        missing_keys, extra_keys = check_locale_sync(web_source_data, target_data, locale)
+        missing_keys, extra_keys = check_locale_sync(web_source_keys, target_data, locale)
         if missing_keys:
             all_synced = False
             print(f"  MISSING keys ({len(missing_keys)}):")
@@ -378,7 +378,7 @@ def main() -> int:
     print("Web translation key usage checks")
     used_keys, key_locations = find_static_translation_key_usages()
     missing_used_keys = used_keys - web_source_keys
-    print(f"Static one-arg calls found: {len(used_keys)}")
+    print(f"Static t()/i18n.t() calls found: {len(used_keys)}")
     if missing_used_keys:
         all_synced = False
         print(f"MISSING keys used in code ({len(missing_used_keys)}):")
@@ -388,7 +388,7 @@ def main() -> int:
         if len(missing_used_keys) > 20:
             print(f"  ... and {len(missing_used_keys) - 20} more")
     else:
-        print("No missing keys used in one-arg static t()/i18n.t() calls")
+        print("No missing keys used in static t()/i18n.t() calls")
     print()
 
     # Summary
