@@ -67,16 +67,38 @@ describe('computeWorkHistoryYears', () => {
     expect(result!).toBeCloseTo(5, 0)
   })
 
-  it('overcounts overlapping date ranges (known gap)', () => {
+  it('merges overlapping date ranges instead of overcounting', () => {
     const entries: ResumeWorkHistoryItem[] = [
       { companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2024-01' },
       { companyName: 'B', jobTitle: 'Sales', startDate: '2022-01', endDate: '2024-06' },
     ]
     // True span: 2020-01 to 2024-06 = ~4.4 years
-    // Naive sum: 4 + 2.5 = 6.5 years (overcounts ~2 years of overlap)
+    // Naive sum would be 4 + 2.5 = 6.5 years (overcounts ~2 years of overlap)
     const result = computeWorkHistoryYears(entries)
     expect(result).not.toBeNull()
-    expect(result!).toBeGreaterThan(4.4) // confirms overcounting
+    expect(result!).toBeCloseTo(4.4, 0)
+  })
+
+  it('merges fully nested date ranges', () => {
+    const entries: ResumeWorkHistoryItem[] = [
+      { companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2024-01' },
+      { companyName: 'B', jobTitle: 'Sales', startDate: '2020-01', endDate: '2022-01' },
+    ]
+    // B is fully nested inside A; total span is just A = 6 years
+    const result = computeWorkHistoryYears(entries)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(6, 0)
+  })
+
+  it('merges adjacent but non-overlapping entries without dedup', () => {
+    const entries: ResumeWorkHistoryItem[] = [
+      { companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2020-01' },
+      { companyName: 'B', jobTitle: 'Sales', startDate: '2021-01', endDate: '2024-01' },
+    ]
+    // No overlap: 2 + 3 = 5 years
+    const result = computeWorkHistoryYears(entries)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(5, 0)
   })
 
   it('returns null when all entries yield zero years', () => {
