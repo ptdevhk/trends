@@ -679,6 +679,7 @@ export function useResumeSearchState() {
       maxAge: parsedState.filters.maxAge,
       requiredKeywords: parsedState.requiredKeywords,
       locations: parsedState.filters.locations,
+      sources: parsedState.selectedSources.length > 0 ? parsedState.selectedSources : undefined,
     }),
     [
       effectiveRoleFilterType,
@@ -689,6 +690,7 @@ export function useResumeSearchState() {
       parsedState.filters.minExperience,
       parsedState.filters.minRoleYears,
       parsedState.requiredKeywords,
+      parsedState.selectedSources,
     ],
   )
   const activeSort = resolveSortValue(parsedState.filters)

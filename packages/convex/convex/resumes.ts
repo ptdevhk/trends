@@ -321,6 +321,7 @@ type ResumeListFilterArgs = {
     minSalary?: number;
     maxSalary?: number;
     showArchived?: boolean;
+    sources?: string[];
 };
 
 type ResumeListSortBy = "name" | "experience" | "extractedAt";
@@ -775,6 +776,7 @@ function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): 
         .map((value) => value.toLowerCase())
         .filter((value) => value.length > 0);
     const locations = filters.locations?.map((value) => value.trim()).filter((value) => value.length > 0);
+    const sources = filters.sources?.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0);
     const roleFilterType = toOptionalStringValue(filters.roleFilterType)?.toLowerCase();
     const minAge = typeof filters.minAge === "number" && Number.isFinite(filters.minAge) && filters.minAge > 0
         ? Math.trunc(filters.minAge)
@@ -797,6 +799,7 @@ function normalizeResumeListFilters(filters: ResumeListFilterArgs | undefined): 
         ...(filters.minSalary === undefined ? {} : { minSalary: filters.minSalary }),
         ...(filters.maxSalary === undefined ? {} : { maxSalary: filters.maxSalary }),
         ...(filters.showArchived ? { showArchived: true } : {}),
+        ...(sources && sources.length > 0 ? { sources } : {}),
     };
 
     return Object.keys(normalized).length > 0 ? normalized : undefined;
@@ -993,6 +996,14 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
             if (minSalary !== undefined && minSalary > filters.maxSalary) {
                 return false;
             }
+        }
+    }
+
+    if (filters.sources?.length) {
+        const resumeSourceKey = resume.sourceKey
+            ?? resolveResumeAnalysisSourceKey({ source: resume.source });
+        if (!resumeSourceKey || !filters.sources.includes(resumeSourceKey)) {
+            return false;
         }
     }
 
@@ -1790,6 +1801,7 @@ export const listWithIngestDataPaginated = query({
         locations: v.optional(v.array(v.string())),
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
+        sources: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const filters = normalizeResumeListFilters(args);
@@ -2275,6 +2287,7 @@ export const searchWithTagExpansionPaginated = query({
         locations: v.optional(v.array(v.string())),
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
+        sources: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         if (!args.jobDescriptionId?.trim() && !args.sortBy) {
