@@ -1490,4 +1490,186 @@ describe("normalizeResume strict evidence", () => {
       expect(normalized.breakdown?.related_exp).toBeGreaterThanOrEqual(80);
     });
   });
+
+  describe("hasNonEmployerBrandHits", () => {
+    // Mirrors analyze.ts:119-132
+    function isRecord(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+    function hasNonEmployerBrandHits(value: unknown): boolean {
+      if (!Array.isArray(value)) return false;
+      return value.some((item) => {
+        if (!isRecord(item)) return false;
+        const context = typeof item.context === "string" ? item.context.trim().toLowerCase() : "";
+        return context !== "employer";
+      });
+    }
+
+    it("returns false for empty array", () => {
+      expect(hasNonEmployerBrandHits([])).toBe(false);
+    });
+
+    it("returns false for non-array input", () => {
+      expect(hasNonEmployerBrandHits(null)).toBe(false);
+      expect(hasNonEmployerBrandHits("string")).toBe(false);
+      expect(hasNonEmployerBrandHits(42)).toBe(false);
+    });
+
+    it("returns false when all brand hits have employer context", () => {
+      expect(hasNonEmployerBrandHits([
+        { context: "employer" },
+        { context: "Employer" },
+      ])).toBe(false);
+    });
+
+    it("returns true when at least one non-employer context exists", () => {
+      expect(hasNonEmployerBrandHits([
+        { context: "employer" },
+        { context: "product" },
+      ])).toBe(true);
+    });
+
+    it("returns true for sales context", () => {
+      expect(hasNonEmployerBrandHits([{ context: "sales" }])).toBe(true);
+    });
+
+    it("returns true for items with no context field (defaults to empty string, not employer)", () => {
+      expect(hasNonEmployerBrandHits([{ name: "brand" }])).toBe(true);
+    });
+  });
+
+  describe("hasCompanyHits", () => {
+    // Mirrors analyze.ts:134-140
+    function hasCompanyHits(value: unknown): boolean {
+      if (!Array.isArray(value)) return false;
+      return value.some((item) => typeof item === "string" && item.trim().length > 0);
+    }
+
+    it("returns false for empty array", () => {
+      expect(hasCompanyHits([])).toBe(false);
+    });
+
+    it("returns false for non-array input", () => {
+      expect(hasCompanyHits(null)).toBe(false);
+    });
+
+    it("returns false for array of whitespace-only strings", () => {
+      expect(hasCompanyHits(["  ", ""])).toBe(false);
+    });
+
+    it("returns true when at least one non-empty string exists", () => {
+      expect(hasCompanyHits(["北京精雕科技集团有限公司"])).toBe(true);
+    });
+
+    it("skips non-string items", () => {
+      expect(hasCompanyHits([42, null, "valid company"])).toBe(true);
+      expect(hasCompanyHits([42, null, {} as unknown])).toBe(false);
+    });
+  });
+
+  describe("computeDirectIndustryDbScoreFromResume", () => {
+    // Mirrors analyze.ts:142-164
+    function isRecord(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+    function getResumeIngestData(resume: unknown): Record<string, unknown> {
+      const root = isRecord(resume) ? resume : {};
+      const content = isRecord(root.content) ? root.content : {};
+      if (isRecord(root.ingestData)) return root.ingestData;
+      if (isRecord(content.ingestData)) return content.ingestData;
+      return {};
+    }
+    function hasNonEmployerBrandHitsFn(value: unknown): boolean {
+      if (!Array.isArray(value)) return false;
+      return value.some((item) => {
+        if (!isRecord(item)) return false;
+        const context = typeof item.context === "string" ? item.context.trim().toLowerCase() : "";
+        return context !== "employer";
+      });
+    }
+    function hasCompanyHitsFn(value: unknown): boolean {
+      if (!Array.isArray(value)) return false;
+      return value.some((item) => typeof item === "string" && item.trim().length > 0);
+    }
+    function toNumber(value: unknown): number | undefined {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return undefined;
+    }
+    function clamp(value: number, min: number, max: number): number {
+      return Math.min(max, Math.max(min, value));
+    }
+    const INDUSTRY_DB_SCORE_CAP = 50;
+
+    function computeDirectIndustryDbScoreFromResume(resume: unknown): number {
+      const ingestData = getResumeIngestData(resume);
+      const brandHits = hasNonEmployerBrandHitsFn(ingestData.brandHits);
+      const companyHits = hasCompanyHitsFn(ingestData.companyHits);
+      if (brandHits || companyHits) return INDUSTRY_DB_SCORE_CAP;
+      const raw = toNumber(ingestData.industryDbV2Raw) ?? 0;
+      return clamp(raw, 0, INDUSTRY_DB_SCORE_CAP);
+    }
+
+    it("returns cap (50) when non-employer brand hits exist", () => {
+      expect(computeDirectIndustryDbScoreFromResume({
+        ingestData: { brandHits: [{ context: "sales" }], companyHits: [] },
+      })).toBe(50);
+    });
+
+    it("returns cap (50) when company hits exist", () => {
+      expect(computeDirectIndustryDbScoreFromResume({
+        ingestData: { brandHits: [], companyHits: ["北京精雕科技"] },
+      })).toBe(50);
+    });
+
+    it("returns cap when both brand and company hits exist", () => {
+      expect(computeDirectIndustryDbScoreFromResume({
+        ingestData: { brandHits: [{ context: "equipment" }], companyHits: ["某公司"] },
+      })).toBe(50);
+    });
+
+    it("does not cap when only employer-brand hits exist", () => {
+      expect(computeDirectIndustryDbScoreFromResume({
+        ingestData: { brandHits: [{ context: "employer" }], companyHits: [], industryDbV2Raw: 30 },
+      })).toBe(30);
+    });
+
+    it("clamps industryDbV2Raw to 0-50 when no brand/company hits", () => {
+      expect(computeDirectIndustryDbScoreFromResume({
+        ingestData: { brandHits: [], companyHits: [], industryDbV2Raw: 75 },
+      })).toBe(50);
+    });
+
+    it("returns industryDbV2Raw as-is when within 0-50", () => {
+      expect(computeDirectIndustryDbScoreFromResume({
+        ingestData: { brandHits: [], companyHits: [], industryDbV2Raw: 35 },
+      })).toBe(35);
+    });
+
+    it("defaults to 0 when industryDbV2Raw is absent", () => {
+      expect(computeDirectIndustryDbScoreFromResume({
+        ingestData: { brandHits: [], companyHits: [] },
+      })).toBe(0);
+    });
+
+    it("reads ingestData from content.ingestData fallback path", () => {
+      expect(computeDirectIndustryDbScoreFromResume({
+        content: { ingestData: { brandHits: [], companyHits: ["某公司"] } },
+      })).toBe(50);
+    });
+
+    it("reads ingestData from root.ingestData preferentially", () => {
+      expect(computeDirectIndustryDbScoreFromResume({
+        ingestData: { brandHits: [], companyHits: ["根路径公司"] },
+        content: { ingestData: { brandHits: [], companyHits: [], industryDbV2Raw: 20 } },
+      })).toBe(50);
+    });
+
+    it("returns 0 when no ingestData at all", () => {
+      expect(computeDirectIndustryDbScoreFromResume({})).toBe(0);
+    });
+  });
 });
