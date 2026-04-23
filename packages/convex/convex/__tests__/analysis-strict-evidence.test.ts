@@ -1053,4 +1053,124 @@ describe("normalizeResume strict evidence", () => {
     // so unverified sales lets the AI score pass through.
     expect(normalized.breakdown?.related_exp).toBe(70); // AI score passes through
   });
+
+  describe("normalizeSummaryConsistency edge cases", () => {
+    it("replaces empty summary with fallback text", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 90,
+          recommendation: "strong_match",
+          summary: "",
+          highlights: [],
+          breakdown: { related_exp: 80, industry_db: 10 },
+        },
+        { ingestData: { industryDbV2Raw: 10, companyHits: ["TestCo"], brandHits: [{ context: "employer" }], roleSignals: [{ type: "sales", years: 5, roleRelevantYears: 5, industryVerifiedYears: 5, matchedSignals: ["销售"] }] } } as unknown,
+        { targetRoleType: "sales" }
+      );
+      // normalizeAnalysisResult replaces empty summaries with a fallback
+      expect(normalized.summary).not.toBe("");
+      expect(normalized.summary.length).toBeGreaterThan(0);
+    });
+
+    it("replaces whitespace-only summary with fallback text", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 90,
+          recommendation: "strong_match",
+          summary: "   ",
+          highlights: [],
+          breakdown: { related_exp: 80, industry_db: 10 },
+        },
+        { ingestData: { industryDbV2Raw: 10, companyHits: ["TestCo"], brandHits: [{ context: "employer" }], roleSignals: [{ type: "sales", years: 5, roleRelevantYears: 5, industryVerifiedYears: 5, matchedSignals: ["销售"] }] } } as unknown,
+        { targetRoleType: "sales" }
+      );
+      // normalizeAnalysisResult replaces empty/whitespace summaries with a fallback
+      expect(normalized.summary).not.toBe("   ");
+      expect(normalized.summary.length).toBeGreaterThan(0);
+    });
+
+    it("rewrites score mismatch but keeps matching recommendation", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 58,
+          recommendation: "potential",
+          summary: "候选人有一定潜力，综合 score 75，属于 potential 匹配。",
+          highlights: [],
+          breakdown: { related_exp: 40, industry_db: 0 },
+        },
+        { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+        {}
+      );
+      // recommendation "potential" matches, but score 75 in prose != computed score
+      // The actual computed score = round(40*0.5) + 0 = 20
+      expect(normalized.score).toBe(20);
+      expect(normalized.summary).toContain("score 20");
+      expect(normalized.summary).not.toContain("score 75");
+    });
+
+    it("rewrites recommendation mismatch but keeps matching score", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 90,
+          recommendation: "match",
+          summary: "优秀候选人，score 90，recommendation match。",
+          highlights: [],
+          breakdown: { related_exp: 80, industry_db: 10 },
+        },
+        { ingestData: { industryDbV2Raw: 10, companyHits: ["TestCo"], brandHits: [{ context: "employer" }], roleSignals: [{ type: "sales", years: 5, roleRelevantYears: 5, industryVerifiedYears: 5, matchedSignals: ["销售"] }] } } as unknown,
+        { targetRoleType: "sales" }
+      );
+      // score 90 matches, but recommendation "match" should be "strong_match" (>=85)
+      expect(normalized.recommendation).toBe("strong_match");
+      expect(normalized.summary).toContain("strong_match");
+      expect(normalized.summary).not.toMatch(/\bmatch\b(?!\s*_)/);
+    });
+
+    it("does not modify summary when both score and recommendation match", () => {
+      const originalSummary = "候选人经验丰富，score 90，recommendation strong_match。";
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 90,
+          recommendation: "strong_match",
+          summary: originalSummary,
+          highlights: [],
+          breakdown: { related_exp: 80, industry_db: 10 },
+        },
+        { ingestData: { industryDbV2Raw: 10, companyHits: ["TestCo"], brandHits: [{ context: "employer" }], roleSignals: [{ type: "sales", years: 5, roleRelevantYears: 5, industryVerifiedYears: 5, matchedSignals: ["销售"] }] } } as unknown,
+        { targetRoleType: "sales" }
+      );
+      expect(normalized.summary).toBe(originalSummary);
+    });
+
+    it("appends English canonical statement for non-Han mismatched summaries", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 30,
+          recommendation: "potential",
+          summary: "Candidate shows some relevant skills, score 58, recommendation match.",
+          highlights: [],
+          breakdown: { related_exp: 20, industry_db: 0 },
+        },
+        { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+        {}
+      );
+      // Both score and recommendation mismatch → English canonical line appended
+      expect(normalized.summary).toContain("Normalized result: score 10, recommendation no_match");
+    });
+
+    it("appends Chinese canonical statement for Han-text mismatched summaries", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 58,
+          recommendation: "potential",
+          summary: "行业数据库验证方面信息有限，综合 score 58，属于具备潜在匹配的候选人。",
+          highlights: [],
+          breakdown: { related_exp: 80, industry_db: 0 },
+        },
+        { ingestData: { industryDbV2Raw: 10, companyHits: ["深圳市创世纪机械有限公司"], brandHits: [{ context: "employer" }], roleSignals: [{ type: "sales", years: 3.8, roleRelevantYears: 3.8, industryVerifiedYears: 3.8, matchedSignals: ["销售工程师"] }] } } as unknown,
+        { targetRoleType: "sales" }
+      );
+      expect(normalized.summary).toContain("系统归一化结果：score 90，recommendation strong_match");
+    });
+  });
 });
