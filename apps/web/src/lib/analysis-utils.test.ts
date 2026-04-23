@@ -125,4 +125,30 @@ describe('source-aware analysis helpers', () => {
     expect(resolveResumeAnalysisSourceKey({ sourceKey: '51job' })).toBe('51job')
     expect(resolveResumeAnalysisSourceKey({ source: 'ehire.51job.com' })).toBe('51job')
   })
+
+  it('builds locale-aware storage keys when locale is provided', () => {
+    expect(buildResumeAnalysisStorageKey('jd-lathe-sales', { locale: 'en' }))
+      .toBe('locale:en|analysis:jd-lathe-sales')
+  })
+
+  it('builds source+locale storage keys when both are provided', () => {
+    expect(buildResumeAnalysisStorageKey('jd-lathe-sales', { sourceKey: 'seek', locale: 'en' }))
+      .toBe('source:seek|locale:en|analysis:jd-lathe-sales')
+  })
+
+  it('returns legacy key when neither sourceKey nor locale is provided', () => {
+    expect(buildResumeAnalysisStorageKey('jd-lathe-sales')).toBe('jd-lathe-sales')
+  })
+
+  it('normalizes locale whitespace and casing', () => {
+    expect(buildResumeAnalysisStorageKey('jd-lathe-sales', { locale: '  ZH-HANS  ' }))
+      .toBe('locale:zh-hans|analysis:jd-lathe-sales')
+  })
+
+  it('returns source+locale lookup keys before the legacy key', () => {
+    expect(buildResumeAnalysisLookupKeys('jd-lathe-sales', [], { sourceKey: 'seek', locale: 'en' })).toEqual([
+      'source:seek|locale:en|analysis:jd-lathe-sales',
+      'jd-lathe-sales',
+    ])
+  })
 })
