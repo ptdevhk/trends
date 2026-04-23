@@ -149,4 +149,54 @@ describe('ResumeCard brand-hit badges', () => {
     expect(screen.queryByText('Rule')).not.toBeInTheDocument()
     expect(screen.queryByText('74')).not.toBeInTheDocument()
   })
+
+  it('shows a content-locale badge when the resume source maps to a locale', () => {
+    render(
+      <ResumeCard
+        resume={{
+          name: 'Bob',
+          profileUrl: 'https://hk.employer.seek.com/candidates/123',
+          activityStatus: 'Active',
+          age: '28',
+          experience: '3 years',
+          education: 'Bachelor',
+          location: 'Kuala Lumpur',
+          selfIntro: 'Experienced sales engineer',
+          jobIntention: 'Sales Engineer',
+          expectedSalary: '8k-12k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+          source: 'hk.employer.seek.com',
+        }}
+        onViewDetails={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('EN')).toBeInTheDocument()
+  })
+
+  it('does not show a content-locale badge when no locale is resolved', () => {
+    render(
+      <ResumeCard
+        resume={{
+          name: 'Charlie',
+          profileUrl: 'https://example.com/resume-1',
+          activityStatus: 'Active',
+          age: '35',
+          experience: '10 years',
+          education: 'Master',
+          location: 'Shenzhen',
+          selfIntro: 'Experienced engineer',
+          jobIntention: 'CNC Engineer',
+          expectedSalary: '15k-25k',
+          workHistory: [],
+          extractedAt: '2026-03-13T00:00:00.000Z',
+        }}
+        onViewDetails={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('EN')).not.toBeInTheDocument()
+    expect(screen.queryByText('ZH')).not.toBeInTheDocument()
+  })
 })
