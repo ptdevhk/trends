@@ -338,7 +338,6 @@ export default defineSchema({
                 type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
                 exactUrl: v.optional(v.string()),
             })),
-            collectUrl: v.optional(v.string()), // Legacy field; use collectionSource.exactUrl instead.
             filters: v.optional(v.any()), // Stores ResumeFilters object
         }),
         reviewedResumeIds: v.array(v.string()), // IDs of resumes seen/acted upon
@@ -359,7 +358,6 @@ export default defineSchema({
             type: v.union(v.literal("job5156"), v.literal("51job"), v.literal("seek")),
             exactUrl: v.optional(v.string()),
         })),
-        collectUrl: v.optional(v.string()), // Legacy field; use collectionSource.exactUrl instead.
         filters: v.optional(v.any()),
         selectedTags: v.optional(v.array(v.string())),
         selectedCompanies: v.optional(v.array(v.string())),
