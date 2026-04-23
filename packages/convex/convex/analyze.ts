@@ -941,16 +941,20 @@ export const analyzeResume = action({
             throw new Error(`Resume not found: ${args.resumeId}`);
         }
 
-        const jd = args.jobDescription || {
-            title: "销售经理 (通用)",
-            requirements: "具备销售经验，沟通能力强，熟悉机床行业优先。",
-        };
-
-        const matchingRules = args.matchingRules ? JSON.stringify(args.matchingRules, null, 2) : "使用默认评分标准";
-
-        // 2. Prepare Prompt
         const sourceKey = inferSourceKey(resume.source);
         const locale = resolveAIOutputLocale({ sourceKey });
+        const isEnglishLocale = isEnglishResumeAiLocale(locale);
+
+        const jd = args.jobDescription || {
+            title: isEnglishLocale ? "Sales Manager (General)" : "销售经理 (通用)",
+            requirements: isEnglishLocale
+                ? "Sales experience, strong communication, and machine-tool industry familiarity preferred."
+                : "具备销售经验，沟通能力强，熟悉机床行业优先。",
+        };
+
+        const matchingRules = args.matchingRules
+            ? JSON.stringify(args.matchingRules, null, 2)
+            : (isEnglishLocale ? "Use the default scoring rules." : "使用默认评分标准");
         const promptVersion = getResumeAiPromptDefinition(locale).metadata.version;
         const norm = normalizeResume(resume, { locale });
         const prompt = hydrateUserPrompt(
