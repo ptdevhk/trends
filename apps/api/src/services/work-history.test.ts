@@ -50,6 +50,36 @@ describe('computeEntryRoleYears', () => {
   it('returns 0 for empty entry', () => {
     expect(computeEntryRoleYears({})).toBe(0)
   })
+
+  it('falls back to raw text when structured dates are absent', () => {
+    const entry: ResumeWorkHistoryItem = {
+      raw: '2019-06~2023-12(4年6月)北京精雕科技集团有限公司销售工程师',
+    }
+    const result = computeEntryRoleYears(entry)
+    expect(result).toBeCloseTo(4.5, 0)
+  })
+
+  it('resolves raw 至今 pattern with anchorDate', () => {
+    const anchor = new Date('2026-04-01')
+    const entry: ResumeWorkHistoryItem = {
+      raw: '2024-01~至今 苏州美科生贸易有限公司 CNC销售',
+    }
+    const result = computeEntryRoleYears(entry, anchor)
+    expect(result).toBeCloseTo(2.3, 0)
+  })
+
+  it('prefers structured date range over raw text', () => {
+    const entry: ResumeWorkHistoryItem = {
+      companyName: 'A',
+      jobTitle: 'Engineer',
+      startDate: '2020-01',
+      endDate: '2024-01',
+      raw: '1990-01~1995-01(5年)旧公司 旧职位',
+    }
+    // Should use structured 2020-01 ~ 2024-01 = 4 years, not raw 5 years
+    const result = computeEntryRoleYears(entry)
+    expect(result).toBeCloseTo(4, 0)
+  })
 })
 
 describe('computeWorkHistoryYears', () => {
