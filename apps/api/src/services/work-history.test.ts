@@ -26,6 +26,30 @@ describe('parseRoleYears', () => {
     const anchor = new Date('2026-04-24')
     expect(parseRoleYears('2024-01 ~ 至今', anchor)).toBeCloseTo(2.3, 1)
   })
+
+  it('extracts years from Chinese year-month format (YYYY年M月)', () => {
+    expect(parseRoleYears('2021年3月~2024年1月')).toBeCloseTo(2.8, 1)
+  })
+
+  it('extracts years from dot-separated date range', () => {
+    expect(parseRoleYears('2021.03 ~ 2024.01')).toBeCloseTo(2.8, 1)
+  })
+
+  it('defaults to January when month is omitted after separator', () => {
+    // Separator present but no month digit: "YYYY-" defaults month to 1
+    expect(parseRoleYears('2021- ~ 2024-')).toBeCloseTo(3, 0)
+  })
+
+  it('returns 0 for string with no parseable date info', () => {
+    expect(parseRoleYears('销售工程师经历')).toBe(0)
+  })
+
+  it('handles present markers: 目前, present, current', () => {
+    const anchor = new Date('2026-04-24')
+    expect(parseRoleYears('2024-01 ~ 目前', anchor)).toBeCloseTo(2.3, 1)
+    expect(parseRoleYears('2024-01 ~ present', anchor)).toBeCloseTo(2.3, 1)
+    expect(parseRoleYears('2024-01 ~ current', anchor)).toBeCloseTo(2.3, 1)
+  })
 })
 
 describe('computeEntryRoleYears', () => {
@@ -203,5 +227,30 @@ describe('extractCompanyFromWorkHistory', () => {
 
   it('returns empty string when no company pattern is found', () => {
     expect(extractCompanyFromWorkHistory({})).toBe('')
+  })
+
+  it('extracts company with 集团 suffix', () => {
+    const entry: ResumeWorkHistoryItem = {
+      raw: '2018-01~2024-01 北京精雕科技集团有限公司 区域经理',
+    }
+    expect(extractCompanyFromWorkHistory(entry)).toContain('集团')
+  })
+
+  it('extracts company with 厂 suffix', () => {
+    const entry: ResumeWorkHistoryItem = {
+      raw: '2015-03~2019-12 东莞某机械厂 技术员',
+    }
+    expect(extractCompanyFromWorkHistory(entry)).toContain('厂')
+  })
+
+  it('returns first token when no company pattern matches but token exists', () => {
+    // 自由职业 doesn't match COMPANY_PATTERN (no 公司/集团/科技/etc suffix)
+    // but falls through to first-token heuristic (≥2 chars)
+    const entry: ResumeWorkHistoryItem = {
+      raw: '2020-01~2024-01 自由职业 销售',
+    }
+    const result = extractCompanyFromWorkHistory(entry)
+    // Falls back to first token ≥2 chars, not empty string
+    expect(result.length).toBeGreaterThanOrEqual(2)
   })
 })
