@@ -1093,4 +1093,49 @@ describe("IngestComputeService", () => {
       service.computeOne("resume-bad", { data: [] });
     }).toThrow("Invalid resume content");
   });
+
+  it("should deduplicate companyHits when the same verified employer appears in multiple work history entries", () => {
+    const result = service.computeOne("resume-dedup-employer", {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2016-06~2019-12(3年6月)北京精雕科技集团有限公司销售工程师" },
+            { raw: "2020-01~2024-12(4年11月)北京精雕科技集团有限公司区域经理" },
+          ],
+        },
+      ],
+    });
+
+    // The same company key should appear only once in companyHits
+    const jingdiaoHits = result.companyHits.filter((key) => key === "jingdiao");
+    expect(jingdiaoHits).toHaveLength(1);
+
+    // Should still produce a single employer brandHit
+    const employerHits = result.brandHits.filter((hit) => hit.context === "employer");
+    expect(employerHits).toHaveLength(1);
+    expect(employerHits[0]).toEqual({
+      brand: "jingdiao",
+      role: "employer",
+      source: "workHistory",
+      context: "employer",
+      companyId: 1,
+    });
+  });
+
+  it("should not produce companyHits for work history entries at non-verified companies", () => {
+    const result = service.computeOne("resume-non-verified-employer", {
+      data: [
+        {
+          ...SAMPLE_RESUME_JUNIOR.data[0],
+          workHistory: [
+            { raw: "2020-01~2024-12(4年11月)东莞市普通贸易有限公司销售经理" },
+          ],
+        },
+      ],
+    });
+
+    expect(result.companyHits).toEqual([]);
+    expect(result.brandHits.filter((hit) => hit.context === "employer")).toEqual([]);
+  });
 });
