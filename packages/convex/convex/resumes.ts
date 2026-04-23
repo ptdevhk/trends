@@ -9,7 +9,7 @@ import {
     buildWorkHistoryEntryText,
     formatLocationHierarchySearchText,
     formatLocationHierarchyLabel,
-    getRoleSignalYears,
+    getVerifiedRoleSignalYears,
     isResumeAnalysisKeyForJobDescription,
     isLocationMatch,
     KNOWN_DIAGNOSTICS_SOURCE_KEYS,
@@ -892,7 +892,7 @@ function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined
         return 0;
     }
 
-    return getRoleSignalYears(roleSignals, toOptionalStringValue(roleType)?.toLowerCase() ?? "");
+    return getVerifiedRoleSignalYears(roleSignals, toOptionalStringValue(roleType)?.toLowerCase() ?? "");
 }
 
 function resolveResumeAge(resume: Doc<"resumes">, content: Record<string, unknown>): number | null {

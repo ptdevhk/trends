@@ -46,6 +46,7 @@ export type AnalysisRoleSignalLike = {
 export type AnalysisMatchedWorkEntryLike = {
   years?: number;
   directRoleMatch?: boolean;
+  industryVerified?: boolean;
 };
 
 export type AnalysisKeywordKeyOptions = {
@@ -238,6 +239,80 @@ export function deriveAnalysisLookupKey(
   options?: AnalysisKeywordKeyOptions
 ): string {
   return buildResumeAnalysisLookupKeys(jobDescriptionId, keywords, options)[0] ?? "";
+}
+
+/**
+ * Strict variant of {@link getRoleSignalYears} that counts only
+ * industry-verified role years. Used by the `minRoleYears` filter so that
+ * unverified signal years cannot pass the gate.
+ *
+ * Precedence per signal:
+ *  1. If `matchedWorkEntries` carry `directRoleMatch` + `industryVerified`
+ *     flags, sum years of entries where both are `true`.
+ *  2. Otherwise fall back to `industryVerifiedRelevantYears` or
+ *     `industryVerifiedYears` only — never to unverified `roleRelevantYears`
+ *     or `years`.
+ */
+export function getVerifiedRoleSignalYears(
+  roleSignals: AnalysisRoleSignalLike[] | undefined,
+  roleType: string,
+  verifyIn?: string
+): number {
+  if (!roleSignals || roleSignals.length === 0) {
+    return 0;
+  }
+
+  const normalizedType = roleType.trim().toLowerCase();
+  const normalizedVerifyIn = verifyIn?.trim().toLowerCase();
+
+  const resolveVerifiedYears = (signal: AnalysisRoleSignalLike): number => {
+    if (Array.isArray(signal.matchedWorkEntries) && signal.matchedWorkEntries.length > 0) {
+      const flaggedEntries = signal.matchedWorkEntries.filter(
+        (entry) => typeof entry.directRoleMatch === "boolean"
+      );
+      if (flaggedEntries.length > 0) {
+        const verifiedYears = flaggedEntries.reduce((total, entry) => {
+          if (entry.directRoleMatch !== true) {
+            return total;
+          }
+          if (entry.industryVerified !== true) {
+            return total;
+          }
+          const years = entry.years;
+          if (typeof years !== "number" || !Number.isFinite(years)) {
+            return total;
+          }
+          return total + years;
+        }, 0);
+        return Number.isFinite(verifiedYears) ? verifiedYears : 0;
+      }
+    }
+
+    const years = signal.industryVerifiedRelevantYears ?? signal.industryVerifiedYears ?? 0;
+    return Number.isFinite(years) ? years : 0;
+  };
+
+  if (!normalizedType) {
+    return roleSignals.reduce((maxYears, signal) => {
+      return Math.max(maxYears, resolveVerifiedYears(signal));
+    }, 0);
+  }
+
+  const matched = roleSignals.find((signal) => {
+    if (signal.type.trim().toLowerCase() !== normalizedType) {
+      return false;
+    }
+    if (!normalizedVerifyIn) {
+      return true;
+    }
+    return signal.verifyIn?.trim().toLowerCase() === normalizedVerifyIn;
+  });
+
+  if (!matched) {
+    return 0;
+  }
+
+  return resolveVerifiedYears(matched);
 }
 
 export function getRoleSignalYears(
