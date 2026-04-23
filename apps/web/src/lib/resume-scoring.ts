@@ -137,14 +137,19 @@ export function getRoleLabel(type: string): string {
   return ROLE_LABELS[normalized] ?? type
 }
 
-export function formatRoleYears(years: number): string {
+export function formatRoleYears(years: number, locale?: string): string {
   if (!Number.isFinite(years) || years <= 0) {
-    return '0年'
+    return locale?.startsWith('en') ? '0 years' : '0年'
   }
 
   const rounded = Math.round(years * 10) / 10
   const label = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
-  return `${label.replace(/\.0$/, '')}年`
+  const value = label.replace(/\.0$/, '')
+
+  if (locale?.startsWith('en')) {
+    return years === 1 ? '1 year' : `${value} years`
+  }
+  return `${value}年`
 }
 
 export function getRoleRelevantYears(signal: Pick<ResumeRoleSignalLike, 'roleRelevantYears' | 'years'>): number {

@@ -6,6 +6,7 @@ import {
   buildRuleScoringText,
   computeDirectIndustryDb,
   computeNormalizedIndustryDbScore,
+  formatRoleYears,
   getAnalysisForJob,
   getPrecomputedRuleScore,
   getResumeContentLocale,
@@ -522,5 +523,30 @@ describe('getNameSortLocale', () => {
 
   it('returns zh-Hans-CN when source is missing', () => {
     expect(getNameSortLocale({})).toBe('zh-Hans-CN')
+  })
+})
+
+describe('formatRoleYears', () => {
+  it('formats years with Chinese suffix by default', () => {
+    expect(formatRoleYears(3)).toBe('3年')
+    expect(formatRoleYears(2.5)).toBe('2.5年')
+  })
+
+  it('formats years with English suffix for en locale', () => {
+    expect(formatRoleYears(3, 'en')).toBe('3 years')
+    expect(formatRoleYears(2.5, 'en')).toBe('2.5 years')
+  })
+
+  it('uses singular "year" for exactly 1 year in English', () => {
+    expect(formatRoleYears(1, 'en')).toBe('1 year')
+  })
+
+  it('returns "0年" for zero/negative years by default', () => {
+    expect(formatRoleYears(0)).toBe('0年')
+    expect(formatRoleYears(-1)).toBe('0年')
+  })
+
+  it('returns "0 years" for zero/negative years in English', () => {
+    expect(formatRoleYears(0, 'en')).toBe('0 years')
   })
 })
