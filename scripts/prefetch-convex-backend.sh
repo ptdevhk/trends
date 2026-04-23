@@ -8,6 +8,8 @@ DEFAULT_CONNECT_TIMEOUT_SECS="10"
 DASHBOARD_ASSET_NAME="dashboard.zip"
 DEFAULT_DASHBOARD_PORT="6790"
 DEFAULT_DASHBOARD_API_PORT="6791"
+GITHUB_API_TOKEN=""
+GITHUB_API_TOKEN_SOURCE="none"
 
 usage() {
     cat <<EOF
@@ -20,6 +22,7 @@ Environment:
   CONVEX_DOWNLOAD_TIMEOUT_SECS  Download timeout in seconds (default: ${DEFAULT_DOWNLOAD_TIMEOUT_SECS})
   CONVEX_CONNECT_TIMEOUT_SECS   Connect timeout in seconds (default: ${DEFAULT_CONNECT_TIMEOUT_SECS})
   CONVEX_CURL_NO_SILENT         When true/1, keep curl progress output enabled
+  GITHUB_TOKEN / GH_TOKEN       Optional GitHub token for authenticated release metadata requests
   CI                            When true/1, shared Convex prefetch mode defaults to off
 EOF
 }
@@ -121,6 +124,35 @@ validate_positive_integer() {
     if ! [[ "$value" =~ ^[0-9]+$ ]] || [ "$value" -le 0 ]; then
         log "Invalid ${name}='${value}'. Expected a positive integer."
         exit 1
+    fi
+}
+
+resolve_github_api_token() {
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+        GITHUB_API_TOKEN="${GITHUB_TOKEN}"
+        GITHUB_API_TOKEN_SOURCE="GITHUB_TOKEN"
+        return
+    fi
+
+    if [ -n "${GH_TOKEN:-}" ]; then
+        GITHUB_API_TOKEN="${GH_TOKEN}"
+        GITHUB_API_TOKEN_SOURCE="GH_TOKEN"
+        return
+    fi
+
+    if ! command -v gh >/dev/null 2>&1; then
+        return
+    fi
+
+    if ! gh auth status >/dev/null 2>&1; then
+        return
+    fi
+
+    local token
+    token="$(gh auth token 2>/dev/null || true)"
+    if [ -n "$token" ]; then
+        GITHUB_API_TOKEN="$token"
+        GITHUB_API_TOKEN_SOURCE="gh auth token"
     fi
 }
 
@@ -255,6 +287,67 @@ release_info_from_latest_redirect() {
         ""
 }
 
+release_info_from_github_api() {
+    local asset_name="$1"
+    local dashboard_asset_name="$2"
+    local token="$3"
+    local response_file status_code message release_info
+    local -a curl_args
+
+    response_file="$(mktemp "${TMPDIR:-/tmp}/convex-release-meta.XXXXXX")"
+
+    curl_args=(
+        --silent
+        --show-error
+        --location
+        --output "$response_file"
+        --write-out '%{http_code}'
+        -H "Accept: application/vnd.github+json"
+        -H "X-GitHub-Api-Version: 2022-11-28"
+    )
+
+    if [ -n "$token" ]; then
+        curl_args+=(-H "Authorization: Bearer ${token}")
+    fi
+
+    if ! status_code="$(curl "${curl_args[@]}" "$GITHUB_API")"; then
+        rm -f "$response_file"
+        return 1
+    fi
+
+    if [ "$status_code" != "200" ]; then
+        message="$(jq -r '.message // empty' "$response_file" 2>/dev/null || true)"
+        if [ -n "$message" ]; then
+            message="$(echo "$message" | tr '\n' ' ')"
+            log "GitHub API returned ${status_code}: ${message}"
+        else
+            log "GitHub API returned ${status_code}."
+        fi
+        rm -f "$response_file"
+        return 1
+    fi
+
+    if ! release_info="$(jq -r --arg backend "$asset_name" --arg dashboard "$dashboard_asset_name" '
+        map(select((.prerelease | not) and (.draft | not)))
+        | map(select(any(.assets[]?; .name == $backend)))
+        | .[0] // empty
+        | [
+            .tag_name,
+            (first(.assets[]? | select(.name == $backend) | .browser_download_url) // ""),
+            (first(.assets[]? | select(.name == $backend) | (.digest // "")) // ""),
+            (first(.assets[]? | select(.name == $dashboard) | .browser_download_url) // ""),
+            (first(.assets[]? | select(.name == $dashboard) | (.digest // "")) // "")
+        ]
+        | @tsv
+    ' "$response_file")"; then
+        rm -f "$response_file"
+        return 1
+    fi
+
+    rm -f "$response_file"
+    printf '%s' "$release_info"
+}
+
 download_asset_zip() {
     local asset_label="$1"
     local official_url="$2"
@@ -359,6 +452,7 @@ main() {
     local dashboard_cached existing_dashboard_version
     local dashboard_port dashboard_api_port parsed_dashboard_port parsed_dashboard_api_port
     local mirror_mode hash_cmd download_timeout connect_timeout
+    local metadata_queried_with_auth="false"
 
     tmp_zip=""
     dashboard_tmp_zip=""
@@ -377,20 +471,24 @@ main() {
 
     log "Prefetching Convex backend and dashboard assets for backend artifact: ${artifact_name}"
 
-    if ! release_info="$(curl -fsSL "$GITHUB_API" | jq -r --arg backend "$artifact_name" --arg dashboard "$DASHBOARD_ASSET_NAME" '
-        map(select((.prerelease | not) and (.draft | not)))
-        | map(select(any(.assets[]?; .name == $backend)))
-        | .[0] // empty
-        | [
-            .tag_name,
-            (first(.assets[]? | select(.name == $backend) | .browser_download_url) // ""),
-            (first(.assets[]? | select(.name == $backend) | (.digest // "")) // ""),
-            (first(.assets[]? | select(.name == $dashboard) | .browser_download_url) // ""),
-            (first(.assets[]? | select(.name == $dashboard) | (.digest // "")) // "")
-        ]
-        | @tsv
-    ')"; then
-        release_info=""
+    resolve_github_api_token
+    if [ -n "$GITHUB_API_TOKEN" ]; then
+        metadata_queried_with_auth="true"
+        log "Using authenticated GitHub API metadata request via ${GITHUB_API_TOKEN_SOURCE}."
+        if ! release_info="$(release_info_from_github_api "$artifact_name" "$DASHBOARD_ASSET_NAME" "$GITHUB_API_TOKEN")"; then
+            release_info=""
+        fi
+    else
+        if ! release_info="$(release_info_from_github_api "$artifact_name" "$DASHBOARD_ASSET_NAME" "")"; then
+            release_info=""
+        fi
+    fi
+
+    if [ -z "$release_info" ] && [ "$metadata_queried_with_auth" = "true" ]; then
+        log "Authenticated metadata query failed. Retrying GitHub API without auth before fallback."
+        if ! release_info="$(release_info_from_github_api "$artifact_name" "$DASHBOARD_ASSET_NAME" "")"; then
+            release_info=""
+        fi
     fi
 
     if [ -z "$release_info" ]; then

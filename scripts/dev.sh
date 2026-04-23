@@ -876,6 +876,30 @@ build_convex_dev_command() {
     fi
 }
 
+ensure_github_auth_for_convex() {
+    if [ -n "${GITHUB_TOKEN:-}" ] || [ -n "${GH_TOKEN:-}" ]; then
+        return
+    fi
+
+    if ! command -v gh >/dev/null 2>&1; then
+        return
+    fi
+
+    if ! gh auth status >/dev/null 2>&1; then
+        return
+    fi
+
+    local gh_token
+    gh_token="$(gh auth token 2>/dev/null || true)"
+    if [ -z "$gh_token" ]; then
+        return
+    fi
+
+    export GH_TOKEN="$gh_token"
+    export GITHUB_TOKEN="$gh_token"
+    log "CONVEX" "$CYAN" "Using GitHub token from gh auth for Convex startup to reduce API rate-limit failures."
+}
+
 convex_command_to_string() {
     local token rendered=""
     for token in "$@"; do
@@ -1246,6 +1270,7 @@ start_convex() {
 
     log "CONVEX" "$CYAN" "Starting Convex Dev..."
     cd "$PROJECT_ROOT/packages/convex"
+    ensure_github_auth_for_convex
 
     selected_backend_version="${CONVEX_LOCAL_BACKEND_VERSION:-}"
     if [ -z "$selected_backend_version" ]; then
@@ -1533,6 +1558,7 @@ print_usage() {
     echo "  CONVEX_RETRY_DELAY_SECS Delay between Convex startup attempts in seconds (default: 2)"
     echo "  CONVEX_LOCAL_BACKEND_VERSION Explicit Convex local backend version override"
     echo "  CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: true)"
+    echo "  GITHUB_TOKEN / GH_TOKEN Optional GitHub token for Convex startup and prefetch metadata requests"
     echo "  CONVEX_MIRROR_MODE Convex prefetch source order before startup: off|fallback|mirror-first"
     echo "                    Default is fallback, or off when CI=true/1"
     echo "  CONVEX_MIRROR_BASES / CONVEX_DOWNLOAD_TIMEOUT_SECS / CONVEX_CONNECT_TIMEOUT_SECS"
