@@ -320,6 +320,160 @@ describe("parseLlmResult logic (toNumber + word numbers)", () => {
   });
 });
 
+// Test parseLlmResult integration (duplicated from analysis_tasks.ts:119-142)
+describe("parseLlmResult integration", () => {
+  function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+  }
+
+  const WORD_NUMBERS: Record<string, number> = {
+    zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+    eight: 8, nine: 9, ten: 10, fifteen: 15, twenty: 20, twenty5: 25,
+    thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80,
+    ninety: 90, hundred: 100,
+  };
+
+  function toNumber(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+      const lower = value.trim().toLowerCase();
+      if (WORD_NUMBERS[lower] !== undefined) return WORD_NUMBERS[lower];
+      const parts = lower.split(/[-\s]+/);
+      if (parts.length === 2 && WORD_NUMBERS[parts[0]] !== undefined && WORD_NUMBERS[parts[1]] !== undefined) {
+        return WORD_NUMBERS[parts[0]] + WORD_NUMBERS[parts[1]];
+      }
+    }
+    return null;
+  }
+
+  function toStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is string => typeof item === "string");
+  }
+
+  function parseBreakdown(value: unknown): Record<string, number> | undefined {
+    if (!isObject(value)) return undefined;
+    const parsed: Record<string, number> = {};
+    for (const [key, rawValue] of Object.entries(value)) {
+      const numericValue = toNumber(rawValue);
+      if (numericValue !== null) {
+        parsed[key] = numericValue;
+      }
+    }
+    return Object.keys(parsed).length > 0 ? parsed : undefined;
+  }
+
+  function unwrapLlmResult(value: unknown): Record<string, unknown> | null {
+    if (!isObject(value)) return null;
+    if (value.score !== undefined) return value;
+    for (const key of ["result", "data", "analysis", "response", "output"]) {
+      const nested = value[key];
+      if (isObject(nested) && nested.score !== undefined) return nested;
+    }
+    for (const nested of Object.values(value)) {
+      if (isObject(nested) && nested.score !== undefined) return nested;
+    }
+    return null;
+  }
+
+  function parseLlmResult(value: unknown): {
+    score: number;
+    summary: string;
+    highlights: string[];
+    recommendation: string;
+    breakdown: Record<string, number> | undefined;
+  } {
+    const obj = unwrapLlmResult(value);
+    if (!obj) throw new Error("Invalid analysis result: score is missing.");
+    const score = toNumber(obj.score);
+    if (score === null) throw new Error("Invalid analysis result: score is missing.");
+    const summary = typeof obj.summary === "string" ? obj.summary : "";
+    const recommendation = typeof obj.recommendation === "string" ? obj.recommendation : "potential";
+    return {
+      score,
+      summary: summary || "No summary provided.",
+      highlights: toStringArray(obj.highlights),
+      recommendation,
+      breakdown: parseBreakdown(obj.breakdown),
+    };
+  }
+
+  it("parses a well-formed top-level result", () => {
+    const result = parseLlmResult({
+      score: 85,
+      summary: "Strong match",
+      highlights: ["CNC experience", "Sales background"],
+      recommendation: "strong_match",
+      breakdown: { related_exp: 80, industry_db: 40 },
+    });
+    expect(result.score).toBe(85);
+    expect(result.summary).toBe("Strong match");
+    expect(result.highlights).toEqual(["CNC experience", "Sales background"]);
+    expect(result.recommendation).toBe("strong_match");
+    expect(result.breakdown).toEqual({ related_exp: 80, industry_db: 40 });
+  });
+
+  it("parses score from word number", () => {
+    const result = parseLlmResult({ score: "eighty", summary: "Good" });
+    expect(result.score).toBe(80);
+  });
+
+  it("throws when score is missing", () => {
+    expect(() => parseLlmResult({ summary: "No score" })).toThrow("Invalid analysis result");
+  });
+
+  it("throws when score is non-numeric string", () => {
+    expect(() => parseLlmResult({ score: "good" })).toThrow("Invalid analysis result");
+  });
+
+  it("defaults summary when missing", () => {
+    const result = parseLlmResult({ score: 70 });
+    expect(result.summary).toBe("No summary provided.");
+  });
+
+  it("defaults summary when empty string", () => {
+    const result = parseLlmResult({ score: 70, summary: "" });
+    expect(result.summary).toBe("No summary provided.");
+  });
+
+  it("defaults recommendation to potential", () => {
+    const result = parseLlmResult({ score: 50 });
+    expect(result.recommendation).toBe("potential");
+  });
+
+  it("filters non-string highlights", () => {
+    const result = parseLlmResult({
+      score: 70,
+      highlights: ["valid", 42, null, "also valid"],
+    });
+    expect(result.highlights).toEqual(["valid", "also valid"]);
+  });
+
+  it("defaults highlights to empty array", () => {
+    const result = parseLlmResult({ score: 70 });
+    expect(result.highlights).toEqual([]);
+  });
+
+  it("unwraps nested result and parses", () => {
+    const result = parseLlmResult({
+      result: { score: 65, summary: "Nested" },
+    });
+    expect(result.score).toBe(65);
+    expect(result.summary).toBe("Nested");
+  });
+
+  it("parses breakdown with mixed numeric types", () => {
+    const result = parseLlmResult({
+      score: 70,
+      breakdown: { related_exp: 60, industry_db: "35", invalid: "abc" },
+    });
+    expect(result.breakdown).toEqual({ related_exp: 60, industry_db: 35 });
+    expect(result.breakdown).not.toHaveProperty("invalid");
+  });
+});
+
 // Test stableHash FNV-1a logic (duplicated from analysis_tasks.ts:175-182)
 describe("stableHash FNV-1a logic", () => {
   // Mirrors analysis_tasks.ts:175-182
