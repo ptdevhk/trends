@@ -25,6 +25,7 @@ export type ConvexResumeFilters = {
   locations?: string[]
   minSalary?: number
   maxSalary?: number
+  sources?: string[]
 }
 
 export type ConvexResumeAnalysis = {

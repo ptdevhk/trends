@@ -22,6 +22,7 @@ type PaginatedArgs = {
   locations?: string[];
   minSalary?: number;
   maxSalary?: number;
+  sources?: string[];
 };
 
 type PaginatedResult = {
@@ -51,6 +52,7 @@ type SearchPaginatedArgs = {
   locations?: string[];
   minSalary?: number;
   maxSalary?: number;
+  sources?: string[];
 };
 
 type SearchPaginatedResult = {
@@ -817,5 +819,97 @@ describe("searchWithTagExpansionPaginated", () => {
     expect((result.page[0] as { resume: { _id: string } }).resume._id).toBe("resume-a");
     expect(result.continueCursor).toBe("cursor-next");
     expect(result.isDone).toBe(false);
+  });
+});
+
+describe("listWithIngestDataPaginated source filter", () => {
+  it("filters resumes by source keys", async () => {
+    const resumeA = { ...buildResumeDoc("resume-a", 90), source: "hr.job5156.com", sourceKey: "job5156" };
+    const resumeB = { ...buildResumeDoc("resume-b", 80), source: "hk.employer.seek.com", sourceKey: "seek" };
+    const resumeC = { ...buildResumeDoc("resume-c", 70), source: "ehire.51job.com", sourceKey: "51job" };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            order: () => withFilterPassthrough({
+              paginate: async () => ({
+                page: [resumeA, resumeB, resumeC],
+                continueCursor: "cursor-next",
+                isDone: false,
+              }),
+              take: async () => [],
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await handler(ctx, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      sources: ["job5156"],
+    });
+
+    expect(result.page).toHaveLength(1);
+    expect((result.page[0] as { _id: string })._id).toBe("resume-a");
+  });
+
+  it("returns all resumes when sources is empty or undefined", async () => {
+    const resumeA = { ...buildResumeDoc("resume-a", 90), source: "hr.job5156.com" };
+    const resumeB = { ...buildResumeDoc("resume-b", 80), source: "hk.employer.seek.com" };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            order: () => withFilterPassthrough({
+              paginate: async () => ({
+                page: [resumeA, resumeB],
+                continueCursor: "cursor-next",
+                isDone: false,
+              }),
+              take: async () => [],
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await handler(ctx, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      sources: [],
+    });
+
+    expect(result.page).toHaveLength(2);
+  });
+
+  it("matches resumes by source hostname when sourceKey is not set", async () => {
+    const resumeA = { ...buildResumeDoc("resume-a", 90), source: "hr.job5156.com" };
+    const resumeB = { ...buildResumeDoc("resume-b", 80), source: "hk.employer.seek.com" };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            order: () => withFilterPassthrough({
+              paginate: async () => ({
+                page: [resumeA, resumeB],
+                continueCursor: "",
+                isDone: true,
+              }),
+              take: async () => [],
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await handler(ctx, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      sources: ["seek"],
+    });
+
+    expect(result.page).toHaveLength(1);
+    expect((result.page[0] as { _id: string })._id).toBe("resume-b");
   });
 });
