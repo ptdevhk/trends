@@ -319,3 +319,73 @@ describe("parseLlmResult logic (toNumber + word numbers)", () => {
     expect(toNumber(Infinity)).toBeNull();
   });
 });
+
+// Test inferTargetRoleType logic (duplicated from analysis_tasks.ts + isSalesRequiredContext)
+describe("inferTargetRoleType logic", () => {
+  // Mirrors isSalesRequiredContext from @trends/shared analysis-key.ts
+  function normalizeText(text: string | undefined): string {
+    return (text ?? "").trim().toLowerCase();
+  }
+
+  function isSalesRequiredContext(...texts: Array<string | undefined>): boolean {
+    const haystack = texts
+      .map((text) => normalizeText(text))
+      .filter((text): text is string => Boolean(text))
+      .join(" ");
+
+    if (!haystack) return false;
+
+    return /(?:^|\b)(?:sales?|business development|bd|account manager|key account manager|channel sales|channel manager|territory sales manager|regional sales manager)(?:\b|$)|销售工程师|销售经理|业务拓展|业务开发|客户开发|大客户|渠道销售|渠道经理|销售|渠道/.test(haystack);
+  }
+
+  // Mirrors inferTargetRoleType from analysis_tasks.ts
+  function inferTargetRoleType(config: {
+    keywords?: string[];
+    jobDescriptionTitle?: string;
+    jobDescriptionContent?: string;
+  }): "sales" | undefined {
+    if (isSalesRequiredContext(
+      ...(config.keywords ?? []),
+      config.jobDescriptionTitle,
+      config.jobDescriptionContent
+    )) {
+      return "sales";
+    }
+    return undefined;
+  }
+
+  it("detects sales intent from Chinese keywords", () => {
+    expect(inferTargetRoleType({ keywords: ["CNC", "销售"] })).toBe("sales");
+  });
+
+  it("detects sales intent from English keywords", () => {
+    expect(inferTargetRoleType({ keywords: ["CNC", "sales"] })).toBe("sales");
+  });
+
+  it("detects sales intent from BD abbreviation", () => {
+    expect(inferTargetRoleType({ keywords: ["BD", "CNC"] })).toBe("sales");
+  });
+
+  it("detects sales intent from job description title", () => {
+    expect(inferTargetRoleType({ jobDescriptionTitle: "Sales Engineer" })).toBe("sales");
+  });
+
+  it("detects sales intent from job description content", () => {
+    expect(inferTargetRoleType({ jobDescriptionContent: "负责渠道销售" })).toBe("sales");
+  });
+
+  it("returns undefined when no sales context", () => {
+    expect(inferTargetRoleType({ keywords: ["CNC", "操作员"] })).toBeUndefined();
+  });
+
+  it("returns undefined for empty input", () => {
+    expect(inferTargetRoleType({})).toBeUndefined();
+  });
+
+  it("detects sales from multiple combined signals", () => {
+    expect(inferTargetRoleType({
+      keywords: ["CNC"],
+      jobDescriptionTitle: "Regional Sales Manager",
+    })).toBe("sales");
+  });
+});
