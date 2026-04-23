@@ -235,6 +235,31 @@ describe('computeWorkHistoryYears', () => {
     // 2024-01 to 2026-04 = ~2.3 years
     expect(result!).toBeCloseTo(2.3, 0)
   })
+
+  it('merges adjacent intervals that touch but do not overlap', () => {
+    // A: 2020-01 to 2023-01, B: 2023-01 to 2026-01
+    // start of B (2023-01 = 24133) <= end of A (2023-01 = 24133)
+    // → merged into 2020-01..2026-01 = 6 years (continuous employment)
+    const entries: ResumeWorkHistoryItem[] = [
+      { companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2023-01' },
+      { companyName: 'B', jobTitle: 'Manager', startDate: '2023-01', endDate: '2026-01' },
+    ]
+    const result = computeWorkHistoryYears(entries)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(6, 0)
+  })
+
+  it('counts separately when there is a gap between intervals', () => {
+    // A: 2020-01 to 2022-01, B: 2024-01 to 2026-01
+    // 2-year gap between them → total = 2 + 2 = 4 years
+    const entries: ResumeWorkHistoryItem[] = [
+      { companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2022-01' },
+      { companyName: 'B', jobTitle: 'Engineer', startDate: '2024-01', endDate: '2026-01' },
+    ]
+    const result = computeWorkHistoryYears(entries)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(4, 0)
+  })
 })
 
 describe('extractCompanyFromWorkHistory', () => {
