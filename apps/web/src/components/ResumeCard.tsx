@@ -396,6 +396,11 @@ export function ResumeCard({
             {sourceLabel}
           </Badge>
         ) : null}
+        {contentLocale ? (
+          <Badge variant="outline" className="border-zinc-200 bg-zinc-50 text-zinc-500 text-[10px]">
+            {contentLocale.startsWith('zh') ? 'ZH' : contentLocale.toUpperCase()}
+          </Badge>
+        ) : null}
         {resume.expectedSalary ? (
           <span className="text-muted-foreground">{resume.expectedSalary}</span>
         ) : null}
