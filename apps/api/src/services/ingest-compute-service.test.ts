@@ -299,6 +299,41 @@ describe("IngestComputeService", () => {
     expect(result.synonymHits).not.toContain("数控车床");
   });
 
+  it("should not derive industryTags / synonymHits / experienceLevel from non-workHistory fields (strict-mode evidence)", () => {
+    const resume = {
+      data: [
+        {
+          name: "测试候选人",
+          profileUrl: "https://example.com/profile/strict",
+          activityStatus: "在线中",
+          age: "30岁",
+          experience: "5年",
+          // keywords planted in education/location/salary/jobIntention/selfIntro
+          // must NOT drive strict-mode signals — only workHistory evidence counts.
+          education: "CNC 数控 机床 本科",
+          location: "东莞市 销售 团队管理",
+          jobIntention: "manager lead",
+          expectedSalary: "10000 sales account",
+          selfIntro: "大客户 团队管理 manager",
+          workHistory: [
+            { raw: "2021-01~2025-12(4年11月)某公司普通职员" },
+          ],
+          extractedAt: "2026-02-21T10:00:00.000Z",
+        },
+      ],
+    };
+
+    const result = service.computeOne("resume-strict-evidence", resume);
+
+    expect(result.industryTags).not.toContain("CNC");
+    expect(result.industryTags).not.toContain("机械");
+    expect(result.industryTags).not.toContain("销售");
+    expect(result.synonymHits).not.toContain("cnc");
+    expect(result.synonymHits).not.toContain("数控");
+    expect(result.synonymHits).not.toContain("业务");
+    expect(result.experienceLevel).toBe("unknown");
+  });
+
   it("should compute ruleScores for all active JDs", () => {
     const result = service.computeOne("resume-123", SAMPLE_RESUME_CNC_SALES);
 

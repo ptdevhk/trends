@@ -486,13 +486,19 @@ export class IngestComputeService {
     const item = extractResumeItem(content);
     const index = buildResumeIndex(item, 0);
     const searchText = index.searchText.toLowerCase();
+    // Strict-mode contract: industryTags / synonymHits / experienceLevel must
+    // only be derived from workHistory evidence, not from name/education/
+    // location/expectedSalary/jobIntention/selfIntro/projectExperience. Keep
+    // `searchText` for field-aware brandHits matching which still needs the
+    // broader context.
+    const evidenceText = (index.evidenceText || "").toLowerCase();
     const computedAt = Date.now();
 
     // 1. Compute industryTags
-    const industryTags = this.computeIndustryTags(searchText);
+    const industryTags = this.computeIndustryTags(evidenceText);
 
     // 2. Compute synonymHits
-    const synonymHits = this.computeSynonymHits(searchText);
+    const synonymHits = this.computeSynonymHits(evidenceText);
 
     // 3. Compute field-aware brandHits, then derive companyHits for backward compatibility
     const latestWorkHistory = getLatestWorkHistory(item.workHistory);
@@ -513,7 +519,7 @@ export class IngestComputeService {
     const primaryRuleScore = scoreValues.length > 0 ? Math.max(...scoreValues) : 0;
 
     // 5. Compute experienceLevel
-    const experienceLevel = this.computeExperienceLevel(searchText);
+    const experienceLevel = this.computeExperienceLevel(evidenceText);
 
     // 6. Get skills version
     const skillsVersion = this.skillsKnowledgeService.getVersion();
