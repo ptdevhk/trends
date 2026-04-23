@@ -353,7 +353,9 @@
         "hotTags": "熱門標籤",
         "recentSearches": "最近搜尋",
         "loadingRecentSearches": "正在載入最近搜尋...",
-        "noSavedSearches": "目前尚無已保存搜尋。開始瀏覽後，最近搜尋會顯示在這裡。"
+        "noSavedSearches": "目前尚無已保存搜尋。開始瀏覽後，最近搜尋會顯示在這裡。",
+        "collect": "採集",
+        "editProfile": "編輯"
       },
       "searchBar": {
         "placeholder": "按關鍵詞、品牌、職位或地區搜尋簡歷",

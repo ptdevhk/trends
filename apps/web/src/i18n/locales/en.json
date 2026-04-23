@@ -354,7 +354,9 @@
         "hotTags": "Hot Tags",
         "recentSearches": "Recent searches",
         "loadingRecentSearches": "Loading recent searches...",
-        "noSavedSearches": "No saved searches yet. Recent searches will appear here after you start exploring."
+        "noSavedSearches": "No saved searches yet. Recent searches will appear here after you start exploring.",
+        "collect": "Collect",
+        "editProfile": "Edit"
       },
       "searchBar": {
         "placeholder": "Search resumes by keywords, brands, roles, or locations",

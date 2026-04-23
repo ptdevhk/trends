@@ -353,7 +353,9 @@
         "hotTags": "热门标签",
         "recentSearches": "最近搜索",
         "loadingRecentSearches": "正在加载最近搜索...",
-        "noSavedSearches": "暂无已保存搜索。开始浏览后，最近搜索会显示在这里。"
+        "noSavedSearches": "暂无已保存搜索。开始浏览后，最近搜索会显示在这里。",
+        "collect": "采集",
+        "editProfile": "编辑"
       },
       "searchBar": {
         "placeholder": "按关键词、品牌、岗位或地区搜索简历",
