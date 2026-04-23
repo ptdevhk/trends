@@ -802,4 +802,140 @@ describe("RuleScoringService", () => {
       cleanupFixtureRoot(root);
     }
   });
+
+  it("gives 80% experience weight when experienceYears is null and no minExperience set", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContextFromKeywords(["cnc", "车床"], "东莞");
+
+      const unknownExperience: ResumeIndex = {
+        resumeId: "R-null-experience",
+        experienceYears: null,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        evidenceText: "cnc 车床",
+        skills: ["cnc", "车床"],
+        companies: [],
+        industryTags: ["machinery"],
+        salaryRange: { min: 8000, max: 15000 },
+        searchText: "cnc 车床",
+      };
+
+      const knownExperience: ResumeIndex = {
+        ...unknownExperience,
+        resumeId: "R-known-experience",
+        experienceYears: 5,
+      };
+
+      const nullResult = service.scoreResume(unknownExperience, context);
+      const knownResult = service.scoreResume(knownExperience, context);
+
+      // 80% of default experienceMatch (25) = Math.round(25 * 8 / 25) = 8
+      expect(nullResult.breakdown.experienceMatch).toBe(8);
+      expect(knownResult.breakdown.experienceMatch).toBe(25);
+      expect(nullResult.breakdown.experienceMatch).toBeLessThan(knownResult.breakdown.experienceMatch);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("prefers industryVerifiedRelevantYears over industryVerifiedYears in computeRelevantRoleYears", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      const context = service.buildContext("lathe-sales");
+
+      const index: ResumeIndex = {
+        resumeId: "R-verified-relevant-years",
+        experienceYears: 8,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        evidenceText: "2017-2025 CNC销售工程师",
+        skills: ["cnc", "车床", "销售"],
+        companies: ["东莞机床公司"],
+        industryTags: ["machinery"],
+        salaryRange: { min: 9000, max: 15000 },
+        searchText: "东莞 cnc 车床 销售",
+      };
+
+      // Signal with industryVerifiedRelevantYears=4 (more specific) and industryVerifiedYears=6 (broader)
+      const signalWithVerifiedRelevant: RoleSignalSummary = {
+        type: "sales",
+        matchedSignals: ["销售工程师"],
+        signalCount: 1,
+        occurrences: 1,
+        years: 8,
+        industryVerifiedRelevantYears: 4,
+        industryVerifiedYears: 6,
+        verifyIn: "workHistory",
+      };
+
+      const signalWithOnlyVerifiedYears: RoleSignalSummary = {
+        type: "sales",
+        matchedSignals: ["销售工程师"],
+        signalCount: 1,
+        occurrences: 1,
+        years: 8,
+        industryVerifiedYears: 6,
+        verifyIn: "workHistory",
+      };
+
+      // Both should pass minExperience=1 from JD required_roles
+      const resultRelevant = service.scoreResume(index, context, [], [signalWithVerifiedRelevant]);
+      const resultOnlyVerified = service.scoreResume(index, context, [], [signalWithOnlyVerifiedYears]);
+
+      // Both should get full experienceMatch since years >= minYears
+      expect(resultRelevant.breakdown.experienceMatch).toBeGreaterThan(0);
+      expect(resultOnlyVerified.breakdown.experienceMatch).toBeGreaterThan(0);
+
+      // The one with industryVerifiedRelevantYears=4 should produce different role-year accounting
+      // than industryVerifiedYears=6 when used in ratio calculation against effectiveMinExperience
+      expect(resultRelevant.score).toBeGreaterThan(0);
+      expect(resultOnlyVerified.score).toBeGreaterThan(0);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
+
+  it("falls back to roleRelevantYears when industryVerified fields are absent for non-sales roles", () => {
+    const root = createFixtureRoot();
+
+    try {
+      const service = new RuleScoringService(root);
+      // Engineer role (not sales, doesn't require industry verification)
+      const context = service.buildContextFromKeywords(["cnc", "车床"], "东莞");
+
+      const index: ResumeIndex = {
+        resumeId: "R-engineer-relevant-years",
+        experienceYears: 5,
+        educationLevel: "bachelor",
+        locationCity: "东莞",
+        evidenceText: "2019-2025 CNC工程师",
+        skills: ["cnc", "车床"],
+        companies: ["东莞机床厂"],
+        industryTags: ["machinery"],
+        salaryRange: { min: 8000, max: 12000 },
+        searchText: "东莞 cnc 车床",
+      };
+
+      // Engineer signal with roleRelevantYears but no industryVerified fields
+      const engineerSignal: RoleSignalSummary = {
+        type: "engineer",
+        matchedSignals: ["CNC工程师"],
+        signalCount: 1,
+        occurrences: 1,
+        years: 5,
+        roleRelevantYears: 3,
+        verifyIn: "workHistory",
+      };
+
+      const result = service.scoreResume(index, context, [], [engineerSignal]);
+      expect(result.score).toBeGreaterThan(0);
+    } finally {
+      cleanupFixtureRoot(root);
+    }
+  });
 });
