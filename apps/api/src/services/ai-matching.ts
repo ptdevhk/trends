@@ -66,7 +66,7 @@ export interface MatchingResult {
     recommendation: "strong_match" | "match" | "potential" | "no_match";
     highlights: string[]; // Matching points
     concerns: string[]; // Missing or concerning points
-    summary: string; // AI-generated summary in Chinese
+    summary: string; // AI-generated summary
     breakdown?: {
         skillMatch: number;
         roleMatch?: number;
@@ -300,12 +300,15 @@ export class AIMatchingService {
     async matchResume(request: MatchingRequest, options?: MatchResumeOptions): Promise<MatchingResult> {
         const availability = this.isAvailable();
         if (!availability.available) {
+            const localeText = getResumeAiLocaleText(
+                resolveAIOutputLocale({ sourceKey: request.resume.sourceKey })
+            );
             return {
                 score: 0,
                 recommendation: "no_match",
                 highlights: [],
                 concerns: [availability.reason || "AI service unavailable"],
-                summary: "AI匹配服务不可用",
+                summary: localeText.serviceUnavailableSummary,
                 scoreSource: "ai",
             };
         }
@@ -321,17 +324,18 @@ export class AIMatchingService {
 
         try {
             const response = await this.callLLM(messages);
-            const parsed = this.parseResponse(response);
+            const parsed = this.parseResponse(response, prompt);
             return parsed;
         } catch (error) {
             const errorMessage = toCompactErrorMessage(error);
             console.error("[AI Matching] Error:", errorMessage);
+            const localeText = getResumeAiLocaleText(prompt.normalized.locale);
             return {
                 score: 0,
                 recommendation: "no_match",
                 highlights: [],
-                concerns: [`AI分析失败: ${errorMessage}`],
-                summary: "AI分析过程中发生错误",
+                concerns: [`${localeText.analysisErrorConcernPrefix}: ${errorMessage}`],
+                summary: localeText.analysisErrorSummary,
                 rawResponse: errorMessage,
                 scoreSource: "ai",
             };
@@ -391,12 +395,14 @@ export class AIMatchingService {
                     );
                 } catch {
                     failedCount += 1;
+                    const batchLocale = resolveAIOutputLocale({ sourceKey: resume.sourceKey });
+                    const localeText = getResumeAiLocaleText(batchLocale);
                     result = {
                         score: 0,
                         recommendation: "no_match",
                         highlights: [],
-                        concerns: ["处理失败"],
-                        summary: "简历处理失败",
+                        concerns: [localeText.parseErrorConcern],
+                        summary: localeText.parseErrorSummary,
                         scoreSource: "ai",
                     };
                 }
@@ -440,6 +446,9 @@ export class AIMatchingService {
             throw new Error(availability.reason || "AI service unavailable");
         }
 
+        const outreachLocale = resolveAIOutputLocale({ sourceKey: resume.sourceKey });
+        const naturalLanguage = localeToNaturalLanguage(outreachLocale);
+
         const prompt = `You are a professional technical recruiter. Draft a personalized outreach email to a candidate.
 
 Job: ${jobDescription.title}
@@ -450,7 +459,7 @@ Highlights: ${analysis.highlights.join(", ")}
 
 Requirements:
 1. Tone: Professional, polite, and engaging.
-2. Language: Chinese (Simplified).
+2. Language: ${naturalLanguage}.
 3. Structure: Subject line + Body.
 4. Content: Mention specific highlights from their profile that match the job.
 
@@ -468,7 +477,7 @@ Return strictly valid JSON:
             if (!parsed || typeof parsed.subject !== "string" || typeof parsed.body !== "string") {
                 // Fallback if JSON parsing fails
                 return {
-                    subject: `关于${jobDescription.title}职位的沟通`,
+                    subject: `Regarding ${jobDescription.title} position`,
                     body: response // Return raw response as body if not JSON
                 };
             }
@@ -548,8 +557,8 @@ Return strictly valid JSON:
         // Mock response for testing
         if (process.env.AI_MOCK_ENABLED === 'true') {
             return JSON.stringify({
-                subject: "关于高级前端工程师职位的沟通",
-                body: "尊敬的候选人：\n\n您好！我们对您在React和TypeScript方面的丰富经验印象深刻..."
+                subject: "Regarding the Senior Frontend Engineer position",
+                body: "Dear Candidate,\n\nWe are impressed by your extensive experience in React and TypeScript..."
             });
         }
 
@@ -605,7 +614,7 @@ Return strictly valid JSON:
     /**
      * Parse the LLM response into MatchingResult
      */
-    private parseResponse(response: string): MatchingResult {
+    private parseResponse(response: string, prompt?: ResumeAiPromptDocument): MatchingResult {
         try {
             // Extract JSON from response (handle markdown code blocks)
             let jsonText = response.trim();
@@ -641,6 +650,8 @@ Return strictly valid JSON:
                 score
             );
 
+            const localeText = getResumeAiLocaleText(prompt?.normalized.locale);
+
             return {
                 score,
                 recommendation,
@@ -650,18 +661,19 @@ Return strictly valid JSON:
                 concerns: Array.isArray(parsed.concerns)
                     ? parsed.concerns.map((item) => String(item))
                     : [],
-                summary: typeof parsed.summary === "string" ? parsed.summary : "无分析结果",
+                summary: typeof parsed.summary === "string" ? parsed.summary : localeText.noAnalysisResult,
                 rawResponse: toStoredRawResponse(response),
                 scoreSource: "ai",
             };
         } catch (error) {
             console.error("[AI Matching] Parse error:", error);
+            const localeText = getResumeAiLocaleText(prompt?.normalized.locale);
             return {
                 score: 0,
                 recommendation: "no_match",
                 highlights: [],
-                concerns: ["AI响应解析失败"],
-                summary: "无法解析AI返回结果",
+                concerns: [localeText.parseErrorConcern],
+                summary: localeText.parseErrorSummary,
                 rawResponse: toStoredRawResponse(response),
                 scoreSource: "ai",
             };
