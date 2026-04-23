@@ -9,6 +9,7 @@ import {
   getAnalysisForJob,
   getPrecomputedRuleScore,
   getResumeContentLocale,
+  getNameSortLocale,
   hasIngestData,
   isAutoFilteredAnalysis,
   overrideIndustryDbBreakdown,
@@ -503,5 +504,23 @@ describe('getResumeContentLocale', () => {
 
   it('returns undefined when source is missing', () => {
     expect(getResumeContentLocale({})).toBeUndefined()
+  })
+})
+
+describe('getNameSortLocale', () => {
+  it('returns en for Seek sources', () => {
+    expect(getNameSortLocale({ source: 'hk.employer.seek.com' })).toBe('en')
+  })
+
+  it('returns zh-Hans-CN for 51job sources', () => {
+    expect(getNameSortLocale({ source: 'ehire.51job.com' })).toBe('zh-Hans-CN')
+  })
+
+  it('returns zh-Hans-CN for job5156 sources', () => {
+    expect(getNameSortLocale({ source: 'hr.job5156.com' })).toBe('zh-Hans-CN')
+  })
+
+  it('returns zh-Hans-CN when source is missing', () => {
+    expect(getNameSortLocale({})).toBe('zh-Hans-CN')
   })
 })
