@@ -107,6 +107,80 @@ describe('computeWorkHistoryYears', () => {
     ]
     expect(computeWorkHistoryYears(entries)).toBeNull()
   })
+
+  it('computes single entry correctly', () => {
+    const entries: ResumeWorkHistoryItem[] = [
+      { companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2024-01' },
+    ]
+    const result = computeWorkHistoryYears(entries)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(4, 0)
+  })
+
+  it('resolves 至今 (present) end date against anchorDate', () => {
+    const anchor = new Date('2026-04-01')
+    const entries: ResumeWorkHistoryItem[] = [
+      { companyName: 'A', jobTitle: 'Engineer', startDate: '2023-06', endDate: '至今' },
+    ]
+    const result = computeWorkHistoryYears(entries, anchor)
+    expect(result).not.toBeNull()
+    // 2023-06 to 2026-04 = ~2.8 years
+    expect(result!).toBeCloseTo(2.8, 0)
+  })
+
+  it('treats missing endDate as ongoing via anchorDate', () => {
+    const anchor = new Date('2026-01-01')
+    const entries: ResumeWorkHistoryItem[] = [
+      { companyName: 'A', jobTitle: 'Engineer', startDate: '2022-01' },
+    ]
+    const result = computeWorkHistoryYears(entries, anchor)
+    expect(result).not.toBeNull()
+    // 2022-01 to 2026-01 = 4 years
+    expect(result!).toBeCloseTo(4, 0)
+  })
+
+  it('falls back to raw text date parsing when structured dates are absent', () => {
+    const entries: ResumeWorkHistoryItem[] = [
+      { raw: '2019-06~2023-12(4年6月)北京精雕科技集团有限公司销售工程师' },
+    ]
+    const result = computeWorkHistoryYears(entries)
+    expect(result).not.toBeNull()
+    // 2019-06 to 2023-12 = 4.5 years
+    expect(result!).toBeCloseTo(4.5, 0)
+  })
+
+  it('merges 3+ overlapping intervals correctly', () => {
+    const entries: ResumeWorkHistoryItem[] = [
+      { companyName: 'A', jobTitle: 'Engineer', startDate: '2018-01', endDate: '2024-01' },
+      { companyName: 'B', jobTitle: 'Sales', startDate: '2020-01', endDate: '2023-01' },
+      { companyName: 'C', jobTitle: 'Manager', startDate: '2022-01', endDate: '2024-06' },
+    ]
+    // A spans 2018-01..2024-01; C extends to 2024-06; B is nested inside A
+    // Merged: 2018-01 to 2024-06 = 6.5 years
+    const result = computeWorkHistoryYears(entries)
+    expect(result).not.toBeNull()
+    expect(result!).toBeCloseTo(6.5, 0)
+  })
+
+  it('rounds result to one decimal place', () => {
+    const entries: ResumeWorkHistoryItem[] = [
+      { companyName: 'A', jobTitle: 'Engineer', startDate: '2020-01', endDate: '2020-07' },
+    ]
+    // 6 months = 0.5 years — already one decimal
+    const result = computeWorkHistoryYears(entries)
+    expect(result).toBe(0.5)
+  })
+
+  it('resolves raw 至今 pattern against anchorDate', () => {
+    const anchor = new Date('2026-04-01')
+    const entries: ResumeWorkHistoryItem[] = [
+      { raw: '2024-01~至今 苏州美科生贸易有限公司 CNC销售' },
+    ]
+    const result = computeWorkHistoryYears(entries, anchor)
+    expect(result).not.toBeNull()
+    // 2024-01 to 2026-04 = ~2.3 years
+    expect(result!).toBeCloseTo(2.3, 0)
+  })
 })
 
 describe('extractCompanyFromWorkHistory', () => {
