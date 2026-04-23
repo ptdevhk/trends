@@ -1173,4 +1173,142 @@ describe("normalizeResume strict evidence", () => {
       expect(normalized.summary).toContain("系统归一化结果：score 90，recommendation strong_match");
     });
   });
+
+  describe("recommendationFromScore threshold boundaries", () => {
+    // score = round(related_exp * 0.5) + industry_db
+    // industry_db = 50 when companyHits exist, else industryDbV2Raw clamped 0-50
+
+    it("returns strong_match at exactly 85", () => {
+      // round(70*0.5)=35, industry_db=50 → score=85
+      const normalized = normalizeAnalysisResult(
+        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 70, industry_db: 0 } },
+        { ingestData: { industryDbV2Raw: 0, companyHits: ["some-company"], brandHits: [], roleSignals: [] } } as unknown,
+        {}
+      );
+      expect(normalized.score).toBe(85);
+      expect(normalized.recommendation).toBe("strong_match");
+    });
+
+    it("returns match at 84 (just below strong_match)", () => {
+      // round(68*0.5)=34, industry_db=50 → score=84
+      const normalized = normalizeAnalysisResult(
+        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 68, industry_db: 0 } },
+        { ingestData: { industryDbV2Raw: 0, companyHits: ["some-company"], brandHits: [], roleSignals: [] } } as unknown,
+        {}
+      );
+      expect(normalized.score).toBe(84);
+      expect(normalized.recommendation).toBe("match");
+    });
+
+    it("returns match at exactly 70", () => {
+      // round(80*0.5)=40, industry_db=30 → score=70
+      const normalized = normalizeAnalysisResult(
+        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 80, industry_db: 0 } },
+        { ingestData: { industryDbV2Raw: 30, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+        {}
+      );
+      expect(normalized.score).toBe(70);
+      expect(normalized.recommendation).toBe("match");
+    });
+
+    it("returns potential at 69 (just below match)", () => {
+      // round(78*0.5)=39, industry_db=30 → score=69
+      const normalized = normalizeAnalysisResult(
+        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 78, industry_db: 0 } },
+        { ingestData: { industryDbV2Raw: 30, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+        {}
+      );
+      expect(normalized.score).toBe(69);
+      expect(normalized.recommendation).toBe("potential");
+    });
+
+    it("returns potential at exactly 40", () => {
+      // round(80*0.5)=40, industry_db=0 → score=40
+      const normalized = normalizeAnalysisResult(
+        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 80, industry_db: 0 } },
+        { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+        {}
+      );
+      expect(normalized.score).toBe(40);
+      expect(normalized.recommendation).toBe("potential");
+    });
+
+    it("returns no_match at 39 (just below potential)", () => {
+      // round(78*0.5)=39, industry_db=0 → score=39
+      const normalized = normalizeAnalysisResult(
+        { score: 0, recommendation: "no_match", summary: "ok", highlights: [], breakdown: { related_exp: 78, industry_db: 0 } },
+        { ingestData: { industryDbV2Raw: 0, companyHits: [], brandHits: [], roleSignals: [] } } as unknown,
+        {}
+      );
+      expect(normalized.score).toBe(39);
+      expect(normalized.recommendation).toBe("no_match");
+    });
+  });
+
+  describe("isDomainIrrelevantSalesEntry keyword coverage", () => {
+    it("detects insurance company as domain-irrelevant", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 70,
+          recommendation: "match",
+          summary: "ok",
+          highlights: [],
+          breakdown: { related_exp: 60, industry_db: 0 },
+        },
+        {
+          ingestData: {
+            industryDbV2Raw: 0,
+            companyHits: [],
+            brandHits: [],
+            industryTags: ["machinery"],
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              roleRelevantYears: 5,
+              industryVerifiedYears: 0,
+              matchedSignals: ["销售"],
+              matchedWorkEntries: [
+                { companyName: "中国平安人寿保险", jobTitle: "保险代理人", years: 5, matchedSignals: ["保险代理"] },
+              ],
+            }],
+          },
+        } as unknown,
+        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
+      );
+      // Domain-irrelevant ceiling should cap related_exp at 15
+      expect(normalized.breakdown?.related_exp).toBeLessThanOrEqual(15);
+    });
+
+    it("detects real estate company as domain-irrelevant", () => {
+      const normalized = normalizeAnalysisResult(
+        {
+          score: 70,
+          recommendation: "match",
+          summary: "ok",
+          highlights: [],
+          breakdown: { related_exp: 60, industry_db: 0 },
+        },
+        {
+          ingestData: {
+            industryDbV2Raw: 0,
+            companyHits: [],
+            brandHits: [],
+            industryTags: ["machinery"],
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              roleRelevantYears: 5,
+              industryVerifiedYears: 0,
+              matchedSignals: ["销售"],
+              matchedWorkEntries: [
+                { companyName: "恒大房地产", jobTitle: "置业顾问", years: 5, matchedSignals: ["置业顾问"] },
+              ],
+            }],
+          },
+        } as unknown,
+        { targetRoleType: "sales", keywords: ["CNC", "销售"] }
+      );
+      expect(normalized.breakdown?.related_exp).toBeLessThanOrEqual(15);
+    });
+  });
 });
