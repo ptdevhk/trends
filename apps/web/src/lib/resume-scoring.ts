@@ -256,6 +256,9 @@ export function getResumeContentLocale(resume: unknown): string | undefined {
   if (source.includes('job5156')) {
     return 'zh-Hant'
   }
+  if (source.includes('seek')) {
+    return 'en'
+  }
 
   return undefined
 }

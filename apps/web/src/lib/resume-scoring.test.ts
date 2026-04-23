@@ -8,6 +8,7 @@ import {
   computeNormalizedIndustryDbScore,
   getAnalysisForJob,
   getPrecomputedRuleScore,
+  getResumeContentLocale,
   hasIngestData,
   isAutoFilteredAnalysis,
   overrideIndustryDbBreakdown,
@@ -484,5 +485,23 @@ describe('resume-scoring', () => {
       score: 79,
       summary: 'manual lane keyword cache',
     }))
+  })
+})
+
+describe('getResumeContentLocale', () => {
+  it('returns zh-Hans for 51job sources', () => {
+    expect(getResumeContentLocale({ source: 'ehire.51job.com' })).toBe('zh-Hans')
+  })
+
+  it('returns zh-Hant for job5156 sources', () => {
+    expect(getResumeContentLocale({ source: 'hr.job5156.com' })).toBe('zh-Hant')
+  })
+
+  it('returns en for Seek sources', () => {
+    expect(getResumeContentLocale({ source: 'hk.employer.seek.com' })).toBe('en')
+  })
+
+  it('returns undefined when source is missing', () => {
+    expect(getResumeContentLocale({})).toBeUndefined()
   })
 })
