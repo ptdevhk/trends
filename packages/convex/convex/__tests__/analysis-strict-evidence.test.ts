@@ -1940,4 +1940,161 @@ describe("normalizeResume strict evidence", () => {
       expect(result[1].type).toBe("engineer");
     });
   });
+
+  describe("normalizeSummaryConsistency", () => {
+    // Mirrors analyze.ts:177-232
+    function hasHanText(value: string): boolean {
+      return /[\u4e00-\u9fff]/.test(value);
+    }
+    function normalizeSummaryConsistency(
+      summary: string,
+      normalized: { score: number; recommendation: string },
+    ): string {
+      if (summary.trim().length === 0) return summary;
+      let next = summary.trim();
+      const mentionedScores = Array.from(
+        next.matchAll(/\bscore\s*[:：]?\s*(\d{1,3}(?:\.\d+)?)/gi),
+        (match) => Number(match[1]),
+      ).filter((value) => Number.isFinite(value));
+      const hasScoreMention = mentionedScores.length > 0;
+      const hasScoreMismatch = hasScoreMention
+        && !mentionedScores.some((value) => Math.round(value) === normalized.score);
+      if (hasScoreMismatch) {
+        next = next.replace(
+          /(\bscore\s*[:：]?\s*)\d{1,3}(?:\.\d+)?/gi,
+          (_raw, prefix: string) => `${prefix}${normalized.score}`,
+        );
+      }
+      const recommendationMentions = Array.from(
+        next.matchAll(/\b(strong_match|match|potential|no_match)\b/gi),
+        (match) => match[1].toLowerCase(),
+      );
+      const hasRecommendationMention = recommendationMentions.length > 0;
+      const hasRecommendationMismatch = hasRecommendationMention
+        && !recommendationMentions.includes(normalized.recommendation);
+      if (hasRecommendationMismatch) {
+        next = next.replace(
+          /\b(strong_match|match|potential|no_match)\b/gi,
+          normalized.recommendation,
+        );
+      }
+      if (hasScoreMismatch || hasRecommendationMismatch) {
+        const normalizedLine = hasHanText(next)
+          ? `系统归一化结果：score ${normalized.score}，recommendation ${normalized.recommendation}。`
+          : `Normalized result: score ${normalized.score}, recommendation ${normalized.recommendation}.`;
+        if (!next.includes(normalizedLine)) {
+          next = `${next} ${normalizedLine}`.trim();
+        }
+      }
+      return next;
+    }
+
+    it("returns whitespace-only summary unchanged", () => {
+      expect(normalizeSummaryConsistency("   ", { score: 85, recommendation: "strong_match" }))
+        .toBe("   ");
+    });
+
+    it("leaves consistent score and recommendation unchanged", () => {
+      const input = "Good candidate. score: 85 recommendation strong_match";
+      expect(normalizeSummaryConsistency(input, { score: 85, recommendation: "strong_match" }))
+        .toBe(input);
+    });
+
+    it("replaces mismatched score with normalized score", () => {
+      const result = normalizeSummaryConsistency(
+        "Score 58 candidate with potential",
+        { score: 85, recommendation: "strong_match" },
+      );
+      expect(result).toContain("score 85");
+      expect(result).not.toContain("score 58");
+    });
+
+    it("replaces mismatched recommendation with normalized recommendation", () => {
+      const result = normalizeSummaryConsistency(
+        "score 85 match",
+        { score: 85, recommendation: "strong_match" },
+      );
+      expect(result).toContain("strong_match");
+      expect(result).not.toMatch(/\bmatch\b/);
+    });
+
+    it("replaces multiple score mentions in one summary", () => {
+      const result = normalizeSummaryConsistency(
+        "score 58 and score 72 mixed",
+        { score: 85, recommendation: "strong_match" },
+      );
+      // Both occurrences should be replaced, plus canonical line adds a third
+      expect(result).not.toContain("58");
+      expect(result).not.toContain("72");
+      expect(result.match(/score 85/g)!.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("appends English canonical statement on mismatch", () => {
+      const result = normalizeSummaryConsistency(
+        "score 58",
+        { score: 85, recommendation: "strong_match" },
+      );
+      expect(result).toContain("Normalized result: score 85, recommendation strong_match.");
+    });
+
+    it("appends Chinese canonical statement when summary has CJK text", () => {
+      const result = normalizeSummaryConsistency(
+        "评分较低 score 58",
+        { score: 85, recommendation: "strong_match" },
+      );
+      expect(result).toContain("系统归一化结果：score 85，recommendation strong_match。");
+    });
+
+    it("does not duplicate canonical statement on repeated calls", () => {
+      const first = normalizeSummaryConsistency(
+        "score 58",
+        { score: 85, recommendation: "strong_match" },
+      );
+      const second = normalizeSummaryConsistency(
+        first,
+        { score: 85, recommendation: "strong_match" },
+      );
+      // After first pass, score is correct, so no mismatch on second pass
+      expect(second).toBe(first);
+    });
+
+    it("handles score with decimal (e.g. 84.6 rounds to 85)", () => {
+      const result = normalizeSummaryConsistency(
+        "score 84.6",
+        { score: 85, recommendation: "strong_match" },
+      );
+      // Math.round(84.6) === 85 → no mismatch → no rewrite
+      expect(result).toContain("score 84.6");
+      expect(result).not.toContain("Normalized result");
+    });
+
+    it("handles score with decimal that does not round to normalized score", () => {
+      const result = normalizeSummaryConsistency(
+        "score 83.6",
+        { score: 85, recommendation: "strong_match" },
+      );
+      // Math.round(83.6) === 84 ≠ 85 → mismatch → rewrite
+      expect(result).toContain("score 85");
+      expect(result).toContain("Normalized result");
+    });
+
+    it("replaces recommendation substrings without word-boundary confusion", () => {
+      // "potentially" contains "potential" but \b should protect it
+      const result = normalizeSummaryConsistency(
+        "potentially good score 85",
+        { score: 85, recommendation: "strong_match" },
+      );
+      // "potentially" should NOT match \bpotential\b — the regex uses \b
+      // So no recommendation mismatch should be detected
+      expect(result).toContain("potentially");
+    });
+
+    it("handles Chinese colon after score keyword", () => {
+      const result = normalizeSummaryConsistency(
+        "score：58 推荐",
+        { score: 85, recommendation: "strong_match" },
+      );
+      expect(result).toContain("score：85");
+    });
+  });
 });
