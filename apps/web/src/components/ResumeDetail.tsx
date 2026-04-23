@@ -362,7 +362,7 @@ export function ResumeDetail({
                 <h3 className="font-semibold flex items-center gap-2">
                   {t('resumes.detail.aiAnalysis', { defaultValue: 'AI Analysis' })}
                   <Badge variant={matchResult.score >= 80 ? 'default' : matchResult.score >= 60 ? 'secondary' : 'outline'}>
-                    {matchResult.score} 分
+                    {t('resumes.matching.scoreLabel', { score: matchResult.score })}
                   </Badge>
                   <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">
                     {scoreLabel}

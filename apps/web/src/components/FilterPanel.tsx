@@ -87,7 +87,7 @@ export function FilterPanel({
       else items.push(`≤${filters.maxAge}岁`)
     }
 
-    if (filters.minMatchScore) items.push(`≥${filters.minMatchScore}分`)
+    if (filters.minMatchScore) items.push(t('resumes.matching.scoreLabel', { score: `≥${filters.minMatchScore}` }))
 
     if (filters.skills?.length) items.push(filters.skills.join(', '))
     if (filters.locations?.length) items.push(filters.locations.join(', '))
