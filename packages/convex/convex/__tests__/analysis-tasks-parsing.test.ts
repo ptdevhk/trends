@@ -320,6 +320,124 @@ describe("parseLlmResult logic (toNumber + word numbers)", () => {
   });
 });
 
+// Test stableHash FNV-1a logic (duplicated from analysis_tasks.ts:175-182)
+describe("stableHash FNV-1a logic", () => {
+  // Mirrors analysis_tasks.ts:175-182
+  function stableHash(seed: string): string {
+    let hash = 2166136261;
+    for (const char of seed) {
+      hash ^= char.codePointAt(0) ?? 0;
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16);
+  }
+
+  it("returns offset basis for empty string", () => {
+    // FNV-1a offset basis 2166136261 → unsigned → hex
+    expect(stableHash("")).toBe((2166136261 >>> 0).toString(16));
+  });
+
+  it("is deterministic for same input", () => {
+    expect(stableHash("CNC 销售")).toBe(stableHash("CNC 销售"));
+  });
+
+  it("produces different hashes for different inputs", () => {
+    expect(stableHash("CNC")).not.toBe(stableHash("sales"));
+  });
+
+  it("handles CJK characters correctly", () => {
+    const result = stableHash("销售工程师");
+    expect(result).toMatch(/^[0-9a-f]+$/);
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it("handles emoji / surrogate pairs via codePointAt", () => {
+    // codePointAt handles surrogate pairs correctly (unlike charCodeAt)
+    const result = stableHash("👍");
+    expect(result).toMatch(/^[0-9a-f]+$/);
+  });
+
+  it("produces unsigned 32-bit hex output", () => {
+    const result = stableHash("test input with various chars 1234");
+    // Unsigned 32-bit hex is 1-8 hex chars
+    expect(result).toMatch(/^[0-9a-f]{1,8}$/);
+  });
+});
+
+// Test buildAnalysisDispatchJobKey logic (duplicated from analysis_tasks.ts:204-224)
+describe("buildAnalysisDispatchJobKey logic", () => {
+  function stableHash(seed: string): string {
+    let hash = 2166136261;
+    for (const char of seed) {
+      hash ^= char.codePointAt(0) ?? 0;
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16);
+  }
+
+  function normalizeKeywords(keywords: string[]): string[] {
+    return Array.from(
+      new Set(
+        keywords
+          .map((keyword) => keyword.trim().toLowerCase())
+          .filter((keyword) => keyword.length > 0)
+      )
+    );
+  }
+
+  const PROMPT_VERSION = 10;
+
+  function buildAnalysisDispatchJobKey(input: {
+    derivedJobDescriptionId?: string;
+    jobDescriptionTitle?: string;
+    jobDescriptionContent?: string;
+    keywords?: string[];
+    location?: string;
+    promptVersion?: number;
+  }): string {
+    const pv = input.promptVersion ?? PROMPT_VERSION;
+    if (input.derivedJobDescriptionId?.trim()) {
+      return `job:${input.derivedJobDescriptionId.trim().toLowerCase()}:prompt:${pv}`;
+    }
+    const normalizedKeywords = normalizeKeywords(input.keywords ?? []);
+    if (normalizedKeywords.length > 0) {
+      // Simplified — real version calls buildKeywordAnalysisId
+      return `keywords:${normalizedKeywords.join(",")}:prompt:${pv}`;
+    }
+    const title = input.jobDescriptionTitle?.trim().toLowerCase() ?? "";
+    const content = input.jobDescriptionContent?.trim().toLowerCase() ?? "";
+    if (!title && !content) {
+      return `job:default:prompt:${pv}`;
+    }
+    return `job-content:prompt:${pv}:${stableHash(`${title}|${content}`)}`;
+  }
+
+  it("uses derivedJobDescriptionId when present", () => {
+    expect(buildAnalysisDispatchJobKey({ derivedJobDescriptionId: "JD-123" })).toBe(
+      `job:jd-123:prompt:${PROMPT_VERSION}`
+    );
+  });
+
+  it("falls back to keywords when no derivedJobDescriptionId", () => {
+    const result = buildAnalysisDispatchJobKey({ keywords: ["CNC", "Sales"] });
+    expect(result).toContain("keywords:");
+    expect(result).toContain("cnc,sales");
+  });
+
+  it("uses stableHash for JD title + content path", () => {
+    const result = buildAnalysisDispatchJobKey({
+      jobDescriptionTitle: "Sales Engineer",
+      jobDescriptionContent: "CNC experience required",
+    });
+    expect(result).toContain("job-content:prompt:");
+    expect(result).toContain(stableHash("sales engineer|cnc experience required"));
+  });
+
+  it("returns job:default when no keywords, no JD id, no title/content", () => {
+    expect(buildAnalysisDispatchJobKey({})).toBe(`job:default:prompt:${PROMPT_VERSION}`);
+  });
+});
+
 // Test inferTargetRoleType logic (duplicated from analysis_tasks.ts + isSalesRequiredContext)
 describe("inferTargetRoleType logic", () => {
   // Mirrors isSalesRequiredContext from @trends/shared analysis-key.ts
