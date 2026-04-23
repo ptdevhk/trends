@@ -331,7 +331,7 @@ export function ResumeDetail({
                               >
                                 {t(`resumes.roleLabels.${annotation.type}`, { defaultValue: getRoleLabel(annotation.type) })}
                                 {' '}
-                                {formatRoleYears(annotation.years)}
+                                {formatRoleYears(annotation.years, contentLocale)}
                               </Badge>
                               {annotation.industryVerified ? (
                                 <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">

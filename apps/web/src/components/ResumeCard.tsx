@@ -332,7 +332,7 @@ export function ResumeCard({
       })
     : ''
   const roleEvidenceLabel = primaryRoleSignal
-    ? `${roleTypeLabel}${formatRoleYears(displayRoleYears)}${verifiedRoleYears > 0 ? industryVerifiedSuffix : ''}`
+    ? `${roleTypeLabel}${formatRoleYears(displayRoleYears, contentLocale)}${verifiedRoleYears > 0 ? industryVerifiedSuffix : ''}`
     : null
   const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase()
   const experienceLevelForClick: ExperienceLevelFilter | undefined =
@@ -440,9 +440,9 @@ export function ResumeCard({
               <TooltipContent className="max-w-[320px] text-xs">
                 <div className="space-y-1">
                   <p className="font-semibold">{roleTypeLabel}</p>
-                  <p>{t('resumes.card.relatedYears', { years: formatRoleYears(roleRelevantYears), defaultValue: 'Related years: {{years}}' })}</p>
+                  <p>{t('resumes.card.relatedYears', { years: formatRoleYears(roleRelevantYears, contentLocale), defaultValue: 'Related years: {{years}}' })}</p>
                   {verifiedRoleYears > 0 ? (
-                    <p>{t('resumes.card.industryVerified', { years: formatRoleYears(verifiedRoleYears), defaultValue: 'Industry verified: {{years}}' })}</p>
+                    <p>{t('resumes.card.industryVerified', { years: formatRoleYears(verifiedRoleYears, contentLocale), defaultValue: 'Industry verified: {{years}}' })}</p>
                   ) : null}
                   <p>{t('resumes.card.matchedSignals', { signals: primaryRoleSignal.matchedSignals.slice(0, 6).join(' / ') || '--', defaultValue: 'Matched signals: {{signals}}' })}</p>
                   {primaryRoleSignal.matchedWorkEntries && primaryRoleSignal.matchedWorkEntries.length > 0 ? (
@@ -450,7 +450,7 @@ export function ResumeCard({
                       experience: primaryRoleSignal.matchedWorkEntries
                         .slice(0, 2)
                         .map((entry) =>
-                          [entry.companyName, entry.jobTitle, formatRoleYears(entry.years)].filter(Boolean).join(' · ')
+                          [entry.companyName, entry.jobTitle, formatRoleYears(entry.years, contentLocale)].filter(Boolean).join(' · ')
                         )
                         .join('；'),
                       defaultValue: 'Matched experience: {{experience}}',
