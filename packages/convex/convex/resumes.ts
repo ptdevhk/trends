@@ -2279,14 +2279,11 @@ export const searchWithTagExpansionPaginated = query({
     handler: async (ctx, args) => {
         if (!args.jobDescriptionId?.trim() && !args.sortBy) {
             const requestedPageSize = resolvePaginatedResumePageLimit(args.paginationOpts.numItems);
-            const filters = normalizeResumeListFilters(args);
             const page = await runSearchWithTagExpansionScanPageQuery(ctx, {
                 ...args,
                 paginationOpts: {
                     ...args.paginationOpts,
-                    numItems: filters
-                        ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_JD_PAGINATE_SCAN)
-                        : requestedPageSize,
+                    numItems: requestedPageSize,
                 },
             });
 
