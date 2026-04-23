@@ -2,9 +2,100 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildLatestWorkHistoryEvidence,
+  buildWorkHistoryDateRange,
+  buildWorkHistoryEntryText,
   buildWorkHistoryEvidence,
+  normalizeWorkHistoryEntry,
   selectLatestWorkHistory,
 } from "../work-history-evidence";
+
+describe("normalizeWorkHistoryEntry", () => {
+  it("normalizes a string entry to { raw }", () => {
+    const result = normalizeWorkHistoryEntry("2015-04~2022-07 中山聚诚机电有限公司销售部经理");
+    expect(result).toEqual({ raw: "2015-04~2022-07 中山聚诚机电有限公司销售部经理" });
+  });
+
+  it("normalizes a structured object entry preserving all fields", () => {
+    const result = normalizeWorkHistoryEntry({
+      companyName: "中山聚诚机电有限公司",
+      jobTitle: "销售部经理",
+      startDate: "2015-04",
+      endDate: "2022-07",
+      description: "报价及价格分析",
+    });
+    expect(result).toEqual({
+      raw: "",
+      companyName: "中山聚诚机电有限公司",
+      jobTitle: "销售部经理",
+      startDate: "2015-04",
+      endDate: "2022-07",
+      description: "报价及价格分析",
+    });
+  });
+
+  it("returns null for empty string", () => {
+    expect(normalizeWorkHistoryEntry("")).toBeNull();
+  });
+
+  it("returns null for null input", () => {
+    expect(normalizeWorkHistoryEntry(null)).toBeNull();
+  });
+
+  it("returns null for object with only empty strings", () => {
+    expect(normalizeWorkHistoryEntry({ raw: "", companyName: "" })).toBeNull();
+  });
+});
+
+describe("buildWorkHistoryDateRange", () => {
+  it("joins start and end with tilde", () => {
+    expect(buildWorkHistoryDateRange("2020-01", "2024-01")).toBe("2020-01 ~ 2024-01");
+  });
+
+  it("returns start only when end is absent", () => {
+    expect(buildWorkHistoryDateRange("2020-01", undefined)).toBe("2020-01");
+  });
+
+  it("returns empty string when both absent", () => {
+    expect(buildWorkHistoryDateRange(undefined, undefined)).toBe("");
+  });
+
+  it("handles 至今 as end date", () => {
+    expect(buildWorkHistoryDateRange("2024-01", "至今")).toBe("2024-01 ~ 至今");
+  });
+});
+
+describe("buildWorkHistoryEntryText", () => {
+  it("builds structured text from date range, company, title, description", () => {
+    const result = buildWorkHistoryEntryText({
+      startDate: "2020-01",
+      endDate: "2024-01",
+      companyName: "北京精雕科技集团有限公司",
+      jobTitle: "销售工程师",
+      description: "CNC机床销售",
+    });
+    expect(result).toBe("2020-01 ~ 2024-01 北京精雕科技集团有限公司 销售工程师 CNC机床销售");
+  });
+
+  it("falls back to raw when structured fields produce nothing", () => {
+    const result = buildWorkHistoryEntryText({
+      raw: "2015-04~2022-07(7年3月)中山聚诚机电有限公司销售部经理",
+    });
+    expect(result).toBe("2015-04~2022-07(7年3月)中山聚诚机电有限公司销售部经理");
+  });
+
+  it("returns empty string for null-like input", () => {
+    expect(buildWorkHistoryEntryText(null)).toBe("");
+    expect(buildWorkHistoryEntryText("")).toBe("");
+  });
+
+  it("omits missing optional fields without extra spaces", () => {
+    const result = buildWorkHistoryEntryText({
+      companyName: "某公司",
+      jobTitle: "销售",
+    });
+    expect(result).toBe("某公司 销售");
+  });
+});
 
 describe("work-history evidence helpers", () => {
   it("selects the latest three entries by recency", () => {
