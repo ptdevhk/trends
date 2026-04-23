@@ -59,6 +59,7 @@ import {
   buildResumeKey,
   computeDirectIndustryDb,
   getAnalysisForJob,
+  getNameSortLocale,
   hasIngestData,
   isAutoFilteredAnalysis,
   overrideIndustryDbBreakdown,
@@ -1631,7 +1632,8 @@ export function useResumeListState(loadSearchHistory = false) {
 
     return [...enrichedResumes].sort((a, b) => {
       if (sortBy === 'name') {
-        return a.resume.name.localeCompare(b.resume.name, 'zh-Hans-CN') * direction
+        const locale = getNameSortLocale(a.resume)
+        return a.resume.name.localeCompare(b.resume.name, locale) * direction
       }
 
       if (sortBy === 'experience') {

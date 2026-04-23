@@ -263,6 +263,19 @@ export function getResumeContentLocale(resume: unknown): string | undefined {
   return undefined
 }
 
+/**
+ * Returns the appropriate locale for name sorting/collation.
+ * Uses content locale when available, falls back to zh-Hans-CN
+ * for backward compatibility with Chinese-source-only datasets.
+ */
+export function getNameSortLocale(resume: unknown): string {
+  const contentLocale = getResumeContentLocale(resume)
+  if (contentLocale?.startsWith('en')) {
+    return 'en'
+  }
+  return 'zh-Hans-CN'
+}
+
 export function buildResumeKey(resume: ResumeItem, index: number): string {
   return resolveResumeId(resume, index)
 }
