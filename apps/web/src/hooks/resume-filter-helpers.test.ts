@@ -1,0 +1,235 @@
+import { describe, expect, it } from 'vitest'
+import type { CandidateStatus } from '@/types/resume'
+
+import {
+  getRoleYears,
+  matchesAllRequiredKeywords,
+  matchesEducationFilter,
+  normalizeFilterToken,
+  parseSalaryRange,
+  toStatusFilterList,
+} from './resume-filter-helpers.js'
+
+import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+
+describe('normalizeFilterToken', () => {
+  it('trims and lowercases input', () => {
+    expect(normalizeFilterToken('  CNC  ')).toBe('cnc')
+  })
+
+  it('returns empty string for whitespace-only input', () => {
+    expect(normalizeFilterToken('   ')).toBe('')
+  })
+
+  it('lowercases Chinese text', () => {
+    // Chinese has no case; returns trimmed
+    expect(normalizeFilterToken(' 销售 ')).toBe('销售')
+  })
+})
+
+describe('matchesEducationFilter', () => {
+  it('returns true when no education levels are selected', () => {
+    expect(matchesEducationFilter('本科', [])).toBe(true)
+  })
+
+  it('matches bachelor education (本科) against bachelor filter', () => {
+    expect(matchesEducationFilter('本科', ['bachelor'])).toBe(true)
+  })
+
+  it('matches master education (硕士) against master filter', () => {
+    expect(matchesEducationFilter('硕士', ['master'])).toBe(true)
+  })
+
+  it('does not match high school against bachelor filter', () => {
+    expect(matchesEducationFilter('高中', ['bachelor'])).toBe(false)
+  })
+
+  it('returns false when education value is undefined and filters are set', () => {
+    expect(matchesEducationFilter(undefined, ['bachelor'])).toBe(false)
+  })
+
+  it('matches when any selected level matches', () => {
+    expect(matchesEducationFilter('大专', ['bachelor', 'associate'])).toBe(true)
+  })
+
+  it('matches phd filter against 博士', () => {
+    expect(matchesEducationFilter('博士', ['phd'])).toBe(true)
+  })
+
+  it('matches English "bachelor" against bachelor filter', () => {
+    expect(matchesEducationFilter('bachelor degree', ['bachelor'])).toBe(true)
+  })
+})
+
+describe('parseSalaryRange', () => {
+  it('parses a simple salary range string', () => {
+    const result = parseSalaryRange('10-20')
+    expect(result).not.toBeNull()
+    expect(result!.min).toBe(10)
+    expect(result!.max).toBe(20)
+  })
+
+  it('parses a single numeric value', () => {
+    const result = parseSalaryRange('15')
+    expect(result).not.toBeNull()
+    expect(result!.min).toBe(15)
+    expect(result!.max).toBeUndefined()
+  })
+
+  it('returns null for empty string', () => {
+    expect(parseSalaryRange('')).toBeNull()
+  })
+
+  it('returns null for 面议 (negotiable)', () => {
+    expect(parseSalaryRange('面议')).toBeNull()
+  })
+
+  it('returns null for undefined input', () => {
+    expect(parseSalaryRange(undefined)).toBeNull()
+  })
+
+  it('parses salary with spaces', () => {
+    const result = parseSalaryRange('10 - 20')
+    expect(result).not.toBeNull()
+    expect(result!.min).toBe(10)
+  })
+
+  it('parses salary with decimal values', () => {
+    const result = parseSalaryRange('12.5-18.5')
+    expect(result).not.toBeNull()
+    expect(result!.min).toBe(12.5)
+    expect(result!.max).toBe(18.5)
+  })
+})
+
+describe('toStatusFilterList', () => {
+  it('returns empty array for undefined input', () => {
+    expect(toStatusFilterList(undefined)).toEqual([])
+  })
+
+  it('filters to only valid candidate statuses', () => {
+    const result = toStatusFilterList(['new', 'hired'] as CandidateStatus[])
+    // Invalid values like 'invalid' would be filtered out by the type system
+    // and by the function's runtime guard
+    expect(result).toEqual(['hired', 'new'])
+  })
+
+  it('deduplicates statuses', () => {
+    const result = toStatusFilterList(['new', 'new', 'hired'] as Array<'new' | 'hired'>)
+    expect(result).toEqual(['hired', 'new'])
+  })
+
+  it('sorts statuses alphabetically', () => {
+    const result = toStatusFilterList(['hired', 'new', 'contacted'] as Array<'hired' | 'new' | 'contacted'>)
+    expect(result).toEqual(['contacted', 'hired', 'new'])
+  })
+
+  it('accepts all valid statuses', () => {
+    const all = ['new', 'contacted', 'interviewing', 'interviewed_pass', 'interviewed_reject', 'offer', 'hired', 'withdrawn'] as const
+    const result = toStatusFilterList([...all])
+    expect(result).toHaveLength(8)
+  })
+})
+
+describe('getRoleYears', () => {
+  function makeResume(roleSignals: Array<{ type: string; years: number; roleRelevantYears?: number }>): Pick<ConvexResumeItem, 'ingestData'> {
+    return {
+      ingestData: {
+        evidenceText: '',
+        industryTags: [],
+        synonymHits: [],
+        brandHits: [],
+        companyHits: [],
+        industryDbV2Raw: 0,
+        roleSignals: roleSignals.map((s) => ({
+          type: s.type,
+          matchedSignals: [],
+          signalCount: 1,
+          occurrences: 1,
+          years: s.years,
+          industryVerifiedYears: 0,
+          verifyIn: '',
+          ...(s.roleRelevantYears !== undefined ? { roleRelevantYears: s.roleRelevantYears } : {}),
+        })),
+        ruleScores: {},
+        experienceLevel: 'mid',
+        computedAt: 0,
+        skillsVersion: 1,
+      },
+    }
+  }
+
+  it('returns 0 when ingestData has no roleSignals', () => {
+    const resume = makeResume([])
+    expect(getRoleYears(resume, '')).toBe(0)
+  })
+
+  it('returns max years across all signals when roleType is empty', () => {
+    const resume = makeResume([
+      { type: 'sales', years: 5 },
+      { type: 'engineer', years: 8 },
+    ])
+    expect(getRoleYears(resume, '')).toBe(8)
+  })
+
+  it('returns roleRelevantYears when available for matching roleType', () => {
+    const resume = makeResume([
+      { type: 'sales', years: 8, roleRelevantYears: 5 },
+    ])
+    expect(getRoleYears(resume, 'sales')).toBe(5)
+  })
+
+  it('falls back to years when roleRelevantYears is absent for matching roleType', () => {
+    const resume = makeResume([
+      { type: 'sales', years: 6 },
+    ])
+    expect(getRoleYears(resume, 'sales')).toBe(6)
+  })
+
+  it('returns 0 when no signal matches the specified roleType', () => {
+    const resume = makeResume([
+      { type: 'engineer', years: 10 },
+    ])
+    expect(getRoleYears(resume, 'sales')).toBe(0)
+  })
+
+  it('ignores NaN and Infinity roleRelevantYears', () => {
+    const resume = makeResume([
+      { type: 'sales', years: 5, roleRelevantYears: NaN },
+    ])
+    expect(getRoleYears(resume, 'sales')).toBe(5)
+  })
+
+  it('is case-insensitive for roleType matching', () => {
+    const resume = makeResume([
+      { type: 'Sales', years: 7 },
+    ])
+    expect(getRoleYears(resume, 'sales')).toBe(7)
+  })
+})
+
+describe('matchesAllRequiredKeywords', () => {
+  it('returns true when requiredKeywords is empty', () => {
+    expect(matchesAllRequiredKeywords('some text', [])).toBe(true)
+  })
+
+  it('returns true when all keywords are present in text', () => {
+    expect(matchesAllRequiredKeywords('CNC 销售工程师', ['CNC', '销售'])).toBe(true)
+  })
+
+  it('returns false when any keyword is missing from text', () => {
+    expect(matchesAllRequiredKeywords('CNC 工程师', ['CNC', '销售'])).toBe(false)
+  })
+
+  it('returns false for empty text with non-empty keywords', () => {
+    expect(matchesAllRequiredKeywords('', ['CNC'])).toBe(false)
+  })
+
+  it('is case-insensitive for keyword matching', () => {
+    expect(matchesAllRequiredKeywords('cnc engineer', ['CNC'])).toBe(true)
+  })
+
+  it('ignores whitespace-only keywords', () => {
+    expect(matchesAllRequiredKeywords('CNC', ['CNC', '  '])).toBe(true)
+  })
+})
