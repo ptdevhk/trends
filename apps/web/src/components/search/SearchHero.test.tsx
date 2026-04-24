@@ -273,7 +273,7 @@ describe('SearchHero', () => {
         buildQuickStart({
           id: 'profile-2',
           label: 'Malaysia · SEEK · CNC Sales',
-          location: 'Kuala Lumpur MY',
+          location: 'Malaysia',
           keywords: ['CNC', 'Sales'],
         }),
       ],
@@ -287,7 +287,7 @@ describe('SearchHero', () => {
       screen.getByRole('button', { name: /Malaysia · SEEK · CNC Sales/i }),
     ).toBeInTheDocument()
     expect(screen.getByText('CNC, 销售 · China')).toBeInTheDocument()
-    expect(screen.getByText('CNC, Sales · Kuala Lumpur MY')).toBeInTheDocument()
+    expect(screen.getByText('CNC, Sales · Malaysia')).toBeInTheDocument()
   })
 
   it('renders hot keyword chips from hotKeywords', () => {

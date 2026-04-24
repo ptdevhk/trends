@@ -98,7 +98,7 @@ export function ProfileCard({
           </div>
         ) : null}
         <div>
-          <span className="font-medium">Schedule:</span> {scheduleLabel}
+          <span className="font-medium">Schedule:</span> {scheduleLabel === 'disabled' ? 'disabled' : `${scheduleLabel} (enabled)`}
         </div>
         <div>
           <span className="font-medium">Last run:</span> {lastRunText}

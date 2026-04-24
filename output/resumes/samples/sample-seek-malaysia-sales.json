@@ -2,10 +2,10 @@
   "metadata": {
     "sourceHost": "my.employer.seek.com",
     "sourceKey": "seek",
-    "sourceUrl": "https://my.employer.seek.com/candidates/recommended?keyword=Sales%20Engineer%20Sales%20Manager&location=Kuala%20Lumpur%20MY",
+    "sourceUrl": "https://my.employer.seek.com/candidates/recommended?keyword=Sales%20Engineer%20Sales%20Manager&location=Malaysia",
     "searchCriteria": {
       "keyword": "Sales Engineer Sales Manager",
-      "location": "Kuala Lumpur MY",
+      "location": "Malaysia",
       "filters": {
         "maxAge": "45",
         "minExperience": "2"

@@ -93,6 +93,7 @@ type ProfileFormState = {
     maxCandidates: string
     cron: string
     enabled: boolean
+    scheduleEnabled: boolean
     quickStartEnabled: boolean
     collectionMode: 'head' | 'headless'
 }
@@ -126,6 +127,7 @@ const DEFAULT_FORM: ProfileFormState = {
     maxCandidates: '',
     cron: '0 9 * * 1-5',
     enabled: true,
+    scheduleEnabled: true,
     quickStartEnabled: false,
     collectionMode: 'head',
 }
@@ -319,6 +321,7 @@ function toFormState(profile: SearchProfileDetails): ProfileFormState {
         maxCandidates: typeof profile.schedule?.maxCandidates === 'number' ? String(profile.schedule.maxCandidates) : '',
         cron: profile.schedule?.cron || '',
         enabled: profile.status === 'active',
+        scheduleEnabled: profile.schedule?.enabled ?? true,
         quickStartEnabled: profile.quickStart?.enabled ?? false,
         collectionMode: profile.collectionMode ?? 'head',
     }
@@ -574,7 +577,7 @@ export function SearchProfileEditorDialog({
                 maxAge: parsedMaxAge,
             } : null,
             schedule: {
-                enabled: form.enabled,
+                enabled: form.scheduleEnabled,
                 cron: form.cron.trim() || undefined,
                 maxCandidates: parseOptionalNumber(form.maxCandidates),
             },
@@ -1061,6 +1064,15 @@ export function SearchProfileEditorDialog({
 
                     <div className="flex items-center gap-2">
                         <Checkbox
+                            checked={form.scheduleEnabled}
+                            onCheckedChange={(checked: boolean | 'indeterminate') => setForm((previous) => ({ ...previous, scheduleEnabled: checked === true }))}
+                            id="profile-schedule-enabled"
+                        />
+                        <Label htmlFor="profile-schedule-enabled">{t('searchProfiles.fields.scheduleEnabled', { defaultValue: 'Enable Schedule' })}</Label>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Checkbox
                             checked={form.quickStartEnabled}
                             onCheckedChange={(checked: boolean | 'indeterminate') => setForm((previous) => ({ ...previous, quickStartEnabled: checked === true }))}
                             id="profile-quickstart"
@@ -1074,7 +1086,7 @@ export function SearchProfileEditorDialog({
                             onCheckedChange={(checked: boolean | 'indeterminate') => setForm((previous) => ({ ...previous, enabled: checked === true }))}
                             id="profile-enabled"
                         />
-                        <Label htmlFor="profile-enabled">{t('searchProfiles.fields.enabled', { defaultValue: 'Enabled' })}</Label>
+                        <Label htmlFor="profile-enabled">{t('searchProfiles.fields.active', { defaultValue: 'Active' })}</Label>
                     </div>
                 </div>
 

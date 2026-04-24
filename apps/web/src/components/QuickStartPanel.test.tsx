@@ -15,13 +15,13 @@ const { useQueryMock } = vi.hoisted(() => ({
 }))
 
 const SEEK_MALAYSIA_JOB_URL = 'https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1'
-const SEEK_MALAYSIA_COLLECT_URL = 'https://my.employer.seek.com/candidates/recommended?keyword=CNC+Sales&location=Kuala+Lumpur+MY&tr_auto_sync=true'
+const SEEK_MALAYSIA_COLLECT_URL = 'https://my.employer.seek.com/candidates/recommended?keyword=CNC+Sales&location=Malaysia&tr_auto_sync=true'
 
 const SEEK_MALAYSIA_WORKFLOW_SEED = {
   id: 'seek-my-cnc-sales',
   label: 'Malaysia · SEEK · CNC Sales',
   market: 'MY',
-  location: 'Kuala Lumpur MY',
+  location: 'Malaysia',
   keywords: ['CNC', 'Sales'],
   collectionSource: {
     type: 'seek',
@@ -45,7 +45,7 @@ const SEEK_MALAYSIA_PROFILE = {
   id: 'seek-malaysia-sales',
   name: 'SEEK Malaysia CNC Sales',
   status: 'active' as const,
-  location: 'Kuala Lumpur MY',
+  location: 'Malaysia',
   keywords: ['CNC', 'Sales'],
   jobDescription: 'seek-malaysia-sales',
   filters: {
@@ -327,8 +327,8 @@ describe('QuickStartPanel quick-filter display', () => {
           {
             id: 'history-2' as SearchHistoryItem['id'],
             sessionKey: 'session-2',
-            title: 'Kuala Lumpur MY · CNC Sales',
-            location: 'Kuala Lumpur MY',
+            title: 'Malaysia · CNC Sales',
+            location: 'Malaysia',
             keywords: ['CNC', 'Sales'],
             jobDescriptionId: 'seek-malaysia-sales',
             filters: {},
@@ -344,14 +344,14 @@ describe('QuickStartPanel quick-filter display', () => {
     )
 
     expect(screen.getByTestId('quickstart-recent-history')).toBeInTheDocument()
-    expect(screen.getByText('Kuala Lumpur MY · CNC Sales')).toBeInTheDocument()
+    expect(screen.getByText('Malaysia · CNC Sales')).toBeInTheDocument()
     expect(screen.getByText('Resume shortlist for Malaysia flow')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Kuala Lumpur MY · CNC Sales/i }))
+    await user.click(screen.getByRole('button', { name: /Malaysia · CNC Sales/i }))
 
     expect(onApplyAssistantHistory).toHaveBeenCalledTimes(1)
     expect(onApplyAssistantHistory).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Kuala Lumpur MY · CNC Sales',
+      title: 'Malaysia · CNC Sales',
       jobDescriptionId: 'seek-malaysia-sales',
     }))
   })
@@ -666,7 +666,7 @@ describe('QuickStartPanel quick-filter display', () => {
 
     render(
       <QuickStartPanel
-        defaultLocation="Kuala Lumpur MY"
+        defaultLocation="Malaysia"
         defaultKeywords={['CNC', 'Sales']}
         jobDescriptionId=""
       />
@@ -773,7 +773,7 @@ describe('QuickStartPanel quick-filter display', () => {
 
     render(
       <QuickStartPanel
-        defaultLocation="Kuala Lumpur MY"
+        defaultLocation="Malaysia"
         defaultKeywords={SEEK_MALAYSIA_WORKFLOW_SEED.keywords}
         jobDescriptionId=""
         onApplyConfig={onApplyConfig}
@@ -786,7 +786,7 @@ describe('QuickStartPanel quick-filter display', () => {
 
     await waitFor(() => {
       expect(onApplyConfig).toHaveBeenLastCalledWith({
-        location: 'Kuala Lumpur MY',
+        location: 'Malaysia',
         keywords: SEEK_MALAYSIA_PROFILE.keywords,
         jobDescriptionId: undefined,
         collectionSource: {
@@ -819,12 +819,12 @@ describe('QuickStartPanel quick-filter display', () => {
 
     await user.click(screen.getByRole('button', { name: SEEK_MALAYSIA_WORKFLOW_SEED.label }))
 
-    expect(screen.getByRole('textbox', { name: '位置' })).toHaveValue('Kuala Lumpur MY')
+    expect(screen.getByRole('textbox', { name: '位置' })).toHaveValue('Malaysia')
     expect(screen.getByDisplayValue(SEEK_MALAYSIA_WORKFLOW_SEED.keywords.join(' '))).toBeInTheDocument()
 
     await waitFor(() => {
       expect(onApplyConfig).toHaveBeenLastCalledWith({
-        location: 'Kuala Lumpur MY',
+        location: 'Malaysia',
         keywords: SEEK_MALAYSIA_WORKFLOW_SEED.keywords,
         jobDescriptionId: undefined,
         collectionSource: {

@@ -876,28 +876,90 @@ build_convex_dev_command() {
     fi
 }
 
+github_token_is_valid() {
+    # Quick 200/401/403 check against api.github.com. Treat network errors as
+    # "unknown" = valid (don't disrupt boot on transient failures).
+    local token="$1"
+    local status
+    if [ -z "$token" ]; then return 1; fi
+    if ! command -v curl >/dev/null 2>&1; then return 0; fi
+    status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+        -H "Authorization: Bearer $token" \
+        -H "Accept: application/vnd.github+json" \
+        https://api.github.com/rate_limit 2>/dev/null || echo "")"
+    case "$status" in
+        2??) return 0 ;;
+        401|403) return 1 ;;
+        *) return 0 ;; # network/timeout — don't pessimize
+    esac
+}
+
 ensure_github_auth_for_convex() {
-    if [ -n "${GITHUB_TOKEN:-}" ] || [ -n "${GH_TOKEN:-}" ]; then
+    # Convex CLI hits api.github.com to resolve release metadata even when a
+    # cached binary is available. Without valid auth the request is rate-limited
+    # per IP and commonly returns 403. Prefer a live `gh auth token` over any
+    # pre-set env var because .env files tend to hold stale tokens that trigger
+    # silent 403s during startup.
+    local preset_token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+    local preset_source=""
+    if [ -n "${GITHUB_TOKEN:-}" ]; then preset_source="GITHUB_TOKEN"
+    elif [ -n "${GH_TOKEN:-}" ]; then preset_source="GH_TOKEN"
+    fi
+
+    # Locate gh even when Make/systemd strip PATH down to /usr/bin:/bin.
+    local gh_bin=""
+    if command -v gh >/dev/null 2>&1; then
+        gh_bin="$(command -v gh)"
+    else
+        local candidate
+        for candidate in /opt/homebrew/bin/gh /usr/local/bin/gh /snap/bin/gh; do
+            if [ -x "$candidate" ]; then gh_bin="$candidate"; break; fi
+        done
+    fi
+
+    # IMPORTANT: unset GITHUB_TOKEN/GH_TOKEN when invoking gh, because gh
+    # prefers env vars over its keyring. A stale env token would cause
+    # `gh auth status` and `gh auth token` to fail even though the keyring
+    # holds a fresh one.
+    local gh_token=""
+    if [ -n "$gh_bin" ] \
+        && env -u GITHUB_TOKEN -u GH_TOKEN "$gh_bin" auth status >/dev/null 2>&1; then
+        gh_token="$(env -u GITHUB_TOKEN -u GH_TOKEN "$gh_bin" auth token 2>/dev/null || true)"
+    fi
+
+    # Prefer gh when available and different from preset (covers stale .env).
+    if [ -n "$gh_token" ]; then
+        if [ -n "$preset_token" ] && [ "$preset_token" = "$gh_token" ]; then
+            log "CONVEX" "$CYAN" "Pre-set $preset_source matches gh auth token; using it."
+        elif [ -n "$preset_token" ]; then
+            log "CONVEX" "$YELLOW" "Pre-set $preset_source differs from gh auth token; preferring gh auth (live keyring)."
+        fi
+        export GH_TOKEN="$gh_token"
+        export GITHUB_TOKEN="$gh_token"
+        log "CONVEX" "$CYAN" "Using GitHub token from gh auth for Convex startup to reduce API rate-limit failures."
         return
     fi
 
-    if ! command -v gh >/dev/null 2>&1; then
+    # No gh available — validate the preset before trusting it. Invalid tokens
+    # cause 403 loops; better to drop them so the CLI falls back to anonymous
+    # (which at least may succeed on cached-binary reuse).
+    if [ -n "$preset_token" ]; then
+        if github_token_is_valid "$preset_token"; then
+            export GH_TOKEN="$preset_token"
+            export GITHUB_TOKEN="$preset_token"
+            log "CONVEX" "$CYAN" "Using pre-set $preset_source for Convex startup (gh CLI unavailable; token validated OK)."
+            return
+        fi
+        log "CONVEX" "$YELLOW" "Pre-set $preset_source failed validation and no gh CLI available; unsetting to avoid 403 loop. Update .env GITHUB_TOKEN or run 'gh auth login'."
+        unset GITHUB_TOKEN GH_TOKEN
         return
     fi
 
-    if ! gh auth status >/dev/null 2>&1; then
-        return
+    if [ -z "$gh_bin" ]; then
+        log "CONVEX" "$YELLOW" "gh CLI not found and no GITHUB_TOKEN set; Convex may hit GitHub API rate limits. Install gh (brew install gh && gh auth login) or set GITHUB_TOKEN."
+    else
+        log "CONVEX" "$YELLOW" "gh CLI not authenticated and no GITHUB_TOKEN set; run 'gh auth login' to avoid 403 rate-limit errors."
     fi
-
-    local gh_token
-    gh_token="$(gh auth token 2>/dev/null || true)"
-    if [ -z "$gh_token" ]; then
-        return
-    fi
-
-    export GH_TOKEN="$gh_token"
-    export GITHUB_TOKEN="$gh_token"
-    log "CONVEX" "$CYAN" "Using GitHub token from gh auth for Convex startup to reduce API rate-limit failures."
 }
 
 convex_command_to_string() {
@@ -1276,15 +1338,24 @@ start_convex() {
     if [ -z "$selected_backend_version" ]; then
         if cached_backend_version="$(latest_cached_convex_backend_version)"; then
             log "CONVEX" "$CYAN" "Detected cached local backend version: $cached_backend_version"
+            selected_backend_version="$cached_backend_version"
         elif [ -f "$prefetch_script" ]; then
             log "CONVEX" "$CYAN" "No cached local backend binary found. Trying prefetch before startup..."
             if "$prefetch_script"; then
                 if cached_backend_version="$(latest_cached_convex_backend_version)"; then
                     log "CONVEX" "$CYAN" "Detected prefetched local backend version: $cached_backend_version"
+                    selected_backend_version="$cached_backend_version"
                 fi
             else
                 log "CONVEX" "$YELLOW" "Prefetch before startup failed; continuing with default convex dev behavior."
             fi
+        fi
+        # Pinning --local-backend-version <ver> lets the Convex CLI skip its
+        # GitHub releases API lookup, which has no auth header and hits IP-based
+        # rate limits (60/hr) causing 403 boot failures. See
+        # node_modules/convex/dist/esm/cli/lib/localDeployment/download.js.
+        if [ -n "$selected_backend_version" ]; then
+            log "CONVEX" "$CYAN" "Pinning --local-backend-version=$selected_backend_version to skip GitHub release lookup."
         fi
     else
         log "CONVEX" "$CYAN" "Using CONVEX_LOCAL_BACKEND_VERSION override: $selected_backend_version"
@@ -1331,6 +1402,29 @@ start_convex() {
     if [ -z "$selected_backend_version" ] && [ "$force_upgrade_enabled" = "true" ]; then
         local_mode_requested="true"
         log "CONVEX" "$CYAN" "CONVEX_LOCAL_FORCE_UPGRADE enabled without CONVEX_LOCAL_BACKEND_VERSION; using local mode for startup attempts."
+    fi
+    # When we've pinned a cached backend version, --local-force-upgrade would
+    # still cause the CLI to query GitHub for the latest release, defeating the
+    # pin and hitting the 60/hr unauth rate limit. Disable force-upgrade unless
+    # the user explicitly opted in via CONVEX_LOCAL_FORCE_UPGRADE.
+    if [ -n "$selected_backend_version" ] \
+            && [ "$force_upgrade_enabled" = "true" ] \
+            && [ -z "${CONVEX_LOCAL_FORCE_UPGRADE:-}" ]; then
+        force_upgrade_enabled="false"
+        log "CONVEX" "$CYAN" "Cached backend version pinned; disabling --local-force-upgrade to skip GitHub release lookup."
+    fi
+
+    # Prewarm the cached backend once before we hand off to `convex dev --local`.
+    # Convex CLI has a hardcoded ~30s timeout waiting for port 3210 to bind;
+    # anonymous backends whose Tantivy indexes are flagged "TooOld" rebuild on
+    # startup and can miss that window, sending the CLI into a kill/retry loop.
+    # Prewarm lets that rebuild complete once without a deadline so the CLI
+    # boot afterwards fits inside 30s. See scripts/convex-prewarm.sh.
+    if [ -x "$SCRIPT_DIR/convex-prewarm.sh" ]; then
+        if ! CONVEX_PORT="$port" "$SCRIPT_DIR/convex-prewarm.sh" 2>&1 \
+                | stream_service_logs "convex" "$CYAN"; then
+            log "CONVEX" "$YELLOW" "Prewarm step reported an issue; continuing with normal startup."
+        fi
     fi
 
     attempt=1
@@ -1558,6 +1652,8 @@ print_usage() {
     echo "  CONVEX_RETRY_DELAY_SECS Delay between Convex startup attempts in seconds (default: 2)"
     echo "  CONVEX_LOCAL_BACKEND_VERSION Explicit Convex local backend version override"
     echo "  CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: true)"
+    echo "  CONVEX_SKIP_PREWARM  Skip the pre-startup backend prewarm step (true|1 to opt out)"
+    echo "  CONVEX_PREWARM_TIMEOUT Max seconds prewarm waits for port 3210 to bind (default: 120)"
     echo "  GITHUB_TOKEN / GH_TOKEN Optional GitHub token for Convex startup and prefetch metadata requests"
     echo "  CONVEX_MIRROR_MODE Convex prefetch source order before startup: off|fallback|mirror-first"
     echo "                    Default is fallback, or off when CI=true/1"

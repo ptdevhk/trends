@@ -31,7 +31,7 @@ const SearchSessionCollectionSourceSchema = z.object({
   exactUrl: z.string().optional(),
 });
 const SearchSessionStateSchema = z.object({
-  location: z.string().optional().openapi({ example: "Kuala Lumpur MY" }),
+  location: z.string().optional().openapi({ example: "Malaysia" }),
   keywords: z.array(z.string()).optional().openapi({ example: ["Sales Engineer", "CNC"] }),
   requiredKeywords: z.array(z.string()).optional().openapi({ example: ["machine tools"] }),
   jobDescriptionId: z.string().optional().openapi({ example: "lathe-sales" }),

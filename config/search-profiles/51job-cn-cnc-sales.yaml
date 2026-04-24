@@ -11,7 +11,7 @@ keywords:
   - 销售
 
 filters:
-  minExperience: 2
+  minExperience: 1
   maxExperience: null
   minAge: 25
   maxAge: 40
@@ -19,7 +19,7 @@ filters:
     - China
 
 schedule:
-  enabled: true
+  enabled: false
   cron: "0 9 * * 1-5"
   timezone: Asia/Shanghai
   maxCandidates: 200
