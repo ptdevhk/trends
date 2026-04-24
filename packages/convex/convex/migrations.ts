@@ -4,7 +4,9 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
     buildLatestWorkHistoryEvidence,
+    computeTemplateHash,
     formatLocationHierarchyLabel,
+    getWorkspaceSearchProfileTemplates,
     normalizeJob5156ProfileUrlForDisplay,
     normalizeResumeLocationHierarchy,
     normalizeWorkHistoryEntry,
@@ -1392,6 +1394,58 @@ export const backfillSourceKey = mutation({
             updatedResumes: updated,
             hasMore: !resumes.isDone,
             cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});
+
+export const backfillSearchProfileTemplateHash = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const profiles = await ctx.db
+            .query("search_profiles")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: 100,
+            });
+
+        const templates = getWorkspaceSearchProfileTemplates("dev");
+        const templateById = new Map(
+            templates.map((t) => [t.profile.id, t]),
+        );
+
+        let updated = 0;
+        for (const profile of profiles.page) {
+            const profileData = isRecord(profile.profile) ? profile.profile : {};
+            const existingHash = typeof profileData.templateHash === "string" ? profileData.templateHash : undefined;
+            if (existingHash) {
+                continue;
+            }
+
+            const profileId = profile.profileId ?? (typeof profileData.id === "string" ? profileData.id : "");
+            const template = templateById.get(profileId);
+            if (!template) {
+                continue;
+            }
+
+            const seedSource = typeof profileData.seedSource === "string" ? profileData.seedSource : "";
+            if (seedSource !== "config/search-profiles") {
+                continue;
+            }
+
+            const currentHash = computeTemplateHash(template.profile);
+            const merged = { ...profileData, templateHash: currentHash };
+            await ctx.db.patch(profile._id, { profile: merged });
+            updated += 1;
+        }
+
+        return {
+            scanned: profiles.page.length,
+            updated,
+            hasMore: !profiles.isDone,
+            cursor: profiles.isDone ? null : profiles.continueCursor,
         };
     },
 });
