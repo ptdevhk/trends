@@ -28,6 +28,14 @@ import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus, type CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import {
+  getRoleYears,
+  matchesAllRequiredKeywords,
+  matchesEducationFilter,
+  normalizeFilterToken,
+  parseSalaryRange,
+  toStatusFilterList,
+} from '@/hooks/resume-filter-helpers'
+import {
   hasKnownUrlSearchParams,
   parseUrlSearchState,
   useUrlSearchState,
@@ -265,10 +273,6 @@ function taskMatchesCurrentSearch(
   return false
 }
 
-function normalizeFilterToken(value: string): string {
-  return value.trim().toLowerCase()
-}
-
 function getResumeLocationText(
   resume: { location?: string; locationHierarchy?: { country: string; province?: string; city?: string; district?: string } }
 ): string {
@@ -315,60 +319,6 @@ function getResumeIdentityKey(resume: ConvexResumeItem, fallback: string): strin
   return fallback
 }
 
-function toStatusFilterList(values: CandidateStatus[] | undefined): CandidateStatus[] {
-  if (!Array.isArray(values)) {
-    return []
-  }
-
-  const unique = new Set<CandidateStatus>()
-  values.forEach((value) => {
-    if (
-      value === 'new'
-      || value === 'contacted'
-      || value === 'interviewing'
-      || value === 'interviewed_pass'
-      || value === 'interviewed_reject'
-      || value === 'offer'
-      || value === 'hired'
-      || value === 'withdrawn'
-    ) {
-      unique.add(value)
-    }
-  })
-  return Array.from(unique).sort()
-}
-
-function getRoleYears(resume: ConvexResumeItem, roleType: string): number {
-  const roleSignals = resume.ingestData?.roleSignals
-  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
-    return 0
-  }
-
-  const normalizedRoleType = normalizeFilterToken(roleType)
-  if (!normalizedRoleType) {
-    return roleSignals.reduce((maxYears, signal) => {
-      const relevantYears =
-        typeof signal.roleRelevantYears === 'number' && Number.isFinite(signal.roleRelevantYears)
-          ? signal.roleRelevantYears
-          : signal.years
-      if (typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
-        return maxYears
-      }
-      return Math.max(maxYears, relevantYears)
-    }, 0)
-  }
-
-  const roleSignal = roleSignals.find((signal) => normalizeFilterToken(signal.type) === normalizedRoleType)
-  const relevantYears =
-    typeof roleSignal?.roleRelevantYears === 'number' && Number.isFinite(roleSignal.roleRelevantYears)
-      ? roleSignal.roleRelevantYears
-      : roleSignal?.years
-  if (!roleSignal || typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
-    return 0
-  }
-  return relevantYears
-}
-
 function parseExtractedAt(value: string | undefined): number {
   if (!value) {
     return 0
@@ -376,58 +326,6 @@ function parseExtractedAt(value: string | undefined): number {
 
   const timestamp = Date.parse(value)
   return Number.isFinite(timestamp) ? timestamp : 0
-}
-
-const EDUCATION_KEYWORDS: Record<string, string[]> = {
-  high_school: ['高中', '中专', '技校', 'high school'],
-  associate: ['大专', '专科', 'associate'],
-  bachelor: ['本科', '学士', 'bachelor'],
-  master: ['硕士', '研究生', 'master'],
-  phd: ['博士', 'phd', 'doctor'],
-}
-
-function matchesEducationFilter(educationValue: string | undefined, selectedEducation: string[]): boolean {
-  if (selectedEducation.length === 0) {
-    return true
-  }
-
-  const normalizedEducation = normalizeFilterToken(educationValue ?? '')
-  if (!normalizedEducation) {
-    return false
-  }
-
-  return selectedEducation.some((level) => {
-    const keywords = EDUCATION_KEYWORDS[level]
-    if (!keywords || keywords.length === 0) {
-      return false
-    }
-
-    return keywords.some((keyword) => normalizedEducation.includes(normalizeFilterToken(keyword)))
-  })
-}
-
-function parseSalaryRange(value: string | undefined): { min?: number; max?: number } | null {
-  if (!value) {
-    return null
-  }
-
-  const normalized = value.replace(/\s/g, '')
-  if (!normalized || /面议/.test(normalized)) {
-    return null
-  }
-
-  const match = normalized.match(/(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?/)
-  if (!match) {
-    return null
-  }
-
-  const min = Number(match[1])
-  const max = match[2] ? Number(match[2]) : undefined
-  if (Number.isNaN(min)) {
-    return null
-  }
-
-  return { min, max }
 }
 
 function buildResumeFilterSearchText(resume: ConvexResumeItem): string {
@@ -443,23 +341,6 @@ function buildResumeFilterSearchText(resume: ConvexResumeItem): string {
     .map((value) => value.trim().toLowerCase())
     .filter((value) => value.length > 0)
     .join(' ')
-}
-
-function matchesAllRequiredKeywords(text: string, requiredKeywords: string[]): boolean {
-  const normalizedKeywords = normalizeKeywordPhrases(requiredKeywords)
-    .map((keyword) => normalizeFilterToken(keyword))
-    .filter((keyword) => keyword.length > 0)
-
-  if (normalizedKeywords.length === 0) {
-    return true
-  }
-
-  const haystack = text.trim().toLowerCase()
-  if (!haystack) {
-    return false
-  }
-
-  return normalizedKeywords.every((keyword) => haystack.includes(keyword))
 }
 
 export function useResumeListState(loadSearchHistory = false) {
