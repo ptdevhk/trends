@@ -921,6 +921,104 @@ describe("searchWithTagExpansionPaginated", () => {
     expect(result.continueCursor).toBe("cursor-next");
     expect(result.isDone).toBe(false);
   });
+
+  it("overfetches by FILTERED_PAGINATE_OVERFETCH_MULTIPLIER when filters are active", async () => {
+    const requestedNumItems = 50;
+    let capturedNumItems: number | undefined;
+
+    const resume = {
+      ...buildResumeDoc("resume-x", 50),
+      age: 30,
+      searchText: "cnc 销售",
+      content: { name: "Resume X" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        verifiedRoleYears: { sales: 3 },
+        roleSignals: [],
+      },
+    };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withSearchIndex: () => ({
+            filter: () => ({
+              paginate: async (opts: { cursor: string | null; numItems: number }) => {
+                capturedNumItems = opts.numItems;
+                return {
+                  page: [resume],
+                  continueCursor: "",
+                  isDone: true,
+                };
+              },
+            }),
+          }),
+        }),
+      },
+    };
+
+    await searchPaginatedHandler(ctx, {
+      paginationOpts: { cursor: null, numItems: requestedNumItems },
+      query: "CNC 销售",
+      keywordGroups: [
+        { original: "cnc", variants: ["cnc"] },
+        { original: "销售", variants: ["销售"] },
+      ],
+      mode: "AND",
+      minRoleYears: 1,
+      roleFilterType: "sales",
+    });
+
+    // With filters active, the scan should overfetch 3x the requested page size
+    expect(capturedNumItems).toBe(requestedNumItems * 3);
+  });
+
+  it("does not overfetch when no filters are active", async () => {
+    const requestedNumItems = 50;
+    let capturedNumItems: number | undefined;
+
+    const resume = {
+      ...buildResumeDoc("resume-y", 50),
+      searchText: "cnc 销售",
+      content: { name: "Resume Y" },
+    };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withSearchIndex: () => ({
+            filter: () => ({
+              paginate: async (opts: { cursor: string | null; numItems: number }) => {
+                capturedNumItems = opts.numItems;
+                return {
+                  page: [resume],
+                  continueCursor: "",
+                  isDone: true,
+                };
+              },
+            }),
+          }),
+        }),
+      },
+    };
+
+    await searchPaginatedHandler(ctx, {
+      paginationOpts: { cursor: null, numItems: requestedNumItems },
+      query: "CNC 销售",
+      keywordGroups: [
+        { original: "cnc", variants: ["cnc"] },
+        { original: "销售", variants: ["销售"] },
+      ],
+      mode: "AND",
+    });
+
+    // Without filters, scan should equal the requested page size (no overfetch)
+    expect(capturedNumItems).toBe(requestedNumItems);
+  });
 });
 
 describe("listWithIngestDataPaginated source filter", () => {
