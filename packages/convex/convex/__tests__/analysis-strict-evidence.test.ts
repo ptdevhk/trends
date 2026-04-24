@@ -2919,4 +2919,200 @@ describe("normalizeResume strict evidence", () => {
       )).toBe(0);
     });
   });
+
+  describe("inferSalesRelatedExpFloor", () => {
+    // Mirrors analyze.ts:234-276
+    function isRecord(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+    function toNumber(value: unknown): number | undefined {
+      return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    }
+    function getResumeIngestData(resume: unknown): Record<string, unknown> {
+      const root = isRecord(resume) ? resume : {};
+      const content = isRecord(root.content) ? root.content : {};
+      if (isRecord(root.ingestData)) return root.ingestData;
+      if (isRecord(content.ingestData)) return content.ingestData;
+      return {};
+    }
+
+    function inferSalesRelatedExpFloor(resume: unknown): number | undefined {
+      const ingestData = getResumeIngestData(resume);
+      if (!Array.isArray(ingestData.roleSignals)) return undefined;
+
+      for (const rawSignal of ingestData.roleSignals) {
+        if (!isRecord(rawSignal)) continue;
+        const type = typeof rawSignal.type === "string" ? rawSignal.type.trim().toLowerCase() : "";
+        if (type !== "sales") continue;
+
+        const verifiedYears = toNumber(rawSignal.industryVerifiedYears) ?? 0;
+        const verifiedRelevantYears = toNumber(rawSignal.industryVerifiedRelevantYears) ?? 0;
+        const workEntries = Array.isArray(rawSignal.matchedWorkEntries)
+          ? rawSignal.matchedWorkEntries.filter((e: unknown): e is Record<string, unknown> => isRecord(e))
+          : [];
+        const hasDirectRoleEvidence = workEntries.some((e) => e.directRoleMatch === true);
+        const hasIndustryVerifiedSales = verifiedYears > 0 || verifiedRelevantYears > 0
+          || workEntries.some((e) => e.industryVerified === true);
+
+        if (hasDirectRoleEvidence && !hasIndustryVerifiedSales) continue;
+
+        const relevantYears = Math.max(verifiedYears, toNumber(rawSignal.roleRelevantYears) ?? toNumber(rawSignal.years) ?? 0);
+        if (hasIndustryVerifiedSales && relevantYears >= 3) return 80;
+      }
+      return undefined;
+    }
+
+    it("returns undefined when resume has no roleSignals", () => {
+      expect(inferSalesRelatedExpFloor(
+        { ingestData: { roleSignals: undefined } },
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when no sales signal exists", () => {
+      expect(inferSalesRelatedExpFloor(
+        { ingestData: { roleSignals: [{ type: "engineer", years: 10 }] } },
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when sales has direct role but no industry verification", () => {
+      // Unverified direct-role sales: 80 floor doesn't apply
+      expect(inferSalesRelatedExpFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "某公司", jobTitle: "销售", directRoleMatch: true, industryVerified: false },
+              ],
+            }],
+          },
+        },
+      )).toBeUndefined();
+    });
+
+    it("returns 80 for industry-verified sales with 3+ verified years", () => {
+      expect(inferSalesRelatedExpFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              industryVerifiedYears: 3,
+              matchedWorkEntries: [],
+            }],
+          },
+        },
+      )).toBe(80);
+    });
+
+    it("returns 80 for industry-verified sales entry with 3+ years", () => {
+      expect(inferSalesRelatedExpFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              industryVerifiedYears: 0,
+              matchedWorkEntries: [
+                { companyName: "机床公司", jobTitle: "销售工程师", years: 4, directRoleMatch: true, industryVerified: true },
+              ],
+            }],
+          },
+        },
+      )).toBe(80);
+    });
+
+    it("returns undefined when verified years are below 3", () => {
+      expect(inferSalesRelatedExpFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 2,
+              industryVerifiedYears: 2,
+              matchedWorkEntries: [],
+            }],
+          },
+        },
+      )).toBeUndefined();
+    });
+
+    it("uses roleRelevantYears when higher than verifiedYears", () => {
+      expect(inferSalesRelatedExpFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              industryVerifiedYears: 1,
+              roleRelevantYears: 4,
+              matchedWorkEntries: [
+                { companyName: "机床公司", jobTitle: "销售", industryVerified: true },
+              ],
+            }],
+          },
+        },
+      )).toBe(80);
+    });
+
+    it("returns 80 when industryVerifiedRelevantYears >= 3", () => {
+      expect(inferSalesRelatedExpFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 6,
+              industryVerifiedYears: 0,
+              industryVerifiedRelevantYears: 3,
+              matchedWorkEntries: [],
+            }],
+          },
+        },
+      )).toBe(80);
+    });
+
+    it("skips non-record signals", () => {
+      expect(inferSalesRelatedExpFloor(
+        {
+          ingestData: {
+            roleSignals: [null, "not-a-record", 42, { type: "sales", years: 4, industryVerifiedYears: 4 }],
+          },
+        },
+      )).toBe(80);
+    });
+
+    it("returns 80 for direct-role + industry-verified (both conditions met)", () => {
+      expect(inferSalesRelatedExpFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 8,
+              industryVerifiedYears: 5,
+              matchedWorkEntries: [
+                { companyName: "精密机械", jobTitle: "销售经理", directRoleMatch: true, industryVerified: true },
+              ],
+            }],
+          },
+        },
+      )).toBe(80);
+    });
+
+    it("returns undefined when sales signal has no verified evidence and no direct role", () => {
+      expect(inferSalesRelatedExpFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "某公司", jobTitle: "技术支持", directRoleMatch: false, industryVerified: false },
+              ],
+            }],
+          },
+        },
+      )).toBeUndefined();
+    });
+  });
 });
