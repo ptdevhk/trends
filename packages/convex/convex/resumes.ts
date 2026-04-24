@@ -9,7 +9,7 @@ import {
     buildWorkHistoryEntryText,
     formatLocationHierarchySearchText,
     formatLocationHierarchyLabel,
-    getVerifiedRoleSignalYears,
+    getRoleSignalYears,
     isResumeAnalysisKeyForJobDescription,
     isLocationMatch,
     KNOWN_DIAGNOSTICS_SOURCE_KEYS,
@@ -895,7 +895,7 @@ function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined
         return 0;
     }
 
-    return getVerifiedRoleSignalYears(roleSignals, toOptionalStringValue(roleType)?.toLowerCase() ?? "");
+    return getRoleSignalYears(roleSignals, toOptionalStringValue(roleType)?.toLowerCase() ?? "");
 }
 
 function resolveResumeAge(resume: Doc<"resumes">, content: Record<string, unknown>): number | null {
@@ -939,14 +939,13 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
 
     if (filters.minAge !== undefined || filters.maxAge !== undefined) {
         const age = resolveResumeAge(resume, content);
-        if (age === null) {
-            return false;
-        }
-        if (filters.minAge !== undefined && age < filters.minAge) {
-            return false;
-        }
-        if (filters.maxAge !== undefined && age > filters.maxAge) {
-            return false;
+        if (age !== null) {
+            if (filters.minAge !== undefined && age < filters.minAge) {
+                return false;
+            }
+            if (filters.maxAge !== undefined && age > filters.maxAge) {
+                return false;
+            }
         }
     }
 
