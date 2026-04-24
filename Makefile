@@ -602,6 +602,13 @@ install-deps:
 prefetch-convex:
 	./scripts/prefetch-convex-backend.sh
 
+# Upgrade Convex CLI package and local backend binary
+# Usage: make upgrade-convex VERSION=1.36.0
+#        make upgrade-convex VERSION=1.36.0 ENV=prod
+#        make upgrade-convex VERSION=1.36.0 TIMEOUT=120
+upgrade-convex:
+	./scripts/upgrade-convex.sh "$(VERSION)" $(if $(ENV),--env $(ENV),) $(if $(TIMEOUT),--timeout $(TIMEOUT),)
+
 # =============================================================================
 # Documentation
 # =============================================================================

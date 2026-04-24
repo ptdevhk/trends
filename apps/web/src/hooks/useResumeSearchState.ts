@@ -1,4 +1,4 @@
-import { formatKeywordQuery, getRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
+import { formatKeywordQuery, getVerifiedRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -404,10 +404,27 @@ function getRoleYears(
     return 0
   }
 
-  return getRoleSignalYears(
-    roleSignals,
-    normalizeOptionalString(roleType)?.toLowerCase() ?? '',
-  )
+  const normalizedRoleType = normalizeOptionalString(roleType)?.toLowerCase() ?? ''
+  if (normalizedRoleType) {
+    const stored = resume.ingestData?.verifiedRoleYears?.[normalizedRoleType]
+    if (typeof stored === 'number' && Number.isFinite(stored)) {
+      return stored
+    }
+    return getVerifiedRoleSignalYears(roleSignals, normalizedRoleType)
+  }
+
+  return roleSignals.reduce((maxYears, signal) => {
+    const key = (signal.type ?? '').trim().toLowerCase()
+    if (!key) {
+      return maxYears
+    }
+    const stored = resume.ingestData?.verifiedRoleYears?.[key]
+    if (typeof stored === 'number' && Number.isFinite(stored) && stored > maxYears) {
+      return stored
+    }
+    const verified = getVerifiedRoleSignalYears(roleSignals, key)
+    return Math.max(maxYears, verified)
+  }, 0)
 }
 
 function matchesLocalFilters(

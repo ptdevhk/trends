@@ -8,12 +8,15 @@
 # When the anonymous local backend has been idle long enough that its Tantivy
 # search indexes are flagged "TooOld", the backend rebuilds them during startup
 # before binding port 3210. On modest hardware that rebuild can take 28-40s.
-# Convex CLI kills the backend at 30s and retries forever (both locally via
-# `make dev` and in production via the trends-convex systemd unit with
-# Restart=on-failure).
+# Convex CLI kills the backend after its startup deadline (default 30s in CLI
+# < 1.36.0, configurable via CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS in
+# CLI >= 1.36.0) and retries (both locally via `make dev` and in production
+# via the trends-convex systemd unit with Restart=on-failure).
 #
 # Prewarming once, standalone, with no CLI timer, lets the rebuild complete.
 # After graceful shutdown, subsequent boots bind port 3210 in a few seconds.
+# Even with a longer startup timeout configured, prewarm remains useful to
+# reduce perceived startup latency from ~30s to ~5s.
 #
 # Safety
 # ------

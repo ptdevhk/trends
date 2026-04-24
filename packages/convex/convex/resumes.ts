@@ -723,6 +723,7 @@ function projectResumeListIngestData(
                 })),
             }
             : {}),
+        ...(ingestData.verifiedRoleYears ? { verifiedRoleYears: ingestData.verifiedRoleYears } : {}),
         ruleScores: ingestData.ruleScores,
         experienceLevel: ingestData.experienceLevel,
         computedAt: ingestData.computedAt,

@@ -80,6 +80,7 @@ export type ConvexIngestData = {
     }>
     verifyIn: string
   }>
+  verifiedRoleYears?: Record<string, number>
   taggingEnvelope?: {
     schemaVersion: number
     generatedAt: number
@@ -161,6 +162,7 @@ type ResumeListDocLike = {
       }>
       verifyIn: string
     }>
+    verifiedRoleYears?: Record<string, number>
     ruleScores: unknown
     experienceLevel: string
     computedAt: number
@@ -604,6 +606,14 @@ function parseIngestData(value: unknown): ConvexIngestData | undefined {
           })
           .filter((item): item is NonNullable<typeof item> => item !== null)
       : undefined,
+    ...(isRecord(value.verifiedRoleYears)
+      ? {
+          verifiedRoleYears: Object.fromEntries(
+            Object.entries(value.verifiedRoleYears)
+              .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])),
+          ),
+        }
+      : {}),
     taggingEnvelope,
     ruleScores: parseRuleScores(value.ruleScores),
     experienceLevel: toStringValue(value.experienceLevel) || 'unknown',
