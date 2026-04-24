@@ -2529,4 +2529,394 @@ describe("normalizeResume strict evidence", () => {
       )).toBeUndefined();
     });
   });
+
+  describe("inferUnverifiedDomainRelevantSalesFloor", () => {
+    // Mirrors analyze.ts:444-507
+    function isRecord(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+    function toNumber(value: unknown): number | undefined {
+      return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    }
+    function getResumeIngestData(resume: unknown): Record<string, unknown> {
+      const root = isRecord(resume) ? resume : {};
+      const content = isRecord(root.content) ? root.content : {};
+      if (isRecord(root.ingestData)) return root.ingestData;
+      if (isRecord(content.ingestData)) return content.ingestData;
+      return {};
+    }
+
+    const FALLBACK_INDUSTRY_KEYWORDS: Record<string, string[]> = {
+      machinery: ["机床", "车床", "加工中心", "机械", "设备", "cnc", "数控"],
+      sales: ["销售", "业务", "销售工程师", "业务拓展", "sales", "account", "bd", "market"],
+      metrology: ["测量", "三维扫描", "3d", "cmm", "metrology", "scan"],
+      software: ["c++", "c#", "mfc", "qt", "软件", "开发", "algorithm", "python"],
+    };
+    const INDUSTRY_DISPLAY_NAME_TO_TAG: Record<string, string> = {
+      机械: "machinery",
+      销售: "sales",
+      测量: "metrology",
+      软件: "software",
+    };
+    const DOMAIN_IRRELEVANT_SALES_KEYWORDS = [
+      "保险", "人寿", "金融", "投资", "证券", "银行", "理财",
+      "房地产", "地产", "置业", "房产",
+      "教育", "培训", "学校",
+      "医疗", "医院", "医药",
+    ];
+
+    function isSalesRequiredContext(...texts: Array<string | undefined>): boolean {
+      const haystack = texts
+        .map((text) => (typeof text === "string" ? text.trim() : ""))
+        .filter(Boolean)
+        .join(" ");
+      if (!haystack) return false;
+      return /(?:^|\b)(?:sales?|business development|bd|account manager|key account manager|channel sales|channel manager|territory sales manager|regional sales manager)(?:\b|$)|销售工程师|销售经理|业务拓展|业务开发|客户开发|大客户|渠道销售|渠道经理|销售|渠道/.test(haystack);
+    }
+
+    function isDomainIrrelevantSalesEntry(entry: Record<string, unknown>): boolean {
+      const companyName = typeof entry.companyName === "string" ? entry.companyName : "";
+      const jobTitle = typeof entry.jobTitle === "string" ? entry.jobTitle : "";
+      const text = `${companyName} ${jobTitle}`.toLowerCase();
+      return DOMAIN_IRRELEVANT_SALES_KEYWORDS.some((kw) => text.includes(kw.toLowerCase()));
+    }
+
+    function keywordMapsToIndustryTag(keyword: string, resumeIndustryTags: string[]): boolean {
+      const kwLower = keyword.trim().toLowerCase();
+      if (!kwLower) return false;
+      const normalizedTags = new Set<string>();
+      for (const tag of resumeIndustryTags) {
+        const tagLower = tag.toLowerCase();
+        normalizedTags.add(tagLower);
+        const mappedTag = INDUSTRY_DISPLAY_NAME_TO_TAG[tag];
+        if (mappedTag) normalizedTags.add(mappedTag.toLowerCase());
+      }
+      if (normalizedTags.has(kwLower)) return true;
+      for (const [tag, keywords] of Object.entries(FALLBACK_INDUSTRY_KEYWORDS)) {
+        if (!normalizedTags.has(tag.toLowerCase())) continue;
+        if (keywords.some((kw) => kw.toLowerCase() === kwLower)) return true;
+      }
+      return false;
+    }
+
+    function inferUnverifiedDomainRelevantSalesFloor(
+      resume: unknown,
+      keywords: string[],
+    ): number | undefined {
+      const ingestData = getResumeIngestData(resume);
+      if (!Array.isArray(ingestData.roleSignals)) return undefined;
+
+      const salesKeywords = keywords.filter((kw) => isSalesRequiredContext(kw));
+      const domainKeywords = keywords.filter((kw) => !isSalesRequiredContext(kw));
+      if (salesKeywords.length === 0 || domainKeywords.length === 0) return undefined;
+
+      const salesSignal = (ingestData.roleSignals as unknown[]).find((rawSignal) => {
+        if (!isRecord(rawSignal)) return false;
+        return typeof rawSignal.type === "string"
+          && rawSignal.type.trim().toLowerCase() === "sales";
+      });
+      if (!salesSignal || !isRecord(salesSignal)) return undefined;
+
+      const workEntries = Array.isArray(salesSignal.matchedWorkEntries)
+        ? salesSignal.matchedWorkEntries.filter((e: unknown): e is Record<string, unknown> => isRecord(e))
+        : [];
+      const hasDirectSalesTitle = workEntries.some((entry) => entry.directRoleMatch === true);
+      if (!hasDirectSalesTitle) return undefined;
+
+      const hasIndustryVerifiedSales = (toNumber(salesSignal.industryVerifiedRelevantYears) ?? 0) > 0
+        || (toNumber(salesSignal.industryVerifiedYears) ?? 0) > 0
+        || workEntries.some((entry) => entry.industryVerified === true);
+      if (hasIndustryVerifiedSales) return undefined;
+
+      const industryTags = Array.isArray(ingestData.industryTags)
+        ? (ingestData.industryTags as unknown[]).filter((tag): tag is string => typeof tag === "string")
+        : [];
+      const hasDomainIndustryTag = industryTags.length > 0 && domainKeywords.some(
+        (kw) => keywordMapsToIndustryTag(kw, industryTags),
+      );
+      if (!hasDomainIndustryTag) return undefined;
+
+      const hasDomainIrrelevantSalesEntry = workEntries.some((entry) =>
+        isDomainIrrelevantSalesEntry(entry),
+      );
+      if (hasDomainIrrelevantSalesEntry) return undefined;
+
+      return 60;
+    }
+
+    it("returns undefined when resume has no roleSignals", () => {
+      expect(inferUnverifiedDomainRelevantSalesFloor(
+        { ingestData: { roleSignals: undefined } },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when keywords have no sales component", () => {
+      expect(inferUnverifiedDomainRelevantSalesFloor(
+        { ingestData: { roleSignals: [{ type: "sales", years: 5 }] } },
+        ["CNC"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when keywords have no domain component", () => {
+      expect(inferUnverifiedDomainRelevantSalesFloor(
+        { ingestData: { roleSignals: [{ type: "sales", years: 5 }] } },
+        ["销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when resume has no sales signal", () => {
+      expect(inferUnverifiedDomainRelevantSalesFloor(
+        { ingestData: { roleSignals: [{ type: "engineer", years: 5 }] } },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when no work entry has directRoleMatch=true", () => {
+      expect(inferUnverifiedDomainRelevantSalesFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "科技公司", jobTitle: "应用工程师", directRoleMatch: false },
+              ],
+            }],
+            industryTags: ["machinery"],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when industry-verified sales exist", () => {
+      expect(inferUnverifiedDomainRelevantSalesFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              industryVerifiedYears: 3,
+              matchedWorkEntries: [
+                { companyName: "机床公司", jobTitle: "销售", directRoleMatch: true, industryVerified: true },
+              ],
+            }],
+            industryTags: ["machinery"],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when no domain industry tag matches", () => {
+      expect(inferUnverifiedDomainRelevantSalesFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "贸易公司", jobTitle: "销售", directRoleMatch: true },
+              ],
+            }],
+            industryTags: [],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when domain-irrelevant sales entry exists", () => {
+      expect(inferUnverifiedDomainRelevantSalesFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "平安保险", jobTitle: "销售", directRoleMatch: true },
+              ],
+            }],
+            industryTags: ["machinery"],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns 60 for direct sales title + domain tag + no verified + no irrelevant entry", () => {
+      expect(inferUnverifiedDomainRelevantSalesFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "东莞精密机械", jobTitle: "销售工程师", directRoleMatch: true },
+              ],
+            }],
+            industryTags: ["machinery"],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBe(60);
+    });
+
+    it("returns 60 with Chinese industry tag display name mapping", () => {
+      expect(inferUnverifiedDomainRelevantSalesFloor(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 4,
+              matchedWorkEntries: [
+                { companyName: "某机械公司", jobTitle: "销售", directRoleMatch: true },
+              ],
+            }],
+            industryTags: ["机械"],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBe(60);
+    });
+  });
+
+  describe("inferNoDirectSalesRoleCap (direct)", () => {
+    // Mirrors analyze.ts:515-549 — direct unit tests (existing integration tests
+    // go through normalizeAnalysisResult; these test the pure function logic)
+    function isRecord(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+    function getResumeIngestData(resume: unknown): Record<string, unknown> {
+      const root = isRecord(resume) ? resume : {};
+      const content = isRecord(root.content) ? root.content : {};
+      if (isRecord(root.ingestData)) return root.ingestData;
+      if (isRecord(content.ingestData)) return content.ingestData;
+      return {};
+    }
+
+    function inferNoDirectSalesRoleCap(resume: unknown, precomputedFloor?: number): number | undefined {
+      const ingestData = getResumeIngestData(resume);
+      if (!Array.isArray(ingestData.roleSignals)) return undefined;
+
+      const salesSignals = (ingestData.roleSignals as unknown[]).filter((raw): raw is Record<string, unknown> => {
+        if (!isRecord(raw)) return false;
+        const type = typeof raw.type === "string" ? raw.type.trim().toLowerCase() : "";
+        return type === "sales";
+      });
+
+      if (salesSignals.length === 0) return 0;
+      if (precomputedFloor !== undefined) return undefined;
+
+      const hasDirectSalesTitle = salesSignals.some((rawSignal) => {
+        const workEntries = Array.isArray(rawSignal.matchedWorkEntries)
+          ? rawSignal.matchedWorkEntries.filter((e: unknown): e is Record<string, unknown> => isRecord(e))
+          : [];
+        return workEntries.some((rawEntry) => rawEntry.directRoleMatch === true);
+      });
+      if (hasDirectSalesTitle) return undefined;
+
+      return 0;
+    }
+
+    it("returns undefined when resume has no roleSignals", () => {
+      expect(inferNoDirectSalesRoleCap(
+        { ingestData: { roleSignals: undefined } },
+      )).toBeUndefined();
+    });
+
+    it("returns 0 when no sales signals exist at all", () => {
+      expect(inferNoDirectSalesRoleCap(
+        { ingestData: { roleSignals: [{ type: "engineer", years: 5 }] } },
+      )).toBe(0);
+    });
+
+    it("returns undefined when floor is already applied (precomputedFloor)", () => {
+      expect(inferNoDirectSalesRoleCap(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "某公司", jobTitle: "应用工程师", directRoleMatch: false },
+              ],
+            }],
+          },
+        },
+        60,
+      )).toBeUndefined();
+    });
+
+    it("returns 0 when sales signal has no directRoleMatch entries", () => {
+      expect(inferNoDirectSalesRoleCap(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "科技公司", jobTitle: "技术支持", directRoleMatch: false },
+              ],
+            }],
+          },
+        },
+      )).toBe(0);
+    });
+
+    it("returns undefined when sales signal has directRoleMatch=true entry", () => {
+      expect(inferNoDirectSalesRoleCap(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "机床公司", jobTitle: "销售工程师", directRoleMatch: true },
+              ],
+            }],
+          },
+        },
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when any sales signal has a direct match", () => {
+      expect(inferNoDirectSalesRoleCap(
+        {
+          ingestData: {
+            roleSignals: [
+              {
+                type: "sales",
+                years: 3,
+                matchedWorkEntries: [
+                  { companyName: "某公司", jobTitle: "技术员", directRoleMatch: false },
+                ],
+              },
+              {
+                type: "sales",
+                years: 5,
+                matchedWorkEntries: [
+                  { companyName: "机床公司", jobTitle: "销售", directRoleMatch: true },
+                ],
+              },
+            ],
+          },
+        },
+      )).toBeUndefined();
+    });
+
+    it("returns 0 when sales signal has no matchedWorkEntries", () => {
+      expect(inferNoDirectSalesRoleCap(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 3,
+            }],
+          },
+        },
+      )).toBe(0);
+    });
+  });
 });
