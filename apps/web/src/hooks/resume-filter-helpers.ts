@@ -1,8 +1,8 @@
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
 import { normalizeKeywordPhrases } from '@trends/shared'
-import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
+import type { ExperienceLevelFilter, UrlSearchState } from '@/hooks/useUrlSearchState'
 
-import type { CandidateStatus } from '@/types/resume'
+import type { CandidateStatus, ResumeFilters } from '@/types/resume'
 
 const EDUCATION_KEYWORDS: Record<string, string[]> = {
   high_school: ['高中', '中专', '技校', 'high school'],
@@ -238,4 +238,41 @@ export function appendKeywordToken(current: string[], token: string): string[] {
   }
 
   return [...current, normalizedToken]
+}
+
+export function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFilters> {
+  return {
+    minExperience: normalizeOptionalNumber(filters.minExperience),
+    maxExperience: normalizeOptionalNumber(filters.maxExperience),
+    minRoleYears: normalizeOptionalNumber(filters.minRoleYears),
+    roleFilterType: normalizeOptionalString(filters.roleFilterType),
+    minAge: normalizeOptionalNumber(filters.minAge),
+    maxAge: normalizeOptionalNumber(filters.maxAge),
+    education: normalizeFilterList(filters.education),
+    status: toStatusFilterList(filters.status),
+    minMatchScore: normalizeOptionalNumber(filters.minMatchScore),
+    locations: normalizeFilterList(filters.locations),
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+  }
+}
+
+export function normalizeUrlSearchStateValue(state: Partial<UrlSearchState> | undefined): UrlSearchState {
+  return {
+    shareSessionId: normalizeOptionalString(state?.shareSessionId),
+    query: normalizeOptionalString(state?.query),
+    location: normalizeOptionalString(state?.location),
+    keywords: Array.isArray(state?.keywords) ? state.keywords : [],
+    requiredKeywords: Array.isArray(state?.requiredKeywords) ? state.requiredKeywords : [],
+    jobDescriptionId: normalizeOptionalString(state?.jobDescriptionId),
+    selectedTags: Array.isArray(state?.selectedTags) ? state.selectedTags : [],
+    selectedCompanies: Array.isArray(state?.selectedCompanies) ? state.selectedCompanies : [],
+    selectedSources: Array.isArray(state?.selectedSources) ? state.selectedSources : [],
+    selectedExperienceLevel: state?.selectedExperienceLevel,
+    filters: state?.filters ?? {},
+  }
+}
+
+export function areUrlFiltersEqual(left: Partial<ResumeFilters>, right: Partial<ResumeFilters>): boolean {
+  return JSON.stringify(normalizeUrlFilters(left)) === JSON.stringify(normalizeUrlFilters(right))
 }
