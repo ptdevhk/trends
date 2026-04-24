@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import {
     buildLatestWorkHistoryEvidence,
     computeTemplateHash,
+    computeVerifiedRoleYears,
     formatLocationHierarchyLabel,
     getWorkspaceSearchProfileTemplates,
     normalizeJob5156ProfileUrlForDisplay,
@@ -1397,6 +1398,71 @@ export const backfillSourceKey = mutation({
         };
     },
 });
+
+/**
+ * Backfill `ingestData.verifiedRoleYears` from existing `ingestData.roleSignals`.
+ *
+ * See plan: docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
+ *
+ * Idempotent: compares the computed map against the existing value and only
+ * patches when the result differs.
+ */
+export const backfillVerifiedRoleYears = mutation({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: resolveResumeScanBatchSize(args.batchSize),
+            });
+
+        let updated = 0;
+        for (const resume of resumes.page) {
+            if (!resume.ingestData) continue;
+
+            const computed = computeVerifiedRoleYears(resume.ingestData.roleSignals);
+            const existing = resume.ingestData.verifiedRoleYears;
+
+            if (shallowEqualNumberRecord(existing, computed)) continue;
+
+            await ctx.db.patch(resume._id, {
+                ingestData: {
+                    ...resume.ingestData,
+                    verifiedRoleYears: computed,
+                },
+            });
+            updated += 1;
+        }
+
+        return {
+            scannedResumes: resumes.page.length,
+            updatedResumes: updated,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});
+
+function shallowEqualNumberRecord(
+    a: Record<string, number> | undefined,
+    b: Record<string, number>,
+): boolean {
+    if (!a) {
+        return Object.keys(b).length === 0;
+    }
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    for (const key of aKeys) {
+        if (a[key] !== b[key]) return false;
+    }
+    return true;
+}
 
 export const backfillSearchProfileTemplateHash = mutation({
     args: {

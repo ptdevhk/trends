@@ -9,7 +9,7 @@ import {
     buildWorkHistoryEntryText,
     formatLocationHierarchySearchText,
     formatLocationHierarchyLabel,
-    getRoleSignalYears,
+    getVerifiedRoleSignalYears,
     isResumeAnalysisKeyForJobDescription,
     isLocationMatch,
     KNOWN_DIAGNOSTICS_SOURCE_KEYS,
@@ -889,13 +889,36 @@ function matchesAllRequiredKeywords(text: string, requiredKeywords: string[] | u
     return normalizedKeywords.every((keyword) => haystack.includes(keyword));
 }
 
+/**
+ * Resolve the verified role-years value used by the `minRoleYears` filter.
+ *
+ * Preference order:
+ *   1. Precomputed `ingestData.verifiedRoleYears[roleType]` (populated at
+ *      ingest time and by the paginated backfill migration).
+ *   2. Live compute via `getVerifiedRoleSignalYears` — same semantics as the
+ *      stored projection. Guards the transition window before backfill
+ *      completes, and old resumes whose `ingestData` has not been rewritten.
+ *
+ * Never consults unverified `roleRelevantYears` or raw `years`. See plan:
+ * docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
+ */
 function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined): number {
+    const key = toOptionalStringValue(roleType)?.toLowerCase() ?? "";
+    if (!key) {
+        return 0;
+    }
+
+    const stored = resume.ingestData?.verifiedRoleYears?.[key];
+    if (typeof stored === "number" && Number.isFinite(stored)) {
+        return stored;
+    }
+
     const roleSignals = resume.ingestData?.roleSignals;
     if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
         return 0;
     }
 
-    return getRoleSignalYears(roleSignals, toOptionalStringValue(roleType)?.toLowerCase() ?? "");
+    return getVerifiedRoleSignalYears(roleSignals, key);
 }
 
 function resolveResumeAge(resume: Doc<"resumes">, content: Record<string, unknown>): number | null {
@@ -2561,6 +2584,7 @@ export const updateIngestData = internalMutation({
             experienceLevel: v.string(),
             computedAt: v.number(),
             skillsVersion: v.number(),
+            verifiedRoleYears: v.optional(v.record(v.string(), v.number())),
         }),
         companyPatternAliasTokens: v.optional(v.string()),
         primaryRuleScore: v.optional(v.number()),
@@ -2653,6 +2677,7 @@ export const updateIngestDataBatch = internalMutation({
                 experienceLevel: v.string(),
                 computedAt: v.number(),
                 skillsVersion: v.number(),
+                verifiedRoleYears: v.optional(v.record(v.string(), v.number())),
             }),
             companyPatternAliasTokens: v.optional(v.string()),
             primaryRuleScore: v.optional(v.number()),
