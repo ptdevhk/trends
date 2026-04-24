@@ -5,6 +5,7 @@ import {
   appendKeywordToken,
   areKeywordListsEqual,
   areUrlFiltersEqual,
+  buildSearchHistoryTitle,
   getRoleYears,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
@@ -19,6 +20,7 @@ import {
   parseSerializedStringArray,
   parseSalaryRange,
   serializeLocationFilter,
+  taskMatchesCurrentSearch,
   toExperienceLevel,
   toStatusFilterList,
 } from './resume-filter-helpers.js'
@@ -599,5 +601,82 @@ describe('areUrlFiltersEqual', () => {
     const left: Partial<ResumeFilters> = { roleFilterType: '  Sales  ' }
     const right: Partial<ResumeFilters> = { roleFilterType: 'Sales' }
     expect(areUrlFiltersEqual(left, right)).toBe(true)
+  })
+})
+
+describe('taskMatchesCurrentSearch', () => {
+  it('returns false for completed task', () => {
+    const task = { status: 'completed', config: { promptVersion: 10 } }
+    expect(taskMatchesCurrentSearch(task, undefined, [], '', 10)).toBe(false)
+  })
+
+  it('matches by jobDescriptionId with same promptVersion and location', () => {
+    const task = {
+      status: 'pending',
+      config: { jobDescriptionId: 'jd-1', promptVersion: 10, location: ' 广东 ' },
+    }
+    expect(taskMatchesCurrentSearch(task, 'jd-1', [], '广东', 10)).toBe(true)
+  })
+
+  it('rejects JD match when promptVersion differs', () => {
+    const task = {
+      status: 'pending',
+      config: { jobDescriptionId: 'jd-1', promptVersion: 8, location: undefined },
+    }
+    expect(taskMatchesCurrentSearch(task, 'jd-1', [], '', 10)).toBe(false)
+  })
+
+  it('matches by keywords with same fingerprint, promptVersion, and location', () => {
+    const task = {
+      status: 'processing',
+      config: { keywords: ['CNC', '销售'], promptVersion: 10, location: '深圳' },
+    }
+    expect(taskMatchesCurrentSearch(task, '', ['销售', 'CNC'], '深圳', 10)).toBe(true)
+  })
+
+  it('rejects keyword match when fingerprints differ', () => {
+    const task = {
+      status: 'pending',
+      config: { keywords: ['CNC'], promptVersion: 10, location: '' },
+    }
+    expect(taskMatchesCurrentSearch(task, '', ['销售'], '', 10)).toBe(false)
+  })
+
+  it('returns false when both JD and keywords are empty', () => {
+    const task = {
+      status: 'pending',
+      config: { promptVersion: 10, location: '' },
+    }
+    expect(taskMatchesCurrentSearch(task, '', [], '', 10)).toBe(false)
+  })
+
+  it('rejects keyword match when session has no keywords', () => {
+    const task = {
+      status: 'pending',
+      config: { keywords: ['CNC'], promptVersion: 10, location: '' },
+    }
+    expect(taskMatchesCurrentSearch(task, '', [], '', 10)).toBe(false)
+  })
+})
+
+describe('buildSearchHistoryTitle', () => {
+  it('returns "Untitled search" for empty inputs', () => {
+    expect(buildSearchHistoryTitle('', [], undefined)).toBe('Untitled search')
+  })
+
+  it('joins location and keywords with separator', () => {
+    expect(buildSearchHistoryTitle(' 广东 ', ['CNC', '销售'], undefined)).toBe('广东 · CNC 销售')
+  })
+
+  it('uses jobDescriptionId when no keywords', () => {
+    expect(buildSearchHistoryTitle('', [], '  jd-1  ')).toBe('jd-1')
+  })
+
+  it('prefers keywords over jobDescriptionId', () => {
+    expect(buildSearchHistoryTitle('', ['CNC'], 'jd-1')).toBe('CNC')
+  })
+
+  it('combines location and jobDescriptionId', () => {
+    expect(buildSearchHistoryTitle('深圳', [], 'jd-1')).toBe('深圳 · jd-1')
   })
 })
