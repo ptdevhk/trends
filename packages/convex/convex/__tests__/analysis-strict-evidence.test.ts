@@ -2177,4 +2177,356 @@ describe("normalizeResume strict evidence", () => {
       expect(getResumeIngestData({ content: "bad" })).toEqual({});
     });
   });
+
+  describe("inferDomainIrrelevantSalesCeiling", () => {
+    // Mirrors analyze.ts:284-367 and helpers
+    function isRecord(value: unknown): value is Record<string, unknown> {
+      return typeof value === "object" && value !== null;
+    }
+    function toNumber(value: unknown): number | undefined {
+      return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    }
+    function getResumeIngestData(resume: unknown): Record<string, unknown> {
+      const root = isRecord(resume) ? resume : {};
+      const content = isRecord(root.content) ? root.content : {};
+      if (isRecord(root.ingestData)) return root.ingestData;
+      if (isRecord(content.ingestData)) return content.ingestData;
+      return {};
+    }
+
+    const DOMAIN_IRRELEVANT_SALES_KEYWORDS = [
+      "保险", "人寿", "金融", "投资", "证券", "银行", "理财",
+      "房地产", "地产", "置业", "房产",
+      "教育", "培训", "学校",
+      "医疗", "医院", "医药",
+    ];
+
+    const FALLBACK_INDUSTRY_KEYWORDS: Record<string, string[]> = {
+      machinery: ["机床", "车床", "加工中心", "机械", "设备", "cnc", "数控"],
+      sales: ["销售", "业务", "销售工程师", "业务拓展", "sales", "account", "bd", "market"],
+      metrology: ["测量", "三维扫描", "3d", "cmm", "metrology", "scan"],
+      software: ["c++", "c#", "mfc", "qt", "软件", "开发", "algorithm", "python"],
+    };
+
+    const INDUSTRY_DISPLAY_NAME_TO_TAG: Record<string, string> = {
+      机械: "machinery",
+      销售: "sales",
+      测量: "metrology",
+      软件: "software",
+    };
+
+    function isSalesRequiredContext(...texts: Array<string | undefined>): boolean {
+      const haystack = texts
+        .map((text) => (typeof text === "string" ? text.trim() : ""))
+        .filter(Boolean)
+        .join(" ");
+      if (!haystack) return false;
+      return /(?:^|\b)(?:sales?|business development|bd|account manager|key account manager|channel sales|channel manager|territory sales manager|regional sales manager)(?:\b|$)|销售工程师|销售经理|业务拓展|业务开发|客户开发|大客户|渠道销售|渠道经理|销售|渠道/.test(haystack);
+    }
+
+    function isDomainIrrelevantSalesEntry(entry: Record<string, unknown>): boolean {
+      const companyName = typeof entry.companyName === "string" ? entry.companyName : "";
+      const jobTitle = typeof entry.jobTitle === "string" ? entry.jobTitle : "";
+      const text = `${companyName} ${jobTitle}`.toLowerCase();
+      return DOMAIN_IRRELEVANT_SALES_KEYWORDS.some((kw) => text.includes(kw.toLowerCase()));
+    }
+
+    function keywordMapsToIndustryTag(keyword: string, resumeIndustryTags: string[]): boolean {
+      const kwLower = keyword.trim().toLowerCase();
+      if (!kwLower) return false;
+      const normalizedTags = new Set<string>();
+      for (const tag of resumeIndustryTags) {
+        const tagLower = tag.toLowerCase();
+        normalizedTags.add(tagLower);
+        const mappedTag = INDUSTRY_DISPLAY_NAME_TO_TAG[tag];
+        if (mappedTag) normalizedTags.add(mappedTag.toLowerCase());
+      }
+      if (normalizedTags.has(kwLower)) return true;
+      for (const [tag, keywords] of Object.entries(FALLBACK_INDUSTRY_KEYWORDS)) {
+        if (!normalizedTags.has(tag.toLowerCase())) continue;
+        if (keywords.some((kw) => kw.toLowerCase() === kwLower)) return true;
+      }
+      return false;
+    }
+
+    function inferDomainIrrelevantSalesCeiling(
+      resume: unknown,
+      keywords: string[],
+    ): number | undefined {
+      const ingestData = getResumeIngestData(resume);
+      if (!Array.isArray(ingestData.roleSignals)) return undefined;
+
+      const salesKeywords = keywords.filter((kw) => isSalesRequiredContext(kw));
+      const domainKeywords = keywords.filter((kw) => !isSalesRequiredContext(kw));
+      if (salesKeywords.length === 0 || domainKeywords.length === 0) return undefined;
+
+      const salesSignal = (ingestData.roleSignals as unknown[]).find((rawSignal) => {
+        if (!isRecord(rawSignal)) return false;
+        return typeof rawSignal.type === "string"
+          && rawSignal.type.trim().toLowerCase() === "sales";
+      });
+      if (!salesSignal || !isRecord(salesSignal)) return undefined;
+
+      const hasIndustryVerifiedSalesYears = (toNumber(salesSignal.industryVerifiedRelevantYears) ?? 0) > 0
+        || (toNumber(salesSignal.industryVerifiedYears) ?? 0) > 0;
+
+      const workEntries = Array.isArray(salesSignal.matchedWorkEntries)
+        ? salesSignal.matchedWorkEntries.filter((e: unknown): e is Record<string, unknown> => isRecord(e))
+        : [];
+      const hasIndustryVerifiedSalesEntry = workEntries.some(
+        (entry) => entry.industryVerified === true,
+      );
+
+      const hasSalesRelevantBrandHits = (() => {
+        if (!Array.isArray(ingestData.brandHits) || ingestData.brandHits.length === 0) return false;
+        if (hasIndustryVerifiedSalesEntry) return true;
+        const salesRelevantContexts = new Set(["product", "dealer", "agent", "distributor"]);
+        return (ingestData.brandHits as unknown[]).some((item) => {
+          if (!isRecord(item)) return false;
+          const context = typeof item.context === "string" ? item.context.trim().toLowerCase() : "";
+          if (context === "employer" || context === "technical") return false;
+          return salesRelevantContexts.has(context) || context === "both" || context === "";
+        });
+      })();
+
+      const industryTags = Array.isArray(ingestData.industryTags)
+        ? (ingestData.industryTags as unknown[]).filter((tag): tag is string => typeof tag === "string")
+        : [];
+      const hasDomainIndustryTag = industryTags.length > 0 && domainKeywords.some(
+        (kw) => keywordMapsToIndustryTag(kw, industryTags),
+      );
+      const hasDomainIrrelevantSalesEntry = workEntries.some((entry) =>
+        isDomainIrrelevantSalesEntry(entry),
+      );
+
+      if (hasIndustryVerifiedSalesYears || hasIndustryVerifiedSalesEntry || hasSalesRelevantBrandHits) {
+        return undefined;
+      }
+      if (hasDomainIndustryTag && !hasDomainIrrelevantSalesEntry) {
+        return undefined;
+      }
+      return 15;
+    }
+
+    it("returns undefined when resume has no roleSignals", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        { ingestData: { roleSignals: undefined } },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when keywords have no sales component", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        { ingestData: { roleSignals: [{ type: "engineer", years: 5 }] } },
+        ["CNC", "数控"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when keywords have no domain component", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        { ingestData: { roleSignals: [{ type: "sales", years: 5 }] } },
+        ["销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when resume has no sales signal", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        { ingestData: { roleSignals: [{ type: "engineer", years: 8 }] } },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns 15 for domain-irrelevant sales (insurance) with no bypass evidence", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "中国人寿保险", jobTitle: "保险代理人", years: 5 },
+              ],
+            }],
+            brandHits: [],
+            companyHits: [],
+            industryTags: [],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBe(15);
+    });
+
+    it("returns undefined when industry-verified sales years exist", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              industryVerifiedYears: 3,
+              matchedWorkEntries: [],
+            }],
+            brandHits: [],
+            companyHits: [],
+            industryTags: [],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when industry-verified sales entry exists", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "东莞机床公司", jobTitle: "销售工程师", years: 5, industryVerified: true },
+              ],
+            }],
+            brandHits: [],
+            companyHits: [],
+            industryTags: [],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns undefined when sales-relevant brand hits exist (product context)", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [],
+            }],
+            brandHits: [{ name: "Mazak", context: "product" }],
+            companyHits: [],
+            industryTags: [],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("does not bypass on technical-only brand hits", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [],
+            }],
+            brandHits: [{ name: "FANUC", context: "technical" }],
+            companyHits: [],
+            industryTags: [],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBe(15);
+    });
+
+    it("does not bypass on employer-only brand hits", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [],
+            }],
+            brandHits: [{ name: "Some Co", context: "employer" }],
+            companyHits: [],
+            industryTags: [],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBe(15);
+    });
+
+    it("returns undefined when domain industry tag matches and no domain-irrelevant entry", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              matchedWorkEntries: [
+                { companyName: "东莞精密机械", jobTitle: "销售", years: 5 },
+              ],
+            }],
+            brandHits: [],
+            companyHits: [],
+            industryTags: ["machinery"],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+
+    it("returns 15 when domain industry tag matches but a domain-irrelevant entry exists", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 8,
+              matchedWorkEntries: [
+                { companyName: "东莞机床公司", jobTitle: "销售", years: 3, industryVerified: true },
+                { companyName: "平安保险", jobTitle: "保险代理人", years: 5 },
+              ],
+            }],
+            brandHits: [],
+            companyHits: [],
+            industryTags: ["machinery"],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBeUndefined(); // industryVerified entry bypasses ceiling
+    });
+
+    it("returns 15 for real estate sales with no domain evidence", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 6,
+              matchedWorkEntries: [
+                { companyName: "万科地产", jobTitle: "置业顾问", years: 6 },
+              ],
+            }],
+            brandHits: [],
+            companyHits: [],
+            industryTags: [],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBe(15);
+    });
+
+    it("returns undefined for industryVerifiedRelevantYears bypass", () => {
+      expect(inferDomainIrrelevantSalesCeiling(
+        {
+          ingestData: {
+            roleSignals: [{
+              type: "sales",
+              years: 5,
+              industryVerifiedRelevantYears: 3,
+              matchedWorkEntries: [],
+            }],
+            brandHits: [],
+            companyHits: [],
+            industryTags: [],
+          },
+        },
+        ["CNC", "销售"],
+      )).toBeUndefined();
+    });
+  });
 });
