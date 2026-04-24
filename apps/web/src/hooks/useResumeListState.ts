@@ -302,6 +302,10 @@ export function useResumeListState(loadSearchHistory = false) {
     const normalized: ConvexResumeFilters = {
       ...(typeof filters.minExperience === 'number' && filters.minExperience > 0 ? { minExperience: filters.minExperience } : {}),
       ...(typeof filters.maxExperience === 'number' ? { maxExperience: filters.maxExperience } : {}),
+      ...(typeof filters.minRoleYears === 'number' && filters.minRoleYears > 0 ? { minRoleYears: filters.minRoleYears } : {}),
+      ...(filters.roleFilterType ? { roleFilterType: filters.roleFilterType } : {}),
+      ...(typeof filters.minAge === 'number' ? { minAge: filters.minAge } : {}),
+      ...(typeof filters.maxAge === 'number' ? { maxAge: filters.maxAge } : {}),
       ...(Array.isArray(filters.education) && filters.education.length > 0 ? { education: filters.education } : {}),
       ...(Array.isArray(filters.skills) && filters.skills.length > 0 ? { skills: filters.skills } : {}),
       ...(requiredKeywords.length > 0 ? { requiredKeywords } : {}),
@@ -311,7 +315,7 @@ export function useResumeListState(loadSearchHistory = false) {
     }
 
     return Object.keys(normalized).length > 0 ? normalized : undefined
-  }, [filters.education, filters.locations, filters.maxExperience, filters.maxSalary, filters.minExperience, filters.minSalary, filters.skills, requiredKeywords])
+  }, [filters.education, filters.locations, filters.maxAge, filters.maxExperience, filters.maxSalary, filters.minAge, filters.minExperience, filters.minRoleYears, filters.minSalary, filters.roleFilterType, filters.skills, requiredKeywords])
   const convexQueryScopeKey = useMemo(
     () => JSON.stringify({
       jobDescriptionId: jobDescriptionId?.trim() ?? '',

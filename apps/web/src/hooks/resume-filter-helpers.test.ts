@@ -151,7 +151,13 @@ describe('toStatusFilterList', () => {
 })
 
 describe('getRoleYears', () => {
-  function makeResume(roleSignals: Array<{ type: string; years: number; roleRelevantYears?: number }>): Pick<ConvexResumeItem, 'ingestData'> {
+  function makeResume(roleSignals: Array<{
+    type: string
+    years: number
+    industryVerifiedYears?: number
+    industryVerifiedRelevantYears?: number
+    matchedWorkEntries?: Array<{ years: number; directRoleMatch: boolean; industryVerified: boolean; matchedSignals: string[] }>
+  }>, verifiedRoleYears?: Record<string, number>): Pick<ConvexResumeItem, 'ingestData'> {
     return {
       ingestData: {
         evidenceText: '',
@@ -166,10 +172,20 @@ describe('getRoleYears', () => {
           signalCount: 1,
           occurrences: 1,
           years: s.years,
-          industryVerifiedYears: 0,
+          industryVerifiedYears: s.industryVerifiedYears ?? 0,
+          ...(s.industryVerifiedRelevantYears !== undefined ? { industryVerifiedRelevantYears: s.industryVerifiedRelevantYears } : {}),
+          ...(s.matchedWorkEntries
+            ? {
+                matchedWorkEntries: s.matchedWorkEntries.map((e) => ({
+                  ...e,
+                  matchedSignals: e.industryVerified ? ['verified'] : [],
+                  ...(e.directRoleMatch ? { companyName: 'Test Co', jobTitle: 'Test Title' } : {}),
+                })),
+              }
+            : {}),
           verifyIn: '',
-          ...(s.roleRelevantYears !== undefined ? { roleRelevantYears: s.roleRelevantYears } : {}),
         })),
+        ...(verifiedRoleYears ? { verifiedRoleYears } : {}),
         ruleScores: {},
         experienceLevel: 'mid',
         computedAt: 0,
@@ -183,45 +199,51 @@ describe('getRoleYears', () => {
     expect(getRoleYears(resume, '')).toBe(0)
   })
 
-  it('returns max years across all signals when roleType is empty', () => {
-    const resume = makeResume([
-      { type: 'sales', years: 5 },
-      { type: 'engineer', years: 8 },
-    ])
-    expect(getRoleYears(resume, '')).toBe(8)
-  })
-
-  it('returns roleRelevantYears when available for matching roleType', () => {
-    const resume = makeResume([
-      { type: 'sales', years: 8, roleRelevantYears: 5 },
-    ])
+  it('prefers precomputed verifiedRoleYears when available', () => {
+    const resume = makeResume(
+      [{ type: 'sales', years: 8, industryVerifiedYears: 0 }],
+      { sales: 5 },
+    )
     expect(getRoleYears(resume, 'sales')).toBe(5)
   })
 
-  it('falls back to years when roleRelevantYears is absent for matching roleType', () => {
+  it('falls back to getVerifiedRoleSignalYears via industryVerifiedRelevantYears', () => {
     const resume = makeResume([
-      { type: 'sales', years: 6 },
+      { type: 'sales', years: 8, industryVerifiedRelevantYears: 4 },
     ])
-    expect(getRoleYears(resume, 'sales')).toBe(6)
+    expect(getRoleYears(resume, 'sales')).toBe(4)
+  })
+
+  it('sums verified work entry years when matchedWorkEntries are present', () => {
+    const resume = makeResume([{
+      type: 'sales',
+      years: 8,
+      matchedWorkEntries: [
+        { years: 3, directRoleMatch: true, industryVerified: true, matchedSignals: ['verified'] },
+        { years: 2, directRoleMatch: true, industryVerified: false, matchedSignals: [] },
+      ],
+    }])
+    expect(getRoleYears(resume, 'sales')).toBe(3)
   })
 
   it('returns 0 when no signal matches the specified roleType', () => {
     const resume = makeResume([
-      { type: 'engineer', years: 10 },
+      { type: 'engineer', years: 10, industryVerifiedYears: 10 },
     ])
     expect(getRoleYears(resume, 'sales')).toBe(0)
   })
 
-  it('ignores NaN and Infinity roleRelevantYears', () => {
+  it('returns max verified years across all signals when roleType is empty', () => {
     const resume = makeResume([
-      { type: 'sales', years: 5, roleRelevantYears: NaN },
+      { type: 'sales', years: 5, industryVerifiedRelevantYears: 5 },
+      { type: 'engineer', years: 8, industryVerifiedRelevantYears: 8 },
     ])
-    expect(getRoleYears(resume, 'sales')).toBe(5)
+    expect(getRoleYears(resume, '')).toBe(8)
   })
 
   it('is case-insensitive for roleType matching', () => {
     const resume = makeResume([
-      { type: 'Sales', years: 7 },
+      { type: 'Sales', years: 7, industryVerifiedRelevantYears: 7 },
     ])
     expect(getRoleYears(resume, 'sales')).toBe(7)
   })

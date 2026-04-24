@@ -11,11 +11,14 @@ WorkingDirectory=/opt/trends/packages/convex
 EnvironmentFile=-/etc/trends/env
 Environment=NODE_ENV=production
 Environment=CONVEX_AGENT_MODE=anonymous
+Environment=CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS=90
 UnsetEnvironment=TZ
 ExecStartPre=/usr/bin/bash /opt/trends/scripts/prefetch-convex-backend.sh
-# Warm the cached backend so the following `convex dev --local` boot fits
-# inside the CLI's hardcoded 30s port-bind timeout. The prewarm script exits
-# cleanly and releases port 3210 before ExecStart runs.
+# Warm the cached backend so the subsequent `convex dev --local` boot is faster.
+# The prewarm script exits cleanly and releases port 3210 before ExecStart runs.
+# CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS overrides the CLI's default startup
+# deadline (available in Convex CLI >= 1.36.0); prewarm remains useful to
+# reduce perceived startup latency from ~30s to ~5s.
 ExecStartPre=/usr/bin/bash /opt/trends/scripts/convex-prewarm.sh
 ExecStart=/usr/bin/npx convex dev --local --local-force-upgrade
 Restart=on-failure

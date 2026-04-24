@@ -1,5 +1,5 @@
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import { formatKeywordQuery, formatLocationHierarchySearchText, normalizeKeywordPhrases } from '@trends/shared'
+import { formatKeywordQuery, formatLocationHierarchySearchText, getVerifiedRoleSignalYears, normalizeKeywordPhrases } from '@trends/shared'
 import { resolveResumeAnalysisSourceKey } from '@trends/shared'
 import type { ExperienceLevelFilter, UrlSearchState } from '@/hooks/useUrlSearchState'
 
@@ -91,29 +91,30 @@ export function getRoleYears(resume: Pick<ConvexResumeItem, 'ingestData'>, roleT
     return 0
   }
 
+  // Use verified-only years when a specific role type is given, matching
+  // the server-side getResumeRoleYears / getVerifiedRoleSignalYears logic.
   const normalizedRoleType = normalizeFilterToken(roleType)
-  if (!normalizedRoleType) {
-    return roleSignals.reduce((maxYears, signal) => {
-      const relevantYears =
-        typeof signal.roleRelevantYears === 'number' && Number.isFinite(signal.roleRelevantYears)
-          ? signal.roleRelevantYears
-          : signal.years
-      if (typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
-        return maxYears
-      }
-      return Math.max(maxYears, relevantYears)
-    }, 0)
+  if (normalizedRoleType) {
+    const stored = resume.ingestData?.verifiedRoleYears?.[normalizedRoleType]
+    if (typeof stored === 'number' && Number.isFinite(stored)) {
+      return stored
+    }
+    return getVerifiedRoleSignalYears(roleSignals, normalizedRoleType)
   }
 
-  const roleSignal = roleSignals.find((signal) => normalizeFilterToken(signal.type) === normalizedRoleType)
-  const relevantYears =
-    typeof roleSignal?.roleRelevantYears === 'number' && Number.isFinite(roleSignal.roleRelevantYears)
-      ? roleSignal.roleRelevantYears
-      : roleSignal?.years
-  if (!roleSignal || typeof relevantYears !== 'number' || !Number.isFinite(relevantYears)) {
-    return 0
-  }
-  return relevantYears
+  // No specific role type: return the best verified years across all signals
+  return roleSignals.reduce((maxYears, signal) => {
+    const key = normalizeFilterToken(signal.type)
+    if (!key) {
+      return maxYears
+    }
+    const stored = resume.ingestData?.verifiedRoleYears?.[key]
+    if (typeof stored === 'number' && Number.isFinite(stored) && stored > maxYears) {
+      return stored
+    }
+    const verified = getVerifiedRoleSignalYears(roleSignals, key)
+    return Math.max(maxYears, verified)
+  }, 0)
 }
 
 export function matchesAllRequiredKeywords(text: string, requiredKeywords: string[]): boolean {

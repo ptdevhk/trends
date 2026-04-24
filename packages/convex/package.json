@@ -1,19 +1,19 @@
 {
-    "name": "@trends/convex",
-    "version": "0.2.0",
-    "private": true,
-    "type": "module",
-    "scripts": {
-        "dev": "env -u TZ convex dev --local --local-force-upgrade",
-        "predev": "env -u TZ convex dev --once --local --local-force-upgrade",
-        "build": "convex codegen",
-        "typecheck": "tsc --noEmit"
-    },
-    "dependencies": {
-        "@trends/shared": "*",
-        "convex": "^1.31.7"
-    },
-    "devDependencies": {
-        "typescript": "^5.9.3"
-    }
+  "name": "@trends/convex",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "env -u TZ convex dev --local --local-force-upgrade",
+    "predev": "env -u TZ convex dev --once --local --local-force-upgrade",
+    "build": "convex codegen",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trends/shared": "*",
+    "convex": "^1.36.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
 }
