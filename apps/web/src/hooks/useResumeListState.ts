@@ -11,7 +11,6 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '../../../../packages/convex/convex/_generated/api'
-import type { Doc } from '../../../../packages/convex/convex/_generated/dataModel'
 import { useResumes, type ResumeItem } from '@/hooks/useResumes'
 import {
   CONVEX_RESUME_PAGE_SIZE,
@@ -30,11 +29,11 @@ import {
   areKeywordListsEqual,
   areUrlFiltersEqual,
   appendKeywordToken,
+  buildSearchHistoryTitle,
   getRoleYears,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
   normalizeFilterToken,
-  normalizeKeywordFingerprint,
   normalizeOptionalString,
   normalizeUrlFilters,
   normalizeUrlSearchStateValue,
@@ -42,6 +41,7 @@ import {
   parseSalaryRange,
   parseSerializedStringArray,
   serializeLocationFilter,
+  taskMatchesCurrentSearch,
   toExperienceLevel,
   toStatusFilterList,
 } from '@/hooks/resume-filter-helpers'
@@ -119,51 +119,9 @@ type EnrichedResume = {
   action?: CandidateActionType | undefined
 }
 
-type AnalysisTaskDoc = Doc<'analysis_tasks'>
-
 function resolveWorkspaceSlugFromPathname(pathname: string): string {
   const slug = pathname.split('/').filter(Boolean)[0]
   return slug && slug.length > 0 ? slug : 'dev'
-}
-
-function buildSearchHistoryTitle(location: string, keywords: string[], jobDescriptionId?: string): string {
-  const normalizedLocation = location.trim()
-  const normalizedKeywords = formatKeywordQuery(keywords).trim()
-  const normalizedJobDescriptionId = normalizeOptionalString(jobDescriptionId)
-  const primarySubject = normalizedKeywords || normalizedJobDescriptionId || ''
-  const parts = [normalizedLocation, primarySubject].filter((value) => value.length > 0)
-  return parts.join(' · ') || 'Untitled search'
-}
-
-function taskMatchesCurrentSearch(
-  task: AnalysisTaskDoc,
-  jobDescriptionId: string | undefined,
-  sessionKeywords: string[],
-  location: string,
-  promptVersion: number
-): boolean {
-  if (task.status !== 'pending' && task.status !== 'processing') {
-    return false
-  }
-
-  const normalizedJobDescriptionId = (jobDescriptionId ?? '').trim()
-  if (normalizedJobDescriptionId && task.config.jobDescriptionId === normalizedJobDescriptionId) {
-    return task.config.promptVersion === promptVersion
-      && normalizeOptionalString(task.config.location) === normalizeOptionalString(location)
-  }
-
-  if (sessionKeywords.length > 0 && task.config.keywords?.length) {
-    const normalizedSessionKeywords = normalizeKeywordFingerprint(sessionKeywords)
-    const normalizedTaskKeywords = normalizeKeywordFingerprint(task.config.keywords)
-    return (
-      normalizedSessionKeywords.length > 0
-      && normalizedSessionKeywords === normalizedTaskKeywords
-      && task.config.promptVersion === promptVersion
-      && normalizeOptionalString(task.config.location) === normalizeOptionalString(location)
-    )
-  }
-
-  return false
 }
 
 function getResumeLocationText(

@@ -1,5 +1,5 @@
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import { normalizeKeywordPhrases } from '@trends/shared'
+import { formatKeywordQuery, normalizeKeywordPhrases } from '@trends/shared'
 import type { ExperienceLevelFilter, UrlSearchState } from '@/hooks/useUrlSearchState'
 
 import type { CandidateStatus, ResumeFilters } from '@/types/resume'
@@ -275,4 +275,55 @@ export function normalizeUrlSearchStateValue(state: Partial<UrlSearchState> | un
 
 export function areUrlFiltersEqual(left: Partial<ResumeFilters>, right: Partial<ResumeFilters>): boolean {
   return JSON.stringify(normalizeUrlFilters(left)) === JSON.stringify(normalizeUrlFilters(right))
+}
+
+
+export interface AnalysisTaskMatchContext {
+  status: string
+  config: {
+    jobDescriptionId?: string
+    keywords?: string[]
+    location?: string
+    promptVersion?: number
+  }
+}
+
+export function taskMatchesCurrentSearch(
+  task: AnalysisTaskMatchContext,
+  jobDescriptionId: string | undefined,
+  sessionKeywords: string[],
+  location: string,
+  promptVersion: number
+): boolean {
+  if (task.status !== 'pending' && task.status !== 'processing') {
+    return false
+  }
+
+  const normalizedJobDescriptionId = (jobDescriptionId ?? '').trim()
+  if (normalizedJobDescriptionId && task.config.jobDescriptionId === normalizedJobDescriptionId) {
+    return task.config.promptVersion === promptVersion
+      && normalizeOptionalString(task.config.location) === normalizeOptionalString(location)
+  }
+
+  if (sessionKeywords.length > 0 && task.config.keywords?.length) {
+    const normalizedSessionKeywords = normalizeKeywordFingerprint(sessionKeywords)
+    const normalizedTaskKeywords = normalizeKeywordFingerprint(task.config.keywords)
+    return (
+      normalizedSessionKeywords.length > 0
+      && normalizedSessionKeywords === normalizedTaskKeywords
+      && task.config.promptVersion === promptVersion
+      && normalizeOptionalString(task.config.location) === normalizeOptionalString(location)
+    )
+  }
+
+  return false
+}
+
+export function buildSearchHistoryTitle(location: string, keywords: string[], jobDescriptionId?: string): string {
+  const normalizedLocation = location.trim()
+  const normalizedKeywords = formatKeywordQuery(keywords).trim()
+  const normalizedJobDescriptionId = normalizeOptionalString(jobDescriptionId)
+  const primarySubject = normalizedKeywords || normalizedJobDescriptionId || ''
+  const parts = [normalizedLocation, primarySubject].filter((value) => value.length > 0)
+  return parts.join(' · ') || 'Untitled search'
 }
