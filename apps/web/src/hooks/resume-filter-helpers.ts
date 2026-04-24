@@ -1,4 +1,6 @@
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import { normalizeKeywordPhrases } from '@trends/shared'
+import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 
 import type { CandidateStatus } from '@/types/resume'
 
@@ -127,4 +129,49 @@ export function matchesAllRequiredKeywords(text: string, requiredKeywords: strin
   }
 
   return normalizedKeywords.every((keyword) => haystack.includes(keyword))
+}
+
+export function normalizeKeywordFingerprint(keywords: readonly string[] | undefined): string {
+  if (!Array.isArray(keywords) || keywords.length === 0) {
+    return ''
+  }
+
+  return normalizeKeywordPhrases([...keywords])
+    .map((keyword) => keyword.toLowerCase())
+    .sort()
+    .join('|')
+}
+
+export function areKeywordListsEqual(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
+  return normalizeKeywordFingerprint(left) === normalizeKeywordFingerprint(right)
+}
+
+export function parseExtractedAt(value: string | undefined): number {
+  if (!value) {
+    return 0
+  }
+
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+export function parseSerializedStringArray(value: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+export function toExperienceLevel(value: string | undefined): ExperienceLevelFilter | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  const normalized = normalizeFilterToken(value)
+  if (normalized === 'senior') return 'senior'
+  if (normalized === 'mid') return 'mid'
+  if (normalized === 'junior') return 'junior'
+  return undefined
 }
