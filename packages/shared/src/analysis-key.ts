@@ -326,6 +326,49 @@ export function getVerifiedRoleSignalYears(
   return resolveVerifiedYears(matched);
 }
 
+/**
+ * Precomputed projection of verified role years, keyed by normalized role
+ * type (lower-cased, trimmed). Used to populate `ingestData.verifiedRoleYears`
+ * at ingest time so the `minRoleYears` filter can gate on a single field
+ * without re-walking `roleSignals`.
+ *
+ * Uses the same `getVerifiedRoleSignalYears` semantics: only
+ * `industryVerified=true` entries or the `industryVerifiedRelevantYears` /
+ * `industryVerifiedYears` aggregate fields contribute. Never falls back to
+ * raw `years` or unverified `roleRelevantYears`.
+ *
+ * Plan: docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
+ */
+export function computeVerifiedRoleYears(
+  roleSignals: AnalysisRoleSignalLike[] | undefined
+): Record<string, number> {
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return {};
+  }
+
+  const out: Record<string, number> = {};
+  for (const signal of roleSignals) {
+    const key = signal.type?.trim().toLowerCase();
+    if (!key) {
+      continue;
+    }
+    const years = getVerifiedRoleSignalYears([signal], key);
+    if (years > 0) {
+      out[key] = years;
+    }
+  }
+  return out;
+}
+
+/**
+ * Ranking / display helper — returns the "best available" years estimate
+ * for a role signal. May include unverified `roleRelevantYears`.
+ *
+ * WARNING: Do NOT use this for the `minRoleYears` filter or any hard gate.
+ * Filter callers MUST use `getVerifiedRoleSignalYears` or read
+ * `ingestData.verifiedRoleYears` directly. See plan:
+ * docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
+ */
 export function getRoleSignalYears(
   roleSignals: AnalysisRoleSignalLike[] | undefined,
   roleType: string,
@@ -362,7 +405,6 @@ export function getRoleSignalYears(
       signal.industryVerifiedRelevantYears
       ?? signal.roleRelevantYears
       ?? signal.industryVerifiedYears
-      ?? signal.years
       ?? 0;
 
     return Number.isFinite(years) ? years : 0;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  computeVerifiedRoleYears,
   isSalesRequiredContext,
   resolveResumeDiagnosticsSourceKey,
 } from "../analysis-key";
@@ -41,5 +42,56 @@ describe("resolveResumeDiagnosticsSourceKey", () => {
     expect(resolveResumeDiagnosticsSourceKey({ source: "manual.51job.com" })).toBe("unknown");
     expect(resolveResumeDiagnosticsSourceKey({ source: "unknown-host.example.com" })).toBe("unknown");
     expect(resolveResumeDiagnosticsSourceKey({ source: "" })).toBe("unknown");
+  });
+});
+
+describe("computeVerifiedRoleYears", () => {
+  it("projects industryVerifiedRelevantYears by role type", () => {
+    const result = computeVerifiedRoleYears([
+      {
+        type: "sales",
+        verifyIn: "workHistory",
+        industryVerifiedRelevantYears: 5,
+        industryVerifiedYears: 5,
+      },
+      {
+        type: "engineer",
+        verifyIn: "workHistory",
+        industryVerifiedYears: 3,
+      },
+    ]);
+
+    expect(result).toEqual({ sales: 5, engineer: 3 });
+  });
+
+  it("never reads unverified roleRelevantYears or raw years", () => {
+    const result = computeVerifiedRoleYears([
+      {
+        type: "sales",
+        verifyIn: "workHistory",
+        years: 10,
+        roleRelevantYears: 7,
+      },
+    ]);
+
+    expect(result).toEqual({});
+  });
+
+  it("drops entries whose verified value resolves to 0", () => {
+    const result = computeVerifiedRoleYears([
+      {
+        type: "sales",
+        verifyIn: "workHistory",
+        industryVerifiedRelevantYears: 0,
+        industryVerifiedYears: 0,
+      },
+    ]);
+
+    expect(result).toEqual({});
+  });
+
+  it("returns empty object for undefined / empty input", () => {
+    expect(computeVerifiedRoleYears(undefined)).toEqual({});
+    expect(computeVerifiedRoleYears([])).toEqual({});
   });
 });

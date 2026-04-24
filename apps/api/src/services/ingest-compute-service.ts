@@ -1,6 +1,7 @@
 import {
   buildLatestWorkHistoryEvidence,
   buildWorkHistoryEntryText,
+  computeVerifiedRoleYears,
   formatLocationHierarchySearchText,
   normalizeResumeLocationHierarchy,
   normalizeWorkHistoryEntry,
@@ -49,6 +50,7 @@ export interface IngestResult {
   industryDbV2Raw: number;
   industryDbV2RawComponents: IndustryDbV2RawComponents;
   roleSignals: RoleSignalSummary[];
+  verifiedRoleYears: Record<string, number>;
   taggingEnvelope: TaggingEnvelope;
   companyPatternAliasTokens: string;
   ruleScores: Record<string, number>;  // jdId → score (0-100)
@@ -544,6 +546,7 @@ export class IngestComputeService {
       industryDbV2Raw,
       industryDbV2RawComponents,
       roleSignals,
+      verifiedRoleYears: computeVerifiedRoleYears(roleSignals),
       taggingEnvelope,
       companyPatternAliasTokens,
       ruleScores,

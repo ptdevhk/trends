@@ -164,6 +164,12 @@ export default defineSchema({
             experienceLevel: v.string(),  // "senior" | "mid" | "junior" | "unknown"
             computedAt: v.number(),
             skillsVersion: v.number(),
+            // Precomputed projection of verified role years keyed by role type
+            // ("sales", "engineer", etc.). Populated via computeVerifiedRoleYears
+            // at ingest time and backfilled by migrations.backfillVerifiedRoleYears.
+            // Semantics locked by plan:
+            // docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
+            verifiedRoleYears: v.optional(v.record(v.string(), v.number())),
         })),
     })
         .index("by_externalId", ["externalId"])
