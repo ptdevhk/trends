@@ -20,6 +20,7 @@
 		install-browser-ext-skill check-browser-ext-skill \
 		sync-resume-ai-prompts check-resume-ai-prompts \
 		sync-resume-field-usage-policy check-resume-field-usage-policy \
+		sync-search-profile-templates check-search-profile-templates \
 		clean-db fresh-env refresh-env verify-workflow-dataset
 
 # Default target
@@ -657,6 +658,22 @@ check-resume-field-usage-policy:
 		npx tsx scripts/resume/sync-field-usage-policy.ts --check; \
 	fi
 
+# Sync generated search profile template runtime artifact from canonical YAML profiles
+sync-search-profile-templates:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/resume/sync-search-profile-templates.ts; \
+	else \
+		npx tsx scripts/resume/sync-search-profile-templates.ts; \
+	fi
+
+# Validate generated search profile template runtime artifact is up to date
+check-search-profile-templates:
+	@if command -v bun > /dev/null 2>&1; then \
+		bunx tsx scripts/resume/sync-search-profile-templates.ts --check; \
+	else \
+		npx tsx scripts/resume/sync-search-profile-templates.ts --check; \
+	fi
+
 # Install repo governance skill into the requested skills target (default: ${CODEX_HOME:-$HOME/.codex}/skills)
 install-agent-skill:
 	@./scripts/skills/install-skill.sh --skill trends-agent-governance --target "$(or $(TARGET),codex)"
@@ -1070,6 +1087,7 @@ check-node:
 	@echo "Running Node.js checks..."
 	@npm run check:resume-ai-prompts
 	@npm run check:resume-field-usage-policy
+	@npm run check:search-profile-templates
 	@npm run check:resume-skills-locales
 	@npm --workspace @trends/web run gen:api
 	@git diff --exit-code apps/web/src/lib/api-types.ts >/dev/null || ( \
@@ -1227,6 +1245,7 @@ help:
 	@echo "  fetch-docs"
 	@echo "  i18n-check / i18n-sync / i18n-convert / i18n-translate / i18n-build"
 	@echo "  sync-agent-* / install-*-skill / check-*-skill / validate-skill"
+	@echo "  sync-search-profile-templates / check-search-profile-templates"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  resume-search   Search resumes via the Go CLI"

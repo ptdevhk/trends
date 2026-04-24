@@ -66,8 +66,8 @@
     },
     {
       id: "seed-location-kuala-lumpur-my",
-      keyword: "Kuala Lumpur MY",
-      english: "Kuala Lumpur MY",
+      keyword: "Malaysia",
+      english: "Malaysia",
       category: "location",
       markets: ["MY"],
       visible: false,

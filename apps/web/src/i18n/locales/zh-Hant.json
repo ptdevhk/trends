@@ -651,6 +651,8 @@
       "jobDescription": "職位描述",
       "cron": "Cron 表達式",
       "enabled": "啟用",
+      "scheduleEnabled": "啟用排程",
+      "active": "啟用",
       "collectionMode": "採集模式",
       "collectionModeHead": "開啟分頁（預設）",
       "collectionModeHeadless": "背景爬蟲（實驗性）",

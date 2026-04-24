@@ -4,6 +4,8 @@ description: Malaysia SEEK workflow for nationwide CNC sales hiring
 createdAt: "2026-03-17"
 updatedAt: "2026-04-24"
 status: active
+workspaceSlug: dev
+seedLastRunOffsetMs: 1800000
 
 location: Malaysia
 keywords:
@@ -32,6 +34,8 @@ sources:
     enabled: true
     priority: 1
     jobUrl: https://my.employer.seek.com/candidates/recommended?jobId=90842915&pageNumber=1
+    collectLimit: 100
+    maxPages: 5
   - type: job5156
     enabled: false
     priority: 2

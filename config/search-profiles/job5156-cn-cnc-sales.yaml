@@ -4,6 +4,8 @@ description: China-wide Job5156 CNC sales search profile used for the landing qu
 createdAt: "2026-03-28"
 updatedAt: "2026-03-28"
 status: active
+workspaceSlug: dev
+seedLastRunOffsetMs: 3600000
 
 location: China
 keywords:

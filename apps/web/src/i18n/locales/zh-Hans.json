@@ -669,6 +669,8 @@
       "jobDescription": "职位描述",
       "cron": "Cron 表达式",
       "enabled": "启用",
+      "scheduleEnabled": "启用排程",
+      "active": "启用",
       "keywordsPlaceholder": "例如：车床 销售 CNC",
       "location": "地点",
       "name": "名称",
