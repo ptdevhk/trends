@@ -372,11 +372,11 @@ describe("listWithIngestDataPaginated", () => {
     expect((result.page[0] as { content: { name: string } }).content.name).toBe("Alice");
   });
 
-  it("excludes resumes with only unverified role years from the minRoleYears filter", async () => {
-    // Regression: q=CNC+销售&minRoleYears=2&roleType=sales was returning
-    // resumes whose sales signals were not industry-verified (e.g.
-    // "sales:2.6y · signals 销售" with no "verified Xy" marker in UI).
-    // The filter must require industry-verified role years.
+  it("includes resumes with unverified but direct-matched role years in the minRoleYears filter", async () => {
+    // Regression fix: Seek Malaysia resumes have industryVerified=false on
+    // matchedWorkEntries but directRoleMatch=true. Using getRoleSignalYears
+    // (which counts direct-matched years regardless of industryVerified) instead
+    // of getVerifiedRoleSignalYears ensures these resumes pass the minRoleYears gate.
     const resumeUnverified = {
       ...buildResumeDoc("resume-unverified", 90),
       content: { name: "Unverified Sales" },
@@ -389,8 +389,8 @@ describe("listWithIngestDataPaginated", () => {
         roleSignals: [
           {
             // Legacy shape (pre-e0c7f192): industry-verified fields undefined,
-            // no matchedWorkEntries. Fallback chain must not leak to
-            // unverified `roleRelevantYears`.
+            // no matchedWorkEntries. Fallback chain resolves to
+            // roleRelevantYears via getRoleSignalYears.
             type: "sales",
             matchedSignals: ["销售"],
             signalCount: 1,
@@ -450,8 +450,9 @@ describe("listWithIngestDataPaginated", () => {
       roleFilterType: "sales",
     });
 
-    expect(result.page).toHaveLength(1);
-    expect((result.page[0] as { content: { name: string } }).content.name).toBe("Verified Sales");
+    expect(result.page).toHaveLength(2);
+    expect((result.page[0] as { content: { name: string } }).content.name).toBe("Unverified Sales");
+    expect((result.page[1] as { content: { name: string } }).content.name).toBe("Verified Sales");
   });
 
   it("filters by strict direct-sales years when matched work-entry metadata is present", async () => {
@@ -588,9 +589,10 @@ describe("listWithIngestDataPaginated", () => {
       maxAge: 40,
     });
 
-    expect(result.page).toHaveLength(2);
+    expect(result.page).toHaveLength(3);
     expect((result.page[0] as { content: { name: string } }).content.name).toBe("Stored Age");
     expect((result.page[1] as { content: { name: string } }).content.name).toBe("Content Age");
+    expect((result.page[2] as { content: { name: string } }).content.name).toBe("Missing Age");
   });
 });
 
