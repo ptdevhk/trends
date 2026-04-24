@@ -604,6 +604,7 @@ describe('areUrlFiltersEqual', () => {
   })
 })
 
+
 describe('taskMatchesCurrentSearch', () => {
   it('returns false for completed task', () => {
     const task = { status: 'completed', config: { promptVersion: 10 } }

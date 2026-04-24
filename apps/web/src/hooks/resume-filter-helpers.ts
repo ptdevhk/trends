@@ -277,6 +277,7 @@ export function areUrlFiltersEqual(left: Partial<ResumeFilters>, right: Partial<
   return JSON.stringify(normalizeUrlFilters(left)) === JSON.stringify(normalizeUrlFilters(right))
 }
 
+
 export interface AnalysisTaskMatchContext {
   status: string
   config: {
