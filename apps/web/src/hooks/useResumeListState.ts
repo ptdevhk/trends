@@ -28,15 +28,16 @@ import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus, type CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import {
   areKeywordListsEqual,
+  areUrlFiltersEqual,
   appendKeywordToken,
   getRoleYears,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
-  normalizeFilterList,
   normalizeFilterToken,
   normalizeKeywordFingerprint,
-  normalizeOptionalNumber,
   normalizeOptionalString,
+  normalizeUrlFilters,
+  normalizeUrlSearchStateValue,
   parseExtractedAt,
   parseSalaryRange,
   parseSerializedStringArray,
@@ -48,7 +49,6 @@ import {
   hasKnownUrlSearchParams,
   parseUrlSearchState,
   useUrlSearchState,
-  type UrlSearchState,
 } from '@/hooks/useUrlSearchState'
 import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
@@ -126,39 +126,6 @@ function resolveWorkspaceSlugFromPathname(pathname: string): string {
   return slug && slug.length > 0 ? slug : 'dev'
 }
 
-function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFilters> {
-  return {
-    minExperience: normalizeOptionalNumber(filters.minExperience),
-    maxExperience: normalizeOptionalNumber(filters.maxExperience),
-    minRoleYears: normalizeOptionalNumber(filters.minRoleYears),
-    roleFilterType: normalizeOptionalString(filters.roleFilterType),
-    minAge: normalizeOptionalNumber(filters.minAge),
-    maxAge: normalizeOptionalNumber(filters.maxAge),
-    education: normalizeFilterList(filters.education),
-    status: toStatusFilterList(filters.status),
-    minMatchScore: normalizeOptionalNumber(filters.minMatchScore),
-    locations: normalizeFilterList(filters.locations),
-    sortBy: filters.sortBy,
-    sortOrder: filters.sortOrder,
-  }
-}
-
-function normalizeUrlSearchStateValue(state: Partial<UrlSearchState> | undefined): UrlSearchState {
-  return {
-    shareSessionId: normalizeOptionalString(state?.shareSessionId),
-    query: normalizeOptionalString(state?.query),
-    location: normalizeOptionalString(state?.location),
-    keywords: Array.isArray(state?.keywords) ? state.keywords : [],
-    requiredKeywords: Array.isArray(state?.requiredKeywords) ? state.requiredKeywords : [],
-    jobDescriptionId: normalizeOptionalString(state?.jobDescriptionId),
-    selectedTags: Array.isArray(state?.selectedTags) ? state.selectedTags : [],
-    selectedCompanies: Array.isArray(state?.selectedCompanies) ? state.selectedCompanies : [],
-    selectedSources: Array.isArray(state?.selectedSources) ? state.selectedSources : [],
-    selectedExperienceLevel: state?.selectedExperienceLevel,
-    filters: state?.filters ?? {},
-  }
-}
-
 function buildSearchHistoryTitle(location: string, keywords: string[], jobDescriptionId?: string): string {
   const normalizedLocation = location.trim()
   const normalizedKeywords = formatKeywordQuery(keywords).trim()
@@ -166,10 +133,6 @@ function buildSearchHistoryTitle(location: string, keywords: string[], jobDescri
   const primarySubject = normalizedKeywords || normalizedJobDescriptionId || ''
   const parts = [normalizedLocation, primarySubject].filter((value) => value.length > 0)
   return parts.join(' · ') || 'Untitled search'
-}
-
-function areUrlFiltersEqual(left: Partial<ResumeFilters>, right: Partial<ResumeFilters>): boolean {
-  return JSON.stringify(normalizeUrlFilters(left)) === JSON.stringify(normalizeUrlFilters(right))
 }
 
 function taskMatchesCurrentSearch(

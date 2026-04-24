@@ -4,6 +4,7 @@ import type { CandidateStatus } from '@/types/resume'
 import {
   appendKeywordToken,
   areKeywordListsEqual,
+  areUrlFiltersEqual,
   getRoleYears,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
@@ -12,6 +13,8 @@ import {
   normalizeKeywordFingerprint,
   normalizeOptionalNumber,
   normalizeOptionalString,
+  normalizeUrlFilters,
+  normalizeUrlSearchStateValue,
   parseExtractedAt,
   parseSerializedStringArray,
   parseSalaryRange,
@@ -21,6 +24,7 @@ import {
 } from './resume-filter-helpers.js'
 
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
+import type { ResumeFilters } from '@/types/resume'
 
 describe('normalizeFilterToken', () => {
   it('trims and lowercases input', () => {
@@ -455,5 +459,145 @@ describe('appendKeywordToken', () => {
   it('returns unchanged array for empty token', () => {
     const arr = ['CNC']
     expect(appendKeywordToken(arr, '')).toBe(arr)
+  })
+})
+
+describe('normalizeUrlFilters', () => {
+  it('normalizes all fields to their default values for empty input', () => {
+    const result = normalizeUrlFilters({})
+    expect(result.minExperience).toBeUndefined()
+    expect(result.maxExperience).toBeUndefined()
+    expect(result.minRoleYears).toBeUndefined()
+    expect(result.roleFilterType).toBeUndefined()
+    expect(result.minAge).toBeUndefined()
+    expect(result.maxAge).toBeUndefined()
+    expect(result.education).toBeUndefined()
+    expect(result.status).toEqual([])
+    expect(result.minMatchScore).toBeUndefined()
+    expect(result.locations).toBeUndefined()
+    expect(result.sortBy).toBeUndefined()
+    expect(result.sortOrder).toBeUndefined()
+  })
+
+  it('normalizes all number fields', () => {
+    const result = normalizeUrlFilters({
+      minExperience: 5,
+      maxExperience: NaN,
+      minRoleYears: 3,
+      minAge: 0,
+      maxAge: Infinity,
+      minMatchScore: undefined,
+    })
+    expect(result.minExperience).toBe(5)
+    expect(result.maxExperience).toBeUndefined()
+    expect(result.minRoleYears).toBe(3)
+    expect(result.minAge).toBe(0)
+    expect(result.maxAge).toBeUndefined()
+    expect(result.minMatchScore).toBeUndefined()
+  })
+
+  it('normalizes string and list fields', () => {
+    const result = normalizeUrlFilters({
+      roleFilterType: '  Sales  ',
+      education: ['Bachelor', 'bachelor', 'Master'],
+      locations: [' 广东 ', '深圳'],
+      status: ['new', 'hired'] as CandidateStatus[],
+    })
+    expect(result.roleFilterType).toBe('Sales')
+    expect(result.education).toEqual(['bachelor', 'master'])
+    expect(result.locations).toEqual(['广东', '深圳'])
+    expect(result.status).toEqual(['hired', 'new'])
+  })
+
+  it('passes through sortBy and sortOrder unchanged', () => {
+    const result = normalizeUrlFilters({
+      sortBy: 'score',
+      sortOrder: 'desc',
+    })
+    expect(result.sortBy).toBe('score')
+    expect(result.sortOrder).toBe('desc')
+  })
+})
+
+describe('normalizeUrlSearchStateValue', () => {
+  it('returns defaults for undefined input', () => {
+    const result = normalizeUrlSearchStateValue(undefined)
+    expect(result.shareSessionId).toBeUndefined()
+    expect(result.query).toBeUndefined()
+    expect(result.location).toBeUndefined()
+    expect(result.keywords).toEqual([])
+    expect(result.requiredKeywords).toEqual([])
+    expect(result.jobDescriptionId).toBeUndefined()
+    expect(result.selectedTags).toEqual([])
+    expect(result.selectedCompanies).toEqual([])
+    expect(result.selectedSources).toEqual([])
+    expect(result.selectedExperienceLevel).toBeUndefined()
+    expect(result.filters).toEqual({})
+  })
+
+  it('normalizes string fields and preserves arrays', () => {
+    const result = normalizeUrlSearchStateValue({
+      shareSessionId: '  abc  ',
+      query: 'CNC',
+      location: '  广东  ',
+      keywords: ['CNC', '销售'],
+      requiredKeywords: ['5轴'],
+      jobDescriptionId: '  jd-1  ',
+      selectedTags: ['tag1'],
+      selectedCompanies: ['co1'],
+      selectedSources: ['job5156'],
+      selectedExperienceLevel: 'senior',
+      filters: { minExperience: 5 },
+    })
+    expect(result.shareSessionId).toBe('abc')
+    expect(result.query).toBe('CNC')
+    expect(result.location).toBe('广东')
+    expect(result.keywords).toEqual(['CNC', '销售'])
+    expect(result.requiredKeywords).toEqual(['5轴'])
+    expect(result.jobDescriptionId).toBe('jd-1')
+    expect(result.selectedExperienceLevel).toBe('senior')
+    expect(result.filters).toEqual({ minExperience: 5 })
+  })
+
+  it('replaces non-array keywords with empty array', () => {
+    const result = normalizeUrlSearchStateValue({
+      keywords: 'not-an-array' as unknown as string[],
+    })
+    expect(result.keywords).toEqual([])
+  })
+
+  it('preserves empty filters as empty object', () => {
+    const result = normalizeUrlSearchStateValue({ filters: {} })
+    expect(result.filters).toEqual({})
+  })
+})
+
+describe('areUrlFiltersEqual', () => {
+  it('returns true for two empty filter objects', () => {
+    expect(areUrlFiltersEqual({}, {})).toBe(true)
+  })
+
+  it('returns true for semantically equal filters ignoring order', () => {
+    const left: Partial<ResumeFilters> = { education: ['Bachelor', 'Master'], minExperience: 5 }
+    const right: Partial<ResumeFilters> = { education: ['Master', 'Bachelor'], minExperience: 5 }
+    expect(areUrlFiltersEqual(left, right)).toBe(true)
+  })
+
+  it('returns false for different filters', () => {
+    const left: Partial<ResumeFilters> = { minExperience: 5 }
+    const right: Partial<ResumeFilters> = { minExperience: 10 }
+    expect(areUrlFiltersEqual(left, right)).toBe(false)
+  })
+
+  it('treats NaN and undefined as equal for number fields', () => {
+    const left: Partial<ResumeFilters> = { maxExperience: NaN }
+    const right: Partial<ResumeFilters> = { maxExperience: undefined }
+    expect(areUrlFiltersEqual(left, right)).toBe(true)
+  })
+
+  it('treats whitespace and trimmed strings as equal', () => {
+    const left: Partial<ResumeFilters> = { roleFilterType: '  Sales  ' }
+    const right: Partial<ResumeFilters> = { roleFilterType: 'Sales' }
+    expect(areUrlFiltersEqual(left, right)).toBe(true)
   })
 })
