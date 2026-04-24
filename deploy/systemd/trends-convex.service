@@ -13,6 +13,10 @@ Environment=NODE_ENV=production
 Environment=CONVEX_AGENT_MODE=anonymous
 UnsetEnvironment=TZ
 ExecStartPre=/usr/bin/bash /opt/trends/scripts/prefetch-convex-backend.sh
+# Warm the cached backend so the following `convex dev --local` boot fits
+# inside the CLI's hardcoded 30s port-bind timeout. The prewarm script exits
+# cleanly and releases port 3210 before ExecStart runs.
+ExecStartPre=/usr/bin/bash /opt/trends/scripts/convex-prewarm.sh
 ExecStart=/usr/bin/npx convex dev --local --local-force-upgrade
 Restart=on-failure
 RestartSec=5

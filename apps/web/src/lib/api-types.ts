@@ -2975,7 +2975,7 @@ export interface paths {
                         };
                         shareTitle?: string;
                         searchState?: {
-                            /** @example Kuala Lumpur MY */
+                            /** @example Malaysia */
                             location?: string;
                             /**
                              * @example [
@@ -3060,7 +3060,7 @@ export interface paths {
                                 /** @example Kuala Lumpur · Sales Engineer */
                                 shareTitle?: string;
                                 searchState?: {
-                                    /** @example Kuala Lumpur MY */
+                                    /** @example Malaysia */
                                     location?: string;
                                     /**
                                      * @example [
@@ -3183,7 +3183,7 @@ export interface paths {
                                 /** @example Kuala Lumpur · Sales Engineer */
                                 shareTitle?: string;
                                 searchState?: {
-                                    /** @example Kuala Lumpur MY */
+                                    /** @example Malaysia */
                                     location?: string;
                                     /**
                                      * @example [
@@ -3288,7 +3288,7 @@ export interface paths {
                         };
                         shareTitle?: string | null;
                         searchState?: {
-                            /** @example Kuala Lumpur MY */
+                            /** @example Malaysia */
                             location?: string;
                             /**
                              * @example [
@@ -3376,7 +3376,7 @@ export interface paths {
                                 /** @example Kuala Lumpur · Sales Engineer */
                                 shareTitle?: string;
                                 searchState?: {
-                                    /** @example Kuala Lumpur MY */
+                                    /** @example Malaysia */
                                     location?: string;
                                     /**
                                      * @example [
