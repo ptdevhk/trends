@@ -90,7 +90,7 @@ const seededJob51Profile = {
   keywords: ['CNC', '销售'],
   jobDescription: 'lathe-sales',
   filters: {
-    minExperience: 2,
+    minExperience: 1,
     maxExperience: null,
     locations: ['China'],
   },
@@ -190,7 +190,7 @@ describe('search-profiles list route', () => {
           filters: expect.objectContaining({
             minAge: 25,
             maxAge: 40,
-            minExperience: 2,
+            minExperience: 1,
           }),
           sources: expect.arrayContaining([
             expect.objectContaining({
@@ -209,7 +209,7 @@ describe('search-profiles list route', () => {
           filters: expect.objectContaining({
             minAge: 25,
             maxAge: 40,
-            minExperience: 2,
+            minExperience: 1,
           }),
           sources: expect.arrayContaining([
             expect.objectContaining({
@@ -227,7 +227,7 @@ describe('search-profiles list route', () => {
           id: 'seek-malaysia-sales',
           filters: expect.objectContaining({
             maxAge: 45,
-            minExperience: 2,
+            minExperience: 1,
           }),
           sources: expect.arrayContaining([
             expect.objectContaining({
