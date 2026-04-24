@@ -651,6 +651,8 @@
       "jobDescription": "Job Description",
       "cron": "Cron Expression",
       "enabled": "Enabled",
+      "scheduleEnabled": "Enable Schedule",
+      "active": "Active",
       "collectionMode": "Collection Mode",
       "collectionModeHead": "Open tabs (default)",
       "collectionModeHeadless": "Background crawler (experimental)",

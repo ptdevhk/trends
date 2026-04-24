@@ -4,6 +4,8 @@ description: China-wide 51job CNC sales search profile used for the landing quic
 createdAt: "2026-04-02"
 updatedAt: "2026-04-09"
 status: active
+workspaceSlug: dev
+seedLastRunOffsetMs: 900000
 
 location: China
 keywords:
