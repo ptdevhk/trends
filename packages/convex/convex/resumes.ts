@@ -378,6 +378,7 @@ export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 2000;
 export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 4000;
 const FILTERED_PAGINATE_OVERFETCH_MULTIPLIER = 3;
 const MAX_SAFE_JD_PAGINATE_SCAN = 250;
+const MAX_SAFE_SEARCH_PAGINATE_SCAN = 600;
 const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
 const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
 const DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER = 3;
@@ -1610,10 +1611,11 @@ async function runSearchWithTagExpansionScanPageQuery(
         (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
     );
     const searchQuery = buildTagExpansionSearchQuery(keywordGroups, mode);
-    const pageSize = Math.min(
-        Math.max(Math.trunc(args.paginationOpts.numItems), 1),
-        MAX_SAFE_JD_PAGINATE_SCAN,
-    );
+    const requestedPageSize = Math.max(Math.trunc(args.paginationOpts.numItems), 1);
+    const hasActiveFilters = filters !== undefined;
+    const pageSize = hasActiveFilters
+        ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_SEARCH_PAGINATE_SCAN)
+        : Math.min(requestedPageSize, MAX_SAFE_SEARCH_PAGINATE_SCAN);
 
     const searchPage = searchQuery
         ? await ctx.db
