@@ -6,6 +6,8 @@ import {
   areKeywordListsEqual,
   areUrlFiltersEqual,
   buildSearchHistoryTitle,
+  getResumeIdentityKey,
+  getResumeLocationText,
   getRoleYears,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
@@ -19,6 +21,7 @@ import {
   parseExtractedAt,
   parseSerializedStringArray,
   parseSalaryRange,
+  resolveAnalysisSourceKeyForResume,
   serializeLocationFilter,
   taskMatchesCurrentSearch,
   toExperienceLevel,
@@ -679,5 +682,78 @@ describe('buildSearchHistoryTitle', () => {
 
   it('combines location and jobDescriptionId', () => {
     expect(buildSearchHistoryTitle('深圳', [], 'jd-1')).toBe('深圳 · jd-1')
+  })
+})
+
+describe('getResumeLocationText', () => {
+  it('returns empty string when no location data', () => {
+    expect(getResumeLocationText({})).toBe('')
+  })
+
+  it('returns locationHierarchy text when available', () => {
+    expect(getResumeLocationText({
+      locationHierarchy: { country: 'CN', province: '广东', city: '深圳' },
+      location: '广东省深圳市',
+    })).toBe('CN 广东 深圳')
+  })
+
+  it('falls back to location string when no hierarchy', () => {
+    expect(getResumeLocationText({ location: '广东省深圳市' })).toBe('广东省深圳市')
+  })
+
+  it('returns empty string when hierarchy is empty and location is empty', () => {
+    expect(getResumeLocationText({ location: '', locationHierarchy: { country: '' } })).toBe('')
+  })
+})
+
+describe('resolveAnalysisSourceKeyForResume', () => {
+  it('returns collectionSource type when available', () => {
+    const result = resolveAnalysisSourceKeyForResume(
+      { source: 'job5156', profileType: 'profile' },
+      { type: '51job' },
+    )
+    expect(result).toBe('51job')
+  })
+
+  it('falls back to resolveResumeAnalysisSourceKey when no collectionSource', () => {
+    const result = resolveAnalysisSourceKeyForResume(
+      { source: 'job5156' },
+      undefined,
+    )
+    expect(result).toBe('job5156')
+  })
+
+  it('returns undefined when no collectionSource and no recognized source', () => {
+    const result = resolveAnalysisSourceKeyForResume(
+      { source: 'unknown' },
+      undefined,
+    )
+    expect(result).toBeUndefined()
+  })
+
+  it('uses profileType as sourceKey for resolveResumeAnalysisSourceKey', () => {
+    const result = resolveAnalysisSourceKeyForResume(
+      { source: 'job5156', profileType: 'seek' },
+      undefined,
+    )
+    expect(result).toBe('seek')
+  })
+})
+
+describe('getResumeIdentityKey', () => {
+  it('returns identityKey when present', () => {
+    expect(getResumeIdentityKey({ identityKey: '  abc-123  ' } as ConvexResumeItem, 'fallback')).toBe('abc-123')
+  })
+
+  it('returns fallback when identityKey is empty string', () => {
+    expect(getResumeIdentityKey({ identityKey: '' } as ConvexResumeItem, 'fallback')).toBe('fallback')
+  })
+
+  it('returns fallback when identityKey is whitespace-only', () => {
+    expect(getResumeIdentityKey({ identityKey: '   ' } as ConvexResumeItem, 'fallback')).toBe('fallback')
+  })
+
+  it('returns fallback when identityKey is undefined', () => {
+    expect(getResumeIdentityKey({} as ConvexResumeItem, 'fallback')).toBe('fallback')
   })
 })

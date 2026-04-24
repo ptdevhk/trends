@@ -1,8 +1,10 @@
 import type { ConvexResumeItem } from '@/hooks/useConvexResumes'
-import { formatKeywordQuery, normalizeKeywordPhrases } from '@trends/shared'
+import { formatKeywordQuery, formatLocationHierarchySearchText, normalizeKeywordPhrases } from '@trends/shared'
+import { resolveResumeAnalysisSourceKey } from '@trends/shared'
 import type { ExperienceLevelFilter, UrlSearchState } from '@/hooks/useUrlSearchState'
 
 import type { CandidateStatus, ResumeFilters } from '@/types/resume'
+import type { CollectionSource } from '@/lib/search-profile-sources'
 
 const EDUCATION_KEYWORDS: Record<string, string[]> = {
   high_school: ['高中', '中专', '技校', 'high school'],
@@ -326,4 +328,29 @@ export function buildSearchHistoryTitle(location: string, keywords: string[], jo
   const primarySubject = normalizedKeywords || normalizedJobDescriptionId || ''
   const parts = [normalizedLocation, primarySubject].filter((value) => value.length > 0)
   return parts.join(' · ') || 'Untitled search'
+}
+
+export function getResumeLocationText(
+  resume: { location?: string; locationHierarchy?: { country: string; province?: string; city?: string; district?: string } }
+): string {
+  return formatLocationHierarchySearchText(resume.locationHierarchy) || resume.location || ''
+}
+
+export function resolveAnalysisSourceKeyForResume(
+  resume: Pick<ConvexResumeItem, 'source'> & { profileType?: string },
+  collectionSource: CollectionSource | undefined,
+): string | undefined {
+  return collectionSource?.type
+    ?? resolveResumeAnalysisSourceKey({
+      sourceKey: resume.profileType,
+      source: resume.source,
+    })
+}
+
+export function getResumeIdentityKey(resume: ConvexResumeItem, fallback: string): string {
+  const identityKey = resume.identityKey?.trim()
+  if (identityKey) {
+    return identityKey
+  }
+  return fallback
 }

@@ -4,7 +4,6 @@ import { useMutation, useQuery } from 'convex/react'
 import {
   buildWorkHistoryEntryText,
   formatKeywordQuery,
-  formatLocationHierarchySearchText,
   isLocationMatch,
   selectLatestWorkHistory,
 } from '@trends/shared'
@@ -30,6 +29,8 @@ import {
   areUrlFiltersEqual,
   appendKeywordToken,
   buildSearchHistoryTitle,
+  getResumeIdentityKey,
+  getResumeLocationText,
   getRoleYears,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
@@ -40,6 +41,7 @@ import {
   parseExtractedAt,
   parseSalaryRange,
   parseSerializedStringArray,
+  resolveAnalysisSourceKeyForResume,
   serializeLocationFilter,
   taskMatchesCurrentSearch,
   toExperienceLevel,
@@ -55,7 +57,6 @@ import { rawApiClient } from '@/lib/api-helpers'
 import {
   getCurrentResumeAiPromptVersion,
   resolveAnalysisTopN,
-  resolveResumeAnalysisSourceKey,
 } from '@/lib/analysis-utils'
 import { submitResumeExportDownload, type ResumeExportRequestBody } from '@/lib/resume-export'
 import { getResumeAge, parseExperienceYears } from '@/lib/resume-filtering'
@@ -124,30 +125,6 @@ function resolveWorkspaceSlugFromPathname(pathname: string): string {
   return slug && slug.length > 0 ? slug : 'dev'
 }
 
-function getResumeLocationText(
-  resume: { location?: string; locationHierarchy?: { country: string; province?: string; city?: string; district?: string } }
-): string {
-  return formatLocationHierarchySearchText(resume.locationHierarchy) || resume.location || ''
-}
-
-function resolveAnalysisSourceKeyForResume(
-  resume: Pick<ConvexResumeItem, 'source'> & { profileType?: string },
-  collectionSource: CollectionSource | undefined,
-): string | undefined {
-  return collectionSource?.type
-    ?? resolveResumeAnalysisSourceKey({
-      sourceKey: resume.profileType,
-      source: resume.source,
-    })
-}
-
-function getResumeIdentityKey(resume: ConvexResumeItem, fallback: string): string {
-  const identityKey = resume.identityKey?.trim()
-  if (identityKey) {
-    return identityKey
-  }
-  return fallback
-}
 
 function buildResumeFilterSearchText(resume: ConvexResumeItem): string {
   const parts = [
