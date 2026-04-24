@@ -68,6 +68,9 @@ cache_binaries_dir() {
         if [ -n "${LOCALAPPDATA:-}" ]; then
             echo "${LOCALAPPDATA}/convex/binaries"; return
         fi
+        if [ -n "${USERPROFILE:-}" ]; then
+            echo "${USERPROFILE}/AppData/Local/convex/binaries"; return
+        fi
         echo "${HOME}/AppData/Local/convex/binaries"
         return
     fi
@@ -81,10 +84,9 @@ binary_name() {
 latest_cached_binary() {
     local root="$1"
     local name="$2"
-    local candidate version
+    local candidate
     [ -d "$root" ] || return 1
     while IFS= read -r candidate; do
-        version="$(basename "$candidate")"
         if [ -x "$candidate/$name" ]; then
             echo "$candidate/$name"
             return 0
@@ -152,8 +154,6 @@ detect_state_dir() {
     return 1
 }
 
-# Short-circuit if the port is already serving — something else is already
-# running the backend (e.g. a prior unit, or a dev session). Nothing to warm.
 if port_in_use; then
     log "Port $PORT already listening; assuming backend is already warm."
     exit 0
@@ -192,7 +192,6 @@ PREWARM_PID=$!
 log "Backend started (pid=$PREWARM_PID)."
 
 cleanup() {
-    # Best-effort graceful shutdown.
     if kill -0 "$PREWARM_PID" 2>/dev/null; then
         kill -TERM "$PREWARM_PID" 2>/dev/null || true
         local waited=0
@@ -207,7 +206,6 @@ cleanup() {
 
     # Ensure the port is actually free before returning — systemd may start the
     # next unit immediately after ExecStartPre exits.
-    local released=0
     local wait_left=10
     while port_in_use && [ "$wait_left" -gt 0 ]; do
         sleep 1; wait_left=$((wait_left - 1))
@@ -215,9 +213,6 @@ cleanup() {
     if port_in_use; then
         warn "Port $PORT still held after shutdown attempt."
     else
-        released=1
-    fi
-    if [ "$released" -eq 1 ]; then
         log "Backend stopped; port $PORT is free."
     fi
 }
@@ -247,7 +242,11 @@ if ! port_in_use; then
     exit 0
 fi
 
-# Let any post-bind index flush finish before we SIGTERM.
-sleep "$SETTLE_SECS"
+# Let any post-bind index flush finish before we SIGTERM. Only settle when
+# the bind took long enough to suggest a Tantivy rebuild was needed; fast
+# binds (< 10s) don't need the drain period.
+if [ "$elapsed" -ge 10 ]; then
+    sleep "$SETTLE_SECS"
+fi
 
 exit 0

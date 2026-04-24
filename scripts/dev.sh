@@ -929,14 +929,10 @@ ensure_github_auth_for_convex() {
 
     # Prefer gh when available and different from preset (covers stale .env).
     if [ -n "$gh_token" ]; then
-        if [ -n "$preset_token" ] && [ "$preset_token" != "$gh_token" ]; then
-            if github_token_is_valid "$preset_token"; then
-                export GH_TOKEN="$preset_token"
-                export GITHUB_TOKEN="$preset_token"
-                log "CONVEX" "$CYAN" "Using pre-set $preset_source for Convex startup (validated)."
-                return
-            fi
-            log "CONVEX" "$YELLOW" "Pre-set $preset_source failed validation; falling back to gh auth token."
+        if [ -n "$preset_token" ] && [ "$preset_token" = "$gh_token" ]; then
+            log "CONVEX" "$CYAN" "Pre-set $preset_source matches gh auth token; using it."
+        elif [ -n "$preset_token" ]; then
+            log "CONVEX" "$YELLOW" "Pre-set $preset_source differs from gh auth token; preferring gh auth (live keyring)."
         fi
         export GH_TOKEN="$gh_token"
         export GITHUB_TOKEN="$gh_token"
