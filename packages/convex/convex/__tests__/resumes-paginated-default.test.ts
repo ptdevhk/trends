@@ -372,11 +372,16 @@ describe("listWithIngestDataPaginated", () => {
     expect((result.page[0] as { content: { name: string } }).content.name).toBe("Alice");
   });
 
-  it("includes resumes with unverified but direct-matched role years in the minRoleYears filter", async () => {
-    // Regression fix: Seek Malaysia resumes have industryVerified=false on
-    // matchedWorkEntries but directRoleMatch=true. Using getRoleSignalYears
-    // (which counts direct-matched years regardless of industryVerified) instead
-    // of getVerifiedRoleSignalYears ensures these resumes pass the minRoleYears gate.
+  it("rejects resumes with unverified role years from minRoleYears (strict verified gating)", async () => {
+    // Plan: docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
+    //
+    // Semantic contract (2026-04-24): minRoleYears gates on the same
+    // `verified Xy` number shown in the `roleEvidence` export column —
+    // `industryVerifiedRelevantYears ?? industryVerifiedYears`. Resumes
+    // with only `roleRelevantYears`/`years` (no industry verification) are
+    // rejected. This intentionally reverses PR #655's permissive behavior.
+    // Fixing upstream `industryVerified=false` for real Seek Malaysia
+    // salespeople is a separate workstream.
     const resumeUnverified = {
       ...buildResumeDoc("resume-unverified", 90),
       content: { name: "Unverified Sales" },
@@ -388,9 +393,6 @@ describe("listWithIngestDataPaginated", () => {
         skillsVersion: 1,
         roleSignals: [
           {
-            // Legacy shape (pre-e0c7f192): industry-verified fields undefined,
-            // no matchedWorkEntries. Fallback chain resolves to
-            // roleRelevantYears via getRoleSignalYears.
             type: "sales",
             matchedSignals: ["销售"],
             signalCount: 1,
@@ -411,6 +413,7 @@ describe("listWithIngestDataPaginated", () => {
         experienceLevel: "mid",
         computedAt: 1,
         skillsVersion: 1,
+        verifiedRoleYears: { sales: 3 },
         roleSignals: [
           {
             type: "sales",
@@ -450,9 +453,105 @@ describe("listWithIngestDataPaginated", () => {
       roleFilterType: "sales",
     });
 
-    expect(result.page).toHaveLength(2);
-    expect((result.page[0] as { content: { name: string } }).content.name).toBe("Unverified Sales");
-    expect((result.page[1] as { content: { name: string } }).content.name).toBe("Verified Sales");
+    expect(result.page).toHaveLength(1);
+    expect((result.page[0] as { content: { name: string } }).content.name).toBe("Verified Sales");
+  });
+
+  it("rejects resumes with only signal.years (raw) from minRoleYears filter", async () => {
+    // Plan: docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
+    //
+    // Prevents regression where `getRoleSignalYears` fallback returned raw
+    // `signal.years` when no verified field was present — admitting resumes
+    // whose role signal carried raw career total as "role years".
+    const resumeRaw = {
+      ...buildResumeDoc("resume-raw-years", 90),
+      content: { name: "Raw Years" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        roleSignals: [
+          {
+            type: "sales",
+            matchedSignals: [],
+            signalCount: 0,
+            occurrences: 0,
+            years: 10,
+            verifyIn: "workHistory",
+          },
+        ],
+      },
+    };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            order: () => withFilterPassthrough({
+              paginate: async () => ({
+                page: [resumeRaw],
+                continueCursor: "cursor-next",
+                isDone: false,
+              }),
+              take: async () => [],
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await handler(ctx, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      minRoleYears: 1,
+      roleFilterType: "sales",
+    });
+
+    expect(result.page).toHaveLength(0);
+  });
+
+  it("reads ingestData.verifiedRoleYears directly when present (stored field is the source of truth)", async () => {
+    // Plan: docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
+    const resumeStored = {
+      ...buildResumeDoc("resume-stored", 90),
+      content: { name: "Stored Verified" },
+      ingestData: {
+        ruleScores: {},
+        industryTags: [],
+        experienceLevel: "mid",
+        computedAt: 1,
+        skillsVersion: 1,
+        verifiedRoleYears: { sales: 5 },
+        // Intentionally no roleSignals — filter must read the stored field.
+      },
+    };
+
+    const ctx = {
+      db: {
+        query: () => ({
+          withIndex: () => ({
+            order: () => withFilterPassthrough({
+              paginate: async () => ({
+                page: [resumeStored],
+                continueCursor: "cursor-next",
+                isDone: false,
+              }),
+              take: async () => [],
+            }),
+          }),
+        }),
+      },
+    };
+
+    const result = await handler(ctx, {
+      paginationOpts: { cursor: null, numItems: 10 },
+      minRoleYears: 3,
+      roleFilterType: "sales",
+    });
+
+    expect(result.page).toHaveLength(1);
+    expect((result.page[0] as { content: { name: string } }).content.name).toBe("Stored Verified");
   });
 
   it("filters by strict direct-sales years when matched work-entry metadata is present", async () => {
