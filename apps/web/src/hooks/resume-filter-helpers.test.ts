@@ -2,15 +2,20 @@ import { describe, expect, it } from 'vitest'
 import type { CandidateStatus } from '@/types/resume'
 
 import {
+  appendKeywordToken,
   areKeywordListsEqual,
   getRoleYears,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
+  normalizeFilterList,
   normalizeFilterToken,
   normalizeKeywordFingerprint,
+  normalizeOptionalNumber,
+  normalizeOptionalString,
   parseExtractedAt,
   parseSerializedStringArray,
   parseSalaryRange,
+  serializeLocationFilter,
   toExperienceLevel,
   toStatusFilterList,
 } from './resume-filter-helpers.js'
@@ -349,5 +354,106 @@ describe('toExperienceLevel', () => {
 
   it('returns undefined for unrecognized value', () => {
     expect(toExperienceLevel('expert')).toBeUndefined()
+  })
+})
+
+describe('normalizeOptionalNumber', () => {
+  it('returns undefined for undefined', () => {
+    expect(normalizeOptionalNumber(undefined)).toBeUndefined()
+  })
+
+  it('returns the number for finite values', () => {
+    expect(normalizeOptionalNumber(5)).toBe(5)
+  })
+
+  it('returns undefined for NaN', () => {
+    expect(normalizeOptionalNumber(NaN)).toBeUndefined()
+  })
+
+  it('returns undefined for Infinity', () => {
+    expect(normalizeOptionalNumber(Infinity)).toBeUndefined()
+  })
+
+  it('returns undefined for negative Infinity', () => {
+    expect(normalizeOptionalNumber(-Infinity)).toBeUndefined()
+  })
+
+  it('returns 0 for zero', () => {
+    expect(normalizeOptionalNumber(0)).toBe(0)
+  })
+})
+
+describe('normalizeOptionalString', () => {
+  it('returns undefined for undefined', () => {
+    expect(normalizeOptionalString(undefined)).toBeUndefined()
+  })
+
+  it('returns undefined for empty string', () => {
+    expect(normalizeOptionalString('')).toBeUndefined()
+  })
+
+  it('returns undefined for whitespace-only string', () => {
+    expect(normalizeOptionalString('   ')).toBeUndefined()
+  })
+
+  it('returns trimmed string for valid input', () => {
+    expect(normalizeOptionalString('  CNC  ')).toBe('CNC')
+  })
+})
+
+describe('normalizeFilterList', () => {
+  it('returns undefined for undefined', () => {
+    expect(normalizeFilterList(undefined)).toBeUndefined()
+  })
+
+  it('returns undefined for empty array', () => {
+    expect(normalizeFilterList([])).toBeUndefined()
+  })
+
+  it('normalizes, deduplicates, and sorts tokens', () => {
+    expect(normalizeFilterList(['CNC', 'cnc', '销售'])).toEqual(['cnc', '销售'])
+  })
+
+  it('filters out empty and whitespace tokens', () => {
+    expect(normalizeFilterList(['CNC', '', '  '])).toEqual(['cnc'])
+  })
+})
+
+describe('serializeLocationFilter', () => {
+  it('returns empty string for undefined', () => {
+    expect(serializeLocationFilter(undefined)).toBe('')
+  })
+
+  it('returns empty string for empty array', () => {
+    expect(serializeLocationFilter([])).toBe('')
+  })
+
+  it('joins trimmed values with comma', () => {
+    expect(serializeLocationFilter(['  广东  ', '深圳'])).toBe('广东,深圳')
+  })
+
+  it('deduplicates case-insensitively but preserves first occurrence casing', () => {
+    const result = serializeLocationFilter(['Guangdong', 'guangdong'])
+    expect(result).toBe('Guangdong')
+  })
+
+  it('filters out empty and whitespace-only values', () => {
+    expect(serializeLocationFilter(['广东', '', '  ', '深圳'])).toBe('广东,深圳')
+  })
+})
+
+describe('appendKeywordToken', () => {
+  it('appends trimmed token to array', () => {
+    expect(appendKeywordToken(['CNC'], ' 销售 ')).toEqual(['CNC', '销售'])
+  })
+
+  it('returns unchanged array for whitespace-only token', () => {
+    const arr = ['CNC']
+    expect(appendKeywordToken(arr, '   ')).toBe(arr)
+  })
+
+  it('returns unchanged array for empty token', () => {
+    const arr = ['CNC']
+    expect(appendKeywordToken(arr, '')).toBe(arr)
   })
 })

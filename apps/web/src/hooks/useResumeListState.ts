@@ -28,14 +28,19 @@ import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus, type CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import {
   areKeywordListsEqual,
+  appendKeywordToken,
   getRoleYears,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
+  normalizeFilterList,
   normalizeFilterToken,
   normalizeKeywordFingerprint,
+  normalizeOptionalNumber,
+  normalizeOptionalString,
   parseExtractedAt,
   parseSalaryRange,
   parseSerializedStringArray,
+  serializeLocationFilter,
   toExperienceLevel,
   toStatusFilterList,
 } from '@/hooks/resume-filter-helpers'
@@ -116,73 +121,9 @@ type EnrichedResume = {
 
 type AnalysisTaskDoc = Doc<'analysis_tasks'>
 
-function appendKeywordToken(current: string[], token: string): string[] {
-  const normalizedToken = token.trim()
-  if (!normalizedToken) {
-    return current
-  }
-
-  return [...current, normalizedToken]
-}
-
-function normalizeOptionalNumber(value: number | undefined): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
-}
-
-function normalizeOptionalString(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined
-  }
-
-  const normalized = value.trim()
-  return normalized.length > 0 ? normalized : undefined
-}
-
-function normalizeFilterList(values: string[] | undefined): string[] | undefined {
-  if (!Array.isArray(values) || values.length === 0) {
-    return undefined
-  }
-
-  const seen = new Set<string>()
-  const normalized: string[] = []
-
-  values.forEach((value) => {
-    const token = normalizeFilterToken(value)
-    if (!token || seen.has(token)) {
-      return
-    }
-    seen.add(token)
-    normalized.push(token)
-  })
-
-  return normalized.sort()
-}
-
 function resolveWorkspaceSlugFromPathname(pathname: string): string {
   const slug = pathname.split('/').filter(Boolean)[0]
   return slug && slug.length > 0 ? slug : 'dev'
-}
-
-function serializeLocationFilter(values: string[] | undefined): string {
-  if (!Array.isArray(values) || values.length === 0) {
-    return ''
-  }
-
-  const seen = new Set<string>()
-  const normalized: string[] = []
-
-  values.forEach((value) => {
-    const trimmed = value.trim()
-    const key = trimmed.toLowerCase()
-    if (!trimmed || seen.has(key)) {
-      return
-    }
-
-    seen.add(key)
-    normalized.push(trimmed)
-  })
-
-  return normalized.join(',')
 }
 
 function normalizeUrlFilters(filters: Partial<ResumeFilters>): Partial<ResumeFilters> {
