@@ -6,7 +6,6 @@ import {
   formatKeywordQuery,
   formatLocationHierarchySearchText,
   isLocationMatch,
-  normalizeKeywordPhrases,
   selectLatestWorkHistory,
 } from '@trends/shared'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -28,20 +27,25 @@ import { useCandidateActions } from '@/hooks/useCandidateActions'
 import { useCandidateBlocks } from '@/hooks/useCandidateBlocks'
 import { useCandidateStatus, type CandidateStatusRecord } from '@/hooks/useCandidateStatus'
 import {
+  areKeywordListsEqual,
   getRoleYears,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
   normalizeFilterToken,
+  normalizeKeywordFingerprint,
+  parseExtractedAt,
   parseSalaryRange,
+  parseSerializedStringArray,
+  toExperienceLevel,
   toStatusFilterList,
 } from '@/hooks/resume-filter-helpers'
 import {
   hasKnownUrlSearchParams,
   parseUrlSearchState,
   useUrlSearchState,
-  type ExperienceLevelFilter,
   type UrlSearchState,
 } from '@/hooks/useUrlSearchState'
+import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
 import { rawApiClient } from '@/lib/api-helpers'
 import {
   getCurrentResumeAiPromptVersion,
@@ -111,21 +115,6 @@ type EnrichedResume = {
 }
 
 type AnalysisTaskDoc = Doc<'analysis_tasks'>
-
-function normalizeKeywordFingerprint(keywords: readonly string[] | undefined): string {
-  if (!Array.isArray(keywords) || keywords.length === 0) {
-    return ''
-  }
-
-  return normalizeKeywordPhrases([...keywords])
-    .map((keyword) => keyword.toLowerCase())
-    .sort()
-    .join('|')
-}
-
-function areKeywordListsEqual(left: readonly string[] | undefined, right: readonly string[] | undefined): boolean {
-  return normalizeKeywordFingerprint(left) === normalizeKeywordFingerprint(right)
-}
 
 function appendKeywordToken(current: string[], token: string): string[] {
   const normalizedToken = token.trim()
@@ -290,42 +279,12 @@ function resolveAnalysisSourceKeyForResume(
     })
 }
 
-function parseSerializedStringArray(value: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
-  } catch {
-    return []
-  }
-}
-
-function toExperienceLevel(value: string | undefined): ExperienceLevelFilter | undefined {
-  if (!value) {
-    return undefined
-  }
-
-  const normalized = normalizeFilterToken(value)
-  if (normalized === 'senior') return 'senior'
-  if (normalized === 'mid') return 'mid'
-  if (normalized === 'junior') return 'junior'
-  return undefined
-}
-
 function getResumeIdentityKey(resume: ConvexResumeItem, fallback: string): string {
   const identityKey = resume.identityKey?.trim()
   if (identityKey) {
     return identityKey
   }
   return fallback
-}
-
-function parseExtractedAt(value: string | undefined): number {
-  if (!value) {
-    return 0
-  }
-
-  const timestamp = Date.parse(value)
-  return Number.isFinite(timestamp) ? timestamp : 0
 }
 
 function buildResumeFilterSearchText(resume: ConvexResumeItem): string {

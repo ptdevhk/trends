@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest'
 import type { CandidateStatus } from '@/types/resume'
 
 import {
+  areKeywordListsEqual,
   getRoleYears,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
   normalizeFilterToken,
+  normalizeKeywordFingerprint,
+  parseExtractedAt,
+  parseSerializedStringArray,
   parseSalaryRange,
+  toExperienceLevel,
   toStatusFilterList,
 } from './resume-filter-helpers.js'
 
@@ -231,5 +236,118 @@ describe('matchesAllRequiredKeywords', () => {
 
   it('ignores whitespace-only keywords', () => {
     expect(matchesAllRequiredKeywords('CNC', ['CNC', '  '])).toBe(true)
+  })
+})
+
+describe('normalizeKeywordFingerprint', () => {
+  it('returns empty string for undefined', () => {
+    expect(normalizeKeywordFingerprint(undefined)).toBe('')
+  })
+
+  it('returns empty string for empty array', () => {
+    expect(normalizeKeywordFingerprint([])).toBe('')
+  })
+
+  it('normalizes, deduplicates, sorts and joins keywords', () => {
+    // 'CNC' and 'cnc' should dedup; sorted alphabetically
+    expect(normalizeKeywordFingerprint(['销售', 'CNC', 'cnc'])).toBe('cnc|销售')
+  })
+
+  it('trims whitespace from keywords', () => {
+    expect(normalizeKeywordFingerprint(['  CNC  ', ' 销售 '])).toBe('cnc|销售')
+  })
+})
+
+describe('areKeywordListsEqual', () => {
+  it('returns true for two undefined lists', () => {
+    expect(areKeywordListsEqual(undefined, undefined)).toBe(true)
+  })
+
+  it('returns true for identical keyword arrays', () => {
+    expect(areKeywordListsEqual(['CNC', '销售'], ['CNC', '销售'])).toBe(true)
+  })
+
+  it('returns true for same keywords in different order', () => {
+    expect(areKeywordListsEqual(['销售', 'CNC'], ['CNC', '销售'])).toBe(true)
+  })
+
+  it('returns true for case-insensitive match', () => {
+    expect(areKeywordListsEqual(['cnc'], ['CNC'])).toBe(true)
+  })
+
+  it('returns false for different keywords', () => {
+    expect(areKeywordListsEqual(['CNC'], ['销售'])).toBe(false)
+  })
+
+  it('returns false when one is empty and the other is not', () => {
+    expect(areKeywordListsEqual([], ['CNC'])).toBe(false)
+  })
+})
+
+describe('parseExtractedAt', () => {
+  it('returns 0 for undefined', () => {
+    expect(parseExtractedAt(undefined)).toBe(0)
+  })
+
+  it('returns 0 for empty string', () => {
+    expect(parseExtractedAt('')).toBe(0)
+  })
+
+  it('returns 0 for invalid date string', () => {
+    expect(parseExtractedAt('not-a-date')).toBe(0)
+  })
+
+  it('parses valid ISO date string to timestamp', () => {
+    const result = parseExtractedAt('2026-04-24T00:00:00.000Z')
+    expect(result).toBeGreaterThan(0)
+    expect(typeof result).toBe('number')
+  })
+})
+
+describe('parseSerializedStringArray', () => {
+  it('parses valid JSON string array', () => {
+    expect(parseSerializedStringArray('["a","b","c"]')).toEqual(['a', 'b', 'c'])
+  })
+
+  it('returns empty array for invalid JSON', () => {
+    expect(parseSerializedStringArray('not-json')).toEqual([])
+  })
+
+  it('filters out non-string items', () => {
+    expect(parseSerializedStringArray('[1, "ok", null, true]')).toEqual(['ok'])
+  })
+
+  it('returns empty array for JSON non-array', () => {
+    expect(parseSerializedStringArray('{"key":"val"}')).toEqual([])
+  })
+})
+
+describe('toExperienceLevel', () => {
+  it('returns undefined for undefined', () => {
+    expect(toExperienceLevel(undefined)).toBeUndefined()
+  })
+
+  it('returns undefined for empty string', () => {
+    expect(toExperienceLevel('')).toBeUndefined()
+  })
+
+  it('returns "senior" for "senior"', () => {
+    expect(toExperienceLevel('senior')).toBe('senior')
+  })
+
+  it('returns "mid" for "mid"', () => {
+    expect(toExperienceLevel('mid')).toBe('mid')
+  })
+
+  it('returns "junior" for "junior"', () => {
+    expect(toExperienceLevel('junior')).toBe('junior')
+  })
+
+  it('is case-insensitive', () => {
+    expect(toExperienceLevel('Senior')).toBe('senior')
+  })
+
+  it('returns undefined for unrecognized value', () => {
+    expect(toExperienceLevel('expert')).toBeUndefined()
   })
 })
