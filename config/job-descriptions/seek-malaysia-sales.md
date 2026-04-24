@@ -3,7 +3,7 @@ id: jd-seek-malaysia-sales
 title: CNC销售（马来西亚 SEEK）
 title_en: CNC Sales - Malaysia SEEK
 department: Overseas Sales
-location: Kuala Lumpur MY
+location: Malaysia
 source: seek.com
 extracted_at: "2026-03-17"
 status: active
@@ -16,13 +16,11 @@ required_roles:
 auto_match:
   keywords:
     - CNC Sales
-    - Kuala Lumpur MY
     - Malaysia
     - machine tools
     - account management
     - business development
   locations:
-    - Kuala Lumpur MY
     - Malaysia
   priority: 85
   suggested_filters:
@@ -32,7 +30,7 @@ auto_match:
 
 # Position Description
 
-Source candidates from SEEK Malaysia for CNC sales hiring, with focus on Kuala Lumpur and nationwide coverage.
+Source candidates from SEEK Malaysia for nationwide CNC sales hiring.
 
 # Required Criteria
 
@@ -43,10 +41,10 @@ Source candidates from SEEK Malaysia for CNC sales hiring, with focus on Kuala L
 
 # Preferred Criteria
 
-- Prior Malaysia market coverage or current Kuala Lumpur base
+- Prior Malaysia market coverage
 - Experience in CNC sales or industrial equipment sales
 - Existing network across manufacturing, precision engineering, or industrial accounts
 
 # Keywords
 
-CNC Sales, Kuala Lumpur MY, Malaysia, machine tools, account management, business development
+CNC Sales, Malaysia, machine tools, account management, business development

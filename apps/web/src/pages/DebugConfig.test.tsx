@@ -117,7 +117,7 @@ describe('System settings routes', () => {
               id: 'seek-my-cnc-sales',
               label: 'Malaysia · SEEK · CNC Sales',
               market: 'MY',
-              location: 'Kuala Lumpur MY',
+              location: 'Malaysia',
               keywords: ['CNC', 'Sales'],
               collectionSource: {
                 type: 'seek',

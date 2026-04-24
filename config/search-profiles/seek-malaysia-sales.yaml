@@ -1,11 +1,11 @@
 id: seek-malaysia-sales
 name: SEEK Malaysia CNC Sales
-description: Malaysia SEEK workflow for Kuala Lumpur CNC sales hiring
+description: Malaysia SEEK workflow for nationwide CNC sales hiring
 createdAt: "2026-03-17"
-updatedAt: "2026-03-20"
+updatedAt: "2026-04-24"
 status: active
 
-location: Kuala Lumpur MY
+location: Malaysia
 keywords:
   - CNC
   - Sales
@@ -16,11 +16,10 @@ requiredKeywords:
 jobDescription: seek-malaysia-sales
 
 filters:
-  minExperience: 2
+  minExperience: 1
   maxExperience: null
   maxAge: 45
   locations:
-    - Kuala Lumpur MY
     - Malaysia
 
 schedule:
@@ -47,4 +46,4 @@ quickStart:
   enabled: true
   rank: 3
   label: Malaysia · SEEK · CNC Sales
-  description: CNC, Sales · Kuala Lumpur MY
+  description: CNC, Sales · Malaysia
