@@ -189,6 +189,7 @@ export default defineSchema({
         createdAt: v.optional(v.number()),
         updatedAt: v.optional(v.number()),
         workspaceSlug: v.optional(v.string()),
+        templateHash: v.optional(v.string()),
     }).index("by_workspace", ["workspaceSlug"]),
 
     // Custom Job Descriptions

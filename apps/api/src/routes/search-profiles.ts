@@ -7,6 +7,7 @@ import path from "node:path";
 
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
+    computeTemplateHash,
     findWorkspaceSearchProfileTemplate,
     generateStructuredJobDescriptionContent,
     getWorkspaceSearchProfileTemplates,
@@ -459,6 +460,11 @@ function readDeletedAt(record: ConvexSearchProfileRecord): number | undefined {
     return readNumber(profilePayload.deletedAt);
 }
 
+function readTemplateHash(record: ConvexSearchProfileRecord): string | undefined {
+    const profilePayload = readProfilePayload(record);
+    return readString(profilePayload.templateHash);
+}
+
 function isSeededFromConfig(record: ConvexSearchProfileRecord): boolean {
     const profilePayload = readProfilePayload(record);
     return readString(profilePayload.seedSource) === CONFIG_SEED_SOURCE;
@@ -469,12 +475,14 @@ function toStoredProfilePayload(
     options?: {
         seededFromConfig?: boolean;
         deletedAt?: number;
+        templateHash?: string;
     }
 ): Record<string, unknown> {
     return {
         ...profile,
         ...(options?.seededFromConfig ? { seedSource: CONFIG_SEED_SOURCE } : {}),
         ...(typeof options?.deletedAt === "number" ? { deletedAt: options.deletedAt } : {}),
+        ...(options?.templateHash ? { templateHash: options.templateHash } : {}),
     };
 }
 
@@ -526,6 +534,7 @@ type ResolvedCustomProfileRecord = {
     logicalId: string;
     profile: SearchProfile;
     seededFromConfig: boolean;
+    templateHash?: string;
     deletedAt?: number;
 };
 
@@ -590,6 +599,7 @@ async function listCustomProfileRecords(
                 logicalId,
                 profile,
                 seededFromConfig: isSeededFromConfig(item),
+                templateHash: readTemplateHash(item),
                 ...(typeof deletedAt === "number" ? { deletedAt } : {}),
             });
         });
@@ -637,43 +647,81 @@ async function findCustomProfileRecordById(
         logicalId,
         profile,
         seededFromConfig: isSeededFromConfig(record),
+        templateHash: readTemplateHash(record),
         deletedAt,
     };
 }
 
 async function ensureWorkspaceSeedProfiles(workspaceSlug: string): Promise<void> {
     const existingRecords = await listCustomProfileRecords(workspaceSlug, { includeDeleted: true });
-    const existingIds = new Set(existingRecords.map((record) => record.logicalId));
+    const existingByLogicalId = new Map<string, ResolvedCustomProfileRecord>(
+        existingRecords.map((record) => [record.logicalId, record]),
+    );
 
     for (const template of getWorkspaceSearchProfileTemplates(workspaceSlug)) {
         const profile = searchProfileService.normalizeProfileInput(template.profile);
         const logicalId = searchProfileService.normalizeProfileIdentifier(profile.id);
-        if (existingIds.has(logicalId)) {
+        const currentHash = computeTemplateHash(template.profile);
+        const existing = existingByLogicalId.get(logicalId);
+
+        if (!existing) {
+            await createCustomProfile(
+                toStoredProfilePayload(profile, { seededFromConfig: true, templateHash: currentHash }),
+                workspaceSlug,
+            );
             continue;
         }
 
-        await createCustomProfile(
-            toStoredProfilePayload(profile, { seededFromConfig: true }),
+        const isSoftDeleted = typeof existing.deletedAt === "number";
+        if (!isSoftDeleted) {
+            continue;
+        }
+
+        const hashMatches = existing.templateHash === currentHash;
+        if (hashMatches) {
+            continue;
+        }
+
+        await updateCustomProfile(
+            existing.storageId,
+            toStoredProfilePayload(profile, { seededFromConfig: true, templateHash: currentHash }),
             workspaceSlug,
         );
-        existingIds.add(logicalId);
     }
 }
 
 async function ensureWorkspaceProfileById(id: string, workspaceSlug: string): Promise<void> {
     const existing = await findCustomProfileRecordById(id, workspaceSlug, { includeDeleted: true });
-    if (existing) {
-        return;
-    }
-
     const template = findWorkspaceSearchProfileTemplate(id, workspaceSlug);
     if (!template) {
         return;
     }
 
+    const currentHash = computeTemplateHash(template.profile);
+
+    if (!existing) {
+        const profile = searchProfileService.normalizeProfileInput(template.profile);
+        await createCustomProfile(
+            toStoredProfilePayload(profile, { seededFromConfig: true, templateHash: currentHash }),
+            workspaceSlug,
+        );
+        return;
+    }
+
+    const isSoftDeleted = typeof existing.deletedAt === "number";
+    if (!isSoftDeleted) {
+        return;
+    }
+
+    const hashMatches = existing.templateHash === currentHash;
+    if (hashMatches) {
+        return;
+    }
+
     const profile = searchProfileService.normalizeProfileInput(template.profile);
-    await createCustomProfile(
-        toStoredProfilePayload(profile, { seededFromConfig: true }),
+    await updateCustomProfile(
+        existing.storageId,
+        toStoredProfilePayload(profile, { seededFromConfig: true, templateHash: currentHash }),
         workspaceSlug,
     );
 }
@@ -1546,6 +1594,7 @@ app.openapi(deleteProfileRoute, async (c) => {
                 existingCustom.storageId,
                 toStoredProfilePayload(existingCustom.profile, {
                     seededFromConfig: true,
+                    templateHash: existingCustom.templateHash,
                     deletedAt: Date.now(),
                 }),
                 c.var.workspaceSlug,

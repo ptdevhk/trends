@@ -353,6 +353,26 @@ export function findWorkspaceSearchProfileTemplate(
     template.profile.id.trim().toLowerCase() === normalizedId
   )) ?? null;
 }
+
+export function computeTemplateHash(profile: SharedSearchProfileTemplate["profile"]): string {
+  const canonical = JSON.stringify(profile, (_key, value) => {
+    if (value === undefined || value === null) return undefined;
+    if (Array.isArray(value)) return [...value].sort();
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      return Object.keys(value).sort().reduce<Record<string, unknown>>((acc, k) => {
+        acc[k] = value[k as keyof typeof value];
+        return acc;
+      }, {});
+    }
+    return value;
+  });
+  let hash = 0;
+  for (let i = 0; i < canonical.length; i++) {
+    const chr = canonical.charCodeAt(i);
+    hash = ((hash << 5) - hash + chr) | 0;
+  }
+  return "sp-" + Math.abs(hash).toString(36);
+}
 `;
 }
 
