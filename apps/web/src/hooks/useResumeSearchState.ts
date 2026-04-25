@@ -1,4 +1,5 @@
 import { formatKeywordQuery, getVerifiedRoleSignalYears, isSalesRequiredContext, parseKeywordQuery } from '@trends/shared'
+import { hasMatchingRoleSignal } from '@/hooks/resume-filter-helpers'
 import { useMutation, useQuery } from 'convex/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -526,6 +527,12 @@ function matchesLocalFilters(
 
   if (typeof minScore === 'number' && (item.score ?? 0) < minScore) {
     return false
+  }
+
+  if (state.filters.roleFilterType) {
+    if (!hasMatchingRoleSignal(item.resume, state.filters.roleFilterType)) {
+      return false
+    }
   }
 
   if (typeof state.filters.minRoleYears === 'number') {

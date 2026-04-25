@@ -330,7 +330,15 @@ func normalizeResumeSource(source string) string {
 	return "sample"
 }
 
-func (c *Client) ListResumes(ctx context.Context, limit int, query string, source string) (*ResumesResponse, error) {
+type ResumeFilterParams struct {
+	MinRoleYears int
+	RoleType     string
+	MinAge       int
+	MaxAge       int
+	Sources      []string
+}
+
+func (c *Client) ListResumes(ctx context.Context, limit int, query string, source string, filters ...ResumeFilterParams) (*ResumesResponse, error) {
 	values := url.Values{}
 	if limit > 0 {
 		values.Set("limit", strconv.Itoa(limit))
@@ -339,6 +347,25 @@ func (c *Client) ListResumes(ctx context.Context, limit int, query string, sourc
 		values.Set("q", query)
 	}
 	values.Set("source", normalizeResumeSource(source))
+
+	if len(filters) > 0 {
+		f := filters[0]
+		if f.MinRoleYears > 0 {
+			values.Set("minRoleYears", strconv.Itoa(f.MinRoleYears))
+		}
+		if strings.TrimSpace(f.RoleType) != "" {
+			values.Set("roleFilterType", strings.TrimSpace(f.RoleType))
+		}
+		if f.MinAge > 0 {
+			values.Set("minAge", strconv.Itoa(f.MinAge))
+		}
+		if f.MaxAge > 0 {
+			values.Set("maxAge", strconv.Itoa(f.MaxAge))
+		}
+		if len(f.Sources) > 0 {
+			values.Set("sources", strings.Join(f.Sources, ","))
+		}
+	}
 
 	endpoint := fmt.Sprintf("%s/api/resumes", c.APIURL)
 	if encoded := values.Encode(); encoded != "" {
@@ -355,8 +382,8 @@ func (c *Client) ListResumes(ctx context.Context, limit int, query string, sourc
 	return &response, nil
 }
 
-func (c *Client) SearchResumes(ctx context.Context, query string, limit int, source string) (*ResumesResponse, error) {
-	return c.ListResumes(ctx, limit, query, source)
+func (c *Client) SearchResumes(ctx context.Context, query string, limit int, source string, filters ...ResumeFilterParams) (*ResumesResponse, error) {
+	return c.ListResumes(ctx, limit, query, source, filters...)
 }
 
 func (c *Client) GetResumeDetail(ctx context.Context, resumeID string, sample string, source string) (*ResumeDetailResponse, error) {

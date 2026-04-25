@@ -32,6 +32,7 @@ import {
   getResumeIdentityKey,
   getResumeLocationText,
   getRoleYears,
+  hasMatchingRoleSignal,
   matchesAllRequiredKeywords,
   matchesEducationFilter,
   normalizeFilterToken,
@@ -313,7 +314,6 @@ export function useResumeListState(loadSearchHistory = false) {
       ...(typeof filters.minSalary === 'number' ? { minSalary: filters.minSalary } : {}),
       ...(typeof filters.maxSalary === 'number' ? { maxSalary: filters.maxSalary } : {}),
     }
-
     return Object.keys(normalized).length > 0 ? normalized : undefined
   }, [filters.education, filters.locations, filters.maxAge, filters.maxExperience, filters.maxSalary, filters.minAge, filters.minExperience, filters.minRoleYears, filters.minSalary, filters.roleFilterType, filters.skills, requiredKeywords])
   const convexQueryScopeKey = useMemo(
@@ -879,6 +879,11 @@ export function useResumeListState(loadSearchHistory = false) {
     }
 
     const minRoleYears = filters.minRoleYears
+    if (filters.roleFilterType) {
+      result = result.filter((resume: ScoredConvexResume) =>
+        hasMatchingRoleSignal(resume, filters.roleFilterType)
+      )
+    }
     if (typeof minRoleYears === 'number') {
       result = result.filter((resume: ScoredConvexResume) =>
         getRoleYears(resume, filters.roleFilterType ?? '') >= minRoleYears

@@ -904,6 +904,20 @@ function matchesAllRequiredKeywords(text: string, requiredKeywords: string[] | u
  * Never consults unverified `roleRelevantYears` or raw `years`. See plan:
  * docs/superpowers/plans/2026-04-24-direct-role-years-precomputed-field-plan.md
  */
+function hasMatchingRoleSignal(resume: Doc<"resumes">, roleType: string | undefined): boolean {
+    const key = toOptionalStringValue(roleType)?.toLowerCase() ?? "";
+    if (!key) {
+        return true;
+    }
+
+    const roleSignals = resume.ingestData?.roleSignals;
+    if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+        return false;
+    }
+
+    return roleSignals.some((signal) => signal.type?.trim().toLowerCase() === key);
+}
+
 function getResumeRoleYears(resume: Doc<"resumes">, roleType: string | undefined): number {
     const key = toOptionalStringValue(roleType)?.toLowerCase() ?? "";
     if (!key) {
@@ -951,6 +965,12 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
             return false;
         }
         if (filters.maxExperience !== undefined && experience > filters.maxExperience) {
+            return false;
+        }
+    }
+
+    if (filters.roleFilterType) {
+        if (!hasMatchingRoleSignal(resume, filters.roleFilterType)) {
             return false;
         }
     }
@@ -2372,6 +2392,7 @@ export const searchWithTagExpansionScanPage = query({
         locations: v.optional(v.array(v.string())),
         minSalary: v.optional(v.number()),
         maxSalary: v.optional(v.number()),
+        sources: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const page = await runSearchWithTagExpansionScanPageQuery(ctx, args);

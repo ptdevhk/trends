@@ -112,13 +112,27 @@ func newResumeShowCmd() *cobra.Command {
 func newResumeSearchCmd() *cobra.Command {
 	var limit int
 	var source string
+	var minRoleYears int
+	var roleType string
+	var minAge int
+	var maxAge int
+	var sourcesFlag string
 
 	cmd := &cobra.Command{
 		Use:   "search <query>",
 		Short: "Search resumes (sample or live Convex-backed retrieval)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			response, err := newAPIClient().SearchResumes(context.Background(), args[0], limit, source)
+			var filterParams client.ResumeFilterParams
+			filterParams.MinRoleYears = minRoleYears
+			filterParams.RoleType = roleType
+			filterParams.MinAge = minAge
+			filterParams.MaxAge = maxAge
+			if strings.TrimSpace(sourcesFlag) != "" {
+				filterParams.Sources = strings.Split(sourcesFlag, ",")
+			}
+
+			response, err := newAPIClient().SearchResumes(context.Background(), args[0], limit, source, filterParams)
 			if err != nil {
 				return err
 			}
@@ -154,6 +168,11 @@ func newResumeSearchCmd() *cobra.Command {
 
 	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum resumes to fetch")
 	cmd.Flags().StringVar(&source, "source", "sample", "Resume source: sample|convex")
+	cmd.Flags().IntVar(&minRoleYears, "min-role-years", 0, "Minimum role years filter")
+	cmd.Flags().StringVar(&roleType, "role-type", "", "Role filter type (e.g. sales)")
+	cmd.Flags().IntVar(&minAge, "min-age", 0, "Minimum age filter")
+	cmd.Flags().IntVar(&maxAge, "max-age", 0, "Maximum age filter")
+	cmd.Flags().StringVar(&sourcesFlag, "sources", "", "Comma-separated source filter")
 	return cmd
 }
 

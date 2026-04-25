@@ -48,6 +48,11 @@ export type ResumeFilters = {
   locations?: string[];
   minSalary?: number;
   maxSalary?: number;
+  minRoleYears?: number;
+  roleFilterType?: string;
+  minAge?: number;
+  maxAge?: number;
+  sources?: string[];
 };
 
 type ResumeMetadata = {

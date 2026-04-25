@@ -85,6 +85,20 @@ export function toStatusFilterList(values: CandidateStatus[] | undefined): Candi
   return Array.from(unique).sort()
 }
 
+export function hasMatchingRoleSignal(resume: Pick<ConvexResumeItem, 'ingestData'>, roleType: string | undefined): boolean {
+  const normalizedRoleType = normalizeFilterToken(roleType ?? '')
+  if (!normalizedRoleType) {
+    return true
+  }
+
+  const roleSignals = resume.ingestData?.roleSignals
+  if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
+    return false
+  }
+
+  return roleSignals.some((signal) => normalizeFilterToken(signal.type) === normalizedRoleType)
+}
+
 export function getRoleYears(resume: Pick<ConvexResumeItem, 'ingestData'>, roleType: string): number {
   const roleSignals = resume.ingestData?.roleSignals
   if (!Array.isArray(roleSignals) || roleSignals.length === 0) {

@@ -807,6 +807,11 @@ export interface paths {
                     locations?: string[];
                     minSalary?: string;
                     maxSalary?: string;
+                    minRoleYears?: string;
+                    roleFilterType?: string;
+                    minAge?: string;
+                    maxAge?: string;
+                    sources?: string[];
                     recommendation?: string[];
                 };
                 header?: never;
@@ -2966,10 +2971,6 @@ export interface paths {
                         jobDescriptionId?: string;
                         sampleName?: string;
                         filters?: components["schemas"]["ResumeFilters"] & {
-                            minRoleYears?: number;
-                            roleFilterType?: string;
-                            minAge?: number;
-                            maxAge?: number;
                             status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                             showBlocked?: boolean;
                         };
@@ -3015,10 +3016,6 @@ export interface paths {
                                 exactUrl?: string;
                             };
                             filters?: components["schemas"]["ResumeFilters"] & {
-                                minRoleYears?: number;
-                                roleFilterType?: string;
-                                minAge?: number;
-                                maxAge?: number;
                                 status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                 showBlocked?: boolean;
                             };
@@ -3050,10 +3047,6 @@ export interface paths {
                                 /** @example sample-initial */
                                 sampleName?: string;
                                 filters?: components["schemas"]["ResumeFilters"] & {
-                                    minRoleYears?: number;
-                                    roleFilterType?: string;
-                                    minAge?: number;
-                                    maxAge?: number;
                                     status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                     showBlocked?: boolean;
                                 };
@@ -3100,10 +3093,6 @@ export interface paths {
                                         exactUrl?: string;
                                     };
                                     filters?: components["schemas"]["ResumeFilters"] & {
-                                        minRoleYears?: number;
-                                        roleFilterType?: string;
-                                        minAge?: number;
-                                        maxAge?: number;
                                         status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                         showBlocked?: boolean;
                                     };
@@ -3173,10 +3162,6 @@ export interface paths {
                                 /** @example sample-initial */
                                 sampleName?: string;
                                 filters?: components["schemas"]["ResumeFilters"] & {
-                                    minRoleYears?: number;
-                                    roleFilterType?: string;
-                                    minAge?: number;
-                                    maxAge?: number;
                                     status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                     showBlocked?: boolean;
                                 };
@@ -3223,10 +3208,6 @@ export interface paths {
                                         exactUrl?: string;
                                     };
                                     filters?: components["schemas"]["ResumeFilters"] & {
-                                        minRoleYears?: number;
-                                        roleFilterType?: string;
-                                        minAge?: number;
-                                        maxAge?: number;
                                         status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                         showBlocked?: boolean;
                                     };
@@ -3279,10 +3260,6 @@ export interface paths {
                         jobDescriptionId?: string;
                         sampleName?: string;
                         filters?: components["schemas"]["ResumeFilters"] & {
-                            minRoleYears?: number;
-                            roleFilterType?: string;
-                            minAge?: number;
-                            maxAge?: number;
                             status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                             showBlocked?: boolean;
                         };
@@ -3328,10 +3305,6 @@ export interface paths {
                                 exactUrl?: string;
                             };
                             filters?: components["schemas"]["ResumeFilters"] & {
-                                minRoleYears?: number;
-                                roleFilterType?: string;
-                                minAge?: number;
-                                maxAge?: number;
                                 status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                 showBlocked?: boolean;
                             };
@@ -3366,10 +3339,6 @@ export interface paths {
                                 /** @example sample-initial */
                                 sampleName?: string;
                                 filters?: components["schemas"]["ResumeFilters"] & {
-                                    minRoleYears?: number;
-                                    roleFilterType?: string;
-                                    minAge?: number;
-                                    maxAge?: number;
                                     status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                     showBlocked?: boolean;
                                 };
@@ -3416,10 +3385,6 @@ export interface paths {
                                         exactUrl?: string;
                                     };
                                     filters?: components["schemas"]["ResumeFilters"] & {
-                                        minRoleYears?: number;
-                                        roleFilterType?: string;
-                                        minAge?: number;
-                                        maxAge?: number;
                                         status?: ("new" | "contacted" | "interviewing" | "interviewed_pass" | "interviewed_reject" | "offer" | "hired" | "withdrawn")[];
                                         showBlocked?: boolean;
                                     };
@@ -8102,6 +8067,11 @@ export interface components {
             locations?: string[];
             minSalary?: number;
             maxSalary?: number;
+            minRoleYears?: number;
+            roleFilterType?: string;
+            minAge?: number;
+            maxAge?: number;
+            sources?: string[];
             minMatchScore?: number;
             recommendation?: string[];
             /** @enum {string} */

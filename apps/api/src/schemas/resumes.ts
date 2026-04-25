@@ -458,6 +458,20 @@ export const ResumeManualImportErrorSchema = z
   })
   .openapi("ResumeManualImportError");
 
+const OptionalIntParam = (opts: { min?: number; max?: number; example?: string; name: string }) =>
+  z.string()
+    .optional()
+    .transform((v) => (v ? parseInt(v, 10) : undefined))
+    .pipe(
+      opts.max
+        ? z.number().min(opts.min ?? 0).max(opts.max).optional()
+        : z.number().min(opts.min ?? 0).optional(),
+    )
+    .openapi({
+      param: { name: opts.name, in: "query" },
+      example: opts.example ?? "0",
+    });
+
 export const ResumesQuerySchema = z.object({
   sample: z
     .string()
@@ -498,15 +512,7 @@ export const ResumesQuerySchema = z.object({
       param: { name: "limit", in: "query" },
       example: 1000,
     }),
-  offset: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : undefined))
-    .pipe(z.number().min(0).optional())
-    .openapi({
-      param: { name: "offset", in: "query" },
-      example: "0",
-    }),
+  offset: OptionalIntParam({ name: "offset", example: "0" }),
   sessionId: z
     .string()
     .optional()
@@ -521,15 +527,7 @@ export const ResumesQuerySchema = z.object({
       param: { name: "jobDescriptionId", in: "query" },
       example: "lathe-sales",
     }),
-  minMatchScore: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : undefined))
-    .pipe(z.number().min(0).max(100).optional())
-    .openapi({
-      param: { name: "minMatchScore", in: "query" },
-      example: "70",
-    }),
+  minMatchScore: OptionalIntParam({ name: "minMatchScore", max: 100, example: "70" }),
   sortBy: z
     .enum(["score", "name", "experience", "extractedAt"])
     .optional()
@@ -544,24 +542,8 @@ export const ResumesQuerySchema = z.object({
       param: { name: "sortOrder", in: "query" },
       example: "desc",
     }),
-  minExperience: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : undefined))
-    .pipe(z.number().min(0).optional())
-    .openapi({
-      param: { name: "minExperience", in: "query" },
-      example: "3",
-    }),
-  maxExperience: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : undefined))
-    .pipe(z.number().min(0).optional())
-    .openapi({
-      param: { name: "maxExperience", in: "query" },
-      example: "10",
-    }),
+  minExperience: OptionalIntParam({ name: "minExperience", example: "3" }),
+  maxExperience: OptionalIntParam({ name: "maxExperience", example: "10" }),
   education: CsvStringArraySchema.openapi({
     param: { name: "education", in: "query" },
     example: "bachelor,master",
@@ -578,24 +560,22 @@ export const ResumesQuerySchema = z.object({
     param: { name: "locations", in: "query" },
     example: "东莞,深圳",
   }),
-  minSalary: z
+  minSalary: OptionalIntParam({ name: "minSalary", example: "5000" }),
+  maxSalary: OptionalIntParam({ name: "maxSalary", example: "15000" }),
+  minRoleYears: OptionalIntParam({ name: "minRoleYears", example: "1" }),
+  roleFilterType: z
     .string()
     .optional()
-    .transform((v) => (v ? parseInt(v, 10) : undefined))
-    .pipe(z.number().min(0).optional())
     .openapi({
-      param: { name: "minSalary", in: "query" },
-      example: "5000",
+      param: { name: "roleFilterType", in: "query" },
+      example: "sales",
     }),
-  maxSalary: z
-    .string()
-    .optional()
-    .transform((v) => (v ? parseInt(v, 10) : undefined))
-    .pipe(z.number().min(0).optional())
-    .openapi({
-      param: { name: "maxSalary", in: "query" },
-      example: "15000",
-    }),
+  minAge: OptionalIntParam({ name: "minAge", example: "25" }),
+  maxAge: OptionalIntParam({ name: "maxAge", example: "40" }),
+  sources: CsvStringArraySchema.openapi({
+    param: { name: "sources", in: "query" },
+    example: "job5156,51job",
+  }),
   recommendation: CsvStringArraySchema.openapi({
     param: { name: "recommendation", in: "query" },
     example: "strong_match,match",
@@ -755,6 +735,11 @@ export const ResumeFiltersSchema = z
     locations: z.array(z.string()).optional(),
     minSalary: z.number().min(0).optional(),
     maxSalary: z.number().min(0).optional(),
+    minRoleYears: z.number().min(0).optional(),
+    roleFilterType: z.string().optional(),
+    minAge: z.number().min(0).optional(),
+    maxAge: z.number().min(0).optional(),
+    sources: z.array(z.string()).optional(),
     minMatchScore: z.number().min(0).max(100).optional(),
     recommendation: z.array(z.string()).optional(),
     sortBy: z.enum(["score", "name", "experience", "extractedAt"]).optional(),
