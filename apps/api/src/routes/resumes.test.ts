@@ -281,18 +281,9 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
         return convexSuccess({
-          expansion: {
-            original: "cnc 销售",
-            expanded: ["cnc", "销售"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "销售", variants: ["销售", "业务"] },
-            ],
-            mode: "AND",
-          },
-          results: [
+          page: [
             {
               resume: {
                 _id: "resume-live-1",
@@ -316,7 +307,8 @@ describe("resume routes", () => {
               provenance: [{ term: "销售", source: "searchText" }],
             },
           ],
-          total: 1,
+          continueCursor: "",
+          isDone: true,
         });
       }
 
@@ -341,8 +333,10 @@ describe("resume routes", () => {
       })
     );
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionPage",
-      args: expect.objectContaining({ limit: 5 }),
+      pathName: "resumes:searchWithTagExpansionScanPage",
+      args: expect.objectContaining({
+        paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
+      }),
     }));
   });
 
@@ -576,22 +570,16 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
         return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          results: [
+          page: [
+            { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
+            { resume: buildConvexResumeRecord("resume-live-2", { name: "Bob" }), provenance: [{ term: "cnc", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), provenance: [{ term: "cnc", source: "searchText" }] },
           ],
-          total: 4,
+          continueCursor: "",
+          isDone: true,
         });
       }
 
@@ -611,8 +599,10 @@ describe("resume routes", () => {
     }));
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionPage",
-      args: expect.objectContaining({ limit: 2, offset: 2 }),
+      pathName: "resumes:searchWithTagExpansionScanPage",
+      args: expect.objectContaining({
+        paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
+      }),
     }));
   });
 
@@ -623,22 +613,14 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
         return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          results: [
+          page: [
             { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), provenance: [{ term: "cnc", source: "searchText" }] },
           ],
-          total: 4,
+          continueCursor: "",
+          isDone: true,
         });
       }
 
@@ -652,8 +634,10 @@ describe("resume routes", () => {
     const payload = await response.json();
     expect(payload.success).toBe(true);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionPage",
-      args: expect.objectContaining({ limit: 2, offset: 2, sortBy: "name", sortOrder: "desc" }),
+      pathName: "resumes:searchWithTagExpansionScanPage",
+      args: expect.objectContaining({
+        paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
+      }),
     }));
   });
 
@@ -698,38 +682,9 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
         return convexSuccess({
-          expansion: {
-            original: "\"machine tools\"",
-            expanded: [
-              "machine tools",
-              "机床",
-              "机械设备",
-              "加工设备",
-              "加工中心",
-              "cnc machine",
-              "cnc machines",
-              "precision machinery",
-            ],
-            groups: [
-              {
-                original: "machine tools",
-                variants: [
-                  "machine tools",
-                  "机床",
-                  "机械设备",
-                  "加工设备",
-                  "加工中心",
-                  "cnc machine",
-                  "cnc machines",
-                  "precision machinery",
-                ],
-              },
-            ],
-            mode: "AND",
-          },
-          results: [
+          page: [
             {
               resume: keeKimLoong,
               provenance: [{ term: "machine tools", source: "searchText" }],
@@ -739,7 +694,8 @@ describe("resume routes", () => {
               provenance: [{ term: "precision machinery", source: "searchText", expandedFrom: "machine tools" }],
             },
           ],
-          total: 2,
+          continueCursor: "",
+          isDone: true,
         });
       }
 
@@ -765,11 +721,9 @@ describe("resume routes", () => {
       "Johnson Lee Wei Tao",
     ]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionPage",
+      pathName: "resumes:searchWithTagExpansionScanPage",
       args: expect.objectContaining({
-        limit: 5,
         locations: ["Kuala Lumpur MY"],
-        jobDescriptionId: "seek-malaysia-sales",
         keywordGroups: expect.arrayContaining([
           expect.objectContaining({
             original: "machine tools",
@@ -787,21 +741,13 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionPage") {
+      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
         return convexSuccess({
-          expansion: {
-            original: "cnc sales",
-            expanded: ["cnc", "sales"],
-            groups: [
-              { original: "cnc", variants: ["cnc"] },
-              { original: "sales", variants: ["sales"] },
-            ],
-            mode: "AND",
-          },
-          results: [
+          page: [
             { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
           ],
-          total: 1,
+          continueCursor: "",
+          isDone: true,
         });
       }
 
@@ -813,9 +759,8 @@ describe("resume routes", () => {
 
     expect(response.status).toBe(200);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionPage",
+      pathName: "resumes:searchWithTagExpansionScanPage",
       args: expect.objectContaining({
-        limit: 2,
         requiredKeywords: ["machine tools", "cnc"],
       }),
     }));

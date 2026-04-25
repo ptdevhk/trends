@@ -364,25 +364,20 @@ describe('seedWorkspaceDemoData', () => {
       tables.search_profiles.map((record) => [String(record.profile?.id), record.profile ?? {}])
     )
 
-    const job5156Profile = seededProfiles.get('job5156-cn-cnc-sales') as { filters?: Record<string, unknown> } | undefined
+    const job5156Profile = seededProfiles.get('job5156-cn-cnc-sales') as { filters?: Record<string, unknown>; jobDescription?: string } | undefined
     expect(job5156Profile?.filters).toMatchObject({
       minAge: 25,
       maxAge: 40,
     })
-    expect(seededProfiles.get('job5156-cn-cnc-sales')).toEqual(
-      expect.not.objectContaining({ jobDescription: expect.anything() })
-    )
-    const job51Profile = seededProfiles.get('51job-cn-cnc-sales') as { filters?: Record<string, unknown> } | undefined
+    expect(job5156Profile?.jobDescription).toBe("lathe-sales")
+    const job51Profile = seededProfiles.get('51job-cn-cnc-sales') as { filters?: Record<string, unknown>; jobDescription?: string } | undefined
     expect(job51Profile?.filters).toMatchObject({
       minAge: 25,
       maxAge: 40,
     })
-    expect(seededProfiles.get('51job-cn-cnc-sales')).toEqual(
-      expect.not.objectContaining({ jobDescription: expect.anything() })
-    )
-    expect(seededProfiles.get('seek-malaysia-sales')).toEqual(
-      expect.not.objectContaining({ jobDescription: expect.anything() })
-    )
+    expect(job51Profile?.jobDescription).toBeUndefined()
+    const seekProfile = seededProfiles.get('seek-malaysia-sales') as { jobDescription?: string } | undefined
+    expect(seekProfile?.jobDescription).toBe("seek-malaysia-sales")
   })
 
   it('seeds one deterministic SEEK Malaysia resume only for explicit demo-resume runs and stays idempotent on rerun', async () => {

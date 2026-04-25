@@ -910,6 +910,13 @@ function hasMatchingRoleSignal(resume: Doc<"resumes">, roleType: string | undefi
         return true;
     }
 
+    // The stored verifiedRoleYears field is the source of truth for role years;
+    // if it has an entry for the given role type, the resume matches that role.
+    const verifiedRoleYears = resume.ingestData?.verifiedRoleYears;
+    if (isRecord(verifiedRoleYears) && typeof verifiedRoleYears[key] === "number") {
+        return true;
+    }
+
     const roleSignals = resume.ingestData?.roleSignals;
     if (!Array.isArray(roleSignals) || roleSignals.length === 0) {
         return false;

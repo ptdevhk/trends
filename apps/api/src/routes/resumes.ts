@@ -2753,15 +2753,19 @@ app.openapi(getResumesRoute, (c) => {
         const end = typeof limit === "number" ? start + limit : undefined;
         const pagedWorking = end ? working.slice(start, end) : working.slice(start);
         // usesPrePagedMatchResults already has correct offset/limit from match storage;
+        // canUseSourcePagination with no keywords already has offset/limit from Convex list page;
         // all other paths need offset/limit applied locally.
-        const limited = usesPrePagedMatchResults
+        const isSourcePaginated = canUseSourcePagination && normalizedKeywords.length === 0;
+        const limited = (usesPrePagedMatchResults || isSourcePaginated)
           ? working.map((item) => item.resume)
           : pagedWorking.map((item) => item.resume);
 
         return c.json({
           success: true as const,
           summary: {
-            total: working.length,
+            total: (usesPrePagedMatchResults || isSourcePaginated)
+              ? (totalCount ?? working.length)
+              : working.length,
             returned: limited.length,
             query: keyword,
             source,
