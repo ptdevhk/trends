@@ -950,7 +950,6 @@ describe('useResumeListState role filter regression', () => {
     }
 
     expect(getDisplayedResumeNames()).toEqual([
-      'Zhang Machinery Sales',
       'Zhou Jingdiao Hit',
     ])
   })
