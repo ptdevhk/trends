@@ -1142,6 +1142,53 @@ async function prepareConvexCandidates(params: {
     const useCursorScan = params.paged || hasActiveFilters;
 
     if (useCursorScan) {
+      // AND-mode two-pass intersection search: collects lightweight doc IDs
+      // per keyword group from the search index, intersects them, then fetches
+      // only the intersection.  Avoids the 16 MiB per-function read limit that
+      // the single-pass scanPage path hits when the anchor group matches many
+      // docs but AND-filtering eliminates most of them.
+      if (keywordExpansion?.mode === "AND") {
+        const actionResult = await callConvexAction("resumes:searchWithTagExpansionAndMode", {
+          query: canonicalKeywordQuery,
+          keywordGroups: keywordExpansion.groups,
+          sourceMappings: sourceMappingEntries(keywordExpansion.sourceMapping),
+          ...(params.filters ?? {}),
+          ...(params.jobDescriptionId ? { jobDescriptionId: params.jobDescriptionId } : {}),
+        });
+
+        if (!isRecord(actionResult) || !Array.isArray(actionResult.results)) {
+          throw new Error("Invalid AND-mode search action response from Convex");
+        }
+
+        const allResults: PreparedResumeCandidate[] = [];
+        for (const entry of actionResult.results) {
+          if (!isRecord(entry) || !isRecord(entry.resume)) {
+            continue;
+          }
+          const resumeRecord = entry.resume;
+          const resumeId = toStringValue(resumeRecord._id);
+          if (!resumeId) {
+            continue;
+          }
+
+          allResults.push(prepareResumeCandidate({
+            resume: toResumeItemFromRecord(isRecord(resumeRecord.content) ? resumeRecord.content : {}, toStringValue(resumeRecord.source)),
+            resumeId,
+            primaryRuleScore: toOptionalNumber(resumeRecord.primaryRuleScore),
+            provenance: parseConvexProvenance(entry.provenance),
+            ingestData: resumeRecord.ingestData,
+          }));
+        }
+
+        return {
+          prepared: allResults,
+          keywordExpansion,
+          total: toOptionalNumber(actionResult.total) ?? allResults.length,
+          usedServerSideFilters: hasActiveFilters,
+        };
+      }
+
+      // OR-mode or mode-less fallback: single-pass cursor scan
       const allResults: PreparedResumeCandidate[] = [];
       let cursor: string | null = null;
       let totalScanned = 0;

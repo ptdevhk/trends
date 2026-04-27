@@ -1,6 +1,6 @@
 import { action, internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 
@@ -379,7 +379,16 @@ export const MAX_SAFE_LIST_WITH_INGEST_LIMIT = 2000;
 export const MAX_SAFE_LIST_WITH_INGEST_OVERFETCH = 4000;
 const FILTERED_PAGINATE_OVERFETCH_MULTIPLIER = 3;
 const MAX_SAFE_JD_PAGINATE_SCAN = 250;
-const MAX_SAFE_SEARCH_PAGINATE_SCAN = 600;
+// Convex enforces 16 MiB total data read per query function.
+// Resume docs average ~27KB but some exceed 500KB on later search index pages.
+// With post-filter attrition (filtered path), overfetch is needed but output shrinks.
+// Without attrition (no-filter path), each doc contributes full size to the read budget.
+// 16 × 500KB = ~8MB worst case; 128 × 27KB = ~3.5MB filtered avg — both safe.
+const MAX_SAFE_SEARCH_PAGINATE_SCAN = 128;
+const MAX_SAFE_SEARCH_PAGINATE_SCAN_UNFILTERED = 16;
+// Convex search index scans up to 1024 results; 1024 × 27KB = 27MB > 16 MiB.
+// Cap .take() path to 400 docs × 30KB = ~12MB, safely under 16 MiB limit.
+const MAX_SAFE_SEARCH_TAKE_LIMIT = 400;
 const MAX_INGEST_DIAGNOSTICS_PAGE_SIZE = 100;
 const MAX_INGEST_DIAGNOSTICS_TAGGING_ENTRIES = 8;
 const DIAGNOSTICS_SOURCE_FILTER_BATCH_MULTIPLIER = 3;
@@ -590,12 +599,12 @@ export function resolveSearchWithTagExpansionTakeLimit(params: {
     const requestedWindow = offset + pageLimit;
 
     if (!params.hasFilters && !params.jobDescriptionId?.trim()) {
-        return overfetchLimit;
+        return Math.min(overfetchLimit, MAX_SAFE_SEARCH_TAKE_LIMIT);
     }
 
     return Math.min(
         Math.max(overfetchLimit, requestedWindow, MAX_SAFE_JD_PAGINATE_SCAN),
-        MAX_SAFE_LIST_WITH_INGEST_OVERFETCH,
+        MAX_SAFE_SEARCH_TAKE_LIMIT,
     );
 }
 
@@ -1644,7 +1653,7 @@ async function runSearchWithTagExpansionScanPageQuery(
     const hasActiveFilters = filters !== undefined;
     const pageSize = hasActiveFilters
         ? Math.min(requestedPageSize * FILTERED_PAGINATE_OVERFETCH_MULTIPLIER, MAX_SAFE_SEARCH_PAGINATE_SCAN)
-        : Math.min(requestedPageSize, MAX_SAFE_SEARCH_PAGINATE_SCAN);
+        : Math.min(requestedPageSize, MAX_SAFE_SEARCH_PAGINATE_SCAN_UNFILTERED);
 
     const searchPage = searchQuery
         ? await ctx.db
@@ -2544,6 +2553,207 @@ export const getResumesByIds = internalQuery({
     handler: async (ctx, args) => {
         const docs = await Promise.all(args.resumeIds.map((resumeId) => ctx.db.get(resumeId)));
         return docs.filter((doc): doc is NonNullable<typeof doc> => doc !== null);
+    },
+});
+
+// ─── AND-mode two-pass intersection search ─────────────────────────
+//
+// Single-pass AND-mode (searchWithTagExpansionScanPage) sends the anchor
+// group as a broad OR query, then filters in-memory for the other groups
+// + role/age.  This loads full docs (avg ~27 KB, some >500 KB) and hits
+// Convex's 16 MiB per-function read limit before reaching low-relevance
+// but valid candidates.
+//
+// Two-pass avoids the byte limit:
+//   Pass 1: collectSearchIndexDocIds — scans the search index and returns
+//           only doc _id strings (~30 bytes each).  Even 1024 IDs = ~30 KB.
+//   Pass 2: intersect the ID sets per keyword group, then fetch only the
+//           intersection via getResumesByIds.  Apply filters + provenance
+//           on the (much smaller) result set.
+
+export const collectSearchIndexDocIds = internalQuery({
+    args: {
+        searchQuery: v.string(),
+        cursor: v.optional(v.string()),
+        numItems: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const page = await ctx.db
+            .query("resumes")
+            .withSearchIndex("search_body", (q) => q.search("searchText", args.searchQuery))
+            .filter((q) => q.neq(q.field("isArchived"), true))
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: Math.min(args.numItems ?? 256, 256),
+            });
+        return {
+            ids: page.page.map((doc) => String(doc._id)),
+            isDone: page.isDone,
+            cursor: page.isDone ? null : page.continueCursor,
+        };
+    },
+});
+
+export const searchWithTagExpansionAndMode = action({
+    args: {
+        query: v.string(),
+        keywordGroups: v.array(v.object({
+            original: v.string(),
+            variants: v.array(v.string()),
+        })),
+        sourceMappings: v.optional(v.array(v.object({
+            term: v.string(),
+            expandedFrom: v.string(),
+        }))),
+        minExperience: v.optional(v.number()),
+        maxExperience: v.optional(v.number()),
+        minRoleYears: v.optional(v.number()),
+        roleFilterType: v.optional(v.string()),
+        minAge: v.optional(v.number()),
+        maxAge: v.optional(v.number()),
+        education: v.optional(v.array(v.string())),
+        skills: v.optional(v.array(v.string())),
+        requiredKeywords: v.optional(v.array(v.string())),
+        locations: v.optional(v.array(v.string())),
+        minSalary: v.optional(v.number()),
+        maxSalary: v.optional(v.number()),
+        showArchived: v.optional(v.boolean()),
+        sources: v.optional(v.array(v.string())),
+        jobDescriptionId: v.optional(v.string()),
+        sortBy: v.optional(v.union(v.literal("name"), v.literal("experience"), v.literal("extractedAt"))),
+        sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+    },
+    handler: async (ctx, args) => {
+        const keywordGroups = normalizeTagExpansionKeywordGroups(args.keywordGroups);
+        const expandedTerms = collectExpandedTerms(keywordGroups);
+
+        if (expandedTerms.length === 0 || keywordGroups.length === 0) {
+            return {
+                expansion: {
+                    original: args.query,
+                    expanded: [],
+                    groups: [],
+                    mode: "AND" as const,
+                },
+                total: 0,
+                results: [],
+            };
+        }
+
+        const sourceMapping = Object.fromEntries(
+            (args.sourceMappings ?? []).map((entry) => [entry.term, entry.expandedFrom])
+        );
+
+        // Pass 1: Collect doc IDs per keyword group from the search index.
+        // Each group's variants are sent as a single OR search query.
+        // Returns lightweight ID strings (~30 bytes each), so we can scan
+        // the full index without hitting the 16 MiB read limit.
+        const groupIds: Set<string>[] = [];
+
+        for (const group of keywordGroups) {
+            const searchQuery = group.variants.join(" ");
+            const ids = new Set<string>();
+            let cursor: string | undefined;
+
+            while (true) {
+                const page = await ctx.runQuery(internal.resumes.collectSearchIndexDocIds, {
+                    searchQuery,
+                    ...(cursor ? { cursor } : {}),
+                    numItems: 256,
+                });
+                for (const id of page.ids) {
+                    ids.add(id);
+                }
+                if (page.isDone || !page.cursor) {
+                    break;
+                }
+                cursor = page.cursor;
+            }
+
+            groupIds.push(ids);
+        }
+
+        // Intersect: a doc must appear in every group's ID set.
+        const intersectedIds = groupIds.reduce<string[] | null>((acc, set) => {
+            if (acc === null) {
+                return Array.from(set);
+            }
+            return acc.filter((id) => set.has(id));
+        }, null) ?? [];
+
+        if (intersectedIds.length === 0) {
+            return {
+                expansion: {
+                    original: args.query,
+                    expanded: expandedTerms,
+                    groups: keywordGroups,
+                    mode: "AND" as const,
+                },
+                total: 0,
+                results: [],
+            };
+        }
+
+        // Pass 2: Fetch only the intersection docs.
+        // Batch to avoid oversized queries — Convex allows ~128 IDs per
+        // getResumesByIds call (each full doc averages ~27 KB; 128 × 27 KB ≈ 3.5 MB).
+        const BATCH_FETCH_SIZE = 128;
+        const allDocs: Doc<"resumes">[] = [];
+
+        for (let i = 0; i < intersectedIds.length; i += BATCH_FETCH_SIZE) {
+            const batchIds = intersectedIds.slice(i, i + BATCH_FETCH_SIZE)
+                .map((id) => id as unknown as Id<"resumes">);
+            const docs = await ctx.runQuery(internal.resumes.getResumesByIds, {
+                resumeIds: batchIds,
+            });
+            allDocs.push(...docs);
+        }
+
+        // Apply AND-mode provenance + filters in-memory on the intersection set.
+        const filters = normalizeResumeListFilters(args);
+        const provenanceByResumeId = new Map<string, SearchProvenance[]>();
+        const jobDescriptionId = args.jobDescriptionId?.trim() || undefined;
+
+        const filteredDocs = allDocs.filter((doc) => {
+            const provenance = resolveSearchWithTagExpansionMatch(
+                doc,
+                keywordGroups,
+                "AND",
+                sourceMapping,
+            );
+            if (!provenance) {
+                return false;
+            }
+            provenanceByResumeId.set(String(doc._id), provenance);
+            return matchesResumeListFilters(doc, filters);
+        });
+
+        const merged = mergeResumeDocs(filteredDocs, provenanceByResumeId, jobDescriptionId, filteredDocs.length);
+
+        // Sort
+        let sorted = merged;
+        if (args.sortBy) {
+            sorted = [...merged].sort((left, right) => compareResumeListSort(
+                left.resume,
+                right.resume,
+                args.sortBy!,
+                resolveResumeListSortOrder(args.sortOrder),
+            ));
+        }
+
+        return {
+            expansion: {
+                original: args.query,
+                expanded: expandedTerms,
+                groups: keywordGroups,
+                mode: "AND" as const,
+            },
+            total: sorted.length,
+            results: sorted.map((entry) => ({
+                resume: projectResumeListDoc(entry.resume),
+                provenance: entry.provenance,
+            })),
+        };
     },
 });
 

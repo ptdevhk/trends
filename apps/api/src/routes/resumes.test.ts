@@ -17,7 +17,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function parseConvexCall(
   input: RequestInfo | URL,
   init?: RequestInit,
-  expectedEndpoint: "/api/query" | "/api/mutation" = "/api/query",
+  expectedEndpoint?: "/api/query" | "/api/mutation" | "/api/action",
 ): ConvexCall {
   const requestURL = typeof input === "string"
     ? input
@@ -25,7 +25,13 @@ function parseConvexCall(
       ? input.toString()
       : input.url;
 
-  if (!requestURL.includes(expectedEndpoint)) {
+  const endpoint = expectedEndpoint ?? (
+    requestURL.includes("/api/action") ? "/api/action"
+    : requestURL.includes("/api/mutation") ? "/api/mutation"
+    : "/api/query"
+  );
+
+  if (!requestURL.includes(endpoint)) {
     throw new Error(`Unexpected request URL: ${requestURL}`);
   }
 
@@ -281,9 +287,20 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+      // AND-mode queries now use the two-pass action path
+      if (call.pathName === "resumes:searchWithTagExpansionAndMode") {
         return convexSuccess({
-          page: [
+          expansion: {
+            original: "CNC 销售",
+            expanded: ["cnc", "销售", "数值控制"],
+            groups: [
+              { original: "cnc", variants: ["cnc", "数值控制"] },
+              { original: "销售", variants: ["销售"] },
+            ],
+            mode: "AND",
+          },
+          total: 1,
+          results: [
             {
               resume: {
                 _id: "resume-live-1",
@@ -307,8 +324,6 @@ describe("resume routes", () => {
               provenance: [{ term: "销售", source: "searchText" }],
             },
           ],
-          continueCursor: "",
-          isDone: true,
         });
       }
 
@@ -333,9 +348,9 @@ describe("resume routes", () => {
       })
     );
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionScanPage",
+      pathName: "resumes:searchWithTagExpansionAndMode",
       args: expect.objectContaining({
-        paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
+        query: "CNC 销售",
       }),
     }));
   });
@@ -570,16 +585,25 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+      // AND-mode queries now use the two-pass action path
+      if (call.pathName === "resumes:searchWithTagExpansionAndMode") {
         return convexSuccess({
-          page: [
+          expansion: {
+            original: "cnc sales",
+            expanded: ["cnc", "sales"],
+            groups: [
+              { original: "cnc", variants: ["cnc"] },
+              { original: "sales", variants: ["sales"] },
+            ],
+            mode: "AND",
+          },
+          total: 4,
+          results: [
             { resume: buildConvexResumeRecord("resume-live-1", { name: "Alice" }), provenance: [{ term: "sales", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-2", { name: "Bob" }), provenance: [{ term: "cnc", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), provenance: [{ term: "cnc", source: "searchText" }] },
           ],
-          continueCursor: "",
-          isDone: true,
         });
       }
 
@@ -599,10 +623,7 @@ describe("resume routes", () => {
     }));
     expect(payload.data.map((item: { name: string }) => item.name)).toEqual(["Carla", "Dylan"]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionScanPage",
-      args: expect.objectContaining({
-        paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
-      }),
+      pathName: "resumes:searchWithTagExpansionAndMode",
     }));
   });
 
@@ -613,14 +634,23 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+      // AND-mode queries now use the two-pass action path
+      if (call.pathName === "resumes:searchWithTagExpansionAndMode") {
         return convexSuccess({
-          page: [
+          expansion: {
+            original: "cnc sales",
+            expanded: ["cnc", "sales"],
+            groups: [
+              { original: "cnc", variants: ["cnc"] },
+              { original: "sales", variants: ["sales"] },
+            ],
+            mode: "AND",
+          },
+          total: 2,
+          results: [
             { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
             { resume: buildConvexResumeRecord("resume-live-4", { name: "Dylan" }), provenance: [{ term: "cnc", source: "searchText" }] },
           ],
-          continueCursor: "",
-          isDone: true,
         });
       }
 
@@ -634,10 +664,7 @@ describe("resume routes", () => {
     const payload = await response.json();
     expect(payload.success).toBe(true);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionScanPage",
-      args: expect.objectContaining({
-        paginationOpts: expect.objectContaining({ cursor: null, numItems: 250 }),
-      }),
+      pathName: "resumes:searchWithTagExpansionAndMode",
     }));
   });
 
@@ -682,9 +709,19 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+      // AND-mode queries now use the two-pass action path
+      if (call.pathName === "resumes:searchWithTagExpansionAndMode") {
         return convexSuccess({
-          page: [
+          expansion: {
+            original: "\"machine tools\"",
+            expanded: ["machine tools", "precision machinery"],
+            groups: [
+              { original: "machine tools", variants: ["machine tools", "precision machinery"] },
+            ],
+            mode: "AND",
+          },
+          total: 2,
+          results: [
             {
               resume: keeKimLoong,
               provenance: [{ term: "machine tools", source: "searchText" }],
@@ -694,8 +731,6 @@ describe("resume routes", () => {
               provenance: [{ term: "precision machinery", source: "searchText", expandedFrom: "machine tools" }],
             },
           ],
-          continueCursor: "",
-          isDone: true,
         });
       }
 
@@ -721,7 +756,7 @@ describe("resume routes", () => {
       "Johnson Lee Wei Tao",
     ]);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionScanPage",
+      pathName: "resumes:searchWithTagExpansionAndMode",
       args: expect.objectContaining({
         locations: ["Kuala Lumpur MY"],
         keywordGroups: expect.arrayContaining([
@@ -741,13 +776,22 @@ describe("resume routes", () => {
       const call = parseConvexCall(input, init);
       calls.push(call);
 
-      if (call.pathName === "resumes:searchWithTagExpansionScanPage") {
+      // AND-mode queries now use the two-pass action path
+      if (call.pathName === "resumes:searchWithTagExpansionAndMode") {
         return convexSuccess({
-          page: [
+          expansion: {
+            original: "cnc sales",
+            expanded: ["cnc", "sales"],
+            groups: [
+              { original: "cnc", variants: ["cnc"] },
+              { original: "sales", variants: ["sales"] },
+            ],
+            mode: "AND",
+          },
+          total: 1,
+          results: [
             { resume: buildConvexResumeRecord("resume-live-3", { name: "Carla" }), provenance: [{ term: "sales", source: "searchText" }] },
           ],
-          continueCursor: "",
-          isDone: true,
         });
       }
 
@@ -759,7 +803,7 @@ describe("resume routes", () => {
 
     expect(response.status).toBe(200);
     expect(calls[0]).toEqual(expect.objectContaining({
-      pathName: "resumes:searchWithTagExpansionScanPage",
+      pathName: "resumes:searchWithTagExpansionAndMode",
       args: expect.objectContaining({
         requiredKeywords: ["machine tools", "cnc"],
       }),
