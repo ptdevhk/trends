@@ -428,6 +428,10 @@ local-restore-from-prod:
 	@while $(MAKE) --no-print-directory clear-resumes 2>&1 | tee /tmp/clear-resumes.out | grep -q '"partial": true'; do :; done
 	@$(MAKE) --no-print-directory restore-resumes FILE="$(FILE)" MODE=replace YES=1 \
 		API_URL="$${API_URL:-http://localhost:3000}" WORKSPACE="$${WORKSPACE:-dev}"
+	@echo "→ backfilling derived fields"
+	@$(MAKE) --no-print-directory backfill-derived-fields
+	@echo "→ checking derived field coverage"
+	@$(MAKE) --no-print-directory check-derived-fields
 
 restore-from-prod: local-restore-from-prod
 
@@ -884,6 +888,15 @@ verify-workflow-dataset:
 e2e:
 	@echo "Running E2E smoke tests via DevTools..."
 	@npx tsx scripts/e2e-smoke.ts
+
+# Run all derived-field backfill migrations (searchText reindex + verifiedRoleYears backfill)
+backfill-derived-fields:
+	@echo "→ force-validating data consistency (reindex + backfill + search index refresh)"
+	@./bin/trends migrate validate-consistency --force
+
+# Check derived field coverage via BFF API
+check-derived-fields:
+	@curl -s "$${API_URL:-http://localhost:3000}/api/resumes/field-coverage" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'scanned={d[\"scanned\"]} missingSearchText={d[\"missingSearchText\"]} missingVerifiedRoleYears={d[\"missingVerifiedRoleYears\"]} hasRoleSignals={d[\"hasRoleSignals\"]}')"
 
 # Benchmark critical path with repeated runs (median/p95 + pass/degraded/fail rates)
 benchmark-critical-path:

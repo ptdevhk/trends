@@ -5065,6 +5065,34 @@ app.get("/api/resumes/skills-version", (c) => {
   return c.json({ success: true, version }, 200);
 });
 
+app.get("/api/resumes/field-coverage", async (c) => {
+  const total = { scanned: 0, missingSearchText: 0, missingVerifiedRoleYears: 0, hasRoleSignals: 0 };
+  let cursor: string | null = null;
+
+  for (let i = 0; i < 100; i++) {
+    const batch = await callConvexQuery("resumes:fieldCoverage", {
+      cursor,
+      batchSize: 200,
+    }) as {
+      scanned: number;
+      missingSearchText: number;
+      missingVerifiedRoleYears: number;
+      hasRoleSignals: number;
+      hasMore: boolean;
+      cursor: string | null;
+    };
+    total.scanned += batch.scanned;
+    total.missingSearchText += batch.missingSearchText;
+    total.missingVerifiedRoleYears += batch.missingVerifiedRoleYears;
+    total.hasRoleSignals += batch.hasRoleSignals;
+
+    if (!batch.hasMore) break;
+    cursor = batch.cursor;
+  }
+
+  return c.json({ success: true, ...total }, 200);
+});
+
 const listResumeDiagnosticsRoute = createRoute({
   method: "get",
   path: "/api/resumes/diagnostics",

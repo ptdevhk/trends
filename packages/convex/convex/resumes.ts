@@ -7,6 +7,7 @@ import { v } from "convex/values";
 import {
     buildResumeAnalysisStorageKey,
     buildWorkHistoryEntryText,
+    computeVerifiedRoleYears,
     formatLocationHierarchySearchText,
     formatLocationHierarchyLabel,
     getVerifiedRoleSignalYears,
@@ -1713,6 +1714,70 @@ export const count = action({
     },
 });
 
+export const fieldCoverage = query({
+    args: {
+        cursor: v.optional(v.string()),
+        batchSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const resumes = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems: args.batchSize ?? 200,
+            });
+
+        let missingSearchText = 0;
+        let missingVerifiedRoleYears = 0;
+        let hasRoleSignals = 0;
+        let hasVerifiedRoleYears = 0;
+
+        for (const resume of resumes.page) {
+            if (!resume.searchText) {
+                missingSearchText += 1;
+            }
+            if (resume.ingestData?.roleSignals && resume.ingestData.roleSignals.length > 0) {
+                hasRoleSignals += 1;
+                const computed = computeVerifiedRoleYears(resume.ingestData.roleSignals);
+                const existing = resume.ingestData.verifiedRoleYears;
+                if (!shallowEqualNumberRecord(existing, computed)) {
+                    missingVerifiedRoleYears += 1;
+                }
+                if (existing && Object.keys(existing).length > 0) {
+                    hasVerifiedRoleYears += 1;
+                }
+            }
+        }
+
+        return {
+            scanned: resumes.page.length,
+            missingSearchText,
+            missingVerifiedRoleYears,
+            hasRoleSignals,
+            hasVerifiedRoleYears,
+            hasMore: !resumes.isDone,
+            cursor: resumes.isDone ? null : resumes.continueCursor,
+        };
+    },
+});
+
+function shallowEqualNumberRecord(
+    a: Record<string, number> | undefined,
+    b: Record<string, number>,
+): boolean {
+    if (!a) {
+        return Object.keys(b).length === 0;
+    }
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    for (const key of aKeys) {
+        if (a[key] !== b[key]) return false;
+    }
+    return true;
+}
+
 export const list = query({
     args: { limit: v.optional(v.number()) },
     handler: async (ctx, args) => {
@@ -2444,6 +2509,7 @@ export const getByIdsForExport = query({
                 return {
                     resumeId: String(doc._id),
                     resume: {
+                        externalId: doc.externalId,
                         name: toOptionalStringValue(content.name),
                         jobIntention: toOptionalStringValue(content.jobIntention),
                         location: toOptionalStringValue(content.location),

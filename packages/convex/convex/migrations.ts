@@ -1,4 +1,4 @@
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { action, mutation } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
@@ -567,6 +567,7 @@ export const reindexSearchText = mutation({
     args: {
         cursor: v.optional(v.string()),
         batchSize: v.optional(v.number()),
+        force: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const resumes = await ctx.db
@@ -577,6 +578,7 @@ export const reindexSearchText = mutation({
                 numItems: resolveResumeScanBatchSize(args.batchSize),
             });
         let count = 0;
+        const epoch = args.force ? Date.now() : undefined;
         for (const resume of resumes.page) {
             const searchText = mergeSearchTextWithIngestData(buildSearchText(resume.content), {
                 industryTags: resume.ingestData?.industryTags,
@@ -585,7 +587,13 @@ export const reindexSearchText = mutation({
                 companyHits: resume.ingestData?.companyHits,
             });
             if (searchText !== resume.searchText) {
-                await ctx.db.patch(resume._id, { searchText });
+                await ctx.db.patch(resume._id, {
+                    searchText,
+                    ...(epoch !== undefined ? { _searchRefreshEpoch: epoch } : {}),
+                });
+                count++;
+            } else if (args.force) {
+                await ctx.db.patch(resume._id, { searchText, _searchRefreshEpoch: epoch });
                 count++;
             }
         }
@@ -1463,6 +1471,53 @@ function shallowEqualNumberRecord(
     }
     return true;
 }
+
+export const validateDataConsistency = action({
+    args: {
+        batchSize: v.optional(v.number()),
+        force: v.optional(v.boolean()),
+    },
+    handler: async (ctx, args) => {
+        const batchSize = args.batchSize ?? 100;
+        const force = args.force ?? false;
+
+        // Step 1: Reindex searchText
+        let reindexCursor: string | null = null;
+        let reindexScanned = 0;
+        let reindexUpdated = 0;
+        for (let i = 0; i < 10000; i++) {
+            const result: { scannedResumes: number; updatedResumes: number; hasMore: boolean; cursor: string | null } = await ctx.runMutation(api.migrations.reindexSearchText, {
+                cursor: reindexCursor ?? undefined,
+                batchSize,
+                force: force || undefined,
+            });
+            reindexScanned += result.scannedResumes;
+            reindexUpdated += result.updatedResumes;
+            if (!result.hasMore) break;
+            reindexCursor = result.cursor;
+        }
+
+        // Step 2: Backfill verifiedRoleYears
+        let vryCursor: string | null = null;
+        let vryScanned = 0;
+        let vryUpdated = 0;
+        for (let i = 0; i < 10000; i++) {
+            const result: { scannedResumes: number; updatedResumes: number; hasMore: boolean; cursor: string | null } = await ctx.runMutation(api.migrations.backfillVerifiedRoleYears, {
+                cursor: vryCursor ?? undefined,
+                batchSize,
+            });
+            vryScanned += result.scannedResumes;
+            vryUpdated += result.updatedResumes;
+            if (!result.hasMore) break;
+            vryCursor = result.cursor;
+        }
+
+        return {
+            reindexSearchText: { scanned: reindexScanned, updated: reindexUpdated },
+            backfillVerifiedRoleYears: { scanned: vryScanned, updated: vryUpdated },
+        };
+    },
+});
 
 export const backfillSearchProfileTemplateHash = mutation({
     args: {

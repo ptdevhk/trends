@@ -103,7 +103,7 @@ describe("submitResumes", () => {
           crawledAt: 1763942400000,
           isArchived: true,
           archivedAt: 1763942400000,
-          searchText: "alice sales dongguan",
+          searchText: "alice sales dongguan machine tools",
           primaryRuleScore: 91,
           ingestData: {
             industryTags: ["machine tools"],
@@ -128,7 +128,7 @@ describe("submitResumes", () => {
         location: "东莞",
       },
       hash: "hash-1",
-      searchText: "alice sales dongguan",
+      searchText: "alice sales dongguan machine tools",
       tags: ["sales"],
       source: "hr.job5156.com",
       crawledAt: 1763942400000,
