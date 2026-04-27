@@ -589,11 +589,11 @@ export const reindexSearchText = mutation({
             if (searchText !== resume.searchText) {
                 await ctx.db.patch(resume._id, {
                     searchText,
-                    ...(epoch !== undefined ? { _searchRefreshEpoch: epoch } : {}),
+                    ...(epoch !== undefined ? { searchRefreshEpoch: epoch } : {}),
                 });
                 count++;
             } else if (args.force) {
-                await ctx.db.patch(resume._id, { searchText, _searchRefreshEpoch: epoch });
+                await ctx.db.patch(resume._id, { searchText, searchRefreshEpoch: epoch });
                 count++;
             }
         }

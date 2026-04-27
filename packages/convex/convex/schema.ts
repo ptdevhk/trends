@@ -98,7 +98,7 @@ export default defineSchema({
 
         // Internal: set by force-reindex to guarantee a document write that
         // triggers search index refresh even when searchText is unchanged.
-        _searchRefreshEpoch: v.optional(v.number()),
+        searchRefreshEpoch: v.optional(v.number()),
 
         primaryRuleScore: v.optional(v.number()),
 
