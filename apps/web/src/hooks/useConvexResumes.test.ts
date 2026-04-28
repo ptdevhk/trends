@@ -66,7 +66,19 @@ const usePaginatedQueryMock = vi.fn<(
 vi.mock('convex/react', () => ({
   usePaginatedQuery: (query: unknown, args: unknown, options: { initialNumItems: number }) =>
     usePaginatedQueryMock(query, args, options),
-  useQuery: () => [],
+  useQuery: () => undefined,
+}))
+
+vi.mock('../../../../packages/convex/convex/_generated/api', () => ({
+  api: {
+    analysis_tasks: { list: 'analysis_tasks:list' },
+    resumes: {
+      searchWithTagExpansionPaginated: 'resumes:searchWithTagExpansionPaginated',
+      searchWithTagExpansionScanPage: 'resumes:searchWithTagExpansionScanPage',
+      listWithIngestDataPaginated: 'resumes:listWithIngestDataPaginated',
+      getResumeDetail: 'resumes:getResumeDetail',
+    },
+  },
 }))
 
 vi.mock('@/lib/api-helpers', () => ({
@@ -232,7 +244,7 @@ describe('useConvexResumes', () => {
               resumeId: 'resume-1',
               _provenance: [{ term: 'cnc', source: 'searchText' }],
               ...resumeWithRoleSignals,
-              ...resumeWithRoleSignals.content,
+              ...typeof (resumeWithRoleSignals as Record<string, unknown>).content === 'object' && (resumeWithRoleSignals as Record<string, unknown>).content !== null ? (resumeWithRoleSignals as Record<string, unknown>).content as Record<string, unknown> : {},
             }],
             summary: { total: 1 },
           },
