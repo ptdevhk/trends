@@ -854,10 +854,17 @@ function useBffAndModeSearch(
         }
 
         const resumes: ConvexResumeItem[] = data.data.map((item) => {
-          const doc = item as unknown as ResumeListDocLike
+          const record = item as Record<string, unknown>
+          // BFF API returns flat ResumeItem shape; wrap into Convex
+          // doc shape ({_id, content, ...}) that mapResumeDoc expects.
+          const doc = {
+            ...record,
+            _id: record.resumeId ?? record._id,
+            content: record,
+          } as unknown as ResumeListDocLike
           const mapped = mapResumeDoc(doc)
-          const provenance = Array.isArray((item as Record<string, unknown>)['_provenance'])
-            ? (item as Record<string, unknown>)['_provenance'] as SearchProvenance[]
+          const provenance = Array.isArray(record['_provenance'])
+            ? record['_provenance'] as SearchProvenance[]
             : undefined
           return { ...mapped, _provenance: provenance }
         })
