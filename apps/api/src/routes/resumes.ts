@@ -5278,7 +5278,7 @@ app.get("/api/resumes/field-coverage", async (c) => {
 
   for (let i = 0; i < 100; i++) {
     const batch = await callConvexQuery("resumes:fieldCoverage", {
-      cursor,
+      ...(cursor ? { cursor } : {}),
       batchSize: 200,
     }) as {
       scanned: number;

@@ -791,6 +791,7 @@ type BffAndModeResult = {
   resumes: ConvexResumeItem[]
   total: number
   expansion: KeywordExpansionSummary | null
+  loading: boolean
 }
 
 function useBffAndModeSearch(
@@ -801,14 +802,14 @@ function useBffAndModeSearch(
   filters: ConvexResumeFilters | undefined,
   jobDescriptionId: string | undefined,
 ): BffAndModeResult {
-  const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null })
+  const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null, loading: false })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     let active = true
 
     if (!enabled || !normalizedQuery || !keywordExpansion || keywordExpansion.mode !== 'AND' || expansionLoading) {
-      setResult({ resumes: [], total: 0, expansion: null })
+      setResult({ resumes: [], total: 0, expansion: null, loading: false })
       setLoading(false)
       return () => { active = false }
     }
@@ -851,7 +852,7 @@ function useBffAndModeSearch(
       .then(({ data, error }) => {
         if (!active) return
         if (error || !data?.success || !Array.isArray(data.data)) {
-          setResult({ resumes: [], total: 0, expansion: keywordExpansion })
+          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: true })
           return
         }
 
@@ -868,12 +869,13 @@ function useBffAndModeSearch(
           resumes,
           total: data.summary?.total ?? resumes.length,
           expansion: keywordExpansion,
+          loading: true,
         })
       })
       .catch((err: unknown) => {
         console.error('BFF AND-mode search failed', err)
         if (active) {
-          setResult({ resumes: [], total: 0, expansion: keywordExpansion })
+          setResult({ resumes: [], total: 0, expansion: keywordExpansion, loading: true })
         }
       })
       .finally(() => {
@@ -883,9 +885,12 @@ function useBffAndModeSearch(
     return () => { active = false }
   }, [enabled, expansionLoading, filters, jobDescriptionId, keywordExpansion, normalizedQuery])
 
-  return loading && result.resumes.length === 0
-    ? { resumes: [], total: 0, expansion: keywordExpansion }
-    : result
+  return {
+    ...(loading && result.resumes.length === 0
+      ? { resumes: [], total: 0, expansion: keywordExpansion }
+      : result),
+    loading,
+  }
 }
 
 export function useConvexResumes(
@@ -1286,7 +1291,7 @@ export function useConvexResumes(
     : mockPayload
     ? false
     : isAndModeBffActive
-    ? bffAndModeResult.resumes.length === 0
+    ? bffAndModeResult.loading
     : normalizedQuery
       ? (expansionLoading || activePaginatedStatus === 'LoadingFirstPage')
       : paginatedListResults.status === 'LoadingFirstPage'
