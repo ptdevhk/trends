@@ -35,8 +35,8 @@ export type LocationHierarchy = {
   province?: string;
   city?: string;
   district?: string;
-  matchedFrom?: "location" | "profile" | "workHistory" | "jobIntention";
-  confidence?: "high";
+  matchedFrom?: "location" | "profile" | "workHistory" | "jobIntention" | "source";
+  confidence?: "high" | "low";
 };
 
 const LOCATION_SUFFIXES = [

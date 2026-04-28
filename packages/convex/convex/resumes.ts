@@ -551,7 +551,7 @@ export function projectIngestDiagnosticsRow(
 ): IngestDiagnosticsRow {
     const content = isRecord(resume.content) ? resume.content : {};
     const ingestData = resume.ingestData;
-    const locationHierarchy = normalizeResumeLocationHierarchy(content);
+    const locationHierarchy = normalizeResumeLocationHierarchy(content, resume.source);
 
     return {
         resumeId: resume._id,
@@ -613,7 +613,7 @@ function projectResumeBaseContent(
     workHistory: unknown,
 ): Record<string, unknown> {
     const content = isRecord(resume.content) ? resume.content : {};
-    const locationHierarchy = normalizeResumeLocationHierarchy(content);
+    const locationHierarchy = normalizeResumeLocationHierarchy(content, resume.source);
     const name = toOptionalStringValue(content.name);
     const profileUrl = toOptionalStringValue(content.profileUrl)
         ?? toOptionalStringValue(content.profile_url)
@@ -873,8 +873,8 @@ function parseSalaryRange(value: string): { min?: number; max?: number } | null 
     return { min, max };
 }
 
-function buildResumeFilterSearchText(content: Record<string, unknown>): string {
-    const locationText = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content)) || toStringValue(content.location);
+function buildResumeFilterSearchText(content: Record<string, unknown>, source?: string): string {
+    const locationText = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content, source)) || toStringValue(content.location);
     const latestWorkHistory = selectLatestWorkHistory(content.workHistory);
     const parts = [
         toStringValue(content.name),
@@ -1019,7 +1019,7 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     }
 
     if (filters.locations?.length) {
-        const location = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content)) || toStringValue(content.location);
+        const location = formatLocationHierarchySearchText(normalizeResumeLocationHierarchy(content, resume.source)) || toStringValue(content.location);
         const hasLocation = filters.locations.some((target) => isLocationMatch(location, target));
         if (!hasLocation) {
             return false;
@@ -1027,7 +1027,7 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     }
 
     if (filters.skills?.length) {
-        const haystack = buildResumeFilterSearchText(content);
+        const haystack = buildResumeFilterSearchText(content, resume.source);
         const hasSkill = filters.skills.some((skill) => haystack.includes(skill));
         if (!hasSkill) {
             return false;
@@ -1035,7 +1035,7 @@ function matchesResumeListFilters(resume: Doc<"resumes">, filters: ResumeListFil
     }
 
     if (filters.requiredKeywords?.length) {
-        const haystack = buildResumeFilterSearchText(content);
+        const haystack = buildResumeFilterSearchText(content, resume.source);
         if (!matchesAllRequiredKeywords(haystack, filters.requiredKeywords)) {
             return false;
         }

@@ -37,8 +37,8 @@ export const ResumeLocationHierarchySchema = z
     province: z.string().optional().openapi({ example: "广东" }),
     city: z.string().optional().openapi({ example: "东莞" }),
     district: z.string().optional().openapi({ example: "长安" }),
-    matchedFrom: z.enum(["location", "profile", "workHistory", "jobIntention"]).optional(),
-    confidence: z.literal("high").optional(),
+    matchedFrom: z.enum(["location", "profile", "workHistory", "jobIntention", "source"]).optional(),
+    confidence: z.enum(["high", "low"]).optional(),
   })
   .openapi("ResumeLocationHierarchy");
 

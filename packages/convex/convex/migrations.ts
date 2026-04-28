@@ -96,7 +96,7 @@ function rewriteJob5156LocationHierarchyInContent(content: unknown): RewriteJob5
         };
     }
 
-    const locationHierarchy = normalizeResumeLocationHierarchy(content);
+    const locationHierarchy = normalizeResumeLocationHierarchy(content, source);
     const rawLocation = typeof content.location === "string" ? content.location.trim() : "";
     const nextLocation = rawLocation || (locationHierarchy ? formatLocationHierarchyLabel(locationHierarchy) : "");
 

@@ -3,6 +3,7 @@ import {
   normalizeLocationHierarchy as normalizeLocationTreeHierarchy,
   type LocationHierarchy,
 } from "./location-tree.js";
+import { normalizeResumeAnalysisSourceKey, type ResumeAnalysisSourceKey } from "./analysis-key.js";
 
 export type ResumeWorkHistoryItem = {
   raw: string;
@@ -82,6 +83,17 @@ export type NormalizedResumeFields = {
 
 const JOB5156_HOST = "hr.job5156.com";
 const JOB5156_PROFILE_URL_PREFIX = `https://${JOB5156_HOST}/resume/view/`;
+
+const SOURCE_KEY_TO_COUNTRY: Record<ResumeAnalysisSourceKey, string> = {
+  job5156: "中国",
+  "51job": "中国",
+  seek: "Malaysia",
+};
+
+function inferCountryFromSource(source: unknown): string | undefined {
+  const key = normalizeResumeAnalysisSourceKey(toTrimmedString(source) || undefined);
+  return key ? SOURCE_KEY_TO_COUNTRY[key] : undefined;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -361,16 +373,28 @@ function collectLocationHierarchyCandidates(record: Record<string, unknown>): Ra
 
   pushCandidate(record.jobIntention, "jobIntention", 60);
 
+  // Resumes with unparseable location text still have a known source host that
+  // implies country; this fallback prevents them from being invisible to location filters.
+  if (candidates.length === 0) {
+    const sourceCountry = inferCountryFromSource(record.source ?? record.sourceHost);
+    if (sourceCountry) {
+      candidates.push({
+        hierarchy: { country: sourceCountry, matchedFrom: "source", confidence: "low" },
+        priority: 10,
+      });
+    }
+  }
+
   return candidates;
 }
 
-export function normalizeResumeLocationHierarchy(record: Record<string, unknown>): LocationHierarchy | undefined {
+export function normalizeResumeLocationHierarchy(record: Record<string, unknown>, source?: string): LocationHierarchy | undefined {
   const explicitHierarchy = normalizeLocationTreeHierarchy(record.locationHierarchy);
   if (explicitHierarchy) {
     return explicitHierarchy;
   }
 
-  return chooseBestLocationHierarchy(collectLocationHierarchyCandidates(record));
+  return chooseBestLocationHierarchy(collectLocationHierarchyCandidates({ ...record, source: source ?? record.source }));
 }
 
 function normalizeProfileEducation(value: unknown): ResumeProfileEducationItem[] | undefined {

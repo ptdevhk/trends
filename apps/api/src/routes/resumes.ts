@@ -76,6 +76,7 @@ import {
   formatLocationHierarchySearchText,
   isLocationMatch,
   normalizeKeywordPhrases,
+  normalizeResumeLocationHierarchy,
   normalizeWorkHistoryEntry,
   parseKeywordQuery,
   selectLatestWorkHistory,
@@ -1958,7 +1959,8 @@ function bffMatchesResumeFilters(
   }
 
   if (filters.locations?.length) {
-    const location = toStringValue(content.location) ?? "";
+    const locationHierarchy = normalizeResumeLocationHierarchy(content, toStringValue(doc.source) ?? undefined);
+    const location = formatLocationHierarchySearchText(locationHierarchy) || (toStringValue(content.location) ?? "");
     if (!filters.locations.some((target) => isLocationMatch(location, target))) return false;
   }
 

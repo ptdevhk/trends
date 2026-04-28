@@ -7025,9 +7025,9 @@ export interface components {
             /** @example 长安 */
             district?: string;
             /** @enum {string} */
-            matchedFrom?: "location" | "profile" | "workHistory" | "jobIntention";
+            matchedFrom?: "location" | "profile" | "workHistory" | "jobIntention" | "source";
             /** @enum {string} */
-            confidence?: "high";
+            confidence?: "high" | "low";
         };
         ResumeWorkHistory: {
             /** @example 2021-03 ~ 2023-08 Example Co. - Sales Manager */
