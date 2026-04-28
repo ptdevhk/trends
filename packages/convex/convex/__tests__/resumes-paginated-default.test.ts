@@ -973,8 +973,9 @@ describe("searchWithTagExpansionPaginated", () => {
       roleFilterType: "sales",
     });
 
-    // With filters active, the scan should overfetch 3x the requested page size
-    expect(capturedNumItems).toBe(requestedNumItems * 3);
+    // With filters active, the scan should overfetch 3x the requested page size,
+    // capped by MAX_SAFE_SEARCH_PAGINATE_SCAN (128)
+    expect(capturedNumItems).toBe(Math.min(requestedNumItems * 3, 128));
   });
 
   it("does not overfetch when no filters are active", async () => {
@@ -1016,8 +1017,8 @@ describe("searchWithTagExpansionPaginated", () => {
       mode: "AND",
     });
 
-    // Without filters, scan should equal the requested page size (no overfetch)
-    expect(capturedNumItems).toBe(requestedNumItems);
+    // Without filters, scan should cap at MAX_SAFE_SEARCH_PAGINATE_SCAN_UNFILTERED (16)
+    expect(capturedNumItems).toBe(Math.min(requestedNumItems, 16));
   });
 });
 

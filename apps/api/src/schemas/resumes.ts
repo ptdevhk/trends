@@ -896,6 +896,7 @@ export const ResumeExportCanonicalRequestSchema = z
   .openapi("ResumeExportCanonicalRequest");
 
 export const ResumeExportResolvedResumeSchema = z.object({
+  externalId: z.string().optional(),
   name: z.string().optional(),
   jobIntention: z.string().optional(),
   location: z.string().optional(),

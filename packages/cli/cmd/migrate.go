@@ -25,6 +25,8 @@ const (
 	migrationBackfillIngestData   = "migrations:backfillIngestData"
 	backfillManual51jobMigration  = "migrations:backfillManual51jobStructuredContent"
 	migrationBackfillPrimaryScore = "migrations:backfillPrimaryRuleScore"
+	migrationBackfillVerifiedRoleYears = "migrations:backfillVerifiedRoleYears"
+	migrationValidateConsistency    = "migrations:validateDataConsistency"
 )
 
 type paginatedMigrationBatchResult struct {
@@ -77,6 +79,8 @@ func newMigrateCmd() *cobra.Command {
 		newMigrateBackfillIngestCmd(),
 		newMigrateBackfillManual51jobCmd(),
 		newMigrateBackfillScoreCmd(),
+		newMigrateBackfillVerifiedRoleYearsCmd(),
+		newMigrateValidateConsistencyCmd(),
 	)
 
 	return migrateCmd
@@ -118,6 +122,43 @@ func newMigrateBackfillScoreCmd() *cobra.Command {
 		"Run migrations:backfillPrimaryRuleScore",
 		migrationBackfillPrimaryScore,
 	)
+}
+
+func newMigrateBackfillVerifiedRoleYearsCmd() *cobra.Command {
+	return newPaginatedMigrationCmd(
+		"backfill-verified-role-years",
+		"Run migrations:backfillVerifiedRoleYears until complete",
+		migrationBackfillVerifiedRoleYears,
+		"Batch size",
+		defaultReindexBatchSize,
+	)
+}
+
+func newMigrateValidateConsistencyCmd() *cobra.Command {
+	var forceFlag bool
+
+	cmd := &cobra.Command{
+		Use:   "validate-consistency",
+		Short: "Run full data consistency validation and repair (reindexSearchText + backfillVerifiedRoleYears)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var extraArgs []string
+			if forceFlag {
+				payload, err := json.Marshal(map[string]bool{"force": true})
+				if err != nil {
+					return err
+				}
+				extraArgs = append(extraArgs, string(payload))
+			}
+			output, err := runConvexCommand(context.Background(), migrationValidateConsistency, extraArgs...)
+			if err != nil {
+				return err
+			}
+			return writeMigrationOutput(cmd, migrationValidateConsistency, output)
+		},
+	}
+
+	cmd.Flags().BoolVar(&forceFlag, "force", false, "Force reindex all documents (refreshes search index even when searchText is unchanged)")
+	return cmd
 }
 
 func migrationLimitArgKey(migration string) string {

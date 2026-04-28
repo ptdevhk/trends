@@ -96,6 +96,10 @@ export default defineSchema({
         // Full Text Search Field (Populated via mutation)
         searchText: v.optional(v.string()),
 
+        // Internal: set by force-reindex to guarantee a document write that
+        // triggers search index refresh even when searchText is unchanged.
+        searchRefreshEpoch: v.optional(v.number()),
+
         primaryRuleScore: v.optional(v.number()),
 
         isArchived: v.optional(v.boolean()),

@@ -26,6 +26,7 @@ type ResumeWorkHistoryItem = Partial<SharedResumeWorkHistoryItem> & {
 };
 
 type ResumeExportPayload = {
+  externalId?: string;
   name?: string;
   jobIntention?: string;
   location?: string;
@@ -61,6 +62,8 @@ export type ResumeExportEntry = {
 
 type ExportRow = {
   resumeId: string;
+  externalId: string;
+  source: string;
   name: string;
   jobIntention: string;
   location: string;
@@ -263,6 +266,8 @@ function toRow(
 
   return {
     resumeId: entry.key,
+    externalId: normalizeString(entry.resume.externalId),
+    source: normalizeString(entry.resume.source),
     name: normalizeString(entry.resume.name),
     jobIntention: normalizeString(entry.resume.jobIntention),
     location: normalizeString(entry.resume.location),
@@ -318,6 +323,8 @@ const STANDARD_EXCEL_COLUMNS_HEAD: ExcelColumn[] = [
 ];
 
 const DEBUG_EXCEL_COLUMNS: ExcelColumn[] = [
+  { header: "External ID", key: "externalId", width: 36 },
+  { header: "Source", key: "source", width: 16 },
   { header: "Industry DB V2 Raw", key: "industryDbV2Raw", width: 18 },
   { header: "Industry DB V2 Normalized", key: "industryDbV2Normalized", width: 24 },
 ];
@@ -347,9 +354,9 @@ function getExcelColumns(debug: boolean): ExcelColumn[] {
     : [...STANDARD_EXCEL_COLUMNS_HEAD, ...STANDARD_EXCEL_COLUMNS_TAIL];
 }
 
-function toOutputRow(row: ExportRow, debug: boolean): Omit<ExportRow, "industryDbV2Raw" | "industryDbV2Normalized"> | ExportRow {
+function toOutputRow(row: ExportRow, debug: boolean): Omit<ExportRow, "externalId" | "source" | "industryDbV2Raw" | "industryDbV2Normalized"> | ExportRow {
   if (debug) return row;
-  const { industryDbV2Raw: _r, industryDbV2Normalized: _n, ...standard } = row;
+  const { externalId: _e, source: _s, industryDbV2Raw: _r, industryDbV2Normalized: _n, ...standard } = row;
   return standard;
 }
 
@@ -395,6 +402,8 @@ const REVIEW_PACKET_EXCEL_COLUMNS_HEAD: ReviewPacketExcelColumn[] = [
 ];
 
 const REVIEW_PACKET_DEBUG_EXCEL_COLUMNS: ReviewPacketExcelColumn[] = [
+  { header: "External ID", key: "externalId", width: 36 },
+  { header: "Source", key: "source", width: 16 },
   { header: "Industry DB V2 Raw", key: "industryDbV2Raw", width: 18 },
   { header: "Industry DB V2 Normalized", key: "industryDbV2Normalized", width: 24 },
 ];

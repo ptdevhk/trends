@@ -299,7 +299,7 @@ export function getVerifiedRoleSignalYears(
       }
     }
 
-    const years = signal.industryVerifiedRelevantYears ?? signal.industryVerifiedYears ?? 0;
+    const years = signal.industryVerifiedRelevantYears || signal.industryVerifiedYears || 0;
     return Number.isFinite(years) ? years : 0;
   };
 

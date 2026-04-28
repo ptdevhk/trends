@@ -2,7 +2,8 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { buildSearchText } from "./search_text";
+import { buildSearchText, mergeSearchTextWithIngestData } from "./search_text";
+import { computeVerifiedRoleYears } from "@trends/shared";
 import { resolveSubmitResumeParallelism } from "./lib/parallelism";
 import { deriveResumeIdentity } from "./lib/resume_identity";
 import { parseAgeFromContent } from "./lib/age";
@@ -70,10 +71,33 @@ function resolveStoredSearchText(
     const restored = typeof restoreState?.searchText === "string"
         ? restoreState.searchText.trim()
         : "";
-    if (restored) {
-        return restored;
+    const baseText = restored || buildSearchText(content);
+    // Merge ingest-derived search tokens when available
+    if (restoreState?.ingestData) {
+        return mergeSearchTextWithIngestData(baseText, {
+            industryTags: restoreState.ingestData.industryTags,
+            synonymHits: restoreState.ingestData.synonymHits,
+            brandHits: restoreState.ingestData.brandHits,
+            companyHits: restoreState.ingestData.companyHits,
+        });
     }
-    return buildSearchText(content);
+    return baseText;
+}
+
+function shallowEqualNumberRecord(
+    a: Record<string, number> | undefined,
+    b: Record<string, number>,
+): boolean {
+    if (!a) {
+        return Object.keys(b).length === 0;
+    }
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    for (const key of aKeys) {
+        if (a[key] !== b[key]) return false;
+    }
+    return true;
 }
 
 function shouldScheduleIngest(restoreState: RestoreState | undefined): boolean {
@@ -112,7 +136,22 @@ function applyRestoreStateFields(
         target.primaryRuleScore = restoreState.primaryRuleScore;
     }
     if (restoreState.ingestData !== undefined) {
-        target.ingestData = restoreState.ingestData;
+        const hasRoleSignals = Array.isArray(restoreState.ingestData.roleSignals)
+            && restoreState.ingestData.roleSignals.length > 0;
+        if (hasRoleSignals) {
+            const computed = computeVerifiedRoleYears(restoreState.ingestData.roleSignals);
+            const existing = restoreState.ingestData.verifiedRoleYears;
+            if (!shallowEqualNumberRecord(existing, computed)) {
+                target.ingestData = {
+                    ...restoreState.ingestData,
+                    verifiedRoleYears: computed,
+                };
+            } else {
+                target.ingestData = restoreState.ingestData;
+            }
+        } else {
+            target.ingestData = restoreState.ingestData;
+        }
     }
     if (restoreState.analysis !== undefined) {
         target.analysis = restoreState.analysis;

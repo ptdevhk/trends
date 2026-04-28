@@ -10,6 +10,7 @@ function buildEntry(age: string | undefined): ResumeExportEntry {
   return {
     key: "resume-1",
     resume: {
+      externalId: "job5156:resume:12345",
       name: "Alice",
       age,
       experience: "5年",
@@ -162,6 +163,8 @@ describe("ExportService", () => {
     expect(parsed.meta.fields).toContain("relatedExp");
     expect(parsed.meta.fields).not.toContain("industryDbV2Raw");
     expect(parsed.meta.fields).not.toContain("industryDbV2Normalized");
+    expect(parsed.meta.fields).not.toContain("externalId");
+    expect(parsed.meta.fields).not.toContain("source");
     expect(parsed.data[0]?.aiScore).toBe("68");
     expect(parsed.data[0]?.industryDb).toBe("50");
     expect(parsed.data[0]?.relatedExp).toBe("18");
@@ -248,6 +251,8 @@ describe("ExportService", () => {
 
     expect(parsed.meta.fields).toContain("industryDbV2Raw");
     expect(parsed.meta.fields).toContain("industryDbV2Normalized");
+    expect(parsed.meta.fields).toContain("externalId");
+    expect(parsed.meta.fields).toContain("source");
     expect(parsed.data[0]?.industryDbV2Raw).toBe("50");
     expect(parsed.data[0]?.industryDbV2Normalized).toBe("50");
     expect(parsed.data[1]?.industryDbV2Raw).toBe("25");
