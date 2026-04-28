@@ -438,6 +438,7 @@ function createParsedState(
     selectedTags: [],
     selectedCompanies: [],
     selectedSources: [],
+    selectedBrands: [],
     selectedExperienceLevel: undefined,
     filters: {},
     ...overrides,

@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useResumeFieldUsagePolicy } from '@/contexts/ResumeFieldUsagePolicyContext'
 import { cn } from '@/lib/utils'
-import { getResumeContentLocale, isSafeProfileUrl } from '@/lib/resume-scoring'
+import { getResumeContentLocale, getExperienceBadge, isSafeProfileUrl, summarizeBrandHits } from '@/lib/resume-scoring'
+import { useBrandDisplayMap } from '@/hooks/useBrandDisplayMap'
 import type { ResumeSearchResultItem } from '@/components/search/search-types'
 
 import type { CandidateActionType, CandidateStatus } from '@/types/resume'
@@ -159,6 +160,8 @@ export function SnippetCardExpanded({
   )
   const profileUrl = item.resume.profileUrl?.trim()
   const hasProfileUrl = isSafeProfileUrl(profileUrl)
+  const { resolve: resolveBrand } = useBrandDisplayMap()
+  const brandSummary = summarizeBrandHits(item.resume.ingestData?.brandHits)
 
   return (
     <div className="border-t bg-slate-50/70 px-5 py-5" lang={contentLocale}>
@@ -313,8 +316,11 @@ export function SnippetCardExpanded({
               {(item.resume.ingestData?.companyHits ?? []).slice(0, 5).map((company) => (
                 <Badge key={company} variant="outline">{company}</Badge>
               ))}
-              {item.resume.ingestData?.experienceLevel ? (
-                <Badge variant="outline" className="capitalize">{item.resume.ingestData.experienceLevel}</Badge>
+              {brandSummary.map((brand) => (
+                <Badge key={`brand-${brand}`} variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">{resolveBrand(brand)}</Badge>
+              ))}
+              {getExperienceBadge(item.resume.ingestData?.experienceLevel, t) ? (
+                <Badge variant="outline" className={getExperienceBadge(item.resume.ingestData?.experienceLevel, t)!.className}>{getExperienceBadge(item.resume.ingestData?.experienceLevel, t)!.label}</Badge>
               ) : null}
             </div>
           </div>

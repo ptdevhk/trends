@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { AiFeedbackButtons } from '@/components/AiFeedbackButtons'
 import type { ResumeItem } from '@/hooks/useResumes'
 import type { AiFeedbackSentiment, AiFeedbackTarget, CandidateActionType, CandidateStatus, MatchingResult } from '@/types/resume'
-import type { ExperienceLevelFilter } from '@/hooks/useUrlSearchState'
+import type { ExperienceLevelFilter } from '@/lib/resume-scoring'
 import { cn } from '@/lib/utils'
 import {
   formatRoleYears,
@@ -22,6 +22,7 @@ import {
   type BrandHitLike,
   summarizeBrandHits,
   getExperienceBadge,
+  normalizeExperienceLevel,
 } from '@/lib/resume-scoring'
 import {
   Tooltip,
@@ -315,7 +316,7 @@ export function ResumeCard({
     ? aiScoreNode ?? pendingAiScoreNode
     : ruleScoreNode ?? aiScoreNode
   const visibleIndustryTags = (industryTags ?? [])
-    .filter((tag) => tag.trim().length > 0)
+    .filter((tag) => tag.trim().length > 0 && tag.trim().toLowerCase() !== 'unknown')
     .slice(0, 4)
   const visibleCompanyHits = (companyHits ?? [])
     .filter((company) => company.trim().length > 0)
@@ -334,42 +335,26 @@ export function ResumeCard({
   const roleEvidenceLabel = primaryRoleSignal
     ? `${roleTypeLabel}${formatRoleYears(displayRoleYears, contentLocale)}${verifiedRoleYears > 0 ? industryVerifiedSuffix : ''}`
     : null
-  const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase()
+  const normalizedExperienceLevel = normalizeExperienceLevel(experienceLevel)
   const experienceLevelForClick: ExperienceLevelFilter | undefined =
-    normalizedExperienceLevel === 'senior'
-      ? 'senior'
-      : normalizedExperienceLevel === 'mid'
-        ? 'mid'
-        : normalizedExperienceLevel === 'junior'
-          ? 'junior'
-          : undefined
+    normalizedExperienceLevel ?? undefined
   const isExperienceLevelActive =
     Boolean(activeExperienceLevelFilter)
     && normalizedExperienceLevel === activeExperienceLevelFilter
   const inactiveBadge = getExperienceBadge(experienceLevel, t)
-  const experienceBadge =
-    normalizedExperienceLevel === 'senior'
-      ? {
-        label: inactiveBadge?.label ?? 'Senior',
-        className: isExperienceLevelActive
-          ? 'border-orange-700 bg-orange-600 text-white'
-          : (inactiveBadge?.className ?? ''),
-      }
-      : normalizedExperienceLevel === 'mid'
-        ? {
-          label: inactiveBadge?.label ?? 'Mid',
-          className: isExperienceLevelActive
-            ? 'border-teal-700 bg-teal-600 text-white'
-            : (inactiveBadge?.className ?? ''),
-        }
-        : normalizedExperienceLevel === 'junior'
-          ? {
-            label: inactiveBadge?.label ?? 'Junior',
-            className: isExperienceLevelActive
-              ? 'border-zinc-700 bg-zinc-600 text-white'
-              : (inactiveBadge?.className ?? ''),
-          }
-          : null
+  const activeClassMap: Record<string, string> = {
+    senior: 'border-orange-700 bg-orange-600 text-white',
+    mid: 'border-teal-700 bg-teal-600 text-white',
+    junior: 'border-zinc-700 bg-zinc-600 text-white',
+  }
+  const experienceBadge = inactiveBadge
+    ? {
+      label: inactiveBadge.label,
+      className: isExperienceLevelActive
+        ? activeClassMap[normalizedExperienceLevel!] ?? inactiveBadge.className
+        : inactiveBadge.className,
+    }
+    : null
 
   return (
     <div

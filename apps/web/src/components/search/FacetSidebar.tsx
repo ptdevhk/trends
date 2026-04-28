@@ -9,6 +9,7 @@ export type FacetSidebarProps = {
   embedded?: boolean
   facetCounts: FacetCounts
   minScore?: number
+  selectedBrands: string[]
   selectedClusters: string[]
   selectedCompanies: string[]
   selectedEducation: string[]
@@ -19,6 +20,7 @@ export type FacetSidebarProps = {
   onClearAll: () => void
   onSetExperienceLevel: (value: ExperienceLevelFilter | undefined) => void
   onSetMinScore: (value: number | undefined) => void
+  onToggleBrand: (value: string) => void
   onToggleCompany: (value: string) => void
   onToggleCluster: (value: string) => void
   onToggleEducation: (value: string) => void
@@ -68,6 +70,7 @@ export function FacetSidebar({
   embedded = false,
   facetCounts,
   minScore,
+  selectedBrands,
   selectedClusters,
   selectedCompanies,
   selectedEducation,
@@ -78,6 +81,7 @@ export function FacetSidebar({
   onClearAll,
   onSetExperienceLevel,
   onSetMinScore,
+  onToggleBrand,
   onToggleCompany,
   onToggleCluster,
   onToggleEducation,
@@ -114,6 +118,7 @@ export function FacetSidebar({
         onToggle={onToggleCluster}
       />
       <FacetGroup title={t('resumes.searchPage.facets.tags', { defaultValue: '标签聚类' })} items={facetCounts.tags} selectedValues={selectedTags} onToggle={onToggleTag} />
+      <FacetGroup title={t('resumes.searchPage.facets.brands', { defaultValue: '品牌标签' })} items={facetCounts.brands} selectedValues={selectedBrands} onToggle={onToggleBrand} />
       <FacetGroup title={t('resumes.searchPage.facets.companies', { defaultValue: '公司经历' })} items={facetCounts.companies} selectedValues={selectedCompanies} onToggle={onToggleCompany} />
       <FacetGroup title={t('resumes.searchPage.facets.sources', { defaultValue: '来源渠道' })} items={facetCounts.sources} selectedValues={selectedSources} onToggle={onToggleSource} />
       <ExperienceLevelGroup selectedExperienceLevel={selectedExperienceLevel} onSetExperienceLevel={onSetExperienceLevel} />

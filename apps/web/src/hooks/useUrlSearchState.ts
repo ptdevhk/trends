@@ -10,6 +10,7 @@ const KNOWN_PARAM_KEYS = [
   'tags',
   'co',
   'src',
+  'brands',
   'rkw',
   'exp',
   'minRoleYears',
@@ -36,6 +37,7 @@ export type UrlSearchState = {
   selectedTags: string[]
   selectedCompanies: string[]
   selectedSources: string[]
+  selectedBrands: string[]
   selectedExperienceLevel?: ExperienceLevelFilter
   filters: Partial<ResumeFilters>
 }
@@ -89,9 +91,9 @@ function parseExperienceLevel(value: string | null): ExperienceLevelFilter | und
   }
 
   const normalized = value.trim().toLowerCase()
-  if (normalized === 'senior') return 'senior'
-  if (normalized === 'mid') return 'mid'
-  if (normalized === 'junior') return 'junior'
+  if (normalized === 'senior' || normalized === '资深' || normalized === '資深') return 'senior'
+  if (normalized === 'mid' || normalized === '中级' || normalized === '中級') return 'mid'
+  if (normalized === 'junior' || normalized === '初级' || normalized === '初級') return 'junior'
 
   return undefined
 }
@@ -188,6 +190,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
   const selectedTags = normalizeUniqueValues(parseCsvParam(searchParams.get('tags')))
   const selectedCompanies = normalizeUniqueValues(parseCsvParam(searchParams.get('co')))
   const selectedSources = normalizeUniqueValues(parseCsvParam(searchParams.get('src')))
+  const selectedBrands = normalizeUniqueValues(parseCsvParam(searchParams.get('brands')))
   const selectedExperienceLevel = parseExperienceLevel(searchParams.get('exp'))
 
   const filters: Partial<ResumeFilters> = {}
@@ -256,6 +259,7 @@ export function parseUrlSearchState(searchParams: URLSearchParams): UrlSearchSta
     selectedTags,
     selectedCompanies,
     selectedSources,
+    selectedBrands,
     selectedExperienceLevel,
     filters,
   }
@@ -311,6 +315,8 @@ export function useUrlSearchState() {
         setParam(nextParams, 'tags', normalizedTags.length > 0 ? normalizedTags.join(',') : undefined)
         setParam(nextParams, 'co', normalizedCompanies.length > 0 ? normalizedCompanies.join(',') : undefined)
         setParam(nextParams, 'src', normalizedSources.length > 0 ? normalizedSources.join(',') : undefined)
+        const normalizedBrands = normalizeUniqueValues(state.selectedBrands)
+        setParam(nextParams, 'brands', normalizedBrands.length > 0 ? normalizedBrands.join(',') : undefined)
         setParam(nextParams, 'exp', state.selectedExperienceLevel)
 
         if (typeof state.filters.maxExperience === 'number' && Number.isFinite(state.filters.maxExperience)) {

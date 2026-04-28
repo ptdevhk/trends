@@ -794,6 +794,7 @@ export function useResumeListState(loadSearchHistory = false) {
         selectedTags,
         selectedCompanies,
         selectedSources: [],
+        selectedBrands: [],
         selectedExperienceLevel,
         filters: filtersForUrl,
       })

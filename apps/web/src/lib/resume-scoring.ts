@@ -31,21 +31,44 @@ export function summarizeBrandHits(brandHits: BrandHitLike[] | undefined, maxCou
     .map(([brand]) => brand)
 }
 
-export function getExperienceBadge(level: string | undefined, t: (key: string, opts?: { defaultValue?: string }) => string): { label: string; className: string } | null {
+const CHINESE_EXPERIENCE_LEVEL_MAP: Record<string, ExperienceLevelFilter> = {
+  '资深': 'senior',
+  '資深': 'senior',
+  '中级': 'mid',
+  '中級': 'mid',
+  '初级': 'junior',
+  '初級': 'junior',
+}
+
+export type ExperienceLevelFilter = 'senior' | 'mid' | 'junior'
+
+export function normalizeExperienceLevel(level: string | undefined): ExperienceLevelFilter | undefined {
   const normalized = level?.trim().toLowerCase()
-  if (normalized === 'senior') {
+  if (!normalized || normalized === 'unknown') {
+    return undefined
+  }
+  if (normalized === 'senior') return 'senior'
+  if (normalized === 'mid') return 'mid'
+  if (normalized === 'junior') return 'junior'
+  const mapped = CHINESE_EXPERIENCE_LEVEL_MAP[level!.trim()]
+  return mapped
+}
+
+export function getExperienceBadge(level: string | undefined, t: (key: string, opts?: { defaultValue?: string }) => string): { label: string; className: string } | null {
+  const canonical = normalizeExperienceLevel(level)
+  if (canonical === 'senior') {
     return {
       label: t('resumes.experienceLevel.senior', { defaultValue: 'Senior' }),
       className: 'border-orange-200 bg-orange-50 text-orange-700',
     }
   }
-  if (normalized === 'mid') {
+  if (canonical === 'mid') {
     return {
       label: t('resumes.experienceLevel.mid', { defaultValue: 'Mid' }),
       className: 'border-teal-200 bg-teal-50 text-teal-700',
     }
   }
-  if (normalized === 'junior') {
+  if (canonical === 'junior') {
     return {
       label: t('resumes.experienceLevel.junior', { defaultValue: 'Junior' }),
       className: 'border-zinc-200 bg-zinc-50 text-zinc-600',

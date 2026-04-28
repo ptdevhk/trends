@@ -605,6 +605,9 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
   const brandHits = parseBrandHits(value.brandHits);
   const roleSignals = parseRoleSignals(value.roleSignals);
   const industryDbV2Raw = toOptionalNumber(value.industryDbV2Raw);
+  const experienceLevel = toStringValue(value.experienceLevel) || undefined;
+  const normalizedExperienceLevel = experienceLevel?.trim().toLowerCase();
+  const meaningfulExperienceLevel = normalizedExperienceLevel && normalizedExperienceLevel !== 'unknown' ? experienceLevel : undefined;
 
   if (
     industryTags.length === 0
@@ -612,6 +615,7 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
     && brandHits.length === 0
     && roleSignals.length === 0
     && industryDbV2Raw === undefined
+    && !meaningfulExperienceLevel
   ) {
     return undefined;
   }
@@ -629,6 +633,7 @@ function buildResumeIngestData(value: unknown): ResumeItem["ingestData"] | undef
     ...(brandHits.length > 0 ? { brandHits } : {}),
     ...(roleSignals.length > 0 ? { roleSignals } : {}),
     ...(industryDbV2Raw === undefined ? {} : { industryDbV2Raw }),
+    ...(meaningfulExperienceLevel ? { experienceLevel: meaningfulExperienceLevel } : {}),
     ...(verifiedRoleYears && Object.keys(verifiedRoleYears).length > 0 ? { verifiedRoleYears } : {}),
   };
 }

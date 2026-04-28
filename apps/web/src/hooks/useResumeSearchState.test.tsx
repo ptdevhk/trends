@@ -159,6 +159,7 @@ function createParsedState(overrides: Partial<UrlSearchState> = {}): UrlSearchSt
     selectedTags: [],
     selectedCompanies: [],
     selectedSources: [],
+    selectedBrands: [],
     selectedExperienceLevel: undefined,
     filters: {},
     ...overrides,

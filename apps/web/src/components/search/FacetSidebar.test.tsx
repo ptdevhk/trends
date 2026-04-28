@@ -43,6 +43,7 @@ function buildFacetCounts(): FacetCounts {
     companies: [
       { value: 'FANUC', count: 3 },
     ],
+    brands: [],
     experienceLevels: [
       { value: 'senior', count: 5 },
     ],
@@ -73,6 +74,7 @@ describe('FacetSidebar', () => {
       <FacetSidebar
         embedded
         facetCounts={buildFacetCounts()}
+        selectedBrands={[]}
         selectedClusters={[]}
         selectedCompanies={[]}
         selectedEducation={[]}
@@ -81,6 +83,7 @@ describe('FacetSidebar', () => {
         onClearAll={onClearAll}
         onSetExperienceLevel={vi.fn()}
         onSetMinScore={vi.fn()}
+        onToggleBrand={vi.fn()}
         onToggleCluster={vi.fn()}
         onToggleCompany={vi.fn()}
         onToggleEducation={vi.fn()}
@@ -112,6 +115,7 @@ describe('FacetSidebar', () => {
     render(
       <FacetSidebar
         facetCounts={buildFacetCounts()}
+        selectedBrands={[]}
         selectedClusters={['manufacturing-systems']}
         selectedCompanies={[]}
         selectedEducation={['Bachelor']}
@@ -120,6 +124,7 @@ describe('FacetSidebar', () => {
         onClearAll={onClearAll}
         onSetExperienceLevel={vi.fn()}
         onSetMinScore={vi.fn()}
+        onToggleBrand={vi.fn()}
         onToggleCluster={onToggleCluster}
         onToggleCompany={onToggleCompany}
         onToggleEducation={onToggleEducation}
@@ -157,6 +162,7 @@ describe('FacetSidebar', () => {
       <FacetSidebar
         facetCounts={buildFacetCounts()}
         minScore={80}
+        selectedBrands={[]}
         selectedClusters={[]}
         selectedCompanies={[]}
         selectedEducation={[]}
@@ -166,6 +172,7 @@ describe('FacetSidebar', () => {
         onClearAll={vi.fn()}
         onSetExperienceLevel={onSetExperienceLevel}
         onSetMinScore={onSetMinScore}
+        onToggleBrand={vi.fn()}
         onToggleCluster={vi.fn()}
         onToggleCompany={vi.fn()}
         onToggleEducation={vi.fn()}

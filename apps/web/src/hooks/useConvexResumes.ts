@@ -798,6 +798,7 @@ function useBffAndModeSearch(
   expansionLoading: boolean,
   filters: ConvexResumeFilters | undefined,
   jobDescriptionId: string | undefined,
+  refetchTrigger?: number,
 ): BffAndModeResult {
   const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null, loading: false })
   const [loading, setLoading] = useState(false)
@@ -901,7 +902,7 @@ function useBffAndModeSearch(
       })
 
     return () => { active = false }
-  }, [enabled, expansionLoading, filters, jobDescriptionId, keywordExpansion, normalizedQuery])
+  }, [enabled, expansionLoading, filters, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger])
 
   return {
     ...(loading && result.resumes.length === 0
@@ -1021,6 +1022,15 @@ export function useConvexResumes(
 
   const isAndModeBffActive = !mockPayload && enabled && useAndModeBff && keywordExpansion?.mode === 'AND' && !expansionLoading
 
+  const analysisTasksForRefetch = useQuery(api.analysis_tasks.list)
+  const bffRefetchTrigger = useMemo(() => {
+    if (!isAndModeBffActive || !analysisTasksForRefetch) return 0
+    const completedCount = analysisTasksForRefetch.filter(
+      (t) => t.status === 'completed',
+    ).length
+    return completedCount
+  }, [analysisTasksForRefetch, isAndModeBffActive])
+
   const bffAndModeResult = useBffAndModeSearch(
     isAndModeBffActive,
     normalizedQuery,
@@ -1028,6 +1038,7 @@ export function useConvexResumes(
     expansionLoading,
     options?.filters,
     normalizedJobDescriptionId,
+    bffRefetchTrigger,
   )
 
   const paginatedSearchResults = usePaginatedQuery(
