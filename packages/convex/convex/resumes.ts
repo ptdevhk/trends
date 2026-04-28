@@ -2573,21 +2573,35 @@ export const getResumesByIds = internalQuery({
 //      Non-matches are discarded immediately.
 //   3. Collect matching docs and return the full result set.
 
+// Lightweight scan page for AND-mode BFF full-table-scan.
+// Returns only fields needed for BFF-side filtering (not full docs)
+// to minimize wire transfer — most scanned docs are discarded.
 export const scanResumePageByTime = query({
     args: {
         cursor: v.optional(v.string()),
         numItems: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
+        const numItems = Math.min(args.numItems ?? 50, 50);
         const page = await ctx.db
             .query("resumes")
             .order("desc")
             .paginate({
                 cursor: args.cursor ?? null,
-                numItems: Math.min(args.numItems ?? 50, 50),
+                numItems,
             });
         return {
-            docs: page.page,
+            docs: page.page.map((doc) => ({
+                _id: doc._id,
+                _creationTime: doc._creationTime,
+                searchText: doc.searchText,
+                isArchived: doc.isArchived,
+                source: doc.source,
+                primaryRuleScore: doc.primaryRuleScore,
+                age: doc.age,
+                content: doc.content,
+                ingestData: doc.ingestData,
+            })),
             isDone: page.isDone,
             cursor: page.isDone ? null : page.continueCursor,
         };

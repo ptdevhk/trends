@@ -1240,7 +1240,7 @@ start_convex() {
     local use_force_upgrade_for_attempt="false"
     local local_mode_requested="false"
     local command_str=""
-    local timeout="${CONVEX_STARTUP_TIMEOUT:-60}"
+    local timeout="${CONVEX_STARTUP_TIMEOUT:-120}"
     local convex_log=""
     local convex_pid=""
     local configured_deployment=""
@@ -1420,7 +1420,22 @@ start_convex() {
     # startup and can miss that window, sending the CLI into a kill/retry loop.
     # Prewarm lets that rebuild complete once without a deadline so the CLI
     # boot afterwards fits inside 30s. See scripts/convex-prewarm.sh.
-    if [ -x "$SCRIPT_DIR/convex-prewarm.sh" ]; then
+    #
+    # However, Tantivy uses a temp directory for search indexes, so they don't
+    # persist across restarts. The prewarm-restart cycle causes a double rebuild
+    # that can trigger VM allocation failures (SIGABRT) on the second attempt.
+    # When CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS is set high enough (>=120s)
+    # to survive a single full rebuild, skip prewarm to avoid the double-restart.
+    local convex_cli_timeout_for_prewarm="${CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS:-120}"
+    local skip_prewarm_for_timeout="false"
+    if [ "$convex_cli_timeout_for_prewarm" -ge 120 ] 2>/dev/null; then
+        skip_prewarm_for_timeout="true"
+    fi
+    if [ "$skip_prewarm_for_timeout" = "true" ] || case "${CONVEX_SKIP_PREWARM:-}" in 1|true|TRUE|True|yes|YES|on|ON) true;; *) false;; esac; then
+        if [ "$skip_prewarm_for_timeout" = "true" ] && ! case "${CONVEX_SKIP_PREWARM:-}" in 1|true|TRUE|True|yes|YES|on|ON) true;; *) false;; esac; then
+            log "CONVEX" "$CYAN" "Skipping prewarm: CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS=$convex_cli_timeout_for_prewarm (>=120s) avoids double-restart."
+        fi
+    elif [ -x "$SCRIPT_DIR/convex-prewarm.sh" ]; then
         if ! CONVEX_PORT="$port" "$SCRIPT_DIR/convex-prewarm.sh" 2>&1 \
                 | stream_service_logs "convex" "$CYAN"; then
             log "CONVEX" "$YELLOW" "Prewarm step reported an issue; continuing with normal startup."
@@ -1445,6 +1460,12 @@ start_convex() {
             convex_exec_cmd=(env -u TZ)
             log "CONVEX" "$YELLOW" "Unsetting TZ for Convex startup (current TZ=${TZ}) due local backend compatibility."
         fi
+        # The Convex CLI has a 30s default startup timeout
+        # (DEFAULT_STARTUP_TIMEOUT_SECS in cli/lib/localDeployment/run.js).
+        # Large local DBs (2.8GB+) need ~66s to rebuild Tantivy search indexes,
+        # so the CLI kills the backend before it finishes binding port 3210.
+        # Override to 120s unless the user has set their own value.
+        convex_exec_cmd+=(CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS="$convex_cli_timeout_for_prewarm")
         convex_exec_cmd+=("${CONVEX_DEV_CMD[@]}")
 
         command_str="$(convex_command_to_string "${convex_exec_cmd[@]}")"
@@ -1647,12 +1668,12 @@ print_usage() {
     echo "  TRENDS_WORKER_PORT FastAPI worker port (default: 8000)"
     echo "  API_PORT      BFF API port (default: 3000)"
     echo "  WEB_PORT      Web frontend port (default: 5173)"
-    echo "  CONVEX_STARTUP_TIMEOUT Convex startup timeout in seconds (default: 60)"
+    echo "  CONVEX_STARTUP_TIMEOUT Convex startup timeout in seconds (default: 120)"
     echo "  CONVEX_STARTUP_RETRIES Additional Convex startup retries after first failure (default: 1)"
     echo "  CONVEX_RETRY_DELAY_SECS Delay between Convex startup attempts in seconds (default: 2)"
     echo "  CONVEX_LOCAL_BACKEND_VERSION Explicit Convex local backend version override"
     echo "  CONVEX_LOCAL_FORCE_UPGRADE Enable --local-force-upgrade on first attempt: true|false (default: true)"
-    echo "  CONVEX_SKIP_PREWARM  Skip the pre-startup backend prewarm step (true|1 to opt out)"
+    echo "  CONVEX_SKIP_PREWARM  Skip the pre-startup backend prewarm step (true|1 to opt out; auto-skipped when CONVEX_LOCAL_BACKEND_STARTUP_TIMEOUT_SECS >= 120)"
     echo "  CONVEX_PREWARM_TIMEOUT Max seconds prewarm waits for port 3210 to bind (default: 120)"
     echo "  GITHUB_TOKEN / GH_TOKEN Optional GitHub token for Convex startup and prefetch metadata requests"
     echo "  CONVEX_MIRROR_MODE Convex prefetch source order before startup: off|fallback|mirror-first"

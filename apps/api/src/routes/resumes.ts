@@ -1154,10 +1154,13 @@ async function prepareConvexCandidates(params: {
     //      a Convex action.  BFF (Node.js) has no such limit.
     if (keywordExpansion?.mode === "AND") {
       const allResults: PreparedResumeCandidate[] = [];
-      const seenIds = new Set<string>();
       let scanCursor: string | null = null;
       const groups = keywordExpansion.groups;
       const filters = params.filters;
+      const loweredGroups = groups.map((g) => ({
+        ...g,
+        loweredVariants: g.variants.map((v: string) => v.toLowerCase()),
+      }));
 
       while (true) {
         const page = await callConvexQuery("resumes:scanResumePageByTime", {
@@ -1172,23 +1175,16 @@ async function prepareConvexCandidates(params: {
         for (const doc of page.docs) {
           if (!isRecord(doc)) continue;
           const resumeId = toStringValue(doc._id);
-          if (!resumeId || seenIds.has(resumeId)) continue;
+          if (!resumeId) continue;
 
-          // Skip archived
-          if (filters?.showArchived !== true && doc.isArchived === true) continue;
-
-          // AND-mode keyword match: every group must have at least one variant
-          // present in the resume's searchText
           const searchText = typeof doc.searchText === "string" ? doc.searchText.toLowerCase() : "";
-          const allGroupsMatch = groups.every((group) =>
-            group.variants.some((variant: string) => searchText.includes(variant.toLowerCase()))
+          const allGroupsMatch = loweredGroups.every((group) =>
+            group.loweredVariants.some((lv: string) => searchText.includes(lv))
           );
           if (!allGroupsMatch) continue;
 
-          // Apply resume list filters locally
-          if (filters && !bffMatchesResumeFilters(doc, filters)) continue;
+          if (filters && !bffMatchesResumeFilters(doc, searchText, filters)) continue;
 
-          seenIds.add(resumeId);
           const provenance = collectBffAndModeProvenance(searchText, groups, keywordExpansion.sourceMapping);
           allResults.push(prepareResumeCandidate({
             resume: toResumeItemFromRecord(isRecord(doc.content) ? doc.content : {}, toStringValue(doc.source)),
@@ -1847,10 +1843,11 @@ function hasResumeListFilters(params: {
 }
 
 // BFF-side resume filter matching for AND-mode full-table scan.
-// Mirrors the Convex matchesResumeListFilters logic for the fields
-// that the BFF AND-mode scan path needs to check.
+// Mirrors the Convex matchesResumeListFilters logic; searchText is
+// passed pre-lowered from the AND-mode scan loop to avoid re-lowering.
 function bffMatchesResumeFilters(
   doc: Record<string, unknown>,
+  loweredSearchText: string,
   filters: {
     minExperience?: number;
     maxExperience?: number;
@@ -1873,7 +1870,6 @@ function bffMatchesResumeFilters(
   const content = isRecord(doc.content) ? doc.content : {};
   const ingestData = isRecord(doc.ingestData) ? doc.ingestData : {};
 
-  // Min/max experience
   if (typeof filters.minExperience === "number" || typeof filters.maxExperience === "number") {
     const expStr = toStringValue(content.experience) ?? "";
     const expYears = parseExperienceYears(expStr);
@@ -1883,13 +1879,11 @@ function bffMatchesResumeFilters(
     }
   }
 
-  // Education filter
   if (filters.education?.length) {
     const edu = toStringValue(content.education) ?? "";
     if (!filters.education.some((e) => edu.includes(e))) return false;
   }
 
-  // Skills filter
   if (filters.skills?.length) {
     const skills = Array.isArray(ingestData.industryTags)
       ? (ingestData.industryTags as string[])
@@ -1897,19 +1891,15 @@ function bffMatchesResumeFilters(
     if (!filters.skills.some((s) => skills.some((tag) => tag.toLowerCase().includes(s.toLowerCase())))) return false;
   }
 
-  // Required keywords
   if (filters.requiredKeywords?.length) {
-    const searchText = typeof doc.searchText === "string" ? doc.searchText.toLowerCase() : "";
-    if (!filters.requiredKeywords.every((kw) => searchText.includes(kw.toLowerCase()))) return false;
+    if (!filters.requiredKeywords.every((kw) => loweredSearchText.includes(kw.toLowerCase()))) return false;
   }
 
-  // Location filter
   if (filters.locations?.length) {
     const location = toStringValue(content.location) ?? "";
     if (!filters.locations.some((target) => isLocationMatch(location, target))) return false;
   }
 
-  // Min/max salary
   if (typeof filters.minSalary === "number" || typeof filters.maxSalary === "number") {
     const salaryStr = toStringValue(content.expectedSalary) ?? "";
     const salaryMatch = salaryStr.match(/(\d+)/);
@@ -1920,7 +1910,6 @@ function bffMatchesResumeFilters(
     }
   }
 
-  // Role filter
   if (filters.roleFilterType) {
     const roleSignals: unknown[] = Array.isArray(ingestData.roleSignals)
       ? ingestData.roleSignals as unknown[]
@@ -1932,7 +1921,6 @@ function bffMatchesResumeFilters(
     if (!hasMatchingRole) return false;
   }
 
-  // Min role years
   if (typeof filters.minRoleYears === "number" && filters.minRoleYears > 0) {
     const verifiedRoleYears = isRecord(ingestData.verifiedRoleYears)
       ? ingestData.verifiedRoleYears as Record<string, unknown>
@@ -1943,7 +1931,6 @@ function bffMatchesResumeFilters(
     if (roleYears < filters.minRoleYears) return false;
   }
 
-  // Age filter
   if (typeof filters.minAge === "number" || typeof filters.maxAge === "number") {
     const age = toOptionalNumber(doc.age) ?? parseAgeFromContentField(content);
     if (age !== null) {
@@ -1952,7 +1939,6 @@ function bffMatchesResumeFilters(
     }
   }
 
-  // Source filter
   if (filters.sources?.length) {
     const source = toStringValue(doc.source) ?? "";
     if (!filters.sources.some((s) => source.includes(s))) return false;
