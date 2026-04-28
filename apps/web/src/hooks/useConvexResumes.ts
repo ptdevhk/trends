@@ -803,6 +803,13 @@ function useBffAndModeSearch(
   const [result, setResult] = useState<BffAndModeResult>({ resumes: [], total: 0, expansion: null, loading: false })
   const [loading, setLoading] = useState(false)
 
+  // Serialize filters to a stable string so the effect doesn't re-run
+  // on every render when the caller passes an inline object literal.
+  const filtersKey = useMemo(
+    () => JSON.stringify(filters ?? {}),
+    [filters],
+  )
+
   useEffect(() => {
     let active = true
 
@@ -902,7 +909,7 @@ function useBffAndModeSearch(
       })
 
     return () => { active = false }
-  }, [enabled, expansionLoading, filters, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger])
+  }, [enabled, expansionLoading, filtersKey, jobDescriptionId, keywordExpansion, normalizedQuery, refetchTrigger])
 
   return {
     ...(loading && result.resumes.length === 0

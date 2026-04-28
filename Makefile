@@ -1188,7 +1188,7 @@ test-collect-url-smoke:                    ## Run quick smoke for Collect URL ke
 test-coverage:                             ## Run Node.js tests with coverage
 	@echo "Running Node.js tests with coverage..."
 	@npm run --workspace @trends/shared build
-	@(cd apps/web && npm run test -- --coverage)
+	@cd apps/web && npm run test -- --coverage
 	@npx vitest run --coverage apps/api/src
 
 test-resume:                               ## Validate resume fixtures
