@@ -1228,6 +1228,24 @@ async function prepareConvexCandidates(params: {
           // resumeId is a source-specific ID (e.g., "13467969") that
           // doesn't match v.id("resumes").
           resume.resumeId = resumeId;
+          // Propagate Convex doc-level fields that the frontend's mapResumeDoc
+          // reads from the doc (not from content). Without these, analysis
+          // scores never appear on AND-mode search results.
+          if (doc.analysis !== undefined && doc.analysis !== null) {
+            (resume as Record<string, unknown>).analysis = doc.analysis;
+          }
+          if (doc.analyses !== undefined && doc.analyses !== null) {
+            (resume as Record<string, unknown>).analyses = doc.analyses;
+          }
+          if (typeof doc.identityKey === "string") {
+            (resume as Record<string, unknown>).identityKey = doc.identityKey;
+          }
+          if (typeof doc.crawledAt === "number") {
+            (resume as Record<string, unknown>).crawledAt = doc.crawledAt;
+          }
+          if (Array.isArray(doc.tags)) {
+            (resume as Record<string, unknown>).tags = doc.tags;
+          }
           allResults.push(prepareResumeCandidate({
             resume,
             resumeId,

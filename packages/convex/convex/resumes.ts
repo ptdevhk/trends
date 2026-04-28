@@ -2659,6 +2659,12 @@ export const getResumeDocsByIds = query({
             age: doc.age,
             content: doc.content,
             ingestData: doc.ingestData,
+            analysis: doc.analysis,
+            analyses: doc.analyses,
+            identityKey: doc.identityKey,
+            externalId: doc.externalId,
+            tags: doc.tags,
+            crawledAt: doc.crawledAt,
         }));
     },
 });

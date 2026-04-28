@@ -855,11 +855,25 @@ function useBffAndModeSearch(
 
         const resumes: ConvexResumeItem[] = data.data.map((item) => {
           const record = item as Record<string, unknown>
-          // BFF API returns flat ResumeItem shape; wrap into Convex
-          // doc shape ({_id, content, ...}) that mapResumeDoc expects.
+          // BFF API returns flat ResumeItem with doc-level fields
+          // (analysis, analyses, identityKey, tags, crawledAt, etc.)
+          // mixed in alongside content fields. Wrap into Convex doc
+          // shape ({_id, content, ...}) that mapResumeDoc expects.
+          // Content gets the full record so normalizeSharedResumeFields
+          // can find all content keys; doc-level fields override the
+          // content key so mapResumeDoc reads them at doc level.
           const doc = {
-            ...record,
+            analysis: record.analysis,
+            analyses: record.analyses,
+            identityKey: record.identityKey,
+            externalId: record.externalId,
+            tags: record.tags,
+            crawledAt: record.crawledAt,
             _id: record.resumeId ?? record._id,
+            source: record.source,
+            primaryRuleScore: record.primaryRuleScore,
+            age: record.age,
+            ingestData: record.ingestData,
             content: record,
           } as unknown as ResumeListDocLike
           const mapped = mapResumeDoc(doc)
