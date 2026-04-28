@@ -2576,6 +2576,8 @@ export const getResumesByIds = internalQuery({
 // Lightweight scan page for AND-mode BFF full-table-scan.
 // Returns only fields needed for BFF-side filtering (not full docs)
 // to minimize wire transfer — most scanned docs are discarded.
+// Two-phase approach: phase 1 scans with slim projection (no content)
+// to find matching IDs; phase 2 fetches full docs for matches only.
 export const scanResumePageByTime = query({
     args: {
         cursor: v.optional(v.string()),
@@ -2605,6 +2607,59 @@ export const scanResumePageByTime = query({
             isDone: page.isDone,
             cursor: page.isDone ? null : page.continueCursor,
         };
+    },
+});
+
+// Slim scan page for AND-mode phase 1 — no content/ingestData.
+// BFF uses this for the initial filter pass, then fetches full
+// docs for matches via scanResumePageByTime or getResumeByIds.
+export const scanResumePageSlim = query({
+    args: {
+        cursor: v.optional(v.string()),
+        numItems: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const numItems = Math.min(args.numItems ?? 1000, 1000);
+        const page = await ctx.db
+            .query("resumes")
+            .order("desc")
+            .paginate({
+                cursor: args.cursor ?? null,
+                numItems,
+            });
+        return {
+            docs: page.page.map((doc) => ({
+                _id: doc._id,
+                searchText: doc.searchText,
+                isArchived: doc.isArchived,
+                source: doc.source,
+                primaryRuleScore: doc.primaryRuleScore,
+                age: doc.age,
+            })),
+            isDone: page.isDone,
+            cursor: page.isDone ? null : page.continueCursor,
+        };
+    },
+});
+
+// Fetch full docs by ID for AND-mode phase 2 — only the matches.
+export const getResumeDocsByIds = query({
+    args: {
+        ids: v.array(v.id("resumes")),
+    },
+    handler: async (ctx, args) => {
+        const docs = await Promise.all(args.ids.map((id) => ctx.db.get(id)));
+        return docs.filter((doc): doc is Doc<"resumes"> => doc !== null).map((doc) => ({
+            _id: doc._id,
+            _creationTime: doc._creationTime,
+            searchText: doc.searchText,
+            isArchived: doc.isArchived,
+            source: doc.source,
+            primaryRuleScore: doc.primaryRuleScore,
+            age: doc.age,
+            content: doc.content,
+            ingestData: doc.ingestData,
+        }));
     },
 });
 

@@ -1162,10 +1162,13 @@ async function prepareConvexCandidates(params: {
         loweredVariants: g.variants.map((v: string) => v.toLowerCase()),
       }));
 
+      // Phase 1: Scan all docs with slim projection (no content/ingestData).
+      // Only collect IDs of docs matching keyword groups + basic filters.
+      const matchingIds: string[] = [];
       while (true) {
-        const page = await callConvexQuery("resumes:scanResumePageByTime", {
+        const page = await callConvexQuery("resumes:scanResumePageSlim", {
           ...(scanCursor ? { cursor: scanCursor } : {}),
-          numItems: 50,
+          numItems: 1000,
         });
 
         if (!isRecord(page) || !Array.isArray(page.docs)) {
@@ -1174,15 +1177,48 @@ async function prepareConvexCandidates(params: {
 
         for (const doc of page.docs) {
           if (!isRecord(doc)) continue;
-          const resumeId = toStringValue(doc._id);
-          if (!resumeId) continue;
-
           const searchText = typeof doc.searchText === "string" ? doc.searchText.toLowerCase() : "";
           const allGroupsMatch = loweredGroups.every((group) =>
             group.loweredVariants.some((lv: string) => searchText.includes(lv))
           );
           if (!allGroupsMatch) continue;
 
+          // Basic filters that can run on slim projection
+          if (filters) {
+            if (typeof filters.minAge === 'number' && (typeof doc.age !== 'number' || doc.age < filters.minAge)) continue;
+            if (typeof filters.maxAge === 'number' && (typeof doc.age !== 'number' || doc.age > filters.maxAge)) continue;
+            if (Array.isArray(filters.sources) && filters.sources.length > 0) {
+              const docSource = typeof doc.source === 'string' ? doc.source.toLowerCase() : '';
+              if (!filters.sources.some((s: string) => docSource.includes(s.toLowerCase()))) continue;
+            }
+          }
+
+          const resumeId = toStringValue(doc._id);
+          if (resumeId) matchingIds.push(resumeId);
+        }
+
+        if (!page.cursor || page.isDone) break;
+        scanCursor = toStringValue(page.cursor) ?? null;
+      }
+
+      // Phase 2: Fetch full docs only for matches, then apply remaining filters.
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < matchingIds.length; i += BATCH_SIZE) {
+        const batchIds = matchingIds.slice(i, i + BATCH_SIZE);
+        const fullDocs = await callConvexQuery("resumes:getResumeDocsByIds", {
+          ids: batchIds,
+        });
+
+        if (!isRecord(fullDocs) || !Array.isArray(fullDocs)) continue;
+
+        for (const doc of fullDocs) {
+          if (!isRecord(doc)) continue;
+          const resumeId = toStringValue(doc._id);
+          if (!resumeId) continue;
+
+          const searchText = typeof doc.searchText === "string" ? doc.searchText.toLowerCase() : "";
+
+          // Apply remaining filters that need full docs (role, education, etc.)
           if (filters && !bffMatchesResumeFilters(doc, searchText, filters)) continue;
 
           const provenance = collectBffAndModeProvenance(searchText, groups, keywordExpansion.sourceMapping);
@@ -1194,9 +1230,6 @@ async function prepareConvexCandidates(params: {
             ingestData: doc.ingestData,
           }));
         }
-
-        if (!page.cursor || page.isDone) break;
-        scanCursor = toStringValue(page.cursor) ?? null;
       }
 
       const hasActiveFilters = filters ? hasResumeListFilters(filters) : false;
